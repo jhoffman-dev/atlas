@@ -11,7 +11,7 @@ date: 2026-10-04
 ## Context
 
 Sync (U-29) keeps a vault in a GitHub repository through the Mac's own `git`
-and `gh`. No ADR said what setting it up may do to the vault, and issue #8
+and `gh`. No ADR said what setting it up may do to the vault, and issue atlas-archive#8
 showed what that cost. James set up sync for `~/Atlas Vault` and the app
 cloned the new, empty repository into `~/Atlas Vault/pkm-space`, then
 switched the open vault to it. His types, views and dashboards seemed to
@@ -159,7 +159,7 @@ Atlas offers no automatic fix. Removing the line is the person's call.
 - The host gained one folder shape (`ls-remote --heads -- <url>`) and one
   command (`git_folder_on_disk`). Both are limited to folders the host was
   handed.
-- Recovery for issue #8's case: delete the empty clone folder inside the
+- Recovery for issue atlas-archive#8's case: delete the empty clone folder inside the
   vault (`pkm-space`), open the real vault, then go to Settings → Sync →
   Connect existing repo with the repository's address. The remote's set-up
   commit merges into the vault. Its `.atlas/settings.md` conflicts with the

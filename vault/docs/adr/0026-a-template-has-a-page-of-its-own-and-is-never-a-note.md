@@ -10,7 +10,7 @@ date: 2026-10-04
 
 ## Context
 
-Issue #16. James: "I don't see where or how to add and edit templates." A
+Issue atlas-archive#16. James: "I don't see where or how to add and edit templates." A
 template is an ordinary note in `.atlas/templates`, and its file name is what
 ties it to what it makes: `Person.md` is what a new Person starts as (matched
 by the type's label, then its name, in any case), `Daily.md` makes today's
@@ -19,7 +19,7 @@ to one was the System folder at the bottom of Pages — nothing said a type had
 a template, nothing made one, and nothing said what one was.
 
 Being an ordinary note also made a template look like one. ADR-0014 made every
-`.atlas` note a link target, a search hit and an `[[` suggestion. Issue #15 is
+`.atlas` note a link target, a search hit and an `[[` suggestion. Issue atlas-archive#15 is
 what that costs: a relation's "create new" opened the Company template,
 James renamed it to the company he meant, and the template was gone — his
 person now linked to it.
@@ -69,7 +69,7 @@ its row and on its band, asks first and then moves the file to the top of the
 vault under its own name — numbered when a note there has it — with its bytes
 untouched. Its links resolve to it again and it stops being what new notes
 start as. This is the way out for a note written in the templates folder by
-mistake, such as a company saved over its type's template (issue #15). A page, like the
+mistake, such as a company saved over its type's template (issue atlas-archive#15). A page, like the
 Archive and Automations, rather than a Settings section: a template is
 content you open and write in, and Settings is a dialog that would have to
 close to show it. It is reached from a sidebar row, the palette ("Templates"),
@@ -101,7 +101,7 @@ by the editor, through the byte-preserving save (ADR-0003).
 - ADR-0014's "a template is a note you can already open in the tree; it being
   unlinkable was the inconsistency" no longer holds for templates. A link
   written as `[[Person]]` that used to reach the Person template now resolves
-  to a note called Person, or nothing — the second is what issue #15 asks.
+  to a note called Person, or nothing — the second is what issue atlas-archive#15 asks.
 - Templates are not indexed. A template that names a tag no longer counts as a
   use of it; one that links a note is no longer a backlink. Neither ever meant
   anything a person wanted.

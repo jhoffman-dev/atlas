@@ -368,7 +368,7 @@ ingestion via the sync repo), ADR-0028 (note-triggered automations with a
 Claude step), ADR-0029 (GTD task model and status migration), ADR-0030
 (Google Calendar two-way sync), ADR-0031 (embeddings cache). Each ticket is a
 GitHub issue labelled `assistant` and `phase-N`; the "Assistant roadmap"
-issue (#52) tracks them all.
+issue (#41) tracks them all.
 
 ### Tickets
 
@@ -376,60 +376,60 @@ issue (#52) tracks them all.
 
 A meeting written up by Gemini lands in the vault while the Mac sleeps, as a Meeting note with a speaker-attributed, citable transcript, its terms already spelt right.
 
-- **P28-01** (#18) Meeting type and the meeting import contract v1 (doc, JSON Schema, validator) _(after: —)_
-- **P28-02** (#19) n8n: add a "commit to the vault repo" destination for meetings (Gemini + Granola mapping) _(after: P28-01)_
-- **P28-03** (#20) Index change feed: refresh reports added/changed/removed notes with type and digest _(after: —)_
-- **P28-04** (#21) Meeting import on arrival: validate, dedupe by external id, surface errors in the Inbox _(after: P28-01, P28-03)_
-- **P28-05** (#22) Terminology: Term type, aliases on People and Companies, and a Terms page _(after: P28-01)_
-- **P28-06** (#23) Transcript correction: deterministic, recorded and undoable _(after: P28-04, P28-05)_
-- **P28-07** (#24) One-time import of existing Notion Meeting Notes into the vault _(after: P28-02, P28-04)_
+- **P28-01** (atlas-archive#18) Meeting type and the meeting import contract v1 (doc, JSON Schema, validator) _(after: —)_
+- **P28-02** (#8) n8n: add a "commit to the vault repo" destination for meetings (Gemini + Granola mapping) _(after: P28-01)_
+- **P28-03** (#9) Index change feed: refresh reports added/changed/removed notes with type and digest _(after: —)_
+- **P28-04** (#10) Meeting import on arrival: validate, dedupe by external id, surface errors in the Inbox _(after: P28-01, P28-03)_
+- **P28-05** (#11) Terminology: Term type, aliases on People and Companies, and a Terms page _(after: P28-01)_
+- **P28-06** (#12) Transcript correction: deterministic, recorded and undoable _(after: P28-04, P28-05)_
+- **P28-07** (#13) One-time import of existing Notion Meeting Notes into the vault _(after: P28-02, P28-04)_
 
 #### Phase 29 — The assistant reacts
 
 A new meeting triggers Atlas on its own: people and companies linked, action items, decisions and follow-ups proposed in the Inbox with a link to the line they came from.
 
-- **P29-01** (#25) Automations: note trigger ("a note of type X appears or changes"), idempotent per version _(after: P28-03)_
-- **P29-02** (#26) Proposals as notes, and an Inbox to accept, edit or reject them _(after: P28-01)_
-- **P29-03** (#27) Automations: a Claude step with a fixed shape that only proposes _(after: P29-01, P29-02)_
-- **P29-04** (#28) Meeting linking: attendees to People, companies, likely project (proposed where unsure) _(after: P29-01, P29-02, P28-05)_
-- **P29-05** (#29) Meeting extraction with Claude: my actions, waiting-fors, decisions, follow-ups, each citing its line _(after: P29-03, P29-04)_
-- **P29-06** (#30) "After a meeting" pipeline preset, plus suggested glossary terms _(after: P29-05, P28-06)_
+- **P29-01** (#14) Automations: note trigger ("a note of type X appears or changes"), idempotent per version _(after: P28-03)_
+- **P29-02** (#15) Proposals as notes, and an Inbox to accept, edit or reject them _(after: P28-01)_
+- **P29-03** (#16) Automations: a Claude step with a fixed shape that only proposes _(after: P29-01, P29-02)_
+- **P29-04** (#17) Meeting linking: attendees to People, companies, likely project (proposed where unsure) _(after: P29-01, P29-02, P28-05)_
+- **P29-05** (#18) Meeting extraction with Claude: my actions, waiting-fors, decisions, follow-ups, each citing its line _(after: P29-03, P29-04)_
+- **P29-06** (#19) "After a meeting" pipeline preset, plus suggested glossary terms _(after: P29-05, P28-06)_
 
 #### Phase 30 — GTD, PARA and linked pages
 
 Tasks follow James's eight GTD statuses, everything hangs off a Project or Area, and a Person, Company or Project page shows its meetings, open tasks, waiting-fors and decisions.
 
-- **P30-01** (#31) PARA: Area and Resource types, project relation on everything, Inbox as the universal entry _(after: —)_
-- **P30-02** (#32) GTD task model: eight statuses, waiting-on, contexts, defer, and a previewed migration _(after: P30-01)_
-- **P30-03** (#33) Checklist progress on tasks, and promote a checklist line to a task _(after: P30-02)_
-- **P30-04** (#34) Query language: `this` and relative date ranges _(after: —)_
-- **P30-05** (#35) Live query blocks inside a note _(after: P30-04)_
-- **P30-06** (#36) Person, Company and Project pages: meetings, open tasks, waiting-fors, notes, decisions _(after: P30-05, P29-02)_
-- **P30-07** (#37) Weekly review screen _(after: P30-02)_
+- **P30-01** (#20) PARA: Area and Resource types, project relation on everything, Inbox as the universal entry _(after: —)_
+- **P30-02** (#21) GTD task model: eight statuses, waiting-on, contexts, defer, and a previewed migration _(after: P30-01)_
+- **P30-03** (#22) Checklist progress on tasks, and promote a checklist line to a task _(after: P30-02)_
+- **P30-04** (#23) Query language: `this` and relative date ranges _(after: —)_
+- **P30-05** (#24) Live query blocks inside a note _(after: P30-04)_
+- **P30-06** (#25) Person, Company and Project pages: meetings, open tasks, waiting-fors, notes, decisions _(after: P30-05, P29-02)_
+- **P30-07** (#26) Weekly review screen _(after: P30-02)_
 
 #### Phase 31 — Timeblocking
 
 Drag tasks into blocks on the calendar, split a big task across blocks, and see the blocks as busy on the real Google Calendar.
 
-- **P31-01** (#38) Block type and the scheduling rules (estimate vs scheduled vs done) _(after: P30-02)_
-- **P31-02** (#39) Calendar: drag tasks into time, into blocks, and split them _(after: P31-01)_
-- **P31-03** (#40) Google Calendar connection: OAuth in the host, token in the Keychain _(after: —)_
-- **P31-04** (#41) Two-way sync of blocks with the dedicated Google calendar _(after: P31-01, P31-03)_
-- **P31-05** (#42) Today's meetings from Google Calendar (read) for briefs and the calendar _(after: P31-03, P29-04)_
+- **P31-01** (#27) Block type and the scheduling rules (estimate vs scheduled vs done) _(after: P30-02)_
+- **P31-02** (#28) Calendar: drag tasks into time, into blocks, and split them _(after: P31-01)_
+- **P31-03** (#29) Google Calendar connection: OAuth in the host, token in the Keychain _(after: —)_
+- **P31-04** (#30) Two-way sync of blocks with the dedicated Google calendar _(after: P31-01, P31-03)_
+- **P31-05** (#31) Today's meetings from Google Calendar (read) for briefs and the calendar _(after: P31-03, P29-04)_
 
 #### Phase 32 — Retrieval and the proactive assistant
 
 Related notes and trails, semantic search, brief/meetings/open-loops tools for Claude, and a morning brief and Friday review draft written without being asked.
 
-- **P32-01** (#43) Embeddings spike and host embedding command _(after: —)_
-- **P32-02** (#44) Embeddings cache and semantic search (app + MCP) _(after: P32-01, P28-03)_
-- **P32-03** (#45) Related notes and trails _(after: P32-02)_
-- **P32-04** (#46) Assistant tools: brief, open_loops, meetings (with speaker quotes) _(after: P30-06, P29-05)_
-- **P32-05** (#47) propose_tasks(meeting) and make_dashboard(spec) as proposals _(after: P29-05, P29-02)_
-- **P32-06** (#48) Ask (⌘J) as a first-class home, answers always cited _(after: P32-04)_
-- **P32-07** (#49) Export a note for Confluence _(after: —)_
-- **P32-08** (#50) Proactive: morning brief per meeting today _(after: P32-04, P31-05)_
-- **P32-09** (#51) Proactive: Friday weekly-review draft _(after: P30-07, P29-03)_
+- **P32-01** (#32) Embeddings spike and host embedding command _(after: —)_
+- **P32-02** (#33) Embeddings cache and semantic search (app + MCP) _(after: P32-01, P28-03)_
+- **P32-03** (#34) Related notes and trails _(after: P32-02)_
+- **P32-04** (#35) Assistant tools: brief, open_loops, meetings (with speaker quotes) _(after: P30-06, P29-05)_
+- **P32-05** (#36) propose_tasks(meeting) and make_dashboard(spec) as proposals _(after: P29-05, P29-02)_
+- **P32-06** (#37) Ask (⌘J) as a first-class home, answers always cited _(after: P32-04)_
+- **P32-07** (#38) Export a note for Confluence _(after: —)_
+- **P32-08** (#39) Proactive: morning brief per meeting today _(after: P32-04, P31-05)_
+- **P32-09** (#40) Proactive: Friday weekly-review draft _(after: P30-07, P29-03)_
 
 ### What this builds on
 

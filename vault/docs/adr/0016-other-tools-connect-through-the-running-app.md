@@ -276,7 +276,7 @@ clock has paused — is read through a port the app fills (`AutomationClock`),
 for the request's vault only, so a rule's next run and pause are the ones the
 Automations page shows.
 
-## A view's groups: read, moved into, added to (issue #6, 2026-10-03)
+## A view's groups: read, moved into, added to (issue atlas-archive#6, 2026-10-03)
 
 Saved views gained a sub-grouping (`subGroupBy`: a table's sub-groups, a
 board's swimlanes). The API follows on the same terms as every route above —
@@ -307,7 +307,7 @@ byte-preserving property and create paths:
   could rewrite the views James keeps in his sidebar. Grouping, like the rest
   of saved-view editing, stays in the app.
 
-## A type's views: read, not changed (issue #11, 2026-10-04)
+## A type's views: read, not changed (issue atlas-archive#11, 2026-10-04)
 
 A type now owns its views, shown as tabs a person can add to, rename, copy,
 drag into another order and delete (ADR-0023). The API follows on the same
@@ -368,7 +368,7 @@ terms as every route above:
   either way. Until this section is amended to accept it, nothing writes
   `.atlas/views` through the API.
 
-## Templates: read, not written (issue #16, 2026-10-04)
+## Templates: read, not written (issue atlas-archive#16, 2026-10-04)
 
 Templates now have a page of their own and are never notes (ADR-0026): the
 Templates page lists each with what makes notes from it, and makes, renames,
@@ -417,7 +417,7 @@ views above:
   - _Deleting_ is a delete, and v1 has none (Security model).
   - _Moving to notes_ is the one candidate for an exception: it moves a file
     out of `.atlas` into user space, bytes untouched, and is the way out for
-    a note saved over a template by mistake (issue #15). But it is a move of
+    a note saved over a template by mistake (issue atlas-archive#15). But it is a move of
     a file the API cannot otherwise name, and a caller that moved the Person
     template out would leave new Person notes starting empty.
 
@@ -433,7 +433,7 @@ views above:
   renaming, editing and deleting templates stay in the app either way. Until
   this section is amended to accept it, nothing writes `.atlas/templates`
   through the API.
-- **Later: "New <type>…" in relation pickers** (issue #15, another branch)
+- **Later: "New <type>…" in relation pickers** (issue atlas-archive#15, another branch)
   makes a note of a type and links it from the note being edited. When it
   lands, the API/MCP keeper decides whether it is a route of its own or
   `/v1/quick-add` followed by `PATCH /v1/notes/{path}/properties`, which

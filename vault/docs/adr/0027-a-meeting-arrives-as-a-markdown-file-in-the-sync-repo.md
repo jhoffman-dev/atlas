@@ -116,7 +116,7 @@ past or around the text above:
   meeting import on arrival (P28-04) depends on it.
 
 After an adversarial pass and a review (2026-10-07), the contract was
-tightened. It stays v1: no mapping writes files yet (#19), and most changes
+tightened. It stays v1: no mapping writes files yet (#8), and most changes
 refuse what the first build read wrongly. One does narrow the text: a
 deeper heading that names a section (`### Notes`) was allowed and is now
 refused.

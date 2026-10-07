@@ -10,10 +10,10 @@ date: 2026-10-04
 
 ## Context
 
-Claude in Atlas once wrote "Jordan Hoffman" as a note's owner (#1). Atlas starts
+Claude in Atlas once wrote "Jordan Hoffman" as a note's owner (atlas-archive#1). Atlas starts
 Claude Code with none of the person's own settings (`--setting-sources ""`,
 ADR-0021), so the only clue it had to who it was working for was "jhoffman" in
-a path, and it invented a first name to go with it. #10 asks for a **Profile**
+a path, and it invented a first name to go with it. atlas-archive#10 asks for a **Profile**
 section in Settings holding the person's name, and for Claude to use it instead
 of guessing.
 
@@ -32,7 +32,7 @@ person changed: the other key keeps whatever the file holds, even a value Atlas
 cannot show (a list, or a name past the limit). The fields cannot be edited
 until the note has been read for the open vault.
 
-#1 first suggested keeping it on each Mac, beside the other Claude settings in
+atlas-archive#1 first suggested keeping it on each Mac, beside the other Claude settings in
 `localStorage`. The vault was chosen instead:
 
 - **It is about the vault's owner, not the Mac.** The name answers "whose notes

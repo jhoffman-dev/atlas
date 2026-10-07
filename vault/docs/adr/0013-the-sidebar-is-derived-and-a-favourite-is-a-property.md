@@ -69,7 +69,7 @@ The sections can be put in any order (P19-01), and until now a shut section
 was gathered below the open ones (P19-02), so what was open stayed at the top.
 That was right while each section scrolled on its own.
 
-**Since issue #17 every section shares one scroller**, and Pages is as tall as
+**Since issue atlas-archive#17 every section shares one scroller**, and Pages is as tall as
 the vault. Below the open ones is then below every row of the tree: a heading
 shut above Pages vanished from under the pointer that shut it, and getting it
 back meant scrolling past the whole vault.

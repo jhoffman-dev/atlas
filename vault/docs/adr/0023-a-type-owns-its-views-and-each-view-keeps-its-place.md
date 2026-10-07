@@ -10,7 +10,7 @@ date: 2026-10-04
 
 ## Context
 
-Issue #11. Types and views were two separate things in the sidebar. Clicking a
+Issue atlas-archive#11. Types and views were two separate things in the sidebar. Clicking a
 type opened a generated table of its notes and nothing else; its saved views
 were only reachable by name, from the Views section. James: "I should just
 click on a type and see the views and be able to edit / delete / add views",
