@@ -8,3 +8,6 @@ playwright-report
 design/out
 # Byte-exact samples of what a mapping writes: formatting them would change what they test.
 packages/domain/src/meetings/fixtures
+
+# The Field Guide is a hand-written, self-contained page; keep its bytes.
+docs/guide/
