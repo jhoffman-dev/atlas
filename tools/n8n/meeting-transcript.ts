@@ -16,6 +16,11 @@ export type TranscriptClock = 'elapsed' | 'wall';
 export interface Transcript {
   readonly turns: readonly Turn[];
   readonly clock: TranscriptClock;
+  /**
+   * How long the recording ran, in seconds: Gemini's end mark, else its last
+   * section stamp (a little short). Null on a wall clock, or with neither.
+   */
+  readonly length: number | null;
 }
 
 /** The provider's wrapper and end lines: a date, `📖 Transcript`, `<details>`, the end mark. */
@@ -26,6 +31,8 @@ const DROPPED = [
   /^((mon|tues|wednes|thurs|fri|satur|sun)day,?\s+)?[a-z]{3,9}\.?\s+\d{1,2},\s+\d{4}$/i,
   /^\d{4}-\d{2}-\d{2}$/,
 ];
+/** Gemini's end mark, `### Transcription ended after 00:51:49`: how long the recording ran. */
+const ENDED = /^(?:#{1,6}\s*)?transcription ended after\s+(\d{1,2}:\d{2}:\d{2})\b/i;
 /** Gemini's section stamp: `### 00:09:44` (or the bare time). */
 const SECTION = /^(?:#{1,6}\s*)?(\d{1,2}:\d{2}:\d{2})$/;
 /** An elapsed time the contract reads: any hours, minutes and seconds under 60. */
@@ -44,7 +51,11 @@ const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
 /** What providers call a speaker they could not name, and the vault's owner (as Atlas reads them). */
 const PROVIDER_LABEL =
   /^(?:you|(?:(?:unknown|remote)(?: speaker)?|speaker|guest|participant)(?: (?:\d+|[a-z]))?)$/i;
-/** Labels in a note's words that are never a person speaking. */
+/**
+ * The fixed set of labels that are never a person speaking: words a note
+ * line opens with (`Note:`, `Action item:`, `URL:`, `TODO:` …). Nothing else
+ * is ruled out, since a Gemini speaker need not be an attendee.
+ */
 const NOTE_LABEL =
   /^(?:note|notes|nb|ps|fyi|re|todo|to do|action items?|next steps?|decisions?|questions?|answers?|agenda|summary|update|reminder|link|url|https?|e-?mail|phone|subject|date|time)$/i;
 
@@ -76,16 +87,22 @@ interface OpenTurn {
  * the one before (the words hold a colon, like `Note: we ship Friday`):
  *
  * 1. A note label (`Note`, `Action item`, `URL`, …) never starts a turn.
- * 2. It does when there is no turn yet, on the first line after a section
- *    stamp (Gemini opens each section with a speaker), when the label has no
- *    words after it, when it is a speaker already heard, an attendee's name
- *    (any case), or a provider's own label (`You`, `Remote Speaker`, `Speaker 2`).
- * 3. Any other label starts a turn only when the meeting has no attendee
- *    names to check it against; with a roster, it continues the turn before.
+ * 2. In a Gemini transcript (no Granola stamp read yet) any other label
+ *    does: Gemini writes one labelled line per turn, and its speakers are
+ *    often missing from the attendees (a shared room, a group invite).
+ * 3. In a Granola transcript, where every turn is stamped, an unstamped
+ *    label starts a turn when there is no turn yet, on the first line after
+ *    a section stamp, when the label has no words after it, when it is a
+ *    speaker already heard, an attendee's name (any case), or a provider's
+ *    own label (`You`, `Remote Speaker`, `Speaker 2`) — or when the meeting
+ *    has no attendee names to check it against. Otherwise it continues the
+ *    turn before.
  */
 class TurnReader {
   readonly turns: OpenTurn[] = [];
   stamped = false;
+  /** The last elapsed time read: a section stamp, then the end mark when there is one. */
+  lastElapsed: string | null = null;
   private section: string | null = null;
   private afterSection = false;
   private readonly heard = new Set<string>();
@@ -96,11 +113,14 @@ class TurnReader {
   }
 
   read(line: string): void {
+    const ended = padded(ENDED.exec(line)?.[1] ?? '');
+    if (ELAPSED_TIME.test(ended)) this.lastElapsed = ended;
     if (line === '' || isBoilerplate(line) || DROPPED.some((each) => each.test(line))) return;
     const section = SECTION.exec(line);
     if (section !== null) {
       const time = padded(section[1] ?? '');
       this.section = ELAPSED_TIME.test(time) ? time : null;
+      this.lastElapsed = this.section ?? this.lastElapsed;
       this.afterSection = true;
     } else if (!this.stampedTurn(line) && !this.spokenTurn(line)) this.continueTurn(line);
   }
@@ -127,6 +147,7 @@ class TurnReader {
   private isSpeaker(label: string, words: string): boolean {
     const name = speakerName(label).toLowerCase();
     if (NOTE_LABEL.test(name)) return false;
+    if (!this.stamped) return true;
     if (this.turns.length === 0 || this.afterSection || words.trim() === '') return true;
     if (this.heard.has(name) || this.roster.has(name) || PROVIDER_LABEL.test(name)) return true;
     return this.roster.size === 0;
@@ -167,7 +188,13 @@ export function readTranscript(value: unknown, attendeeNames: readonly string[] 
       words: oneLine(parts.join(' ')),
     }))
     .filter((turn) => turn.words !== '');
-  return { turns, clock };
+  return { turns, clock, length: clock === 'elapsed' ? seconds(reader.lastElapsed) : null };
+}
+
+function seconds(time: string | null): number | null {
+  if (time === null) return null;
+  const [hours = 0, minutes = 0, secs = 0] = time.split(':').map(Number);
+  return hours * 3600 + minutes * 60 + secs;
 }
 
 /** When the first stamped turn was spoken, as `HH:MM`: a start for a wall-clock transcript. */

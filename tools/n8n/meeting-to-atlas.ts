@@ -8,6 +8,7 @@ import {
   transcriptText,
   type Transcript,
 } from './meeting-transcript.ts';
+import { readStated } from './meeting-stated.ts';
 import { meetingWhen, type MeetingWhen } from './meeting-when.ts';
 
 /**
@@ -20,6 +21,10 @@ export interface MeetingFields {
   readonly date?: unknown;
   readonly start?: unknown;
   readonly end?: unknown;
+  /** The provider's email subject (or doc title) stating the meeting's day, and time if given. */
+  readonly stated?: unknown;
+  /** When the notes email arrived: the fallback for a start, less the transcript's length. */
+  readonly arrived?: unknown;
   readonly attendees?: unknown;
   readonly summary?: unknown;
   readonly decisions?: unknown;
@@ -99,6 +104,7 @@ function frontmatter(header: Header): string {
     `title: ${quoted(title)}`,
     `date: ${quoted(when.date)}`,
     `start: ${quoted(when.start)}`,
+    ...(when.startApproximate ? ['start_approximate: true'] : []),
     ...(when.end === null ? [] : [`end: ${quoted(when.end)}`]),
     ...(kind === '' ? [] : [`kind: ${quoted(kind)}`]),
     `provider: ${quoted(provider)}`,
@@ -153,6 +159,9 @@ export function mapMeeting(fields: MeetingFields, options: MappingOptions = {}):
     date: fields.date,
     start: fields.start,
     end: fields.end,
+    stated: readStated(fields.stated),
+    arrived: fields.arrived,
+    transcriptLength: transcript.length,
     firstSpoken: firstSpoken(transcript),
     timeZone: options.timeZone ?? null,
   });

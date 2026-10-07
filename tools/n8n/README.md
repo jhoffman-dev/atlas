@@ -84,6 +84,8 @@ the expression wherever yours differs (drag the field in from the input panel).
 | `date`       | The meeting's date: `2026-10-06`, or a date-time (see below)   | `date` (and `start` if it has a time) |
 | `start`      | Start time (`10:00`, `2:30 PM`) — leave empty if `date` has it | `start`                               |
 | `end`        | End time, if you have it                                       | `end`                                 |
+| `stated`     | Gemini: the email's **Subject** (`Notes: “Title” Oct 6, 2026`) | `date`, and `start` if it has a time  |
+| `arrived`    | Gemini: when the email **Received** arrived (an instant)       | `start` (approximate), see below      |
 | `attendees`  | The Attendees text: `Name — email` lines                       | `attendees` (groups marked)           |
 | `summary`    | Summary                                                        | `## Summary`                          |
 | `decisions`  | Decisions, if Gemini gave any                                  | `### Decisions` under `## Notes`      |
@@ -94,9 +96,33 @@ the expression wherever yours differs (drag the field in from the input panel).
 | `source`     | Source: `gemini` (or `granola`)                                | `provider`                            |
 | `sourceId`   | Source ID                                                      | `external_id`                         |
 
-`title`, `date`, a start time, `source` and `sourceId` are required. Without a
-start time (in `start` or in `date`), the mapper stops with "start: the
-meeting has no start time" rather than inventing one — see step 5.
+`title`, a day (`date` or `stated`), a start time, `source` and `sourceId`
+are required. Without a start time (in `start`, `stated` or `date`, or worked
+out from `arrived`), the mapper stops with "start: the meeting has no start
+time" rather than inventing one — see step 5.
+
+**When a Gemini meeting began.** The Notion "Date" of a Gemini meeting is
+when its notes _arrived_ (about when the meeting ended), not when it began, so
+for Gemini the day and start come from the email itself:
+
+1. `stated` — the email's subject. The mapper reads the **last** date in it
+   (`Oct 6, 2026`, `October 6 2026`, `2026/10/06`, `2026-10-06`; a date in
+   the meeting's title comes before it) and a time right after it, if any
+   (`10:00`, `2:30 PM`; a zone after the time is not read: it is taken as
+   your local clock). Gemini's doc title,
+   `Title - 2026/10/06 10:00 PDT - Notes by Gemini`, works too. When `stated`
+   is given, `date` is not read at all. Words with no date in them are refused.
+2. `arrived` — when the email arrived (your trigger's received time, an
+   instant). When nothing gives a start time, the start is the arrival less
+   the transcript's length — Gemini's "Transcription ended after 00:51:49"
+   line, else its last `### hh:mm:ss` section stamp (a little short) — and
+   the file says `start_approximate: true`. With no transcript, the start is
+   the arrival itself, still marked approximate.
+
+The order is: `start`, then the time in `stated`, then the time in `date`,
+then (Granola) the first stamped turn, then `arrived` less the transcript.
+Rename `Subject` and `Received` in those two rows to your parse step's
+names. For Granola, leave both empty: its Notion Date is the real start.
 
 The `attendees`, `nextSteps` and `transcript` rows accept text or a list of
 lines. If your parse step gives attendees or next steps as records
@@ -129,13 +155,22 @@ never read (`Staff Sergeant Rivera` is a person), nor is a dotted
 `first.last@` address (`dana.list@…`). Add any other list address to
 `groupAddresses`, e.g. `['leads@example.com']`.
 
-**Who spoke.** A transcript line `Label: words` starts a turn when the label
-is an attendee's name, a speaker already heard, `You`/`Remote Speaker`/
-`Speaker 2`, the first line of a section, or has no words after it. Any other
-label (`Phase two: the rollout`) continues the turn before, so words with a
-colon stay with the person who said them — unless the meeting has no
-attendees to check against, when any label but a note label (`Note`,
-`Action item`, `URL`, …) is taken as a speaker.
+**Who spoke.** Gemini writes one `Speaker Name: words` line per turn, and its
+speakers are often not on the attendee list (a shared room, a group invite),
+so in a Gemini transcript **every** `Label: words` line is a turn by that
+speaker — except a note label, which continues the turn before: `Note`,
+`Notes`, `NB`, `PS`, `FYI`, `Re`, `TODO`/`To do`, `Action item(s)`,
+`Next step(s)`, `Decision(s)`, `Question(s)`, `Answer(s)`, `Agenda`,
+`Summary`, `Update`, `Reminder`, `Link`, `URL`, `Email`, `Phone`, `Subject`,
+`Date`, `Time` (any case). A wrapped line whose words open with another
+`Something:` (`Phase two: the rollout`) is read as a speaker; that is the
+price of never losing a real one.
+
+In a Granola transcript (every turn stamped `**[14:14:22] Name:**`), an
+unstamped `Label: words` line starts a turn only when the label is an
+attendee's name, a speaker already heard, `You`/`Remote Speaker`/`Speaker 2`,
+the first line of a section, has no words after it, or the meeting has no
+attendees to check against; otherwise it continues the turn before.
 
 **When Atlas cannot take a meeting.** Every failure in the Atlas branch — a
 meeting the mapper refuses (no start time, say), an existing file it cannot

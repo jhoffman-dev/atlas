@@ -8,6 +8,7 @@ import ts from 'typescript';
  */
 const MODULES = [
   'meeting-mapping-error.ts',
+  'meeting-stated.ts',
   'meeting-when.ts',
   'meeting-attendees.ts',
   'meeting-text.ts',

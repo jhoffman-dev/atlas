@@ -366,6 +366,16 @@ describe('the start of a Gemini meeting, from its email', () => {
       zone,
     ).meeting;
     expect([twelve.date, twelve.start]).toEqual(['2026-10-06', '14:30']);
+    for (const [stated, day] of [
+      ['Notes: “Retro” Sept 30, 2026', '2026-09-30'],
+      ['Notes: “Retro” Wednesday, September 30 2026', '2026-09-30'],
+      ['Notes: “Retro” 2026-05-04', '2026-05-04'],
+    ]) {
+      expect(mapped({ ...fromEmail, stated, start: '10:00' }, zone).meeting.date).toBe(day);
+    }
+    expect(() => mapMeeting({ ...fromEmail, stated: 'Notes: Feb 30, 2026' }, zone)).toThrow(
+      /stated: 2026-02-30 is not a real day/,
+    );
   });
 
   it('works the start out as arrival less the transcript’s length, and marks it approximate', () => {
