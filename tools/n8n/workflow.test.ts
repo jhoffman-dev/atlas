@@ -167,6 +167,17 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
     expect(fieldValues).toContain(`$('${PARSE_NODE}').item.json`);
   });
 
+  it('hands the mapper the email’s stated date and its arrival, for a Gemini start', () => {
+    const rows = (
+      node(NODES.fields).parameters.assignments as {
+        assignments: { name: string; value: string }[];
+      }
+    ).assignments;
+    const value = (name: string) => rows.find((row) => row.name === name)?.value;
+    expect(value('stated')).toBe(`={{ $('${PARSE_NODE}').item.json["Subject"] }}`);
+    expect(value('arrived')).toBe(`={{ $('${PARSE_NODE}').item.json["Received"] }}`);
+  });
+
   it('sends every failure in it to "Atlas commit failed", never stopping the run', () => {
     const failing = [
       NODES.fields,
