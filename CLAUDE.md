@@ -53,10 +53,10 @@ reaches the user** — a feature, a behaviour fix, a renamed control, a new
 property kind — gets two follow-up agents, spawned in parallel as soon as the
 change is merged. Don't wait to be asked:
 
-| Keeper         | Agent   | Owns                                                                                                       | Done when                                                                                                                                                                                                              |
-| -------------- | ------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide keeper   | `coder` | The Atlas Field Guide (`.claude/guide/index.html`)                                                         | The guide describes what the app now does, in James's words, with nothing stale left in it. The coordinator then republishes it to its existing URL (`claude.ai/artifact/QXvTge2zPuY5YS5g7QYveH`), never to a new one. |
-| API/MCP keeper | `coder` | `packages/application/src/api` (routes + contract), `apps/mcp/src/tools`, `vault/docs/api/v1.md`, ADR-0016 | Anything the user can now do in the app can also be done or read through the API and an MCP tool, or the card says why not. Tests are added, and the API doc matches the routes.                                       |
+| Keeper         | Agent   | Owns                                                                                                       | Done when                                                                                                                                                                        |
+| -------------- | ------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide keeper   | `coder` | The Atlas Field Guide (`docs/guide/index.html`)                                                            | The guide describes what the app now does, in James's words, with nothing stale left in it. The coordinator then republishes it as a claude.ai artifact (see below).             |
+| API/MCP keeper | `coder` | `packages/application/src/api` (routes + contract), `apps/mcp/src/tools`, `vault/docs/api/v1.md`, ADR-0016 | Anything the user can now do in the app can also be done or read through the API and an MCP tool, or the card says why not. Tests are added, and the API doc matches the routes. |
 
 - The API/MCP keeper's work is code: it gets its own `code-reviewer` and
   `adversarial-tester` pass like any other change. The API is reachable by any
@@ -66,9 +66,12 @@ change is merged. Don't wait to be asked:
   needs neither keeper. Say so in the hand-off rather than skipping it silently.
 - A hand-off names both keepers' results: guide updated or not needed, and API/MCP
   updated or not needed.
-- `.claude/guide/` is git-ignored (only `.claude/agents/` is tracked), so the
-  guide's source has no history. Keep a copy
-  outside it only if James asks; don't move it on your own.
+- The guide's source is `docs/guide/index.html`, in the repo, so it is public:
+  examples use fictional names only. It is a self-contained page (no build).
+  Publish it as a claude.ai artifact from the account the session runs under;
+  the first publish from a new account creates a new URL — tell James the URL
+  and record it here. (The original personal-account copy is
+  `claude.ai/artifact/QXvTge2zPuY5YS5g7QYveH`, last updated 2026-10-07.)
 
 ## Working with James
 
