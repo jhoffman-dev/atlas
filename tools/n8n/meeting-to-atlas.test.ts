@@ -568,8 +568,46 @@ describe('transcripts', () => {
       ]);
     });
 
-    it('continues the turn for a label that is no attendee and was never heard', () => {
+    it('gives a Gemini speaker who is no attendee and was never heard a turn of their own', () => {
+      expect(
+        speakers('### 00:00:01\nAnn Lee: The plan.\nCy Guest: A question.\nAnn Lee: Go on.'),
+      ).toEqual([
+        ['Ann Lee', 'The plan.'],
+        ['Cy Guest', 'A question.'],
+        ['Ann Lee', 'Go on.'],
+      ]);
       expect(speakers('Ann Lee: The plan.\nPhase two: the rollout.')).toEqual([
+        ['Ann Lee', 'The plan.'],
+        ['Phase two', 'the rollout.'],
+      ]);
+    });
+
+    it('writes one turn per labelled line of a Gemini transcript, attendee or not', () => {
+      const people = ['Ann Lee', 'Bo Park', 'Cy Guest', 'Dee Room', 'Eli Visitor'];
+      const lines = Array.from({ length: 20 }, (_, at) => `${people[at % 5]}: Point ${at}.`);
+      const transcript = lines.flatMap((line, at) =>
+        at % 6 === 0 ? [`### 00:${String(at).padStart(2, '0')}:00`, line] : [line],
+      );
+      const turns = speakers(transcript.join('\n'));
+      expect(turns).toHaveLength(lines.length);
+      expect(turns.map(([speaker]) => speaker)).toEqual(lines.map((line) => line.split(':')[0]));
+    });
+
+    it('continues the turn for a known note label, never a speaker', () => {
+      expect(
+        speakers(
+          'Ann Lee: Two things.\nNote: we ship Friday.\nAction item: call Bo.\nTODO: tests.\nLink: the doc.\nURL: https://example.com',
+        ),
+      ).toEqual([
+        [
+          'Ann Lee',
+          'Two things. Note: we ship Friday. Action item: call Bo. TODO: tests. Link: the doc. URL: https://example.com',
+        ],
+      ]);
+    });
+
+    it('in a Granola transcript, still reads an unstamped label nobody answers to as words', () => {
+      expect(speakers('**[14:00:00] Ann Lee:** The plan.\nPhase two: the rollout.')).toEqual([
         ['Ann Lee', 'The plan. Phase two: the rollout.'],
       ]);
     });
