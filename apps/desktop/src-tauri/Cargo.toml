@@ -1,0 +1,125 @@
+[package]
+name = "atlas"
+version = "0.1.0"
+description = "Local-first notes, tasks, databases and dashboards"
+authors = ["James Hoffman"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "atlas_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2.7.3"
+# `limits` caps the length of any one value a foreign database's query builds.
+rusqlite = { version = "0.40.2", features = ["bundled", "hooks", "limits"] }
+sha2 = "0.10.9"
+notify = "8.2.0"
+# Only the client: the TLS backend is the system one, so no build-time toolchain
+# beyond the one Tauri already needs.
+reqwest = { version = "0.13.3", default-features = false, features = ["native-tls"] }
+# The local API server (ADR-0016). hyper is already in the tree under reqwest;
+# these add only its server half, not a second HTTP stack.
+hyper = { version = "1.11.1", features = ["server", "http1"] }
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+http-body-util = "0.1.5"
+tokio = { version = "1.53.1", features = ["net", "time", "sync", "rt", "macros", "io-util"] }
+# Not `form_urlencoded`: it rewrites bytes that are not UTF-8 to U+FFFD, and the
+# query must reach the router as sent or be refused.
+percent-encoding = "2.3.2"
+# The API token: 32 bytes straight from the OS CSPRNG.
+getrandom = "0.4.3"
+# Delete goes to the Trash, so it can be undone from Finder. The one maintained
+# crate for it (5.x, 2025), used by Zed and yazi; no default features, which
+# are chrono and a Windows COM setting this app has no use for.
+trash = { version = "5.2.9", default-features = false }
+# renamex_np(RENAME_EXCL) on macOS and renameat2(RENAME_NOREPLACE) on Linux, so
+# a move can never write over a name taken after it looked. Already in the tree
+# under tokio and others; this only makes it a direct dependency.
+libc = "0.2.189"
+# Secrets live in the OS keychain (P12-06). keyring-core plus the one store
+# this app needs, which is how the keyring-rs maintainers ask applications to
+# link it; the `keyring` crate is their sample and CLI glue. Chosen over Tauri
+# Stronghold, which is an encrypted file that still needs a key kept somewhere.
+keyring-core = "1.0.0"
+# Striking a secret from a response in the forms a server echoes it in:
+# percent-encoded, JSON-escaped or base64. Both are already in the tree.
+regex = "1.13.1"
+base64 = "0.22.1"
+
+# The artifact thumbnail (`page_snapshot/macos.rs`): a WKWebView of its own,
+# with no IPC, pictured with `takeSnapshotWithConfiguration`. All five crates
+# are already in the tree under wry at these versions; this only asks for more
+# of their bindings. madsmtm's objc2 family, maintained and released in 2025.
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1.0.2", features = ["keychain"] }
+objc2 = "0.6.4"
+block2 = "0.6.2"
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "block2",
+  "NSData",
+  "NSDate",
+  "NSDictionary",
+  "NSError",
+  "NSGeometry",
+  "NSObject",
+  "NSRunLoop",
+  "NSString",
+  "NSTimer",
+  "NSURL",
+  "NSURLRequest",
+  "NSValue",
+] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "objc2-core-foundation",
+  "NSApplication",
+  "NSBitmapImageRep",
+  "NSColor",
+  "NSGraphics",
+  "NSGraphicsContext",
+  "NSImage",
+  "NSImageRep",
+  "NSResponder",
+  "NSView",
+  "NSWindow",
+] }
+objc2-web-kit = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "block2",
+  "objc2-app-kit",
+  "WKFrameInfo",
+  "WKNavigation",
+  "WKNavigationAction",
+  "WKNavigationDelegate",
+  "WKPreferences",
+  "WKSnapshotConfiguration",
+  "WKWebView",
+  "WKWebViewConfiguration",
+  "WKWebsiteDataStore",
+] }
+
+# Pictures real pages in a real WKWebView, which only works on the main thread,
+# so it brings its own `main` rather than the test harness's worker threads.
+[[test]]
+name = "page_snapshot"
+harness = false
+
+[dev-dependencies]
+tempfile = "3.27.0"
+# Paused time, so a timeout test does not wait on the real clock.
+tokio = { version = "1.53.1", features = ["test-util", "rt-multi-thread"] }

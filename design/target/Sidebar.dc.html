@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atlas sidebar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Manrope',system-ui,sans-serif}
+.sb-row{transition:background 120ms ease}
+.sb-row:hover{background:rgba(120,135,180,0.14) !important}
+.sb-icon-btn:hover{background:rgba(120,135,180,0.16) !important}
+</style>
+</helmet>
+<nav aria-label="Sidebar" style="width: 248px; height: 900px; box-sizing: border-box; padding: 14px 10px 12px 12px; display: flex; flex-direction: column; gap: 14px; background: {{t.ground}}; color: {{t.ink}}; font-family: 'Manrope', system-ui, sans-serif; font-size: 13.5px;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol>
+<symbol id="i-table" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M9.5 10v9.5" fill="none" stroke="currentColor" stroke-width="1.8"></path></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="5" height="15" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="10.5" y="4.5" width="5" height="10" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="17.5" y="4.5" width="3.5" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"></rect></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="i-timeline" viewBox="0 0 24 24"><path d="M4 7h9M8 12h11M6 17h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></symbol>
+<symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3.5 13.5L6.2 5.5h11.6l2.7 8v5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z M3.5 13.5h5l1.5 2.2h4l1.5-2.2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 19.5V11M10.3 19.5V5M15.6 19.5v-6.5M20.5 19.5V8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect></symbol>
+<symbol id="i-task" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M8.5 12.3l2.4 2.4 4.8-5.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M4.8 20c1.3-3.6 4-5.4 7.2-5.4s5.9 1.8 7.2 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="i-company" viewBox="0 0 24 24"><path d="M4.5 20V5.5l8-2V20M12.5 9h7v11M3 20h18M8 8.5v.01M8 12v.01M8 15.5v.01M16 12.5v.01M16 16v.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="i-event" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="15" r="1.8" fill="currentColor"></circle></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h3.8l2 2.2h7.2a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h6.8l4.7 4.7v11.3a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5v-14.5A1.5 1.5 0 0 1 7 3.5zM13.5 3.5v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M7 9.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M9.5 4.5v15" fill="none" stroke="currentColor" stroke-width="1.8"></path></symbol>
+</svg>
+
+<div style="display: flex; align-items: center; gap: 10px; padding: 2px 4px 2px 6px;">
+<div style="width: 28px; height: 28px; border-radius: 9px; background: {{t.navy}}; display: flex; align-items: center; justify-content: center; color: #5EEAF4; font-weight: 800; font-size: 14px; box-shadow: {{t.shadowTile}};">A</div>
+<div style="flex-grow: 1; display: flex; align-items: center; gap: 4px; font-weight: 800; font-size: 15px; letter-spacing: -0.01em;">Atlas<svg width="14" height="14" style="color: {{t.ink3}};" aria-hidden="true"><use href="#i-chev"></use></svg></div>
+<button type="button" class="sb-icon-btn" aria-label="New page" style="width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="17" height="17" aria-hidden="true"><use href="#i-plus"></use></svg></button>
+<button type="button" class="sb-icon-btn" aria-label="Hide sidebar" style="width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="17" height="17" aria-hidden="true"><use href="#i-panel"></use></svg></button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 1px;">
+<sc-for list="{{quick}}" as="item" hint-placeholder-count="3">
+<button type="button" class="sb-row" style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border: 0; border-radius: 9px; background: {{item.bg}}; color: {{item.color}}; font: inherit; font-weight: {{item.weight}}; text-align: left; width: 100%; cursor: pointer;">
+<svg width="17" height="17" style="color: {{item.iconColor}}; flex-shrink: 0;" aria-hidden="true"><use href="#i-{{item.icon}}"></use></svg>
+<span style="flex-grow: 1;">{{item.label}}</span>
+<span style="font-size: 11px; font-weight: 700; color: {{t.ink3}}; padding: 2px 6px; border-radius: 6px; background: {{t.chip}};">{{item.count}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+<sc-for list="{{sections}}" as="section" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 1px;">
+<div style="display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: {{t.ink3}};">{{section.title}}<svg width="12" height="12" aria-hidden="true"><use href="#i-chev"></use></svg></div>
+<sc-for list="{{section.items}}" as="item" hint-placeholder-count="3">
+<button type="button" class="sb-row" style="display: flex; align-items: center; gap: 10px; height: 29px; padding: 0 10px; border: 0; border-radius: 9px; background: {{item.bg}}; color: {{item.color}}; font: inherit; font-weight: {{item.weight}}; text-align: left; width: 100%; cursor: pointer;">
+<svg width="17" height="17" style="color: {{item.iconColor}}; flex-shrink: 0;" aria-hidden="true"><use href="#i-{{item.icon}}"></use></svg>
+<span style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{item.label}}</span>
+<span style="font-size: 12px; font-weight: 600; color: {{t.ink3}}; font-variant-numeric: tabular-nums;">{{item.count}}</span>
+</button>
+</sc-for>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid {{t.line}};">
+<button type="button" class="sb-row" style="flex-grow: 1; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: {{t.ink2}}; font: inherit; font-weight: 600; text-align: left; cursor: pointer;"><svg width="17" height="17" style="color: {{t.ink3}};" aria-hidden="true"><use href="#i-gear"></use></svg>Settings</button>
+<div role="group" aria-label="Theme" style="display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: {{t.chip}};">
+<button type="button" aria-label="Light theme" aria-pressed="{{lightOn}}" style="width: 30px; height: 26px; border: 0; border-radius: 999px; background: {{lightBg}}; color: {{lightInk}}; box-shadow: {{lightShadow}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#i-sun"></use></svg></button>
+<button type="button" aria-label="Dark theme" aria-pressed="{{darkOn}}" style="width: 30px; height: 26px; border: 0; border-radius: 999px; background: {{darkBg}}; color: {{darkInk}}; box-shadow: {{darkShadow}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+</div>
+</div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"active":{"editor":"text","default":"dash-progress"},"$preview":{"width":248,"height":900}}'>
+class Component extends DCLogic {
+  tokens(theme) {
+    if (theme === 'dark') {
+      return { ground: '#070F24', ink: '#E9EFFF', ink2: '#A9B5DA', ink3: '#7E8CB5', line: 'rgba(125,170,255,0.12)', chip: 'rgba(125,170,255,0.10)', activeBg: 'rgba(34,211,238,0.13)', activeInk: '#67E8F9', navy: '#1B3A7A', raised: '#16295A', shadowTile: '0 0 0 1px rgba(34,211,238,0.28), 0 6px 16px rgba(0,0,0,0.45)', shadowSoft: '0 0 0 1px rgba(90,160,255,0.18)' };
+    }
+    return { ground: '#E3E7F0', ink: '#151D3B', ink2: '#4E577A', ink3: '#6B7493', line: 'rgba(21,29,59,0.09)', chip: 'rgba(21,29,59,0.06)', activeBg: '#FFFFFF', activeInk: '#151D3B', navy: '#1B2A55', raised: '#FFFFFF', shadowTile: '0 2px 6px rgba(20,30,70,0.18)', shadowSoft: '0 1px 2px rgba(20,30,70,0.10), 0 2px 8px rgba(20,30,70,0.06)' };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const active = this.props.active ?? 'dash-progress';
+    const t = this.tokens(theme);
+    const mk = (id, label, icon, count) => {
+      const on = id === active;
+      return { label, icon, count: count ?? '', bg: on ? t.activeBg : 'transparent', color: on ? t.activeInk : t.ink2, iconColor: on ? (theme === 'dark' ? '#22E3F2' : '#2468D8') : t.ink3, weight: on ? 700 : 500 };
+    };
+    const quick = [mk('search', 'Search', 'search', '⌘K'), mk('today', 'Today', 'sun', '4'), mk('inbox', 'Inbox', 'inbox', '11')];
+    const sections = [
+      { title: 'Favorites', items: [mk('fav-board', 'Board', 'board'), mk('fav-progress', 'Progress', 'chart')] },
+      { title: 'Types', items: [mk('type-task', 'Tasks', 'task', '177'), mk('type-person', 'People', 'person', '1'), mk('type-company', 'Companies', 'company', '1'), mk('type-event', 'Events', 'event', '1')] },
+      { title: 'Views', items: [mk('view-all', 'All tasks', 'table'), mk('view-board', 'Board', 'board'), mk('view-calendar', 'Calendar', 'calendar'), mk('view-roadmap', 'Roadmap', 'timeline'), mk('view-milestones', 'Milestones', 'timeline')] },
+      { title: 'Dashboards', items: [mk('dash-progress', 'Progress', 'chart'), mk('dash-overview', 'Overview', 'grid')] },
+      { title: 'Pages', items: [mk('page-tasks', 'tasks', 'folder', '181'), mk('page-docs', 'docs', 'folder', '19'), mk('page-feeds', 'feeds', 'folder', '3'), mk('page-untitled', 'Untitled', 'doc')] },
+    ];
+    const lightOn = theme !== 'dark';
+    return {
+      t, quick, sections,
+      lightOn: lightOn ? 'true' : 'false', darkOn: lightOn ? 'false' : 'true',
+      lightBg: lightOn ? t.raised : 'transparent', lightInk: lightOn ? t.ink : t.ink3, lightShadow: lightOn ? t.shadowSoft : 'none',
+      darkBg: lightOn ? 'transparent' : t.raised, darkInk: lightOn ? t.ink3 : '#E9EFFF', darkShadow: lightOn ? 'none' : t.shadowSoft,
+    };
+  }
+}
+</script>
+</body>
+</html>

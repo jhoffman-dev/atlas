@@ -1,0 +1,33 @@
+import { describe, expect, it } from 'vitest';
+import { parseObjectType } from '@atlas/domain';
+import { viewSpecsFor } from './run-view.ts';
+
+describe('viewSpecsFor', () => {
+  it('asks for a column per declared property, with its kind and whether it holds several', () => {
+    const task = parseObjectType({
+      name: 'task',
+      properties: { due: 'date', points: 'number', tags: { kind: 'text', many: true } },
+    });
+    expect(viewSpecsFor([task])).toEqual([
+      {
+        name: 'task',
+        columns: [
+          { key: 'due', kind: 'date', many: false },
+          { key: 'points', kind: 'number', many: false },
+          { key: 'tags', kind: 'text', many: true },
+        ],
+      },
+    ]);
+  });
+
+  // A type file written by hand can declare a key the editor refuses; its
+  // column would sit beside the view's own and SQLite would call it
+  // `modified:1`, a name no query can write without quoting.
+  it('leaves out a declared property named like a column every view already has', () => {
+    const task = parseObjectType({
+      name: 'task',
+      properties: { modified: 'date', path: 'text', title: 'text', summary: 'text', due: 'date' },
+    });
+    expect(viewSpecsFor([task])[0]?.columns.map((column) => column.key)).toEqual(['due']);
+  });
+});

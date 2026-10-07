@@ -1,0 +1,16 @@
+export { adoptAutomations, needsAdoption } from './adopt-automations.ts';
+export { AutomationLogError, appendToRuleLog, readRuleLog } from './automation-log.ts';
+export type { RuleLog } from './automation-log.ts';
+export { changeProperties, UNSAVED_TYPING } from './apply-changes.ts';
+export type { PropertyChange, PropertyOutcome } from './apply-changes.ts';
+export { loadAutomations } from './load-automations.ts';
+export type { AutomationListing, LoadedAutomation } from './load-automations.ts';
+export { dryRunAutomation } from './dry-run-automation.ts';
+export { planRun } from './plan-run.ts';
+export type { RuleQueryPorts } from './plan-run.ts';
+export { runAutomation } from './run-automation.ts';
+export type { AutomationPorts, AutomationRun } from './run-automation.ts';
+export { undoLastRun } from './undo-last-run.ts';
+export { AutomationRefusedError, createAutomation, updateAutomation } from './save-automation.ts';
+export { guardedFs, stillInVault, VaultChangedError } from './vault-guard.ts';
+export type { VaultGuard } from './vault-guard.ts';

@@ -1,0 +1,329 @@
+import { describe, expect, it } from 'vitest';
+import type { LogEntry } from '../automations/run-log.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
+import {
+  apiWriteReport,
+  automationEntryReport,
+  automationFailedReport,
+  chatReport,
+  dryRunReport,
+  indexFailedReport,
+  indexRebuiltReport,
+  noticeReport,
+  sourceRefreshReport,
+  writeFailedReport,
+} from './activity-reports.ts';
+import { activityEvent } from './activity-event.ts';
+
+const p = createVaultPath;
+const RULE = { name: 'Tidy tasks', path: p('.atlas/automations/Tidy tasks.md') };
+const RULE_SUBJECT = { kind: 'rule', path: RULE.path };
+const AT = '2026-09-28T03:00:00';
+
+describe('automationEntryReport', () => {
+  const run = (left: number): LogEntry => ({
+    kind: 'run',
+    at: AT,
+    trigger: 'schedule',
+    done: [{ kind: 'archived', from: p('Tasks/A.md'), to: p('Archive/Tasks/A.md') }],
+    left: Array.from({ length: left }, (_, at) => ({ path: p(`Tasks/L${at}.md`), reason: 'open' })),
+    capped: false,
+  });
+
+  it('sums up a run in one line, linked to its rule', () => {
+    expect(automationEntryReport(RULE, run(0))).toEqual({
+      level: 'info',
+      kind: 'automation',
+      message: 'Tidy tasks: Ran on schedule. Archived 1 note.',
+      subject: RULE_SUBJECT,
+    });
+  });
+
+  it('warns about a run that left notes alone', () => {
+    const report = automationEntryReport(RULE, run(2));
+    expect(report?.level).toBe('warning');
+    expect(report?.message).toBe('Tidy tasks: Ran on schedule. Archived 1 note. Left 2 alone.');
+  });
+
+  it('says a run that could not start is an error, and why', () => {
+    const failed: LogEntry = { kind: 'failed', at: AT, trigger: 'hand', problem: 'no such type' };
+    expect(automationEntryReport(RULE, failed)).toMatchObject({
+      level: 'error',
+      message: 'Tidy tasks: Ran by hand, and could not. no such type',
+    });
+  });
+
+  it('sums up an undo', () => {
+    const undo: LogEntry = {
+      kind: 'undo',
+      at: AT,
+      of: '2026-09-27T03:00:00',
+      done: [{ kind: 'unarchived', from: p('Archive/Tasks/A.md'), to: p('Tasks/A.md') }],
+      left: [],
+    };
+    expect(automationEntryReport(RULE, undo)).toMatchObject({
+      level: 'info',
+      message: 'Tidy tasks: Undid its last run. Put back 1 note.',
+    });
+  });
+
+  it('says nothing of a rule turned on or first seen', () => {
+    expect(automationEntryReport(RULE, { kind: 'turnedOn', at: AT })).toBeNull();
+    expect(automationEntryReport(RULE, { kind: 'seen', at: AT })).toBeNull();
+  });
+});
+
+describe('automationFailedReport', () => {
+  it('names a run that failed part-way as an error', () => {
+    expect(automationFailedReport({ rule: RULE, doing: 'run', problem: 'disk full' })).toEqual({
+      level: 'error',
+      kind: 'automation',
+      message: 'Tidy tasks: Could not run. disk full',
+      subject: RULE_SUBJECT,
+    });
+  });
+
+  it('names a failed undo', () => {
+    expect(
+      automationFailedReport({ rule: RULE, doing: 'undo', problem: 'log unreadable' }).message,
+    ).toBe('Tidy tasks: Could not undo its last run. log unreadable');
+  });
+});
+
+describe('dryRunReport', () => {
+  const plan = (paths: number, passedOver: number, archive = true) => ({
+    plan: {
+      action: archive
+        ? ({ kind: 'archive' } as const)
+        : ({ kind: 'set', values: { a: 1 } } as const),
+      paths: Array.from({ length: paths }, (_, at) => p(`T/${at}.md`)),
+      passedOver: Array.from({ length: passedOver }, (_, at) => ({
+        path: p(`L/${at}.md`),
+        reason: 'x',
+      })),
+      capped: false,
+    },
+  });
+
+  it('says what an archive would do', () => {
+    expect(dryRunReport(RULE, plan(3, 0))).toEqual({
+      level: 'info',
+      kind: 'automation',
+      message: 'Tidy tasks: Dry run. Would archive 3 notes.',
+      subject: RULE_SUBJECT,
+    });
+  });
+
+  it('says what a change would do, and what it would leave', () => {
+    expect(dryRunReport(RULE, plan(1, 2, false)).message).toBe(
+      'Tidy tasks: Dry run. Would change 1 note, and leave 2 alone.',
+    );
+  });
+
+  it('says when there is nothing to do', () => {
+    expect(dryRunReport(RULE, plan(0, 0)).message).toBe('Tidy tasks: Dry run. Nothing to do.');
+  });
+
+  it('links a draft not yet saved to nothing', () => {
+    expect(dryRunReport({ name: 'New rule', path: null }, plan(0, 0)).subject).toBeNull();
+  });
+
+  it('warns when its query did not read', () => {
+    expect(dryRunReport(RULE, { problem: 'unknown field' })).toMatchObject({
+      level: 'warning',
+      message: 'Tidy tasks: Dry run could not read its notes. unknown field',
+    });
+  });
+});
+
+describe('sourceRefreshReport', () => {
+  const ok = { records: 12, created: 2, replaced: 1, updated: 3, missing: 1, error: null };
+  const SOURCE = p('Sources/GitHub issues.md');
+
+  it('names the source by its note, with what changed', () => {
+    expect(sourceRefreshReport(SOURCE, ok)).toEqual({
+      level: 'info',
+      kind: 'source',
+      message: 'GitHub issues: Refreshed. 12 records, 2 new, 4 updated, 1 gone from the feed.',
+      subject: { kind: 'source', path: SOURCE },
+    });
+  });
+
+  it('says when nothing changed', () => {
+    const same = { ...ok, records: 1, created: 0, replaced: 0, updated: 0, missing: 0 };
+    expect(sourceRefreshReport(SOURCE, same).message).toBe(
+      'GitHub issues: Refreshed. 1 record, nothing changed.',
+    );
+  });
+
+  it('says a failed refresh is an error, and why', () => {
+    expect(sourceRefreshReport(SOURCE, { ...ok, error: 'HTTP 500' })).toMatchObject({
+      level: 'error',
+      message: 'GitHub issues: Refresh failed. HTTP 500',
+    });
+  });
+});
+
+describe('apiWriteReport', () => {
+  const NOTE = p('Projects/Atlas.md');
+
+  it('keeps its route once the line is made safe, which strikes out anything path-shaped', () => {
+    const report = apiWriteReport({
+      route: 'PUT /v1/notes/{path}/body',
+      notePath: NOTE,
+      refusal: null,
+    });
+    expect(activityEvent({ ...report, at: 1 }).message).toBe('PUT v1/notes/{path}/body — Atlas');
+  });
+
+  it('names the route and the note written, not what was written', () => {
+    expect(
+      apiWriteReport({ route: 'PUT /v1/notes/{path}/body', notePath: NOTE, refusal: null }),
+    ).toEqual({
+      level: 'info',
+      kind: 'api',
+      message: 'PUT v1/notes/{path}/body — Atlas',
+      subject: { kind: 'note', path: NOTE },
+    });
+  });
+
+  it('names a write with no one note', () => {
+    expect(apiWriteReport({ route: 'POST /v1/archive', notePath: null, refusal: null })).toEqual({
+      level: 'info',
+      kind: 'api',
+      message: 'POST v1/archive',
+      subject: null,
+    });
+  });
+
+  it('warns of a refused write, with why', () => {
+    expect(
+      apiWriteReport({ route: 'PUT /v1/notes/{path}/body', notePath: NOTE, refusal: 'conflict' }),
+    ).toMatchObject({
+      level: 'warning',
+      message: 'PUT v1/notes/{path}/body refused for Atlas (conflict).',
+    });
+    expect(
+      apiWriteReport({ route: 'POST /v1/archive', notePath: null, refusal: 'bad_request' }).message,
+    ).toBe('POST v1/archive refused (bad_request).');
+  });
+});
+
+describe('chatReport', () => {
+  const NOTE = p('Ideas/Garden.md');
+  const NOTE_SUBJECT = { kind: 'note', path: NOTE };
+
+  it('records an accepted edit and an accepted new note', () => {
+    expect(chatReport({ kind: 'accepted', path: NOTE, created: false })).toEqual({
+      level: 'info',
+      kind: 'chat',
+      message: 'Edited Garden, as Claude proposed.',
+      subject: NOTE_SUBJECT,
+    });
+    expect(chatReport({ kind: 'accepted', path: NOTE, created: true }).message).toBe(
+      'Created Garden, as Claude proposed.',
+    );
+  });
+
+  it('records an undo', () => {
+    expect(chatReport({ kind: 'undone', path: NOTE })).toMatchObject({
+      level: 'info',
+      message: "Undid Claude's change to Garden.",
+      subject: NOTE_SUBJECT,
+    });
+  });
+
+  it('warns of a refused Accept or Undo', () => {
+    expect(
+      chatReport({ kind: 'refused', doing: 'accept', path: NOTE, problem: 'It changed since.' }),
+    ).toMatchObject({
+      level: 'warning',
+      message: "Could not accept Claude's change to Garden. It changed since.",
+    });
+    expect(
+      chatReport({ kind: 'refused', doing: 'undo', path: NOTE, problem: 'Edited since.' }).message,
+    ).toBe("Could not undo Claude's change to Garden. Edited since.");
+  });
+
+  it.each([
+    ['not_installed', 'Claude could not answer: Claude Code is not installed.'],
+    ['not_logged_in', 'Claude could not answer: Claude Code is not signed in.'],
+    ['no_key', 'Claude could not answer: no API key is set.'],
+    ['unavailable', 'Claude could not answer: the service could not be reached.'],
+  ] as const)('says a turn failed for want of %s in fixed words', (reason, message) => {
+    expect(chatReport({ kind: 'turnFailed', reason }).message).toBe(message);
+  });
+
+  it('records a failed turn and an unsaved chat as errors, with no subject', () => {
+    expect(chatReport({ kind: 'turnFailed', reason: 'failed' })).toEqual({
+      level: 'error',
+      kind: 'chat',
+      message: 'Claude could not answer.',
+      subject: null,
+    });
+    expect(chatReport({ kind: 'notKept', problem: 'disk full' }).message).toBe(
+      'The chat could not be saved to Chats/. disk full',
+    );
+  });
+});
+
+describe('index, save and notice reports', () => {
+  it('records a rebuild with its count', () => {
+    expect(indexRebuiltReport(1).message).toBe('Rebuilt the index: 1 note.');
+    expect(indexRebuiltReport(40)).toEqual({
+      level: 'info',
+      kind: 'index',
+      message: 'Rebuilt the index: 40 notes.',
+      subject: null,
+    });
+  });
+
+  it('records an index failure as an error', () => {
+    expect(indexFailedReport({ rebuilding: true, problem: 'locked' })).toMatchObject({
+      level: 'error',
+      message: 'The index could not be rebuilt. locked',
+    });
+    expect(indexFailedReport({ rebuilding: false, problem: 'locked' }).message).toBe(
+      'The index could not be brought up to date. locked',
+    );
+  });
+
+  it('records a failed save, linked to the note', () => {
+    expect(
+      writeFailedReport({ write: 'save', path: p('Inbox.md'), problem: 'changed on disk' }),
+    ).toEqual({
+      level: 'error',
+      kind: 'save',
+      message: 'Could not save Inbox.md. changed on disk',
+      subject: { kind: 'note', path: 'Inbox.md' },
+    });
+  });
+
+  it('records other failed writes without a link to what may no longer be there', () => {
+    const moved = writeFailedReport({ write: 'move', path: p('A.md'), problem: 'exists' });
+    expect(moved.message).toBe('Could not move A.md. exists');
+    expect(moved.subject).toBeNull();
+    expect(writeFailedReport({ write: 'trash', path: p('A.md'), problem: 'x' }).message).toBe(
+      'Could not move to the Trash A.md. x',
+    );
+    expect(writeFailedReport({ write: 'createFolder', path: p('F'), problem: 'x' }).message).toBe(
+      'Could not create the folder F. x',
+    );
+    expect(writeFailedReport({ write: 'writeFile', path: p('a.png'), problem: 'x' }).message).toBe(
+      'Could not write a.png. x',
+    );
+    expect(
+      writeFailedReport({ write: 'create', path: p('N.md'), problem: 'x' }).subject,
+    ).toBeNull();
+  });
+
+  it('records a red notice as an error of the app', () => {
+    expect(noticeReport('The sidebar could not be saved')).toEqual({
+      level: 'error',
+      kind: 'app',
+      message: 'The sidebar could not be saved',
+      subject: null,
+    });
+    expect(noticeReport('Unsaved changes were kept', 'warning').level).toBe('warning');
+  });
+});

@@ -1,0 +1,6 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+allowBuilds:
+  # Its install script only swaps in the native binary; the platform package already ships it.
+  esbuild: false

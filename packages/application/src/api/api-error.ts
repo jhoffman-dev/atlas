@@ -1,0 +1,55 @@
+import {
+  API_ERROR_STATUS,
+  type ApiErrorBody,
+  type ApiErrorCode,
+  type ApiTextPosition,
+} from './contract.ts';
+
+export { messageOf, messageWithoutPaths } from '@atlas/domain';
+
+/**
+ * A request refused for a reason the caller can act on.
+ *
+ * Handlers throw this; the router turns it into the error body. Anything else
+ * thrown is a fault of ours, and is answered as `internal` without its details.
+ */
+export class ApiError extends Error {
+  readonly code: ApiErrorCode;
+  /** Seconds before asking again is worth it, when that is known. */
+  readonly retryAfter: number | undefined;
+  /** Where in a query's text the problem is, when the request sent one. */
+  readonly at: ApiTextPosition | undefined;
+
+  constructor(
+    code: ApiErrorCode,
+    message: string,
+    { retryAfter, at }: { retryAfter?: number; at?: ApiTextPosition } = {},
+  ) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.retryAfter = retryAfter;
+    this.at = at;
+  }
+}
+
+/** What the caller is told when something failed that it cannot act on. */
+export const INTERNAL_MESSAGE = 'Atlas could not answer this request';
+
+/** The status and body for anything a handler threw. */
+export function failureOf(error: unknown): { status: number; body: ApiErrorBody } {
+  if (!(error instanceof ApiError)) {
+    const internal = { code: 'internal' as const, message: INTERNAL_MESSAGE };
+    return { status: API_ERROR_STATUS.internal, body: { error: internal } };
+  }
+  const { code, message, retryAfter, at } = error;
+  const body = {
+    error: {
+      code,
+      message,
+      ...(retryAfter !== undefined && { retryAfter }),
+      ...(at !== undefined && { at }),
+    },
+  };
+  return { status: API_ERROR_STATUS[code], body };
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@atlas/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "MCP server that lets AI tools read and write an Atlas vault through the running app.",
+  "bin": {
+    "atlas-mcp": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/main.js --banner:js=\"#!/usr/bin/env node\"",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@atlas/application": "workspace:*",
+    "@modelcontextprotocol/client": "2.0.0",
+    "esbuild": "^0.28.2"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vitest/globals", "node"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "paths": {
+      "@atlas/domain": ["./packages/domain/src/index.ts"],
+      "@atlas/application": ["./packages/application/src/index.ts"],
+      "@atlas/adapters": ["./packages/adapters/src/index.ts"],
+      "@atlas/ui": ["./packages/ui/src/index.ts"],
+      "@atlas/ui/graph": ["./packages/ui/src/graph/index.ts"]
+    }
+  },
+  "include": [
+    "./packages/*/src/**/*",
+    "apps/*/src/**/*",
+    "tools/**/*.ts",
+    "*.config.ts",
+    "*.config.js"
+  ],
+  "exclude": ["**/dist", "**/target", "node_modules"]
+}

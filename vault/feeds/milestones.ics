@@ -1,0 +1,24 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Atlas//Plan of record//EN
+BEGIN:VEVENT
+UID:atlas-phase-12
+SUMMARY:Phase 12 — External datasources
+DTSTART;VALUE=DATE:20260925
+DTEND;VALUE=DATE:20260930
+DESCRIPTION:ICS\, CSV and JSON read into the vault as ordinary notes.
+END:VEVENT
+BEGIN:VEVENT
+UID:atlas-phase-13
+SUMMARY:Phase 13 — Migration and polish
+DTSTART;VALUE=DATE:20261001
+DTEND;VALUE=DATE:20261008
+DESCRIPTION:Notion import\, command palette\, themes\, signed build.
+END:VEVENT
+BEGIN:VEVENT
+UID:atlas-first-release
+SUMMARY:First signed build
+DTSTART;VALUE=DATE:20261008
+DESCRIPTION:The day Atlas stops being a project and starts being the tool.
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Progress dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Manrope',system-ui,sans-serif}
+.icon-btn:hover{background:rgba(120,135,180,0.16) !important}
+.seg:hover{filter:brightness(1.04)}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: {{t.ground}}; font-family: 'Manrope', system-ui, sans-serif; color: {{t.ink}}; overflow: hidden;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="d-chart" viewBox="0 0 24 24"><path d="M5 19.5V11M10.3 19.5V5M15.6 19.5v-6.5M20.5 19.5V8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></symbol>
+<symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="d-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.7" fill="currentColor"></circle><circle cx="12" cy="12" r="1.7" fill="currentColor"></circle><circle cx="18.5" cy="12" r="1.7" fill="currentColor"></circle></symbol>
+<symbol id="d-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle></symbol>
+<symbol id="d-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="d-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="d-inbox" viewBox="0 0 24 24"><path d="M3.5 13.5L6.2 5.5h11.6l2.7 8v5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z M3.5 13.5h5l1.5 2.2h4l1.5-2.2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+</svg>
+
+<dc-import name="Sidebar" theme="{{theme}}" active="dash-progress" hint-size="248px,900px"></dc-import>
+
+<div style="flex-grow: 1; padding: 12px 12px 12px 0; box-sizing: border-box; display: flex;">
+<main style="flex-grow: 1; display: flex; flex-direction: column; background: {{t.panel}}; border-radius: 22px; box-shadow: {{t.shadowPanel}}; overflow: hidden;">
+
+<header style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 16px 0 24px;">
+<svg width="16" height="16" style="color: {{t.ink3}};" aria-hidden="true"><use href="#d-chart"></use></svg>
+<span style="font-size: 13.5px; color: {{t.ink3}}; font-weight: 600;">Dashboards</span>
+<span style="font-size: 13.5px; color: {{t.ink3}};">/</span>
+<span style="font-size: 13.5px; font-weight: 700;">Progress</span>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 12.5px; color: {{t.ink3}}; font-weight: 600; margin-right: 6px;">Updated live</span>
+<button type="button" class="icon-btn" aria-label="Add to favorites" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#d-star"></use></svg></button>
+<button type="button" class="icon-btn" aria-label="More" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#d-more"></use></svg></button>
+</header>
+
+<div style="flex-grow: 1; padding: 6px 36px 32px; display: flex; flex-direction: column; gap: 22px; overflow: hidden;">
+
+<div style="display: flex; align-items: center; gap: 16px;">
+<div style="width: 52px; height: 52px; border-radius: 16px; background: {{t.hero}}; color: #5EEAF4; display: flex; align-items: center; justify-content: center; box-shadow: {{t.shadowTile}};"><svg width="26" height="26" aria-hidden="true"><use href="#d-chart"></use></svg></div>
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1;">Progress</h1>
+<p style="margin: 0; font-size: 14px; color: {{t.ink2}}; font-weight: 500;">Every task on the Atlas board, by phase and status</p>
+</div>
+<span style="flex-grow: 1;"></span>
+<div role="group" aria-label="Range" style="display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: {{t.track}};">
+<button type="button" class="seg" style="height: 32px; padding: 0 16px; border: 0; border-radius: 999px; background: {{t.accent}}; color: {{t.accentInk}}; font: inherit; font-size: 13px; font-weight: 700; box-shadow: {{t.shadowAccent}}; cursor: pointer;">All phases</button>
+<button type="button" class="seg" style="height: 32px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;">Phase 15</button>
+<button type="button" class="seg" style="height: 32px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;">Last 30 days</button>
+</div>
+<button type="button" class="icon-btn" style="height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer;"><svg width="17" height="17" aria-hidden="true"><use href="#d-sliders"></use></svg>Customize</button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px;">
+
+<section aria-label="Tasks" style="grid-column: span 4; height: 300px; box-sizing: border-box; border-radius: 24px; background: {{t.hero}}; box-shadow: {{t.shadowHero}}; color: #FFFFFF; padding: 22px 24px 18px; position: relative; overflow: hidden; display: flex; flex-direction: column;">
+<div style="display: flex; align-items: flex-start; gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1;">
+<div style="display: flex; align-items: baseline; gap: 12px;"><span style="font-size: 16px; font-weight: 700;">Tasks</span><span style="font-size: 26px; font-weight: 800; letter-spacing: -0.02em;">177</span></div>
+<span style="font-size: 13px; color: {{t.heroMuted}}; font-weight: 600;">across 16 phases</span>
+</div>
+<div style="position: relative; width: 64px; height: 64px;">
+<svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="5"></circle><circle cx="32" cy="32" r="26" fill="none" stroke="#5EEAF4" stroke-width="5" stroke-linecap="round" stroke-dasharray="{{ring}}" transform="rotate(-90 32 32)"></circle></svg>
+<span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800;">94%</span>
+</div>
+</div>
+<div style="margin-top: 14px; display: flex; flex-direction: column; gap: 0;">
+<span style="font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1;">166</span>
+<span style="font-size: 14px; font-weight: 700; color: {{t.heroMuted}}; margin-top: 4px;">done</span>
+</div>
+<svg width="360" height="110" viewBox="0 0 300 100" preserveAspectRatio="none" style="position: absolute; left: 0; right: 0; bottom: 34px; width: 100%;" aria-hidden="true">
+<defs><linearGradient id="heroFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22D3EE" stop-opacity="0.35"></stop><stop offset="100%" stop-color="#22D3EE" stop-opacity="0"></stop></linearGradient></defs>
+<path d="{{spark.area}}" fill="url(#heroFill)"></path>
+<path d="{{spark.line}}" fill="none" stroke="#38D8F0" stroke-width="2.4" stroke-linecap="round"></path>
+</svg>
+<div style="position: absolute; left: 24px; right: 24px; bottom: 16px; display: flex; align-items: baseline; gap: 10px;">
+<span style="font-size: 13px; font-weight: 700;">This phase</span>
+<span style="font-size: 14px; font-weight: 800; color: #5EEAF4;">+12</span>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 12px; font-weight: 600; color: {{t.heroMuted}};">tasks per phase</span>
+</div>
+</section>
+
+<section aria-label="Work per phase" style="grid-column: span 8; height: 300px; box-sizing: border-box; border-radius: 24px; background: {{t.raised}}; box-shadow: {{t.shadowCard}}; padding: 20px 24px 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 14px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.01em;">Work per phase</h2>
+<div role="group" aria-label="Measure" style="display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: {{t.track}};">
+<button type="button" class="seg" style="height: 26px; padding: 0 12px; border: 0; border-radius: 8px; background: {{t.raised}}; color: {{t.ink}}; box-shadow: {{t.shadowSoft}}; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;">Tasks</button>
+<button type="button" class="seg" style="height: 26px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;">Estimate</button>
+</div>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 13px; color: {{t.ink3}}; font-weight: 600;">7 without a phase</span>
+<span style="font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">177</span>
+</div>
+<div style="flex-grow: 1; display: flex; gap: 12px;">
+<div style="display: flex; flex-direction: column; justify-content: space-between; padding-bottom: 30px; font-size: 11.5px; font-weight: 600; color: {{t.ink3}}; font-variant-numeric: tabular-nums; text-align: right; width: 22px;">
+<span>30</span><span>20</span><span>10</span><span>0</span>
+</div>
+<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 10px; position: relative;">
+<div style="position: absolute; left: 0; right: 0; top: 7px; border-top: 1px dashed {{t.grid}};"></div>
+<div style="position: absolute; left: 0; right: 0; top: 63px; border-top: 1px dashed {{t.grid}};"></div>
+<div style="position: absolute; left: 0; right: 0; top: 119px; border-top: 1px dashed {{t.grid}};"></div>
+<sc-for list="{{bars}}" as="bar" hint-placeholder-count="16">
+<div style="flex-grow: 1; flex-basis: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; z-index: 1;">
+<sc-if value="{{bar.current}}" hint-placeholder-val="{{false}}">
+<span style="font-size: 12px; font-weight: 800; color: {{t.ink}};">{{bar.value}}</span>
+</sc-if>
+<div style="width: 100%; max-width: 30px; height: {{bar.h}}px; border-radius: 8px 8px 4px 4px; background: {{bar.bg}}; box-shadow: {{bar.glow}};"></div>
+<span style="height: 22px; min-width: 26px; box-sizing: border-box; padding: 0 5px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: {{bar.labelBg}}; color: {{bar.labelInk}}; font-variant-numeric: tabular-nums;">{{bar.label}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<section aria-label="By status" style="grid-column: span 5; height: 290px; box-sizing: border-box; border-radius: 24px; background: {{t.raised}}; box-shadow: {{t.shadowCard}}; padding: 20px 24px; display: flex; flex-direction: column; gap: 10px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.01em;">By status</h2>
+<div style="flex-grow: 1; display: flex; align-items: center; gap: 26px;">
+<div style="position: relative; width: 190px; height: 190px; flex-shrink: 0;">
+<svg width="190" height="190" viewBox="0 0 190 190" aria-hidden="true"><g transform="rotate(-90 95 95)"><circle cx="95" cy="95" r="72" fill="none" stroke="{{t.track}}" stroke-width="26"></circle><circle cx="95" cy="95" r="72" fill="none" stroke="{{t.navyData}}" stroke-width="26" stroke-dasharray="{{donut.done}}"></circle><circle cx="95" cy="95" r="72" fill="none" stroke="{{t.cyan}}" stroke-width="26" stroke-dasharray="{{donut.backlog}}" stroke-dashoffset="{{donut.backlogOffset}}"></circle></g></svg>
+<div style="position: absolute; left: 50%; top: 50%; width: 104px; height: 104px; margin: -52px 0 0 -52px; border-radius: 50%; background: {{t.raised}}; box-shadow: {{t.shadowTile}}; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+<span style="font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;">177</span>
+<span style="font-size: 12px; font-weight: 700; color: {{t.ink3}}; margin-top: 4px;">tasks</span>
+</div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 9px;">
+<sc-for list="{{legend}}" as="row" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600; color: {{row.ink}};">
+<span style="width: 10px; height: 10px; border-radius: 50%; background: {{row.dot}}; flex-shrink: 0;"></span>
+<span style="flex-grow: 1;">{{row.label}}</span>
+<span style="width: 40px; text-align: right; color: {{t.ink3}}; font-variant-numeric: tabular-nums;">{{row.pct}}</span>
+<span style="width: 34px; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums;">{{row.count}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<section aria-label="Largest phases" style="grid-column: span 4; height: 290px; box-sizing: border-box; border-radius: 24px; background: {{t.raised}}; box-shadow: {{t.shadowCard}}; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; align-items: baseline; gap: 10px;">
+<h2 style="margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.01em;">Largest phases</h2>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 13px; font-weight: 700; color: {{t.ink3}};">96 of 177</span>
+</div>
+<div style="height: 8px; border-radius: 999px; background: {{t.track}}; overflow: hidden;"><div style="width: 54%; height: 100%; border-radius: 999px; background: {{t.cyan}};"></div></div>
+<div style="display: flex; flex-direction: column; gap: 12px; margin-top: 4px;">
+<sc-for list="{{phases}}" as="p" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 12px;">
+<span style="width: 30px; height: 30px; border-radius: 9px; background: {{p.tileBg}}; color: {{p.tileInk}}; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0;">{{p.num}}</span>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; align-items: baseline; font-size: 13px; font-weight: 700;"><span style="flex-grow: 1;">{{p.name}}</span><span style="color: {{t.ink3}}; font-variant-numeric: tabular-nums;">{{p.count}} tasks</span></div>
+<div style="height: 4px; border-radius: 999px; background: {{t.track}};"><div style="width: {{p.pct}}%; height: 100%; border-radius: 999px; background: {{t.accentData}};"></div></div>
+</div>
+</div>
+</sc-for>
+</div>
+</section>
+
+<div style="grid-column: span 3; height: 290px; display: flex; flex-direction: column; gap: 20px;">
+<section aria-label="In flight" style="flex-grow: 1; flex-basis: 0; border-radius: 22px; background: {{t.raised}}; box-shadow: {{t.shadowTile}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+<svg width="20" height="20" style="color: {{t.cyanInk}};" aria-hidden="true"><use href="#d-bolt"></use></svg>
+<span style="font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1;">0</span>
+<span style="font-size: 13.5px; font-weight: 700; color: {{t.ink2}};">In flight</span>
+</section>
+<section aria-label="Open" style="flex-grow: 1; flex-basis: 0; border-radius: 22px; background: {{t.raised}}; box-shadow: {{t.shadowTile}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+<svg width="20" height="20" style="color: {{t.cyanInk}};" aria-hidden="true"><use href="#d-inbox"></use></svg>
+<span style="font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1;">11</span>
+<span style="font-size: 13.5px; font-weight: 700; color: {{t.ink2}};">Waiting in backlog</span>
+</section>
+</div>
+
+</div>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  tokens(theme) {
+    if (theme === 'dark') {
+      return {
+        ground: '#070F24', panel: '#0C1834', raised: '#11224A', ink: '#E9EFFF', ink2: '#A9B5DA', ink3: '#7E8CB5',
+        track: '#18295A', grid: 'rgba(125,170,255,0.16)', accent: '#22D3EE', accentInk: '#05213A', accentData: '#38BDF8',
+        cyan: '#22E3F2', cyanInk: '#22E3F2', navyData: '#3B5FB8', barMuted: '#2A3B6E',
+        hero: 'linear-gradient(155deg, #1D3F86 0%, #0A1738 78%)', heroMuted: '#93A9DD',
+        shadowPanel: '0 0 0 1px rgba(90,160,255,0.12), 0 24px 60px rgba(0,0,0,0.45)',
+        shadowCard: '0 0 0 1px rgba(90,160,255,0.14), 0 12px 30px rgba(0,0,0,0.35)',
+        shadowTile: '0 0 0 1px rgba(34,211,238,0.30), 0 12px 28px rgba(0,0,0,0.45)',
+        shadowHero: '0 0 0 1px rgba(34,211,238,0.35), 0 0 36px rgba(34,211,238,0.14), 0 18px 40px rgba(0,0,0,0.5)',
+        shadowSoft: '0 0 0 1px rgba(90,160,255,0.2)', shadowAccent: '0 0 18px rgba(34,211,238,0.45)',
+        glow: '0 0 16px rgba(34,227,242,0.55)',
+      };
+    }
+    return {
+      ground: '#E3E7F0', panel: '#F4F6FA', raised: '#FFFFFF', ink: '#151D3B', ink2: '#4E577A', ink3: '#6B7493',
+      track: '#E6EAF3', grid: 'rgba(21,29,59,0.10)', accent: '#2468D8', accentInk: '#FFFFFF', accentData: '#2F7CF0',
+      cyan: '#14C4DC', cyanInk: '#0E8FB0', navyData: '#1B2A55', barMuted: '#3A4468',
+      hero: 'linear-gradient(155deg, #23397A 0%, #0F1B42 78%)', heroMuted: '#A3B5E0',
+      shadowPanel: '0 1px 2px rgba(20,30,70,0.05), 0 18px 48px rgba(20,30,70,0.10)',
+      shadowCard: '0 1px 2px rgba(20,30,70,0.05), 0 10px 28px rgba(20,30,70,0.08)',
+      shadowTile: '0 2px 4px rgba(20,30,70,0.06), 0 14px 30px rgba(20,30,70,0.14)',
+      shadowHero: '0 20px 40px rgba(16,27,66,0.35)',
+      shadowSoft: '0 1px 2px rgba(20,30,70,0.12), 0 2px 6px rgba(20,30,70,0.06)', shadowAccent: '0 4px 12px rgba(36,104,216,0.35)',
+      glow: '0 6px 16px rgba(20,196,220,0.35)',
+    };
+  }
+  sparkPath(values, w, h) {
+    const max = Math.max.apply(null, values);
+    const pts = values.map((v, i) => [i * (w / (values.length - 1)), h - 8 - (v / max) * (h - 30)]);
+    let d = 'M' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += ' C' + c1[0].toFixed(1) + ',' + c1[1].toFixed(1) + ' ' + c2[0].toFixed(1) + ',' + c2[1].toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+    }
+    return { line: d, area: d + ' L' + w + ',' + h + ' L0,' + h + ' Z' };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const t = this.tokens(theme);
+    const counts = [5, 5, 6, 8, 7, 7, 7, 6, 6, 5, 7, 5, 29, 33, 22, 12];
+    const current = 15;
+    const bars = counts.map((v, i) => {
+      const on = i === current;
+      return {
+        value: v, label: String(i), current: on,
+        h: Math.round((v / 33) * 150),
+        bg: on ? t.cyan : t.barMuted,
+        glow: on ? t.glow : 'none',
+        labelBg: on ? t.accent : 'transparent',
+        labelInk: on ? t.accentInk : t.ink3,
+      };
+    });
+    const C = 2 * Math.PI * 72;
+    const doneLen = (166 / 177) * C;
+    const gap = 3;
+    const legend = [
+      { label: 'Done', pct: '94%', count: '166', dot: t.navyData, ink: t.ink },
+      { label: 'Backlog', pct: '6%', count: '11', dot: t.cyan, ink: t.ink },
+      { label: 'Next', pct: '0%', count: '0', dot: t.track, ink: t.ink3 },
+      { label: 'Doing', pct: '0%', count: '0', dot: t.track, ink: t.ink3 },
+      { label: 'Review', pct: '0%', count: '0', dot: t.track, ink: t.ink3 },
+    ];
+    const phaseRows = [[13, 'Look and feel', 33], [12, 'External datasources', 29], [14, 'Headless UI', 22], [15, 'API + MCP', 12]];
+    const phases = phaseRows.map(([num, name, count], i) => ({
+      num: String(num), name, count, pct: Math.round((count / 33) * 100),
+      tileBg: i === 3 ? t.cyan : t.track, tileInk: i === 3 ? t.accentInk : t.ink2,
+    }));
+    const ringC = 2 * Math.PI * 26;
+    return {
+      theme, t, bars, legend, phases,
+      ring: (0.94 * ringC).toFixed(1) + ' ' + ringC.toFixed(1),
+      spark: this.sparkPath(counts, 300, 100),
+      donut: {
+        done: (doneLen - gap).toFixed(1) + ' ' + C.toFixed(1),
+        backlog: (C - doneLen - gap).toFixed(1) + ' ' + C.toFixed(1),
+        backlogOffset: (-doneLen).toFixed(1),
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

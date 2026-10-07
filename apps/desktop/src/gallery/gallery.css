@@ -1,0 +1,76 @@
+/* The gallery's own scaffolding. Dev-only, and deliberately plain: nothing in
+   here should be mistaken for a primitive. */
+
+.gallery-page {
+  display: grid;
+  gap: 0;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .gallery-page {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gallery-page__panel {
+  background: var(--ground);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+.gallery-page__title {
+  font-size: var(--text-subtitle);
+  letter-spacing: var(--tracking-title);
+  margin: 0;
+}
+
+.gallery-page__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.gallery-page__heading {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.gallery-page__specimens {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.gallery-page__value {
+  font-size: var(--text-hero);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-title);
+  line-height: 1;
+  margin: var(--space-2) 0 0;
+}
+
+.gallery-page__overlay {
+  box-shadow: var(--shadow-overlay);
+}
+
+/* The sidebar draws itself against the app's chrome, so the specimen stands on
+   the same surface the shell gives it. */
+.gallery-page__sidebar {
+  background: var(--raised);
+  border-radius: var(--radius-button);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  height: 360px;
+  overflow: hidden;
+  width: 280px;
+}

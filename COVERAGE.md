@@ -1,0 +1,36 @@
+# Coverage policy
+
+Repo-wide floor: **70% of lines**, enforced in CI by `vitest --coverage`.
+
+Coverage is not spread evenly. The slice below carries the risk — losing or corrupting
+your notes, or silently answering a query wrong — and is held at **90%+ lines with every
+rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lands.
+
+| Module                     | Why it is high-impact                                                         | Phase   |
+| -------------------------- | ----------------------------------------------------------------------------- | ------- |
+| `packages/domain/**`       | All product rules. Pure, so there is no excuse not to.                        | ongoing |
+| `adapters/markdown`        | Round-trip fidelity. Your files are at stake.                                 | 2       |
+| `domain/properties`        | Type and relation-target validation.                                          | 5       |
+| `domain/query`             | filter/sort/group → SQL compilation.                                          | 6       |
+| `application/indexing`     | File change → index delta correctness.                                        | 4       |
+| `application/vault`        | Safe write, atomic replace, conflict detection.                               | 1–2     |
+| `domain/schedule`          | Recurrence and critical path.                                                 | 8, 11   |
+| `domain/sources`           | Decides what gets written over your notes.                                    | 12      |
+| `domain/meetings`          | Decides whether a meeting from outside Atlas is let in, and what it says.     | 28      |
+| `application/sources`      | Writes files into your vault from outside it.                                 | 12      |
+| `desktop/notes/*stranded*` | Holds unsaved work the vault does not have, across a quit.                    | 13      |
+| `mcp/{connection,client}`  | Handles the API token; every failure an AI tool is told.                      | 15      |
+| `application/api`          | Writes into your vault on behalf of other programs.                           | 15      |
+| `application/artifacts`    | Writes a folder of files into your vault, from outside it.                    | 17      |
+| `application/types` (edit) | Rewrites a type's file, and can rewrite every note of it.                     | 17      |
+| `application/tags`         | Renaming a tag rewrites every note that uses it.                              | 20      |
+| `application/archive`      | Moves notes in and out of the Archive, rewriting frontmatter.                 | 23      |
+| `application/automations`  | Runs rules on a clock: archives or rewrites notes, logs it, undoes it.        | 25      |
+| `application/sync`         | Merges other Macs' changes into notes; settles conflicts; never loses a side. | U-29    |
+
+Rules that apply everywhere:
+
+- Coverage from tests with no meaningful assertion does not count.
+- No snapshot test standing in for a behaviour test.
+- A bug fix ships with the failing test that would have caught it, committed first.
+- Tests are deterministic: seeded RNG, injected clock, no sleeps, no order dependence.

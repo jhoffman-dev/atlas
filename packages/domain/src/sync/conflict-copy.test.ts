@@ -1,0 +1,110 @@
+import { describe, expect, it } from 'vitest';
+import {
+  conflictCopyPath,
+  hasConflictMarkers,
+  macLabel,
+  planConflictSteps,
+} from './conflict-copy.ts';
+
+const none = new Set<string>();
+
+describe('conflictCopyPath', () => {
+  it('saves the other Mac’s version beside the note, named for that Mac', () => {
+    expect(conflictCopyPath({ path: 'Projects/Ideas.md', mac: 'Work Mac', taken: none })).toBe(
+      'Projects/Ideas (conflict from Work Mac).md',
+    );
+  });
+
+  it('keeps an attachment’s extension', () => {
+    expect(conflictCopyPath({ path: 'Attachments/photo.png', mac: 'Laptop', taken: none })).toBe(
+      'Attachments/photo (conflict from Laptop).png',
+    );
+  });
+
+  it('numbers the copy when the name is taken, ignoring case as macOS does', () => {
+    const taken = new Set(['ideas (conflict from Laptop).md', 'Ideas (conflict from Laptop) 2.md']);
+    expect(conflictCopyPath({ path: 'Ideas.md', mac: 'Laptop', taken })).toBe(
+      'Ideas (conflict from Laptop) 3.md',
+    );
+  });
+
+  it('treats a leading dot as part of the name, not an extension', () => {
+    expect(conflictCopyPath({ path: '.gitignore', mac: 'Laptop', taken: none })).toBe(
+      '.gitignore (conflict from Laptop)',
+    );
+  });
+
+  it('puts copies of Atlas’s own files where they cannot become a second rule or view', () => {
+    expect(
+      conflictCopyPath({ path: '.atlas/automations/Tidy.md', mac: 'Laptop', taken: none }),
+    ).toBe('Sync conflicts/atlas/automations/Tidy (conflict from Laptop).md');
+    expect(conflictCopyPath({ path: '.atlas/settings.md', mac: 'Laptop', taken: none })).toBe(
+      'Sync conflicts/atlas/settings (conflict from Laptop).md',
+    );
+  });
+
+  it('keeps a Mac’s name from reaching into another folder', () => {
+    expect(conflictCopyPath({ path: 'a.md', mac: 'Evil/../Mac', taken: none })).toBe(
+      'a (conflict from Evil-..-Mac).md',
+    );
+  });
+});
+
+describe('hasConflictMarkers', () => {
+  it('knows the markers git writes, and nothing else', () => {
+    expect(hasConflictMarkers('<<<<<<< HEAD\na\n=======\nb\n>>>>>>> origin/main\n')).toBe(true);
+    expect(hasConflictMarkers('a note that quotes <<<<<<< HEAD inline\n')).toBe(false);
+    expect(hasConflictMarkers('<<<<<<< HEAD\nonly the start\n')).toBe(false);
+  });
+});
+
+describe('macLabel', () => {
+  it('says another Mac when the name is empty', () => {
+    expect(macLabel('  ')).toBe('another Mac');
+    expect(macLabel('James’s MacBook Pro')).toBe('James’s MacBook Pro');
+  });
+});
+
+describe('planConflictSteps', () => {
+  it('copies theirs for files both Macs changed, and keeps whichever side still has the file otherwise', () => {
+    const steps = planConflictSteps({
+      conflicts: [
+        { path: 'Ideas.md', code: 'UU' },
+        { path: 'New.md', code: 'AA' },
+        { path: 'Edited here.md', code: 'UD' },
+        { path: 'Added here.md', code: 'AU' },
+        { path: 'Edited there.md', code: 'DU' },
+        { path: 'Added there.md', code: 'UA' },
+        { path: 'Gone.md', code: 'DD' },
+      ],
+      mac: 'Laptop',
+      existing: new Set(['Ideas.md']),
+    });
+    expect(steps).toEqual([
+      { kind: 'copy-theirs', path: 'Ideas.md', copy: 'Ideas (conflict from Laptop).md' },
+      { kind: 'copy-theirs', path: 'New.md', copy: 'New (conflict from Laptop).md' },
+      { kind: 'keep', side: 'ours', path: 'Edited here.md' },
+      { kind: 'keep', side: 'ours', path: 'Added here.md' },
+      { kind: 'keep', side: 'theirs', path: 'Edited there.md' },
+      { kind: 'keep', side: 'theirs', path: 'Added there.md' },
+      { kind: 'drop', path: 'Gone.md' },
+    ]);
+  });
+
+  it('never gives two copies, or a copy and an existing file, the same name', () => {
+    const steps = planConflictSteps({
+      conflicts: [
+        { path: 'Ideas.md', code: 'UU' },
+        { path: 'Ideas (conflict from Laptop).md', code: 'UU' },
+      ],
+      mac: 'Laptop',
+      existing: new Set(['Ideas.md', 'Ideas (conflict from Laptop).md']),
+    });
+    const copies = steps.map((step) => (step.kind === 'copy-theirs' ? step.copy : null));
+    expect(copies).toEqual([
+      'Ideas (conflict from Laptop) 2.md',
+      'Ideas (conflict from Laptop) (conflict from Laptop).md',
+    ]);
+    expect(new Set(copies).size).toBe(2);
+  });
+});

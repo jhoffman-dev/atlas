@@ -1,0 +1,255 @@
+/**
+ * Adversarial pass on the Archive merge (10c51a9): the frontmatter a note
+ * already had, through archive → unarchive and through the writer every
+ * property change uses. The invariants under attack: a round trip gives the
+ * note back byte for byte, and removing properties never takes a comment the
+ * person wrote with it.
+ */
+import { describe, expect, it } from 'vitest';
+import {
+  createVaultPath,
+  movedPath,
+  parentVaultPath,
+  splitFrontmatter,
+  vaultPathName,
+  type EntryMove,
+  type VaultEntry,
+  type VaultPath,
+} from '@atlas/domain';
+import {
+  archiveNotes,
+  unarchiveNotes,
+  type ArchivePorts,
+  type IndexPort,
+  type VaultFsPort,
+} from '@atlas/application';
+import { updateFrontmatter } from './frontmatter-write.ts';
+import { remarkMarkdown } from './markdown-port.ts';
+
+const TODAY = '2026-09-27';
+
+function memoryVault(notes: Record<string, string>) {
+  const files = new Map(Object.entries(notes));
+  const dirs = new Set<string>();
+  for (const at of files.keys()) {
+    let folder = parentVaultPath(createVaultPath(at));
+    while (folder !== '') {
+      dirs.add(folder);
+      folder = parentVaultPath(folder);
+    }
+  }
+  const entry = (at: string, kind: VaultEntry['kind']): VaultEntry =>
+    ({ kind, name: vaultPathName(createVaultPath(at)), path: createVaultPath(at) }) as VaultEntry;
+  const used: Partial<VaultFsPort> = {
+    listDirectory: async (parent) => [
+      ...[...dirs]
+        .filter((at) => parentVaultPath(createVaultPath(at)) === parent)
+        .map((at) => entry(at, 'directory')),
+      ...[...files.keys()]
+        .filter((at) => parentVaultPath(createVaultPath(at)) === parent)
+        .map((at) => entry(at, 'file')),
+    ],
+    createFolder: async ({ path }) => {
+      if (dirs.has(path) || files.has(path)) throw new Error('already there');
+      dirs.add(path);
+    },
+    moveEntry: async (move: EntryMove) => {
+      if (!files.has(move.from)) throw new Error('no such entry');
+      if (files.has(move.to) || dirs.has(move.to)) throw new Error('already there');
+      for (const [at, text] of [...files]) {
+        const to = movedPath(at as VaultPath, move);
+        if (to !== null) {
+          files.delete(at);
+          files.set(to, text);
+        }
+      }
+    },
+    readTextFile: async (at) => {
+      const text = files.get(at);
+      if (text === undefined) throw new Error('no such note');
+      return { text, modified: 1 };
+    },
+    readNotes: async (paths) =>
+      paths.flatMap((at) => {
+        const text = files.get(at);
+        return text === undefined ? [] : [{ path: at, text, modified: 1, size: text.length }];
+      }),
+    writeTextFile: async ({ path, contents }) => {
+      files.set(path, contents);
+      return 2;
+    },
+  };
+  const fs = new Proxy(used, {
+    get: (target, name: string) => {
+      const method = target[name as keyof VaultFsPort];
+      if (method === undefined) throw new Error(`fs.${name} is not faked`);
+      return method;
+    },
+  }) as VaultFsPort;
+  const index = { remove: async () => {} } as unknown as IndexPort;
+  const ports: ArchivePorts = {
+    fs,
+    markdown: remarkMarkdown,
+    index,
+    editors: {
+      state: () => 'closed',
+      flush: async () => {},
+      follow: () => {},
+      abandon: () => {},
+      reload: () => {},
+    },
+  };
+  const notePaths = () => [...files.keys()].map((at) => createVaultPath(at));
+  return { files, ports, notePaths };
+}
+
+async function roundTrip(path: string, text: string) {
+  const vault = memoryVault({ [path]: text });
+  const archived = await archiveNotes({
+    ports: vault.ports,
+    paths: [createVaultPath(path)],
+    notePaths: vault.notePaths(),
+    today: TODAY,
+  });
+  expect(archived.failed).toEqual([]);
+  const [moved] = archived.moves;
+  const restored = await unarchiveNotes({
+    ports: vault.ports,
+    paths: [moved!.move.to],
+    notePaths: vault.notePaths(),
+  });
+  expect(restored.failed).toEqual([]);
+  return vault.files;
+}
+
+describe('archive → unarchive keeps the stamped keys a note already had (adversarial)', () => {
+  it('keeps a note’s own empty `archived:` property rather than deleting it', async () => {
+    // A type whose template declares `archived:` leaves it blank on every new note.
+    const text = '---\ntitle: Plan\narchived:\n---\nBody.\n';
+    const files = await roundTrip('Projects/X.md', text);
+    const props = remarkMarkdown.frontmatterProperties(
+      splitFrontmatter(files.get('Projects/X.md') ?? '').frontmatter,
+    );
+    expect(Object.hasOwn(props, 'archived')).toBe(true);
+  });
+
+  it('keeps a note’s own empty `archivedFrom:` property rather than deleting it', async () => {
+    const text = '---\narchivedFrom:\nstatus: open\n---\nBody.\n';
+    const files = await roundTrip('Projects/X.md', text);
+    const props = remarkMarkdown.frontmatterProperties(
+      splitFrontmatter(files.get('Projects/X.md') ?? '').frontmatter,
+    );
+    expect(Object.hasOwn(props, 'archivedFrom')).toBe(true);
+  });
+
+  it.each([
+    ['an inline list', '[a, b]'],
+    ['a hex number', '0x1F'],
+    ['an exponent', '1e3'],
+    ['a capitalised boolean', 'True'],
+  ])('gives back %s under `archived` as it was written', async (_, value) => {
+    const text = `---\ntitle: Plan\narchived: ${value}\n---\nBody.\n`;
+    const files = await roundTrip('Projects/X.md', text);
+    expect(files.get('Projects/X.md')).toBe(text);
+  });
+
+  it('gives back a frontmatter block that held only a blank line', async () => {
+    const text = '---\n\n---\nBody.\n';
+    const files = await roundTrip('Projects/X.md', text);
+    expect(files.get('Projects/X.md')).toBe(text);
+  });
+});
+
+describe('archive → unarchive puts a note back under its own name (adversarial)', () => {
+  it('keeps the leading space of a note’s name', async () => {
+    // Finder and Obsidian both allow it; archivedFrom records it quoted.
+    const files = await roundTrip(' Leading.md', 'Body.\n');
+    expect([...files.keys()]).toEqual([' Leading.md']);
+  });
+
+  it('keeps the leading space of the folder a note was in', async () => {
+    const files = await roundTrip(' Drafts/X.md', 'Body.\n');
+    expect([...files.keys()]).toEqual([' Drafts/X.md']);
+  });
+});
+
+describe('removing the last property keeps the comments around it (adversarial)', () => {
+  it('keeps a comment line after the last key when that key is removed', () => {
+    // PATCH properties { status: null }, or unarchive dropping the stamp: the comment is the person's.
+    const written = updateFrontmatter('---\nstatus: open\n# keep me\n---\n', { status: null });
+    expect(written).toContain('# keep me');
+  });
+
+  it('keeps a CRLF comment line after the last keys when they are all removed', () => {
+    const written = updateFrontmatter('---\r\ntitle: [a, b]\r\ndue: 12\r\n# tail\r\n---\r\n', {
+      title: null,
+      due: null,
+    });
+    expect(written).toContain('# tail\r\n');
+  });
+});
+
+/** A small seeded generator (mulberry32), so every failing case can be replayed by its seed. */
+function seeded(seed: number) {
+  let state = seed >>> 0;
+  const next = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)] as T;
+}
+
+const KEYS = ['title', 'status', 'tags', 'archived', 'archivedFrom', 'archivedPrior', 'due'];
+const VALUES = [
+  ' open',
+  ' "quoted"',
+  " 'single'",
+  ' 12',
+  ' 0x1F',
+  ' 1e3',
+  ' True',
+  ' [a, b]',
+  ' [ a,b ]',
+  '',
+  ' 2026-09-01',
+  ' ~',
+  ' null',
+  '\n  - a\n  - b',
+  '\n- a',
+  ' >\n  folded\n  text',
+  ' {x: 1}',
+  ' open # trailing',
+];
+
+/** An ordinary block frontmatter: unique keys, scalar, list or map values, comments between. */
+function ordinaryBlock(seed: number): string {
+  const pick = seeded(seed);
+  const count = pick([1, 2, 3, 4, 5, 6]);
+  // Unique keys in a seeded order: draw each from what is left.
+  const left = [...KEYS];
+  const keys = Array.from({ length: count }, () => left.splice(left.indexOf(pick(left)), 1)[0]);
+  const lines = keys.map((key) => {
+    const comment = pick(['', '', '', '# about it\n']);
+    return `${comment}${key}:${pick(VALUES)}\n`;
+  });
+  const tail = pick(['', '', '# tail\n']);
+  const eol = pick(['\n', '\n', '\r\n']);
+  return `---\n${lines.join('')}${tail}---\nBody.\n`.replace(/\n/g, eol);
+}
+
+describe('archive → unarchive gives any ordinary block back byte for byte (property)', () => {
+  it('holds for 2000 seeded blocks', async () => {
+    for (let seed = 1; seed <= 2000; seed += 1) {
+      const text = ordinaryBlock(seed);
+      const files = await roundTrip('Projects/X.md', text);
+      if (files.get('Projects/X.md') !== text) {
+        expect({ seed, restored: files.get('Projects/X.md') }).toEqual({ seed, restored: text });
+      }
+    }
+    // It asserts what 2000 blocks give back, not how fast: about a second
+    // alone, but past vitest's 5 s default when the gate shares the machine.
+  }, 60_000);
+});

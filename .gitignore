@@ -1,0 +1,19 @@
+node_modules/
+dist/
+target/
+# ...but not the mockups each Phase 16 slice is judged against.
+!design/target/
+coverage/
+.DS_Store
+*.log
+.atlas-cache/
+src-tauri/gen/
+test-results/
+playwright-report/
+
+# Local Claude Code state (worktrees, the guide, settings.local.json) stays
+# untracked; the project agents are committed so every machine runs them.
+.claude/*
+!.claude/agents/
+design/out/
+*.orig

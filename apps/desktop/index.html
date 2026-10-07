@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      A saved artifact is shown in a srcdoc frame. Its own policy governs one
+      document; this one, the app's, keeps the frame on it: a refresh, a
+      `location = …` or a link inside it would load a live remote page into
+      the pane, and frame-src 'none' refuses that before any request is made.
+      srcdoc and about:blank are never subject to it. Only frames are named,
+      so nothing else the app loads is affected. The host refuses the same
+      navigations too (src-tauri/src/navigation.rs).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="frame-src 'none'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atlas</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Classic script, so it runs before the module bundle and can report a
+      // failure to load it. Tauri injects its internals before any page script.
+      (function () {
+        var report = function (message) {
+          try {
+            window.__TAURI_INTERNALS__.invoke('report_error', { message: String(message) });
+          } catch (_) {
+            /* Outside Tauri there is nowhere to report to; the console will do. */
+          }
+        };
+        window.addEventListener('error', function (event) {
+          report((event.message || 'error') + ' @ ' + (event.filename || '?') + ':' + event.lineno);
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+          report(
+            'unhandled rejection: ' +
+              (event.reason && event.reason.message ? event.reason.message : event.reason),
+          );
+        });
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

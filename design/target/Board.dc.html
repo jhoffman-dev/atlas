@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Board view</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Manrope',system-ui,sans-serif}
+.icon-btn:hover{background:rgba(120,135,180,0.16) !important}
+.kcard{transition:box-shadow 140ms ease, transform 140ms ease}
+.kcard:hover{transform:translateY(-1px)}
+.tab:hover{background:rgba(120,135,180,0.12) !important}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: {{t.ground}}; font-family: 'Manrope', system-ui, sans-serif; color: {{t.ink}}; overflow: hidden;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="b-board" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="5" height="15" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="10.5" y="4.5" width="5" height="10" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="17.5" y="4.5" width="3.5" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"></rect></symbol>
+<symbol id="b-table" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M9.5 10v9.5" fill="none" stroke="currentColor" stroke-width="1.8"></path></symbol>
+<symbol id="b-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="b-timeline" viewBox="0 0 24 24"><path d="M4 7h9M8 12h11M6 17h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></symbol>
+<symbol id="b-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol>
+<symbol id="b-filter" viewBox="0 0 24 24"><path d="M4 6.5h16M7 12h10M10 17.5h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol>
+<symbol id="b-sort" viewBox="0 0 24 24"><path d="M7.5 4.5v15M4.5 16.5l3 3 3-3M16.5 19.5v-15M13.5 7.5l3-3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="b-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="b-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="b-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.7" fill="currentColor"></circle><circle cx="12" cy="12" r="1.7" fill="currentColor"></circle><circle cx="18.5" cy="12" r="1.7" fill="currentColor"></circle></symbol>
+<symbol id="b-hash" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10.5 4L8.5 20M15.5 4l-2 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="b-person" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M4.8 20c1.3-3.6 4-5.4 7.2-5.4s5.9 1.8 7.2 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="b-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-8.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="b-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 8v4.3l2.8 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+</svg>
+
+<dc-import name="Sidebar" theme="{{theme}}" active="view-board" hint-size="248px,900px"></dc-import>
+
+<div style="flex-grow: 1; padding: 12px 12px 12px 0; box-sizing: border-box; display: flex; min-width: 0;">
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: {{t.panel}}; border-radius: 22px; box-shadow: {{t.shadowPanel}}; overflow: hidden;">
+
+<header style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 16px 0 24px;">
+<svg width="16" height="16" style="color: {{t.ink3}};" aria-hidden="true"><use href="#b-board"></use></svg>
+<span style="font-size: 13.5px; color: {{t.ink3}}; font-weight: 600;">Views</span>
+<span style="font-size: 13.5px; color: {{t.ink3}};">/</span>
+<span style="font-size: 13.5px; font-weight: 700;">Board</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" class="icon-btn" aria-label="Remove from favorites" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: #E0A526; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#b-star"></use></svg></button>
+<button type="button" class="icon-btn" aria-label="More" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#b-more"></use></svg></button>
+</header>
+
+<div style="padding: 6px 32px 0; display: flex; flex-direction: column; gap: 18px;">
+<div style="display: flex; align-items: center; gap: 16px;">
+<div style="width: 52px; height: 52px; border-radius: 16px; background: {{t.tileBg}}; color: {{t.tileInk}}; display: flex; align-items: center; justify-content: center; box-shadow: {{t.shadowTile}};"><svg width="26" height="26" aria-hidden="true"><use href="#b-board"></use></svg></div>
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1;">Board</h1>
+<p style="margin: 0; font-size: 14px; color: {{t.ink2}}; font-weight: 500;">Every task, by status. Drag a card to move it.</p>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid {{t.line}};">
+<button type="button" class="tab" aria-pressed="true" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: {{t.accent}}; color: {{t.accentInk}}; box-shadow: {{t.shadowAccent}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#b-board"></use></svg>Board</button>
+<button type="button" class="tab" aria-pressed="false" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#b-table"></use></svg>Table</button>
+<button type="button" class="tab" aria-pressed="false" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#b-calendar"></use></svg>Calendar</button>
+<button type="button" class="tab" aria-pressed="false" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#b-timeline"></use></svg>Timeline</button>
+<span style="flex-grow: 1;"></span>
+<button type="button" class="icon-btn" style="height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#b-filter"></use></svg>Filter</button>
+<button type="button" class="icon-btn" style="height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#b-sort"></use></svg>Sort</button>
+<button type="button" class="icon-btn" aria-label="Search this view" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#b-search"></use></svg></button>
+<button type="button" style="height: 34px; margin-left: 6px; padding: 0 16px 0 12px; border: 0; border-radius: 999px; background: {{t.accent}}; color: {{t.accentInk}}; box-shadow: {{t.shadowAccent}}; font: inherit; font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 6px; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#b-plus"></use></svg>New task</button>
+</div>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; padding: 18px 32px 24px; display: flex; gap: 14px; overflow: hidden;">
+<sc-for list="{{columns}}" as="col" hint-placeholder-count="5">
+<section aria-label="{{col.label}}" style="width: 212px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: center; gap: 8px; height: 30px;">
+<span style="height: 24px; padding: 0 10px; border-radius: 999px; background: {{col.pillBg}}; color: {{col.pillInk}}; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{col.dot}};"></span>{{col.label}}</span>
+<span style="font-size: 13px; font-weight: 700; color: {{t.ink3}}; font-variant-numeric: tabular-nums;">{{col.count}}</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" class="icon-btn" aria-label="Add to {{col.label}}" style="width: 26px; height: 26px; border: 0; border-radius: 8px; background: transparent; color: {{t.ink3}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#b-plus"></use></svg></button>
+</div>
+<sc-for list="{{col.cards}}" as="card" hint-placeholder-count="2">
+<article class="kcard" style="border-radius: 16px; background: {{t.raised}}; box-shadow: {{t.shadowCard}}; padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; gap: 8px; align-items: flex-start;">
+<sc-if value="{{card.done}}" hint-placeholder-val="{{false}}">
+<span style="width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; background: {{t.navyData}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg width="12" height="12" aria-hidden="true"><use href="#b-check"></use></svg></span>
+</sc-if>
+<h3 style="margin: 0; font-size: 13.5px; font-weight: 700; line-height: 1.38; letter-spacing: -0.005em;">{{card.title}}</h3>
+</div>
+<sc-if value="{{card.summary}}" hint-placeholder-val="{{true}}">
+<p style="margin: 0; font-size: 12.5px; line-height: 1.45; color: {{t.ink2}}; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{card.summary}}</p>
+</sc-if>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{card.chips}}" as="chip" hint-placeholder-count="2">
+<span style="height: 22px; padding: 0 8px; border-radius: 7px; background: {{chip.bg}}; color: {{chip.ink}}; display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700;"><svg width="12" height="12" aria-hidden="true"><use href="#b-{{chip.icon}}"></use></svg>{{chip.text}}</span>
+</sc-for>
+</div>
+</article>
+</sc-for>
+<sc-if value="{{col.empty}}" hint-placeholder-val="{{false}}">
+<div style="height: 76px; border-radius: 16px; border: 1.5px dashed {{t.dash}}; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 600; color: {{t.ink3}};">Nothing here yet</div>
+</sc-if>
+<sc-if value="{{col.more}}" hint-placeholder-val="{{false}}">
+<button type="button" class="icon-btn" style="height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: left; padding: 0 10px;">{{col.more}}</button>
+</sc-if>
+</section>
+</sc-for>
+</div>
+
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  tokens(theme) {
+    if (theme === 'dark') {
+      return {
+        ground: '#070F24', panel: '#0C1834', raised: '#12244C', ink: '#E9EFFF', ink2: '#A9B5DA', ink3: '#7E8CB5',
+        line: 'rgba(125,170,255,0.12)', dash: 'rgba(125,170,255,0.22)', accent: '#22D3EE', accentInk: '#05213A', navyData: '#3B5FB8',
+        tileBg: 'linear-gradient(155deg, #1D3F86 0%, #0A1738 78%)', tileInk: '#5EEAF4',
+        chipBg: 'rgba(125,170,255,0.10)', chipInk: '#B8C4E6', youBg: 'rgba(34,211,238,0.14)', youInk: '#67E8F9',
+        shadowPanel: '0 0 0 1px rgba(90,160,255,0.12), 0 24px 60px rgba(0,0,0,0.45)',
+        shadowCard: '0 0 0 1px rgba(90,160,255,0.13), 0 8px 20px rgba(0,0,0,0.30)',
+        shadowTile: '0 0 0 1px rgba(34,211,238,0.30), 0 12px 28px rgba(0,0,0,0.45)', shadowAccent: '0 0 18px rgba(34,211,238,0.40)',
+        status: { backlog: ['rgba(169,181,218,0.14)', '#C3CDEA', '#8C99C2'], next: ['rgba(56,189,248,0.16)', '#7DD3FC', '#38BDF8'], doing: ['rgba(34,227,242,0.16)', '#67E8F9', '#22E3F2'], review: ['rgba(129,140,248,0.18)', '#C7D2FE', '#818CF8'], done: ['rgba(59,95,184,0.30)', '#C7D6FF', '#6C8EE0'] },
+      };
+    }
+    return {
+      ground: '#E3E7F0', panel: '#F2F4F9', raised: '#FFFFFF', ink: '#151D3B', ink2: '#4E577A', ink3: '#6B7493',
+      line: 'rgba(21,29,59,0.09)', dash: 'rgba(21,29,59,0.16)', accent: '#2468D8', accentInk: '#FFFFFF', navyData: '#1B2A55',
+      tileBg: 'linear-gradient(155deg, #23397A 0%, #0F1B42 78%)', tileInk: '#5EEAF4',
+      chipBg: 'rgba(21,29,59,0.06)', chipInk: '#46506F', youBg: 'rgba(36,104,216,0.10)', youInk: '#1D56B8',
+      shadowPanel: '0 1px 2px rgba(20,30,70,0.05), 0 18px 48px rgba(20,30,70,0.10)',
+      shadowCard: '0 1px 2px rgba(20,30,70,0.07), 0 4px 14px rgba(20,30,70,0.07)',
+      shadowTile: '0 2px 4px rgba(20,30,70,0.06), 0 14px 30px rgba(20,30,70,0.18)', shadowAccent: '0 4px 12px rgba(36,104,216,0.35)',
+      status: { backlog: ['#E6EAF3', '#46506F', '#8A93B2'], next: ['#DDEAFE', '#1D4FA8', '#2F7CF0'], doing: ['#D5F6FA', '#0B6B7E', '#14C4DC'], review: ['#E6E8FD', '#3C3F9E', '#6366F1'], done: ['#DDE2F0', '#1B2A55', '#1B2A55'] },
+    };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const t = this.tokens(theme);
+    const chip = (icon, text, kind) => ({ icon, text, bg: kind === 'you' ? t.youBg : t.chipBg, ink: kind === 'you' ? t.youInk : t.chipInk });
+    const col = (key, label, count, cards, more) => {
+      const s = t.status[key];
+      return { label, count, cards, empty: cards.length === 0, more: more || '', pillBg: s[0], pillInk: s[1], dot: s[2] };
+    };
+    const columns = [
+      col('backlog', 'Backlog', 11, [
+        { title: 'The UI doesn’t look good, or close to the reference images', summary: 'Waiting on James’s assessment before changing anything.', chips: [chip('person', 'From you', 'you')] },
+        { title: 'addDays hands back its input when it cannot move', summary: 'A14-06 found a timeline bar that shrank at the end of time.', chips: [chip('hash', 'Phase 14'), chip('person', 'Bug fixer')] },
+        { title: 'Cmd+N and Shift+Cmd+D still fire behind an open palette', summary: 'The one-overlay rule stops the palette, not the shortcuts behind it.', chips: [chip('hash', 'Phase 14'), chip('person', 'Bug fixer')] },
+        { title: 'Leftovers from A15-02: templates in views, short query pages', summary: '', chips: [chip('hash', 'Phase 15'), chip('clock', '3h')] },
+      ], '+ 7 more'),
+      col('next', 'Next', 0, []),
+      col('doing', 'Doing', 0, []),
+      col('review', 'Review', 0, []),
+      col('done', 'Done', 166, [
+        { done: true, title: 'Prove it end to end, and try to break it', summary: '', chips: [chip('hash', 'Phase 15'), chip('clock', '1d')] },
+        { done: true, title: 'The MCP server, apps/mcp', summary: '', chips: [chip('hash', 'Phase 15'), chip('clock', '1d')] },
+        { done: true, title: 'Wire the bridge, and a Settings panel to turn it on', summary: '', chips: [chip('hash', 'Phase 15')] },
+      ], '+ 163 more'),
+    ];
+    return { theme, t, columns };
+  }
+}
+</script>
+</body>
+</html>

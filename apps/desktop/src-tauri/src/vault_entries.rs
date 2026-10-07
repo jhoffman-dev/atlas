@@ -1,0 +1,734 @@
+//! Making, moving and throwing away entries in the vault: folders as well as notes.
+//!
+//! Like the rest of the host this decides nothing (ADR-0005). Which folder a note
+//! may go to, what is protected and what to do with an open pane are the
+//! frontend's rules; here a path is checked to be inside the vault, the move is
+//! refused rather than writing over something, and that is all.
+
+use std::fs;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+
+use tauri::State;
+
+use crate::vault::{resolve_new, root_for_write, VaultState};
+
+/// An entry that is already there, as itself: a link is the link, not what it
+/// points at.
+///
+/// `resolve` canonicalises the whole path, which would move a symlink's target
+/// instead of the link. Here only the parent is canonicalised and checked, the
+/// way a new entry's is, and the name is then required to exist.
+fn resolve_entry(root: &Path, relative: &str) -> Result<PathBuf, String> {
+    let entry = resolve_new(root, relative)?;
+    fs::symlink_metadata(&entry).map_err(|error| format!("no such entry: {error}"))?;
+    Ok(entry)
+}
+
+/// The same file or folder, whatever either path is spelled like.
+///
+/// Compared by device and inode rather than by path, so that a case-only rename
+/// on a case-insensitive disk is recognised as the one entry it is.
+fn same_entry(left: &Path, right: &Path) -> bool {
+    match (fs::symlink_metadata(left), fs::symlink_metadata(right)) {
+        (Ok(left), Ok(right)) => left.dev() == right.dev() && left.ino() == right.ino(),
+        _ => false,
+    }
+}
+
+/// Whether `folder` is `inside` or one of the folders above it, up to the vault.
+fn contains(folder: &Path, inside: &Path) -> bool {
+    inside
+        .ancestors()
+        .any(|ancestor| same_entry(folder, ancestor))
+}
+
+/// Creates an empty folder, refusing when anything already has the name.
+pub(crate) fn create_folder_at(root: &Path, relative: &str) -> Result<(), String> {
+    let folder = resolve_new(root, relative)?;
+    fs::create_dir(&folder).map_err(|error| match error.kind() {
+        std::io::ErrorKind::AlreadyExists => "something with that name is already there".into(),
+        _ => format!("cannot create the folder: {error}"),
+    })
+}
+
+/// Moves a note or a folder, refusing to write over anything.
+///
+/// A folder cannot go inside itself — the rename would fail halfway on some
+/// systems and orphan the tree on others. A move whose target is the source
+/// spelled in another case is a rename of that one entry, which a
+/// case-insensitive disk would otherwise report as a collision with itself.
+pub(crate) fn move_entry_at(root: &Path, from: &str, to: &str) -> Result<(), String> {
+    let source = resolve_entry(root, from)?;
+    let target = resolve_new(root, to)?;
+
+    if source == target {
+        return Ok(());
+    }
+    let is_folder = fs::symlink_metadata(&source)
+        .map(|metadata| metadata.is_dir())
+        .unwrap_or(false);
+    if is_folder
+        && target
+            .parent()
+            .is_some_and(|parent| contains(&source, parent))
+    {
+        return Err("a folder cannot be moved into itself".into());
+    }
+    // The source under another spelling: a case-only rename, which has to
+    // replace "itself" and so cannot be exclusive.
+    if same_entry(&source, &target) && !is_listed_as_itself(&target) {
+        return fs::rename(&source, &target).map_err(|error| format!("cannot move: {error}"));
+    }
+
+    rename_exclusive(&source, &target).map_err(|error| match error.kind() {
+        std::io::ErrorKind::AlreadyExists => "something with that name is already there".into(),
+        _ => format!("cannot move: {error}"),
+    })
+}
+
+/// Whether `path`'s own name is an entry of its folder, spelled exactly so.
+///
+/// A second hard link to a file and the same file named in another case on a
+/// case-insensitive disk both look like one inode; only the first is really
+/// another name in the folder.
+fn is_listed_as_itself(path: &Path) -> bool {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return false;
+    };
+    fs::read_dir(parent).is_ok_and(|entries| {
+        entries
+            .filter_map(Result::ok)
+            .any(|entry| entry.file_name() == name)
+    })
+}
+
+/// Renames `from` to `to` only if nothing is at `to`, decided by the kernel
+/// in the rename itself, so nothing can take the name between a check and
+/// the move.
+#[cfg(target_os = "macos")]
+fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both are NUL-terminated paths that outlive the call.
+    let status = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both are NUL-terminated paths that outlive the call.
+    let status = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+/// Elsewhere there is no exclusive rename, and the check is as close as it gets.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    if fs::symlink_metadata(to).is_ok() {
+        return Err(std::io::ErrorKind::AlreadyExists.into());
+    }
+    fs::rename(from, to)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn c_path(path: &Path) -> std::io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL"))
+}
+
+/// Puts a note or a folder in the Trash through `trash`, and nothing else.
+///
+/// Taking the way to the Trash as an argument is what lets the tests check the
+/// path handling without filling the real Trash; the command hands over the
+/// system one. There is deliberately no fallback: if the Trash refuses, the
+/// error is the answer, never a permanent delete in its place.
+pub(crate) fn trash_entry_at(
+    root: &Path,
+    relative: &str,
+    trash: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    let entry = resolve_entry(root, relative)?;
+    trash(&entry)
+}
+
+/// The system Trash: on macOS through `NSFileManager`, which needs no Finder
+/// automation permission and so never stops to ask for one. The Finder method
+/// would add "Put Back", at the price of an Apple Events prompt the first time
+/// anything is deleted.
+fn system_trash(entry: &Path) -> Result<(), String> {
+    let mut context = trash::TrashContext::default();
+    #[cfg(target_os = "macos")]
+    {
+        use trash::macos::{DeleteMethod, TrashContextExtMacos};
+        context.set_delete_method(DeleteMethod::NsFileManager);
+    }
+    context
+        .delete(entry)
+        .map_err(|error| format!("cannot move to the Trash: {error}"))
+}
+
+#[tauri::command]
+pub fn create_folder(
+    state: State<'_, VaultState>,
+    path: String,
+    vault: String,
+) -> Result<(), String> {
+    create_folder_at(&root_for_write(state.get(), Some(&vault))?, &path)?;
+    log::info!("created folder {path}");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn move_entry(
+    state: State<'_, VaultState>,
+    from: String,
+    to: String,
+    vault: String,
+) -> Result<(), String> {
+    move_entry_at(&root_for_write(state.get(), Some(&vault))?, &from, &to)?;
+    log::info!("moved {from} to {to}");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn trash_entry(
+    state: State<'_, VaultState>,
+    path: String,
+    vault: String,
+) -> Result<(), String> {
+    trash_entry_at(
+        &root_for_write(state.get(), Some(&vault))?,
+        &path,
+        system_trash,
+    )?;
+    log::info!("moved {path} to the Trash");
+    Ok(())
+}
+
+#[cfg(test)]
+mod folder_tests {
+    use super::create_folder_at;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn creates_a_folder() {
+        let vault = tempdir().unwrap();
+        create_folder_at(vault.path(), "Projects").unwrap();
+        assert!(vault.path().join("Projects").is_dir());
+    }
+
+    #[test]
+    fn creates_a_folder_inside_a_folder() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("Projects")).unwrap();
+        create_folder_at(vault.path(), "Projects/Atlas").unwrap();
+        assert!(vault.path().join("Projects/Atlas").is_dir());
+    }
+
+    #[test]
+    fn refuses_a_name_already_taken_by_a_folder_or_a_note() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("Projects")).unwrap();
+        fs::write(vault.path().join("Notes"), "x").unwrap();
+
+        for taken in ["Projects", "Notes"] {
+            assert_eq!(
+                create_folder_at(vault.path(), taken).unwrap_err(),
+                "something with that name is already there"
+            );
+        }
+        assert_eq!(fs::read_to_string(vault.path().join("Notes")).unwrap(), "x");
+    }
+
+    #[test]
+    fn refuses_a_parent_that_does_not_exist() {
+        let vault = tempdir().unwrap();
+        assert_eq!(
+            create_folder_at(vault.path(), "Nowhere/Here").unwrap_err(),
+            "that folder does not exist"
+        );
+    }
+
+    #[test]
+    fn refuses_to_climb_out_of_the_vault() {
+        let vault = tempdir().unwrap();
+        assert!(create_folder_at(vault.path(), "../escaped").is_err());
+        assert!(!vault.path().parent().unwrap().join("escaped").exists());
+    }
+
+    #[test]
+    fn refuses_an_absolute_path() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let absolute = outside.path().join("made").to_string_lossy().into_owned();
+        assert!(create_folder_at(vault.path(), &absolute).is_err());
+        assert!(!outside.path().join("made").exists());
+    }
+
+    #[test]
+    fn refuses_to_create_through_a_link_leaving_the_vault() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), vault.path().join("escape")).unwrap();
+
+        assert_eq!(
+            create_folder_at(vault.path(), "escape/made").unwrap_err(),
+            "path escapes the vault"
+        );
+        assert!(!outside.path().join("made").exists());
+    }
+
+    #[test]
+    fn refuses_the_vault_itself() {
+        let vault = tempdir().unwrap();
+        assert!(create_folder_at(vault.path(), "").is_err());
+    }
+}
+
+#[cfg(test)]
+mod move_tests {
+    use super::move_entry_at;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn names_in(folder: &std::path::Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(folder)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn renames_a_note_keeping_its_contents() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("old.md"), "# Old\n").unwrap();
+
+        move_entry_at(vault.path(), "old.md", "new.md").unwrap();
+
+        assert!(!vault.path().join("old.md").exists());
+        assert_eq!(
+            fs::read_to_string(vault.path().join("new.md")).unwrap(),
+            "# Old\n"
+        );
+    }
+
+    #[test]
+    fn moves_a_note_into_a_folder() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("Notes")).unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+
+        move_entry_at(vault.path(), "a.md", "Notes/a.md").unwrap();
+        assert!(vault.path().join("Notes/a.md").is_file());
+        assert!(!vault.path().join("a.md").exists());
+    }
+
+    /// The editor holds the time it read a note at, and saves against it: a move
+    /// must not look like an edit made somewhere else.
+    #[test]
+    fn keeps_the_note_modification_time() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("Notes")).unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+        let before = fs::metadata(vault.path().join("a.md"))
+            .unwrap()
+            .modified()
+            .unwrap();
+
+        move_entry_at(vault.path(), "a.md", "Notes/a.md").unwrap();
+        let after = fs::metadata(vault.path().join("Notes/a.md"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(before, after);
+    }
+
+    #[test]
+    fn moves_a_folder_with_everything_in_it() {
+        let vault = tempdir().unwrap();
+        fs::create_dir_all(vault.path().join("Projects/Atlas")).unwrap();
+        fs::write(vault.path().join("Projects/Atlas/plan.md"), "plan").unwrap();
+        fs::create_dir(vault.path().join("Archive")).unwrap();
+
+        move_entry_at(vault.path(), "Projects", "Archive/Projects").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(vault.path().join("Archive/Projects/Atlas/plan.md")).unwrap(),
+            "plan"
+        );
+        assert!(!vault.path().join("Projects").exists());
+    }
+
+    #[test]
+    fn refuses_to_write_over_another_note() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "first").unwrap();
+        fs::write(vault.path().join("b.md"), "second").unwrap();
+
+        assert_eq!(
+            move_entry_at(vault.path(), "a.md", "b.md").unwrap_err(),
+            "something with that name is already there"
+        );
+        assert_eq!(
+            fs::read_to_string(vault.path().join("b.md")).unwrap(),
+            "second"
+        );
+        assert!(vault.path().join("a.md").is_file());
+    }
+
+    #[test]
+    fn refuses_to_write_a_folder_over_another_folder() {
+        let vault = tempdir().unwrap();
+        fs::create_dir_all(vault.path().join("One")).unwrap();
+        fs::create_dir_all(vault.path().join("Two")).unwrap();
+        fs::write(vault.path().join("Two/kept.md"), "kept").unwrap();
+
+        assert!(move_entry_at(vault.path(), "One", "Two").is_err());
+        assert!(vault.path().join("Two/kept.md").is_file());
+        assert!(vault.path().join("One").is_dir());
+    }
+
+    #[test]
+    fn refuses_to_move_a_folder_into_itself() {
+        let vault = tempdir().unwrap();
+        fs::create_dir_all(vault.path().join("Projects/Atlas")).unwrap();
+
+        for inside in ["Projects/Projects", "Projects/Atlas/Projects"] {
+            assert_eq!(
+                move_entry_at(vault.path(), "Projects", inside).unwrap_err(),
+                "a folder cannot be moved into itself"
+            );
+        }
+        assert!(vault.path().join("Projects/Atlas").is_dir());
+    }
+
+    /// A folder whose name only starts the same is not inside it.
+    #[test]
+    fn moves_a_folder_beside_one_with_a_longer_name() {
+        let vault = tempdir().unwrap();
+        fs::create_dir_all(vault.path().join("Projects")).unwrap();
+        fs::create_dir_all(vault.path().join("Projects Old")).unwrap();
+
+        move_entry_at(vault.path(), "Projects", "Projects Old/Projects").unwrap();
+        assert!(vault.path().join("Projects Old/Projects").is_dir());
+    }
+
+    /// On APFS `a.md` and `A.md` are one file: renaming one to the other must
+    /// change the name's case, not be refused as a collision with itself.
+    #[test]
+    fn a_case_only_rename_changes_the_case() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("meeting.md"), "x").unwrap();
+
+        move_entry_at(vault.path(), "meeting.md", "Meeting.md").unwrap();
+
+        assert_eq!(names_in(vault.path()), vec!["Meeting.md".to_string()]);
+    }
+
+    #[test]
+    fn a_case_only_rename_of_a_folder_changes_the_case() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("projects")).unwrap();
+        fs::write(vault.path().join("projects/a.md"), "x").unwrap();
+
+        move_entry_at(vault.path(), "projects", "Projects").unwrap();
+
+        assert_eq!(names_in(vault.path()), vec!["Projects".to_string()]);
+        assert!(vault.path().join("Projects/a.md").is_file());
+    }
+
+    #[test]
+    fn moving_to_the_same_path_does_nothing() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+        assert!(move_entry_at(vault.path(), "a.md", "a.md").is_ok());
+        assert!(vault.path().join("a.md").is_file());
+    }
+
+    #[test]
+    fn refuses_to_move_out_of_the_vault() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+
+        assert!(move_entry_at(vault.path(), "a.md", "../escaped.md").is_err());
+        assert!(vault.path().join("a.md").is_file());
+        assert!(!vault.path().parent().unwrap().join("escaped.md").exists());
+    }
+
+    #[test]
+    fn refuses_to_move_something_from_outside_the_vault() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        fs::write(outside.path().join("secret.md"), "x").unwrap();
+        let absolute = outside
+            .path()
+            .join("secret.md")
+            .to_string_lossy()
+            .into_owned();
+
+        assert!(move_entry_at(vault.path(), &absolute, "stolen.md").is_err());
+        assert!(move_entry_at(vault.path(), "../secret.md", "stolen.md").is_err());
+        assert!(outside.path().join("secret.md").is_file());
+    }
+
+    #[test]
+    fn refuses_to_move_into_a_link_leaving_the_vault() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+        std::os::unix::fs::symlink(outside.path(), vault.path().join("escape")).unwrap();
+
+        assert_eq!(
+            move_entry_at(vault.path(), "a.md", "escape/a.md").unwrap_err(),
+            "path escapes the vault"
+        );
+        assert!(!outside.path().join("a.md").exists());
+    }
+
+    /// Moving a link moves the link: what it points at stays where it is.
+    #[test]
+    fn moves_a_link_rather_than_what_it_points_at() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        fs::write(outside.path().join("elsewhere.md"), "x").unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("elsewhere.md"),
+            vault.path().join("link.md"),
+        )
+        .unwrap();
+
+        move_entry_at(vault.path(), "link.md", "moved.md").unwrap();
+
+        assert!(outside.path().join("elsewhere.md").is_file());
+        assert!(fs::symlink_metadata(vault.path().join("moved.md"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[test]
+    fn refuses_an_entry_that_is_not_there() {
+        let vault = tempdir().unwrap();
+        assert!(move_entry_at(vault.path(), "gone.md", "new.md").is_err());
+    }
+
+    #[test]
+    fn refuses_to_move_the_vault_itself() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("Inside")).unwrap();
+        assert!(move_entry_at(vault.path(), "", "Inside/vault").is_err());
+    }
+
+    /// The move's own check can pass and something take the name before the
+    /// rename runs. The rename itself must then refuse: here the target is
+    /// created after any check could have looked, and handed straight to it.
+    #[test]
+    fn the_rename_itself_refuses_a_target_that_appeared_after_the_check() {
+        let vault = tempdir().unwrap();
+        let (from, to) = (vault.path().join("a.md"), vault.path().join("b.md"));
+        fs::write(&from, "mine").unwrap();
+        fs::write(&to, "theirs").unwrap();
+
+        let renamed = super::rename_exclusive(&from, &to);
+
+        assert_eq!(
+            renamed.map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::AlreadyExists)
+        );
+        assert_eq!(fs::read_to_string(&from).unwrap(), "mine");
+        assert_eq!(fs::read_to_string(&to).unwrap(), "theirs");
+    }
+
+    #[test]
+    fn the_exclusive_rename_moves_a_folder_to_a_free_name() {
+        let vault = tempdir().unwrap();
+        fs::create_dir(vault.path().join("old")).unwrap();
+        fs::write(vault.path().join("old/n.md"), "x").unwrap();
+
+        super::rename_exclusive(&vault.path().join("old"), &vault.path().join("new")).unwrap();
+
+        assert_eq!(names_in(vault.path()), ["new"]);
+        assert!(vault.path().join("new/n.md").is_file());
+    }
+
+    /// Two names for one inode pass `same_entry`, and rename(2) between hard
+    /// links of the same file does nothing and succeeds: the move reports Ok
+    /// while `a.md` is still there and `b.md` was already taken.
+    #[test]
+    fn a_move_onto_a_hard_link_of_itself_is_refused_or_really_moves() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+        fs::hard_link(vault.path().join("a.md"), vault.path().join("b.md")).unwrap();
+
+        let moved = move_entry_at(vault.path(), "a.md", "b.md");
+        assert!(
+            moved.is_err() || !vault.path().join("a.md").exists(),
+            "reported {moved:?} but a.md is still there"
+        );
+    }
+
+    #[test]
+    fn a_move_into_a_folder_named_like_the_source_in_another_case_is_refused() {
+        let vault = tempdir().unwrap();
+        fs::create_dir_all(vault.path().join("Projects/Sub")).unwrap();
+        assert!(move_entry_at(vault.path(), "Projects", "projects/Sub/Projects").is_err());
+        assert!(vault.path().join("Projects/Sub").is_dir());
+    }
+
+    #[test]
+    fn refuses_names_that_are_only_dots() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+        for bad in [".", "..", "./", "Notes/.."] {
+            assert!(move_entry_at(vault.path(), "a.md", bad).is_err(), "{bad}");
+        }
+        assert!(vault.path().join("a.md").is_file());
+    }
+}
+
+#[cfg(test)]
+mod trash_tests {
+    use super::trash_entry_at;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use tempfile::tempdir;
+
+    /// A Trash that is a folder, so a test can see what went there.
+    fn into(bin: &Path) -> impl FnOnce(&Path) -> Result<(), String> + '_ {
+        move |entry: &Path| {
+            let name = entry.file_name().unwrap();
+            fs::rename(entry, bin.join(name)).map_err(|error| error.to_string())
+        }
+    }
+
+    #[test]
+    fn puts_a_note_in_the_trash() {
+        let vault = tempdir().unwrap();
+        let bin = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "kept in the bin").unwrap();
+
+        trash_entry_at(vault.path(), "a.md", into(bin.path())).unwrap();
+
+        assert!(!vault.path().join("a.md").exists());
+        assert_eq!(
+            fs::read_to_string(bin.path().join("a.md")).unwrap(),
+            "kept in the bin"
+        );
+    }
+
+    #[test]
+    fn puts_a_folder_in_the_trash_whole() {
+        let vault = tempdir().unwrap();
+        let bin = tempdir().unwrap();
+        fs::create_dir_all(vault.path().join("Old/Deeper")).unwrap();
+        fs::write(vault.path().join("Old/Deeper/a.md"), "x").unwrap();
+
+        trash_entry_at(vault.path(), "Old", into(bin.path())).unwrap();
+
+        assert!(!vault.path().join("Old").exists());
+        assert!(bin.path().join("Old/Deeper/a.md").is_file());
+    }
+
+    /// No fallback: a Trash that refuses leaves the note exactly where it was.
+    #[test]
+    fn a_refusal_from_the_trash_is_the_answer_and_nothing_is_deleted() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "x").unwrap();
+
+        let error =
+            trash_entry_at(vault.path(), "a.md", |_| Err("the Trash said no".into())).unwrap_err();
+
+        assert_eq!(error, "the Trash said no");
+        assert!(vault.path().join("a.md").is_file());
+    }
+
+    #[test]
+    fn refuses_anything_outside_the_vault_without_asking_the_trash() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        fs::write(outside.path().join("secret.md"), "x").unwrap();
+        std::os::unix::fs::symlink(outside.path(), vault.path().join("escape")).unwrap();
+        let absolute = outside
+            .path()
+            .join("secret.md")
+            .to_string_lossy()
+            .into_owned();
+
+        for path in ["../secret.md", absolute.as_str(), "escape/secret.md"] {
+            let asked: std::cell::Cell<Option<PathBuf>> = std::cell::Cell::new(None);
+            let result = trash_entry_at(vault.path(), path, |entry| {
+                asked.set(Some(entry.to_path_buf()));
+                Ok(())
+            });
+            assert!(result.is_err(), "{path} was accepted");
+            assert!(asked.take().is_none(), "{path} reached the Trash");
+        }
+        assert!(outside.path().join("secret.md").is_file());
+    }
+
+    /// A link inside the vault is thrown away as the link, never its target.
+    #[test]
+    fn trashes_a_link_rather_than_what_it_points_at() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        fs::write(outside.path().join("elsewhere.md"), "x").unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("elsewhere.md"),
+            vault.path().join("link.md"),
+        )
+        .unwrap();
+
+        let mut asked = None;
+        trash_entry_at(vault.path(), "link.md", |entry| {
+            asked = Some(entry.to_path_buf());
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(asked.unwrap().file_name().unwrap(), "link.md");
+    }
+
+    #[test]
+    fn refuses_the_vault_itself() {
+        let vault = tempdir().unwrap();
+        assert!(trash_entry_at(vault.path(), "", |_| Ok(())).is_err());
+    }
+
+    #[test]
+    fn refuses_an_entry_that_is_not_there() {
+        let vault = tempdir().unwrap();
+        assert!(trash_entry_at(vault.path(), "gone.md", |_| Ok(())).is_err());
+    }
+
+    /// The real Trash, once, by hand: it leaves a file in the Trash of whoever
+    /// runs it, so it is not part of the gate. `cargo test -- --ignored`.
+    #[test]
+    #[ignore]
+    fn the_system_trash_takes_a_note() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("atlas-trash-check.md"), "x").unwrap();
+        trash_entry_at(vault.path(), "atlas-trash-check.md", super::system_trash).unwrap();
+        assert!(!vault.path().join("atlas-trash-check.md").exists());
+    }
+}

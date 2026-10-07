@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Table view</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Manrope',system-ui,sans-serif}
+.icon-btn:hover{background:rgba(120,135,180,0.16) !important}
+.trow:hover{background:rgba(120,150,220,0.08) !important}
+.tab:hover{background:rgba(120,135,180,0.12) !important}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: {{t.ground}}; font-family: 'Manrope', system-ui, sans-serif; color: {{t.ink}}; overflow: hidden;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="t-board" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="5" height="15" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="10.5" y="4.5" width="5" height="10" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect><rect x="17.5" y="4.5" width="3.5" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"></rect></symbol>
+<symbol id="t-table" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M9.5 10v9.5" fill="none" stroke="currentColor" stroke-width="1.8"></path></symbol>
+<symbol id="t-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="t-timeline" viewBox="0 0 24 24"><path d="M4 7h9M8 12h11M6 17h8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></symbol>
+<symbol id="t-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol>
+<symbol id="t-filter" viewBox="0 0 24 24"><path d="M4 6.5h16M7 12h10M10 17.5h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol>
+<symbol id="t-sort" viewBox="0 0 24 24"><path d="M7.5 4.5v15M4.5 16.5l3 3 3-3M16.5 19.5v-15M13.5 7.5l3-3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="t-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="t-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.7" fill="currentColor"></circle><circle cx="12" cy="12" r="1.7" fill="currentColor"></circle><circle cx="18.5" cy="12" r="1.7" fill="currentColor"></circle></symbol>
+<symbol id="t-doc" viewBox="0 0 24 24"><path d="M7 3.5h6.8l4.7 4.7v11.3a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5v-14.5A1.5 1.5 0 0 1 7 3.5zM13.5 3.5v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="t-list" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M9 12.2l2 2 4-4.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="t-hash" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10.5 4L8.5 20M15.5 4l-2 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="t-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 8v4.3l2.8 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="t-person" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M4.8 20c1.3-3.6 4-5.4 7.2-5.4s5.9 1.8 7.2 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="t-arrow" viewBox="0 0 24 24"><path d="M12 5v14M6.5 10.5L12 5l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+</svg>
+
+<dc-import name="Sidebar" theme="{{theme}}" active="view-all" hint-size="248px,900px"></dc-import>
+
+<div style="flex-grow: 1; padding: 12px 12px 12px 0; box-sizing: border-box; display: flex; min-width: 0;">
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: {{t.panel}}; border-radius: 22px; box-shadow: {{t.shadowPanel}}; overflow: hidden;">
+
+<header style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 16px 0 24px;">
+<svg width="16" height="16" style="color: {{t.ink3}};" aria-hidden="true"><use href="#t-table"></use></svg>
+<span style="font-size: 13.5px; color: {{t.ink3}}; font-weight: 600;">Views</span>
+<span style="font-size: 13.5px; color: {{t.ink3}};">/</span>
+<span style="font-size: 13.5px; font-weight: 700;">All tasks</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" class="icon-btn" aria-label="Add to favorites" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#t-star"></use></svg></button>
+<button type="button" class="icon-btn" aria-label="More" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#t-more"></use></svg></button>
+</header>
+
+<div style="padding: 6px 32px 0; display: flex; flex-direction: column; gap: 18px;">
+<div style="display: flex; align-items: center; gap: 16px;">
+<div style="width: 52px; height: 52px; border-radius: 16px; background: {{t.tileBg}}; color: {{t.tileInk}}; display: flex; align-items: center; justify-content: center; box-shadow: {{t.shadowTile}};"><svg width="26" height="26" aria-hidden="true"><use href="#t-table"></use></svg></div>
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1;">All tasks</h1>
+<p style="margin: 0; font-size: 14px; color: {{t.ink2}}; font-weight: 500;">Every task in the vault</p>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid {{t.line}};">
+<button type="button" class="tab" aria-pressed="false" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#t-board"></use></svg>Board</button>
+<button type="button" class="tab" aria-pressed="true" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: {{t.accent}}; color: {{t.accentInk}}; box-shadow: {{t.shadowAccent}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#t-table"></use></svg>Table</button>
+<button type="button" class="tab" aria-pressed="false" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#t-calendar"></use></svg>Calendar</button>
+<button type="button" class="tab" aria-pressed="false" style="height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#t-timeline"></use></svg>Timeline</button>
+<span style="flex-grow: 1;"></span>
+<button type="button" class="icon-btn" style="height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#t-filter"></use></svg>Filter</button>
+<button type="button" class="icon-btn" style="height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#t-sort"></use></svg>Sort</button>
+<button type="button" style="height: 34px; margin-left: 6px; padding: 0 16px 0 12px; border: 0; border-radius: 999px; background: {{t.accent}}; color: {{t.accentInk}}; box-shadow: {{t.shadowAccent}}; font: inherit; font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 6px; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#t-plus"></use></svg>New task</button>
+</div>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; padding: 14px 32px 20px; overflow: hidden;">
+<div role="table" aria-label="All tasks" style="border-radius: 18px; background: {{t.raised}}; box-shadow: {{t.shadowCard}}; overflow: hidden;">
+<div role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 130px 90px 100px 120px; align-items: center; height: 40px; padding: 0 18px; border-bottom: 1px solid {{t.line}}; font-size: 12.5px; font-weight: 700; color: {{t.ink3}};">
+<span role="columnheader" style="display: flex; align-items: center; gap: 7px;"><svg width="14" height="14" aria-hidden="true"><use href="#t-doc"></use></svg>Name</span>
+<span role="columnheader" style="display: flex; align-items: center; gap: 7px;"><svg width="14" height="14" aria-hidden="true"><use href="#t-list"></use></svg>Status</span>
+<span role="columnheader" style="display: flex; align-items: center; gap: 7px; color: {{t.accentText}};"><svg width="14" height="14" aria-hidden="true"><use href="#t-hash"></use></svg>Phase<svg width="12" height="12" aria-hidden="true"><use href="#t-arrow"></use></svg></span>
+<span role="columnheader" style="display: flex; align-items: center; gap: 7px;"><svg width="14" height="14" aria-hidden="true"><use href="#t-clock"></use></svg>Estimate</span>
+<span role="columnheader" style="display: flex; align-items: center; gap: 7px;"><svg width="14" height="14" aria-hidden="true"><use href="#t-person"></use></svg>Source</span>
+</div>
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="12">
+<div role="row" class="trow" style="display: grid; grid-template-columns: minmax(0, 1fr) 130px 90px 100px 120px; align-items: center; min-height: 44px; padding: 0 18px; border-bottom: 1px solid {{t.line}}; font-size: 13.5px;">
+<span role="cell" style="display: flex; align-items: center; gap: 10px; min-width: 0; padding-right: 16px;"><svg width="16" height="16" style="color: {{t.ink3}}; flex-shrink: 0;" aria-hidden="true"><use href="#t-doc"></use></svg><span style="font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{row.title}}</span></span>
+<span role="cell"><span style="height: 24px; padding: 0 10px; border-radius: 999px; background: {{row.pillBg}}; color: {{row.pillInk}}; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{row.dot}};"></span>{{row.status}}</span></span>
+<span role="cell" style="color: {{row.phaseInk}}; font-weight: 600; font-variant-numeric: tabular-nums;">{{row.phase}}</span>
+<span role="cell" style="color: {{row.estimateInk}}; font-weight: 600;">{{row.estimate}}</span>
+<span role="cell"><sc-if value="{{row.you}}" hint-placeholder-val="{{false}}"><span style="height: 24px; padding: 0 9px; border-radius: 999px; background: {{t.youBg}}; color: {{t.youInk}}; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800;"><svg width="12" height="12" aria-hidden="true"><use href="#t-person"></use></svg>You</span></sc-if></span>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 18px; font-size: 12.5px; font-weight: 700; color: {{t.ink3}};">
+<svg width="14" height="14" aria-hidden="true"><use href="#t-plus"></use></svg>New task
+<span style="flex-grow: 1;"></span>
+<span>177 tasks</span>
+</div>
+</div>
+</div>
+
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  tokens(theme) {
+    if (theme === 'dark') {
+      return {
+        ground: '#070F24', panel: '#0C1834', raised: '#10214A', ink: '#E9EFFF', ink2: '#A9B5DA', ink3: '#7E8CB5',
+        line: 'rgba(125,170,255,0.10)', accent: '#22D3EE', accentInk: '#05213A', accentText: '#67E8F9',
+        tileBg: 'linear-gradient(155deg, #1D3F86 0%, #0A1738 78%)', tileInk: '#5EEAF4',
+        chipBg: 'rgba(125,170,255,0.10)', youBg: 'rgba(34,211,238,0.14)', youInk: '#67E8F9',
+        shadowPanel: '0 0 0 1px rgba(90,160,255,0.12), 0 24px 60px rgba(0,0,0,0.45)',
+        shadowCard: '0 0 0 1px rgba(90,160,255,0.14), 0 12px 30px rgba(0,0,0,0.35)',
+        shadowTile: '0 0 0 1px rgba(34,211,238,0.30), 0 12px 28px rgba(0,0,0,0.45)', shadowAccent: '0 0 18px rgba(34,211,238,0.40)',
+        status: { Backlog: ['rgba(169,181,218,0.14)', '#C3CDEA', '#8C99C2'], Done: ['rgba(59,95,184,0.32)', '#C7D6FF', '#6C8EE0'] },
+      };
+    }
+    return {
+      ground: '#E3E7F0', panel: '#F2F4F9', raised: '#FFFFFF', ink: '#151D3B', ink2: '#4E577A', ink3: '#6B7493',
+      line: 'rgba(21,29,59,0.08)', accent: '#2468D8', accentInk: '#FFFFFF', accentText: '#1D56B8',
+      tileBg: 'linear-gradient(155deg, #23397A 0%, #0F1B42 78%)', tileInk: '#5EEAF4',
+      chipBg: 'rgba(21,29,59,0.06)', youBg: 'rgba(36,104,216,0.10)', youInk: '#1D56B8',
+      shadowPanel: '0 1px 2px rgba(20,30,70,0.05), 0 18px 48px rgba(20,30,70,0.10)',
+      shadowCard: '0 1px 2px rgba(20,30,70,0.05), 0 10px 28px rgba(20,30,70,0.08)',
+      shadowTile: '0 2px 4px rgba(20,30,70,0.06), 0 14px 30px rgba(20,30,70,0.18)', shadowAccent: '0 4px 12px rgba(36,104,216,0.35)',
+      status: { Backlog: ['#E6EAF3', '#46506F', '#8A93B2'], Done: ['#DDE2F0', '#1B2A55', '#1B2A55'] },
+    };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    const t = this.tokens(theme);
+    const raw = [
+      ['Leftovers from A15-02: templates in views, short query pages, create races', 'Backlog', '15', '3h', false],
+      ['new-note.spec reads the file once instead of waiting for it', 'Backlog', '', '', false],
+      ['The UI doesn’t look good, or close to the reference images', 'Backlog', '', '', true],
+      ['Cmd+N and Shift+Cmd+D still fire behind an open palette', 'Backlog', '14', '', false],
+      ['addDays hands back its input when it cannot move, and says nothing', 'Backlog', '14', '', false],
+      ['Drag to resize and reorder widgets', 'Backlog', '10', '', false],
+      ['Prove it end to end, and try to break it', 'Done', '15', '1d', false],
+      ['The MCP server, apps/mcp', 'Done', '15', '1d', false],
+      ['bug: edits made to a document aren’t saving', 'Done', '', '', true],
+      ['feature: makes sidebar collapsible', 'Done', '', '', true],
+      ['Install Rust toolchain + Xcode CLT', 'Done', '0', '30m', false],
+    ];
+    const rows = raw.map(([title, status, phase, estimate, you]) => {
+      const s = t.status[status];
+      return {
+        title, status, you,
+        phase: phase || 'Empty', phaseInk: phase ? t.ink2 : 'transparent',
+        estimate: estimate || 'Empty', estimateInk: estimate ? t.ink2 : 'transparent',
+        pillBg: s[0], pillInk: s[1], dot: s[2],
+      };
+    });
+    return { theme, t, rows };
+  }
+}
+</script>
+</body>
+</html>

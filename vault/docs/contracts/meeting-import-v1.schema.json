@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Atlas meeting import contract v1 — frontmatter",
+  "description": "The YAML frontmatter of a meeting file, read as JSON. The body's rules (sections, transcript turns, block ids) are in meeting-import-v1.md; Atlas's validator checks both. Keys not named here are allowed: Atlas adds its own (atlas_import_error, atlas_duplicate_of).",
+  "type": "object",
+  "required": ["type", "atlas_import", "title", "date", "start", "provider", "external_id"],
+  "properties": {
+    "type": { "const": "meeting" },
+    "atlas_import": { "const": "meeting/v1" },
+    "title": { "$ref": "#/$defs/someText" },
+    "date": {
+      "description": "The day, quoted. A day the calendar has: no 30 February.",
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+      "format": "date"
+    },
+    "start": { "$ref": "#/$defs/clockTime" },
+    "end": { "anyOf": [{ "$ref": "#/$defs/clockTime" }, { "type": "null" }] },
+    "kind": {
+      "description": "What the provider or the mapping called it: Standup, Retro, 1:1…",
+      "anyOf": [{ "$ref": "#/$defs/someText" }, { "type": "null" }]
+    },
+    "provider": {
+      "description": "Who wrote the notes up: gemini, granola, or the next one.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "external_id": {
+      "description": "The provider's own id for the meeting, quoted: a second file with the same provider and external_id is a duplicate.",
+      "$ref": "#/$defs/someText"
+    },
+    "transcript_clock": {
+      "description": "What the transcript's times count. Default elapsed.",
+      "anyOf": [{ "enum": ["elapsed", "wall"] }, { "type": "null" }]
+    },
+    "attendees": {
+      "anyOf": [{ "type": "array", "items": { "$ref": "#/$defs/attendee" } }, { "type": "null" }]
+    }
+  },
+  "$defs": {
+    "someText": { "type": "string", "pattern": "\\S" },
+    "clockTime": {
+      "description": "A 24-hour local time, quoted: 14:05.",
+      "type": "string",
+      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+    },
+    "attendee": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/someText" },
+        "email": {
+          "anyOf": [{ "type": "string", "pattern": "^[^\\s@]+@[^\\s@]+$" }, { "type": "null" }]
+        },
+        "group": {
+          "description": "true for a group address (platform-team@…): kept, never made a Person.",
+          "anyOf": [{ "type": "boolean" }, { "type": "null" }]
+        }
+      }
+    }
+  }
+}

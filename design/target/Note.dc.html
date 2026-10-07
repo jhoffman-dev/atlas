@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Note page</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Manrope',system-ui,sans-serif}
+.icon-btn:hover{background:rgba(120,135,180,0.16) !important}
+.prop:hover{background:rgba(120,135,180,0.08) !important}
+code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:0.86em;padding:1px 6px;border-radius:6px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: {{t.ground}}; font-family: 'Manrope', system-ui, sans-serif; color: {{t.ink}}; overflow: hidden;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="n-folder" viewBox="0 0 24 24"><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h3.8l2 2.2h7.2a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="n-task" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M8.5 12.3l2.4 2.4 4.8-5.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="n-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></symbol>
+<symbol id="n-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.7" fill="currentColor"></circle><circle cx="12" cy="12" r="1.7" fill="currentColor"></circle><circle cx="18.5" cy="12" r="1.7" fill="currentColor"></circle></symbol>
+<symbol id="n-list" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M9 12.2l2 2 4-4.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="n-hash" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10.5 4L8.5 20M15.5 4l-2 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="n-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 8v4.3l2.8 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="n-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="n-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="n-id" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M7.5 10h5M7.5 14h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="n-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol>
+<symbol id="n-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7M8.5 7H17v8.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="n-chev" viewBox="0 0 24 24"><path d="M9.5 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+</svg>
+
+<dc-import name="Sidebar" theme="{{theme}}" active="page-tasks" hint-size="248px,900px"></dc-import>
+
+<div style="flex-grow: 1; padding: 12px 12px 12px 0; box-sizing: border-box; display: flex; min-width: 0;">
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: {{t.page}}; border-radius: 22px; box-shadow: {{t.shadowPanel}}; overflow: hidden;">
+
+<header style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 16px 0 24px;">
+<svg width="16" height="16" style="color: {{t.ink3}};" aria-hidden="true"><use href="#n-folder"></use></svg>
+<span style="font-size: 13.5px; color: {{t.ink3}}; font-weight: 600;">tasks</span>
+<span style="font-size: 13.5px; color: {{t.ink3}};">/</span>
+<span style="font-size: 13.5px; font-weight: 700; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Leftovers from A15-02</span>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 12.5px; color: {{t.ink3}}; font-weight: 600; margin-right: 6px;">Saved</span>
+<button type="button" class="icon-btn" aria-label="Add to favorites" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#n-star"></use></svg></button>
+<button type="button" class="icon-btn" aria-label="More" style="width: 32px; height: 32px; border: 0; border-radius: 10px; background: transparent; color: {{t.ink2}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="18" height="18" aria-hidden="true"><use href="#n-more"></use></svg></button>
+</header>
+
+<div style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center;">
+<article style="width: 720px; padding: 34px 0 40px; display: flex; flex-direction: column;">
+<div style="width: 60px; height: 60px; border-radius: 18px; background: {{t.tileBg}}; color: {{t.tileInk}}; display: flex; align-items: center; justify-content: center; box-shadow: {{t.shadowTile}};"><svg width="30" height="30" aria-hidden="true"><use href="#n-task"></use></svg></div>
+<h1 style="margin: 20px 0 22px; font-size: 36px; font-weight: 800; letter-spacing: -0.028em; line-height: 1.15;">Leftovers from A15-02: templates in views, short query pages, create races</h1>
+
+<div role="list" aria-label="Properties" style="display: flex; flex-direction: column; gap: 1px;">
+<sc-for list="{{props}}" as="p" hint-placeholder-count="7">
+<div role="listitem" class="prop" style="display: flex; align-items: center; min-height: 36px; padding: 0 8px; margin: 0 -8px; border-radius: 9px;">
+<span style="width: 170px; flex-shrink: 0; display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; color: {{t.ink3}};"><svg width="16" height="16" aria-hidden="true"><use href="#n-{{p.icon}}"></use></svg>{{p.label}}</span>
+<sc-if value="{{p.pill}}" hint-placeholder-val="{{false}}">
+<span style="height: 26px; padding: 0 11px; border-radius: 999px; background: {{t.pillBg}}; color: {{t.pillInk}}; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 800;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{t.pillDot}};"></span>{{p.value}}</span>
+</sc-if>
+<sc-if value="{{p.link}}" hint-placeholder-val="{{false}}">
+<span style="height: 28px; padding: 0 10px 0 8px; border-radius: 9px; background: {{t.chipBg}}; color: {{t.ink}}; display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700;"><svg width="15" height="15" style="color: {{t.accentText}};" aria-hidden="true"><use href="#n-task"></use></svg>{{p.value}}<svg width="13" height="13" style="color: {{t.ink3}};" aria-hidden="true"><use href="#n-arrow"></use></svg></span>
+</sc-if>
+<sc-if value="{{p.plain}}" hint-placeholder-val="{{true}}">
+<span style="font-size: 14.5px; font-weight: 600; color: {{t.ink}};">{{p.value}}</span>
+</sc-if>
+</div>
+</sc-for>
+<button type="button" class="prop" style="display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 8px; margin: 0 -8px; border: 0; border-radius: 9px; background: transparent; color: {{t.ink3}}; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;"><svg width="16" height="16" aria-hidden="true"><use href="#n-plus"></use></svg>Add a property</button>
+</div>
+
+<div style="height: 1px; background: {{t.line}}; margin: 18px 0 22px;"></div>
+
+<div style="font-size: 16px; line-height: 1.7; color: {{t.body}}; display: flex; flex-direction: column; gap: 10px;">
+<ul style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px;">
+<li>In-app views, dashboards and aggregates include <code style="background: {{t.codeBg}}; color: {{t.codeInk}};">.atlas/templates/*</code> notes. Fix in <code style="background: {{t.codeBg}}; color: {{t.codeInk}};">compileViewQuery</code>; this changes what the app shows.</li>
+<li><code style="background: {{t.codeBg}}; color: {{t.codeInk}};">/v1/query</code> drops <code style="background: {{t.codeBg}}; color: {{t.codeInk}};">.atlas</code> rows after the SQL limit, so a page can come back short.</li>
+<li>An unnamed create still answers <code style="background: {{t.codeBg}}; color: {{t.codeInk}};">exists</code> if “Untitled” is taken between listing and creating.</li>
+<li>Create’s read-back runs against whatever vault is open by then.</li>
+</ul>
+</div>
+
+<button type="button" class="prop" style="margin: 28px -8px 0; height: 36px; padding: 0 8px; border: 0; border-radius: 9px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left;"><svg width="14" height="14" aria-hidden="true"><use href="#n-chev"></use></svg>1 linked mention</button>
+</article>
+</div>
+
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  tokens(theme) {
+    if (theme === 'dark') {
+      return {
+        ground: '#070F24', page: '#0C1834', ink: '#E9EFFF', ink2: '#A9B5DA', ink3: '#7E8CB5', body: '#D5DDF5',
+        line: 'rgba(125,170,255,0.12)', chipBg: 'rgba(125,170,255,0.10)', accentText: '#67E8F9',
+        pillBg: 'rgba(169,181,218,0.14)', pillInk: '#C3CDEA', pillDot: '#8C99C2',
+        codeBg: 'rgba(125,170,255,0.12)', codeInk: '#C7D6FF',
+        tileBg: 'linear-gradient(155deg, #1D3F86 0%, #0A1738 78%)', tileInk: '#5EEAF4',
+        shadowPanel: '0 0 0 1px rgba(90,160,255,0.12), 0 24px 60px rgba(0,0,0,0.45)',
+        shadowTile: '0 0 0 1px rgba(34,211,238,0.30), 0 12px 28px rgba(0,0,0,0.45)',
+      };
+    }
+    return {
+      ground: '#E3E7F0', page: '#FBFCFE', ink: '#151D3B', ink2: '#4E577A', ink3: '#6B7493', body: '#262F4D',
+      line: 'rgba(21,29,59,0.09)', chipBg: 'rgba(21,29,59,0.06)', accentText: '#2468D8',
+      pillBg: '#E6EAF3', pillInk: '#46506F', pillDot: '#8A93B2',
+      codeBg: 'rgba(21,29,59,0.06)', codeInk: '#2A3560',
+      tileBg: 'linear-gradient(155deg, #23397A 0%, #0F1B42 78%)', tileInk: '#5EEAF4',
+      shadowPanel: '0 1px 2px rgba(20,30,70,0.05), 0 18px 48px rgba(20,30,70,0.10)',
+      shadowTile: '0 2px 4px rgba(20,30,70,0.06), 0 14px 30px rgba(20,30,70,0.18)',
+    };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const t = this.tokens(theme);
+    const row = (icon, label, value, kind) => ({ icon, label, value, pill: kind === 'pill', link: kind === 'link', plain: !kind });
+    const props = [
+      row('list', 'Status', 'Backlog', 'pill'),
+      row('hash', 'Phase', '15'),
+      row('clock', 'Estimate', '3 hours'),
+      row('link', 'Blocked by', 'A15-02 · Router findings', 'link'),
+      row('calendar', 'Due', 'Tue, Sep 22, 2026'),
+      row('id', 'ID', 'A15-03'),
+    ];
+    return { theme, t, props };
+  }
+}
+</script>
+</body>
+</html>
