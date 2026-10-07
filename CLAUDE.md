@@ -75,6 +75,20 @@ change is merged. Don't wait to be asked:
 The maintainer is James Hoffman. These come from his feedback and hold on every
 machine:
 
+- **This repository is public.** Never put real names of his employer, its
+  clients, vendors, coworkers or family into anything that is committed or
+  posted — code, tests, fixtures, docs, ADRs, commit messages, issues or PR
+  text. Use clearly fictional names (Larkspur Payroll, Mara Quill, Tobias Fenn)
+  and `example.com` addresses. Real meetings and notes belong in his vault
+  (a separate private repo), never here. This matters most on his work laptop,
+  where work context is close at hand. A pre-publication scrub was needed once;
+  the full private history lives in `jhoffman-dev/atlas-archive`.
+- **Two machines, one repo.** He works from a personal Mac and a work laptop.
+  Before starting, `git pull`; claim an issue by assigning it to yourself
+  (`gh issue edit <n> --add-assignee @me`) and skip issues already assigned or
+  with an open PR. Changes reach `main` through a pull request (a ruleset
+  requires it; the admin bypass is for the coordinator's merges, not a habit).
+
 - **Never guess his first name** from "jhoffman". It is James; if a name is
   needed and unknown, write `[Your name]`. (Claude has invented "Jordan" before.)
 - **Delegate to the agents by default, and in parallel** where the work divides —
