@@ -144,3 +144,30 @@ refused.
   not as every key missing: `frontmatterProblem` now reports what turning
   the YAML into values throws, not only what parsing it does.
 - **A blank profile name is no name**: `You` stays unnamed.
+
+## As built (P28-02, 2026-10-07)
+
+The n8n destination is in `tools/n8n/` (setup in its `README.md`). Where it
+differs from the issue (#8) and the text above:
+
+- **File locations.** The issue planned `vault/docs/contracts/n8n-meeting-to-atlas.md`
+  and `.json` and `tools/validate-meeting.mjs`. They live together in
+  `tools/n8n/` instead (`README.md`, `meeting-to-atlas.workflow.json`,
+  `validate-meeting.mjs`), because the workflow JSON is generated from the
+  mapper's TypeScript (`pnpm n8n:build`) and a test fails while the two
+  differ. The contract stays in `vault/docs/contracts/`.
+- **Atlas runs after Notion, and never stops the run.** The branch is wired
+  from the Notion node's success output and reads the parse step by name;
+  every node that can fail sends its item to an "Atlas commit failed" node
+  instead of stopping, so the Notion write is never prevented.
+- **Instants need a time zone.** A date-time with `Z` or an offset is read on
+  the clock of `timeZone` (default `America/Los_Angeles`); with none it is
+  refused rather than kept as a UTC clock time. A date or time without an
+  offset is kept as written.
+- **The collision path names a hash**, `<date> <title> (<provider> <8 hex>).md`
+  of provider + external_id, within 255 bytes with the date kept. A file
+  already there is checked with the same duplicate rule; another meeting
+  there, or a file GitHub sends without content (over 1 MB), is a failure,
+  never a skip or a guess.
+- **Known gap:** titles that differ only in case on one day are two GitHub
+  paths but one macOS file name; the single-path lookup cannot see it.

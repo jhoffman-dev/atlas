@@ -26,7 +26,9 @@
     "smoke:api": "node apps/mcp/scripts/smoke.mjs",
     "design:refs": "node tools/design/refs.ts",
     "shots": "pnpm build && playwright test --config playwright.shots.config.ts",
-    "design:compare": "node tools/design/compare.ts"
+    "design:compare": "node tools/design/compare.ts",
+    "n8n:build": "node tools/n8n/build-workflow.mjs",
+    "validate:meeting": "node tools/n8n/validate-meeting.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -36,6 +38,8 @@
     "@testing-library/user-event": "^14.6.7",
     "@types/node": "^26.6.2",
     "@vitest/coverage-v8": "^5.0.1",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "eslint": "^10.11.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
