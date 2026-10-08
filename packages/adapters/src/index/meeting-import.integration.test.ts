@@ -317,3 +317,103 @@ describe('meeting import over a real folder and a real SQLite index', () => {
     expect(app.activity.reports.filter((report) => report.kind === 'meeting')).toHaveLength(1);
   });
 });
+
+describe('meeting import over a real folder: adversarial', () => {
+  const NO_ID = readFileSync(new URL('invalid/turn-without-block-id.md', fixtures), 'utf8');
+  const UNREADABLE = readFileSync(new URL('invalid/unreadable-yaml.md', fixtures), 'utf8');
+  const meetingReports = (app: { activity: { reports: readonly { kind: string }[] } }) =>
+    app.activity.reports.filter((report) => report.kind === 'meeting');
+
+  it('marks a file with a body error once, however many syncs follow its own mark', async () => {
+    const app = await launch();
+
+    await drop(BROKEN, NO_ID);
+    await app.sync();
+    const marked = await readFile(join(root, BROKEN), 'utf8');
+    await app.sync();
+    await app.sync();
+
+    expect(marked).toMatch(/^atlas_import_error: .*line \d+/im);
+    expect(await readFile(join(root, BROKEN), 'utf8')).toBe(marked);
+    expect(meetingReports(app)).toHaveLength(1);
+  });
+
+  it('archives a second copy whose external_id carries the same trailing space', async () => {
+    const spaced = VALID.replace(
+      "external_id: 'gemini-7f3a9c21'",
+      "external_id: 'gemini-7f3a9c21 '",
+    );
+    expect(spaced).not.toBe(VALID);
+    const app = await launch();
+
+    await drop(FIRST, spaced);
+    await app.sync();
+    await drop(SECOND, spaced);
+    await app.sync();
+
+    expect(await readFile(join(root, FIRST), 'utf8')).toBe(spaced);
+    expect(existsSync(join(root, SECOND))).toBe(false);
+    expect(existsSync(join(root, 'Archive', SECOND))).toBe(true);
+  });
+
+  it('imports a copy whose unreadable YAML is fixed later, and archives it as the duplicate it is', async () => {
+    const app = await launch();
+
+    await drop(FIRST, VALID);
+    await app.sync();
+    await drop(SECOND, UNREADABLE);
+    await app.sync();
+    expect(await readFile(join(root, SECOND), 'utf8')).toBe(UNREADABLE);
+    await drop(SECOND, VALID);
+    await app.sync();
+
+    expect(existsSync(join(root, SECOND))).toBe(false);
+    expect(existsSync(join(root, 'Archive', SECOND))).toBe(true);
+    expect(meetingReports(app).map((report) => (report as { message: string }).message)).toEqual([
+      expect.stringContaining('arrived'),
+      expect.stringContaining('could not be imported'),
+      expect.stringContaining('second copy'),
+    ]);
+  });
+
+  /**
+   * Two Macs pull the same repository (ADR-0025) and both import (ADR-0027).
+   * One awake hears the first copy, then the resend a minute later; one that
+   * wakes in between hears both in one sync, in whatever order its disk lists
+   * them. Each archives the copy it thinks is second; if they disagree, the
+   * merge archives both and the meeting leaves the Inbox altogether.
+   */
+  it.each(['ascending', 'descending'] as const)(
+    'keeps the same copy whether the two arrive in one sync or two (host lists %s)',
+    async (order) => {
+      const inInbox = async () => [FIRST, SECOND].filter((path) => existsSync(join(root, path)));
+
+      const awake = await launch();
+      await drop(FIRST, VALID);
+      await awake.sync();
+      await drop(SECOND, VALID);
+      await awake.sync();
+      const keptByAwake = await inInbox();
+
+      await rm(root, { recursive: true, force: true });
+      root = await realpath(await mkdtemp(join(tmpdir(), 'atlas-meeting-import-')));
+      const host = hostFor(root);
+      invoke.mockImplementation(async (command: string, args: Record<string, unknown>) => {
+        const answer = await host(command, args);
+        if (command !== 'list_notes') return answer;
+        const sorted = [...(answer as { path: string }[])].sort((a, b) =>
+          a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+        );
+        return order === 'ascending' ? sorted : sorted.reverse();
+      });
+      const asleep = await launch();
+      await drop(FIRST, VALID);
+      await drop(SECOND, VALID);
+      await asleep.sync();
+      const keptByAsleep = await inInbox();
+
+      expect(keptByAwake).toEqual([FIRST]);
+      expect(keptByAsleep).toEqual(keptByAwake);
+    },
+  );
+});

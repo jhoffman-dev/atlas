@@ -374,3 +374,21 @@ describe('importArrivedMeetings', () => {
     });
   });
 });
+
+describe('importArrivedMeetings: adversarial', () => {
+  it('imports an arrival that changed before it was read when the next sync reports it', async () => {
+    const { vault, run, as } = setUp({ [STANDUP]: meeting(), [RESENT]: meeting() });
+    await run([as('added', STANDUP)]);
+    const reported = as('added', RESENT);
+    // The pull lands the resend's next commit between the sync and the import reading it.
+    vault.files.set(RESENT, meeting().replace('moves a week', 'moves two weeks'));
+
+    await run([reported]);
+    await run([as('changed', RESENT)]);
+
+    expect(vault.files.has(RESENT)).toBe(false);
+    expect(vault.properties(`Archive/${RESENT}`)).toMatchObject({
+      atlas_duplicate_of: '[[2026-10-06 Standup]]',
+    });
+  });
+});
