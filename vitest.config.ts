@@ -60,6 +60,8 @@ export default defineConfig({
         'packages/application/src/archive/**': { lines: 90, functions: 90, branches: 85 },
         // Processing the Inbox moves notes and rewrites their frontmatter (P30-01).
         'packages/application/src/inbox/**': { lines: 90, functions: 90, branches: 85 },
+        // Moving tasks to GTD rewrites every task, view and rule naming a status, and undoes it (P30-02).
+        'packages/application/src/gtd/**': { lines: 90, functions: 90, branches: 85 },
         // An automation moves and rewrites notes by itself, on a clock (P25).
         'packages/application/src/automations/**': { lines: 90, functions: 90, branches: 85 },
         // A sync merges other Macs' changes into the notes and settles conflicts (U-29).
