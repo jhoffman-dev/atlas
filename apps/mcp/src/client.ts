@@ -333,6 +333,7 @@ export class AtlasClient {
   proposals = () =>
     this.json<{
       proposals: readonly ApiProposal[];
+      stranded: readonly { path: string; headline: string; state: 'accepted' | 'rejected' }[];
       unreadable: readonly { path: string; problem: string }[];
     }>({ method: 'GET', path: '/v1/proposals' });
 
