@@ -3,9 +3,11 @@
 //! text it cannot read. Reuses the model the `embeddings` integration test
 //! fetched into the build's temporary folder; never fetches it again.
 
+mod support;
+
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use atlas_lib::embeddings::fetch::ensure_model;
 use atlas_lib::embeddings::model::{Embedder, ModelSpec, Purpose};
@@ -21,7 +23,7 @@ const NOWHERE: ModelSpec = ModelSpec {
 
 /// The checked model, fetched once into the build's temporary folder.
 async fn cached_model() -> PathBuf {
-    let folder = model_folder(Path::new(env!("CARGO_TARGET_TMPDIR")), &MODEL);
+    let folder = model_folder(&support::model_home(), &MODEL);
     ensure_model(&folder, &MODEL)
         .await
         .expect("the model is fetched (the first run needs the network)");

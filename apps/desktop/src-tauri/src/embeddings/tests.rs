@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::Path;
 
+use serde_json::json;
 use tempfile::tempdir;
 
-use super::fetch::{ensure_model, FileCheck};
-use super::model::{passes, Embedder, ModelFile, ModelSpec, PASS_TOKENS};
+use super::fetch::FileCheck;
+use super::model::{passes, Embedder, ModelFile, PASS_TOKENS};
+use super::refusal::{EmbedFailure, RefusalReason};
 use super::{check_batch, model_folder, MAX_BATCH_BYTES, MAX_TEXTS, MODEL};
 
 #[test]
@@ -145,35 +147,6 @@ fn a_file_longer_than_pinned_is_refused_as_soon_as_it_passes_the_size() {
     );
 }
 
-/// The app's model, at a repository that does not exist: any attempt to fetch
-/// it fails, so a call that succeeds made none.
-const UNREACHABLE: ModelSpec = ModelSpec {
-    repository: "atlas-test/no-such-model",
-    ..MODEL
-};
-
-#[tokio::test]
-async fn a_model_already_on_this_mac_is_not_fetched_again() {
-    let folder = tempdir().unwrap();
-    for file in UNREACHABLE.files {
-        fs::write(folder.path().join(file.name), b"kept").unwrap();
-    }
-
-    assert_eq!(ensure_model(folder.path(), &UNREACHABLE).await, Ok(()));
-}
-
-#[tokio::test]
-async fn a_model_folder_that_cannot_be_made_is_refused() {
-    let error = ensure_model(Path::new("/dev/null/models"), &MODEL)
-        .await
-        .unwrap_err();
-
-    assert!(
-        error.starts_with("cannot make the embedding model's folder"),
-        "{error}"
-    );
-}
-
 #[test]
 fn a_model_folder_without_the_files_is_refused_when_loading() {
     let folder = tempdir().unwrap();
@@ -196,5 +169,59 @@ fn a_model_whose_config_is_not_json_is_refused_when_loading() {
     assert!(
         error.starts_with("the embedding model's config is not valid"),
         "{error}"
+    );
+}
+
+#[test]
+fn a_refused_text_reaches_typescript_named_by_position_and_reason() {
+    let failure = EmbedFailure::of_text(
+        1,
+        2,
+        RefusalReason::NothingReadable,
+        "has nothing the embedding model can read",
+    );
+
+    assert_eq!(
+        serde_json::to_value(failure).unwrap(),
+        json!({
+            "message": "text 2 of 2 has nothing the embedding model can read",
+            "textIndex": 1,
+            "reason": "nothing-readable",
+        })
+    );
+}
+
+#[test]
+fn a_refused_call_reaches_typescript_naming_no_text() {
+    let failure = EmbedFailure::from("257 texts were sent to embed at once".to_string());
+
+    assert_eq!(
+        serde_json::to_value(failure).unwrap(),
+        json!({
+            "message": "257 texts were sent to embed at once",
+            "textIndex": null,
+            "reason": null,
+        })
+    );
+}
+
+#[test]
+fn every_reason_reaches_typescript_under_the_name_the_port_declares() {
+    let names: Vec<_> = [
+        RefusalReason::TooLong,
+        RefusalReason::NothingReadable,
+        RefusalReason::UnreadableRun,
+    ]
+    .into_iter()
+    .map(|reason| serde_json::to_value(reason).unwrap())
+    .collect();
+
+    assert_eq!(
+        names,
+        vec![
+            json!("too-long"),
+            json!("nothing-readable"),
+            json!("unreadable-run")
+        ]
     );
 }

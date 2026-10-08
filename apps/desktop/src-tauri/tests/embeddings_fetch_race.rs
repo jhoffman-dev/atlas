@@ -6,6 +6,8 @@
 //! proxy that paces each tunnel, so the interleaving is the same every run.
 //! The other two files are copied from the model the `embeddings` test fetched.
 
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -134,8 +136,10 @@ fn tunnel(tunnels: &Tunnels, index: usize) -> Arc<Tunnel> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs the network and paces a real fetch through a local proxy; run with \
+            `cargo test --test embeddings_fetch_race -- --ignored`"]
 async fn a_file_put_in_place_is_the_file_that_was_checked_when_two_fetch_it_at_once() {
-    let cached = model_folder(Path::new(env!("CARGO_TARGET_TMPDIR")), &MODEL);
+    let cached = model_folder(&support::model_home(), &MODEL);
     ensure_model(&cached, &MODEL)
         .await
         .expect("the model is fetched (the first run needs the network)");
@@ -154,8 +158,6 @@ async fn a_file_put_in_place_is_the_file_that_was_checked_when_two_fetch_it_at_o
     std::env::remove_var("NO_PROXY");
     std::env::remove_var("no_proxy");
 
-    let staged = folder.join("tokenizer.json.part");
-
     // The first process gets about half the tokenizer onto disk, then stalls.
     let first = tokio::spawn({
         let folder = folder.clone();
@@ -163,22 +165,22 @@ async fn a_file_put_in_place_is_the_file_that_was_checked_when_two_fetch_it_at_o
     });
     until("the first tunnel", || tunnels.lock().unwrap().len() == 1).await;
     tunnel(&tunnels, 0).budget.send_replace(360_000);
-    until("the first fetch to write 300 KB", || {
-        length(&staged) >= 300_000
+    until("the first fetch to receive 300 KB", || {
+        tunnel(&tunnels, 0).forwarded.load(Ordering::SeqCst) >= 300_000
     })
     .await;
 
-    // The second process starts the same file, truncating the shared `.part`,
-    // writes the head of it, and loses its connection.
+    // The second process starts the same file — truncating the first's
+    // staging file, when the two shared one — receives the head of it, and
+    // loses its connection.
     let second = tokio::spawn({
         let folder = folder.clone();
         async move { ensure_model(&folder, &MODEL).await }
     });
     until("the second tunnel", || tunnels.lock().unwrap().len() == 2).await;
     tunnel(&tunnels, 1).budget.send_replace(100_000);
-    until("the second fetch to truncate and rewrite the head", || {
-        let written = length(&staged);
-        (60_000..300_000).contains(&written)
+    until("the second fetch to receive the head", || {
+        tunnel(&tunnels, 1).forwarded.load(Ordering::SeqCst) >= 60_000
     })
     .await;
     tunnel(&tunnels, 1).cut.send_replace(true);

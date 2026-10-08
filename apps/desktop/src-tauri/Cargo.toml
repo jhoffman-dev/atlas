@@ -68,6 +68,9 @@ candle-core = "0.11.0"
 candle-nn = "0.11.0"
 candle-transformers = "0.11.0"
 tokenizers = { version = "0.22.2", default-features = false, features = ["onig"] }
+# A fetch stages each model file in a temporary file of its own and names it
+# with a rename that never replaces (ADR-0031). Was a dev-dependency already.
+tempfile = "3.27.0"
 
 # The artifact thumbnail (`page_snapshot/macos.rs`): a WKWebView of its own,
 # with no IPC, pictured with `takeSnapshotWithConfiguration`. All five crates
@@ -132,6 +135,5 @@ name = "page_snapshot"
 harness = false
 
 [dev-dependencies]
-tempfile = "3.27.0"
 # Paused time, so a timeout test does not wait on the real clock.
 tokio = { version = "1.53.1", features = ["test-util", "rt-multi-thread"] }

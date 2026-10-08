@@ -17,12 +17,14 @@ use tokio::sync::Mutex;
 
 pub mod fetch;
 pub mod model;
+pub mod refusal;
 
 use fetch::ensure_model;
 use model::{Embedder, ModelFile, ModelSpec, Pooling, Purpose};
+use refusal::EmbedFailure;
 
 /// Snowflake Arctic Embed XS, chosen by the spike in ADR-0031: the best of
-/// three on James's questions, 91 MB, and a 512-token window. Apache-2.0.
+/// three on the spike's questions, 91 MB, and a 512-token window. Apache-2.0.
 pub const MODEL: ModelSpec = ModelSpec {
     folder: "snowflake-arctic-embed-xs",
     repository: "Snowflake/snowflake-arctic-embed-xs",
@@ -84,7 +86,9 @@ pub fn model_folder(data_dir: &Path, spec: &ModelSpec) -> PathBuf {
 }
 
 /// The model, once loaded. Loading waits on the lock, so two first calls
-/// fetch and load it once between them.
+/// fetch and load it once between them. The lock is held through a first
+/// fetch: every call to embed needs the model, so a second call would wait
+/// for it either way, and nothing else takes this lock.
 #[derive(Default)]
 pub struct EmbeddingState {
     embedder: Mutex<Option<Arc<Embedder>>>,
@@ -106,23 +110,24 @@ impl EmbeddingState {
 
 /// Model work is seconds of CPU; it runs on a blocking thread so neither the
 /// window nor the async runtime's workers wait on it.
-async fn off_main<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
+async fn off_main<T: Send + 'static, E: From<String> + Send + 'static>(
+    work: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> Result<T, E> {
     tauri::async_runtime::spawn_blocking(work)
         .await
-        .map_err(|error| format!("the embedding model stopped: {error}"))?
+        .map_err(|error| E::from(format!("the embedding model stopped: {error}")))?
 }
 
 /// One unit-length vector per text, in order. The first call on this Mac
-/// fetches the model (91 MB) and every first call after launch loads it.
+/// fetches the model (91 MB) and every first call after launch checks and
+/// loads it. A refusal names the text it is about (`refusal.rs`).
 #[tauri::command]
 pub async fn embed(
     app: AppHandle,
     state: State<'_, EmbeddingState>,
     texts: Vec<String>,
     purpose: Purpose,
-) -> Result<Vec<Vec<f32>>, String> {
+) -> Result<Vec<Vec<f32>>, EmbedFailure> {
     check_batch(&texts)?;
     if texts.is_empty() {
         return Ok(Vec::new());
@@ -132,7 +137,11 @@ pub async fn embed(
         .app_data_dir()
         .map_err(|error| error.to_string())?;
     let embedder = state.embedder(model_folder(&data_dir, &MODEL)).await?;
-    off_main(move || embedder.embed(&texts, purpose)).await
+    off_main(move || {
+        let reading = embedder.read(&texts, purpose)?;
+        Ok(embedder.vectors(&reading)?)
+    })
+    .await
 }
 
 #[cfg(test)]

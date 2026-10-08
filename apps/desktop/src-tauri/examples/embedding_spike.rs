@@ -19,7 +19,8 @@
 //! The blocks are an approximation of the app's: the body after the
 //! frontmatter, cut at blank lines and at the start of each list item, with
 //! dotted folders skipped. A block longer than the model reads is halved at a
-//! space until each piece fits; how the app chunks is P32-02's to decide.
+//! space until each piece fits, and a piece the model refuses as unreadable is
+//! left out; how the app chunks is P32-02's to decide.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,6 +28,7 @@ use std::time::Instant;
 
 use atlas_lib::embeddings::fetch::ensure_model;
 use atlas_lib::embeddings::model::{Embedder, ModelFile, ModelSpec, Pooling, Purpose};
+use atlas_lib::embeddings::refusal::RefusalReason;
 use atlas_lib::embeddings::MODEL;
 use serde_json::{json, Value};
 
@@ -115,12 +117,16 @@ async fn main() -> Result<(), String> {
         .map(|(_, spec)| *spec)
         .ok_or_else(|| format!("unknown model {name}; one of minilm, bge-small, arctic-xs"))?;
     let folder = PathBuf::from(models).join(spec.folder);
+    let started = Instant::now();
     ensure_model(&folder, spec).await?;
+    // With the files already here, this is the check of their digests.
+    let check_ms = started.elapsed().as_secs_f64() * 1000.0;
 
     let blocks = vault_blocks(Path::new(vault))?;
     let questions = read_questions(Path::new(questions))?;
     check_answerable(&questions, &blocks)?;
-    let report = measure(&folder, spec, &blocks, &questions)?;
+    let mut report = measure(&folder, spec, &blocks, &questions)?;
+    report["check_ms"] = json!(check_ms);
     println!(
         "{}",
         serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
@@ -139,7 +145,11 @@ fn measure(
     let load_ms = started.elapsed().as_secs_f64() * 1000.0;
     let peak_after_load = peak_memory_mb();
 
-    let (pieces, over_limit) = fitted_pieces(&embedder, blocks)?;
+    let Fitted {
+        pieces,
+        over_limit,
+        unreadable,
+    } = fitted_pieces(&embedder, blocks);
     let texts: Vec<String> = pieces.iter().map(|(_, text)| text.clone()).collect();
     let started = Instant::now();
     let mut vectors = Vec::with_capacity(texts.len());
@@ -164,6 +174,7 @@ fn measure(
             "blocks": blocks.len(),
             "bytes": blocks.iter().map(|b| b.text.len()).sum::<usize>(),
             "blocks_over_token_limit": over_limit,
+            "pieces_unreadable": unreadable,
             "pieces_embedded": pieces.len(),
         },
         "load_ms": load_ms,
@@ -177,29 +188,41 @@ fn measure(
     }))
 }
 
-/// Each block as one or more pieces the model can read, by the block's index.
-fn fitted_pieces(
-    embedder: &Embedder,
-    blocks: &[Block],
-) -> Result<(Vec<(usize, String)>, usize), String> {
-    let mut pieces = Vec::new();
-    let mut over_limit = 0;
+/// What fitting the vault's blocks to the model came to.
+struct Fitted {
+    /// Each piece the model can read, with the index of its block.
+    pieces: Vec<(usize, String)>,
+    /// Blocks longer than the model reads, split into pieces.
+    over_limit: usize,
+    /// Pieces the model refuses as unreadable, left out.
+    unreadable: usize,
+}
+
+/// Each block as one or more pieces the model can read.
+fn fitted_pieces(embedder: &Embedder, blocks: &[Block]) -> Fitted {
+    let mut fitted = Fitted {
+        pieces: Vec::new(),
+        over_limit: 0,
+        unreadable: 0,
+    };
     for (index, block) in blocks.iter().enumerate() {
         let mut pending = vec![block.text.clone()];
         let mut split = false;
         while let Some(text) = pending.pop() {
-            if embedder.token_count(&text, Purpose::Passage)? <= embedder.max_tokens() {
-                pieces.push((index, text));
-                continue;
+            match embedder.read(std::slice::from_ref(&text), Purpose::Passage) {
+                Ok(_) => fitted.pieces.push((index, text)),
+                Err(failure) if failure.reason == Some(RefusalReason::TooLong) => {
+                    split = true;
+                    let (head, tail) = halves(&text);
+                    pending.push(tail);
+                    pending.push(head);
+                }
+                Err(_) => fitted.unreadable += 1,
             }
-            split = true;
-            let (head, tail) = halves(&text);
-            pending.push(tail);
-            pending.push(head);
         }
-        over_limit += usize::from(split);
+        fitted.over_limit += usize::from(split);
     }
-    Ok((pieces, over_limit))
+    fitted
 }
 
 fn halves(text: &str) -> (String, String) {

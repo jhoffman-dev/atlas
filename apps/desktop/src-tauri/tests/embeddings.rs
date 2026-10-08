@@ -2,11 +2,13 @@
 //! build's temporary folder the first time (91 MB, so the first run needs the
 //! network), checked, loaded, and run.
 
-use std::path::Path;
+mod support;
+
 use std::sync::OnceLock;
 
 use atlas_lib::embeddings::fetch::ensure_model;
-use atlas_lib::embeddings::model::{Embedder, Purpose};
+use atlas_lib::embeddings::model::{Embedder, Purpose, MAX_UNREADABLE_CHARS};
+use atlas_lib::embeddings::refusal::{EmbedFailure, RefusalReason};
 use atlas_lib::embeddings::{model_folder, MODEL};
 
 const DIMENSIONS: usize = 384;
@@ -14,7 +16,7 @@ const DIMENSIONS: usize = 384;
 fn embedder() -> &'static Embedder {
     static EMBEDDER: OnceLock<Embedder> = OnceLock::new();
     EMBEDDER.get_or_init(|| {
-        let folder = model_folder(Path::new(env!("CARGO_TARGET_TMPDIR")), &MODEL);
+        let folder = model_folder(&support::model_home(), &MODEL);
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -158,4 +160,77 @@ fn a_text_longer_than_the_model_reads_refuses_the_call_and_says_which() {
             MODEL.max_tokens
         )
     );
+}
+
+fn refusal(sent: &[&str], purpose: Purpose) -> EmbedFailure {
+    match embedder().read(&texts(sent), purpose) {
+        Ok(_) => panic!("{sent:?} was let through"),
+        Err(failure) => failure,
+    }
+}
+
+#[test]
+fn a_refusal_for_length_names_the_text_and_the_reason() {
+    let long = words(MODEL.max_tokens - 1);
+
+    let failure = refusal(&[PASSAGES[0], &long, PASSAGES[1]], Purpose::Passage);
+
+    assert_eq!(failure.text_index, Some(1));
+    assert_eq!(failure.reason, Some(RefusalReason::TooLong));
+    assert!(
+        failure.message.starts_with("text 2 of 3 is "),
+        "{}",
+        failure.message
+    );
+}
+
+#[test]
+fn a_text_with_nothing_the_model_can_read_is_refused() {
+    // Empty, spaces, a zero-width space, a control character, a lone emoji.
+    for unreadable in ["", "   ", "\u{200b}", "\u{7}", "\u{1f44d}"] {
+        let failure = refusal(&[PASSAGES[0], unreadable], Purpose::Passage);
+
+        assert_eq!(failure.text_index, Some(1), "{unreadable:?}");
+        assert_eq!(failure.reason, Some(RefusalReason::NothingReadable));
+        assert_eq!(
+            failure.message,
+            "text 2 of 2 has nothing the embedding model can read"
+        );
+    }
+}
+
+#[test]
+fn a_query_is_judged_on_its_own_words_not_the_prefix_put_before_it() {
+    let failure = refusal(&["\u{1f44d}"], Purpose::Query);
+
+    assert_eq!(failure.reason, Some(RefusalReason::NothingReadable));
+}
+
+#[test]
+fn a_long_stretch_read_as_one_unknown_word_is_refused_with_its_length() {
+    // A run of a script the model has no pieces for, inside readable words.
+    let run = "\u{1780}".repeat(MAX_UNREADABLE_CHARS + 1);
+    let text = format!("Larkspur Payroll pays {run} on Fridays");
+
+    let failure = refusal(&[&text], Purpose::Passage);
+
+    assert_eq!(failure.text_index, Some(0));
+    assert_eq!(failure.reason, Some(RefusalReason::UnreadableRun));
+    assert!(
+        failure
+            .message
+            .contains(&format!("a run of {} characters", MAX_UNREADABLE_CHARS + 1)),
+        "{}",
+        failure.message
+    );
+}
+
+#[test]
+fn a_short_unknown_word_among_readable_ones_is_let_through() {
+    let run = "\u{1780}".repeat(MAX_UNREADABLE_CHARS);
+    let text = format!("Mara Quill \u{1f44d} signed off the {run} run");
+
+    let vectors = embedder().embed(&[text], Purpose::Passage).unwrap();
+
+    assert_eq!(vectors[0].len(), DIMENSIONS);
 }

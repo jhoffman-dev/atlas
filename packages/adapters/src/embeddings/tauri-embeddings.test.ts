@@ -40,23 +40,59 @@ describe('tauriEmbeddings', () => {
     await expect(tauriEmbeddings.embed({ texts: [], purpose: 'passage' })).resolves.toEqual([]);
   });
 
-  it('turns the refusal of a text too long into an error that names it', async () => {
-    invoke.mockRejectedValue('text 2 of 2 is 731 tokens; the embedding model reads at most 512');
-    const error = await tauriEmbeddings
-      .embed({ texts: ['short', 'long '.repeat(700)], purpose: 'passage' })
-      .catch((cause: unknown) => cause);
+  const refusal = async (): Promise<EmbeddingError> => {
+    try {
+      await tauriEmbeddings.embed({ texts: ['Mara Quill', 'Tobias Fenn'], purpose: 'passage' });
+    } catch (error) {
+      return error as EmbeddingError;
+    }
+    throw new Error('the call was not refused');
+  };
+
+  it('names the text the host refused for being too long, and why', async () => {
+    invoke.mockRejectedValue({
+      message: 'text 2 of 2 is 731 tokens; the embedding model reads at most 512',
+      textIndex: 1,
+      reason: 'too-long',
+    });
+    const error = await refusal();
     expect(error).toBeInstanceOf(EmbeddingError);
-    expect((error as Error).message).toBe(
-      'text 2 of 2 is 731 tokens; the embedding model reads at most 512',
-    );
+    expect(error.message).toBe('text 2 of 2 is 731 tokens; the embedding model reads at most 512');
+    expect(error.refused).toEqual({ textIndex: 1, reason: 'too-long' });
   });
 
-  it('turns the refusal of too many texts into an EmbeddingError', async () => {
-    invoke.mockRejectedValue('257 texts were sent to embed at once; the most is 256');
-    const error = await tauriEmbeddings
-      .embed({ texts: Array.from({ length: 257 }, () => 'a'), purpose: 'passage' })
-      .catch((cause: unknown) => cause);
+  it('names a text the model cannot read', async () => {
+    invoke.mockRejectedValue({
+      message: 'text 1 of 2 has nothing the embedding model can read',
+      textIndex: 0,
+      reason: 'nothing-readable',
+    });
+    const error = await refusal();
+    expect(error.refused).toEqual({ textIndex: 0, reason: 'nothing-readable' });
+  });
+
+  it('names no text when the call as a whole was refused', async () => {
+    invoke.mockRejectedValue({
+      message: '257 texts were sent to embed at once; the most is 256',
+      textIndex: null,
+      reason: null,
+    });
+    const error = await refusal();
     expect(error).toBeInstanceOf(EmbeddingError);
-    expect((error as Error).message).toContain('the most is 256');
+    expect(error.message).toBe('257 texts were sent to embed at once; the most is 256');
+    expect(error.refused).toBeUndefined();
+  });
+
+  it('turns a bare message from the host into an EmbeddingError', async () => {
+    invoke.mockRejectedValue('the embedding model stopped');
+    const error = await refusal();
+    expect(error).toBeInstanceOf(EmbeddingError);
+    expect(error.message).toBe('the embedding model stopped');
+  });
+
+  it('passes an Error the bridge itself raised through unchanged', async () => {
+    const bridge = new Error('IPC is not available');
+    invoke.mockRejectedValue(bridge);
+    expect(await refusal()).toBe(bridge);
   });
 });

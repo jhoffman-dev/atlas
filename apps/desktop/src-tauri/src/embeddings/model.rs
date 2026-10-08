@@ -1,7 +1,8 @@
 //! One loaded embedding model: its tokenizer, its weights, and how a text's
 //! token vectors become one vector. Everything here is the model's own
 //! contract — the pooling it was trained with, the prefix it expects on a
-//! query, the longest text it can read — not a choice about the vault.
+//! query, the longest text it can read, what it cannot read at all — not a
+//! choice about the vault.
 
 use std::fs;
 use std::path::Path;
@@ -11,12 +12,22 @@ use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config};
 use tokenizers::{Encoding, Tokenizer};
 
+use super::refusal::{EmbedFailure, RefusalReason};
+
 /// How many tokens go through the model at once, padding included. A pass is
 /// padded to its longest text and attention grows with the square of that
 /// length, so this bounds memory however many texts a caller sends. Measured
 /// in the spike (ADR-0031): 256 was as fast per block as 512, 1024 or 8192
 /// and peaked lowest, at about 350 MB against 2.5 GB for 8192.
 pub(super) const PASS_TOKENS: usize = 256;
+
+/// The longest stretch of a text the model may read as one unknown word
+/// before the text is refused. WordPiece turns a word it has no pieces for —
+/// a run of an unspaced script it lacks, or any word over 100 characters, such
+/// as pasted base64 — into a single `[UNK]`, so the text would be embedded as
+/// if that stretch were not there. A lone emoji or rare symbol is shorter than
+/// this and harmless; a sentence of such a script is not.
+pub const MAX_UNREADABLE_CHARS: usize = 24;
 
 /// How the model's token vectors become one vector per text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,10 +72,16 @@ pub struct ModelSpec {
     pub max_tokens: usize,
 }
 
+/// Texts `Embedder::read` let through, tokenised, ready to run.
+pub struct Reading {
+    encodings: Vec<Encoding>,
+}
+
 pub struct Embedder {
     model: BertModel,
     tokenizer: Tokenizer,
     pad_id: u32,
+    unknown_id: u32,
     pooling: Pooling,
     query_prefix: &'static str,
     max_tokens: usize,
@@ -94,6 +111,9 @@ impl Embedder {
         let pad_id = tokenizer
             .token_to_id("[PAD]")
             .ok_or("the embedding model's tokenizer has no [PAD] token")?;
+        let unknown_id = tokenizer
+            .token_to_id("[UNK]")
+            .ok_or("the embedding model's tokenizer has no [UNK] token")?;
         let weights = fs::read(folder.join("model.safetensors"))
             .map_err(|error| format!("cannot read the embedding model's weights: {error}"))?;
         let weights = VarBuilder::from_buffered_safetensors(weights, DType::F32, &device)
@@ -103,6 +123,7 @@ impl Embedder {
             model,
             tokenizer,
             pad_id,
+            unknown_id,
             pooling: spec.pooling,
             query_prefix: spec.query_prefix,
             max_tokens: spec.max_tokens,
@@ -119,23 +140,44 @@ impl Embedder {
         Ok(encoding.len())
     }
 
-    /// The most tokens the model reads, its markers included.
-    pub fn max_tokens(&self) -> usize {
-        self.max_tokens
+    /// One vector per text, in order, each of unit length. Refuses the whole
+    /// batch, before any work, when a text is one the model cannot read whole.
+    pub fn embed(&self, texts: &[String], purpose: Purpose) -> Result<Vec<Vec<f32>>, String> {
+        let reading = self
+            .read(texts, purpose)
+            .map_err(|failure| failure.message)?;
+        self.vectors(&reading)
     }
 
-    /// One vector per text, in order, each of unit length. Refuses the whole
-    /// batch, before any work, when a text is longer than the model reads.
-    pub fn embed(&self, texts: &[String], purpose: Purpose) -> Result<Vec<Vec<f32>>, String> {
+    /// Tokenises the texts and checks the model can read each one whole: not
+    /// longer than it reads, not without a word it knows, and with no long
+    /// stretch it reads as one unknown word. The first text that fails is
+    /// named in the refusal.
+    pub fn read(&self, texts: &[String], purpose: Purpose) -> Result<Reading, EmbedFailure> {
         let prepared: Vec<String> = texts
             .iter()
             .map(|text| self.prepared(text, purpose))
             .collect();
         let encodings = self
             .tokenizer
-            .encode_batch(prepared, true)
+            .encode_batch(prepared.clone(), true)
             .map_err(model_error)?;
-        self.check_lengths(&encodings)?;
+        let own_from = match purpose {
+            Purpose::Query => self.query_prefix.len(),
+            Purpose::Passage => 0,
+        };
+        let count = encodings.len();
+        for (index, (encoding, text)) in encodings.iter().zip(&prepared).enumerate() {
+            if let Some((reason, why)) = self.unreadable(encoding, text, own_from) {
+                return Err(EmbedFailure::of_text(index, count, reason, &why));
+            }
+        }
+        Ok(Reading { encodings })
+    }
+
+    /// The vectors of texts `read` let through, in order.
+    pub fn vectors(&self, reading: &Reading) -> Result<Vec<Vec<f32>>, String> {
+        let encodings = &reading.encodings;
         let mut vectors = vec![Vec::new(); encodings.len()];
         let lengths: Vec<usize> = encodings.iter().map(Encoding::len).collect();
         for pass in passes(&lengths) {
@@ -155,20 +197,41 @@ impl Embedder {
         }
     }
 
-    fn check_lengths(&self, encodings: &[Encoding]) -> Result<(), String> {
-        let count = encodings.len();
-        match encodings
-            .iter()
-            .position(|encoding| encoding.len() > self.max_tokens)
-        {
-            Some(index) => Err(format!(
-                "text {} of {count} is {} tokens; the embedding model reads at most {}",
-                index + 1,
-                encodings[index].len(),
+    /// Why the model cannot read `text` whole, if it cannot. Only the text's
+    /// own tokens count — those from byte `own_from` on, past a query's
+    /// prefix — and never the model's markers.
+    fn unreadable(
+        &self,
+        encoding: &Encoding,
+        text: &str,
+        own_from: usize,
+    ) -> Option<(RefusalReason, String)> {
+        if encoding.len() > self.max_tokens {
+            let why = format!(
+                "is {} tokens; the embedding model reads at most {}",
+                encoding.len(),
                 self.max_tokens
-            )),
-            None => Ok(()),
+            );
+            return Some((RefusalReason::TooLong, why));
         }
+        let own = own_tokens(encoding, own_from);
+        if own.iter().all(|&(id, _)| id == self.unknown_id) {
+            let why = "has nothing the embedding model can read".to_string();
+            return Some((RefusalReason::NothingReadable, why));
+        }
+        let longest = own
+            .iter()
+            .filter(|&&(id, _)| id == self.unknown_id)
+            .map(|&(_, (start, end))| text.get(start..end).map_or(0, |run| run.chars().count()))
+            .max()
+            .unwrap_or(0);
+        (longest > MAX_UNREADABLE_CHARS).then(|| {
+            let why = format!(
+                "has a run of {longest} characters the embedding model cannot read; \
+                 it lets through at most {MAX_UNREADABLE_CHARS}"
+            );
+            (RefusalReason::UnreadableRun, why)
+        })
     }
 
     /// One pass through the model: pads the texts to the longest of them,
@@ -222,6 +285,19 @@ pub(super) fn passes(lengths: &[usize]) -> Vec<Vec<usize>> {
         passes.push(current);
     }
     passes
+}
+
+/// A text's own tokens, with where each sits in it: not the model's markers,
+/// and none before byte `own_from` (a query's prefix).
+fn own_tokens(encoding: &Encoding, own_from: usize) -> Vec<(u32, (usize, usize))> {
+    encoding
+        .get_ids()
+        .iter()
+        .zip(encoding.get_offsets())
+        .zip(encoding.get_special_tokens_mask())
+        .filter(|((_, &(start, _)), &special)| special == 0 && start >= own_from)
+        .map(|((&id, &offsets), _)| (id, offsets))
+        .collect()
 }
 
 /// The average over each text's own tokens, leaving out its padding.
