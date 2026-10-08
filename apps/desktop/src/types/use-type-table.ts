@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createVaultPath, typeTableQuery, type ObjectType, type QuerySort } from '@atlas/domain';
+import { typeTableQuery, type ObjectType, type QuerySort } from '@atlas/domain';
 import {
   runView,
-  setNoteProperties,
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
   type ViewResult,
 } from '@atlas/application';
 import type { OpenEditors } from '../panes/open-editors.ts';
+import { writeNoteProperties } from '../query/use-view-writes.ts';
 
 const message = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -105,11 +105,7 @@ export function useTypeTable({
       // Through the pane holding the note, when one does: writing the file
       // underneath it would leave its next save to be refused.
       const values = { [column]: value === '' ? null : value };
-      editors
-        .setPropertiesIfOpen({ path: createVaultPath(path), values })
-        .then((takenByAPane) =>
-          takenByAPane ? undefined : setNoteProperties({ fs, markdown, path, values }),
-        )
+      writeNoteProperties({ editors, fs, markdown, path, values })
         .then(onChanged)
         .catch((cause: unknown) => setError(message(cause)));
     },

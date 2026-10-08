@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { DEFAULT_NOTE_NAME, splitFrontmatter, type VaultPath } from '@atlas/domain';
 import {
+  capturedTaskContents,
   captureToInbox,
   createNote,
   ensureDailyNote,
@@ -27,7 +28,7 @@ export function useCreateNote({
   onCreated,
 }: {
   fs: VaultFsPort;
-  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  markdown: MarkdownPort;
   notePaths: readonly VaultPath[];
   beside: VaultPath | null;
   templates: readonly NoteTemplate[];
@@ -79,7 +80,10 @@ export function useCreateNote({
   const captureNote = useCallback(
     async (name: string, template: NoteTemplate | null): Promise<VaultPath | null> => {
       try {
-        const contents = template === null ? undefined : await contentsOf(template);
+        const contents =
+          template === null
+            ? undefined
+            : await capturedTaskContents({ fs, markdown, contents: await contentsOf(template) });
         const path = await captureToInbox({
           fs,
           name,
@@ -94,7 +98,7 @@ export function useCreateNote({
         return null;
       }
     },
-    [fs, notePaths, contentsOf, onCreated],
+    [fs, markdown, notePaths, contentsOf, onCreated],
   );
 
   const openDailyNote = useCallback(

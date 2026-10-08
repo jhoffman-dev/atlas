@@ -28,3 +28,8 @@ export function localNow(): string {
 export function epochNow(): number {
   return Date.now();
 }
+
+/** The day, as `2026-09-20`, that a time the host dates a file by falls on where the person is. */
+export function localDayOf(epochMs: number): string {
+  return new Date(epochMs).toLocaleDateString('en-CA');
+}

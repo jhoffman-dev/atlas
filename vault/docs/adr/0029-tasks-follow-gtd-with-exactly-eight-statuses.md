@@ -52,3 +52,43 @@ extended from one rename to a many-to-one mapping plus a set `completed`.
   migrated too; it is the first test vault.
 - Checklist lines (`- [ ]`) in a task body are the subtask model; In
   Progress plus a progress bar replaces a status per step.
+
+## As built (P30-02, 2026-10-08)
+
+Where the build differs from, or settles, what is written above:
+
+- **The migration is its own use-case, not `renameOption` extended.** A
+  rename goes through `migrateNotes`, which keeps no record of what a note
+  held, so it cannot be undone byte for byte. The GTD migration
+  (`application/gtd`) reads every file it will change, writes a record of each
+  one's frontmatter as it was and as it will be to
+  `.atlas/migrations/task-statuses.md` **before** changing anything, then
+  writes each file once — frontmatter only, refused by the host if the file
+  moved on since it was read. Undo puts back the recorded frontmatter wherever
+  the file still says what the migration wrote, so a run, then an undo, gives
+  every file back byte for byte; a file edited since is left and named.
+- **It is resumable and idempotent.** A GTD status maps to itself whatever the
+  mapping says, so a second run finds nothing to do. A run cut off partway is
+  run again from a fresh preview of what is left, and its record is merged
+  into the first, keeping each file's original bytes, so one undo covers both.
+- **Unknown includes none.** A task with no status goes to `inbox`, as an
+  unknown one does. A status spelled another way (`Next Action`,
+  `in_progress`) is read as the status it names.
+- **The Task type keeps what the vault has.** Its `status` becomes the eight;
+  every other GTD property it has no key for is added; a key it has is left as
+  it is, even where GTD would have made it another kind (this repository's
+  `estimate` stays text).
+- **Templates of type task are migrated with the tasks**, so a new task from
+  one never starts on a status that no longer exists. Capture then sets
+  `inbox` when the Task type has it.
+- **Views and automations** are those in `.atlas/views` and
+  `.atlas/automations`. An Atlas query's status values are rewritten in place,
+  by their span, for `=` and `!=`; a table view's `filters:` for `is` and
+  `isNot`. Any other comparison with an old status, and any SQL view that
+  reads `status`, is listed instead. A dashboard's widgets are not read.
+- **The GTD views** — Inbox, Next actions, Waiting, Someday and Longterm — are
+  query views written into `.atlas/views` by the same run, never over a view
+  of the same name.
+- **The rules hold everywhere a task is written** — a pane, a view, the type
+  table, the API — through one wrapper, `withTaskRules`, worked out against
+  the frontmatter as each write reads it.

@@ -144,6 +144,7 @@ import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
 import { useInbox } from './inbox/use-inbox.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
+import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
 import { paletteArchiveCommands, runPaletteArchiveCommand } from './archive/palette-archive.ts';
@@ -820,6 +821,15 @@ export function App({
     open: inboxOpen,
     onSettled: settleArchive,
   });
+  // Moving the tasks to GTD's statuses, previewed from the Inbox page (P30-02).
+  const taskMigration = useTaskMigration({
+    ports: archivePorts,
+    vaultKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: inboxOpen,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
   const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
   // As with Today, no row that opens nothing: the Inbox shows once the vault
   // has an Inbox view or something waits in its folder.
@@ -1367,6 +1377,7 @@ export function App({
                             onAccept: () => void typesOffer.accept(),
                             onDismiss: typesOffer.dismiss,
                           },
+                    taskMigration,
                     view:
                       inboxView === null
                         ? null

@@ -17,8 +17,10 @@ import {
   type OpenNote,
   type SavedNote,
   type VaultFsPort,
+  withTaskRules,
 } from '@atlas/application';
 import type { NotePaneState } from '@atlas/ui';
+import { localToday } from '../today.ts';
 import type { Stranding } from './stranded-edits.ts';
 
 export interface NotePorts {
@@ -370,9 +372,12 @@ export function useNote({
       const run = () => {
         const from = startFrom(note);
         // A change given as a rule is worked out against the properties the
-        // write starts from, which is the same frontmatter a direct write would read.
+        // write starts from, which is the same frontmatter a direct write would
+        // read — and held to a task's rules there, whoever asked for it.
         const values =
-          typeof changes === 'function' ? changes(from.properties) : (changes ?? undefined);
+          changes === undefined
+            ? undefined
+            : withTaskRules({ values: changes, today: localToday() })(from.properties);
         return saveNote({
           fs: ports.fs,
           markdown: ports.markdown,
