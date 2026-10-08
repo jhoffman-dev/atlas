@@ -619,3 +619,78 @@ describe('importArrivedMeetings: adversarial, round 2', () => {
     expect(vault.files.has(`Archive/${third}`)).toBe(true);
   });
 });
+
+describe('importArrivedMeetings: adversarial, round 3', () => {
+  /**
+   * The person writes their own notes into a meeting once it is in — a
+   * section of their own is the obvious one — and the file no longer follows
+   * the contract. It is still the meeting the import let in, but the holders
+   * are filtered by the contract before the stamp is looked at, so the next
+   * copy n8n sends is let in as a second original instead of archived.
+   */
+  it('keeps a meeting let in as the original after the person adds a section of their own', async () => {
+    const annotated = `${imported()}\n## My notes\n\nAsk Tobias about the cutover.\n`;
+    const { vault, run, as } = setUp({ [STANDUP]: annotated, [RESENT]: meeting() });
+
+    await run([as('added', RESENT)]);
+
+    expect(vault.files.get(STANDUP)).toBe(annotated);
+    expect(vault.files.has(RESENT)).toBe(false);
+    expect(vault.properties(`Archive/${RESENT}`)).toMatchObject({
+      atlas_import_outcome: 'duplicate',
+      atlas_duplicate_of: '[[2026-10-06 Standup]]',
+    });
+  });
+
+  /**
+   * A copy is stamped `duplicate` first and archived second. When the move
+   * fails (or Atlas quits between the two), the copy sits in the Inbox
+   * stamped `duplicate`, which is never judged again — so no later change or
+   * catch-up ever archives it, though Activity said only that the move failed.
+   */
+  it('archives a copy at the next catch-up when its archive failed after it was stamped', async () => {
+    const { vault, ports, activity, run, as } = setUp({
+      [STANDUP]: imported(),
+      [RESENT]: meeting(),
+    });
+    const failingMove = {
+      ...ports,
+      fs: {
+        ...ports.fs,
+        moveEntry: async () => {
+          throw new Error('Resource busy.');
+        },
+      },
+    };
+    await importArrivedMeetings({
+      ports: failingMove,
+      changes: [as('added', RESENT)],
+      today: TODAY,
+      activity,
+    });
+    expect(vault.properties(RESENT)['atlas_import_outcome']).toBe('duplicate');
+
+    await run([as('changed', RESENT)]);
+    await catchUpMeetings({ ports, today: TODAY, activity });
+
+    expect(vault.files.has(RESENT)).toBe(false);
+    expect(vault.files.has(`Archive/${RESENT}`)).toBe(true);
+  });
+
+  /**
+   * The index, the tree and the API never read a dotted folder or file
+   * (ADR-0014, `isVisibleEntry`), but the catch-up walks `Inbox/Meetings/`
+   * with a rule of its own and writes an error stamp into whatever it finds
+   * there — a tool's hidden scratch file the person cannot see in Atlas.
+   */
+  it('leaves hidden files under the meeting folder alone, as the rest of Atlas does', async () => {
+    const hidden = 'Inbox/Meetings/.drafts/2026-10-06 Standup.md';
+    const scratch = '# Draft\n\nNot a meeting yet.\n';
+    const { vault, ports, activity } = setUp({ [STANDUP]: imported(), [hidden]: scratch });
+
+    const outcome = await catchUpMeetings({ ports, today: TODAY, activity });
+
+    expect(vault.files.get(hidden)).toBe(scratch);
+    expect(outcome.happenings).toEqual([]);
+  });
+});

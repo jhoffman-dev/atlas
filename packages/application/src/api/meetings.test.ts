@@ -164,3 +164,33 @@ describe('GET /v1/meetings', () => {
     expect(JSON.stringify(bodyOf(response))).not.toContain('/Users/j');
   });
 });
+
+describe('GET /v1/meetings: adversarial, round 3', () => {
+  /**
+   * A stamp whose value was cleared by hand (`atlas_import_outcome:` with
+   * nothing after it) is a stamp to the import — `importOutcomeOf` reads any
+   * value it does not know, null among them, as `imported`, and never looks at
+   * the file again — but the API reads the missing value as no stamp, and
+   * says the file is still waiting for the Mac that imports. It never will be.
+   */
+  it('says a file with a cleared stamp is what the import takes it for', async () => {
+    const files = {
+      'Inbox/Meetings/2026-10-06 Standup.md': meeting({
+        title: 'Standup',
+        date: '2026-10-06',
+        atlas_import_outcome: null,
+      }),
+    };
+    const markdown = jsonMarkdown();
+    const response = await apiFixture({
+      files,
+      markdown,
+      index: { query: atlasQueryIndex({ files, markdown }) },
+    }).send({ method: 'GET', path: '/v1/meetings', query: {} });
+
+    expect((bodyOf(response)['meetings'] as unknown[])[0]).toMatchObject({
+      path: 'Inbox/Meetings/2026-10-06 Standup.md',
+      importOutcome: 'imported',
+    });
+  });
+});

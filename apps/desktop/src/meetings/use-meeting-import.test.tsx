@@ -15,6 +15,7 @@ import {
   type MeetingImportPorts,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { useIndex } from '../index/use-index.ts';
 import { useMeetingImport } from './use-meeting-import.ts';
 
 const VAULT = '/Users/j/Vault';
@@ -140,6 +141,61 @@ describe('useMeetingImport', () => {
 
     expect(written).toEqual([]);
     expect(activity.reports).toEqual([]);
+  });
+});
+
+describe('useMeetingImport: adversarial, round 3', () => {
+  /**
+   * The window passes `indexReady: indexStatus.kind === 'ready'`, and the
+   * index's status is the last vault's until its effect starts the new
+   * vault's sync. So in the render that opens another vault, the import sees
+   * a ready index and catches up there at once — over an index that has not
+   * read that vault yet (a first open has none), so no holder is found and
+   * every copy is let in as an original. The catch-up is then spent: it does
+   * not run again once that vault's index is ready.
+   */
+  it('waits for the index of a newly opened vault before catching up there', async () => {
+    const written: string[] = [];
+    let building: Promise<never> | null = null;
+    const indexPorts = {
+      fs: fakeVaultFs(),
+      index: fakeIndexPort({
+        open: async () => {
+          if (building !== null) await building;
+          return { fresh: false };
+        },
+      }),
+      markdown: remarkMarkdown,
+    };
+    const changes = createNoteChanges({ onError: () => undefined });
+    const activity = recordingActivity();
+    const ports = portsOver(written);
+    const clock = { today: () => '2026-10-08' };
+    const { rerender } = renderHook(
+      ({ vaultKey }: { vaultKey: string }) => {
+        const { status } = useIndex({ ports: indexPorts, vaultKey, activity, changes });
+        useMeetingImport({
+          changes,
+          ports,
+          clock,
+          activity,
+          vaultKey,
+          active: true,
+          indexReady: status.kind === 'ready',
+          onWritten: () => undefined,
+        });
+      },
+      { initialProps: { vaultKey: VAULT } },
+    );
+    await waitFor(() => expect(written).toEqual([BROKEN]));
+
+    // The next vault's index takes its time: a first open walks the whole vault.
+    building = new Promise<never>(() => undefined);
+    rerender({ vaultKey: '/Users/j/Second Vault' });
+    await settled();
+    await settled();
+
+    expect(written).toEqual([BROKEN]);
   });
 });
 
