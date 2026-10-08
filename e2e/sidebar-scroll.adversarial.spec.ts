@@ -101,7 +101,9 @@ test('a section shut while Pages is long stays within reach', async ({ page }) =
 });
 
 test('a tree row hidden under the sticky Pages heading is not a drop target', async ({ page }) => {
-  await page.setViewportSize({ width: 1180, height: 800 });
+  // Tall enough that Folder 45, the row dragged, is still on screen below the
+  // stuck heading however many rows the sidebar's top holds (Terms made one more).
+  await page.setViewportSize({ width: 1180, height: 900 });
   const vault = await createVault();
   for (let at = 1; at <= 60; at += 1) {
     await vault.mkdir(`Folder ${pad(at, 2)}`);
