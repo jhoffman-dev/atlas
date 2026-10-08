@@ -247,7 +247,7 @@ async function launch() {
     openVault: () => root,
   });
   const importer = createMeetingImporter({
-    ports,
+    ports: () => ports,
     clock: { today: () => '2026-10-08' },
     activity,
     openVault: () => root,
@@ -321,8 +321,9 @@ describe('meeting import over a real folder and a real SQLite index', () => {
 describe('meeting import over a real folder: adversarial', () => {
   const NO_ID = readFileSync(new URL('invalid/turn-without-block-id.md', fixtures), 'utf8');
   const UNREADABLE = readFileSync(new URL('invalid/unreadable-yaml.md', fixtures), 'utf8');
-  const meetingReports = (app: { activity: { reports: readonly { kind: string }[] } }) =>
-    app.activity.reports.filter((report) => report.kind === 'meeting');
+  const meetingReports = (app: {
+    activity: { reports: readonly { kind: string; message: string }[] };
+  }) => app.activity.reports.filter((report) => report.kind === 'meeting');
 
   it('marks a file with a body error once, however many syncs follow its own mark', async () => {
     const app = await launch();
@@ -369,7 +370,7 @@ describe('meeting import over a real folder: adversarial', () => {
 
     expect(existsSync(join(root, SECOND))).toBe(false);
     expect(existsSync(join(root, 'Archive', SECOND))).toBe(true);
-    expect(meetingReports(app).map((report) => (report as { message: string }).message)).toEqual([
+    expect(meetingReports(app).map((report) => report.message)).toEqual([
       expect.stringContaining('arrived'),
       expect.stringContaining('could not be imported'),
       expect.stringContaining('second copy'),

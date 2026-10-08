@@ -202,6 +202,28 @@ describe('importArrivedMeetings', () => {
     expect(activity.reports).toEqual([]);
   });
 
+  it('says nothing of an edit to a meeting that imported and still reads', async () => {
+    const { vault, activity, run, as } = setUp({ [STANDUP]: meeting() });
+    await run([as('added', STANDUP)]);
+    const edited = meeting().replace('moves a week', 'moves a week; Mara Quill agreed');
+    vault.files.set(STANDUP, edited);
+
+    const outcome = await run([as('changed', STANDUP)]);
+
+    expect(outcome).toEqual({ happenings: [], wrote: false });
+    expect(vault.files.get(STANDUP)).toBe(edited);
+    expect(activity.reports).toHaveLength(1);
+  });
+
+  it('takes ids that differ only in the spaces around them as one meeting', async () => {
+    const spaced = meeting({ ...HEADER, external_id: '  gemini-7f3a9c21 ' });
+    const { vault, run, as } = setUp({ [STANDUP]: meeting(), [RESENT]: spaced });
+
+    await run([as('added', RESENT)]);
+
+    expect(vault.files.has(`Archive/${RESENT}`)).toBe(true);
+  });
+
   it('does nothing twice for the same version, heard twice', async () => {
     const { vault, activity, run, as } = setUp({ [STANDUP]: meeting(), [RESENT]: meeting() });
     const news = [as('added', STANDUP), as('added', RESENT)];
@@ -213,6 +235,81 @@ describe('importArrivedMeetings', () => {
     expect(second.happenings).toEqual([]);
     expect(vault.files).toEqual(after);
     expect(activity.reports).toHaveLength(2);
+  });
+
+  it('keeps the same copy of two arriving together, whichever is reported first', async () => {
+    for (const order of [
+      [STANDUP, RESENT],
+      [RESENT, STANDUP],
+    ]) {
+      const { vault, run, as } = setUp({ [STANDUP]: meeting(), [RESENT]: meeting() });
+
+      await run(order.map((path) => as('added', path)));
+
+      expect(vault.files.get(STANDUP)).toBe(meeting());
+      expect(vault.files.has(RESENT)).toBe(false);
+      expect(vault.properties(`Archive/${RESENT}`)['atlas_duplicate_of']).toBe(
+        '[[2026-10-06 Standup]]',
+      );
+    }
+  });
+
+  it('archives a copy already there when the original arrives at the path written first', async () => {
+    const { vault, activity, run, as } = setUp({ [STANDUP]: meeting(), [RESENT]: meeting() });
+
+    const outcome = await run([as('added', STANDUP)]);
+
+    expect(outcome.happenings.map((happening) => happening.kind)).toEqual(['arrived', 'duplicate']);
+    expect(vault.files.has(`Archive/${RESENT}`)).toBe(true);
+    expect(activity.reports[1]?.message).toContain('a second copy of 2026-10-06 Standup');
+  });
+
+  it('archives a copy typed in when it arrived, once it is saved', async () => {
+    const { vault, activity, run, as } = setUp(
+      { [STANDUP]: meeting(), [RESENT]: meeting() },
+      { dirty: [RESENT] },
+    );
+    await run([as('added', RESENT)]);
+    expect(vault.files.has(RESENT)).toBe(true);
+    expect(activity.reports[0]?.level).toBe('error');
+
+    vault.unsaved.delete(RESENT);
+    vault.files.set(RESENT, meeting().replace('moves a week', 'moves a week, again'));
+    await run([as('changed', RESENT)]);
+
+    expect(vault.files.has(`Archive/${RESENT}`)).toBe(true);
+  });
+
+  it('leaves an edited meeting brought back from the Archive alone, even when it no longer reads', async () => {
+    const restored = meeting(WITHOUT_ID);
+    const { vault, activity, run, as } = setUp({ [STANDUP]: restored });
+    const removed: NoteChange = {
+      kind: 'removed',
+      path: `Archive/${STANDUP}`,
+      type: 'meeting',
+      digest: 'stamped',
+    };
+
+    await run([removed, as('added', STANDUP)]);
+    await run([as('changed', STANDUP)]);
+
+    expect(vault.files.get(STANDUP)).toBe(restored);
+    expect(activity.reports).toEqual([]);
+  });
+
+  it('marks a broken body once, its line counted with the mark in place', async () => {
+    const broken = meeting().replace(' ^t0002', '');
+    const { vault, activity, run, as } = setUp({ [STANDUP]: broken });
+
+    await run([as('added', STANDUP)]);
+    const marked = vault.files.get(STANDUP) ?? '';
+    await run([as('changed', STANDUP)]);
+
+    const error = String(vault.properties(STANDUP)['atlas_import_error']);
+    const line = Number(/Line (\d+)/.exec(error)?.[1]);
+    expect(marked.split('\n')[line - 1]).toContain('**Tobias Fenn**');
+    expect(vault.files.get(STANDUP)).toBe(marked);
+    expect(activity.reports).toHaveLength(1);
   });
 
   it('makes the first of two copies arriving together the original, and archives the second', async () => {
@@ -290,15 +387,16 @@ describe('importArrivedMeetings', () => {
     expect(vault.files.has(`Archive/${RESENT}`)).toBe(true);
   });
 
-  it('leaves a file that changed since the sync for the sync that reports it', async () => {
-    const { vault, activity, run, as } = setUp({ [STANDUP]: meeting(WITHOUT_ID) });
+  it('judges a file that changed since its sync by what it says now, and once', async () => {
+    const { vault, activity, run, as } = setUp({ [STANDUP]: meeting() });
     const reported = as('added', STANDUP);
-    vault.files.set(STANDUP, meeting(WITHOUT_ID).replace('Summary', 'Overview'));
+    vault.files.set(STANDUP, meeting(WITHOUT_ID));
 
-    const outcome = await run([reported]);
+    await run([reported]);
+    await run([as('changed', STANDUP)]);
 
-    expect(outcome.happenings).toEqual([]);
-    expect(activity.reports).toEqual([]);
+    expect(vault.properties(STANDUP)['atlas_import_error']).toBe('external_id is required');
+    expect(activity.reports.map((report) => report.level)).toEqual(['warning']);
   });
 
   it('ignores notes added elsewhere, and a meeting moved into the Inbox with its bytes', async () => {

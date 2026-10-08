@@ -1,37 +1,39 @@
 import {
-  compileMeetingHoldersQuery,
   createVaultPath,
-  digestOf,
   DUPLICATE_OF_KEY,
-  duplicateDecision,
   IMPORT_ERROR_KEY,
   importErrorText,
-  MEETING_TYPE,
   meetingCandidates,
+  meetingCopies,
   meetingImportReport,
   messageWithoutPaths,
   splitFrontmatter,
-  validateMeetingImport,
-  wikiLinkTargetFor,
-  type DuplicateDecision,
   type FrontmatterReading,
   type MeetingCandidate,
   type MeetingImport,
+  type MeetingImportError,
   type MeetingImportHappening,
   type NoteChange,
   type VaultPath,
 } from '@atlas/domain';
 import type { ActivityRecorder } from '../activity/ports.ts';
-import { archiveNotes, type ArchivePorts } from '../archive/archive-notes.ts';
+import type { ArchivePorts } from '../archive/archive-notes.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
-import { setNoteProperties } from '../query/set-property.ts';
+import {
+  archiveCopy,
+  meetingHolders,
+  writeInto,
+  UNSAVED,
+  type ImportContext,
+} from './meeting-files.ts';
+import { readFrontmatter, validateMeetingFile } from './meeting-reading.ts';
 
 /** What the import reaches: reading and writing notes, the index, the panes, and the Archive's move. */
 export type MeetingImportPorts = ArchivePorts;
 
 /**
- * The versions of notes already looked at, so a change heard twice is acted
- * on once. `firstTime` remembers the version and says whether it was new.
+ * The versions of notes already looked at, so a change heard twice is said
+ * once. `firstTime` remembers the version and says whether it was new.
  */
 export interface SeenVersions {
   firstTime(path: string, digest: string): boolean;
@@ -56,112 +58,84 @@ export interface MeetingImportOutcome {
   readonly wrote: boolean;
 }
 
-const UNSAVED = 'It is open in Atlas with unsaved typing, so the import left it as it is.';
 /** Why the problem was not written into a file, as a clause the Activity line ends a sentence with. */
 const UNSAVED_CLAUSE = 'it is open in Atlas with unsaved typing';
 const UNREADABLE_FRONTMATTER = 'its frontmatter cannot be read, so nothing could be added to it';
 
 /**
- * Imports the meetings one sync brought in (ADR-0027, P28-04).
+ * Imports the meetings one sync brought in, or changed, where meeting files
+ * land (ADR-0027, P28-04). Every outcome is decided from what the files say
+ * now — never from what was heard first — so a file looked at again, on this
+ * Mac or another, comes to the same thing:
  *
- * A file that arrived where meeting files land is checked against the
- * meeting import contract. One that follows it and is the first copy of its
- * meeting is left exactly as it came, and waits in the Inbox. A second copy —
- * the same provider + external_id as a meeting the vault already has — is
- * marked `atlas_duplicate_of` the first, and archived, which can be undone. A
- * file that breaks the contract stays where it landed and is marked
- * `atlas_import_error` with why; once it is fixed, the mark is taken out and
- * it is imported as if it had just arrived.
+ * - A file that follows the contract and is its meeting's original (see
+ *   `meetingCopies`) is left byte for byte. Looking at it again does nothing.
+ * - Any other holder of the meeting where meeting files land is a copy:
+ *   marked `atlas_duplicate_of` the original, and archived.
+ * - A file that breaks the contract is marked `atlas_import_error` with why,
+ *   where it landed — when it arrived, or already carries a mark. One with no
+ *   mark that changed is left alone: that is an edit to a meeting that
+ *   imported, which is the person's business. Once a marked file reads, the
+ *   mark is taken out and it is imported.
  *
- * Each outcome is one line in Activity. Nothing is decided from what the
- * index alone says about a file: it is read, and a file that changed since
- * the sync reported it is left for the sync that reports the new version.
- * One file's failure is said and the rest carry on.
+ * So an arrival not finished the first time — its YAML unreadable, a pane
+ * typing in it, a run that failed — is finished by the change that fixes it.
+ * Each outcome is one line in Activity; one file's failure is said and the
+ * rest carry on.
  */
 export async function importArrivedMeetings(run: MeetingImportRun): Promise<MeetingImportOutcome> {
   const candidates = meetingCandidates(run.changes).filter(
     (candidate) => run.seen?.firstTime(candidate.path, candidate.digest) ?? true,
   );
-  const batch: Batch = {
-    pending: new Set(candidates.filter(isArrival).map((candidate) => candidate.path)),
-    refused: new Set(),
-    wrote: false,
-  };
+  const context: ImportContext = { ...run, settled: new Set(), wrote: false };
   const happenings: MeetingImportHappening[] = [];
   for (const candidate of candidates) {
-    batch.pending.delete(candidate.path);
+    // Archived already, as a copy of a meeting decided earlier in this run.
+    if (context.settled.has(candidate.path)) continue;
     const path = createVaultPath(candidate.path);
-    const happening = await importOne({ run, batch, candidate, path }).catch(
-      (cause: unknown): MeetingImportHappening => ({
-        kind: 'failed',
-        path,
-        problem: messageWithoutPaths(cause),
-      }),
+    const said = await importOne(context, { candidate, path }).catch(
+      (cause: unknown): MeetingImportHappening[] => [
+        { kind: 'failed', path, problem: messageWithoutPaths(cause) },
+      ],
     );
-    if (happening === null) continue;
-    run.activity.record(meetingImportReport(happening));
-    happenings.push(happening);
+    for (const happening of said) {
+      run.activity.record(meetingImportReport(happening));
+      happenings.push(happening);
+    }
   }
-  return { happenings, wrote: batch.wrote };
-}
-
-/** What one run has learnt so far, which the files after it are decided by. */
-interface Batch {
-  /** Files that arrived in this sync and are not decided yet: none is yet anyone's original. */
-  readonly pending: Set<string>;
-  /** Files found to break the contract: none is anyone's original, whatever the index says. */
-  readonly refused: Set<string>;
-  wrote: boolean;
+  return { happenings, wrote: context.wrote };
 }
 
 interface OneFile {
-  readonly run: MeetingImportRun;
-  readonly batch: Batch;
   readonly candidate: MeetingCandidate;
   readonly path: VaultPath;
 }
 
-const isArrival = (candidate: MeetingCandidate) => candidate.kind === 'arrived';
-
-/** What happened to one file, or null when there was nothing to do or say. */
-async function importOne(file: OneFile): Promise<MeetingImportHappening | null> {
-  const { run, candidate, path } = file;
-  const { text, modified } = await run.ports.fs.readTextFile(path);
-  // Changed again since this sync looked: the next sync reports that version.
-  if (digestOf(text) !== candidate.digest) return null;
-  const reading = readFrontmatter(run.ports.markdown, splitFrontmatter(text).frontmatter);
+/** What happened to one file and the copies it settled; empty when there was nothing to do or say. */
+async function importOne(
+  context: ImportContext,
+  { candidate, path }: OneFile,
+): Promise<MeetingImportHappening[]> {
+  const { markdown } = context.ports;
+  const { text, modified } = await context.ports.fs.readTextFile(path);
+  const reading = readFrontmatter(markdown, splitFrontmatter(text).frontmatter);
   // A copy already marked was decided before; one brought back from the Archive stays.
-  if (Object.hasOwn(reading.properties, DUPLICATE_OF_KEY)) return null;
+  if (Object.hasOwn(reading.properties, DUPLICATE_OF_KEY)) return [];
   const marked = Object.hasOwn(reading.properties, IMPORT_ERROR_KEY);
-  // An edit to a meeting that imported is the person's own business, not the import's.
-  if (candidate.kind === 'changed' && !marked) return null;
-
-  const result = validateMeetingImport({
-    text,
-    readFrontmatter: (frontmatter) => readFrontmatter(run.ports.markdown, frontmatter),
-    // Who `You` is changes how a turn is read, never whether the file follows the contract.
-    selfName: null,
-  });
-  const written = { file, modified };
-  if (!result.ok) {
-    file.batch.refused.add(path);
-    return refuse(written, { reading, problem: importErrorText(result.errors) });
+  const result = validateMeetingFile(markdown, text);
+  if (result.ok) {
+    return accept(context, {
+      path,
+      modified,
+      kind: candidate.kind,
+      marked,
+      meeting: result.meeting,
+    });
   }
-  return accept(written, { meeting: result.meeting, marked });
-}
-
-function readFrontmatter(markdown: MarkdownPort, frontmatter: string | null): FrontmatterReading {
-  const problem = markdown.frontmatterProblem(frontmatter);
-  return {
-    properties: problem === null ? markdown.frontmatterProperties(frontmatter) : {},
-    problem,
-  };
-}
-
-/** A file as it was read, and when, so a write to it is refused if it moved on since. */
-interface ReadFile {
-  readonly file: OneFile;
-  readonly modified: number;
+  // Unmarked and changed: an edit to a meeting that imported, not an arrival.
+  if (!marked && candidate.kind === 'changed') return [];
+  const refused = await refuse(context, { path, modified, text, reading, errors: result.errors });
+  return refused === null ? [] : [refused];
 }
 
 /**
@@ -170,132 +144,106 @@ interface ReadFile {
  * before it synced — is not news.
  */
 async function refuse(
-  { file, modified }: ReadFile,
-  { reading, problem }: { reading: FrontmatterReading; problem: string },
+  context: ImportContext,
+  {
+    path,
+    modified,
+    text,
+    reading,
+    errors,
+  }: {
+    path: VaultPath;
+    modified: number;
+    text: string;
+    reading: FrontmatterReading;
+    errors: readonly MeetingImportError[];
+  },
 ): Promise<MeetingImportHappening | null> {
-  if (reading.properties[IMPORT_ERROR_KEY] === problem) return null;
-  const { path } = file;
   if (reading.problem !== null) {
+    const problem = importErrorText(errors);
     return { kind: 'invalid', path, problem, unmarked: UNREADABLE_FRONTMATTER };
   }
-  const unsaved = await writeInto(file, { modified, values: { [IMPORT_ERROR_KEY]: problem } });
+  const problem = problemAsMarked(context.ports.markdown, text, errors);
+  if (reading.properties[IMPORT_ERROR_KEY] === problem) return null;
+  const unsaved = await writeInto(context, {
+    path,
+    modified,
+    values: { [IMPORT_ERROR_KEY]: problem },
+  });
   return { kind: 'invalid', path, problem, unmarked: unsaved === null ? null : UNSAVED_CLAUSE };
 }
 
 /**
- * A file that follows the contract: left as it came when it is the first
- * copy of its meeting; otherwise marked as the copy it is, and archived. An
- * import error it carried from before it was fixed is taken out in the same
- * write.
+ * The problems as the file will read once the mark is in it. The mark is a
+ * line of the frontmatter — and, in a file with none, a block of its own — so
+ * it moves every line below it: counted in the file as it was, a body
+ * problem's line would be wrong once written, and the next look would write
+ * it again. The mark keeps its own number of lines whatever it says, so the
+ * lines counted with it in place stay right.
+ */
+function problemAsMarked(
+  markdown: MarkdownPort,
+  text: string,
+  errors: readonly MeetingImportError[],
+): string {
+  const first = importErrorText(errors);
+  const document = splitFrontmatter(text);
+  const marked =
+    markdown.updateFrontmatter(document.frontmatter, { [IMPORT_ERROR_KEY]: first }) + document.body;
+  const again = validateMeetingFile(markdown, marked);
+  return again.ok ? first : importErrorText(again.errors);
+}
+
+/**
+ * A file that follows the contract. When it is its meeting's original, it is
+ * left as it came — but for an import error from before it was fixed, taken
+ * out — and every other copy where meeting files land is marked and archived.
+ * Otherwise it is the copy.
  */
 async function accept(
-  { file, modified }: ReadFile,
-  { meeting, marked }: { meeting: MeetingImport; marked: boolean },
-): Promise<MeetingImportHappening> {
-  const { path } = file;
-  const decision = await decide(file, meeting);
-  const cleared = marked ? { [IMPORT_ERROR_KEY]: null } : {};
-  if (decision.kind === 'original') {
-    if (!marked) return { kind: 'arrived', path };
-    const unsaved = await writeInto(file, { modified, values: cleared });
-    return unsaved === null ? { kind: 'fixed', path } : { kind: 'failed', path, problem: unsaved };
-  }
-  const notePaths = await everyNote(file.run.ports);
-  const original = createVaultPath(decision.of);
-  const link = `[[${wikiLinkTargetFor(original, notePaths)}]]`;
-  const unsaved = await writeInto(file, {
+  context: ImportContext,
+  {
+    path,
     modified,
-    values: { ...cleared, [DUPLICATE_OF_KEY]: link },
-  });
-  if (unsaved !== null) return { kind: 'failed', path, problem: unsaved };
-  return archiveCopy(file, { original, notePaths });
-}
-
-/**
- * Whether a meeting is the first copy. The index says which notes held its
- * id when it last read them; each is read again, since the index can be
- * behind what this run, or the one before it, has written or moved since.
- */
-async function decide(file: OneFile, meeting: MeetingImport): Promise<DuplicateDecision> {
-  const { sql, parameters } = compileMeetingHoldersQuery({
-    provider: meeting.provider,
-    externalId: meeting.externalId,
-  });
-  const found = await file.run.ports.index.query(sql, parameters);
-  const holders: string[] = [];
-  for (const holder of found.rows.map((row) => String(row[0]))) {
-    if (holder === file.path || file.batch.refused.has(holder)) continue;
-    if (await stillHolds(file.run.ports, { holder, meeting })) holders.push(holder);
+    kind,
+    marked,
+    meeting,
+  }: {
+    path: VaultPath;
+    modified: number;
+    kind: MeetingCandidate['kind'];
+    marked: boolean;
+    meeting: MeetingImport;
+  },
+): Promise<MeetingImportHappening[]> {
+  const holders = await meetingHolders(context, { meeting, besides: path });
+  const { original, copies } = meetingCopies([path, ...holders]);
+  if (original !== path) {
+    return [await archiveCopy(context, { path, original: createVaultPath(original) })];
   }
-  return duplicateDecision({ path: file.path, holders, pending: file.batch.pending });
-}
-
-/** Whether a note holds the meeting's id now, unmarked: one a copy could be a copy of. */
-async function stillHolds(
-  ports: MeetingImportPorts,
-  { holder, meeting }: { holder: string; meeting: MeetingImport },
-): Promise<boolean> {
-  let text: string;
-  try {
-    ({ text } = await ports.fs.readTextFile(createVaultPath(holder)));
-  } catch {
-    // Gone since the index read it — moved or deleted: it holds nothing here now.
-    return false;
+  const own = await settleOriginal(context, { path, modified, kind, marked });
+  const others: MeetingImportHappening[] = [];
+  for (const copy of copies) {
+    others.push(await archiveCopy(context, { path: createVaultPath(copy), original: path }));
   }
-  const properties = readFrontmatter(ports.markdown, splitFrontmatter(text).frontmatter).properties;
-  return (
-    properties['type'] === MEETING_TYPE &&
-    properties['provider'] === meeting.provider &&
-    properties['external_id'] === meeting.externalId &&
-    !Object.hasOwn(properties, DUPLICATE_OF_KEY) &&
-    !Object.hasOwn(properties, IMPORT_ERROR_KEY)
-  );
+  return [...(own === null ? [] : [own]), ...others];
 }
 
-/** Every note the index holds, which it does as of the sync this run heard. */
-async function everyNote(ports: MeetingImportPorts): Promise<VaultPath[]> {
-  return (await ports.index.manifest()).map((entry) => createVaultPath(entry.path));
-}
-
-async function archiveCopy(
-  file: OneFile,
-  { original, notePaths }: { original: VaultPath; notePaths: readonly VaultPath[] },
-): Promise<MeetingImportHappening> {
-  const { path, run } = file;
-  const outcome = await archiveNotes({
-    ports: run.ports,
-    paths: [path],
-    notePaths,
-    today: run.today,
-    // The import is not the person: it never saves what someone is typing.
-    unsavedTyping: 'leave',
+/** The original as it is: news when it arrived, or when a mark had to come out; nothing otherwise. */
+async function settleOriginal(
+  context: ImportContext,
+  {
+    path,
+    modified,
+    kind,
+    marked,
+  }: { path: VaultPath; modified: number; kind: MeetingCandidate['kind']; marked: boolean },
+): Promise<MeetingImportHappening | null> {
+  if (!marked) return kind === 'arrived' ? { kind: 'arrived', path } : null;
+  const unsaved = await writeInto(context, {
+    path,
+    modified,
+    values: { [IMPORT_ERROR_KEY]: null },
   });
-  const archivedTo = outcome.moves[0]?.move.to ?? null;
-  if (archivedTo !== null) file.batch.wrote = true;
-  const reasons = outcome.failed.map((failure) => failure.reason);
-  const problem = reasons.length === 0 ? null : reasons.join(' ');
-  return { kind: 'duplicate', path, of: original, archivedTo, problem };
-}
-
-/**
- * Writes properties into the file as it was read — refused if it changed
- * since — and has any pane showing it read it again. A file being typed in
- * is never written: why is said instead.
- */
-async function writeInto(
-  file: OneFile,
-  { modified, values }: { modified: number; values: Readonly<Record<string, unknown>> },
-): Promise<string | null> {
-  const { ports } = file.run;
-  if (ports.editors.state(file.path) === 'dirty') return UNSAVED;
-  await setNoteProperties({
-    fs: ports.fs,
-    markdown: ports.markdown,
-    path: file.path,
-    values,
-    ifModified: modified,
-  });
-  file.batch.wrote = true;
-  if (ports.editors.state(file.path) === 'clean') ports.editors.reload(file.path);
-  return null;
+  return unsaved === null ? { kind: 'fixed', path } : { kind: 'failed', path, problem: UNSAVED };
 }

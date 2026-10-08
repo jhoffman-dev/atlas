@@ -20,7 +20,9 @@ export const SEEN_VERSIONS_KEPT = 2000;
  *
  * The ports answer for whichever vault is open, so news of a vault that is
  * no longer open is dropped, as the syncer drops its sync: reading it would
- * read the other vault under this one's name.
+ * read the other vault under this one's name. They are asked for at the start
+ * of each run, so the window can hand over new ones — as it does whenever
+ * the tree is re-read — without the queue and what was heard being lost.
  */
 export interface MeetingImporter {
   /** Settles once these changes are imported; null when they were dropped. */
@@ -34,7 +36,8 @@ export function createMeetingImporter({
   openVault,
   onWritten,
 }: {
-  ports: MeetingImportPorts;
+  /** The ports as they are now, asked for at the start of each run. */
+  ports: () => MeetingImportPorts;
   clock: Pick<Clock, 'today'>;
   activity: ActivityLog;
   /** The vault open now, which the ports answer for; null when none is. */
@@ -49,7 +52,7 @@ export function createMeetingImporter({
     if (openVault() !== news.vault) return null;
     if (seen?.vault !== news.vault) seen = { vault: news.vault, versions: seenVersions() };
     const outcome = await importArrivedMeetings({
-      ports,
+      ports: ports(),
       changes: news.changes,
       today: clock.today(),
       activity: activity.inVault(news.vault),

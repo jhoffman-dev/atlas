@@ -13,14 +13,14 @@ export { parseTranscript } from './transcript.ts';
 export type { ParsedTranscript, TranscriptTurn, TurnSpeaker, TurnTime } from './transcript.ts';
 export {
   DUPLICATE_OF_KEY,
-  duplicateDecision,
   IMPORT_ERROR_KEY,
   importErrorText,
   isMeetingInboxPath,
   MEETING_INBOX,
   meetingCandidates,
+  meetingCopies,
 } from './meeting-arrival.ts';
-export type { DuplicateDecision, MeetingCandidate } from './meeting-arrival.ts';
+export type { MeetingCandidate, MeetingCopies } from './meeting-arrival.ts';
 export {
   compileMeetingHoldersQuery,
   compileMeetingListQuery,

@@ -19,7 +19,8 @@ const IS_MEETING = `files.path IN (SELECT path FROM props WHERE key = 'type' AND
  * away and sent again is still the same meeting. Notes marked as a copy or as
  * failing import are listed too: the index can be behind the files (a mark
  * written, or taken out, since it last read them), so whoever asks reads each
- * file to know what it holds now.
+ * file to know what it holds now. Ids are compared without the spaces around
+ * them: `' g-1'` and `'g-1'` are one meeting.
  */
 export function compileMeetingHoldersQuery({
   provider,
@@ -33,10 +34,10 @@ export function compileMeetingHoldersQuery({
       `${MEETING_QUERY_MARK} SELECT files.path AS "path" FROM files`,
       `WHERE ${IS_MEETING}`,
       `  AND files.path IN (SELECT path FROM props WHERE key = 'provider' AND value_text = ?)`,
-      `  AND files.path IN (SELECT path FROM props WHERE key = 'external_id' AND value_text = ?)`,
+      `  AND files.path IN (SELECT path FROM props WHERE key = 'external_id' AND trim(value_text) = ?)`,
       `ORDER BY files.path`,
     ].join('\n'),
-    parameters: [MEETING_TYPE, provider, externalId],
+    parameters: [MEETING_TYPE, provider, externalId.trim()],
   };
 }
 

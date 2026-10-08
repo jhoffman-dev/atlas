@@ -19,7 +19,7 @@ function setUp({ open = VAULT }: { open?: string | null } = {}) {
   const activity = recordingActivity();
   const onWritten = vi.fn();
   const importer = createMeetingImporter({
-    ports: vault.ports,
+    ports: () => vault.ports,
     clock: { today: () => '2026-10-08' },
     activity,
     openVault: () => open,
@@ -75,7 +75,7 @@ describe('createMeetingImporter', () => {
       today: '2026-10-08',
     });
     const importer = createMeetingImporter({
-      ports: vault.ports,
+      ports: () => vault.ports,
       clock: { today: () => '2026-10-08' },
       activity: recordingActivity(),
       openVault: () => VAULT,

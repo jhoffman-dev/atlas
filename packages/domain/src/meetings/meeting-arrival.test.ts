@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { NoteChange } from '../index/note-changes.ts';
 import {
-  duplicateDecision,
   importErrorText,
   isMeetingInboxPath,
   meetingCandidates,
+  meetingCopies,
 } from './meeting-arrival.ts';
 import { bodyError, frontmatterError } from './meeting-import-error.ts';
 
@@ -52,6 +52,27 @@ describe('meetingCandidates', () => {
     ).toEqual([]);
   });
 
+  it('takes a note brought back from the Archive as no arrival, numbered or not', () => {
+    expect(
+      meetingCandidates([
+        change('removed', 'Archive/Inbox/Meetings/Standup.md', 'stamped'),
+        change('added', 'Inbox/Meetings/Standup.md', 'unstamped'),
+        change('removed', 'Archive/Inbox/Meetings/Retro.md', 'stamped-2'),
+        change('added', 'inbox/meetings/Retro 2.md', 'unstamped-2'),
+        change('added', 'Inbox/Meetings/Fresh.md', 'fresh'),
+      ]),
+    ).toEqual([{ path: 'Inbox/Meetings/Fresh.md', digest: 'fresh', kind: 'arrived' }]);
+  });
+
+  it('pairs a restore only with a note that went from the Archive', () => {
+    expect(
+      meetingCandidates([
+        change('removed', 'Projects/Standup.md', 'old'),
+        change('added', 'Inbox/Meetings/Standup.md', 'new'),
+      ]),
+    ).toEqual([{ path: 'Inbox/Meetings/Standup.md', digest: 'new', kind: 'arrived' }]);
+  });
+
   it('takes a note that came with the same bytes another went with as a move, not an arrival', () => {
     expect(
       meetingCandidates([
@@ -86,62 +107,54 @@ describe('importErrorText', () => {
   });
 });
 
-describe('duplicateDecision', () => {
-  const none = new Set<string>();
+describe('meetingCopies', () => {
+  const PRIMARY = 'Inbox/Meetings/2026-10-06 Standup.md';
+  const COLLISION = 'Inbox/Meetings/2026-10-06 Standup (gemini 1a2b3c4d).md';
 
-  it('is the original when nothing else holds its id', () => {
-    expect(duplicateDecision({ path: 'Inbox/Meetings/A.md', holders: [], pending: none })).toEqual({
-      kind: 'original',
-    });
-    expect(
-      duplicateDecision({
-        path: 'Inbox/Meetings/A.md',
-        holders: ['Inbox/Meetings/A.md'],
-        pending: none,
-      }),
-    ).toEqual({ kind: 'original' });
+  it('keeps the only holder, with no copies', () => {
+    expect(meetingCopies([PRIMARY])).toEqual({ original: PRIMARY, copies: [] });
   });
 
-  it('is a duplicate of a note that already held its id', () => {
-    expect(
-      duplicateDecision({
-        path: 'Inbox/Meetings/A (gemini 1a2b3c4d).md',
-        holders: ['Inbox/Meetings/A (gemini 1a2b3c4d).md', 'Inbox/Meetings/A.md'],
-        pending: none,
-      }),
-    ).toEqual({ kind: 'duplicate', of: 'Inbox/Meetings/A.md' });
-  });
-
-  it('of two arriving together, makes the first decided the original and the second its copy', () => {
-    const first = 'Inbox/Meetings/A.md';
-    const second = 'Inbox/Meetings/A 2.md';
-    const holders = [first, second];
-    expect(duplicateDecision({ path: first, holders, pending: new Set([second]) })).toEqual({
-      kind: 'original',
-    });
-    expect(duplicateDecision({ path: second, holders, pending: none })).toEqual({
-      kind: 'duplicate',
-      of: first,
+  it('keeps the path the mapping writes first over the one it writes when that is taken', () => {
+    expect(meetingCopies([COLLISION, PRIMARY])).toEqual({
+      original: PRIMARY,
+      copies: [COLLISION],
     });
   });
 
-  it('prefers a holder outside the Archive, then the first by path', () => {
-    expect(
-      duplicateDecision({
-        path: 'Inbox/Meetings/New.md',
-        holders: ['Archive/Projects/A.md', 'Projects/Z.md', 'Projects/B.md'],
-        pending: none,
-      }),
-    ).toEqual({ kind: 'duplicate', of: 'Projects/B.md' });
+  it('decides the same whatever order the holders come in', () => {
+    const holders = [COLLISION, 'Inbox/Meetings/A.md', PRIMARY, 'Inbox/Meetings/B (x 0f0f0f0f).md'];
+    const answers = [
+      holders,
+      [...holders].reverse(),
+      [holders[2]!, holders[0]!, holders[3]!, holders[1]!],
+    ].map(meetingCopies);
+    expect(answers[0]).toEqual({
+      original: PRIMARY,
+      copies: ['Inbox/Meetings/A.md', COLLISION, 'Inbox/Meetings/B (x 0f0f0f0f).md'],
+    });
+    expect(answers[1]).toEqual(answers[0]);
+    expect(answers[2]).toEqual(answers[0]);
   });
 
-  it('takes an archived meeting as the original when it is the only holder', () => {
+  it('keeps a meeting filed elsewhere, then one archived, over any where meetings land', () => {
     expect(
-      duplicateDecision({
-        path: 'Inbox/Meetings/A.md',
-        holders: ['Archive/Projects/A.md'],
-        pending: none,
-      }),
-    ).toEqual({ kind: 'duplicate', of: 'Archive/Projects/A.md' });
+      meetingCopies([PRIMARY, 'Archive/Projects/Standup.md', 'Projects/Larkspur/Standup.md']),
+    ).toEqual({ original: 'Projects/Larkspur/Standup.md', copies: [PRIMARY] });
+    expect(meetingCopies([COLLISION, PRIMARY, 'Archive/Inbox/Meetings/Old.md'])).toEqual({
+      original: 'Archive/Inbox/Meetings/Old.md',
+      copies: [PRIMARY, COLLISION],
+    });
+  });
+
+  it('never makes a copy of a holder filed or archived elsewhere', () => {
+    expect(meetingCopies(['Projects/B.md', 'Projects/A.md', 'Archive/Projects/C.md'])).toEqual({
+      original: 'Projects/A.md',
+      copies: [],
+    });
+  });
+
+  it('counts a holder named twice once', () => {
+    expect(meetingCopies([PRIMARY, PRIMARY])).toEqual({ original: PRIMARY, copies: [] });
   });
 });
