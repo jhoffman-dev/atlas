@@ -187,8 +187,10 @@ export interface ApiTypeProperty {
   readonly label: string;
   readonly required: boolean;
   readonly options: readonly string[];
-  /** For a relation: the type it points at. */
+  /** For a relation: the type it points at — the first, when it may point at several. */
   readonly target: string | null;
+  /** For a relation: every type it may point at, `[project, area]`; empty when it names none. */
+  readonly targets: readonly string[];
   readonly many: boolean;
 }
 
@@ -400,7 +402,15 @@ export interface ApiArchiveBody {
   readonly paths: readonly string[];
 }
 
-/** What a batch of archiving or unarchiving did. */
+/** `POST /v1/inbox/process`: notes in the Inbox, and the project or area to file them under. */
+export interface ApiProcessInboxBody {
+  /** Vault-relative paths of notes in the Inbox: 1 to 100 of them. */
+  readonly paths: readonly string[];
+  /** The path of a project or an area. */
+  readonly project: string;
+}
+
+/** What a batch of archiving, unarchiving or processing the Inbox did. */
 export interface ApiArchiveOutcome {
   /** Every note that moved, in the order asked, from where it was to where it went. */
   readonly moves: readonly { readonly from: string; readonly to: string }[];
@@ -1016,6 +1026,11 @@ export const API_ROUTES = [
     method: 'POST',
     path: '/v1/unarchive',
     summary: 'Take notes out of the Archive, back where each came from.',
+  },
+  {
+    method: 'POST',
+    path: '/v1/inbox/process',
+    summary: "File notes from the Inbox under a project or an area, as the Inbox's Process does.",
   },
   {
     method: 'GET',

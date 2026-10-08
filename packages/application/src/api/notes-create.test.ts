@@ -349,25 +349,25 @@ describe('POST /v1/capture', () => {
   const capture = (api: ReturnType<typeof vault>, body: unknown) =>
     api.send({ method: 'POST', path: '/v1/capture', body });
 
-  it('makes a task named by the text, from the Task template, at the root', async () => {
+  it('makes a task named by the text, from the Task template, in the Inbox (P30-01)', async () => {
     const api = vault();
 
     const response = await capture(api, { text: 'Renew the passport' });
 
     expect(response.status).toBe(201);
-    expect(api.files.get('Renew the passport.md')?.text).toBe(TASK_TEMPLATE);
+    expect(api.files.get('Inbox/Renew the passport.md')?.text).toBe(TASK_TEMPLATE);
   });
 
   it('numbers the task rather than refusing when the name is taken, as quick capture does', async () => {
-    const api = vault({ 'Renew the passport.md': 'older\n' });
+    const api = vault({ 'Inbox/Renew the passport.md': 'older\n' });
     const response = await capture(api, { text: 'Renew the passport' });
-    expect(bodyOf(response)['note']).toMatchObject({ path: 'Renew the passport 2.md' });
+    expect(bodyOf(response)['note']).toMatchObject({ path: 'Inbox/Renew the passport 2.md' });
   });
 
   it('makes a plain note when the vault has no Task template', async () => {
     const api = apiFixture();
     await capture(api, { text: 'Call Sam' });
-    expect(api.files.get('Call Sam.md')?.text).toBe('');
+    expect(api.files.get('Inbox/Call Sam.md')?.text).toBe('');
   });
 
   it.each([

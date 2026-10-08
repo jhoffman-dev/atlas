@@ -438,3 +438,31 @@ views above:
   lands, the API/MCP keeper decides whether it is a route of its own or
   `/v1/quick-add` followed by `PATCH /v1/notes/{path}/properties`, which
   callers can already do.
+
+## Amendment: processing the Inbox is the second move (P30-01, 2026-10-08)
+
+The Inbox's **Process** files a note under a project or an area: it moves
+into the project's folder and gets `project: "[[…]]"` linking it. An agent
+triaging the Inbox needs it, so `POST /v1/inbox/process` (MCP
+`atlas_process_inbox_item`) is the second route that moves notes. It runs the
+app's own `processInboxItems`, on the same move-and-stamp as the Archive, and
+is held to the Archive's limits above, with one change to where a note goes:
+
+- **Only out of the Inbox.** Every path is a `.md` note under `Inbox/` at the
+  root of the vault; any other is listed in `failed` and left where it is.
+- **The destination is fixed by the note's name and the project's own path.**
+  The caller chooses the project, not the place: a note lands in the
+  project's folder — beside the project's note, named as it, or the folder it
+  is already the note of — under its own file name, numbered if that is
+  taken, never over anything. The project must be a note of type `project` or
+  `area` that is in use (not in the Inbox, not archived, not in `.atlas` or a
+  hidden folder) and not so deep that a note filed under it would be past
+  `VAULT_WALK_DEPTH`; anything else refuses the whole request with `invalid`
+  before a note moves.
+- **At most 100 paths**, **typing never saved** (`unsaved_in_app`), links
+  rewritten and counted, and every unfinished note named in `failed` — as for
+  the Archive.
+
+Setting a vault's types up for PARA writes into `.atlas/types` and stays in
+the app, which offers it; `/v1/types` reads the result, including each
+relation's `targets`.

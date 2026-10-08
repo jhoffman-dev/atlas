@@ -115,7 +115,7 @@ describe('FAILING: daily and capture answer, never fault, when the name is taken
 
   it('capture numbers the task when its name appears between listing and creating', async () => {
     const api = apiFixture();
-    createdRightAfterListing(api, 'Call Sam.md');
+    createdRightAfterListing(api, 'Inbox/Call Sam.md');
 
     const response = await api.send({
       method: 'POST',
@@ -124,11 +124,11 @@ describe('FAILING: daily and capture answer, never fault, when the name is taken
     });
 
     expect(response.status).toBe(201);
-    expect(bodyOf(response)['note']).toMatchObject({ path: 'Call Sam 2.md' });
+    expect(bodyOf(response)['note']).toMatchObject({ path: 'Inbox/Call Sam 2.md' });
   });
 
   it('capture numbers a task whose name differs only in case on a case-insensitive disk', async () => {
-    const api = apiFixture({ files: { 'Call Sam.md': '# Call Sam\n' } });
+    const api = apiFixture({ files: { 'Inbox/Call Sam.md': '# Call Sam\n' } });
     caseInsensitiveHost(api);
 
     const response = await api.send({

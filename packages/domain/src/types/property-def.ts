@@ -163,7 +163,7 @@ function parseTargets(raw: unknown): string[] {
 
 /**
  * Every type a relation may point at, in the order the type file lists them;
- * empty for a property that is not a relation.
+ * empty when it names none.
  */
 export function relationTypes(def: Pick<PropertyDef, 'target' | 'targets'>): readonly string[] {
   if (def.targets !== undefined && def.targets.length > 0) return def.targets;
