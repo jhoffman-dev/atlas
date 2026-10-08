@@ -8,6 +8,7 @@ import { automationTools } from './tools/automations.ts';
 import { captureTools } from './tools/capture.ts';
 import { imageTools } from './tools/images.ts';
 import { noteTools } from './tools/notes.ts';
+import { proposalTools } from './tools/proposals.ts';
 import { queryTools } from './tools/queries.ts';
 import { sourceTools } from './tools/sources.ts';
 import { tagTools } from './tools/tags.ts';
@@ -31,6 +32,7 @@ export const ATLAS_TOOLS = [
   ...templateTools,
   ...archiveTools,
   ...automationTools,
+  ...proposalTools,
 ];
 
 const INSTRUCTIONS =

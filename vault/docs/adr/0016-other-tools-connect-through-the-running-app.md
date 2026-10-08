@@ -438,3 +438,43 @@ views above:
   lands, the API/MCP keeper decides whether it is a route of its own or
   `/v1/quick-add` followed by `PATCH /v1/notes/{path}/properties`, which
   callers can already do.
+
+## Proposals: listed, accepted, rejected (P29-02, 2026-10-08)
+
+Proposals are notes of the built-in `proposal` type in `Inbox/Proposals/`
+(ADR-0028), answered on the Proposals page. The API follows on the same terms
+as every route above, through the page's own use-cases (`listProposals`,
+`acceptProposalNote`, `rejectProposalNote`), so no rule is decided twice:
+
+- **Read.** `GET /v1/proposals` lists the open ones with what each would
+  write, and names any it cannot read.
+- **Accept writes a note in user space, and nothing else of the caller's
+  choosing.** What is written is the proposal's own payload, by
+  `applyProposal`: a new note of the kind's type, made with the exclusive
+  create, never over a note (a note already at its path is a refusal, since
+  it may be the very one proposed); or one link added to a relation of an
+  existing note, through the byte-preserving frontmatter write, guarded by
+  the digest the proposal recorded and the note's modified time. A payload's
+  folder may not be hidden, the Archive or the proposals folder.
+- **The proposal moves, by the Archive's rules.** Accepting or rejecting
+  files the proposal in the Archive at its own path, through `archiveNotes`
+  — the amendment above holds: user space only, never over anything, the
+  destination fixed by the note's path. These are the only routes besides
+  `/v1/archive` that move a note, and each moves only the proposal it names,
+  only from `Inbox/Proposals/`.
+- **Typing is never saved for anyone.** A proposal, or a link proposal's
+  note, open in Atlas with unsaved typing is refused (`unsaved_in_app` for
+  the proposal; `conflict` with the reason for the note), and nothing moves.
+- **Every refusal the vault causes is `conflict`**: decided already, a note
+  already there, a note changed since the proposal was made. Two accepts at
+  once make one write; the second is a `conflict`.
+- **Not routes: Edit and Undo.** Editing a payload is the person changing
+  what Claude proposed; a caller that wants something else written has the
+  note routes. Undo takes back an accept only if nothing changed what it
+  made since, and is offered once on the page that reported it, from what
+  the app holds. Making proposals is P29-03's Claude step, inside the app.
+
+MCP: `atlas_proposals` (read-only), `atlas_accept_proposal` and
+`atlas_reject_proposal`. Accepting through MCP is James asking his own Claude
+to accept for him; the step that _makes_ proposals unattended (P29-03) has no
+tools at all (ADR-0028), so it cannot accept its own.

@@ -22,6 +22,7 @@ const NOTE = {
 const ROWS = { columns: ['title'], rows: [['Call Sam']], truncated: false, sql: 'SELECT 1' };
 
 const ALL_TOOLS = [
+  'atlas_accept_proposal',
   'atlas_add_image',
   'atlas_add_to_view',
   'atlas_append_to_note',
@@ -42,12 +43,14 @@ const ALL_TOOLS = [
   'atlas_list_views',
   'atlas_move_card',
   'atlas_profile',
+  'atlas_proposals',
   'atlas_query',
   'atlas_quick_add',
   'atlas_quick_add_types',
   'atlas_read_note',
   'atlas_read_template',
   'atlas_refresh_source',
+  'atlas_reject_proposal',
   'atlas_rename_tag',
   'atlas_replace_note_body',
   'atlas_run_query',
@@ -135,6 +138,15 @@ describe('tools/list', () => {
     }
     // The name is set in Settings; the API never writes `.atlas`.
     expect(byName.get('atlas_profile')).toMatchObject({ readOnlyHint: true });
+    // Answering a proposal moves it into the Archive; a second answer is refused.
+    expect(byName.get('atlas_proposals')).toMatchObject({ readOnlyHint: true });
+    for (const name of ['atlas_accept_proposal', 'atlas_reject_proposal']) {
+      expect(byName.get(name)).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      });
+    }
     // Templates are edited in the app; the API never writes `.atlas` (ADR-0016).
     for (const name of ['atlas_list_templates', 'atlas_read_template']) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: true });
@@ -386,6 +398,21 @@ describe('tools/call → REST', () => {
       null,
     ],
     ['atlas_automation_dry_run', { id: 'tidy' }, 'POST', '/v1/automations/tidy/dry-run', null],
+    ['atlas_proposals', {}, 'GET', '/v1/proposals', null],
+    [
+      'atlas_accept_proposal',
+      { path: 'Inbox/Proposals/Send the file.md' },
+      'POST',
+      '/v1/proposals/Inbox%2FProposals%2FSend%20the%20file.md/accept',
+      null,
+    ],
+    [
+      'atlas_reject_proposal',
+      { path: 'Inbox/Proposals/Send the file.md' },
+      'POST',
+      '/v1/proposals/Inbox%2FProposals%2FSend%20the%20file.md/reject',
+      null,
+    ],
     [
       'atlas_archived',
       { search: 'lease', limit: 10, offset: 20 },

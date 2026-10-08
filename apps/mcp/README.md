@@ -110,6 +110,9 @@ Normally none. These environment variables override the connection file:
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
 | `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
 | `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
+| `atlas_proposals`          | `GET /v1/proposals`                                                          | no      |
+| `atlas_accept_proposal`    | `POST /v1/proposals/{path}/accept`                                           | yes     |
+| `atlas_reject_proposal`    | `POST /v1/proposals/{path}/reject`                                           | yes     |
 
 `atlas_archive` and `atlas_unarchive` take up to 100 note paths and move them
 into or out of `Archive/` as the app's Archive command does, rewriting links to
@@ -117,6 +120,13 @@ them. A path that cannot move is listed in the answer's `failed` with a reason;
 the rest still move, so it is not a tool error. `atlas_archived` lists what is
 archived, a page at a time. `atlas_search`, `atlas_run_view` and `atlas_query`
 leave archived notes out unless `includeArchived` is true.
+
+`atlas_proposals` lists what Claude or an automation proposed and is waiting in
+the Inbox (`Inbox/Proposals/`), with what each would write and the line it
+cites. `atlas_accept_proposal` writes that and archives the proposal, as its
+Accept button does; `atlas_reject_proposal` archives it unwritten. Neither is
+idempotent: a second answer to one proposal is refused as `conflict`. Editing a
+proposal first, and undoing an accept, stay in the app.
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a
