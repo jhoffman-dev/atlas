@@ -170,7 +170,9 @@ describe('tools/list', () => {
     expect(described('atlas_automations')).toContain('"note" is { type, on:');
     expect(described('atlas_automations')).toContain('once per version');
     expect(described('atlas_automation_log')).toContain('versions?');
-    expect(described('atlas_automation_log')).toContain('"went" lists notes it had handled');
+    expect(described('atlas_automation_log')).toContain(
+      '"went" lists paths a note it had handled left',
+    );
     expect(described('atlas_automation_dry_run')).toContain('it has not handled as they are now');
   });
 

@@ -775,7 +775,7 @@ export interface ApiAutomationLogEntry {
     readonly digest: string;
     readonly wrote: boolean;
   }[];
-  /** On a run of a rule a note sets off: notes it had handled that were deleted, ending their history. */
+  /** On a run of a rule a note sets off: paths a note it had handled left, ending their history. */
   readonly went?: readonly string[];
 }
 

@@ -47,7 +47,8 @@ export const automationLog = defineTool({
     'heading, summary, trigger?, of?, problem?, capped?, done, left, versions?, went? }], ' +
     'truncated }. "versions" lists, on a run of a rule a note sets off, each note version ' +
     '{ path, digest, wrote } it handled, or its own write left; none of them sets it off again. ' +
-    '"went" lists notes it had handled that were deleted: a new note there is new to it. "kind" is ' +
+    '"went" lists paths a note it had handled left — deleted, moved, renamed, archived or ' +
+    'replaced: a new note there is new to it. "kind" is ' +
     '"run", "undo", "failed" (its query did not read), "turnedOn" or "seen". "done" lists each ' +
     'note it moved ({ kind: "archived", from, to }) or each property it set, with its value ' +
     'before and after; "left" lists notes it matched and left alone, with why. ' +
