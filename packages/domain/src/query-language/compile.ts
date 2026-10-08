@@ -12,12 +12,7 @@ import { foldedLinkName } from '../markdown/resolve-wikilink.ts';
 import { tagKey } from '../tags/tag-name.ts';
 import type { ObjectType } from '../types/property-def.ts';
 import { userSpaceNoteSql } from '../vault/vault-visibility.ts';
-import {
-  DEFAULT_QUERY_LIMIT,
-  queryRowLimit,
-  relativeDateSql,
-  type CompiledQuery,
-} from '../query/view-query.ts';
+import { DEFAULT_QUERY_LIMIT, queryRowLimit, type CompiledQuery } from '../query/view-query.ts';
 import {
   numberText,
   type AtlasQuery,
@@ -38,6 +33,7 @@ import {
   sortedValue,
 } from './field-sql.ts';
 import { resolveField, type FieldKind, type QueryField } from './fields.ts';
+import { movingDateSql } from './moving-date.ts';
 import { bound, fixed, joined, sql, type Fragment } from './sql-fragment.ts';
 
 /** Marks the statement, so it can be told apart in a log or by a stand-in index. */
@@ -258,7 +254,7 @@ function comparisonSql(op: Comparison, left: Fragment, right: Fragment): Fragmen
 
 /** A value as the right-hand side: a moving date is an expression, anything else is bound. */
 function operandOf(field: QueryField, value: QueryValue): Fragment {
-  if (value.kind === 'relativeDate') return fixed(relativeDateSql(`@${value.name}`) ?? 'NULL');
+  if (value.kind === 'relativeDate') return movingDateSql(value.name) ?? fixed('NULL');
   const raw = valueText(value);
   if (field.kind === 'number' && value.kind === 'number') return bound(value.number);
   // The day as written, as the stored side is read (comparedValue).

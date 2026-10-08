@@ -10,9 +10,9 @@
 import { isDateLike } from '../index/property-value.ts';
 import { isTagName } from '../tags/tag-name.ts';
 import type { ObjectType } from '../types/property-def.ts';
-import { RELATIVE_DATE_NAMES } from '../query/view-query.ts';
 import type { AtlasQuery, Comparison, Condition, Expression, QueryValue } from './ast.ts';
 import { resolveField, type FieldKind, type QueryField } from './fields.ts';
+import { isMovingDate, MOVING_DATE_HINT } from './moving-date.ts';
 import { opText } from './parse.ts';
 import { QueryTextError } from './query-text-error.ts';
 
@@ -172,9 +172,9 @@ function checkComparison(
 function valueProblem(field: QueryField, op: Comparison, value: QueryValue): string | null {
   if (value.kind === 'relativeDate') {
     if (!DATES.includes(field.kind)) return `@${value.name} is a date, and ${field.text} is not.`;
-    return RELATIVE_DATE_NAMES.includes(`@${value.name}`)
+    return isMovingDate(value.name)
       ? null
-      : `There is no date called @${value.name}. Try ${RELATIVE_DATE_NAMES.join(', ')}.`;
+      : `There is no date called @${value.name}. Try ${MOVING_DATE_HINT}.`;
   }
   if (op === 'contains' || op === 'startsWith') {
     return value.kind === 'text' || value.kind === 'number' ? null : `${opText(op)} takes text.`;

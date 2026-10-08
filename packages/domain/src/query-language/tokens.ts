@@ -121,14 +121,17 @@ function readLink(text: string, at: number): Token {
   return { kind: 'link', text: piece.target.trim(), span };
 }
 
-/** `#q3` or `@today`: a mark, then a name. A tag's name may nest with `/`. */
+/**
+ * `#q3` or `@today`: a mark, then a name. A tag's name may nest with `/`; a
+ * date's may start with a sign, as a count from today does: `@+2w`.
+ */
 function readTagged(text: string, at: number, kind: 'tag' | 'date'): Token {
-  let end = at + 1;
+  let end = kind === 'date' && text[at + 1] === '+' ? at + 2 : at + 1;
   const continues = (char: string | undefined) =>
     kind === 'tag' ? continuesTagSegment(char) || char === '/' : WORD_CHAR.test(char ?? '');
   while (end < text.length && continues(charAt(text, end))) end += charAt(text, end).length;
   const span = { start: at, end };
-  if (end === at + 1) {
+  if (end === at + 1 || text.slice(at + 1, end) === '+') {
     const what = kind === 'tag' ? 'A tag needs a name after #.' : 'A date needs a name: @today.';
     throw new QueryTextError(what, span);
   }

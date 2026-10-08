@@ -167,6 +167,12 @@ describe('parseAtlasQuery: values', () => {
     expect(valueOf('@weekAhead')).toEqual({ kind: 'relativeDate', name: 'weekAhead' });
   });
 
+  it('reads a count from today, signed either way, and the start of the week', () => {
+    expect(valueOf('@-30d')).toEqual({ kind: 'relativeDate', name: '-30d' });
+    expect(valueOf('@+2w')).toEqual({ kind: 'relativeDate', name: '+2w' });
+    expect(valueOf('@startOfWeek')).toEqual({ kind: 'relativeDate', name: 'startOfWeek' });
+  });
+
   it('reads true and false as a checkbox’s values', () => {
     expect(valueOf('TRUE')).toEqual({ kind: 'boolean', value: true });
     expect(valueOf('false')).toEqual({ kind: 'boolean', value: false });
@@ -222,6 +228,8 @@ describe('parseAtlasQuery: problems point at what caused them', () => {
     ['FROM task WHERE a = [[ ]]', 'A link needs the name of a note: [[Julie]].', '[[ ]]'],
     ['FROM task WHERE tag = #', 'A tag needs a name after #.', '#'],
     ['FROM task WHERE due < @', 'A date needs a name: @today.', '@'],
+    ['FROM task WHERE due < @+', 'A date needs a name: @today.', '@+'],
+    ['FROM task WHERE due < @++2w', 'A date needs a name: @today.', '@+'],
     ['FROM task WHERE a.b.c = 1', 'A field reaches one relation deep: project.owner.', '.'],
     ['FROM task WHERE project. = 1', 'Name a field of project after the dot.', '='],
     [

@@ -5,6 +5,7 @@ import {
   type QueryValue,
 } from '../query-language/ast.ts';
 import { MAX_QUERY_LIMIT } from '../query/view-query.ts';
+import { addMonths, countedDay } from '../query-language/moving-date.ts';
 import { addDays } from '../timeline/timeline.ts';
 import type { AutomationAction } from './automation-rule.ts';
 
@@ -68,20 +69,10 @@ export function movingDate(name: string, today: string): string | null {
     case 'weekAhead':
       return addDays(today, 7);
     case 'monthAhead':
-      return addMonth(today);
+      return addMonths(today, 1);
     default:
-      return null;
+      return countedDay(name, today);
   }
-}
-
-/**
- * A month on, as the index counts one: the same day number, rolled into the
- * month after when that month is too short — 2026-01-31 is 2026-03-03.
- */
-function addMonth(date: string): string | null {
-  const [year, month, day] = date.split('-').map(Number) as [number, number, number];
-  if (![year, month, day].every(Number.isFinite)) return null;
-  return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
 }
 
 function pinExpression(expression: Expression, today: string): Expression {

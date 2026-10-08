@@ -25,6 +25,8 @@ describe('checkAtlasQuery: what passes', () => {
     'FROM task WHERE estimate IS EMPTY OR NOT (notes = 12)',
     'FROM task SHOW tag, project.owner, project.title SORT BY project.due DESC',
     'FROM person WHERE role = lead',
+    'FROM task WHERE due > @-30d AND due <= @+2w AND modified >= @startOfWeek',
+    'FROM task WHERE due < @+1m OR due > @-1y OR due = @+0d',
   ])('%s', (text) => {
     expect(problem(text)).toBeNull();
   });
@@ -111,9 +113,15 @@ describe('checkAtlasQuery: problems point at what caused them', () => {
     ['FROM task WHERE status = @today', '@today is a date, and status is not.', '@today'],
     [
       'FROM task WHERE due < @someday',
-      'There is no date called @someday. Try @today, @yesterday, @tomorrow, @weekAgo, @weekAhead, @monthAhead.',
+      'There is no date called @someday. Try @today, @yesterday, @tomorrow, @weekAgo, @weekAhead, @monthAhead, @startOfWeek, or a count from today like @-30d, @+2w, @+1m or @-1y.',
       '@someday',
     ],
+    ['FROM task WHERE status = @-30d', '@-30d is a date, and status is not.', '@-30d'],
+    ...['@30d', '@-30x', '@-12345d', '@startofweek'].map((date) => [
+      `FROM task WHERE due < ${date}`,
+      `There is no date called ${date}. Try @today, @yesterday, @tomorrow, @weekAgo, @weekAhead, @monthAhead, @startOfWeek, or a count from today like @-30d, @+2w, @+1m or @-1y.`,
+      date,
+    ]),
     ['FROM task WHERE title CONTAINS [[x]]', 'CONTAINS takes text.', '[[x]]'],
     ['FROM task WHERE project STARTS WITH #x', 'STARTS WITH takes text.', '#x'],
     [
