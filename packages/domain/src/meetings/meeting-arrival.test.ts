@@ -64,13 +64,16 @@ describe('meetingCandidates', () => {
 });
 
 describe('importErrorText', () => {
-  it('names each problem on one line, with its line in the file when it has one', () => {
+  it('names each problem on one line: a key by itself, a body problem by its section and line', () => {
     expect(
       importErrorText([
         frontmatterError('external_id', 'external_id is required'),
-        bodyError('Transcript', 'A turn must end with\n  its block id', 42),
+        bodyError('Summary', '## Summary is out of\n  order', 9),
+        bodyError('Transcript', 'Line 15: the turn has no block id', 15),
       ]),
-    ).toBe('external_id is required; line 42: A turn must end with its block id');
+    ).toBe(
+      'external_id is required; Summary: line 9: ## Summary is out of order; Transcript: Line 15: the turn has no block id',
+    );
   });
 
   it('names the first three and counts the rest', () => {

@@ -67,9 +67,10 @@ const ERRORS_NAMED = 3;
 
 /**
  * Why a meeting file broke the contract, as the one line written into it
- * under {@link IMPORT_ERROR_KEY}: the first few problems, each with its line
- * when it has one, and how many more there are. The full list is what the
- * contract's validator prints (`tools/n8n/validate-meeting.mjs`).
+ * under {@link IMPORT_ERROR_KEY}: the first few problems, and how many more
+ * there are. A problem in the body says its section and its line; a key's
+ * problem names the key already. The full list is what the contract's
+ * validator prints (`tools/n8n/validate-meeting.mjs`).
  */
 export function importErrorText(errors: readonly MeetingImportError[]): string {
   if (errors.length === 0) return 'It does not follow meeting/v1.';
@@ -78,9 +79,14 @@ export function importErrorText(errors: readonly MeetingImportError[]): string {
   return [...named, ...(more > 0 ? [`and ${more} more`] : [])].join('; ');
 }
 
+const SAYS_ITS_LINE = /\bline \d+/i;
+
 function errorLine(error: MeetingImportError): string {
   const message = error.message.replace(/\s+/g, ' ').trim();
-  return error.line === null ? message : `line ${error.line}: ${message}`;
+  if (error.in === 'frontmatter') return message;
+  const placed =
+    error.line === null || SAYS_ITS_LINE.test(message) ? message : `line ${error.line}: ${message}`;
+  return `${error.field}: ${placed}`;
 }
 
 /** Whether a meeting is the first of its kind in the vault, or a copy of one there already. */
