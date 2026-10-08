@@ -815,17 +815,17 @@ ORDER BY phase</pre>
       <ol class="steps">
         <li>On the Terms page, press <b>New term</b>.</li>
         <li><b>Right spelling</b>: how it should be written, for example <i>Larkspur</i>.</li>
-        <li><b>Misheard as</b>: the ways it comes out wrong, commas between them — <i>lark spur, Larks Burr</i>. You can leave it empty and fill it in later.</li>
+        <li><b>Misheard as</b>: the ways it comes out wrong, commas between them — <i>lark spur, Larks Burr</i>. One that holds a comma of its own goes in double quotes: <code>"Quill, Mara", Mara Quil</code>. You can leave it empty and fill it in later.</li>
         <li><b>Kind</b>: product, person, company, acronym or other — or leave it at <b>—</b>.</li>
         <li><b>Add term</b>. It's listed as soon as Atlas has read it.</li>
       </ol>
-      <p>A term is a note of the <b>Term</b> type, made in <code>Terms/</code> and named after its spelling: <code>Terms/Larkspur.md</code>. A spelling a file name can't hold, like <i>S/4 Ledger</i>, is kept as the note's <code>title</code>. Open a term from its name to add notes about it, or to set <b>Refers to</b>, the company it belongs to (where the vault's Term type has it — the Terms page works without the type's file). A spelling left empty is refused: <i>“A term needs its right spelling.”</i></p>
+      <p>A term is a note of the <b>Term</b> type, made in <code>Terms/</code> and named after its spelling: <code>Terms/Larkspur.md</code>. A spelling a file name can't hold, like <i>S/4 Ledger</i>, is kept as the note's <code>title</code>. If the vault's Term template has a <code>title</code> of its own, the new term's spelling is written over it. Open a term from its name to add notes about it, or to set <b>Refers to</b>: it points at a <b>Company</b> — the company a product or an acronym belongs to — and only at companies (where the vault's Term type has it — the Terms page works without the type's file). A misheard person is better given an <b>Also spelt</b> on their Person note. A spelling left empty is refused: <i>“A term needs its right spelling.”</i></p>
       <h3>Change how it's misheard</h3>
-      <p>Each term's <b>Misheard as</b> is a box on the page. Change it and press <kbd>Return</kbd> or click away: only the <code>variants</code> list at the top of the note changes, nothing else in it. Two spellings that differ only in capitals or spaces are one, kept as first typed.</p>
+      <p>Each term's <b>Misheard as</b> is a box on the page. Change it and press <kbd>Return</kbd> or click away: only the <code>variants</code> list at the top of the note changes, nothing else in it. A variant holding a comma is shown in double quotes, so editing the others never cuts it in two; type one the same way. Two spellings that differ only in capitals or spaces are one, kept as first typed. Invisible characters pasted along with a spelling — zero-width spaces and joiners — are dropped.</p>
       <h3>What Atlas knows</h3>
       <ul>
         <li>Every term's right spelling and the ways it's misheard.</li>
-        <li>Every <a href="#people">person's</a> and company's name — a name is its own right spelling, so <i>mara quill</i> comes back as <i>Mara Quill</i> without a term — and their <b>Also spelt</b> spellings.</li>
+        <li>Every <a href="#people">person's</a> and company's name, and their <b>Also spelt</b> spellings. A name is its own right spelling, so <i>mara quill</i> comes back as <i>Mara Quill</i> without a term. A note is a person if any of its types is <code>person</code>, as <code>@</code> counts it; one that is both a person and a company counts as whichever its <code>type</code> names first.</li>
         <li>Capitals and spaces don't matter when Atlas matches: <i>Lark&nbsp;&nbsp;Spur</i> and <i>lark spur</i> are one spelling. A longer name is tried before a shorter one inside it, so <i>Larkspur Payroll</i> wins over <i>Larkspur</i>.</li>
         <li>The top of the page counts them: <i>“2 terms · 9 spellings Atlas puts right, people and companies included”</i>.</li>
         <li>Templates, notes in hidden folders and archived notes don't count. To retire a term, <a href="#archive">archive</a> it.</li>

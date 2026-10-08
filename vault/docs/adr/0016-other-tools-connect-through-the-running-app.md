@@ -454,7 +454,9 @@ The API follows on the same terms as every route above:
   what order; nothing is decided again in the route. The notes are read from
   the index by the domain's compiled query, which keeps to user space
   (`userSpaceNoteSql`) and out of the Archive, so no template, hidden note or
-  retired term is handed out. It names its vault, answers `no_vault` if
+  retired term is handed out. A note counts when any item of its `type` is
+  a term, person or company — as `@` and a type's page count it — and as
+  the first of them it names. It names its vault, answers `no_vault` if
   another is opened while it reads, and writes nothing.
 - **Not a route: writing a term.** A term is an ordinary note in user space,
   so it is written as one: `POST /v1/notes` with `type: term` adds it, and
