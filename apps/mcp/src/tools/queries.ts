@@ -122,9 +122,11 @@ export const runQuery = defineTool({
     'field is a property of a listed type (atlas_list_types), one hop through a relation ' +
     "(project.owner), or title, type, tag, modified, path. Values: words, 'quoted text', numbers, " +
     'true/false, [[Note]], #tag, @today, @tomorrow, @weekAgo, @startOfWeek, a count from today ' +
-    '(@-30d, @+2w, @+1m, @-1y), and this — the note given as "context", e.g. "FROM meeting WHERE ' +
-    'people = this AND date > @-30d" with a person\'s note as context. this compares with a ' +
-    'relation (= or !=); LINKS TO this lists notes whose body links to it. Archived notes are ' +
+    '(@-30d, @+2w, @+1m, @-1y; up to 1000 years), and this — the note given as "context", e.g. ' +
+    'a person\'s meetings in the last 30 days, with their note as context: "FROM meeting WHERE ' +
+    'people = this AND date > @-30d AND date <= @today" (date > @-30d alone takes the meetings ' +
+    "to come too). this compares with a relation (= or !=); quote it, 'this', to mean the word. " +
+    'LINKS TO this lists notes whose body links to it. Archived notes are ' +
     'left out unless the query says INCLUDE ARCHIVED. Returns { columns, rows, truncated, sql }, ' +
     'plus "groups" for GROUP BY: ' +
     '[{ label, value, rows: [indexes into rows], groups: [sub-groups] }]. A mistake in the text is ' +

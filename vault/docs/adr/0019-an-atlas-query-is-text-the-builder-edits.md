@@ -172,6 +172,11 @@ value     = … | this | @-30d | @+2w | @+1m | @-1y | @startOfWeek
   refuses it at the word, before anything runs. It compares with a relation
   only, with `=` or `!=` (`people = this`, `company.owner = this`), and binds
   the note's path like any other value. `'this'` in quotes is still text.
+- **`this` is now reserved.** A saved view, widget or automation that wrote a
+  bare `this` to mean the word — `status = this` — no longer runs. It is not
+  rewritten: the check points at the word and says to quote it, `'this'`,
+  and the person decides. Such queries were judged rare enough not to need a
+  migration.
 - **`LINKS TO this`** asks the `links` table: the note's body links to the
   page, resolved as backlinks are, and a note's link to itself does not count,
   as it is not its own backlink. It takes only `this` for now: a link to a
@@ -183,9 +188,13 @@ value     = … | this | @-30d | @+2w | @+1m | @-1y | @startOfWeek
   `y` — and **`@startOfWeek`**, the Monday of this week as the calendar's
   weeks start. The domain still has no clock: a query the app runs asks the
   index for the day, over its own clock as `@today` always has, with the
-  modifier bound; an automation pins each one to the day it is handed. Both
+  modifier bound; an automation pins each one to the day it is handed. A
+  count reaches 1000 years at most: past the year 9999 the index dates
+  nothing, so the check refuses it rather than let it match nothing. Both
   readings live in `query-language/moving-date.ts`, and a test runs the SQL
   on every weekday and the awkward month ends to prove they agree. A month
-  counts as SQLite counts one: from 2026-01-31, `@+1m` is 2026-03-03.
+  counts as SQLite counts one: from 2026-01-31, `@+1m` is 2026-03-03. The
+  builder offers `@startOfWeek` beside the named dates, and shows a count it
+  holds as what it is ("30 days ago"), so it is never mistaken for no date.
 - The API takes the note as `context` on `/v1/atlas-query` (ADR-0016): a note
   path in user space that must exist.
