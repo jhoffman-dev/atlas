@@ -18,7 +18,6 @@ export * from './tags/index.ts';
 export * from './meetings/index.ts';
 export { fakeHostVaultFs, fakeIndexPort, fakeMarkdown, fakeVaultFs } from './testing/fake-ports.ts';
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
-export { atlasQueryIndex } from './testing/query-index.ts';
 export * from './api/index.ts';
 export * from './archive/index.ts';
 export * from './automations/index.ts';

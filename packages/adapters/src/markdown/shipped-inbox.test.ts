@@ -8,13 +8,8 @@ import {
   sidebarEntry,
   splitFrontmatter,
 } from '@atlas/domain';
-import {
-  atlasQueryIndex,
-  countQuickViews,
-  fakeIndexPort,
-  fakeVaultFs,
-  runAtlasQuery,
-} from '@atlas/application';
+import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
+import { countQuickViews, fakeIndexPort, fakeVaultFs, runAtlasQuery } from '@atlas/application';
 import { remarkMarkdown } from './markdown-port.ts';
 
 /*

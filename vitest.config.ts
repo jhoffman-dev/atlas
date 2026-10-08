@@ -13,6 +13,11 @@ export default defineConfig({
       '@atlas/ui/graph': fileURLToPath(
         new URL('./packages/ui/src/graph/index.ts', import.meta.url),
       ),
+      // Before '@atlas/application', for the same reason: test support that needs
+      // node:sqlite, kept out of the barrel the app's browser bundle is built from.
+      '@atlas/application/testing/sqlite': fileURLToPath(
+        new URL('./packages/application/src/testing/sqlite.ts', import.meta.url),
+      ),
       '@atlas/domain': pkg('domain'),
       '@atlas/application': pkg('application'),
       '@atlas/adapters': pkg('adapters'),
