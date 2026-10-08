@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FILED_UNDER_TYPES, noteTitle, type VaultPath } from '@atlas/domain';
+import {
+  createVaultPath,
+  FILED_UNDER_TYPES,
+  filingRefusal,
+  noteTitle,
+  type VaultPath,
+} from '@atlas/domain';
 import {
   listInbox,
   notesInUseOfTypes,
@@ -64,7 +70,11 @@ export function useInbox({ ports, notePaths, indexKey, open, onSettled }: InboxO
     let cancelled = false;
     notesInUseOfTypes({ index: ports.index, types: FILED_UNDER_TYPES })
       .then((found) => {
-        if (!cancelled) setFiling(found);
+        // Only what Process would accept: never a project still in the Inbox, or one filed too deep.
+        const offered = found.filter(
+          (note) => filingRefusal({ path: createVaultPath(note.path), type: note.type }) === null,
+        );
+        if (!cancelled) setFiling(offered);
       })
       .catch((cause: unknown) => {
         if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));

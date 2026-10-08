@@ -10,7 +10,13 @@ import {
   VAULT_ROOT,
   type VaultPath,
 } from '../vault/vault-path.ts';
-import { isAtlasNote, isWithinWalk, userSpaceNoteSql } from '../vault/vault-visibility.ts';
+import { foldedVaultPath } from '../vault/vault-spelling.ts';
+import {
+  isAtlasNote,
+  isUserSpaceNote,
+  isWithinWalk,
+  userSpaceNoteSql,
+} from '../vault/vault-visibility.ts';
 
 /**
  * Where everything arrives before it is processed: a folder at the root of
@@ -94,7 +100,10 @@ export function processRefusal(path: VaultPath): string | null {
 /**
  * Why a note cannot be what Inbox notes are filed under, or null when it can:
  * it has to be a project or an area, and one still in use — not waiting in
- * the Inbox itself, not archived, not one of Atlas's own files.
+ * the Inbox itself, not archived, not one of Atlas's own files — whose
+ * folder is somewhere a filed note can stay: in user space, out of the Inbox
+ * and the Archive (a project at `Archive.md` files into `Archive/`), and
+ * within the walk's depth.
  */
 export function filingRefusal({
   path,
@@ -111,10 +120,21 @@ export function filingRefusal({
   if (type === null) return 'Notes are filed under a project or an area, and that note is neither.';
   const wrongType = relationTypeRefusal({ def: FILED_UNDER, linkedType: type });
   if (wrongType !== null) return wrongType;
+  return landingRefusal(joinVaultPath(filingFolder(path), 'filed.md'));
+}
+
+/** Why a note filed at `landing` would not stay filed, or null when it would. */
+function landingRefusal(landing: VaultPath): string | null {
+  if (isInInbox(landing))
+    return 'Its folder is the Inbox: what is filed under it would still be waiting.';
+  if (isArchivedPath(landing))
+    return 'Its folder is the Archive: what is filed under it would be archived.';
+  if (!isUserSpaceNote(landing)) return 'Its folder is one Atlas does not show.';
   // Its folder is one deeper than the note; past the walk's depth, what is filed would not be read.
-  return isWithinWalk(joinVaultPath(filingFolder(path), 'filed.md'))
-    ? null
-    : 'It is too many folders deep: filed under it, notes would no longer be read.';
+  if (!isWithinWalk(landing)) {
+    return 'It is too many folders deep: filed under it, notes would no longer be read.';
+  }
+  return null;
 }
 
 /**
@@ -126,7 +146,8 @@ export function filingRefusal({
 export function filingFolder(project: VaultPath): VaultPath {
   const folder = parentVaultPath(project);
   const name = vaultPathName(project).replace(MARKDOWN, '');
-  if (folder !== VAULT_ROOT && vaultPathName(folder).toLowerCase() === name.toLowerCase()) {
+  // Compared as the disk compares names: in any case, either Unicode composition.
+  if (folder !== VAULT_ROOT && foldedVaultPath(vaultPathName(folder)) === foldedVaultPath(name)) {
     return folder;
   }
   return joinVaultPath(folder, name);

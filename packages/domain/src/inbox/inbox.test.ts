@@ -65,6 +65,28 @@ describe('filingRefusal', () => {
   });
 });
 
+describe('filing under a project whose folder is somewhere a note cannot stay filed', () => {
+  it.each([
+    ['Inbox.md', 'the Inbox'],
+    ['INBOX.md', 'the Inbox'],
+    ['Archive.md', 'the Archive'],
+    ['archive.md', 'the Archive'],
+  ])('refuses %s, whose folder is %s', (at, place) => {
+    expect(filingRefusal({ path: path(at), type: 'project' })).toContain(`Its folder is ${place}`);
+  });
+
+  it('refuses one whose folder Atlas hides', () => {
+    expect(filingRefusal({ path: path('node_modules.md'), type: 'area' })).toBe(
+      'Its folder is one Atlas does not show.',
+    );
+  });
+
+  it('files under a project merely named like those folders, elsewhere', () => {
+    expect(filingRefusal({ path: path('Projects/Inbox.md'), type: 'project' })).toBeNull();
+    expect(filingRefusal({ path: path('Areas/Archive.md'), type: 'area' })).toBeNull();
+  });
+});
+
 describe('filing under a project kept deep in the vault', () => {
   it('refuses one whose folder would be deeper than the vault is read', () => {
     const folders = (count: number) => Array.from({ length: count }, (_, at) => `f${at}`).join('/');
@@ -79,6 +101,10 @@ describe('filingFolder', () => {
   it('is a folder named as the project, beside its note', () => {
     expect(filingFolder(path('Projects/Atlas.md'))).toBe('Projects/Atlas');
     expect(filingFolder(path('Garden.md'))).toBe('Garden');
+  });
+
+  it('is the project’s own folder in any case, as the disk compares names', () => {
+    expect(filingFolder(path('Areas/HOME/home.md'))).toBe('Areas/HOME');
   });
 
   it('is the project’s own folder when the project is that folder’s note', () => {
