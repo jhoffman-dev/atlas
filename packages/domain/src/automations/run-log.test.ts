@@ -127,6 +127,24 @@ describe('parseRunLog', () => {
     expect(parseRunLog(text)).toEqual([noted]);
   });
 
+  it('reads back the notes a run says went', () => {
+    const forgot: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      went: [p('Inbox/Meetings/Standup.md')],
+    };
+    const text = newLogText('Mark', [forgot]);
+    expect(text).toContain('- went `"Inbox/Meetings/Standup.md"`');
+    expect(parseRunLog(text)).toEqual([forgot]);
+    const edited = text.replace('`"Inbox/Meetings/Standup.md"`', '`{broken`');
+    expect(parseRunLog(edited)[0]).toMatchObject({ kind: 'run', trigger: 'note' });
+    expect(parseRunLog(edited)[0]).not.toHaveProperty('went');
+  });
+
   it('leaves out a version line edited into one that does not read', () => {
     const text = [
       '## 2026-10-08 09:00:00 · Ran when a note appeared or changed',

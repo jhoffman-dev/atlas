@@ -25,6 +25,7 @@ import { NoteRunsCappedError } from './note-runs.ts';
 import { runAutomation, runOnNoteChanges } from './run-automation.ts';
 import type { VaultGuard } from './vault-guard.ts';
 
+const p = createVaultPath;
 const TODAY = '2026-10-08';
 const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
 const VAULT = '/vaults/home';
@@ -196,6 +197,28 @@ describe('runOnNoteChanges: a note arrives', () => {
   });
 });
 
+describe('runOnNoteChanges: its own writes elsewhere', () => {
+  it('records the notes an archive rewrote links in, so their change does not set it off', async () => {
+    const linking = meeting('kickoff', 'Follows [[Inbox/Meetings/2026-10-06 Standup]].\n');
+    const { vault, run, as, logOf, queries } = setUp({
+      [STANDUP]: meeting('standup'),
+      [KICKOFF]: linking,
+    });
+    await run(FILE_STANDUPS, [as('added', STANDUP)]);
+    expect(vault.files.get(KICKOFF)).not.toBe(linking);
+    const [entry] = logOf(FILE_STANDUPS);
+    expect(entry?.kind === 'run' && entry.versions).toContainEqual({
+      path: KICKOFF,
+      digest: digestOf(vault.files.get(KICKOFF)!),
+      wrote: true,
+    });
+    const asked = queries();
+
+    expect(await run(FILE_STANDUPS, [as('changed', KICKOFF)])).toBeNull();
+    expect(queries()).toBe(asked);
+  });
+});
+
 describe('runOnNoteChanges: a note changes', () => {
   const ON_CHANGE = { ...MARK, when: { kind: 'note', type: 'meeting', on: ['changed'] } } as const;
 
@@ -207,14 +230,16 @@ describe('runOnNoteChanges: a note changes', () => {
     vault.files.set(STANDUP, meeting('standup', 'Notes, edited.\n'));
     const edited = as('changed', STANDUP);
     vault.unsaved.add(STANDUP);
-    expect(await run(reviewed, [edited])).toMatchObject({ kind: 'run', done: [] });
+    // Left alone while typed in: said, but not logged, so the version is not taken as handled.
+    expect(await run(reviewed, [edited])).toMatchObject({ kind: 'run', done: [], left: [{}] });
+    expect(logOf(reviewed)).toEqual([]);
     vault.unsaved.delete(STANDUP);
     expect(await run(reviewed, [edited])).toMatchObject({
       kind: 'run',
       done: [{ kind: 'archived' }],
     });
     expect(await run(reviewed, [edited])).toBeNull();
-    expect(logOf(reviewed)).toHaveLength(2);
+    expect(logOf(reviewed)).toHaveLength(1);
   });
 
   it('runs again on each later version its query matches and its action would change', async () => {
@@ -255,7 +280,7 @@ describe('runOnNoteChanges: what holds it back', () => {
         kind: 'run',
         at: `${TODAY}T08:${String(10 + at).padStart(2, '0')}:00`,
         trigger: 'note',
-        done: [],
+        done: [{ kind: 'archived', from: p('A.md'), to: p('Archive/A.md') }],
         left: [],
         capped: false,
       };
@@ -263,7 +288,9 @@ describe('runOnNoteChanges: what holds it back', () => {
     }
     const logged = vault.files.get(logPathFor(MARK.id));
 
-    await expect(run(MARK, [as('added', STANDUP)])).rejects.toBeInstanceOf(NoteRunsCappedError);
+    const held = await run(MARK, [as('added', STANDUP)]).catch((cause: unknown) => cause);
+    expect(held).toBeInstanceOf(NoteRunsCappedError);
+    expect((held as NoteRunsCappedError).until).toBe(`${TODAY}T09:10:00`);
 
     expect(vault.properties(STANDUP)['status']).toBeUndefined();
     expect(vault.files.get(logPathFor(MARK.id))).toBe(logged);
@@ -271,7 +298,7 @@ describe('runOnNoteChanges: what holds it back', () => {
       [
         'error',
         `Mark new meetings: Could not run. It has run ${NOTE_RUNS_PER_HOUR} times in the last hour, ` +
-          'the most a rule may. Notes that change meanwhile wait for a run by hand.',
+          'the most a rule may. It runs on what changed meanwhile at 09:10.',
       ],
     ]);
   });

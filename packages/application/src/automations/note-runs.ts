@@ -9,6 +9,7 @@ import {
   type AutomationRule,
   type DoneAction,
   type LogEntry,
+  type LocalTime,
   type LoggedVersion,
   type NoteVersionRef,
   type VaultPath,
@@ -113,13 +114,20 @@ export function handledBy(
 
 /**
  * The version each note a run wrote was left at, read back from the disk, so
- * the rule's own write does not set it off again.
+ * the rule's own write does not set it off again: each note it changed or
+ * moved, and each note an archive rewrote links in.
  */
-export async function writtenBy(
-  fs: Pick<VaultFsPort, 'readNotes'>,
-  done: readonly DoneAction[],
-): Promise<LoggedVersion[]> {
-  const written = [...new Set(done.map((action) => ('path' in action ? action.path : action.to)))];
+export async function writtenBy({
+  fs,
+  done,
+  relinked,
+}: {
+  fs: Pick<VaultFsPort, 'readNotes'>;
+  done: readonly DoneAction[];
+  relinked: readonly VaultPath[];
+}): Promise<LoggedVersion[]> {
+  const changed = done.map((action) => ('path' in action ? action.path : action.to));
+  const written = [...new Set([...changed, ...relinked])];
   if (written.length === 0) return [];
   return (await fs.readNotes(written)).map((file) => ({
     path: createVaultPath(file.path),
@@ -130,12 +138,12 @@ export async function writtenBy(
 
 /**
  * A rule notes set off that has run as often in the last hour as one may
- * (`NOTE_RUNS_PER_HOUR`). It is held back, as a failing rule is, and tried
- * again later; what changed meanwhile waits for a run by hand.
+ * (`NOTE_RUNS_PER_HOUR`). It is held back until `until`, when the hour
+ * allows another run; what it heard meanwhile is run on then.
  */
 export class NoteRunsCappedError extends Error {
-  constructor() {
-    super(noteRunsCappedProblem());
+  constructor(readonly until: LocalTime) {
+    super(noteRunsCappedProblem(until));
     this.name = 'NoteRunsCappedError';
   }
 }

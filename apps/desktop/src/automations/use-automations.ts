@@ -5,7 +5,7 @@ import {
   isAutomationPath,
   localTimeMs,
   localTimeOf,
-  triggeringVersions,
+  noteTriggerHears,
   type AutomationRule,
   type LocalTime,
   type LogEntry,
@@ -16,6 +16,7 @@ import {
   AutomationLogError,
   loadAutomations,
   needsAdoption,
+  NoteRunsCappedError,
   runAutomation,
   runOnNoteChanges,
   undoLastRun,
@@ -37,8 +38,9 @@ export const SCHEDULE_TICK_MS = 60_000;
 
 /**
  * The most syncs' news held while rules cannot yet run on them — the index or
- * the rules still being read, or this Mac not yet known to be the one that
- * runs them — the oldest let go first.
+ * the rules still being read, this Mac not yet known to be the one that runs
+ * them, or a rule paused — the oldest let go first. A run by hand then takes
+ * what was let go.
  */
 export const HELD_NEWS = 20;
 
@@ -64,9 +66,10 @@ export interface AutomationsOptions {
   /**
    * Whether the clock runs rules on this Mac. A synced vault names one Mac for
    * its automations (U-29); on any other, rules still run by hand. Left out, it does.
-   * The same holds for rules a note sets off (P29-01).
+   * The same holds for rules a note sets off (P29-01). Null while it is not yet
+   * known: nothing runs, and what a note sets off is held until it is.
    */
-  readonly scheduled?: boolean;
+  readonly scheduled?: boolean | null;
   /** Where every sync says which notes changed: what sets off a rule that waits for a note. */
   readonly changes?: NoteChanges;
 }
@@ -166,16 +169,20 @@ export function useAutomations(options: AutomationsOptions) {
   );
 
   const { clear: clearPause, record: recordFailure } = pauses;
+  const guardOf = useCallback(
+    (vault: string): VaultGuard => ({ vault, currentVault: () => openVault.current }),
+    [],
+  );
   /** Runs a rule through the one door: a failure pauses it, as the clock's backoff says; success clears that. */
   const forRule = useCallback(
     (
       rule: AutomationRule,
-      carryOut: (guard: VaultGuard) => Promise<LogEntry | null>,
+      carryOut: (vault: string) => Promise<LogEntry | null>,
       options?: { wait?: boolean },
     ) =>
       exclusive(async (vault) => {
         try {
-          const entry = await carryOut({ vault, currentVault: () => openVault.current });
+          const entry = await carryOut(vault);
           clearPause(rule.id);
           return entry;
         } catch (cause) {
@@ -187,16 +194,40 @@ export function useAutomations(options: AutomationsOptions) {
   );
   const runRule = useCallback(
     (rule: AutomationRule, trigger: RunTrigger) =>
-      forRule(rule, (guard) => runAutomation({ ports, rule, clock, activity, trigger, guard })),
-    [forRule, ports, clock, activity],
+      forRule(rule, (vault) =>
+        runAutomation({ ports, rule, clock, activity, trigger, guard: guardOf(vault) }),
+      ),
+    [forRule, guardOf, ports, clock, activity],
   );
-  // A note's news is never dropped for a command under way: it waits its turn.
+  /**
+   * Runs a rule on one sync's news; settles false when the run failed, so the
+   * news is held for its retry. It waits its turn behind a command under way,
+   * and is guarded by the vault the news was heard in, not the one open when
+   * its turn comes: another vault opened meanwhile stops it, and the news goes.
+   */
   const runOnNotes = useCallback(
-    (rule: AutomationRule, changes: NoteChangeNews['changes']) =>
-      forRule(rule, (guard) => runOnNoteChanges({ ports, rule, clock, activity, changes, guard }), {
-        wait: true,
-      }),
-    [forRule, ports, clock, activity],
+    async (rule: AutomationRule, news: NoteChangeNews): Promise<boolean> => {
+      let failed = false;
+      const carryOut = async () => {
+        try {
+          const { changes } = news;
+          return await runOnNoteChanges({
+            ports,
+            rule,
+            clock,
+            activity,
+            changes,
+            guard: guardOf(news.vault),
+          });
+        } catch (cause) {
+          failed = !(cause instanceof VaultChangedError);
+          throw cause;
+        }
+      };
+      await forRule(rule, carryOut, { wait: true });
+      return !failed;
+    },
+    [forRule, guardOf, ports, clock, activity],
   );
 
   const undo = useCallback(
@@ -240,7 +271,7 @@ export function useAutomations(options: AutomationsOptions) {
     exclusive,
     isPaused: pauses.isPaused,
   });
-  useNoteRuns({ ...options, listing: current, runOnNotes, isPaused: pauses.isPaused });
+  useNoteRuns({ ...options, listing: current, tick, runOnNotes, isPaused: pauses.isPaused });
 
   return {
     listing: current,
@@ -325,6 +356,14 @@ function usePauses(vaultKey: string | null, clock: Pick<Clock, 'localNow'>) {
 
 /** A rule's pause after one more failure. */
 function pauseAfter(previous: RulePause | undefined, cause: unknown, now: LocalTime): RulePause {
+  // Held by the hourly cap, it is not failing: it waits for the hour, and counts no failure.
+  if (cause instanceof NoteRunsCappedError) {
+    return {
+      reason: `Held back: ${cause.message}`,
+      failures: previous?.failures ?? 0,
+      retryAt: cause.until,
+    };
+  }
   const failures = (previous?.failures ?? 0) + 1;
   if (cause instanceof AutomationLogError) {
     return {
@@ -456,10 +495,14 @@ function useSchedule({
  * Runs the rules a note sets off (P29-01) on every sync's news of what
  * changed. News is held until it can be acted on — the index ready, the
  * vault's rules read, this Mac known to be the one that runs them — and news
- * of a vault no longer open is let go. On a Mac that does not run the vault's
- * automations, nothing runs. Each rule that hears the news runs once for it,
- * in turn; which versions it acts on, and whether it already has, is the
- * use-case's to say.
+ * of a vault no longer open is let go; on a Mac known not to run the vault's
+ * automations, it is not kept at all.
+ *
+ * Each rule that hears the news queues it, and runs its queue in turn, one
+ * sync at a time. A run that fails keeps its news at the head of the queue,
+ * and the rule's pause stands; each minute, a rule whose pause has ended runs
+ * on what it was holding. Whether it already handled a version, and what it
+ * does, is the use-case's to say.
  */
 function useNoteRuns({
   changes,
@@ -467,36 +510,115 @@ function useNoteRuns({
   indexReady,
   clock,
   listing,
+  tick,
   runOnNotes,
   isPaused,
   scheduled = true,
 }: AutomationsOptions & {
   listing: AutomationListing | null;
-  runOnNotes: (rule: AutomationRule, changes: NoteChangeNews['changes']) => Promise<unknown>;
+  tick: number;
+  runOnNotes: (rule: AutomationRule, news: NoteChangeNews) => Promise<boolean>;
   isPaused: (id: string, now: LocalTime) => boolean;
 }) {
-  const held = useRef<NoteChangeNews[]>([]);
+  const incoming = useRef<NoteChangeNews[]>([]);
+  const queues = useRef(new Map<string, NoteChangeNews[]>());
+  const running = useRef(new Set<string>());
+  const rules = useRef(listing);
+  rules.current = listing;
   const [heard, setHeard] = useState(0);
 
   useEffect(() => {
     if (changes === undefined) return;
     return changes.subscribe((news) => {
-      held.current = [...held.current, news].slice(-HELD_NEWS);
+      incoming.current = [...incoming.current, news].slice(-HELD_NEWS);
       setHeard((count) => count + 1);
     });
   }, [changes]);
 
+  // What waited for one vault is not the next one's.
   useEffect(() => {
-    if (!scheduled || vaultKey === null || !indexReady || listing === null) return;
-    const news = held.current.filter((each) => each.vault === vaultKey);
-    held.current = [];
-    for (const { changes: changed } of news) {
-      for (const { rule } of listing.automations) {
-        if (!rule.enabled || rule.when.kind !== 'note' || isPaused(rule.id, clock.localNow())) {
-          continue;
-        }
-        if (triggeringVersions(rule.when, changed).length > 0) void runOnNotes(rule, changed);
+    queues.current = new Map();
+  }, [vaultKey]);
+
+  const runQueue = useCallback(
+    async (id: string) => {
+      if (running.current.has(id)) return;
+      running.current.add(id);
+      try {
+        await runHeldNews({
+          id,
+          queues: queues.current,
+          rules: () => rules.current,
+          runOnNotes,
+          isPaused,
+          clock,
+        });
+      } finally {
+        running.current.delete(id);
       }
+    },
+    [runOnNotes, isPaused, clock],
+  );
+
+  useEffect(() => {
+    if (scheduled === false) {
+      incoming.current = [];
+      queues.current = new Map();
+      return;
     }
-  }, [heard, scheduled, vaultKey, indexReady, listing, clock, runOnNotes, isPaused]);
+    if (scheduled !== true || vaultKey === null || !indexReady || listing === null) return;
+    const news = incoming.current.filter((each) => each.vault === vaultKey);
+    incoming.current = [];
+    queueByRule(queues.current, listing, news);
+    for (const id of queues.current.keys()) void runQueue(id);
+  }, [heard, tick, scheduled, vaultKey, indexReady, listing, runQueue]);
+}
+
+/** Adds each sync's news to the queue of every rule a note sets off that hears it. */
+function queueByRule(
+  queues: Map<string, NoteChangeNews[]>,
+  listing: AutomationListing,
+  news: readonly NoteChangeNews[],
+): void {
+  for (const each of news) {
+    for (const { rule } of listing.automations) {
+      if (!rule.enabled || rule.when.kind !== 'note') continue;
+      if (!noteTriggerHears(rule.when, each.changes)) continue;
+      queues.set(rule.id, [...(queues.get(rule.id) ?? []), each].slice(-HELD_NEWS));
+    }
+  }
+}
+
+/**
+ * Runs a rule's held news, oldest first, while it is not paused: each run that
+ * succeeds lets its news go; one that fails keeps it, and stops. A rule gone,
+ * turned off or no longer set off by notes lets its queue go.
+ */
+async function runHeldNews({
+  id,
+  queues,
+  rules,
+  runOnNotes,
+  isPaused,
+  clock,
+}: {
+  id: string;
+  queues: Map<string, NoteChangeNews[]>;
+  rules: () => AutomationListing | null;
+  runOnNotes: (rule: AutomationRule, news: NoteChangeNews) => Promise<boolean>;
+  isPaused: (id: string, now: LocalTime) => boolean;
+  clock: Pick<Clock, 'localNow'>;
+}): Promise<void> {
+  for (let news = queues.get(id)?.[0]; news !== undefined; news = queues.get(id)?.[0]) {
+    const rule = rules()?.automations.find((loaded) => loaded.rule.id === id)?.rule;
+    if (rule === undefined || !rule.enabled || rule.when.kind !== 'note') {
+      queues.delete(id);
+      return;
+    }
+    if (isPaused(id, clock.localNow())) return;
+    if (!(await runOnNotes(rule, news))) return;
+    const queue = queues.get(id) ?? [];
+    if (queue[0] === news) queues.set(id, queue.slice(1));
+  }
+  queues.delete(id);
 }

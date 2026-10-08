@@ -134,7 +134,7 @@ describe('runOnNoteChanges, attacked: the hourly cap', () => {
   it('does not spend the cap on runs that changed nothing, so a meeting being typed in does not lock out a new one', async () => {
     const listening: AutomationRule = {
       ...MARK,
-      when: { ...MARK.when, on: ['created', 'changed'] },
+      when: { kind: 'note', type: 'meeting', on: ['created', 'changed'] },
     };
     const { vault, run, versions } = setUp(
       { [STANDUP]: meeting({ kind: 'standup' }), [KICKOFF]: meeting({ kind: 'kickoff' }) },

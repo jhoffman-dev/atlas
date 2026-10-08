@@ -10,6 +10,7 @@ const settled = (failed: readonly string[] = []): ArchiveOutcome => ({
   moves: [],
   failed: failed.map((path) => ({ path: path as VaultPath, reason: 'locked' })),
   linksUpdated: 0,
+  relinked: [],
 });
 
 function setUp() {

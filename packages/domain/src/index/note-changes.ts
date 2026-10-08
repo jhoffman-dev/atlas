@@ -1,3 +1,6 @@
+import { isArchiveMove } from '../archive/archive.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
+
 /**
  * A note as it was when the index last read it: enough to tell whether it has
  * changed since, and to say what it was once it has gone (P28-03).
@@ -56,27 +59,52 @@ export function versionsAfter(
   return after;
 }
 
-/**
- * The notes among one sync's changes that arrived: each one added, unless a
- * note with the same bytes went in the same sync. That pair is a move or a
- * rename — the feed pairs nothing, so this does, by digest — and filing a
- * note, or renaming it, is not its arrival.
- */
-export function arrivedPaths(changes: readonly NoteChange[]): ReadonlySet<string> {
-  const movedAway = new Set(
-    changes.filter((change) => change.kind === 'removed').map((change) => change.digest),
-  );
-  return new Set(
-    changes
-      .filter((change) => change.kind === 'added' && !movedAway.has(change.digest))
-      .map((change) => change.path),
-  );
+/** The notes one sync added and removed that are not two ends of one note: arrivals, and deletions. */
+export interface UnpairedChanges {
+  /** Paths added that no note gone accounts for. */
+  readonly arrived: ReadonlySet<string>;
+  /** Paths removed that no note added accounts for. */
+  readonly deleted: ReadonlySet<string>;
 }
 
-/** One version of one note, as a key: what "this note, with these bytes" is remembered by. */
-export function noteVersionKey(path: string, digest: string): string {
-  return `${path}\u0000${digest}`;
+/**
+ * The notes among one sync's changes that arrived, and those that were
+ * deleted: each one added or removed that is not one end of a note moved.
+ * The feed pairs nothing, so this does, one to one, in three passes:
+ *
+ * - archiving a note, or putting it back, by its two paths (`isArchiveMove`):
+ *   the stamp changes its bytes, so they cannot tell;
+ * - a move to another folder: the same bytes under the same name;
+ * - a rename: the same bytes under another name.
+ *
+ * One note gone pairs with one added, so of a note copied and the original
+ * moved, one is the move and the copy arrived. Filing, renaming, archiving or
+ * restoring a note is not its arrival.
+ */
+export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges {
+  const gone = new Set(changes.filter((change) => change.kind === 'removed'));
+  const arrived = new Set(changes.filter((change) => change.kind === 'added'));
+  const pairOff = (pairs: (went: NoteChange, came: NoteChange) => boolean) => {
+    for (const came of arrived) {
+      const went = [...gone].find((each) => pairs(each, came));
+      if (went === undefined) continue;
+      gone.delete(went);
+      arrived.delete(came);
+    }
+  };
+  pairOff((went, came) => isArchiveMove(createVaultPath(went.path), createVaultPath(came.path)));
+  pairOff((went, came) => went.digest === came.digest && nameOf(went.path) === nameOf(came.path));
+  pairOff((went, came) => went.digest === came.digest);
+  const paths = (each: ReadonlySet<NoteChange>) => new Set([...each].map((change) => change.path));
+  return { arrived: paths(arrived), deleted: paths(gone) };
 }
+
+/** The notes among one sync's changes that arrived: see {@link unpairedChanges}. */
+export function arrivedPaths(changes: readonly NoteChange[]): ReadonlySet<string> {
+  return unpairedChanges(changes).arrived;
+}
+
+const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
 /** Copies only the version's own fields: what it came from may carry more. */
 function noteChange(kind: NoteChangeKind, path: string, version: NoteVersion): NoteChange {

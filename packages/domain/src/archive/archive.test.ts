@@ -12,6 +12,7 @@ import {
   freeNotePath,
   isArchivedPath,
   isArchiveFolder,
+  isArchiveMove,
   originOf,
   restoreDestination,
   unarchiveRefusal,
@@ -277,5 +278,33 @@ describe('archivedNote', () => {
     expect(
       archivedNote({ path: path('Archive/Old/Y.md'), title: 'Y', properties: {} }),
     ).toMatchObject({ from: 'Old/Y.md', archivedOn: null });
+  });
+});
+
+describe('isArchiveMove', () => {
+  const move = (from: string, to: string) => isArchiveMove(path(from), path(to));
+
+  it('is archiving a note: to its own path under the Archive, numbered when taken', () => {
+    expect(move('Inbox/Standup.md', 'Archive/Inbox/Standup.md')).toBe(true);
+    expect(move('Inbox/Standup.md', 'archive/inbox/standup.md')).toBe(true);
+    expect(move('Inbox/Standup.md', 'Archive/Inbox/Standup 2.md')).toBe(true);
+  });
+
+  it('is putting one back: to its path, numbered when taken, or without the number archiving gave it', () => {
+    expect(move('Archive/Inbox/Standup.md', 'Inbox/Standup.md')).toBe(true);
+    expect(move('Archive/Inbox/Standup.md', 'Inbox/Standup 3.md')).toBe(true);
+    expect(move('Archive/Inbox/Standup 2.md', 'Inbox/Standup.md')).toBe(true);
+    expect(move('Archive/Inbox/Standup 2.md', 'Inbox/Standup 2.md')).toBe(true);
+  });
+
+  it('is no other move: another folder or name, a number archiving could not give, or no Archive', () => {
+    expect(move('Inbox/Standup.md', 'Archive/Meetings/Standup.md')).toBe(false);
+    expect(move('Archive/Inbox/Standup.md', 'Inbox/Retro.md')).toBe(false);
+    expect(move('Archive/Inbox/Standup.md', 'Inbox/Standup 1.md')).toBe(false);
+    expect(move('Archive/Inbox/Standup.md', 'Inbox/Standup 02.md')).toBe(false);
+    expect(move('Archive/Inbox/Standup.md', 'Inbox/Standupx 2.md')).toBe(false);
+    expect(move('Archive/Inbox/Standup 2.md', 'Inbox/Standup 2 2.md')).toBe(true);
+    expect(move('Inbox/Standup.md', 'Meetings/Standup.md')).toBe(false);
+    expect(move('Archive/A.md', 'Archive/B/A.md')).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import type { AutomationRule } from './automation-rule.ts';
 import { lastScheduleMark, type LogEntry, type RunTrigger } from './run-log.ts';
-import { isDue, localTimeMs, nextRunAfter, type LocalTime } from './schedule.ts';
+import { isDue, localTimeMs, localTimeOf, nextRunAfter, type LocalTime } from './schedule.ts';
 
 interface RuleClock {
   readonly rule: AutomationRule;
@@ -66,25 +66,33 @@ export const NOTE_RUNS_PER_HOUR = 20;
 const HOUR_MS = 3_600_000;
 
 /**
- * Whether the rule has made as many note-triggered runs in the hour up to
- * `now` as it may — a run whose query did not read counts, so a broken rule
- * is held back too. A run that did nothing writes no entry, so is not counted.
+ * When a rule a note sets off may run again, once it has made as many runs in
+ * the hour up to `now` as it may; null while it may still run. Counted are
+ * runs that changed a note, and runs whose query did not read, so a broken
+ * rule is held too. A run that changed nothing — every note it heard already
+ * as it leaves them, or open with unsaved typing — spends nothing.
  */
-export function noteRunsCapped(entries: readonly LogEntry[], now: LocalTime): boolean {
+export function noteRunsHeldUntil(entries: readonly LogEntry[], now: LocalTime): LocalTime | null {
   const end = localTimeMs(now);
-  if (end === null) return false;
-  const runs = entries.filter((entry) => {
-    if ((entry.kind !== 'run' && entry.kind !== 'failed') || entry.trigger !== 'note') return false;
-    const at = localTimeMs(entry.at);
-    return at !== null && at > end - HOUR_MS && at <= end;
-  });
-  return runs.length >= NOTE_RUNS_PER_HOUR;
+  if (end === null) return null;
+  const counted = entries
+    .filter(
+      (entry) =>
+        (entry.kind === 'failed' && entry.trigger === 'note') ||
+        (entry.kind === 'run' && entry.trigger === 'note' && entry.done.length > 0),
+    )
+    .map((entry) => localTimeMs(entry.at))
+    .filter((at): at is number => at !== null && at > end - HOUR_MS && at <= end)
+    .sort((a, b) => a - b);
+  if (counted.length < NOTE_RUNS_PER_HOUR) return null;
+  // Once this one is an hour old, one fewer than the most is left in the hour.
+  return localTimeOf(counted[counted.length - NOTE_RUNS_PER_HOUR]! + HOUR_MS);
 }
 
-/** What a rule held back by {@link noteRunsCapped} says. */
-export function noteRunsCappedProblem(): string {
+/** What a rule held back until `until` by {@link noteRunsHeldUntil} says. */
+export function noteRunsCappedProblem(until: LocalTime): string {
   return (
     `It has run ${NOTE_RUNS_PER_HOUR} times in the last hour, the most a rule may. ` +
-    'Notes that change meanwhile wait for a run by hand.'
+    `It runs on what changed meanwhile at ${until.slice(11, 16)}.`
   );
 }

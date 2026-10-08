@@ -1,7 +1,9 @@
 import {
+  deletedHandledNotes,
   handledVersions,
   messageWithoutPaths,
-  noteRunsCapped,
+  noteRunsHeldUntil,
+  noteTriggerHears,
   triggeringVersions,
   unhandledVersions,
   type AutomationPlan,
@@ -10,6 +12,7 @@ import {
   type LoggedVersion,
   type LogEntry,
   type NoteChange,
+  type NoteTrigger,
   type NoteVersionRef,
   type PassedOver,
   type RunTrigger,
@@ -89,31 +92,59 @@ export async function runAutomation(
  * already handled, or nothing to do — such a run writes nothing and says nothing.
  *
  * Its log is read afresh, after any run before it has written: a version its
- * own write left is there by then, and does not set it off again. A rule
+ * own write left is there by then, and does not set it off again. A note of
+ * its type it had handled that was deleted is written down as gone, so a new
+ * note at that path is new to it. A run that changed nothing is said in
+ * Activity but kept out of the log, and out of the hourly count. A rule
  * that has run as often this hour as one may rejects with
  * `NoteRunsCappedError` instead, and runs nothing.
+ *
+ * The guard names the vault the changes were heard in: run after another
+ * vault was opened, it stops before reading or writing anything.
  */
 export async function runOnNoteChanges(
   run: AutomationRun & { changes: readonly NoteChange[] },
 ): Promise<LogEntry | null> {
   const { activity, rule, changes } = run;
-  if (!rule.enabled || rule.when.kind !== 'note') return null;
-  const heard = triggeringVersions(rule.when, changes);
-  if (heard.length === 0) return null;
-  const carryOut = () => runOnHeard(run, heard);
+  if (!rule.enabled || rule.when.kind !== 'note' || !noteTriggerHears(rule.when, changes)) {
+    return null;
+  }
+  const { when } = rule;
+  const carryOut = () => runOnHeard({ ...run, when });
   return reported({ activity, rule, doing: 'run', carryOut });
 }
 
 async function runOnHeard(
-  run: AutomationRun,
-  heard: readonly NoteVersionRef[],
+  run: AutomationRun & { changes: readonly NoteChange[]; when: NoteTrigger },
 ): Promise<LogEntry | null> {
+  stillInVault(run.guard);
   const { entries } = await readRuleLog(run.ports.fs, run.rule);
-  const versions = unhandledVersions(heard, handledVersions(entries));
-  if (versions.length === 0) return null;
-  if (noteRunsCapped(entries, run.clock.localNow())) throw new NoteRunsCappedError();
+  const handled = handledVersions(entries);
+  const went = deletedHandledNotes(run.when, run.changes, handled);
+  const versions = unhandledVersions(triggeringVersions(run.when, run.changes), handled);
+  const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
+  if (versions.length === 0 || heldUntil !== null) {
+    await recordGone(run, went);
+    if (versions.length > 0 && heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
+    return null;
+  }
   const aim: Aim = (ports, today) => planForVersions({ ports, rule: run.rule, versions, today });
-  return runOnce({ run, trigger: 'note', aim, quiet: true });
+  return runOnce({ run, trigger: 'note', aim, quiet: true, went });
+}
+
+/** Writes down notes a rule had handled that were deleted, in an entry of their own; none, nothing. */
+async function recordGone(run: AutomationRun, went: readonly VaultPath[]): Promise<void> {
+  if (went.length === 0) return;
+  const entry: LogEntry = {
+    kind: 'run',
+    at: run.clock.localNow(),
+    trigger: 'note',
+    done: [],
+    left: [],
+    capped: false,
+    went,
+  };
+  await appendToRuleLog({ fs: guardedFs(run.ports.fs, run.guard), rule: run.rule, entry });
 }
 
 /** What a run plans over, once the vault's notes are listed. Rejects as `planRun` does. */
@@ -127,12 +158,18 @@ async function runOnce({
   trigger,
   aim,
   quiet,
+  went = [],
 }: {
   run: AutomationRun;
   trigger: RunTrigger;
   aim: Aim;
-  /** Whether a run with nothing to do writes nothing: one notes set off, on every save. */
+  /**
+   * Whether a run that changed nothing stays out of the log: one notes set
+   * off, on every save. With nothing to do it says nothing at all.
+   */
   quiet: boolean;
+  /** Notes the rule had handled that were deleted, for its log to say. */
+  went?: readonly VaultPath[];
 }): Promise<LogEntry | null> {
   const { rule, clock, guard } = run;
   const at = clock.localNow();
@@ -153,8 +190,11 @@ async function runOnce({
   // The index answered for the vault open when it was asked; that must still be the rule's.
   stillInVault(guard);
   const { plan } = target;
-  if (quiet && plan.paths.length === 0 && plan.passedOver.length === 0) return null;
-  let applied: PropertyOutcome = { done: [], left: [] };
+  if (quiet && plan.paths.length === 0 && plan.passedOver.length === 0) {
+    await recordGone(run, went);
+    return null;
+  }
+  let applied: Applied = { done: [], left: [], relinked: [] };
   let versions: LoggedVersion[] = [];
   const entry = (): LogEntry => ({
     kind: 'run',
@@ -164,14 +204,15 @@ async function runOnce({
     left: [...plan.passedOver, ...applied.left],
     capped: plan.capped,
     ...(target.versions !== null && { versions }),
+    ...(went.length > 0 && { went }),
   });
   try {
     applied = await applyPlan({ ports, plan, today });
   } finally {
     // Each batch records per note and does not throw part-way, so what it returns is all it did;
     // if it throws, it threw before its first change, and the entry says it did nothing.
-    if (target.versions !== null) versions = await versionsOf(run, target.versions, applied.done);
-    await log(entry());
+    if (target.versions !== null) versions = await versionsOf(run, target.versions, applied);
+    if (!quiet || applied.done.length > 0 || went.length > 0) await log(entry());
   }
   // Cut off by a switch: said so to the caller, once what it did is on record.
   stillInVault(guard);
@@ -185,11 +226,11 @@ async function runOnce({
 async function versionsOf(
   run: AutomationRun,
   versions: readonly NoteVersionRef[],
-  done: readonly DoneAction[],
+  { done, relinked }: Applied,
 ): Promise<LoggedVersion[]> {
   const handled = handledBy(versions, done);
   try {
-    return [...handled, ...(await writtenBy(run.ports.fs, done))];
+    return [...handled, ...(await writtenBy({ fs: run.ports.fs, done, relinked }))];
   } catch {
     // Safe to go without: the log must still be written. A write heard back then sets the rule
     // off once more, and finds its note already as the rule leaves it — or archived, out of reach.
@@ -205,8 +246,8 @@ async function applyPlan({
   ports: AutomationPorts & { notePaths: readonly VaultPath[] };
   plan: AutomationPlan;
   today: string;
-}): Promise<PropertyOutcome> {
-  if (plan.paths.length === 0) return { done: [], left: [] };
+}): Promise<Applied> {
+  if (plan.paths.length === 0) return { done: [], left: [], relinked: [] };
   const { action } = plan;
   if (action.kind === 'set') {
     const changes = plan.paths.flatMap((path) =>
@@ -217,7 +258,7 @@ async function applyPlan({
         to: { value },
       })),
     );
-    return changeProperties({ ports, changes, kind: 'set' });
+    return { ...(await changeProperties({ ports, changes, kind: 'set' })), relinked: [] };
   }
   const outcome = await archiveNotes({
     ports,
@@ -227,8 +268,11 @@ async function applyPlan({
     updateLinks: true,
     unsavedTyping: 'leave',
   });
-  return archiveRecord(outcome, 'archived');
+  return { ...archiveRecord(outcome, 'archived'), relinked: outcome.relinked };
 }
+
+/** What carrying a plan out did: each note done and left, and each note an archive rewrote links in. */
+type Applied = PropertyOutcome & { readonly relinked: readonly VaultPath[] };
 
 /**
  * What a batch of moves did, as log lines: each move, and each note it could

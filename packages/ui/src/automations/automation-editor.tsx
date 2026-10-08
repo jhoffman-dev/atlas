@@ -99,7 +99,8 @@ export function AutomationEditor(props: AutomationEditorProps) {
         <div className="automation-editor__field automation-editor__field--wide">
           <span className="automation-editor__label">Which notes</span>
           {props.which}
-          <AgeField draft={draft} onChange={onChange} />
+          {/* The note that sets a rule off has just changed: an age filter would leave it out. */}
+          {draft.when.kind !== 'note' && <AgeField draft={draft} onChange={onChange} />}
         </div>
         <ActionField draft={draft} onChange={onChange} />
       </div>
@@ -132,7 +133,11 @@ function ScheduleField({
           options={SCHEDULES}
           value={when.kind}
           onChange={(kind) =>
-            onChange({ ...draft, when: scheduleOf(kind, when, typeNames[0] ?? '') })
+            onChange({
+              ...draft,
+              when: scheduleOf(kind, when, typeNames[0] ?? ''),
+              ...(kind === 'note' && { olderThanDays: null }),
+            })
           }
         />
         {when.kind === 'daily' && (

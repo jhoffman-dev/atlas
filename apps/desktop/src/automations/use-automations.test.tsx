@@ -411,11 +411,12 @@ describe('useAutomations: rules a note sets off (P29-01)', () => {
     expect(vault.files[LOG]).toBeUndefined();
   });
 
-  it('holds back a rule that has run as often this hour as one may, and says why', async () => {
+  it('holds a rule that has run as often this hour as one may, once, then runs what it heard', async () => {
     const full = Array.from(
       { length: NOTE_RUNS_PER_HOUR },
       (_, at) =>
-        `## 2026-09-27 08:${String(10 + at).padStart(2, '0')}:00 · Ran when a note appeared or changed\n\nNothing to do.\n`,
+        `## 2026-09-27 08:${String(10 + at).padStart(2, '0')}:00 · Ran when a note appeared or changed\n\n` +
+        `Archived 1 note.\n\n- archived \`"Tasks/O${at}.md"\` → \`"Archive/Tasks/O${at}.md"\`\n`,
     );
     const log = ['---\natlas: automation-log\n---\n\n# Sweep — run log\n', ...full].join('\n');
     const vault = memoryVault({
@@ -424,16 +425,62 @@ describe('useAutomations: rules a note sets off (P29-01)', () => {
       [TASK]: '---\ntype: task\n---\n',
     });
     const changes = createNoteChanges({ onError: (cause) => void cause });
-    const { hook } = mount(vault, { changes });
+    const { hook, initial } = mount(vault, { changes });
     await settle();
 
     act(() => changes.publish(added(vault, TASK)));
     await settle();
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    // Not tried again while held: one line in Activity, not one per sync heard.
+    const reports = (initial.activity as ReturnType<typeof recordingActivity>).reports;
+    expect(reports.filter((report) => report.level === 'error')).toHaveLength(1);
     expect(vault.files[TASK]).toBeDefined();
     expect(vault.files[LOG]).toBe(log);
-    expect(hook.result.current.pauses.get('Sweep')?.reason).toMatch(
-      /^Could not run \(It has run 20 times in the last hour/,
-    );
+    // Held for the hour, not failing: one pause, no failure counted however much it hears.
+    expect(hook.result.current.pauses.get('Sweep')).toEqual({
+      reason:
+        'Held back: It has run 20 times in the last hour, the most a rule may. ' +
+        'It runs on what changed meanwhile at 09:10.',
+      failures: 0,
+      retryAt: '2026-09-27T09:10:00',
+    });
+
+    now = '2026-09-27T09:11:00';
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SCHEDULE_TICK_MS);
+    });
+    await settle();
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+    expect(runsIn(vault.files[LOG])).toHaveLength(NOTE_RUNS_PER_HOUR + 1);
+  });
+
+  it('drops news on a Mac known not to run the automations, and holds it while that is unknown', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, scheduled: null });
+    await settle();
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+
+    hook.rerender({ ...initial, changes, scheduled: true });
+    await settle();
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+  });
+
+  it('keeps nothing heard on a Mac known not to run them, even if it is named later', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, scheduled: false });
+    await settle();
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+
+    hook.rerender({ ...initial, changes, scheduled: true });
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+    expect(vault.files[LOG]).toBeUndefined();
   });
 });
 
@@ -454,9 +501,9 @@ describe('useAutomations: rules a note sets off, attacked (P29-01)', () => {
     let failing = true;
     const fs = {
       ...base.fs,
-      listNotes: async () => {
+      listNotes: async (...args: Parameters<typeof base.fs.listNotes>) => {
         if (failing) throw new Error('the disk was busy');
-        return base.fs.listNotes();
+        return base.fs.listNotes(...args);
       },
     };
     const changes = createNoteChanges({ onError: (cause) => void cause });

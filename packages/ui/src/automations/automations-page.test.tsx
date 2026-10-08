@@ -188,10 +188,16 @@ describe('AutomationEditor', () => {
     render(<Editor onChange={onChange} />);
     expect(screen.queryByLabelText('Type of note')).toBeNull();
 
+    expect(screen.getByLabelText('Days unchanged')).toBeTruthy();
     await userEvent.click(screen.getByRole('radio', { name: 'When a note appears' }));
     expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ when: { kind: 'note', type: 'task', on: ['created'] } }),
+      expect.objectContaining({
+        when: { kind: 'note', type: 'task', on: ['created'] },
+        olderThanDays: null,
+      }),
     );
+    // The note that sets it off has just changed: there is no age to filter by.
+    expect(screen.queryByLabelText('Days unchanged')).toBeNull();
     expect(screen.queryByLabelText('Time of day')).toBeNull();
     const type = screen.getByLabelText('Type of note') as HTMLSelectElement;
     expect(type.value).toBe('task');

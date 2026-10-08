@@ -24,6 +24,13 @@
  * - wrote `"Inbox/Meetings/Standup.md"` at `"5e6f7a8b"`
  * ```
  *
+ * And a note of its type it had handled that was deleted, so a new note made
+ * at that path later — even from the same bytes — is new to it:
+ *
+ * ```markdown
+ * - went `"Inbox/Meetings/Standup.md"`
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
@@ -71,6 +78,8 @@ export type LogEntry =
       readonly capped: boolean;
       /** For a rule a note sets off: the versions it handled and the ones it wrote. */
       readonly versions?: readonly LoggedVersion[];
+      /** For a rule a note sets off: notes it had handled that were deleted, ending their history. */
+      readonly went?: readonly VaultPath[];
     }
   | {
       readonly kind: 'undo';
@@ -188,8 +197,9 @@ export function formatLogEntry(entry: LogEntry): string {
       ? entry.left.map(({ path, reason }) => `- left ${code(path)}: ${oneLine(reason)}`)
       : [];
   const versions = entry.kind === 'run' ? (entry.versions ?? []).map(versionLine) : [];
-  if (done.length + left.length + versions.length > 0) {
-    lines.push('', ...done, ...left, ...versions);
+  const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
+  if (done.length + left.length + versions.length + went.length > 0) {
+    lines.push('', ...done, ...left, ...versions, ...went);
   }
   return `${lines.join('\n')}\n`;
 }
@@ -268,6 +278,7 @@ const SET_LINE = new RegExp(
 );
 const LEFT_LINE = new RegExp(`^- left ${JSON_SPAN}: (.*)$`);
 const VERSION_LINE = new RegExp(`^- (triggered by|wrote) ${JSON_SPAN} at ${JSON_SPAN}$`);
+const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
 
 /**
  * Reads a log back into its entries, oldest first. A section or line that does
@@ -304,6 +315,10 @@ function parseSection(section: string): LogEntry | null {
     const version = readVersion(line);
     return version === null ? [] : [version];
   });
+  const went = body.flatMap((line) => {
+    const path = readWent(line);
+    return path === null ? [] : [path];
+  });
   return {
     kind: 'run',
     at,
@@ -311,7 +326,19 @@ function parseSection(section: string): LogEntry | null {
     capped,
     ...linesOf(body),
     ...(versions.length > 0 && { versions }),
+    ...(went.length > 0 && { went }),
   };
+}
+
+function readWent(line: string): VaultPath | null {
+  const match = WENT_LINE.exec(line);
+  if (match === null) return null;
+  try {
+    return pathOf(match[1]!);
+  } catch {
+    // A line edited into JSON that does not read, or a path that is no path, is left out.
+    return null;
+  }
 }
 
 function readVersion(line: string): LoggedVersion | null {

@@ -815,8 +815,8 @@ export function App({
     activity: activityLog,
     onSettled: settleArchive,
     live: automationsOpen,
-    // A synced vault runs its automations on one Mac only (U-29).
-    scheduled: sync.automationsHere,
+    // A synced vault runs its automations on one Mac only (U-29); null until this Mac knows.
+    scheduled: sync.thisMac === null || sync.settings === null ? null : sync.automationsHere,
     // A rule a note sets off hears of it here (P29-01).
     changes: noteChanges,
   });

@@ -4,8 +4,8 @@ import {
   dueTrigger,
   nextRunOf,
   NOTE_RUNS_PER_HOUR,
-  noteRunsCapped,
   noteRunsCappedProblem,
+  noteRunsHeldUntil,
 } from './automation-due.ts';
 import type { AutomationRule } from './automation-rule.ts';
 import type { LogEntry } from './run-log.ts';
@@ -90,10 +90,15 @@ describe('a rule a note sets off', () => {
     which: 'FROM meeting',
   };
   const NOW = '2026-10-08T12:00:00';
+  const ARCHIVED = { kind: 'archived', from: 'A.md', to: 'Archive/A.md' } as never;
   const noteRun = (at: string, kind: 'run' | 'failed' = 'run'): LogEntry =>
     kind === 'run'
-      ? { kind, at, trigger: 'note', done: [], left: [], capped: false }
+      ? { kind, at, trigger: 'note', done: [ARCHIVED], left: [], capped: false }
       : { kind, at, trigger: 'note', problem: 'No.' };
+  const minutes = (from: number, count: number) =>
+    Array.from({ length: count }, (_, at) =>
+      noteRun(`2026-10-08T11:${String(from + at).padStart(2, '0')}:00`),
+    );
 
   it('is never run by the clock, on opening or after any time, and has no next run', () => {
     const long = { log: [], now: '2027-01-01T00:00:00', watchingSince: '2026-01-01T00:00:00' };
@@ -102,39 +107,41 @@ describe('a rule a note sets off', () => {
     expect(nextRunOf({ rule: NOTE_RULE, ...long })).toBeNull();
   });
 
-  it('is held once it has run as often in the last hour as one may', () => {
-    const recent = Array.from({ length: NOTE_RUNS_PER_HOUR }, (_, at) =>
-      noteRun(`2026-10-08T11:${String(10 + at).padStart(2, '0')}:00`),
-    );
-    expect(noteRunsCapped(recent, NOW)).toBe(true);
-    expect(noteRunsCapped(recent.slice(1), NOW)).toBe(false);
+  it('is held, once it has run as often in the last hour as one may, until the hour allows one more', () => {
+    expect(noteRunsHeldUntil(minutes(10, NOTE_RUNS_PER_HOUR), NOW)).toBe('2026-10-08T12:10:00');
+    expect(noteRunsHeldUntil(minutes(10, NOTE_RUNS_PER_HOUR - 1), NOW)).toBeNull();
+    expect(noteRunsHeldUntil(minutes(5, NOTE_RUNS_PER_HOUR + 1), NOW)).toBe('2026-10-08T12:06:00');
   });
 
   it('counts runs whose query did not read, so a broken rule is held too', () => {
     const failing = Array.from({ length: NOTE_RUNS_PER_HOUR }, () =>
       noteRun('2026-10-08T11:30:00', 'failed'),
     );
-    expect(noteRunsCapped(failing, NOW)).toBe(true);
+    expect(noteRunsHeldUntil(failing, NOW)).toBe('2026-10-08T12:30:00');
+  });
+
+  it('does not count a run that changed nothing', () => {
+    const idle = minutes(10, NOTE_RUNS_PER_HOUR).map(
+      (entry) => ({ ...entry, done: [] }) as LogEntry,
+    );
+    expect(noteRunsHeldUntil(idle, NOW)).toBeNull();
   });
 
   it('counts only note runs inside the hour, not other runs, nor ones an hour old or ahead', () => {
-    const outside = [
-      ...Array.from({ length: NOTE_RUNS_PER_HOUR }, () => noteRun('2026-10-08T11:00:00')),
-      ...Array.from({ length: NOTE_RUNS_PER_HOUR }, () => noteRun('2026-10-08T12:00:01')),
-      ...Array.from({ length: NOTE_RUNS_PER_HOUR }, () => ranAt('2026-10-08T11:30:00')),
-    ];
-    expect(noteRunsCapped(outside, NOW)).toBe(false);
-    expect(noteRunsCapped([...outside, noteRun('2026-10-08T11:00:01')], NOW)).toBe(false);
-    const justInside = Array.from({ length: NOTE_RUNS_PER_HOUR }, () =>
-      noteRun('2026-10-08T11:00:01'),
-    );
-    expect(noteRunsCapped(justInside, NOW)).toBe(true);
+    const many = (at: string) => Array.from({ length: NOTE_RUNS_PER_HOUR }, () => noteRun(at));
+    const scheduled = Array.from({ length: NOTE_RUNS_PER_HOUR }, () => ({
+      ...ranAt('2026-10-08T11:30:00'),
+      done: [ARCHIVED],
+    }));
+    const outside = [...many('2026-10-08T11:00:00'), ...many('2026-10-08T12:00:01'), ...scheduled];
+    expect(noteRunsHeldUntil(outside, NOW)).toBeNull();
+    expect(noteRunsHeldUntil(many('2026-10-08T11:00:01'), NOW)).toBe('2026-10-08T12:00:01');
   });
 
-  it('says why it is held, and what waits', () => {
-    expect(noteRunsCappedProblem()).toBe(
+  it('says why it is held, and when it runs on what it heard meanwhile', () => {
+    expect(noteRunsCappedProblem('2026-10-08T12:10:00')).toBe(
       `It has run ${NOTE_RUNS_PER_HOUR} times in the last hour, the most a rule may. ` +
-        'Notes that change meanwhile wait for a run by hand.',
+        'It runs on what changed meanwhile at 12:10.',
     );
   });
 });

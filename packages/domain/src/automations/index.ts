@@ -61,17 +61,19 @@ export {
   dueTrigger,
   nextRunOf,
   NOTE_RUNS_PER_HOUR,
-  noteRunsCapped,
   noteRunsCappedProblem,
+  noteRunsHeldUntil,
 } from './automation-due.ts';
 export {
+  deletedHandledNotes,
   handledVersions,
+  noteTriggerHears,
   noteTriggerQueryProblem,
   parseNoteTrigger,
   printNoteTrigger,
   triggeringVersions,
   unhandledVersions,
 } from './note-trigger.ts';
-export type { NoteEvent, NoteTrigger, NoteVersionRef } from './note-trigger.ts';
+export type { HandledVersions, NoteEvent, NoteTrigger, NoteVersionRef } from './note-trigger.ts';
 export { loggedActionProblem, unarchiveProblem } from './undo-check.ts';
 export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';

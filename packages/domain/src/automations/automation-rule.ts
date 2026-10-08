@@ -181,6 +181,13 @@ function readDraft(
   if (olderThanDays === undefined) {
     return { problem: `olderThanDays is a number of days, from 1 to ${MAX_OLDER_THAN_DAYS}.` };
   }
+  // The note that set it off has just changed: an age filter would leave out every one.
+  if (when.kind === 'note' && olderThanDays !== null) {
+    return {
+      problem:
+        'A rule a note sets off acts on that note as it has just become: take olderThanDays out.',
+    };
+  }
   const action = readAction(frontmatter['do'], frontmatter['set']);
   if (typeof action === 'string') return { problem: action };
   const enabled = frontmatter['enabled'] ?? false;

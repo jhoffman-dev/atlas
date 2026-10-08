@@ -17,7 +17,7 @@
  */
 
 import { isArchivedPath } from '../archive/archive.ts';
-import { arrivedPaths, noteVersionKey, type NoteChange } from '../index/note-changes.ts';
+import { arrivedPaths, unpairedChanges, type NoteChange } from '../index/note-changes.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { QueryTextError } from '../query-language/query-text-error.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
@@ -96,21 +96,71 @@ export function triggeringVersions(
     .map((change) => ({ path: createVaultPath(change.path), digest: change.digest }));
 }
 
-/** Every version a rule's log says it handled, or left by its own write, as {@link noteVersionKey}s. */
-export function handledVersions(entries: readonly LogEntry[]): ReadonlySet<string> {
-  return new Set(
-    entries.flatMap((entry) =>
-      entry.kind === 'run'
-        ? (entry.versions ?? []).map((version) => noteVersionKey(version.path, version.digest))
-        : [],
-    ),
+/**
+ * Whether one sync's changes are news to the trigger: a note of its type set
+ * it off, or one went — which may end what it remembers of that note.
+ */
+export function noteTriggerHears(trigger: NoteTrigger, changes: readonly NoteChange[]): boolean {
+  return (
+    triggeringVersions(trigger, changes).length > 0 ||
+    changes.some((change) => change.kind === 'removed' && change.type === trigger.type)
   );
+}
+
+/** What a rule has handled: each version of each note, by path. */
+export interface HandledVersions {
+  /** Whether it handled this version of this note, or its own write left it. */
+  readonly has: (version: NoteVersionRef) => boolean;
+  /** Whether it handled any version of the note at this path. */
+  readonly hasPath: (path: string) => boolean;
+}
+
+/**
+ * Every version a rule's log says it handled, or left by its own write —
+ * read oldest first, so a note deleted since (`went`) has no history left: a
+ * new note at its path is new to the rule.
+ */
+export function handledVersions(entries: readonly LogEntry[]): HandledVersions {
+  const byPath = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    if (entry.kind !== 'run') continue;
+    for (const path of entry.went ?? []) byPath.delete(path);
+    for (const { path, digest } of entry.versions ?? []) {
+      byPath.set(path, (byPath.get(path) ?? new Set()).add(digest));
+    }
+  }
+  return {
+    has: ({ path, digest }) => byPath.get(path)?.has(digest) === true,
+    hasPath: (path) => byPath.has(path),
+  };
+}
+
+/**
+ * The notes of the trigger's type, among one sync's changes, that were
+ * deleted — not moved, renamed or archived — and that the rule has handled a
+ * version of: their history ends, for the log to say.
+ */
+export function deletedHandledNotes(
+  trigger: NoteTrigger,
+  changes: readonly NoteChange[],
+  handled: HandledVersions,
+): VaultPath[] {
+  const { deleted } = unpairedChanges(changes);
+  return changes
+    .filter(
+      (change) =>
+        change.kind === 'removed' &&
+        change.type === trigger.type &&
+        deleted.has(change.path) &&
+        handled.hasPath(change.path),
+    )
+    .map((change) => createVaultPath(change.path));
 }
 
 /** The versions not yet handled. */
 export function unhandledVersions(
   versions: readonly NoteVersionRef[],
-  handled: ReadonlySet<string>,
+  handled: HandledVersions,
 ): NoteVersionRef[] {
-  return versions.filter((version) => !handled.has(noteVersionKey(version.path, version.digest)));
+  return versions.filter((version) => !handled.has(version));
 }

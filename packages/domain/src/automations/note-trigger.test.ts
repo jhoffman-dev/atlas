@@ -3,7 +3,9 @@ import type { NoteChange } from '../index/note-changes.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { parseAutomationRule } from './automation-rule.ts';
 import {
+  deletedHandledNotes,
   handledVersions,
+  noteTriggerHears,
   noteTriggerQueryProblem,
   parseNoteTrigger,
   printNoteTrigger,
@@ -104,6 +106,21 @@ describe('noteTriggerQueryProblem', () => {
     });
     expect('rule' in read && read.rule.when).toEqual(ON_MEETING);
   });
+
+  it('refuses an age filter on a rule a note sets off: the note has just changed', () => {
+    const read = parseAutomationRule(p('.atlas/automations/Mark.md'), {
+      atlas: 'automation',
+      name: 'Mark',
+      enabled: true,
+      when: 'a meeting is created',
+      which: 'FROM meeting',
+      olderThanDays: 30,
+      do: 'archive',
+    });
+    expect('broken' in read && read.broken.problem).toBe(
+      'A rule a note sets off acts on that note as it has just become: take olderThanDays out.',
+    );
+  });
 });
 
 describe('triggeringVersions', () => {
@@ -148,6 +165,14 @@ describe('triggeringVersions', () => {
     expect(triggeringVersions(MEETING_CREATED, copies)).toHaveLength(2);
   });
 
+  it('does not take a note put back from the Archive for one that arrived', () => {
+    const restored = [
+      change('removed', 'Archive/Inbox/Meetings/Standup.md', { digest: 'stamped' }),
+      change('added', 'Inbox/Meetings/Standup.md', { digest: 'plain' }),
+    ];
+    expect(triggeringVersions(MEETING_CREATED, restored)).toEqual([]);
+  });
+
   it('leaves a note in the Archive out: archiving it is not its arrival', () => {
     const archived = [change('added', 'Archive/Inbox/Meetings/Standup.md')];
     expect(triggeringVersions(ON_MEETING, archived)).toEqual([]);
@@ -181,5 +206,62 @@ describe('handledVersions', () => {
       { path: p('Inbox/Meetings/B.md'), digest: 'one' },
     ];
     expect(unhandledVersions(versions, handled)).toEqual(versions.slice(2));
+  });
+});
+
+describe('a note deleted, and what the rule remembers of it', () => {
+  const STANDUP = p('Inbox/Meetings/Standup.md');
+  const ran = (extra: Partial<Extract<LogEntry, { kind: 'run' }>>): LogEntry => ({
+    kind: 'run',
+    at: '2026-10-08T09:00:00',
+    trigger: 'note',
+    done: [],
+    left: [],
+    capped: false,
+    ...extra,
+  });
+  const handledOnce = ran({ versions: [{ path: STANDUP, digest: 'one', wrote: false }] });
+
+  it('forgets every version of a note once the log says it went, and remembers what came after', () => {
+    const handled = handledVersions([
+      handledOnce,
+      ran({ went: [STANDUP] }),
+      ran({ versions: [{ path: STANDUP, digest: 'two', wrote: true }] }),
+    ]);
+    expect(handled.has({ path: STANDUP, digest: 'one' })).toBe(false);
+    expect(handled.has({ path: STANDUP, digest: 'two' })).toBe(true);
+    expect(handledVersions([handledOnce]).has({ path: STANDUP, digest: 'one' })).toBe(true);
+  });
+
+  it('names the deleted notes of its type it had handled, not ones moved, archived or never handled', () => {
+    const handled = handledVersions([
+      ran({
+        versions: [
+          { path: STANDUP, digest: 'one', wrote: false },
+          { path: p('Inbox/Meetings/Moved.md'), digest: 'two', wrote: false },
+          { path: p('Inbox/Meetings/Filed.md'), digest: 'three', wrote: false },
+          { path: p('Tasks/Done.md'), digest: 'four', wrote: false },
+        ],
+      }),
+    ]);
+    const changes = [
+      change('removed', STANDUP, { digest: 'one' }),
+      change('removed', 'Inbox/Meetings/Moved.md', { digest: 'two' }),
+      change('added', 'Meetings/Moved.md', { digest: 'two' }),
+      change('removed', 'Inbox/Meetings/Filed.md', { digest: 'three' }),
+      change('added', 'Archive/Inbox/Meetings/Filed.md', { digest: 'stamped' }),
+      change('removed', 'Tasks/Done.md', { type: 'task', digest: 'four' }),
+      change('removed', 'Inbox/Meetings/Never.md'),
+    ];
+    expect(deletedHandledNotes(ON_MEETING, changes, handled)).toEqual([STANDUP]);
+  });
+
+  it('hears a note of its type that went, for what it remembers of it, and nothing of other types', () => {
+    expect(noteTriggerHears(MEETING_CREATED, [change('removed', STANDUP)])).toBe(true);
+    expect(noteTriggerHears(MEETING_CREATED, [change('added', STANDUP)])).toBe(true);
+    expect(noteTriggerHears(MEETING_CREATED, [change('changed', STANDUP)])).toBe(false);
+    expect(noteTriggerHears(MEETING_CREATED, [change('removed', STANDUP, { type: 'task' })])).toBe(
+      false,
+    );
   });
 });

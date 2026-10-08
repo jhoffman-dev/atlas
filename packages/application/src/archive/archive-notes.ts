@@ -43,6 +43,8 @@ export interface ArchiveOutcome {
   readonly failed: readonly ArchiveFailure[];
   /** Links rewritten along the way; only counted when the batch was asked to rewrite them. */
   readonly linksUpdated: number;
+  /** The notes those links were rewritten in. */
+  readonly relinked: readonly VaultPath[];
 }
 
 /**
@@ -190,19 +192,27 @@ async function runBatch(
       failed.push({ path, reason: reasonOf(cause) });
     }
   }
-  if (batch.updateLinks !== true || moves.length === 0) return { moves, failed, linksUpdated: 0 };
+  if (batch.updateLinks !== true || moves.length === 0) {
+    return { moves, failed, linksUpdated: 0, relinked: [] };
+  }
   const links = await rewriteLinks({
     ports,
     moves: moves.map((relocation) => relocation.move),
     before: batch.notePaths,
   }).catch((cause: unknown) => ({
     count: 0,
+    relinked: [],
     failed: moves.map(({ move }) => ({
       path: move.to,
       reason: `Moved, but its links were not updated: ${reasonOf(cause)}`,
     })),
   }));
-  return { moves, failed: [...failed, ...links.failed], linksUpdated: links.count };
+  return {
+    moves,
+    failed: [...failed, ...links.failed],
+    linksUpdated: links.count,
+    relinked: links.relinked,
+  };
 }
 
 /**
@@ -309,19 +319,22 @@ async function rewriteLinks({
   ports: ArchivePorts;
   moves: readonly EntryMove[];
   before: readonly VaultPath[];
-}): Promise<{ count: number; failed: readonly ArchiveFailure[] }> {
+}): Promise<{
+  count: number;
+  relinked: readonly VaultPath[];
+  failed: readonly ArchiveFailure[];
+}> {
   const update = await linksToUpdate({ fs: ports.fs, moves, notePaths: before });
-  if (update.total === 0) return { count: 0, failed: [] };
+  if (update.total === 0) return { count: 0, relinked: [], failed: [] };
   const report = await updateLinks({ fs: ports.fs, openNotes: ports.editors, update });
   const rewritten = new Set(report.updated);
-  const count = update.notes
-    .filter((note) => rewritten.has(note.path))
-    .reduce((sum, note) => sum + note.count, 0);
+  const relinked = update.notes.filter((note) => rewritten.has(note.path));
+  const count = relinked.reduce((sum, note) => sum + note.count, 0);
   const failed = report.failed.map((failure) => ({
     ...failure,
     reason: `Its links to the notes that moved were not updated: ${failure.reason}`,
   }));
-  return { count, failed };
+  return { count, relinked: relinked.map((note) => note.path), failed };
 }
 
 const reasonOf = (cause: unknown): string =>

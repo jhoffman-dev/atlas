@@ -181,6 +181,39 @@ function withoutCopyNumber(path: VaultPath): VaultPath | null {
 }
 
 /**
+ * Whether a note gone from `from` and come to `to` is what archiving it, or
+ * putting it back, does: `X.md` to `Archive/X.md`, or back again — to the
+ * name {@link freeNotePath} numbers when that one is taken, or, coming back,
+ * to the name before archiving numbered it. Archiving stamps the note, so its
+ * bytes cannot say so; only the two paths can. Each number is read off the
+ * name the note arrives at, against a place worked out from where it was.
+ */
+export function isArchiveMove(from: VaultPath, to: VaultPath): boolean {
+  if (isArchivedPath(from) === isArchivedPath(to)) return false;
+  if (isArchivedPath(to)) return isPlaceOrNumbered(withoutArchive(to), from);
+  const origin = withoutArchive(from);
+  const places = [origin, withoutCopyNumber(origin)].filter((place) => place !== null);
+  return places.some((place) => isPlaceOrNumbered(to, place));
+}
+
+/** Whether `path` is `place`, or `place` numbered as {@link freeNotePath} numbers it: `X 2.md`. */
+function isPlaceOrNumbered(path: VaultPath, place: VaultPath): boolean {
+  if (foldedVaultPath(path) === foldedVaultPath(place)) return true;
+  const name = vaultPathName(place);
+  const extension = MARKDOWN.exec(name)?.[0] ?? '';
+  const base = name.slice(0, name.length - extension.length);
+  const named = vaultPathName(path);
+  if (named.length <= base.length + extension.length + 1) return false;
+  const number = named.slice(base.length + 1, named.length - extension.length);
+  const numbered = joinVaultPath(parentVaultPath(place), `${base} ${number}${extension}`);
+  return (
+    /^[1-9]\d*$/.test(number) &&
+    Number(number) >= 2 &&
+    foldedVaultPath(numbered) === foldedVaultPath(path)
+  );
+}
+
+/**
  * The path with the Archive's segment taken off the front — every one of
  * them, so a note filed by hand at `Archive/Archive/x.md` still leaves it.
  */

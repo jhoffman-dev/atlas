@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   arrivedPaths,
   noteChangesBetween,
-  noteVersionKey,
+  unpairedChanges,
   versionsAfter,
   type NoteChange,
   type NoteVersion,
@@ -111,11 +111,57 @@ describe('arrivedPaths', () => {
     ]);
     expect([...arrived]).toEqual(['Meetings/Other.md']);
   });
-});
 
-describe('noteVersionKey', () => {
-  it('tells apart versions whose path and digest only run together the same', () => {
-    expect(noteVersionKey('a', 'bc')).not.toBe(noteVersionKey('ab', 'c'));
-    expect(noteVersionKey('a.md', 'x')).toBe(noteVersionKey('a.md', 'x'));
+  it('pairs a note put back from the Archive with where it went, though its bytes changed', () => {
+    const changes = [
+      change('removed', 'Archive/Inbox/Standup.md', 'stamped'),
+      change('added', 'Inbox/Standup.md', 'plain'),
+    ];
+    expect([...arrivedPaths(changes)]).toEqual([]);
+    expect([...unpairedChanges(changes).deleted]).toEqual([]);
+  });
+
+  it('pairs a note put back under the number a taken name gets, one to one', () => {
+    const changes = [
+      change('removed', 'Archive/Inbox/Standup.md', 'stamped'),
+      change('added', 'Inbox/Standup 2.md', 'plain'),
+      change('added', 'Inbox/Standup 3.md', 'new'),
+    ];
+    expect([...arrivedPaths(changes)]).toEqual(['Inbox/Standup 3.md']);
+  });
+
+  it('does not let a note archived in the same sync swallow a new note with its old bytes', () => {
+    const changes = [
+      change('removed', 'Inbox/Standup.md', 'template'),
+      change('added', 'Archive/Inbox/Standup.md', 'stamped'),
+      change('added', 'Inbox/Retro.md', 'template'),
+    ];
+    expect([...arrivedPaths(changes)]).toEqual(['Inbox/Retro.md']);
+  });
+
+  it('takes one of a copy and a move from one note as the move, the other as arrived', () => {
+    const changes = [
+      change('removed', 'Inbox/Standup.md', 'aa'),
+      change('added', 'Inbox/Standup copy.md', 'aa'),
+      change('added', 'Meetings/Standup.md', 'aa'),
+    ];
+    expect([...arrivedPaths(changes)]).toEqual(['Inbox/Standup copy.md']);
+  });
+
+  it('pairs a rename by its bytes when no note of the same name went', () => {
+    const changes = [
+      change('removed', 'Inbox/Standup.md', 'aa'),
+      change('added', 'Inbox/Daily standup.md', 'aa'),
+    ];
+    expect([...arrivedPaths(changes)]).toEqual([]);
+  });
+
+  it('says which notes went with nothing added to account for them', () => {
+    const changes = [
+      change('removed', 'Inbox/Moved.md', 'aa'),
+      change('added', 'Meetings/Moved.md', 'aa'),
+      change('removed', 'Inbox/Deleted.md', 'bb'),
+    ];
+    expect([...unpairedChanges(changes).deleted]).toEqual(['Inbox/Deleted.md']);
   });
 });
