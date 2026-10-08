@@ -56,6 +56,28 @@ export function versionsAfter(
   return after;
 }
 
+/**
+ * The notes among one sync's changes that arrived: each one added, unless a
+ * note with the same bytes went in the same sync. That pair is a move or a
+ * rename — the feed pairs nothing, so this does, by digest — and filing a
+ * note, or renaming it, is not its arrival.
+ */
+export function arrivedPaths(changes: readonly NoteChange[]): ReadonlySet<string> {
+  const movedAway = new Set(
+    changes.filter((change) => change.kind === 'removed').map((change) => change.digest),
+  );
+  return new Set(
+    changes
+      .filter((change) => change.kind === 'added' && !movedAway.has(change.digest))
+      .map((change) => change.path),
+  );
+}
+
+/** One version of one note, as a key: what "this note, with these bytes" is remembered by. */
+export function noteVersionKey(path: string, digest: string): string {
+  return `${path}\u0000${digest}`;
+}
+
 /** Copies only the version's own fields: what it came from may carry more. */
 function noteChange(kind: NoteChangeKind, path: string, version: NoteVersion): NoteChange {
   return { kind, path, type: version.type, digest: version.digest };

@@ -67,6 +67,34 @@ describe('automationEntryReport', () => {
     });
   });
 
+  it('names the notes that set a run off, and not the versions it wrote', () => {
+    const noted = (count: number): LogEntry => ({
+      kind: 'run',
+      at: AT,
+      trigger: 'note',
+      done: [{ kind: 'archived', from: p('Tasks/A.md'), to: p('Archive/Tasks/A.md') }],
+      left: [],
+      capped: false,
+      versions: [
+        ...Array.from({ length: count }, (_, at) => ({
+          path: p(`Inbox/Meetings/M${at}.md`),
+          digest: `d${at}`,
+          wrote: false,
+        })),
+        { path: p('Archive/Inbox/Meetings/M0.md'), digest: 'x', wrote: true },
+      ],
+    });
+    expect(automationEntryReport(RULE, noted(1))?.message).toBe(
+      'Tidy tasks: Ran when a note appeared or changed (M0). Archived 1 note.',
+    );
+    expect(automationEntryReport(RULE, noted(3))?.message).toBe(
+      'Tidy tasks: Ran when a note appeared or changed (M0, M1, M2). Archived 1 note.',
+    );
+    expect(automationEntryReport(RULE, noted(5))?.message).toBe(
+      'Tidy tasks: Ran when a note appeared or changed (M0, M1, M2 and 2 more). Archived 1 note.',
+    );
+  });
+
   it('says nothing of a rule turned on or first seen', () => {
     expect(automationEntryReport(RULE, { kind: 'turnedOn', at: AT })).toBeNull();
     expect(automationEntryReport(RULE, { kind: 'seen', at: AT })).toBeNull();

@@ -159,6 +159,7 @@ describe('a dry run in the Activity log', () => {
     const plan = await dryRunAutomation({
       ports: vault.ports,
       rule: RULE,
+      log: [],
       named: RULE,
       today: TODAY,
       activity,
@@ -181,6 +182,7 @@ describe('a dry run in the Activity log', () => {
       dryRunAutomation({
         ports: vault.ports,
         rule: { ...RULE, which: 'FROM nothing' },
+        log: [],
         named: { name: 'Draft', path: null },
         today: TODAY,
         activity,
@@ -220,6 +222,7 @@ describe('a dry run in its own vault’s log (A28-01)', () => {
     const running = dryRunAutomation({
       ports: tidyVault().ports,
       rule: RULE,
+      log: [],
       named: RULE,
       today: TODAY,
       activity,

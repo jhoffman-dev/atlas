@@ -8,14 +8,18 @@
  * handed in, never read.
  */
 
+import { parseNoteTrigger, printNoteTrigger, type NoteTrigger } from './note-trigger.ts';
+
 /** A moment on the person's wall clock: `YYYY-MM-DDTHH:MM:SS`. */
 export type LocalTime = string;
 
+/** When a rule runs: on a clock, when Atlas opens, by hand, or when a note of a type appears or changes. */
 export type Schedule =
   | { readonly kind: 'daily'; readonly at: string }
   | { readonly kind: 'hourly'; readonly every: number }
   | { readonly kind: 'open' }
-  | { readonly kind: 'manual' };
+  | { readonly kind: 'manual' }
+  | NoteTrigger;
 
 /** The longest gap `every N hours` may leave: a week. */
 export const MAX_EVERY_HOURS = 168;
@@ -46,9 +50,14 @@ export function localTimeOf(at: number): LocalTime {
   return new Date(at).toISOString().slice(0, 19);
 }
 
-/** Reads `daily at 03:00`, `every 6 hours`, `on app open` or `manually`; null when it is none. */
+/**
+ * Reads `daily at 03:00`, `every 6 hours`, `on app open`, `manually` or
+ * `a meeting is created or changed`; null when it is none.
+ */
 export function parseSchedule(value: unknown): Schedule | null {
   if (typeof value !== 'string') return null;
+  const note = parseNoteTrigger(value);
+  if (note !== null) return note;
   const text = value.trim().toLowerCase().replace(/\s+/g, ' ');
   if (text === 'on app open') return { kind: 'open' };
   if (text === 'manually') return { kind: 'manual' };
@@ -76,6 +85,8 @@ export function printSchedule(schedule: Schedule): string {
       return 'on app open';
     case 'manual':
       return 'manually';
+    case 'note':
+      return printNoteTrigger(schedule);
   }
 }
 
@@ -90,12 +101,14 @@ export function describeSchedule(schedule: Schedule): string {
       return 'When Atlas opens';
     case 'manual':
       return 'Only when run by hand';
+    case 'note':
+      return `When ${printNoteTrigger(schedule)}`;
   }
 }
 
 /**
  * The first time the schedule falls due after `since`, or null for a rule
- * that only runs when Atlas opens or when asked.
+ * that only runs when Atlas opens, when a note sets it off, or when asked.
  *
  * `since` is the last run — or, for a rule never run, when it was turned on —
  * so a run missed while Atlas was closed is still due when it opens.

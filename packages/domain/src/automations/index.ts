@@ -55,7 +55,23 @@ export {
   logEntryHeading,
   logEntrySummary,
 } from './run-log.ts';
-export type { DoneAction, LogEntry, PriorValue, RunTrigger } from './run-log.ts';
-export { backoffMinutes, dueTrigger, nextRunOf } from './automation-due.ts';
+export type { DoneAction, LogEntry, LoggedVersion, PriorValue, RunTrigger } from './run-log.ts';
+export {
+  backoffMinutes,
+  dueTrigger,
+  nextRunOf,
+  NOTE_RUNS_PER_HOUR,
+  noteRunsCapped,
+  noteRunsCappedProblem,
+} from './automation-due.ts';
+export {
+  handledVersions,
+  noteTriggerQueryProblem,
+  parseNoteTrigger,
+  printNoteTrigger,
+  triggeringVersions,
+  unhandledVersions,
+} from './note-trigger.ts';
+export type { NoteEvent, NoteTrigger, NoteVersionRef } from './note-trigger.ts';
 export { loggedActionProblem, unarchiveProblem } from './undo-check.ts';
 export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';

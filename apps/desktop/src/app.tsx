@@ -817,6 +817,8 @@ export function App({
     live: automationsOpen,
     // A synced vault runs its automations on one Mac only (U-29).
     scheduled: sync.automationsHere,
+    // A rule a note sets off hears of it here (P29-01).
+    changes: noteChanges,
   });
   const { watchingSince: automationsSince, pauses: automationPauses } = automations;
   useEffect(

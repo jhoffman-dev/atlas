@@ -22,6 +22,7 @@ import { ARCHIVED_FROM_KEY, ARCHIVED_KEY, ARCHIVED_PRIOR_KEY } from '../archive/
 import { isRecord } from '../query/frontmatter-query.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
+import { noteTriggerQueryProblem } from './note-trigger.ts';
 import { parseSchedule, printSchedule, type Schedule } from './schedule.ts';
 
 export const AUTOMATION_MARKER = 'atlas';
@@ -167,11 +168,15 @@ function readDraft(
   const when = parseSchedule(frontmatter['when']);
   if (when === null) {
     return {
-      problem: 'Say when it runs: daily at 03:00, every 6 hours, on app open, or manually.',
+      problem:
+        'Say when it runs: daily at 03:00, every 6 hours, on app open, manually, ' +
+        'or when a note appears, like a meeting is created or changed.',
     };
   }
   const which = String(frontmatter['which'] ?? '').trim();
   if (which === '') return { problem: 'Say which notes it takes, as a query: FROM task WHERE …' };
+  const whereProblem = when.kind === 'note' ? noteTriggerQueryProblem(when, which) : null;
+  if (whereProblem !== null) return { problem: whereProblem };
   const olderThanDays = readAge(frontmatter['olderThanDays']);
   if (olderThanDays === undefined) {
     return { problem: `olderThanDays is a number of days, from 1 to ${MAX_OLDER_THAN_DAYS}.` };

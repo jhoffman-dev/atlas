@@ -118,16 +118,23 @@ export function useAutomationEditor({
     return naming ?? draftProblem(draft);
   }, [editing, draft, ports.notePaths]);
 
+  const { listing } = automations;
   const runDry = useCallback(async () => {
     if (draft === null || editing === null) return;
     const named = {
       name: draft.name.trim(),
       path: editing.kind === 'rule' ? editing.rule.path : null,
     };
+    // What the rule has handled, for one notes set off: its log as last read.
+    const log =
+      editing.kind === 'rule'
+        ? (listing?.automations.find((loaded) => loaded.rule.path === editing.rule.path)?.log ?? [])
+        : [];
     try {
       const plan = await dryRunAutomation({
         ports,
         rule: draft,
+        log,
         named,
         today: clock.today(),
         activity,
@@ -139,7 +146,7 @@ export function useAutomationEditor({
         message: cause instanceof AtlasQueryError ? cause.message : errorMessage(cause),
       });
     }
-  }, [draft, editing, ports, clock, activity]);
+  }, [draft, editing, listing, ports, clock, activity]);
 
   const { exclusive, setNotice } = automations;
   const save = useCallback(async () => {

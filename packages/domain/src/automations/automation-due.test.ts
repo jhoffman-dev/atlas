@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
-import { dueTrigger, nextRunOf } from './automation-due.ts';
+import {
+  dueTrigger,
+  nextRunOf,
+  NOTE_RUNS_PER_HOUR,
+  noteRunsCapped,
+  noteRunsCappedProblem,
+} from './automation-due.ts';
 import type { AutomationRule } from './automation-rule.ts';
 import type { LogEntry } from './run-log.ts';
 
@@ -74,6 +80,62 @@ describe('dueTrigger', () => {
     expect(dueTrigger({ rule: { ...RULE, enabled: false }, ...long, opening: true })).toBeNull();
     const manual = { ...RULE, when: { kind: 'manual' } } as AutomationRule;
     expect(dueTrigger({ rule: manual, ...long, opening: true })).toBeNull();
+  });
+});
+
+describe('a rule a note sets off', () => {
+  const NOTE_RULE: AutomationRule = {
+    ...RULE,
+    when: { kind: 'note', type: 'meeting', on: ['created'] },
+    which: 'FROM meeting',
+  };
+  const NOW = '2026-10-08T12:00:00';
+  const noteRun = (at: string, kind: 'run' | 'failed' = 'run'): LogEntry =>
+    kind === 'run'
+      ? { kind, at, trigger: 'note', done: [], left: [], capped: false }
+      : { kind, at, trigger: 'note', problem: 'No.' };
+
+  it('is never run by the clock, on opening or after any time, and has no next run', () => {
+    const long = { log: [], now: '2027-01-01T00:00:00', watchingSince: '2026-01-01T00:00:00' };
+    expect(dueTrigger({ rule: NOTE_RULE, ...long, opening: true })).toBeNull();
+    expect(dueTrigger({ rule: NOTE_RULE, ...long, opening: false })).toBeNull();
+    expect(nextRunOf({ rule: NOTE_RULE, ...long })).toBeNull();
+  });
+
+  it('is held once it has run as often in the last hour as one may', () => {
+    const recent = Array.from({ length: NOTE_RUNS_PER_HOUR }, (_, at) =>
+      noteRun(`2026-10-08T11:${String(10 + at).padStart(2, '0')}:00`),
+    );
+    expect(noteRunsCapped(recent, NOW)).toBe(true);
+    expect(noteRunsCapped(recent.slice(1), NOW)).toBe(false);
+  });
+
+  it('counts runs whose query did not read, so a broken rule is held too', () => {
+    const failing = Array.from({ length: NOTE_RUNS_PER_HOUR }, () =>
+      noteRun('2026-10-08T11:30:00', 'failed'),
+    );
+    expect(noteRunsCapped(failing, NOW)).toBe(true);
+  });
+
+  it('counts only note runs inside the hour, not other runs, nor ones an hour old or ahead', () => {
+    const outside = [
+      ...Array.from({ length: NOTE_RUNS_PER_HOUR }, () => noteRun('2026-10-08T11:00:00')),
+      ...Array.from({ length: NOTE_RUNS_PER_HOUR }, () => noteRun('2026-10-08T12:00:01')),
+      ...Array.from({ length: NOTE_RUNS_PER_HOUR }, () => ranAt('2026-10-08T11:30:00')),
+    ];
+    expect(noteRunsCapped(outside, NOW)).toBe(false);
+    expect(noteRunsCapped([...outside, noteRun('2026-10-08T11:00:01')], NOW)).toBe(false);
+    const justInside = Array.from({ length: NOTE_RUNS_PER_HOUR }, () =>
+      noteRun('2026-10-08T11:00:01'),
+    );
+    expect(noteRunsCapped(justInside, NOW)).toBe(true);
+  });
+
+  it('says why it is held, and what waits', () => {
+    expect(noteRunsCappedProblem()).toBe(
+      `It has run ${NOTE_RUNS_PER_HOUR} times in the last hour, the most a rule may. ` +
+        'Notes that change meanwhile wait for a run by hand.',
+    );
   });
 });
 

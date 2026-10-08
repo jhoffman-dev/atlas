@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import {
   createVaultPath,
+  digestOf,
   indexablePropertiesOf,
   KeyAsWritten,
   movedPath,
@@ -16,7 +17,7 @@ import {
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import type { RuleQueryPorts } from '../automations/plan-run.ts';
 import type { AutomationPorts } from '../automations/run-automation.ts';
-import type { QueryResult } from '../index/ports.ts';
+import type { IndexEntry, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { fakeIndexPort, fakeVaultFs } from './fake-ports.ts';
@@ -45,19 +46,23 @@ export const jsonNote = (frontmatter: Record<string, unknown>, body = 'Body.\n')
  * A vault held in memory that answers as the host does — a move refuses to
  * overwrite and needs its folder, a write is refused against a note changed
  * since it was read — with an index that answers queries with real SQL over
- * what the vault holds at the moment it is asked. Each note is dated
- * `ageDays` before `today`, noon UTC, so `modified` is the same day anywhere.
+ * what the vault holds at the moment it is asked — its manifest too, each
+ * note's type and digest as they are then. Each note is dated `ageDays`
+ * before `today`, noon UTC, so `modified` is the same day anywhere.
  */
 export function automationVault({
   notes,
   today,
   ageDays = {},
   dirty = [],
+  types = TASK_TYPES,
 }: {
   notes: Record<string, string>;
   today: string;
   ageDays?: Record<string, number>;
   dirty?: string[];
+  /** The vault's types; the task type alone unless given. */
+  types?: readonly ObjectType[];
 }) {
   const files = new Map(Object.entries(notes));
   const dirs = new Set<string>();
@@ -137,9 +142,12 @@ export function automationVault({
   const ports: AutomationPorts & Pick<RuleQueryPorts, 'notePaths'> = {
     fs,
     markdown,
-    index: fakeIndexPort({ query: async (sql, parameters) => answer(sql, parameters) }),
+    index: fakeIndexPort({
+      query: async (sql, parameters) => answer(sql, parameters),
+      manifest: async () => manifestOf(),
+    }),
     editors: editorsFor(unsaved, log),
-    types: TASK_TYPES,
+    types,
     get notePaths() {
       return [...files.keys()];
     },
@@ -155,6 +163,19 @@ export function automationVault({
       rows: rows.map((row) => columns.map((column) => row[column])),
       truncated: false,
     };
+  }
+
+  function manifestOf(): IndexEntry[] {
+    return [...files].map(([path, text]) => {
+      const type = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)['type'];
+      return {
+        path,
+        modified: modified.get(path)!,
+        size: text.length,
+        type: typeof type === 'string' ? type : null,
+        digest: digestOf(text),
+      };
+    });
   }
 
   return {

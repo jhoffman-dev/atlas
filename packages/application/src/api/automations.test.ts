@@ -124,7 +124,9 @@ describe('GET /v1/automations', () => {
       {
         path: '.atlas/automations/Broken.md',
         name: 'Broken',
-        problem: 'Say when it runs: daily at 03:00, every 6 hours, on app open, or manually.',
+        problem:
+          'Say when it runs: daily at 03:00, every 6 hours, on app open, manually, ' +
+          'or when a note appears, like a meeting is created or changed.',
       },
     ]);
   });

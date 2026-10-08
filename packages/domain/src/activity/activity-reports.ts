@@ -33,12 +33,27 @@ export function automationEntryReport(rule: RuleNamed, entry: LogEntry): Activit
   const level: ActivityLevel =
     entry.kind === 'failed' ? 'error' : entry.left.length > 0 ? 'warning' : 'info';
   const heading = entry.kind === 'undo' ? 'Undid its last run' : logEntryHeading(entry);
+  const notes = entry.kind === 'run' ? triggeringNotes(entry) : '';
   return {
     level,
     kind: 'automation',
-    message: `${rule.name}: ${heading}. ${logEntrySummary(entry)}`,
+    message: `${rule.name}: ${heading}${notes}. ${logEntrySummary(entry)}`,
     subject: ruleSubject(rule),
   };
+}
+
+/** How many notes set off by a run a line names before it counts the rest. */
+const TRIGGERING_NAMED = 3;
+
+/** The notes that set a run off, as a line names them: ` (Standup, Kickoff and 2 more)`; empty for none. */
+function triggeringNotes(entry: Extract<LogEntry, { kind: 'run' }>): string {
+  const titles = (entry.versions ?? [])
+    .filter((version) => !version.wrote)
+    .map((version) => noteTitle(version.path));
+  if (titles.length === 0) return '';
+  const named = titles.slice(0, TRIGGERING_NAMED).join(', ');
+  const more = titles.length - TRIGGERING_NAMED;
+  return more > 0 ? ` (${named} and ${more} more)` : ` (${named})`;
 }
 
 /** A run or an undo that stopped before its log could say what it did. */

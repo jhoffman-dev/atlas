@@ -72,6 +72,7 @@ export function AutomationsScreen({
             isNew={editor.editing.kind === 'new'}
             problem={editor.problem}
             which={<QueryComposer {...editor.composer} />}
+            typeNames={ports.types.map((type) => type.name)}
             busy={automations.busy}
             onSave={editor.save}
             onCancel={editor.close}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { noteChangesBetween, versionsAfter, type NoteVersion } from './note-changes.ts';
+import {
+  arrivedPaths,
+  noteChangesBetween,
+  noteVersionKey,
+  versionsAfter,
+  type NoteChange,
+  type NoteVersion,
+} from './note-changes.ts';
 
 const meeting = (digest: string): NoteVersion => ({ type: 'meeting', digest });
 const versions = (entries: Record<string, NoteVersion>) => new Map(Object.entries(entries));
@@ -76,5 +83,39 @@ describe('versionsAfter', () => {
     const before = versions({ 'Gone.md': meeting('cc') });
     versionsAfter(before, [{ kind: 'removed', path: 'Gone.md', type: 'meeting', digest: 'cc' }]);
     expect(before.has('Gone.md')).toBe(true);
+  });
+});
+
+describe('arrivedPaths', () => {
+  const change = (kind: NoteChange['kind'], path: string, digest: string): NoteChange => ({
+    kind,
+    path,
+    type: 'meeting',
+    digest,
+  });
+
+  it('takes a note added with bytes nothing else left with as arrived', () => {
+    const arrived = arrivedPaths([
+      change('added', 'New.md', 'aa'),
+      change('changed', 'Edited.md', 'bb'),
+      change('removed', 'Gone.md', 'cc'),
+    ]);
+    expect([...arrived]).toEqual(['New.md']);
+  });
+
+  it('pairs a note added with one removed with the same bytes, as a move', () => {
+    const arrived = arrivedPaths([
+      change('removed', 'Inbox/Standup.md', 'aa'),
+      change('added', 'Meetings/Standup.md', 'aa'),
+      change('added', 'Meetings/Other.md', 'bb'),
+    ]);
+    expect([...arrived]).toEqual(['Meetings/Other.md']);
+  });
+});
+
+describe('noteVersionKey', () => {
+  it('tells apart versions whose path and digest only run together the same', () => {
+    expect(noteVersionKey('a', 'bc')).not.toBe(noteVersionKey('ab', 'c'));
+    expect(noteVersionKey('a.md', 'x')).toBe(noteVersionKey('a.md', 'x'));
   });
 });

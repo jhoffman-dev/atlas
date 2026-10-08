@@ -97,6 +97,53 @@ describe('parseRunLog', () => {
     expect(parseRunLog(newLogText('Tidy', entries))).toEqual(entries);
   });
 
+  it('reads back the versions a note-triggered run handled and wrote', () => {
+    const noted: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [
+        {
+          kind: 'set',
+          path: p('Inbox/Meetings/Standup "daily".md'),
+          key: 'status',
+          before: { absent: true },
+          after: { value: 'new' },
+        },
+      ],
+      left: [],
+      capped: false,
+      versions: [
+        { path: p('Inbox/Meetings/Standup "daily".md'), digest: '1a2b3c4d', wrote: false },
+        { path: p('Inbox/Meetings/Standup "daily".md'), digest: '5e6f7a8b', wrote: true },
+      ],
+    };
+    const text = newLogText('Mark', [noted]);
+    expect(text).toContain('## 2026-10-08 09:00:00 · Ran when a note appeared or changed');
+    expect(text).toContain(
+      '- triggered by `"Inbox/Meetings/Standup \\"daily\\".md"` at `"1a2b3c4d"`',
+    );
+    expect(text).toContain('- wrote `"Inbox/Meetings/Standup \\"daily\\".md"` at `"5e6f7a8b"`');
+    expect(parseRunLog(text)).toEqual([noted]);
+  });
+
+  it('leaves out a version line edited into one that does not read', () => {
+    const text = [
+      '## 2026-10-08 09:00:00 · Ran when a note appeared or changed',
+      '',
+      'Nothing to do.',
+      '',
+      '- triggered by `"A.md"` at `"good"`',
+      '- triggered by `"B.md"` at `{broken`',
+      '- wrote `"C.md"` at `7`',
+      '- wrote `"/outside.md"` at `"abc"`',
+    ].join('\n');
+    const [entry] = parseRunLog(text);
+    expect(entry?.kind === 'run' && entry.versions).toEqual([
+      { path: 'A.md', digest: 'good', wrote: false },
+    ]);
+  });
+
   it('reads back paths and values that would break a looser format', () => {
     const awkward: LogEntry = {
       kind: 'run',

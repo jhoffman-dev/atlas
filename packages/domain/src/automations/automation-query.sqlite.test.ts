@@ -52,12 +52,17 @@ function buildIndex(): DatabaseSync {
 
 const database = buildIndex();
 
-function titles(text: string, olderThanDays: number | null = null): unknown[] {
+function titles(
+  text: string,
+  olderThanDays: number | null = null,
+  among?: readonly string[],
+): unknown[] {
   const query = automationQuery({
     query: parseAtlasQuery(text),
     today: TODAY,
     olderThanDays,
     action: ARCHIVE,
+    ...(among !== undefined && { among }),
   });
   // Printed and read again, as the runner asks it: the pinned days must survive the text.
   const reread = parseAtlasQuery(printAtlasQuery(query));
@@ -75,6 +80,18 @@ describe('automationQuery, run against SQLite', () => {
   it('adds the age filter on modified: only notes untouched for that many days', () => {
     expect(titles('FROM task WHERE status = done', 30)).toEqual(['Old done']);
     expect(titles('FROM task WHERE status = done')).toEqual(['Fresh done', 'Old done']);
+  });
+
+  it('asks only among the notes a note trigger heard of, and still by its own where', () => {
+    const among = ['tasks/Old done.md', 'tasks/Old doing.md'];
+    expect(titles('FROM task', null, among)).toEqual(['Old doing', 'Old done']);
+    expect(titles('FROM task WHERE status = done OR status = doing', null, among)).toEqual([
+      'Old doing',
+      'Old done',
+    ]);
+    expect(titles('FROM task WHERE status = done', null, among)).toEqual(['Old done']);
+    expect(titles('FROM task', null, ['tasks/Fresh done.md'])).toEqual(['Fresh done']);
+    expect(titles('FROM task', null, [])).toEqual([]);
   });
 
   it('keeps an archived note out, as every query does', () => {
