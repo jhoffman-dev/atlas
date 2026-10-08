@@ -4,6 +4,7 @@ import {
   IMPORT_OUTCOME_KEY,
   importErrorText,
   importOutcomeOf,
+  isConflictCopyPath,
   isMeetingInboxPath,
   meetingCandidates,
   meetingCopies,
@@ -96,7 +97,7 @@ async function importMeetings(
   run: MeetingImportRun,
   paths: readonly string[],
 ): Promise<MeetingImportOutcome> {
-  const context: ImportContext = { ...run, settled: new Set(), wrote: false };
+  const context: ImportContext = { ...run, settled: new Set(), notePaths: null, wrote: false };
   const happenings: MeetingImportHappening[] = [];
   for (const path of paths) {
     if (context.settled.has(path)) continue;
@@ -118,7 +119,10 @@ async function importOne(
     const { text, modified } = await context.ports.fs.readTextFile(path);
     const reading = readFrontmatter(markdown, splitFrontmatter(text).frontmatter);
     const outcome = importOutcomeOf(reading.properties);
-    if (outcome !== null && outcome !== 'error') return [];
+    // Settled: and a copy stamped where meetings land was brought back from the Archive by the person.
+    if (outcome === 'imported' || outcome === 'duplicate') return [];
+    // The other Mac's version of a meeting both changed: the person's to settle, never a copy.
+    if (isConflictCopyPath(path)) return [{ kind: 'conflict', path }];
     const result = validateMeetingFile(markdown, text);
     if (result.ok) return await settleMeeting(context, { path, meeting: result.meeting });
     const refused = await refuse(context, { path, modified, text, reading, errors: result.errors });

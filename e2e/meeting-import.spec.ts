@@ -20,8 +20,8 @@ const VALID = readFileSync(
   'utf8',
 );
 
-/** The file as the import leaves a meeting it let in: as it came, and one line more. */
-const STAMPED = VALID.replace('\n---\n', '\natlas_import_outcome: imported\n---\n');
+/** The file as the import leaves a meeting it let in: as it came, and one line after its contract line. */
+const STAMPED = VALID.replace(/^(atlas_import: .*\n)/m, '$1atlas_import_outcome: imported\n');
 const FIRST = 'Inbox/Meetings/2026-09-29 Platform weekly sync.md';
 const COPY = 'Inbox/Meetings/2026-09-29 Platform weekly sync (gemini 7f3a9c21).md';
 const BROKEN = 'Inbox/Meetings/2026-10-02 Vendor call.md';

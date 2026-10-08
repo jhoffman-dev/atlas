@@ -232,7 +232,7 @@ export type MeetingImportHappening =
       readonly problem: string;
       readonly unmarked: string | null;
     }
-  /** A second copy of `of`: marked as one, and archived to `archivedTo` — or not — and what went wrong. */
+  /** A second copy of `of`: archived to `archivedTo` and marked there — or not — and what went wrong. */
   | {
       readonly kind: 'duplicate';
       readonly path: VaultPath;
@@ -241,7 +241,9 @@ export type MeetingImportHappening =
       readonly problem: string | null;
     }
   /** Something stopped the import before it could say what the file is. */
-  | { readonly kind: 'failed'; readonly path: VaultPath; readonly problem: string };
+  | { readonly kind: 'failed'; readonly path: VaultPath; readonly problem: string }
+  /** The other Mac's version of a meeting file both changed: the person's to compare, never a copy to archive. */
+  | { readonly kind: 'conflict'; readonly path: VaultPath };
 
 /** One line per meeting file the import looked at and did something about. */
 export function meetingImportReport(happening: MeetingImportHappening): ActivityReport {
@@ -274,6 +276,12 @@ export function meetingImportReport(happening: MeetingImportHappening): Activity
         `${title}: could not be imported. ${happening.problem}`,
         happening.path,
       );
+    case 'conflict':
+      return meetingLine(
+        'warning',
+        `${title}: another Mac's version of a meeting both changed, kept beside it. Compare the two, keep what you want, and delete the copy; it is not imported.`,
+        happening.path,
+      );
   }
 }
 
@@ -296,7 +304,11 @@ function duplicateLine({
   const copy = `${noteTitle(path)}: a second copy of ${noteTitle(of)}`;
   const why = problem === null ? '' : ` ${problem}`;
   if (archivedTo === null) {
-    return meetingLine('warning', `${copy}, marked as one but not archived.${why}`, path);
+    return meetingLine(
+      'warning',
+      `${copy}, but it could not be archived.${why} It is tried again when it next changes.`,
+      path,
+    );
   }
   return meetingLine(
     problem === null ? 'info' : 'warning',

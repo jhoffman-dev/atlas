@@ -54,6 +54,7 @@ export const MEETING_LIST_COLUMNS = [
   IMPORT_OUTCOME_KEY,
   IMPORT_ERROR_KEY,
   DUPLICATE_OF_KEY,
+  'stamped',
 ] as const;
 
 /** The most meetings one page lists. */
@@ -82,7 +83,9 @@ export function compileMeetingListQuery({
   const columns = [
     `files.path AS "path"`,
     `${title} AS "title"`,
-    ...MEETING_LIST_COLUMNS.slice(2).map((key) => `${valueOf(key)} AS "${key}"`),
+    ...MEETING_LIST_COLUMNS.slice(2, -1).map((key) => `${valueOf(key)} AS "${key}"`),
+    // Whether the import stamped it at all: a stamp with its value cleared is a stamp still.
+    `EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND p.key = '${IMPORT_OUTCOME_KEY}') AS "stamped"`,
   ];
   const conditions = [
     `(${IS_MEETING} OR files.path IN (SELECT path FROM props WHERE key = ?))`,

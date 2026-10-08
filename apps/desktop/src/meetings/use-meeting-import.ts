@@ -39,7 +39,11 @@ export function useMeetingImport({
   vaultKey: string | null;
   /** Whether this Mac imports: it runs the vault's automations. */
   active: boolean;
-  /** Whether the index has been brought up to date, which the import asks who holds a meeting. */
+  /**
+   * Whether the index is ready, which the import asks who holds a meeting.
+   * Only a ready seen after the vault opened counts: the window's status is
+   * the last vault's until the new one's sync starts.
+   */
   indexReady: boolean;
   /** Re-reads the tree and the index once the import has written or moved a note. */
   onWritten: () => void;
@@ -61,13 +65,25 @@ export function useMeetingImport({
     return importMeetingsOnArrival({ changes, importer: made });
   }, [changes, clock, activity]);
 
-  // Once per vault, per spell as the importing Mac, after the index is first ready.
+  // The index's status is the last vault's until the new vault's sync starts,
+  // so a ready status counts for this vault only once it has been seen not
+  // ready since the vault opened.
+  const readyFor = useRef<{ vault: string | null; seenWorking: boolean }>({
+    vault: null,
+    seenWorking: false,
+  });
+  if (readyFor.current.vault !== vaultKey)
+    readyFor.current = { vault: vaultKey, seenWorking: false };
+  if (!indexReady) readyFor.current.seenWorking = true;
+  const readyHere = indexReady && readyFor.current.seenWorking;
+
+  // Once per vault, per spell as the importing Mac, once its index is ready.
   const caughtUp = useRef<string | null>(null);
   useEffect(() => {
     if (!active || vaultKey === null) caughtUp.current = null;
-    if (importer === null || !active || !indexReady || vaultKey === null) return;
+    if (importer === null || !active || !readyHere || vaultKey === null) return;
     if (caughtUp.current === vaultKey) return;
     caughtUp.current = vaultKey;
     void importer.catchUp(vaultKey);
-  }, [importer, active, indexReady, vaultKey]);
+  }, [importer, active, readyHere, vaultKey]);
 }

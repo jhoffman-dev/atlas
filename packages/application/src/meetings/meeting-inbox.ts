@@ -1,5 +1,6 @@
 import {
   isMeetingInboxPath,
+  isVisibleEntry,
   MEETING_INBOX,
   VAULT_ROOT,
   VAULT_WALK_DEPTH,
@@ -27,8 +28,9 @@ export async function meetingInboxNotes(fs: VaultFsPort): Promise<VaultPath[]> {
   return notesUnder(fs, folder, MEETING_INBOX.split('/').length);
 }
 
+/** The notes under a folder, as the rest of Atlas sees them: hidden files and folders left out (ADR-0014). */
 async function notesUnder(fs: VaultFsPort, folder: VaultPath, depth: number): Promise<VaultPath[]> {
-  const entries: readonly VaultEntry[] = await fs.listDirectory(folder);
+  const entries: readonly VaultEntry[] = (await fs.listDirectory(folder)).filter(isVisibleEntry);
   const notes = entries
     .filter((entry) => entry.kind === 'file' && MARKDOWN.test(entry.name))
     .map((entry) => entry.path)

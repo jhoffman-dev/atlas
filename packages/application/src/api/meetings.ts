@@ -1,7 +1,6 @@
 import {
   compileMeetingListQuery,
-  IMPORT_OUTCOME_KEY,
-  importOutcomeOf,
+  importStanding,
   isArchivedPath,
   MEETING_LIST_LIMIT,
   readEventTime,
@@ -67,16 +66,11 @@ function toApiMeeting(row: readonly unknown[]): ApiMeeting {
     kind: text(5),
     provider: text(6),
     externalId: text(7),
-    importOutcome: outcomeOf(text(8)),
+    importOutcome: importStanding({ path, stamped: Boolean(row[11]), stamp: row[8] }),
     importError: text(9),
     duplicateOf: text(10),
   };
   return isArchivedPath(path) ? { ...meeting, archived: true } : meeting;
-}
-
-/** The import's stamp as the API says it: one it does not know is a file let in, as the import reads it. */
-function outcomeOf(stamp: string | null): ApiMeeting['importOutcome'] {
-  return stamp === null ? null : importOutcomeOf({ [IMPORT_OUTCOME_KEY]: stamp });
 }
 
 const textOrNull = (value: unknown): string | null =>

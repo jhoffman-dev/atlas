@@ -25,7 +25,7 @@ import {
   type ArchivePorts,
   type IndexedNote,
 } from '@atlas/application';
-import { createVaultPath, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath } from '@atlas/domain';
 
 /**
  * Meeting import on arrival end to end on this side of the boundary: meeting
@@ -203,13 +203,9 @@ const fixtures = new URL('../../../domain/src/meetings/fixtures/', import.meta.u
 const VALID = readFileSync(new URL('valid/gemini-platform-sync.md', fixtures), 'utf8');
 const MISSING = readFileSync(new URL('invalid/missing-required.md', fixtures), 'utf8');
 
-/** A meeting file as the import leaves one it let in: the same bytes, and the stamp. */
+/** A meeting file as the import leaves one it let in: the same bytes, and the stamp after its contract line. */
 function stampedAsImported(text: string): string {
-  const document = splitFrontmatter(text);
-  return (
-    remarkMarkdown.updateFrontmatter(document.frontmatter, { atlas_import_outcome: 'imported' }) +
-    document.body
-  );
+  return text.replace(/^(atlas_import: .*\n)/m, '$1atlas_import_outcome: imported\n');
 }
 
 const FIRST = 'Inbox/Meetings/2026-09-29 Platform weekly sync.md';
@@ -302,7 +298,7 @@ describe('meeting import over a real folder and a real SQLite index', () => {
     expect(existsSync(join(root, SECOND))).toBe(false);
     const archived = await readFile(join(root, 'Archive', SECOND), 'utf8');
     expect(archived).toMatch(
-      /^atlas_duplicate_of: (["'])\[\[2026-09-29 Platform weekly sync\]\]\1$/m,
+      /^atlas_duplicate_of: (["'])\[\[Inbox\/Meetings\/2026-09-29 Platform weekly sync\]\]\1$/m,
     );
     expect(archived).toContain(`archivedFrom: ${SECOND}`);
     expect(archived.slice(archived.indexOf('## Summary'))).toBe(
@@ -328,6 +324,31 @@ describe('meeting import over a real folder and a real SQLite index', () => {
     );
     expect(await readFile(join(root, BROKEN), 'utf8')).toBe(marked);
     expect(app.activity.reports.filter((report) => report.kind === 'meeting')).toHaveLength(1);
+  });
+});
+
+describe('meeting import over a real folder: where the import writes', () => {
+  it('rewrites an error in place, its outcome kept after the contract line', async () => {
+    const app = await launch();
+    await drop(BROKEN, MISSING);
+    await app.sync();
+    const first = await readFile(join(root, BROKEN), 'utf8');
+    const fixedTitle = first.replace(
+      "date: '2026-10-02'",
+      "date: '2026-10-02'\ntitle: 'Vendor call'",
+    );
+    await drop(BROKEN, fixedTitle);
+    await app.sync();
+    const second = await readFile(join(root, BROKEN), 'utf8');
+
+    const lines = second.split('\n');
+    expect(lines.slice(1, 4)).toEqual([
+      'type: meeting',
+      'atlas_import: meeting/v1',
+      'atlas_import_outcome: error',
+    ]);
+    expect(second).not.toContain('title is required');
+    expect(second.match(/^atlas_import_error:/gm)).toHaveLength(1);
   });
 });
 

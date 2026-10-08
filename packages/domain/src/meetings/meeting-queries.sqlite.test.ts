@@ -150,9 +150,11 @@ describe('compileMeetingListQuery', () => {
       atlas_import_outcome: 'imported',
       atlas_import_error: null,
       atlas_duplicate_of: null,
+      stamped: 1,
     });
     const broken = vault.list().find((row) => row['path'] === 'Inbox/Meetings/Broken.md');
     expect(broken?.['atlas_import_error']).toBe('title is required');
+    expect(broken?.['stamped']).toBe(0);
   });
 
   it('keeps meetings on or after `since`, and none without a day', () => {

@@ -2,19 +2,22 @@ import {
   compileMeetingHoldersQuery,
   createVaultPath,
   DUPLICATE_OF_KEY,
+  duplicateLink,
   IMPORT_ERROR_KEY,
   IMPORT_OUTCOME_KEY,
   importOutcomeOf,
+  isConflictCopyPath,
+  MEETING_TYPE,
+  messageWithoutPaths,
   splitFrontmatter,
-  wikiLinkTargetFor,
   type MeetingImport,
   type MeetingImportHappening,
   type VaultPath,
 } from '@atlas/domain';
 import { archiveNotes, type ArchivePorts } from '../archive/archive-notes.ts';
 import type { ActivityRecorder } from '../activity/ports.ts';
-import { setNoteProperties } from '../query/set-property.ts';
 import { readFrontmatter, validateMeetingFile } from './meeting-reading.ts';
+import { UNSAVED, writeStamp } from './meeting-stamp-writer.ts';
 
 /** One run of the import, and what it has done so far. */
 export interface ImportContext {
@@ -24,11 +27,11 @@ export interface ImportContext {
   readonly activity: ActivityRecorder;
   /** Files this run has settled, which are not looked at again when their own turn comes. */
   readonly settled: Set<string>;
+  /** Every note in the vault, read from the index once a run: what an archived copy's name is checked against. */
+  notePaths: readonly VaultPath[] | null;
   /** Whether a note was written or moved. */
   wrote: boolean;
 }
-
-export const UNSAVED = 'It is open in Atlas with unsaved typing, so the import left it as it is.';
 
 /** The notes holding a meeting now, and which of them the import has already let in. */
 export interface Holders {
@@ -39,10 +42,12 @@ export interface Holders {
 /**
  * The other notes that hold a meeting now: the index names the notes that
  * held its provider + external_id when it last read them, and each is read
- * again, since the index is behind what the import writes and moves. A holder
- * follows the contract and is not a copy or a file failing import; it is
- * `imported` once the import has let it in. Ids are compared without the
- * spaces around them, as the index keeps them.
+ * again, since the index is behind what the import writes and moves. One
+ * stamped `imported` holds it whatever else it says — the person may have
+ * added to it since. One not stamped holds it when it follows the contract.
+ * One stamped `duplicate` or `error`, and a sync conflict's copy, holds
+ * nothing. Ids are compared without the spaces around them, as the index
+ * keeps them.
  */
 export async function meetingHolders(
   context: ImportContext,
@@ -56,7 +61,7 @@ export async function meetingHolders(
   const unsettled: string[] = [];
   const imported: string[] = [];
   for (const holder of found.rows.map((row) => String(row[0]))) {
-    if (holder === besides || context.settled.has(holder)) continue;
+    if (holder === besides || context.settled.has(holder) || isConflictCopyPath(holder)) continue;
     const held = await holding(context, { holder, meeting });
     if (held === 'imported') imported.push(holder);
     else if (held === 'unsettled') unsettled.push(holder);
@@ -79,13 +84,20 @@ async function holding(
   }
   const { properties } = readFrontmatter(markdown, splitFrontmatter(text).frontmatter);
   const outcome = importOutcomeOf(properties);
-  if (outcome === 'duplicate' || outcome === 'error') return null;
-  if (Object.hasOwn(properties, DUPLICATE_OF_KEY) || Object.hasOwn(properties, IMPORT_ERROR_KEY)) {
-    return null;
-  }
+  if (outcome === 'imported') return holdsSameId(properties, meeting) ? 'imported' : null;
+  if (outcome !== null || Object.hasOwn(properties, IMPORT_ERROR_KEY)) return null;
   const read = validateMeetingFile(markdown, text);
-  if (!read.ok || !sameMeeting(read.meeting, meeting)) return null;
-  return outcome === 'imported' ? 'imported' : 'unsettled';
+  return read.ok && sameMeeting(read.meeting, meeting) ? 'unsettled' : null;
+}
+
+/** Whether a note's own keys name the meeting: what a holder let in is kept by, whatever else it says. */
+function holdsSameId(properties: Readonly<Record<string, unknown>>, meeting: MeetingImport) {
+  const text = (key: string) => (typeof properties[key] === 'string' ? properties[key] : '');
+  return (
+    properties['type'] === MEETING_TYPE &&
+    text('provider') === meeting.provider &&
+    text('external_id').trim() === meeting.externalId.trim()
+  );
 }
 
 const sameMeeting = (a: MeetingImport, b: MeetingImport) =>
@@ -118,30 +130,24 @@ export async function letIn(
 }
 
 /**
- * Marks a copy `duplicate`, `atlas_duplicate_of` its original — taking out
- * any import error it carried — and archives it. A copy being typed in is
- * left as it is, and said so.
+ * Archives a copy, then marks it where it landed: stamped `duplicate`,
+ * `atlas_duplicate_of` its original, any import error it carried taken out.
+ *
+ * The move comes first so a copy is never left in the Inbox stamped as
+ * settled: one whose move fails stays unstamped, and is archived when it is
+ * next looked at. A `duplicate` stamp under `Inbox/Meetings/` then only ever
+ * means the person brought the copy back, and it is left alone. A copy
+ * being typed in is not moved, and said so.
  */
 export async function archiveCopy(
   context: ImportContext,
   { path, original }: { path: VaultPath; original: VaultPath },
 ): Promise<MeetingImportHappening> {
-  const { text, modified } = await context.ports.fs.readTextFile(path);
-  const { properties } = readFrontmatter(
-    context.ports.markdown,
-    splitFrontmatter(text).frontmatter,
-  );
-  const notePaths = (await context.ports.index.manifest()).map((entry) =>
-    createVaultPath(entry.path),
-  );
-  const values = {
-    [IMPORT_OUTCOME_KEY]: 'duplicate',
-    ...(Object.hasOwn(properties, IMPORT_ERROR_KEY) && { [IMPORT_ERROR_KEY]: null }),
-    [DUPLICATE_OF_KEY]: `[[${wikiLinkTargetFor(original, notePaths)}]]`,
-  };
-  const unsaved = await writeInto(context, { path, modified, values });
   context.settled.add(path);
-  if (unsaved !== null) return { kind: 'failed', path, problem: unsaved };
+  if (context.ports.editors.state(path) === 'dirty') {
+    return { kind: 'failed', path, problem: UNSAVED };
+  }
+  const notePaths = await everyNote(context);
   const outcome = await archiveNotes({
     ports: context.ports,
     paths: [path],
@@ -152,33 +158,57 @@ export async function archiveCopy(
   });
   const archivedTo = outcome.moves[0]?.move.to ?? null;
   const reasons = outcome.failed.map((failure) => failure.reason);
-  const problem = reasons.length === 0 ? null : reasons.join(' ');
+  if (archivedTo === null) {
+    return { kind: 'duplicate', path, of: original, archivedTo, problem: reasons.join(' ') };
+  }
+  context.wrote = true;
+  const marked = await markCopy(context, { path: archivedTo, original }).catch(
+    (cause: unknown) => `Archived, but not marked as a copy: ${messageWithoutPaths(cause)}`,
+  );
+  const problems = [...reasons, ...(marked === null ? [] : [marked])];
+  const problem = problems.length === 0 ? null : problems.join(' ');
   return { kind: 'duplicate', path, of: original, archivedTo, problem };
 }
 
-/**
- * Writes properties into a note as it was read — refused if it changed
- * since — and has any pane showing it read it again. A note being typed in
- * is never written: why is said instead.
- */
-export async function writeInto(
+/** Writes a copy's stamp and its link to the original; why not, when it could not be. */
+async function markCopy(
   context: ImportContext,
-  {
+  { path, original }: { path: VaultPath; original: VaultPath },
+): Promise<string | null> {
+  const { text, modified } = await context.ports.fs.readTextFile(path);
+  const { properties } = readFrontmatter(
+    context.ports.markdown,
+    splitFrontmatter(text).frontmatter,
+  );
+  return writeInto(context, {
     path,
     modified,
-    values,
-  }: { path: VaultPath; modified: number; values: Readonly<Record<string, unknown>> },
-): Promise<string | null> {
-  const { ports } = context;
-  if (ports.editors.state(path) === 'dirty') return UNSAVED;
-  await setNoteProperties({
-    fs: ports.fs,
-    markdown: ports.markdown,
-    path,
-    values,
-    ifModified: modified,
+    values: {
+      [IMPORT_OUTCOME_KEY]: 'duplicate',
+      ...(Object.hasOwn(properties, IMPORT_ERROR_KEY) && { [IMPORT_ERROR_KEY]: null }),
+      [DUPLICATE_OF_KEY]: duplicateLink(original),
+    },
   });
-  context.wrote = true;
-  if (ports.editors.state(path) === 'clean') ports.editors.reload(path);
-  return null;
+}
+
+/**
+ * Every note in the vault, read from the index once a run. A copy archives to
+ * its own path under `Archive/`, so the moves of one run never take each
+ * other's place, and what the index read is enough to number around.
+ */
+async function everyNote(context: ImportContext): Promise<readonly VaultPath[]> {
+  context.notePaths ??= (await context.ports.index.manifest()).map((entry) =>
+    createVaultPath(entry.path),
+  );
+  return context.notePaths;
+}
+
+/** Writes the import's keys into a note (see `writeStamp`), and says the run wrote. */
+export async function writeInto(
+  context: ImportContext,
+  args: Parameters<typeof writeStamp>[1],
+): Promise<string | null> {
+  const unsaved = await writeStamp(context.ports, args);
+  if (unsaved === null) context.wrote = true;
+  return unsaved;
 }

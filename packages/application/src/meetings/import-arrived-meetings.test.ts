@@ -96,7 +96,7 @@ describe('importArrivedMeetings', () => {
     expect(vault.files.has(RESENT)).toBe(false);
     expect(vault.properties(archived)).toMatchObject({
       atlas_import_outcome: 'duplicate',
-      atlas_duplicate_of: '[[2026-10-06 Standup]]',
+      atlas_duplicate_of: '[[Inbox/Meetings/2026-10-06 Standup]]',
       archived: TODAY,
       archivedFrom: RESENT,
     });
@@ -253,6 +253,20 @@ describe('importArrivedMeetings', () => {
     expect(vault.files.has(`Archive/${STANDUP}`)).toBe(true);
   });
 
+  it('leaves a sync conflict copy to the person, warns of it, and never counts it as a holder', async () => {
+    const conflict = 'Inbox/Meetings/2026-10-06 Standup (conflict from Mara’s Mac).md';
+    const { vault, activity, run, as } = setUp({ [conflict]: meeting(), [RESENT]: meeting() });
+
+    const outcome = await run([as('added', conflict), as('added', RESENT)]);
+
+    expect(vault.files.get(conflict)).toBe(meeting());
+    expect(outcome.happenings.map((happening) => [happening.kind, happening.path])).toEqual([
+      ['conflict', conflict],
+      ['arrived', RESENT],
+    ]);
+    expect(activity.reports[0]?.level).toBe('warning');
+  });
+
   it('takes a file with no stamp as an arrival not finished, whatever the feed called it', async () => {
     const { vault, activity, run, as } = setUp({ [STANDUP]: meeting(WITHOUT_ID) });
 
@@ -296,7 +310,7 @@ describe('importArrivedMeetings', () => {
       expect(vault.files.get(STANDUP)).toBe(imported());
       expect(vault.files.has(RESENT)).toBe(false);
       expect(vault.properties(`Archive/${RESENT}`)['atlas_duplicate_of']).toBe(
-        '[[2026-10-06 Standup]]',
+        '[[Inbox/Meetings/2026-10-06 Standup]]',
       );
       expect(outcome.happenings.map((happening) => happening.kind).sort()).toEqual([
         'arrived',
@@ -499,6 +513,70 @@ describe('importArrivedMeetings', () => {
   });
 });
 
+describe('importArrivedMeetings: archiving copies', () => {
+  it('asks the index for every note once a run, however many copies it archives', async () => {
+    const third = 'Inbox/Meetings/2026-10-06 Standup (gemini 5e6f7a8b).md';
+    const { ports, activity, as } = setUp({
+      [STANDUP]: meeting(),
+      [RESENT]: meeting(),
+      [third]: meeting(),
+    });
+    let asked = 0;
+    const counting = {
+      ...ports,
+      index: {
+        ...ports.index,
+        manifest: () => {
+          asked += 1;
+          return ports.index.manifest();
+        },
+      },
+    };
+
+    const outcome = await importArrivedMeetings({
+      ports: counting,
+      changes: [as('added', STANDUP)],
+      today: TODAY,
+      activity,
+    });
+
+    expect(outcome.happenings.map((happening) => happening.kind)).toEqual([
+      'arrived',
+      'duplicate',
+      'duplicate',
+    ]);
+    expect(asked).toBe(1);
+  });
+
+  it('says a copy archived but not marked there, and has the vault read again', async () => {
+    const { vault, ports, activity, as } = setUp({ [STANDUP]: imported(), [RESENT]: meeting() });
+    const refusing = {
+      ...ports,
+      fs: {
+        ...ports.fs,
+        writeTextFile: async (args: Parameters<typeof ports.fs.writeTextFile>[0]) => {
+          if (args.path === `Archive/${RESENT}` && String(args.contents).includes('duplicate')) {
+            throw new Error('Permission denied.');
+          }
+          return ports.fs.writeTextFile(args);
+        },
+      },
+    };
+
+    const outcome = await importArrivedMeetings({
+      ports: refusing,
+      changes: [as('added', RESENT)],
+      today: TODAY,
+      activity,
+    });
+
+    expect(vault.files.has(`Archive/${RESENT}`)).toBe(true);
+    expect(outcome.wrote).toBe(true);
+    expect(activity.reports[0]).toMatchObject({ level: 'warning' });
+    expect(activity.reports[0]?.message).toContain('Archived, but not marked as a copy');
+  });
+});
+
 describe('catchUpMeetings', () => {
   it('settles every file where meetings land that has no stamp, and leaves stamped ones', async () => {
     const third = 'Inbox/Meetings/Deeper/2026-10-07 Retro.md';
@@ -545,7 +623,7 @@ describe('importArrivedMeetings: adversarial', () => {
 
     expect(vault.files.has(RESENT)).toBe(false);
     expect(vault.properties(`Archive/${RESENT}`)).toMatchObject({
-      atlas_duplicate_of: '[[2026-10-06 Standup]]',
+      atlas_duplicate_of: '[[Inbox/Meetings/2026-10-06 Standup]]',
     });
   });
 });
@@ -638,7 +716,7 @@ describe('importArrivedMeetings: adversarial, round 3', () => {
     expect(vault.files.has(RESENT)).toBe(false);
     expect(vault.properties(`Archive/${RESENT}`)).toMatchObject({
       atlas_import_outcome: 'duplicate',
-      atlas_duplicate_of: '[[2026-10-06 Standup]]',
+      atlas_duplicate_of: '[[Inbox/Meetings/2026-10-06 Standup]]',
     });
   });
 
@@ -668,7 +746,7 @@ describe('importArrivedMeetings: adversarial, round 3', () => {
       today: TODAY,
       activity,
     });
-    expect(vault.properties(RESENT)['atlas_import_outcome']).toBe('duplicate');
+    expect(vault.properties(RESENT)['atlas_import_outcome']).toBeUndefined();
 
     await run([as('changed', RESENT)]);
     await catchUpMeetings({ ports, today: TODAY, activity });

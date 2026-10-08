@@ -47,6 +47,26 @@ export function importOutcomeOf(
 }
 
 /**
+ * Where a meeting file stands with the import, as a listing says it: its
+ * outcome when it is stamped — read as the import reads it, a cleared one as
+ * `imported` — `pending` when it waits where meeting files land, and null
+ * when it is elsewhere and was never the import's (a meeting filed before
+ * Atlas imported, or made by hand).
+ */
+export function importStanding({
+  path,
+  stamped,
+  stamp,
+}: {
+  path: string;
+  stamped: boolean;
+  stamp: unknown;
+}): ImportOutcome | 'pending' | null {
+  if (stamped) return importOutcomeOf({ [IMPORT_OUTCOME_KEY]: stamp });
+  return isMeetingInboxPath(path) ? 'pending' : null;
+}
+
+/**
  * The notes one sync's changes give the meeting import to look at: each
  * added or changed where meeting files land, once, in the order reported.
  * The feed only says where to look — what a file is due comes from its own

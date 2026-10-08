@@ -395,7 +395,7 @@ describe('meetingImportReport', () => {
     });
   });
 
-  it('warns of a duplicate that could not be archived, linking to where it still is', () => {
+  it('warns of a copy that could not be archived, linking to where it still is', () => {
     expect(
       meetingImportReport({
         kind: 'duplicate',
@@ -408,7 +408,7 @@ describe('meetingImportReport', () => {
       level: 'warning',
       kind: 'meeting',
       message:
-        '2026-10-06 Standup: a second copy of 2026-10-06 Standup, marked as one but not archived. It is open in Atlas with unsaved typing.',
+        '2026-10-06 Standup: a second copy of 2026-10-06 Standup, but it could not be archived. It is open in Atlas with unsaved typing. It is tried again when it next changes.',
       subject: { kind: 'note', path: standup },
     });
   });
@@ -440,6 +440,19 @@ describe('meetingImportReport', () => {
       kind: 'meeting',
       message: '2026-10-06 Standup: could not be imported. The index is closed.',
       subject: { kind: 'note', path: standup },
+    });
+  });
+});
+
+describe('meetingImportReport: a sync conflict copy', () => {
+  it("warns that it is the person's to compare, and is not imported", () => {
+    const copy = createVaultPath('Inbox/Meetings/2026-10-06 Standup (conflict from Mara’s Mac).md');
+    expect(meetingImportReport({ kind: 'conflict', path: copy })).toEqual({
+      level: 'warning',
+      kind: 'meeting',
+      message:
+        "2026-10-06 Standup (conflict from Mara’s Mac): another Mac's version of a meeting both changed, kept beside it. Compare the two, keep what you want, and delete the copy; it is not imported.",
+      subject: { kind: 'note', path: copy },
     });
   });
 });

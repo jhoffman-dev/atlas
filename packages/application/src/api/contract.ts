@@ -450,9 +450,12 @@ export interface ApiMeeting {
   readonly externalId: string | null;
   /**
    * How the import settled the file (`atlas_import_outcome`): `imported`,
-   * `duplicate` or `error`; null while it waits for the Mac that imports.
+   * `duplicate` or `error` (a stamp cleared by hand reads `imported`, as the
+   * import reads it); `pending` while it waits in `Inbox/Meetings/` for the
+   * Mac that imports; null for a meeting elsewhere the import never handled —
+   * one filed before Atlas imported meetings, or made by hand.
    */
-  readonly importOutcome: 'imported' | 'duplicate' | 'error' | null;
+  readonly importOutcome: 'imported' | 'duplicate' | 'error' | 'pending' | null;
   /** Why it failed the import contract (`atlas_import_error`), or null when it imported. */
   readonly importError: string | null;
   /** The meeting this is a second copy of, as `atlas_duplicate_of` links it (`[[…]]`), or null. */

@@ -42,6 +42,7 @@ const FILES = {
   }),
   'Inbox/Meetings/2026-10-02 Vendor call.md': jsonNote({
     atlas_import: 'meeting/v1',
+    atlas_import_outcome: 'error',
     date: '2026-10-02',
     atlas_import_error: 'type is required; title is required',
   }),
@@ -90,7 +91,7 @@ describe('GET /v1/meetings', () => {
     expect((body['meetings'] as unknown[])[1]).toMatchObject({
       title: '2026-10-02 Vendor call',
       provider: null,
-      importOutcome: null,
+      importOutcome: 'error',
       importError: 'type is required; title is required',
     });
     expect(body).toMatchObject({ truncated: false, next: null });
@@ -101,6 +102,27 @@ describe('GET /v1/meetings', () => {
     await fixture.send({ method: 'GET', path: '/v1/meetings' });
     expect(fixture.activity.reports).toEqual([]);
     expect(fixture.writes).toEqual([]);
+  });
+
+  it('says a file waiting in the Inbox is pending, and a meeting the import never handled is not', async () => {
+    const files = {
+      'Inbox/Meetings/2026-10-07 Retro.md': meeting({ title: 'Retro', date: '2026-10-07' }),
+      'Projects/Larkspur/2026-09-01 Kickoff.md': meeting({ title: 'Kickoff', date: '2026-09-01' }),
+    };
+    const markdown = jsonMarkdown();
+    const response = await apiFixture({
+      files,
+      markdown,
+      index: { query: atlasQueryIndex({ files, markdown }) },
+    }).send({ method: 'GET', path: '/v1/meetings' });
+
+    const outcomes = (
+      bodyOf(response)['meetings'] as { path: string; importOutcome: unknown }[]
+    ).map((each) => [each.path, each.importOutcome]);
+    expect(outcomes).toEqual([
+      ['Inbox/Meetings/2026-10-07 Retro.md', 'pending'],
+      ['Projects/Larkspur/2026-09-01 Kickoff.md', null],
+    ]);
   });
 
   it('keeps meetings on or after `since`', async () => {
