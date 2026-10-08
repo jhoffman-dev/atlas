@@ -41,20 +41,21 @@ export async function setPropertiesRoute(request: VaultRequest): Promise<RouteRe
  * Writes properties to a note read at `expected`: through the pane holding
  * it when there is one, so its editor never saves an older copy over them.
  * A task is held to its rules as the app holds it (ADR-0029): Waiting with
- * nobody to wait on is refused as `invalid`, and finishing it dates it.
+ * nobody to wait on is refused as `invalid`, and finishing it dates it. A
+ * pane holds its note to them as it writes; a note no pane holds is held to
+ * them here, by the same wrapper.
  */
 export async function writeProperties(
   request: VaultRequest,
-  { path, expected, values: asked }: { path: VaultPath; expected: number; values: PropertyChanges },
+  { path, expected, values }: { path: VaultPath; expected: number; values: PropertyChanges },
 ): Promise<void> {
-  const values = withTaskRules({ values: asked, today: request.clock.today() });
   await guardedWrite(request, { path, expected }, async () => {
     if (await request.openNotes.setPropertiesIfOpen({ path, values })) return;
     await setNoteProperties({
       fs: request.fs,
       markdown: request.markdown,
       path,
-      values,
+      values: withTaskRules({ values, today: request.clock.today() }),
       ifModified: expected,
     });
   });
