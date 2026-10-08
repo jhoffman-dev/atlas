@@ -219,14 +219,16 @@ catches that: a second file with the same `provider` + `external_id` is marked
   closed, the other Mac asleep — is settled when the importing Mac next
   opens the vault.
 - Atlas checks it against the contract and writes one line into it,
-  `atlas_import_outcome:`, saying how it settled it. Nothing else in the
-  file changes.
+  `atlas_import_outcome:`, right after the `atlas_import: meeting/v1` line
+  the mapping writes, saying how it settled it. Nothing else in the file
+  changes.
 - `imported`: a valid meeting, shown in the **Inbox**.
 - `error`: a file that breaks the contract, never deleted or silently fixed.
   It also gets `atlas_import_error:` naming the problem, and is listed in
   the Inbox.
-- `duplicate`: a second copy of a meeting already in the vault, also marked
-  `atlas_duplicate_of: [[…]]` and archived; un-archiving restores it. A
+- `duplicate`: a second copy of a meeting already in the vault, archived and
+  marked there `atlas_duplicate_of: [[<the original's path>]]`;
+  un-archiving restores it. A
   meeting already imported is always the one kept. Otherwise the one at
   `<date> <title>.md` is kept over the one at
   `<date> <title> (<provider> <hash>).md`.

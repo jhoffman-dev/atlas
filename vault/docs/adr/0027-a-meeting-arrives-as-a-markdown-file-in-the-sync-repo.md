@@ -188,8 +188,12 @@ handled and then edited, renamed, moved, unarchived or copied by a sync
 conflict look the same. Outcomes then hung on an in-memory record of what
 was heard and on guessing moves from names and digests. That memory is lost
 on a restart and differs between Macs. The stamp puts the outcome in the
-file, where every Mac reads the same thing. The line is added the way
-every property is (ADR-0003): no other byte of the file changes.
+file, where every Mac reads the same thing. No other byte of the file
+changes (ADR-0003). The stamp goes right after the `atlas_import:` line the
+mapping always writes, not at the end of the frontmatter. A property added
+on another Mac lands at the end, so the two are separate changes git merges
+rather than a conflict. Keys the import already wrote are changed where
+they are.
 
 - **Its own key.** `atlas_import` already names the contract a file follows
   (`meeting/v1`), and the validator requires that value, so the outcome
@@ -200,14 +204,28 @@ every property is (ADR-0003): no other byte of the file changes.
   and `duplicate` are never judged again: an edit, rename, move, unarchive
   or sync conflict copy of the file carries the stamp. `error` is checked
   again whenever the file changes, so a fix lets it in and restamps it
-  `imported`. An outcome Atlas does not know is read as `imported`, so the
-  file is left alone.
+  `imported`. An outcome Atlas does not know, or one cleared by hand, is
+  read as `imported`, and the file is left alone; the API says the same.
+- **A sync conflict's copy is the person's.** A file named
+  `… (conflict from <Mac>).md` (U-29) is the other Mac's version of a file
+  both changed. It is never judged, never counted as a holder and never
+  archived. Activity warns of it each time it is looked at, until the
+  person merges it and deletes it.
 - **Only the Mac that runs the automations writes stamps**
-  (`sync.automationsHere`, as automations, U-29), so two Macs never write
-  the same file. Another Mac does nothing, and loses nothing by it.
+  (`sync.automationsHere`, as automations, U-29). Another Mac does nothing,
+  and loses nothing by it. While the automations move from one Mac to the
+  other, each Mac reads the setting on its own next sync, so for that
+  window both may import. They still reach the same outcomes: the rules
+  depend only on the files. They write the same values too, except the
+  day an archived copy is stamped with. A copy's link is its original's
+  path, so it is the same on both Macs. If the two Macs' writes do meet,
+  the sync rules (ADR-0025) keep both.
 - **It catches up.** When the import starts for a vault, once the index is
   ready, and when this Mac takes the automations over, it lists
-  `Inbox/Meetings/` and settles every file without an outcome. The change
+  `Inbox/Meetings/` (hidden files and folders left out, as everywhere,
+  ADR-0014) and settles every file without an outcome. "Ready" means ready
+  since this vault opened: the window's index status is the last vault's
+  until the new vault's sync starts. The change
   feed only says where to look. That covers a fresh index's first sync
   (P28-03's baseline), what was heard while another Mac imported, and a run
   that failed.
@@ -215,15 +233,22 @@ every property is (ADR-0003): no other byte of the file changes.
 ### The rules
 
 - **Which copy is kept.** Among the notes holding a provider + trimmed
-  external_id that follow the contract and are not stamped `duplicate` or
-  `error`: one already stamped `imported`, wherever it is, is the original.
+  external_id that are not stamped `duplicate` or `error`, and are not a
+  sync conflict's copy: one already stamped `imported`, wherever it is, is
+  the original. It counts by its stamp and its own keys, even when the
+  person's additions mean it no longer follows the contract. An unstamped
+  holder counts only when it follows the contract.
   Otherwise a meeting filed elsewhere comes first, then one in the Archive,
   then one in `Inbox/Meetings/`, then by path compared without case,
   Unicode composition or extension. So `<date> <title>` comes before its
-  `… 2`, `(conflict from …)` and `(<provider> <hash>)` variants. Every
-  other unstamped holder in `Inbox/Meetings/` is stamped `duplicate`,
-  linked to the original and archived. Holders filed or archived elsewhere,
-  and any already stamped, are left as they are.
+  `… 2` and `(<provider> <hash>)` variants. Every other unstamped holder
+  in `Inbox/Meetings/` is archived, then stamped `duplicate` where it lands
+  and linked to its original by the original's path. Holders filed or
+  archived elsewhere, and any already stamped, are left as they are.
+- **A copy is moved before it is stamped.** A copy whose move fails stays
+  unstamped and is archived when next looked at. So a `duplicate` stamp
+  under `Inbox/Meetings/` only ever means the person brought the copy back
+  from the Archive, and it is left there.
 - **Holders are read, not taken from the index**, which lags the import's
   own writes. Ids are compared trimmed, in SQL and when read.
 - **One file's failure is its own.** A copy that cannot be written (a pane
