@@ -91,6 +91,25 @@ describe('useBuiltInTypes', () => {
     expect(onChanged).toHaveBeenCalledOnce();
   });
 
+  it('accepts against the type as it is now: a property removed since the offer stays removed', async () => {
+    const { files, hook } = setup({ '.atlas/types/task.md': TASK });
+    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    // While the offer waits, James removes `estimate` in the type editor.
+    const edited = TASK.replace('  # James keeps his estimates in words.\n  estimate: text\n', '');
+    files.set('.atlas/types/task.md', edited);
+
+    await act(() => hook.result.current?.accept() ?? Promise.resolve());
+
+    const task = files.get('.atlas/types/task.md') ?? '';
+    expect(task).not.toContain('estimate');
+    expect(task).toBe(
+      edited.replace(
+        '    options: [backlog, done]\n',
+        '    options: [backlog, done]\n  project:\n    kind: relation\n    target:\n      - project\n      - area\n',
+      ),
+    );
+  });
+
   it('puts the offer away for now when dismissed, writing nothing', async () => {
     const { files, hook } = setup({ '.atlas/types/task.md': TASK });
     await waitFor(() => expect(hook.result.current).not.toBeNull());
