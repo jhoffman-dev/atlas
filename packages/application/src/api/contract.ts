@@ -360,6 +360,12 @@ export interface ApiAtlasQueryBody {
    * smaller; with neither, 500.
    */
   readonly limit?: number;
+  /**
+   * The note the query is shown on, as a vault path (`people/Mara Quill.md`):
+   * what `this` in the query names. Without it, a query that says `this` is
+   * `invalid`; a note the vault does not have is `not_found`.
+   */
+  readonly context?: string;
 }
 
 export interface ApiRunViewBody {
@@ -947,7 +953,8 @@ export const API_ROUTES = [
   {
     method: 'POST',
     path: '/v1/atlas-query',
-    summary: 'Run an Atlas query across types: rows, and its groups and sub-groups.',
+    summary:
+      'Run an Atlas query across types: rows, and its groups and sub-groups. `context` names the note `this` means.',
   },
   {
     method: 'POST',

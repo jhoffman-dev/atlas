@@ -245,6 +245,11 @@ bound, read-only path as the query builder. A query's text is refused over
 query as a view is not a route: a query view is a note in `.atlas/views`, which
 the API never writes.
 
+`context` (P30-04, 2026-10-08) names the note `this` in a query means. It is a
+note path in user space, as any path the API takes, spelled as the vault spells
+it, and must exist — `not_found` otherwise. Nothing of the note is read or
+written; its path is bound like any value in the query.
+
 ## Automations are read, not run (Phase 25, 2026-09-27)
 
 Automations get three routes, all read-only: `GET /v1/automations` (every rule,

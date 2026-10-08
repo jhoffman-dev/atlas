@@ -109,7 +109,7 @@ function includeArchivedIn(body: unknown): boolean {
  * notes are included, so a run's `includeArchived` does not apply.
  */
 async function runQueryView(request: VaultRequest, text: string): Promise<ApiRows> {
-  return (await answerAtlasQueryPage(request, text, null)).rows;
+  return (await answerAtlasQueryPage(request, { text, asked: null })).rows;
 }
 
 /** A SQL view's rows, run through the same read-only path as the app runs them. */

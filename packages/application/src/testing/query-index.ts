@@ -6,6 +6,7 @@ import {
   relationsOf,
   resolveWikiLinkTarget,
   splitFrontmatter,
+  splitWikiLinks,
   TAGS_KEY,
 } from '@atlas/domain';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
@@ -13,7 +14,8 @@ import type { MarkdownPort } from '../notes/ports.ts';
 
 /**
  * The index tables an Atlas query reads — `files`, `props`, `relations`,
- * `tags` — filled from notes the way refreshing the index fills them, so a
+ * `tags`, and `links` from the body's wiki links — filled from notes the way
+ * refreshing the index fills them, so a
  * compiled query runs for real. Titles are the note's name without its folder
  * and `.md`; a note's frontmatter `title:` renames it, as the index's does.
  * Test support only.
@@ -33,7 +35,8 @@ export function atlasQueryIndex({
                         value_text TEXT, value_num REAL, value_date TEXT, value_json TEXT);
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                             target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
-    CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);`);
+    CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
+    CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);`);
   const paths = Object.keys(files).map(createVaultPath);
   for (const [path, text] of Object.entries(files)) {
     addNote(database, {
@@ -92,4 +95,10 @@ function addNote(
   tags.forEach((tag, at) =>
     database.prepare('INSERT INTO tags VALUES (?, ?, ?, ?)').run(path, at, tag.key, tag.name),
   );
+  for (const piece of splitWikiLinks(document.body)) {
+    if (piece.kind !== 'wikiLink') continue;
+    database
+      .prepare("INSERT INTO links VALUES (?, ?, ?, 'wikilink')")
+      .run(path, resolve(piece.target), piece.target);
+  }
 }

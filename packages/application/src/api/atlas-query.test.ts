@@ -252,3 +252,92 @@ describe('POST /v1/atlas-query: the vault it names', () => {
     expect(errorOf(response).message).not.toContain('/Users/');
   });
 });
+
+describe('POST /v1/atlas-query: this, and the note given as context', () => {
+  const LINKED: Record<string, string> = {
+    ...FILES,
+    'notes/Kickoff.md': `---\n${JSON.stringify({ type: 'task', status: 'todo' })}\n---\n\nAbout [[Atlas]].\n`,
+  };
+
+  function linkedVault(): Api {
+    const markdown = jsonMarkdown();
+    return apiFixture({
+      files: LINKED,
+      markdown,
+      index: { query: atlasQueryIndex({ files: LINKED, markdown }) },
+    });
+  }
+
+  it('names the context note with this, through a relation', async () => {
+    const answer = await answerTo({
+      query: 'FROM task WHERE project = this SORT BY title',
+      context: 'projects/Atlas.md',
+    });
+    expect(titlesOf(answer)).toEqual(['A', 'B']);
+    expect(answer.sql).not.toContain('projects/Atlas.md');
+  });
+
+  it('lists the notes whose body links to the context note', async () => {
+    const answer = await answerTo(
+      { query: 'FROM task WHERE LINKS TO this', context: 'projects/Atlas.md' },
+      linkedVault(),
+    );
+    expect(titlesOf(answer)).toEqual(['Kickoff']);
+  });
+
+  it('reads the context however it is cased, as the vault spells it', async () => {
+    const answer = await answerTo({
+      query: 'FROM task WHERE project = this SORT BY title',
+      context: 'Projects/ATLAS.md',
+    });
+    expect(titlesOf(answer)).toEqual(['A', 'B']);
+  });
+
+  it('refuses this without a context, pointing at it', async () => {
+    const response = await run(vault(), { query: 'FROM task WHERE project = this' });
+    expect(codeOf(response)).toBe('invalid');
+    expect(errorOf(response)).toEqual({
+      code: 'invalid',
+      message:
+        'Line 1, column 27: this is the note a query is shown on, and this query is not shown on one.',
+      at: { line: 1, column: 27, start: 26, end: 30 },
+    });
+  });
+
+  it.each([
+    [42, 'context must be a string'],
+    ['projects/Atlas', 'context must name a .md note'],
+    ['../Atlas.md', 'context "../Atlas.md" is not a vault path'],
+    ['.atlas/types/task.md', 'context ".atlas/types/task.md" is in .atlas or a hidden folder'],
+  ])('refuses a context of %j as invalid, saying why', async (context, message) => {
+    const response = await run(vault(), { query: 'FROM task', context });
+    expect(codeOf(response)).toBe('invalid');
+    expect(errorOf(response).message).toContain(message);
+  });
+
+  it('answers not_found for a context note the vault does not have', async () => {
+    const response = await run(vault(), {
+      query: 'FROM task WHERE project = this',
+      context: 'projects/Moonbase.md',
+    });
+    expect(codeOf(response)).toBe('not_found');
+    expect(errorOf(response).message).toBe('No note at projects/Moonbase.md');
+  });
+
+  it('answers no_vault, not not_found, when the vault is switched while the notes are listed', async () => {
+    const api = vault();
+    const { listDirectory } = api.deps.fs;
+    api.deps = {
+      ...api.deps,
+      fs: {
+        ...api.deps.fs,
+        listDirectory: async (path) => {
+          api.open = OTHER_VAULT;
+          return listDirectory(path);
+        },
+      },
+    };
+    const response = await run(api, { query: 'FROM task', context: 'projects/Moonbase.md' });
+    expect(codeOf(response)).toBe('no_vault');
+  });
+});

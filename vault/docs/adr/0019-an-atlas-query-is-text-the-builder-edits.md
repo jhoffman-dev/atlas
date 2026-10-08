@@ -187,3 +187,5 @@ value     = … | this | @-30d | @+2w | @+1m | @-1y | @startOfWeek
   readings live in `query-language/moving-date.ts`, and a test runs the SQL
   on every weekday and the awkward month ends to prove they agree. A month
   counts as SQLite counts one: from 2026-01-31, `@+1m` is 2026-03-03.
+- The API takes the note as `context` on `/v1/atlas-query` (ADR-0016): a note
+  path in user space that must exist.

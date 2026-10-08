@@ -3,7 +3,7 @@
 import type { ApiQueryBody } from '@atlas/application';
 import { z } from 'zod';
 import { defineTool, definedOnly } from './define.ts';
-import { includeArchived, limit } from './inputs.ts';
+import { includeArchived, limit, notePath } from './inputs.ts';
 
 const READ_ONLY = { readOnlyHint: true } as const;
 
@@ -117,12 +117,16 @@ export const runQuery = defineTool({
     "Run an Atlas query, the text the app's query builder writes, across one or more types, e.g. " +
     '"FROM task, project WHERE status != done AND project.owner = [[Julie]] AND tag = #q3 ' +
     'SORT BY due GROUP BY project THEN status". Clauses: FROM type, …; WHERE with AND, OR, NOT, ' +
-    'brackets, = != < <= > >=, CONTAINS, STARTS WITH, IS [NOT] EMPTY; SORT BY field [ASC|DESC]; ' +
-    'GROUP BY field [THEN field]; SHOW field, …; INCLUDE ARCHIVED; LIMIT n. A field is a property ' +
-    'of a listed type (atlas_list_types), one hop through a relation (project.owner), or title, ' +
-    "type, tag, modified, path. Values: words, 'quoted text', numbers, true/false, [[Note]], " +
-    '#tag, @today, @tomorrow, @weekAgo. Archived notes are left out unless the query says ' +
-    'INCLUDE ARCHIVED. Returns { columns, rows, truncated, sql }, plus "groups" for GROUP BY: ' +
+    'brackets, = != < <= > >=, CONTAINS, STARTS WITH, IS [NOT] EMPTY, LINKS TO this; SORT BY ' +
+    'field [ASC|DESC]; GROUP BY field [THEN field]; SHOW field, …; INCLUDE ARCHIVED; LIMIT n. A ' +
+    'field is a property of a listed type (atlas_list_types), one hop through a relation ' +
+    "(project.owner), or title, type, tag, modified, path. Values: words, 'quoted text', numbers, " +
+    'true/false, [[Note]], #tag, @today, @tomorrow, @weekAgo, @startOfWeek, a count from today ' +
+    '(@-30d, @+2w, @+1m, @-1y), and this — the note given as "context", e.g. "FROM meeting WHERE ' +
+    'people = this AND date > @-30d" with a person\'s note as context. this compares with a ' +
+    'relation (= or !=); LINKS TO this lists notes whose body links to it. Archived notes are ' +
+    'left out unless the query says INCLUDE ARCHIVED. Returns { columns, rows, truncated, sql }, ' +
+    'plus "groups" for GROUP BY: ' +
     '[{ label, value, rows: [indexes into rows], groups: [sub-groups] }]. A mistake in the text is ' +
     '"invalid" with its line and column; fix it there and run again. Read-only; saving a query ' +
     'as a view stays in the app.',
@@ -133,6 +137,12 @@ export const runQuery = defineTool({
       .optional()
       .describe(
         "At most this many rows, 1 to 5000; the query's own LIMIT wins when smaller. Default 500.",
+      ),
+    context: notePath
+      .optional()
+      .describe(
+        'The note the query is about, which "this" in the query names — a path exactly as another ' +
+          'tool returned it, e.g. "People/Mara Quill.md". Omit when the query does not say this.',
       ),
   }),
   annotations: READ_ONLY,
