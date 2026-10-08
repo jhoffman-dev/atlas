@@ -71,6 +71,6 @@ export {
   PARA_TYPE_FILES,
   PROJECT_TYPE,
   RESOURCE_TYPE,
-  typeExtensionLines,
+  typeSetupLines,
 } from './para.ts';
 export type { BuiltInTypeFile, BuiltInTypePlan, TypeExtension } from './para.ts';

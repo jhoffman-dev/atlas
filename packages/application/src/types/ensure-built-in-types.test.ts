@@ -1,6 +1,7 @@
 /**
- * Opening a vault writes the PARA types it has no file for, and offers —
- * never makes — the change PARA would like in its own types. Over a vault in
+ * Opening a vault that files by project writes the PARA types it has no file
+ * for; anything else — PARA for a vault that has not taken it up, a change to
+ * the vault's own types — is offered, and made only when accepted. Over a vault in
  * memory whose frontmatter is JSON, so what each file ends up saying can be
  * read back whole; how the real writer keeps every byte is the adapters'.
  */
@@ -9,7 +10,7 @@ import { relationTypes, splitFrontmatter, type VaultPath } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
-import { ensureBuiltInTypes, extendBuiltInTypes } from './ensure-built-in-types.ts';
+import { acceptTypeSetup, ensureBuiltInTypes } from './ensure-built-in-types.ts';
 import { loadObjectTypes } from './load-types.ts';
 
 /** Frontmatter as one JSON object, changed key by key as the port promises. */
@@ -67,12 +68,13 @@ const JAMES_TASK = note(
 );
 
 describe('ensureBuiltInTypes', () => {
-  it('adds the area type to a vault missing it, and leaves the project James wrote alone', async () => {
+  it('adds the area type to a vault that files by project, and leaves the project James wrote alone', async () => {
     const v = vault({ '.atlas/types/project.md': JAMES_PROJECT });
 
     const ensured = await ensureBuiltInTypes(v);
 
     expect(ensured.created).toEqual(['.atlas/types/area.md', '.atlas/types/resource.md']);
+    expect(ensured.offer).toEqual({ types: [], extensions: [] });
     expect(v.files.get('.atlas/types/project.md')).toBe(JAMES_PROJECT);
     const types = await loadObjectTypes(v);
     expect(types.map((type) => type.name)).toEqual(['area', 'project', 'resource']);
@@ -80,13 +82,17 @@ describe('ensureBuiltInTypes', () => {
     expect(splitFrontmatter(area).body).toContain('# Area');
   });
 
-  it('writes every PARA type into a vault that has no types folder yet', async () => {
+  it('only offers PARA to a vault that has not taken it up, writing nothing', async () => {
     const v = vault({ 'Notes/Hello.md': 'hello\n' });
+    const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
-    expect(ensured.created).toHaveLength(3);
-    const resource = (await loadObjectTypes(v)).find((type) => type.name === 'resource');
-    const filedUnder = resource?.properties.find((property) => property.key === 'project');
-    expect(filedUnder === undefined ? [] : relationTypes(filedUnder)).toEqual(['project', 'area']);
+    expect(ensured.created).toEqual([]);
+    expect(ensured.offer.types.map((file) => file.type.name)).toEqual([
+      'project',
+      'area',
+      'resource',
+    ]);
+    expect(v.files).toEqual(before);
   });
 
   it('writes nothing to a vault that has every PARA type', async () => {
@@ -100,22 +106,25 @@ describe('ensureBuiltInTypes', () => {
     });
     const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
-    expect(ensured).toEqual({ created: [], pending: [], failed: [] });
+    expect(ensured).toEqual({ created: [], offer: { types: [], extensions: [] }, failed: [] });
     expect(v.files).toEqual(before);
   });
 
   it('only offers to change a type the vault has: its task file is not touched on opening', async () => {
-    const v = vault({ '.atlas/types/task.md': JAMES_TASK });
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/task.md': JAMES_TASK,
+    });
     const ensured = await ensureBuiltInTypes(v);
     expect(v.files.get('.atlas/types/task.md')).toBe(JAMES_TASK);
-    expect(ensured.pending.map((extension) => extension.before.path)).toEqual([
+    expect(ensured.offer.extensions.map((extension) => extension.before.path)).toEqual([
       '.atlas/types/task.md',
     ]);
   });
 
   it('never writes over a type file it cannot read, and says so', async () => {
     const broken = '---\nnot json at all\n---\n';
-    const v = vault({ '.atlas/types/area.md': broken });
+    const v = vault({ '.atlas/types/project.md': JAMES_PROJECT, '.atlas/types/area.md': broken });
     const ensured = await ensureBuiltInTypes({
       ...v,
       markdown: {
@@ -128,18 +137,22 @@ describe('ensureBuiltInTypes', () => {
     });
     expect(v.files.get('.atlas/types/area.md')).toBe(broken);
     expect(ensured.failed).toEqual([{ name: 'Area', reason: 'already there' }]);
-    expect(ensured.created).toEqual(['.atlas/types/project.md', '.atlas/types/resource.md']);
+    expect(ensured.created).toEqual(['.atlas/types/resource.md']);
   });
 });
 
-describe('extendBuiltInTypes', () => {
-  it('gives the task a project that links a project or an area, keeping everything James wrote', async () => {
+describe('acceptTypeSetup', () => {
+  it('writes the PARA types offered and gives the task a project, keeping everything James wrote', async () => {
     const v = vault({ '.atlas/types/task.md': JAMES_TASK });
-    const { pending } = await ensureBuiltInTypes(v);
+    const { offer } = await ensureBuiltInTypes(v);
 
-    const done = await extendBuiltInTypes({ ...v, extensions: pending });
+    const done = await acceptTypeSetup({ ...v, offer });
 
-    expect(done).toEqual({ extended: ['.atlas/types/task.md'], failed: [] });
+    expect(done).toEqual({
+      created: ['.atlas/types/project.md', '.atlas/types/area.md', '.atlas/types/resource.md'],
+      extended: ['.atlas/types/task.md'],
+      failed: [],
+    });
     const text = v.files.get('.atlas/types/task.md') ?? '';
     expect(splitFrontmatter(text).body).toBe('\n# Task\n\nJames’s own words about tasks.\n');
     const properties = v.markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)[
@@ -157,8 +170,12 @@ describe('extendBuiltInTypes', () => {
       name: 'meeting',
       properties: { project: { kind: 'relation', target: 'project' } },
     });
-    const v = vault({ '.atlas/types/task.md': JAMES_TASK, '.atlas/types/meeting.md': meeting });
-    const { pending } = await ensureBuiltInTypes(v);
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/task.md': JAMES_TASK,
+      '.atlas/types/meeting.md': meeting,
+    });
+    const { offer } = await ensureBuiltInTypes(v);
     const refusing = {
       ...v.fs,
       writeTextFile: async (args: { path: VaultPath; contents: string }) => {
@@ -167,7 +184,7 @@ describe('extendBuiltInTypes', () => {
       },
     };
 
-    const done = await extendBuiltInTypes({ ...v, fs: refusing, extensions: pending });
+    const done = await acceptTypeSetup({ ...v, fs: refusing, offer });
 
     expect(done.failed).toEqual([{ name: 'Task', reason: 'the disk is full' }]);
     expect(done.extended).toEqual(['.atlas/types/meeting.md']);

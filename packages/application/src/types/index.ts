@@ -26,9 +26,10 @@ export {
 } from './manage-templates.ts';
 export type { TemplateCatalog, TemplateRow } from './manage-templates.ts';
 export { createNoteOfType } from './new-note-of-type.ts';
-export { ensureBuiltInTypes, extendBuiltInTypes } from './ensure-built-in-types.ts';
+export { acceptTypeSetup, ensureBuiltInTypes } from './ensure-built-in-types.ts';
 export type {
   BuiltInTypesEnsured,
   PendingTypeExtension,
   TypeSetupFailure,
+  TypeSetupOffer,
 } from './ensure-built-in-types.ts';

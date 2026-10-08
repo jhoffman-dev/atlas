@@ -140,6 +140,12 @@ export interface TypeExtension<Type extends ObjectType = ObjectType> {
 export interface BuiltInTypePlan<Type extends ObjectType = ObjectType> {
   /** The PARA types the vault has no file for. */
   readonly missing: readonly BuiltInTypeFile[];
+  /**
+   * Whether the vault already files by project — it has a Project type — so
+   * the rest of PARA is simply written in. A vault without one has not taken
+   * PARA up, and is only offered it.
+   */
+  readonly filesByProject: boolean;
   /** The vault's own types that would gain a property, or a type for a relation to point at. */
   readonly extensions: readonly TypeExtension<Type>[];
 }
@@ -167,7 +173,7 @@ export function builtInTypePlan<Type extends ObjectType>(
     const extension = type === undefined ? null : filedUnder(type);
     return extension === null ? [] : [extension];
   });
-  return { missing, extensions };
+  return { missing, filesByProject: byName.has(PROJECT_TYPE), extensions };
 }
 
 /** What `type` lacks to be filed under a project or an area, or null when nothing. */
@@ -205,20 +211,35 @@ function widenedRelation(own: PropertyDef): PropertyDef | null {
 }
 
 /**
- * What extending the vault's types would change, one line per type, in the
- * words the offer to do it shows: "Task gains Project, linking project or
- * area notes." / "Meeting's Project will link project or area notes."
+ * What setting the vault's types up for PARA would do, one line per change,
+ * in the words the offer to do it shows: "Adds the Project, Area and Resource
+ * types." / "Task gains Project, linking project or area notes." / "Meeting's
+ * Project will link project or area notes."
  */
-export function typeExtensionLines(extensions: readonly TypeExtension[]): string[] {
-  return extensions.map(({ before, added, widened }) => {
-    const gains = added.map(
-      (property) =>
-        `${before.label} gains ${property.label}, linking ${relationTypesText(property)} notes.`,
-    );
-    const wider = widened.map(
-      (property) =>
-        `${before.label}'s ${property.label} will link ${relationTypesText(property)} notes.`,
-    );
-    return [...gains, ...wider].join(' ');
-  });
+export function typeSetupLines({
+  types,
+  extensions,
+}: {
+  types: readonly BuiltInTypeFile[];
+  extensions: readonly TypeExtension[];
+}): string[] {
+  const adds = types.length === 0 ? [] : [addedTypesLine(types.map((file) => file.type.label))];
+  return [...adds, ...extensions.map(extensionLine)];
+}
+
+function addedTypesLine(labels: readonly string[]): string {
+  if (labels.length === 1) return `Adds the ${labels[0] ?? ''} type.`;
+  return `Adds the ${labels.slice(0, -1).join(', ')} and ${labels.at(-1) ?? ''} types.`;
+}
+
+function extensionLine({ before, added, widened }: TypeExtension): string {
+  const gains = added.map(
+    (property) =>
+      `${before.label} gains ${property.label}, linking ${relationTypesText(property)} notes.`,
+  );
+  const wider = widened.map(
+    (property) =>
+      `${before.label}'s ${property.label} will link ${relationTypesText(property)} notes.`,
+  );
+  return [...gains, ...wider].join(' ');
 }

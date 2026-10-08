@@ -5,7 +5,7 @@ import {
   builtInTypePlan,
   PARA_TYPE_FILES,
   RESOURCE_TYPE,
-  typeExtensionLines,
+  typeSetupLines,
 } from './para.ts';
 import { parseObjectType, relationTypes, type ObjectType } from './property-def.ts';
 import { typeFrontmatter } from './type-frontmatter.ts';
@@ -25,8 +25,16 @@ const RESOURCE = type({
 const names = (files: readonly { type: ObjectType }[]) => files.map((file) => file.type.name);
 
 describe('builtInTypePlan', () => {
-  it('adds every PARA type a vault without types lacks', () => {
-    expect(names(builtInTypePlan([]).missing)).toEqual(['project', 'area', 'resource']);
+  it('names every PARA type a vault without types lacks, and only offers them', () => {
+    const plan = builtInTypePlan([]);
+    expect(names(plan.missing)).toEqual(['project', 'area', 'resource']);
+    expect(plan.filesByProject).toBe(false);
+  });
+
+  it('counts a vault with a Project type as one that files by project', () => {
+    expect(builtInTypePlan([PROJECT]).filesByProject).toBe(true);
+    expect(builtInTypePlan([type({ name: 'Project' })]).filesByProject).toBe(true);
+    expect(builtInTypePlan([AREA]).filesByProject).toBe(false);
   });
 
   it('adds the area type to a vault that has projects but no areas', () => {
@@ -100,7 +108,7 @@ describe('builtInTypePlan', () => {
   });
 });
 
-describe('typeExtensionLines', () => {
+describe('typeSetupLines', () => {
   it('says what each type gains, in words', () => {
     const task = type({ name: 'task', label: 'Task' });
     const meeting = type({
@@ -108,9 +116,22 @@ describe('typeExtensionLines', () => {
       label: 'Meeting',
       properties: { project: { kind: 'relation', target: 'project' } },
     });
-    expect(typeExtensionLines(builtInTypePlan([task, meeting]).extensions)).toEqual([
+    const plan = builtInTypePlan([PROJECT, AREA, RESOURCE, task, meeting]);
+    expect(typeSetupLines({ types: plan.missing, extensions: plan.extensions })).toEqual([
       'Task gains Project, linking project or area notes.',
       "Meeting's Project will link project or area notes.",
+    ]);
+  });
+
+  it('names the types it would add first', () => {
+    const task = type({ name: 'task', label: 'Task' });
+    const plan = builtInTypePlan([task]);
+    expect(typeSetupLines({ types: plan.missing, extensions: plan.extensions })).toEqual([
+      'Adds the Project, Area and Resource types.',
+      'Task gains Project, linking project or area notes.',
+    ]);
+    expect(typeSetupLines({ types: plan.missing.slice(1, 2), extensions: [] })).toEqual([
+      'Adds the Area type.',
     ]);
   });
 });
