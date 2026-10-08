@@ -61,6 +61,22 @@ describe('useBuiltInTypes', () => {
     expect(files.get('.atlas/types/project.md')).toBe(PROJECT);
   });
 
+  it('says in Activity which types it wrote without asking', async () => {
+    const { activity } = setup({ '.atlas/types/project.md': PROJECT });
+    await waitFor(() => expect(activity.reports).toHaveLength(2));
+    expect(activity.reports.map(({ level, kind, subject }) => ({ level, kind, subject }))).toEqual([
+      { level: 'info', kind: 'app', subject: { kind: 'note', path: '.atlas/types/area.md' } },
+      { level: 'info', kind: 'app', subject: { kind: 'note', path: '.atlas/types/resource.md' } },
+    ]);
+    expect(activity.reports[0]?.message).toContain('Added the area type');
+  });
+
+  it('says nothing in Activity when it only offers', async () => {
+    const { hook, activity } = setup({ '.atlas/types/task.md': TASK });
+    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    expect(activity.reports).toEqual([]);
+  });
+
   it('offers PARA to a vault without it, and writes it all only when accepted', async () => {
     const { files, hook, onChanged } = setup({ '.atlas/types/task.md': TASK });
     await waitFor(() =>
@@ -141,11 +157,12 @@ describe('useBuiltInTypes', () => {
       '.atlas/types/project.md': PROJECT,
       '.atlas/types/area.md': '---\n: : not yaml\n---\n',
     });
+    // The failure is a warning; the Resource type it did write is the info line beside it.
     await waitFor(() =>
-      expect(activity.reports.map((report) => report.message)).toEqual([
-        'The Area type could not be set up for PARA: already there',
+      expect(activity.reports.map(({ level, message }) => [level, message])).toEqual([
+        ['warning', 'The Area type could not be set up for PARA: already there'],
+        ['info', 'Added the resource type: this vault files by project, and PARA needs it.'],
       ]),
     );
-    expect(activity.reports[0]?.level).toBe('warning');
   });
 });

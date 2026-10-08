@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { typeSetupLines } from '@atlas/domain';
+import { noteTitle, typeSetupLines, type VaultPath } from '@atlas/domain';
 import {
   acceptTypeSetup,
   ensureBuiltInTypes,
@@ -61,6 +61,21 @@ export function useBuiltInTypes({
     [activity],
   );
 
+  // Nothing silent: each type written without asking says so in Activity.
+  const announce = useCallback(
+    (created: readonly VaultPath[]) => {
+      for (const path of created) {
+        activity.record({
+          level: 'info',
+          kind: 'app',
+          message: `Added the ${noteTitle(path)} type: this vault files by project, and PARA needs it.`,
+          subject: { kind: 'note', path },
+        });
+      }
+    },
+    [activity],
+  );
+
   useEffect(() => {
     setOffer(NOTHING_OFFERED);
     if (vaultKey === null) return;
@@ -69,6 +84,7 @@ export function useBuiltInTypes({
       .then((ensured) => {
         if (cancelled) return;
         report(ensured.failed);
+        announce(ensured.created);
         setOffer(ensured.offer);
         if (ensured.created.length > 0) changed.current();
       })
@@ -78,7 +94,7 @@ export function useBuiltInTypes({
     return () => {
       cancelled = true;
     };
-  }, [fs, markdown, vaultKey, report]);
+  }, [fs, markdown, vaultKey, report, announce]);
 
   const accept = useCallback(async () => {
     const done = await acceptTypeSetup({ fs, markdown, offer });

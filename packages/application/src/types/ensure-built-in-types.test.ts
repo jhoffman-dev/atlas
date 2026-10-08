@@ -165,6 +165,61 @@ describe('acceptTypeSetup', () => {
     });
   });
 
+  it('works the change out from the type files as they are when accepted', async () => {
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/task.md': JAMES_TASK,
+    });
+    const { offer } = await ensureBuiltInTypes(v);
+    // While the offer waits, James removes `estimate` from Task.
+    const edited = note({ name: 'task', label: 'Task', properties: { status: 'select' } });
+    v.files.set('.atlas/types/task.md', edited);
+
+    await acceptTypeSetup({ ...v, offer });
+
+    const text = v.files.get('.atlas/types/task.md') ?? '';
+    expect(
+      v.markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)['properties'],
+    ).toEqual({
+      status: 'select',
+      project: { kind: 'relation', target: ['project', 'area'] },
+    });
+  });
+
+  it('leaves alone a type that no longer lacks anything by the time it is accepted', async () => {
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/task.md': JAMES_TASK,
+    });
+    const { offer } = await ensureBuiltInTypes(v);
+    const done = note({
+      name: 'task',
+      properties: { project: { kind: 'relation', target: ['area', 'project'] } },
+    });
+    v.files.set('.atlas/types/task.md', done);
+
+    const result = await acceptTypeSetup({ ...v, offer });
+
+    expect(result.extended).toEqual([]);
+    expect(v.files.get('.atlas/types/task.md')).toBe(done);
+  });
+
+  it('changes only the types it offered, not one that came to lack something since', async () => {
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/task.md': JAMES_TASK,
+    });
+    const { offer } = await ensureBuiltInTypes(v);
+    // A Meeting type arrives (a sync, say) while the offer waits; nobody was asked about it.
+    const meeting = note({ name: 'meeting', properties: { title: 'text' } });
+    v.files.set('.atlas/types/meeting.md', meeting);
+
+    const result = await acceptTypeSetup({ ...v, offer });
+
+    expect(result.extended).toEqual(['.atlas/types/task.md']);
+    expect(v.files.get('.atlas/types/meeting.md')).toBe(meeting);
+  });
+
   it('reports a type it could not write and carries on with the rest', async () => {
     const meeting = note({
       name: 'meeting',
