@@ -640,6 +640,7 @@ FROM meeting WHERE people = this SORT BY date DESC
 ```</code></pre>
           Saving the note leaves it byte for byte unless you change its text. A fence written in another editor (backticks or <code>~~~</code>) is shown the same way.</li>
         <li>Only a block of the note's own is a query block. Inside a list, quote or callout, or with anything after <code>atlas-query</code> on the fence's line, it stays a code block. Typing <code>```atlas-query</code> in Atlas makes a code block until the note is opened again; <kbd>/</kbd> → <b>Query</b> makes the live one at once.</li>
+        <li>Copy a query block and paste it among another note's blocks and it is the same live block there, its <code>this</code> now that note; pasted into a list, quote or callout it is the code. Pasted as plain text elsewhere, it is the fence.</li>
         <li>Where a note is only drawn — a feed, a page's picture, a <a href="#blocks">shown block</a> in another note — a query block shows as its code.</li>
       </ul>
     </section>
