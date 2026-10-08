@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_ID_ATTR, queryBlockNode, type EditorDocument, type EditorNode } from '@atlas/domain';
+import {
+  BLOCK_ID_ATTR,
+  queryBlockFence,
+  queryBlockNode,
+  type EditorDocument,
+  type EditorNode,
+} from '@atlas/domain';
 import { parseMarkdownBody, serializeMarkdownBody } from './markdown-blocks.ts';
 
 /**
@@ -54,6 +60,16 @@ describe('reading a query block', () => {
     expect(typesOf(markdown)).toEqual(types);
     expect(JSON.stringify(blocks(markdown))).not.toContain('queryBlock');
     expect(saveAfter(markdown, (content) => content)).toBe(markdown);
+  });
+});
+
+describe('a query block copied as plain text', () => {
+  it.each([
+    ['a query', QUERY],
+    ['nothing', ''],
+    ['backticks', 'FROM task WHERE title = "```"\n````'],
+  ])('reads back as the block it was, holding %s', (_label, text) => {
+    expect(blocks(`${queryBlockFence(text)}\n`).map(withoutId)).toEqual([queryBlockNode(text)]);
   });
 });
 

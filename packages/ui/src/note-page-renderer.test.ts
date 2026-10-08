@@ -54,7 +54,7 @@ describe('the note page renderer', () => {
       content: [{ type: 'queryBlock', attrs: { text: "FROM task WHERE title = '<b>'" } }],
     });
     expect(withQuery).toContain(
-      '<pre data-query-block="" class="query-block query-block--plain"><code>FROM task WHERE title = \'&lt;b&gt;\'</code></pre>',
+      '<pre data-query-block="" class="query-block query-block--plain"><code class="language-atlas-query">FROM task WHERE title = \'&lt;b&gt;\'</code></pre>',
     );
   });
 

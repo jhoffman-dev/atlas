@@ -3,6 +3,7 @@ export {
   QUERY_BLOCK_LANGUAGE,
   QUERY_BLOCK_LAYOUTS,
   QUERY_BLOCK_NODE,
+  queryBlockFence,
   queryBlockNode,
   queryBlockOfCode,
   queryBlockText,

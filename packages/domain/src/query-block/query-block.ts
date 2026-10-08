@@ -61,6 +61,18 @@ export function queryBlockText(node: EditorNode): string {
 }
 
 /**
+ * A query block as markdown holds it, for a copy taken as plain text: its
+ * text fenced with its language, the fence a backtick longer than any run
+ * of backticks inside, as CommonMark needs and the file's writer does.
+ */
+export function queryBlockFence(text: string): string {
+  const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((run) => run[0].length));
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  const body = text === '' ? '' : `${text}\n`;
+  return `${fence}${QUERY_BLOCK_LANGUAGE}\n${body}${fence}`;
+}
+
+/**
  * The code block a query block is written as where only a code block can
  * stand — inside a quote, a list or a cell: the same fence, which is how the
  * file holds it anyway.
@@ -75,8 +87,12 @@ export function codeOfQueryBlock(node: EditorNode): EditorNode | null {
   };
 }
 
-/** A `layout:` line, its value being the rest of the line. */
-const LAYOUT_LINE = /^[ \t]*layout:[ \t]*(.*?)[ \t]*$/;
+/**
+ * A `layout:` line, its value being the rest of the line. Any space `trim`
+ * would take — a no-break space pasted in, say — is a space here too, so a
+ * line that looks right reads right.
+ */
+const LAYOUT_LINE = /^\s*layout:\s*(.*?)\s*$/;
 
 /**
  * Reads a query block's text: a first line (after any blank ones) saying

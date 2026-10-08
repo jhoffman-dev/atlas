@@ -3,6 +3,7 @@ import { nestedBlockOf } from '../bookmarks/bookmark-switch.ts';
 import { anchorStyleOf } from '../markdown/block-outline.ts';
 import {
   codeOfQueryBlock,
+  queryBlockFence,
   queryBlockNode,
   queryBlockOfCode,
   queryBlockText,
@@ -57,6 +58,22 @@ describe('queryBlockText', () => {
   });
 });
 
+describe('queryBlockFence', () => {
+  it('is the text fenced with the language', () => {
+    expect(queryBlockFence(QUERY)).toBe(`\`\`\`atlas-query\n${QUERY}\n\`\`\``);
+  });
+
+  it('is the bare fence for a block with nothing in it', () => {
+    expect(queryBlockFence('')).toBe('```atlas-query\n```');
+  });
+
+  it('is fenced a backtick longer than the longest run inside', () => {
+    expect(queryBlockFence("FROM task WHERE title = '````'")).toBe(
+      "`````atlas-query\nFROM task WHERE title = '````'\n`````",
+    );
+  });
+});
+
 describe('a query block carries a block id', () => {
   it('on a line of its own after it, as a code block does', () => {
     expect(anchorStyleOf(queryBlockNode(QUERY))).toBe('line');
@@ -76,6 +93,16 @@ describe('readQueryBlock', () => {
   ])('reads the layout %s and the query after it', (_label, text, layout) => {
     expect(readQueryBlock(text)).toEqual({ ok: true, layout, query: QUERY });
   });
+
+  it.each([
+    ['a no-break space after layout:', `layout:\u00a0list\n${QUERY}`],
+    ['a no-break space after the layout', `layout: list\u00a0\n${QUERY}`],
+  ])(
+    'reads the layout list through %s, as blank lines are read past one (adversarial)',
+    (_label, text) => {
+      expect(readQueryBlock(text)).toEqual({ ok: true, layout: 'list', query: QUERY });
+    },
+  );
 
   it('reads only the first line as the layout', () => {
     const text = `${QUERY}\nlayout: list`;

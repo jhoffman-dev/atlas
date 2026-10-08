@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { mergeAttributes, Node } from '@tiptap/core';
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react';
-import { QUERY_BLOCK_NODE } from '@atlas/domain';
+import { QUERY_BLOCK_LANGUAGE, QUERY_BLOCK_NODE, queryBlockFence } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
 import { GroupedResult, type GroupedResultProps } from '../query-language/grouped-result.tsx';
 
@@ -221,7 +221,9 @@ export const QueryBlock = Node.create<QueryBlockOptions>({
   },
 
   parseHTML() {
-    return [{ tag: 'pre[data-query-block]', preserveWhitespace: 'full' }];
+    // Above the code block's own `pre` rule, which would otherwise take a
+    // copied query block first and make a code block of it (the default is 50).
+    return [{ tag: 'pre[data-query-block]', preserveWhitespace: 'full', priority: 60 }];
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -231,8 +233,15 @@ export const QueryBlock = Node.create<QueryBlockOptions>({
         { 'data-query-block': '', class: 'query-block query-block--plain' },
         HTMLAttributes,
       ),
-      ['code', textOf(node.attrs)],
+      // The fence's language on the code, as a code block writes its own, so
+      // anything that reads this as a code block still knows what it was.
+      ['code', { class: `language-${QUERY_BLOCK_LANGUAGE}` }, textOf(node.attrs)],
     ];
+  },
+
+  /** A copy taken as plain text is the fence, as the file has it. */
+  renderText({ node }) {
+    return queryBlockFence(textOf(node.attrs));
   },
 
   addNodeView() {

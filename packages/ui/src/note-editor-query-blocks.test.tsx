@@ -2,6 +2,8 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { Editor } from '@tiptap/core';
+import { NodeSelection } from '@tiptap/pm/state';
+import type { Slice } from '@tiptap/pm/model';
 import type { BoardRow, EditorDocument, EditorNode, VaultPath } from '@atlas/domain';
 import { NoteEditor, type NoteQueryBlocks } from './note-editor.tsx';
 import type { QueryBlockShown } from './editor/query-block.tsx';
@@ -273,5 +275,97 @@ describe('the Query slash command', () => {
     const commands = await screen.findByRole('listbox', { name: 'Insert block' });
     expect(within(commands).getAllByRole('option').length).toBeGreaterThan(0);
     expect(within(commands).queryByRole('option', { name: /^Query/ })).toBeNull();
+  });
+});
+
+describe('a query block copied and pasted (adversarial)', () => {
+  /** The clipboard ProseMirror writes for the selected query block, as copy and cut write it. */
+  async function copiedBlock(rendered: ReturnType<typeof renderEditor>) {
+    const editor = await editorIn(rendered.container);
+    let at = -1;
+    editor.state.doc.forEach((node, offset) => {
+      if (node.type.name === 'queryBlock') at = offset;
+    });
+    act(() => {
+      editor.view.dispatch(
+        editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, at)),
+      );
+    });
+    const clipboard = (
+      editor.view as unknown as {
+        serializeForClipboard: (slice: Slice) => { dom: HTMLElement; text: string };
+      }
+    ).serializeForClipboard(editor.state.selection.content());
+    return { editor, html: clipboard.dom.innerHTML, text: clipboard.text };
+  }
+
+  /** Where to type in the list item's empty paragraph. */
+  function insideTheListItem(editor: Editor): number {
+    let at = -1;
+    editor.state.doc.descendants((node, pos, parent) => {
+      const empty = node.type.name === 'paragraph' && node.childCount === 0;
+      if (empty && parent?.type.name === 'listItem') at = pos + 1;
+    });
+    return at;
+  }
+
+  const pasteEvent = () =>
+    Object.assign(new Event('paste'), {
+      clipboardData: { types: [], files: [], items: [], getData: () => '' },
+    }) as unknown as ClipboardEvent;
+
+  it('pasted among the note’s own blocks is the query block it was, not a code block with no language', async () => {
+    const text = `layout: list\n${QUERY}`;
+    const rendered = renderEditor(
+      doc(paragraph('Meetings.'), queryBlock(text), { type: 'paragraph' }),
+      answering(async () => KICKOFF),
+    );
+    const { editor, html } = await copiedBlock(rendered);
+    act(() => {
+      editor.commands.focus('end');
+      editor.view.pasteHTML(html, pasteEvent());
+    });
+    const blocks = editor.getJSON().content ?? [];
+    expect(blocks.filter((node) => node.type === 'codeBlock')).toEqual([]);
+    expect(
+      blocks.filter((node) => node.type === 'queryBlock').map((node) => node.attrs?.['text']),
+    ).toEqual([text, text]);
+  });
+
+  it('pasted into a list item is the atlas-query code block it is there', async () => {
+    const list: EditorNode = {
+      type: 'bulletList',
+      // An item begins with a paragraph, so the paste goes in the empty one after it.
+      content: [{ type: 'listItem', content: [paragraph('Agenda'), { type: 'paragraph' }] }],
+    };
+    const rendered = renderEditor(
+      doc(queryBlock(QUERY), list),
+      answering(async () => KICKOFF),
+    );
+    const { editor, html } = await copiedBlock(rendered);
+    act(() => {
+      editor.commands.focus();
+      editor.commands.setTextSelection(insideTheListItem(editor));
+      expect(editor.state.selection.$from.parent.type.name).toBe('paragraph');
+      expect(editor.state.selection.$from.depth).toBe(3);
+      editor.view.pasteHTML(html, pasteEvent());
+    });
+    const pasted = editor.getJSON() as EditorDocument;
+    const item = pasted.content[1]?.content?.[0]?.content ?? [];
+    expect(item[0]).toMatchObject({ type: 'paragraph', content: [{ text: 'Agenda' }] });
+    expect(item.filter((node) => node.type === 'codeBlock')).toEqual([
+      {
+        type: 'codeBlock',
+        attrs: expect.objectContaining({ language: 'atlas-query' }),
+        content: [{ type: 'text', text: QUERY }],
+      },
+    ]);
+    expect(editor.getJSON().content?.filter((node) => node.type === 'queryBlock')).toHaveLength(1);
+  });
+
+  it('copied as plain text is its fence’s text, not nothing', async () => {
+    const rendered = renderEditor(doc(paragraph('Meetings.'), queryBlock(QUERY)));
+    const { text } = await copiedBlock(rendered);
+    expect(text).toContain(QUERY);
   });
 });
