@@ -65,15 +65,26 @@ Where the build differs from, or settles, what is written above:
   `.atlas/migrations/task-statuses.md` **before** changing anything, then
   writes each file once — frontmatter only, refused by the host if the file
   moved on since it was read. Undo puts back the recorded frontmatter wherever
-  the file still says what the migration wrote, so a run, then an undo, gives
-  every file back byte for byte; a file edited since is left and named.
+  the file still says what the migration wrote, so a run, then an undo, with
+  nothing edited between, gives every file back byte for byte. A file whose
+  frontmatter was edited since is left and named; one whose body alone was
+  edited gets its frontmatter back and keeps the new body.
 - **It is resumable and idempotent.** A GTD status maps to itself whatever the
   mapping says, so a second run finds nothing to do. A run cut off partway is
   run again from a fresh preview of what is left, and its record is merged
-  into the first, keeping each file's original bytes, so one undo covers both.
+  into the first, so one undo covers both. A file in both keeps what it was
+  before the first run only while it still held what the first run wrote;
+  otherwise — the first never wrote it, or it was edited or synced since —
+  undo gives back what the second run found, and the edit is kept.
 - **Unknown includes none.** A task with no status goes to `inbox`, as an
   unknown one does. A status spelled another way (`Next Action`,
-  `in_progress`) is read as the status it names.
+  `in_progress`) is read as the status it names, and one written as a
+  one-item list (`[next-action]`) is written back as that status.
+- **The migration never makes what the rules refuse.** Waiting stays a
+  mapping target, but a task it would send to Waiting with nobody in
+  `waiting_on` goes to the Inbox instead, and the preview says why beside it.
+  (Refusing Waiting as a target was rejected: a vault's own `blocked` whose
+  tasks do say who they wait on should go there.)
 - **The Task type keeps what the vault has.** Its `status` becomes the eight;
   every other GTD property it has no key for is added; a key it has is left as
   it is, even where GTD would have made it another kind (this repository's
@@ -82,13 +93,38 @@ Where the build differs from, or settles, what is written above:
   one never starts on a status that no longer exists. Capture then sets
   `inbox` when the Task type has it.
 - **Views and automations** are those in `.atlas/views` and
-  `.atlas/automations`. An Atlas query's status values are rewritten in place,
-  by their span, for `=` and `!=`; a table view's `filters:` for `is` and
-  `isNot`. Any other comparison with an old status, and any SQL view that
-  reads `status`, is listed instead. A dashboard's widgets are not read.
+  `.atlas/automations`. Only a query of tasks alone is rewritten — a project's
+  `done` is not a task's — in place, by the value's span; a table view's
+  `filters:` likewise. Picking a status (`=`, `is`) is carried over. Leaving
+  one out (`!=`, `isNot`, `=` under `NOT`) is carried only when no other old
+  status becomes the same one, and a status nobody knew is never carried to
+  the Inbox. Everything else that names an old status is listed instead: a
+  query over tasks and another type, those comparisons, any other operator,
+  any SQL view that reads `status`, and an automation that would set a status
+  on mixed types, an unknown status, or Waiting. A dashboard's widgets are not
+  read.
 - **The GTD views** — Inbox, Next actions, Waiting, Someday and Longterm — are
   query views written into `.atlas/views` by the same run, never over a view
   of the same name.
-- **The rules hold everywhere a task is written** — a pane, a view, the type
-  table, the API — through one wrapper, `withTaskRules`, worked out against
-  the frontmatter as each write reads it.
+- **The rules hold where every write ends up**, not at call sites: in
+  `setNoteProperties` (every write of a note no pane holds — views, the type
+  table, the API, automations' set and undo, the type editor's note
+  migration), in `saveNote` (a pane's write), in `createNote` (every new
+  note: capture, quick-add, "+" on a board or table, POST /v1/notes, a related
+  note, a template) and in chat's proposals. `taskRuleChanges` judges the note
+  a change leaves, so a type change that makes a Waiting note a task is
+  refused too. A refusal is each path's own error: `invalid` from the API, the
+  view's or pane's message in the app, a line in an automation's log. Not
+  held, by design: Atlas's own files (types, settings), a chat's transcript,
+  today's note, notes a source writes from outside data (ADR-0012), and the
+  migration and its undo, which write recorded frontmatter.
+- **Unticking after a restart reopens a task as Next Action.** What a task
+  held before it was ticked is remembered for the session only. With nothing
+  remembered, unticking — and a repeating task rolling on — puts it at Next
+  Action, not the Inbox: it was something to do. Persisting the earlier
+  status in a frontmatter key was rejected: every finished task would carry a
+  key nobody asked for, which syncs and outlives its use.
+- **The Inbox does not read every task on every open.** It first asks the
+  index which statuses tasks hold, and reads the tasks only when the Task type
+  is not yet GTD's or some task holds another status or none. (The index
+  flattens a list, so a one-item list status is not seen by that quick look.)
