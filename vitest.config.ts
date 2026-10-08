@@ -66,6 +66,8 @@ export default defineConfig({
         'apps/mcp/src/{connection,client}.ts': { lines: 90, functions: 90, branches: 85 },
         // The n8n meeting mapper writes files into the vault from outside it (P28-02).
         'tools/n8n/*.ts': { lines: 90, functions: 90, branches: 85 },
+        // Adding a term writes a note; editing one rewrites its frontmatter (P28-05).
+        'packages/application/src/terms/**': { lines: 90, functions: 90, branches: 85 },
       },
     },
   },
