@@ -24,6 +24,7 @@ export interface PlaceOpeners {
   readonly openAutomations: () => void;
   readonly openActivity: () => void;
   readonly openTemplates: () => void;
+  readonly openProposals: () => void;
 }
 
 /** The page over the panes as a place Back can return to; null while the panes show. */
@@ -47,6 +48,8 @@ export function mainViewPlace(view: MainView): NavigationPlace | null {
       return { kind: 'activity' };
     case 'templates':
       return { kind: 'templates' };
+    case 'proposals':
+      return { kind: 'proposals' };
   }
 }
 
@@ -102,6 +105,7 @@ export function useNavigation({
       else if (place.kind === 'automations') open.openAutomations();
       else if (place.kind === 'activity') open.openActivity();
       else if (place.kind === 'templates') open.openTemplates();
+      else if (place.kind === 'proposals') open.openProposals();
       else open.openQuery();
     },
     [open, openInPane, focus],

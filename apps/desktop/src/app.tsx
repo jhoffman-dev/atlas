@@ -8,6 +8,7 @@ import {
   favoriteValue,
   rankNoteSuggestions,
   linkFragment,
+  readWikiLink,
   resolveWikiLinkTarget,
   sidebarTreeRows,
   vaultInitial,
@@ -120,6 +121,7 @@ import { typeTabsShown } from './types/type-tabs.ts';
 import { useTypeViews } from './types/use-type-views.ts';
 import { paletteEditTypeOffers, runPaletteEditTypeCommand } from './types/palette-edit-type.ts';
 import { useTemplatesPage } from './templates/use-templates-page.ts';
+import { useProposals } from './proposals/use-proposals.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
 import { useQueryPage } from './query/use-query-page.ts';
@@ -159,6 +161,7 @@ import { syncConflictNotice, syncIndicatorBadge } from './sync/sync-view.ts';
 import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
+const OPEN_PROPOSALS = 'open-proposals';
 
 /** What the search palette can do besides find notes. */
 const PALETTE_COMMANDS = [
@@ -166,6 +169,11 @@ const PALETTE_COMMANDS = [
   { id: 'new-view', label: 'New view' },
   { id: 'new-artifact', label: 'New artifact', keywords: ['claude', 'save', 'link', 'html'] },
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
+  {
+    id: OPEN_PROPOSALS,
+    label: 'Proposals',
+    keywords: ['inbox', 'accept', 'reject', 'suggestions', 'claude'],
+  },
 ] as const;
 
 /** The kinds an artifact can be, as the New artifact dialog offers them. */
@@ -442,6 +450,7 @@ export function App({
     automationsOpen,
     activityOpen,
     templatesOpen,
+    proposalsOpen,
   } = main;
   const activity = useActivity({
     log: activityLog,
@@ -794,6 +803,12 @@ export function App({
     offerLinks: entries.offerLinks,
   });
   const archiveCommands = archive.commands;
+  const proposals = useProposals({
+    ports: archivePorts,
+    clock: localClock,
+    indexKey,
+    onSettled: settleArchive,
+  });
   const automationPorts = useMemo(
     () => ({ ...archivePorts, types, notePaths }),
     [archivePorts, types, notePaths],
@@ -948,6 +963,18 @@ export function App({
       if (fragment !== null) reveals.request({ pane, path: resolved, fragment });
     },
     [notePaths, openInPane, showPanes, panes.layout.paths, reveals],
+  );
+  /** Opens the line a proposal cites — `[[2026-10-01 Standup#^t0003]]` — in the focused pane. */
+  const followSource = useCallback(
+    (link: string) => {
+      const read = readWikiLink(link.trim());
+      if (read === null) {
+        setLinkError(`${link} is not a link to a note`);
+        return;
+      }
+      followLinkInPane({ pane: panes.layout.focused, target: read.target, heading: read.heading });
+    },
+    [followLinkInPane, panes.layout.focused],
   );
 
   const paneOpenNotes = useMemo(() => openNotesIn(editors), [editors]);
@@ -1175,6 +1202,7 @@ export function App({
                       automationsOpen,
                       activityOpen,
                       templatesOpen,
+                      proposalsOpen,
                       viewOwner: typeViews.ownerOf,
                     })}
                     sectionStore={browserSectionStore}
@@ -1189,6 +1217,7 @@ export function App({
                     }}
                     onOpen={openNote}
                     onOpenTemplates={main.openTemplates}
+                    proposals={{ onOpen: main.openProposals, count: proposals.count }}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
@@ -1333,6 +1362,14 @@ export function App({
                   },
                 },
                 templates: { open: templatesOpen, page: templatesPage.page },
+                proposals: {
+                  open: proposalsOpen,
+                  page: {
+                    ...proposals.page,
+                    onOpen: openNote,
+                    onOpenSource: (link) => followSource(link),
+                  },
+                },
                 ...(!sidebarOpen && { onShowSidebar: toggleSidebar }),
                 history: navigation.historyFor(panes.layout.focused),
               })
@@ -1553,6 +1590,7 @@ export function App({
                     return;
                   }
                   if (id === OPEN_TEMPLATES) main.openTemplates();
+                  else if (id === OPEN_PROPOSALS) main.openProposals();
                   else if (id === 'new-query') openQuery();
                   else if (id === 'new-artifact') startNewArtifact();
                   else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);

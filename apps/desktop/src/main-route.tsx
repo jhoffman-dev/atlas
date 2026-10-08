@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ComponentProps, type ReactNode } from 'react';
 import type { GraphScope } from '@atlas/domain';
-import { ArchivePage, TemplatesPage, type PageHistory } from '@atlas/ui';
+import { ArchivePage, ProposalsPage, TemplatesPage, type PageHistory } from '@atlas/ui';
 import { TypePage } from './types/type-page.tsx';
 import { QueryScreen } from './query/query-screen.tsx';
 import { TagsScreen } from './tags/tags-screen.tsx';
@@ -19,10 +19,11 @@ type ArchiveProps = Omit<ComponentProps<typeof ArchivePage>, 'onShowSidebar' | '
 type AutomationsProps = Omit<ComponentProps<typeof AutomationsScreen>, 'onShowSidebar' | 'history'>;
 type ActivityProps = Omit<ComponentProps<typeof ActivityScreen>, 'onShowSidebar' | 'history'>;
 type TemplatesProps = Omit<ComponentProps<typeof TemplatesPage>, 'onShowSidebar' | 'history'>;
+type ProposalsProps = Omit<ComponentProps<typeof ProposalsPage>, 'onShowSidebar' | 'history'>;
 
 /**
  * The page open over the panes, if any: the graph, a type's page, the query
- * page, the tags, the Archive, the Automations, the Activity or the Templates page, in that order when more than one
+ * page, the tags, the Archive, the Automations, the Activity, the Templates or the Proposals page, in that order when more than one
  * could show. Null leaves the panes —
  * which is why this is called rather than rendered as a component: the shell
  * shows the panes only when it is handed no page at all.
@@ -36,6 +37,7 @@ export function mainRoute({
   automations,
   activity,
   templates,
+  proposals,
   onShowSidebar,
   history,
 }: {
@@ -50,6 +52,7 @@ export function mainRoute({
   automations: { open: boolean; screen: AutomationsProps };
   activity: { open: boolean; screen: ActivityProps };
   templates: { open: boolean; page: TemplatesProps };
+  proposals: { open: boolean; page: ProposalsProps };
   onShowSidebar?: () => void;
   /** The focused pane's Back and Forward: the page is shown in its place. */
   history?: PageHistory;
@@ -77,5 +80,6 @@ export function mainRoute({
   if (automations.open) return <AutomationsScreen {...automations.screen} {...sidebar} />;
   if (activity.open) return <ActivityScreen {...activity.screen} {...sidebar} />;
   if (templates.open) return <TemplatesPage {...templates.page} {...sidebar} />;
+  if (proposals.open) return <ProposalsPage {...proposals.page} {...sidebar} />;
   return null;
 }

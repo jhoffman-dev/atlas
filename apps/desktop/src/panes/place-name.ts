@@ -37,5 +37,7 @@ export function placeName(
       return 'Activity';
     case 'templates':
       return 'Templates';
+    case 'proposals':
+      return 'Proposals';
   }
 }

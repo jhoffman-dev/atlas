@@ -92,6 +92,7 @@ export function Sidebar({
   onOpenAutomations,
   activity,
   onOpenTemplates,
+  proposals,
   onOpen,
   onOpenType,
   onEditType,
@@ -122,6 +123,8 @@ export function Sidebar({
   activity?: ActivityRowLink;
   /** Opens the Templates page; its row sits last when given. */
   onOpenTemplates?: () => void;
+  /** The Proposals page's row, under Today and Inbox, and how many proposals wait. */
+  proposals?: ProposalsRowLink;
   onOpen: (path: VaultPath) => void;
   onOpenType: (name: string) => void;
   /** Opens a type's definition; a type's menu offers it when given. */
@@ -220,6 +223,7 @@ export function Sidebar({
         automationsOn={active?.kind === 'automations'}
         activityOn={active?.kind === 'activity'}
         templatesOn={active?.kind === 'templates'}
+        proposalsOn={active?.kind === 'proposals'}
         onSearch={onSearch}
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
@@ -227,6 +231,7 @@ export function Sidebar({
         {...(onOpenAutomations !== undefined && { onOpenAutomations })}
         {...(activity !== undefined && { activity })}
         {...(onOpenTemplates !== undefined && { onOpenTemplates })}
+        {...(proposals !== undefined && { proposals })}
       />
 
       <div className="sidebar__scroll" ref={setScroller}>
@@ -266,12 +271,14 @@ function QuickRows({
   automationsOn,
   activityOn,
   templatesOn,
+  proposalsOn,
   onSearch,
   onOpenGraph,
   onOpenTags,
   onOpenAutomations,
   activity,
   onOpenTemplates,
+  proposals,
   onOpen,
 }: {
   quick: readonly SidebarQuickView[];
@@ -281,12 +288,14 @@ function QuickRows({
   automationsOn: boolean;
   activityOn: boolean;
   templatesOn: boolean;
+  proposalsOn: boolean;
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
   onOpenAutomations?: () => void;
   activity?: ActivityRowLink;
   onOpenTemplates?: () => void;
+  proposals?: ProposalsRowLink;
   onOpen: (path: VaultPath) => void;
 }) {
   return (
@@ -317,6 +326,7 @@ function QuickRows({
           </li>
         );
       })}
+      {proposals !== undefined && <ProposalsQuickRow {...proposals} on={proposalsOn} />}
       {onOpenGraph !== undefined && (
         <li className={graphOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
           <button
@@ -371,6 +381,35 @@ function QuickRows({
         </li>
       )}
     </ul>
+  );
+}
+
+/**
+ * The Proposals row's link: how to open the page, and how many proposals wait
+ * (null until counted). Named Proposals, not Inbox: it sits beside the Inbox
+ * until the two become one page.
+ */
+export interface ProposalsRowLink {
+  readonly onOpen: () => void;
+  readonly count: number | null;
+}
+
+function ProposalsQuickRow({ onOpen, count, on }: ProposalsRowLink & { on: boolean }) {
+  const waiting = count !== null && count > 0;
+  return (
+    <li className={on ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+      <button
+        type="button"
+        className="sidebar__row"
+        aria-current={on ? 'page' : undefined}
+        aria-label={waiting ? `Proposals, ${count} waiting` : 'Proposals'}
+        onClick={onOpen}
+      >
+        <Icon name="spark" className="sidebar__icon" />
+        <span className="sidebar__name">Proposals</span>
+        {waiting && <span className="sidebar__badge">{count}</span>}
+      </button>
+    </li>
   );
 }
 

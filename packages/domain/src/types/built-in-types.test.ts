@@ -34,6 +34,17 @@ describe('built-in types', () => {
     expect(isBuiltInTypeFile(createVaultPath('.atlas/types/meeting.md'))).toBe(true);
   });
 
+  it('include Proposal and Decision, which the Inbox’s proposals and their decisions are notes of', () => {
+    expect(typeDeleteRefusal({ name: 'proposal', label: 'Proposal' })).toMatch(
+      /^Proposal is built in — what Claude proposes waits in the Inbox as notes of it — so/,
+    );
+    expect(typeDeleteRefusal({ name: 'Decision', label: 'Decision' })).toMatch(
+      /^Decision is built in — accepted decision proposals are notes of it — so/,
+    );
+    expect(isBuiltInTypeFile(createVaultPath('.atlas/types/proposal.md'))).toBe(true);
+    expect(isBuiltInTypeFile(createVaultPath('.atlas/types/decision.md'))).toBe(true);
+  });
+
   it('leaves a type of your own free to delete', () => {
     expect(typeDeleteRefusal({ name: 'company', label: 'Company' })).toBeNull();
   });

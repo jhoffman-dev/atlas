@@ -1,6 +1,7 @@
 import { ARTIFACT_TYPE } from '../artifacts/artifact.ts';
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { PERSON_TYPE } from '../people/person.ts';
+import { DECISION_TYPE, PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import { vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { TYPES_DIRECTORY } from '../vault/vault-visibility.ts';
 
@@ -15,6 +16,8 @@ const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   ['project', 'artifacts and tasks are filed under projects'],
   [ARTIFACT_TYPE, 'saved artifacts are notes of it'],
   [MEETING_TYPE, 'imported meetings are notes of it'],
+  [PROPOSAL_TYPE, 'what Claude proposes waits in the Inbox as notes of it'],
+  [DECISION_TYPE, 'accepted decision proposals are notes of it'],
 ]);
 
 /** Whether a type is one Atlas's own features depend on. */

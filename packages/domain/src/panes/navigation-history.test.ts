@@ -137,6 +137,8 @@ describe('samePlace', () => {
     expect(samePlace({ kind: 'tags', tag: 'idea' }, { kind: 'tags', tag: 'idea' })).toBe(true);
     expect(samePlace({ kind: 'tags', tag: 'idea' }, { kind: 'tags', tag: null })).toBe(false);
     expect(samePlace({ kind: 'tags', tag: null }, QUERY)).toBe(false);
+    expect(samePlace({ kind: 'proposals' }, { kind: 'proposals' })).toBe(true);
+    expect(samePlace({ kind: 'proposals' }, { kind: 'templates' })).toBe(false);
   });
 });
 

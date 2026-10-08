@@ -125,6 +125,19 @@ describe('useNavigation', () => {
     act(() => result.current.navigation.back());
     expect(layoutOf(result).paths).toEqual([createVaultPath('Notes/alpha.md')]);
   });
+
+  it('goes back to the Proposals page, and forward from it, by the way it was opened', () => {
+    const result = render();
+    act(() => result.current.panes.openInFocusedPane(alpha));
+    act(() => result.current.main.openProposals());
+    act(() => result.current.main.showPanes());
+    expect(result.current.navigation.historyFor(0)).toMatchObject({ back: 'Proposals' });
+
+    act(() => result.current.navigation.back());
+    expect(result.current.main.proposalsOpen).toBe(true);
+    act(() => result.current.navigation.forward());
+    expect(result.current.main.proposalsOpen).toBe(false);
+  });
 });
 
 describe('mainViewPlace', () => {
@@ -137,6 +150,7 @@ describe('mainViewPlace', () => {
     expect(mainViewPlace({ kind: 'query' })).toEqual({ kind: 'query' });
     expect(mainViewPlace({ kind: 'tags', tag: 'idea' })).toEqual({ kind: 'tags', tag: 'idea' });
     expect(mainViewPlace({ kind: 'activity' })).toEqual({ kind: 'activity' });
+    expect(mainViewPlace({ kind: 'proposals' })).toEqual({ kind: 'proposals' });
   });
 });
 
@@ -152,5 +166,6 @@ describe('placeName', () => {
     expect(nameOf({ kind: 'tags', tag: null })).toBe('Tags');
     expect(nameOf({ kind: 'tags', tag: 'idea' })).toBe('#Idea');
     expect(nameOf({ kind: 'tags', tag: 'tag me' })).toBe('#tag me#');
+    expect(nameOf({ kind: 'proposals' })).toBe('Proposals');
   });
 });

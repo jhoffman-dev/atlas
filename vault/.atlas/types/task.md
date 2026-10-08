@@ -20,6 +20,9 @@ properties:
   project:
     kind: relation
     target: project
+  meeting:
+    kind: relation
+    target: meeting
 ---
 
 # Task
