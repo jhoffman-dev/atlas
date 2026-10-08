@@ -220,8 +220,16 @@ catches that: a second file with the same `provider` + `external_id` is marked
 - A file that breaks the contract is never deleted or silently fixed: it gets
   `atlas_import_error:` naming the problem and is listed in the Inbox.
 - A second copy of a meeting already in the vault is marked
-  `atlas_duplicate_of: [[…]]` and archived; un-archiving restores it.
+  `atlas_duplicate_of: [[…]]` and archived; un-archiving restores it. Which
+  copy is kept depends only on where each is, so every Mac keeps the same
+  one: one filed elsewhere, then one archived, then the one at
+  `<date> <title>.md`, then the one at `<date> <title> (<provider> <hash>).md`.
 - Each outcome is one entry in Activity.
+- **Fixing a file that failed.** Fix it in place and save: Atlas checks it
+  again and takes the mark out. To send it again from n8n instead (after
+  fixing the mapping), delete the broken file first — **Same meeting?** skips
+  a path that already holds this provider and Source ID, broken or not, so a
+  re-send over it writes nothing.
 
 ## Changing the mapper
 
