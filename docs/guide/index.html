@@ -894,8 +894,9 @@ ORDER BY phase</pre>
         <li><b>is changed</b> sets it off each time a note of that type is saved with different text.</li>
         <li>Neither is set off by a note moved, renamed, archived, or put back from the Archive — even if a note of the same name now stands where it was put back, and it comes back as <i>Standup 2</i>. A note in the Archive never sets a rule off.</li>
         <li>It acts only on the notes that set it off, and only if <b>Which notes</b> matches them too. The rest of the vault is left alone.</li>
-        <li><b>Once per version.</b> The log records each version of a note the rule handled, and the version its own change left — including notes an archive rewrote links in — so none of them sets it off again: not after a restart, a rebuilt index, or the same file pulled twice. Change the note again and it runs again.</li>
-        <li>Delete a note the rule has handled and the log says it went: a new note made later at that path, even from the same template, is new to the rule.</li>
+        <li><b>Once per version.</b> The log records each version of a note the rule handled, and the version its own change left, so none of them sets it off again: not after a restart, a rebuilt index, or the same file pulled twice. Change the note again and it runs again.</li>
+        <li>When a note the rule has handled leaves its path — deleted, moved, renamed or archived, by you or by the rule — the log says it went: a new note made later at that path, even from the same template, is new to the rule. That holds when one pull brings both, the old one archived and a new one in its place.</li>
+        <li>A note whose links an archive rewrote is heard again, as anyone's edit would be — it may have been edited too. If the rule finds it as it leaves it, nothing is written.</li>
         <li>A run that changed nothing isn't logged: one with nothing to do says nothing, and one that left a note alone — open with unsaved typing, say — says so in Activity only, and runs again when the note is next saved.</li>
         <li><b>20 runs an hour</b> at most, per rule, counting runs that changed a note or whose query didn't read — two rules setting each other off can't run forever, and typing in a meeting doesn't use it up. Past that it is held, once: <i>“Held back: It has run 20 times in the last hour, the most a rule may. It runs on what changed meanwhile at 10:15.”</i></li>
         <li>Held or failing, a rule keeps what it heard — the last 20 syncs — and runs on it once its pause ends. Anything older waits for <b>Run now</b>.</li>
@@ -965,7 +966,7 @@ do: archive</pre>
       <h3>The log</h3>
       <ul>
         <li>One file per rule, <code>.atlas/automations/log/&lt;id&gt;.md</code>, headed <i>&lt;name&gt; — run log</i>. Each run, undo, <b>Turned on</b> and <b>First seen</b> is a <code>##</code> section, newest last: when, what happened, then one line per note changed or left and why.</li>
-        <li>A run a note set off also lists <code>- triggered by "…" at "…"</code> for each note version it handled, <code>- wrote "…" at "…"</code> for the version its own change left, and <code>- went "…"</code> for a note it had handled that was deleted. That is the rule's memory of what it has done: delete those lines and it may act on those versions again.</li>
+        <li>A run a note set off also lists <code>- triggered by "…" at "…"</code> for each note version it handled, <code>- wrote "…" at "…"</code> for the version its own change left, and <code>- went "…"</code> for a path a note it had handled left. That is the rule's memory of what it has done: delete those lines and it may act on those versions again.</li>
         <li>It's meant to be read. You can add your own sections, like <code>## Notes</code>; Atlas keeps them.</li>
         <li>It keeps the latest 100 entries, and no more than 256 KB; the oldest entries go first, never your own sections.</li>
       </ul>
