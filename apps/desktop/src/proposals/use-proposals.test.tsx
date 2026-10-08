@@ -207,3 +207,32 @@ describe('useProposals', () => {
     expect(hook.result.current.page.problems.size).toBe(0);
   });
 });
+
+describe('useProposals — adversarial: another vault opened after an accept', () => {
+  // The hook holds the last accept for its Undo, and the notice offering it,
+  // across a change of `ports` — which is what opening another vault is. The
+  // page then offers "Undo" in vault B for what was accepted in vault A, and
+  // pressing it runs A's paths against B's files.
+  it('no longer offers Undo once the ports are another vault’s', async () => {
+    const first = vault({ [PROPOSAL]: PROPOSAL_TEXT });
+    const second = vault({ 'Elsewhere.md': 'Another vault.\n' });
+    const hook = renderHook(
+      ({ ports }: { ports: ProposalPorts }) =>
+        useProposals({
+          ports,
+          clock: { today: () => '2026-10-08' },
+          indexKey: 'v1',
+          onSettled: () => {},
+        }),
+      { initialProps: { ports: first.ports } },
+    );
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.page.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.page.notice?.undoable).toBe(true));
+
+    hook.rerender({ ports: second.ports });
+    await waitFor(() => expect(hook.result.current.count).toBe(0));
+
+    expect(hook.result.current.page.notice?.undoable ?? false).toBe(false);
+  });
+});
