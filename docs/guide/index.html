@@ -116,7 +116,7 @@ td:first-child { white-space: nowrap; }
     <div>
       <h1>Atlas Field Guide</h1>
       <p>How to use Atlas day to day: notes and pictures, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
-      <div class="facts"><span class="fact">Version 0.1 · updated Oct 7, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
+      <div class="facts"><span class="fact">Version 0.1 · updated Oct 8, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
     </div>
   </header>
 
@@ -303,7 +303,7 @@ pnpm tauri:dev</pre>
         <li>If the note already had its own <code>archived</code> or <code>archivedFrom</code> property, it is kept aside and given back, exactly as written, when the note comes out.</li>
         <li><b>Links:</b> archiving one note offers <b>Update N links</b>, as a move does. Archiving several updates the links to them by itself.</li>
         <li>A note with unsaved typing is saved first, then archived.</li>
-        <li><b>On a schedule:</b> an <a href="#automations">automation</a> can archive the notes a query finds — the ready-made one archives done tasks after 30 days. It leaves a note with unsaved typing where it is rather than save it, and its last run can be undone.</li>
+        <li><b>On a schedule, or as notes arrive:</b> an <a href="#automations">automation</a> can archive the notes a query finds — the ready-made one archives done tasks after 30 days; another could file each new standup <a href="#automation-note">as it appears</a>. It leaves a note with unsaved typing where it is rather than save it, and its last run can be undone.</li>
         <li>A note more than 32 folders deep can't be archived: <i>“It is too many folders deep: in the Archive, Atlas would no longer read it.”</i> If some notes in a batch can't go, a message names each one and why.</li>
       </ul>
       <h3>Out of the way</h3>
@@ -852,7 +852,7 @@ ORDER BY phase</pre>
 
     <section id="automations">
       <h2>Automations</h2>
-      <p class="sub">A rule that tidies the vault while you work: when it runs, which notes it takes — an <a href="#queries">Atlas query</a> — and what it does to them, archive them or set a property. Every run is logged, can be tried first as a dry run, and the last one can be undone.</p>
+      <p class="sub">A rule that tidies the vault while you work: when it runs — on a clock, or when a note of a type appears or changes — which notes it takes — an <a href="#queries">Atlas query</a> — and what it does to them, archive them or set a property. Every run is logged, can be tried first as a dry run, and the last one can be undone.</p>
       <h3>Where they are</h3>
       <ul>
         <li><b>Automations</b> is in the sidebar, under <b>Tags</b>. It opens a page listing every rule.</li>
@@ -871,8 +871,8 @@ ORDER BY phase</pre>
           <tbody>
             <tr><td>Name</td><td>What the list calls it, and its file's name. Not empty, no <code>/ \ : * ? " &lt; &gt; |</code>, no leading dot, not one already taken.</td></tr>
             <tr><td>On</td><td>Whether it runs on its schedule.</td></tr>
-            <tr><td>When</td><td><b>Daily</b> at a time, <b>Every few hours</b> (every 1 to 168 hours), <b>When Atlas opens</b>, or <b>By hand</b>.</td></tr>
-            <tr><td>Which notes</td><td>An Atlas query, in the builder or as text, as on the Query page. Dates like <code>@today</code> mean the day the rule runs.</td></tr>
+            <tr><td>When</td><td><b>Daily</b> at a time, <b>Every few hours</b> (every 1 to 168 hours), <b>When Atlas opens</b>, <b>By hand</b>, or <b>When a note appears</b>: a type, then <b>is created</b>, <b>is changed</b> or both — one stays ticked. See <a href="#automation-note">When a note appears</a>.</td></tr>
+            <tr><td>Which notes</td><td>An Atlas query, in the builder or as text, as on the Query page. Dates like <code>@today</code> mean the day the rule runs. For a rule a note sets off, it must take that type's notes — <code>FROM meeting …</code> — or it says so in red.</td></tr>
             <tr><td>Only notes not changed in the last … days</td><td>Tick it to leave out notes changed recently, by their <code>modified</code> date: 1 to 3650 days.</td></tr>
             <tr><td>Do</td><td><b>Archive</b>, or <b>Set a property</b> to a value: <b>Property</b> <i>to</i> <b>Value</b>.</td></tr>
           </tbody>
@@ -882,10 +882,23 @@ ORDER BY phase</pre>
       <h3>The list</h3>
       <ul>
         <li>Each rule has a switch (<b>Run &lt;name&gt; on its schedule</b>), what it does and when (<i>Archive · Every day at 03:00</i>), <b>Last run</b> with what it did, <b>Next run</b>, and <b>Run now</b>.</li>
-        <li><b>Next run</b> shows <b>—</b> for a rule that only runs when Atlas opens or by hand, one that is off, and one paused until it is run by hand.</li>
+        <li><b>Next run</b> shows <b>—</b> for a rule that only runs when Atlas opens, by hand or when a note sets it off, one that is off, and one paused until it is run by hand.</li>
         <li>Turning a rule on is logged as <b>Turned on</b>, and its schedule counts from then.</li>
         <li>A rule held up says why beside it: <i>“Paused: Its log could not be written (…). Run it by hand to try again.”</i>, <i>“Could not run (…); it is tried again at 14:05.”</i>, or <i>“Its log has an entry dated …, later than now; its schedule counts from before it.”</i></li>
         <li>A rule whose file is wrong is listed too, never run, with why: <i>“This rule’s file cannot be read: Write enabled: true or false.”</i> Fix the file and it is read again.</li>
+      </ul>
+      <h3 id="automation-note">When a note appears</h3>
+      <p>A rule can wait for a note instead of a clock: <i>File standups</i> — when a meeting is created, take <code>FROM meeting WHERE kind = standup</code>, and archive it.</p>
+      <ul>
+        <li><b>is created</b> sets it off for a new note of that type, however it came: typed in Atlas, written through the <a href="#connect">Local API</a>, saved by another app, or brought in by a <a href="#sync">sync</a> pull — including one that arrived while Atlas was closed, once the vault is open again.</li>
+        <li><b>is changed</b> sets it off each time a note of that type is saved with different text. A note moved or renamed with the same text is neither; nor is a note in the Archive.</li>
+        <li>It acts only on the notes that set it off, and only if <b>Which notes</b> matches them too. The rest of the vault is left alone.</li>
+        <li><b>Once per version.</b> The log records each version of a note the rule handled, and the version its own change left, so neither sets it off again — not after a restart, a rebuilt index, or the same file pulled twice. Change the note again and it runs again.</li>
+        <li>A run with nothing to do writes nothing and says nothing: saving a meeting the rule has already marked doesn't fill the log.</li>
+        <li><b>20 runs an hour</b> at most, per rule — two rules setting each other off can't run forever. Past that it pauses, says <i>“Could not run (It has run 20 times in the last hour, the most a rule may. Notes that change meanwhile wait for a run by hand.)”</i>, and is tried again after a wait, as a failing rule is.</li>
+        <li>With <a href="#sync">sync</a> on, it runs on the same one Mac as scheduled rules. On any other Mac nothing happens; the note waits until that Mac has pulled it.</li>
+        <li><b>Dry run</b> lists the notes that would set it off now: those <b>Which notes</b> matches whose current version it hasn't handled. <b>Run now</b> takes the same notes — a way to catch up on ones it skipped while paused, or that were there before the rule.</li>
+        <li>In Activity its line names the notes: <i>“File standups: Ran when a note appeared or changed (Standup). Archived 1 note.”</i></li>
       </ul>
       <h3>Dry run, run, undo</h3>
       <ul>
@@ -900,7 +913,7 @@ ORDER BY phase</pre>
       <ul>
         <li>Atlas checks the rules when a vault opens, once it is indexed, then every minute while it is open. Nothing runs while Atlas is closed.</li>
         <li>A daily or hourly rule whose time passed while Atlas was closed catches up once when it opens, however many times it missed.</li>
-        <li>With <a href="#sync">sync</a> on, rules run on their schedule on one Mac only — the one that set up sync first (a Mac connecting later never takes them), until you turn on <b>Run automations on this Mac</b> on another.</li>
+        <li>With <a href="#sync">sync</a> on, rules run on their schedule, or when a note sets them off, on one Mac only — the one that set up sync first (a Mac connecting later never takes them), until you turn on <b>Run automations on this Mac</b> on another.</li>
         <li>A daily or hourly rule that is on but has never run or been turned on here — written by hand, or <a href="#sync">synced</a> in — is marked <b>First seen</b> in its log, and its schedule counts from then, so a daily rule runs by the next day.</li>
         <li>A mark in the log dated later than now — a clock that ran ahead, or a log synced from one — is ignored, and the rule says so.</li>
         <li>A rule that keeps failing waits longer each time before it is tried again: 1, 2, 4, 8… minutes, up to 6 hours. A run by hand tries it at once.</li>
@@ -935,7 +948,7 @@ do: archive</pre>
             <tr><td><code>id</code></td><td>What its log is named after. Atlas writes it in when it first reads a rule without one, so renaming the rule keeps its history, and a new rule with a deleted one's name starts its own log. Two rules can't share one.</td></tr>
             <tr><td><code>name</code></td><td>What the list calls it; the file's name if left out.</td></tr>
             <tr><td><code>enabled</code></td><td><code>true</code> or <code>false</code>, nothing else — <code>yes</code> or <code>1</code> makes the rule broken rather than quietly off.</td></tr>
-            <tr><td><code>when</code></td><td><code>daily at HH:MM</code>, <code>every N hours</code> (1 to 168), <code>on app open</code>, or <code>manually</code>.</td></tr>
+            <tr><td><code>when</code></td><td><code>daily at HH:MM</code>, <code>every N hours</code> (1 to 168), <code>on app open</code>, <code>manually</code>, or a note: <code>a meeting is created</code>, <code>a meeting is changed</code>, <code>a meeting is created or changed</code> (<code>an</code> before a vowel).</td></tr>
             <tr><td><code>which</code></td><td>An Atlas query: <code>FROM task WHERE …</code></td></tr>
             <tr><td><code>olderThanDays</code></td><td>Optional: only notes not changed in this many days, 1 to 3650.</td></tr>
             <tr><td><code>do</code></td><td><code>archive</code>, or <code>set</code> with the values under <code>set:</code>, like <code>set: {status: done}</code>.</td></tr>
@@ -949,10 +962,10 @@ do: archive</pre>
       <h3>The log</h3>
       <ul>
         <li>One file per rule, <code>.atlas/automations/log/&lt;id&gt;.md</code>, headed <i>&lt;name&gt; — run log</i>. Each run, undo, <b>Turned on</b> and <b>First seen</b> is a <code>##</code> section, newest last: when, what happened, then one line per note changed or left and why.</li>
+        <li>A run a note set off also lists <code>- triggered by "…" at "…"</code> for each note version it handled, and <code>- wrote "…" at "…"</code> for the version its own change left. That is the rule's memory of what it has done: delete those lines and it may act on those versions again.</li>
         <li>It's meant to be read. You can add your own sections, like <code>## Notes</code>; Atlas keeps them.</li>
         <li>It keeps the latest 100 entries, and no more than 256 KB; the oldest entries go first, never your own sections.</li>
       </ul>
-      <div class="note"><b>Not yet.</b> Rules that run when a note changes. For now a rule runs on a schedule, when Atlas opens, or by hand.</div>
     </section>
 
     <section id="activity">
@@ -970,7 +983,7 @@ do: archive</pre>
       </ul>
       <h3>What's recorded</h3>
       <ul>
-        <li><a href="#automations">Automation</a> runs, dry runs and undos; the rule's own log keeps the detail.</li>
+        <li><a href="#automations">Automation</a> runs, dry runs and undos — a run a note set off names the note; the rule's own log keeps the detail.</li>
         <li><a href="#sources">Source</a> refreshes.</li>
         <li>Notes written through the Local API or MCP: the route and the note, never the contents.</li>
         <li>Claude's edits accepted and undone, and failed turns, in fixed wording — never your question.</li>
@@ -1131,7 +1144,7 @@ do: archive</pre>
         <li><b>Move a card on a board</b> (<code>atlas_move_card</code>) to another column, another <a href="#views">lane</a>, or both, by the same rules as dragging it: one write, and a task finishes only through its type's status, a repeating one rolling on to its next date once. Only the board's own columns and lanes are accepted; anything else is refused, naming them, so <code>Done</code> for <code>done</code> never makes a column the type doesn't have. A move that would finish a task needs the note's last-modified time, so a retried move can't finish a repeating task twice. Only a board's cards move — a view note can't be moved this way.</li>
         <li><b>Add a note in a group</b> (<code>atlas_add_to_view</code>), as <b>+ New</b> in that group does: it gets the group's value, and the sub-group's, typed as the property stores them, and is numbered past any note of the same name. Only <code>.md</code> notes are made.</li>
         <li><b>Run a query you'd build</b> (<code>atlas_run_query</code>): the same <a href="#queries">queries</a> as the builder or the text, read-only. It answers with the rows, and with the groups and sub-groups for <code>GROUP BY</code>, as the app groups them. A mistake comes back with its line and column. Archived notes come only when the query's text says <code>INCLUDE ARCHIVED</code>. Up to 5000 rows. Notes in <code>.atlas</code> or a hidden folder are never reached, not even through a relation. Saving a query as a view stays in the app.</li>
-        <li><b>Read automations</b> (<code>atlas_automations</code>, <code>atlas_automation_log</code>, <code>atlas_automation_dry_run</code>): every <a href="#automations">rule</a> with its schedule, last run, next run and why it's paused, rules whose file can't be read listed apart; a rule's log, newest first, up to 100 entries; and exactly what a run would do now, writing nothing — up to 500 notes, with how many more it would pass over. Running, undoing, and making or editing a rule stay in the app.</li>
+        <li><b>Read automations</b> (<code>atlas_automations</code>, <code>atlas_automation_log</code>, <code>atlas_automation_dry_run</code>): every <a href="#automations">rule</a> with its schedule or the note that sets it off, last run, next run and why it's paused, rules whose file can't be read listed apart; a rule's log, newest first, up to 100 entries; and exactly what a run would do now, writing nothing — up to 500 notes, with how many more it would pass over. Running, undoing, and making or editing a rule stay in the app.</li>
         <li><b>See archived notes</b>: search, running a view and SQL queries leave them out, as the app does, unless asked with <code>includeArchived</code>.</li>
         <li><b>Read your name</b> (<code>atlas_profile</code>): the full name and preferred name from <a href="#profile">Settings → Profile</a>, and <code>[Your name]</code> to write when there's no full name. Claude is told to use exactly that name for an owner, author, assignee or attendee, and never to guess one from a username, an email address or a path. Read-only: the name is changed only in Settings. If the settings can't be read, it says so rather than answer “no name”.</li>
         <li><b>List and read templates</b> (<code>atlas_list_templates</code>, <code>atlas_read_template</code>): every <a href="#templates">template</a> with what it's used for — new notes of a type, today's note, captured tasks or saved artifacts — and which types have none, so their new notes start empty; and one template's properties and text, exactly what a new note made from it would start as. A template's name can be passed when making a note. Making, editing, renaming, deleting and moving templates to notes stay in the app.</li>
@@ -1195,7 +1208,7 @@ do: archive</pre>
         <li>Your version stays in place. The other Mac's is saved beside it as <code>&lt;name&gt; (conflict from &lt;Mac&gt;).md</code>; one of Atlas's own files (under <code>.atlas</code>) goes to <code>Sync conflicts/atlas/</code> instead, so it isn't read as a second live rule or view.</li>
         <li>Settings → Sync says <i>“Both Macs changed a file. This Mac’s version was kept; the other Mac’s is saved beside it.”</i>, and Activity gets a warning line. Nothing is lost, and git's conflict markers never land in a note.</li>
       </ul>
-      <div class="note"><b>Automations run on one Mac.</b> Scheduled <a href="#automations">automations</a> run on one Mac only, so two Macs never run the same rule. The first Mac to set up sync gets them; a second Mac connecting later — even through Connect existing repo — leaves them where they are. To move them, turn on <b>Run automations on this Mac</b> in Settings → Sync on the Mac you want.</div>
+      <div class="note"><b>Automations run on one Mac.</b> <a href="#automations">Automations</a> — scheduled, or set off by a note — run on one Mac only, so two Macs never run the same rule. The first Mac to set up sync gets them; a second Mac connecting later — even through Connect existing repo — leaves them where they are. To move them, turn on <b>Run automations on this Mac</b> in Settings → Sync on the Mac you want.</div>
       <div class="note"><b>No tokens.</b> Atlas never stores a GitHub token. An address with one in it is refused: <i>“That address has a password or token in it. Use the plain address from GitHub’s Code button: this Mac’s own GitHub login is what signs in.”</i></div>
     </section>
 
