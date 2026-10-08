@@ -35,7 +35,7 @@ export function fakeHostVaultFs(overrides: Partial<HostVaultFsPort> = {}): HostV
 
 export function fakeIndexPort(overrides: Partial<IndexPort> = {}): IndexPort {
   return {
-    open: async () => {},
+    open: async () => ({ fresh: false }),
     clear: async () => {},
     manifest: async () => [],
     put: async () => {},

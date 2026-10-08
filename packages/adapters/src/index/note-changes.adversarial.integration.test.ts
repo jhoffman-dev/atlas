@@ -21,10 +21,9 @@ import {
   recordingActivity,
   type NoteChangeNews,
 } from '@atlas/application';
-import { digestOf } from '@atlas/domain';
 
 /**
- * The change feed end to end on this side of the boundary: notes written to a
+ * Adversarial pass (P28-03). The change feed end to end on this side of the boundary: notes written to a
  * real folder, listed and read through the vault adapter, indexed through the
  * index adapter into a real SQLite file that outlives the syncer — as the
  * index outlives the app between launches.
@@ -231,62 +230,18 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe('the index change feed over a real folder and a real SQLite index', () => {
-  it('reports a written note as added, an edit as changed and a delete as removed', async () => {
-    await writeNote('Idea.md', 'A spark.\n');
-    const app = launch();
-    await app.sync();
-    app.news();
-
+describe('the index change feed over a real folder, under attack', () => {
+  it('does not report every note as added when opening throws the index away, as a schema upgrade does', async () => {
     await writeNote(KICKOFF, KICKOFF_TEXT);
-    await app.sync();
-    expect(app.news()).toEqual([
-      { kind: 'added', path: KICKOFF, type: 'meeting', digest: digestOf(KICKOFF_TEXT) },
-    ]);
-
-    const edited = `${KICKOFF_TEXT}Decided: ship on Friday.\n`;
-    await writeNote(KICKOFF, edited);
-    await app.sync();
-    expect(app.news()).toEqual([
-      { kind: 'changed', path: KICKOFF, type: 'meeting', digest: digestOf(edited) },
-    ]);
-
-    await rm(join(root, KICKOFF));
-    await app.sync();
-    expect(app.news()).toEqual([
-      { kind: 'removed', path: KICKOFF, type: 'meeting', digest: digestOf(edited) },
-    ]);
-  });
-
-  it('remembers across a relaunch: only a note that came while closed is news', async () => {
     await writeNote('Idea.md', 'A spark.\n');
     await launch().sync();
 
-    await writeNote(KICKOFF, KICKOFF_TEXT);
-    await writeNote('Idea.md', 'A spark.\n');
-    const reopened = launch();
-    await reopened.sync();
+    // The next release's host finds an older schema version and deletes the file (index.rs, open_database).
+    host.close();
+    await rm(join(root, '.atlas-cache', 'index.sqlite'));
+    const upgraded = launch();
+    await upgraded.sync();
 
-    expect(reopened.news()).toEqual([
-      { kind: 'added', path: KICKOFF, type: 'meeting', digest: digestOf(KICKOFF_TEXT) },
-    ]);
-  });
-
-  it('reports nothing for a rebuild, nor for a refresh that finds nothing new', async () => {
-    await writeNote(KICKOFF, KICKOFF_TEXT);
-    const app = launch();
-    await app.sync();
-    app.news();
-
-    await app.sync();
-    await app.sync(true);
-    expect(app.news()).toEqual([]);
-
-    const reopened = launch();
-    await reopened.sync(true);
-    expect(reopened.news()).toEqual([]);
-    expect(await tauriIndex.manifest()).toEqual([
-      expect.objectContaining({ path: KICKOFF, type: 'meeting', digest: digestOf(KICKOFF_TEXT) }),
-    ]);
+    expect(upgraded.news()).toEqual([]);
   });
 });

@@ -109,7 +109,10 @@ export async function refreshIndex({
     indexed: stale.length,
     removed: removed.length,
     unchanged: current.size - stale.length,
-    changes: noteChangesBetween(previous ?? known, versionsNow(current.keys(), reread, known)),
+    changes: noteChangesBetween(
+      previous ?? known,
+      versionsNow({ paths: current.keys(), reread, known, previous: previous ?? known }),
+    ),
   };
 }
 
@@ -144,18 +147,26 @@ async function indexNotes({
 }
 
 /**
- * Every note in the vault as it is now: as just read, or as the index already
- * had it. A note listed but neither — gone before it could be read — is left
- * out, and the next refresh finds it gone.
+ * Every note in the vault as it is now: as just read, or as the index or the
+ * last look at the vault had it. A note the host lists but could not read — a
+ * cloud placeholder, a file too big or half written — is still there, so it
+ * keeps the version last known of it; one never read at all is left out until
+ * it can be.
  */
-function versionsNow(
-  paths: Iterable<string>,
-  reread: ReadonlyMap<string, NoteVersion>,
-  known: ReadonlyMap<string, IndexEntry>,
-): Map<string, NoteVersion> {
+function versionsNow({
+  paths,
+  reread,
+  known,
+  previous,
+}: {
+  paths: Iterable<string>;
+  reread: ReadonlyMap<string, NoteVersion>;
+  known: ReadonlyMap<string, IndexEntry>;
+  previous: ReadonlyMap<string, NoteVersion>;
+}): Map<string, NoteVersion> {
   const versions = new Map<string, NoteVersion>();
   for (const path of paths) {
-    const version = reread.get(path) ?? known.get(path);
+    const version = reread.get(path) ?? known.get(path) ?? previous.get(path);
     if (version !== undefined) versions.set(path, version);
   }
   return versions;

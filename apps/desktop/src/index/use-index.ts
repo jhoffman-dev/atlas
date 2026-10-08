@@ -58,6 +58,10 @@ export function useIndex({
 } {
   const [status, setStatus] = useState<IndexStatus>({ kind: 'idle' });
   const revision = useRef(0);
+  // Read by every syncer this hook has made, so one left from a vault since
+  // closed drops what is still queued on it instead of reading the new vault.
+  const open = useRef(vaultKey);
+  open.current = vaultKey;
   const syncer = useMemo(
     () =>
       createIndexSyncer({
@@ -66,13 +70,14 @@ export function useIndex({
         markdown: ports.markdown,
         activity,
         changes,
+        openVault: () => open.current,
       }),
     [ports.fs, ports.index, ports.markdown, activity, changes],
   );
 
   const run = useCallback(
     async ({ fromScratch }: { fromScratch: boolean }) => {
-      if (vaultKey === null) return;
+      if (vaultKey === null || open.current !== vaultKey) return;
       try {
         setStatus({ kind: 'working', done: 0, total: 0 });
         const stats = await syncer.sync({
@@ -80,6 +85,8 @@ export function useIndex({
           fromScratch,
           onProgress: (done, total) => setStatus({ kind: 'working', done, total }),
         });
+        // Dropped: the vault closed while it waited, and the one open now has its own.
+        if (stats === null) return;
         revision.current += 1;
         setStatus({ kind: 'ready', notes: stats.notes, revision: revision.current });
       } catch (cause) {

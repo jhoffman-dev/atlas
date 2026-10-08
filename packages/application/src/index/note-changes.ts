@@ -12,6 +12,11 @@ export interface NoteChangeNews {
  * (P28-03). Every sync of the index publishes here — after a typed edit, an
  * API write, a change the watcher saw or a sync pull alike — because each of
  * them ends in one; a sync that found nothing publishes nothing.
+ *
+ * Nor does a baseline: the first sync after the host made the index afresh
+ * (a schema upgrade, a deleted or unreadable cache) has nothing to measure
+ * from, and publishes nothing rather than every note as added. A note that
+ * arrived while the app was closed, just before such an upgrade, is not news.
  */
 export interface NoteChanges {
   publish(news: NoteChangeNews): void;

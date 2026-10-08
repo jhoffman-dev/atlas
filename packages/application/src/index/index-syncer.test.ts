@@ -75,7 +75,12 @@ function vaultWithIndex(notes: Record<string, string> = {}) {
 
 type Vault = ReturnType<typeof vaultWithIndex>;
 
-function syncerOver({ fs, index }: Pick<Vault, 'fs' | 'index'>) {
+function syncerOver(
+  { fs, index }: Pick<Vault, 'fs' | 'index'>,
+  /** The vault open now; unless a test says otherwise, the one last synced. */
+  openVault?: () => string | null,
+) {
+  let asked: string | null = null;
   const heard: NoteChangeNews[] = [];
   const changes = createNoteChanges({
     onError: (cause) => {
@@ -89,10 +94,14 @@ function syncerOver({ fs, index }: Pick<Vault, 'fs' | 'index'>) {
     markdown: fakeMarkdown(),
     activity: recordingActivity(),
     changes,
+    openVault: openVault ?? (() => asked),
   });
   return {
     heard,
-    sync: (fromScratch = false, at = LARKSPUR) => syncer.sync({ vault: at, fromScratch }),
+    sync: (fromScratch = false, at = LARKSPUR) => {
+      asked = at;
+      return syncer.sync({ vault: at, fromScratch });
+    },
     /** Everything heard since the last call. */
     news: () => heard.splice(0).flatMap((each) => each.changes),
   };
@@ -336,6 +345,82 @@ describe('the index syncer reports what changed (P28-03)', () => {
 
     // Fenn's own index already holds its note, and Larkspur's meeting did not go anywhere.
     expect(news()).toEqual([]);
+  });
+
+  it('publishes nothing for the first sync over an index the host has just made', async () => {
+    const vault = vaultWithIndex({ [KICKOFF]: KICKOFF_TEXT, 'Idea.md': 'a spark' });
+    const index = { ...vault.index, open: async () => ({ fresh: true }) };
+    const { sync, heard } = syncerOver({ fs: vault.fs, index });
+
+    await sync();
+
+    expect(vault.held.size).toBe(2);
+    expect(heard).toEqual([]);
+  });
+
+  it('measures from the notes it remembers even when the host has made the index afresh', async () => {
+    const vault = vaultWithIndex({ [KICKOFF]: KICKOFF_TEXT });
+    let fresh = false;
+    const index = { ...vault.index, open: async () => ({ fresh }) };
+    const { sync, news } = syncerOver({ fs: vault.fs, index });
+    await sync();
+    news();
+
+    fresh = true;
+    vault.held.clear();
+    vault.write('Idea.md', 'a spark');
+    await sync();
+
+    expect(news()).toEqual([change('added', 'Idea.md', 'a spark', null)]);
+  });
+
+  it('keeps a baseline sync over a fresh index a baseline when it fails and is tried again', async () => {
+    const vault = vaultWithIndex({ [KICKOFF]: KICKOFF_TEXT, 'Idea.md': 'a spark' });
+    let opened = 0;
+    let failing = true;
+    const index = {
+      ...vault.index,
+      // Fresh the first time only, as the host is once it has made the file.
+      open: async () => ({ fresh: opened++ === 0 }),
+      put: async (notes: Parameters<IndexPort['put']>[0]) => {
+        await vault.index.put(notes.slice(0, 1));
+        if (failing) throw new Error('disk full');
+        await vault.index.put(notes);
+      },
+    };
+    const { sync, heard } = syncerOver({ fs: vault.fs, index });
+
+    await expect(sync()).rejects.toThrow('disk full');
+    failing = false;
+    await sync();
+
+    expect(heard).toEqual([]);
+  });
+
+  it('drops a sync whose vault was closed while it ran, publishing and remembering nothing', async () => {
+    const { vault } = await synced({ [KICKOFF]: KICKOFF_TEXT });
+    let open: string | null = LARKSPUR;
+    const index = {
+      ...vault.index,
+      stats: async () => {
+        open = '/vaults/Fenn';
+        return vault.index.stats();
+      },
+    };
+    const { sync, heard } = syncerOver({ fs: vault.fs, index }, () => open);
+
+    vault.write('Idea.md', 'a spark');
+    expect(await sync()).toBeNull();
+    expect(heard).toEqual([]);
+  });
+
+  it('drops a sync asked for a vault that is not open, touching nothing', async () => {
+    const vault = vaultWithIndex({ [KICKOFF]: KICKOFF_TEXT });
+    const { sync, heard } = syncerOver(vault, () => null);
+
+    expect(await sync()).toBeNull();
+    expect(vault.held.size).toBe(0);
+    expect(heard).toEqual([]);
   });
 
   it('says which vault the changes happened in', async () => {

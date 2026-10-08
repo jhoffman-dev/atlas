@@ -113,8 +113,17 @@ export interface IndexStats {
  * The derived index. Everything in it restates what the markdown files already
  * say, so it can be thrown away and rebuilt at any time.
  */
+/** What opening the index found. */
+export interface IndexOpening {
+  /**
+   * True when the host made the index just now — there was none, or it threw
+   * away one of an older shape — so it holds nothing of the vault yet.
+   */
+  readonly fresh: boolean;
+}
+
 export interface IndexPort {
-  open(): Promise<void>;
+  open(): Promise<IndexOpening>;
   clear(): Promise<void>;
   manifest(): Promise<readonly IndexEntry[]>;
   put(notes: readonly IndexedNote[]): Promise<void>;

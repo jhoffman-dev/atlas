@@ -712,7 +712,9 @@ export async function installHost(
         return files;
       }
       case 'index_open':
-        return null;
+        // This stand-in keeps nothing between windows and lists no manifest, so
+        // every index it opens is one made just now.
+        return { fresh: true };
       case 'index_clear':
         indexed.clear();
         return null;

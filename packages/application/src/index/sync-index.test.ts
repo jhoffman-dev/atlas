@@ -9,7 +9,10 @@ function setUp(
   const steps: string[] = [];
   const watched = {
     ...index,
-    open: async () => void steps.push('open'),
+    open: async () => {
+      steps.push('open');
+      return { fresh: false };
+    },
     clear: async () => void steps.push('clear'),
   };
   const activity = recordingActivity();

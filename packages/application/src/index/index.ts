@@ -12,6 +12,7 @@ export type {
   IndexedLinkRow,
   IndexedNote,
   IndexEntry,
+  IndexOpening,
   IndexPort,
   IndexStats,
   SearchHit,

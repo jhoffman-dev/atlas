@@ -65,7 +65,7 @@ function fakeIndex(entries: HeldEntry[] = []) {
   const written: IndexedNote[] = [];
   const removed: string[] = [];
   const index: IndexPort = {
-    open: async () => {},
+    open: async () => ({ fresh: false }),
     clear: async () => {},
     manifest: async () => entries.map((entry) => ({ digest: '', type: null, ...entry })),
     put: async (notes) => {
@@ -272,7 +272,24 @@ describe('refreshIndex says what changed (P28-03)', () => {
     ]);
   });
 
-  it('does not report a note that went before it could be read', async () => {
+  it('keeps the version it knew of a note still listed that could not be read', async () => {
+    const fs = {
+      ...fakeVault({ 'Kickoff.md': { text: meeting, modified: 2 } }),
+      readNotes: async () => [],
+    };
+    const { index } = fakeIndex();
+
+    const { changes } = await refreshIndex({
+      fs,
+      index,
+      markdown,
+      previous: new Map([['Kickoff.md', { type: 'meeting', digest: digestOf(meeting) }]]),
+    });
+
+    expect(changes).toEqual([]);
+  });
+
+  it('does not report a note it has never been able to read', async () => {
     const fs = {
       ...fakeVault({ 'Kickoff.md': { text: meeting, modified: 1 } }),
       readNotes: async () => [],

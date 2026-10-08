@@ -111,7 +111,7 @@ const fakeIndexPorts = (vault: VaultPorts): IndexPorts => ({
   fs: vault.fs,
   markdown: remarkMarkdown,
   index: {
-    open: async () => {},
+    open: async () => ({ fresh: false }),
     clear: async () => {},
     manifest: async () => [],
     put: async () => {},

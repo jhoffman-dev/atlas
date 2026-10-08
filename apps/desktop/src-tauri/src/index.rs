@@ -305,7 +305,18 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
         .map_err(|error| format!("cannot create index: {error}"))
 }
 
-fn open_database(root: &Path) -> Result<Connection, String> {
+/// What opening the index found, for TypeScript to act on.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexOpened {
+    /// True when the index was made just now — there was none, or one of
+    /// another shape was thrown away — so it holds nothing of the vault yet.
+    pub fresh: bool,
+}
+
+/// Opens the vault's index, making it when there is none of this shape, and
+/// says which: a fact about the cache, which TypeScript decides what to do with.
+fn open_database(root: &Path) -> Result<(Connection, IndexOpened), String> {
     let path = database_path(root)?;
     let connection =
         Connection::open(&path).map_err(|error| format!("cannot open index: {error}"))?;
@@ -328,11 +339,11 @@ fn open_database(root: &Path) -> Result<Connection, String> {
         connection
             .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
             .map_err(|error| format!("cannot set index version: {error}"))?;
-        return Ok(connection);
+        return Ok((connection, IndexOpened { fresh: true }));
     }
 
     create_schema(&connection)?;
-    Ok(connection)
+    Ok((connection, IndexOpened { fresh: false }))
 }
 
 fn with_connection<T>(
@@ -348,12 +359,12 @@ fn with_connection<T>(
 pub fn index_open(
     vault: State<'_, VaultState>,
     index: State<'_, IndexState>,
-) -> Result<(), String> {
+) -> Result<IndexOpened, String> {
     let root = vault.root().ok_or("no vault is open")?;
-    let connection = open_database(&root)?;
+    let (connection, opened) = open_database(&root)?;
     *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
-    log::info!("index opened");
-    Ok(())
+    log::info!("index opened (fresh: {})", opened.fresh);
+    Ok(opened)
 }
 
 /// Throws the cache away and starts again. The point of having it.
@@ -368,7 +379,7 @@ pub fn index_clear(
     for suffix in ["", "-wal", "-shm"] {
         let _ = fs::remove_file(format!("{}{suffix}", path.display()));
     }
-    let connection = open_database(&root)?;
+    let (connection, _) = open_database(&root)?;
     *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
     log::info!("index cleared");
     Ok(())
@@ -1312,14 +1323,14 @@ mod tests {
     #[test]
     fn a_reopened_index_still_knows_each_note_as_it_was_stored() {
         let vault = tempfile::tempdir().unwrap();
-        let mut first = open_database(vault.path()).unwrap();
+        let (mut first, _) = open_database(vault.path()).unwrap();
         let mut meeting = note("Kickoff.md", "Kickoff", "agenda");
         meeting.digest = "1a2b3c4d".to_string();
         meeting.note_type = Some("meeting".to_string());
         put_notes(&mut first, &[meeting]).unwrap();
         drop(first);
 
-        let reopened = open_database(vault.path()).unwrap();
+        let (reopened, _) = open_database(vault.path()).unwrap();
         let entry = manifest(&reopened).unwrap().pop().unwrap();
         assert_eq!(
             (
@@ -1328,6 +1339,38 @@ mod tests {
                 entry.note_type.as_deref()
             ),
             ("Kickoff.md", "1a2b3c4d", Some("meeting"))
+        );
+    }
+
+    #[test]
+    fn opening_says_the_index_is_fresh_only_when_it_was_made_just_now() {
+        let vault = tempfile::tempdir().unwrap();
+        let (first, opened) = open_database(vault.path()).unwrap();
+        assert!(opened.fresh);
+        drop(first);
+
+        let (_, reopened) = open_database(vault.path()).unwrap();
+        assert!(!reopened.fresh);
+    }
+
+    #[test]
+    fn opening_an_index_of_another_shape_says_it_is_fresh() {
+        let vault = tempfile::tempdir().unwrap();
+        let (older, _) = open_database(vault.path()).unwrap();
+        older
+            .execute_batch(&format!("PRAGMA user_version = {};", SCHEMA_VERSION - 1))
+            .unwrap();
+        drop(older);
+
+        let (_, opened) = open_database(vault.path()).unwrap();
+        assert!(opened.fresh);
+    }
+
+    #[test]
+    fn opening_says_whether_it_is_fresh_under_the_name_typescript_reads() {
+        assert_eq!(
+            serde_json::to_value(IndexOpened { fresh: true }).unwrap(),
+            serde_json::json!({ "fresh": true })
         );
     }
 
