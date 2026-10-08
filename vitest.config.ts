@@ -56,6 +56,8 @@ export default defineConfig({
         'packages/application/src/artifacts/**': { lines: 90, functions: 90, branches: 85 },
         // Archiving moves notes and rewrites their frontmatter (U-22).
         'packages/application/src/archive/**': { lines: 90, functions: 90, branches: 85 },
+        // Accepting a proposal writes notes and archives it; undo takes them back (P29-02).
+        'packages/application/src/proposals/**': { lines: 90, functions: 90, branches: 85 },
         // An automation moves and rewrites notes by itself, on a clock (P25).
         'packages/application/src/automations/**': { lines: 90, functions: 90, branches: 85 },
         // A sync merges other Macs' changes into the notes and settles conflicts (U-29).

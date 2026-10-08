@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { digestOf } from '@atlas/domain';
+import { digestOf, type VaultPath } from '@atlas/domain';
 import {
   jsonLinesNote,
   proposalVault,
@@ -7,6 +7,7 @@ import {
   type ProposalVault,
 } from '../testing/proposal-vault.ts';
 import { acceptProposalNote, undoAcceptedProposal } from './accept-proposal.ts';
+import type { ProposalPorts } from './proposal-file.ts';
 import { listProposals } from './list-proposals.ts';
 import { rejectProposalNote } from './reject-proposal.ts';
 
@@ -333,5 +334,130 @@ describe('listProposals', () => {
   it('is empty in a vault with no proposals', async () => {
     const setup = proposalVault({ 'A.md': 'A.\n' });
     expect(await listProposals(setup.ports)).toEqual({ open: [], unreadable: [] });
+  });
+});
+
+describe('acceptProposalNote — when the vault moves under it', () => {
+  const linkFiles = (proposal: string) => ({
+    [PROPOSAL]: proposal,
+    'People/Mara Quill.md': MARA,
+    '.atlas/types/person.md': PERSON_TYPE,
+  });
+
+  it('refuses a link whose note is gone, or whose property is no relation of its type', async () => {
+    const gone = vault({ [PROPOSAL]: linkProposal() });
+    await expect(accept(gone)).rejects.toThrow('Mara Quill is not there any more.');
+
+    const plain = vault({ ...linkFiles(linkProposal()), '.atlas/types/person.md': '' });
+    await expect(accept(plain)).rejects.toThrow(/no relation called companies/);
+  });
+
+  it('refuses a proposal it cannot read, saying why', async () => {
+    const setup = vault({ [PROPOSAL]: taskProposal({ kind: 'meeting' }) });
+    await expect(accept(setup)).rejects.toThrow(/no kind Atlas knows/);
+  });
+
+  it('refuses a link when its note changes between the read and the write', async () => {
+    const setup = vault(linkFiles(linkProposal()));
+    const { fs } = setup.ports;
+    const racing = {
+      ...setup.ports,
+      fs: {
+        ...fs,
+        writeTextFile: async (args: Parameters<typeof fs.writeTextFile>[0]) => {
+          const mara = setup.fixture.files.get('People/Mara Quill.md');
+          if (args.path === 'People/Mara Quill.md' && mara !== undefined) {
+            setup.fixture.files.set(args.path, { ...mara, modified: mara.modified + 50 });
+          }
+          return fs.writeTextFile(args);
+        },
+      },
+    };
+    await expect(
+      acceptProposalNote({ ports: racing, path: vaultPath(PROPOSAL), today: TODAY }),
+    ).rejects.toThrow('People/Mara Quill.md changed just now; nothing was written.');
+    expect(setup.propertiesOf(PROPOSAL)).not.toHaveProperty('state');
+    expect(setup.paths()).toContain(PROPOSAL);
+  });
+
+  it('passes on a failure that is not a change, writing nothing it proposed', async () => {
+    const setup = vault();
+    const broken = {
+      ...setup.ports,
+      fs: {
+        ...setup.ports.fs,
+        createNote: async () => {
+          throw new Error('the disk is full');
+        },
+      },
+    };
+    await expect(
+      acceptProposalNote({ ports: broken, path: vaultPath(PROPOSAL), today: TODAY }),
+    ).rejects.toThrow('the disk is full');
+    expect(setup.propertiesOf(PROPOSAL)).toMatchObject({ state: 'open' });
+  });
+
+  it('says so when the proposal changed and what it made could not be taken back', async () => {
+    const setup = vault();
+    const { fs } = setup.ports;
+    const tangled = {
+      ...setup.ports,
+      fs: {
+        ...fs,
+        writeTextFile: async (args: Parameters<typeof fs.writeTextFile>[0]) => {
+          // The proposal is edited, and so is the new task, just before the stamp.
+          for (const path of [PROPOSAL, TASK]) {
+            const note = setup.fixture.files.get(path);
+            if (note !== undefined) setup.fixture.files.set(path, { ...note, modified: 9999 });
+          }
+          return fs.writeTextFile(args);
+        },
+      },
+    };
+    await expect(
+      acceptProposalNote({ ports: tangled, path: vaultPath(PROPOSAL), today: TODAY }),
+    ).rejects.toThrow(
+      /“Send Mara the payroll file” was written, but the proposal could not be marked accepted .* taking it back failed/,
+    );
+    expect(setup.paths()).toContain(TASK);
+  });
+
+  it('accepts all the same when the proposal cannot be archived, and says why', async () => {
+    const setup = vault();
+    let asked = 0;
+    // Clean when Accept checks it; typing arrives before the Archive moves it.
+    const typing = {
+      ...setup.ports,
+      editors: {
+        ...setup.ports.editors,
+        state: (path: VaultPath) => (path === PROPOSAL && (asked += 1) > 1 ? 'dirty' : 'closed'),
+      },
+    } satisfies ProposalPorts;
+    const accepted = await acceptProposalNote({
+      ports: typing,
+      path: vaultPath(PROPOSAL),
+      today: TODAY,
+    });
+
+    expect(accepted.archivedAt).toBeNull();
+    expect(accepted.archiveProblem).toMatch(/unsaved typing/);
+    expect(setup.propertiesOf(PROPOSAL)).toMatchObject({ state: 'accepted' });
+    expect((await listProposals(setup.ports)).open).toEqual([]);
+
+    const back = await undoAcceptedProposal({ ports: setup.ports, accepted });
+    expect(back).toBe(PROPOSAL);
+    expect(setup.propertiesOf(PROPOSAL)).toMatchObject({ state: 'open' });
+    expect(setup.paths()).not.toContain(TASK);
+  });
+
+  it('undoes what it made but says so when the proposal cannot leave the Archive', async () => {
+    const setup = vault();
+    const accepted = await accept(setup);
+    setup.dirty.add(`Archive/${PROPOSAL}`);
+
+    await expect(undoAcceptedProposal({ ports: setup.ports, accepted })).rejects.toThrow(
+      /What it made was taken back, but the proposal stays in the Archive: .*unsaved typing/,
+    );
+    expect(setup.paths()).not.toContain(TASK);
   });
 });

@@ -3,6 +3,7 @@ import {
   digestOf,
   joinFrontmatter,
   joinVaultPath,
+  messageOf,
   parentVaultPath,
   payloadRecord,
   proposalHeadline,
@@ -236,15 +237,14 @@ async function takenBack(
     cause,
   }: { wrote: readonly AppliedProposal[]; headline: string; cause: unknown },
 ): Promise<Error> {
-  const reason = cause instanceof Error ? cause.message : String(cause);
+  const reason = messageOf(cause);
   try {
     for (const applied of wrote) {
       await undoProposal({ fs: ports.fs, openNotes: ports.editors, applied });
     }
   } catch (undoing) {
-    const why = undoing instanceof Error ? undoing.message : String(undoing);
     return new ProposalRefused(
-      `“${headline}” was written, but the proposal could not be marked accepted (${reason}), and taking it back failed: ${why}`,
+      `“${headline}” was written, but the proposal could not be marked accepted (${reason}), and taking it back failed: ${messageOf(undoing)}`,
     );
   }
   return new ProposalRefused(`${reason} Nothing was kept.`);
