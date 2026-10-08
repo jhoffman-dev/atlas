@@ -8,7 +8,13 @@
  * does not — and what lets the builder offer the right operators and values.
  */
 
-import type { ObjectType, PropertyDef, PropertyKind } from '../types/property-def.ts';
+import {
+  relationTypes,
+  relationTypesText,
+  type ObjectType,
+  type PropertyDef,
+  type PropertyKind,
+} from '../types/property-def.ts';
 import { fieldText, type FieldRef, type Name } from './ast.ts';
 import { QueryTextError } from './query-text-error.ts';
 
@@ -27,8 +33,10 @@ export interface QueryField {
   readonly kind: FieldKind;
   /** A select's options, in the type's order; a relation's target type's notes are not here. */
   readonly options: readonly string[];
-  /** For a relation: the type it points at. */
+  /** For a relation: the type it points at — the first, when it may point at several. */
   readonly target: string | null;
+  /** For a relation to several types: all of them, as `PropertyDef.targets`. Read with `relationTypes`. */
+  readonly targets?: readonly string[];
   /** Whether a note can hold several values of it. */
   readonly many: boolean;
 }
@@ -79,15 +87,26 @@ export function propertyField(property: PropertyDef): QueryField {
     kind: property.kind,
     options: property.options,
     target: property.target,
+    ...(property.targets !== undefined && { targets: property.targets }),
     many: property.many || property.kind === 'multiSelect',
   };
 }
 
-/** The fields of the notes a relation points at: `project.owner`, `project.title`. */
+/**
+ * The fields of the notes a relation points at: `project.owner`, `project.title`.
+ *
+ * A relation to several types reaches every field any of them declares, as a
+ * query over all of them would — the first type to declare a key decides its
+ * kind. The hop reads that key on whichever note is linked, whatever its
+ * type, so a linked note of a type that does not declare it simply has no
+ * value there (an area has no `due`: `project.due IS EMPTY` holds for it).
+ */
 export function fieldsThrough(relation: QueryField, types: readonly ObjectType[]): QueryField[] {
-  const target = types.find((type) => type.name === relation.target);
-  if (target === undefined) return [];
-  return directFields(types, [target.name])
+  const pointedAt = relationTypes(relation).filter((name) =>
+    types.some((type) => type.name === name),
+  );
+  if (pointedAt.length === 0) return [];
+  return directFields(types, pointedAt)
     .filter((field) => field.key !== 'path')
     .map((field) => ({
       ...field,
@@ -129,16 +148,16 @@ export function resolveField(
       ref.via.span,
     );
   }
-  if (!types.some((type) => type.name === relation.target)) {
+  if (!relationTypes(relation).some((name) => types.some((type) => type.name === name))) {
     throw new QueryTextError(
-      `${relation.text} points at ${relation.target ?? 'nothing'}, which is not a type here.`,
+      `${relation.text} points at ${relationTypesText(relation)}, which is not a type here.`,
       ref.via.span,
     );
   }
   const found = fieldsThrough(relation, types).find((field) => field.text === fieldText(ref));
   if (found === undefined) {
     throw new QueryTextError(
-      `A ${relation.target ?? ''} has no field called ${ref.name.text}.`,
+      `A ${relationTypesText(relation)} has no field called ${ref.name.text}.`,
       ref.name.span,
     );
   }
