@@ -890,6 +890,12 @@ export type ApiSuccessBody =
   | ApiAutomationDryRun
   | {
       readonly proposals: readonly ApiProposal[];
+      /** Answered, yet still in Inbox/Proposals: the Archive refused them. */
+      readonly stranded: readonly {
+        readonly path: string;
+        readonly headline: string;
+        readonly state: 'accepted' | 'rejected';
+      }[];
       /** Notes there that say they are proposals and cannot be read, with why. */
       readonly unreadable: readonly { readonly path: string; readonly problem: string }[];
     }

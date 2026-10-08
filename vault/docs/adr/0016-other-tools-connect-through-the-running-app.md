@@ -455,7 +455,14 @@ as every route above, through the page's own use-cases (`listProposals`,
   it may be the very one proposed); or one link added to a relation of an
   existing note, through the byte-preserving frontmatter write, guarded by
   the digest the proposal recorded and the note's modified time. A payload's
-  folder may not be hidden, the Archive or the proposals folder.
+  folder, and a link's note, must be user space (`isUserSpaceNote`: not
+  `.atlas`, a hidden folder or one the walk never reads), and neither the
+  Archive nor the proposals folder; a link's note is found as the vault
+  spells it, so the pane asked about typing is the one holding it.
+- **Who answered is kept.** Accept and reject stamp `answered_via: api` on
+  the proposal (the app's buttons stamp `app`), so the Archive records that
+  a proposal was answered from outside the app — by an MCP client James
+  asked.
 - **The proposal moves, by the Archive's rules.** Accepting or rejecting
   files the proposal in the Archive at its own path, through `archiveNotes`
   — the amendment above holds: user space only, never over anything, the

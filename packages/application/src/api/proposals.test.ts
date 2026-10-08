@@ -64,6 +64,13 @@ describe('GET /v1/proposals', () => {
           modified: expect.any(Number),
         },
       ],
+      stranded: [
+        {
+          path: 'Inbox/Proposals/Done.md',
+          headline: 'Send Mara the payroll file',
+          state: 'rejected',
+        },
+      ],
       unreadable: [{ path: 'Inbox/Proposals/Odd.md', problem: expect.stringMatching(/no kind/) }],
     });
   });
@@ -96,6 +103,7 @@ describe('POST /v1/proposals/{path}/accept', () => {
     });
     expect(propertiesOf(api, `Archive/${PROPOSAL}`)).toMatchObject({
       state: 'accepted',
+      answered_via: 'api',
       archived: TODAY,
     });
     expect(api.activity.reports).toHaveLength(1);
@@ -169,7 +177,10 @@ describe('POST /v1/proposals/{path}/reject', () => {
     expect(bodyOf(response)).toEqual({
       rejected: { proposal: PROPOSAL, archivedAt: `Archive/${PROPOSAL}`, archiveProblem: null },
     });
-    expect(propertiesOf(api, `Archive/${PROPOSAL}`)).toMatchObject({ state: 'rejected' });
+    expect(propertiesOf(api, `Archive/${PROPOSAL}`)).toMatchObject({
+      state: 'rejected',
+      answered_via: 'api',
+    });
     expect(api.files.has(TASK)).toBe(false);
   });
 

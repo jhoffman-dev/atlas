@@ -33,7 +33,15 @@ export async function proposalsRoute(request: VaultRequest): Promise<RouteResult
   request.assertStillOpen();
   return {
     status: 200,
-    body: { proposals: listing.open.map(apiProposal), unreadable: listing.unreadable },
+    body: {
+      proposals: listing.open.map(apiProposal),
+      stranded: listing.stranded.map(({ proposal }) => ({
+        path: proposal.path,
+        headline: proposalHeadline(proposal),
+        state: proposal.state === 'rejected' ? ('rejected' as const) : ('accepted' as const),
+      })),
+      unreadable: listing.unreadable,
+    },
   };
 }
 
@@ -41,7 +49,7 @@ export async function proposalsRoute(request: VaultRequest): Promise<RouteResult
 export async function acceptProposalRoute(request: VaultRequest): Promise<RouteResult> {
   const { ports, path } = await answerable(request);
   const accepted = await answered(() =>
-    acceptProposalNote({ ports, path, today: request.clock.today() }),
+    acceptProposalNote({ ports, path, today: request.clock.today(), via: 'api' }),
   );
   return {
     status: 200,
@@ -59,7 +67,7 @@ export async function acceptProposalRoute(request: VaultRequest): Promise<RouteR
 export async function rejectProposalRoute(request: VaultRequest): Promise<RouteResult> {
   const { ports, path } = await answerable(request);
   const rejected = await answered(() =>
-    rejectProposalNote({ ports, path, today: request.clock.today() }),
+    rejectProposalNote({ ports, path, today: request.clock.today(), via: 'api' }),
   );
   return { status: 200, body: { rejected: archived(path, rejected) } };
 }
