@@ -7,7 +7,8 @@
  * The domain has no clock, so a moving date is never a day here. A query the
  * app runs asks the index for it, over the index's own clock, as `@today`
  * always has; an automation pins it to the day it is handed. Both readings of
- * each date are written here, side by side, so they cannot drift apart.
+ * a count and of `@startOfWeek` are written here, side by side, so they cannot
+ * drift apart; the named dates keep theirs in `view-query` and `movingDate`.
  */
 
 import { dateParts, rangeStart } from '../calendar/calendar-range.ts';
