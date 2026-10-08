@@ -26,6 +26,7 @@ export * from './chat/index.ts';
 export * from './transclusion/index.ts';
 export * from './activity/index.ts';
 export * from './sync/index.ts';
+export * from './embeddings/index.ts';
 export {
   CONFLICT_BLOBS,
   failed,
