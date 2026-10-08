@@ -11,6 +11,9 @@ import type { NamedEntity, VocabularySources } from './vocabulary.ts';
 /** Rows per page of the vocabulary's notes: the host hands back at most 5,000 at once. */
 export const VOCABULARY_PAGE_SIZE = 5000;
 
+/** The types the vocabulary reads, bound in this order wherever the query names them. */
+const VOCABULARY_TYPES = [TERM_TYPE, PERSON_TYPE, COMPANY_TYPE] as const;
+
 /**
  * One page of what the vocabulary is built from: every term, person and
  * company, with each item of the lists that hold their other spellings — one
@@ -18,27 +21,32 @@ export const VOCABULARY_PAGE_SIZE = 5000;
  * path, title, type, key, value; in path order, then by key and place in the
  * list, so a note's rows arrive together.
  *
- * A note's type is its first; only the vault's own notes are read — not a
- * template in `.atlas`, nor anything in a hidden folder or the Archive, which
- * is where a term goes when it is retired.
+ * A note is one of them when any item of its `type` is, as `@` and a type's
+ * page count it (`type: [contact, person]` is a person). A note whose types
+ * name more than one of them is the first it names: `type: [company, person]`
+ * is a company, its name and aliases read once. Only the vault's own notes
+ * are read — not a template in `.atlas`, nor anything in a hidden folder or
+ * the Archive, which is where a term goes when it is retired.
  */
 export function compileVocabularyQuery(page: number): CompiledQuery {
+  const named = VOCABULARY_TYPES.map(() => '?').join(', ');
   return {
     sql: `/* terms:notes */ SELECT files.path AS "path", files.title AS "title",
-        typed.value_text AS "type", spelt.key AS "key", spelt.value_text AS "value"
+        (SELECT typed.value_text FROM props AS typed
+          WHERE typed.path = files.path AND typed.key = 'type' AND typed.value_text IN (${named})
+          ORDER BY typed.idx LIMIT 1) AS "type",
+        spelt.key AS "key", spelt.value_text AS "value"
  FROM files
- JOIN props AS typed ON typed.path = files.path AND typed.key = 'type' AND typed.idx = 0
-   AND typed.value_text IN (?, ?, ?)
  LEFT JOIN props AS spelt ON spelt.path = files.path AND spelt.key IN (?, ?, ?)
- WHERE ${userSpaceNoteSql('files.path')} AND ${outsideArchiveSql('files.path')}
+ WHERE files.path IN (SELECT path FROM props WHERE key = 'type' AND value_text IN (${named}))
+   AND ${userSpaceNoteSql('files.path')} AND ${outsideArchiveSql('files.path')}
  ORDER BY files.path, spelt.key, spelt.idx LIMIT ? OFFSET ?`,
     parameters: [
-      TERM_TYPE,
-      PERSON_TYPE,
-      COMPANY_TYPE,
+      ...VOCABULARY_TYPES,
       VARIANTS_KEY,
       TERM_KIND_KEY,
       ALIASES_KEY,
+      ...VOCABULARY_TYPES,
       VOCABULARY_PAGE_SIZE,
       page * VOCABULARY_PAGE_SIZE,
     ],

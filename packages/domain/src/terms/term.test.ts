@@ -48,12 +48,19 @@ describe('a new term', () => {
       newTermProperties({
         canonical: 'Larkspur',
         fileTitle: 'Larkspur',
+        startsTitled: false,
         variants: ['lark spur'],
         kind: 'company',
       }),
     ).toEqual({ type: 'term', kind: 'company', variants: ['lark spur'] });
     expect(
-      newTermProperties({ canonical: 'Larkspur', fileTitle: 'Larkspur', variants: [], kind: null }),
+      newTermProperties({
+        canonical: 'Larkspur',
+        fileTitle: 'Larkspur',
+        startsTitled: false,
+        variants: [],
+        kind: null,
+      }),
     ).toEqual({ type: 'term' });
   });
 
@@ -62,6 +69,7 @@ describe('a new term', () => {
       newTermProperties({
         canonical: ' S/4 Ledger ',
         fileTitle: 'S 4 Ledger',
+        startsTitled: false,
         variants: [],
         kind: null,
       }),
@@ -70,9 +78,35 @@ describe('a new term', () => {
       newTermProperties({
         canonical: 'Larkspur',
         fileTitle: 'Larkspur 2',
+        startsTitled: false,
         variants: [],
         kind: null,
       }),
     ).toEqual({ type: 'term', title: 'Larkspur' });
+  });
+
+  it('writes its spelling as its title over the title its template starts with', () => {
+    expect(
+      newTermProperties({
+        canonical: 'Larkspur',
+        fileTitle: 'Larkspur',
+        startsTitled: true,
+        variants: [],
+        kind: null,
+      }),
+    ).toEqual({ type: 'term', title: 'Larkspur' });
+  });
+
+  it('is spelt without the zero-width characters pasted text carries', () => {
+    expect(
+      newTermProperties({
+        canonical: 'Lark\u200Bspur\uFEFF',
+        fileTitle: 'Larkspur',
+        startsTitled: false,
+        variants: [],
+        kind: null,
+      }),
+    ).toEqual({ type: 'term' });
+    expect(newTermRefusal('\u200C\u200D \u2060')).toBe('A term needs its right spelling.');
   });
 });

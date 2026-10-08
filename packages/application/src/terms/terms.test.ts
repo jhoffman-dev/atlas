@@ -240,6 +240,20 @@ describe('addTerm', () => {
     ]);
   });
 
+  it('names the note by its spelling without the zero-width characters pasted text carries', async () => {
+    const vault = recordingVault({}, [{ name: 'Terms', kind: 'directory' }]);
+    const made = await addTerm({
+      fs: vault.fs,
+      markdown: vault.markdown,
+      term: { canonical: ' Lark\u200Bspur\uFEFF', variants: '', kind: null },
+      types: [TERM_TYPE],
+      templates: [],
+      notePaths: [],
+    });
+    expect(made).toBe('Terms/Larkspur.md');
+    expect(vault.changes).toEqual([{ type: 'term' }]);
+  });
+
   it('refuses a term with no spelling, and writes nothing', async () => {
     const vault = recordingVault();
     await expect(

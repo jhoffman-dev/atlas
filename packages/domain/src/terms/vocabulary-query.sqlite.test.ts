@@ -99,11 +99,17 @@ describe('the vocabulary’s notes, read from the index’s tables', () => {
     expect(run().map((row) => row.path)).toEqual(['Terms/Kept.md']);
   });
 
-  it('read a note’s type from the first item when it lists several', () => {
+  it('take a note as any of its types, as @ and a type’s page do — the first one named when two are', () => {
     const { note, run } = index();
     note('Both.md', 'Both', { type: ['project', 'term'] });
-    note('Term first.md', 'Term first', { type: ['term', 'project'] });
-    expect(run().map((row) => row.path)).toEqual(['Term first.md']);
+    note('Company first.md', 'Company first', { type: ['company', 'person'] });
+    note('Person first.md', 'Person first', { type: ['contact', 'person', 'company'] });
+    note('Neither.md', 'Neither', { type: ['project', 'contact'] });
+    expect(run().map((row) => [row.path, row.type])).toEqual([
+      ['Both.md', 'term'],
+      ['Company first.md', 'company'],
+      ['Person first.md', 'person'],
+    ]);
   });
 
   it('page through the rows', () => {

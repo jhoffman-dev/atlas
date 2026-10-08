@@ -95,6 +95,7 @@ describe('the vocabulary', () => {
   it('matches spellings however they are cased, spaced or composed, keeping the first as written', () => {
     expect(vocabularyKey('  Lark \t Spur ')).toBe('lark spur');
     expect(vocabularyKey('René')).toBe(vocabularyKey('René'));
+    expect(vocabularyKey('Lark\u200Bspur\u2060')).toBe('larkspur');
     const built = vocabulary({
       ...NOBODY,
       terms: [term('Terms/Larkspur.md', 'Larkspur', ['Lark  Spur', 'lark spur', 'LARKSPUR'])],

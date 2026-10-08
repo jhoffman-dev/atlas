@@ -8,6 +8,7 @@ import {
   type VaultPath,
   type VocabularyClaim,
   type VocabularyConflict,
+  variantsAsInput,
 } from '@atlas/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon } from './icon.tsx';
@@ -169,7 +170,10 @@ function NewTermForm({
           Add term
         </button>
       </div>
-      <p className="terms__hint">Commas between the misheard spellings.</p>
+      <p className="terms__hint">
+        Commas between the misheard spellings; one that holds a comma goes in double quotes, as in{' '}
+        <code>&quot;Quill, Mara&quot;</code>.
+      </p>
       {tried && problem !== null && (
         <p className="terms__problem" role="alert">
           {problem}
@@ -274,7 +278,7 @@ function TermList({ contents, error, onOpen, onEditVariants }: TermsPageProps) {
                   <CommitField
                     className="field terms__variants-input"
                     label={`Misheard spellings of ${term.canonical}`}
-                    value={term.variants.join(', ')}
+                    value={variantsAsInput(term.variants)}
                     placeholder="None yet"
                     onCommit={(variants) => onEditVariants({ path: term.path, variants })}
                   />

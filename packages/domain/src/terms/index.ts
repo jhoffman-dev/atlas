@@ -7,10 +7,10 @@ export {
   TERM_TYPE,
   termKindOf,
   VARIANTS_KEY,
-  variantsFromInput,
 } from './term.ts';
+export { variantsAsInput, variantsFromInput } from './variants-input.ts';
 export type { TermKind, TermNote } from './term.ts';
-export { vocabularyKey } from './spelling.ts';
+export { tidySpelling, vocabularyKey } from './spelling.ts';
 export { vocabulary } from './vocabulary.ts';
 export type {
   NamedEntity,

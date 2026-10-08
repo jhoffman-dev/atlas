@@ -8,7 +8,9 @@ import {
   noteTitle,
   splitFrontmatter,
   TERM_TYPE,
+  tidySpelling,
   VARIANTS_KEY,
+  TITLE_KEY,
   VAULT_ROOT,
   createVaultPath,
   variantsFromInput,
@@ -98,7 +100,7 @@ export async function addTerm({
   notePaths,
 }: {
   fs: VaultFsPort;
-  markdown: Pick<MarkdownPort, 'updateFrontmatter'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
   term: { readonly canonical: string; readonly variants: string; readonly kind: TermKind | null };
   types: readonly ObjectType[];
   templates: readonly NoteTemplate[];
@@ -107,10 +109,11 @@ export async function addTerm({
   const refusal = newTermRefusal(term.canonical);
   if (refusal !== null) throw new TermRefusedError(refusal);
 
+  const spelling = tidySpelling(term.canonical);
   const folder = await termsFolder(fs);
   const path = nextAvailableNotePath({
     folder,
-    name: term.canonical,
+    name: spelling,
     taken: new Set<string>(notePaths),
   });
   const overtaken = linkTakeover(path, notePaths);
@@ -123,8 +126,9 @@ export async function addTerm({
 
   const { frontmatter, body } = splitFrontmatter(await startingText({ fs, types, templates }));
   const properties = newTermProperties({
-    canonical: term.canonical,
+    canonical: spelling,
     fileTitle: noteTitle(path),
+    startsTitled: TITLE_KEY in markdown.frontmatterProperties(frontmatter),
     variants: variantsFromInput(term.variants),
     kind: term.kind,
   });
