@@ -77,6 +77,33 @@ describe('runAtlasQuery', () => {
     expect(asked[0]?.parameters).toContain('people/Julie.md');
   });
 
+  it('names the note it is shown on for this', async () => {
+    const { index, asked } = recordingIndex();
+    await runAtlasQuery({
+      index,
+      text: 'FROM task WHERE owner = this',
+      types: TYPES,
+      notePaths: NOTES,
+      thisNote: 'people/Julie.md',
+    });
+    expect(asked[0]?.parameters).toContain('people/Julie.md');
+  });
+
+  it('refuses this when the query is shown on no note, pointing at it', async () => {
+    const { index, asked } = recordingIndex();
+    const attempt = runAtlasQuery({
+      index,
+      text: 'FROM task WHERE owner = this',
+      types: TYPES,
+      notePaths: NOTES,
+    });
+    await expect(attempt).rejects.toMatchObject({
+      message: 'this is the note a query is shown on, and this query is not shown on one.',
+      problem: { span: { start: 24, end: 28 } },
+    });
+    expect(asked).toEqual([]);
+  });
+
   it('points at the problem in the text, without asking the index anything', async () => {
     const { index, asked } = recordingIndex();
     const attempt = runAtlasQuery({

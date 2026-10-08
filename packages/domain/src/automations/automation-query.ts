@@ -88,6 +88,7 @@ function pinExpression(expression: Expression, today: string): Expression {
     case 'compare':
       return { ...expression, value: pinValue(expression.value, today) };
     case 'empty':
+    case 'linksTo':
       return expression;
   }
 }

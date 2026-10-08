@@ -226,3 +226,66 @@ describe('checkAtlasQuery: how many conditions a query may hold', () => {
     });
   });
 });
+
+describe('checkAtlasQuery: this, and LINKS TO', () => {
+  const NOTE = 'people/Mara Quill.md';
+
+  function problemOn(
+    text: string,
+    thisNote: string | null,
+  ): { message: string; at: string } | null {
+    try {
+      checkAtlasQuery(parseAtlasQuery(text), QUERY_TEST_TYPES, thisNote);
+      return null;
+    } catch (error) {
+      if (!(error instanceof QueryTextError)) throw error;
+      return { message: error.message, at: text.slice(error.span.start, error.span.end) };
+    }
+  }
+
+  it.each([
+    'FROM task WHERE owner = this',
+    'FROM task WHERE owner != this AND project.owner = this',
+    'FROM task WHERE LINKS TO this OR NOT LINKS TO this',
+  ])('passes on a note: %s', (text) => {
+    expect(problemOn(text, NOTE)).toBeNull();
+  });
+
+  const NOT_ON_A_NOTE = 'this is the note a query is shown on, and this query is not shown on one.';
+
+  it.each([
+    ['FROM task WHERE owner = this', 'this'],
+    ['FROM task WHERE status = done AND NOT (LINKS TO this)', 'this'],
+    ['FROM task WHERE project.owner != THIS', 'THIS'],
+  ])('refuses this on no note, pointing at it: %s', (text, at) => {
+    expect(problemOn(text, null)).toEqual({ message: NOT_ON_A_NOTE, at });
+  });
+
+  it('finds what else is wrong first, even with no note', () => {
+    expect(problemOn('FROM task WHERE stauts = this', null)?.message).toBe(
+      'A task has no field called stauts.',
+    );
+  });
+
+  const NOT_A_RELATION =
+    'this is a note: compare a relation with it using = or !=, like people = this.';
+
+  it.each([
+    ['FROM task WHERE status = this', 'this'],
+    ['FROM task WHERE title = this', 'this'],
+    ['FROM task WHERE owner CONTAINS this', 'this'],
+    ['FROM task WHERE due < this', 'this'],
+  ])('compares this with a relation only: %s', (text, at) => {
+    expect(problemOn(text, NOTE)).toEqual({ message: NOT_A_RELATION, at });
+  });
+
+  it.each([
+    ['FROM task WHERE LINKS TO [[Mara Quill]]', '[[Mara Quill]]'],
+    ["FROM task WHERE LINKS TO 'this'", "'this'"],
+  ])('takes nothing but this after LINKS TO: %s', (text, at) => {
+    expect(problemOn(text, NOTE)).toEqual({
+      message: 'LINKS TO takes this: the note the query is shown on.',
+      at,
+    });
+  });
+});

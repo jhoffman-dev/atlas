@@ -87,6 +87,25 @@ describe('builderFromQuery and queryFromBuilder', () => {
     }
   });
 
+  it('says a query with LINKS TO stays text, wherever in it LINKS TO is', () => {
+    for (const text of [
+      'FROM task WHERE LINKS TO this',
+      'FROM task WHERE status = done AND NOT LINKS TO this',
+    ]) {
+      expect(builderFromQuery(parseAtlasQuery(text))).toEqual({
+        ok: false,
+        reason: 'This query says LINKS TO, which the builder has no control for. Edit it as text.',
+      });
+    }
+  });
+
+  it('carries this through the builder unchanged, and shows it as this', () => {
+    expect(throughBuilder('FROM task WHERE owner = this')).toBe('FROM task WHERE owner = this');
+    expect(
+      valueInputText(builderOf('FROM task WHERE owner = this').conditions[0]?.value ?? null),
+    ).toBe('this');
+  });
+
   it('takes one condition, or none, as a list of one, or of none', () => {
     expect(builderOf('FROM task WHERE a IS NOT EMPTY').conditions).toEqual([
       { field: 'a', op: 'isNotEmpty', value: null, negated: false },

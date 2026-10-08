@@ -18,7 +18,7 @@ import {
 } from './ast.ts';
 import { splitWikiLinks } from '../markdown/wikilink.ts';
 import { MAX_QUERY_LIMIT } from '../query/view-query.ts';
-import { comparisonsFor } from './check.ts';
+import { comparisonsFor, conditionsOf } from './check.ts';
 import type { FieldKind, QueryField } from './fields.ts';
 
 /** How a condition compares: one of the comparisons, or whether there is a value at all. */
@@ -54,7 +54,12 @@ export type BuilderReading =
 const MIXED =
   'This query brackets conditions together — AND with OR, or NOT over a group — which the builder cannot show as one list. Edit it as text.';
 
+const LINKS_TO = 'This query says LINKS TO, which the builder has no control for. Edit it as text.';
+
 export function builderFromQuery(query: AtlasQuery): BuilderReading {
+  const said = query.where === null ? [] : conditionsOf(query.where);
+  if (said.some((condition) => condition.kind === 'linksTo'))
+    return { ok: false, reason: LINKS_TO };
   const flat = flatten(query.where);
   if (flat === null) return { ok: false, reason: MIXED };
   return {
@@ -292,6 +297,8 @@ export function valueInputText(value: QueryValue | null): string {
       return value.name;
     case 'relativeDate':
       return `@${value.name}`;
+    case 'this':
+      return 'this';
     case 'text':
       return value.text;
   }

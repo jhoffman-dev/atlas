@@ -23,6 +23,8 @@ function shape(expression: Expression | null): unknown {
       return [fieldText(expression.field), expression.op, expression.value];
     case 'empty':
       return [fieldText(expression.field), expression.negated ? 'IS NOT EMPTY' : 'IS EMPTY'];
+    case 'linksTo':
+      return ['LINKS TO', expression.value];
     case 'not':
       return ['NOT', shape(expression.operand)];
     default:
@@ -306,5 +308,52 @@ describe('printAtlasQuery', () => {
       where: { ...where, value: { ...where.value, kind: 'tag' as const, name: 'tag me' } },
     };
     expect(printAtlasQuery(spaced)).toBe("FROM t WHERE tag = 'tag me'");
+  });
+});
+
+describe('parseAtlasQuery: this, and LINKS TO', () => {
+  it('reads this, in any case, as the note the query is shown on', () => {
+    expect(valueOf('this')).toEqual({ kind: 'this' });
+    expect(valueOf('THIS')).toEqual({ kind: 'this' });
+    expect(valueOf("'this'")).toEqual({ kind: 'text', text: 'this' });
+  });
+
+  it('reads LINKS TO as a condition of its own, negated or joined like any other', () => {
+    expect(where('LINKS TO this')).toEqual(['LINKS TO', expect.objectContaining({ kind: 'this' })]);
+    expect(where('not links to this and status = done')).toEqual([
+      'and',
+      ['NOT', ['LINKS TO', expect.objectContaining({ kind: 'this' })]],
+      ['status', '=', expect.objectContaining({ kind: 'text', text: 'done' })],
+    ]);
+  });
+
+  it('still reads a property called links', () => {
+    expect(where('links = 3')).toEqual([
+      'links',
+      '=',
+      expect.objectContaining({ kind: 'number', number: 3 }),
+    ]);
+    expect(where('links IS EMPTY')).toEqual(['links', 'IS EMPTY']);
+  });
+
+  it('remembers where LINKS TO is in the text', () => {
+    const text = 'FROM task WHERE status = done AND LINKS TO this';
+    const query = parseAtlasQuery(text);
+    const linksTo = query.where?.kind === 'and' ? query.where.operands[1] : null;
+    expect(text.slice(linksTo?.span.start, linksTo?.span.end)).toBe('LINKS TO this');
+  });
+
+  it('prints this and LINKS TO back as they read, and quotes text that says this', () => {
+    const text = 'FROM task WHERE owner = this AND NOT LINKS TO this';
+    expect(printAtlasQuery(parseAtlasQuery(text))).toBe(text);
+    const quoted = "FROM task WHERE notes = 'this'";
+    expect(printAtlasQuery(parseAtlasQuery(quoted))).toBe(quoted);
+  });
+
+  it('wants a value after LINKS TO', () => {
+    expect(problem('FROM task WHERE LINKS TO')).toEqual({
+      message: 'Expected a value after LINKS TO.',
+      at: '',
+    });
   });
 });

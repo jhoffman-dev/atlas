@@ -46,7 +46,8 @@ export const COMPARISONS: readonly Comparison[] = [
 
 /**
  * A value as written: a word or a quoted string (`text`), a number, `true` or
- * `false`, a link (`[[Julie]]`), a tag (`#q3`) or a date that moves (`@today`).
+ * `false`, a link (`[[Julie]]`), a tag (`#q3`), a date that moves (`@today`),
+ * or `this` — the note the query is shown on.
  */
 export type QueryValue =
   | { readonly kind: 'text'; readonly text: string; readonly span: Span }
@@ -60,7 +61,8 @@ export type QueryValue =
   | { readonly kind: 'boolean'; readonly value: boolean; readonly span: Span }
   | { readonly kind: 'link'; readonly target: string; readonly span: Span }
   | { readonly kind: 'tag'; readonly name: string; readonly span: Span }
-  | { readonly kind: 'relativeDate'; readonly name: string; readonly span: Span };
+  | { readonly kind: 'relativeDate'; readonly name: string; readonly span: Span }
+  | { readonly kind: 'this'; readonly span: Span };
 
 export type Condition =
   | {
@@ -75,6 +77,12 @@ export type Condition =
       readonly kind: 'empty';
       readonly field: FieldRef;
       readonly negated: boolean;
+      readonly span: Span;
+    }
+  | {
+      /** `LINKS TO this`: the note's body links to the note the query is shown on. */
+      readonly kind: 'linksTo';
+      readonly value: QueryValue;
       readonly span: Span;
     };
 

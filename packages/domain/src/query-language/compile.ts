@@ -59,13 +59,15 @@ export interface AtlasQueryContext {
   readonly types: readonly ObjectType[];
   /** The note a link names, resolved the way every link in the app is. */
   readonly resolveLink: (target: string) => string | null;
+  /** The note the query is shown on, which `this` names; none, and `this` is refused. */
+  readonly thisNote?: string | null;
 }
 
 export function compileAtlasQuery(
   query: AtlasQuery,
   context: AtlasQueryContext,
 ): CompiledAtlasQuery {
-  checkAtlasQuery(query, context.types);
+  checkAtlasQuery(query, context.types, context.thisNote ?? null);
   const from = query.from.map((name) => name.text);
   const field = (ref: FieldRef) => resolveField(ref, context.types, from);
   const grouped = query.group.map(field);
@@ -127,7 +129,7 @@ function resultColumns(
 }
 
 function mentioned(expression: Expression | null): FieldRef[] {
-  if (expression === null) return [];
+  if (expression === null || expression.kind === 'linksTo') return [];
   if (expression.kind === 'compare' || expression.kind === 'empty') return [expression.field];
   if (expression.kind === 'not') return mentioned(expression.operand);
   return expression.operands.flatMap(mentioned);
@@ -196,6 +198,8 @@ function expressionSql(
     }
     case 'not':
       return sql`NOT (${expressionSql(expression.operand, field, context)})`;
+    case 'linksTo':
+      return linksToSql(context);
     default:
       return conditionSql(expression, field(expression.field), context);
   }
@@ -221,7 +225,7 @@ function anyRow(rows: Fragment, test: Fragment, none = false): Fragment {
 }
 
 function conditionSql(
-  condition: Condition,
+  condition: Extract<Condition, { kind: 'compare' | 'empty' }>,
   field: QueryField,
   context: AtlasQueryContext,
 ): Fragment {
@@ -274,9 +278,27 @@ function valueText(value: QueryValue): string {
       return value.name;
     case 'relativeDate':
       return `@${value.name}`;
+    case 'this':
+      return 'this';
     case 'text':
       return value.text;
   }
+}
+
+/** The note `this` names. The check refuses `this` without one, so its absence here is a bug. */
+function thisNoteOf(context: AtlasQueryContext): string {
+  if (context.thisNote === undefined || context.thisNote === null) {
+    throw new Error('a query said `this` with no note to name, and was not refused');
+  }
+  return context.thisNote;
+}
+
+/**
+ * `LINKS TO this`: a link in the note's body resolves to the note the query is
+ * shown on. A note's link to itself is no link to it, as its backlinks say.
+ */
+function linksToSql(context: AtlasQueryContext): Fragment {
+  return sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ${bound(thisNoteOf(context))} AND l.src <> l.dst)`;
 }
 
 /** `tag = #q3` is true of a note tagged #q3 or anything nested under it, like #q3/okr. */
@@ -295,8 +317,9 @@ function checkboxCondition(field: QueryField, op: Comparison, value: QueryValue)
 
 /**
  * A relation is compared by the note it points at, resolved when the query
- * runs; a link to a note that does not exist matches links written the same
- * way. Words in it are searched for in the link's target as written.
+ * runs — or, for `this`, the note the query is shown on; a link to a note that
+ * does not exist matches links written the same way. Words in it are searched
+ * for in the link's target as written.
  */
 function relationCondition(
   field: QueryField,
@@ -309,7 +332,7 @@ function relationCondition(
   if (op === 'contains' || op === 'startsWith') {
     return anyRow(rows, comparisonSql(op, fixed('r.target'), bound(target)));
   }
-  const path = context.resolveLink(target);
+  const path = value.kind === 'this' ? thisNoteOf(context) : context.resolveLink(target);
   const test =
     path === null ? sql`r.name = ${bound(foldedLinkName(target))}` : sql`r.dst = ${bound(path)}`;
   return anyRow(rows, test, op === '!=');
