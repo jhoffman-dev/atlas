@@ -5,8 +5,9 @@ import { createVault, emitVaultChanged, expectFile, installHost, type FakeVault 
 /**
  * P28-04: a meeting n8n commits into the vault arrives by pull, and the
  * import checks it as the index hears of it — a valid one shows in the Inbox
- * untouched, a second copy is archived, and a broken one is marked where it
- * landed and listed in the Inbox with why.
+ * with only its stamp written, a second copy is archived, and a broken one is
+ * marked where it landed and listed in the Inbox with why. This vault is not
+ * synced, so this Mac is the one that imports.
  */
 
 const shipped = (path: string) =>
@@ -19,6 +20,8 @@ const VALID = readFileSync(
   'utf8',
 );
 
+/** The file as the import leaves a meeting it let in: as it came, and one line more. */
+const STAMPED = VALID.replace('\n---\n', '\natlas_import_outcome: imported\n---\n');
 const FIRST = 'Inbox/Meetings/2026-09-29 Platform weekly sync.md';
 const COPY = 'Inbox/Meetings/2026-09-29 Platform weekly sync (gemini 7f3a9c21).md';
 const BROKEN = 'Inbox/Meetings/2026-10-02 Vendor call.md';
@@ -66,7 +69,7 @@ async function arrive(page: Page, vault: FakeVault, path: string, text: string) 
 const inboxRow = (page: Page) =>
   page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: /^Inbox/ });
 
-test('a meeting that arrives shows in the Inbox untouched, and a second copy is archived', async ({
+test('a meeting that arrives shows in the Inbox, stamped and otherwise untouched, and a second copy is archived', async ({
   page,
 }) => {
   const vault = await openVault(page);
@@ -77,12 +80,12 @@ test('a meeting that arrives shows in the Inbox untouched, and a second copy is 
   const inbox = page.getByRole('main');
   await expect(inbox.getByText('Platform weekly sync', { exact: true })).toBeVisible();
   await expect(inbox.getByText('Call Mara', { exact: true })).toBeVisible();
-  expect(await vault.read(FIRST)).toBe(VALID);
+  await expectFile(vault, FIRST).toBe(STAMPED);
 
   await arrive(page, vault, COPY, VALID);
   await expectFile(vault, `Archive/${COPY}`).toContain('atlas_duplicate_of:');
   expect(await vault.exists(COPY)).toBe(false);
-  expect(await vault.read(FIRST)).toBe(VALID);
+  expect(await vault.read(FIRST)).toBe(STAMPED);
   await expect(inboxRow(page)).toHaveText(/Inbox\s*2$/);
   await expect(inbox.getByText('Platform weekly sync', { exact: true })).toHaveCount(1);
 });

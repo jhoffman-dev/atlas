@@ -1,6 +1,6 @@
 import { outsideArchiveSql } from '../archive/archive.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
-import { DUPLICATE_OF_KEY, IMPORT_ERROR_KEY } from './meeting-arrival.ts';
+import { DUPLICATE_OF_KEY, IMPORT_ERROR_KEY, IMPORT_OUTCOME_KEY } from './meeting-arrival.ts';
 import { MEETING_TYPE } from './meeting-header.ts';
 
 /** What the statements here start with, so a log or a stand-in index can tell them apart. */
@@ -51,6 +51,7 @@ export const MEETING_LIST_COLUMNS = [
   'kind',
   'provider',
   'external_id',
+  IMPORT_OUTCOME_KEY,
   IMPORT_ERROR_KEY,
   DUPLICATE_OF_KEY,
 ] as const;

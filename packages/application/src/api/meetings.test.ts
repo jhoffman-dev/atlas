@@ -25,11 +25,13 @@ const FILES = {
     start: '09:30',
     end: '09:45',
     kind: 'Standup',
+    atlas_import_outcome: 'imported',
   }),
   'Archive/Inbox/Meetings/2026-10-06 Standup 2.md': meeting({
     title: 'Standup',
     date: '2026-10-06',
     start: '09:30',
+    atlas_import_outcome: 'duplicate',
     atlas_duplicate_of: '[[2026-10-06 Standup]]',
   }),
   'Projects/Larkspur/2026-10-01 Kickoff.md': meeting({
@@ -81,12 +83,14 @@ describe('GET /v1/meetings', () => {
       kind: 'Standup',
       provider: 'gemini',
       externalId: 'g-1',
+      importOutcome: 'imported',
       importError: null,
       duplicateOf: null,
     });
     expect((body['meetings'] as unknown[])[1]).toMatchObject({
       title: '2026-10-02 Vendor call',
       provider: null,
+      importOutcome: null,
       importError: 'type is required; title is required',
     });
     expect(body).toMatchObject({ truncated: false, next: null });
@@ -112,7 +116,11 @@ describe('GET /v1/meetings', () => {
     const copy = (body['meetings'] as Record<string, unknown>[]).find(
       (meeting) => meeting['path'] === 'Archive/Inbox/Meetings/2026-10-06 Standup 2.md',
     );
-    expect(copy).toMatchObject({ duplicateOf: '[[2026-10-06 Standup]]', archived: true });
+    expect(copy).toMatchObject({
+      importOutcome: 'duplicate',
+      duplicateOf: '[[2026-10-06 Standup]]',
+      archived: true,
+    });
     expect(paths(bodyOf(await list()))).not.toContain(
       'Archive/Inbox/Meetings/2026-10-06 Standup 2.md',
     );

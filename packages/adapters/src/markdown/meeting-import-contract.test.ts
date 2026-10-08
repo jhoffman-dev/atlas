@@ -237,6 +237,7 @@ describe('the Meeting type this vault ships', () => {
       people: 'relation',
       companies: 'relation',
       project: 'relation',
+      atlas_import_outcome: 'select',
       atlas_import_error: 'text',
       atlas_duplicate_of: 'relation',
     });

@@ -25,7 +25,7 @@ import {
   type ArchivePorts,
   type IndexedNote,
 } from '@atlas/application';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath, splitFrontmatter } from '@atlas/domain';
 
 /**
  * Meeting import on arrival end to end on this side of the boundary: meeting
@@ -203,6 +203,15 @@ const fixtures = new URL('../../../domain/src/meetings/fixtures/', import.meta.u
 const VALID = readFileSync(new URL('valid/gemini-platform-sync.md', fixtures), 'utf8');
 const MISSING = readFileSync(new URL('invalid/missing-required.md', fixtures), 'utf8');
 
+/** A meeting file as the import leaves one it let in: the same bytes, and the stamp. */
+function stampedAsImported(text: string): string {
+  const document = splitFrontmatter(text);
+  return (
+    remarkMarkdown.updateFrontmatter(document.frontmatter, { atlas_import_outcome: 'imported' }) +
+    document.body
+  );
+}
+
 const FIRST = 'Inbox/Meetings/2026-09-29 Platform weekly sync.md';
 const SECOND = 'Inbox/Meetings/2026-09-29 Platform weekly sync (gemini 7f3a9c21).md';
 const BROKEN = 'Inbox/Meetings/2026-10-02 Untitled.md';
@@ -253,6 +262,7 @@ async function launch() {
     clock: { today: () => '2026-10-08' },
     activity,
     openVault: () => root,
+    active: () => true,
     onWritten: () => undefined,
   });
   const imports: Promise<unknown>[] = [];
@@ -280,7 +290,7 @@ afterEach(async () => {
 });
 
 describe('meeting import over a real folder and a real SQLite index', () => {
-  it('leaves a meeting that arrives untouched, and archives a second copy of it', async () => {
+  it('lets a meeting in with only its stamp written, and archives a second copy of it', async () => {
     const app = await launch();
 
     await drop(FIRST, VALID);
@@ -288,7 +298,7 @@ describe('meeting import over a real folder and a real SQLite index', () => {
     await drop(SECOND, VALID);
     await app.sync();
 
-    expect(await readFile(join(root, FIRST), 'utf8')).toBe(VALID);
+    expect(await readFile(join(root, FIRST), 'utf8')).toBe(stampedAsImported(VALID));
     expect(existsSync(join(root, SECOND))).toBe(false);
     const archived = await readFile(join(root, 'Archive', SECOND), 'utf8');
     expect(archived).toMatch(
@@ -355,7 +365,7 @@ describe('meeting import over a real folder: adversarial', () => {
     await drop(SECOND, spaced);
     await app.sync();
 
-    expect(await readFile(join(root, FIRST), 'utf8')).toBe(spaced);
+    expect(await readFile(join(root, FIRST), 'utf8')).toBe(stampedAsImported(spaced));
     expect(existsSync(join(root, SECOND))).toBe(false);
     expect(existsSync(join(root, 'Archive', SECOND))).toBe(true);
   });
@@ -434,7 +444,8 @@ describe('meeting import over a real folder: adversarial, round 2', () => {
    * the file in place — this Mac's version, the one links name — is archived.
    */
   it('keeps the meeting in place when a sync conflict copy of it arrives beside it', async () => {
-    const conflict = 'Inbox/Meetings/2026-09-29 Platform weekly sync (conflict from Tobias’s Mac).md';
+    const conflict =
+      'Inbox/Meetings/2026-09-29 Platform weekly sync (conflict from Tobias’s Mac).md';
     const app = await launch();
     await drop(FIRST, VALID);
     await app.sync();
@@ -443,7 +454,9 @@ describe('meeting import over a real folder: adversarial, round 2', () => {
     await app.sync();
 
     expect(existsSync(join(root, 'Archive', FIRST))).toBe(false);
-    expect(existsSync(join(root, FIRST)) && (await readFile(join(root, FIRST), 'utf8'))).toBe(VALID);
+    expect(existsSync(join(root, FIRST)) && (await readFile(join(root, FIRST), 'utf8'))).toBe(
+      stampedAsImported(VALID),
+    );
   });
 
   /**
@@ -455,7 +468,7 @@ describe('meeting import over a real folder: adversarial, round 2', () => {
    */
   it('leaves a renamed and edited meeting alone whether the two come in one sync or two', async () => {
     const renamed = 'Inbox/Meetings/2026-09-29 Platform weekly sync - cache.md';
-    const edited = `${VALID}\nTobias left early; follow up on the flag.\n`;
+    const edited = `${stampedAsImported(VALID)}\nTobias left early; follow up on the flag.\n`;
 
     const thisMac = await launch();
     await drop(FIRST, VALID);

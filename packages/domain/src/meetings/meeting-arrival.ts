@@ -1,7 +1,6 @@
-import { isArchivedPath, originOf } from '../archive/archive.ts';
-import { createVaultPath } from '../vault/vault-path.ts';
-import { foldedVaultPath } from '../vault/vault-spelling.ts';
+import { isArchivedPath } from '../archive/archive.ts';
 import type { NoteChange } from '../index/note-changes.ts';
+import { foldedVaultPath } from '../vault/vault-spelling.ts';
 import type { MeetingImportError } from './meeting-import-error.ts';
 
 /**
@@ -11,6 +10,17 @@ import type { MeetingImportError } from './meeting-import-error.ts';
 export const MEETING_INBOX = 'Inbox/Meetings';
 
 const MEETING_INBOX_PREFIX = `${MEETING_INBOX.toLowerCase()}/`;
+
+/**
+ * What the import wrote into a file it handled: the one line that says it is
+ * done with it. `atlas_import` already names the contract a file follows
+ * (`meeting/v1`), so the outcome has a key of its own.
+ */
+export const IMPORT_OUTCOME_KEY = 'atlas_import_outcome';
+
+/** How the import settled a file: let in, archived as a copy, or refused. */
+export const IMPORT_OUTCOMES = ['imported', 'duplicate', 'error'] as const;
+export type ImportOutcome = (typeof IMPORT_OUTCOMES)[number];
 
 /** What Atlas writes into a meeting file that breaks the contract: why, in one line. */
 export const IMPORT_ERROR_KEY = 'atlas_import_error';
@@ -24,60 +34,29 @@ export function isMeetingInboxPath(path: string): boolean {
 }
 
 /**
- * A note the meeting import looks at: one that `arrived` where meeting files
- * land, or one there that `changed`. Both are read and judged by what the
- * file says; the kind only decides whether a file that breaks the contract
- * and carries no mark is marked (an arrival) or left alone (an edit).
+ * How the import settled a file, from its frontmatter: null when it has not
+ * — an arrival not finished yet. A stamp it does not know is a stamp all the
+ * same, kept as `imported`: the file is someone's, and is left alone.
  */
-export interface MeetingCandidate {
-  readonly path: string;
-  /** The version the change feed reported: what makes a change heard twice the same change. */
-  readonly digest: string;
-  readonly kind: 'arrived' | 'changed';
+export function importOutcomeOf(
+  properties: Readonly<Record<string, unknown>>,
+): ImportOutcome | null {
+  if (!Object.hasOwn(properties, IMPORT_OUTCOME_KEY)) return null;
+  const said = properties[IMPORT_OUTCOME_KEY];
+  return IMPORT_OUTCOMES.includes(said as ImportOutcome) ? (said as ImportOutcome) : 'imported';
 }
 
 /**
- * The notes one sync's changes give the meeting import, in the order the
- * feed reported them: each added or changed note where meeting files land.
- *
- * A note added there is no arrival when the same sync took away a note it
- * came from — a note with the same bytes (a move or a rename, which the feed
- * does not pair) or the archived note it was restored from (unarchiving, which
- * also takes the archive stamp out, so the bytes differ). Filing a meeting,
- * renaming it in place and bringing it back from the Archive are none of them
- * its arrival.
+ * The notes one sync's changes give the meeting import to look at: each
+ * added or changed where meeting files land, once, in the order reported.
+ * The feed only says where to look — what a file is due comes from its own
+ * stamp, so a move, a rename or an unarchive needs no pairing here.
  */
-export function meetingCandidates(changes: readonly NoteChange[]): MeetingCandidate[] {
-  const removed = changes.filter((change) => change.kind === 'removed');
-  const movedAway = new Set(removed.map((change) => change.digest));
-  const restorable = new Set(removed.filter(isArchived).map(restoredPlace));
-  return changes.flatMap((change): MeetingCandidate[] => {
-    if (!isMeetingInboxPath(change.path)) return [];
-    if (change.kind === 'changed') return [candidate(change, 'changed')];
-    if (change.kind !== 'added' || movedAway.has(change.digest)) return [];
-    if (restorable.has(restoredPlace(change))) return [];
-    return [candidate(change, 'arrived')];
-  });
-}
-
-const candidate = (change: NoteChange, kind: MeetingCandidate['kind']): MeetingCandidate => ({
-  path: change.path,
-  digest: change.digest,
-  kind,
-});
-
-const isArchived = (change: NoteChange) => isArchivedPath(change.path);
-
-/** A number unarchiving gives a name when its place is taken: `Standup 2.md`. */
-const RESTORE_NUMBER = / \d+(\.(?:md|markdown))$/i;
-
-/**
- * Where a note is, or was before the Archive, as unarchiving compares places:
- * without `Archive/`, without the number a taken name was given, in any case.
- */
-function restoredPlace(change: NoteChange): string {
-  const origin = originOf(createVaultPath(change.path), null);
-  return foldedVaultPath(origin.replace(RESTORE_NUMBER, '$1'));
+export function meetingCandidates(changes: readonly NoteChange[]): string[] {
+  const paths = changes
+    .filter((change) => change.kind !== 'removed' && isMeetingInboxPath(change.path))
+    .map((change) => change.path);
+  return [...new Set(paths)];
 }
 
 /** How many problems the error line names before it says how many more there are. */
@@ -110,47 +89,59 @@ function errorLine(error: MeetingImportError): string {
 /** A meeting's holders, as the import settles them: the one kept, and the copies to archive. */
 export interface MeetingCopies {
   readonly original: string;
-  /** Every other holder that sits where meeting files land: each is marked and archived. */
+  /** Every other holder not yet settled, where meeting files land: each is marked and archived. */
   readonly copies: readonly string[];
 }
 
 /**
  * Which of the notes holding one meeting's provider + external_id is the
- * meeting, and which are copies of it (ADR-0027) — decided by where each one
- * is, never by which was heard of first, so two Macs that hear the same files
- * in different syncs, or listed in another order, keep the same one.
+ * meeting, and which are copies of it (ADR-0027) — decided by what the
+ * files say and where they are, never by which was heard of first, so two
+ * Macs looking at the same files keep the same one.
  *
- * `holders` are the notes that hold the id as they are now and follow the
- * contract, not marked as a copy or as failing import. The original is the
- * first of them in this order:
+ * `holders` are the notes that hold the id now and follow the contract,
+ * not marked as a copy or as failing import; `imported` are those of them
+ * the import has already let in. The original is the first in this order:
  *
- * 1. a meeting filed somewhere else in the vault — it was there, and settled;
- * 2. one in the Archive — filed away, and still the same meeting;
- * 3. one where meeting files land, at the path the mapping writes first
- *    (`<date> <title>.md`);
- * 4. one there at the path it writes when that is taken by another meeting
- *    (`<date> <title> (<provider> <8 hex>).md`);
+ * 1. one already imported — once let in, a meeting stays the meeting;
+ * 2. one filed somewhere else in the vault;
+ * 3. one in the Archive;
+ * 4. one where meeting files land;
  *
- * and, among equals, the first by path. The copies are the other holders
- * where meeting files land; one filed or archived elsewhere is left as it is.
+ * and, among equals, the first by its path compared without case, Unicode
+ * composition or extension — so a name sorts before its longer variants: the
+ * mapping's `<date> <title>` before `<date> <title> 2`, a sync conflict's
+ * `(conflict from …)` copy, and the mapping's `(<provider> <hash>)` path. The
+ * copies are the other holders where meeting files land that are not yet
+ * imported; one filed, archived or imported is left as it is.
  */
-export function meetingCopies(holders: readonly string[]): MeetingCopies {
-  const ranked = [...new Set(holders)].sort(byPlaceThenPath);
+export function meetingCopies(
+  holders: readonly string[],
+  imported: readonly string[] = [],
+): MeetingCopies {
+  const settled = new Set(imported);
+  const rank = (path: string) => (settled.has(path) ? 0 : 1 + placeRank(path));
+  const ranked = [...new Set([...holders, ...imported])].sort(
+    (a, b) => rank(a) - rank(b) || byFoldedName(a, b),
+  );
   const [original] = ranked;
   if (original === undefined) throw new Error('A meeting with no holder has no original.');
-  return { original, copies: ranked.slice(1).filter(isMeetingInboxPath) };
+  const copies = ranked.slice(1).filter((path) => isMeetingInboxPath(path) && !settled.has(path));
+  return { original, copies };
 }
 
-/** The path the mapping writes when the first is taken: ` (<provider> <8 hex>)` before `.md`. */
-const COLLISION_PATH = / \([a-z][a-z0-9-]* [0-9a-f]{8}\)\.md$/i;
-
 function placeRank(path: string): number {
-  if (isMeetingInboxPath(path)) return COLLISION_PATH.test(path) ? 3 : 2;
+  if (isMeetingInboxPath(path)) return 2;
   return isArchivedPath(path) ? 1 : 0;
 }
 
-function byPlaceThenPath(a: string, b: string): number {
-  const rank = placeRank(a) - placeRank(b);
-  if (rank !== 0) return rank;
+const EXTENSION = /\.(md|markdown)$/;
+
+/** A path as two Macs both spell it: composed, in lower case, without its extension. */
+const foldedName = (path: string) => foldedVaultPath(path).replace(EXTENSION, '');
+
+function byFoldedName(a: string, b: string): number {
+  const [left, right] = [foldedName(a), foldedName(b)];
+  if (left !== right) return left < right ? -1 : 1;
   return a < b ? -1 : a > b ? 1 : 0;
 }

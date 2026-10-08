@@ -13,6 +13,9 @@ export { parseTranscript } from './transcript.ts';
 export type { ParsedTranscript, TranscriptTurn, TurnSpeaker, TurnTime } from './transcript.ts';
 export {
   DUPLICATE_OF_KEY,
+  IMPORT_OUTCOME_KEY,
+  IMPORT_OUTCOMES,
+  importOutcomeOf,
   IMPORT_ERROR_KEY,
   importErrorText,
   isMeetingInboxPath,
@@ -20,7 +23,7 @@ export {
   meetingCandidates,
   meetingCopies,
 } from './meeting-arrival.ts';
-export type { MeetingCandidate, MeetingCopies } from './meeting-arrival.ts';
+export type { ImportOutcome, MeetingCopies } from './meeting-arrival.ts';
 export {
   compileMeetingHoldersQuery,
   compileMeetingListQuery,

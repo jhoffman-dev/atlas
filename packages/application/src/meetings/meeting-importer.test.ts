@@ -4,25 +4,27 @@ import { createNoteChanges } from '../index/note-changes.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { meetingFile } from '../testing/meeting-files.ts';
-import {
-  createMeetingImporter,
-  importMeetingsOnArrival,
-  seenVersions,
-} from './meeting-importer.ts';
+import { createMeetingImporter, importMeetingsOnArrival } from './meeting-importer.ts';
 
 const VAULT = '/Users/j/Vault';
 const BROKEN = 'Inbox/Meetings/2026-10-06 Standup.md';
 const BROKEN_TEXT = jsonNote({ type: 'meeting', atlas_import: 'meeting/v1' }, '\nNotes.\n');
 
-function setUp({ open = VAULT }: { open?: string | null } = {}) {
-  const vault = automationVault({ notes: { [BROKEN]: BROKEN_TEXT }, today: '2026-10-08' });
+function setUp({
+  open = VAULT,
+  active = true,
+  notes = { [BROKEN]: BROKEN_TEXT } as Record<string, string>,
+}: { open?: string | null; active?: boolean; notes?: Record<string, string> } = {}) {
+  const vault = automationVault({ notes, today: '2026-10-08' });
   const activity = recordingActivity();
   const onWritten = vi.fn();
+  const state = { active };
   const importer = createMeetingImporter({
     ports: () => vault.ports,
     clock: { today: () => '2026-10-08' },
     activity,
     openVault: () => open,
+    active: () => state.active,
     onWritten,
   });
   const arrived: NoteChange = {
@@ -31,7 +33,7 @@ function setUp({ open = VAULT }: { open?: string | null } = {}) {
     type: 'meeting',
     digest: digestOf(BROKEN_TEXT),
   };
-  return { vault, activity, onWritten, importer, arrived };
+  return { vault, activity, onWritten, importer, arrived, state };
 }
 
 describe('createMeetingImporter', () => {
@@ -54,7 +56,22 @@ describe('createMeetingImporter', () => {
     expect(onWritten).not.toHaveBeenCalled();
   });
 
-  it('imports one sync at a time, and a version heard twice once', async () => {
+  it('writes nothing on a Mac that does not run the automations, and catches up once it does', async () => {
+    const { vault, importer, arrived, activity, state } = setUp({ active: false });
+
+    expect(await importer.hear({ vault: VAULT, changes: [arrived] })).toBeNull();
+    expect(await importer.catchUp(VAULT)).toBeNull();
+    expect(vault.files.get(BROKEN)).toBe(BROKEN_TEXT);
+    expect(activity.reports).toEqual([]);
+
+    state.active = true;
+    const outcome = await importer.catchUp(VAULT);
+
+    expect(outcome?.happenings.map((happening) => happening.kind)).toEqual(['invalid']);
+    expect(vault.properties(BROKEN)['atlas_import_outcome']).toBe('error');
+  });
+
+  it('imports one sync at a time, and a change heard twice once', async () => {
     const { importer, arrived, activity } = setUp();
 
     const [first, second] = await Promise.all([
@@ -70,16 +87,8 @@ describe('createMeetingImporter', () => {
   it('decides one sync after another, so two copies heard at once are never both archived', async () => {
     const first = 'Inbox/Meetings/Standup.md';
     const second = 'Inbox/Meetings/Standup (gemini 1a2b3c4d).md';
-    const vault = automationVault({
+    const { vault, importer } = setUp({
       notes: { [first]: meetingFile(), [second]: meetingFile() },
-      today: '2026-10-08',
-    });
-    const importer = createMeetingImporter({
-      ports: () => vault.ports,
-      clock: { today: () => '2026-10-08' },
-      activity: recordingActivity(),
-      openVault: () => VAULT,
-      onWritten: () => undefined,
     });
     const added = (path: string): NoteChange => ({
       kind: 'added',
@@ -89,64 +98,48 @@ describe('createMeetingImporter', () => {
     });
 
     await Promise.all([
-      importer.hear({ vault: VAULT, changes: [added(first)] }),
       importer.hear({ vault: VAULT, changes: [added(second)] }),
+      importer.hear({ vault: VAULT, changes: [added(first)] }),
     ]);
 
-    const active = [first, second].filter((path) => vault.files.has(path));
-    expect(active).toHaveLength(1);
-    expect(vault.properties(active[0] ?? '')['atlas_duplicate_of']).toBeUndefined();
-  });
-
-  it('hears every sync the change feed publishes', async () => {
-    const { importer, arrived, activity } = setUp();
-    const changes = createNoteChanges({ onError: () => undefined });
-    const stop = importMeetingsOnArrival({ changes, importer, activity });
-
-    changes.publish({ vault: VAULT, changes: [arrived] });
-    await vi.waitFor(() => expect(activity.reports).toHaveLength(1));
-    stop();
-    changes.publish({ vault: VAULT, changes: [{ ...arrived, digest: 'another' }] });
-    await importer.hear({ vault: VAULT, changes: [] });
-
-    expect(activity.reports).toHaveLength(1);
+    expect([first, second].filter((path) => vault.files.has(path))).toEqual([first]);
+    expect(vault.properties(first)['atlas_import_outcome']).toBe('imported');
   });
 
   it('says a run that failed outright in Activity, and goes on with the next', async () => {
-    const changes = createNoteChanges({ onError: () => undefined });
-    const failing = { hear: vi.fn().mockRejectedValue(new Error('the vault went away')) };
-    const activity = recordingActivity();
-    importMeetingsOnArrival({ changes, importer: failing, activity });
+    const { vault, importer, activity, arrived } = setUp();
+    const listDirectory = vault.ports.fs.listDirectory;
+    vault.ports.fs.listDirectory = async () => {
+      throw new Error('the vault went away');
+    };
 
-    changes.publish({ vault: VAULT, changes: [] });
-    changes.publish({ vault: VAULT, changes: [] });
+    expect(await importer.catchUp(VAULT)).toBeNull();
+    vault.ports.fs.listDirectory = listDirectory;
+    const next = await importer.hear({ vault: VAULT, changes: [arrived] });
 
-    await vi.waitFor(() => expect(activity.reports).toHaveLength(2));
     expect(activity.reports[0]).toEqual({
       level: 'error',
       kind: 'meeting',
       message: 'Meetings that arrived could not be imported. the vault went away',
       subject: null,
     });
-  });
-});
-
-describe('seenVersions', () => {
-  it('says a version is new once', () => {
-    const seen = seenVersions();
-    expect(seen.firstTime('A.md', 'd1')).toBe(true);
-    expect(seen.firstTime('A.md', 'd1')).toBe(false);
-    expect(seen.firstTime('A.md', 'd2')).toBe(true);
-    expect(seen.firstTime('B.md', 'd1')).toBe(true);
+    expect(next?.happenings.map((happening) => happening.kind)).toEqual(['invalid']);
   });
 
-  it('lets go of the oldest once it holds as many as it keeps', () => {
-    const seen = seenVersions(2);
-    seen.firstTime('A.md', 'd');
-    seen.firstTime('B.md', 'd');
-    seen.firstTime('C.md', 'd');
-    expect(seen.firstTime('C.md', 'd')).toBe(false);
-    expect(seen.firstTime('B.md', 'd')).toBe(false);
-    expect(seen.firstTime('A.md', 'd')).toBe(true);
+  it('hears every sync the change feed publishes, until stopped', async () => {
+    const other = 'Inbox/Meetings/Other.md';
+    const { importer, arrived, activity } = setUp({
+      notes: { [BROKEN]: BROKEN_TEXT, [other]: BROKEN_TEXT },
+    });
+    const changes = createNoteChanges({ onError: () => undefined });
+    const stop = importMeetingsOnArrival({ changes, importer });
+
+    changes.publish({ vault: VAULT, changes: [arrived] });
+    await vi.waitFor(() => expect(activity.reports).toHaveLength(1));
+    stop();
+    changes.publish({ vault: VAULT, changes: [{ ...arrived, path: other }] });
+    await importer.hear({ vault: VAULT, changes: [] });
+
+    expect(activity.reports).toHaveLength(1);
   });
 });

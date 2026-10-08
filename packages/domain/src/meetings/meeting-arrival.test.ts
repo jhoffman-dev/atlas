@@ -5,6 +5,7 @@ import {
   isMeetingInboxPath,
   meetingCandidates,
   meetingCopies,
+  importOutcomeOf,
 } from './meeting-arrival.ts';
 import { bodyError, frontmatterError } from './meeting-import-error.ts';
 
@@ -30,16 +31,14 @@ describe('isMeetingInboxPath', () => {
 });
 
 describe('meetingCandidates', () => {
-  it('takes a note added where meetings land as arrived, and one changed there as changed', () => {
+  it('takes each note added or changed where meetings land, once, in the order reported', () => {
     expect(
       meetingCandidates([
         change('added', 'Inbox/Meetings/A.md', 'a1'),
         change('changed', 'Inbox/Meetings/B.md', 'b2'),
+        change('changed', 'Inbox/Meetings/A.md', 'a2'),
       ]),
-    ).toEqual([
-      { path: 'Inbox/Meetings/A.md', digest: 'a1', kind: 'arrived' },
-      { path: 'Inbox/Meetings/B.md', digest: 'b2', kind: 'changed' },
-    ]);
+    ).toEqual(['Inbox/Meetings/A.md', 'Inbox/Meetings/B.md']);
   });
 
   it('leaves out notes elsewhere, and notes that went', () => {
@@ -52,35 +51,32 @@ describe('meetingCandidates', () => {
     ).toEqual([]);
   });
 
-  it('takes a note brought back from the Archive as no arrival, numbered or not', () => {
+  it('leaves what a moved, renamed or unarchived note is due to its own stamp', () => {
     expect(
       meetingCandidates([
         change('removed', 'Archive/Inbox/Meetings/Standup.md', 'stamped'),
         change('added', 'Inbox/Meetings/Standup.md', 'unstamped'),
-        change('removed', 'Archive/Inbox/Meetings/Retro.md', 'stamped-2'),
-        change('added', 'inbox/meetings/Retro 2.md', 'unstamped-2'),
-        change('added', 'Inbox/Meetings/Fresh.md', 'fresh'),
-      ]),
-    ).toEqual([{ path: 'Inbox/Meetings/Fresh.md', digest: 'fresh', kind: 'arrived' }]);
-  });
-
-  it('pairs a restore only with a note that went from the Archive', () => {
-    expect(
-      meetingCandidates([
-        change('removed', 'Projects/Standup.md', 'old'),
-        change('added', 'Inbox/Meetings/Standup.md', 'new'),
-      ]),
-    ).toEqual([{ path: 'Inbox/Meetings/Standup.md', digest: 'new', kind: 'arrived' }]);
-  });
-
-  it('takes a note that came with the same bytes another went with as a move, not an arrival', () => {
-    expect(
-      meetingCandidates([
         change('removed', 'Inbox/Meetings/Old name.md', 'same'),
         change('added', 'Inbox/Meetings/New name.md', 'same'),
-        change('added', 'Inbox/Meetings/Fresh.md', 'other'),
       ]),
-    ).toEqual([{ path: 'Inbox/Meetings/Fresh.md', digest: 'other', kind: 'arrived' }]);
+    ).toEqual(['Inbox/Meetings/Standup.md', 'Inbox/Meetings/New name.md']);
+  });
+});
+
+describe('importOutcomeOf', () => {
+  it('reads each outcome the import writes', () => {
+    for (const outcome of ['imported', 'duplicate', 'error'] as const) {
+      expect(importOutcomeOf({ atlas_import_outcome: outcome })).toBe(outcome);
+    }
+  });
+
+  it('is null for a file the import has not settled', () => {
+    expect(importOutcomeOf({ atlas_import: 'meeting/v1' })).toBeNull();
+  });
+
+  it('takes a stamp it does not know, an empty one too, as a file let in and left alone', () => {
+    expect(importOutcomeOf({ atlas_import_outcome: 'done by hand' })).toBe('imported');
+    expect(importOutcomeOf({ atlas_import_outcome: null })).toBe('imported');
   });
 });
 
@@ -124,17 +120,27 @@ describe('meetingCopies', () => {
 
   it('decides the same whatever order the holders come in', () => {
     const holders = [COLLISION, 'Inbox/Meetings/A.md', PRIMARY, 'Inbox/Meetings/B (x 0f0f0f0f).md'];
-    const answers = [
-      holders,
-      [...holders].reverse(),
-      [holders[2]!, holders[0]!, holders[3]!, holders[1]!],
-    ].map(meetingCopies);
+    const reordered = [holders[2] ?? '', holders[0] ?? '', holders[3] ?? '', holders[1] ?? ''];
+    const answers = [holders, [...holders].reverse(), reordered].map((each) => meetingCopies(each));
     expect(answers[0]).toEqual({
       original: PRIMARY,
-      copies: ['Inbox/Meetings/A.md', COLLISION, 'Inbox/Meetings/B (x 0f0f0f0f).md'],
+      copies: [COLLISION, 'Inbox/Meetings/A.md', 'Inbox/Meetings/B (x 0f0f0f0f).md'],
     });
     expect(answers[1]).toEqual(answers[0]);
     expect(answers[2]).toEqual(answers[0]);
+  });
+
+  it('keeps one already imported wherever it is, and leaves other imported ones alone', () => {
+    const filed = 'Archive/Projects/Standup.md';
+    expect(meetingCopies([PRIMARY, COLLISION, 'Projects/Standup.md'], [filed])).toEqual({
+      original: filed,
+      copies: [PRIMARY, COLLISION],
+    });
+    expect(meetingCopies([PRIMARY], [COLLISION])).toEqual({
+      original: COLLISION,
+      copies: [PRIMARY],
+    });
+    expect(meetingCopies([], [COLLISION, PRIMARY])).toEqual({ original: PRIMARY, copies: [] });
   });
 
   it('keeps a meeting filed elsewhere, then one archived, over any where meetings land', () => {
@@ -207,11 +213,8 @@ describe('meeting arrival: adversarial, round 2', () => {
         change('added', 'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md', 'new'),
       ]),
     ).toEqual([
-      {
-        path: 'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md',
-        digest: 'new',
-        kind: 'arrived',
-      },
+      'Inbox/Meetings/2026-10-06 Onboarding cohort 1.md',
+      'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md',
     ]);
   });
 });

@@ -448,6 +448,11 @@ export interface ApiMeeting {
   readonly provider: string | null;
   /** The provider's own id for it. */
   readonly externalId: string | null;
+  /**
+   * How the import settled the file (`atlas_import_outcome`): `imported`,
+   * `duplicate` or `error`; null while it waits for the Mac that imports.
+   */
+  readonly importOutcome: 'imported' | 'duplicate' | 'error' | null;
   /** Why it failed the import contract (`atlas_import_error`), or null when it imported. */
   readonly importError: string | null;
   /** The meeting this is a second copy of, as `atlas_duplicate_of` links it (`[[…]]`), or null. */

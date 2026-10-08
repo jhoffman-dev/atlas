@@ -79,7 +79,12 @@ const vault = meetingIndex([
   },
   {
     path: 'Inbox/Meetings/Planning.md',
-    props: meeting('g-3', { date: '2026-10-06', start: '14:00', title: 'Q4: planning' }),
+    props: meeting('g-3', {
+      date: '2026-10-06',
+      start: '14:00',
+      title: 'Q4: planning',
+      atlas_import_outcome: 'imported',
+    }),
   },
 ]);
 
@@ -142,6 +147,7 @@ describe('compileMeetingListQuery', () => {
       kind: null,
       provider: 'gemini',
       external_id: 'g-3',
+      atlas_import_outcome: 'imported',
       atlas_import_error: null,
       atlas_duplicate_of: null,
     });

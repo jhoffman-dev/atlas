@@ -3,30 +3,34 @@ import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChangeNews, NoteChanges } from '../index/note-changes.ts';
 import type { Clock } from '../ports.ts';
 import {
+  catchUpMeetings,
   importArrivedMeetings,
   type MeetingImportOutcome,
   type MeetingImportPorts,
-  type SeenVersions,
+  type MeetingImportRun,
 } from './import-arrived-meetings.ts';
 
-/** How many note versions the importer remembers having looked at, newest kept. */
-export const SEEN_VERSIONS_KEPT = 2000;
-
 /**
- * Imports meetings as the change feed hears of them (P28-04): every sync's
- * changes, one sync's at a time, so two never decide the same meeting at
- * once. A version heard again — the same note with the same bytes — is not
- * looked at twice.
+ * Imports meetings (P28-04): as the change feed hears of them, and all at
+ * once when asked to catch up. Runs go one at a time, so two never settle the
+ * same meeting at once.
  *
- * The ports answer for whichever vault is open, so news of a vault that is
- * no longer open is dropped, as the syncer drops its sync: reading it would
- * read the other vault under this one's name. They are asked for at the start
- * of each run, so the window can hand over new ones — as it does whenever
- * the tree is re-read — without the queue and what was heard being lost.
+ * Only the Mac that runs the vault's automations imports — `active` says
+ * whether this is it — so two Macs never write the same file. One that is
+ * not drops what it hears; nothing is lost by that, since what a file is due
+ * is in the file, and catching up when the import starts or this Mac takes
+ * the automations over settles every file left.
+ *
+ * The ports answer for whichever vault is open, so a run for a vault that is
+ * no longer open is dropped too. They are asked for at the start of each
+ * run, so the window can hand over new ones — as it does whenever the tree
+ * is re-read — without the queue being lost.
  */
 export interface MeetingImporter {
-  /** Settles once these changes are imported; null when they were dropped. */
+  /** Settles once these changes are imported; null when dropped, or when the run failed (said in Activity). */
   hear(news: NoteChangeNews): Promise<MeetingImportOutcome | null>;
+  /** Settles once every unsettled file in the vault's meeting folder is; null when dropped. */
+  catchUp(vault: string): Promise<MeetingImportOutcome | null>;
 }
 
 export function createMeetingImporter({
@@ -34,6 +38,7 @@ export function createMeetingImporter({
   clock,
   activity,
   openVault,
+  active,
   onWritten,
 }: {
   /** The ports as they are now, asked for at the start of each run. */
@@ -42,70 +47,55 @@ export function createMeetingImporter({
   activity: ActivityLog;
   /** The vault open now, which the ports answer for; null when none is. */
   openVault: () => string | null;
+  /** Whether this Mac imports: it runs the vault's automations. */
+  active: () => boolean;
   /** Told when the import wrote or moved a note, so the tree and the index read it again. */
   onWritten: () => void;
 }): MeetingImporter {
   let queue: Promise<unknown> = Promise.resolve();
-  let seen: { vault: string; versions: SeenVersions } | null = null;
 
-  const importNews = async (news: NoteChangeNews): Promise<MeetingImportOutcome | null> => {
-    if (openVault() !== news.vault) return null;
-    if (seen?.vault !== news.vault) seen = { vault: news.vault, versions: seenVersions() };
-    const outcome = await importArrivedMeetings({
-      ports: ports(),
-      changes: news.changes,
-      today: clock.today(),
-      activity: activity.inVault(news.vault),
-      seen: seen.versions,
+  const runFor = (
+    vault: string,
+    importing: (run: MeetingImportRun) => Promise<MeetingImportOutcome>,
+  ): Promise<MeetingImportOutcome | null> => {
+    const next = queue.then(async () => {
+      if (!active() || openVault() !== vault) return null;
+      const recorder = activity.inVault(vault);
+      try {
+        const outcome = await importing({
+          ports: ports(),
+          today: clock.today(),
+          activity: recorder,
+        });
+        if (outcome.wrote) onWritten();
+        return outcome;
+      } catch (cause) {
+        // Not one file, which the run says itself: the run could not start, or the folder be read.
+        recorder.record(meetingImportStoppedReport(messageWithoutPaths(cause)));
+        return null;
+      }
     });
-    if (outcome.wrote) onWritten();
-    return outcome;
+    queue = next;
+    return next;
   };
 
   return {
-    hear(news) {
-      const next = queue.then(() => importNews(news));
-      // The queue only orders; each caller gets its own run's outcome.
-      queue = next.catch(() => undefined);
-      return next;
-    },
+    hear: (news) =>
+      runFor(news.vault, (run) => importArrivedMeetings({ ...run, changes: news.changes })),
+    catchUp: (vault) => runFor(vault, catchUpMeetings),
   };
 }
 
-/**
- * Hands every sync's news to the importer; returns the way to stop. A run
- * that fails outright — not one file, which the run says itself — is said in
- * the Activity log of the vault it was for.
- */
+/** Hands every sync's news to the importer; returns the way to stop. */
 export function importMeetingsOnArrival({
   changes,
   importer,
-  activity,
 }: {
   changes: NoteChanges;
   importer: MeetingImporter;
-  activity: ActivityLog;
 }): () => void {
   return changes.subscribe((news) => {
-    importer.hear(news).catch((cause: unknown) => {
-      activity.inVault(news.vault).record(meetingImportStoppedReport(messageWithoutPaths(cause)));
-    });
+    // A run never rejects: what goes wrong is said in Activity by the importer.
+    void importer.hear(news);
   });
-}
-
-/** The last {@link SEEN_VERSIONS_KEPT} versions looked at, oldest let go first. */
-export function seenVersions(kept = SEEN_VERSIONS_KEPT): SeenVersions {
-  const versions = new Set<string>();
-  return {
-    firstTime(path, digest) {
-      const version = `${path}\u0000${digest}`;
-      if (versions.has(version)) return false;
-      versions.add(version);
-      if (versions.size > kept) {
-        const [oldest] = versions;
-        if (oldest !== undefined) versions.delete(oldest);
-      }
-      return true;
-    },
-  };
 }

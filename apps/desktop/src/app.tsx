@@ -801,6 +801,9 @@ export function App({
     clock: localClock,
     activity: activityLog,
     vaultKey,
+    // Only the Mac that runs the automations writes into meeting files (U-29).
+    active: sync.automationsHere,
+    indexReady: indexStatus.kind === 'ready',
     onWritten: settleArchive,
   });
   const archive = useArchive({
