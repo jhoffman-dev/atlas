@@ -13,6 +13,8 @@ describe('captureToInbox', () => {
   it('lands the captured note in the Inbox, making the folder when the vault has none', async () => {
     const v = vault({ 'Projects/Atlas.md': 'x\n' });
     const path = await captureToInbox({
+      markdown: fakeMarkdown(),
+      today: '2026-10-08',
       fs: v.fs,
       name: 'Renew the passport',
       notePaths: [createVaultPath('Projects/Atlas.md')],
@@ -25,6 +27,8 @@ describe('captureToInbox', () => {
   it('uses the Inbox as the disk spells it, and numbers a name already waiting there', async () => {
     const v = vault({ 'inbox/Call.md': 'first\n' });
     const path = await captureToInbox({
+      markdown: fakeMarkdown(),
+      today: '2026-10-08',
       fs: v.fs,
       name: 'Call',
       notePaths: [createVaultPath('inbox/Call.md')],

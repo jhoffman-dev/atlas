@@ -2,6 +2,8 @@ import { joinFrontmatter, type EditorDocument } from '@atlas/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from './ports.ts';
 import type { OpenNote } from './open-note.ts';
+import { withTaskRules } from '../gtd/task-rules.ts';
+import type { PropertyChanges } from '../query/set-property.ts';
 
 export interface SavedNote {
   readonly note: OpenNote;
@@ -30,18 +32,29 @@ export async function saveNote({
   /**
    * Frontmatter keys to change as part of this save. Going through the same write
    * as the body means editing a property can never discard unsaved body edits.
+   * They are held to the task rules (ADR-0029) against the properties the note
+   * was read with; a refused change throws `TaskRuleRefusedError` and nothing,
+   * body included, is written.
    */
-  changes?: Readonly<Record<string, unknown>>;
+  changes?: {
+    readonly values: PropertyChanges;
+    /** `YYYY-MM-DD`: the day a task this finishes is dated. */
+    readonly today: string;
+  };
 }): Promise<SavedNote> {
+  const ruled =
+    changes === undefined
+      ? undefined
+      : withTaskRules({ values: changes.values, today: changes.today })(note.properties);
   const body = markdown.serializeBody({
     originalBody: note.originalBody,
     parsed: note.parsed,
     doc,
   });
   const frontmatter =
-    changes === undefined || Object.keys(changes).length === 0
+    ruled === undefined || Object.keys(ruled).length === 0
       ? note.frontmatter
-      : markdown.updateFrontmatter(note.frontmatter, changes);
+      : markdown.updateFrontmatter(note.frontmatter, ruled);
   const text = joinFrontmatter(frontmatter, body);
 
   const modified = await fs.writeTextFile({

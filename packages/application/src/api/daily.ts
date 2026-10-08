@@ -1,4 +1,4 @@
-import { capturedTaskContents, captureToInbox } from '../inbox/capture.ts';
+import { captureToInbox } from '../inbox/capture.ts';
 import { ensureDailyNote } from '../notes/daily-note.ts';
 import { findTaskTemplate, loadTemplates, readTemplate } from '../types/templates.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
@@ -31,18 +31,13 @@ export async function captureRoute(request: VaultRequest): Promise<RouteResult> 
   const { fs } = request;
   const [notePaths, templates] = await Promise.all([listVaultNotes({ fs }), loadTemplates({ fs })]);
   const template = findTaskTemplate(templates);
-  const contents =
-    template === null
-      ? undefined
-      : await capturedTaskContents({
-          fs,
-          markdown: request.markdown,
-          contents: await readTemplate({ fs, template }),
-        });
+  const contents = template === null ? undefined : await readTemplate({ fs, template });
 
   request.assertStillOpen();
   const path = await captureToInbox({
     fs,
+    markdown: request.markdown,
+    today: request.clock.today(),
     name: text,
     notePaths,
     ...(contents === undefined ? {} : { contents }),

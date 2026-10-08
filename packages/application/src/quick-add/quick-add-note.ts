@@ -29,6 +29,7 @@ export async function quickAddNote({
   template,
   beside,
   notePaths,
+  today,
 }: {
   fs: VaultFsPort;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
@@ -41,10 +42,14 @@ export async function quickAddNote({
   /** The note in view, which a task is added beside. */
   beside: VaultPath | null;
   notePaths: readonly VaultPath[];
+  /** `YYYY-MM-DD`: a task added already finished is dated by it (ADR-0029). */
+  today: string;
 }): Promise<VaultPath> {
   const contents = quickAddContents({ markdown, type, values, template });
   return createNote({
     fs,
+    markdown,
+    today,
     name,
     beside,
     folder: quickAddFolder({ type, beside }),

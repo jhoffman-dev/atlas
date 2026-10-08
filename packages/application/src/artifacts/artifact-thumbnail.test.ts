@@ -32,7 +32,7 @@ function setUp({
   const { fs } = api;
   const snapshot = { capture: vi.fn(picture) };
   const setProperties = vi.fn((values: PropertyChanges) =>
-    setNoteProperties({ fs, markdown, path: NOTE_PATH, values }),
+    setNoteProperties({ today: '2026-10-08', fs, markdown, path: NOTE_PATH, values }),
   );
   const generate = (asked = false) =>
     generateArtifactThumbnail({

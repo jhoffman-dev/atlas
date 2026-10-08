@@ -38,10 +38,13 @@ export async function changeProperties({
   ports,
   changes,
   kind,
+  today,
 }: {
   ports: Pick<ArchivePorts, 'fs' | 'markdown' | 'editors'>;
   changes: readonly PropertyChange[];
   kind: 'set' | 'restored';
+  /** `YYYY-MM-DD`, the run's day: a task a rule finishes is dated by it (ADR-0029). */
+  today: string;
 }): Promise<PropertyOutcome> {
   const done: DoneAction[] = [];
   const left: PassedOver[] = [];
@@ -51,7 +54,7 @@ export async function changeProperties({
       continue;
     }
     try {
-      const outcome = await changeNote({ ports, path, changes: ofNote, kind });
+      const outcome = await changeNote({ ports, path, changes: ofNote, kind, today });
       done.push(...outcome.done);
       left.push(...outcome.left);
     } catch (cause) {
@@ -90,18 +93,22 @@ async function changeNote({
   path,
   changes,
   kind,
+  today,
 }: {
   ports: Pick<ArchivePorts, 'fs' | 'markdown' | 'editors'>;
   path: VaultPath;
   changes: readonly PropertyChange[];
   kind: 'set' | 'restored';
+  today: string;
 }): Promise<PropertyOutcome> {
   const done: DoneAction[] = [];
   const left: PassedOver[] = [];
+  // Held to the task rules as any write is: one the rules refuse is left, its reason in the log.
   await setNoteProperties({
     fs: ports.fs,
     markdown: ports.markdown,
     path,
+    today,
     values: (properties) => {
       const written: Record<string, unknown> = {};
       for (const change of changes) {

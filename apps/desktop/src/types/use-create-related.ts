@@ -7,6 +7,7 @@ import {
 } from '@atlas/application';
 import type { VaultPath } from '@atlas/domain';
 import type { CreateRelated } from '@atlas/ui';
+import { localToday } from '../today.ts';
 
 /**
  * "New company…" in a relation's picker, for the note at `beside`: makes the
@@ -39,6 +40,7 @@ export function useCreateRelated({
         name,
         beside,
         notePaths,
+        today: localToday(),
       });
       onChanged();
       return `[[${made.target}]]`;

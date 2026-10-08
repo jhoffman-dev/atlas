@@ -10,6 +10,7 @@ import {
   VAULT_ROOT,
   type VaultPath,
 } from '@atlas/domain';
+import { newNoteTaskRules } from '../gtd/task-rules.ts';
 import { createNote, NoteNameTakenError } from '../notes/create-note.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { findTemplateNamed, loadTemplates, readTemplate } from '../types/templates.ts';
@@ -64,14 +65,22 @@ async function folderOf(request: VaultRequest, fields: Fields): Promise<VaultPat
 /** Creates the note at the named path, or an Untitled one numbered as `createNote` numbers it. */
 async function createIn(
   request: VaultRequest,
-  { folder, named, contents }: { folder: VaultPath; named: VaultPath | null; contents: string },
+  {
+    folder,
+    named,
+    contents: asked,
+  }: { folder: VaultPath; named: VaultPath | null; contents: string },
 ): Promise<VaultPath> {
   request.assertStillOpen();
+  // Judged before anything is made, as createNote judges it: a refused task makes no file.
+  const rules = { markdown: request.markdown, today: request.clock.today() };
+  const contents = newNoteTaskRules({ ...rules, contents: asked });
   try {
     if (named === null) {
       const notePaths = await listVaultNotes({ fs: request.fs });
       return await createNumberedNote({
         fs: request.fs,
+        ...rules,
         name: DEFAULT_NOTE_NAME,
         beside: null,
         folder,

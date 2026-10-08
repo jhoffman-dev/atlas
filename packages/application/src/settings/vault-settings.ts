@@ -7,7 +7,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
-import { setNoteProperties } from '../query/set-property.ts';
+import { writeFrontmatterChanges } from '../query/set-property.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 const SETTINGS = createVaultPath(VAULT_SETTINGS_PATH);
@@ -58,7 +58,7 @@ export async function saveVaultSettings({
   const [file] = await fs.readNotes([SETTINGS]);
   if (file !== undefined) {
     refuseUnreadable(markdown, splitFrontmatter(file.text).frontmatter);
-    await setNoteProperties({ fs, markdown, path: SETTINGS, values: changes });
+    await writeFrontmatterChanges({ fs, markdown, path: SETTINGS, values: changes });
     return;
   }
   await ensureAtlasFolder(fs);

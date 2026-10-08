@@ -1,5 +1,4 @@
 import { appendToBody, joinFrontmatter, splitFrontmatter, type VaultPath } from '@atlas/domain';
-import { withTaskRules } from '../gtd/task-rules.ts';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';
 import { linkedTypeProblems } from '../types/linked-types.ts';
 import { loadObjectTypes, noteTypeName } from '../types/load-types.ts';
@@ -40,10 +39,9 @@ export async function setPropertiesRoute(request: VaultRequest): Promise<RouteRe
 /**
  * Writes properties to a note read at `expected`: through the pane holding
  * it when there is one, so its editor never saves an older copy over them.
- * A task is held to its rules as the app holds it (ADR-0029): Waiting with
- * nobody to wait on is refused as `invalid`, and finishing it dates it. A
- * pane holds its note to them as it writes; a note no pane holds is held to
- * them here, by the same wrapper.
+ * A task is held to its rules as the app holds it (ADR-0029), by the write
+ * itself — the pane's save or `setNoteProperties`: Waiting with nobody to
+ * wait on is refused as `invalid`, and finishing it dates it.
  */
 export async function writeProperties(
   request: VaultRequest,
@@ -55,7 +53,8 @@ export async function writeProperties(
       fs: request.fs,
       markdown: request.markdown,
       path,
-      values: withTaskRules({ values, today: request.clock.today() }),
+      values,
+      today: request.clock.today(),
       ifModified: expected,
     });
   });

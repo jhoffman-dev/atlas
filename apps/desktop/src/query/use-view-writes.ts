@@ -12,7 +12,6 @@ import {
   type MarkdownPort,
   type PropertyChanges,
   type VaultFsPort,
-  withTaskRules,
 } from '@atlas/application';
 import type { CardMove } from '@atlas/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
@@ -43,15 +42,7 @@ export async function writeNoteProperties({
   values: PropertyChanges;
 }): Promise<void> {
   const takenByAPane = await editors.setPropertiesIfOpen({ path: createVaultPath(path), values });
-  // A pane holds its note to a task's rules as it writes; a note no pane holds is held to them here.
-  if (!takenByAPane) {
-    await setNoteProperties({
-      fs,
-      markdown,
-      path,
-      values: withTaskRules({ values, today: localToday() }),
-    });
-  }
+  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values, today: localToday() });
 }
 
 /** `writeNoteProperties` for a view's gestures, which report through the view. */

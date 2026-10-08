@@ -71,6 +71,7 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
       ports,
       changes: restoringChanges(trusted),
       kind: 'restored',
+      today: clock.today(),
     });
   } finally {
     // As a run does: what the undo changed is logged however it ends, in the rule's own vault.

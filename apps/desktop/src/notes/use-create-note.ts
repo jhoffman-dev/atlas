@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { DEFAULT_NOTE_NAME, splitFrontmatter, type VaultPath } from '@atlas/domain';
 import {
-  capturedTaskContents,
   captureToInbox,
   createNote,
   ensureDailyNote,
@@ -10,6 +9,7 @@ import {
   type NoteTemplate,
   type VaultFsPort,
 } from '@atlas/application';
+import { localToday } from '../today.ts';
 
 /**
  * Adds a note to the vault and opens it.
@@ -55,6 +55,8 @@ export function useCreateNote({
       try {
         const path = await createNote({
           fs,
+          markdown,
+          today: localToday(),
           name,
           beside,
           notePaths,
@@ -80,12 +82,11 @@ export function useCreateNote({
   const captureNote = useCallback(
     async (name: string, template: NoteTemplate | null): Promise<VaultPath | null> => {
       try {
-        const contents =
-          template === null
-            ? undefined
-            : await capturedTaskContents({ fs, markdown, contents: await contentsOf(template) });
+        const contents = template === null ? undefined : await contentsOf(template);
         const path = await captureToInbox({
           fs,
+          markdown,
+          today: localToday(),
           name,
           notePaths,
           ...(contents === undefined ? {} : { contents }),

@@ -18,6 +18,7 @@ describe('quickAddNote on a GTD task', () => {
     });
     // Status is offered first; Waiting on is offered too, and left empty.
     const made = quickAddNote({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       type: TASK_TYPE_FILE.type,

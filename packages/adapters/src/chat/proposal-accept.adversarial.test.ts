@@ -29,7 +29,13 @@ const closed = { state: () => 'closed' as const, reload: () => {} };
 
 async function proposeAndAccept(text: string, input: Record<string, unknown>) {
   const { fs, files } = vaultWith({ 'Plan.md': text });
-  const made = await proposeEdit({ fs, markdown: remarkMarkdown, input, id: 'p1' });
+  const made = await proposeEdit({
+    today: '2026-10-08',
+    fs,
+    markdown: remarkMarkdown,
+    input,
+    id: 'p1',
+  });
   await acceptProposal({
     fs,
     openNotes: closed,

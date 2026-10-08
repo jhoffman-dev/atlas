@@ -33,6 +33,7 @@ const write = (
   values: Parameters<typeof withTaskRules>[0]['values'],
 ) =>
   setNoteProperties({
+    today: '2026-10-08',
     fs: vault.fs,
     markdown: vault.markdown,
     path: createVaultPath('tasks/Call.md'),

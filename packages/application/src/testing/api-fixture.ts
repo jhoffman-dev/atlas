@@ -293,7 +293,8 @@ export function apiFixture({
         snapshot: fixture.snapshot,
         notePath: path,
         asked,
-        setProperties: (values) => setNoteProperties({ fs: bound, markdown, path, values }),
+        setProperties: (values) =>
+          setNoteProperties({ fs: bound, markdown, path, values, today: TODAY }),
       });
     },
   });

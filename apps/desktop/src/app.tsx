@@ -656,6 +656,7 @@ export function App({
             path,
             key: FAVORITE_KEY,
             value,
+            today: localToday(),
           }).then(() => reload());
         })
         .then(() => void refresh())

@@ -65,6 +65,7 @@ describe('migrateNotes', () => {
   it('rewrites each note once, leaving its other keys and body', async () => {
     const { fs, writes, markdown } = vault();
     const report = await migrateNotes({
+      today: '2026-10-08',
       fs,
       markdown,
       openNotes: fakeOpenNotes(),
@@ -81,6 +82,7 @@ describe('migrateNotes', () => {
     const { fs, writes, markdown } = vault();
     const throughPane: string[] = [];
     const report = await migrateNotes({
+      today: '2026-10-08',
       fs,
       markdown,
       openNotes: fakeOpenNotes({
@@ -102,6 +104,7 @@ describe('migrateNotes', () => {
   it('carries on past a note it cannot write, and reports it with the reason', async () => {
     const { fs, writes, markdown } = vault({ failOn: 'tasks/a.md' });
     const report = await migrateNotes({
+      today: '2026-10-08',
       fs,
       markdown,
       openNotes: fakeOpenNotes(),
@@ -132,6 +135,7 @@ describe('migrateNotes — adversarial', () => {
   it('writes nothing to a note that no longer holds what changed', async () => {
     const { fs, writes, markdown } = vault();
     const report = await migrateNotes({
+      today: '2026-10-08',
       fs,
       markdown,
       openNotes: fakeOpenNotes(),

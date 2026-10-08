@@ -13,6 +13,7 @@ const TASK = '---\ntype: task\nstatus: next-action\n---\nCall the printer.\n';
 async function propose(properties: Record<string, unknown>) {
   const fixture = apiFixture({ files: { 'Call.md': TASK }, markdown: blockMarkdown() });
   return proposeEdit({
+    today: '2026-10-08',
     fs: fixture.fs,
     markdown: blockMarkdown(),
     input: { path: 'Call.md', properties },

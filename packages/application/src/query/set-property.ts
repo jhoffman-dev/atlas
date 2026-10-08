@@ -2,6 +2,7 @@ import { createVaultPath, repeatingTaskUpdate, splitFrontmatter } from '@atlas/d
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
+import { withTaskRules } from '../gtd/task-rules.ts';
 
 /** What counts as finishing a task, for the views that can tick one off. */
 export interface CompletionRule {
@@ -27,12 +28,15 @@ export async function setNoteProperty({
   key,
   value,
   completion,
+  today,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   path: string;
   key: string;
   value: unknown;
+  /** `YYYY-MM-DD`: the day a task this finishes is dated (ADR-0029). */
+  today: string;
   /**
    * When given, finishing a repeating task rolls it forward instead: its due
    * date moves on and it goes back into play, rather than the series ending.
@@ -44,6 +48,7 @@ export async function setNoteProperty({
     markdown,
     path,
     values: propertyChange({ key, value, ...(completion ? { completion } : {}) }),
+    today,
   });
 }
 
@@ -88,20 +93,27 @@ export type PropertyChanges =
  * Changes some properties of a note, leaving the rest of the file as it was.
  *
  * This is the one place a note that is not open in the editor is written, so
- * the byte-preserving read-change-write happens once. Moving a bar on a
- * timeline changes when work starts *and* when it ends, and those are one edit
- * rather than two: written separately, the file would be briefly inconsistent
- * and the watcher would see two changes.
+ * the byte-preserving read-change-write happens once — and so the task rules
+ * (ADR-0029) are held here, against the frontmatter the write reads, for
+ * every caller: a refused change throws `TaskRuleRefusedError` and writes
+ * nothing. Moving a bar on a timeline changes when work starts *and* when it
+ * ends, and those are one edit rather than two: written separately, the file
+ * would be briefly inconsistent and the watcher would see two changes.
  *
  * The index is not touched here: it follows the file, never the other way round.
  */
 export async function setNoteProperties({
-  fs,
-  markdown,
-  path,
+  today,
   values,
-  ifModified,
-}: {
+  ...write
+}: FrontmatterWrite & {
+  /** `YYYY-MM-DD`: the day a task this finishes is dated. */
+  today: string;
+}): Promise<void> {
+  await writeFrontmatterChanges({ ...write, values: withTaskRules({ values, today }) });
+}
+
+interface FrontmatterWrite {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   path: string;
@@ -111,7 +123,21 @@ export async function setNoteProperties({
    * has moved on since is refused with `NoteChangedError` rather than written.
    */
   ifModified?: number;
-}): Promise<void> {
+}
+
+/**
+ * The byte-preserving read-change-write of a file's frontmatter, with no
+ * rules about what a note may hold: for Atlas's own files — a type's
+ * definition, the vault's settings — which are not notes. A note is written
+ * with {@link setNoteProperties}.
+ */
+export async function writeFrontmatterChanges({
+  fs,
+  markdown,
+  path,
+  values,
+  ifModified,
+}: FrontmatterWrite): Promise<void> {
   const target = createVaultPath(path);
   const { text, modified } = await fs.readTextFile(target);
   if (ifModified !== undefined && ifModified !== modified) throw new NoteChangedError(target);

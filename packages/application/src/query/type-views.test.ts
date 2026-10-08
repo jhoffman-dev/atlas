@@ -70,7 +70,7 @@ function vaultOf(files: Record<string, string> = {}) {
     markdown,
     writeProperties: async ({ path, values }) => {
       propertyWrites.push({ path, values });
-      await setNoteProperties({ fs, markdown, path, values });
+      await setNoteProperties({ today: '2026-10-08', fs, markdown, path, values });
     },
   };
   const frontmatterOf = (path: string) =>

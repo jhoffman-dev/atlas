@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { ObjectType, VaultPath } from '@atlas/domain';
 import { createNoteOfType, type MarkdownPort, type VaultFsPort } from '@atlas/application';
+import { localToday } from '../today.ts';
 
 /**
  * "New book" at the foot of a type's table: `createNoteOfType`'s note — from
@@ -21,7 +22,7 @@ export function useNewNoteOfType({
 
   const create = useCallback(
     (type: ObjectType) => {
-      createNoteOfType({ fs, markdown, type, notePaths })
+      createNoteOfType({ fs, markdown, type, notePaths, today: localToday() })
         .then((path) => {
           setError(null);
           onCreated(path);

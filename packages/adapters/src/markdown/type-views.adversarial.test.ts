@@ -43,7 +43,7 @@ function vaultWith(files: Record<string, string>) {
     fs,
     markdown: remarkMarkdown,
     writeProperties: ({ path, values }) =>
-      setNoteProperties({ fs, markdown: remarkMarkdown, path, values }),
+      setNoteProperties({ today: '2026-10-08', fs, markdown: remarkMarkdown, path, values }),
   };
   const summaryOf = (path: string): SavedViewSummary => {
     const frontmatter = remarkMarkdown.frontmatterProperties(

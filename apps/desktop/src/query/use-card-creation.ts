@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import {
+  createVaultPath,
   groupPrefill,
   groupValueProperty,
   NEW_NOTE_CONTENTS,
-  nextAvailableNotePath,
   VAULT_ROOT,
   type ObjectType,
   type RowGroup,
@@ -11,7 +11,8 @@ import {
   type ViewQuery,
 } from '@atlas/domain';
 import type { CardAdd } from '@atlas/ui';
-import type { MarkdownPort, VaultFsPort } from '@atlas/application';
+import { createNote as makeNote, type MarkdownPort, type VaultFsPort } from '@atlas/application';
+import { localToday } from '../today.ts';
 import { errorMessage } from './error-message.ts';
 
 /**
@@ -62,18 +63,24 @@ export function useCardCreation({
     }): Promise<VaultPath | null> => {
       if (query === null) return null;
 
-      const path = nextAvailableNotePath({
-        folder: VAULT_ROOT,
-        name: name.trim() === '' ? `New ${query.type}` : name,
-        taken: new Set(notePaths),
-      });
       const frontmatter = markdown.updateFrontmatter(null, {
         type: query.type,
         ...values,
       });
 
       try {
-        await fs.createNote({ path, contents: frontmatter + NEW_NOTE_CONTENTS });
+        // Made as every new note is, so a card added to a Waiting column with
+        // nobody to wait on is refused, and one added to Archive is dated.
+        const path = await makeNote({
+          fs,
+          markdown,
+          today: localToday(),
+          name: name.trim() === '' ? `New ${query.type}` : name,
+          beside: null,
+          folder: VAULT_ROOT,
+          notePaths: notePaths.map(createVaultPath),
+          contents: frontmatter + NEW_NOTE_CONTENTS,
+        });
         onChanged();
         return path;
       } catch (cause) {

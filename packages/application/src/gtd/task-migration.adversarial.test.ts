@@ -5,7 +5,7 @@
  * vault as `task-migration.test.ts`. Each test names one invariant.
  */
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type AutomationRule } from '@atlas/domain';
+import { createVaultPath, type AutomationRule, type SetValue } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
@@ -184,7 +184,7 @@ describe('an automation that sets a task’s status', () => {
   const TODAY = '2026-10-08';
   const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T03:00:00` };
   const GUARD: VaultGuard = { vault: '/vaults/home', currentVault: () => '/vaults/home' };
-  const rule = (values: Record<string, unknown>): AutomationRule => ({
+  const rule = (values: Record<string, SetValue>): AutomationRule => ({
     id: 'Close',
     path: createVaultPath('.atlas/automations/Close.md'),
     name: 'Close out next actions',
@@ -194,7 +194,7 @@ describe('an automation that sets a task’s status', () => {
     olderThanDays: null,
     action: { kind: 'set', values },
   });
-  const run = async (values: Record<string, unknown>) => {
+  const run = async (values: Record<string, SetValue>) => {
     const tasks = automationVault({
       today: TODAY,
       notes: { 'Call Tobias.md': jsonNote({ type: 'task', status: 'next-action' }) },

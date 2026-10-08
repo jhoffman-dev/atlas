@@ -57,7 +57,13 @@ function setUp({
   const { fs } = api;
   const snapshot = { capture: vi.fn(picture) };
   const setProperties = vi.fn((values: PropertyChanges) =>
-    setNoteProperties({ fs, markdown: api.deps.markdown, path: NOTE_PATH, values }),
+    setNoteProperties({
+      today: '2026-10-08',
+      fs,
+      markdown: api.deps.markdown,
+      path: NOTE_PATH,
+      values,
+    }),
   );
   const deps = { fs, markdown: api.deps.markdown, snapshot, renderer };
   const generate = (asked = false) =>
