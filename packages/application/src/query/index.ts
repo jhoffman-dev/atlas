@@ -10,6 +10,8 @@ export { createView, ViewRefusedError, writeViewNote } from './create-view.ts';
 export { loadSchema, runSql, SqlQueryError } from './run-sql.ts';
 export { AtlasQueryError, runAtlasQuery } from './run-atlas-query.ts';
 export type { AtlasQueryAnswer } from './run-atlas-query.ts';
+export { runQueryBlock } from './run-query-block.ts';
+export type { QueryBlockAnswer } from './run-query-block.ts';
 export {
   addTypeView,
   duplicateTab,

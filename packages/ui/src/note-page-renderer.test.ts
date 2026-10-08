@@ -48,6 +48,16 @@ describe('the note page renderer', () => {
     expect(withCard).toContain('>the planet</a>');
   });
 
+  it('draws a query block as the code Obsidian shows, its text escaped and nothing run', () => {
+    const withQuery = renderer.bodyHtml({
+      type: 'doc',
+      content: [{ type: 'queryBlock', attrs: { text: "FROM task WHERE title = '<b>'" } }],
+    });
+    expect(withQuery).toContain(
+      '<pre data-query-block="" class="query-block query-block--plain"><code>FROM task WHERE title = \'&lt;b&gt;\'</code></pre>',
+    );
+  });
+
   it('shows raw HTML as its source, as the editor does, and never as markup', () => {
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toMatch(/<script/i);

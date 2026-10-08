@@ -77,6 +77,7 @@ import { SqlViewBody, ViewBody, ViewHeadToolbar } from './view-body.tsx';
 import { useSqlView } from '../query/use-sql-view.ts';
 import { useQueryView, type QueryViewState } from '../query/use-query-view.ts';
 import { QueryViewBody } from './query-view-body.tsx';
+import { useQueryBlocks } from '../query/use-query-blocks.ts';
 import { pageHeading } from './page-heading.ts';
 import { localClock, localNow, localToday } from '../today.ts';
 import type { OpenEditors } from './open-editors.ts';
@@ -330,6 +331,14 @@ export function NotePaneContainer({
     notePaths,
     revision: indexKey,
   });
+  const queries = useQueryBlocks({
+    index,
+    types,
+    notePaths,
+    notePath: path,
+    revision: indexKey,
+    onOpenNote: (target) => onOpenNote(createVaultPath(target)),
+  });
   const picking = useBlockPicking({
     fs: notes.fs,
     markdown: notes.markdown,
@@ -383,6 +392,7 @@ export function NotePaneContainer({
       people={context.people}
       bookmarks={bookmarks}
       transclusions={transclusions}
+      {...(queries !== undefined && { queries })}
       picking={picking}
       reveal={reveal}
       onOpenTag={context.openTag}

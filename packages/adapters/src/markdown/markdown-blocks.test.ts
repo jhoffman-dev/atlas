@@ -59,6 +59,10 @@ const CORPUS: Array<[label: string, markdown: string]> = [
   ['shown block', 'Before.\n\n![[Plans#^f3k9x2]]\n\n![[Plans#Packing list|packing]]\n'],
   ['embed in a sentence', 'See ![[Plans#^f3k9x2]] here.\n'],
   [
+    'query block',
+    'Meetings.\n\n```atlas-query\nlayout: list\nFROM meeting WHERE people = this\n```\n',
+  ],
+  [
     'mixed document',
     '# Title\n\nIntro _text_.\n\n- [ ] one\n- [x] two\n\n```js\nx();\n```\n\n> quote\n',
   ],

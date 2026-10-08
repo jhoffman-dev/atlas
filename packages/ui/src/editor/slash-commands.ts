@@ -1,5 +1,6 @@
 import { Extension, type Editor, type Range } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
+import { QUERY_BLOCK_NODE } from '@atlas/domain';
 import { pickerSuggestion, type PickerView } from './picker-suggestion.ts';
 
 export interface SlashCommand {
@@ -106,6 +107,8 @@ export interface SlashCommandsOptions {
   offerLink?: boolean;
   /** Offers "Image", which asks the page for a file by {@link IMAGE_REQUEST}. */
   offerImage?: boolean;
+  /** Offers "Query", a live query block (P30-05), where the note can answer one. */
+  offerQuery?: boolean;
 }
 
 /**
@@ -143,11 +146,26 @@ const IMAGE_COMMAND: SlashCommand = {
   },
 };
 
+/** "Query": a query block, open at its text for the query to be written. */
+const QUERY_COMMAND: SlashCommand = {
+  id: 'query',
+  label: 'Query',
+  hint: '```atlas-query',
+  run: (editor, range) =>
+    editor
+      .chain()
+      .focus()
+      .deleteRange(range)
+      .insertContent({ type: QUERY_BLOCK_NODE, attrs: { text: '' } })
+      .run(),
+};
+
 const matching = (query: string, options: SlashCommandsOptions): SlashCommand[] => {
   const offered = [
     ...SLASH_COMMANDS,
     ...(options.offerLink === true ? [LINK_COMMAND] : []),
     ...(options.offerImage === true ? [IMAGE_COMMAND] : []),
+    ...(options.offerQuery === true ? [QUERY_COMMAND] : []),
   ];
   const wanted = query.trim().toLowerCase();
   if (wanted === '') return [...offered];

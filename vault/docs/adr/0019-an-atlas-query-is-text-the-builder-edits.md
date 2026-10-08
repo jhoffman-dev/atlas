@@ -198,3 +198,39 @@ value     = … | this | @-30d | @+2w | @+1m | @-1y | @startOfWeek
   holds as what it is ("30 days ago"), so it is never mistaken for no date.
 - The API takes the note as `context` on `/v1/atlas-query` (ADR-0016): a note
   path in user space that must exist.
+
+## Addendum, 2026-10-08 (P30-05): a query inside a note
+
+A Person or Project page shows its own meetings and tasks, so a query can
+live in a note's body:
+
+````
+```atlas-query
+layout: list
+FROM meeting WHERE people = this SORT BY date DESC
+```
+````
+
+- **It is a fenced code block**, so Obsidian shows the code and nothing in the
+  file is Atlas's alone. The fence's language is exactly `atlas-query`, with
+  nothing after it on the line: a query block is written back with its
+  language alone, so anything there would be lost on its first edit, and such
+  a fence stays a code block. One rule reads it, `queryBlockOfCode` (domain).
+- **It is one of the note's own blocks**, as a shown block is (ADR-0022): in
+  a list, a quote or a callout the fence stays a code block, and a query block
+  moved or pasted there is written as one (`nestedBlockOf`).
+- **The editor holds it as an atom with its text** (`queryBlock`), like a
+  shown block, not as an editable code block: the answer is drawn live and
+  read-only, and the text is edited behind **Edit query**. Untouched, it is
+  written from its own bytes (ADR-0003) — tildes, a longer fence and a block
+  id on the line after it included.
+- **`this` is the note it is in**, handed to the compiler as `thisNote` by the
+  page that shows it. Where a note is only drawn — a feed, a page's picture, a
+  shown block in another note — it is drawn as its code, never run, since
+  that is not the note `this` would name.
+- **A first line `layout: table` or `layout: list`** says how it is drawn; left
+  out, a table. Any other layout, or no query, is a problem in the text,
+  said in the block. The layout line is the app's, not the query's: a tool
+  answering a block sends the rest, with the note as `context`.
+- It is asked again whenever the index changes, and once typing in its text
+  pauses.

@@ -1,5 +1,6 @@
 import type { EditorNode } from '../markdown/editor-node.ts';
 import { paragraphOfEmbed } from '../transclusion/block-embed.ts';
+import { codeOfQueryBlock } from '../query-block/query-block.ts';
 import { BOOKMARK_NODE, linkOfNode, bookmarkNode } from './bookmark.ts';
 
 /*
@@ -67,10 +68,11 @@ export function linkSwitchFor({
  * item, a table cell. A card is a top-level block only (ADR-0020), and so is a
  * shown block (ADR-0022), so one held anywhere else is written as its link,
  * alone in a paragraph: the link is kept, and reads back as the link it is.
+ * A query block (P30-05) is written as the fence it is, a code block there.
  * Any other block is itself.
  */
 export function nestedBlockOf(block: EditorNode): EditorNode {
-  return paragraphOfBookmark(block) ?? paragraphOfEmbed(block) ?? block;
+  return paragraphOfBookmark(block) ?? paragraphOfEmbed(block) ?? codeOfQueryBlock(block) ?? block;
 }
 
 /** The paragraph a bookmark becomes when it is shown as a link again: the link, alone. */
