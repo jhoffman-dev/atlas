@@ -40,6 +40,7 @@ const ALL_TOOLS = [
   'atlas_list_type_views',
   'atlas_list_types',
   'atlas_list_views',
+  'atlas_meetings',
   'atlas_move_card',
   'atlas_profile',
   'atlas_query',
@@ -133,6 +134,8 @@ describe('tools/list', () => {
     for (const name of ['atlas_automations', 'atlas_automation_log', 'atlas_automation_dry_run']) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: true });
     }
+    // Meetings are imported in the app; the tool only reads what the import made of them.
+    expect(byName.get('atlas_meetings')).toMatchObject({ readOnlyHint: true });
     // The name is set in Settings; the API never writes `.atlas`.
     expect(byName.get('atlas_profile')).toMatchObject({ readOnlyHint: true });
     // Templates are edited in the app; the API never writes `.atlas` (ADR-0016).
@@ -376,6 +379,15 @@ describe('tools/call → REST', () => {
       { paths: ['Archive/Call.md'] },
     ],
     ['atlas_archived', {}, 'GET', '/v1/archive', null],
+    ['atlas_meetings', {}, 'GET', '/v1/meetings', null],
+    [
+      'atlas_meetings',
+      { since: '2026-10-01', limit: 10, offset: 20, includeArchived: true },
+      'GET',
+      '/v1/meetings?since=2026-10-01&limit=10&offset=20&includeArchived=true',
+      null,
+    ],
+    ['atlas_meetings', { includeArchived: false }, 'GET', '/v1/meetings', null],
     ['atlas_automations', {}, 'GET', '/v1/automations', null],
     ['atlas_automation_log', { id: 'tidy' }, 'GET', '/v1/automations/tidy/log', null],
     [
@@ -480,6 +492,10 @@ describe('tools/call → REST', () => {
     ['atlas_list_type_views', { type: 'task', limit: 501 }],
     ['atlas_list_type_views', { type: 'task', offset: -1 }],
     ['atlas_archived', { limit: 501 }],
+    ['atlas_meetings', { since: 'last week' }],
+    ['atlas_meetings', { limit: 501 }],
+    ['atlas_meetings', { offset: -1 }],
+    ['atlas_meetings', { includeArchived: 'yes' }],
     ['atlas_automation_log', {}],
     ['atlas_automation_log', { id: '' }],
     ['atlas_automation_log', { id: 'tidy', limit: 101 }],
