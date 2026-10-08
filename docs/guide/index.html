@@ -116,7 +116,7 @@ td:first-child { white-space: nowrap; }
     <div>
       <h1>Atlas Field Guide</h1>
       <p>How to use Atlas day to day: notes and pictures, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
-      <div class="facts"><span class="fact">Version 0.1 · updated Oct 7, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
+      <div class="facts"><span class="fact">Version 0.1 · updated Oct 8, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
     </div>
   </header>
 
@@ -655,7 +655,7 @@ ORDER BY phase</pre>
       <ul>
         <li><b>Quick capture</b> <kbd>⇧⌘N</kbd>: type a line and it becomes a task, without leaving what you're doing.</li>
         <li><b>Today's note</b> <kbd>⇧⌘D</kbd> opens the daily note, making it if needed.</li>
-        <li><b>Today</b> and <b>Inbox</b> in the sidebar are views; their counts update as you work.</li>
+        <li><b>Today</b> and <b>Inbox</b> in the sidebar are views; their counts update as you work. The Inbox lists your backlog tasks and anything in the <code>Inbox</code> folder — new <a href="#meetings">meetings</a> among them.</li>
         <li>Every task shows a <b>checkbox</b> in tables, lists, boards, galleries and feeds. Ticking sets it to done; unticking puts back the status it had.</li>
         <li>Recurring tasks roll on to their next date when ticked, or when dragged into done on a board.</li>
       </ul>
@@ -765,6 +765,22 @@ ORDER BY phase</pre>
         <li>Atlas <a href="#sync">pulls</a> the repository every minute, so the file shows up in <code>Inbox/Meetings</code> within a minute. If the Mac was asleep, it comes in on the next pull.</li>
       </ol>
       <p>Atlas never logs in to Gmail, Notion or the notetaker. If Notion's write fails, n8n stops there as it always has and nothing reaches the vault; if only the GitHub commit fails, Notion still has the meeting. The same meeting is never committed twice.</p>
+      <h3 id="meeting-import">What Atlas does when it arrives</h3>
+      <p>As soon as the pull brings the file in, Atlas checks it against the meeting import contract — the same check as <code>pnpm validate:meeting</code> below — and does one of three things. Each is one line in <a href="#activity">Activity</a>, under <b>Meetings</b>.</p>
+      <div class="grid2">
+        <div class="card"><h4>It's fine</h4><p>Nothing about the file changes, byte for byte. It waits in <code>Inbox/Meetings</code> and shows in the <b>Inbox</b> until you file it. Activity: <i>“2026-09-29 Platform weekly sync: arrived in the Inbox.”</i></p></div>
+        <div class="card"><h4>It's a second copy</h4><p>Same <code>provider</code> and provider's id as a meeting already in the vault — even one you filed or archived. The copy gets <code>atlas_duplicate_of: "[[2026-09-29 Platform weekly sync]]"</code> and goes to the <a href="#archive">Archive</a>; the first one is untouched. Activity: <i>“… a second copy of 2026-09-29 Platform weekly sync, so it was archived.”</i></p></div>
+      </div>
+      <div class="card"><h4>Something's wrong with it</h4><p>It stays where it landed, nothing in it is fixed or deleted, and Atlas writes why at the top — the first few problems, with line numbers:</p>
+        <pre>atlas_import_error: "external_id is required; Transcript: Line 15: the turn has no block id — end it with ^t0001 and so on"</pre>
+        <p>It shows in the <b>Inbox</b> with that error beside it (and as <b>Import error</b> in its properties), and Activity gets a warning: <i>“2026-10-02 Vendor call: could not be imported. external_id is required”</i>.</p></div>
+      <ul>
+        <li><b>Fix it in place.</b> Correct the file — or the n8n mapping, and let it send again — and save. Atlas checks it again, takes <code>atlas_import_error</code> out, and imports it as if it had just arrived. Activity: <i>“… now follows the import contract, so its import error was taken out.”</i> To see every problem, not just the first few, run <code>pnpm validate:meeting</code> on it.</li>
+        <li><b>Want the copy back?</b> <a href="#archive">Unarchive</a> it. It keeps its <code>atlas_duplicate_of</code>, and Atlas leaves it alone from then on.</li>
+        <li><b>Once only.</b> A meeting is checked once per version: hearing the same file twice does nothing more, and moving or renaming a meeting — filing it under a project, say — is not a new arrival.</li>
+        <li><b>Being typed in.</b> A file open in Atlas with unsaved typing is never written to; Activity says it was left as it is.</li>
+        <li>Only files that arrive in <code>Inbox/Meetings</code> are checked. A meeting you make yourself, anywhere else, is just a note.</li>
+      </ul>
       <h3>What's in a meeting file</h3>
       <div class="grid2">
         <div class="card"><h4>At the top (frontmatter)</h4><p><code>title</code>, <code>date</code>, <code>start</code> (and <code>end</code> when known), <code>kind</code> (Notion's Category: Standup, Retro, 1:1…), <code>provider</code> (<code>gemini</code>, earlier <code>granola</code>), the provider's own id, and <code>attendees</code> — each a name and email. A list address like <code>platform-team@…</code> is kept as an attendee marked <code>group: true</code>, and never becomes a Person.</p></div>
@@ -796,7 +812,7 @@ ORDER BY phase</pre>
       <p><code>ok</code> (with the number of turns) means Atlas will accept it. <code>FAIL</code> lists each problem with where it is — for example <i>attendees[0] must be a { name, email, group } entry, not a line of text</i>.</p>
       <h3>Built in</h3>
       <p><b>Meeting</b> is a <a href="#edit-type">built-in type</a>: <b>Delete</b> is turned off for it — <i>“Meeting is built in — imported meetings are notes of it — so it cannot be deleted. Its properties are yours to change.”</i></p>
-      <div class="note"><b>What's coming.</b> For now a meeting file is an ordinary note in <code>Inbox/Meetings</code>. Next (phases 28–29): meetings showing in the <b>Inbox</b> — with any file Atlas can't accept flagged there, never deleted or silently fixed, and a second copy marked as a duplicate and archived; correcting misheard names and terms; linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+      <div class="note"><b>What's coming.</b> Next (phases 28–29): correcting misheard names and terms; linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
     </section>
 
     <section id="tags">
@@ -965,13 +981,14 @@ do: archive</pre>
       <h3>The page</h3>
       <ul>
         <li>Newest first. Each line: time, level (<b>Info</b>, <b>Warning</b>, <b>Error</b>), kind, and one line of what happened.</li>
-        <li><b>Show</b>: <b>Everything</b>, <b>Warnings and errors</b> or <b>Errors only</b>. Kinds: <b>Automations</b>, <b>Sources</b>, <b>API &amp; MCP</b>, <b>Claude</b>, <b>Index</b>, <b>Saves</b>, <b>Sync</b>, <b>App</b>. Search box: <b>Search the activity…</b></li>
+        <li><b>Show</b>: <b>Everything</b>, <b>Warnings and errors</b> or <b>Errors only</b>. Kinds: <b>Automations</b>, <b>Sources</b>, <b>Meetings</b>, <b>API &amp; MCP</b>, <b>Claude</b>, <b>Index</b>, <b>Saves</b>, <b>Sync</b>, <b>App</b>. Search box: <b>Search the activity…</b></li>
         <li>Click a line to open its note or source — or the Automations page, for a rule.</li>
       </ul>
       <h3>What's recorded</h3>
       <ul>
         <li><a href="#automations">Automation</a> runs, dry runs and undos; the rule's own log keeps the detail.</li>
         <li><a href="#sources">Source</a> refreshes.</li>
+        <li><a href="#meeting-import">Meetings</a> as they arrive: imported, archived as a second copy, or could not be imported and why.</li>
         <li>Notes written through the Local API or MCP: the route and the note, never the contents.</li>
         <li>Claude's edits accepted and undone, and failed turns, in fixed wording — never your question.</li>
         <li>Index rebuilds and failures.</li>
@@ -1132,6 +1149,7 @@ do: archive</pre>
         <li><b>Add a note in a group</b> (<code>atlas_add_to_view</code>), as <b>+ New</b> in that group does: it gets the group's value, and the sub-group's, typed as the property stores them, and is numbered past any note of the same name. Only <code>.md</code> notes are made.</li>
         <li><b>Run a query you'd build</b> (<code>atlas_run_query</code>): the same <a href="#queries">queries</a> as the builder or the text, read-only. It answers with the rows, and with the groups and sub-groups for <code>GROUP BY</code>, as the app groups them. A mistake comes back with its line and column. Archived notes come only when the query's text says <code>INCLUDE ARCHIVED</code>. Up to 5000 rows. Notes in <code>.atlas</code> or a hidden folder are never reached, not even through a relation. Saving a query as a view stays in the app.</li>
         <li><b>Read automations</b> (<code>atlas_automations</code>, <code>atlas_automation_log</code>, <code>atlas_automation_dry_run</code>): every <a href="#automations">rule</a> with its schedule, last run, next run and why it's paused, rules whose file can't be read listed apart; a rule's log, newest first, up to 100 entries; and exactly what a run would do now, writing nothing — up to 500 notes, with how many more it would pass over. Running, undoing, and making or editing a rule stay in the app.</li>
+        <li><b>List meetings</b> (<code>atlas_meetings</code>), newest first, read-only: each one's date, start, provider and id, with <code>importError</code> saying why a file that <a href="#meeting-import">arrived</a> could not be imported, and <code>duplicateOf</code> naming the meeting a second copy duplicates. <code>since</code> keeps those on or after a day; second copies are archived, so they're listed only with <code>includeArchived</code>. Ask Claude <i>“which meetings came in this week, and did any fail?”</i> To fix a failed one, Claude edits the file as any note, and Atlas imports it once it reads.</li>
         <li><b>See archived notes</b>: search, running a view and SQL queries leave them out, as the app does, unless asked with <code>includeArchived</code>.</li>
         <li><b>Read your name</b> (<code>atlas_profile</code>): the full name and preferred name from <a href="#profile">Settings → Profile</a>, and <code>[Your name]</code> to write when there's no full name. Claude is told to use exactly that name for an owner, author, assignee or attendee, and never to guess one from a username, an email address or a path. Read-only: the name is changed only in Settings. If the settings can't be read, it says so rather than answer “no name”.</li>
         <li><b>List and read templates</b> (<code>atlas_list_templates</code>, <code>atlas_read_template</code>): every <a href="#templates">template</a> with what it's used for — new notes of a type, today's note, captured tasks or saved artifacts — and which types have none, so their new notes start empty; and one template's properties and text, exactly what a new note made from it would start as. A template's name can be passed when making a note. Making, editing, renaming, deleting and moving templates to notes stay in the app.</li>
