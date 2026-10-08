@@ -31,6 +31,8 @@ export function placeName(
       return place.tag === null ? 'Tags' : formatTag(tagNameOf(place.tag));
     case 'archive':
       return 'Archive';
+    case 'inbox':
+      return 'Inbox';
     case 'automations':
       return 'Automations';
     case 'activity':

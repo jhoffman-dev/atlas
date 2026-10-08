@@ -11,12 +11,15 @@ import type { RelationChoice } from './properties-panel.tsx';
 export function RelationOptions({
   choices,
   names,
+  optionValue = (choice) => names.linkTo(createVaultPath(choice.path)),
 }: {
   choices: readonly RelationChoice[];
   names: Pick<NoteNames, 'linkTo'>;
+  /** What picking a note gives; the link to write, unless said otherwise. */
+  optionValue?: (choice: RelationChoice) => string;
 }) {
   const option = (choice: RelationChoice) => (
-    <option key={choice.path} value={names.linkTo(createVaultPath(choice.path))}>
+    <option key={choice.path} value={optionValue(choice)}>
       {choice.title}
     </option>
   );

@@ -189,7 +189,7 @@ function filesAndProps(notes: Iterable<StoredNote>): DatabaseSync {
   return database;
 }
 
-/** The Archive's compiled statement, run for real by SQLite with what it binds. */
+/** The Archive's or the Inbox's compiled statement, run for real by SQLite with what it binds. */
 function runArchiveQuery(
   statement: string,
   bound: readonly unknown[],
@@ -784,6 +784,10 @@ export async function installHost(
         }
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
+        }
+        // The Inbox (P30-01): what waits in its folder, over files and props, run for real.
+        if (statement.startsWith('/* inbox */')) {
+          return runArchiveQuery(statement, bound, indexed.values());
         }
         // SQL written by hand — the query page, a SQL view or widget — binds
         // nothing, where everything the app compiles binds at least its LIMIT.

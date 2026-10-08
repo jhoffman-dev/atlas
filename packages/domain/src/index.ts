@@ -21,6 +21,7 @@ export * from './quick-add/index.ts';
 export * from './thumbnails/index.ts';
 export * from './tags/index.ts';
 export * from './archive/index.ts';
+export * from './inbox/index.ts';
 export * from './people/index.ts';
 export * from './query-language/index.ts';
 export * from './bookmarks/index.ts';

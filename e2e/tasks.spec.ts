@@ -80,7 +80,9 @@ async function openBoard(page: Page) {
   await expect(page.locator('.board__column').first()).toBeVisible();
 }
 
-test('a captured line becomes a task, without leaving the note in view', async ({ page }) => {
+test('a captured line becomes a task in the Inbox, without leaving the note in view', async ({
+  page,
+}) => {
   const vault = await openTaskVault(page);
 
   await page.keyboard.down('Meta');
@@ -96,9 +98,9 @@ test('a captured line becomes a task, without leaving the note in view', async (
   await page.getByRole('textbox', { name: 'What needs doing' }).fill('Renew the passport');
   await page.getByRole('textbox', { name: 'What needs doing' }).press('Enter');
 
-  // It is a task, from the vault's own template.
-  await expectFile(vault, 'Renew the passport.md').toContain('type: task');
-  expect(await vault.read('Renew the passport.md')).toContain('status: backlog');
+  // It is a task, from the vault's own template, waiting in the Inbox (P30-01).
+  await expectFile(vault, 'Inbox/Renew the passport.md').toContain('type: task');
+  expect(await vault.read('Inbox/Renew the passport.md')).toContain('status: backlog');
 });
 
 test('capture stays open for the next thought', async ({ page }) => {
@@ -116,8 +118,8 @@ test('capture stays open for the next thought', async ({ page }) => {
   await field.fill('Second thing');
   await field.press('Enter');
 
-  await expectFile(vault, 'First thing.md').toContain('type: task');
-  await expectFile(vault, 'Second thing.md').toContain('type: task');
+  await expectFile(vault, 'Inbox/First thing.md').toContain('type: task');
+  await expectFile(vault, 'Inbox/Second thing.md').toContain('type: task');
 });
 
 test('finishing a repeating task moves it on instead of ending it', async ({ page }) => {
@@ -159,7 +161,7 @@ test('capture does not also make a blank note', async ({ page }) => {
 
   await page.getByRole('textbox', { name: 'What needs doing' }).fill('Only this');
   await page.getByRole('textbox', { name: 'What needs doing' }).press('Enter');
-  await expectFile(vault, 'Only this.md').toContain('type: task');
+  await expectFile(vault, 'Inbox/Only this.md').toContain('type: task');
 
   await expect(page.getByRole('treeitem', { name: 'Untitled', exact: true })).toHaveCount(0);
 });

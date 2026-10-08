@@ -54,7 +54,8 @@ export interface ArchiveOutcome {
  */
 export type UnsavedTyping = 'save' | 'leave';
 
-interface Batch {
+/** Notes to move together, and how. */
+export interface NoteBatch {
   readonly ports: ArchivePorts;
   readonly paths: readonly VaultPath[];
   /** Every note in the vault before the batch, for naming clashes and finding links. */
@@ -83,6 +84,15 @@ interface OwnFrontmatter {
 /** What is written into a note's frontmatter where it lands, given what it held. */
 type Stamp = (own: OwnFrontmatter | null) => Unstamp;
 
+/** Where a batch's notes go and what is written into each where it lands. */
+export interface MoveRule {
+  /** Why a note may not go, or null when it may. */
+  readonly refusal: (path: VaultPath) => string | null;
+  readonly destination: Destination;
+  /** The stamp for a note that was at `from`. */
+  readonly stamp: (from: VaultPath) => Stamp;
+}
+
 /**
  * Puts notes in the Archive, each at its own path under `Archive/`, stamped
  * with the day and where it was (U-22).
@@ -92,9 +102,9 @@ type Stamp = (own: OwnFrontmatter | null) => Unstamp;
  * where it came from by its path. The other way round would leave a note that
  * says it is archived and is not.
  */
-export async function archiveNotes(batch: Batch & { today: string }): Promise<ArchiveOutcome> {
+export async function archiveNotes(batch: NoteBatch & { today: string }): Promise<ArchiveOutcome> {
   const archive = await archiveFolderOf(batch.ports);
-  return runBatch(batch, {
+  return moveAndStampNotes(batch, {
     refusal: archiveRefusal,
     destination: async ({ path, taken }) =>
       archiveDestination({ path, taken, ...(archive !== undefined && { archive }) }),
@@ -110,9 +120,9 @@ export async function archiveNotes(batch: Batch & { today: string }): Promise<Ar
  * `Archive/`, numbered when something has taken that path since, and gives
  * back what the stamp covered.
  */
-export async function unarchiveNotes(batch: Batch): Promise<ArchiveOutcome> {
+export async function unarchiveNotes(batch: NoteBatch): Promise<ArchiveOutcome> {
   const editors = panesFor(batch);
-  return runBatch(batch, {
+  return moveAndStampNotes(batch, {
     refusal: unarchiveRefusal,
     destination: async ({ path, taken }) => {
       // Where it goes back to is read from what is on screen, not a save behind it.
@@ -134,7 +144,7 @@ async function archiveFolderOf(ports: ArchivePorts): Promise<VaultPath | undefin
 }
 
 /** The panes as the batch may use them: ones whose `flush` saves nothing, when typing is left alone. */
-function panesFor(batch: Batch): ArchivePorts['editors'] {
+function panesFor(batch: NoteBatch): ArchivePorts['editors'] {
   const { editors } = batch.ports;
   if (batch.unsavedTyping !== 'leave') return editors;
   // Deliberately a no-op: each writer checks the pane is still dirty afterwards and leaves the note alone.
@@ -149,15 +159,7 @@ const UNSAVED_REASON = 'It is open in Atlas with unsaved typing, so it was left 
  * are rewritten once, for every move together, after the last: the vault is
  * read once per batch, not once per note.
  */
-async function runBatch(
-  batch: Batch,
-  rule: {
-    refusal: (path: VaultPath) => string | null;
-    destination: Destination;
-    /** The stamp for a note that was at `from`. */
-    stamp: (from: VaultPath) => Stamp;
-  },
-): Promise<ArchiveOutcome> {
+export async function moveAndStampNotes(batch: NoteBatch, rule: MoveRule): Promise<ArchiveOutcome> {
   const ports = { ...batch.ports, editors: panesFor(batch) };
   const moves: Relocation[] = [];
   const failed: ArchiveFailure[] = [];

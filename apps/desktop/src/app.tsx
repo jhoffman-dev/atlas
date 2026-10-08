@@ -142,6 +142,8 @@ import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
 import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
 import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
+import { useInbox } from './inbox/use-inbox.ts';
+import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
 import { paletteArchiveCommands, runPaletteArchiveCommand } from './archive/palette-archive.ts';
@@ -306,6 +308,18 @@ export function App({
     void reload();
     void refresh();
   }, [reload, refresh]);
+  const typesChanged = useCallback(() => {
+    onChanged();
+    reloadTypes();
+  }, [onChanged, reloadTypes]);
+  // PARA's types are written into a vault that lacks them as it opens (P30-01).
+  const typesOffer = useBuiltInTypes({
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vaultKey,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
 
   // Sync through GitHub (U-29): pulls on open, on its schedule, and before the window closes.
   const sync = useSync({
@@ -439,6 +453,7 @@ export function App({
     queryOpen,
     tagsTag,
     archiveOpen,
+    inboxOpen,
     automationsOpen,
     activityOpen,
     templatesOpen,
@@ -600,7 +615,11 @@ export function App({
     window: chatWindowOf({
       query: queryOpen ? (query.language === 'atlas' ? query.atlas.composer.text : '') : null,
       otherPage:
-        openTypeName !== null || graphScope !== null || tagsTag !== undefined || archiveOpen,
+        openTypeName !== null ||
+        graphScope !== null ||
+        tagsTag !== undefined ||
+        archiveOpen ||
+        inboxOpen,
       focused: focusedPath,
     }),
     clipboard: browserClipboard,
@@ -656,7 +675,7 @@ export function App({
     createNewNote,
     createNoteIn,
     createFromTemplate,
-    createNamedNote,
+    captureNote,
     openDailyNote: openOrMakeDailyNote,
     error: createError,
   } = useCreateNote({
@@ -794,6 +813,17 @@ export function App({
     offerLinks: entries.offerLinks,
   });
   const archiveCommands = archive.commands;
+  const inbox = useInbox({
+    ports: archivePorts,
+    notePaths,
+    indexKey,
+    open: inboxOpen,
+    onSettled: settleArchive,
+  });
+  const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
+  // As with Today, no row that opens nothing: the Inbox shows once the vault
+  // has an Inbox view or something waits in its folder.
+  const inboxRowShown = inboxView !== null || (inbox.contents?.items.length ?? 0) > 0;
   const automationPorts = useMemo(
     () => ({ ...archivePorts, types, notePaths }),
     [archivePorts, types, notePaths],
@@ -880,10 +910,10 @@ export function App({
 
   const captureTask = useCallback(
     async (name: string) => {
-      const path = await createNamedNote(name, captureTemplate);
+      const path = await captureNote(name, captureTemplate);
       if (path !== null) openNote(path);
     },
-    [createNamedNote, captureTemplate, openNote],
+    [captureNote, captureTemplate, openNote],
   );
 
   /** Today's note, made on demand — where and from what is `ensureDailyNote`'s to say. */
@@ -1172,6 +1202,7 @@ export function App({
                       graphOpen: graphScope !== null,
                       tagsOpen: tagsTag !== undefined,
                       archiveOpen,
+                      inboxOpen,
                       automationsOpen,
                       activityOpen,
                       templatesOpen,
@@ -1189,6 +1220,12 @@ export function App({
                     }}
                     onOpen={openNote}
                     onOpenTemplates={main.openTemplates}
+                    {...(inboxRowShown && {
+                      inbox: {
+                        onOpen: main.openInbox,
+                        count: inbox.contents?.items.length ?? null,
+                      },
+                    })}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
@@ -1310,6 +1347,30 @@ export function App({
                     onOpen: openNote,
                     onUnarchive: archive.page.unarchive,
                     busy: archiveCommands.busy,
+                  },
+                },
+                inbox: {
+                  open: inboxOpen,
+                  page: {
+                    contents: inbox.contents,
+                    error: inbox.error,
+                    filing: inbox.filing,
+                    onOpen: openNote,
+                    onProcess: (args) => void inbox.process(args),
+                    busy: inbox.busy,
+                    problem: inbox.problem,
+                    typesOffer:
+                      typesOffer === null
+                        ? null
+                        : {
+                            lines: typesOffer.lines,
+                            onAccept: () => void typesOffer.accept(),
+                            onDismiss: typesOffer.dismiss,
+                          },
+                    view:
+                      inboxView === null
+                        ? null
+                        : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
                   },
                 },
                 automations: {
