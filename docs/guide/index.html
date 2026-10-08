@@ -873,7 +873,7 @@ ORDER BY phase</pre>
             <tr><td>On</td><td>Whether it runs on its schedule.</td></tr>
             <tr><td>When</td><td><b>Daily</b> at a time, <b>Every few hours</b> (every 1 to 168 hours), <b>When Atlas opens</b>, <b>By hand</b>, or <b>When a note appears</b>: a type, then <b>is created</b>, <b>is changed</b> or both — one stays ticked. See <a href="#automation-note">When a note appears</a>.</td></tr>
             <tr><td>Which notes</td><td>An Atlas query, in the builder or as text, as on the Query page. Dates like <code>@today</code> mean the day the rule runs. For a rule a note sets off, it must take that type's notes — <code>FROM meeting …</code> — or it says so in red.</td></tr>
-            <tr><td>Only notes not changed in the last … days</td><td>Tick it to leave out notes changed recently, by their <code>modified</code> date: 1 to 3650 days.</td></tr>
+            <tr><td>Only notes not changed in the last … days</td><td>Tick it to leave out notes changed recently, by their <code>modified</code> date: 1 to 3650 days. Not offered for a rule a note sets off: that note has just changed.</td></tr>
             <tr><td>Do</td><td><b>Archive</b>, or <b>Set a property</b> to a value: <b>Property</b> <i>to</i> <b>Value</b>.</td></tr>
           </tbody>
         </table>
@@ -891,12 +891,15 @@ ORDER BY phase</pre>
       <p>A rule can wait for a note instead of a clock: <i>File standups</i> — when a meeting is created, take <code>FROM meeting WHERE kind = standup</code>, and archive it.</p>
       <ul>
         <li><b>is created</b> sets it off for a new note of that type, however it came: typed in Atlas, written through the <a href="#connect">Local API</a>, saved by another app, or brought in by a <a href="#sync">sync</a> pull — including one that arrived while Atlas was closed, once the vault is open again.</li>
-        <li><b>is changed</b> sets it off each time a note of that type is saved with different text. A note moved or renamed with the same text is neither; nor is a note in the Archive.</li>
+        <li><b>is changed</b> sets it off each time a note of that type is saved with different text.</li>
+        <li>Neither is set off by a note moved, renamed, archived, or put back from the Archive — even if a note of the same name now stands where it was put back, and it comes back as <i>Standup 2</i>. A note in the Archive never sets a rule off.</li>
         <li>It acts only on the notes that set it off, and only if <b>Which notes</b> matches them too. The rest of the vault is left alone.</li>
-        <li><b>Once per version.</b> The log records each version of a note the rule handled, and the version its own change left, so neither sets it off again — not after a restart, a rebuilt index, or the same file pulled twice. Change the note again and it runs again.</li>
-        <li>A run with nothing to do writes nothing and says nothing: saving a meeting the rule has already marked doesn't fill the log.</li>
-        <li><b>20 runs an hour</b> at most, per rule — two rules setting each other off can't run forever. Past that it pauses, says <i>“Could not run (It has run 20 times in the last hour, the most a rule may. Notes that change meanwhile wait for a run by hand.)”</i>, and is tried again after a wait, as a failing rule is.</li>
-        <li>With <a href="#sync">sync</a> on, it runs on the same one Mac as scheduled rules. On any other Mac nothing happens; the note waits until that Mac has pulled it.</li>
+        <li><b>Once per version.</b> The log records each version of a note the rule handled, and the version its own change left — including notes an archive rewrote links in — so none of them sets it off again: not after a restart, a rebuilt index, or the same file pulled twice. Change the note again and it runs again.</li>
+        <li>Delete a note the rule has handled and the log says it went: a new note made later at that path, even from the same template, is new to the rule.</li>
+        <li>A run that changed nothing isn't logged: one with nothing to do says nothing, and one that left a note alone — open with unsaved typing, say — says so in Activity only, and runs again when the note is next saved.</li>
+        <li><b>20 runs an hour</b> at most, per rule, counting runs that changed a note or whose query didn't read — two rules setting each other off can't run forever, and typing in a meeting doesn't use it up. Past that it is held, once: <i>“Held back: It has run 20 times in the last hour, the most a rule may. It runs on what changed meanwhile at 10:15.”</i></li>
+        <li>Held or failing, a rule keeps what it heard — the last 20 syncs — and runs on it once its pause ends. Anything older waits for <b>Run now</b>.</li>
+        <li>With <a href="#sync">sync</a> on, it runs on the same one Mac as scheduled rules. On any other Mac nothing happens; the note waits until that Mac has pulled it. Until Atlas knows which Mac this is, what it hears is held.</li>
         <li><b>Dry run</b> lists the notes that would set it off now: those <b>Which notes</b> matches whose current version it hasn't handled. <b>Run now</b> takes the same notes — a way to catch up on ones it skipped while paused, or that were there before the rule.</li>
         <li>In Activity its line names the notes: <i>“File standups: Ran when a note appeared or changed (Standup). Archived 1 note.”</i></li>
       </ul>
@@ -962,7 +965,7 @@ do: archive</pre>
       <h3>The log</h3>
       <ul>
         <li>One file per rule, <code>.atlas/automations/log/&lt;id&gt;.md</code>, headed <i>&lt;name&gt; — run log</i>. Each run, undo, <b>Turned on</b> and <b>First seen</b> is a <code>##</code> section, newest last: when, what happened, then one line per note changed or left and why.</li>
-        <li>A run a note set off also lists <code>- triggered by "…" at "…"</code> for each note version it handled, and <code>- wrote "…" at "…"</code> for the version its own change left. That is the rule's memory of what it has done: delete those lines and it may act on those versions again.</li>
+        <li>A run a note set off also lists <code>- triggered by "…" at "…"</code> for each note version it handled, <code>- wrote "…" at "…"</code> for the version its own change left, and <code>- went "…"</code> for a note it had handled that was deleted. That is the rule's memory of what it has done: delete those lines and it may act on those versions again.</li>
         <li>It's meant to be read. You can add your own sections, like <code>## Notes</code>; Atlas keeps them.</li>
         <li>It keeps the latest 100 entries, and no more than 256 KB; the oldest entries go first, never your own sections.</li>
       </ul>
