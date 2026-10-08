@@ -66,9 +66,10 @@ Mac; only these totals are recorded.
 | **arctic-embed-xs** |    91 MB |       **0.80** | 0.85 | **0.59** |          0.95 |    5.5–5.9 |   71–74 ms |   4.5–4.7 |  310–430 MB |
 
 - Apple M5, 10 cores, 24 GB, CPU with Apple's Accelerate. **The machine was
-  heavily loaded** by parallel builds throughout: load averages of 12 to 40 on
-  10 cores during these runs, up to 160 earlier. Each figure is the range over
-  two or three runs; on a quiet Mac expect the times lower.
+  heavily loaded** by parallel builds for these runs: load averages of 12 to
+  40 on 10 cores, up to 160 earlier. Each figure is the range over two or three
+  runs. Arctic, measured again three times at a load average of about 4, gave
+  the same: 5.5–5.6 ms a block, 70–73 ms for 32 blocks, 4.4–4.6 ms a query.
 - _ms / block_ is the whole corpus embedded in calls of 64, in vault order.
   _32 blocks_ is the median of five calls with the corpus's first 32 blocks;
   _one query_ is in milliseconds. Loading took 25–50 ms with the files in the
@@ -86,7 +87,7 @@ blocks that need splitting. bge-small bought nothing on these questions for
 1.5× the download and twice Arctic's time.
 
 **Limits of the spike.** The questions were written by an agent from the copy's
-content, not by James, so they are a guess at what he asks. Twenty questions
+content, not by James, so they are a guess at what James asks. Twenty questions
 make each one worth 0.05: the gap between Arctic and MiniLM is one question at
 _k_ = 5, which a different question set could reverse. Re-running the harness
 on questions James writes is cheap (the command is in the file's header) and
@@ -108,17 +109,51 @@ twice as slow.
   prefix it was trained with, and the host adds it, since it is the model's
   contract, not a choice about the vault.
 - **Budget, on this Mac: 100 ms for a call of 32 blocks and 10 ms for one
-  query**; measured at 71–74 ms and 4.5–4.7 ms under the load above. The first
+  query**; measured at 70–74 ms and 4.4–4.7 ms, loaded or quiet. The first
   build of the cache for a vault this size is about 12 s.
 - **Refusals, before any work**: more than 256 texts or 1 MB of text in one
-  call, and any text longer than 512 tokens — named by position, so the chunker
-  can split it. A long text is never cut, since a cut would silently drop its
-  end from every search; how to split a block is the chunker's to decide.
+  call, and any one text the model cannot read whole. A refusal is
+  `{ message, textIndex, reason }` — the text's position from 0 and one of
+  three reasons, both null when the whole call was refused — and reaches
+  TypeScript as an `EmbeddingError` whose `refused` names the text, so the
+  chunker (P32-02) can split it or leave it out. A text is never cut or read
+  past quietly: either would embed it as if part of it were not there.
+  - `too-long`: more than 512 tokens.
+  - `nothing-readable`: no token but the model's markers and `[UNK]` — empty,
+    whitespace, control or zero-width characters, a lone emoji, or a script the
+    vocabulary lacks (Khmer, some Thai). Only the text's own words count,
+    never a query's prefix.
+  - `unreadable-run`: one `[UNK]` standing for more than 24 characters.
+    WordPiece reads any word over 100 characters, and any word of a script it
+    has no pieces for, as a single `[UNK]`, so a pasted base64 blob or an
+    unspaced sentence inside an English paragraph would vanish from its
+    vector. 24 lets an emoji or a rare symbol through — the longest tried, a
+    family emoji, is one `[UNK]` of 7 characters — and stops a phrase.
+    Chinese, Japanese, Cyrillic, Arabic, hex digests and Markdown table rules
+    are read, not refused.
 - **The model is fetched on first use, not bundled.** 91 MB from its pinned
-  Hugging Face revision (`d8c86521100d`), each file checked against a pinned
-  size and SHA-256 as it arrives and renamed into place only once it matches,
-  into `~/Library/Application Support/dev.jhoffman.atlas/models/`. It is kept
-  per Mac, never in a vault and never synced.
+  Hugging Face revision (`d8c86521100d`) into
+  `~/Library/Application Support/dev.jhoffman.atlas/models/`, kept per Mac,
+  never in a vault and never synced. Each file streams into a temporary file of
+  its own in that folder, is checked against its pinned size and SHA-256 as it
+  is written, and is named only if it matches, by a rename that never replaces
+  a file. Two Atlas processes fetching at once therefore cannot mix their bytes
+  (the in-process lock does not reach across processes), and an interrupted
+  fetch leaves nothing under the file's name.
+- **The files on disk are checked before every load**, once per launch: each
+  is read back and hashed — 165–177 ms for the 91 MB, measured, on a blocking
+  thread, beside a load of 25–50 ms. One that does not match is removed and
+  fetched again; offline, the error says it was removed. No stamp lets a launch
+  skip the check: a stamp keyed on size and time would trust those over the
+  bytes, and a fraction of a second once a launch, before the first semantic
+  feature answers, is a small price.
+- **Slow lines**: the fetch gives up only when the server sends nothing for
+  60 s, not after a fixed time, so a slow line finishes. It does not resume a
+  broken fetch with a range request: each fetch's staging file is its own,
+  and 91 MB again is a small price for never sharing one.
+- **The load lock is held through a first fetch.** Every call to embed needs
+  the model, so a second call would wait for it either way, and nothing else
+  takes that lock.
 - **Offline**: once fetched, nothing touches the network. A first use with no
   network fails with a message that says so, and the next call tries again.
 
@@ -126,8 +161,9 @@ twice as slow.
 `candle-transformers`, MIT or Apache-2.0) and `tokenizers` 0.22 (Apache-2.0),
 Hugging Face's own pure-Rust framework and tokenizer: they read the
 safetensors and tokenizer files these models publish as they are, and build
-offline from the crate cache. Chosen over ONNX Runtime (`ort`, `fastembed`),
-which downloads a native library at build time and ships it beside the app;
+offline from the crate cache. `tempfile`, already a test dependency, now
+stages the fetch. Chosen over ONNX Runtime (`ort`, `fastembed`), which
+downloads a native library at build time and ships it beside the app;
 `tract` (pure-Rust ONNX) was not measured. Candle adds 78 crates to the lock
 file, all under MIT, Apache-2.0, BSD or Zlib terms; the release `atlas` binary
 grows from 18.1 MB to 22.1 MB. Metal was not tried: the CPU met the budget.
@@ -139,8 +175,13 @@ grows from 18.1 MB to 22.1 MB. Metal was not tried: the CPU met the budget.
 - The app download does not grow by the model. The first semantic feature used
   on a Mac waits for a 91 MB download, and does not work on a Mac that has
   never been online since installing Atlas.
-- The integration tests fetch the model into the build's temporary folder the
-  first time they run, so a first `cargo test` on a machine needs the network.
+- The integration tests that run the real model fetch it the first time, into
+  `ATLAS_TEST_MODEL_DIR` or else the build's temporary folder, so a first
+  `cargo test` on a machine needs the network. CI points the variable at a
+  folder it caches under the model's revision (`gate.yml`), so a warm run never
+  touches the network; a new revision fetches once. The test that races two
+  fetches through a local proxy needs the network every time and is ignored by
+  default: `cargo test --test embeddings_fetch_race -- --ignored`.
 - A remote embedding provider can be a second implementation of the port,
   off by default.
 - Changing the model means a new pinned revision and digests, and every cached
