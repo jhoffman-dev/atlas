@@ -1,4 +1,4 @@
-import type { ProposalNote, VaultPath } from '@atlas/domain';
+import { proposalHeadline, type ProposalNote, type VaultPath } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
 import { PageHead } from '../page-head.tsx';
@@ -8,6 +8,8 @@ import { ProposalCard } from './proposal-card.tsx';
 export interface ProposalsContents {
   /** Newest first. */
   readonly open: readonly ProposalNote[];
+  /** Answered, yet still in the Inbox: the Archive refused them. */
+  readonly stranded: readonly ProposalNote[];
   /** Notes that say they are proposals and cannot be read, with why. */
   readonly unreadable: readonly { readonly path: VaultPath; readonly problem: string }[];
 }
@@ -60,6 +62,9 @@ export function ProposalsPage(props: ProposalsPageProps) {
           <PageHead icon="proposal" title="Proposals" description={describe(props.contents)} />
           {props.notice !== null && <Notice {...props} notice={props.notice} />}
           <ProposalList {...props} />
+          {props.contents !== null && props.contents.stranded.length > 0 && (
+            <Stranded stranded={props.contents.stranded} onOpen={props.onOpen} />
+          )}
           {props.contents !== null && props.contents.unreadable.length > 0 && (
             <Unreadable unreadable={props.contents.unreadable} onOpen={props.onOpen} />
           )}
@@ -130,6 +135,32 @@ function ProposalList(props: ProposalsPageProps) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Proposals answered but never filed away: said so, with each a click from its note. */
+function Stranded({
+  stranded,
+  onOpen,
+}: {
+  stranded: readonly ProposalNote[];
+  onOpen: (path: VaultPath) => void;
+}) {
+  return (
+    <section className="proposals__unreadable" aria-label="Answered, still in the Inbox">
+      <h2>Answered, still in the Inbox</h2>
+      <p>These were answered, but could not be moved to the Archive. Archive each from its page.</p>
+      <ul>
+        {stranded.map((proposal) => (
+          <li key={proposal.path}>
+            <button type="button" className="proposals__path" onClick={() => onOpen(proposal.path)}>
+              {proposalHeadline(proposal)}
+            </button>
+            <span>{proposal.state === 'rejected' ? 'Rejected' : 'Accepted'}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -19,6 +19,10 @@ properties:
   made_by:
     kind: text
     label: Made by
+  answered_via:
+    kind: select
+    label: Answered in
+    options: [app, api]
 ---
 
 # Proposal
@@ -42,12 +46,19 @@ deleted. Its properties are yours to change.
   note held when the proposal was made.
 - `source` — the block it came from, as a link: `[[2026-10-01 Standup#^t0003]]`.
   A task, follow-up or decision copies it into its own `source`.
+- The meeting is not worked out from `source`: whatever makes a task,
+  follow-up or decision proposal from a meeting puts `meeting: "[[…]]"` in
+  `payload.properties` itself (P29-03's output schema requires it), so the
+  task links its meeting.
 - `confidence` — high, medium or low.
 - `made_by` — the rule and run that made it.
 - `state` — open, then accepted or rejected.
+- `answered_via` — where it was answered: `app` (its buttons) or `api` (the
+  local API, an MCP client asked by you).
 
 ## What happens to it
 
 Accepting writes the payload and archives the proposal with `state: accepted`;
 rejecting archives it with `state: rejected`. So `Inbox/Proposals/` holds only
-open ones, and the Archive keeps the rest.
+open ones, and the Archive keeps the rest. One the Archive refused stays,
+answered, and the Proposals page lists it apart so it never just vanishes.

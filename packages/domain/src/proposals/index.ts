@@ -1,7 +1,9 @@
 export {
+  ANSWERED_VIA_KEY,
   DECISION_TYPE,
   isProposalNote,
   isProposalPath,
+  PROPOSAL_ANSWERERS,
   PROPOSAL_CONFIDENCES,
   PROPOSAL_KINDS,
   PROPOSAL_NOTE_TYPES,
@@ -19,6 +21,7 @@ export type {
   NotePayload,
   NoteProposalKind,
   PayloadReading,
+  ProposalAnswerer,
   ProposalConfidence,
   ProposalKind,
   ProposalNote,

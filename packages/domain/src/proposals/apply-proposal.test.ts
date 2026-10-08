@@ -73,6 +73,21 @@ describe('applyProposal — a task', () => {
     expect(writesOf(task)[0]).not.toHaveProperty('properties.source');
   });
 
+  it.each([
+    ['.atlas/views', /hidden configuration/],
+    ['Projects/node_modules', /a folder the vault never shows/],
+    ['Archive/Old', /in the Archive/],
+    ['archive', /in the Archive/],
+    ['inbox/proposals', /where proposals wait/],
+  ])('refuses to make it in %s, saying why', (folder, reason) => {
+    expect(problemOf(proposal('task', { title: 'Call Tobias', folder }))).toMatch(reason);
+  });
+
+  it('cuts a long title to a file name the disk takes, by whole characters', () => {
+    const [write] = writesOf(proposal('task', { title: `${'é'.repeat(200)}x` }));
+    expect(write?.path).toBe(`${'é'.repeat(126)}.md`); // 252 bytes, and the .md makes 255
+  });
+
   it('refuses when a note is already where it would go, in any case, since it may be that task', () => {
     const task = proposal('task', { title: 'Call Tobias' });
     expect(problemOf(task, { notePaths: notes('call tobias.md'), target: null })).toBe(

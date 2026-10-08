@@ -1,10 +1,12 @@
 import { withLink, linkedNotes } from '../types/relation-links.ts';
-import { noteFileName } from '../vault/new-note.ts';
+import { fitFileNameStem } from '../vault/file-name-bytes.ts';
+import { cleanEntryName } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { joinVaultPath, VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
 import { foldedVaultPath } from '../vault/vault-spelling.ts';
 import {
   PROPOSAL_NOTE_TYPES,
+  proposedWriteRefusal,
   type LinkPayload,
   type NotePayload,
   type NoteProposalKind,
@@ -72,6 +74,8 @@ function applyNote(
   notePaths: readonly VaultPath[],
 ): ProposalApplication {
   const { payload, kind, source } = proposal;
+  const refusal = payload.folder === null ? null : proposedWriteRefusal(payload.folder);
+  if (refusal !== null) return refused(refusal);
   const path = newNotePath(payload);
   const folded = foldedVaultPath(path);
   if (notePaths.some((note) => foldedVaultPath(note) === folded)) {
@@ -107,10 +111,16 @@ function applyLink(payload: LinkPayload, target: LinkTarget | null): ProposalApp
   };
 }
 
-/** Where a note proposal's note goes: its title as a file name, in its folder or at the top. */
+/**
+ * Where a note proposal's note goes: its title as a file name, cut to what the
+ * disk takes, in its folder or at the top.
+ */
 export function newNotePath(payload: NotePayload): VaultPath {
-  return joinVaultPath(payload.folder ?? VAULT_ROOT, noteFileName(payload.title));
+  const stem = fitFileNameStem(cleanEntryName(payload.title), NOTE_EXTENSION);
+  return joinVaultPath(payload.folder ?? VAULT_ROOT, `${stem}${NOTE_EXTENSION}`);
 }
+
+const NOTE_EXTENSION = '.md';
 
 /** The payload's properties without a `type`: the kind decides what the note is. */
 function withoutType(properties: Readonly<Record<string, unknown>>): Record<string, unknown> {

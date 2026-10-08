@@ -80,6 +80,7 @@ describe('acceptProposalNote — a task', () => {
     expect(accepted.archivedAt).toBe(`Archive/${PROPOSAL}`);
     expect(setup.propertiesOf(`Archive/${PROPOSAL}`)).toMatchObject({
       state: 'accepted',
+      answered_via: 'app',
       archived: TODAY,
     });
     expect(accepted).toMatchObject({
@@ -253,6 +254,7 @@ describe('undoAcceptedProposal', () => {
     expect(setup.paths()).not.toContain(TASK);
     expect(setup.propertiesOf(PROPOSAL)).toMatchObject({ state: 'open', kind: 'task' });
     expect(setup.propertiesOf(PROPOSAL)).not.toHaveProperty('archived');
+    expect(setup.propertiesOf(PROPOSAL)).not.toHaveProperty('answered_via');
     expect((await listProposals(setup.ports)).open).toHaveLength(1);
   });
 
@@ -284,7 +286,10 @@ describe('rejectProposalNote', () => {
     });
 
     expect(rejected).toEqual({ archivedAt: `Archive/${PROPOSAL}`, archiveProblem: null });
-    expect(setup.propertiesOf(`Archive/${PROPOSAL}`)).toMatchObject({ state: 'rejected' });
+    expect(setup.propertiesOf(`Archive/${PROPOSAL}`)).toMatchObject({
+      state: 'rejected',
+      answered_via: 'app',
+    });
     expect(setup.paths()).not.toContain(TASK);
     expect((await listProposals(setup.ports)).open).toEqual([]);
   });
@@ -320,6 +325,10 @@ describe('listProposals', () => {
     expect(listing.unreadable).toEqual([
       { path: 'Inbox/Proposals/Broken.md', problem: expect.stringMatching(/no kind Atlas knows/) },
     ]);
+    // Answered but never filed away: listed apart, never just gone.
+    expect(listing.stranded.map((listed) => listed.proposal.path)).toEqual([
+      'Inbox/Proposals/Done.md',
+    ]);
   });
 
   it('says a proposal whose frontmatter cannot be read cannot be, rather than leaving it out', async () => {
@@ -333,7 +342,7 @@ describe('listProposals', () => {
 
   it('is empty in a vault with no proposals', async () => {
     const setup = proposalVault({ 'A.md': 'A.\n' });
-    expect(await listProposals(setup.ports)).toEqual({ open: [], unreadable: [] });
+    expect(await listProposals(setup.ports)).toEqual({ open: [], stranded: [], unreadable: [] });
   });
 });
 
@@ -442,7 +451,9 @@ describe('acceptProposalNote — when the vault moves under it', () => {
     expect(accepted.archivedAt).toBeNull();
     expect(accepted.archiveProblem).toMatch(/unsaved typing/);
     expect(setup.propertiesOf(PROPOSAL)).toMatchObject({ state: 'accepted' });
-    expect((await listProposals(setup.ports)).open).toEqual([]);
+    const listing = await listProposals(setup.ports);
+    expect(listing.open).toEqual([]);
+    expect(listing.stranded.map((listed) => listed.proposal.path)).toEqual([PROPOSAL]);
 
     const back = await undoAcceptedProposal({ ports: setup.ports, accepted });
     expect(back).toBe(PROPOSAL);
@@ -459,5 +470,49 @@ describe('acceptProposalNote — when the vault moves under it', () => {
       /What it made was taken back, but the proposal stays in the Archive: .*unsaved typing/,
     );
     expect(setup.paths()).not.toContain(TASK);
+  });
+});
+
+describe('undo and link reads that fail', () => {
+  it('says what was undone when the proposal cannot be marked open again', async () => {
+    const setup = vault();
+    const accepted = await accept(setup);
+    const { fs } = setup.ports;
+    const stuck = {
+      ...setup.ports,
+      fs: {
+        ...fs,
+        writeTextFile: async (args: Parameters<typeof fs.writeTextFile>[0]) => {
+          if (args.path === PROPOSAL) throw new Error('the disk is full');
+          return fs.writeTextFile(args);
+        },
+      },
+    };
+    await expect(undoAcceptedProposal({ ports: stuck, accepted })).rejects.toThrow(
+      `What it made was taken back and the proposal is at ${PROPOSAL}, but it could not be marked open again: the disk is full`,
+    );
+    expect(setup.paths()).not.toContain(TASK);
+  });
+
+  it('passes on a failure reading a link’s note that is not its absence', async () => {
+    const setup = vault({
+      [PROPOSAL]: linkProposal(),
+      'People/Mara Quill.md': MARA,
+      '.atlas/types/person.md': PERSON_TYPE,
+    });
+    const { fs } = setup.ports;
+    const failing = {
+      ...setup.ports,
+      fs: {
+        ...fs,
+        readTextFile: async (path: VaultPath) => {
+          if (path === 'People/Mara Quill.md') throw new Error('permission denied');
+          return fs.readTextFile(path);
+        },
+      },
+    };
+    await expect(
+      acceptProposalNote({ ports: failing, path: vaultPath(PROPOSAL), today: TODAY }),
+    ).rejects.toThrow('permission denied');
   });
 });

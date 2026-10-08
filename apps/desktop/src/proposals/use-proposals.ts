@@ -62,6 +62,19 @@ export function useProposals({ ports, clock, indexKey, onSettled }: ProposalsOpt
   // `busy` reaches the buttons a render late; two presses in one tick would both see it free.
   const answering = useRef(false);
 
+  // What the page says about answers belongs to the vault they were given in:
+  // another vault (its own files) gets none of it — above all not Undo, which
+  // would run one vault's paths against another's.
+  const { fs } = ports;
+  useEffect(
+    () => () => {
+      lastAccepted.current = null;
+      setNotice(null);
+      setProblems(new Map());
+    },
+    [fs],
+  );
+
   useEffect(() => {
     let cancelled = false;
     listProposals(ports)
@@ -69,6 +82,7 @@ export function useProposals({ ports, clock, indexKey, onSettled }: ProposalsOpt
         if (cancelled) return;
         setContents({
           open: listing.open.map((listed) => listed.proposal),
+          stranded: listing.stranded.map((listed) => listed.proposal),
           unreadable: listing.unreadable,
         });
         setError(null);

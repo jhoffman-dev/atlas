@@ -3,6 +3,7 @@ import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
+import { isUserSpaceNote } from '../vault/vault-visibility.ts';
 import { createVaultPath, InvalidVaultPathError, type VaultPath } from '../vault/vault-path.ts';
 
 /**
@@ -37,6 +38,15 @@ export const PROPOSAL_STATES = ['open', 'accepted', 'rejected'] as const;
 export type ProposalState = (typeof PROPOSAL_STATES)[number];
 
 export const PROPOSAL_CONFIDENCES = ['high', 'medium', 'low'] as const;
+
+/**
+ * Where a proposal was answered, recorded on it as `answered_via` when it is
+ * accepted or rejected: the app's buttons, or the local API (an MCP client
+ * James asked). The Archive keeps who said yes.
+ */
+export const ANSWERED_VIA_KEY = 'answered_via';
+export const PROPOSAL_ANSWERERS = ['app', 'api'] as const;
+export type ProposalAnswerer = (typeof PROPOSAL_ANSWERERS)[number];
 export type ProposalConfidence = (typeof PROPOSAL_CONFIDENCES)[number];
 
 /** A proposal that makes a note: everything but a link. */
@@ -156,7 +166,8 @@ function readNotePayload(value: Readonly<Record<string, unknown>>): PayloadReadi
     return refused('A property in its payload has no name.');
   }
   const folder = text(value['folder']);
-  const at = folder === null ? null : folderPath(folder);
+  // Whether a proposal may write there is Accept's question (applyProposal), asked of the vault as it is.
+  const at = folder === null ? null : vaultPath(folder);
   if (at instanceof Error) return refused(at.message);
   const body = value['body'] ?? '';
   if (typeof body !== 'string') return refused('Its payload’s body must be text.');
@@ -179,18 +190,19 @@ function readLinkPayload(value: Readonly<Record<string, unknown>>): PayloadReadi
 }
 
 /**
- * Why a proposal may not write a note at `path`, or null when it may. What is
- * hidden (`.atlas`, dot-folders) is configuration, the Archive is what is done
- * with, and the proposals folder is where proposals wait: none is somewhere a
- * proposal puts what it makes.
+ * Why a proposal may not write at `path` — a note, or a folder it would make
+ * one in — or null when it may. Only user space: not `.atlas` or a hidden
+ * folder, nor one the vault's walk never reads (`node_modules`, in any case,
+ * at any depth), where a note would be invisible. Nor the Archive, which is
+ * what is done with, nor the proposals folder, where proposals wait.
  */
 export function proposedWriteRefusal(path: VaultPath): string | null {
   const shown = JSON.stringify(path);
-  if (path.split('/').some((segment) => segment.startsWith('.'))) {
-    return `${shown} is hidden configuration; a proposal does not write there.`;
-  }
   // A folder is judged as what would be written inside it.
   const within = `${path}/`;
+  if (!isUserSpaceNote(createVaultPath(`${within}note.md`))) {
+    return `${shown} is hidden configuration, or a folder the vault never shows; a proposal does not write there.`;
+  }
   if (isArchivedPath(within)) return `${shown} is in the Archive; a proposal does not write there.`;
   if (isProposalPath(within)) {
     return `${shown} is where proposals wait; a proposal does not write there.`;
@@ -219,13 +231,6 @@ export function proposalHeadline(proposal: ProposalNote): string {
   if (proposal.kind !== 'link') return proposal.payload.title;
   const { note, property, link } = proposal.payload;
   return `${noteTitle(note)} · ${property} → ${link}`;
-}
-
-function folderPath(raw: string): VaultPath | Error {
-  const path = vaultPath(raw);
-  if (path instanceof Error) return path;
-  const refusal = proposedWriteRefusal(path);
-  return refusal === null ? path : new Error(refusal);
 }
 
 function notePath(raw: string): VaultPath | Error {

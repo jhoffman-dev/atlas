@@ -1,0 +1,72 @@
+/*
+ * A list as one line of text, for a box the person edits: commas between the
+ * items, as a list is typed everywhere in Atlas. An item can hold a comma of
+ * its own — `[[Larkspur Payroll, Inc.]]` — so one that does is written in
+ * double quotes, a quote inside it doubled, as a CSV cell is. Reading the line
+ * back gives the same list, so editing one item never cuts another in two.
+ *
+ * The same codec as the Terms page's variants (P28-05, `terms/variants-input.ts`,
+ * on its own branch), less the vocabulary's tidying and de-duplication; when
+ * both are on main they are one function.
+ */
+
+const QUOTE = '"';
+
+/** The items as the box shows them: commas between, an item holding a comma or a quote quoted. */
+export function listAsInput(items: readonly string[]): string {
+  return items.map(quotedWhereNeeded).join(', ');
+}
+
+function quotedWhereNeeded(item: string): string {
+  if (!item.includes(',') && !item.includes(QUOTE)) return item;
+  return `${QUOTE}${item.replaceAll(QUOTE, QUOTE + QUOTE)}${QUOTE}`;
+}
+
+/**
+ * The items typed into one box: split at the commas outside quotes, trimmed,
+ * blanks dropped. A quote never closed runs to the end of the line.
+ */
+export function listFromInput(typed: string): string[] {
+  return splitAtCommas(typed)
+    .map((cell) => cell.trim())
+    .filter((cell) => cell !== '');
+}
+
+/** The cells of the line, quotes taken off: a cell is quoted when its first non-space character is a quote. */
+function splitAtCommas(typed: string): string[] {
+  const cells: string[] = [];
+  let at = 0;
+  while (at <= typed.length) {
+    const { cell, next } = readCell(typed, at);
+    cells.push(cell);
+    at = next + 1;
+  }
+  return cells;
+}
+
+/** One cell from `from`, and where the comma ending it is (the line's length when none is). */
+function readCell(typed: string, from: number): { cell: string; next: number } {
+  const start = from + (/^\s*/u.exec(typed.slice(from))?.[0].length ?? 0);
+  if (typed[start] !== QUOTE) {
+    const comma = typed.indexOf(',', from);
+    const next = comma === -1 ? typed.length : comma;
+    return { cell: typed.slice(from, next), next };
+  }
+  let cell = '';
+  let at = start + 1;
+  while (at < typed.length) {
+    if (typed[at] === QUOTE && typed[at + 1] === QUOTE) {
+      cell += QUOTE;
+      at += 2;
+    } else if (typed[at] === QUOTE) {
+      // What follows the closing quote, up to the comma, is kept as typed.
+      const comma = typed.indexOf(',', at + 1);
+      const next = comma === -1 ? typed.length : comma;
+      return { cell: cell + typed.slice(at + 1, next), next };
+    } else {
+      cell += typed[at];
+      at += 1;
+    }
+  }
+  return { cell, next: typed.length };
+}

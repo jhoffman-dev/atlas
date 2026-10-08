@@ -46,7 +46,7 @@ function page(props: Partial<ProposalsPageProps> = {}) {
   };
   render(
     <ProposalsPage
-      contents={{ open: [TASK, LINK], unreadable: [] }}
+      contents={{ open: [TASK, LINK], stranded: [], unreadable: [] }}
       error={null}
       notice={null}
       busy={null}
@@ -182,6 +182,7 @@ describe('ProposalsPage', () => {
     page({
       contents: {
         open: [],
+        stranded: [],
         unreadable: [
           { path: createVaultPath('Inbox/Proposals/Odd.md'), problem: 'It has no kind.' },
         ],
@@ -190,6 +191,18 @@ describe('ProposalsPage', () => {
     expect(screen.getByText(/Nothing to answer/)).toBeTruthy();
     const unreadable = screen.getByRole('region', { name: 'Proposals that cannot be read' });
     expect(within(unreadable).getByText('It has no kind.')).toBeTruthy();
+  });
+
+  it('lists answered proposals still in the Inbox, each a click from its note', async () => {
+    const handlers = page({
+      contents: { open: [], stranded: [{ ...TASK, state: 'rejected' }], unreadable: [] },
+    });
+    const stranded = screen.getByRole('region', { name: 'Answered, still in the Inbox' });
+    expect(within(stranded).getByText('Rejected')).toBeTruthy();
+    await userEvent.click(
+      within(stranded).getByRole('button', { name: 'Send Mara the payroll file' }),
+    );
+    expect(handlers.onOpen).toHaveBeenCalledWith(TASK.path);
   });
 
   it('says why the folder could not be read', () => {

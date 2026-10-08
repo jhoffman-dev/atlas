@@ -102,3 +102,38 @@ describe('propertyText and propertyFromText', () => {
     expect(propertyFromText('  ', ['[[A]]'])).toEqual([]);
   });
 });
+
+describe('editedPayload — a property that was changed', () => {
+  const made = proposal({
+    kind: 'task',
+    payload: {
+      title: 'Call Tobias',
+      properties: { hours: [3, 5], meta: { owner: 'Mara' }, note: null },
+    },
+  });
+  const edit = (key: string, text: string) => {
+    const fields = payloadFields(made);
+    if (fields.kind !== 'note') throw new Error('not a note');
+    const properties = fields.properties.map(([at, shown]) =>
+      at === key ? ([at, text] as const) : ([at, shown] as const),
+    );
+    return (
+      editedPayload(made, { ...fields, properties }) as { properties: Record<string, unknown> }
+    ).properties;
+  };
+
+  it('reads a list of numbers back as numbers, and a quoted item whole', () => {
+    expect(edit('hours', '3, 8, x')['hours']).toEqual([3, 8, 'x']);
+    expect(edit('hours', '"1, 2"')['hours']).toEqual(['1, 2']);
+  });
+
+  it('reads a record back from its JSON, and keeps text that is no record as typed', () => {
+    expect(edit('meta', '{"owner":"Tobias"}')['meta']).toEqual({ owner: 'Tobias' });
+    expect(edit('meta', 'Tobias')['meta']).toBe('Tobias');
+    expect(edit('meta', '[1]')['meta']).toBe('[1]');
+  });
+
+  it('keeps the other properties as they were', () => {
+    expect(edit('hours', '1')).toMatchObject({ meta: { owner: 'Mara' }, note: null });
+  });
+});

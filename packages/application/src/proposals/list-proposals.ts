@@ -30,13 +30,18 @@ export interface UnreadableProposal {
 export interface ProposalListing {
   /** Newest first. */
   readonly open: readonly ListedProposal[];
+  /**
+   * Answered, yet still in the proposals folder — the Archive refused it, or
+   * an undo could not mark it open again. Listed so it never just vanishes.
+   */
+  readonly stranded: readonly ListedProposal[];
   readonly unreadable: readonly UnreadableProposal[];
 }
 
 /**
  * The proposals waiting in `Inbox/Proposals/`: every note there of the
- * proposal type that is still open, newest first, and the ones that say they
- * are proposals but cannot be read. A note there of another type is not a
+ * proposal type that is still open, newest first; the ones answered but still
+ * there; and the ones that say they are proposals but cannot be read. A note there of another type is not a
  * proposal and is left to the Inbox.
  */
 export async function listProposals({
@@ -53,9 +58,10 @@ export async function listProposals({
       : (await listVaultDirectory({ fs, path: folder }))
           .filter(isMarkdownFile)
           .map((entry) => entry.path);
-  if (paths.length === 0) return { open: [], unreadable: [] };
+  if (paths.length === 0) return { open: [], stranded: [], unreadable: [] };
 
   const open: ListedProposal[] = [];
+  const stranded: ListedProposal[] = [];
   const unreadable: UnreadableProposal[] = [];
   for (const file of await fs.readNotes(paths)) {
     const { frontmatter } = splitFrontmatter(file.text);
@@ -69,11 +75,12 @@ export async function listProposals({
     if (!isProposalNote(properties)) continue;
     const reading = readProposal({ path, properties });
     if (!reading.ok) unreadable.push({ path, problem: reading.problem });
-    else if (reading.proposal.state === 'open') {
-      open.push({ proposal: reading.proposal, modified: file.modified });
+    else {
+      const listed = { proposal: reading.proposal, modified: file.modified };
+      (reading.proposal.state === 'open' ? open : stranded).push(listed);
     }
   }
-  return { open: open.sort(newestFirst), unreadable };
+  return { open: open.sort(newestFirst), stranded: stranded.sort(newestFirst), unreadable };
 }
 
 /**

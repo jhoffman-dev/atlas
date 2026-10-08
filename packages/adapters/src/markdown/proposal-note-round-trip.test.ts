@@ -138,6 +138,7 @@ describe('the types this vault ships for proposals', () => {
       confidence: 'select',
       source: 'text',
       made_by: 'text',
+      answered_via: 'select',
     });
     expect(typeOf('proposal').properties[0]?.options).toEqual([
       'task',
