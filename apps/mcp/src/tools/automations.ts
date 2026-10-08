@@ -44,9 +44,10 @@ export const automationLog = defineTool({
   title: "Read an automation's log",
   description:
     "An automation's log, newest first: { automation: { id, name }, entries: [{ kind, at, " +
-    'heading, summary, trigger?, of?, problem?, capped?, done, left, versions? }], truncated }. ' +
-    '"versions" lists, on a run of a rule a note sets off, each note version { path, digest, ' +
-    'wrote } it handled, or its own write left; none of them sets it off again. "kind" is ' +
+    'heading, summary, trigger?, of?, problem?, capped?, done, left, versions?, went? }], ' +
+    'truncated }. "versions" lists, on a run of a rule a note sets off, each note version ' +
+    '{ path, digest, wrote } it handled, or its own write left; none of them sets it off again. ' +
+    '"went" lists notes it had handled that were deleted: a new note there is new to it. "kind" is ' +
     '"run", "undo", "failed" (its query did not read), "turnedOn" or "seen". "done" lists each ' +
     'note it moved ({ kind: "archived", from, to }) or each property it set, with its value ' +
     'before and after; "left" lists notes it matched and left alone, with why. ' +

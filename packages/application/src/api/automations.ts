@@ -239,6 +239,7 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         done: entry.done,
         left: entry.left,
         ...(entry.versions !== undefined && { versions: entry.versions }),
+        ...(entry.went !== undefined && { went: entry.went }),
       };
     case 'undo':
       return { kind: 'undo', ...words, of: entry.of, done: entry.done, left: entry.left };

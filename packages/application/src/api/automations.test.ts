@@ -604,6 +604,23 @@ describe('a rule a note sets off, through the API (P29-01)', () => {
     });
   });
 
+  it('answers the notes a log says went', async () => {
+    const went: LogEntry = { ...HANDLED, went: ['tasks/Gone.md' as never] };
+    const withGone = {
+      ...files,
+      '.atlas/automations/log/file.md': newLogText('File done tasks', [went]),
+    };
+    const markdown = jsonMarkdown();
+    const api = apiFixture({
+      files: withGone,
+      markdown,
+      index: { query: atlasQueryIndex({ files: withGone, markdown }) },
+    });
+    const { entries } = bodyOf(await logOf(api, 'file')) as { entries: Record<string, unknown>[] };
+
+    expect(entries[0]).toMatchObject({ went: ['tasks/Gone.md'] });
+  });
+
   it('answers the versions a run handled, in its log', async () => {
     const { entries } = bodyOf(await logOf(noteVault(), 'file')) as {
       entries: Record<string, unknown>[];
