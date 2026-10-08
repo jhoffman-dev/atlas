@@ -27,6 +27,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/archive`      | Moves notes in and out of the Archive, rewriting frontmatter.                 | 23      |
 | `application/automations`  | Runs rules on a clock: archives or rewrites notes, logs it, undoes it.        | 25      |
 | `application/sync`         | Merges other Macs' changes into notes; settles conflicts; never loses a side. | U-29    |
+| `application/meetings`     | Marks and archives meeting files that arrived from outside Atlas, by itself.  | 28      |
 | `tools/n8n/*.ts`           | The n8n meeting mapper: commits files into your vault from outside Atlas.     | 28      |
 
 Rules that apply everywhere:

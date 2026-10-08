@@ -15,6 +15,7 @@ export * from './quick-add/index.ts';
 export * from './settings/index.ts';
 export * from './profile/index.ts';
 export * from './tags/index.ts';
+export * from './meetings/index.ts';
 export { fakeHostVaultFs, fakeIndexPort, fakeMarkdown, fakeVaultFs } from './testing/fake-ports.ts';
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
 export * from './api/index.ts';

@@ -47,6 +47,7 @@ export {
   dryRunReport,
   indexFailedReport,
   indexRebuiltReport,
+  meetingImportReport,
   noticeReport,
   sourceRefreshReport,
   writeFailedReport,
@@ -54,6 +55,7 @@ export {
 export type {
   ChatFailure,
   ChatHappening,
+  MeetingImportHappening,
   RuleNamed,
   SourceOutcome,
   VaultWrite,

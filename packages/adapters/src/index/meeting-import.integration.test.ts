@@ -1,0 +1,319 @@
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative, sep } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createIndexSyncer,
+  createMeetingImporter,
+  createNoteChanges,
+  inVault,
+  recordingActivity,
+  type ArchivePorts,
+  type IndexedNote,
+} from '@atlas/application';
+
+/**
+ * Meeting import on arrival end to end on this side of the boundary: meeting
+ * files written into a real folder, found by the index's refresh, heard on
+ * the change feed and imported — read with the YAML reader every note is read
+ * with, written and moved through the vault adapter, the duplicate's holders
+ * asked of a real SQLite index.
+ *
+ * The host is stood in for by what follows, which does what the Rust commands
+ * do with the same tables (`src-tauri/src/index.rs` and `vault.rs`, whose own
+ * tests cover them). It walks, reads, writes, moves and stores; it decides nothing.
+ */
+
+const invoke = vi.fn();
+vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
+
+const { tauriIndex } = await import('./tauri-index.ts');
+const { tauriVaultFs } = await import('../vault/tauri-vault-fs.ts');
+const { remarkMarkdown } = await import('../markdown/markdown-port.ts');
+
+const TABLES = `
+  CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '', modified INTEGER NOT NULL, size INTEGER NOT NULL,
+    digest TEXT NOT NULL DEFAULT '', note_type TEXT);
+  CREATE TABLE IF NOT EXISTS props (path TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
+    value_text TEXT, value_num REAL, value_date TEXT, value_json TEXT);
+  CREATE TABLE IF NOT EXISTS relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
+    target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);`;
+
+/** The host's commands for one vault folder. */
+function hostFor(root: string) {
+  const database = new DatabaseSync(':memory:');
+  let made = false;
+  const full = (path: string) => join(root, path);
+  const statOf = async (path: string) => Math.floor((await stat(full(path))).mtimeMs);
+
+  const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
+    list_notes: () => walk(root),
+    list_directory: async ({ path }) => listDirectory(root, path as string),
+    read_notes: ({ paths }) => readAll(root, paths as string[]),
+    read_text_file: async ({ path }) => ({
+      text: await readFile(full(path as string), 'utf8'),
+      modified: await statOf(path as string),
+    }),
+    write_text_file: async ({ path, contents, expectedModified }) => {
+      const at = path as string;
+      if (expectedModified !== null && (await statOf(at)) !== expectedModified) {
+        throw new Error('the note changed on disk since it was read');
+      }
+      await writeFile(full(at), contents as string);
+      return statOf(at);
+    },
+    create_folder: async ({ path }) => {
+      if (existsSync(full(path as string))) throw new Error('something has that name already');
+      await mkdir(full(path as string));
+      return null;
+    },
+    move_entry: async ({ from, to }) => {
+      if (existsSync(full(to as string))) throw new Error('something has that name already');
+      await rename(full(from as string), full(to as string));
+      return null;
+    },
+    index_open: () => {
+      database.exec(TABLES);
+      const fresh = !made;
+      made = true;
+      return { fresh };
+    },
+    index_clear: () => {
+      database.exec('DELETE FROM files; DELETE FROM props; DELETE FROM relations;');
+      return null;
+    },
+    index_manifest: () =>
+      database
+        .prepare('SELECT path, modified, size, digest, note_type AS type FROM files')
+        .all()
+        .map((row) => ({ ...row })),
+    index_put: ({ notes }) => {
+      for (const note of notes as IndexedNote[]) putNote(database, note);
+      return null;
+    },
+    index_remove: ({ paths }) => {
+      for (const path of paths as string[]) {
+        database.prepare('DELETE FROM files WHERE path = ?').run(path);
+        database.prepare('DELETE FROM props WHERE path = ?').run(path);
+        database.prepare('DELETE FROM relations WHERE src = ?').run(path);
+      }
+      return null;
+    },
+    index_query: ({ sql, parameters }) => {
+      const statement = database.prepare(sql as string);
+      const columns = statement.columns().map((column) => column.name);
+      const rows = statement.all(...(parameters as (string | number | null)[]));
+      return { columns, rows: rows.map((row) => columns.map((key) => row[key])), truncated: false };
+    },
+    index_stats: () => ({
+      notes: (database.prepare('SELECT COUNT(*) AS n FROM files').get() as { n: number }).n,
+      properties: 0,
+      links: 0,
+    }),
+  };
+
+  return async (command: string, args: Record<string, unknown> = {}) => {
+    const run = commands[command];
+    if (run === undefined) throw new Error(`no host command ${command}`);
+    return run(args);
+  };
+}
+
+function putNote(database: DatabaseSync, note: IndexedNote) {
+  database
+    .prepare(
+      `INSERT INTO files (path, title, summary, modified, size, digest, note_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(path) DO UPDATE SET title = excluded.title, modified = excluded.modified,
+         size = excluded.size, digest = excluded.digest, note_type = excluded.note_type`,
+    )
+    .run(note.path, note.title, note.summary, note.modified, note.size, note.digest, note.type);
+  database.prepare('DELETE FROM props WHERE path = ?').run(note.path);
+  for (const row of note.properties) {
+    database
+      .prepare('INSERT INTO props VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(note.path, row.key, row.index, row.text, row.number, row.date, row.json);
+  }
+  database.prepare('DELETE FROM relations WHERE src = ?').run(note.path);
+  for (const row of note.relations) {
+    database
+      .prepare('INSERT INTO relations VALUES (?, ?, ?, ?, ?, ?)')
+      .run(note.path, row.key, row.index, row.target, row.name, row.path);
+  }
+}
+
+async function walk(root: string, folder = root): Promise<unknown[]> {
+  const found: unknown[] = [];
+  for (const entry of await readdir(folder, { withFileTypes: true })) {
+    const at = join(folder, entry.name);
+    if (entry.isDirectory()) found.push(...(await walk(root, at)));
+    else if (entry.name.endsWith('.md')) found.push(await entryOf(root, at, 'file'));
+  }
+  return found;
+}
+
+async function listDirectory(root: string, path: string): Promise<unknown[]> {
+  const folder = join(root, path);
+  const entries = await readdir(folder, { withFileTypes: true });
+  return Promise.all(
+    entries.map((entry) =>
+      entryOf(root, join(folder, entry.name), entry.isDirectory() ? 'directory' : 'file'),
+    ),
+  );
+}
+
+async function entryOf(root: string, at: string, kind: 'file' | 'directory') {
+  const info = await stat(at);
+  return {
+    name: at.slice(at.lastIndexOf(sep) + 1),
+    path: relative(root, at).split(sep).join('/'),
+    kind,
+    modified: Math.floor(info.mtimeMs),
+    size: info.size,
+  };
+}
+
+async function readAll(root: string, paths: readonly string[]) {
+  return Promise.all(
+    paths.map(async (path) => {
+      const at = join(root, path);
+      const [text, info] = await Promise.all([readFile(at, 'utf8'), stat(at)]);
+      return { path, text, modified: Math.floor(info.mtimeMs), size: info.size };
+    }),
+  );
+}
+
+const fixtures = new URL('../../../domain/src/meetings/fixtures/', import.meta.url);
+const VALID = readFileSync(new URL('valid/gemini-platform-sync.md', fixtures), 'utf8');
+const MISSING = readFileSync(new URL('invalid/missing-required.md', fixtures), 'utf8');
+
+const FIRST = 'Inbox/Meetings/2026-09-29 Platform weekly sync.md';
+const SECOND = 'Inbox/Meetings/2026-09-29 Platform weekly sync (gemini 7f3a9c21).md';
+const BROKEN = 'Inbox/Meetings/2026-10-02 Untitled.md';
+
+let root: string;
+/** Each write is a second later than the last, whatever the disk's clock resolution. */
+let second = 1_800_000_000;
+
+async function drop(path: string, text: string) {
+  const at = join(root, path);
+  await mkdir(dirname(at), { recursive: true });
+  await writeFile(at, text);
+  second += 1;
+  await utimes(at, second, second);
+}
+
+/** The app opened on the vault: the index synced, and meetings imported as it hears of them. */
+async function launch() {
+  const activity = recordingActivity();
+  const changes = createNoteChanges({
+    onError: (cause) => {
+      throw cause;
+    },
+  });
+  const fs = inVault({ fs: tauriVaultFs, vault: root });
+  const ports: ArchivePorts = {
+    fs,
+    index: tauriIndex,
+    markdown: remarkMarkdown,
+    editors: {
+      state: () => 'closed',
+      flush: async () => undefined,
+      follow: () => undefined,
+      abandon: () => undefined,
+      reload: () => undefined,
+    },
+  };
+  const syncer = createIndexSyncer({
+    fs,
+    index: tauriIndex,
+    markdown: remarkMarkdown,
+    activity,
+    changes,
+    openVault: () => root,
+  });
+  const importer = createMeetingImporter({
+    ports,
+    clock: { today: () => '2026-10-08' },
+    activity,
+    openVault: () => root,
+    onWritten: () => undefined,
+  });
+  const imports: Promise<unknown>[] = [];
+  changes.subscribe((news) => imports.push(importer.hear(news)));
+  await syncer.sync({ vault: root, fromScratch: false });
+  return {
+    activity,
+    /** A sync, as a pull or the watcher sets off, and the import it leads to. */
+    sync: async () => {
+      await syncer.sync({ vault: root, fromScratch: false });
+      await Promise.all(imports.splice(0));
+    },
+  };
+}
+
+beforeEach(async () => {
+  root = await realpath(await mkdtemp(join(tmpdir(), 'atlas-meeting-import-')));
+  invoke.mockReset();
+  invoke.mockImplementation(hostFor(root));
+});
+
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true });
+});
+
+describe('meeting import over a real folder and a real SQLite index', () => {
+  it('leaves a meeting that arrives untouched, and archives a second copy of it', async () => {
+    const app = await launch();
+
+    await drop(FIRST, VALID);
+    await app.sync();
+    await drop(SECOND, VALID);
+    await app.sync();
+
+    expect(await readFile(join(root, FIRST), 'utf8')).toBe(VALID);
+    expect(existsSync(join(root, SECOND))).toBe(false);
+    const archived = await readFile(join(root, 'Archive', SECOND), 'utf8');
+    expect(archived).toMatch(
+      /^atlas_duplicate_of: (["'])\[\[2026-09-29 Platform weekly sync\]\]\1$/m,
+    );
+    expect(archived).toContain(`archivedFrom: ${SECOND}`);
+    expect(archived.slice(archived.indexOf('## Summary'))).toBe(
+      VALID.slice(VALID.indexOf('## Summary')),
+    );
+    expect(app.activity.reports.filter((report) => report.kind === 'meeting')).toEqual([
+      expect.objectContaining({ level: 'info', message: expect.stringContaining('arrived') }),
+      expect.objectContaining({ level: 'info', message: expect.stringContaining('second copy') }),
+    ]);
+  });
+
+  it('marks a broken file where it landed, and leaves it marked through the next sync', async () => {
+    const app = await launch();
+
+    await drop(BROKEN, MISSING);
+    await app.sync();
+    const marked = await readFile(join(root, BROKEN), 'utf8');
+    await app.sync();
+
+    expect(marked).toMatch(/^atlas_import_error: .*title is required/m);
+    expect(marked.slice(marked.indexOf('## Summary'))).toBe(
+      MISSING.slice(MISSING.indexOf('## Summary')),
+    );
+    expect(await readFile(join(root, BROKEN), 'utf8')).toBe(marked);
+    expect(app.activity.reports.filter((report) => report.kind === 'meeting')).toHaveLength(1);
+  });
+});

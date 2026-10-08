@@ -9,6 +9,7 @@ import {
   dryRunReport,
   indexFailedReport,
   indexRebuiltReport,
+  meetingImportReport,
   noticeReport,
   sourceRefreshReport,
   writeFailedReport,
@@ -325,5 +326,119 @@ describe('index, save and notice reports', () => {
       subject: null,
     });
     expect(noticeReport('Unsaved changes were kept', 'warning').level).toBe('warning');
+  });
+});
+
+describe('meetingImportReport', () => {
+  const standup = p('Inbox/Meetings/2026-10-06 Standup.md');
+  const original = p('Projects/Larkspur/2026-10-06 Standup.md');
+
+  it('says a meeting arrived, linking to it, as a meeting line', () => {
+    expect(meetingImportReport({ kind: 'arrived', path: standup })).toEqual({
+      level: 'info',
+      kind: 'meeting',
+      message: '2026-10-06 Standup: arrived in the Inbox.',
+      subject: { kind: 'note', path: standup },
+    });
+  });
+
+  it('says an import error was taken out once the file reads', () => {
+    const report = meetingImportReport({ kind: 'fixed', path: standup });
+    expect(report.level).toBe('info');
+    expect(report.message).toBe(
+      '2026-10-06 Standup: now follows the import contract, so its import error was taken out.',
+    );
+  });
+
+  it('warns of a file that breaks the contract, with why, and whether that is in the file', () => {
+    expect(
+      meetingImportReport({
+        kind: 'invalid',
+        path: standup,
+        problem: 'external_id is required',
+        unmarked: null,
+      }),
+    ).toEqual({
+      level: 'warning',
+      kind: 'meeting',
+      message: '2026-10-06 Standup: could not be imported. external_id is required',
+      subject: { kind: 'note', path: standup },
+    });
+    expect(
+      meetingImportReport({
+        kind: 'invalid',
+        path: standup,
+        problem: 'The frontmatter is not readable YAML',
+        unmarked: 'its frontmatter cannot be read',
+      }).message,
+    ).toBe(
+      '2026-10-06 Standup: could not be imported. The problem is not in the file: its frontmatter cannot be read. The frontmatter is not readable YAML',
+    );
+  });
+
+  it('names the original of a duplicate, and links to where the copy was archived', () => {
+    const archived = p('Archive/Inbox/Meetings/2026-10-06 Standup.md');
+    expect(
+      meetingImportReport({
+        kind: 'duplicate',
+        path: standup,
+        of: original,
+        archivedTo: archived,
+        problem: null,
+      }),
+    ).toEqual({
+      level: 'info',
+      kind: 'meeting',
+      message: '2026-10-06 Standup: a second copy of 2026-10-06 Standup, so it was archived.',
+      subject: { kind: 'note', path: archived },
+    });
+  });
+
+  it('warns of a duplicate that could not be archived, linking to where it still is', () => {
+    expect(
+      meetingImportReport({
+        kind: 'duplicate',
+        path: standup,
+        of: original,
+        archivedTo: null,
+        problem: 'It is open in Atlas with unsaved typing.',
+      }),
+    ).toEqual({
+      level: 'warning',
+      kind: 'meeting',
+      message:
+        '2026-10-06 Standup: a second copy of 2026-10-06 Standup, marked as one but not archived. It is open in Atlas with unsaved typing.',
+      subject: { kind: 'note', path: standup },
+    });
+  });
+
+  it('warns of a duplicate archived with a problem on the way, linking to where it went', () => {
+    const archived = p('Archive/Inbox/Meetings/2026-10-06 Standup.md');
+    expect(
+      meetingImportReport({
+        kind: 'duplicate',
+        path: standup,
+        of: original,
+        archivedTo: archived,
+        problem: 'Moved, but its frontmatter was not updated.',
+      }),
+    ).toEqual({
+      level: 'warning',
+      kind: 'meeting',
+      message:
+        '2026-10-06 Standup: a second copy of 2026-10-06 Standup, so it was archived. Moved, but its frontmatter was not updated.',
+      subject: { kind: 'note', path: archived },
+    });
+  });
+
+  it('says an import that could not finish as an error', () => {
+    expect(
+      meetingImportReport({ kind: 'failed', path: standup, problem: 'The index is closed.' }),
+    ).toEqual({
+      level: 'error',
+      kind: 'meeting',
+      message: '2026-10-06 Standup: could not be imported. The index is closed.',
+      subject: { kind: 'note', path: standup },
+    });
   });
 });
