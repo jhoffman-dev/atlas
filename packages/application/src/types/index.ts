@@ -33,3 +33,4 @@ export type {
   TypeSetupFailure,
   TypeSetupOffer,
 } from './ensure-built-in-types.ts';
+export { linkedTypeProblems } from './linked-types.ts';

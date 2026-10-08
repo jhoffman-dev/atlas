@@ -7,9 +7,18 @@ import {
   type ObjectType,
   type PropertyDef,
   type PropertyKind,
+  type VaultPath,
 } from '@atlas/domain';
 import { isDatasource, isSavedView } from '@atlas/domain';
-import { noteTypeName, notesInUseOfTypes, type IndexPort, type OpenNote } from '@atlas/application';
+import {
+  linkedTypeProblems,
+  noteTypeName,
+  notesInUseOfTypes,
+  type IndexPort,
+  type MarkdownPort,
+  type OpenNote,
+  type VaultFsPort,
+} from '@atlas/application';
 import type { PropertyRow, RelationChoice, RelationTarget } from '@atlas/ui';
 
 const NO_KINDS: Readonly<Record<string, PropertyKind>> = {};
@@ -42,10 +51,17 @@ export function useNoteProperties({
   note,
   types,
   index,
+  links,
 }: {
   note: OpenNote | null;
   types: readonly ObjectType[];
   index: IndexPort;
+  /** What a relation's links are checked against: a link to a note of the wrong type is a problem (P30-01). */
+  links?: {
+    readonly fs: Pick<VaultFsPort, 'readNotes'>;
+    readonly markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+    readonly notePaths: readonly VaultPath[];
+  };
 }): {
   typeName: string | null;
   /** The type as a person reads it; null for a note with none. */
@@ -95,6 +111,8 @@ export function useNoteProperties({
     [path],
   );
 
+  const linkProblems = useLinkedTypeProblems({ type, properties, links });
+
   const rows = useMemo<PropertyRow[]>(() => {
     if (note === null || isView) return [];
 
@@ -112,9 +130,12 @@ export function useNoteProperties({
     ].map((def) => ({
       def,
       value: properties[def.key] ?? null,
-      error: validatePropertyValue({ def, value: properties[def.key] ?? null }),
+      error:
+        validatePropertyValue({ def, value: properties[def.key] ?? null }) ??
+        linkProblems[def.key] ??
+        null,
     }));
-  }, [note, isView, type, properties, addedKinds]);
+  }, [note, isView, type, properties, addedKinds, linkProblems]);
 
   const [relationChoices, setRelationChoices] = useState<
     Readonly<Record<string, readonly RelationChoice[]>>
@@ -164,4 +185,44 @@ export function useNoteProperties({
     keys,
     relationChoices,
   };
+}
+
+const NO_PROBLEMS: Readonly<Record<string, string>> = {};
+
+/** Why each relation cannot hold what it links, read from the linked notes' own types. */
+function useLinkedTypeProblems({
+  type,
+  properties,
+  links,
+}: {
+  type: ObjectType | null;
+  properties: Readonly<Record<string, unknown>>;
+  links:
+    | {
+        readonly fs: Pick<VaultFsPort, 'readNotes'>;
+        readonly markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+        readonly notePaths: readonly VaultPath[];
+      }
+    | undefined;
+}): Readonly<Record<string, string>> {
+  const [problems, setProblems] = useState<Readonly<Record<string, string>>>(NO_PROBLEMS);
+  useEffect(() => {
+    if (type === null || links === undefined) {
+      setProblems(NO_PROBLEMS);
+      return;
+    }
+    let cancelled = false;
+    linkedTypeProblems({ ...links, properties: type.properties, values: properties })
+      .then((found) => {
+        if (!cancelled) setProblems(found);
+      })
+      .catch(() => {
+        // A linked note that cannot be read right now is not judged; the link stays as written.
+        if (!cancelled) setProblems(NO_PROBLEMS);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, properties, links]);
+  return problems;
 }
