@@ -40,8 +40,17 @@ export interface PropertyDef {
   readonly required: boolean;
   /** For select and multiSelect. */
   readonly options: readonly string[];
-  /** For relation: the name of the type this property may point at. */
+  /**
+   * For relation: the name of the type this property points at — the first,
+   * when it may point at several. Read {@link relationTypes} for all of them.
+   */
   readonly target: string | null;
+  /**
+   * For relation: every type it may point at, when that is more than one —
+   * `target: [project, area]` in the type file. Absent for one, so the many
+   * relations that point at a single type read exactly as they always have.
+   */
+  readonly targets?: readonly string[];
   /** For relation: whether it holds one note or several. */
   readonly many: boolean;
   /**
@@ -119,9 +128,10 @@ function parseProperty(key: string, raw: unknown): PropertyDef | null {
   const kind = String(spec['kind'] ?? 'text') as PropertyKind;
   if (!PROPERTY_KINDS.includes(kind)) return null;
 
-  const target = spec['target'] === undefined ? null : String(spec['target']).trim();
+  const targets = parseTargets(spec['target']);
+  const target = targets[0] ?? null;
   // A relation with nothing to point at cannot offer anything, so it is not one.
-  if (kind === 'relation' && (target === null || target === '')) return null;
+  if (kind === 'relation' && target === null) return null;
 
   const options = asStrings(spec['options']);
   const colors = parseColors(spec['colors'], options);
@@ -134,9 +144,41 @@ function parseProperty(key: string, raw: unknown): PropertyDef | null {
     options,
     target,
     many: kind === 'multiSelect' || spec['many'] === true,
+    ...(targets.length > 1 && { targets }),
     ...(colors !== null && { colors }),
     ...(done !== null && { done }),
   };
+}
+
+/**
+ * The types a `target:` names: one written bare, or a list of them. A blank
+ * entry, or one listed twice, is dropped, as a repeated option is.
+ */
+function parseTargets(raw: unknown): string[] {
+  if (raw === undefined || raw === null) return [];
+  const listed = Array.isArray(raw) ? raw : [raw];
+  const names = listed.map((name) => String(name).trim()).filter((name) => name !== '');
+  return [...new Set(names)];
+}
+
+/**
+ * Every type a relation may point at, in the order the type file lists them;
+ * empty for a property that is not a relation.
+ */
+export function relationTypes(def: Pick<PropertyDef, 'target' | 'targets'>): readonly string[] {
+  if (def.targets !== undefined && def.targets.length > 0) return def.targets;
+  return def.target === null ? [] : [def.target];
+}
+
+/**
+ * What a relation points at, in words: `project`, `project or area`,
+ * `person, company or project` — or `note` for one that names no type.
+ */
+export function relationTypesText(def: Pick<PropertyDef, 'target' | 'targets'>): string {
+  const names = relationTypes(def);
+  if (names.length === 0) return 'note';
+  if (names.length === 1) return names[0] ?? 'note';
+  return `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}`;
 }
 
 /**

@@ -172,6 +172,26 @@ describe('TypeEditor', () => {
     });
   });
 
+  it('shows the other types a relation points at, which the file lists', async () => {
+    const paraTask = parseObjectType({
+      name: 'task',
+      label: 'Task',
+      properties: { project: { kind: 'relation', target: ['project', 'area', 'person'] } },
+    });
+    editor({ type: paraTask });
+    await open('Project');
+    expect(
+      (screen.getByRole('combobox', { name: 'Type Project points at' }) as HTMLSelectElement).value,
+    ).toBe('project');
+    expect(screen.getByText('And at').nextElementSibling?.textContent).toBe('area, person');
+  });
+
+  it('shows no other types for a relation to one', async () => {
+    editor();
+    await open('Project');
+    expect(screen.queryByText('And at')).toBeNull();
+  });
+
   it('edits a select’s options: rename, colour, remove, add', async () => {
     const onEdit = editor();
     await open('Status');

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   humanizeKey,
   notePropertyKind,
+  relationTypes,
   validatePropertyValue,
   type ObjectType,
   type PropertyDef,
   type PropertyKind,
 } from '@atlas/domain';
 import { isDatasource, isSavedView } from '@atlas/domain';
-import { noteTypeName, notesInUseOfType, type IndexPort, type OpenNote } from '@atlas/application';
+import { noteTypeName, notesInUseOfTypes, type IndexPort, type OpenNote } from '@atlas/application';
 import type { PropertyRow, RelationChoice, RelationTarget } from '@atlas/ui';
 
 const NO_KINDS: Readonly<Record<string, PropertyKind>> = {};
@@ -132,7 +133,7 @@ export function useNoteProperties({
     Promise.all(
       relations.map(
         async (def) =>
-          [def.key, await notesInUseOfType({ index, type: def.target ?? '' })] as const,
+          [def.key, await notesInUseOfTypes({ index, types: relationTypes(def) })] as const,
       ),
     )
       .then((pairs) => {

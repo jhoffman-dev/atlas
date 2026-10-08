@@ -1,6 +1,17 @@
-export { parseObjectType, InvalidTypeError, PROPERTY_KINDS } from './property-def.ts';
+export {
+  parseObjectType,
+  InvalidTypeError,
+  PROPERTY_KINDS,
+  relationTypes,
+  relationTypesText,
+} from './property-def.ts';
 export type { ObjectType, PropertyDef, PropertyKind } from './property-def.ts';
-export { isWikiLink, relationTargets, validatePropertyValue } from './property-value.ts';
+export {
+  isWikiLink,
+  relationTargets,
+  relationTypeRefusal,
+  validatePropertyValue,
+} from './property-value.ts';
 export { linkedNotes, withLink, withoutLink } from './relation-links.ts';
 export { objectTypeIcon, TYPE_ICONS } from './type-icon.ts';
 export {

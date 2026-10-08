@@ -6,6 +6,8 @@ import {
   linkedNotes,
   optionLabel,
   propertyIcon,
+  relationTypes,
+  relationTypesText,
   statusTone,
   withDatePart,
   withLink,
@@ -17,6 +19,7 @@ import {
 import { AddPropertyPopover, type NewProperty } from './add-property-popover.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { LinkedNote, useNoteNames } from './note-names.tsx';
+import { RelationOptions } from './relation-options.tsx';
 import type { RelationTarget } from './type-editor.tsx';
 
 export type { NewProperty } from './add-property-popover.tsx';
@@ -33,6 +36,8 @@ export type CreateRelated = (args: { target: string; name: string }) => Promise<
 export interface RelationChoice {
   readonly path: string;
   readonly title: string;
+  /** The type it is, where the relation points at several. */
+  readonly type?: string;
 }
 
 /**
@@ -361,17 +366,20 @@ function RelationEditor({
   onCreateRelated?: CreateRelated;
 }) {
   const names = useNoteNames();
-  const [naming, setNaming] = useState(false);
+  /** The type of the note being named for the picker's "New …", or null while none is. */
+  const [naming, setNaming] = useState<string | null>(null);
   const links = linkedNotes(row.value);
-  const { label, many, target } = row.def;
+  const { label, many } = row.def;
+  const pointsAt = relationTypes(row.def);
   const unlinked = choices.filter(
     (choice) => !links.some((link) => linksTo(link, createVaultPath(choice.path), names)),
   );
+  const what = relationTypesText(row.def);
   const prompt = many
-    ? `Add a ${target ?? 'note'}…`
+    ? `Add a ${what}…`
     : links.length === 0
-      ? `— no ${target ?? 'note'} —`
-      : `Change ${target ?? 'note'}…`;
+      ? `— no ${what} —`
+      : `Change ${what}…`;
   /** Puts a link in, as picking one does: in place of the one there, or beside them. */
   const link = (picked: string) =>
     onChange(
@@ -411,7 +419,7 @@ function RelationEditor({
         </ul>
       )}
       {/* A relation to no type in particular has nothing to offer. */}
-      {target !== null && (
+      {pointsAt.length > 0 && (
         <span className="props__chip props__chip--add">
           <Icon name="plus" size={14} className="props__chip-icon" />
           <select
@@ -422,8 +430,8 @@ function RelationEditor({
             onChange={(event) => {
               const picked = event.target.value;
               if (picked === '') return;
-              if (picked === NEW_RELATED) {
-                setNaming(true);
+              if (picked.startsWith(NEW_RELATED)) {
+                setNaming(picked.slice(NEW_RELATED.length));
                 return;
               }
               // One note is put in place of the one there; another of several is
@@ -432,20 +440,21 @@ function RelationEditor({
             }}
           >
             <option value="">{prompt}</option>
-            {unlinked.map((choice) => (
-              <option key={choice.path} value={names.linkTo(createVaultPath(choice.path))}>
-                {choice.title}
-              </option>
-            ))}
-            {onCreateRelated !== undefined && <option value={NEW_RELATED}>New {target}…</option>}
+            <RelationOptions choices={unlinked} names={names} />
+            {onCreateRelated !== undefined &&
+              pointsAt.map((type) => (
+                <option key={type} value={`${NEW_RELATED}${type}`}>
+                  New {type}…
+                </option>
+              ))}
           </select>
         </span>
       )}
-      {naming && target !== null && onCreateRelated !== undefined && (
+      {naming !== null && onCreateRelated !== undefined && (
         <NewRelatedName
-          target={target}
-          onCreate={(name) => onCreateRelated({ target, name }).then(link)}
-          onDone={() => setNaming(false)}
+          target={naming}
+          onCreate={(name) => onCreateRelated({ target: naming, name }).then(link)}
+          onDone={() => setNaming(null)}
         />
       )}
     </div>
@@ -453,8 +462,9 @@ function RelationEditor({
 }
 
 /**
- * The picker's "New …" entry. Never a link a note could have: a link is
- * written `[[…]]`, and this starts with a character no name can hold.
+ * The start of the picker's "New …" entries, each followed by the type it
+ * makes. Never a link a note could have: a link is written `[[…]]`, and this
+ * starts with a character no name can hold.
  */
 const NEW_RELATED = '\u0000new';
 

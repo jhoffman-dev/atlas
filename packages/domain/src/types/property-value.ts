@@ -1,6 +1,6 @@
 import { splitWikiLinks } from '../markdown/wikilink.ts';
 import { isDateLike } from '../index/property-value.ts';
-import type { PropertyDef } from './property-def.ts';
+import { relationTypes, relationTypesText, type PropertyDef } from './property-def.ts';
 
 /**
  * Whether a value is allowed in a property, and why not if it is not.
@@ -56,7 +56,7 @@ export function validatePropertyValue({
       if (!def.many && items.length > 1) return `${def.label} can only hold one note`;
       return items.every((item) => isWikiLink(item))
         ? null
-        : `${def.label} must be a link to a ${def.target ?? 'note'}`;
+        : `${def.label} must be a link to a ${relationTypesText(def)}`;
     }
 
     case 'thumbnail':
@@ -67,6 +67,23 @@ export function validatePropertyValue({
     case 'text':
       return null;
   }
+}
+
+/**
+ * Why a relation cannot point at a note of `linkedType`, or null when it can.
+ * A note whose type is not known — not written yet, or not indexed — is let
+ * through: a link may name a note before it exists.
+ */
+export function relationTypeRefusal({
+  def,
+  linkedType,
+}: {
+  def: PropertyDef;
+  linkedType: string | null;
+}): string | null {
+  const allowed = relationTypes(def);
+  if (linkedType === null || allowed.length === 0 || allowed.includes(linkedType)) return null;
+  return `${def.label} links to a ${relationTypesText(def)}, not a ${linkedType}`;
 }
 
 function isEmpty(value: unknown): boolean {

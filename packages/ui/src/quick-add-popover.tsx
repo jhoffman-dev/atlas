@@ -1,10 +1,11 @@
 import { useId, useState, type KeyboardEvent } from 'react';
-import { createVaultPath, optionLabel, type PropertyDef } from '@atlas/domain';
+import { optionLabel, type PropertyDef } from '@atlas/domain';
 import { Icon, type IconName } from './icon.tsx';
 import { isImeKey } from './ime.ts';
 import { KeyHints } from './key-hints.tsx';
 import { useNoteNames } from './note-names.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
+import { RelationOptions } from './relation-options.tsx';
 
 const HINTS = [
   ['↵', 'to add'],
@@ -197,11 +198,7 @@ function FieldControl({
       return (
         <select {...common}>
           <option value="">— none —</option>
-          {choices.map((choice) => (
-            <option key={choice.path} value={names.linkTo(createVaultPath(choice.path))}>
-              {choice.title}
-            </option>
-          ))}
+          <RelationOptions choices={choices} names={names} />
         </select>
       );
     case 'date':
