@@ -74,6 +74,7 @@ export function useTaskMigration({
 
   useEffect(() => {
     setPreview(null);
+    setCanUndo(false);
     setChosen(new Map());
     setExpanded(false);
     setDismissed(false);
