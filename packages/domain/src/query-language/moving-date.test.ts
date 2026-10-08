@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, countedDay, isMovingDate, movingDateSql } from './moving-date.ts';
+import {
+  addMonths,
+  countedDay,
+  countedLabel,
+  isMovingDate,
+  movingDateProblem,
+  movingDateSql,
+} from './moving-date.ts';
 
 describe('isMovingDate', () => {
   it.each(['today', 'weekAgo', 'monthAhead', 'startOfWeek', '-30d', '+2w', '+1m', '-1y', '+0d'])(
@@ -90,5 +97,40 @@ describe('movingDateSql', () => {
     expect(movingDateSql('today')).toEqual({ text: "date('now', 'localtime')", values: [] });
     expect(movingDateSql('someday')).toBeNull();
     expect(movingDateSql('constructor')).toBeNull();
+  });
+});
+
+describe('movingDateProblem', () => {
+  it('has none for a date that moves, out to a thousand years either way', () => {
+    for (const name of ['today', 'startOfWeek', '-30d', '+1000y', '-1000y', '+9999m', '-9999w']) {
+      expect(movingDateProblem(name)).toBeNull();
+    }
+  });
+
+  it('refuses a count past a thousand years, which the index could not date', () => {
+    expect(movingDateProblem('+1001y')).toBe(
+      '@+1001y is too far away: a count from today reaches 1000 years at most.',
+    );
+    expect(movingDateProblem('-7974y')).not.toBeNull();
+  });
+
+  it('names what there is when the name is no date', () => {
+    expect(movingDateProblem('someday')).toMatch(/^There is no date called @someday\. Try @today/);
+  });
+});
+
+describe('countedLabel', () => {
+  it.each([
+    ['-30d', '30 days ago'],
+    ['+1d', '1 day from now'],
+    ['+2w', '2 weeks from now'],
+    ['-1m', '1 month ago'],
+    ['+3y', '3 years from now'],
+    ['+0d', '0 days from now'],
+  ])('@%s reads %s', (name, label) => expect(countedLabel(name)).toBe(label));
+
+  it('names nothing that is no count', () => {
+    expect(countedLabel('today')).toBeNull();
+    expect(countedLabel('startOfWeek')).toBeNull();
   });
 });

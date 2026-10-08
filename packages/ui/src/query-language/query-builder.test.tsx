@@ -106,6 +106,35 @@ describe('QueryBuilder', () => {
     expect(screen.queryByLabelText('Value 1 day')).toBeNull();
   });
 
+  it('shows a count from today and the start of the week as the date they are, not as a blank day', () => {
+    for (const text of ['FROM task WHERE due > @-30d', 'FROM task WHERE due >= @startOfWeek']) {
+      const { unmount } = render(<Harness start={builderFor(text)} />);
+      expect(written()).toBe(text);
+      const picked = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Value 1' });
+      const day = screen.queryByLabelText<HTMLInputElement>('Value 1 day');
+      // "On a day…" over an empty day picker reads as a condition with no date at all.
+      expect({ text, shown: picked.selectedOptions[0]?.textContent, day: day?.value }).not.toEqual({
+        text,
+        shown: 'On a day…',
+        day: '',
+      });
+      unmount();
+    }
+  });
+
+  it('names a count from today and the start of the week in the date list, with no day picker', () => {
+    for (const [text, shown] of [
+      ['FROM task WHERE due > @-30d', '30 days ago'],
+      ['FROM task WHERE due >= @startOfWeek', 'Start of this week'],
+    ] as const) {
+      const { unmount } = render(<Harness start={builderFor(text)} />);
+      const picked = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Value 1' });
+      expect(picked.selectedOptions[0]?.textContent).toBe(shown);
+      expect(screen.queryByLabelText('Value 1 day')).toBeNull();
+      unmount();
+    }
+  });
+
   it('types a number for a number field, and a value only where one is asked for', async () => {
     render(<Harness start={builderFor('FROM task WHERE estimate IS EMPTY')} />);
     expect(screen.queryByRole('spinbutton', { name: 'Value 1' })).toBeNull();

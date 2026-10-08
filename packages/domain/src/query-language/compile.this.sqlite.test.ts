@@ -11,9 +11,12 @@ import { parseAtlasQuery } from './parse.ts';
 /**
  * `this` — the note a query is shown on — run for real against SQLite over
  * the index's tables: through a relation, one hop through one, and through
- * the links in a note's body. Meetings are dated from the day SQLite says it
- * is, so "the last 30 days" has known edges whatever day the tests run on.
+ * the links in a note's body. Meetings are dated from a fixed day, and the
+ * statement counts from it instead of from the index's clock, so "the last
+ * 30 days" has known edges and midnight moves none of them.
  */
+const TODAY = '2999-03-13';
+const INDEX_TODAY = "date('now', 'localtime'";
 const TYPES = [
   parseObjectType({ name: 'person', properties: { role: 'text' } }),
   parseObjectType({
@@ -43,9 +46,9 @@ database.exec(`
                           target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
   CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);`);
 
-/** The day SQLite's clock says, that many days on (or back). */
+/** TODAY, that many days on (or back). */
 function daysFromToday(days: number): string {
-  const row = database.prepare("SELECT date('now', 'localtime', ?) AS day").get(`${days} days`);
+  const row = database.prepare('SELECT date(?, ?) AS day').get(TODAY, `${days} days`);
   return String(row?.['day']);
 }
 
@@ -79,6 +82,10 @@ const NOTES: readonly Note[] = [
   {
     path: 'meetings/Mara old.md',
     frontmatter: { type: 'meeting', people: ['[[Mara Quill]]'], date: daysFromToday(-40) },
+  },
+  {
+    path: 'meetings/Mara next week.md',
+    frontmatter: { type: 'meeting', people: ['[[Mara Quill]]'], date: daysFromToday(7) },
   },
   {
     path: 'meetings/Tobias recent.md',
@@ -122,16 +129,23 @@ function compiled(text: string, thisNote: string) {
 function titles(text: string, thisNote: string): unknown[] {
   const { sql, parameters } = compiled(text, thisNote);
   return database
-    .prepare(sql)
+    .prepare(sql.replaceAll(INDEX_TODAY, `date('${TODAY}'`))
     .all(...parameters)
     .map((row) => row['title']);
 }
 
 describe('compileAtlasQuery, run against SQLite: this', () => {
   it("answers the card's example: only that person's meetings in the last 30 days", () => {
-    const text = 'FROM meeting WHERE people = this AND date > @-30d';
+    const text = 'FROM meeting WHERE people = this AND date > @-30d AND date <= @today';
     expect(titles(text, MARA)).toEqual(['Mara recent']);
     expect(titles(text, TOBIAS)).toEqual(['Mara recent', 'Tobias recent']);
+  });
+
+  it('reads date > @-30d alone as from 30 days back on, the meetings to come too', () => {
+    expect(titles('FROM meeting WHERE people = this AND date > @-30d', MARA)).toEqual([
+      'Mara next week',
+      'Mara recent',
+    ]);
   });
 
   it('lists the meetings without that person for !=', () => {
@@ -162,6 +176,7 @@ describe('compileAtlasQuery, run against SQLite: LINKS TO this', () => {
 
   it('negates and joins like any condition, and leaves archived notes out', () => {
     expect(titles('FROM meeting WHERE NOT LINKS TO this', MARA)).toEqual([
+      'Mara next week',
       'Mara old',
       'Mara recent',
       'Mara thirty days ago',

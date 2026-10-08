@@ -21,8 +21,16 @@ const COUNTED = /^([+-])(\d{1,4})([dwmy])$/;
 
 const START_OF_WEEK = 'startOfWeek';
 
+/**
+ * How far a count may reach. The index dates nothing past the year 9999, so a
+ * count beyond would be no day at all — and a query that silently matches
+ * nothing. A thousand years either way is far past anything asked, and from
+ * any day a vault holds still a day the index can name.
+ */
+const MOST_YEARS = 1000;
+
 /** What a moving date can be called, for a problem to suggest. */
-export const MOVING_DATE_HINT = `${RELATIVE_DATE_NAMES.join(', ')}, @${START_OF_WEEK}, or a count from today like @-30d, @+2w, @+1m or @-1y`;
+const MOVING_DATE_HINT = `${RELATIVE_DATE_NAMES.join(', ')}, @${START_OF_WEEK}, or a count from today like @-30d, @+2w, @+1m or @-1y`;
 
 /** A count from today, in the two units the index and the calendar both count in. */
 interface Counted {
@@ -30,11 +38,23 @@ interface Counted {
   readonly unit: 'days' | 'months';
 }
 
-function countedOf(name: string): Counted | null {
+/** A count as written: `-30d` is 30 days back. */
+interface Written {
+  readonly count: number;
+  readonly letter: 'd' | 'w' | 'm' | 'y';
+}
+
+function writtenOf(name: string): Written | null {
   const match = COUNTED.exec(name);
   if (match === null) return null;
   const [, sign, digits, letter] = match;
-  const count = Number(digits) * (sign === '-' ? -1 : 1);
+  return { count: Number(digits) * (sign === '-' ? -1 : 1), letter: letter as Written['letter'] };
+}
+
+function countedOf(name: string): Counted | null {
+  const written = writtenOf(name);
+  if (written === null) return null;
+  const { count, letter } = written;
   if (letter === 'd') return { amount: count, unit: 'days' };
   if (letter === 'w') return { amount: count * 7, unit: 'days' };
   return { amount: letter === 'y' ? count * 12 : count, unit: 'months' };
@@ -45,6 +65,36 @@ export function isMovingDate(name: string): boolean {
   return (
     RELATIVE_DATE_NAMES.includes(`@${name}`) || name === START_OF_WEEK || countedOf(name) !== null
   );
+}
+
+/** Why `@name` cannot be asked about, or null when it can. */
+export function movingDateProblem(name: string): string | null {
+  if (!isMovingDate(name)) return `There is no date called @${name}. Try ${MOVING_DATE_HINT}.`;
+  return Math.abs(yearsOf(countedOf(name))) > MOST_YEARS
+    ? `@${name} is too far away: a count from today reaches ${MOST_YEARS} years at most.`
+    : null;
+}
+
+/** About how many years a count reaches; none for a date that is no count. */
+function yearsOf(counted: Counted | null): number {
+  if (counted === null) return 0;
+  return counted.unit === 'months' ? counted.amount / 12 : counted.amount / 365.25;
+}
+
+const UNIT_WORDS: Readonly<Record<Written['letter'], string>> = {
+  d: 'day',
+  w: 'week',
+  m: 'month',
+  y: 'year',
+};
+
+/** A count as the builder's dropdown names it: `@-30d` is "30 days ago"; null for any other name. */
+export function countedLabel(name: string): string | null {
+  const written = writtenOf(name);
+  if (written === null) return null;
+  const size = Math.abs(written.count);
+  const unit = `${size} ${UNIT_WORDS[written.letter]}${size === 1 ? '' : 's'}`;
+  return written.count < 0 ? `${unit} ago` : `${unit} from now`;
 }
 
 /**

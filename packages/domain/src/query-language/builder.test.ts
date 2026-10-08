@@ -5,6 +5,7 @@ import {
   builderOperatorsFor,
   builderOperatorWords,
   MOVING_DATES,
+  movingDateChoices,
   isComplete,
   queryFromBuilder,
   startingCondition,
@@ -215,6 +216,15 @@ describe('the builder’s controls', () => {
     expect(value('status', '   ')).toBeNull();
   });
 
+  it('reads this back as this when it is typed into a relation’s control as the control shows it', () => {
+    const shown = valueInputText(
+      builderOf('FROM task WHERE project = this').conditions[0]?.value ?? null,
+    );
+    expect(shown).toBe('this');
+    // Typed back as the control shows it, it stays this rather than becoming [[this]], a link to a note called "this".
+    expect(valueFromInput(field('project'), '=', shown)).toMatchObject({ kind: 'this' });
+  });
+
   it('shows a value in its control the way it was typed', () => {
     const shown = (text: string, input: string) =>
       valueInputText(valueFromInput(field(text), '=', input));
@@ -251,7 +261,18 @@ describe('the builder’s words', () => {
   });
 
   it('offers exactly the moving dates a query can name', () => {
-    expect(MOVING_DATES.map((date) => date.value)).toEqual(RELATIVE_DATE_NAMES);
+    expect(MOVING_DATES.map((date) => date.value)).toEqual([
+      ...RELATIVE_DATE_NAMES,
+      '@startOfWeek',
+    ]);
+  });
+
+  it('offers a count from today it holds as the date it is, and nothing more otherwise', () => {
+    expect(movingDateChoices('@-30d').at(-1)).toEqual({ value: '@-30d', label: '30 days ago' });
+    expect(movingDateChoices('@+1w').at(-1)).toEqual({ value: '@+1w', label: '1 week from now' });
+    for (const text of ['@today', '@startOfWeek', '2026-10-08', '', '@someday']) {
+      expect(movingDateChoices(text)).toEqual(MOVING_DATES);
+    }
   });
 
   it('never writes a row limit a query cannot read back', () => {

@@ -12,7 +12,7 @@ import { isTagName } from '../tags/tag-name.ts';
 import type { ObjectType } from '../types/property-def.ts';
 import type { AtlasQuery, Comparison, Condition, Expression, FieldRef, QueryValue } from './ast.ts';
 import { resolveField, type FieldKind, type QueryField } from './fields.ts';
-import { isMovingDate, MOVING_DATE_HINT } from './moving-date.ts';
+import { movingDateProblem } from './moving-date.ts';
 import { opText } from './parse.ts';
 import { QueryTextError } from './query-text-error.ts';
 
@@ -207,14 +207,12 @@ function checkComparison(
 function valueProblem(field: QueryField, op: Comparison, value: QueryValue): string | null {
   if (value.kind === 'relativeDate') {
     if (!DATES.includes(field.kind)) return `@${value.name} is a date, and ${field.text} is not.`;
-    return isMovingDate(value.name)
-      ? null
-      : `There is no date called @${value.name}. Try ${MOVING_DATE_HINT}.`;
+    return movingDateProblem(value.name);
   }
   if (value.kind === 'this') {
     return field.kind === 'relation' && (op === '=' || op === '!=')
       ? null
-      : `this is a note: compare a relation with it using = or !=, like people = this.`;
+      : `this is a note: compare a relation with it using = or !=, like people = this. To mean the word, quote it: 'this'.`;
   }
   if (op === 'contains' || op === 'startsWith') {
     return value.kind === 'text' || value.kind === 'number' ? null : `${opText(op)} takes text.`;

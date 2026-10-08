@@ -27,6 +27,7 @@ describe('checkAtlasQuery: what passes', () => {
     'FROM person WHERE role = lead',
     'FROM task WHERE due > @-30d AND due <= @+2w AND modified >= @startOfWeek',
     'FROM task WHERE due < @+1m OR due > @-1y OR due = @+0d',
+    'FROM task WHERE due < @+1000y AND due > @-1000y AND due > @-9999d AND due < @+9999m',
   ])('%s', (text) => {
     expect(problem(text)).toBeNull();
   });
@@ -117,6 +118,11 @@ describe('checkAtlasQuery: problems point at what caused them', () => {
       '@someday',
     ],
     ['FROM task WHERE status = @-30d', '@-30d is a date, and status is not.', '@-30d'],
+    ...['@+1001y', '@-1001y', '@+9999y'].map((date) => [
+      `FROM task WHERE due < ${date}`,
+      `${date} is too far away: a count from today reaches 1000 years at most.`,
+      date,
+    ]),
     ...['@30d', '@-30x', '@-12345d', '@startofweek'].map((date) => [
       `FROM task WHERE due < ${date}`,
       `There is no date called ${date}. Try @today, @yesterday, @tomorrow, @weekAgo, @weekAhead, @monthAhead, @startOfWeek, or a count from today like @-30d, @+2w, @+1m or @-1y.`,
@@ -268,7 +274,7 @@ describe('checkAtlasQuery: this, and LINKS TO', () => {
   });
 
   const NOT_A_RELATION =
-    'this is a note: compare a relation with it using = or !=, like people = this.';
+    "this is a note: compare a relation with it using = or !=, like people = this. To mean the word, quote it: 'this'.";
 
   it.each([
     ['FROM task WHERE status = this', 'this'],
