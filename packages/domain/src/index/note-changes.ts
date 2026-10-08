@@ -18,6 +18,13 @@ export type NoteChangeKind = 'added' | 'changed' | 'removed';
 export interface NoteChange extends NoteVersion {
   readonly kind: NoteChangeKind;
   readonly path: string;
+  /**
+   * On a `changed` note only: the digest it had before. A note archived or
+   * moved away, with a new one made at its path in the same sync, is
+   * reported as that path changed; this is what says where the old one went
+   * (P29-01).
+   */
+  readonly before?: string;
 }
 
 /**
@@ -28,7 +35,7 @@ export interface NoteChange extends NoteVersion {
  * the same bytes, which a sync or a rebuild leaves behind, is not a change.
  * A rename is its old path removed and its new path added, with one digest
  * between them — nothing in a file says where it used to be, so pairing the
- * two is left to whoever needs to.
+ * two is left to whoever needs to. A changed note says the digest it had.
  */
 export function noteChangesBetween(
   before: ReadonlyMap<string, NoteVersion>,
@@ -38,7 +45,9 @@ export function noteChangesBetween(
   for (const [path, version] of after) {
     const earlier = before.get(path);
     if (earlier === undefined) changes.push(noteChange('added', path, version));
-    else if (earlier.digest !== version.digest) changes.push(noteChange('changed', path, version));
+    else if (earlier.digest !== version.digest) {
+      changes.push({ ...noteChange('changed', path, version), before: earlier.digest });
+    }
   }
   for (const [path, version] of before) {
     if (!after.has(path)) changes.push(noteChange('removed', path, version));
@@ -59,47 +68,71 @@ export function versionsAfter(
   return after;
 }
 
-/** The notes one sync added and removed that are not two ends of one note: arrivals, and deletions. */
+/** What one sync's added, removed and changed notes say once the two ends of each move are paired. */
 export interface UnpairedChanges {
-  /** Paths added that no note gone accounts for. */
+  /** Paths a new note arrived at: added with no note gone to account for it, or made where one left. */
   readonly arrived: ReadonlySet<string>;
-  /** Paths removed that no note added accounts for. */
-  readonly deleted: ReadonlySet<string>;
+  /** Paths a note left — deleted, moved, renamed or archived — whether or not a new one is there now. */
+  readonly left: ReadonlySet<string>;
 }
 
 /**
- * The notes among one sync's changes that arrived, and those that were
- * deleted: each one added or removed that is not one end of a note moved.
- * The feed pairs nothing, so this does, one to one, in three passes:
+ * What one sync's changes say arrived, and which paths a note left. The feed
+ * pairs nothing, so this does, one note to one, in three passes:
  *
  * - archiving a note, or putting it back, by its two paths (`isArchiveMove`):
  *   the stamp changes its bytes, so they cannot tell;
  * - a move to another folder: the same bytes under the same name;
  * - a rename: the same bytes under another name.
  *
- * One note gone pairs with one added, so of a note copied and the original
- * moved, one is the move and the copy arrived. Filing, renaming, archiving or
- * restoring a note is not its arrival.
+ * Each pass pairs a note added with one removed, or else with a note
+ * `changed` whose old digest (`before`) it carries, or whose path it was
+ * archived from: that note left, and the one at its path now is new.
+ *
+ * So of a note copied and the original moved, one is the move and the copy
+ * arrived; filing, renaming, archiving or restoring a note is not its arrival.
  */
 export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges {
   const gone = new Set(changes.filter((change) => change.kind === 'removed'));
+  const replaceable = new Set(changes.filter((change) => change.kind === 'changed'));
   const arrived = new Set(changes.filter((change) => change.kind === 'added'));
-  const pairOff = (pairs: (went: NoteChange, came: NoteChange) => boolean) => {
+  const left = new Set([...gone].map((change) => change.path));
+  const renewed = new Set<string>();
+  const pairOff = (pairs: (went: Departure, came: NoteChange) => boolean) => {
     for (const came of arrived) {
-      const went = [...gone].find((each) => pairs(each, came));
-      if (went === undefined) continue;
-      gone.delete(went);
+      const removed = [...gone].find((each) => pairs(each, came));
+      if (removed !== undefined) {
+        gone.delete(removed);
+        arrived.delete(came);
+        continue;
+      }
+      const replaced = [...replaceable].find((each) => pairs(departureOf(each), came));
+      if (replaced === undefined) continue;
+      replaceable.delete(replaced);
       arrived.delete(came);
+      renewed.add(replaced.path);
+      left.add(replaced.path);
     }
   };
   pairOff((went, came) => isArchiveMove(createVaultPath(went.path), createVaultPath(came.path)));
   pairOff((went, came) => went.digest === came.digest && nameOf(went.path) === nameOf(came.path));
   pairOff((went, came) => went.digest === came.digest);
-  const paths = (each: ReadonlySet<NoteChange>) => new Set([...each].map((change) => change.path));
-  return { arrived: paths(arrived), deleted: paths(gone) };
+  return { arrived: new Set([...[...arrived].map((change) => change.path), ...renewed]), left };
 }
 
-/** The notes among one sync's changes that arrived: see {@link unpairedChanges}. */
+/** A note that went from a path: its path, and its bytes as they were when known. */
+interface Departure {
+  readonly path: string;
+  readonly digest: string | undefined;
+}
+
+/** What went from a changed note's path: the note that was there; with no `before`, only its path pairs it. */
+const departureOf = (change: NoteChange): Departure => ({
+  path: change.path,
+  digest: change.before,
+});
+
+/** The paths among one sync's changes that a new note arrived at: see {@link unpairedChanges}. */
 export function arrivedPaths(changes: readonly NoteChange[]): ReadonlySet<string> {
   return unpairedChanges(changes).arrived;
 }

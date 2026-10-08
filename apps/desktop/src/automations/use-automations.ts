@@ -169,6 +169,9 @@ export function useAutomations(options: AutomationsOptions) {
   );
 
   const { clear: clearPause, record: recordFailure } = pauses;
+  // Read when a queued run's turn comes, not when it was queued.
+  const runsHere = useRef(options.scheduled ?? true);
+  runsHere.current = options.scheduled ?? true;
   const guardOf = useCallback(
     (vault: string): VaultGuard => ({ vault, currentVault: () => openVault.current }),
     [],
@@ -209,6 +212,8 @@ export function useAutomations(options: AutomationsOptions) {
     async (rule: AutomationRule, news: NoteChangeNews): Promise<boolean> => {
       let failed = false;
       const carryOut = async () => {
+        // Its turn may come after this Mac is found not to run the vault's automations.
+        if (runsHere.current !== true) return null;
         try {
           const { changes } = news;
           return await runOnNoteChanges({
@@ -227,7 +232,7 @@ export function useAutomations(options: AutomationsOptions) {
       await forRule(rule, carryOut, { wait: true });
       return !failed;
     },
-    [forRule, guardOf, ports, clock, activity],
+    [forRule, guardOf, ports, clock, activity, runsHere],
   );
 
   const undo = useCallback(
@@ -271,7 +276,13 @@ export function useAutomations(options: AutomationsOptions) {
     exclusive,
     isPaused: pauses.isPaused,
   });
-  useNoteRuns({ ...options, listing: current, tick, runOnNotes, isPaused: pauses.isPaused });
+  useNoteRuns({
+    ...options,
+    listing: current,
+    tick,
+    runOnNotes,
+    isPaused: pauses.isPaused,
+  });
 
   return {
     listing: current,
@@ -547,11 +558,10 @@ function useNoteRuns({
       try {
         await runHeldNews({
           id,
-          queues: queues.current,
+          queues: () => queues.current,
           rules: () => rules.current,
           runOnNotes,
-          isPaused,
-          clock,
+          mayRun: () => !isPaused(id, clock.localNow()),
         });
       } finally {
         running.current.delete(id);
@@ -590,35 +600,37 @@ function queueByRule(
 }
 
 /**
- * Runs a rule's held news, oldest first, while it is not paused: each run that
- * succeeds lets its news go; one that fails keeps it, and stops. A rule gone,
- * turned off or no longer set off by notes lets its queue go.
+ * Runs a rule's held news, oldest first, while it is not paused (each run
+ * also checks, when its turn comes, that this Mac still runs the vault's
+ * automations): each run that succeeds
+ * lets its news go; one that fails keeps it, and stops. A rule gone, turned
+ * off or no longer set off by notes lets its queue go. The queues are read
+ * afresh each time round, so once they are let go — another vault opened,
+ * or this Mac found not to run them — nothing more of them runs.
  */
 async function runHeldNews({
   id,
   queues,
   rules,
   runOnNotes,
-  isPaused,
-  clock,
+  mayRun,
 }: {
   id: string;
-  queues: Map<string, NoteChangeNews[]>;
+  queues: () => Map<string, NoteChangeNews[]>;
   rules: () => AutomationListing | null;
   runOnNotes: (rule: AutomationRule, news: NoteChangeNews) => Promise<boolean>;
-  isPaused: (id: string, now: LocalTime) => boolean;
-  clock: Pick<Clock, 'localNow'>;
+  mayRun: () => boolean;
 }): Promise<void> {
-  for (let news = queues.get(id)?.[0]; news !== undefined; news = queues.get(id)?.[0]) {
+  for (let news = queues().get(id)?.[0]; news !== undefined; news = queues().get(id)?.[0]) {
     const rule = rules()?.automations.find((loaded) => loaded.rule.id === id)?.rule;
     if (rule === undefined || !rule.enabled || rule.when.kind !== 'note') {
-      queues.delete(id);
+      queues().delete(id);
       return;
     }
-    if (isPaused(id, clock.localNow())) return;
+    if (!mayRun()) return;
     if (!(await runOnNotes(rule, news))) return;
-    const queue = queues.get(id) ?? [];
-    if (queue[0] === news) queues.set(id, queue.slice(1));
+    const queue = queues().get(id) ?? [];
+    if (queue[0] === news) queues().set(id, queue.slice(1));
   }
-  queues.delete(id);
+  if (queues().get(id)?.length === 0) queues().delete(id);
 }

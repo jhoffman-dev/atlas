@@ -29,7 +29,9 @@ describe('noteChangesBetween', () => {
         versions({ 'Kickoff.md': { type: null, digest: 'aa' } }),
         versions({ 'Kickoff.md': meeting('bb') }),
       ),
-    ).toEqual([{ kind: 'changed', path: 'Kickoff.md', type: 'meeting', digest: 'bb' }]);
+    ).toEqual([
+      { kind: 'changed', path: 'Kickoff.md', type: 'meeting', digest: 'bb', before: 'aa' },
+    ]);
   });
 
   it('says a note that has gone was removed, as it last was', () => {
@@ -118,7 +120,7 @@ describe('arrivedPaths', () => {
       change('added', 'Inbox/Standup.md', 'plain'),
     ];
     expect([...arrivedPaths(changes)]).toEqual([]);
-    expect([...unpairedChanges(changes).deleted]).toEqual([]);
+    expect([...unpairedChanges(changes).left]).toEqual(['Archive/Inbox/Standup.md']);
   });
 
   it('pairs a note put back under the number a taken name gets, one to one', () => {
@@ -156,12 +158,40 @@ describe('arrivedPaths', () => {
     expect([...arrivedPaths(changes)]).toEqual([]);
   });
 
-  it('says which notes went with nothing added to account for them', () => {
+  it('says every path a note left, moved or deleted', () => {
     const changes = [
       change('removed', 'Inbox/Moved.md', 'aa'),
       change('added', 'Meetings/Moved.md', 'aa'),
       change('removed', 'Inbox/Deleted.md', 'bb'),
     ];
-    expect([...unpairedChanges(changes).deleted]).toEqual(['Inbox/Deleted.md']);
+    expect([...unpairedChanges(changes).left]).toEqual(['Inbox/Moved.md', 'Inbox/Deleted.md']);
+  });
+
+  it('takes a path changed to bytes of its own, while its old bytes were archived, as a new note there', () => {
+    const changes: NoteChange[] = [
+      { ...change('changed', 'Inbox/Standup.md', 'next'), before: 'old' },
+      change('added', 'Archive/Inbox/Standup.md', 'stamped'),
+    ];
+    const { arrived, left } = unpairedChanges(changes);
+    expect([...arrived]).toEqual(['Inbox/Standup.md']);
+    expect([...left]).toEqual(['Inbox/Standup.md']);
+  });
+
+  it('takes a path changed while its old bytes moved away as a new note there, and the move as no arrival', () => {
+    const changes: NoteChange[] = [
+      { ...change('changed', 'Inbox/Standup.md', 'next'), before: 'old' },
+      change('added', 'Meetings/Standup.md', 'old'),
+    ];
+    expect([...arrivedPaths(changes)]).toEqual(['Inbox/Standup.md']);
+  });
+
+  it('leaves a plain edit an edit: nothing went from its path', () => {
+    const changes: NoteChange[] = [
+      { ...change('changed', 'Inbox/Standup.md', 'next'), before: 'old' },
+      change('added', 'Meetings/Other.md', 'other'),
+    ];
+    const { arrived, left } = unpairedChanges(changes);
+    expect([...arrived]).toEqual(['Meetings/Other.md']);
+    expect([...left]).toEqual([]);
   });
 });

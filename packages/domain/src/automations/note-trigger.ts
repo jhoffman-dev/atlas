@@ -77,9 +77,10 @@ export function noteTriggerQueryProblem(trigger: NoteTrigger, which: string): st
 
 /**
  * The versions in one sync's changes that set the trigger off, in the order
- * the feed reported them: notes of its type that arrived — added, and not one
- * end of a move — or whose bytes changed. A note in the Archive is out of
- * play, as every query leaves it out; archiving a note is not its arrival.
+ * the feed reported them: notes of its type that arrived — added and not one
+ * end of a move, or made at a path the note there left in the same sync — or
+ * whose bytes changed. A note in the Archive is out of play, as every query
+ * leaves it out; archiving a note is not its arrival.
  */
 export function triggeringVersions(
   trigger: NoteTrigger,
@@ -88,7 +89,7 @@ export function triggeringVersions(
   const arrived = arrivedPaths(changes);
   const hears = (change: NoteChange): boolean =>
     (trigger.on.includes('created') && arrived.has(change.path)) ||
-    (trigger.on.includes('changed') && change.kind === 'changed');
+    (trigger.on.includes('changed') && change.kind === 'changed' && !arrived.has(change.path));
   return changes
     .filter(
       (change) => change.type === trigger.type && !isArchivedPath(change.path) && hears(change),
@@ -98,13 +99,12 @@ export function triggeringVersions(
 
 /**
  * Whether one sync's changes are news to the trigger: a note of its type set
- * it off, or one went — which may end what it remembers of that note.
+ * it off, or one left its path — which may end what it remembers of it.
  */
 export function noteTriggerHears(trigger: NoteTrigger, changes: readonly NoteChange[]): boolean {
-  return (
-    triggeringVersions(trigger, changes).length > 0 ||
-    changes.some((change) => change.kind === 'removed' && change.type === trigger.type)
-  );
+  if (triggeringVersions(trigger, changes).length > 0) return true;
+  const { left } = unpairedChanges(changes);
+  return changes.some((change) => change.type === trigger.type && left.has(change.path));
 }
 
 /** What a rule has handled: each version of each note, by path. */
@@ -117,8 +117,10 @@ export interface HandledVersions {
 
 /**
  * Every version a rule's log says it handled, or left by its own write —
- * read oldest first, so a note deleted since (`went`) has no history left: a
- * new note at its path is new to the rule.
+ * read oldest first, so a path a note has left since has no history: a new
+ * note there is new to the rule. A note left a path when the log says it
+ * `went` — deleted, moved, renamed or archived by someone else, or replaced
+ * — or when the run itself archived it.
  */
 export function handledVersions(entries: readonly LogEntry[]): HandledVersions {
   const byPath = new Map<string, Set<string>>();
@@ -128,6 +130,7 @@ export function handledVersions(entries: readonly LogEntry[]): HandledVersions {
     for (const { path, digest } of entry.versions ?? []) {
       byPath.set(path, (byPath.get(path) ?? new Set()).add(digest));
     }
+    for (const action of entry.done) if (action.kind === 'archived') byPath.delete(action.from);
   }
   return {
     has: ({ path, digest }) => byPath.get(path)?.has(digest) === true,
@@ -136,25 +139,16 @@ export function handledVersions(entries: readonly LogEntry[]): HandledVersions {
 }
 
 /**
- * The notes of the trigger's type, among one sync's changes, that were
- * deleted — not moved, renamed or archived — and that the rule has handled a
- * version of: their history ends, for the log to say.
+ * The paths, among one sync's changes, that a note the rule has handled left
+ * — deleted, moved, renamed, archived, or replaced by a new note: their
+ * history ends, for the log to say.
  */
-export function deletedHandledNotes(
-  trigger: NoteTrigger,
+export function leftHandledNotes(
   changes: readonly NoteChange[],
   handled: HandledVersions,
 ): VaultPath[] {
-  const { deleted } = unpairedChanges(changes);
-  return changes
-    .filter(
-      (change) =>
-        change.kind === 'removed' &&
-        change.type === trigger.type &&
-        deleted.has(change.path) &&
-        handled.hasPath(change.path),
-    )
-    .map((change) => createVaultPath(change.path));
+  const { left } = unpairedChanges(changes);
+  return [...left].filter((path) => handled.hasPath(path)).map((path) => createVaultPath(path));
 }
 
 /** The versions not yet handled. */

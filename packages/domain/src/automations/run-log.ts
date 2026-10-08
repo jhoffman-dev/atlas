@@ -463,13 +463,23 @@ export function futureMarkOf(entries: readonly LogEntry[], now: LocalTime): Loca
   return ahead.length === 0 ? null : ahead.reduce((latest, at) => (at > latest ? at : latest));
 }
 
-/** The newest run, successful or not; null when it has never run. */
+/** Whether a run entry only says notes went: it did, left and handled nothing. */
+const isOnlyWent = (entry: Extract<LogEntry, { kind: 'run' }>): boolean =>
+  (entry.went ?? []).length > 0 &&
+  entry.done.length === 0 &&
+  entry.left.length === 0 &&
+  (entry.versions ?? []).length === 0;
+
+/**
+ * The newest run, successful or not; null when it has never run. An entry
+ * that only says notes went (P29-01) is the rule's memory, not a run.
+ */
 export function lastRunOf(
   entries: readonly LogEntry[],
 ): Extract<LogEntry, { kind: 'run' | 'failed' }> | null {
   const runs = entries.filter(
     (entry): entry is Extract<LogEntry, { kind: 'run' | 'failed' }> =>
-      entry.kind === 'run' || entry.kind === 'failed',
+      entry.kind === 'failed' || (entry.kind === 'run' && !isOnlyWent(entry)),
   );
   return runs.at(-1) ?? null;
 }

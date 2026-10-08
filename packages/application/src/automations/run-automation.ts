@@ -1,6 +1,6 @@
 import {
-  deletedHandledNotes,
   handledVersions,
+  leftHandledNotes,
   messageWithoutPaths,
   noteRunsHeldUntil,
   noteTriggerHears,
@@ -92,9 +92,10 @@ export async function runAutomation(
  * already handled, or nothing to do — such a run writes nothing and says nothing.
  *
  * Its log is read afresh, after any run before it has written: a version its
- * own write left is there by then, and does not set it off again. A note of
- * its type it had handled that was deleted is written down as gone, so a new
- * note at that path is new to it. A run that changed nothing is said in
+ * own write left is there by then, and does not set it off again. A path a
+ * note it had handled has left — deleted, moved, renamed, archived, or
+ * replaced by a new note — is written down as gone, so a new note there is
+ * new to it. A run that changed nothing is said in
  * Activity but kept out of the log, and out of the hourly count. A rule
  * that has run as often this hour as one may rejects with
  * `NoteRunsCappedError` instead, and runs nothing.
@@ -120,7 +121,7 @@ async function runOnHeard(
   stillInVault(run.guard);
   const { entries } = await readRuleLog(run.ports.fs, run.rule);
   const handled = handledVersions(entries);
-  const went = deletedHandledNotes(run.when, run.changes, handled);
+  const went = leftHandledNotes(run.changes, handled);
   const versions = unhandledVersions(triggeringVersions(run.when, run.changes), handled);
   const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
   if (versions.length === 0 || heldUntil !== null) {
@@ -184,6 +185,8 @@ async function runOnce({
   } catch (cause) {
     if (!(cause instanceof AtlasQueryError)) throw cause;
     const failed: LogEntry = { kind: 'failed', at, trigger, problem: messageWithoutPaths(cause) };
+    // A query that does not read still heard which notes went: the history is the rule's either way.
+    await recordGone(run, went);
     await log(failed);
     return failed;
   }
@@ -194,7 +197,7 @@ async function runOnce({
     await recordGone(run, went);
     return null;
   }
-  let applied: Applied = { done: [], left: [], relinked: [] };
+  let applied: PropertyOutcome = { done: [], left: [] };
   let versions: LoggedVersion[] = [];
   const entry = (): LogEntry => ({
     kind: 'run',
@@ -226,11 +229,11 @@ async function runOnce({
 async function versionsOf(
   run: AutomationRun,
   versions: readonly NoteVersionRef[],
-  { done, relinked }: Applied,
+  { done }: PropertyOutcome,
 ): Promise<LoggedVersion[]> {
   const handled = handledBy(versions, done);
   try {
-    return [...handled, ...(await writtenBy({ fs: run.ports.fs, done, relinked }))];
+    return [...handled, ...(await writtenBy({ fs: run.ports.fs, done }))];
   } catch {
     // Safe to go without: the log must still be written. A write heard back then sets the rule
     // off once more, and finds its note already as the rule leaves it — or archived, out of reach.
@@ -246,8 +249,8 @@ async function applyPlan({
   ports: AutomationPorts & { notePaths: readonly VaultPath[] };
   plan: AutomationPlan;
   today: string;
-}): Promise<Applied> {
-  if (plan.paths.length === 0) return { done: [], left: [], relinked: [] };
+}): Promise<PropertyOutcome> {
+  if (plan.paths.length === 0) return { done: [], left: [] };
   const { action } = plan;
   if (action.kind === 'set') {
     const changes = plan.paths.flatMap((path) =>
@@ -258,7 +261,7 @@ async function applyPlan({
         to: { value },
       })),
     );
-    return { ...(await changeProperties({ ports, changes, kind: 'set' })), relinked: [] };
+    return changeProperties({ ports, changes, kind: 'set' });
   }
   const outcome = await archiveNotes({
     ports,
@@ -268,11 +271,8 @@ async function applyPlan({
     updateLinks: true,
     unsavedTyping: 'leave',
   });
-  return { ...archiveRecord(outcome, 'archived'), relinked: outcome.relinked };
+  return archiveRecord(outcome, 'archived');
 }
-
-/** What carrying a plan out did: each note done and left, and each note an archive rewrote links in. */
-type Applied = PropertyOutcome & { readonly relinked: readonly VaultPath[] };
 
 /**
  * What a batch of moves did, as log lines: each move, and each note it could

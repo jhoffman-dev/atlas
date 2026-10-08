@@ -65,8 +65,8 @@ export {
   noteRunsHeldUntil,
 } from './automation-due.ts';
 export {
-  deletedHandledNotes,
   handledVersions,
+  leftHandledNotes,
   noteTriggerHears,
   noteTriggerQueryProblem,
   parseNoteTrigger,

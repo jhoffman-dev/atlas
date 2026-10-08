@@ -112,7 +112,7 @@ async function putBack({
   }
   const outcome =
     ours.length === 0
-      ? { moves: [], failed: [], linksUpdated: 0, relinked: [] }
+      ? { moves: [], failed: [], linksUpdated: 0 }
       : await unarchiveNotes({
           ports,
           paths: ours,

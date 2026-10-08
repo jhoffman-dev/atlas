@@ -113,21 +113,24 @@ export function handledBy(
 }
 
 /**
- * The version each note a run wrote was left at, read back from the disk, so
- * the rule's own write does not set it off again: each note it changed or
- * moved, and each note an archive rewrote links in.
+ * The version each note a run changed or moved was left at, read back from
+ * the disk, so the rule's own write does not set it off again.
+ *
+ * Notes an archive rewrote links in are not among them. Read back, a note's
+ * bytes cannot say whether someone also saved it since the index last looked,
+ * and taking such an edit for the rule's own would mean it is never heard.
+ * Heard instead, a relinked note sets the rule off at most once, and a run
+ * that finds it as the rule leaves it costs nothing: it is neither logged
+ * nor counted.
  */
 export async function writtenBy({
   fs,
   done,
-  relinked,
 }: {
   fs: Pick<VaultFsPort, 'readNotes'>;
   done: readonly DoneAction[];
-  relinked: readonly VaultPath[];
 }): Promise<LoggedVersion[]> {
-  const changed = done.map((action) => ('path' in action ? action.path : action.to));
-  const written = [...new Set([...changed, ...relinked])];
+  const written = [...new Set(done.map((action) => ('path' in action ? action.path : action.to)))];
   if (written.length === 0) return [];
   return (await fs.readNotes(written)).map((file) => ({
     path: createVaultPath(file.path),

@@ -248,7 +248,13 @@ describe('the index change feed over a real folder and a real SQLite index', () 
     await writeNote(KICKOFF, edited);
     await app.sync();
     expect(app.news()).toEqual([
-      { kind: 'changed', path: KICKOFF, type: 'meeting', digest: digestOf(edited) },
+      {
+        kind: 'changed',
+        path: KICKOFF,
+        type: 'meeting',
+        digest: digestOf(edited),
+        before: digestOf(KICKOFF_TEXT),
+      },
     ]);
 
     await rm(join(root, KICKOFF));

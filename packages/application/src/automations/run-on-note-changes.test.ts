@@ -198,24 +198,22 @@ describe('runOnNoteChanges: a note arrives', () => {
 });
 
 describe('runOnNoteChanges: its own writes elsewhere', () => {
-  it('records the notes an archive rewrote links in, so their change does not set it off', async () => {
+  it('hears a note an archive relinked, and writes nothing when it finds it as it leaves it', async () => {
     const linking = meeting('kickoff', 'Follows [[Inbox/Meetings/2026-10-06 Standup]].\n');
-    const { vault, run, as, logOf, queries } = setUp({
+    const { vault, run, as, logOf } = setUp({
       [STANDUP]: meeting('standup'),
       [KICKOFF]: linking,
     });
     await run(FILE_STANDUPS, [as('added', STANDUP)]);
     expect(vault.files.get(KICKOFF)).not.toBe(linking);
+    // Its bytes cannot say the relink was all that happened to it, so it is not taken as the rule's.
     const [entry] = logOf(FILE_STANDUPS);
-    expect(entry?.kind === 'run' && entry.versions).toContainEqual({
-      path: KICKOFF,
-      digest: digestOf(vault.files.get(KICKOFF)!),
-      wrote: true,
-    });
-    const asked = queries();
+    expect(entry?.kind === 'run' && entry.versions?.map((version) => version.path)).not.toContain(
+      KICKOFF,
+    );
 
     expect(await run(FILE_STANDUPS, [as('changed', KICKOFF)])).toBeNull();
-    expect(queries()).toBe(asked);
+    expect(logOf(FILE_STANDUPS)).toHaveLength(1);
   });
 });
 
