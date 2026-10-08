@@ -30,12 +30,33 @@ added, changed and removed notes with their type and a digest of their bytes.
 That one change feed serves a typed edit, an API write, a watcher event and a
 pull alike.
 
-**A new trigger, `when: { kind: note, type, on: [created, changed], where }`,**
-fires from that feed, on the automations Mac only. **It is idempotent per
-note version:** the run log records `(rule, path, digest)`, and a version
-already handled is never handled again — a restart, a full re-index or a
-second pull does not re-run it. Notes changed by the rule's own deterministic
-step are recorded under the new digest so they do not re-trigger it.
+**A new trigger, "a note of a type is created or changed",** fires from that
+feed, on the automations Mac only. In the rule's file it is written in words,
+like every other `when`: `when: a meeting is created`, `… is changed`, or
+`… is created or changed`. Its "where" is the rule's existing `which` query,
+which must take that type's notes (`FROM meeting WHERE kind = standup`); the
+rule acts only on the notes that set it off and that the query also matches.
+_(Amended 2026-10-08, P29-01: this was drafted as an object,
+`when: { kind: note, type, on, where }`. As built, it stays one line a person
+can read and write by hand, as `daily at 03:00` is, and the where is not a
+second query beside `which` that could disagree with it.)_
+
+A note moved, renamed, archived or put back from the Archive is neither
+created nor changed: the feed's removed and added pair one to one — by their
+two paths for the Archive, whose stamp changes the bytes, and otherwise by
+digest, the same name first. A note in the Archive never sets a rule off.
+
+**It is idempotent per note version:** the run log records `(rule, path,
+digest)`, and a version already handled is never handled again — a restart,
+a full re-index or a second pull does not re-run it. Notes changed by the
+rule's own deterministic step, including notes an archive rewrote links in,
+are recorded under the new digest so they do not re-trigger it. A note it
+had handled that is deleted is recorded as gone, so a new note at that path
+is new to it. A run that changed nothing is not logged and does not count
+toward the rule's cap of 20 runs an hour; a rule at its cap, or failing, is
+paused, and runs on what it heard meanwhile (up to 20 syncs' news) when the
+pause ends. Run now takes the matching notes whose current version it has
+not handled.
 
 **A new action, `claude`: a Claude step with a fixed shape.** The rule names
 a prompt note (`.atlas/prompts/<name>.md`), the read tools it may use (a
