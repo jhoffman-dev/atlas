@@ -214,22 +214,28 @@ catches that: a second file with the same `provider` + `external_id` is marked
 ## What Atlas does when the file arrives (after P28-04)
 
 - The vault's next pull (within a minute of the Mac being awake) brings the
-  file into `Inbox/Meetings/`.
-- Atlas checks it against the contract. A valid meeting shows in the
-  **Inbox**, byte for byte as committed.
-- A file that breaks the contract is never deleted or silently fixed: it gets
-  `atlas_import_error:` naming the problem and is listed in the Inbox.
-- A second copy of a meeting already in the vault is marked
-  `atlas_duplicate_of: [[…]]` and archived; un-archiving restores it. Which
-  copy is kept depends only on where each is, so every Mac keeps the same
-  one: one filed elsewhere, then one archived, then the one at
-  `<date> <title>.md`, then the one at `<date> <title> (<provider> <hash>).md`.
+  file into `Inbox/Meetings/`. The Mac that runs the vault's automations
+  imports it; another Mac leaves it for that one. Anything left — Atlas
+  closed, the other Mac asleep — is settled when the importing Mac next
+  opens the vault.
+- Atlas checks it against the contract and writes one line into it,
+  `atlas_import_outcome:`, saying how it settled it. Nothing else in the
+  file changes.
+- `imported`: a valid meeting, shown in the **Inbox**.
+- `error`: a file that breaks the contract, never deleted or silently fixed.
+  It also gets `atlas_import_error:` naming the problem, and is listed in
+  the Inbox.
+- `duplicate`: a second copy of a meeting already in the vault, also marked
+  `atlas_duplicate_of: [[…]]` and archived; un-archiving restores it. A
+  meeting already imported is always the one kept. Otherwise the one at
+  `<date> <title>.md` is kept over the one at
+  `<date> <title> (<provider> <hash>).md`.
 - Each outcome is one entry in Activity.
 - **Fixing a file that failed.** Fix it in place and save: Atlas checks it
-  again and takes the mark out. To send it again from n8n instead (after
-  fixing the mapping), delete the broken file first — **Same meeting?** skips
-  a path that already holds this provider and Source ID, broken or not, so a
-  re-send over it writes nothing.
+  again, takes the error out and stamps it `imported`. To send it again from
+  n8n instead (after fixing the mapping), delete the broken file first.
+  **Same meeting?** skips a path that already holds this provider and Source
+  ID, broken or not, so a re-send over it writes nothing.
 
 ## Changing the mapper
 
