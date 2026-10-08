@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  syncIndex,
+  createIndexSyncer,
   type ActivityLog,
   type IndexPort,
   type MarkdownPort,
+  type NoteChanges,
   type VaultFsPort,
 } from '@atlas/application';
 
@@ -42,11 +43,14 @@ export function useIndex({
   ports,
   vaultKey,
   activity,
+  changes,
 }: {
   ports: IndexPorts;
   vaultKey: string | null;
   /** Where a rebuild, and a failure, is said (U-28). */
   activity: ActivityLog;
+  /** Where every refresh says which notes it found added, changed or removed (P28-03). */
+  changes: NoteChanges;
 }): {
   status: IndexStatus;
   refresh: () => Promise<void>;
@@ -54,17 +58,26 @@ export function useIndex({
 } {
   const [status, setStatus] = useState<IndexStatus>({ kind: 'idle' });
   const revision = useRef(0);
+  const syncer = useMemo(
+    () =>
+      createIndexSyncer({
+        fs: ports.fs,
+        index: ports.index,
+        markdown: ports.markdown,
+        activity,
+        changes,
+      }),
+    [ports.fs, ports.index, ports.markdown, activity, changes],
+  );
 
   const run = useCallback(
     async ({ fromScratch }: { fromScratch: boolean }) => {
+      if (vaultKey === null) return;
       try {
         setStatus({ kind: 'working', done: 0, total: 0 });
-        const stats = await syncIndex({
-          fs: ports.fs,
-          index: ports.index,
-          markdown: ports.markdown,
+        const stats = await syncer.sync({
+          vault: vaultKey,
           fromScratch,
-          activity,
           onProgress: (done, total) => setStatus({ kind: 'working', done, total }),
         });
         revision.current += 1;
@@ -73,7 +86,7 @@ export function useIndex({
         setStatus({ kind: 'failed', message: message(cause) });
       }
     },
-    [ports.fs, ports.index, ports.markdown, activity],
+    [syncer, vaultKey],
   );
 
   useEffect(() => {

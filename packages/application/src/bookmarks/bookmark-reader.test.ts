@@ -59,6 +59,8 @@ function vault(modified: Record<string, number>) {
         path,
         modified: time,
         size: 1,
+        digest: '',
+        type: null,
       }));
     },
   });

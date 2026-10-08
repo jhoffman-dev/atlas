@@ -44,7 +44,7 @@ describe('a template is never reached from a note flow (issue #15) — attacks',
     const writeTextFile = vi.fn(async () => 2);
     await linkUnlinkedMention({
       index: fakeIndexPort({
-        manifest: async () => [{ path: 'Acme.md', modified: 1, size: 1 }],
+        manifest: async () => [{ path: 'Acme.md', modified: 1, size: 1, digest: '', type: null }],
       }),
       fs: fakeVaultFs({
         readTextFile: async () => ({ text: TEMPLATE_TEXT, modified: 1 }),

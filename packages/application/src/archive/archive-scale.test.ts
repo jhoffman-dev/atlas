@@ -33,11 +33,14 @@ describe('a vault with 5,000 archived notes', () => {
         })),
       readNotes,
     });
-    const index = fakeIndexPort({ manifest: async () => listing, put });
+    const index = fakeIndexPort({
+      manifest: async () => listing.map((note) => ({ ...note, digest: '', type: null })),
+      put,
+    });
 
     const refreshed = await refreshIndex({ fs, index, markdown: fakeMarkdown() });
 
-    expect(refreshed).toEqual({ indexed: 0, removed: 0, unchanged: ARCHIVED + 1 });
+    expect(refreshed).toEqual({ indexed: 0, removed: 0, unchanged: ARCHIVED + 1, changes: [] });
     expect(readNotes).not.toHaveBeenCalled();
     expect(put).not.toHaveBeenCalled();
   });

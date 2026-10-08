@@ -4,7 +4,9 @@ import {
   compileRelationHoldersQuery,
   createVaultPath,
   createWikiLinkResolver,
+  digestOf,
   linkedName,
+  noteChangesBetween,
   RELATION_NAMES_PER_QUERY,
   indexablePropertiesOf,
   noteTags,
@@ -15,12 +17,15 @@ import {
   splitFrontmatter,
   splitWikiLinks,
   TAGS_KEY,
+  type NoteChange,
+  type NoteVersion,
   type VaultPath,
 } from '@atlas/domain';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { listVaultNoteFiles } from '../vault/read-vault.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
-import type { IndexedNote, IndexPort } from './ports.ts';
+import { noteTypeName } from '../types/load-types.ts';
+import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
 
 /** Notes are read and written in batches so a large vault is not one huge message. */
 const BATCH_SIZE = 200;
@@ -29,6 +34,8 @@ export interface IndexRefresh {
   readonly indexed: number;
   readonly removed: number;
   readonly unchanged: number;
+  /** Each note added, changed or removed since `previous` (P28-03); none when nothing was. */
+  readonly changes: readonly NoteChange[];
 }
 
 export interface RefreshOptions {
@@ -37,6 +44,12 @@ export interface RefreshOptions {
   markdown: MarkdownPort;
   /** Called after each batch, for showing progress on a big vault. */
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Every note as it was when the vault was last looked at, which `changes`
+   * is measured from. Left out, it is what the index holds — which a rebuild
+   * has just cleared, and a delete in the app has already let go of.
+   */
+  previous?: ReadonlyMap<string, NoteVersion>;
 }
 
 /**
@@ -54,6 +67,7 @@ export async function refreshIndex({
   index,
   markdown,
   onProgress,
+  previous,
 }: RefreshOptions): Promise<IndexRefresh> {
   const notes = await listVaultNoteFiles({ fs });
   const current = new Map<string, (typeof notes)[number]>(
@@ -82,24 +96,69 @@ export async function refreshIndex({
   }
 
   const notePaths = [...current.keys()].map(createVaultPath);
-  // One resolver for the whole refresh: every link in every note asks it.
-  const resolveLink = createWikiLinkResolver(notePaths);
-  let done = 0;
-
-  for (let offset = 0; offset < stale.length; offset += BATCH_SIZE) {
-    const batch = stale.slice(offset, offset + BATCH_SIZE);
-    const files = await fs.readNotes(batch.map((note) => note.path));
-    await index.put(files.map((file) => toIndexedNote({ file, notePaths, markdown, resolveLink })));
-
-    done += batch.length;
-    onProgress?.(done, stale.length);
-  }
+  const reread = await indexNotes({
+    fs,
+    index,
+    markdown,
+    notePaths,
+    stale,
+    ...(onProgress !== undefined && { onProgress }),
+  });
 
   return {
     indexed: stale.length,
     removed: removed.length,
     unchanged: current.size - stale.length,
+    changes: noteChangesBetween(previous ?? known, versionsNow(current.keys(), reread, known)),
   };
+}
+
+/** Reads and indexes the stale notes in batches; answers with what was read, by path. */
+async function indexNotes({
+  fs,
+  index,
+  markdown,
+  notePaths,
+  stale,
+  onProgress,
+}: Omit<RefreshOptions, 'previous'> & {
+  notePaths: readonly VaultPath[];
+  stale: readonly { path: VaultPath }[];
+}): Promise<Map<string, IndexedNote>> {
+  // One resolver for the whole refresh: every link in every note asks it.
+  const resolveLink = createWikiLinkResolver(notePaths);
+  const reread = new Map<string, IndexedNote>();
+  let done = 0;
+
+  for (let offset = 0; offset < stale.length; offset += BATCH_SIZE) {
+    const batch = stale.slice(offset, offset + BATCH_SIZE);
+    const files = await fs.readNotes(batch.map((note) => note.path));
+    const notes = files.map((file) => toIndexedNote({ file, notePaths, markdown, resolveLink }));
+    await index.put(notes);
+    for (const note of notes) reread.set(note.path, note);
+
+    done += batch.length;
+    onProgress?.(done, stale.length);
+  }
+  return reread;
+}
+
+/**
+ * Every note in the vault as it is now: as just read, or as the index already
+ * had it. A note listed but neither — gone before it could be read — is left
+ * out, and the next refresh finds it gone.
+ */
+function versionsNow(
+  paths: Iterable<string>,
+  reread: ReadonlyMap<string, NoteVersion>,
+  known: ReadonlyMap<string, IndexEntry>,
+): Map<string, NoteVersion> {
+  const versions = new Map<string, NoteVersion>();
+  for (const path of paths) {
+    const version = reread.get(path) ?? known.get(path);
+    if (version !== undefined) versions.set(path, version);
+  }
+  return versions;
 }
 
 /**
@@ -156,6 +215,8 @@ export function toIndexedNote({
     title: pageTitle({ fileTitle: noteTitle(path), properties: frontmatter }).text,
     modified: file.modified,
     size: file.size,
+    type: noteTypeName(frontmatter),
+    digest: digestOf(file.text),
     body,
     summary: summaryOf(document.body),
     properties: indexablePropertiesOf(frontmatter),

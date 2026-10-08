@@ -35,6 +35,8 @@ describe('tauriIndex', () => {
         title: 'A',
         modified: 1,
         size: 2,
+        type: 'meeting',
+        digest: '1a2b3c4d',
         body: 'text',
         summary: 'text',
         properties: [],

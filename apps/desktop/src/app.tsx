@@ -31,6 +31,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import {
+  createNoteChanges,
   createRefreshSpacing,
   createSourceRefresher,
   createTagRenames,
@@ -260,6 +261,12 @@ export function App({
     vaultKey,
     closing: closing.last,
   });
+  // One feed for the window: every refresh of the index says here which notes changed (P28-03).
+  const [noteChanges] = useState(() =>
+    createNoteChanges({
+      onError: (cause) => console.error('A note change could not be handled:', cause),
+    }),
+  );
   // Everything below writes through these, so a write that finishes after a
   // switch is refused instead of landing in the vault opened next.
   const vault = useMemo(() => boundToVault(vaultPorts, vaultKey), [vaultPorts, vaultKey]);
@@ -278,6 +285,7 @@ export function App({
     ports: index,
     vaultKey: location?.absolutePath ?? null,
     activity: activityLog,
+    changes: noteChanges,
   });
 
   // Anything that edits the vault from outside — Obsidian, a sync client — should

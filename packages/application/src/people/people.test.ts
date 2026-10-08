@@ -16,8 +16,8 @@ describe('loadPeople', () => {
             ]
           : [{ path: 'Plan.md', title: 'Plan' }],
       manifest: async () => [
-        { path: 'People/Julie.md', modified: 42, size: 1 },
-        { path: 'Plan.md', modified: 7, size: 1 },
+        { path: 'People/Julie.md', modified: 42, size: 1, digest: '', type: null },
+        { path: 'Plan.md', modified: 7, size: 1, digest: '', type: null },
       ],
     });
     expect(await loadPeople({ index })).toEqual([

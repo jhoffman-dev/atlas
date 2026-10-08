@@ -216,6 +216,8 @@ describe('createTransclusionReader', () => {
           path,
           modified: time,
           size: 1,
+          digest: '',
+          type: null,
         })),
     });
     return { read: createTransclusionReader({ fs, markdown, index }), reads };

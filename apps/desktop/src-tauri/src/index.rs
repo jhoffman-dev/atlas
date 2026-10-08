@@ -30,9 +30,12 @@ use crate::vault::VaultState;
 /// SQLite's ASCII-only lower(); 9: every block with an id, which TypeScript
 /// reads, gained a row in `blocks`; 10: templates left the vault's notes
 /// (ADR-0026), and a note unchanged since then still held link rows resolved
-/// to one, so every note is read again). A mismatch throws the cache away
-/// rather than trying to migrate something that can simply be rebuilt.
-const SCHEMA_VERSION: i64 = 10;
+/// to one, so every note is read again; 11: each file keeps the digest of its
+/// text and the type it declares, both worked out in TypeScript, so a refresh
+/// can say what changed and what a removed note was). A mismatch throws the
+/// cache away rather than trying to migrate something that can simply be
+/// rebuilt.
+const SCHEMA_VERSION: i64 = 11;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -104,6 +107,12 @@ pub struct IndexedNote {
     pub title: String,
     pub modified: u64,
     pub size: u64,
+    /// A digest of the note's whole text, as TypeScript computed it; stored, never computed here.
+    #[serde(default)]
+    pub digest: String,
+    /// The type the note declares, as TypeScript read it; stored, never decided here.
+    #[serde(default, rename = "type")]
+    pub note_type: Option<String>,
     /// Plain text used for searching; not the markdown source.
     pub body: String,
     /// The opening line, for showing what a note is about without opening it.
@@ -127,6 +136,9 @@ pub struct IndexEntry {
     pub path: String,
     pub modified: u64,
     pub size: u64,
+    pub digest: String,
+    #[serde(rename = "type")]
+    pub note_type: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -227,7 +239,9 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 title    TEXT NOT NULL,
                 summary  TEXT NOT NULL DEFAULT '',
                 modified INTEGER NOT NULL,
-                size     INTEGER NOT NULL
+                size     INTEGER NOT NULL,
+                digest   TEXT NOT NULL DEFAULT '',
+                note_type TEXT
             );
 
             CREATE TABLE IF NOT EXISTS props (
@@ -364,7 +378,7 @@ pub fn index_clear(
 fn manifest(connection: &Connection) -> Result<Vec<IndexEntry>, String> {
     {
         let mut statement = connection
-            .prepare("SELECT path, modified, size FROM files")
+            .prepare("SELECT path, modified, size, digest, note_type FROM files")
             .map_err(|error| error.to_string())?;
         let rows = statement
             .query_map([], |row| {
@@ -372,6 +386,8 @@ fn manifest(connection: &Connection) -> Result<Vec<IndexEntry>, String> {
                     path: row.get(0)?,
                     modified: row.get::<_, i64>(1)? as u64,
                     size: row.get::<_, i64>(2)? as u64,
+                    digest: row.get(3)?,
+                    note_type: row.get(4)?,
                 })
             })
             .map_err(|error| error.to_string())?;
@@ -409,16 +425,18 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
 
     transaction
         .execute(
-            "INSERT INTO files (path, title, summary, modified, size)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO files (path, title, summary, modified, size, digest, note_type)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(path) DO UPDATE SET
-                 title = ?2, summary = ?3, modified = ?4, size = ?5",
+                 title = ?2, summary = ?3, modified = ?4, size = ?5, digest = ?6, note_type = ?7",
             params![
                 note.path,
                 note.title,
                 note.summary,
                 note.modified as i64,
-                note.size as i64
+                note.size as i64,
+                note.digest,
+                note.note_type
             ],
         )
         .map_err(stringly)?;
@@ -940,6 +958,8 @@ mod tests {
             title: title.to_string(),
             modified: 100,
             size: body.len() as u64,
+            digest: String::new(),
+            note_type: None,
             body: body.to_string(),
             summary: body.to_string(),
             properties: Vec::new(),
@@ -1248,6 +1268,106 @@ mod tests {
         let entry = manifest(&index).unwrap().pop().unwrap();
         assert_eq!(entry.modified, 100);
         assert_eq!(entry.size, 5);
+    }
+
+    #[test]
+    fn keeps_the_digest_and_type_it_is_handed_for_telling_what_changed() {
+        let mut index = empty_index();
+        let mut meeting = note("Kickoff.md", "Kickoff", "agenda");
+        meeting.digest = "1a2b3c4d".to_string();
+        meeting.note_type = Some("meeting".to_string());
+        put_notes(&mut index, &[meeting, note("Idea.md", "Idea", "spark")]).unwrap();
+
+        let mut entries = manifest(&index).unwrap();
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
+        let versions: Vec<(&str, &str, Option<&str>)> = entries
+            .iter()
+            .map(|e| (e.path.as_str(), e.digest.as_str(), e.note_type.as_deref()))
+            .collect();
+        assert_eq!(
+            versions,
+            vec![
+                ("Idea.md", "", None),
+                ("Kickoff.md", "1a2b3c4d", Some("meeting"))
+            ]
+        );
+    }
+
+    #[test]
+    fn replacing_a_note_replaces_its_digest_and_type() {
+        let mut index = empty_index();
+        let mut first = note("Kickoff.md", "Kickoff", "agenda");
+        first.digest = "1a2b3c4d".to_string();
+        first.note_type = Some("meeting".to_string());
+        put_notes(&mut index, &[first]).unwrap();
+
+        let mut second = note("Kickoff.md", "Kickoff", "agenda, minutes");
+        second.digest = "5e6f7a8b".to_string();
+        put_notes(&mut index, &[second]).unwrap();
+
+        let entry = manifest(&index).unwrap().pop().unwrap();
+        assert_eq!((entry.digest.as_str(), entry.note_type), ("5e6f7a8b", None));
+    }
+
+    #[test]
+    fn a_reopened_index_still_knows_each_note_as_it_was_stored() {
+        let vault = tempfile::tempdir().unwrap();
+        let mut first = open_database(vault.path()).unwrap();
+        let mut meeting = note("Kickoff.md", "Kickoff", "agenda");
+        meeting.digest = "1a2b3c4d".to_string();
+        meeting.note_type = Some("meeting".to_string());
+        put_notes(&mut first, &[meeting]).unwrap();
+        drop(first);
+
+        let reopened = open_database(vault.path()).unwrap();
+        let entry = manifest(&reopened).unwrap().pop().unwrap();
+        assert_eq!(
+            (
+                entry.path.as_str(),
+                entry.digest.as_str(),
+                entry.note_type.as_deref()
+            ),
+            ("Kickoff.md", "1a2b3c4d", Some("meeting"))
+        );
+    }
+
+    #[test]
+    fn the_manifest_sends_the_type_under_the_name_typescript_reads() {
+        let entry = IndexEntry {
+            path: "Kickoff.md".to_string(),
+            modified: 1,
+            size: 2,
+            digest: "1a2b3c4d".to_string(),
+            note_type: Some("meeting".to_string()),
+        };
+        assert_eq!(
+            serde_json::to_value(entry).unwrap(),
+            serde_json::json!({
+                "path": "Kickoff.md",
+                "modified": 1,
+                "size": 2,
+                "digest": "1a2b3c4d",
+                "type": "meeting"
+            })
+        );
+    }
+
+    #[test]
+    fn a_note_is_read_with_the_type_under_the_name_typescript_sends() {
+        let sent: IndexedNote = serde_json::from_value(serde_json::json!({
+            "path": "Kickoff.md",
+            "title": "Kickoff",
+            "modified": 1,
+            "size": 2,
+            "body": "agenda",
+            "digest": "1a2b3c4d",
+            "type": "meeting"
+        }))
+        .unwrap();
+        assert_eq!(
+            (sent.digest.as_str(), sent.note_type.as_deref()),
+            ("1a2b3c4d", Some("meeting"))
+        );
     }
 
     #[test]
@@ -1932,6 +2052,8 @@ ORDER BY m.type DESC, m.name, p.cid";
                 title: "P00-01".into(),
                 modified: 1,
                 size: 1,
+                digest: String::new(),
+                note_type: None,
                 body: "body".into(),
                 summary: "What it is about.".into(),
                 properties: vec![

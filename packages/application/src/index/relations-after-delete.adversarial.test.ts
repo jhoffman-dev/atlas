@@ -77,7 +77,8 @@ function sqliteIndex(): IndexPort & { relationOf: (src: string) => string | null
   const manifest = new Map<string, number>();
   return {
     ...fakeIndexPort(),
-    manifest: async () => [...manifest].map(([path, size]) => ({ path, modified: 1, size })),
+    manifest: async () =>
+      [...manifest].map(([path, size]) => ({ path, modified: 1, size, digest: '', type: null })),
     put: async (notes: readonly IndexedNote[]) => {
       for (const note of notes) {
         manifest.set(note.path, note.size);

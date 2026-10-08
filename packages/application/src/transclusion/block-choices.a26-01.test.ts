@@ -37,7 +37,7 @@ function reader(files: Record<string, string>) {
     },
   });
   const index = fakeIndexPort({
-    manifest: async () => [{ path: plans, modified, size: 1 }],
+    manifest: async () => [{ path: plans, modified, size: 1, digest: '', type: null }],
   });
   return {
     choices: createBlockChoicesReader({ fs, markdown, index }),

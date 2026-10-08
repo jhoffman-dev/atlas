@@ -27,7 +27,7 @@ function setUp(
 describe('syncIndex', () => {
   it('opens, brings the index up to date and answers what it holds, saying nothing', async () => {
     const { steps, activity, sync } = setUp();
-    expect(await sync(false)).toEqual({ notes: 40, properties: 3, links: 2 });
+    expect((await sync(false)).stats).toEqual({ notes: 40, properties: 3, links: 2 });
     expect(steps).toEqual(['open']);
     expect(activity.reports).toEqual([]);
   });

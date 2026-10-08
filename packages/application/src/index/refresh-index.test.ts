@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
+import { createVaultPath, digestOf } from '@atlas/domain';
 import { refreshIndex, toIndexedNote } from './refresh-index.ts';
 import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -58,13 +58,16 @@ function fakeVault(files: Record<string, { text: string; modified: number }>) {
   return fs;
 }
 
-function fakeIndex(entries: IndexEntry[] = []) {
+/** An index entry; its version is left out where a test does not care what it is. */
+type HeldEntry = Omit<IndexEntry, 'digest' | 'type'> & Partial<Pick<IndexEntry, 'digest' | 'type'>>;
+
+function fakeIndex(entries: HeldEntry[] = []) {
   const written: IndexedNote[] = [];
   const removed: string[] = [];
   const index: IndexPort = {
     open: async () => {},
     clear: async () => {},
-    manifest: async () => entries,
+    manifest: async () => entries.map((entry) => ({ digest: '', type: null, ...entry })),
     put: async (notes) => {
       written.push(...notes);
     },
@@ -214,9 +217,77 @@ describe('refreshIndex', () => {
   });
 });
 
+describe('refreshIndex says what changed (P28-03)', () => {
+  const meeting = '---\ntype: meeting\n---\nAgenda';
+
+  it('measures from what the index held when given nothing earlier', async () => {
+    const fs = fakeVault({ 'Kickoff.md': { text: meeting, modified: 2 } });
+    const { index } = fakeIndex([
+      { path: 'Kickoff.md', modified: 1, size: 5, digest: digestOf('Agenda'), type: null },
+      { path: 'Gone.md', modified: 1, size: 1, digest: 'aa', type: 'task' },
+    ]);
+
+    const { changes } = await refreshIndex({ fs, index, markdown });
+
+    expect(changes).toEqual([
+      { kind: 'changed', path: 'Kickoff.md', type: 'meeting', digest: digestOf(meeting) },
+      { kind: 'removed', path: 'Gone.md', type: 'task', digest: 'aa' },
+    ]);
+  });
+
+  it('does not call a note read again changed when its text is the same', async () => {
+    const fs = fakeVault({ 'Kickoff.md': { text: meeting, modified: 2 } });
+    const { index, written } = fakeIndex([
+      { path: 'Kickoff.md', modified: 1, size: 5, digest: digestOf(meeting), type: 'meeting' },
+    ]);
+
+    const { changes } = await refreshIndex({ fs, index, markdown });
+
+    expect(written).toHaveLength(1);
+    expect(changes).toEqual([]);
+  });
+
+  it('measures from the notes it is given as earlier, over what the index holds', async () => {
+    const fs = fakeVault({ 'Kickoff.md': { text: meeting, modified: 1 } });
+    const { index } = fakeIndex([
+      {
+        path: 'Kickoff.md',
+        modified: 1,
+        size: meeting.length,
+        digest: digestOf(meeting),
+        type: 'meeting',
+      },
+    ]);
+
+    const { changes } = await refreshIndex({
+      fs,
+      index,
+      markdown,
+      previous: new Map([['Retired.md', { type: 'meeting', digest: digestOf(meeting) }]]),
+    });
+
+    expect(changes).toEqual([
+      { kind: 'added', path: 'Kickoff.md', type: 'meeting', digest: digestOf(meeting) },
+      { kind: 'removed', path: 'Retired.md', type: 'meeting', digest: digestOf(meeting) },
+    ]);
+  });
+
+  it('does not report a note that went before it could be read', async () => {
+    const fs = {
+      ...fakeVault({ 'Kickoff.md': { text: meeting, modified: 1 } }),
+      readNotes: async () => [],
+    };
+    const { index } = fakeIndex();
+
+    const { changes } = await refreshIndex({ fs, index, markdown });
+
+    expect(changes).toEqual([]);
+  });
+});
+
 describe('refreshIndex and relations to notes that come and go (P24 review)', () => {
   /** An index that answers the stale-relations question with `holders`, and records it. */
-  function indexHolding(entries: IndexEntry[], holders: string[]) {
+  function indexHolding(entries: HeldEntry[], holders: string[]) {
     const fake = fakeIndex(entries);
     const asked: unknown[][] = [];
     fake.index.query = async (sql, parameters) => {
@@ -378,5 +449,11 @@ describe('toIndexedNote', () => {
 
   it('keeps the file facts for change detection', () => {
     expect(build('body')).toMatchObject({ modified: 7, size: 4 });
+  });
+
+  it('keeps a digest of the whole text and the type the note declares (P28-03)', () => {
+    const text = '---\ntype: meeting\n---\nAgenda';
+    expect(build(text)).toMatchObject({ digest: digestOf(text), type: 'meeting' });
+    expect(build('Agenda')).toMatchObject({ digest: digestOf('Agenda'), type: null });
   });
 });
