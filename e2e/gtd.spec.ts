@@ -189,7 +189,9 @@ test('ticking a task archives it with the day; unticking puts its status back', 
   await expectFile(vault, 'tasks/Draft the memo.md').toContain('status: archive');
   expect(await vault.read('tasks/Draft the memo.md')).toContain(`completed: ${today()}`);
 
-  await page.getByRole('checkbox', { name: 'Mark Draft the memo done' }).click();
+  // Untick only once the board shows it ticked: a click before then would tick it again.
+  await expect(tick).toBeChecked();
+  await tick.click();
   await expectFile(vault, 'tasks/Draft the memo.md').toBe(
     note(['type: task', 'status: in-progress'], 'For Tobias Fenn.'),
   );

@@ -96,14 +96,21 @@ export function useTaskMigration({
   useEffect(() => {
     if (!open || !indexReady || vaultKey === null) return;
     let cancelled = false;
-    Promise.all([previewIfNeeded(migrationPorts, chosen), readMigrationRecord(migrationPorts.fs)])
-      .then(([read, record]) => {
-        if (cancelled) return;
-        setPreview(read !== null && hasMigrationWork(read) ? read : null);
-        setCanUndo(record !== null);
+    // Read apart: a run's undo is offered even when the tasks cannot be read now.
+    previewIfNeeded(migrationPorts, chosen)
+      .then((read) => {
+        if (!cancelled) setPreview(read !== null && hasMigrationWork(read) ? read : null);
       })
       .catch((cause: unknown) => {
         if (!cancelled) setProblem(`Your tasks could not be read for GTD: ${reasonOf(cause)}`);
+      });
+    readMigrationRecord(migrationPorts.fs)
+      .then((record) => {
+        if (!cancelled) setCanUndo(record !== null);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled)
+          setProblem(`The move to GTD's record could not be read: ${reasonOf(cause)}`);
       });
     return () => {
       cancelled = true;
