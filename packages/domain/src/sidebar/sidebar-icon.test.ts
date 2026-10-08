@@ -19,6 +19,8 @@ describe('typeIcon', () => {
     ['organization', 'company'],
     ['event', 'event'],
     ['meetings', 'event'],
+    ['term', 'term'],
+    ['Glossary', 'term'],
   ])('recognises %s', (name, icon) => {
     expect(typeIcon(name)).toBe(icon);
   });

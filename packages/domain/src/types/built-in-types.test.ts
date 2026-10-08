@@ -8,11 +8,21 @@ import {
 } from './built-in-types.ts';
 
 describe('built-in types', () => {
-  it('are Person, Task, Project, Artifact and Meeting — the five a feature is built on', () => {
-    for (const name of ['person', 'task', 'project', 'artifact', 'meeting', ' Person ', 'TASK']) {
+  it('are Person, Task, Project, Artifact, Meeting, Company and Term — the seven a feature is built on', () => {
+    for (const name of [
+      'person',
+      'task',
+      'project',
+      'artifact',
+      'meeting',
+      'company',
+      'term',
+      ' Person ',
+      'TASK',
+    ]) {
       expect(isBuiltInType(name)).toBe(true);
     }
-    for (const name of ['company', 'event', 'people', '']) {
+    for (const name of ['event', 'people', 'terms', '']) {
       expect(isBuiltInType(name)).toBe(false);
     }
   });
@@ -34,8 +44,19 @@ describe('built-in types', () => {
     expect(isBuiltInTypeFile(createVaultPath('.atlas/types/meeting.md'))).toBe(true);
   });
 
+  it('include Company and Term, which terms and the Terms page are built on (P28-05)', () => {
+    expect(typeDeleteRefusal({ name: 'company', label: 'Company' })).toMatch(
+      /^Company is built in — meetings and terms point at companies — so it cannot be deleted/,
+    );
+    expect(typeDeleteRefusal({ name: 'term', label: 'Term' })).toMatch(
+      /^Term is built in — the Terms page lists its notes/,
+    );
+    expect(isBuiltInTypeFile(createVaultPath('.atlas/types/company.md'))).toBe(true);
+    expect(isBuiltInTypeFile(createVaultPath('.atlas/types/term.md'))).toBe(true);
+  });
+
   it('leaves a type of your own free to delete', () => {
-    expect(typeDeleteRefusal({ name: 'company', label: 'Company' })).toBeNull();
+    expect(typeDeleteRefusal({ name: 'event', label: 'Event' })).toBeNull();
   });
 
   it('are known by their file only in the types folder', () => {
@@ -50,7 +71,7 @@ describe('built-in types', () => {
   it('are known by the `name:` a type file declares, whatever the file is called', () => {
     const file = createVaultPath('.atlas/types/People.md');
     expect(isBuiltInTypeFile(file, 'person')).toBe(true);
-    expect(isBuiltInTypeFile(file, 'company')).toBe(false);
+    expect(isBuiltInTypeFile(file, 'event')).toBe(false);
     expect(isBuiltInTypeFile(file)).toBe(false);
     expect(isBuiltInTypeFile(createVaultPath('Notes/People.md'), 'person')).toBe(false);
   });
