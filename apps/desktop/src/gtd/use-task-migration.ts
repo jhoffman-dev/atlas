@@ -5,10 +5,12 @@ import {
   previewTaskMigration,
   readMigrationRecord,
   runTaskMigration,
+  taskMigrationNeeded,
   undoTaskMigration,
   type ActivityRecorder,
   type ArchivePorts,
   type LeftFile,
+  type TaskMigrationPorts,
   type TaskMigrationPreview,
 } from '@atlas/application';
 import type { TaskMigrationPreviewData, TaskMigrationProps } from '@atlas/ui';
@@ -16,6 +18,15 @@ import { localClock, localDayOf } from '../today.ts';
 
 const files = (count: number) => (count === 1 ? '1 file' : `${count} files`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
+
+/** The preview, read only when the quick look says the move may have something left to do. */
+async function previewIfNeeded(
+  ports: TaskMigrationPorts,
+  chosen: ReadonlyMap<string, GtdStatus>,
+): Promise<TaskMigrationPreview | null> {
+  if (!(await taskMigrationNeeded(ports))) return null;
+  return previewTaskMigration(ports, chosen);
+}
 
 /** The preview as the panel draws it: plain rows, the old statuses counted. */
 function previewData(preview: TaskMigrationPreview): TaskMigrationPreviewData {
@@ -85,13 +96,10 @@ export function useTaskMigration({
   useEffect(() => {
     if (!open || !indexReady || vaultKey === null) return;
     let cancelled = false;
-    Promise.all([
-      previewTaskMigration(migrationPorts, chosen),
-      readMigrationRecord(migrationPorts.fs),
-    ])
+    Promise.all([previewIfNeeded(migrationPorts, chosen), readMigrationRecord(migrationPorts.fs)])
       .then(([read, record]) => {
         if (cancelled) return;
-        setPreview(hasMigrationWork(read) ? read : null);
+        setPreview(read !== null && hasMigrationWork(read) ? read : null);
         setCanUndo(record !== null);
       })
       .catch((cause: unknown) => {

@@ -10,6 +10,8 @@ export interface TaskMigrationRow {
   readonly to: string;
   /** The day it is given as finished, when it is. */
   readonly completed: string | null;
+  /** Why it does not go where the mapping sends it — Waiting with nobody to wait on — or null. */
+  readonly held: string | null;
 }
 
 /** An old status, what it becomes, and how many tasks hold it. */
@@ -220,6 +222,7 @@ function TaskTable({ rows }: { rows: readonly TaskMigrationRow[] }) {
               <td>
                 {optionLabel(row.to)}
                 {row.completed !== null && `, completed ${row.completed}`}
+                {row.held !== null && <span className="task-migration__held"> — {row.held}</span>}
               </td>
             </tr>
           ))}

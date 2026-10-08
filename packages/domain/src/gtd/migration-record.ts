@@ -1,5 +1,6 @@
 import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
+import { foldedVaultPath } from '../vault/vault-spelling.ts';
 import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
 
 /**
@@ -103,7 +104,9 @@ function recordedFile(raw: unknown): RecordedFile {
   } catch {
     throw new MigrationRecordError(`“${raw['path']}” is not a place in the vault.`);
   }
-  if (path === MIGRATION_RECORD_PATH) throw new MigrationRecordError('it names itself.');
+  if (foldedVaultPath(path) === foldedVaultPath(MIGRATION_RECORD_PATH)) {
+    throw new MigrationRecordError('it names itself.');
+  }
   if (raw['kind'] === 'created' && typeof raw['contents'] === 'string') {
     return { kind: 'created', path, contents: raw['contents'] };
   }
@@ -118,9 +121,14 @@ function recordedFile(raw: unknown): RecordedFile {
 }
 
 /**
- * A run that went on after one that stopped partway: one record for both, so
- * one undo covers both. A file in both keeps what it was before the first
- * run, and what the second wrote.
+ * A run that went on after one that stopped partway — on this Mac, or from a
+ * record another Mac's partial run synced in: one record for both, so one
+ * undo covers both.
+ *
+ * A file in both keeps what it was before the first run only while it still
+ * held what the first run wrote when the second read it. Otherwise the first
+ * run never wrote it, or it changed since — by hand, or by sync — and what
+ * the second run found is what undo must give back, or that change is lost.
  */
 export function mergedRecord(
   earlier: MigrationRecord | null,
@@ -129,13 +137,15 @@ export function mergedRecord(
   if (earlier === null) return later;
   const files = new Map(earlier.files.map((file) => [file.path, file]));
   for (const file of later.files) {
-    const first = files.get(file.path);
-    files.set(
-      file.path,
-      first?.kind === 'changed' && file.kind === 'changed'
-        ? { ...file, before: first.before }
-        : (first ?? file),
-    );
+    files.set(file.path, mergedFile(files.get(file.path), file));
   }
   return { at: earlier.at, files: [...files.values()] };
+}
+
+function mergedFile(first: RecordedFile | undefined, later: RecordedFile): RecordedFile {
+  if (first === undefined) return later;
+  if (first.kind === 'changed' && later.kind === 'changed') {
+    return first.after === later.before ? { ...later, before: first.before } : later;
+  }
+  return first;
 }

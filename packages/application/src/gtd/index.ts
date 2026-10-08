@@ -1,4 +1,9 @@
-export { hasMigrationWork, planTaskMigration, previewTaskMigration } from './task-migration.ts';
+export {
+  hasMigrationWork,
+  planTaskMigration,
+  previewTaskMigration,
+  taskMigrationNeeded,
+} from './task-migration.ts';
 export type {
   FileCreation,
   FileEdit,
@@ -16,4 +21,4 @@ export type {
   TaskMigrationReport,
   TaskMigrationUndo,
 } from './run-task-migration.ts';
-export { TaskRuleRefusedError, withTaskRules } from './task-rules.ts';
+export { newNoteTaskRules, TaskRuleRefusedError, withTaskRules } from './task-rules.ts';

@@ -27,24 +27,45 @@ function changed(before: Properties, changes: Properties): Properties {
   return after;
 }
 
+/** The key a note says what it is by. */
+const TASK_TYPE_KEY = 'type';
+
 const isTask = (properties: Properties) =>
-  String(properties['type'] ?? '')
+  String(properties[TASK_TYPE_KEY] ?? '')
     .trim()
     .toLowerCase() === TASK_TYPE;
 
+/** A task Waiting with nobody to wait on: what the rules never let a change leave. */
+const waitsOnNobody = (note: Properties) =>
+  isTask(note) &&
+  note[TASK_KEYS.status] === WAITING_STATUS &&
+  isBlankValue(note[TASK_KEYS.waitingOn]);
+
+/** A finished task: Archive, on a note that is a task. */
+const isFinished = (note: Properties) =>
+  isTask(note) && note[TASK_KEYS.status] === FINISHED_TASK_STATUS;
+
+/** Whether a change touches what the Waiting rule reads: the type, the status, who it waits on. */
+const touchesWaiting = (changes: Properties) =>
+  [TASK_TYPE_KEY, TASK_KEYS.status, TASK_KEYS.waitingOn].some((key) => has(changes, key));
+
 /**
  * The GTD rules a change to a task is held to, whoever makes it — a board
- * drag, the properties panel, a tick, the API (ADR-0029):
+ * drag, the properties panel, a tick, a new note, an automation, the API
+ * (ADR-0029). They judge the note the change leaves, not the keys it names:
  *
  * - Waiting is waiting on someone: a change that leaves a task Waiting with
- *   nobody in `waiting_on` is refused, with the reason.
- * - Finishing is a day: a task that becomes Archive is given `completed:`
- *   today, unless the change says a day itself; one taken out of Archive
- *   loses it, so unticking leaves no stale day behind.
+ *   nobody in `waiting_on` — by its status, by taking the person away, or by
+ *   making a note that already says Waiting into a task — is refused, with
+ *   the reason.
+ * - Finishing is a day: a task that becomes finished (Archive) is given
+ *   `completed:` today, unless the note it leaves says a day; one taken out
+ *   of Archive loses its day, unless the change says one, so unticking
+ *   leaves nothing stale behind.
  *
- * A note that is not a task, and a change that touches neither its status
- * nor who it waits on, passes as it is: a task already Waiting with nobody
- * set can still have its due date moved.
+ * A note that is not a task passes as it is, and so does a change that
+ * touches none of what the Waiting rule reads: a task already Waiting with
+ * nobody set can still have its due date moved.
  */
 export function taskRuleChanges({
   before,
@@ -57,23 +78,14 @@ export function taskRuleChanges({
   today: string;
 }): TaskRuleOutcome {
   const after = changed(before, changes);
-  if (!isTask(after)) return { changes };
-  const status = TASK_KEYS.status;
-  const statusMoved = has(changes, status) && after[status] !== before[status];
-  const waitingTouched = statusMoved || has(changes, TASK_KEYS.waitingOn);
-  if (
-    waitingTouched &&
-    after[status] === WAITING_STATUS &&
-    isBlankValue(after[TASK_KEYS.waitingOn])
-  ) {
-    return { refused: WAITING_NEEDS_SOMEONE };
+  if (waitsOnNobody(after) && touchesWaiting(changes)) return { refused: WAITING_NEEDS_SOMEONE };
+  const completed = TASK_KEYS.completed;
+  if (isFinished(after) && !isFinished(before) && isBlankValue(after[completed])) {
+    return { changes: { ...changes, [completed]: today } };
   }
-  if (!statusMoved || has(changes, TASK_KEYS.completed)) return { changes };
-  if (after[status] === FINISHED_TASK_STATUS && isBlankValue(after[TASK_KEYS.completed])) {
-    return { changes: { ...changes, [TASK_KEYS.completed]: today } };
-  }
-  if (before[status] === FINISHED_TASK_STATUS && !isBlankValue(before[TASK_KEYS.completed])) {
-    return { changes: { ...changes, [TASK_KEYS.completed]: null } };
+  const reopened = isFinished(before) && !isFinished(after) && isTask(after);
+  if (reopened && !has(changes, completed) && !isBlankValue(before[completed])) {
+    return { changes: { ...changes, [completed]: null } };
   }
   return { changes };
 }

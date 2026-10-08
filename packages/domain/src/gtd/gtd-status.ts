@@ -34,6 +34,13 @@ export const NEW_TASK_STATUS: GtdStatus = 'inbox';
 /** What ticking a task sets: finished work leaves every list in one move. */
 export const FINISHED_TASK_STATUS: GtdStatus = 'archive';
 
+/**
+ * Where a finished task goes back to when nothing remembers where it was —
+ * unticked after a restart, or a repeating one rolled on to its next date:
+ * it was something to do, so it is something to do next.
+ */
+export const REOPENED_TASK_STATUS: GtdStatus = 'next-action';
+
 /** The status that needs someone to be waiting on. */
 export const WAITING_STATUS: GtdStatus = 'waiting';
 

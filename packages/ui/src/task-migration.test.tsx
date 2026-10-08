@@ -21,6 +21,7 @@ const PREVIEW: TaskMigrationProps['preview'] = {
       from: 'doing',
       to: 'in-progress',
       completed: null,
+      held: null,
     },
     {
       path: 'tasks/Ship.md',
@@ -28,8 +29,17 @@ const PREVIEW: TaskMigrationProps['preview'] = {
       from: 'done',
       to: 'archive',
       completed: '2026-09-30',
+      held: null,
     },
-    { path: 'tasks/Odd.md', title: 'Odd one', from: '', to: 'inbox', completed: null },
+    {
+      path: 'tasks/Hear.md',
+      title: 'Hear back',
+      from: 'Waiting',
+      to: 'inbox',
+      completed: null,
+      held: 'It would be Waiting, but nobody is in Waiting on.',
+    },
+    { path: 'tasks/Odd.md', title: 'Odd one', from: '', to: 'inbox', completed: null, held: null },
   ],
   references: [{ title: 'Roadmap', moved: ['done → archive'] }],
   listed: [{ title: 'Odd view', reason: 'It compares status using contains.' }],
@@ -58,7 +68,7 @@ function panel(overrides: Partial<TaskMigrationProps> = {}) {
 describe('TaskMigration', () => {
   it('offers the move in one line, writing nothing until the preview is asked for', async () => {
     const { props } = panel();
-    expect(screen.getByText(/3 tasks would move to them/)).toBeDefined();
+    expect(screen.getByText(/4 tasks would move to them/)).toBeDefined();
     expect(screen.queryByRole('table')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Move/ })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Preview the move' }));
@@ -73,6 +83,7 @@ describe('TaskMigration', () => {
     expect(rows.slice(1).map((row) => row.textContent)).toEqual([
       'Draft the memoDoingIn Progress',
       'Ship itDoneArchive, completed 2026-09-30',
+      'Hear backWaitingInbox — It would be Waiting, but nobody is in Waiting on.',
       'Odd one(none)Inbox',
     ]);
   });
@@ -117,11 +128,11 @@ describe('TaskMigration', () => {
 
   it('runs only from the preview, once, and not while busy', async () => {
     const { props, rerender } = panel({ open: true });
-    await userEvent.click(screen.getByRole('button', { name: 'Move 3 tasks' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Move 4 tasks' }));
     expect(props.onRun).toHaveBeenCalledTimes(1);
     rerender(<TaskMigration {...props} busy />);
     expect(
-      (screen.getByRole('button', { name: 'Move 3 tasks' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Move 4 tasks' }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 

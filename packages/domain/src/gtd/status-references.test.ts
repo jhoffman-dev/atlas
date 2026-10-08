@@ -7,11 +7,44 @@ const mapping = statusMappingFor({ found: ['backlog', 'next', 'doing', 'review',
 
 describe('rewrittenQuery', () => {
   it('changes only the value’s characters, so the rest of the text stays as typed', () => {
-    const text = 'FROM task\nWHERE status  =  done OR  status != "doing"\nSORT BY due';
+    const text = 'FROM task\nWHERE status  =  "doing" OR  status != done\nSORT BY due';
     expect(rewrittenQuery({ text, mapping })).toEqual({
-      text: 'FROM task\nWHERE status  =  archive OR  status != in-progress\nSORT BY due',
-      moved: ['done → archive', 'doing → in-progress'],
+      text: 'FROM task\nWHERE status  =  in-progress OR  status != archive\nSORT BY due',
+      moved: ['doing → in-progress', 'done → archive'],
     });
+  });
+
+  it('lists leaving out a status that becomes one other statuses become too', () => {
+    // review and doing both become in-progress: leaving it out would leave out doing as well.
+    for (const text of [
+      'FROM task WHERE status != review',
+      'FROM task WHERE NOT (status = review)',
+    ]) {
+      expect(rewrittenQuery({ text, mapping })).toEqual({
+        problem: expect.stringContaining('along with “doing”'),
+      });
+    }
+    expect(rewrittenQuery({ text: 'FROM task WHERE NOT (status = done)', mapping })).toMatchObject({
+      text: 'FROM task WHERE NOT (status = archive)',
+    });
+  });
+
+  it('lists a status nobody knew, rather than pointing the view at the Inbox', () => {
+    const withBlocked = statusMappingFor({ found: ['done', 'blocked'] });
+    expect(
+      rewrittenQuery({ text: 'FROM task WHERE status = blocked', mapping: withBlocked }),
+    ).toEqual({
+      problem: expect.stringContaining('no status GTD knows'),
+    });
+  });
+
+  it('lists a query over tasks and another type that names an old status', () => {
+    expect(rewrittenQuery({ text: 'FROM task, project WHERE status = done', mapping })).toEqual({
+      problem: expect.stringContaining('other types beside tasks'),
+    });
+    expect(
+      rewrittenQuery({ text: 'FROM task, project WHERE status = archive', mapping }),
+    ).toBeNull();
   });
 
   it('reaches comparisons inside NOT and brackets', () => {
@@ -139,5 +172,19 @@ describe('automationStatusRewrite', () => {
     );
     expect(automationStatusRewrite(rule('FROM task WHERE ('), mapping)).toBeNull();
     expect(automationStatusRewrite({ atlas: 'view', which: 'x' }, mapping)).toBeNull();
+  });
+
+  it('lists a rule that would set a status nobody knew, or Waiting, or one over mixed types', () => {
+    const withBlocked = statusMappingFor({
+      found: ['done', 'blocked', 'parked'],
+      chosen: new Map([['parked', 'waiting']]),
+    });
+    for (const [which, set] of [
+      ['FROM task WHERE status = archive', { status: 'blocked' }],
+      ['FROM task WHERE status = archive', { status: 'parked' }],
+      ['FROM task, project WHERE due < @today', { status: 'done' }],
+    ] as const) {
+      expect(automationStatusRewrite(rule(which, set), withBlocked)).toHaveProperty('problem');
+    }
   });
 });

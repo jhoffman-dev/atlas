@@ -18,9 +18,10 @@ import {
   type MigrationPanes,
 } from './run-task-migration.ts';
 import {
+  type TaskMigrationPorts,
   hasMigrationWork,
   previewTaskMigration,
-  type TaskMigrationPorts,
+  taskMigrationNeeded,
 } from './task-migration.ts';
 
 function jsonFrontmatter(): MarkdownPort {
@@ -454,5 +455,59 @@ describe('a run cut off partway', () => {
 
     await undoTaskMigration({ fs: flaky.fs, panes: closedPanes });
     expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
+  });
+});
+
+describe('taskMigrationNeeded', () => {
+  /** The vault, its index answering the statuses query from the files as they are. */
+  function indexed(files: Record<string, string>) {
+    const made = vault(files);
+    const index = fakeIndexPort({
+      ...made.ports.index,
+      query: async () => ({
+        columns: ['status'],
+        rows: [...made.files]
+          .filter(([path]) => !path.startsWith('.atlas/'))
+          .map(([, text]) => frontmatterOf(text))
+          .filter((properties) => properties['type'] === 'task')
+          .map((properties) => [(properties['status'] as string | undefined) ?? null]),
+        truncated: false,
+      }),
+    });
+    return { ...made, ports: { ...made.ports, index } };
+  }
+
+  it('says yes while the Task type is not GTD’s, and no once the move is done', async () => {
+    const { ports } = indexed(FILES);
+    expect(await taskMigrationNeeded(ports)).toBe(true);
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    expect(await taskMigrationNeeded(ports)).toBe(false);
+  });
+
+  it('says yes while the Task type is not GTD’s, even when every task already is', async () => {
+    const { ports } = indexed({
+      '.atlas/types/task.md': OLD_TASK_TYPE,
+      'tasks/Call Mara.md': note({ type: 'task', status: 'next-action' }),
+    });
+    expect(await taskMigrationNeeded(ports)).toBe(true);
+  });
+
+  it('says yes for a GTD Task type while a task holds another status, or none', async () => {
+    const { ports, files } = indexed(FILES);
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    files.set('tasks/Synced in.md', note({ type: 'task', status: 'doing' }));
+    expect(await taskMigrationNeeded(ports)).toBe(true);
+    files.set('tasks/Synced in.md', note({ type: 'task' }));
+    expect(await taskMigrationNeeded(ports)).toBe(true);
   });
 });

@@ -1,5 +1,7 @@
 import {
   automationStatusRewrite,
+  compileTaskStatusesQuery,
+  isGtdStatus,
   createVaultPath,
   foldedVaultPath,
   GTD_VIEW_FILES,
@@ -41,7 +43,7 @@ import { listVaultNotes } from '../vault/read-vault.ts';
 export interface TaskMigrationPorts {
   readonly fs: VaultFsPort;
   readonly markdown: MarkdownPort;
-  readonly index: Pick<IndexPort, 'notesOfType'>;
+  readonly index: Pick<IndexPort, 'notesOfType' | 'query'>;
   /** `YYYY-MM-DD` where the person is, for a file changed at this time: a finished task's `completed`. */
   readonly dayOf: (modified: number) => string;
 }
@@ -54,6 +56,8 @@ export interface TaskMove {
   readonly to: GtdStatus;
   /** The day written as `completed`, when it becomes finished without one. */
   readonly completed: string | null;
+  /** Why it does not go where the mapping sends it — Waiting with nobody to wait on — or null. */
+  readonly held: string | null;
 }
 
 /** A view or an automation that names an old status, and what it will say. */
@@ -120,6 +124,26 @@ export function hasMigrationWork(preview: TaskMigrationPreview): boolean {
 }
 
 /**
+ * Whether the move to GTD may have anything left to do, judged without
+ * reading every task: false only when the Task type already follows GTD and
+ * the index holds no task whose status is not one of the eight. The Inbox
+ * asks this on every open, and reads the tasks only when it says yes.
+ */
+export async function taskMigrationNeeded(
+  ports: Pick<TaskMigrationPorts, 'fs' | 'markdown' | 'index'>,
+): Promise<boolean> {
+  const own = taskTypeOf(await loadObjectTypes(ports));
+  if (own === null || taskTypeChange(own) !== null) return true;
+  const { sql, parameters } = compileTaskStatusesQuery(own.name);
+  const result = await ports.index.query(sql, parameters);
+  const status = result.columns.indexOf('status');
+  return result.rows.some((row) => !isGtdStatus(row[status]));
+}
+
+const taskTypeOf = (types: readonly DefinedType[]): DefinedType | null =>
+  types.find((type) => type.name.trim().toLowerCase() === TASK_TYPE) ?? null;
+
+/**
  * What moving the vault's tasks to GTD would do, read from the files as they
  * are now — nothing is written. `chosen` is the person's own mapping for any
  * old status; the rest take ADR-0029's defaults.
@@ -136,8 +160,7 @@ export async function planTaskMigration(
   ports: TaskMigrationPorts,
   chosen?: StatusMapping,
 ): Promise<TaskMigrationPlan> {
-  const types = await loadObjectTypes(ports);
-  const own = types.find((type) => type.name.trim().toLowerCase() === TASK_TYPE) ?? null;
+  const own = taskTypeOf(await loadObjectTypes(ports));
   const typeChange = own === null ? null : taskTypeChange(own);
   const tasks = await readTasks(ports, own?.name ?? TASK_TYPE);
   const mapping = statusMappingFor({

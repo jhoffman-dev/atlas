@@ -5,6 +5,7 @@ export {
   isBlankValue,
   isGtdStatus,
   NEW_TASK_STATUS,
+  REOPENED_TASK_STATUS,
   TASK_KEYS,
   TASK_TYPE,
   WAITING_STATUS,
@@ -21,12 +22,16 @@ export {
 } from './migration-record.ts';
 export type { MigrationRecord, RecordedFile } from './migration-record.ts';
 export {
+  compileTaskStatusesQuery,
   defaultStatusFor,
+  isInboxFallback,
   mappedStatus,
   statusMappingFor,
   statusValueOf,
   taskStatusChanges,
   taskStatusMove,
+  TASK_STATUSES_QUERY_MARK,
+  WAITING_HELD,
 } from './status-mapping.ts';
 export type { StatusMapping, TaskStatusMove } from './status-mapping.ts';
 export { automationStatusRewrite, rewrittenQuery, viewStatusRewrite } from './status-references.ts';

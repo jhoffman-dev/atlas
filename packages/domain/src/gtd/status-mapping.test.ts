@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { GTD_STATUSES } from './gtd-status.ts';
 import {
   defaultStatusFor,
+  isInboxFallback,
   mappedStatus,
   statusMappingFor,
   statusValueOf,
   taskStatusChanges,
   taskStatusMove,
+  WAITING_HELD,
 } from './status-mapping.ts';
 
 /** P30-02 / ADR-0029: the mapping table old statuses are moved by. */
@@ -87,14 +89,14 @@ describe('taskStatusMove', () => {
 
   it('moves a status, and changes nothing for one already moved — running twice is running once', () => {
     const first = taskStatusMove({ properties: { status: 'doing' }, mapping, lastChanged: DAY });
-    expect(first).toEqual({ from: 'doing', to: 'in-progress', completed: null });
+    expect(first).toEqual({ from: 'doing', to: 'in-progress', completed: null, held: null });
     const after = { status: 'in-progress' };
     expect(taskStatusMove({ properties: after, mapping, lastChanged: DAY })).toBeNull();
   });
 
   it('dates a finished task by the day its file last changed', () => {
     const move = taskStatusMove({ properties: { status: 'done' }, mapping, lastChanged: DAY });
-    expect(move).toEqual({ from: 'done', to: 'archive', completed: DAY });
+    expect(move).toEqual({ from: 'done', to: 'archive', completed: DAY, held: null });
     expect(taskStatusChanges(move!)).toEqual({ status: 'archive', completed: DAY });
   });
 
@@ -105,7 +107,41 @@ describe('taskStatusMove', () => {
 
   it('gives a task with no status the Inbox, and writes no day for one not finished', () => {
     const move = taskStatusMove({ properties: { title: 'x' }, mapping, lastChanged: DAY });
-    expect(move).toEqual({ from: '', to: 'inbox', completed: null });
+    expect(move).toEqual({ from: '', to: 'inbox', completed: null, held: null });
     expect(taskStatusChanges(move!)).toEqual({ status: 'inbox' });
+  });
+});
+
+describe('a task the mapping sends to Waiting', () => {
+  const toWaiting = statusMappingFor({
+    found: ['blocked'],
+    chosen: new Map([['blocked', 'waiting']]),
+  });
+
+  it('goes to the Inbox, saying why, when nobody is in Waiting on', () => {
+    const move = taskStatusMove({
+      properties: { status: 'blocked' },
+      mapping: toWaiting,
+      lastChanged: DAY,
+    });
+    expect(move).toEqual({ from: 'blocked', to: 'inbox', completed: null, held: WAITING_HELD });
+  });
+
+  it('goes to Waiting when it says who', () => {
+    const properties = { status: 'blocked', waiting_on: '[[Mara Quill]]' };
+    expect(taskStatusMove({ properties, mapping: toWaiting, lastChanged: DAY })?.to).toBe(
+      'waiting',
+    );
+  });
+});
+
+describe('isInboxFallback', () => {
+  const mapping = statusMappingFor({ found: ['blocked', 'done', 'inbox-ish'] });
+
+  it('is a status nobody knew, sent to the Inbox for that reason alone', () => {
+    expect(isInboxFallback(mapping, 'blocked')).toBe(true);
+    expect(isInboxFallback(mapping, 'done')).toBe(false);
+    expect(isInboxFallback(mapping, 'Inbox')).toBe(false);
+    expect(isInboxFallback(new Map([['blocked', 'someday']]), 'blocked')).toBe(false);
   });
 });

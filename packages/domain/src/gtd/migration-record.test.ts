@@ -57,6 +57,10 @@ describe('the migration record', () => {
     ['no path', { kind: 'created', contents: '' }],
     ['itself', { kind: 'created', path: MIGRATION_RECORD_PATH, contents: '' }],
     [
+      'itself, spelled in another case',
+      { kind: 'created', path: MIGRATION_RECORD_PATH.toUpperCase(), contents: '' },
+    ],
+    [
       'a “before” that is not a frontmatter block',
       { kind: 'changed', path: 'a.md', before: 'rm -rf', after: '---\na: 1\n---\n' },
     ],
@@ -75,26 +79,34 @@ describe('mergedRecord', () => {
     expect(mergedRecord(null, RECORD)).toBe(RECORD);
   });
 
-  it('keeps what a file was before the first run, and what the second wrote', () => {
+  const FIRST = RECORD.files[0]!.kind === 'changed' ? RECORD.files[0]! : null;
+
+  it('keeps what a file was before the first run, while it still held what the first wrote', () => {
     const later: MigrationRecord = {
       at: '2026-10-08T10:00:00',
       files: [
-        { kind: 'changed', path: TASK, before: '---\nmid: 1\n---\n', after: '---\nlast: 1\n---\n' },
+        { kind: 'changed', path: TASK, before: FIRST!.after, after: '---\nlast: 1\n---\n' },
         { kind: 'created', path: createVaultPath('.atlas/views/Waiting.md'), contents: 'w' },
       ],
     };
     const merged = mergedRecord(RECORD, later);
     expect(merged.at).toBe(RECORD.at);
     expect(merged.files).toEqual([
-      {
-        kind: 'changed',
-        path: TASK,
-        before: RECORD.files[0]!.kind === 'changed' ? RECORD.files[0]!.before : '',
-        after: '---\nlast: 1\n---\n',
-      },
+      { kind: 'changed', path: TASK, before: FIRST!.before, after: '---\nlast: 1\n---\n' },
       RECORD.files[1],
       later.files[1],
     ]);
+  });
+
+  it('takes what the second run found, when the first never wrote the file or it changed since', () => {
+    // Keeping the first run's "before" here would undo an edit made between the runs (adversarial pass).
+    const later: MigrationRecord = {
+      at: '2026-10-08T10:00:00',
+      files: [
+        { kind: 'changed', path: TASK, before: '---\nmid: 1\n---\n', after: '---\nlast: 1\n---\n' },
+      ],
+    };
+    expect(mergedRecord(RECORD, later).files[0]).toEqual(later.files[0]);
   });
 
   it('keeps a file the first run made as made', () => {

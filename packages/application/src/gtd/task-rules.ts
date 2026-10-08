@@ -1,4 +1,5 @@
-import { taskRuleChanges } from '@atlas/domain';
+import { splitFrontmatter, taskRuleChanges } from '@atlas/domain';
+import type { MarkdownPort } from '../notes/ports.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 
 /** A change to a task its rules refuse, with the reason the person is shown. */
@@ -30,4 +31,36 @@ export function withTaskRules({
     if ('refused' in outcome) throw new TaskRuleRefusedError(outcome.refused);
     return outcome.changes;
   };
+}
+
+/** What a new note's text needs from the markdown port to be judged and dated. */
+type FrontmatterPort = Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
+
+/**
+ * A new note's text held to the task rules (ADR-0029): what it starts with
+ * is judged as a change from nothing, so a new task that is Waiting with
+ * nobody to wait on is refused with {@link TaskRuleRefusedError}, and one
+ * made already in Archive is given today as `completed`. Text with no
+ * frontmatter, or not a task, is returned as it is.
+ */
+export function newNoteTaskRules({
+  markdown,
+  contents,
+  today,
+}: {
+  markdown: FrontmatterPort;
+  contents: string;
+  /** `YYYY-MM-DD`, from the injected clock. */
+  today: string;
+}): string {
+  const { frontmatter, body } = splitFrontmatter(contents);
+  if (frontmatter === null) return contents;
+  const properties = markdown.frontmatterProperties(frontmatter);
+  const outcome = taskRuleChanges({ before: {}, changes: properties, today });
+  if ('refused' in outcome) throw new TaskRuleRefusedError(outcome.refused);
+  const added = Object.fromEntries(
+    Object.entries(outcome.changes).filter(([key, value]) => properties[key] !== value),
+  );
+  if (Object.keys(added).length === 0) return contents;
+  return markdown.updateFrontmatter(frontmatter, added) + body;
 }
