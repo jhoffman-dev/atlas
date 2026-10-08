@@ -109,6 +109,8 @@ test('a task proposal accepted from the Proposals page makes the task, and the t
     opened.getByRole('heading', { level: 1, name: 'Send Mara the payroll file' }),
   ).toBeVisible();
   await expect(page.getByRole('article', { name: 'Proposals' })).toHaveCount(0);
+  // Nothing waits now, and the page is closed: the sidebar row goes until something does.
+  await expect(page.getByRole('button', { name: /^Proposals/ })).toHaveCount(0);
 });
 
 test('a refused accept says why on the proposal and leaves it waiting', async ({ page }) => {

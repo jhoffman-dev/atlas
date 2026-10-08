@@ -1217,7 +1217,10 @@ export function App({
                     }}
                     onOpen={openNote}
                     onOpenTemplates={main.openTemplates}
-                    proposals={{ onOpen: main.openProposals, count: proposals.count }}
+                    // The row shows while something waits, and while its page is open.
+                    {...(((proposals.count ?? 0) > 0 || proposalsOpen) && {
+                      proposals: { onOpen: main.openProposals, count: proposals.count },
+                    })}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
