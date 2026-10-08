@@ -342,12 +342,14 @@ pnpm tauri:dev</pre>
       <ul>
         <li>A <b>Project</b> property on a task, a meeting or a resource links a project <i>or</i> an area. Its picker lists both, under a <b>Project</b> and an <b>Area</b> heading, with <b>New project…</b> and <b>New area…</b> at the end. A person, a company or any other note is never offered.</li>
         <li>A note with no type can be filed too: processing it gives it <code>project</code> all the same.</li>
+        <li>Linking the wrong kind of note — a person in a task's <b>Project</b>, typed by hand — shows <i>“Project links to a project or area, not a person”</i> under the property. A link to a note not written yet, or to one with no type, is left alone.</li>
         <li>Any relation can point at several types this way: in the type's file write <code>target: [project, area]</code>. <b>Edit type</b> shows the first under <b>Points at</b> and the others under <b>And at</b>; switching <b>Several notes</b> keeps them, while choosing another type in <b>Points at</b> points it at that one alone.</li>
       </ul>
       <h3>The types are set up for you</h3>
       <ul>
-        <li><b>A vault that has a Project type</b> gets the <b>Area</b> and <b>Resource</b> types it's missing when it opens, written into <code>.atlas/types</code>. A type you already have is never replaced, and a property you added to Project stays exactly as you wrote it.</li>
-        <li><b>Anything more is offered, not done.</b> On the Inbox page a box lists it — <i>“Adds the Project, Area and Resource types.”</i> for a vault without them, <i>“Task gains Project, linking project or area notes.”</i> for a Task type with no project yet, <i>“Meeting's Project will link project or area notes.”</i> for one that links projects only. <b>Add to the types</b> makes those changes, keeping everything else in each file byte for byte; <b>Not now</b> puts the box away until the vault is opened again.</li>
+        <li><b>A vault that has a Project type</b> gets the <b>Area</b> and <b>Resource</b> types it's missing when it opens, written into <code>.atlas/types</code>, and each one written is a line in <a href="#activity">Activity</a>. A type you already have is never replaced, and a property you added to Project stays exactly as you wrote it.</li>
+        <li><b>A vault without a Project type</b> isn't given PARA's types on its own: it hasn't taken PARA up, so they're offered instead (below).</li>
+        <li><b>Anything more is offered, not done.</b> On the Inbox page a box lists it — <i>“Adds the Project, Area and Resource types.”</i> for a vault without them, <i>“Task gains Project, linking project or area notes.”</i> for a Task type with no project yet, <i>“Meeting's Project will link project or area notes.”</i> for one that links projects only. <b>Add to the types</b> makes those changes against the type files as they are at that moment — an edit you made while the box waited is kept — and keeps everything else in each file byte for byte; <b>Not now</b> puts the box away until the vault is opened again.</li>
         <li>Area and Resource are <a href="#types">built in</a>, like Project: they can't be deleted, and their properties are yours to change.</li>
       </ul>
       <h3>Capture goes to the Inbox</h3>
@@ -363,7 +365,7 @@ pnpm tauri:dev</pre>
       </ol>
       <ul>
         <li>The note moves into a folder named after the project, beside it — filing under <code>Projects/Atlas.md</code> puts it in <code>Projects/Atlas/</code> — and gets <code>project: "[[Atlas]]"</code>. A project that is already its folder's own note (<code>Projects/Atlas/Atlas.md</code>) files into that folder. Only the note's name goes with it, numbered if the folder has one by that name; nothing else in the file changes, and links to it are updated.</li>
-        <li>Only a project or an area still in use can be chosen — not one waiting in the Inbox itself, not an archived one. If a note can't be filed, the page says why, and it stays in the Inbox.</li>
+        <li>Only a project or an area still in use can be chosen — not one waiting in the Inbox itself, not an archived one, and not one whose folder would be the Inbox or the Archive (a project kept at the top as <code>Archive.md</code>). If a note can't be filed, the page says why, and it stays in the Inbox.</li>
         <li>If your vault has a view called <b>Inbox</b>, the page's <b>Open the Inbox view</b> button opens it; it's still there under its own name.</li>
         <li>Claude can do the same through <a href="#connect"><code>atlas_process_inbox_item</code></a>.</li>
       </ul>
@@ -642,6 +644,7 @@ GROUP BY project THEN status</pre>
         <li><code>!=</code> means no value is: a note without the property is listed by <code>status != done</code>. A field with several values (tags, a multi-select, several links) matches when any of them does.</li>
         <li><code>tag = #q3</code> finds tags written in the text or in <code>tags:</code>, and tags nested under it (<code>#q3/plan</code>).</li>
         <li>Dates compare by the day as written: <code>2026-09-30T22:00-05:00</code> is the 30th.</li>
+        <li>A relation to several types reaches every field any of them has: with a task's <code>project</code> linking a project or an area, <code>project.steward</code> works even if only areas have a steward, and is empty for a task filed under a project.</li>
         <li>Only one step through a relation: <code>project.owner.team</code> is refused. A step through a relation never reaches a note in <code>.atlas</code> or a hidden folder: a field read through a link to a template is empty. Notes can't be sorted or grouped by a field that holds several values, such as <code>tag</code>.</li>
         <li>A query holds 2000 conditions at most, and brackets and NOTs nest 64 deep at most.</li>
       </ul>

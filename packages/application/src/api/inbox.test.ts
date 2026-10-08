@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import type { VaultPath } from '@atlas/domain';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
+import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 
 const PROJECT = '---\ntype: project\n---\n\nThe app.\n';
 const AREA = '---\ntype: area\n---\n\nBeds and seeds.\n';
@@ -147,5 +148,49 @@ describe('POST /v1/inbox/process', () => {
       { from: 'Inbox/Call.md', to: 'Projects/Atlas/Call 2.md' },
     ]);
     expect(api.files.get('Projects/Atlas/Call.md')?.text).toBe('older\n');
+  });
+});
+
+describe('PATCH /v1/notes/{path}/properties — a relation to a note of the wrong type (P30-01)', () => {
+  const TYPE = '---\nname: task\nproperties: {}\n---\n';
+  const files = {
+    'Tasks/Call.md': '---\ntype: task\n---\n\nCall.\n',
+    'Projects/Atlas.md': PROJECT,
+    'People/Mara Quill.md': PERSON,
+  };
+  const patch = (set: Record<string, unknown>) => ({
+    method: 'PATCH' as const,
+    path: `/v1/notes/${encodeURIComponent('Tasks/Call.md')}/properties`,
+    body: { set },
+  });
+  const withTaskType = () =>
+    apiFixture({
+      markdown: jsonMarkdown(),
+      files: {
+        ...files,
+        '.atlas/types/task.md': jsonNote({
+          name: 'task',
+          properties: { project: { kind: 'relation', target: ['project', 'area'] } },
+        }),
+      },
+    });
+
+  it('refuses a person in a project relation as invalid, writing nothing', async () => {
+    const api = withTaskType();
+    const response = await api.send(patch({ project: '[[Mara Quill]]' }));
+    expect(codeOf(response)).toBe('invalid');
+    expect(JSON.stringify(response.body)).toContain('not a person');
+    expect(api.writes).toEqual([]);
+  });
+
+  it('sets a project, and a note not written yet', async () => {
+    const api = withTaskType();
+    expect((await api.send(patch({ project: '[[Atlas]]' }))).status).toBe(200);
+    expect((await api.send(patch({ project: '[[Someday]]' }))).status).toBe(200);
+  });
+
+  it('judges nothing for a note whose type the vault does not define', async () => {
+    const api = apiFixture({ files: { ...files, '.atlas/types/other.md': TYPE } });
+    expect((await api.send(patch({ project: '[[Mara Quill]]' }))).status).toBe(200);
   });
 });
