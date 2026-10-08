@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { defineTool, definedOnly } from './define.ts';
 import { ifModified, limit, notePath } from './inputs.ts';
+import { TASK_STATUSES_DESCRIBED } from './task-statuses.ts';
 
 const READ_ONLY = { readOnlyHint: true } as const;
 
@@ -77,7 +78,8 @@ export const updateProperties = defineTool({
     'Set or remove frontmatter properties on a note, e.g. { "status": "done" }. Keys not named are ' +
     'left alone; a null value removes the key. Safe on a note open in Atlas: the change goes ' +
     'through its pane. Pass "ifModified" from your last read to refuse the write if the note ' +
-    'changed since. Returns the updated note.',
+    'changed since. Returns the updated note. ' +
+    TASK_STATUSES_DESCRIBED,
   inputSchema: z.object({
     path: notePath,
     set: z.record(z.string(), z.unknown()).describe('Keys to set. A null value removes that key.'),

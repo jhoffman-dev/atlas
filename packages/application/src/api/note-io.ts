@@ -1,4 +1,5 @@
 import { noteTitle, pageTitle, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { NoteStillOpeningError } from '../notes/note-still-opening-error.ts';
 import { noteModified } from '../notes/note-modified.ts';
@@ -116,6 +117,7 @@ export async function guardedWrite<T>(
     return await write();
   } catch (error) {
     if (error instanceof NoteChangedError) throw changed(path);
+    if (error instanceof TaskRuleRefusedError) throw new ApiError('invalid', error.message);
     if (error instanceof NoteStillOpeningError) {
       throw new ApiError(
         'conflict',
