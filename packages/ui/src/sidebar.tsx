@@ -92,6 +92,7 @@ export function Sidebar({
   onOpenAutomations,
   activity,
   onOpenTemplates,
+  onOpenTerms,
   onOpen,
   onOpenType,
   onEditType,
@@ -120,8 +121,10 @@ export function Sidebar({
   onOpenAutomations?: () => void;
   /** The Activity page's row, under the Automations', and how many errors arrived since it was last open. */
   activity?: ActivityRowLink;
-  /** Opens the Templates page; its row sits last when given. */
+  /** Opens the Templates page; its row sits under the Activity's when given. */
   onOpenTemplates?: () => void;
+  /** Opens the Terms page; its row sits last when given. */
+  onOpenTerms?: () => void;
   onOpen: (path: VaultPath) => void;
   onOpenType: (name: string) => void;
   /** Opens a type's definition; a type's menu offers it when given. */
@@ -220,6 +223,7 @@ export function Sidebar({
         automationsOn={active?.kind === 'automations'}
         activityOn={active?.kind === 'activity'}
         templatesOn={active?.kind === 'templates'}
+        termsOn={active?.kind === 'terms'}
         onSearch={onSearch}
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
@@ -227,6 +231,7 @@ export function Sidebar({
         {...(onOpenAutomations !== undefined && { onOpenAutomations })}
         {...(activity !== undefined && { activity })}
         {...(onOpenTemplates !== undefined && { onOpenTemplates })}
+        {...(onOpenTerms !== undefined && { onOpenTerms })}
       />
 
       <div className="sidebar__scroll" ref={setScroller}>
@@ -266,12 +271,14 @@ function QuickRows({
   automationsOn,
   activityOn,
   templatesOn,
+  termsOn,
   onSearch,
   onOpenGraph,
   onOpenTags,
   onOpenAutomations,
   activity,
   onOpenTemplates,
+  onOpenTerms,
   onOpen,
 }: {
   quick: readonly SidebarQuickView[];
@@ -281,12 +288,14 @@ function QuickRows({
   automationsOn: boolean;
   activityOn: boolean;
   templatesOn: boolean;
+  termsOn: boolean;
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
   onOpenAutomations?: () => void;
   activity?: ActivityRowLink;
   onOpenTemplates?: () => void;
+  onOpenTerms?: () => void;
   onOpen: (path: VaultPath) => void;
 }) {
   return (
@@ -367,6 +376,19 @@ function QuickRows({
           >
             <Icon name="template" className="sidebar__icon" />
             <span className="sidebar__name">Templates</span>
+          </button>
+        </li>
+      )}
+      {onOpenTerms !== undefined && (
+        <li className={termsOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+          <button
+            type="button"
+            className="sidebar__row"
+            aria-current={termsOn ? 'page' : undefined}
+            onClick={onOpenTerms}
+          >
+            <Icon name="term" className="sidebar__icon" />
+            <span className="sidebar__name">Terms</span>
           </button>
         </li>
       )}

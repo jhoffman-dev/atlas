@@ -133,6 +133,8 @@ export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts'
 export type { NotePageRendering } from './note-page-renderer.ts';
 export { ArchivePage } from './archive-page.tsx';
 export { TemplatesPage } from './templates-page.tsx';
+export { TermsPage } from './terms-page.tsx';
+export type { NewTerm, TermsContents, TermsPageProps } from './terms-page.tsx';
 export type { TemplateLessType, TemplateListing, TemplatesPageProps } from './templates-page.tsx';
 export { TemplateBanner } from './template-banner.tsx';
 export { TemplateToNoteDialog } from './template-to-note-dialog.tsx';

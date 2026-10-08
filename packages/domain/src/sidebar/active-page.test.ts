@@ -93,4 +93,11 @@ describe('activeSidebarPage', () => {
       activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, templatesOpen: true }),
     ).toEqual({ kind: 'templates' });
   });
+
+  it('is the Terms page while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, termsOpen: true }),
+    ).toEqual({ kind: 'terms' });
+  });
 });

@@ -10554,6 +10554,151 @@ select.type-editor__field,
   color: var(--accent-text);
 }
 
+/* ---- Terms (P28-05) ----
+   A page like the Templates': a head, a form for a new term that opens under
+   it, the conflicts when there are any, then a table of every term with its
+   misheard spellings edited in place. */
+
+.terms__new {
+  align-items: flex-end;
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+}
+
+.terms__field {
+  display: flex;
+  flex: 0 1 220px;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.terms__field--grow {
+  flex: 1 1 260px;
+}
+
+.terms__field--kind {
+  flex: 0 1 150px;
+}
+
+.terms__label {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+.terms__new-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.terms__hint {
+  color: var(--ink-2);
+  flex-basis: 100%;
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.terms__problem {
+  color: var(--danger);
+  flex-basis: 100%;
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Trouble worth seeing before the list, but not an error: the warning ink. */
+.terms__conflicts {
+  background: color-mix(in srgb, var(--warning) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.terms__conflicts-title {
+  align-items: center;
+  color: var(--warning);
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.terms__conflicts-why {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.terms__conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.terms__conflict {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.terms__form {
+  font-weight: 700;
+}
+
+.terms__claim-source {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin-left: var(--space-1);
+}
+
+.terms__grid th {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding-left: 10px;
+}
+
+/* Scoped to the grid, as the Archive's cells are: `.table__grid td` zeroes padding. */
+.terms__grid .terms__kind {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  padding-left: 10px;
+  white-space: nowrap;
+}
+
+.terms__grid .terms__variants {
+  padding: var(--space-1) 10px;
+  width: 55%;
+}
+
+.terms__variants-input {
+  padding: 6px 12px;
+  width: 100%;
+}
+
+.terms__in-conflict {
+  color: var(--warning);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: var(--space-1) 0 0;
+}
+
+.terms__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
 /* ---- the Archive (U-22) ----
    A page like a type's: its head, then a table of what is archived. Each row
    can be chosen, and a bar over the table puts the chosen ones back. */

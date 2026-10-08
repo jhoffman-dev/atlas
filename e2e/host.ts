@@ -785,6 +785,11 @@ export async function installHost(
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
         }
+        // The vocabulary's notes (P28-05) read the same files and props tables
+        // the Archive does, so they run for real by SQLite the same way.
+        if (statement.startsWith('/* terms:')) {
+          return runArchiveQuery(statement, bound, indexed.values());
+        }
         // SQL written by hand — the query page, a SQL view or widget — binds
         // nothing, where everything the app compiles binds at least its LIMIT.
         if (bound.length === 0) return runHandWrittenSql(statement, indexed.values(), views);
