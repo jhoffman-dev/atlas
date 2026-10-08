@@ -490,3 +490,76 @@ describe('importArrivedMeetings: adversarial', () => {
     });
   });
 });
+
+describe('importArrivedMeetings: adversarial, round 2', () => {
+  /**
+   * The mapping writes a resend at the path written first whenever it is free
+   * — and it is free once the original has been filed or archived. The resend
+   * then has the path and the bytes of the original's own arrival, which the
+   * seen versions remember, so it is never looked at: it stays in the Inbox
+   * beside the meeting it copies. A Mac that restarted since (or never heard
+   * the first arrival) archives it, so correctness rests on the memory.
+   */
+  it('archives a resend at the path the original arrived at once the original is filed', async () => {
+    const filed = 'Projects/Larkspur/2026-10-06 Standup.md';
+    const { vault, ports, activity, run, as } = setUp({ [STANDUP]: meeting() });
+    await run([as('added', STANDUP)]);
+    const digest = digestOf(meeting());
+    vault.files.delete(STANDUP);
+    vault.files.set(filed, meeting());
+    await run([
+      { kind: 'removed', path: STANDUP, type: 'meeting', digest },
+      as('added', filed),
+    ]);
+
+    vault.files.set(STANDUP, meeting());
+    const resent = [as('added', STANDUP)];
+    await run(resent);
+    const keptByMacThatRemembers = vault.files.has(STANDUP);
+    // A Mac with no memory of the first arrival, hearing the same sync.
+    await importArrivedMeetings({ ports, changes: resent, today: TODAY, activity });
+    const keptByMacThatForgot = vault.files.has(STANDUP);
+
+    expect(keptByMacThatForgot).toBe(false);
+    expect(vault.properties(`Archive/${STANDUP}`)['atlas_duplicate_of']).toMatch(/Standup\]\]$/);
+    expect(keptByMacThatRemembers).toBe(keptByMacThatForgot);
+  });
+
+  /**
+   * One copy that cannot be written — denied, or changed under the read —
+   * throws out of the original's own settling: Activity says the original,
+   * which is fine, could not be imported, with the copy's problem, and the
+   * copies after it are left in the Inbox.
+   */
+  it('says a copy that cannot be written against the copy, and still settles the others', async () => {
+    const third = 'Inbox/Meetings/2026-10-06 Standup (gemini 5e6f7a8b).md';
+    const { vault, ports, activity, as } = setUp({
+      [STANDUP]: meeting(),
+      [RESENT]: meeting(),
+      [third]: meeting(),
+    });
+    const denying = {
+      ...ports,
+      fs: {
+        ...ports.fs,
+        writeTextFile: async (args: Parameters<typeof ports.fs.writeTextFile>[0]) => {
+          if (args.path === RESENT) throw new Error('Permission denied.');
+          return ports.fs.writeTextFile(args);
+        },
+      },
+    };
+
+    const outcome = await importArrivedMeetings({
+      ports: denying,
+      changes: [as('added', STANDUP)],
+      today: TODAY,
+      activity,
+    });
+
+    expect(outcome.happenings).toContainEqual({ kind: 'arrived', path: STANDUP });
+    expect(outcome.happenings).not.toContainEqual(
+      expect.objectContaining({ kind: 'failed', path: STANDUP }),
+    );
+    expect(vault.files.has(`Archive/${third}`)).toBe(true);
+  });
+});

@@ -16,6 +16,7 @@ import { dirname, join, relative, sep } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  archiveNotes,
   createIndexSyncer,
   createMeetingImporter,
   createNoteChanges,
@@ -24,6 +25,7 @@ import {
   type ArchivePorts,
   type IndexedNote,
 } from '@atlas/application';
+import { createVaultPath } from '@atlas/domain';
 
 /**
  * Meeting import on arrival end to end on this side of the boundary: meeting
@@ -258,6 +260,7 @@ async function launch() {
   await syncer.sync({ vault: root, fromScratch: false });
   return {
     activity,
+    ports,
     /** A sync, as a pull or the watcher sets off, and the import it leads to. */
     sync: async () => {
       await syncer.sync({ vault: root, fromScratch: false });
@@ -417,4 +420,95 @@ describe('meeting import over a real folder: adversarial', () => {
       expect(keptByAsleep).toEqual(keptByAwake);
     },
   );
+});
+
+describe('meeting import over a real folder: adversarial, round 2', () => {
+  const meetingReports = (app: {
+    activity: { reports: readonly { kind: string; message: string }[] };
+  }) => app.activity.reports.filter((report) => report.kind === 'meeting');
+
+  /**
+   * Both Macs edited the meeting; the merge keeps this Mac's version in place
+   * and the other's beside it (U-29). The conflict copy is a valid holder that
+   * ranks with the path the mapping writes first and wins the tie on path, so
+   * the file in place — this Mac's version, the one links name — is archived.
+   */
+  it('keeps the meeting in place when a sync conflict copy of it arrives beside it', async () => {
+    const conflict = 'Inbox/Meetings/2026-09-29 Platform weekly sync (conflict from Tobias’s Mac).md';
+    const app = await launch();
+    await drop(FIRST, VALID);
+    await app.sync();
+
+    await drop(conflict, VALID.replace('before Friday.', 'before Thursday.'));
+    await app.sync();
+
+    expect(existsSync(join(root, 'Archive', FIRST))).toBe(false);
+    expect(existsSync(join(root, FIRST)) && (await readFile(join(root, FIRST), 'utf8'))).toBe(VALID);
+  });
+
+  /**
+   * James renames an imported meeting and adds a line to its transcript on
+   * one Mac. That Mac hears two changes — the edit, left alone, then a move.
+   * The other Mac pulls both in one sync: a removed note and an added one
+   * with other bytes, which is an arrival, so it writes an import error into
+   * his note and commits it.
+   */
+  it('leaves a renamed and edited meeting alone whether the two come in one sync or two', async () => {
+    const renamed = 'Inbox/Meetings/2026-09-29 Platform weekly sync - cache.md';
+    const edited = `${VALID}\nTobias left early; follow up on the flag.\n`;
+
+    const thisMac = await launch();
+    await drop(FIRST, VALID);
+    await thisMac.sync();
+    await drop(FIRST, edited);
+    await thisMac.sync();
+    await rename(join(root, FIRST), join(root, renamed));
+    await thisMac.sync();
+    const keptByThisMac = await readFile(join(root, renamed), 'utf8');
+
+    await rm(root, { recursive: true, force: true });
+    root = await realpath(await mkdtemp(join(tmpdir(), 'atlas-meeting-import-')));
+    invoke.mockImplementation(hostFor(root));
+    const otherMac = await launch();
+    await drop(FIRST, VALID);
+    await otherMac.sync();
+    await rm(join(root, FIRST));
+    await drop(renamed, edited);
+    await otherMac.sync();
+    const keptByOtherMac = await readFile(join(root, renamed), 'utf8');
+
+    expect(keptByThisMac).toBe(edited);
+    expect(keptByOtherMac).toBe(keptByThisMac);
+    expect(meetingReports(otherMac)).toHaveLength(1);
+  });
+
+  /**
+   * The original is archived; the mapping resends the meeting and, its path
+   * being free, writes it there with the same bytes. The importer has heard
+   * that path and those bytes before — the original's arrival — so the resend
+   * is never looked at: it stays in the Inbox, a live second copy of an
+   * archived meeting, and Activity says nothing.
+   */
+  it('archives an identical resend that lands where the archived original arrived', async () => {
+    const app = await launch();
+    await drop(FIRST, VALID);
+    await app.sync();
+    const notePaths = (await tauriIndex.manifest()).map((entry) => createVaultPath(entry.path));
+    await archiveNotes({
+      ports: app.ports,
+      paths: [createVaultPath(FIRST)],
+      notePaths,
+      today: '2026-10-08',
+    });
+    await app.sync();
+
+    await drop(FIRST, VALID);
+    await app.sync();
+
+    expect(existsSync(join(root, FIRST))).toBe(false);
+    expect(meetingReports(app).map((report) => report.message)).toEqual([
+      expect.stringContaining('arrived'),
+      expect.stringContaining('second copy'),
+    ]);
+  });
 });

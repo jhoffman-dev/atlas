@@ -158,3 +158,60 @@ describe('meetingCopies', () => {
     expect(meetingCopies([PRIMARY, PRIMARY])).toEqual({ original: PRIMARY, copies: [] });
   });
 });
+
+describe('meeting arrival: adversarial, round 2', () => {
+  const PRIMARY = 'Inbox/Meetings/2026-10-06 Standup.md';
+
+  /**
+   * A merge that both Macs changed keeps this Mac's version in place and the
+   * other's beside it as `<name> (conflict from <Mac>).md` (U-29). Neither name
+   * is the collision path, so both rank as "the path the mapping writes first",
+   * and the tie goes to the first by path — where ` ` sorts before `.`.
+   */
+  it('keeps the path the mapping writes first over a sync conflict copy of it', () => {
+    const conflict = 'Inbox/Meetings/2026-10-06 Standup (conflict from Tobias’s Mac).md';
+    expect(meetingCopies([PRIMARY, conflict])).toEqual({ original: PRIMARY, copies: [conflict] });
+  });
+
+  it('keeps the path the mapping writes first over a numbered copy of it', () => {
+    const numbered = 'Inbox/Meetings/2026-10-06 Standup 2.md';
+    expect(meetingCopies([PRIMARY, numbered])).toEqual({ original: PRIMARY, copies: [numbered] });
+  });
+
+  /**
+   * APFS ignores Unicode normalization, and git on a Mac records names
+   * precomposed whatever the disk holds, so one Mac can index a name
+   * decomposed (NFD) that the other indexes composed (NFC). The tie between
+   * equal places is broken on raw code units, so the two disagree — and the
+   * merge archives both.
+   */
+  it('decides the same whether a holder is spelled composed or decomposed', () => {
+    const accented = 'Inbox/Meetings/2026-10-06 Équipe.md';
+    const other = 'Inbox/Meetings/2026-10-06 Fall offsite.md';
+    const composed = meetingCopies([accented.normalize('NFC'), other]).original;
+    const decomposed = meetingCopies([accented.normalize('NFD'), other]).original;
+    expect(decomposed.normalize('NFC')).toBe(composed.normalize('NFC'));
+  });
+
+  /**
+   * Two meetings the same day whose titles differ only in a trailing number
+   * fold to one place once ` N` is taken off both sides. Unarchiving one of
+   * them in the sync that brings the other in hides the other's arrival: it
+   * is never validated, marked or deduplicated.
+   */
+  it('takes a new meeting as an arrival when another with a numbered title is unarchived', () => {
+    expect(
+      meetingCandidates([
+        change('removed', 'Archive/Inbox/Meetings/2026-10-06 Onboarding cohort 1.md', 'stamped'),
+        change('added', 'Inbox/Meetings/2026-10-06 Onboarding cohort 1.md', 'unstamped'),
+        change('added', 'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md', 'new'),
+      ]),
+    ).toEqual([
+      {
+        path: 'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md',
+        digest: 'new',
+        kind: 'arrived',
+      },
+    ]);
+  });
+});
