@@ -75,11 +75,22 @@ Where the build differs from, or settles, what is written above:
   into the first, so one undo covers both. A file in both keeps what it was
   before the first run only while it still held what the first run wrote;
   otherwise — the first never wrote it, or it was edited or synced since —
-  undo gives back what the second run found, and the edit is kept.
+  undo gives back what the second run found, and the edit is kept. A file
+  the second run made afresh — the first run's was deleted since — is
+  recorded as made by the second, so undo takes it away while still as made.
+  The record also says whether its last run got to the end, and which files
+  it left; a run writes it unfinished before changing anything and marks it
+  finished once it has tried every file.
 - **Unknown includes none.** A task with no status goes to `inbox`, as an
   unknown one does. A status spelled another way (`Next Action`,
   `in_progress`) is read as the status it names, and one written as a
   one-item list (`[next-action]`) is written back as that status.
+- **A status is what the index reads.** The rules, the migration and the
+  views read a status trimmed, a one-item list as its item, as the index
+  stores it: `waiting `, `[waiting]` and `waiting` are all Waiting to the
+  rule, and a list of blank names in `waiting_on` is nobody. A GTD status set
+  in another spelling is written as the status itself, so the files stay in
+  the one spelling a tick and a board compare with.
 - **The migration never makes what the rules refuse.** Waiting stays a
   mapping target, but a task it would send to Waiting with nobody in
   `waiting_on` goes to the Inbox instead, and the preview says why beside it.
@@ -97,8 +108,8 @@ Where the build differs from, or settles, what is written above:
   `done` is not a task's — in place, by the value's span; a table view's
   `filters:` likewise. Picking a status (`=`, `is`) is carried over. Leaving
   one out (`!=`, `isNot`, `=` under `NOT`) is carried only when no other old
-  status becomes the same one, and a status nobody knew is never carried to
-  the Inbox. Everything else that names an old status is listed instead: a
+  status becomes the same one and no task already holds it, and a status
+  nobody knew is never carried to the Inbox. Everything else that names an old status is listed instead: a
   query over tasks and another type, those comparisons, any other operator,
   any SQL view that reads `status`, and an automation that would set a status
   on mixed types, an unknown status, or Waiting. A dashboard's widgets are not
@@ -124,7 +135,11 @@ Where the build differs from, or settles, what is written above:
   Action, not the Inbox: it was something to do. Persisting the earlier
   status in a frontmatter key was rejected: every finished task would carry a
   key nobody asked for, which syncs and outlives its use.
-- **The Inbox does not read every task on every open.** It first asks the
-  index which statuses tasks hold, and reads the tasks only when the Task type
-  is not yet GTD's or some task holds another status or none. (The index
-  flattens a list, so a one-item list status is not seen by that quick look.)
+- **The Inbox does not read every task on every open.** A quick look says
+  yes — and the tasks are read — while the Task type is not yet GTD's, the
+  record says its last run stopped partway or left files, a GTD view the move
+  adds is missing, the index holds a task whose status is not one of the eight
+  (or none), or a task is Waiting with nobody to wait on. It never says no
+  while a preview has work, except for a status written as a one-item list,
+  which the index flattens: the rules already read it as its item, and the
+  next write of its status rewrites it.

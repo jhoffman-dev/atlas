@@ -714,7 +714,7 @@ ORDER BY phase</pre>
       </div>
       <h3>A task's properties</h3>
       <ul>
-        <li><b>Waiting on</b> links a person. Moving a task to <b>Waiting</b> without one is refused wherever it happens — a board, the properties panel, a new card or note, the add button, an automation, Claude: <i>“A waiting task needs someone to wait on: set Waiting on first, then move it to Waiting.”</i> Set the person, then move it.</li>
+        <li><b>Waiting on</b> links a person; a status written <code>waiting </code> or <code>[waiting]</code> is Waiting too, and is saved as <code>waiting</code>. Moving a task to <b>Waiting</b> without one is refused wherever it happens — a board, the properties panel, a new card or note, the add button, an automation, Claude: <i>“A waiting task needs someone to wait on: set Waiting on first, then move it to Waiting.”</i> Set the person, then move it.</li>
         <li><b>Contexts</b> — where it can be done (<i>@phone</i>, <i>@errands</i>); add your own options in <a href="#edit-type">Edit type</a>.</li>
         <li><b>Defer until</b> — a day before which it stays out of <b>Next actions</b>. <b>Due</b> — when it must be done.</li>
         <li><b>Estimate (minutes)</b>, <b>Source</b> — where it came from — and <b>Project</b>, filing it under a <a href="#para">project or an area</a>.</li>
@@ -742,7 +742,7 @@ ORDER BY phase</pre>
       <ul>
         <li><b>Undo the move to GTD</b> on the Inbox page puts back each file's properties exactly as they were, and takes away the views it added; a file nobody touched since is back byte for byte. A file whose properties changed since the move is left as it is, and said so in <a href="#activity">Activity</a>; one whose text alone changed gets its properties back and keeps the new text.</li>
         <li>The move and its undo are each a line in <a href="#activity">Activity</a>, with every file left alone and why. Nothing about it is silent.</li>
-        <li>If the move stops partway — the Mac sleeps, a disk refuses a file — open the Inbox again: the preview lists only what is left, and one undo covers both runs — keeping anything you changed in between. Running it again when nothing is left changes nothing, and once the move is done the Inbox no longer reads your tasks to check.</li>
+        <li>If the move stops partway — the Mac sleeps, a disk refuses a file — open the Inbox again: the preview lists only what is left, and one undo covers both runs — keeping anything you changed in between. Running it again when nothing is left changes nothing, and once the move is done the Inbox no longer reads your tasks to check — unless a file was left, a GTD view is missing, or a task is Waiting with nobody to wait on.</li>
         <li>The record undo works from is kept in <code>.atlas/migrations</code>, so it syncs and works from either Mac.</li>
       </ul>
       <h3>Daily notes</h3>
