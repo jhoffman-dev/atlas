@@ -144,6 +144,7 @@ import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
 import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
 import { useAutomations } from './automations/use-automations.ts';
+import { useMeetingImport } from './meetings/use-meeting-import.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
 import { paletteArchiveCommands, runPaletteArchiveCommand } from './archive/palette-archive.ts';
 import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
@@ -434,6 +435,7 @@ export function App({
     markdown: notes.markdown,
     index: index.index,
     types,
+    notePaths,
     vaultKey: location?.absolutePath ?? null,
     changeKey: indexKey,
   });
@@ -792,6 +794,15 @@ export function App({
     void refresh();
     void reload();
   }, [refresh, reload]);
+  // Meetings that n8n commits arrive by pull: each is checked, deduplicated and marked (P28-04).
+  useMeetingImport({
+    changes: noteChanges,
+    ports: archivePorts,
+    clock: localClock,
+    activity: activityLog,
+    vaultKey,
+    onWritten: settleArchive,
+  });
   const archive = useArchive({
     ports: archivePorts,
     clock: localClock,

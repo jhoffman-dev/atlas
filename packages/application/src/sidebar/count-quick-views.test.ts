@@ -2,11 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   compileViewQuery,
   createVaultPath,
+  parseObjectType,
   parseSavedView,
   sidebarEntry,
   type QuickView,
 } from '@atlas/domain';
 import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
+import { jsonMarkdown } from '../testing/json-markdown.ts';
+import { atlasQueryIndex } from '../testing/query-index.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import { countQuickViews } from './count-quick-views.ts';
@@ -63,6 +66,8 @@ describe('countQuickViews', () => {
       markdown,
       index: fakeIndexPort({ query }),
       quick: [TODAY, INBOX],
+      types: [],
+      notePaths: [],
     });
 
     expect([...counts]).toEqual([
@@ -80,7 +85,14 @@ describe('countQuickViews', () => {
     const fs = vaultOf({ [INBOX.entry.path]: noteWith(view) });
     const query = vi.fn(async () => rowsOf(0));
 
-    await countQuickViews({ fs, markdown, index: fakeIndexPort({ query }), quick: [INBOX] });
+    await countQuickViews({
+      fs,
+      markdown,
+      index: fakeIndexPort({ query }),
+      quick: [INBOX],
+      types: [],
+      notePaths: [],
+    });
 
     const parsed = parseSavedView(view);
     if (parsed === null) throw new Error('the fixture is not a view');
@@ -98,6 +110,8 @@ describe('countQuickViews', () => {
       markdown,
       index: fakeIndexPort({ query }),
       quick: [INBOX],
+      types: [],
+      notePaths: [],
     });
 
     expect(query).toHaveBeenCalledTimes(1);
@@ -116,9 +130,44 @@ describe('countQuickViews', () => {
       markdown,
       index: fakeIndexPort({ query }),
       quick: [TODAY],
+      types: [],
+      notePaths: [],
     });
 
     expect(counts.get('today')).toBe(10);
+  });
+
+  it('counts an Atlas query view by running it, up to its own limit', async () => {
+    const types = [
+      parseObjectType({
+        name: 'task',
+        properties: { status: { kind: 'select', options: ['backlog', 'done'] } },
+      }),
+    ];
+    const notes = {
+      'Tasks/A.md': noteWith({ type: 'task', status: 'backlog' }),
+      'Tasks/B.md': noteWith({ type: 'task', status: 'backlog' }),
+      'Tasks/C.md': noteWith({ type: 'task', status: 'done' }),
+      'Inbox/D.md': noteWith({ type: 'task', status: 'done' }),
+    };
+    const query = atlasQueryIndex({ files: notes, markdown: jsonMarkdown() });
+    const view = (text: string) =>
+      vaultOf({ [INBOX.entry.path]: noteWith({ atlas: 'view', layout: 'list', query: text }) });
+    const count = async (text: string) =>
+      (
+        await countQuickViews({
+          fs: view(text),
+          markdown,
+          index: fakeIndexPort({ query }),
+          quick: [INBOX],
+          types,
+          notePaths: Object.keys(notes),
+        })
+      ).get('inbox');
+
+    expect(await count("FROM task WHERE status = backlog OR path STARTS WITH 'Inbox/'")).toBe(3);
+    expect(await count('FROM task LIMIT 2')).toBe(2);
+    expect(await count('FROM nothing')).toBeUndefined();
   });
 
   it('has nothing to count when there are no quick views', async () => {
@@ -128,6 +177,8 @@ describe('countQuickViews', () => {
       markdown,
       index: fakeIndexPort(),
       quick: [],
+      types: [],
+      notePaths: [],
     });
     expect(counts.size).toBe(0);
     expect(readNotes).not.toHaveBeenCalled();
@@ -148,6 +199,8 @@ describe('countQuickViews', () => {
       markdown,
       index: fakeIndexPort({ query }),
       quick: [TODAY, INBOX],
+      types: [],
+      notePaths: [],
     });
 
     expect([...counts]).toEqual([['inbox', 3]]);
@@ -162,6 +215,8 @@ describe('countQuickViews', () => {
       markdown,
       index: fakeIndexPort({ query }),
       quick: [TODAY, INBOX],
+      types: [],
+      notePaths: [],
     });
 
     expect(counts.size).toBe(0);
@@ -174,7 +229,14 @@ describe('countQuickViews', () => {
         throw new Error('the vault moved');
       },
     });
-    const counts = await countQuickViews({ fs, markdown, index: fakeIndexPort(), quick: [TODAY] });
+    const counts = await countQuickViews({
+      fs,
+      markdown,
+      index: fakeIndexPort(),
+      quick: [TODAY],
+      types: [],
+      notePaths: [],
+    });
     expect(counts.size).toBe(0);
   });
 });

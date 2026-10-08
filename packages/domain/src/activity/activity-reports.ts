@@ -277,6 +277,16 @@ export function meetingImportReport(happening: MeetingImportHappening): Activity
   }
 }
 
+/** The import could not look at one sync's meetings at all — the files are as they were. */
+export function meetingImportStoppedReport(problem: string): ActivityReport {
+  return {
+    level: 'error',
+    kind: 'meeting',
+    message: `Meetings that arrived could not be imported. ${problem}`,
+    subject: null,
+  };
+}
+
 function duplicateLine({
   path,
   of,

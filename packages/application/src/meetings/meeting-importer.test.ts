@@ -101,8 +101,7 @@ describe('createMeetingImporter', () => {
   it('hears every sync the change feed publishes', async () => {
     const { importer, arrived, activity } = setUp();
     const changes = createNoteChanges({ onError: () => undefined });
-    const onError = vi.fn();
-    const stop = importMeetingsOnArrival({ changes, importer, onError });
+    const stop = importMeetingsOnArrival({ changes, importer, activity });
 
     changes.publish({ vault: VAULT, changes: [arrived] });
     await vi.waitFor(() => expect(activity.reports).toHaveLength(1));
@@ -111,20 +110,24 @@ describe('createMeetingImporter', () => {
     await importer.hear({ vault: VAULT, changes: [] });
 
     expect(activity.reports).toHaveLength(1);
-    expect(onError).not.toHaveBeenCalled();
   });
 
-  it('passes a run that failed outright to onError, and goes on with the next', async () => {
+  it('says a run that failed outright in Activity, and goes on with the next', async () => {
     const changes = createNoteChanges({ onError: () => undefined });
     const failing = { hear: vi.fn().mockRejectedValue(new Error('the vault went away')) };
-    const onError = vi.fn();
-    importMeetingsOnArrival({ changes, importer: failing, onError });
+    const activity = recordingActivity();
+    importMeetingsOnArrival({ changes, importer: failing, activity });
 
     changes.publish({ vault: VAULT, changes: [] });
     changes.publish({ vault: VAULT, changes: [] });
 
-    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(2));
-    expect(onError).toHaveBeenCalledWith(new Error('the vault went away'));
+    await vi.waitFor(() => expect(activity.reports).toHaveLength(2));
+    expect(activity.reports[0]).toEqual({
+      level: 'error',
+      kind: 'meeting',
+      message: 'Meetings that arrived could not be imported. the vault went away',
+      subject: null,
+    });
   });
 });
 

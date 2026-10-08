@@ -1,3 +1,4 @@
+import { meetingImportStoppedReport, messageWithoutPaths } from '@atlas/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChangeNews, NoteChanges } from '../index/note-changes.ts';
 import type { Clock } from '../ports.ts';
@@ -68,18 +69,24 @@ export function createMeetingImporter({
   };
 }
 
-/** Hands every sync's news to the importer; returns the way to stop. Failures go to `onError`. */
+/**
+ * Hands every sync's news to the importer; returns the way to stop. A run
+ * that fails outright — not one file, which the run says itself — is said in
+ * the Activity log of the vault it was for.
+ */
 export function importMeetingsOnArrival({
   changes,
   importer,
-  onError,
+  activity,
 }: {
   changes: NoteChanges;
   importer: MeetingImporter;
-  onError: (cause: unknown) => void;
+  activity: ActivityLog;
 }): () => void {
   return changes.subscribe((news) => {
-    importer.hear(news).catch(onError);
+    importer.hear(news).catch((cause: unknown) => {
+      activity.inVault(news.vault).record(meetingImportStoppedReport(messageWithoutPaths(cause)));
+    });
   });
 }
 

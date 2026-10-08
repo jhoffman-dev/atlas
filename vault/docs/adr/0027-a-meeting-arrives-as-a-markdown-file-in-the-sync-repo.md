@@ -171,3 +171,50 @@ differs from the issue (#8) and the text above:
   never a skip or a guess.
 - **Known gap:** titles that differ only in case on one day are two GitHub
   paths but one macOS file name; the single-path lookup cannot see it.
+
+## As built (P28-04, 2026-10-08)
+
+Import on arrival is `importArrivedMeetings` in `packages/application/src/meetings`,
+run by `createMeetingImporter` on every sync's changes from the P28-03 change
+feed. Where the build went past or around the text above:
+
+- **An arrival is a note added under `Inbox/Meetings/`**, where the contract
+  puts every file. A note added elsewhere is not imported, even one that
+  declares `atlas_import`. A note added with the same bytes as one removed in
+  the same sync is a move or a rename, not an arrival, so filing a meeting
+  or renaming it in place is never imported again.
+- **A changed file is checked again only when it carries `atlas_import_error`.**
+  The mark is how a fix is noticed: once the file reads, the mark is taken
+  out and it is imported as if it had just arrived. An edit to a meeting that
+  imported is left alone.
+- **The error is one line**: the first three problems, each with its line when
+  it has one, and how many more (`tools/n8n/validate-meeting.mjs` prints all
+  of them). A file whose YAML cannot be read is not written to at all — the
+  problem is said in Activity only.
+- **Duplicates are decided by reading, not by the index alone.** The index
+  names the notes holding a provider + external_id; each is read, because the
+  index is behind the importer's own writes. Notes marked as a copy or failing
+  import hold nothing. An archived meeting counts: a meeting filed away and
+  sent again is still the same meeting. Of two copies in one sync, the first
+  reported is the original. Syncs are imported one at a time, so two copies
+  heard together are never both archived.
+- **A marked copy is never looked at again**, so unarchiving it keeps it.
+- **A version heard twice is acted on once**, and a file changed since the
+  sync that reported it is left for the sync that reports the new version.
+  A file open with unsaved typing is never written.
+- **Activity has a Meetings kind**: one line per outcome — arrived, fixed,
+  duplicate archived, could not be imported.
+- **The shipped Inbox view is an Atlas query** over tasks and meetings: backlog
+  tasks, anything under `Inbox/`, and any meeting with an import error, with
+  the error as a column. The Meeting type declares `atlas_import_error` and
+  `atlas_duplicate_of` so the query can name them and the properties panel
+  shows them. A quick view's count now runs a query view too.
+- **Every Mac imports.** Each writes the same mark into the same file — an
+  archived copy differs only in the day it is stamped with — so it does not
+  wait for the Mac that runs automations; that would drop arrivals heard
+  before the sync settings are read. Two Macs archiving one copy on
+  different days is a conflict the sync rules (ADR-0025) settle.
+- **Known gaps:** a file that fails import and declares no `type: meeting` is
+  marked, but the Inbox query cannot list it (P30-01's Inbox page lists the
+  whole `Inbox/` folder). A fresh index's first sync is a baseline (P28-03),
+  so a meeting that arrived just before a schema upgrade is not imported.

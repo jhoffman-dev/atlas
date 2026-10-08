@@ -10,6 +10,7 @@ import {
   indexFailedReport,
   indexRebuiltReport,
   meetingImportReport,
+  meetingImportStoppedReport,
   noticeReport,
   sourceRefreshReport,
   writeFailedReport,
@@ -439,6 +440,17 @@ describe('meetingImportReport', () => {
       kind: 'meeting',
       message: '2026-10-06 Standup: could not be imported. The index is closed.',
       subject: { kind: 'note', path: standup },
+    });
+  });
+});
+
+describe('meetingImportStoppedReport', () => {
+  it('says an import that could not run at all as an error about no one file', () => {
+    expect(meetingImportStoppedReport('The vault was closed.')).toEqual({
+      level: 'error',
+      kind: 'meeting',
+      message: 'Meetings that arrived could not be imported. The vault was closed.',
+      subject: null,
     });
   });
 });
