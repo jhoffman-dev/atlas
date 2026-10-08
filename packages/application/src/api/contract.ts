@@ -682,6 +682,48 @@ export interface ApiTagRenameReport {
   readonly failed: readonly { readonly path: string; readonly reason: string }[];
 }
 
+/** A term (P28-05): a name's one right spelling, the ways it is misheard, and what it names. */
+export interface ApiTerm {
+  readonly path: string;
+  /** The right spelling: the term's title. */
+  readonly canonical: string;
+  readonly variants: readonly string[];
+  /** `product`, `person`, `company`, `acronym` or `other`; null when the note names none of these. */
+  readonly kind: string | null;
+}
+
+/** A note's claim that a spelling means its own right spelling. */
+export interface ApiVocabularyClaim {
+  /** The spelling as that note writes it. */
+  readonly form: string;
+  /** What that note says it should be spelt as. */
+  readonly canonical: string;
+  readonly path: string;
+  /** A term's variant, or a person's or a company's name or alias. */
+  readonly source: 'term' | 'person' | 'company';
+}
+
+/** A spelling Atlas puts right, what to, and every note that says so. */
+export interface ApiVocabularyEntry {
+  readonly form: string;
+  readonly canonical: string;
+  readonly claims: readonly ApiVocabularyClaim[];
+}
+
+/** A spelling two notes claim for two different right spellings: not used until one lets it go. */
+export interface ApiVocabularyConflict {
+  readonly form: string;
+  readonly claims: readonly ApiVocabularyClaim[];
+}
+
+/** The vocabulary, as the Terms page reads it. */
+export interface ApiTerms {
+  readonly terms: readonly ApiTerm[];
+  /** Longest spelling first, matched however cased or spaced. */
+  readonly vocabulary: readonly ApiVocabularyEntry[];
+  readonly conflicts: readonly ApiVocabularyConflict[];
+}
+
 /**
  * An automation (P25), as its file says it and as the Automations page lists
  * it. The API reads automations and never runs, undoes or edits one (ADR-0016).
@@ -853,7 +895,8 @@ export type ApiSuccessBody =
     }
   | ApiAutomationList
   | ApiAutomationLog
-  | ApiAutomationDryRun;
+  | ApiAutomationDryRun
+  | ApiTerms;
 
 /**
  * Every route, as the router and the MCP server both need to know them.
@@ -1031,6 +1074,11 @@ export const API_ROUTES = [
     method: 'POST',
     path: '/v1/automations/{id}/dry-run',
     summary: 'What an automation would do if it ran now. Writes nothing.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/terms',
+    summary: 'The vocabulary: every term, every spelling Atlas puts right, and the conflicts.',
   },
 ] as const;
 

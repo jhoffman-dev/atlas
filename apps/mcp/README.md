@@ -87,6 +87,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_list_type_views`    | `GET /v1/types/{name}/views`                                                 | no      |
 | `atlas_list_templates`     | `GET /v1/templates`                                                          | no      |
 | `atlas_read_template`      | `GET /v1/templates/{name}`                                                   | no      |
+| `atlas_terms`              | `GET /v1/terms`                                                              | no      |
 | `atlas_run_view`           | `POST /v1/views/{path}/run`                                                  | no      |
 | `atlas_query`              | `POST /v1/query`                                                             | no      |
 | `atlas_run_query`          | `POST /v1/atlas-query`                                                       | no      |

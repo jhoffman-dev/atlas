@@ -51,6 +51,7 @@ import type {
   ApiTagRenameReport,
   ApiTemplate,
   ApiTemplateContent,
+  ApiTerms,
   ApiType,
   ApiTypeView,
   ApiView,
@@ -208,6 +209,8 @@ export class AtlasClient {
       method: 'GET',
       path: `/v1/templates/${encodeURIComponent(name)}`,
     });
+
+  terms = () => this.json<ApiTerms>({ method: 'GET', path: '/v1/terms' });
 
   views = () => this.json<{ views: readonly ApiView[] }>({ method: 'GET', path: '/v1/views' });
 
