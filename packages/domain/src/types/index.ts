@@ -62,3 +62,15 @@ export {
   isBuiltInTypeFile,
   typeDeleteRefusal,
 } from './built-in-types.ts';
+export {
+  AREA_TYPE,
+  builtInTypePlan,
+  FILED_UNDER,
+  FILED_UNDER_KEY,
+  FILED_UNDER_TYPES,
+  PARA_TYPE_FILES,
+  PROJECT_TYPE,
+  RESOURCE_TYPE,
+  typeExtensionLines,
+} from './para.ts';
+export type { BuiltInTypeFile, BuiltInTypePlan, TypeExtension } from './para.ts';
