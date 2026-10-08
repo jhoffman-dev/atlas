@@ -558,3 +558,52 @@ describe('useAutomations: rules a note sets off, attacked (P29-01)', () => {
     expect(vault.files[LOG]).toBeUndefined();
   });
 });
+
+describe('useAutomations: rules a note sets off, attacked again (round 2)', () => {
+  const VAULT = '/vaults/home';
+  const onNewTask = () => rule('a task is created');
+  const added = (vault: ReturnType<typeof memoryVault>, path: string) => ({
+    vault: VAULT,
+    changes: [
+      { kind: 'added' as const, path, type: 'task', digest: digestOf(vault.files[path] ?? '') },
+    ],
+  });
+
+  it('runs none of a rule’s held news once this Mac is known not to run the vault’s automations', async () => {
+    const first = 'Tasks/A.md';
+    const second = 'Tasks/B.md';
+    const vault = memoryVault({
+      [RULE]: onNewTask(),
+      [first]: '---\ntype: task\n---\n',
+      [second]: '---\ntype: task\n---\nFor Mara Quill.\n',
+    });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, scheduled: true });
+    await settle();
+    // A save from the editor holds the one door while two syncs' news comes in and is queued.
+    let release = () => {};
+    const holding = new Promise<void>((resolve) => (release = resolve));
+    let held: Promise<unknown> = Promise.resolve();
+    act(() => {
+      held = hook.result.current.exclusive(() => holding, { wait: true });
+    });
+    act(() => changes.publish(added(vault, first)));
+    act(() => changes.publish(added(vault, second)));
+    await settle();
+
+    // Sync settings now name the other Mac as the one that runs this vault's automations.
+    hook.rerender({ ...initial, changes, scheduled: false });
+    await settle();
+    release();
+    await act(async () => {
+      await held;
+    });
+    await settle();
+
+    // "False drops": what was held is let go, not run here as well as on the other Mac.
+    expect(vault.files[second]).toBeDefined();
+    expect(vault.files[`Archive/${second}`]).toBeUndefined();
+    expect(vault.files[first]).toBeDefined();
+    expect(vault.files[LOG]).toBeUndefined();
+  });
+});

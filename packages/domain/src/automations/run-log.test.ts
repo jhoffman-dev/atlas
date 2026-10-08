@@ -288,3 +288,30 @@ describe('logPathFor', () => {
     expect(logPathFor('Tidy up')).toBe('.atlas/automations/log/Tidy up.md');
   });
 });
+
+describe('lastRunOf, attacked (P29-01 round 2)', () => {
+  it('does not take a note deleted since — written down as went — for the rule’s last run', () => {
+    const ran: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [{ kind: 'archived', from: p('Tasks/A.md'), to: p('Archive/Tasks/A.md') }],
+      left: [],
+      capped: false,
+      versions: [{ path: p('Tasks/A.md'), digest: '1a2b3c4d', wrote: false }],
+    };
+    // Tobias deletes a task the rule had handled: the rule does not run, the log notes the path went.
+    const gone: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:05:00',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      went: [p('Tasks/B.md')],
+    };
+
+    // The page and the API show the last run: the archive at 09:00, not "Nothing to do." at 09:05.
+    expect(lastRunOf([ran, gone])).toBe(ran);
+  });
+});

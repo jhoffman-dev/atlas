@@ -161,3 +161,143 @@ describe('runOnNoteChanges, attacked: the hourly cap', () => {
     expect(vault.properties(KICKOFF)['status']).toBe('new');
   });
 });
+
+describe('runOnNoteChanges, attacked again (round 2): a path a handled note left', () => {
+  it('runs for a new meeting made, from the same template bytes, at the path a handled one was archived from', async () => {
+    const template = meeting({ kind: 'standup' });
+    const { vault, run, versions, notePaths } = setUp({ [STANDUP]: template });
+    await run(MARK, noteChangesBetween(new Map(), versions()));
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+    // Mara files the standup in the Archive by hand; the next one is made from the template at the same name.
+    const beforeArchive = versions();
+    await archiveNotes({
+      ports: vault.ports,
+      paths: [createVaultPath(STANDUP)],
+      notePaths: notePaths(),
+      today: TODAY,
+    });
+    expect(vault.files.has(STANDUP)).toBe(false);
+    const afterArchive = versions();
+    await run(MARK, noteChangesBetween(beforeArchive, afterArchive));
+    vault.files.set(STANDUP, template);
+
+    await run(MARK, noteChangesBetween(afterArchive, versions()));
+
+    // A new meeting arrived; the rule that marks new meetings has to mark it.
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+  });
+
+  it('runs for a new meeting made, from the same template bytes, at the path a handled one was renamed from', async () => {
+    const template = meeting({ kind: 'standup' });
+    const { vault, run, versions } = setUp({ [STANDUP]: template });
+    await run(MARK, noteChangesBetween(new Map(), versions()));
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+    // Tobias renames it to say who it was with; the next one is made from the template at the old name.
+    const renamed = 'Inbox/Meetings/2026-10-06 Standup with Mara Quill.md';
+    const beforeRename = versions();
+    await vault.ports.fs.moveEntry({
+      from: createVaultPath(STANDUP),
+      to: createVaultPath(renamed),
+    });
+    const afterRename = versions();
+    await run(MARK, noteChangesBetween(beforeRename, afterRename));
+    vault.files.set(STANDUP, template);
+
+    await run(MARK, noteChangesBetween(afterRename, versions()));
+
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+  });
+
+  it('runs for a new meeting pulled in at a path whose handled meeting the same pull archived', async () => {
+    const { vault, run, versions, notePaths } = setUp({ [STANDUP]: meeting({ kind: 'standup' }) });
+    await run(MARK, noteChangesBetween(new Map(), versions()));
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+    // On the other Mac, Mara archives the standup and makes the next one at the same name; one pull brings both.
+    const beforePull = versions();
+    await archiveNotes({
+      ports: vault.ports,
+      paths: [createVaultPath(STANDUP)],
+      notePaths: notePaths(),
+      today: TODAY,
+    });
+    vault.files.set(STANDUP, meeting({ kind: 'standup' }, 'The next standup.\n'));
+    const pulled = noteChangesBetween(beforePull, versions());
+    expect(
+      pulled.map(({ kind, path }) => [kind, path.startsWith('Archive/') ? 'Archive' : path]),
+    ).toEqual(
+      expect.arrayContaining([
+        ['changed', STANDUP],
+        ['added', 'Archive'],
+      ]),
+    );
+    expect(pulled).toHaveLength(2);
+
+    await run(MARK, pulled);
+
+    // The meeting now at that path is new: a rule that marks new meetings has to mark it.
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+  });
+});
+
+describe('runOnNoteChanges, attacked again (round 2): a deletion heard by a run whose query fails', () => {
+  it('still ends the history of a handled meeting deleted in the same sync as one its broken query could not take', async () => {
+    const template = meeting({ kind: 'standup' });
+    const { vault, run, versions } = setUp({ [STANDUP]: template });
+    await run(MARK, noteChangesBetween(new Map(), versions()));
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+    // The rule's query is broken by a hand edit; in the same sync the standup is deleted and a kickoff arrives.
+    const broken: AutomationRule = { ...MARK, which: 'FROM meeting WHERE' };
+    const before = versions();
+    vault.files.delete(STANDUP);
+    await vault.ports.fs.createNote({
+      path: createVaultPath(KICKOFF),
+      contents: meeting({ kind: 'kickoff' }),
+    });
+    const sync = noteChangesBetween(before, versions());
+    expect(await run(broken, sync)).toMatchObject({ kind: 'failed' });
+    // Fixed; later a fresh standup is made from the template at the deleted one's name.
+    const afterDelete = versions();
+    vault.files.set(STANDUP, template);
+
+    await run(MARK, noteChangesBetween(afterDelete, versions()));
+
+    expect(vault.properties(STANDUP)['status']).toBe('new');
+  });
+});
+
+describe('runOnNoteChanges, attacked again (round 2): a note an archive relinks', () => {
+  it('still hears what the user typed into a note its archive then rewrote links in', async () => {
+    const fileDone: AutomationRule = {
+      ...MARK,
+      id: 'FileDone',
+      path: createVaultPath('.atlas/automations/FileDone.md'),
+      name: 'File meetings that are done',
+      when: { kind: 'note', type: 'meeting', on: ['created', 'changed'] },
+      which: 'FROM meeting WHERE status = done',
+      action: { kind: 'archive' },
+    };
+    const link = 'Follows [[Inbox/Meetings/2026-10-06 Standup]].\n';
+    const { vault, run, versions } = setUp({
+      [STANDUP]: meeting({ kind: 'standup', status: 'done' }),
+      [KICKOFF]: meeting({ kind: 'kickoff' }, link),
+    });
+    const before = versions();
+    // Mara closes the kickoff too; it is saved, but the index has not looked again yet when the rule runs.
+    vault.files.set(KICKOFF, meeting({ kind: 'kickoff', status: 'done' }, link));
+    const standupDone: NoteChange = {
+      kind: 'changed',
+      path: STANDUP,
+      type: 'meeting',
+      digest: digestOf(vault.files.get(STANDUP)!),
+    };
+    await run(fileDone, [standupDone]);
+    expect(vault.files.has(STANDUP)).toBe(false);
+    expect(vault.files.get(KICKOFF)).not.toContain('[[Inbox/Meetings/2026-10-06 Standup]]');
+
+    // The index looks again: the kickoff changed — by Mara, and by the rule's relink.
+    await run(fileDone, noteChangesBetween(before, versions()));
+
+    // Mara's change set the kickoff done; the rule that files done meetings has to file it.
+    expect(vault.files.has(KICKOFF)).toBe(false);
+  });
+});
