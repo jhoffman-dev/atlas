@@ -14,7 +14,8 @@ export type {
   TaskMigrationPreview,
   TaskMove,
 } from './task-migration.ts';
-export { readMigrationRecord, runTaskMigration, undoTaskMigration } from './run-task-migration.ts';
+export { readMigrationRecord } from './migration-record-file.ts';
+export { runTaskMigration, undoTaskMigration } from './run-task-migration.ts';
 export type {
   LeftFile,
   MigrationPanes,

@@ -789,8 +789,11 @@ export async function installHost(
         if (statement.startsWith('/* inbox */')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
-        // The statuses tasks hold (P30-02), the Inbox's quick look before reading every task: run for real.
-        if (statement.startsWith('/* task statuses */')) {
+        // The Inbox's quick look before reading every task (P30-02): statuses, and Waiting on nobody, run for real.
+        if (
+          statement.startsWith('/* task statuses */') ||
+          statement.startsWith('/* tasks waiting on nobody */')
+        ) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
         // SQL written by hand — the query page, a SQL view or widget — binds

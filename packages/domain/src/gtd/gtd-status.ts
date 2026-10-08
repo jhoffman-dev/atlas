@@ -1,3 +1,5 @@
+import { toIndexableProperties } from '../index/property-value.ts';
+
 /**
  * Tasks in Atlas follow GTD (ADR-0029): exactly these eight statuses, in the
  * order work moves through them. "Done" is not one of them — a finished task
@@ -66,12 +68,33 @@ export function isGtdStatus(value: unknown): value is GtdStatus {
   return typeof value === 'string' && STATUSES.has(value);
 }
 
-/** Whether a task property says nothing: absent, empty, or an empty list. */
+/**
+ * A task property's values as the index reads them — trimmed, one per item
+ * of a list, empty ones dropped — so the rules, the migration and the views
+ * agree on what a task holds: `waiting `, `[waiting]` and `waiting` are one
+ * status to all of them.
+ */
+export function indexedTexts(value: unknown): string[] {
+  return toIndexableProperties(INDEXED, value).flatMap((row) => {
+    if (row.json !== null) return [row.json];
+    return row.text === null || row.text === '' ? [] : [row.text];
+  });
+}
+
+const INDEXED = 'value';
+
+/** Whether a task property says nothing: absent, empty, or a list of nothing but empty names. */
 export function isBlankValue(value: unknown): boolean {
-  return (
-    value === null ||
-    value === undefined ||
-    (typeof value === 'string' && value.trim() === '') ||
-    (Array.isArray(value) && value.length === 0)
-  );
+  return indexedTexts(value).length === 0;
+}
+
+/** The GTD status a value holds as the index reads it — one status, in any of its spellings — or null. */
+export function gtdStatusOf(value: unknown): GtdStatus | null {
+  const [only, ...more] = indexedTexts(value);
+  return more.length === 0 && isGtdStatus(only) ? only : null;
+}
+
+/** Whether a value, as the index reads it, holds `status` among its items. */
+export function holdsStatus(value: unknown, status: GtdStatus): boolean {
+  return indexedTexts(value).includes(status);
 }

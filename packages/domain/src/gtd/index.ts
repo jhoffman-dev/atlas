@@ -2,6 +2,9 @@ export {
   FINISHED_TASK_STATUS,
   GTD_STATUSES,
   GTD_STATUS_LABELS,
+  gtdStatusOf,
+  holdsStatus,
+  indexedTexts,
   isBlankValue,
   isGtdStatus,
   NEW_TASK_STATUS,
@@ -19,10 +22,12 @@ export {
   MigrationRecordError,
   migrationRecordText,
   parseMigrationRecord,
+  recordHasWorkLeft,
 } from './migration-record.ts';
 export type { MigrationRecord, RecordedFile } from './migration-record.ts';
 export {
   compileTaskStatusesQuery,
+  compileWaitingOnNobodyQuery,
   defaultStatusFor,
   isInboxFallback,
   mappedStatus,
@@ -31,11 +36,12 @@ export {
   taskStatusChanges,
   taskStatusMove,
   TASK_STATUSES_QUERY_MARK,
+  WAITING_ON_NOBODY_QUERY_MARK,
   WAITING_HELD,
 } from './status-mapping.ts';
 export type { StatusMapping, TaskStatusMove } from './status-mapping.ts';
 export { automationStatusRewrite, rewrittenQuery, viewStatusRewrite } from './status-references.ts';
-export type { StatusRewrite } from './status-references.ts';
+export type { StatusesInUse, StatusRewrite } from './status-references.ts';
 export { taskRuleChanges, WAITING_NEEDS_SOMEONE } from './task-rules.ts';
 export type { TaskRuleOutcome } from './task-rules.ts';
 export {

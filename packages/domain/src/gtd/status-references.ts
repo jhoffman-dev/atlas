@@ -20,6 +20,11 @@ export type StatusRewrite =
 
 type Properties = Readonly<Record<string, unknown>>;
 
+/** The statuses the vault's tasks hold now, as the index reads them. */
+export type StatusesInUse = ReadonlySet<string>;
+
+const NONE_IN_USE: StatusesInUse = new Set();
+
 /** Comparisons a status can be carried through: what equals `done` equals `archive` after. */
 const CARRIED = new Set(['=', '!=', 'is', 'isNot']);
 
@@ -44,8 +49,9 @@ const MIXED =
  *
  * Picking a status (`=`) carries over: what was `review` is `in-progress`.
  * Leaving one out (`!=`, or `=` under NOT) carries over only when no other
- * old status becomes the same one — leaving out `in-progress` for what was
- * `review` would leave out what was `doing` too. A status no one knew, which
+ * old status becomes the same one, and no task holds it already — leaving
+ * out `in-progress` for what was `review` would leave out what was `doing`
+ * too, and the tasks already In Progress. A status no one knew, which
  * goes to the Inbox with every other such status, is never carried: the
  * Inbox is not what the view meant.
  */
@@ -54,11 +60,13 @@ function carryProblem({
   how,
   excluding,
   mapping,
+  inUse,
 }: {
   value: string;
   how: string;
   excluding: boolean;
   mapping: StatusMapping;
+  inUse: StatusesInUse;
 }): string | null {
   if (!CARRIED.has(how)) return uncarried(value, how);
   const to = mappedStatus(mapping, value);
@@ -70,6 +78,9 @@ function carryProblem({
     .map(([from]) => `“${from}”`);
   if (excluding && alongside.length > 0) {
     return `It leaves out “${value}”, which becomes ${to} along with ${alongside.join(', ')}: leaving out ${to} would leave those out too. Change it by hand.`;
+  }
+  if (excluding && inUse.has(to)) {
+    return `It leaves out “${value}”, which becomes ${to} — a status tasks already hold: leaving out ${to} would leave them out too. Change it by hand.`;
   }
   return null;
 }
@@ -112,9 +123,12 @@ const foldedType = (name: string) => name.trim().toLowerCase();
 export function rewrittenQuery({
   text,
   mapping,
+  inUse = NONE_IN_USE,
 }: {
   text: string;
   mapping: StatusMapping;
+  /** The statuses tasks already hold, which leaving one out would leave out too. */
+  inUse?: StatusesInUse;
 }): { text: string; moved: readonly string[] } | { problem: string } | null {
   let query;
   try {
@@ -137,7 +151,7 @@ export function rewrittenQuery({
     const { op, value } = comparison;
     if (value.kind !== 'text') continue;
     const excluding = EXCLUDING.has(op) !== negated;
-    const problem = carryProblem({ value: value.text, how: op, excluding, mapping });
+    const problem = carryProblem({ value: value.text, how: op, excluding, mapping, inUse });
     if (problem !== null) return { problem };
     const to = mappedStatus(mapping, value.text);
     replacements.push({ ...value.span, text: printValue({ ...value, text: to }) });
@@ -150,7 +164,11 @@ export function rewrittenQuery({
 }
 
 /** A view's `filters:` list with each old status it filters by moved on. */
-function rewrittenFilters(filters: readonly unknown[], mapping: StatusMapping): StatusRewrite {
+function rewrittenFilters(
+  filters: readonly unknown[],
+  mapping: StatusMapping,
+  inUse: StatusesInUse,
+): StatusRewrite {
   const moved: string[] = [];
   const next: unknown[] = [];
   for (const filter of filters) {
@@ -165,7 +183,7 @@ function rewrittenFilters(filters: readonly unknown[], mapping: StatusMapping): 
       continue;
     }
     const how = String(filter['operator'] ?? '');
-    const problem = carryProblem({ value, how, excluding: EXCLUDING.has(how), mapping });
+    const problem = carryProblem({ value, how, excluding: EXCLUDING.has(how), mapping, inUse });
     if (problem !== null) return { problem };
     const to = mappedStatus(mapping, value);
     next.push({ ...filter, value: to });
@@ -179,7 +197,11 @@ function rewrittenFilters(filters: readonly unknown[], mapping: StatusMapping): 
  * view's `filters:`, moved on. A SQL view that mentions status is listed —
  * SQL is James's own, and Atlas does not rewrite it.
  */
-export function viewStatusRewrite(frontmatter: Properties, mapping: StatusMapping): StatusRewrite {
+export function viewStatusRewrite(
+  frontmatter: Properties,
+  mapping: StatusMapping,
+  inUse: StatusesInUse = NONE_IN_USE,
+): StatusRewrite {
   if (!isSavedView(frontmatter)) return null;
   const sql = parseSqlView(frontmatter);
   if (sql !== null) {
@@ -192,7 +214,7 @@ export function viewStatusRewrite(frontmatter: Properties, mapping: StatusMappin
   }
   const query = parseQueryView(frontmatter);
   if (query !== null) {
-    const rewritten = rewrittenQuery({ text: query, mapping });
+    const rewritten = rewrittenQuery({ text: query, mapping, inUse });
     if (rewritten === null || 'problem' in rewritten) return rewritten;
     return { changes: { [QUERY_VIEW_KEY]: rewritten.text }, moved: rewritten.moved };
   }
@@ -201,7 +223,7 @@ export function viewStatusRewrite(frontmatter: Properties, mapping: StatusMappin
     .toLowerCase();
   const filters = frontmatter['filters'];
   if (type !== TASK_TYPE || !Array.isArray(filters)) return null;
-  return rewrittenFilters(filters, mapping);
+  return rewrittenFilters(filters, mapping, inUse);
 }
 
 /**
@@ -214,10 +236,11 @@ export function viewStatusRewrite(frontmatter: Properties, mapping: StatusMappin
 export function automationStatusRewrite(
   frontmatter: Properties,
   mapping: StatusMapping,
+  inUse: StatusesInUse = NONE_IN_USE,
 ): StatusRewrite {
   if (!isAutomationNote(frontmatter)) return null;
   const which = typeof frontmatter['which'] === 'string' ? frontmatter['which'] : '';
-  const query = rewrittenQuery({ text: which, mapping });
+  const query = rewrittenQuery({ text: which, mapping, inUse });
   if (query !== null && 'problem' in query) return query;
   const changes: Record<string, unknown> = query === null ? {} : { which: query.text };
   const moved = [...(query?.moved ?? [])];

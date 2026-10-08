@@ -1,6 +1,8 @@
 import {
   automationStatusRewrite,
   compileTaskStatusesQuery,
+  compileWaitingOnNobodyQuery,
+  indexedTexts,
   isGtdStatus,
   createVaultPath,
   foldedVaultPath,
@@ -9,9 +11,11 @@ import {
   isAutomationPath,
   noteTitle,
   queryViewFrontmatter,
+  recordHasWorkLeft,
   splitFrontmatter,
   statusMappingFor,
   statusValueOf,
+  TASK_KEYS,
   TASK_TYPE,
   TASK_TYPE_FILE,
   taskStatusChanges,
@@ -21,8 +25,10 @@ import {
   typeFrontmatterChanges,
   viewStatusRewrite,
   VIEWS_DIRECTORY,
+  WAITING_STATUS,
   type GtdStatus,
   type StatusMapping,
+  type StatusesInUse,
   type StatusRewrite,
   type VaultPath,
 } from '@atlas/domain';
@@ -38,6 +44,7 @@ import {
 import { loadTemplates } from '../types/templates.ts';
 import type { NoteFile, VaultFsPort } from '../vault/ports.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
+import { readMigrationRecord } from './migration-record-file.ts';
 
 /** What the migration reads the vault through. */
 export interface TaskMigrationPorts {
@@ -125,19 +132,38 @@ export function hasMigrationWork(preview: TaskMigrationPreview): boolean {
 
 /**
  * Whether the move to GTD may have anything left to do, judged without
- * reading every task: false only when the Task type already follows GTD and
- * the index holds no task whose status is not one of the eight. The Inbox
- * asks this on every open, and reads the tasks only when it says yes.
+ * reading every task — the Inbox asks on every open, and reads the tasks
+ * only when this says yes. It never says no while a fresh preview has work:
+ *
+ * - the Task type is not yet GTD's;
+ * - the last run's record says it stopped partway or left files as they were;
+ * - a GTD view the move adds is missing;
+ * - the index holds a task whose status is not one of the eight, or none;
+ * - a task is Waiting with nobody to wait on, which a preview sends to the Inbox.
  */
 export async function taskMigrationNeeded(
   ports: Pick<TaskMigrationPorts, 'fs' | 'markdown' | 'index'>,
 ): Promise<boolean> {
   const own = taskTypeOf(await loadObjectTypes(ports));
   if (own === null || taskTypeChange(own) !== null) return true;
-  const { sql, parameters } = compileTaskStatusesQuery(own.name);
-  const result = await ports.index.query(sql, parameters);
-  const status = result.columns.indexOf('status');
-  return result.rows.some((row) => !isGtdStatus(row[status]));
+  const record = await readMigrationRecord(ports.fs);
+  if (record !== null && recordHasWorkLeft(record.record)) return true;
+  if (viewCreations(ports.markdown, await viewFiles(ports.fs)).length > 0) return true;
+  const statuses = await askIndex(ports.index, compileTaskStatusesQuery(own.name), 'status');
+  if (statuses.some((status) => !isGtdStatus(status))) return true;
+  if (!statuses.includes(WAITING_STATUS)) return false;
+  return (await askIndex(ports.index, compileWaitingOnNobodyQuery(own.name), 'path')).length > 0;
+}
+
+/** One column of what the index answers a compiled statement with. */
+async function askIndex(
+  index: Pick<IndexPort, 'query'>,
+  { sql, parameters }: { sql: string; parameters: readonly (string | number)[] },
+  column: string,
+): Promise<unknown[]> {
+  const result = await index.query(sql, parameters);
+  const at = result.columns.indexOf(column);
+  return result.rows.map((row) => row[at]);
 }
 
 const taskTypeOf = (types: readonly DefinedType[]): DefinedType | null =>
@@ -175,7 +201,15 @@ export async function planTaskMigration(
   const automationPaths = (await listVaultNotes(ports)).filter(isAutomationPath);
   const type = await typePlan(ports, own);
   const moves = taskMoves(ports, tasks, mapping);
-  const references = await referenceMoves(ports, [...viewPaths, ...automationPaths], mapping);
+  // What tasks hold already, which a view leaving an old status out would leave out too.
+  const inUse = new Set(
+    tasks.flatMap((task) => indexedTexts(task.properties[TASK_KEYS.status])).filter(isGtdStatus),
+  );
+  const references = await referenceMoves(ports, {
+    paths: [...viewPaths, ...automationPaths],
+    mapping,
+    inUse,
+  });
   const views = viewCreations(ports.markdown, viewPaths);
   return {
     preview: {
@@ -317,8 +351,11 @@ async function viewFiles(fs: VaultFsPort): Promise<VaultPath[]> {
 /** The views and automations naming an old status: each rewritten, or listed with why it cannot be. */
 async function referenceMoves(
   ports: TaskMigrationPorts,
-  paths: readonly VaultPath[],
-  mapping: StatusMapping,
+  {
+    paths,
+    mapping,
+    inUse,
+  }: { paths: readonly VaultPath[]; mapping: StatusMapping; inUse: StatusesInUse },
 ) {
   const notes = await readWithFrontmatter(ports, paths);
   const moved: { line: ReferenceMove; edit: FileEdit }[] = [];
@@ -326,8 +363,8 @@ async function referenceMoves(
   for (const note of notes) {
     const path = createVaultPath(note.file.path);
     const rewrite: StatusRewrite = isAutomationPath(path)
-      ? automationStatusRewrite(note.properties, mapping)
-      : viewStatusRewrite(note.properties, mapping);
+      ? automationStatusRewrite(note.properties, mapping, inUse)
+      : viewStatusRewrite(note.properties, mapping, inUse);
     if (rewrite === null) continue;
     if ('problem' in rewrite) {
       listed.push({ path, title: noteTitle(path), reason: rewrite.problem });

@@ -11,12 +11,8 @@ import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
-import {
-  readMigrationRecord,
-  runTaskMigration,
-  undoTaskMigration,
-  type MigrationPanes,
-} from './run-task-migration.ts';
+import { readMigrationRecord } from './migration-record-file.ts';
+import { runTaskMigration, undoTaskMigration, type MigrationPanes } from './run-task-migration.ts';
 import {
   type TaskMigrationPorts,
   hasMigrationWork,
@@ -494,6 +490,20 @@ describe('taskMigrationNeeded', () => {
       '.atlas/types/task.md': OLD_TASK_TYPE,
       'tasks/Call Mara.md': note({ type: 'task', status: 'next-action' }),
     });
+    expect(await taskMigrationNeeded(ports)).toBe(true);
+  });
+
+  it('says yes while a GTD view the move adds is missing, with no record and every task moved', async () => {
+    const { ports, files } = indexed(FILES);
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    expect(await taskMigrationNeeded(ports)).toBe(false);
+    files.delete(MIGRATION_RECORD_PATH);
+    files.delete('.atlas/views/Waiting.md');
     expect(await taskMigrationNeeded(ports)).toBe(true);
   });
 

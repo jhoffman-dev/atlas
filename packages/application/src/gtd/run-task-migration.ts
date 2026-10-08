@@ -4,7 +4,6 @@ import {
   MIGRATION_RECORD_PATH,
   migrationRecordText,
   parentVaultPath,
-  parseMigrationRecord,
   splitFrontmatter,
   vaultPathName,
   type MigrationRecord,
@@ -16,6 +15,7 @@ import type { Clock } from '../ports.ts';
 import type { LinkUpdatePanes } from '../vault/update-links.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';
+import { readMigrationRecord } from './migration-record-file.ts';
 import {
   planTaskMigration,
   type FileCreation,
@@ -94,6 +94,12 @@ export async function runTaskMigration({
   };
   for (const edit of edits) outcome(edit.path, await writeEdit(ports.fs, panes, edit));
   for (const creation of creations) outcome(creation.path, await create(ports.fs, creation));
+  try {
+    await finishRecord(ports.fs, left);
+  } catch (cause) {
+    // The changes landed; only the note that the run finished did not, so the Inbox looks again.
+    left.push({ path: MIGRATION_RECORD_PATH, reason: reasonOf(cause) });
+  }
   return { written, left };
 }
 
@@ -132,25 +138,6 @@ async function create(fs: VaultFsPort, { path, contents }: FileCreation): Promis
   }
 }
 
-/** The record as it is on disk, with when it was read; null when there is none. */
-export async function readMigrationRecord(
-  fs: VaultFsPort,
-): Promise<{ record: MigrationRecord; modified: number } | null> {
-  if (!(await recordExists(fs))) return null;
-  const { text, modified } = await fs.readTextFile(MIGRATION_RECORD_PATH);
-  return { record: parseMigrationRecord(text), modified };
-}
-
-async function recordExists(fs: VaultFsPort): Promise<boolean> {
-  try {
-    const entries = await fs.listDirectory(parentVaultPath(MIGRATION_RECORD_PATH));
-    return entries.some((entry) => entry.path === MIGRATION_RECORD_PATH);
-  } catch {
-    // No migrations folder: nothing has been migrated in this vault.
-    return false;
-  }
-}
-
 /**
  * Writes the run's record before the run changes anything — added to the one
  * a run cut off partway left, so one undo covers both. A record that cannot
@@ -169,6 +156,25 @@ async function keepRecord(fs: VaultFsPort, record: MigrationRecord): Promise<voi
   }
   await ensureFolder({ fs, folder: parentVaultPath(MIGRATION_RECORD_PATH) });
   await fs.createNote({ path: MIGRATION_RECORD_PATH, contents });
+}
+
+/**
+ * Marks the record finished once the run has tried every file, naming the
+ * files it left: the Inbox's quick look reads this to know whether a run
+ * still has work, rather than reading every task.
+ */
+async function finishRecord(fs: VaultFsPort, left: readonly LeftFile[]): Promise<void> {
+  const kept = await readMigrationRecord(fs);
+  if (kept === null) return;
+  await fs.writeTextFile({
+    path: MIGRATION_RECORD_PATH,
+    contents: migrationRecordText({
+      ...kept.record,
+      finished: true,
+      left: left.map((file) => file.path),
+    }),
+    expectedModified: kept.modified,
+  });
 }
 
 /** What an undo did: each file put back or taken away, and each left as it is. */

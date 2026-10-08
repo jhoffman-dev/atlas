@@ -6,6 +6,7 @@ import {
   MigrationRecordError,
   migrationRecordText,
   parseMigrationRecord,
+  recordHasWorkLeft,
   type MigrationRecord,
 } from './migration-record.ts';
 
@@ -26,6 +27,8 @@ const RECORD: MigrationRecord = {
       contents: '---\natlas: view\n---\n\n# Next actions\n```\n',
     },
   ],
+  finished: true,
+  left: [TASK],
 };
 
 const withFiles = (files: unknown) =>
@@ -74,6 +77,20 @@ describe('the migration record', () => {
   });
 });
 
+describe('recordHasWorkLeft', () => {
+  it('is true while the last run stopped partway or left a file, and false once it moved everything', () => {
+    expect(recordHasWorkLeft(RECORD)).toBe(true);
+    expect(recordHasWorkLeft({ ...RECORD, left: [] })).toBe(false);
+    expect(recordHasWorkLeft({ ...RECORD, finished: false, left: [] })).toBe(true);
+    expect(recordHasWorkLeft({ at: RECORD.at, files: [] })).toBe(true);
+  });
+
+  it('reads an unfinished run from a record that does not say', () => {
+    const silent = migrationRecordText(RECORD).replace(/,"finished":true,"left":\[[^\]]*\]/, '');
+    expect(parseMigrationRecord(silent)).toMatchObject({ finished: false, left: [] });
+  });
+});
+
 describe('mergedRecord', () => {
   it('is the later run alone when there was none before', () => {
     expect(mergedRecord(null, RECORD)).toBe(RECORD);
@@ -107,6 +124,12 @@ describe('mergedRecord', () => {
       ],
     };
     expect(mergedRecord(RECORD, later).files[0]).toEqual(later.files[0]);
+  });
+
+  it('records a file both runs made as the later one made it, so undo takes away what is there', () => {
+    const made = RECORD.files[1]!;
+    const again = { kind: 'created' as const, path: made.path, contents: 'made again\n' };
+    expect(mergedRecord(RECORD, { at: 'later', files: [again] }).files[1]).toEqual(again);
   });
 
   it('keeps a file the first run made as made', () => {

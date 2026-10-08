@@ -32,6 +32,23 @@ export interface MigrationRecord {
   /** When the run began, on the wall clock: `2026-10-08T09:30:00`. */
   readonly at: string;
   readonly files: readonly RecordedFile[];
+  /**
+   * Whether the last run got to its end. Written false before a run changes
+   * anything and true once it has tried every file, so a run cut off partway
+   * is known by its record; absent is read as not finished.
+   */
+  readonly finished?: boolean;
+  /** The files the last finished run left as they were — unsaved typing, a refusal — still to move. */
+  readonly left?: readonly VaultPath[];
+}
+
+/**
+ * Whether a record says the move may have work left: its last run stopped
+ * partway, or left files as they were. The Inbox's quick look reads this
+ * rather than every task.
+ */
+export function recordHasWorkLeft(record: MigrationRecord): boolean {
+  return record.finished !== true || (record.left?.length ?? 0) > 0;
 }
 
 /** A record that cannot be trusted to undo with: its file is not one the migration wrote. */
@@ -59,7 +76,12 @@ export function migrationRecordText(record: MigrationRecord): string {
     'migration wrote; this file goes when the migration is undone.',
     '',
     `${FENCE}json`,
-    JSON.stringify({ at: record.at, files: record.files }),
+    JSON.stringify({
+      at: record.at,
+      files: record.files,
+      finished: record.finished === true,
+      left: record.left ?? [],
+    }),
     FENCE,
     '',
   ].join('\n');
@@ -84,7 +106,12 @@ export function parseMigrationRecord(text: string): MigrationRecord {
   if (!isObject(parsed) || typeof parsed['at'] !== 'string' || !Array.isArray(parsed['files'])) {
     throw new MigrationRecordError('it does not say when it ran and what it changed.');
   }
-  return { at: parsed['at'], files: parsed['files'].map(recordedFile) };
+  return {
+    at: parsed['at'],
+    files: parsed['files'].map(recordedFile),
+    finished: parsed['finished'] === true,
+    left: Array.isArray(parsed['left']) ? parsed['left'].map(leftPath) : [],
+  };
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -93,6 +120,14 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 /** Whether text is one whole frontmatter block, as a split of a file would give it. */
 const isFrontmatterBlock = (text: unknown): text is string =>
   typeof text === 'string' && splitFrontmatter(text).frontmatter === text;
+
+function leftPath(raw: unknown): VaultPath {
+  try {
+    return createVaultPath(String(raw));
+  } catch {
+    throw new MigrationRecordError(`“${String(raw)}” is not a place in the vault.`);
+  }
+}
 
 function recordedFile(raw: unknown): RecordedFile {
   if (!isObject(raw) || typeof raw['path'] !== 'string') {
@@ -129,6 +164,8 @@ function recordedFile(raw: unknown): RecordedFile {
  * held what the first run wrote when the second read it. Otherwise the first
  * run never wrote it, or it changed since — by hand, or by sync — and what
  * the second run found is what undo must give back, or that change is lost.
+ * A file the second run made — the first run's was deleted since — is
+ * recorded as made by the second, so undo takes it away while still as made.
  */
 export function mergedRecord(
   earlier: MigrationRecord | null,
@@ -139,12 +176,18 @@ export function mergedRecord(
   for (const file of later.files) {
     files.set(file.path, mergedFile(files.get(file.path), file));
   }
-  return { at: earlier.at, files: [...files.values()] };
+  return {
+    at: earlier.at,
+    files: [...files.values()],
+    ...(later.finished === undefined ? {} : { finished: later.finished }),
+    ...(later.left === undefined ? {} : { left: later.left }),
+  };
 }
 
 function mergedFile(first: RecordedFile | undefined, later: RecordedFile): RecordedFile {
-  if (first === undefined) return later;
-  if (first.kind === 'changed' && later.kind === 'changed') {
+  // The later run made the file afresh — the first run's was gone — so undo takes away what it made.
+  if (first === undefined || later.kind === 'created') return later;
+  if (first.kind === 'changed') {
     return first.after === later.before ? { ...later, before: first.before } : later;
   }
   return first;

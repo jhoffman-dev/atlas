@@ -1,5 +1,7 @@
 import {
   FINISHED_TASK_STATUS,
+  gtdStatusOf,
+  holdsStatus,
   isBlankValue,
   TASK_KEYS,
   TASK_TYPE,
@@ -38,12 +40,26 @@ const isTask = (properties: Properties) =>
 /** A task Waiting with nobody to wait on: what the rules never let a change leave. */
 const waitsOnNobody = (note: Properties) =>
   isTask(note) &&
-  note[TASK_KEYS.status] === WAITING_STATUS &&
+  holdsStatus(note[TASK_KEYS.status], WAITING_STATUS) &&
   isBlankValue(note[TASK_KEYS.waitingOn]);
 
 /** A finished task: Archive, on a note that is a task. */
 const isFinished = (note: Properties) =>
-  isTask(note) && note[TASK_KEYS.status] === FINISHED_TASK_STATUS;
+  isTask(note) && holdsStatus(note[TASK_KEYS.status], FINISHED_TASK_STATUS);
+
+/**
+ * The change with a GTD status it sets in another spelling — `waiting `,
+ * `[waiting]` — written as the status itself, on a note that is a task: the
+ * index, the board and a tick all read the one spelling.
+ */
+function spelledAsStatus(before: Properties, changes: Properties): Properties {
+  const status = TASK_KEYS.status;
+  if (!has(changes, status) || !isTask(changed(before, changes))) return changes;
+  const canonical = gtdStatusOf(changes[status]);
+  return canonical === null || canonical === changes[status]
+    ? changes
+    : { ...changes, [status]: canonical };
+}
 
 /** Whether a change touches what the Waiting rule reads: the type, the status, who it waits on. */
 const touchesWaiting = (changes: Properties) =>
@@ -63,6 +79,10 @@ const touchesWaiting = (changes: Properties) =>
  *   of Archive loses its day, unless the change says one, so unticking
  *   leaves nothing stale behind.
  *
+ * A status is read as the index reads it — trimmed, a one-item list as its
+ * item — so a spelling the Waiting view lists is held to the rule too, and a
+ * GTD status set in another spelling is written as the status itself.
+ *
  * A note that is not a task passes as it is, and so does a change that
  * touches none of what the Waiting rule reads: a task already Waiting with
  * nobody set can still have its due date moved.
@@ -75,6 +95,18 @@ export function taskRuleChanges({
   before: Properties;
   changes: Properties;
   /** `YYYY-MM-DD`, from the injected clock. */
+  today: string;
+}): TaskRuleOutcome {
+  return heldToRules({ before, changes: spelledAsStatus(before, changes), today });
+}
+
+function heldToRules({
+  before,
+  changes,
+  today,
+}: {
+  before: Properties;
+  changes: Properties;
   today: string;
 }): TaskRuleOutcome {
   const after = changed(before, changes);

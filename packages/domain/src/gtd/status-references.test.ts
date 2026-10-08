@@ -29,6 +29,24 @@ describe('rewrittenQuery', () => {
     });
   });
 
+  it('lists leaving out a status tasks already hold, picking it still carried (round 2)', () => {
+    const inUse = new Set(['archive']);
+    expect(rewrittenQuery({ text: 'FROM task WHERE status != done', mapping, inUse })).toEqual({
+      problem: expect.stringContaining('a status tasks already hold'),
+    });
+    expect(rewrittenQuery({ text: 'FROM task WHERE status = done', mapping, inUse })).toMatchObject(
+      {
+        text: 'FROM task WHERE status = archive',
+      },
+    );
+    const view = {
+      atlas: 'view',
+      type: 'task',
+      filters: [{ key: 'status', operator: 'isNot', value: 'done' }],
+    };
+    expect(viewStatusRewrite(view, mapping, inUse)).toHaveProperty('problem');
+  });
+
   it('lists a status nobody knew, rather than pointing the view at the Inbox', () => {
     const withBlocked = statusMappingFor({ found: ['done', 'blocked'] });
     expect(

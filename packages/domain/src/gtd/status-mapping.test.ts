@@ -145,3 +145,14 @@ describe('isInboxFallback', () => {
     expect(isInboxFallback(new Map([['blocked', 'someday']]), 'blocked')).toBe(false);
   });
 });
+
+describe('a status read as the index reads it', () => {
+  const mapping = statusMappingFor({ found: [] });
+
+  it('takes `next-action ` as Next Action already, as the Inbox’s quick look does', () => {
+    expect(statusValueOf({ status: ' next-action ' })).toBe('next-action');
+    expect(
+      taskStatusMove({ properties: { status: 'next-action ' }, mapping, lastChanged: DAY }),
+    ).toBeNull();
+  });
+});

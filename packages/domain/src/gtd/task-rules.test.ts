@@ -81,3 +81,48 @@ describe('finishing a task is a day', () => {
     });
   });
 });
+
+describe('a status in another spelling (round 2)', () => {
+  it('is written as the GTD status itself, and held to its rules', () => {
+    expect(rule({ type: 'task', status: 'inbox' }, { status: [' next-action'] })).toEqual({
+      changes: { status: 'next-action' },
+    });
+    expect(rule({ type: 'task', status: 'inbox' }, { status: 'archive ' })).toEqual({
+      changes: { status: 'archive', completed: TODAY },
+    });
+    expect(rule({ type: 'task', status: 'inbox' }, { status: ['archive'] })).toEqual({
+      changes: { status: 'archive', completed: TODAY },
+    });
+  });
+
+  it('leaves a status no GTD spelling names, and a note that is not a task, as written', () => {
+    expect(rule({ type: 'task', status: 'inbox' }, { status: ' Done ' })).toEqual({
+      changes: { status: ' Done ' },
+    });
+    expect(rule({ type: 'project', status: 'active' }, { status: ['waiting'] })).toEqual({
+      changes: { status: ['waiting'] },
+    });
+  });
+
+  it('counts waiting on a list of blank names as nobody', () => {
+    expect(
+      rule({ type: 'task', status: 'inbox' }, { status: 'waiting', waiting_on: ['', ' '] }),
+    ).toEqual({
+      refused: WAITING_NEEDS_SOMEONE,
+    });
+  });
+});
+
+describe('a status the note already holds in another spelling (round 2)', () => {
+  it('is still Waiting when the person is taken away', () => {
+    const before = { type: 'task', status: ['waiting'], waiting_on: '[[Mara Quill]]' };
+    expect(rule(before, { waiting_on: null })).toEqual({ refused: WAITING_NEEDS_SOMEONE });
+  });
+
+  it('is still Archive, so leaving it takes the day away', () => {
+    const before = { type: 'task', status: 'archive ', completed: '2026-10-01' };
+    expect(rule(before, { status: 'next-action' })).toEqual({
+      changes: { status: 'next-action', completed: null },
+    });
+  });
+});

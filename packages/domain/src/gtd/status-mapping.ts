@@ -86,11 +86,16 @@ export function mappedStatus(mapping: StatusMapping, value: string): GtdStatus {
   return mapping.get(value) ?? defaultStatusFor(value);
 }
 
-/** The status a task holds, as the mapping reads it: '' for none. */
+/**
+ * The status a task holds, as the mapping reads it: '' for none, trimmed as
+ * the index trims it — so the Inbox's quick look and the preview agree that
+ * `next-action ` is Next Action already. A list is read as its items joined,
+ * and is rewritten as one status even when it names one.
+ */
 export function statusValueOf(properties: Readonly<Record<string, unknown>>): string {
   const value = properties[TASK_KEYS.status];
   if (value === null || value === undefined) return '';
-  return Array.isArray(value) ? value.map(String).join(', ') : String(value);
+  return Array.isArray(value) ? value.map(String).join(', ') : String(value).trim();
 }
 
 /** One task's line in the migration: what its status is, and what it becomes. */
@@ -164,5 +169,28 @@ export function compileTaskStatusesQuery(typeName: string = TASK_TYPE): Compiled
       `WHERE t.key = 'type' AND lower(trim(t.value_text)) = ?`,
     ].join('\n'),
     parameters: [typeName.trim().toLowerCase()],
+  };
+}
+
+/** What the waiting-on-nobody statement starts with, so a log or a stand-in index can tell it apart. */
+export const WAITING_ON_NOBODY_QUERY_MARK = '/* tasks waiting on nobody */';
+
+/**
+ * One task, if any, that is Waiting with nobody in `waiting_on`, asked of the
+ * index: a preview moves such a task to the Inbox, so the quick look must see
+ * it. Asked only when some task is Waiting at all.
+ */
+export function compileWaitingOnNobodyQuery(typeName: string = TASK_TYPE): CompiledQuery {
+  return {
+    sql: [
+      `${WAITING_ON_NOBODY_QUERY_MARK} SELECT t.path AS "path"`,
+      `FROM props AS t`,
+      `WHERE t.key = 'type' AND lower(trim(t.value_text)) = ?`,
+      `  AND EXISTS (SELECT 1 FROM props AS s WHERE s.path = t.path AND s.key = 'status' AND s.value_text = ?)`,
+      `  AND NOT EXISTS (SELECT 1 FROM props AS w WHERE w.path = t.path AND w.key = '${TASK_KEYS.waitingOn}'`,
+      `    AND (coalesce(w.value_text, '') <> '' OR w.value_json IS NOT NULL))`,
+      `LIMIT 1`,
+    ].join('\n'),
+    parameters: [typeName.trim().toLowerCase(), WAITING_STATUS],
   };
 }
