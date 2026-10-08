@@ -44,19 +44,26 @@ second query beside `which` that could disagree with it.)_
 A note moved, renamed, archived or put back from the Archive is neither
 created nor changed: the feed's removed and added pair one to one — by their
 two paths for the Archive, whose stamp changes the bytes, and otherwise by
-digest, the same name first. A note in the Archive never sets a rule off.
+digest, the same name first. When a note leaves a path and a new one is made
+there in the same sync, the feed reports that path `changed`; so a changed
+note carries the digest it had (`before`, an addition to the P28-03 feed),
+and one whose old bytes, or archived copy, turn up elsewhere is a new note.
+A note in the Archive never sets a rule off.
 
 **It is idempotent per note version:** the run log records `(rule, path,
 digest)`, and a version already handled is never handled again — a restart,
 a full re-index or a second pull does not re-run it. Notes changed by the
-rule's own deterministic step, including notes an archive rewrote links in,
-are recorded under the new digest so they do not re-trigger it. A note it
-had handled that is deleted is recorded as gone, so a new note at that path
-is new to it. A run that changed nothing is not logged and does not count
-toward the rule's cap of 20 runs an hour; a rule at its cap, or failing, is
-paused, and runs on what it heard meanwhile (up to 20 syncs' news) when the
-pause ends. Run now takes the matching notes whose current version it has
-not handled.
+rule's own deterministic step are recorded under the new digest so they do
+not re-trigger it. Notes an archive rewrote links in are not: their bytes
+cannot say whether someone also edited them since the index looked, so they
+are heard again, and at worst set the rule off once more. A path a note it
+had handled left — deleted, moved, renamed, archived or replaced — is
+recorded as gone, so a new note there is new to it. A run that changed
+nothing is not logged and does not count toward the rule's cap of 20 runs an
+hour; a rule at its cap, or failing, is paused, and runs on what it heard
+meanwhile (up to 20 syncs' news) when the pause ends. The hour is counted on
+the wall clock, in local time, as every automation's schedule is. Run now
+takes the matching notes whose current version it has not handled.
 
 **A new action, `claude`: a Claude step with a fixed shape.** The rule names
 a prompt note (`.atlas/prompts/<name>.md`), the read tools it may use (a
