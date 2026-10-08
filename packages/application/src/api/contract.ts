@@ -12,7 +12,7 @@
  * Everything here is data. No behaviour belongs in this file.
  */
 
-import type { DoneAction, FilterOperator, RunTrigger, SetValue } from '@atlas/domain';
+import type { DoneAction, FilterOperator, NoteEvent, RunTrigger, SetValue } from '@atlas/domain';
 
 /** Every path the API serves starts with this. A breaking change gets `/v2`. */
 export const API_VERSION_PREFIX = '/v1';
@@ -693,8 +693,13 @@ export interface ApiAutomation {
   /** Its file, in `.atlas/automations`. */
   readonly path: string;
   readonly enabled: boolean;
-  /** As its file writes it: `daily at 03:00`, `every 6 hours`, `on app open`, `manually`. */
+  /**
+   * As its file writes it: `daily at 03:00`, `every 6 hours`, `on app open`,
+   * `manually`, or `a meeting is created or changed`.
+   */
   readonly when: string;
+  /** The note that sets it off (P29-01), or null for a rule on a clock, on opening or by hand. */
+  readonly note: ApiNoteTrigger | null;
   /** The Atlas query naming its notes. */
   readonly which: string;
   /** Only notes not modified in this many days; null for any. */
@@ -715,6 +720,12 @@ export interface ApiAutomation {
   readonly nextRun: string | null;
   /** Why the app's clock is not running it just now, or null. */
   readonly paused: string | null;
+}
+
+/** A rule a note sets off: a note of `type` being created, changed, or either. */
+export interface ApiNoteTrigger {
+  readonly type: string;
+  readonly on: readonly NoteEvent[];
 }
 
 export interface ApiAutomationLastRun {
@@ -755,6 +766,15 @@ export interface ApiAutomationLogEntry {
   readonly done: readonly DoneAction[];
   /** Notes it matched and left alone, with why. */
   readonly left: readonly { readonly path: string; readonly reason: string }[];
+  /**
+   * On a run of a rule a note sets off: each note version it handled, and
+   * (`wrote`) the version its own write left. None of them sets it off again.
+   */
+  readonly versions?: readonly {
+    readonly path: string;
+    readonly digest: string;
+    readonly wrote: boolean;
+  }[];
 }
 
 /** What a rule would do if it ran now. Nothing is written to find out. */

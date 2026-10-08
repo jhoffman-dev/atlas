@@ -14,10 +14,11 @@ import {
   type AutomationAction,
   type AutomationPlan,
   type LogEntry,
+  type Schedule,
   type PassedOver,
   type SetValue,
 } from '@atlas/domain';
-import { loadAutomations, planRun, type LoadedAutomation } from '../automations/index.ts';
+import { loadAutomations, planRuleNow, type LoadedAutomation } from '../automations/index.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
@@ -30,6 +31,7 @@ import type {
   ApiAutomationLogEntry,
   ApiAutomationPlan,
   ApiAutomationRef,
+  ApiNoteTrigger,
 } from './contract.ts';
 import { countOf } from './fields.ts';
 import { decodeSegment } from './paths.ts';
@@ -77,11 +79,12 @@ export async function automationLogRoute(request: VaultRequest): Promise<RouteRe
 
 /**
  * What a rule would do if it ran now: the plan a run would carry out, from
- * the same use-case, and nothing written. A rule whose query does not read
- * is `query_failed`, with why.
+ * the same use-case, and nothing written — for a rule a note sets off, the
+ * notes it has not handled as they are now, which a run by hand would take.
+ * A rule whose query does not read is `query_failed`, with why.
  */
 export async function automationDryRunRoute(request: VaultRequest): Promise<RouteResult> {
-  const { rule } = await namedAutomation(request);
+  const { rule, log } = await namedAutomation(request);
   const [types, notePaths] = await Promise.all([
     loadObjectTypes({ fs: request.fs, markdown: request.markdown }),
     listVaultNotes({ fs: request.fs }),
@@ -93,7 +96,7 @@ export async function automationDryRunRoute(request: VaultRequest): Promise<Rout
     fs: request.fs,
     markdown: request.markdown,
   };
-  const plan = await planRun({ ports, rule, today: request.clock.today() }).catch(
+  const { plan } = await planRuleNow({ ports, rule, log, today: request.clock.today() }).catch(
     (error: unknown) => {
       if (!(error instanceof AtlasQueryError)) throw error;
       throw new ApiError(
@@ -178,6 +181,7 @@ function automationOf(
     path: rule.path,
     enabled: rule.enabled,
     when: printSchedule(rule.when),
+    note: noteTriggerOf(rule.when),
     which: rule.which,
     olderThanDays: rule.olderThanDays,
     ...actionFields(rule.action),
@@ -188,6 +192,10 @@ function automationOf(
     // A pause's reason can quote the disk's refusal, path and all.
     paused: pause === null ? null : messageWithoutPaths(pause.reason),
   };
+}
+
+function noteTriggerOf(when: Schedule): ApiNoteTrigger | null {
+  return when.kind === 'note' ? { type: when.type, on: [...when.on] } : null;
 }
 
 function lastRunFrom(log: readonly LogEntry[]): ApiAutomationLastRun | null {
@@ -230,6 +238,7 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         capped: entry.capped,
         done: entry.done,
         left: entry.left,
+        ...(entry.versions !== undefined && { versions: entry.versions }),
       };
     case 'undo':
       return { kind: 'undo', ...words, of: entry.of, done: entry.done, left: entry.left };

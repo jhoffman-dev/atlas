@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { newLogText, VAULT_WALK_DEPTH, type LogEntry } from '@atlas/domain';
+import { digestOf, newLogText, VAULT_WALK_DEPTH, type LogEntry } from '@atlas/domain';
 import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT, VAULT } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
@@ -91,6 +91,7 @@ describe('GET /v1/automations', () => {
       path: '.atlas/automations/Tidy done tasks.md',
       enabled: true,
       when: 'daily at 03:00',
+      note: null,
       which: 'FROM task WHERE status = done',
       olderThanDays: null,
       do: 'archive',
@@ -544,5 +545,82 @@ describe('POST /v1/automations/{id}/dry-run', () => {
       expect(codeOf(await api.send(request))).toBe('not_found_route');
     }
     expect(api.writes).toEqual([]);
+  });
+});
+
+describe('a rule a note sets off, through the API (P29-01)', () => {
+  const FILE_DONE = rule({
+    id: 'file',
+    name: 'File done tasks',
+    when: 'a task is created or changed',
+    which: 'FROM task WHERE status = done',
+    do: 'archive',
+  });
+  const HANDLED: LogEntry = {
+    kind: 'run',
+    at: '2026-10-08T09:00:00',
+    trigger: 'note',
+    done: [],
+    left: [{ path: 'tasks/B.md' as never, reason: 'It is open in Atlas with unsaved typing.' }],
+    capped: false,
+    versions: [
+      { path: 'tasks/B.md' as never, digest: digestOf(FILES['tasks/B.md']!), wrote: false },
+    ],
+  };
+  const files: Record<string, string> = {
+    ...FILES,
+    '.atlas/automations/File done tasks.md': FILE_DONE,
+    '.atlas/automations/log/file.md': newLogText('File done tasks', [HANDLED]),
+  };
+  /** The index's manifest: each note's version as it was last read. */
+  const manifest = async () =>
+    Object.entries(files).map(([path, text]) => ({
+      path,
+      modified: 0,
+      size: text.length,
+      type: null,
+      digest: digestOf(text),
+    }));
+  function noteVault(): Api {
+    const markdown = jsonMarkdown();
+    return apiFixture({
+      files,
+      markdown,
+      index: { query: atlasQueryIndex({ files, markdown }), manifest },
+    });
+  }
+
+  it('lists the note that sets it off, and gives it no next run', async () => {
+    const { automations } = bodyOf(await list(noteVault())) as {
+      automations: Record<string, unknown>[];
+    };
+
+    expect(automations.find((automation) => automation['id'] === 'file')).toMatchObject({
+      when: 'a task is created or changed',
+      note: { type: 'task', on: ['created', 'changed'] },
+      schedule: 'When a task is created or changed',
+      lastRun: { trigger: 'note', summary: 'Nothing to do. Left 1 alone.' },
+      nextRun: null,
+    });
+  });
+
+  it('answers the versions a run handled, in its log', async () => {
+    const { entries } = bodyOf(await logOf(noteVault(), 'file')) as {
+      entries: Record<string, unknown>[];
+    };
+
+    expect(entries[0]).toMatchObject({
+      heading: 'Ran when a note appeared or changed',
+      trigger: 'note',
+      versions: [{ path: 'tasks/B.md', digest: digestOf(FILES['tasks/B.md']!), wrote: false }],
+    });
+  });
+
+  it('dry-runs to the notes it has not handled as they are now, as the app does', async () => {
+    const { plan } = bodyOf(await dryRun(noteVault(), 'file')) as {
+      plan: { notes: { path: string }[] };
+    };
+
+    expect(plan.notes.map((note) => note.path)).toEqual(['tasks/C.md']);
   });
 });

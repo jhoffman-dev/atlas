@@ -162,6 +162,17 @@ describe('tools/list', () => {
     expect(described('atlas_capture_task')).toContain('at the vault root');
   });
 
+  it('tells the model a rule can be set off by a note, once per version, and how to read it', async () => {
+    const { tools } = await mcp.listTools();
+    const described = (name: string) => tools.find((t) => t.name === name)?.description ?? '';
+
+    expect(described('atlas_automations')).toContain('"a meeting is created or changed"');
+    expect(described('atlas_automations')).toContain('"note" is { type, on:');
+    expect(described('atlas_automations')).toContain('once per version');
+    expect(described('atlas_automation_log')).toContain('versions?');
+    expect(described('atlas_automation_dry_run')).toContain('it has not handled as they are now');
+  });
+
   it('requires ifModified for replace_note_body and not for append', async () => {
     const { tools } = await mcp.listTools();
     const required = (name: string) =>
