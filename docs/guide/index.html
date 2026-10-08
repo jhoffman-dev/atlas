@@ -811,8 +811,8 @@ ORDER BY phase</pre>
       </ol>
       <h3>What each answer does</h3>
       <ul>
-        <li><b>Accept</b> writes what the card shows and files the proposal in the <a href="#archive">Archive</a> with <code>state: accepted</code>. The notice at the top says <i>“Accepted: Send Mara the payroll file.”</i> with <b>Open Send Mara the payroll file</b> to go to it, and <b>Undo</b>.</li>
-        <li><b>Edit</b> opens what it would write — the title, each property, the body (for a link, just the link) — so you can change it, then <b>Accept as edited</b>. <b>Cancel</b> leaves it as it was. The proposal is archived with your edit, so the Archive shows what was actually accepted.</li>
+        <li><b>Accept</b> writes what the card shows and files the proposal in the <a href="#archive">Archive</a> with <code>state: accepted</code> and <code>answered_via: app</code> — <code>api</code> when Claude answered it for you through the <a href="#connect">Local API</a>, so the Archive keeps who said yes. The notice at the top says <i>“Accepted: Send Mara the payroll file.”</i> with <b>Open Send Mara the payroll file</b> to go to it, and <b>Undo</b>.</li>
+        <li><b>Edit</b> opens what it would write — the title, each property, the body (for a link, just the link) — so you can change it, then <b>Accept as edited</b>. A list shows as items with commas between; an item holding a comma of its own is in double quotes (<code>"[[Larkspur Payroll, Inc.]]", [[Fenn &amp; Co]]</code>). A property you don't touch is written exactly as proposed. <b>Cancel</b> leaves it as it was. The proposal is archived with your edit, so the Archive shows what was actually accepted.</li>
         <li><b>Reject</b> writes nothing it proposed and files it in the Archive with <code>state: rejected</code> — kept, never deleted.</li>
         <li><b>Undo</b> after an accept takes away what it made — if nothing has changed it since — and puts the proposal back, open again.</li>
       </ul>
@@ -820,7 +820,7 @@ ORDER BY phase</pre>
       <div class="table-wrap">
         <table>
           <tbody>
-            <tr><td>Task, Follow-up</td><td>A new task, with <code>source</code> linking the line it came from and <code>meeting</code> linking the meeting. A follow-up is a task to chase someone.</td></tr>
+            <tr><td>Task, Follow-up</td><td>A new task, with <code>source</code> linking the line it came from and <code>meeting</code> linking the meeting the proposal names — whatever made it from a meeting says which. A follow-up is a task to chase someone.</td></tr>
             <tr><td>Decision</td><td>A new note of the built-in <b>Decision</b> type — title, date, meeting, project, people — citing its line the same way.</td></tr>
             <tr><td>Person, Term, Project</td><td>A new note of that type.</td></tr>
             <tr><td>Link</td><td>Adds one link to a note's relation — Mara Quill's <b>Companies</b> gets <code>[[Larkspur Payroll]]</code>.</td></tr>
@@ -833,10 +833,11 @@ ORDER BY phase</pre>
         <li><i>“There is already a note at Send Mara the payroll file.md, which may be this one. Edit the title to make another.”</i></li>
         <li><i>“Mara Quill changed since this was proposed, so it was left as it is.”</i> — the note a link would change has been edited since; check it and answer again.</li>
         <li>A proposal, or the note it would change, with unsaved typing: save it first.</li>
+        <li>A proposal may only write where your notes live: never in <code>.atlas</code>, a hidden folder, a folder Atlas doesn't show (<code>node_modules</code>), the Archive or <code>Inbox/Proposals</code> itself. A title too long for a file name is cut to fit.</li>
       </ul>
       <h3>Where they live</h3>
       <ul>
-        <li>A proposal is an ordinary note of the built-in <b>Proposal</b> type, so it syncs to your other Mac, survives a restart, and shows in queries. Only open ones stay in <code>Inbox/Proposals</code>.</li>
+        <li>A proposal is an ordinary note of the built-in <b>Proposal</b> type, so it syncs to your other Mac, survives a restart, and shows in queries. Only open ones stay in <code>Inbox/Proposals</code>; one answered that the Archive couldn't take is listed under <b>Answered, still in the Inbox</b>, to archive from its page.</li>
         <li><b>Proposal</b> and <b>Decision</b> are <a href="#types">built-in types</a>, and every task gains a <b>Meeting</b> link.</li>
         <li>Claude can list and answer them for you through <a href="#connect"><code>atlas_proposals</code></a> — only when you ask it to.</li>
       </ul>
