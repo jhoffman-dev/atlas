@@ -436,3 +436,78 @@ describe('useAutomations: rules a note sets off (P29-01)', () => {
     );
   });
 });
+
+describe('useAutomations: rules a note sets off, attacked (P29-01)', () => {
+  const VAULT = '/vaults/home';
+  const TASK = 'Tasks/A.md';
+  const onNewTask = () => rule('a task is created');
+  const added = (vault: ReturnType<typeof memoryVault>, path: string, vaultKey = VAULT) => ({
+    vault: vaultKey,
+    changes: [
+      { kind: 'added' as const, path, type: 'task', digest: digestOf(vault.files[path] ?? '') },
+    ],
+  });
+
+  it('runs on a note’s news once a rule held back by a failure is tried again, as its pause says', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const base = vault.ports();
+    let failing = true;
+    const fs = {
+      ...base.fs,
+      listNotes: async () => {
+        if (failing) throw new Error('the disk was busy');
+        return base.fs.listNotes();
+      },
+    };
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook } = mount(vault, { changes, ports: { ...base, fs, types: [TASK_TYPE] } });
+    await settle();
+
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+    expect(hook.result.current.pauses.get('Sweep')?.reason).toMatch(/it is tried again at 09:01/);
+
+    // The disk recovers, and the time the pause named comes and goes.
+    failing = false;
+    now = '2026-09-27T09:05:00';
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SCHEDULE_TICK_MS * 5);
+    });
+    await settle();
+
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+  });
+
+  it('never runs one vault’s rule on another vault opened while its news waited its turn', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes });
+    await settle();
+    // A save from the editor holds the one door while the news comes in.
+    let release = () => {};
+    const holding = new Promise<void>((resolve) => (release = resolve));
+    let held: Promise<unknown> = Promise.resolve();
+    act(() => {
+      held = hook.result.current.exclusive(() => holding, { wait: true });
+    });
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+
+    // The work vault is opened: the ports now read and write it. It has no rules, and its own Tasks/A.md.
+    const workTask = '---\ntype: task\n---\nWork notes kept by Tobias Fenn.\n';
+    delete vault.files[RULE];
+    vault.files[TASK] = workTask;
+    hook.rerender({ ...initial, changes, vaultKey: '/vaults/work' });
+    await settle();
+    release();
+    await act(async () => {
+      await held;
+    });
+    await settle();
+
+    expect(vault.files[TASK]).toBe(workTask);
+    expect(vault.files[`Archive/${TASK}`]).toBeUndefined();
+    expect(vault.files[LOG]).toBeUndefined();
+  });
+});
