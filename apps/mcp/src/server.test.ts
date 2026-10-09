@@ -186,6 +186,7 @@ describe('tools/list', () => {
     expect(review).toContain('next-action or in-progress');
     expect(review).toContain('atlas_update_properties');
     expect(review).toContain('atlas_archive');
+    expect(review).toContain('for a repeating one (with "recurrence"), ends its series');
   });
 
   it('requires ifModified for replace_note_body and not for append', async () => {

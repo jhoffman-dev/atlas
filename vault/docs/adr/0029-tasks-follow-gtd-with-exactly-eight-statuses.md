@@ -143,3 +143,16 @@ Where the build differs from, or settles, what is written above:
   while a preview has work, except for a status written as a one-item list,
   which the index flattens: the rules already read it as its item, and the
   next write of its status rewrites it.
+- **The weekly review reads staleness from the file (P30-07).** "Waiting for
+  more than 7 days" and "Someday or Longterm untouched for 30 days" are
+  measured from the file's last change, as the index holds it — not from a
+  "waiting since" key, which would be one more key nobody asked for, syncing
+  and outliving its use, as the earlier status was turned down above. The
+  price: any write to the file counts as a look. Editing a stale Waiting
+  task's body, the review's own Defer, a bulk rewrite (a tag rename, an
+  automation's set, this migration and its undo), a sync that rewrites the
+  file, or a fresh clone onto another Mac — where every file is new — all
+  reset it, and a stale item drops out of the review until it goes stale
+  again. Kept because the review asks "has anyone looked at this lately",
+  and a file nobody has changed is the honest answer to that; a recorded
+  "since" can be added later without changing the sections' rules.

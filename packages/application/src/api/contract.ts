@@ -820,7 +820,7 @@ export interface ApiReviewTask {
   readonly due: string | null;
   /** `YYYY-MM-DD`: the day it comes back into play, or null. */
   readonly defer: string | null;
-  /** Who it waits on, as `waiting_on` names them, joined with ", "; '' for nobody. */
+  /** Who it waits on — a link by what it shows, a plain name as written — joined with ", "; '' for nobody. */
   readonly waitingOn: string;
   /** The note its `project` links, or null. */
   readonly project: string | null;
@@ -834,6 +834,8 @@ export interface ApiReviewProject {
   readonly title: string;
   /** Its `status:` as written, or null. */
   readonly status: string | null;
+  /** Whether a task in use filed under it is Next Action or In Progress, as the index says. */
+  readonly moving: boolean;
 }
 
 /** `GET /v1/review/weekly`: the weekly review, as its page shows it. */
@@ -850,7 +852,7 @@ export interface ApiWeeklyReview {
   readonly untouchedSomeday: readonly ApiReviewTask[];
   /** How many notes wait in the Inbox; `more` when there are more than it counts. */
   readonly inbox: { readonly count: number; readonly more: boolean };
-  /** The index held rows back, so a section may be missing items. */
+  /** The index held tasks back, so a task section may be missing items. */
   readonly truncated: boolean;
 }
 

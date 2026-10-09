@@ -517,6 +517,9 @@ the same use-case the page runs, and writes nothing. MCP's
   `PATCH /v1/notes/{path}/properties` — held to the task rules at
   `setNoteProperties` — and a project put in the Archive through
   `POST /v1/archive`. A second route doing the same writes would be a second
-  place for the rules to drift.
+  place for the rules to drift. The one gap, named rather than hidden: the
+  page's Archive finishes a task as the done tick does, so a repeating task
+  rolls on to its next date, where `PATCH` with `status: archive` ends its
+  series (only a board's move into done rolls one on through the API).
 - **Nothing it lists is outside what the API already reads**: user space only,
   never `.atlas` or a hidden folder, never what is archived.
