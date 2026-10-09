@@ -1,6 +1,9 @@
 import {
   anchoredBlocks,
+  checklistLines,
+  checklistProgress,
   mayHoldBlockIds,
+  mayHoldChecklist,
   compileRelationHoldersQuery,
   createVaultPath,
   createWikiLinkResolver,
@@ -166,16 +169,29 @@ export function toIndexedNote({
       body: document.body,
       ranges: markdown.textRanges(document.body),
     }),
-    blocks: blocksIn(document.body, markdown),
+    ...readBlocks(document.body, markdown),
   };
 }
 
 /**
- * The note's blocks with ids (P26-01), read as the editor reads them. A body
- * with no line ending as an id would has none, and is not parsed for them.
+ * The note's blocks with ids (P26-01) and its checklist (P30-03), read as the
+ * editor reads them, the body parsed once for both. A body with no line
+ * ending as an id would has no ids, and one with no line starting with a box
+ * has no checklist; a body with neither is not parsed at all.
  */
-function blocksIn(body: string, markdown: MarkdownPort) {
-  return mayHoldBlockIds(body) ? anchoredBlocks(markdown.parseBody(body).doc) : [];
+function readBlocks(
+  body: string,
+  markdown: MarkdownPort,
+): Pick<IndexedNote, 'blocks' | 'checks' | 'progress'> {
+  const anchored = mayHoldBlockIds(body);
+  const boxed = mayHoldChecklist(body);
+  const doc = anchored || boxed ? markdown.parseBody(body).doc : null;
+  const lines = doc !== null && boxed ? checklistLines(doc) : [];
+  return {
+    blocks: doc !== null && anchored ? anchoredBlocks(doc) : [],
+    checks: lines.map(({ done, text }) => ({ done, text })),
+    progress: checklistProgress(lines),
+  };
 }
 
 function linksIn(body: string, resolveLink: (target: string) => VaultPath | null) {

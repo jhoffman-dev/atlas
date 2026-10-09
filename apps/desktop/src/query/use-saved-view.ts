@@ -3,6 +3,7 @@ import {
   boardGroups,
   drawnLevels,
   calendarEndKey,
+  checklistProgressKey,
   groupChoices,
   groupColumnOptions,
   groupResultRows,
@@ -349,6 +350,7 @@ function useShownView({
               groupBy: display.groupBy,
               subGroupBy: display.subGroupBy,
             }),
+            progressKey: checklistProgressKey(type),
           }),
     [query, display, status, type],
   );

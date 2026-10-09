@@ -30,9 +30,11 @@ use crate::vault::VaultState;
 /// SQLite's ASCII-only lower(); 9: every block with an id, which TypeScript
 /// reads, gained a row in `blocks`; 10: templates left the vault's notes
 /// (ADR-0026), and a note unchanged since then still held link rows resolved
-/// to one, so every note is read again). A mismatch throws the cache away
+/// to one, so every note is read again; 11: every checklist box, which
+/// TypeScript reads, gained a row in `checks`, and each file the progress
+/// TypeScript worked out from them). A mismatch throws the cache away
 /// rather than trying to migrate something that can simply be rebuilt.
-const SCHEMA_VERSION: i64 = 10;
+const SCHEMA_VERSION: i64 = 11;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -119,6 +121,20 @@ pub struct IndexedNote {
     pub relations: Vec<IndexedRelation>,
     #[serde(default)]
     pub blocks: Vec<IndexedBlock>,
+    #[serde(default)]
+    pub checks: Vec<IndexedCheck>,
+    /// How far through its checklist the note is, as TypeScript worked it out.
+    #[serde(default)]
+    pub progress: Option<i64>,
+}
+
+/// A checklist box (`- [ ]`), as TypeScript read it. What counts as one is decided there.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexedCheck {
+    pub done: bool,
+    /// The words on its line.
+    pub text: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -187,6 +203,10 @@ pub struct TypeColumn {
 pub struct TypeSpec {
     pub name: String,
     pub columns: Vec<TypeColumn>,
+    /// Whether the view carries each note's checklist progress; TypeScript
+    /// decides, so a type with a `progress` of its own keeps it.
+    #[serde(default)]
+    pub progress: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -227,7 +247,8 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 title    TEXT NOT NULL,
                 summary  TEXT NOT NULL DEFAULT '',
                 modified INTEGER NOT NULL,
-                size     INTEGER NOT NULL
+                size     INTEGER NOT NULL,
+                progress INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS props (
@@ -279,6 +300,14 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
             );
             CREATE INDEX IF NOT EXISTS blocks_path ON blocks(path);
             CREATE INDEX IF NOT EXISTS blocks_id ON blocks(id);
+
+            CREATE TABLE IF NOT EXISTS checks (
+                path TEXT NOT NULL,
+                idx  INTEGER NOT NULL,
+                done INTEGER NOT NULL,
+                text TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS checks_path ON checks(path);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
                 path UNINDEXED,
@@ -404,21 +433,25 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
         .execute("DELETE FROM blocks WHERE path = ?1", params![note.path])
         .map_err(stringly)?;
     transaction
+        .execute("DELETE FROM checks WHERE path = ?1", params![note.path])
+        .map_err(stringly)?;
+    transaction
         .execute("DELETE FROM fts WHERE path = ?1", params![note.path])
         .map_err(stringly)?;
 
     transaction
         .execute(
-            "INSERT INTO files (path, title, summary, modified, size)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO files (path, title, summary, modified, size, progress)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(path) DO UPDATE SET
-                 title = ?2, summary = ?3, modified = ?4, size = ?5",
+                 title = ?2, summary = ?3, modified = ?4, size = ?5, progress = ?6",
             params![
                 note.path,
                 note.title,
                 note.summary,
                 note.modified as i64,
-                note.size as i64
+                note.size as i64,
+                note.progress
             ],
         )
         .map_err(stringly)?;
@@ -491,6 +524,15 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
             .map_err(stringly)?;
     }
 
+    for (position, check) in note.checks.iter().enumerate() {
+        transaction
+            .execute(
+                "INSERT INTO checks (path, idx, done, text) VALUES (?1, ?2, ?3, ?4)",
+                params![note.path, position as i64, check.done, check.text],
+            )
+            .map_err(stringly)?;
+    }
+
     Ok(())
 }
 
@@ -527,6 +569,7 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
                 "DELETE FROM tags WHERE path = ?1",
                 "DELETE FROM relations WHERE src = ?1",
                 "DELETE FROM blocks WHERE path = ?1",
+                "DELETE FROM checks WHERE path = ?1",
                 "DELETE FROM fts WHERE path = ?1",
             ] {
                 transaction
@@ -700,6 +743,11 @@ fn rebuild_views(connection: &Connection, types: &[TypeSpec]) -> Result<(), Stri
             };
             columns.push_str(&format!(", {aggregate} AS \"{}\"", column.key));
         }
+        let progress = if spec.progress {
+            ", files.progress AS \"progress\""
+        } else {
+            ""
+        };
 
         connection
             .execute_batch(&format!(
@@ -710,7 +758,7 @@ fn rebuild_views(connection: &Connection, types: &[TypeSpec]) -> Result<(), Stri
                             files.title
                         ) AS \"title\",
                         files.summary AS \"summary\",
-                        files.modified AS \"modified\"{columns}
+                        files.modified AS \"modified\"{progress}{columns}
                  FROM files
                  JOIN props ON props.path = files.path
                  WHERE files.path IN (
@@ -947,6 +995,8 @@ mod tests {
             tags: Vec::new(),
             relations: Vec::new(),
             blocks: Vec::new(),
+            checks: Vec::new(),
+            progress: None,
         }
     }
 
@@ -1182,6 +1232,176 @@ mod tests {
         put_notes(&mut index, &[first]).unwrap();
         let result = run_query(&index, "SELECT path, id FROM blocks", &[]).unwrap();
         assert_eq!(result.rows.len(), 1);
+    }
+
+    fn check(done: bool, text: &str) -> IndexedCheck {
+        IndexedCheck {
+            done,
+            text: text.to_string(),
+        }
+    }
+
+    fn check_rows(connection: &Connection) -> Vec<(String, i64, bool, String)> {
+        connection
+            .prepare("SELECT path, idx, done, text FROM checks ORDER BY path, idx")
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    fn checked(path: &str, idx: i64, done: bool, text: &str) -> (String, i64, bool, String) {
+        (path.to_string(), idx, done, text.to_string())
+    }
+
+    #[test]
+    fn stores_each_checklist_box_typescript_read_in_order() {
+        let mut index = empty_index();
+        let mut first = note("a.md", "A", "alpha");
+        first.checks = vec![check(true, "Book the hall"), check(false, "Order chairs")];
+        put_notes(&mut index, &[first]).unwrap();
+        assert_eq!(
+            check_rows(&index),
+            vec![
+                checked("a.md", 0, true, "Book the hall"),
+                checked("a.md", 1, false, "Order chairs")
+            ]
+        );
+    }
+
+    #[test]
+    fn replacing_or_removing_a_note_replaces_or_removes_its_checklist() {
+        let mut index = empty_index();
+        let mut first = note("a.md", "A", "alpha");
+        first.checks = vec![check(false, "Old")];
+        let mut other = note("b.md", "B", "beta");
+        other.checks = vec![check(true, "Kept")];
+        put_notes(&mut index, &[first, other]).unwrap();
+        let mut second = note("a.md", "A", "alpha");
+        second.checks = vec![check(true, "New")];
+        put_notes(&mut index, &[second]).unwrap();
+        assert_eq!(
+            check_rows(&index),
+            vec![checked("a.md", 0, true, "New"), checked("b.md", 0, true, "Kept")]
+        );
+        remove_paths(&mut index, &["a.md".to_string()]).unwrap();
+        assert_eq!(check_rows(&index), vec![checked("b.md", 0, true, "Kept")]);
+    }
+
+    #[test]
+    fn a_note_sent_without_a_checklist_has_none_and_it_reads_through_the_read_only_path() {
+        let json = serde_json::json!({
+            "path": "a.md", "title": "A", "modified": 1, "size": 1, "body": "b"
+        });
+        let parsed: IndexedNote = serde_json::from_value(json).unwrap();
+        assert!(parsed.checks.is_empty());
+        assert_eq!(parsed.progress, None);
+        let mut index = empty_index();
+        let mut first = note("a.md", "A", "alpha");
+        first.checks = vec![check(true, "Book the hall")];
+        put_notes(&mut index, &[first]).unwrap();
+        let result = run_query(&index, "SELECT path, done, text FROM checks", &[]).unwrap();
+        assert_eq!(result.rows.len(), 1);
+    }
+
+    fn task_with_progress(path: &str, progress: Option<i64>) -> IndexedNote {
+        let mut task = note(path, path, "body");
+        task.properties = vec![property("type", "task")];
+        task.progress = progress;
+        task
+    }
+
+    fn task_spec(progress: bool, columns: Vec<TypeColumn>) -> TypeSpec {
+        TypeSpec {
+            name: "task".into(),
+            columns,
+            progress,
+        }
+    }
+
+    #[test]
+    fn a_view_told_to_carries_the_progress_typescript_worked_out() {
+        let mut index = empty_index();
+        put_notes(
+            &mut index,
+            &[
+                task_with_progress("a.md", Some(40)),
+                task_with_progress("b.md", None),
+            ],
+        )
+        .unwrap();
+        rebuild_views(&index, &[task_spec(true, Vec::new())]).unwrap();
+        let result =
+            run_query(&index, "SELECT path, progress FROM v_task ORDER BY path", &[]).unwrap();
+        assert_eq!(result.rows[0][1], serde_json::json!(40));
+        assert_eq!(result.rows[1][1], serde_json::Value::Null);
+
+        // Replacing the note replaces its progress, as it does every other row.
+        put_notes(&mut index, &[task_with_progress("a.md", Some(100))]).unwrap();
+        let result =
+            run_query(&index, "SELECT progress FROM v_task WHERE path = 'a.md'", &[]).unwrap();
+        assert_eq!(result.rows[0][0], serde_json::json!(100));
+    }
+
+    #[test]
+    fn a_view_not_told_to_has_no_progress_and_a_declared_one_is_the_notes_own() {
+        let mut index = empty_index();
+        let mut own = task_with_progress("a.md", Some(40));
+        own.properties.push(IndexedProperty {
+            key: "progress".into(),
+            index: 0,
+            text: Some("7".into()),
+            number: Some(7.0),
+            date: None,
+            json: None,
+        });
+        put_notes(&mut index, &[own]).unwrap();
+        rebuild_views(&index, &[task_spec(false, Vec::new())]).unwrap();
+        assert!(run_query(&index, "SELECT progress FROM v_task", &[]).is_err());
+
+        let declared = TypeColumn {
+            key: "progress".into(),
+            kind: "number".into(),
+            many: false,
+        };
+        rebuild_views(&index, &[task_spec(false, vec![declared])]).unwrap();
+        let result = run_query(&index, "SELECT progress FROM v_task", &[]).unwrap();
+        assert_eq!(result.columns, vec!["progress".to_string()]);
+        assert_eq!(result.rows[0][0], serde_json::json!(7.0));
+    }
+
+    #[test]
+    fn an_index_of_an_older_shape_is_thrown_away_and_rebuilt_with_a_checklist() {
+        let vault = tempfile::tempdir().unwrap();
+        let path = database_path(vault.path()).unwrap();
+        {
+            let old = Connection::open(&path).unwrap();
+            old.execute_batch(
+                "CREATE TABLE files (path TEXT PRIMARY KEY, title TEXT NOT NULL,
+                     summary TEXT NOT NULL DEFAULT '', modified INTEGER NOT NULL,
+                     size INTEGER NOT NULL);
+                 PRAGMA user_version = 10;",
+            )
+            .unwrap();
+        }
+        let mut index = open_database(vault.path()).unwrap();
+        let version: i64 = index
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
+        let mut first = task_with_progress("a.md", Some(40));
+        first.checks = vec![check(true, "Book the hall")];
+        put_notes(&mut index, &[first]).unwrap();
+        assert_eq!(check_rows(&index), vec![checked("a.md", 0, true, "Book the hall")]);
+        let progress: Option<i64> = index
+            .query_row("SELECT progress FROM files WHERE path = 'a.md'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(progress, Some(40));
     }
 
     #[test]
@@ -1480,6 +1700,7 @@ mod tests {
                     many: true,
                 },
             ],
+            progress: false,
         }
     }
 
@@ -1601,6 +1822,7 @@ mod tests {
                 kind: "text".into(),
                 many: false,
             }],
+            progress: false,
         };
         rebuild_views(&index, &[trimmed]).unwrap();
 
@@ -1614,6 +1836,7 @@ mod tests {
         let bad = TypeSpec {
             name: "drop table".into(),
             columns: Vec::new(),
+            progress: false,
         };
         rebuild_views(&index, &[bad]).unwrap();
 
@@ -1956,6 +2179,8 @@ ORDER BY m.type DESC, m.name, p.cid";
                 tags: Vec::new(),
                 relations: Vec::new(),
                 blocks: Vec::new(),
+                checks: Vec::new(),
+                progress: None,
             };
             note.links.clear();
             put_notes(&mut index, &[note]).unwrap();
@@ -1964,6 +2189,7 @@ ORDER BY m.type DESC, m.name, p.cid";
                 &[TypeSpec {
                     name: "task".into(),
                     columns: Vec::new(),
+                    progress: false,
                 }],
             )
             .unwrap();
@@ -1991,6 +2217,7 @@ ORDER BY m.type DESC, m.name, p.cid";
                 &[TypeSpec {
                     name: "task".into(),
                     columns: Vec::new(),
+                    progress: false,
                 }],
             )
             .unwrap();

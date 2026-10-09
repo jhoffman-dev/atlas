@@ -1,4 +1,10 @@
-import { compileViewQuery, isViewColumn, type ObjectType, type ViewQuery } from '@atlas/domain';
+import {
+  carriesChecklistProgress,
+  compileViewQuery,
+  isViewColumn,
+  type ObjectType,
+  type ViewQuery,
+} from '@atlas/domain';
 import type { IndexPort, QueryResult, ViewTypeSpec } from '../index/ports.ts';
 
 export interface ViewResult extends QueryResult {
@@ -33,7 +39,8 @@ export async function runView({
  *
  * A property named like one of the view's own columns — possible in a type
  * file written by hand — is left out rather than given a second column
- * SQLite would rename to `modified:1`.
+ * SQLite would rename to `modified:1`. Each note's checklist progress is a
+ * column too, unless the type declares a `progress` of its own (P30-03).
  */
 export function viewSpecsFor(types: readonly ObjectType[]): ViewTypeSpec[] {
   return types.map((type) => ({
@@ -41,5 +48,6 @@ export function viewSpecsFor(types: readonly ObjectType[]): ViewTypeSpec[] {
     columns: type.properties
       .filter((property) => !isViewColumn(property.key))
       .map((property) => ({ key: property.key, kind: property.kind, many: property.many })),
+    progress: carriesChecklistProgress(type),
   }));
 }

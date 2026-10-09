@@ -19,7 +19,7 @@ import { QueryTextError } from './query-text-error.ts';
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Kinds whose values have an order: `<`, `>` and the rest mean something. */
-const ORDERED: readonly FieldKind[] = ['number', 'date', 'modified'];
+const ORDERED: readonly FieldKind[] = ['number', 'date', 'modified', 'progress'];
 /** Kinds whose values are words to search in. */
 const WORDY: readonly FieldKind[] = [
   'text',
@@ -195,6 +195,9 @@ const textual: ValueRule = (value, field) => {
   return `${field.text} holds text, not true or false.`;
 };
 
+const numeric: ValueRule = (value, field) =>
+  value.kind === 'number' ? null : `${field.text} is a number: compare it with a number.`;
+
 const dated: ValueRule = (value, field) =>
   value.kind === 'text' && isDateLike(value.text)
     ? null
@@ -209,8 +212,8 @@ const VALUE_RULES: Readonly<Record<FieldKind, ValueRule>> = {
   title: textual,
   path: textual,
   type: textual,
-  number: (value, field) =>
-    value.kind === 'number' ? null : `${field.text} is a number: compare it with a number.`,
+  number: numeric,
+  progress: numeric,
   date: dated,
   modified: dated,
   checkbox: (value, field) =>
@@ -230,6 +233,7 @@ function article(kind: FieldKind): string {
     text: 'text',
     multiSelect: 'a multi-select',
     modified: 'a date',
+    progress: 'a number',
     title: 'text',
     path: 'text',
     type: 'a type',

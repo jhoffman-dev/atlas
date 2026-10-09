@@ -57,6 +57,7 @@ import { useImages } from '../notes/use-images.ts';
 import { useBookmarks } from '../notes/use-bookmarks.ts';
 import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
+import { useLinePromotion } from '../notes/use-line-promotion.ts';
 import { cryptoRng } from '../random.ts';
 import { webviewImageProbe } from '../notes/webview-image-probe.ts';
 import { browserImagePlacementStore } from '../notes/browser-image-placement-store.ts';
@@ -345,6 +346,17 @@ export function NotePaneContainer({
     onChanged,
     onRefused: context.onLinkProblem,
   });
+  const promotion = useLinePromotion({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    openNotes: context.openNotes,
+    flush: note.flush,
+    path,
+    notePaths,
+    types,
+    onChanged,
+    onOpenNote,
+  });
   const embedImage = useEmbedImage({
     ports: {
       fs: notes.fs,
@@ -388,6 +400,8 @@ export function NotePaneContainer({
       bookmarks={bookmarks}
       transclusions={transclusions}
       picking={picking}
+      // A template's lines are what new notes start with, not work to promote.
+      {...(promotion !== undefined && template === null && { promotion })}
       reveal={reveal}
       onOpenTag={context.openTag}
       links={links.links}

@@ -4332,6 +4332,94 @@ button.props__link-title:focus-visible {
   overflow: hidden;
 }
 
+/* How far through its checklist a note is (P30-03): a slim bar and the
+   share ticked, on a card, a list row and under a table row's name. */
+.checklist-progress {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  min-width: 0;
+}
+
+.checklist-progress__track {
+  background: var(--line);
+  border-radius: 999px;
+  display: block;
+  flex: 1 1 auto;
+  height: 4px;
+  min-width: 48px;
+  overflow: hidden;
+}
+
+.checklist-progress__fill {
+  background: var(--accent);
+  display: block;
+  height: 100%;
+}
+
+.checklist-progress__label {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.board__card .checklist-progress {
+  display: flex;
+}
+
+.list-view__row .checklist-progress {
+  width: 96px;
+}
+
+.table__name .checklist-progress {
+  display: flex;
+  max-width: 200px;
+  padding: 0 10px 6px 36px;
+}
+
+/* "Make task" after the words of the checklist line the caret is in. */
+.promote-line {
+  appearance: none;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin-left: 8px;
+  padding: 1px 8px;
+  user-select: none;
+  vertical-align: baseline;
+}
+
+.promote-line:hover {
+  background: color-mix(in srgb, var(--accent-text) 18%, var(--raised));
+}
+
+/* What making a line a task did, with its one Undo. */
+.promotion-notice {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 16px var(--space-2) 24px;
+  padding: 6px 12px 6px 16px;
+}
+
+.promotion-notice__text {
+  color: var(--ink);
+  flex: 1;
+  font-size: var(--text-small);
+  margin: 0;
+  min-width: 20ch;
+}
+
 .board__fields {
   display: flex;
   flex-wrap: wrap;

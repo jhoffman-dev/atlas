@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { plainText, type BoardColumn, type BoardRow, type PropertyKind } from '@atlas/domain';
 import { CardCover, type CoverSource } from './card-cover.tsx';
+import { ChecklistProgress } from './checklist-progress.tsx';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import { NoteFields } from './note-fields.tsx';
 
@@ -38,6 +39,7 @@ export function ListView({ rows, fields, kinds = {}, onOpenNote, ticks }: NotesP
               {row.title}
             </button>
             {summary !== '' && <span className="list-view__summary">{summary}</span>}
+            <ChecklistProgress values={row.values} kinds={kinds} />
             <NoteFields row={row} fields={fields} kinds={kinds} className="list-view__fields" />
           </li>
         );
