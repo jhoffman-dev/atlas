@@ -521,3 +521,7 @@ ADR-0029 gives tasks eight statuses. What the API does about it:
   nothing is left half done. This is not a delete of anything the caller
   could name before the request; "no delete in v1" still holds, and the
   app's Undo of a promotion — which trashes the task — has no route.
+- **A retry is safe.** A line that starts with a link to a task note is a
+  task already, and promoting it is refused with `exists`: a request sent
+  twice makes one task, so MCP marks the tool idempotent. The line is named
+  by its words as shown or by its markdown as the note's writer writes it.
