@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { EditorDocument, EditorNode } from '../markdown/editor-node.ts';
 import { parseObjectType } from '../types/property-def.ts';
 import { checklistLines, checklistProgress, mayHoldChecklist } from './checklist.ts';
-import { carriesChecklistProgress, rowChecklistProgress } from './progress-field.ts';
+import {
+  carriesChecklistProgress,
+  rowChecklistProgress,
+  withChecklistProgress,
+} from './progress-field.ts';
 
 const text = (value: string): EditorNode => ({ type: 'text', text: value });
 const paragraph = (...content: EditorNode[]): EditorNode => ({ type: 'paragraph', content });
@@ -153,5 +157,22 @@ describe('rowChecklistProgress', () => {
     expect(
       rowChecklistProgress({ values: { progress: 40 }, kinds: { Progress: 'number' } }),
     ).toBeNull();
+  });
+});
+
+describe('withChecklistProgress', () => {
+  const query = { type: 'task', columns: ['status'], filters: [], sorts: [], limit: 50 };
+  const task = parseObjectType({ name: 'task', properties: {} });
+
+  it('reads progress as a column of a type that has it, once', () => {
+    expect(withChecklistProgress(query, task).columns).toEqual(['status', 'progress']);
+    const asked = { ...query, columns: ['progress'] };
+    expect(withChecklistProgress(asked, task)).toBe(asked);
+  });
+
+  it('leaves a query of a type with its own, or of no known type, as it is', () => {
+    const own = parseObjectType({ name: 'goal', properties: { progress: 'number' } });
+    expect(withChecklistProgress(query, own)).toBe(query);
+    expect(withChecklistProgress(query, null)).toBe(query);
   });
 });

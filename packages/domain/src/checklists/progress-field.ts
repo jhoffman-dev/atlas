@@ -1,3 +1,4 @@
+import type { ViewQuery } from '../query/view-query.ts';
 import type { ObjectType } from '../types/property-def.ts';
 
 /** What a note's checklist progress is called in a view's columns and in a query (P30-03). */
@@ -33,4 +34,15 @@ export function rowChecklistProgress({
   if (Object.keys(kinds).some((key) => key.toLowerCase() === PROGRESS_FIELD)) return null;
   const value = values[PROGRESS_FIELD];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * A view's query that also reads each note's checklist progress, as a column
+ * of its own, when the type's view holds it and the query does not already
+ * ask for it: what the local API answers a view's rows with (P30-03).
+ */
+export function withChecklistProgress(query: ViewQuery, type: ObjectType | null): ViewQuery {
+  const key = checklistProgressKey(type);
+  if (key === null || query.columns.includes(key)) return query;
+  return { ...query, columns: [...query.columns, key] };
 }

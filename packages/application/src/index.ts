@@ -17,6 +17,7 @@ export * from './profile/index.ts';
 export * from './tags/index.ts';
 export { fakeHostVaultFs, fakeIndexPort, fakeMarkdown, fakeVaultFs } from './testing/fake-ports.ts';
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
+export { apiFixture, bodyOf, codeOf, encoded } from './testing/api-fixture.ts';
 export * from './api/index.ts';
 export * from './archive/index.ts';
 export * from './inbox/index.ts';

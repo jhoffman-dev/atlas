@@ -5,6 +5,7 @@ export {
   checklistProgressKey,
   PROGRESS_FIELD,
   rowChecklistProgress,
+  withChecklistProgress,
 } from './progress-field.ts';
 export {
   inheritedProject,

@@ -55,6 +55,7 @@ function emptyVault(): ApiRouterDeps {
     tagRenames: createTagRenames(),
     refreshSpacing: createRefreshSpacing(),
     newUploadId: () => 'upload-1',
+    rng: { next: () => 0.5 },
     automationClock: { forVault: () => null },
     activity: recordingActivity(),
   };
