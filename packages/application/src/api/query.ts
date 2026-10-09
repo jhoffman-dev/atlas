@@ -37,6 +37,10 @@ export async function queryRoute(request: VaultRequest): Promise<RouteResult> {
   const includeArchived = optionalBoolean(fields, 'includeArchived') ?? false;
   const schedule = optionalBoolean(fields, 'schedule') ?? false;
   const query = viewQueryFrom(fields);
+  // Merging with P30-03 (checklist progress) keeps both, in this order: check
+  // `schedule` on the query as asked, then add the progress column to it, run
+  // it, and add the schedule last — checkScheduleAsked, withChecklistProgress,
+  // runViewQuery, withSchedules.
   if (schedule) checkScheduleAsked(query);
   const rows = await runViewQuery(request, query, { includeArchived });
   return { status: 200, body: schedule ? await withSchedules(request, rows) : rows };
