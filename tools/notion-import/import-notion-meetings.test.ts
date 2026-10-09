@@ -7,6 +7,7 @@ import {
   realpath,
   rename,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
@@ -88,6 +89,8 @@ const options = (overrides: Partial<ImportOptions> = {}): ImportOptions => ({
   folder: MEETINGS,
   timeZone: 'America/Los_Angeles',
   groupAddresses: [],
+  // The fixture's Platform weekly sync and 1:1s are Gemini's: held without this (issue #44).
+  geminiDates: 'arrival-local',
   ...overrides,
 });
 
@@ -104,7 +107,7 @@ async function rewriteCsv(rows: readonly string[]) {
   await writeFile(csv, [header, ...rows, ''].join('\r\n'));
 }
 
-async function addPage(name: string, text: string) {
+async function addPage(name: string, text: string | Buffer) {
   await writeFile(join(exportDir, PAGES, name), text);
 }
 
@@ -131,8 +134,6 @@ describe('importing a Notion Meeting Notes export', () => {
     expect(sync).toMatchObject({
       title: 'Platform weekly sync',
       date: '2026-10-06',
-      start: '10:00',
-      end: '10:30',
       kind: 'Standup',
       provider: 'gemini',
       externalId: '18c2f4a9e7b3d501',
@@ -149,6 +150,57 @@ describe('importing a Notion Meeting Notes export', () => {
       ['Tobias Fenn', '00:00:12'],
       ['Mara Quill', '00:09:44'],
     ]);
+  });
+
+  it('holds Gemini’s rows, whose Dates are when the notes arrived, unless told how to read them', async () => {
+    const outcomes = await importNotionMeetings({
+      csv: join(exportDir, CSV_NAME),
+      vault,
+      folder: MEETINGS,
+      timeZone: 'America/Los_Angeles',
+      groupAddresses: [],
+    });
+
+    expect(kinds(outcomes)).toEqual(['held', 'written', 'held', 'held', 'no-source-id']);
+    expect(outcomes[0]).toMatchObject({
+      reason: 'gemini dates need --gemini-dates (issue #44)',
+    });
+    expect(await written()).toEqual(['2026-10-01 Larkspur Payroll renewal, final terms.md']);
+  });
+
+  it('starts a Gemini meeting its transcript’s length before its notes arrived, and says so', async () => {
+    await run();
+
+    const text = await read(`${MEETINGS}/2026-10-06 Platform weekly sync.md`);
+    // Arrived 10:00; the transcript's last section stamp is 00:09:44; the Date's range end is not the meeting's.
+    expect(accepted(text)).toMatchObject({ date: '2026-10-06', start: '09:50', end: null });
+    expect(text).toContain(
+      "## Notes\n\nStart time approximate: Gemini's date in Notion is when its notes arrived (10:00), and the start written here is that less the transcript's last time stamp, 00:09:44 (issue #44).\n\n- Cache rollout:",
+    );
+  });
+
+  it('reads a Gemini Date’s Z as local time, and with no transcript starts it when the notes arrived', async () => {
+    await run();
+
+    const text = await read(`${MEETINGS}/2026-10-02 1 1.md`);
+    expect(accepted(text)).toMatchObject({ date: '2026-10-02', start: '09:00' });
+    expect(text).toContain(
+      'the transcript has no time stamps, so the start written here is that time',
+    );
+  });
+
+  it('brings in only the providers it is told to', async () => {
+    const outcomes = await run({ providers: ['granola'] });
+
+    expect(kinds(outcomes)).toEqual([
+      'left-out',
+      'written',
+      'left-out',
+      'left-out',
+      'no-source-id',
+    ]);
+    expect(outcomes[0]).toMatchObject({ reason: 'gemini is not among --providers' });
+    expect(await written()).toEqual(['2026-10-01 Larkspur Payroll renewal, final terms.md']);
   });
 
   it('reads a UTC Date on the clock of the time zone, and a toggle’s transcript turn by turn', async () => {
@@ -266,7 +318,7 @@ describe('running the import again', () => {
     await mkdir(join(vault, 'Meetings'));
     await writeFile(
       join(vault, 'Meetings/Kept by hand.md'),
-      "---\ntype: meeting\nprovider: gemini\nexternal_id: ' 18c2f4a9e7b3d501 '\n---\n",
+      "---\ntype: meeting\natlas_import_outcome: imported\nprovider: gemini\nexternal_id: ' 18c2f4a9e7b3d501 '\n---\n",
     );
 
     const outcomes = await run();
@@ -278,7 +330,7 @@ describe('running the import again', () => {
     await mkdir(join(vault, '.trash'));
     await writeFile(
       join(vault, '.trash/Platform weekly sync.md'),
-      "---\nprovider: gemini\nexternal_id: '18c2f4a9e7b3d501'\n---\n",
+      "---\ntype: meeting\natlas_import_outcome: imported\nprovider: gemini\nexternal_id: '18c2f4a9e7b3d501'\n---\n",
     );
 
     const outcomes = await run();
@@ -355,14 +407,14 @@ describe('rows the import refuses, and says why', () => {
     expect([await read(paths.path), await read(paths.collisionPath)]).toEqual([other, other]);
   });
 
-  it('takes a file at its path holding this meeting as the meeting being there', async () => {
+  it('passes by a file that names the meeting but holds nothing by the import’s rule, writing beside it', async () => {
     const paths = meetingPaths({
       date: '2026-10-06',
       title: 'Platform weekly sync',
       provider: 'gemini',
       externalId: '18c2f4a9e7b3d501',
     });
-    // YAML that does not read names no meeting to the vault's index, but the line reader n8n uses still sees it.
+    // YAML that does not read holds nothing to the import on arrival (P28-04), so it does not here either.
     const unreadable =
       "---\nprovider: 'gemini'\nexternal_id: '18c2f4a9e7b3d501'\ntitle: [unclosed\n---\n";
     await mkdir(join(vault, MEETINGS), { recursive: true });
@@ -370,8 +422,52 @@ describe('rows the import refuses, and says why', () => {
 
     const [outcome] = await run();
 
-    expect(outcome).toMatchObject({ kind: 'in-vault', path: paths.path });
+    expect(outcome).toMatchObject({ kind: 'written', path: paths.collisionPath });
     expect(await read(paths.path)).toBe(unreadable);
+  });
+
+  it.each([
+    ['stamped error', 'atlas_import_outcome: error\n'],
+    ['stamped duplicate', 'atlas_import_outcome: duplicate\n'],
+  ])('does not count a copy %s as holding the meeting', async (_, stamp) => {
+    await run();
+    const sync = `${MEETINGS}/2026-10-06 Platform weekly sync.md`;
+    const text = await read(sync);
+    await mkdir(join(vault, 'Archive'));
+    await writeFile(
+      join(vault, 'Archive/Platform weekly sync.md'),
+      text.replace(/^(atlas_import: .*\n)/m, `$1${stamp}`),
+    );
+    await rm(join(vault, sync));
+
+    const [outcome] = await run();
+
+    expect(outcome).toMatchObject({ kind: 'written', path: sync });
+  });
+
+  it('does not count a sync conflict’s copy as holding the meeting', async () => {
+    await run();
+    const sync = `${MEETINGS}/2026-10-06 Platform weekly sync.md`;
+    const conflict = `${MEETINGS}/2026-10-06 Platform weekly sync (conflict from Studio).md`;
+    await rename(join(vault, sync), join(vault, conflict));
+
+    const [outcome] = await run();
+
+    expect(outcome).toMatchObject({ kind: 'written', path: sync });
+  });
+
+  it('finds a meeting the vault holds before reading the row’s Date, so a Date it cannot read is no matter', async () => {
+    await run();
+    await rewriteCsv([
+      'Platform weekly sync,,Standup,Mara Quill,someday soon,gemini,18c2f4a9e7b3d501',
+    ]);
+
+    const [outcome] = await run();
+
+    expect(outcome).toMatchObject({
+      kind: 'in-vault',
+      path: `${MEETINGS}/2026-10-06 Platform weekly sync.md`,
+    });
   });
 });
 
@@ -390,6 +486,37 @@ describe('where the import may write', () => {
       expect(await readdir(root)).toEqual(['export', 'vault copy']);
     },
   );
+
+  it.each(['.imported', 'Meetings/.from-notion'])(
+    'refuses a hidden folder, which Atlas and the next run would not look in: %s',
+    async (folder) => {
+      await expect(run({ folder })).rejects.toThrow(/is hidden/);
+      expect(await readdir(vault)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ['vault', ''],
+    ['folder', '  '],
+  ])('refuses an empty %s rather than read it as here', async (key) => {
+    await expect(run({ [key]: key === 'vault' ? '' : '  ' })).rejects.toThrow(ImportSetupError);
+    expect(await readdir(vault)).toEqual([]);
+  });
+
+  it('writes into a folder linked to another place inside the vault', async () => {
+    await mkdir(join(vault, 'Meetings'));
+    await symlink(join(vault, 'Meetings'), join(vault, 'Inbox'));
+
+    await run();
+
+    expect(await readdir(join(vault, 'Meetings/Meetings'))).toHaveLength(4);
+  });
+
+  it('refuses a page that is not UTF-8 text, naming it', async () => {
+    await addPage('Broken 0000000000000000000000000000bbbb.md', Buffer.from([0x23, 0x20, 0xe9]));
+
+    await expect(run()).rejects.toThrow(/Broken 0+b{4}\.md is not UTF-8 text/);
+  });
 
   it('writes into the folder it is given', async () => {
     await run({ folder: 'Meetings/From Notion' });

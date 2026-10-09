@@ -52,6 +52,8 @@ const options = (overrides: Partial<ImportOptions> = {}): ImportOptions => ({
   folder: 'Inbox/Meetings',
   timeZone: 'America/Los_Angeles',
   groupAddresses: [],
+  // The fixture's Platform weekly sync is Gemini's, held without this (issue #44).
+  geminiDates: 'arrival-local',
   ...overrides,
 });
 
@@ -112,7 +114,8 @@ describe('where the import may write', () => {
   });
 
   it('never writes one meeting into the vault twice, even after a run into a hidden folder', async () => {
-    await importNotionMeetings(options({ folder: '.imported/Meetings' }));
+    // A hidden folder is now refused; whatever the first run does, the meeting is in the vault once.
+    await importNotionMeetings(options({ folder: '.imported/Meetings' })).catch(() => null);
     await importNotionMeetings(options({ folder: 'Inbox/Meetings' }));
 
     const holders: string[] = [];

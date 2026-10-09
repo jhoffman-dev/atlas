@@ -51,8 +51,8 @@ describe('import-notion-meetings', { timeout: 120_000 }, () => {
   it('imports into the vault it is given, prints every row, and a second run writes nothing', async () => {
     const vault = join(home, 'vault copy');
 
-    const first = run('--csv', csv, '--vault', vault);
-    const second = run('--csv', csv, '--vault', vault);
+    const first = run('--csv', csv, '--vault', vault, '--gemini-dates', 'arrival-local');
+    const second = run('--csv', csv, '--vault', vault, '--gemini-dates', 'arrival-local');
 
     expect(first.stdout).toMatch(
       /^wrote {5}Inbox\/Meetings\/2026-10-06 Platform weekly sync\.md$/m,
@@ -61,14 +61,51 @@ describe('import-notion-meetings', { timeout: 120_000 }, () => {
       /^no id {5}"Notes from the offsite" \(September 30, 2026\): no Source ID/m,
     );
     expect(first.stdout).toMatch(
-      /^5 rows: 4 written, 0 already in the vault, 1 without a Source ID, 0 refused$/m,
+      /^5 rows: 4 written, 0 already in the vault, 1 without a Source ID, 0 left out, 0 held, 0 refused$/m,
     );
     expect(first.status).toBe(0);
     expect(second.stdout).toMatch(
-      /^5 rows: 0 written, 4 already in the vault, 1 without a Source ID, 0 refused$/m,
+      /^5 rows: 0 written, 4 already in the vault, 1 without a Source ID, 0 left out, 0 held, 0 refused$/m,
     );
     expect(second.status).toBe(0);
     expect(await readdir(join(home, 'Atlas Vault'))).toEqual([]);
+  });
+
+  it('holds Gemini’s rows without --gemini-dates, says why, and exits 1', () => {
+    const result = run('--csv', csv, '--vault', join(home, 'vault copy'));
+
+    expect(result.stdout).toMatch(
+      /^held {6}"Platform weekly sync" \(.*\): gemini dates need --gemini-dates \(issue #44\)$/m,
+    );
+    expect(result.stdout).toMatch(/, 3 held, 0 refused$/m);
+    expect(result.status).toBe(1);
+  });
+
+  it('leaves out the providers not named, and exits 0 when the rest came in', () => {
+    const result = run(
+      '--csv',
+      csv,
+      '--vault',
+      join(home, 'vault copy'),
+      '--providers',
+      ' Granola ,',
+    );
+
+    expect(result.stdout).toMatch(/^left out {2}"1:1" \(.*\): gemini is not among --providers$/m);
+    expect(result.stdout).toMatch(/^5 rows: 1 written, .*, 3 left out, 0 held, 0 refused$/m);
+    expect(result.status).toBe(0);
+  });
+
+  it.each([
+    [['--gemini-dates', 'as-written'], /--gemini-dates: "as-written" is not one of arrival-local/],
+    [['--providers', ' , '], /--providers: name at least one provider/],
+    [['--folder', ''], /usage:/],
+  ])('refuses %j and says how to use it', async (args, said) => {
+    const result = run('--csv', csv, '--vault', join(home, 'vault copy'), ...args);
+
+    expect(result.stderr).toMatch(said);
+    expect(result.status).toBe(2);
+    expect(await readdir(join(home, 'vault copy'))).toEqual([]);
   });
 
   it('exits 1 when a row with a Source ID was not brought in', async () => {

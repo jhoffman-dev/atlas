@@ -105,27 +105,58 @@ interface Block {
   readonly end: number;
 }
 
-/** The `<details>` or toggle item labelled Transcript, or null when the page has neither. */
-function transcriptBlock(lines: readonly string[]): Block | null {
-  for (let at = 0; at < lines.length; at += 1) {
-    const line = lines[at] ?? '';
-    if (DETAILS_OPEN.test(line)) {
-      const end = detailsEnd(lines, at);
-      // The mapper drops the `<details>` and `<summary>` lines themselves.
-      const labelled = lines.slice(at, at + 2).some((each) => TRANSCRIPT_SUMMARY.test(each));
-      if (labelled) return { start: at, content: at, end };
-    } else if (TRANSCRIPT_TOGGLE.test(line)) {
-      return { start: at, content: at + 1, end: toggleEnd(lines, at) };
-    }
-  }
-  return null;
-}
-
 /** The field a `#` or `##` heading opens, or null for a line that is not one. */
 function headingField(line: string): Field | 'other' | null {
   const heading = SECTION_HEADING.exec(line)?.[1]?.toLowerCase();
   if (heading === undefined) return null;
   return FIELD_OF[heading] ?? 'other';
+}
+
+/** The code fence open after the line: a marker opens one, and the same marker, as long or longer, closes it. */
+function fenceAfter(line: string, fence: string | null): string | null {
+  const marker = FENCE.exec(line)?.[1];
+  if (marker === undefined) return fence;
+  if (fence === null) return marker;
+  return marker.startsWith(fence) ? null : fence;
+}
+
+/**
+ * The block starting at `at` when it is the transcript: a `<details>` at the
+ * page's top level whose summary is Transcript, or a top-level toggle item
+ * labelled Transcript that has lines indented under it. A bullet that only
+ * reads "Transcript" is a bullet.
+ */
+function blockAt(lines: readonly string[], at: number): Block | null {
+  const line = lines[at] ?? '';
+  if (indentOf(line) > 0) return null;
+  if (DETAILS_OPEN.test(line)) {
+    // The mapper drops the `<details>` and `<summary>` lines themselves.
+    const labelled = lines.slice(at, at + 2).some((each) => TRANSCRIPT_SUMMARY.test(each));
+    return labelled ? { start: at, content: at, end: detailsEnd(lines, at) } : null;
+  }
+  if (!TRANSCRIPT_TOGGLE.test(line)) return null;
+  const end = toggleEnd(lines, at);
+  return end > at + 1 ? { start: at, content: at + 1, end } : null;
+}
+
+/**
+ * The transcript block to take out of the page, or null to read the
+ * transcript from a `## Transcript` section instead: one outside code, and
+ * preferred to a block when the page has both. Only the first block is
+ * taken; any other stays in its section as text.
+ */
+function transcriptBlock(lines: readonly string[]): Block | null {
+  let fence: string | null = null;
+  let found: Block | null = null;
+  for (let at = 0; at < lines.length; at += 1) {
+    const line = lines[at] ?? '';
+    if (fence === null) {
+      if (headingField(line) === 'transcript') return null;
+      found ??= blockAt(lines, at);
+    }
+    fence = fenceAfter(line, fence);
+  }
+  return found;
 }
 
 /** Lines each field holds. A heading with no field of its own goes, with its line, into Details. */
@@ -145,18 +176,15 @@ function bySection(lines: readonly string[]): Map<Field, string[]> {
       add(current, line);
     } else if (field !== null) current = field;
     else add(current, line);
-    const marker = FENCE.exec(line)?.[1];
-    if (marker !== undefined && (fence === null || marker.startsWith(fence))) {
-      fence = fence === null ? marker : null;
-    }
+    fence = fenceAfter(line, fence);
   }
   return fields;
 }
 
 /**
  * The page's content split into the fields the mapper reads, by its `#` and
- * `##` headings. The transcript is the `<details>` (or toggle item) whose
- * label is Transcript, wherever it sits, or a `## Transcript` section. Text
+ * `##` headings outside code. The transcript is a `## Transcript` section,
+ * else the top-level `<details>` (or toggle item) labelled Transcript. Text
  * before the first heading, and any heading the mapping has no field for,
  * goes into Details with its heading, so the page's content all arrives.
  */

@@ -1,11 +1,30 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
-import { splitFrontmatter } from '../../packages/domain/src/index.ts';
+import {
+  isConflictCopyPath,
+  meetingHolding,
+  splitFrontmatter,
+  type FrontmatterReading,
+  type MeetingIdentity,
+} from '../../packages/domain/src/index.ts';
 import { remarkMarkdown } from '../../packages/adapters/src/index.ts';
 
-/** A meeting's identity under the contract: provider and trimmed external_id (ADR-0027). */
-export const meetingKey = (provider: string, externalId: string) =>
+/** A meeting's identity as a key: provider and trimmed external_id (ADR-0027). */
+export const meetingKey = ({ provider, externalId }: MeetingIdentity) =>
   `${provider}\n${externalId.trim()}`;
+
+/** A frontmatter block read with the YAML reader Atlas reads every note with; no values when it does not read. */
+export function readFrontmatter(frontmatter: string): FrontmatterReading {
+  const problem = remarkMarkdown.frontmatterProblem(frontmatter);
+  return {
+    properties: problem === null ? remarkMarkdown.frontmatterProperties(frontmatter) : {},
+    problem,
+  };
+}
+
+/** Whether the text holds the meeting by the import's rule (P28-04): a stamped or a valid, unstamped copy of it. */
+export const holdsMeeting = (text: string, meeting: MeetingIdentity): boolean =>
+  meetingHolding({ text, readFrontmatter, meeting }) !== null;
 
 /** Every markdown file under `folder`, hidden files and folders left out as everywhere in Atlas (ADR-0014). */
 async function markdownFiles(folder: string): Promise<string[]> {
@@ -20,27 +39,32 @@ async function markdownFiles(folder: string): Promise<string[]> {
   return found;
 }
 
-/** The meeting key a note's frontmatter names, or null when it names none. */
-function heldKey(text: string): string | null {
-  const properties = remarkMarkdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
-  const { provider, external_id: externalId } = properties;
+/** The meeting a note's own keys name, or null when they name none. */
+function namedMeeting(text: string): MeetingIdentity | null {
+  const frontmatter = splitFrontmatter(text).frontmatter;
+  if (frontmatter === null) return null;
+  const { provider, external_id: externalId } = readFrontmatter(frontmatter).properties;
   if (typeof provider !== 'string' || typeof externalId !== 'string') return null;
-  return meetingKey(provider, externalId);
+  return { provider, externalId };
 }
 
 /**
- * Where in the vault each meeting already is, by its key: wherever it was
- * moved, renamed or archived, and whatever the import stamped it. Paths are
- * vault-relative with `/`. A note whose frontmatter does not read names no
- * meeting, as it does for the import (P28-04).
+ * Where in the vault each meeting already is, by its key: the notes that
+ * hold it by the import's own rule (P28-04, `meetingHolding`), wherever they
+ * were moved, renamed or archived. A sync conflict's copy, a note stamped
+ * `duplicate` or `error`, and an unstamped note that breaks the contract hold
+ * nothing, so the import is not stopped by them. Paths are vault-relative
+ * with `/`.
  */
 export async function meetingsInVault(vault: string): Promise<Map<string, string>> {
   const held = new Map<string, string>();
   for (const path of await markdownFiles(vault)) {
+    const shown = relative(vault, path).split(sep).join('/');
+    if (isConflictCopyPath(shown)) continue;
     const text = await readFile(path, 'utf8');
-    if (!text.includes('external_id')) continue;
-    const key = heldKey(text);
-    if (key !== null && !held.has(key)) held.set(key, relative(vault, path).split(sep).join('/'));
+    const meeting = text.includes('external_id') ? namedMeeting(text) : null;
+    if (meeting === null || !holdsMeeting(text, meeting)) continue;
+    if (!held.has(meetingKey(meeting))) held.set(meetingKey(meeting), shown);
   }
   return held;
 }

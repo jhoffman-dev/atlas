@@ -47,11 +47,12 @@ it('refuses a file Atlas would not let in, naming the problem, and writes the ot
     folder: 'Inbox/Meetings',
     timeZone: 'America/Los_Angeles',
     groupAddresses: [],
+    geminiDates: 'arrival-local',
   });
 
   expect(outcomes[2]).toMatchObject({
     kind: 'refused',
-    row: { title: '1:1', date: 'October 2, 2026 9:00 AM' },
+    row: { title: '1:1', date: '2026-10-02T09:00:00.000Z' },
     reason: expect.stringMatching(/^title: /),
   });
   expect(outcomes.map((outcome) => outcome.kind)).toEqual([

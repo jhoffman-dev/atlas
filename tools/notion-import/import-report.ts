@@ -10,6 +10,10 @@ function line(outcome: RowOutcome): string {
       return `in vault  ${outcome.path}, ${named(outcome)}`;
     case 'no-source-id':
       return `no id     ${named(outcome)}: no Source ID, so not imported`;
+    case 'left-out':
+      return `left out  ${named(outcome)}: ${outcome.reason}`;
+    case 'held':
+      return `held      ${named(outcome)}: ${outcome.reason}`;
     case 'refused':
       return `refused   ${named(outcome)}: ${outcome.reason}`;
   }
@@ -24,10 +28,13 @@ export function reportLines(outcomes: readonly RowOutcome[]): string[] {
     `${count(outcomes, 'written')} written`,
     `${count(outcomes, 'in-vault')} already in the vault`,
     `${count(outcomes, 'no-source-id')} without a Source ID`,
+    `${count(outcomes, 'left-out')} left out`,
+    `${count(outcomes, 'held')} held`,
     `${count(outcomes, 'refused')} refused`,
   ];
   return [...outcomes.map(line), `${outcomes.length} rows: ${totals.join(', ')}`];
 }
 
-/** Whether every row with a Source ID is now in the vault. */
-export const allImported = (outcomes: readonly RowOutcome[]) => count(outcomes, 'refused') === 0;
+/** Whether every row with a Source ID that was asked for is now in the vault: none held, none refused. */
+export const allImported = (outcomes: readonly RowOutcome[]) =>
+  count(outcomes, 'refused') === 0 && count(outcomes, 'held') === 0;

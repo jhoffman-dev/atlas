@@ -43,6 +43,9 @@ describe('notionWhen', () => {
     ['October 6, 2026 10:00 AM (PDT)', '2026-10-06T10:00', null],
     ['October 6, 2026 5:00 PM (UTC)', '2026-10-06T17:00Z', null],
     ['October 6, 2026 5:00 PM (UTC) → 5:30 PM (UTC)', '2026-10-06T17:00Z', '2026-10-06T17:30Z'],
+    ['October 6, 2026 5:00 PM → 5:30 PM (UTC)', '2026-10-06T17:00Z', '2026-10-06T17:30Z'],
+    ['October 6, 2026 5:00 PM (UTC) → 5:30 PM', '2026-10-06T17:00Z', '2026-10-06T17:30Z'],
+    ['October 6, 2026 → October 7, 2026 (UTC)', '2026-10-06', '2026-10-07'],
   ])('reads %s', (cell, date, end) => {
     expect(notionWhen(cell)).toEqual({ date, end });
   });
@@ -183,6 +186,52 @@ describe('pageSections', () => {
 
     expect(sections.transcript).toBe('Mara Quill: Hi.');
     expect(sections.details).toBe('<details>\n<summary>Agenda</summary>\nCache.\n</details>');
+  });
+
+  it('leaves a bullet that only reads Transcript in its section', () => {
+    const sections = pageSections(
+      ['## Next steps', '- Share the recording.', '- Transcript'].join('\n'),
+    );
+
+    expect(sections.nextSteps).toBe('- Share the recording.\n- Transcript');
+    expect(sections.transcript).toBe('');
+  });
+
+  it('takes no transcript block from inside code, or from inside a list', () => {
+    const page = [
+      '## Details',
+      '```',
+      '<details>',
+      '<summary>Transcript</summary>',
+      'Mara Quill: Inside code.',
+      '</details>',
+      '```',
+      '- Recordings',
+      '  - Transcript',
+      '    Mara Quill: Nested.',
+    ].join('\n');
+
+    const sections = pageSections(page);
+
+    expect(sections.transcript).toBe('');
+    expect(sections.details).toBe(page.slice('## Details\n'.length));
+  });
+
+  it('prefers a ## Transcript section to a details block, keeping the block where it is', () => {
+    const sections = pageSections(
+      [
+        '## Summary',
+        '<details>',
+        '<summary>Transcript</summary>',
+        'Mara Quill: An older copy.',
+        '</details>',
+        '## Transcript',
+        'Mara Quill: Hi.',
+      ].join('\n'),
+    );
+
+    expect(sections.transcript).toBe('Mara Quill: Hi.');
+    expect(sections.summary).toContain('Mara Quill: An older copy.');
   });
 
   it('ends a details block at its own close, past one nested inside it', () => {

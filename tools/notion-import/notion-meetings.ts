@@ -1,6 +1,9 @@
+import type { MeetingIdentity } from '../../packages/domain/src/index.ts';
+import { oneLine } from '../n8n/meeting-mapping-error.ts';
 import type { MeetingFields } from '../n8n/meeting-to-atlas.ts';
 import type { Csv, CsvRow } from './notion-csv.ts';
 import { notionWhen } from './notion-date.ts';
+import { fromArrival, GEMINI, type GeminiDates } from './gemini-dates.ts';
 import { pageSections, type NotionPage } from './notion-page.ts';
 
 /** The Meeting Notes database's columns (ADR-0027), by what the mapper reads from each. */
@@ -26,11 +29,33 @@ export interface RowName {
   readonly date: string;
 }
 
-/** What becomes of one row: a meeting to map, or the reason it cannot be one. */
+/** A row with a meeting the vault may already hold, and why it is not brought in now. */
+interface Waiting {
+  readonly row: RowName;
+  readonly identity: MeetingIdentity;
+  readonly reason: string;
+}
+
+/** What becomes of one row: a meeting to map, or the reason it is not one yet. */
 export type RowPlan =
-  | { readonly kind: 'meeting'; readonly row: RowName; readonly fields: MeetingFields }
+  | {
+      readonly kind: 'meeting';
+      readonly row: RowName;
+      readonly identity: MeetingIdentity;
+      readonly fields: MeetingFields;
+    }
   | { readonly kind: 'no-source-id'; readonly row: RowName }
-  | { readonly kind: 'no-page'; readonly row: RowName; readonly reason: string };
+  | { readonly kind: 'left-out'; readonly row: RowName; readonly reason: string }
+  | ({ readonly kind: 'no-page' } & Waiting)
+  | ({ readonly kind: 'held' } & Waiting);
+
+/** Which rows to bring in, and how. */
+export interface RowChoices {
+  /** The providers to import, lower case; null for all of them. */
+  readonly providers: readonly string[] | null;
+  /** How Gemini's Dates are read; null holds Gemini's rows (issue #44). */
+  readonly geminiDates: GeminiDates | null;
+}
 
 const cell = (row: CsvRow, column: string) => (row.get(column) ?? '').trim();
 
@@ -63,27 +88,56 @@ function fieldsOf(row: CsvRow, page: NotionPage): MeetingFields {
   };
 }
 
-function planRow(row: CsvRow, pages: ReadonlyMap<string, NotionPage | null>): RowPlan {
+/** The page's meeting, read for the provider's Dates. */
+function meetingOf(
+  plan: { row: RowName; identity: MeetingIdentity },
+  fields: MeetingFields,
+  choices: RowChoices,
+): RowPlan {
+  if (plan.identity.provider !== GEMINI) return { kind: 'meeting', ...plan, fields };
+  if (choices.geminiDates === null) {
+    return { kind: 'held', ...plan, reason: 'gemini dates need --gemini-dates (issue #44)' };
+  }
+  return { kind: 'meeting', ...plan, fields: fromArrival(fields) };
+}
+
+function planRow(
+  row: CsvRow,
+  pages: ReadonlyMap<string, NotionPage | null>,
+  choices: RowChoices,
+): RowPlan {
   const name = { title: cell(row, COLUMNS.title), date: cell(row, COLUMNS.date) };
   const id = cell(row, COLUMNS.sourceId);
   if (id === '') return { kind: 'no-source-id', row: name };
+  // As the mapper writes them, so a row is matched against the vault before it is mapped.
+  const identity = {
+    provider: oneLine(cell(row, COLUMNS.source)).toLowerCase(),
+    externalId: oneLine(id),
+  };
+  if (choices.providers !== null && !choices.providers.includes(identity.provider)) {
+    const reason = `${identity.provider || 'no provider'} is not among --providers`;
+    return { kind: 'left-out', row: name, reason };
+  }
   const page = pages.get(id);
-  if (page === undefined) {
-    return { kind: 'no-page', row: name, reason: `no page in the export holds Source ID ${id}` };
+  if (page === undefined || page === null) {
+    const reason =
+      page === null
+        ? `two pages in the export hold Source ID ${id}`
+        : `no page in the export holds Source ID ${id}`;
+    return { kind: 'no-page', row: name, identity, reason };
   }
-  if (page === null) {
-    return { kind: 'no-page', row: name, reason: `two pages in the export hold Source ID ${id}` };
-  }
-  return { kind: 'meeting', row: name, fields: fieldsOf(row, page) };
+  return meetingOf({ row: name, identity }, fieldsOf(row, page), choices);
 }
 
 /**
  * Each row of a Meeting Notes export, paired with its page by Source ID. The
  * CSV says which meetings there are and holds their properties; the page
  * holds what was said. A row with no Source ID is named, never given one: the
- * id is what keeps a meeting from arriving twice (ADR-0027).
+ * id is what keeps a meeting from arriving twice (ADR-0027). A row of a
+ * provider not chosen is left out, and a Gemini row is held unless a way to
+ * read its Date was chosen (issue #44).
  */
-export function planRows(csv: Csv, pages: readonly NotionPage[]): RowPlan[] {
+export function planRows(csv: Csv, pages: readonly NotionPage[], choices: RowChoices): RowPlan[] {
   const missing = REQUIRED.filter((column) => !csv.columns.includes(column));
   if (missing.length > 0) {
     throw new NotionExportError(
@@ -91,5 +145,5 @@ export function planRows(csv: Csv, pages: readonly NotionPage[]): RowPlan[] {
     );
   }
   const byId = pagesById(pages);
-  return csv.rows.map((row) => planRow(row, byId));
+  return csv.rows.map((row) => planRow(row, byId, choices));
 }

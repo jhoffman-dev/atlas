@@ -15,23 +15,30 @@ import type * as Fs from 'node:fs/promises';
 const SYNC = 'Inbox/Meetings/2026-10-06 Platform weekly sync.md';
 const fault = { kind: 'none' as 'none' | 'torn' | 'raced' };
 
+// The import writes a meeting whole under a hidden name, then links it to its name, so
+// the faults are made where each now happens: the write of this meeting's content, and
+// the moment before the link to its name.
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof Fs>();
   const writeFile = async (...args: Parameters<typeof original.writeFile>) => {
     const [path, content, flags] = args;
-    const ours = String(path).endsWith('Platform weekly sync.md');
+    const ours = String(content).includes("external_id: '18c2f4a9e7b3d501'");
     if (ours && fault.kind === 'torn') {
       // A full disk: the file is created and part of it written, then the write fails.
       await original.writeFile(path, String(content).slice(0, 600), flags);
       throw Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' });
     }
-    if (ours && fault.kind === 'raced') {
-      // Another run of the import writes the same meeting first.
-      await original.writeFile(path, content);
-    }
     return original.writeFile(...args);
   };
-  return { ...original, writeFile, default: { ...original, writeFile } };
+  const link = async (...args: Parameters<typeof original.link>) => {
+    const [from, to] = args;
+    if (String(to).endsWith('Platform weekly sync.md') && fault.kind === 'raced') {
+      // Another run of the import writes the same meeting first.
+      await original.writeFile(to, await original.readFile(from));
+    }
+    return original.link(...args);
+  };
+  return { ...original, writeFile, link, default: { ...original, writeFile, link } };
 });
 
 const { importNotionMeetings } = await import('./import-notion-meetings.ts');
@@ -58,6 +65,7 @@ const into = (vault: string) => ({
   folder: 'Inbox/Meetings',
   timeZone: 'America/Los_Angeles',
   groupAddresses: [],
+  geminiDates: 'arrival-local' as const,
 });
 
 it('leaves no torn meeting behind a failed write, so a run after it brings the whole meeting in', async () => {
