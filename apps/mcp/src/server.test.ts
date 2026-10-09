@@ -435,6 +435,13 @@ describe('tools/call → REST', () => {
       '/v1/query',
       { type: 'task', includeArchived: true },
     ],
+    [
+      'atlas_query',
+      { type: 'task', schedule: true },
+      'POST',
+      '/v1/query',
+      { type: 'task', schedule: true },
+    ],
   ])('%s → %s %s', async (tool, args, method, url, body) => {
     const result = await call(tool, args);
     expect(result.isError).toBe(false);
