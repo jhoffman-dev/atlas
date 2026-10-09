@@ -1285,7 +1285,10 @@ mod tests {
         put_notes(&mut index, &[second]).unwrap();
         assert_eq!(
             check_rows(&index),
-            vec![checked("a.md", 0, true, "New"), checked("b.md", 0, true, "Kept")]
+            vec![
+                checked("a.md", 0, true, "New"),
+                checked("b.md", 0, true, "Kept")
+            ]
         );
         remove_paths(&mut index, &["a.md".to_string()]).unwrap();
         assert_eq!(check_rows(&index), vec![checked("b.md", 0, true, "Kept")]);
@@ -1334,15 +1337,23 @@ mod tests {
         )
         .unwrap();
         rebuild_views(&index, &[task_spec(true, Vec::new())]).unwrap();
-        let result =
-            run_query(&index, "SELECT path, progress FROM v_task ORDER BY path", &[]).unwrap();
+        let result = run_query(
+            &index,
+            "SELECT path, progress FROM v_task ORDER BY path",
+            &[],
+        )
+        .unwrap();
         assert_eq!(result.rows[0][1], serde_json::json!(40));
         assert_eq!(result.rows[1][1], serde_json::Value::Null);
 
         // Replacing the note replaces its progress, as it does every other row.
         put_notes(&mut index, &[task_with_progress("a.md", Some(100))]).unwrap();
-        let result =
-            run_query(&index, "SELECT progress FROM v_task WHERE path = 'a.md'", &[]).unwrap();
+        let result = run_query(
+            &index,
+            "SELECT progress FROM v_task WHERE path = 'a.md'",
+            &[],
+        )
+        .unwrap();
         assert_eq!(result.rows[0][0], serde_json::json!(100));
     }
 
@@ -1395,11 +1406,16 @@ mod tests {
         let mut first = task_with_progress("a.md", Some(40));
         first.checks = vec![check(true, "Book the hall")];
         put_notes(&mut index, &[first]).unwrap();
-        assert_eq!(check_rows(&index), vec![checked("a.md", 0, true, "Book the hall")]);
+        assert_eq!(
+            check_rows(&index),
+            vec![checked("a.md", 0, true, "Book the hall")]
+        );
         let progress: Option<i64> = index
-            .query_row("SELECT progress FROM files WHERE path = 'a.md'", [], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT progress FROM files WHERE path = 'a.md'",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(progress, Some(40));
     }
