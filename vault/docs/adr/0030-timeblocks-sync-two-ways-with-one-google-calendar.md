@@ -43,3 +43,45 @@ incremental (`syncToken`), so a reconcile is one cheap request.
   automations Mac.
 - Google Workspace admin policy may forbid a third-party OAuth client on a
   work account — an open question to check before building.
+
+## As built (P31-01, 2026-10-08)
+
+The block model and its scheduling rules, which sync builds on:
+
+- **The Block type** has `start` and `end` (dates with a time, both
+  required), `tasks` (a relation to tasks, many) and `gcal_event_id` and
+  `gcal_etag`. It is built in — it cannot be deleted — and is written into a
+  vault that has a Task type, as it opens, never over one that is there, and
+  said in Activity. `gcal_missing` comes with sync (P31-04).
+- **A one-task block gives that task its whole length.** A block of several
+  is a container: when its tasks need at least the whole block it is shared
+  in proportion to what each has left of its estimate; when they need less,
+  each gets what it has left and the rest is shared equally among the tasks
+  with no estimate, or stays free. "What it has left" is its estimate, or
+  nothing once finished — not its estimate less time scheduled elsewhere,
+  which would make one block's shares depend on every other block. Shares are
+  whole minutes that add up to the block, the odd minute to the largest
+  remainder, then the earliest listed.
+- **Blocks count on their own.** A task in two blocks that overlap is given
+  both, and so reads as over-scheduled, rather than merged into less than was
+  set aside. Past blocks count as well as future ones: no rule reads the
+  clock.
+- **A block is its wall-clock length as written**, as the calendar draws it:
+  a block across midnight runs into the next day, and one across a
+  daylight-saving change is as long as the clock says (01:30–03:30 is two
+  hours on the night the clocks go forward). Nothing converts between zones,
+  so the answer is the same on every Mac. A block without a time at both ends,
+  or ending no later than it starts, gives nothing; it is not refused, since
+  sync may pull such an event from Google.
+- **A task shows estimate, scheduled and done** under its properties, and
+  how far it is over. Done comes from the status the Task type is ticked with
+  (`archive` for GTD): all of the estimate once finished, none before.
+  Checklist progress (P30-03) is not read yet. An estimate is minutes; `2h` and
+  `1h30m` are read too, for a vault that kept a text estimate, but a day or a
+  week is not — a day's working minutes are the person's to say.
+- **No write rule is added.** Scheduling is read from blocks, never stored on
+  a task, so the write chokepoints (ADR-0029) are unchanged.
+- **Read from the index**: the tasks asked about, and every block linking any
+  of them with all its tasks. A read the row cap cut short is refused, never
+  answered short. The API reads the same with `POST /v1/query` and
+  `schedule: true` (ADR-0016's P31-01 amendment).
