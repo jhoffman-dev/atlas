@@ -18,6 +18,7 @@ import {
   TASK_KEYS,
   TASK_TYPE,
   TASK_TYPE_FILE,
+  taskTypeOf,
   taskStatusChanges,
   taskStatusMove,
   taskTypeChange,
@@ -165,9 +166,6 @@ async function askIndex(
   const at = result.columns.indexOf(column);
   return result.rows.map((row) => row[at]);
 }
-
-const taskTypeOf = (types: readonly DefinedType[]): DefinedType | null =>
-  types.find((type) => type.name.trim().toLowerCase() === TASK_TYPE) ?? null;
 
 /**
  * What moving the vault's tasks to GTD would do, read from the files as they

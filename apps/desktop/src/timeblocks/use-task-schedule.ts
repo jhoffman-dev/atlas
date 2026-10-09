@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { messageWithoutPaths, TASK_TYPE, type TaskSchedule, type VaultPath } from '@atlas/domain';
 import {
-  readTaskSchedules,
+  messageWithoutPaths,
+  TASK_TYPE,
   taskTypeOf,
-  type DefinedType,
-  type IndexPort,
-} from '@atlas/application';
+  type TaskSchedule,
+  type VaultPath,
+} from '@atlas/domain';
+import { readTaskSchedules, type DefinedType, type IndexPort } from '@atlas/application';
 
 /** What a task's page shows of its schedule: it, or why it could not be read. */
 export type TaskScheduleState = { schedule: TaskSchedule } | { problem: string };

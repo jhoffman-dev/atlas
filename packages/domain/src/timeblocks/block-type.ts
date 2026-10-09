@@ -1,5 +1,5 @@
 import { TASK_TYPE } from '../gtd/gtd-status.ts';
-import { followsGtd } from '../gtd/task-type.ts';
+import { followsGtd, taskTypeOf } from '../gtd/task-type.ts';
 import type { BuiltInTypeFile } from '../types/para.ts';
 import type { ObjectType, PropertyDef } from '../types/property-def.ts';
 
@@ -63,7 +63,7 @@ const folded = (name: string) => name.trim().toLowerCase();
  * is left as it is.
  */
 export function blockTypeToWrite(existing: readonly ObjectType[]): BuiltInTypeFile | null {
-  const task = existing.find((type) => folded(type.name) === TASK_TYPE);
+  const task = taskTypeOf(existing);
   const hasBlock = existing.some((type) => folded(type.name) === BLOCK_TYPE);
-  return task !== undefined && followsGtd(task) && !hasBlock ? BLOCK_TYPE_FILE : null;
+  return task !== null && followsGtd(task) && !hasBlock ? BLOCK_TYPE_FILE : null;
 }

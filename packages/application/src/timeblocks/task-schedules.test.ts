@@ -8,7 +8,7 @@ import { GTD_STATUS_PROPERTY, type ObjectType } from '@atlas/domain';
 import type { IndexPort } from '../index/ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
-import { readTaskSchedules, ScheduleIncompleteError, taskTypeOf } from './task-schedules.ts';
+import { readTaskSchedules, ScheduleIncompleteError } from './task-schedules.ts';
 
 const GTD_TASK: ObjectType = { name: 'task', label: 'Task', properties: [GTD_STATUS_PROPERTY] };
 
@@ -159,13 +159,5 @@ describe('readTaskSchedules', () => {
     await expect(
       readTaskSchedules({ index, paths: ['tasks/Draft.md'], taskType: GTD_TASK }),
     ).rejects.toThrow('the index is busy');
-  });
-});
-
-describe('taskTypeOf', () => {
-  it('finds the vault’s Task type in any case, or none', () => {
-    const own = { ...GTD_TASK, name: 'Task' };
-    expect(taskTypeOf([{ name: 'project', label: 'Project', properties: [] }, own])).toBe(own);
-    expect(taskTypeOf([])).toBeNull();
   });
 });

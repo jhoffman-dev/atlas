@@ -1,5 +1,5 @@
-import { messageWithoutPaths, TASK_TYPE } from '@atlas/domain';
-import { readTaskSchedules, taskTypeOf } from '../timeblocks/task-schedules.ts';
+import { messageWithoutPaths, TASK_TYPE, taskTypeOf } from '@atlas/domain';
+import { readTaskSchedules } from '../timeblocks/task-schedules.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { ApiError } from './api-error.ts';
 import type { ApiRows } from './contract.ts';

@@ -48,6 +48,7 @@ export {
   capturedTaskStatus,
   followsGtd,
   GTD_STATUS_PROPERTY,
+  taskTypeOf,
   TASK_TYPE_FILE,
   taskTypeChange,
   taskTypeLines,

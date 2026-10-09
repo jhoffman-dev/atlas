@@ -6,7 +6,6 @@ import {
   scheduledTaskOf,
   statusOf,
   taskSchedule,
-  TASK_TYPE,
   timeBlocksOf,
   type CompiledQuery,
   type FinishedStatus,
@@ -28,11 +27,6 @@ export class ScheduleIncompleteError extends Error {
     );
     this.name = 'ScheduleIncompleteError';
   }
-}
-
-/** The vault's Task type among its types, or null when it has none. */
-export function taskTypeOf(types: readonly ObjectType[]): ObjectType | null {
-  return types.find((type) => type.name.trim().toLowerCase() === TASK_TYPE) ?? null;
 }
 
 /** What ticking a task writes, under its key: the status a finished task holds. */

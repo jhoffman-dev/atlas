@@ -9,6 +9,7 @@ import {
   TASK_TYPE_FILE,
   taskTypeChange,
   taskTypeLines,
+  taskTypeOf,
 } from './task-type.ts';
 
 /** P30-02: the built-in Task type, and what a vault's own becomes. */
@@ -171,5 +172,15 @@ describe('followsGtd', () => {
       expect(followsGtd(typeWith([status]))).toBe(false);
     }
     expect(followsGtd(typeWith([]))).toBe(false);
+  });
+});
+
+describe('taskTypeOf', () => {
+  it('finds the vault’s Task type by its name in any case and spacing, or none', () => {
+    const project: ObjectType = { name: 'project', label: 'Project', properties: [] };
+    const own: ObjectType = { name: ' Task ', label: 'Task', properties: [] };
+    expect(taskTypeOf([project, own])).toBe(own);
+    expect(taskTypeOf([project])).toBeNull();
+    expect(taskTypeOf([])).toBeNull();
   });
 });

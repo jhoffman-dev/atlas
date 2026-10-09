@@ -84,6 +84,11 @@ function isGtdStatusProperty(property: PropertyDef): boolean {
   );
 }
 
+/** The vault's Task type among its types — its name in any case and spacing — or null. */
+export function taskTypeOf<Type extends ObjectType>(types: readonly Type[]): Type | null {
+  return types.find((type) => type.name.trim().toLowerCase() === TASK_TYPE) ?? null;
+}
+
 /** Whether a Task type's status is GTD's eight: the vault's tasks have moved to GTD. */
 export function followsGtd(type: ObjectType): boolean {
   const status = type.properties.find((property) => property.key === TASK_KEYS.status);
