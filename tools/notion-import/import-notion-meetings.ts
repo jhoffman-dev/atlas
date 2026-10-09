@@ -56,7 +56,7 @@ async function target(options: ImportOptions): Promise<{ vault: string; folder: 
   }
   const folder = resolve(vault, options.folder);
   const inside = relative(vault, folder);
-  if (isAbsolute(options.folder) || inside.startsWith('..') || inside.split(sep).includes('..')) {
+  if (isAbsolute(options.folder) || inside === '..' || inside.startsWith(`..${sep}`)) {
     throw new ImportSetupError(`folder: ${options.folder} is not a folder inside the vault`);
   }
   return { vault, folder };

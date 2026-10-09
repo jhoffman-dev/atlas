@@ -35,7 +35,8 @@ const run = (...args: string[]) =>
     timeout: 60_000,
   });
 
-describe('import-notion-meetings', () => {
+// Each test starts `node`, which transpiles the domain and the adapters as it loads them: slow under load.
+describe('import-notion-meetings', { timeout: 120_000 }, () => {
   it.each([[[]], [['--csv', 'export.csv']], [['--vault', '.']]])(
     'writes nowhere without both --csv and --vault, and says how to use it: %j',
     async (args) => {
