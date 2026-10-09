@@ -11,6 +11,7 @@ export type { ReviewMoment, ReviewProject, ReviewTask, WeeklyReview } from './we
 export {
   compileReviewProjectsQuery,
   compileReviewTasksQuery,
+  PROJECT_STATUS_KEY,
   REVIEW_PROJECTS_QUERY_MARK,
   REVIEW_TASKS_QUERY_MARK,
   reviewProject,

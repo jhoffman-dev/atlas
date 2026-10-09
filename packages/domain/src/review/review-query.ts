@@ -10,6 +10,9 @@ import type { ReviewProject, ReviewTask } from './weekly-review.ts';
 export const REVIEW_TASKS_QUERY_MARK = '/* weekly review: tasks */';
 export const REVIEW_PROJECTS_QUERY_MARK = '/* weekly review: projects */';
 
+/** The key a project's status is kept under, as the Project type writes it. */
+export const PROJECT_STATUS_KEY = 'status';
+
 /** Notes of a type, in use: in user space and out of the Archive. */
 function notesOfTypeSql(typeParameter: string): string {
   return [
@@ -57,7 +60,7 @@ export function compileReviewProjectsQuery(): CompiledQuery {
   return {
     sql: [
       `${REVIEW_PROJECTS_QUERY_MARK} SELECT f.path AS "path", f.title AS "title",`,
-      `  ${singleText('status')} AS "status"`,
+      `  ${singleText(PROJECT_STATUS_KEY)} AS "status"`,
       notesOfTypeSql('?'),
       `ORDER BY f.path`,
     ].join('\n'),

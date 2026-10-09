@@ -138,6 +138,7 @@ describe('mainViewPlace', () => {
     expect(mainViewPlace({ kind: 'tags', tag: 'idea' })).toEqual({ kind: 'tags', tag: 'idea' });
     expect(mainViewPlace({ kind: 'activity' })).toEqual({ kind: 'activity' });
     expect(mainViewPlace({ kind: 'inbox' })).toEqual({ kind: 'inbox' });
+    expect(mainViewPlace({ kind: 'review' })).toEqual({ kind: 'review' });
   });
 });
 
@@ -145,6 +146,7 @@ describe('placeName', () => {
   it('names each kind of place as its own bar does', () => {
     expect(nameOf({ kind: 'note', path: alpha })).toBe('alpha');
     expect(nameOf({ kind: 'inbox' })).toBe('Inbox');
+    expect(nameOf({ kind: 'review' })).toBe('Weekly review');
     expect(nameOf({ kind: 'type', name: 'task' })).toBe('TASK');
     expect(nameOf({ kind: 'graph', scope: { kind: 'vault' } })).toBe('Graph');
     expect(nameOf({ kind: 'graph', scope: { kind: 'note', path: beta, depth: 1 } })).toBe(

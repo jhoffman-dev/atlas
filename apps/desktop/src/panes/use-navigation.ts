@@ -22,6 +22,7 @@ export interface PlaceOpeners {
   readonly openTags: (tag: string | null) => void;
   readonly openArchive: () => void;
   readonly openInbox: () => void;
+  readonly openReview: () => void;
   readonly openAutomations: () => void;
   readonly openActivity: () => void;
   readonly openTemplates: () => void;
@@ -44,6 +45,8 @@ export function mainViewPlace(view: MainView): NavigationPlace | null {
       return { kind: 'archive' };
     case 'inbox':
       return { kind: 'inbox' };
+    case 'review':
+      return { kind: 'review' };
     case 'automations':
       return { kind: 'automations' };
     case 'activity':
@@ -103,6 +106,7 @@ export function useNavigation({
       else if (place.kind === 'tags') open.openTags(place.tag);
       else if (place.kind === 'archive') open.openArchive();
       else if (place.kind === 'inbox') open.openInbox();
+      else if (place.kind === 'review') open.openReview();
       else if (place.kind === 'automations') open.openAutomations();
       else if (place.kind === 'activity') open.openActivity();
       else if (place.kind === 'templates') open.openTemplates();
