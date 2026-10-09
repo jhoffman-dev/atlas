@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, memoryVault, recordingActivity } from '@atlas/application';
+import { fakeVaultFs, memoryVault, recordingActivity, type VaultFsPort } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { GTD_STATUS_PROPERTY, type ObjectType } from '@atlas/domain';
 import { useBlockType } from './use-block-type.ts';
@@ -44,7 +44,12 @@ function setup(
   {
     types = GTD_TYPES,
     createNote,
-  }: { types?: readonly ObjectType[]; createNote?: () => Promise<void> } = {},
+    readNotes,
+  }: {
+    types?: readonly ObjectType[];
+    createNote?: () => Promise<void>;
+    readNotes?: VaultFsPort['readNotes'];
+  } = {},
 ) {
   const memory = memoryVault(files);
   const listed = vi.fn(memory.fs.listDirectory);
@@ -52,11 +57,13 @@ function setup(
     ...memory.fs,
     listDirectory: listed,
     ...(createNote !== undefined && { createNote }),
-    readNotes: async (paths) =>
-      paths.flatMap((path) => {
-        const text = memory.files.get(path);
-        return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
-      }),
+    readNotes:
+      readNotes ??
+      (async (paths) =>
+        paths.flatMap((path) => {
+          const text = memory.files.get(path);
+          return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+        })),
   });
   const onChanged = vi.fn();
   const activity = recordingActivity();
@@ -168,5 +175,146 @@ describe('useBlockType', () => {
       ]),
     );
     expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it('says nothing in another vault’s Activity about a write that lands after the switch', async () => {
+    const memory = memoryVault({ '.atlas/types/task.md': TASK });
+    const writes: (() => void)[] = [];
+    const fs = fakeVaultFs({
+      ...memory.fs,
+      readNotes: async (paths) =>
+        paths.flatMap((path) => {
+          const text = memory.files.get(path);
+          return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+        }),
+      createNote: (args) =>
+        new Promise<void>((resolve, reject) => {
+          writes.push(() => memory.fs.createNote(args).then(resolve, reject));
+        }),
+    });
+    const onChanged = vi.fn();
+    const activity = recordingActivity();
+    const hook = renderHook(
+      ({ vault, known }: { vault: string; known: readonly ObjectType[] }) =>
+        useBlockType({
+          fs,
+          markdown: remarkMarkdown,
+          vaultKey: vault,
+          types: known,
+          activity,
+          onChanged,
+        }),
+      { initialProps: { vault: '/vault', known: GTD_TYPES } },
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+
+    hook.rerender({ vault: '/other', known: [] });
+    for (const write of writes) write();
+    await waitFor(() => expect(memory.files.has('.atlas/types/block.md')).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(activity.reports).toEqual([]);
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it('waits for every write it started before warning: one that fails first is no failure if another lands', async () => {
+    const memory = memoryVault({ '.atlas/types/task.md': TASK });
+    const writes: { land: () => void; refuse: (reason: string) => void }[] = [];
+    const fs = fakeVaultFs({
+      ...memory.fs,
+      readNotes: async (paths) =>
+        paths.flatMap((path) => {
+          const text = memory.files.get(path);
+          return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+        }),
+      createNote: (args) =>
+        new Promise<void>((resolve, reject) => {
+          writes.push({
+            land: () => void memory.fs.createNote(args).then(resolve, reject),
+            refuse: (reason) => reject(new Error(reason)),
+          });
+        }),
+    });
+    const onChanged = vi.fn();
+    const activity = recordingActivity();
+    const hook = renderHook(
+      ({ known }: { known: readonly ObjectType[] }) =>
+        useBlockType({
+          fs,
+          markdown: remarkMarkdown,
+          vaultKey: '/vault',
+          types: known,
+          activity,
+          onChanged,
+        }),
+      { initialProps: { known: GTD_TYPES } },
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    hook.rerender({ known: [...GTD_TYPES] });
+    await waitFor(() => expect(writes).toHaveLength(2));
+
+    writes[0]?.refuse('the disk is busy');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(activity.reports).toEqual([]);
+    writes[1]?.land();
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(activity.reports.map(({ level, message }) => [level, message])).toEqual([
+      [
+        'info',
+        'Added the Block type: this vault’s tasks follow GTD, and timeblocks schedule them.',
+      ],
+    ]);
+  });
+
+  it('says why when the vault’s types cannot be read, without paths on this Mac', async () => {
+    const { activity } = setup(
+      { '.atlas/types/task.md': TASK },
+      {
+        readNotes: async () =>
+          Promise.reject(new Error('could not read /Users/mara/Vault/.atlas/types/task.md')),
+      },
+    );
+    await waitFor(() => expect(activity.reports).toHaveLength(1));
+    expect(activity.reports[0]?.level).toBe('warning');
+    expect(activity.reports[0]?.message).toMatch(/^The Block type could not be added: /);
+    expect(activity.reports[0]?.message).not.toContain('/Users/mara');
+  });
+
+  it('warns nothing in another vault about a write that fails after the switch', async () => {
+    const memory = memoryVault({ '.atlas/types/task.md': TASK });
+    const refusals: (() => void)[] = [];
+    const fs = fakeVaultFs({
+      ...memory.fs,
+      readNotes: async (paths) =>
+        paths.flatMap((path) => {
+          const text = memory.files.get(path);
+          return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+        }),
+      createNote: () =>
+        new Promise<void>((_, reject) => {
+          refusals.push(() => reject(new Error('the disk is full')));
+        }),
+    });
+    const activity = recordingActivity();
+    const hook = renderHook(
+      ({ vault, known }: { vault: string; known: readonly ObjectType[] }) =>
+        useBlockType({
+          fs,
+          markdown: remarkMarkdown,
+          vaultKey: vault,
+          types: known,
+          activity,
+          onChanged: vi.fn(),
+        }),
+      { initialProps: { vault: '/vault', known: GTD_TYPES } },
+    );
+    await waitFor(() => expect(refusals).toHaveLength(1));
+
+    hook.rerender({ vault: '/other', known: [] });
+    refusals[0]?.();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(activity.reports).toEqual([]);
   });
 });
