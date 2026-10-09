@@ -21,9 +21,12 @@ import type { MarkdownPort } from '../notes/ports.ts';
 export function atlasQueryIndex({
   files,
   markdown,
+  modified = {},
 }: {
   files: Readonly<Record<string, string>>;
   markdown: MarkdownPort;
+  /** When each note last changed, in milliseconds; 1 for a note not named. */
+  modified?: Readonly<Record<string, number>>;
 }): IndexPort['query'] {
   const database = new DatabaseSync(':memory:');
   database.exec(`
@@ -39,6 +42,7 @@ export function atlasQueryIndex({
     addNote(database, {
       path,
       text,
+      modified: modified[path] ?? 1,
       markdown,
       resolve: (target) => resolveWikiLinkTarget(target, paths),
     });
@@ -60,11 +64,13 @@ function addNote(
   {
     path,
     text,
+    modified,
     markdown,
     resolve,
   }: {
     path: string;
     text: string;
+    modified: number;
     markdown: MarkdownPort;
     resolve: (target: string) => string | null;
   },
@@ -73,7 +79,7 @@ function addNote(
   const properties = markdown.frontmatterProperties(document.frontmatter);
   const named = typeof properties['title'] === 'string' ? properties['title'] : null;
   const title = named ?? path.replace(/^.*\//, '').replace(/\.md$/i, '');
-  database.prepare('INSERT INTO files VALUES (?, ?, ?, 1, 1)').run(path, title, '');
+  database.prepare('INSERT INTO files VALUES (?, ?, ?, ?, 1)').run(path, title, '', modified);
   for (const row of indexablePropertiesOf(properties)) {
     database
       .prepare('INSERT INTO props VALUES (?, ?, ?, ?, ?, ?, ?)')
