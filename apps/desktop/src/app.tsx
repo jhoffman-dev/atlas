@@ -144,6 +144,7 @@ import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
 import { useInbox } from './inbox/use-inbox.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
+import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
@@ -315,6 +316,14 @@ export function App({
   }, [onChanged, reloadTypes]);
   // PARA's types are written into a vault that lacks them as it opens (P30-01).
   const typesOffer = useBuiltInTypes({
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vaultKey,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
+  // Timeblocks are notes of the Block type, written into a vault with tasks (P31-01).
+  useBlockType({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,

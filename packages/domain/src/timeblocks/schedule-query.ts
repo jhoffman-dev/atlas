@@ -9,6 +9,9 @@ import { BLOCK_KEYS, BLOCK_TYPE } from './block-type.ts';
 import { estimateMinutes } from './duration.ts';
 import type { ScheduledTask, TimeBlock } from './scheduling.ts';
 
+/** Marks both questions, so a stand-in for the host can tell them from others. */
+export const TASK_SCHEDULE_QUERY_MARK = '/* task schedule */';
+
 /** How many tasks one question carries, well inside SQLite's limit on bound values. */
 export const SCHEDULE_PATHS_PER_QUERY = 200;
 
@@ -64,7 +67,7 @@ export function compileScheduledTasksQuery({
   const done = finishedSql('t.path', finished);
   return {
     sql: [
-      `SELECT t.path AS "path", ${singleText('t.path', TASK_KEYS.estimate)} AS "estimate",`,
+      `${TASK_SCHEDULE_QUERY_MARK} SELECT t.path AS "path", ${singleText('t.path', TASK_KEYS.estimate)} AS "estimate",`,
       `  ${done.sql} AS "finished"`,
       `FROM files AS t`,
       `WHERE t.path IN (${placeholders(paths.length)}) AND ${isOfType('t.path')}`,
@@ -90,7 +93,7 @@ export function compileTimeblocksQuery({
   const done = finishedSql('r.dst', finished);
   return {
     sql: [
-      `SELECT b.path AS "block", ${singleText('b.path', BLOCK_KEYS.start)} AS "start",`,
+      `${TASK_SCHEDULE_QUERY_MARK} SELECT b.path AS "block", ${singleText('b.path', BLOCK_KEYS.start)} AS "start",`,
       `  ${singleText('b.path', BLOCK_KEYS.end)} AS "end", r.dst AS "path",`,
       `  ${singleText('r.dst', TASK_KEYS.estimate)} AS "estimate", ${done.sql} AS "finished"`,
       `FROM files AS b`,

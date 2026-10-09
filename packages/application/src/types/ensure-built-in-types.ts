@@ -112,7 +112,7 @@ async function stillOffered(ports: TypePorts, offer: TypeSetupOffer): Promise<Ty
 }
 
 /** Writes each type's file into `.atlas/types`, never over one that is there. */
-async function writeTypeFiles(
+export async function writeTypeFiles(
   ports: TypePorts,
   files: readonly BuiltInTypeFile[],
 ): Promise<{ created: readonly VaultPath[]; failed: readonly TypeSetupFailure[] }> {

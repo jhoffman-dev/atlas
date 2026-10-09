@@ -4,6 +4,7 @@ export {
   compileScheduledTasksQuery,
   compileTimeblocksQuery,
   SCHEDULE_PATHS_PER_QUERY,
+  TASK_SCHEDULE_QUERY_MARK,
   scheduledTaskOf,
   timeBlocksOf,
 } from './schedule-query.ts';

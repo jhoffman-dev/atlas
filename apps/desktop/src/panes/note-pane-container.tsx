@@ -41,6 +41,7 @@ import {
   NotePane,
   WidgetEditor,
   SourcePanel,
+  TaskScheduleSummary,
   useCalendarNav,
   type CalendarNavigation,
   type GroupFolds,
@@ -58,6 +59,7 @@ import { useBookmarks } from '../notes/use-bookmarks.ts';
 import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
 import { cryptoRng } from '../random.ts';
+import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
 import { webviewImageProbe } from '../notes/webview-image-probe.ts';
 import { browserImagePlacementStore } from '../notes/browser-image-placement-store.ts';
 import { useNoteProperties } from '../types/use-note-properties.ts';
@@ -213,6 +215,13 @@ export function NotePaneContainer({
     [notes.fs, notes.markdown, notePaths],
   );
   const noteProperties = useNoteProperties({ note: note.open, types, index, links: linkCheck });
+  const taskSchedule = useTaskSchedule({
+    index,
+    types,
+    path,
+    typeName: noteProperties.typeName,
+    indexKey,
+  });
   const addProperty = useAddProperty({
     fs: notes.fs,
     markdown: notes.markdown,
@@ -439,7 +448,10 @@ export function NotePaneContainer({
       onToggleFavorite={() => {
         if (path !== null) onToggleFavorite(path);
       }}
-      aside={artifactAside(artifact, path)}
+      aside={
+        artifactAside(artifact, path) ??
+        (taskSchedule === null ? null : <TaskScheduleSummary {...taskSchedule} />)
+      }
       // A template is edited as text, whatever it makes: the Dashboard
       // template's widgets are its frontmatter, not a dashboard to arrange.
       body={

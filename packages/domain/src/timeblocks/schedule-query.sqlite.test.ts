@@ -8,6 +8,7 @@ import {
   compileScheduledTasksQuery,
   compileTimeblocksQuery,
   scheduledTaskOf,
+  TASK_SCHEDULE_QUERY_MARK,
   timeBlocksOf,
   type FinishedStatus,
   type ScheduledTaskRow,
@@ -70,6 +71,14 @@ const block = (start: string, end: string, tasks: readonly string[]) => ({
   start,
   end,
   tasks: tasks.map((name) => `[[${name}]]`),
+});
+
+it('marks both questions, so a stand-in for the host can answer them', () => {
+  for (const compile of [compileScheduledTasksQuery, compileTimeblocksQuery]) {
+    expect(
+      compile({ paths: ['a.md'], finished: null }).sql.startsWith(TASK_SCHEDULE_QUERY_MARK),
+    ).toBe(true);
+  }
 });
 
 describe('compileScheduledTasksQuery', () => {
