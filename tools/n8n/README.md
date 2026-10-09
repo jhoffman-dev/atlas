@@ -276,42 +276,71 @@ give it that vault's path.
    | Line       | Means                                                                                                 |
    | ---------- | ----------------------------------------------------------------------------------------------------- |
    | `wrote`    | The meeting's file, at the path the workflow would use (two `1:1`s on one day: the second's names it) |
-   | `in vault` | The vault already holds this provider and Source ID, wherever it is filed; nothing written            |
+   | `in vault` | The vault already holds the meeting, by Atlas's own rule, wherever it is filed; nothing written       |
    | `no id`    | A row with no Source ID: listed, never given one, so not imported                                     |
+   | `left out` | A provider you did not name in `--providers`                                                          |
+   | `held`     | A Gemini row, waiting for `--gemini-dates` (step 4)                                                   |
    | `refused`  | Why not: no start time, no page for the row, two pages with one Source ID, a file Atlas would refuse  |
 
-   It exits 0 when every row with a Source ID is in the vault, 1 when one was
-   refused, 2 when it could not run (no such vault, not the Meeting Notes
-   CSV). Fix a refused row in Notion, export again and run again: the rows
-   already brought in are `in vault`, and only the rest are written.
+   It exits 0 when every row with a Source ID you asked for is in the vault,
+   1 when one was held or refused, 2 when it could not run (no such vault, a
+   hidden folder, not the Meeting Notes CSV, a file that is not UTF-8). Fix a
+   refused row in Notion, export again and run again: the rows already
+   brought in are `in vault`, and only the rest are written.
 
-4. **Check the times.** The Date cell is read the way Notion wrote it. A time
-   with no zone, or with a zone other than UTC, is kept as written; a UTC
-   time (`(UTC)`, or a date-time ending in `Z`) is an instant, shown on the
-   clock of `--time-zone` (default `America/Los_Angeles`, as the workflow's).
-   Compare a few meetings' `date` and `start` with your calendar, a few
-   from each provider. The import cannot tell a real UTC time from a local
-   time a workflow stored marked as UTC: if one provider's meetings are all
-   off by your offset from UTC, that is what happened, and the real run
-   would file them at those times (some on the day before). Stop there.
-5. **Run it for real**, naming the vault:
+4. **Gemini's rows, and the times.** The Date cell is read the way Notion
+   wrote it. A time with no zone, or with a zone other than UTC, is kept as
+   written; a UTC time (`(UTC)`, or a date-time ending in `Z`) is an
+   instant, shown on the clock of `--time-zone` (default
+   `America/Los_Angeles`, as the workflow's). That is right for Granola.
+
+   It is not right for Gemini (issue #44): the Date the workflow wrote for a
+   Gemini meeting is when its notes **arrived**, near the meeting's end, and
+   it is local time with a `Z` on it. Read as an instant, a Gemini meeting
+   would land about your UTC offset early (7 or 8 hours), give or take the
+   meeting's length, and some on the day before. So Gemini's rows are
+   `held` until you choose how to read them:
+
+   ```sh
+   pnpm import:notion-meetings --csv … --vault /tmp/atlas-vault-copy --gemini-dates arrival-local
+   ```
+
+   `arrival-local` reads the written time as your local clock time (the
+   `Z` ignored) and starts the meeting the transcript's length before it:
+   the transcript's last time stamp, so a little after the real start. With
+   no stamps in the transcript, the start is when the notes arrived. Each
+   such meeting's Notes open with a line saying its start is approximate.
+   `--providers granola` brings in Granola's alone, if you would rather wait
+   for the fix in the workflow.
+
+   Then compare a few meetings' `date` and `start` with your calendar, from
+   each provider. A Gemini meeting should start a few minutes after it
+   really did. If they are all about your UTC offset early or late instead,
+   the export showed Notion's time on another clock than the one the
+   workflow wrote: stop there, and do not run it for real.
+
+5. **Run it for real**, naming the vault, with the options you settled on:
 
    ```sh
    pnpm import:notion-meetings --csv ~/Downloads/<export>/"Meeting Notes <id>_all.csv" \
-     --vault ~/"Atlas Vault"
+     --vault ~/"Atlas Vault" --gemini-dates arrival-local
    ```
 
    The files land in `Inbox/Meetings/`, and Atlas takes each in as it does a
    meeting from n8n (below): checked, stamped, listed in the Inbox. Running it
-   again writes nothing new.
+   again writes nothing new. Each file is written whole under a hidden name
+   and then given its name, so a run that stops partway leaves no part of a
+   meeting behind.
 
 | Option                    | Default               | What it does                                                                                 |
 | ------------------------- | --------------------- | -------------------------------------------------------------------------------------------- |
 | `--csv <file>`            | (required)            | The export's `_all.csv`; its pages are the `.md` files in its folder and below               |
 | `--vault <folder>`        | (required)            | The vault to write into. It must exist                                                       |
-| `--folder <path>`         | `Inbox/Meetings`      | Where in the vault the files go                                                              |
+| `--folder <path>`         | `Inbox/Meetings`      | Where in the vault the files go. Not hidden, and not linked out of the vault                 |
 | `--time-zone <zone>`      | `America/Los_Angeles` | The clock UTC times are read on; `none` refuses a UTC time rather than read it as local time |
 | `--group-address <email>` | none                  | An address to mark as a group (repeat it), as the workflow's `groupAddresses`                |
+| `--providers <list>`      | every provider        | Only these providers' rows, comma-separated: `--providers granola`                           |
+| `--gemini-dates <how>`    | none: Gemini held     | `arrival-local`: Gemini's Date is when its notes arrived, in local time (issue #44)          |
 
 **Which folder.** In `Inbox/Meetings/`, Atlas imports each file on arrival,
 and the Inbox lists every one until you file it: a whole history at once.
@@ -319,6 +348,11 @@ With `--folder Meetings/From Notion` (any folder outside `Inbox/Meetings/`)
 they are filed from the start: the importer has already checked them, Atlas
 does not stamp or list them, and if n8n later sends one of them again, that
 copy is archived as a duplicate of the filed one.
+
+**Already in the vault** means what it means to Atlas's import (P28-04): a
+note stamped `imported` that names the meeting, or an unstamped one that
+follows the contract as it. A copy stamped `duplicate` or `error`, or a sync
+conflict's copy, does not count, and the meeting is written beside it.
 
 **Not imported:** a row's Attendees relation (the page's Attendees section is
 read instead), and its other properties. A page's sections the workflow did
