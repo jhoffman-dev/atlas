@@ -33,3 +33,5 @@ export {
   MEETING_QUERY_MARK,
 } from './meeting-queries.ts';
 export { duplicateLink, withLinesAfterContract } from './meeting-stamp.ts';
+export { meetingHolding, sameMeetingIdentity } from './meeting-holding.ts';
+export type { MeetingHoldingQuestion, MeetingIdentity } from './meeting-holding.ts';
