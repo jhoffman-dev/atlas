@@ -185,6 +185,16 @@ describe('a container block', () => {
     expect(shares(uneven)).toEqual({ 'a.md': 8, 'b.md': 2 });
   });
 
+  it('shares exactly in proportion however large the estimates, past a float’s whole numbers', () => {
+    const vast = block(
+      '2026-10-12T09:00',
+      '2026-10-12T10:00',
+      task('a.md', 3e17),
+      task('b.md', 1e17),
+    );
+    expect(shares(vast)).toEqual({ 'a.md': 45, 'b.md': 15 });
+  });
+
   it('gives nothing to anything when every task is finished', () => {
     const finished = block(
       '2026-10-12T09:00',
@@ -259,6 +269,28 @@ describe('estimate, scheduled and done', () => {
       done: null,
       overBy: 0,
     });
+  });
+
+  it('reads an estimate it cannot share as none, and a fraction as the whole minute', () => {
+    for (const estimate of [Number.POSITIVE_INFINITY, Number.NaN, -30]) {
+      expect(taskSchedule({ task: task('a.md', estimate), scheduled: 60 })).toEqual({
+        estimate: null,
+        scheduled: 60,
+        done: null,
+        overBy: 0,
+      });
+    }
+    expect(taskSchedule({ task: task('a.md', 29.6), scheduled: 60 })).toMatchObject({
+      estimate: 30,
+      overBy: 30,
+    });
+    const odd = block(
+      '2026-10-12T09:00',
+      '2026-10-12T10:00',
+      task('vague.md', Number.POSITIVE_INFINITY),
+      task('known.md', 20),
+    );
+    expect(shares(odd)).toEqual({ 'known.md': 20, 'vague.md': 40 });
   });
 
   it('is not over-scheduled when scheduled for exactly its estimate', () => {

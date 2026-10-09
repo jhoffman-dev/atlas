@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { durationLabel, estimateMinutes } from './duration.ts';
+import { durationLabel, estimateMinutes, LONGEST_ESTIMATE_MINUTES } from './duration.ts';
 
 /** P31-01: a task's estimate as written, read as minutes, and minutes as a schedule shows them. */
 describe('estimateMinutes', () => {
@@ -27,6 +27,14 @@ describe('estimateMinutes', () => {
     expect(estimateMinutes('1d')).toBeNull();
     expect(estimateMinutes('0.5d')).toBeNull();
     expect(estimateMinutes('1w')).toBeNull();
+  });
+
+  it('reads up to a hundred years of minutes, and anything longer as no estimate', () => {
+    expect(estimateMinutes(LONGEST_ESTIMATE_MINUTES)).toBe(LONGEST_ESTIMATE_MINUTES);
+    expect(estimateMinutes(LONGEST_ESTIMATE_MINUTES + 1)).toBeNull();
+    expect(estimateMinutes('1e308')).toBeNull();
+    expect(estimateMinutes(1e308)).toBeNull();
+    expect(estimateMinutes('999999999h')).toBeNull();
   });
 
   it('says nothing for what is no estimate', () => {

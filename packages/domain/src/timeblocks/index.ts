@@ -1,5 +1,5 @@
 export { BLOCK_KEYS, BLOCK_TYPE, BLOCK_TYPE_FILE, blockTypeToWrite } from './block-type.ts';
-export { durationLabel, estimateMinutes } from './duration.ts';
+export { durationLabel, estimateMinutes, LONGEST_ESTIMATE_MINUTES } from './duration.ts';
 export {
   compileScheduledTasksQuery,
   compileTimeblocksQuery,

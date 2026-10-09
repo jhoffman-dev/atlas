@@ -49,8 +49,13 @@ export function blockMinutes(block: { readonly start: unknown; readonly end: unk
   return Math.max(0, minutesBetween(start, end));
 }
 
+/** An estimate as whole minutes the rules can share, or null when it is none. */
+const wholeEstimate = (estimate: number | null): number | null =>
+  estimate !== null && Number.isFinite(estimate) && estimate >= 0 ? Math.round(estimate) : null;
+
 /** What is left to do of a task, or null when nobody said how long it takes. */
-const remaining = (task: ScheduledTask): number | null => (task.finished ? 0 : task.estimate);
+const remaining = (task: ScheduledTask): number | null =>
+  task.finished ? 0 : wholeEstimate(task.estimate);
 
 /** Each task once, the first time the block lists it. */
 function distinctTasks(tasks: readonly ScheduledTask[]): ScheduledTask[] {
@@ -60,22 +65,30 @@ function distinctTasks(tasks: readonly ScheduledTask[]): ScheduledTask[] {
 }
 
 /**
- * `total` whole minutes shared in proportion to `weights`, the shares summing
- * to `total` exactly: each gets the whole part of its share, and the minutes
- * left over go to the largest remainders — the earliest listed on a tie — so
- * the same block always shares the same way.
+ * `total` whole minutes shared in proportion to whole-minute `weights`, the
+ * shares summing to `total` exactly: each gets the whole part of its share,
+ * and the minutes left over go to the largest remainders — the earliest
+ * listed on a tie — so the same block always shares the same way.
+ *
+ * Worked in exact integers: a remainder is `total × weight mod sum`, so two
+ * equal remainders are equal however the division would have rounded, and an
+ * estimate too large for a float's whole numbers still shares exactly.
  */
 function apportion(total: number, weights: readonly number[]): number[] {
-  const sum = weights.reduce((acc, weight) => acc + weight, 0);
-  if (sum <= 0) return weights.map(() => 0);
-  const exact = weights.map((weight) => (total * weight) / sum);
-  const shares = exact.map(Math.floor);
-  const left = total - shares.reduce((acc, share) => acc + share, 0);
-  const byRemainder = exact
-    .map((share, at) => ({ at, remainder: share - Math.floor(share) }))
-    .sort((a, b) => b.remainder - a.remainder || a.at - b.at);
-  for (const { at } of byRemainder.slice(0, left)) shares[at] = (shares[at] ?? 0) + 1;
-  return shares;
+  const parts = weights.map((weight) => BigInt(weight));
+  const sum = parts.reduce((acc, part) => acc + part, 0n);
+  if (sum <= 0n) return weights.map(() => 0);
+  const whole = BigInt(total);
+  const shares = parts.map((part) => (whole * part) / sum);
+  const left = Number(whole - shares.reduce((acc, share) => acc + share, 0n));
+  const byRemainder = parts
+    .map((part, at) => ({ at, remainder: (whole * part) % sum }))
+    .sort((a, b) =>
+      a.remainder === b.remainder ? a.at - b.at : a.remainder > b.remainder ? -1 : 1,
+    );
+  const result = shares.map(Number);
+  for (const { at } of byRemainder.slice(0, left)) result[at] = (result[at] ?? 0) + 1;
+  return result;
 }
 
 /**
@@ -158,7 +171,7 @@ export function taskSchedule({
   /** From {@link scheduledMinutesByTask}. */
   scheduled: number;
 }): TaskSchedule {
-  const { estimate } = task;
+  const estimate = wholeEstimate(task.estimate);
   if (estimate === null) return { estimate, scheduled, done: null, overBy: 0 };
   return {
     estimate,
