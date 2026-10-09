@@ -143,3 +143,27 @@ Where the build differs from, or settles, what is written above:
   while a preview has work, except for a status written as a one-item list,
   which the index flattens: the rules already read it as its item, and the
   next write of its status rewrites it.
+
+## As built (P30-03, 2026-10-08): checklists
+
+- **A box is what the editor draws.** `checklistLines` reads every
+  `taskItem` of the parsed note, nested ones after their line, so the index,
+  the bar and promoting a line count the same boxes. A list that mixes boxed
+  and plain items is a checklist to the editor, and so to the count.
+- **Progress is worked out once, in TypeScript**, as the index is filled:
+  the share ticked, a whole percentage rounded down (100 only when every box
+  is), null with no box. It is stored on the file's row beside its summary
+  (`files.progress`, schema 11) with a `checks` row per box, and Rust only
+  selects it into each type's view (ADR-0005). A type that declares its own
+  `progress` keeps it: TypeScript tells the host not to add the column, the
+  query language does not offer the built-in, and no bar is drawn.
+- **Promoting a line is one use-case** for the app and the API
+  (`promoteChecklistLine`): the task is made by `createNote` and the line
+  rewritten by `saveNote`, the chokepoints above. A ticked line's task starts
+  in Archive, dated by those rules. If the line's note cannot be written, the
+  task just made is taken back. Undo (the app only) restores the note's bytes
+  and trashes the task, refused if either changed since.
+- **Not done**: grouping a board by `progress` is allowed, as by `modified`,
+  and dropping a card there writes a `progress` key nobody reads; a list
+  written with `*` or numbers is rewritten with `-` when a line of it is
+  promoted, as any edit to it is (ADR-0003).
