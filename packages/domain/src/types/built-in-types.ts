@@ -1,6 +1,7 @@
 import { ARTIFACT_TYPE } from '../artifacts/artifact.ts';
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { PERSON_TYPE } from '../people/person.ts';
+import { BLOCK_TYPE } from '../timeblocks/block-type.ts';
 import { vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { TYPES_DIRECTORY } from '../vault/vault-visibility.ts';
 import { AREA_TYPE, RESOURCE_TYPE } from './para.ts';
@@ -18,6 +19,7 @@ const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   [MEETING_TYPE, 'imported meetings are notes of it'],
   [AREA_TYPE, 'the Inbox files notes under areas as well as projects'],
   [RESOURCE_TYPE, 'reference is kept as resources, filed under a project or an area'],
+  [BLOCK_TYPE, 'timeblocks on the calendar are notes of it'],
 ]);
 
 /** Whether a type is one Atlas's own features depend on. */
