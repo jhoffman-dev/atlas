@@ -16,7 +16,7 @@ const FILES = {
   'Projects/Atlas.md': note(['type: project', 'status: active']),
   'Projects/Garden.md': note(['type: project', 'status: active']),
   'People/Mara Quill.md': note(['type: person']),
-  'Tasks/Quote.md': note(['type: task', 'status: waiting', 'waiting_on: "[[Mara Quill]]"']),
+  'Tasks/Quote.md': note(['type: task', 'status: waiting', 'waiting_on: [[Mara Quill]]']),
   'Tasks/Ship.md': note([
     'type: task',
     'status: next-action',

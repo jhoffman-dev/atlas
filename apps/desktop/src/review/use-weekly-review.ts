@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   PROJECT_STATUS_KEY,
   PROJECT_TYPE,
-  REVIEW_ARCHIVE,
   reviewDeferral,
   TASK_KEYS,
   TASK_TYPE,
@@ -10,10 +9,12 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import {
+  archiveTaskChange,
   readWeeklyReview,
   type Clock,
   type IndexPort,
   type MarkdownPort,
+  type PropertyChanges,
   type VaultFsPort,
   type WeeklyReviewReport,
 } from '@atlas/application';
@@ -34,6 +35,8 @@ export interface WeeklyReviewOptions {
   readonly types: readonly ObjectType[];
   /** Changes when the index does, so the review shows what it now holds. */
   readonly indexKey: string;
+  /** Whether the index is ready to be asked; while it builds, nothing is read or shown. Ready unless said. */
+  readonly indexReady?: boolean;
   /** Whether the review is showing, which is when it is read. */
   readonly open: boolean;
   /** Re-reads the tree and the index once an item has been acted on. */
@@ -50,29 +53,33 @@ export interface WeeklyReviewOptions {
  */
 export function useWeeklyReview(options: WeeklyReviewOptions) {
   const { ports, editors, clock, types, indexKey, open, onSettled, archiveNote } = options;
-  const [review, setReview] = useState<WeeklyReviewReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const indexReady = options.indexReady ?? true;
+  const [read, setRead] = useState<ReadFrom | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   // `busy` reaches the page a render late; two presses in one tick would both see it false.
   const running = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !indexReady) return;
     let cancelled = false;
-    readWeeklyReview({ index: ports.index, clock })
-      .then((read) => {
-        if (cancelled) return;
-        setReview(read);
-        setError(null);
+    const index = ports.index;
+    readWeeklyReview({ index, clock })
+      .then((report) => {
+        if (!cancelled) setRead({ index, report, error: null });
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(errorMessage(cause));
+        if (!cancelled) setRead({ index, report: null, error: errorMessage(cause) });
       });
     return () => {
       cancelled = true;
     };
-  }, [ports.index, clock, indexKey, open]);
+  }, [ports.index, clock, indexKey, indexReady, open]);
+
+  // Only what this index answered, and only while it is ready: after a vault
+  // switch or during a rebuild the last review's paths are not this vault's,
+  // so it is not shown — nor are its actions offered — until the read is in.
+  const current = indexReady && read !== null && read.index === ports.index ? read : null;
 
   const act = useCallback(
     async (action: () => Promise<unknown>) => {
@@ -94,7 +101,7 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
   );
 
   const write = useCallback(
-    (path: VaultPath, values: Readonly<Record<string, unknown>>) =>
+    (path: VaultPath, values: PropertyChanges) =>
       act(() =>
         writeNoteProperties({ editors, fs: ports.fs, markdown: ports.markdown, path, values }),
       ),
@@ -119,7 +126,10 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
     },
     [write, clock],
   );
-  const archiveTask = useCallback((path: VaultPath) => void write(path, REVIEW_ARCHIVE), [write]);
+  const archiveTask = useCallback(
+    (path: VaultPath) => void write(path, archiveTaskChange()),
+    [write],
+  );
   const archiveProject = useCallback(
     (path: VaultPath) => void act(() => archiveNote(path)),
     [act, archiveNote],
@@ -130,8 +140,8 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
     /** Whether the vault has tasks to review, which is when its sidebar row shows. */
     shown: types.some((type) => type.name === TASK_TYPE),
     page: {
-      review,
-      error,
+      review: current?.report ?? null,
+      error: current?.error ?? null,
       projectStatuses,
       busy,
       problem,
@@ -142,6 +152,13 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
       onArchiveProject: archiveProject,
     },
   };
+}
+
+/** A read of the review, and the index it was read from. */
+interface ReadFrom {
+  readonly index: unknown;
+  readonly report: WeeklyReviewReport | null;
+  readonly error: string | null;
 }
 
 /** The options of the project type's `status`, which the review moves a project among. */

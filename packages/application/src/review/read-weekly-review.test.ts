@@ -18,7 +18,7 @@ const FILES = {
   'Tasks/Quote from Larkspur.md': note([
     'type: task',
     'status: waiting',
-    'waiting_on: "[[Mara Quill]]"',
+    'waiting_on: [[Mara Quill]]',
   ]),
   'Tasks/Ship the review.md': note([
     'type: task',

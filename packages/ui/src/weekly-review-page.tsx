@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
 import {
-  FINISHED_TASK_STATUS,
-  GTD_STATUSES,
   GTD_STATUS_LABELS,
   humanizeKey,
   isGtdStatus,
+  REVIEW_MOVES,
   STALE_WAITING_DAYS,
   UNTOUCHED_SOMEDAY_DAYS,
   type ReviewProject,
@@ -106,6 +105,7 @@ function ReviewBody(props: WeeklyReviewPageProps) {
         title={`Waiting for more than ${STALE_WAITING_DAYS} days`}
         empty="Nothing has waited that long."
         tasks={review.staleWaiting}
+        moves={REVIEW_MOVES.staleWaiting}
         detail={(task) => (task.waitingOn === '' ? 'Waiting on nobody' : `On ${task.waitingOn}`)}
         actions={props}
       />
@@ -114,6 +114,7 @@ function ReviewBody(props: WeeklyReviewPageProps) {
         title="Overdue"
         empty="Nothing is late."
         tasks={review.overdue}
+        moves={REVIEW_MOVES.overdue}
         detail={(task) => `Due ${task.due ?? ''}`}
         actions={props}
       />
@@ -121,6 +122,7 @@ function ReviewBody(props: WeeklyReviewPageProps) {
         title={`Someday and Longterm, untouched for ${UNTOUCHED_SOMEDAY_DAYS} days`}
         empty="Every idea has been looked at this month."
         tasks={review.untouchedSomeday}
+        moves={REVIEW_MOVES.untouchedSomeday}
         detail={(task) => (task.status === null ? '' : GTD_STATUS_LABELS[task.status])}
         actions={props}
       />
@@ -186,12 +188,15 @@ function TaskSection({
   title,
   empty,
   tasks,
+  moves,
   detail,
   actions,
 }: {
   title: string;
   empty: string;
   tasks: readonly ReviewTask[];
+  /** The statuses Move offers here: those that take a task out of this section. */
+  moves: readonly string[];
   detail: (task: ReviewTask) => string;
   actions: WeeklyReviewPageProps;
 }) {
@@ -208,7 +213,7 @@ function TaskSection({
           <StatusPicker
             title={task.title}
             current={task.status}
-            choices={MOVES}
+            choices={moves}
             label={(status) => (isGtdStatus(status) ? GTD_STATUS_LABELS[status] : status)}
             onPick={(status) => actions.onSetStatus({ path: task.path, status })}
             busy={actions.busy}
@@ -236,9 +241,6 @@ function TaskSection({
     </Section>
   );
 }
-
-/** The statuses a task can be moved to from the review; finishing it is Archive's button. */
-const MOVES: readonly string[] = GTD_STATUSES.filter((status) => status !== FINISHED_TASK_STATUS);
 
 function ProjectSection({
   projects,

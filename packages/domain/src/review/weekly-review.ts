@@ -1,4 +1,9 @@
-import { FINISHED_TASK_STATUS, TASK_KEYS, type GtdStatus } from '../gtd/gtd-status.ts';
+import {
+  FINISHED_TASK_STATUS,
+  GTD_STATUSES,
+  TASK_KEYS,
+  type GtdStatus,
+} from '../gtd/gtd-status.ts';
 import { addDays } from '../timeline/timeline.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 
@@ -26,13 +31,15 @@ export interface ReviewProject {
   readonly title: string;
   /** Its `status:` as written, trimmed; null when it has none. */
   readonly status: string | null;
+  /** Whether a task in use filed under it is Next Action or In Progress, as the index says. */
+  readonly moving: boolean;
 }
 
 /** What the weekly review puts in front of you, a section per question GTD asks of the week. */
 export interface WeeklyReview {
   /** Waiting on someone, and not looked at for more than {@link STALE_WAITING_DAYS} days. */
   readonly staleWaiting: readonly ReviewTask[];
-  /** Active, with nothing filed under it to do next. */
+  /** Active, with no task in use filed under it that is moving ({@link MOVING_STATUSES}). */
   readonly projectsWithoutNextAction: readonly ReviewProject[];
   /** Due before today and still open. */
   readonly overdue: readonly ReviewTask[];
@@ -63,10 +70,32 @@ const COMMITTED: ReadonlySet<GtdStatus> = new Set([
   'waiting',
 ]);
 
-/** What a project counts as moving: something to do next, or something under way. */
-const MOVING: ReadonlySet<GtdStatus> = new Set(['next-action', 'in-progress']);
+/**
+ * What a task filed under a project counts as the project moving: something
+ * to do next, or something under way. A deferred next action still counts —
+ * the project knows what comes next, just not yet.
+ */
+export const MOVING_STATUSES: readonly GtdStatus[] = ['next-action', 'in-progress'];
 
 const SOMEDAY: ReadonlySet<GtdStatus> = new Set(['someday', 'longterm']);
+
+/** The review's sections of tasks. */
+export type ReviewTaskSection = 'staleWaiting' | 'overdue' | 'untouchedSomeday';
+
+/**
+ * The statuses the review's Move offers a task in each section: only those
+ * that take it out of the section, so acting on an item always clears it.
+ * Finishing is Archive's, not a move. Any move takes a task out of Waiting or
+ * Someday and Longterm; a late task stays late in every open status, so it is
+ * moved only to Someday or Longterm, which promise no day — or deferred.
+ */
+export const REVIEW_MOVES: Readonly<Record<ReviewTaskSection, readonly GtdStatus[]>> = {
+  staleWaiting: GTD_STATUSES.filter((status) => status !== FINISHED_TASK_STATUS),
+  overdue: GTD_STATUSES.filter(
+    (status) => !COMMITTED.has(status) && status !== FINISHED_TASK_STATUS,
+  ),
+  untouchedSomeday: GTD_STATUSES.filter((status) => status !== FINISHED_TASK_STATUS),
+};
 
 /** The moment the review is taken: today where the person is, and now. */
 export interface ReviewMoment {
@@ -102,7 +131,9 @@ export function weeklyReview({
         (task) => task.status === 'waiting' && untouchedFor(task, STALE_WAITING_DAYS, at),
       ),
     ),
-    projectsWithoutNextAction: projectsWithoutNextAction(projects, tasks),
+    projectsWithoutNextAction: projects
+      .filter((project) => project.status === ACTIVE_PROJECT_STATUS && !project.moving)
+      .sort(byTitle),
     overdue: inPlay.filter((task) => isOverdue(task, at.today)).sort(byDueThenTitle),
     untouchedSomeday: oldestFirst(
       inPlay.filter(
@@ -130,27 +161,6 @@ function isOverdue(task: ReviewTask, today: string): boolean {
   );
 }
 
-/**
- * Active projects with no task filed under them that is Next Action or In
- * Progress. A deferred next action still counts: the project knows what
- * comes next, just not yet.
- */
-function projectsWithoutNextAction(
-  projects: readonly ReviewProject[],
-  tasks: readonly ReviewTask[],
-): ReviewProject[] {
-  const moving = new Set(
-    tasks.flatMap((task) =>
-      task.project !== null && task.status !== null && MOVING.has(task.status)
-        ? [task.project]
-        : [],
-    ),
-  );
-  return projects
-    .filter((project) => project.status === ACTIVE_PROJECT_STATUS && !moving.has(project.path))
-    .sort(byTitle);
-}
-
 /** Longest untouched first: what has waited longest is asked about first. */
 function oldestFirst(tasks: ReviewTask[]): ReviewTask[] {
   return tasks.sort((left, right) => left.modified - right.modified || byTitle(left, right));
@@ -169,8 +179,3 @@ export function reviewDeferral(today: string): Readonly<Record<string, string>> 
   const day = addDays(today, REVIEW_DEFER_DAYS);
   return day === null ? null : { [TASK_KEYS.defer]: day };
 }
-
-/** What the review's Archive writes into a task: finished, which the task rules date. */
-export const REVIEW_ARCHIVE: Readonly<Record<string, string>> = {
-  [TASK_KEYS.status]: FINISHED_TASK_STATUS,
-};

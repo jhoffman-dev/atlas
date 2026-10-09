@@ -843,6 +843,7 @@ export function App({
     clock: localClock,
     types,
     indexKey,
+    indexReady: indexStatus.kind === 'ready',
     open: reviewOpen,
     onSettled: settleArchive,
     archiveNote: (path) => archiveCommands.archive([path]),

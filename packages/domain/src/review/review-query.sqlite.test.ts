@@ -126,6 +126,20 @@ describe('compileReviewTasksQuery', () => {
     expect(task).toMatchObject({ status: null, due: '2026-10-03', project: 'Projects/Atlas.md' });
   });
 
+  it('names who a task waits on whether it is a link or a plain name, mixed lists included', () => {
+    const waiting = (waiting_on: unknown) =>
+      tasksOf({ 'Tasks/W.md': { frontmatter: { type: 'task', status: 'waiting', waiting_on } } })[0]
+        ?.waitingOn;
+    expect(waiting('Tobias Fenn')).toBe('Tobias Fenn');
+    expect(waiting('[[Mara Quill]]')).toBe('Mara Quill');
+    expect(waiting('[[People/Mara Quill|Mara]]')).toBe('Mara');
+    expect(waiting(['[[Mara Quill]]', 'Tobias Fenn', ' '])).toBe('Mara Quill, Tobias Fenn');
+    expect(waiting([['Mara Quill']])).toBe('Mara Quill');
+    expect(waiting('the bank, Larkspur Payroll')).toBe('the bank, Larkspur Payroll');
+    // Kept whole by the index, and someone to the rules: never shown as nobody.
+    expect(waiting({ person: 'Mara Quill' })).toContain('Mara Quill');
+  });
+
   it('leaves out finished tasks, archived and hidden ones, templates, and notes of other types', () => {
     const tasks = tasksOf({
       'Tasks/Open.md': { frontmatter: { type: 'task', status: 'inbox' } },
@@ -148,8 +162,60 @@ describe('compileReviewProjectsQuery', () => {
         'Areas/Garden.md': { frontmatter: { type: 'area' } },
       }),
     ).toEqual([
-      { path: 'Projects/Atlas.md', title: 'Atlas', status: 'active' },
-      { path: 'Projects/Quiet.md', title: 'Quiet', status: null },
+      { path: 'Projects/Atlas.md', title: 'Atlas', status: 'active', moving: false },
+      { path: 'Projects/Quiet.md', title: 'Quiet', status: null, moving: false },
     ]);
+  });
+
+  /** One active project, and a note filed under it, read back as whether the project is moving. */
+  function movingWith(path: string, frontmatter: Readonly<Record<string, unknown>>) {
+    const [project] = projectsOf({
+      'Projects/Atlas.md': { frontmatter: { type: 'project', status: 'active' } },
+      [path]: {
+        frontmatter,
+        relations: [{ key: 'project', name: 'Atlas', dst: 'Projects/Atlas.md' }],
+      },
+    });
+    return project?.moving;
+  }
+
+  it('is moving with a task filed under it at Next Action or In Progress, deferred or not', () => {
+    expect(movingWith('Tasks/T.md', { type: 'task', status: 'next-action' })).toBe(true);
+    expect(movingWith('Tasks/T.md', { type: 'Task', status: 'in-progress' })).toBe(true);
+    expect(
+      movingWith('Tasks/T.md', { type: 'task', status: 'next-action', defer: '2027-01-01' }),
+    ).toBe(true);
+  });
+
+  it('is not moving on any other status, a status list, or a note that is no task in use', () => {
+    for (const status of ['inbox', 'backlog', 'waiting', 'someday', 'longterm', 'archive']) {
+      expect(movingWith('Tasks/T.md', { type: 'task', status })).toBe(false);
+    }
+    for (const status of [
+      ['next-action', 'waiting'],
+      ['backlog', 'next-action'],
+    ]) {
+      expect(movingWith('Tasks/T.md', { type: 'task', status })).toBe(false);
+    }
+    expect(movingWith('Notes/N.md', { type: 'meeting', status: 'next-action' })).toBe(false);
+    expect(movingWith('Archive/Tasks/T.md', { type: 'task', status: 'next-action' })).toBe(false);
+    expect(movingWith('.atlas/templates/T.md', { type: 'task', status: 'next-action' })).toBe(
+      false,
+    );
+  });
+
+  it('is not moving on a task filed under another project', () => {
+    const [atlas] = projectsOf({
+      'Projects/Atlas.md': { frontmatter: { type: 'project', status: 'active' } },
+      'Tasks/T.md': {
+        frontmatter: { type: 'task', status: 'next-action' },
+        relations: [{ key: 'project', name: 'Other', dst: 'Projects/Other.md' }],
+      },
+      'Tasks/U.md': {
+        frontmatter: { type: 'task', status: 'next-action' },
+        relations: [{ key: 'owner', name: 'Atlas', dst: 'Projects/Atlas.md' }],
+      },
+    });
+    expect(atlas?.moving).toBe(false);
   });
 });

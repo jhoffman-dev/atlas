@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
-  REVIEW_ARCHIVE,
+  REVIEW_MOVES,
   reviewDeferral,
   weeklyReview,
   type ReviewProject,
@@ -30,10 +30,14 @@ function task(title: string, fields: Partial<ReviewTask> & { daysAgo?: number } 
   };
 }
 
-const project = (title: string, status: string | null = 'active'): ReviewProject => ({
+const project = (
+  title: string,
+  { status = 'active', moving = false }: { status?: string | null; moving?: boolean } = {},
+): ReviewProject => ({
   path: createVaultPath(`Projects/${title}.md`),
   title,
   status,
+  moving,
 });
 
 const titles = (items: readonly { title: string }[]) => items.map((item) => item.title);
@@ -62,38 +66,25 @@ describe('waiting for more than seven days', () => {
 });
 
 describe('active projects with no next action', () => {
-  it('lists an active project with nothing to do next filed under it', () => {
-    const atlas = project('Atlas');
-    const garden = project('Garden');
-    const tasks = [
-      task('Ship the review', { project: atlas.path, status: 'next-action' }),
-      task('Order seeds', { project: garden.path, status: 'someday' }),
-    ];
-    expect(titles(review(tasks, [garden, atlas]).projectsWithoutNextAction)).toEqual(['Garden']);
-  });
-
-  it('counts a task In Progress, or deferred, as the project moving', () => {
-    const atlas = project('Atlas');
-    const garden = project('Garden');
-    const tasks = [
-      task('Draft', { project: atlas.path, status: 'in-progress' }),
-      task('Prune', { project: garden.path, defer: '2026-12-01' }),
-    ];
-    expect(review(tasks, [atlas, garden]).projectsWithoutNextAction).toEqual([]);
+  it('lists an active project the index says is not moving, by title', () => {
+    const projects = [project('Garden'), project('Atlas', { moving: true }), project('Beds')];
+    expect(titles(review([], projects).projectsWithoutNextAction)).toEqual(['Beds', 'Garden']);
   });
 
   it('leaves out a project that is not active', () => {
     const projects = [
-      project('Planned', 'planned'),
-      project('Paused', 'paused'),
-      project('None', null),
+      project('Planned', { status: 'planned' }),
+      project('Paused', { status: 'paused' }),
+      project('None', { status: null }),
     ];
     expect(review([], projects).projectsWithoutNextAction).toEqual([]);
   });
 
-  it('does not count a next action filed under another project', () => {
+  it('is decided by the project alone, never by which tasks were read', () => {
+    const garden = project('Garden', { moving: true });
+    expect(review([], [garden]).projectsWithoutNextAction).toEqual([]);
     const atlas = project('Atlas');
-    const tasks = [task('Elsewhere', { project: createVaultPath('Projects/Other.md') })];
+    const tasks = [task('Ship the review', { project: atlas.path, status: 'next-action' })];
     expect(titles(review(tasks, [atlas]).projectsWithoutNextAction)).toEqual(['Atlas']);
   });
 });
@@ -159,7 +150,7 @@ describe('a deferred task', () => {
 
 describe('with a fixed clock, a vault of fixtures', () => {
   it('yields exactly the expected items per section', () => {
-    const atlas = project('Atlas');
+    const atlas = project('Atlas', { moving: true });
     const garden = project('Garden');
     const tasks = [
       task('Quote from Larkspur', { status: 'waiting', waitingOn: 'Mara Quill', daysAgo: 10 }),
@@ -168,7 +159,7 @@ describe('with a fixed clock, a vault of fixtures', () => {
       task('Learn the cello', { status: 'someday', daysAgo: 45 }),
       task('Done long ago', { status: 'archive', due: '2026-01-01', daysAgo: 300 }),
     ];
-    expect(review(tasks, [atlas, garden, project('Paused', 'paused')])).toEqual({
+    expect(review(tasks, [atlas, garden, project('Paused', { status: 'paused' })])).toEqual({
       staleWaiting: [tasks[0]],
       projectsWithoutNextAction: [garden],
       overdue: [tasks[2]],
@@ -186,7 +177,25 @@ describe('the quick actions', () => {
     expect(reviewDeferral('someday')).toBeNull();
   });
 
-  it('archives a task by finishing it', () => {
-    expect(REVIEW_ARCHIVE).toEqual({ status: 'archive' });
+  it('moves a task only to statuses that take it out of its section, never to Archive', () => {
+    expect(REVIEW_MOVES.overdue).toEqual(['someday', 'longterm']);
+    const all = [
+      'inbox',
+      'backlog',
+      'next-action',
+      'in-progress',
+      'waiting',
+      'someday',
+      'longterm',
+    ];
+    expect(REVIEW_MOVES.staleWaiting).toEqual(all);
+    expect(REVIEW_MOVES.untouchedSomeday).toEqual(all);
+  });
+
+  it('takes every task moved out of Overdue off the overdue list', () => {
+    for (const status of REVIEW_MOVES.overdue) {
+      const late = task('Late', { due: '2026-10-01', status });
+      expect(review([late]).overdue).toEqual([]);
+    }
   });
 });

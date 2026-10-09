@@ -63,8 +63,15 @@ function answer(sql: string): QueryResult {
 function setUp({
   open = true,
   types = TYPES,
-}: { open?: boolean; types?: readonly ObjectType[] } = {}) {
-  const memory = memoryVault({ [TASK]: TASK_TEXT, [PROJECT]: PROJECT_TEXT });
+  indexReady = true,
+  taskText = TASK_TEXT,
+}: {
+  open?: boolean;
+  types?: readonly ObjectType[];
+  indexReady?: boolean;
+  taskText?: string;
+} = {}) {
+  const memory = memoryVault({ [TASK]: taskText, [PROJECT]: PROJECT_TEXT });
   const query = vi.fn(async (sql: string) => answer(sql));
   const ports = {
     index: fakeIndexPort({ query }),
@@ -80,6 +87,7 @@ function setUp({
       clock: CLOCK,
       types,
       indexKey: '1',
+      indexReady,
       open,
       onSettled,
       archiveNote,
@@ -113,6 +121,49 @@ describe('useWeeklyReview', () => {
     expect(files.get(TASK)).toContain('status: archive');
     expect(files.get(TASK)).toMatch(/completed: \d{4}-\d{2}-\d{2}/);
     expect(result.current.page.problem).toBeNull();
+  });
+
+  it('rolls a repeating task on when archived, as ticking it done does, rather than ending it', async () => {
+    const taskText =
+      '---\ntype: task\nstatus: next-action\ndue: 2026-10-05\nrecurrence: every week\n---\n\n# Ship\n';
+    const { result, files, onSettled } = setUp({ taskText });
+    await act(async () => result.current.page.onArchiveTask(TASK));
+    await waitFor(() => expect(onSettled).toHaveBeenCalled());
+    expect(files.get(TASK)).toContain('status: next-action');
+    expect(files.get(TASK)).toContain('due: 2026-10-12');
+    expect(files.get(TASK)).not.toContain('status: archive');
+  });
+
+  it('reads and shows nothing while the index builds', () => {
+    const { result, query } = setUp({ indexReady: false });
+    expect(query).not.toHaveBeenCalled();
+    expect(result.current.page.review).toBeNull();
+  });
+
+  it('stops showing what it read, actions and all, once the index starts building again', async () => {
+    const ports = {
+      index: fakeIndexPort({ query: async (sql: string) => answer(sql) }),
+      fs: fakeVaultFs(memoryVault({}).fs),
+      markdown: remarkMarkdown,
+    };
+    const { result, rerender } = renderHook(
+      ({ indexReady }: { indexReady: boolean }) =>
+        useWeeklyReview({
+          ports,
+          editors: noPane,
+          clock: CLOCK,
+          types: TYPES,
+          indexKey: indexReady ? 'ready:1' : 'building',
+          indexReady,
+          open: true,
+          onSettled: () => undefined,
+          archiveNote: async () => null,
+        }),
+      { initialProps: { indexReady: true } },
+    );
+    await waitFor(() => expect(result.current.page.review).not.toBeNull());
+    rerender({ indexReady: false });
+    expect(result.current.page.review).toBeNull();
   });
 
   it('defers a task a week from today', async () => {

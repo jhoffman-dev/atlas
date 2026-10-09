@@ -22,6 +22,7 @@ const GARDEN: ReviewProject = {
   path: createVaultPath('Projects/Garden.md'),
   title: 'Garden',
   status: 'active',
+  moving: false,
 };
 
 const REVIEW: WeeklyReviewReport = {
@@ -108,6 +109,16 @@ describe('WeeklyReviewPage', () => {
       path: 'Tasks/Learn the cello.md',
       status: 'next-action',
     });
+  });
+
+  it('offers a late task only the moves that take it off Overdue', () => {
+    page();
+    const picker = screen.getByRole('combobox', { name: 'Move Ship the review to' });
+    expect(
+      within(picker)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Move to…', 'Someday', 'Longterm']);
   });
 
   it('defers and archives a task', async () => {
