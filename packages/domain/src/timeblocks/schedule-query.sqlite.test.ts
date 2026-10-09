@@ -214,6 +214,29 @@ describe('compileTimeblocksQuery', () => {
     expect(scheduledMinutesByTask(blocks).get('tasks/Report.md')).toBe(0);
   });
 
+  it('reads on from the block after the last one read, in order of their paths', () => {
+    const notes = {
+      'tasks/Report.md': REPORT,
+      'blocks/A.md': block('2026-10-12T09:00', '2026-10-12T10:00', ['Report']),
+      'blocks/B.md': block('2026-10-13T09:00', '2026-10-13T10:00', ['Report']),
+      'blocks/C.md': block('2026-10-14T09:00', '2026-10-14T10:00', ['Report']),
+    };
+    const database = indexOf(notes);
+    const after = (from: string) => {
+      const query = compileTimeblocksQuery({
+        paths: ['tasks/Report.md'],
+        finished: GTD_FINISHED,
+        after: from,
+      });
+      return (
+        database.prepare(query.sql).all(...query.parameters) as unknown as TimeblockRow[]
+      ).map((row) => row.block);
+    };
+    expect(after('')).toEqual(['blocks/A.md', 'blocks/B.md', 'blocks/C.md']);
+    expect(after('blocks/A.md')).toEqual(['blocks/B.md', 'blocks/C.md']);
+    expect(after('blocks/C.md')).toEqual([]);
+  });
+
   it('reads nothing when no block links the tasks asked for, or none are asked for', () => {
     const notes = {
       'tasks/Report.md': REPORT,

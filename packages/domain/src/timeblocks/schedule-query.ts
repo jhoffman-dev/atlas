@@ -79,16 +79,21 @@ export function compileScheduledTasksQuery({
 
 /**
  * Every block outside `.atlas` that links any task among `paths`, one row per
- * task it links — those and its others — in the order it lists them.
+ * task it links — those and its others — in the order it lists them, the
+ * blocks in order of their paths, from the first after `after`: a read the
+ * row cap cut short goes on from its last whole block.
  * Columns: block, start, end, path, estimate, finished. A link that resolves
  * to no note, or to a note that is not a task, is no task of the block's.
  */
 export function compileTimeblocksQuery({
   paths,
   finished,
+  after = '',
 }: {
   paths: readonly string[];
   finished: FinishedStatus | null;
+  /** The path of the last block already read; '' to read from the first. */
+  after?: string;
 }): CompiledQuery {
   const done = finishedSql('r.dst', finished);
   return {
@@ -101,9 +106,10 @@ export function compileTimeblocksQuery({
       `WHERE ${outsideAtlasSql('b.path')} AND ${isOfType('b.path')} AND ${isOfType('r.dst')}`,
       `  AND b.path IN (SELECT l.src FROM relations AS l WHERE l.key = '${BLOCK_KEYS.tasks}'`,
       `    AND l.dst IN (${placeholders(paths.length)}))`,
+      `  AND b.path > ?`,
       `ORDER BY b.path, r.idx, r.dst`,
     ].join('\n'),
-    parameters: [...done.parameters, BLOCK_TYPE, TASK_TYPE, ...paths],
+    parameters: [...done.parameters, BLOCK_TYPE, TASK_TYPE, ...paths, after],
   };
 }
 

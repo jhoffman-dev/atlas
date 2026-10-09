@@ -145,6 +145,66 @@ describe('readTaskSchedules', () => {
     expect((await readTaskSchedules({ index, paths: [], taskType: GTD_TASK })).size).toBe(0);
   });
 
+  it('reads blocks past the row cap a page at a time, going on from the last whole block', async () => {
+    const notes: Record<string, unknown> = {
+      'tasks/Draft.md': task(60),
+      'tasks/Call.md': task(20),
+      'tasks/Reply.md': task(20),
+    };
+    for (const day of ['12', '13', '14', '15']) {
+      notes[`blocks/Admin ${day}.md`] = block(
+        `2026-10-${day}T09:00`,
+        `2026-10-${day}T09:30`,
+        'Draft',
+        'Call',
+        'Reply',
+      );
+    }
+    const real = indexOf(notes);
+    const pages: unknown[] = [];
+    // A host whose row cap is 7: three tasks a block, so a page holds two whole blocks and part of a third.
+    const index: Pick<IndexPort, 'query'> = {
+      query: async (sql, parameters) => {
+        const result = await real.query(sql, parameters);
+        if (sql.includes('AS "block"')) pages.push(parameters.at(-1));
+        return { ...result, rows: result.rows.slice(0, 7), truncated: result.rows.length > 7 };
+      },
+    };
+
+    const schedules = await readTaskSchedules({
+      index,
+      paths: ['tasks/Draft.md'],
+      taskType: GTD_TASK,
+    });
+
+    // Each half hour shared 60 : 20 : 20, four times over.
+    expect(schedules.get('tasks/Draft.md')).toEqual({
+      estimate: 60,
+      scheduled: 4 * 18,
+      done: 0,
+      overBy: 12,
+    });
+    expect(pages).toEqual(['', 'blocks/Admin 13.md']);
+  });
+
+  it('refuses a block that alone links more tasks than the row cap returns', async () => {
+    const real = indexOf({
+      'tasks/Draft.md': task(60),
+      'tasks/Call.md': task(20),
+      'tasks/Reply.md': task(20),
+      'blocks/Admin.md': block('2026-10-12T09:00', '2026-10-12T09:30', 'Draft', 'Call', 'Reply'),
+    });
+    const index: Pick<IndexPort, 'query'> = {
+      query: async (sql, parameters) => {
+        const result = await real.query(sql, parameters);
+        return { ...result, rows: result.rows.slice(0, 2), truncated: result.rows.length > 2 };
+      },
+    };
+    await expect(
+      readTaskSchedules({ index, paths: ['tasks/Draft.md'], taskType: GTD_TASK }),
+    ).rejects.toBeInstanceOf(ScheduleIncompleteError);
+  });
+
   it('refuses a schedule the index cut short, rather than answering it wrong', async () => {
     const index: Pick<IndexPort, 'query'> = {
       query: async () => ({ columns: ['path'], rows: [], truncated: true }),
