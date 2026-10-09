@@ -2,9 +2,16 @@ import {
   anchorsIn,
   capturedTaskStatus,
   checklistLines,
+  indexedTexts,
   inheritedProject,
   joinFrontmatter,
+  leadingLinkTarget,
   lineBlockId,
+  lineContent,
+  plainWords,
+  resolveWikiLinkTarget,
+  splitFrontmatter,
+  TASK_TYPE,
   newBlockId,
   noteTitle,
   promotedTaskName,
@@ -14,6 +21,7 @@ import {
   withPromotedLine,
   type ChecklistLine,
   type EditorDocument,
+  type EditorNode,
   type ObjectType,
   type VaultPath,
 } from '@atlas/domain';
@@ -49,6 +57,17 @@ export class PromotionRefused extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'PromotionRefused';
+  }
+}
+
+/** The line is a link to a task already: promoting it again would make a second. */
+export class LineAlreadyPromotedError extends PromotionRefused {
+  readonly task: VaultPath;
+
+  constructor(task: VaultPath) {
+    super(`That line is the task “${noteTitle(task)}” already.`);
+    this.name = 'LineAlreadyPromotedError';
+    this.task = task;
   }
 }
 
@@ -106,6 +125,8 @@ export async function promoteChecklistLine({
   refuseUnsaved(openNotes, source);
   const note = await openNote({ fs, markdown, path: source });
   const line = chosenLine(note, choice);
+  const content = lineContent(note.doc, line.at);
+  await refuseTaskAlready({ fs, markdown, notePaths, content });
   const name = promotedTaskName(line.text);
   if (name === '') throw new PromotionRefused('That line has no words to name a task by.');
 
@@ -125,7 +146,10 @@ export async function promoteChecklistLine({
     name,
     beside: source,
     notePaths,
-    contents: joinFrontmatter(markdown.updateFrontmatter(null, properties), ''),
+    contents: joinFrontmatter(
+      markdown.updateFrontmatter(null, properties),
+      keptInTask({ markdown, content }),
+    ),
     properties,
   });
 
@@ -141,6 +165,65 @@ export async function promoteChecklistLine({
     sourceModified: saved,
     taskModified: (await noteModified({ fs, path: task })) ?? 0,
   };
+}
+
+/**
+ * A line that starts with a link to a task is that task already — promoted
+ * before, or written so: refused, so a retry never makes a second task and
+ * leaves the first with a source that no longer points at it.
+ */
+async function refuseTaskAlready({
+  fs,
+  markdown,
+  notePaths,
+  content,
+}: {
+  fs: VaultFsPort;
+  markdown: MarkdownPort;
+  notePaths: readonly VaultPath[];
+  content: readonly EditorNode[];
+}): Promise<void> {
+  const target = leadingLinkTarget(content);
+  const linked = target === null ? null : resolveWikiLinkTarget(target, notePaths);
+  if (linked === null) return;
+  let text: string;
+  try {
+    ({ text } = await fs.readTextFile(linked));
+  } catch {
+    // A note the link names but that cannot be read is no task to keep: the line may be promoted.
+    return;
+  }
+  const properties = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
+  if (indexedTexts(properties['type']).includes(TASK_TYPE)) {
+    throw new LineAlreadyPromotedError(linked);
+  }
+}
+
+/**
+ * The task's body: nothing for a line of plain words, which its name and its
+ * link already say; else the line's markdown, so its links and tags reach the task.
+ */
+function keptInTask({
+  markdown,
+  content,
+}: {
+  markdown: MarkdownPort;
+  content: readonly EditorNode[];
+}): string {
+  if (plainWords(content) !== null) return '';
+  return `${lineMarkdown({ markdown, content })}\n`;
+}
+
+/** A line's own content as markdown, written as the note's writer writes it. */
+export function lineMarkdown({
+  markdown,
+  content,
+}: {
+  markdown: Pick<MarkdownPort, 'parseBody' | 'serializeBody'>;
+  content: readonly EditorNode[];
+}): string {
+  const doc: EditorDocument = { type: 'doc', content: [{ type: 'paragraph', content }] };
+  return markdown.serializeBody({ originalBody: '', parsed: markdown.parseBody(''), doc }).trim();
 }
 
 /** The line chosen, as the note says it now; refused when it is not there or not as offered. */

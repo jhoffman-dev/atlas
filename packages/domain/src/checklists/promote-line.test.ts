@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { EditorDocument, EditorNode } from '../markdown/editor-node.ts';
 import {
   inheritedProject,
+  leadingLinkTarget,
   lineBlockId,
+  lineContent,
+  plainWords,
   promotedTaskName,
   promotedTaskProperties,
   promotedTaskStatus,
@@ -18,9 +21,9 @@ const box = (words: string, checked: boolean, ...nested: EditorNode[]): EditorNo
 });
 const tasks = (...items: EditorNode[]): EditorNode => ({ type: 'taskList', content: items });
 const doc = (...content: EditorNode[]): EditorDocument => ({ type: 'doc', content });
-const linkTo = (target: string): EditorNode => ({
+const linkTo = (target: string, alias: string | null = null): EditorNode => ({
   type: 'wikiLink',
-  attrs: { target, heading: null, alias: null },
+  attrs: { target, heading: null, alias },
 });
 
 describe('promotedTaskName', () => {
@@ -123,7 +126,10 @@ describe('withPromotedLine', () => {
     const after = withPromotedLine(before, { at: [1, 0], blockId: 'b2', linkToTask: 'Party' });
     expect(after?.content[0]).toBe(before.content[0]);
     expect(after?.content[1]?.content?.[0]?.content?.[1]).toBe(nested);
-    expect(after?.content[1]?.content?.[0]?.content?.[0]).toEqual(paragraph(linkTo('Party')));
+    // The task's name is not the line's words, so the link shows the words.
+    expect(after?.content[1]?.content?.[0]?.content?.[0]).toEqual(
+      paragraph(linkTo('Party', 'Plan the party')),
+    );
   });
 
   it('promotes a line nested under another, leaving the one above as it was', () => {
@@ -186,5 +192,94 @@ describe('lineBlockId', () => {
   it('is null when an earlier block holds the same id, which names that one', () => {
     const earlier = { ...paragraph(text('Said first')), attrs: { anchor: 'q1' } };
     expect(lineBlockId(doc(earlier, tasks(anchored('B', 'q1'))), [1, 0])).toBeNull();
+  });
+});
+
+describe('what a promoted line keeps', () => {
+  const lineHolding = (...content: EditorNode[]): EditorDocument =>
+    doc(
+      tasks({
+        type: 'taskItem',
+        attrs: { checked: false },
+        content: [{ type: 'paragraph', content }],
+      }),
+    );
+  const promoted = (before: EditorDocument, linkToTask: string) =>
+    withPromotedLine(before, { at: [0, 0], blockId: 'k1', linkToTask })?.content[0]?.content?.[0]
+      ?.content?.[0]?.content;
+
+  it('is the link alone, showing the words, for a line of plain words', () => {
+    expect(promoted(lineHolding(text('Call re: Q3/Q4')), 'Call re Q3 Q4')).toEqual([
+      linkTo('Call re Q3 Q4', 'Call re: Q3/Q4'),
+    ]);
+  });
+
+  it('is the link and then all the line held, for a line with a link, a tag or marks', () => {
+    const mara = linkTo('Mara Quill');
+    const bold = { type: 'text', text: 'now', marks: [{ type: 'bold' }] };
+    for (const content of [
+      [text('Ring '), mara],
+      [text('Plan #launch')],
+      [text('Pay '), bold],
+      [text('Pay invoice #42: $1,200/month')],
+    ]) {
+      expect(promoted(lineHolding(...content), 'Task')).toEqual([
+        linkTo('Task'),
+        text(' '),
+        ...content,
+      ]);
+    }
+  });
+});
+
+describe('plainWords', () => {
+  it('is the words of unmarked text without markdown in it', () => {
+    expect(plainWords([text('  Order chairs ')])).toBe('Order chairs');
+  });
+
+  it.each([
+    'a #tag',
+    'a [b]',
+    'a|b',
+    'x^y',
+    'a `b`',
+    'a\\b',
+    'a <b>',
+    'a *b*',
+    'a_b',
+    'a ~b~',
+    'a &amp;',
+    '!x',
+  ])('is null for %j', (words) => {
+    expect(plainWords([text(words)])).toBeNull();
+  });
+
+  it('is null for a line holding a link or marks', () => {
+    expect(plainWords([text('Ring '), linkTo('Mara Quill')])).toBeNull();
+    expect(plainWords([{ type: 'text', text: 'x', marks: [{ type: 'italic' }] }])).toBeNull();
+  });
+});
+
+describe('leadingLinkTarget and lineContent', () => {
+  it('is the target of the link a line starts with, spaces before it aside', () => {
+    expect(leadingLinkTarget([text(' '), linkTo('Order chairs'), text(' later')])).toBe(
+      'Order chairs',
+    );
+    expect(leadingLinkTarget([text('Ring '), linkTo('Mara Quill')])).toBeNull();
+    expect(leadingLinkTarget([])).toBeNull();
+  });
+
+  it('is the line’s own words, not those nested under it', () => {
+    const before = doc(tasks(box('Plan', false, tasks(box('Pick a date', true)))));
+    expect(lineContent(before, [0, 0])).toEqual([text('Plan')]);
+  });
+});
+
+describe('promotedTaskName fits on disk', () => {
+  it('is cut by whole characters to leave room for a number and .md', () => {
+    const name = promotedTaskName('Book the hall 🎉 '.repeat(40));
+    expect(new TextEncoder().encode(`${name} 999.md`).length).toBeLessThanOrEqual(255);
+    expect(name.endsWith('\uD83C')).toBe(false);
+    expect(name).toMatch(/^Book the hall/);
   });
 });

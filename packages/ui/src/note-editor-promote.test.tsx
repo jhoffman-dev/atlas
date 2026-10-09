@@ -2,6 +2,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import type { Editor } from '@tiptap/core';
+import { undo } from '@tiptap/pm/history';
 import { TextSelection } from '@tiptap/pm/state';
 import type { EditorDocument, EditorNode } from '@atlas/domain';
 import { NoteEditor } from './note-editor.tsx';
@@ -146,5 +147,55 @@ describe('Make task on a checklist line', () => {
     const unoffered = renderEditor();
     caretIn(await editorIn(unoffered.container), 'Order chairs');
     expect(buttons(unoffered.container)).toHaveLength(0);
+  });
+});
+
+describe('a note read again from its file', () => {
+  it('is not a step undo takes back: ⌘Z after a promotion leaves the promoted line', async () => {
+    const promoted: EditorDocument = {
+      type: 'doc',
+      content: [
+        tasks({
+          type: 'taskItem',
+          attrs: { checked: false },
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'wikiLink', attrs: { target: 'Order chairs', heading: null, alias: null } },
+              ],
+            },
+          ],
+        }),
+      ],
+    };
+    const onChange = vi.fn<(doc: EditorDocument) => void>();
+    const view = (doc: EditorDocument) => (
+      <NoteEditor
+        doc={doc}
+        onChange={onChange}
+        onFollowLink={() => {}}
+        suggestNotes={() => []}
+        loadImage={async () => null}
+      />
+    );
+    const rendered = render(view(NOTE));
+    const editor = await editorIn(rendered.container);
+    // Typing before, so there is something of the person's own to undo.
+    caretIn(editor, 'Before the list');
+    act(() => {
+      editor.view.dispatch(editor.state.tr.insertText('!', editor.state.selection.from));
+    });
+    rendered.rerender(view(promoted));
+    await waitFor(() => expect(editor.state.doc.textContent).toBe(''));
+    act(() => {
+      undo(editor.state, editor.view.dispatch);
+    });
+    const links: string[] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === 'wikiLink') links.push(String(node.attrs['target']));
+    });
+    expect(links).toEqual(['Order chairs']);
+    expect(editor.state.doc.textContent).not.toContain('Before the list');
   });
 });

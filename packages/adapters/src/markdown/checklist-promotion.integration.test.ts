@@ -11,6 +11,7 @@ import { createVaultPath, parseObjectType, TASK_TYPE_FILE } from '@atlas/domain'
 import {
   fakeVaultFs,
   promoteChecklistLine,
+  LineAlreadyPromotedError,
   PromotionRefused,
   undoPromotion,
   UnsavedTypingError,
@@ -183,7 +184,8 @@ describe('promoting a checklist line', () => {
     });
     expect(promotion.task).toBe('plans/Order chairs 2.md');
     expect(text(taken)).toBe('Already here.\n');
-    expect(text(source)).toContain('- [ ] [[Order chairs 2]] ^');
+    // The line still reads as it did: the link shows its words.
+    expect(text(source)).toContain('- [ ] [[Order chairs 2|Order chairs]] ^');
   });
 
   it('reads the note again in a clean pane holding it', async () => {
@@ -191,6 +193,80 @@ describe('promoting a checklist line', () => {
     const reload = vi.fn();
     await promote(fs, {}, { state: () => 'clean', reload });
     expect(reload).toHaveBeenCalledWith(source);
+  });
+});
+
+describe('promoting a line that holds more than plain words', () => {
+  it('keeps all of it on the line after the link, and writes it into the task too', async () => {
+    const note = createVaultPath('Plan.md');
+    const line = 'Ring [[Mara Quill]] about #launch, see `notes.md` and **soon**';
+    const { fs, text } = vault({ [note]: `- [ ] ${line}\n- [x] Book the hall\n` });
+    const words = 'Ring Mara Quill about #launch, see notes.md and soon';
+    const promotion = await promote(fs, { source: note, line: 0, text: words });
+    expect(text(note)).toMatch(
+      new RegExp(
+        `^- \\[ \\] \\[\\[${escaped(promotion.task.slice(0, -'.md'.length))}\\]\\] ${escaped(line)} \\^[a-z0-9]{6}\\n- \\[x\\] Book the hall\\n$`,
+      ),
+    );
+    expect(text(promotion.task)).toMatch(new RegExp(`---\\n${escaped(line)}\\n$`));
+  });
+
+  it('keeps a tag a tag — on the line, never inside the link’s alias', async () => {
+    const note = createVaultPath('Plan.md');
+    const { fs, text } = vault({ [note]: '- [ ] Plan #launch party\n' });
+    const promotion = await promote(fs, { source: note, line: 0, text: 'Plan #launch party' });
+    expect(text(note)).toMatch(
+      /^- \[ \] \[\[Plan launch party\]\] Plan #launch party \^[a-z0-9]{6}\n$/,
+    );
+    expect(text(promotion.task)).toContain('\nPlan #launch party\n');
+  });
+
+  it('writes nothing more into the task for a line of plain words', async () => {
+    const { fs, text } = vault();
+    const promotion = await promote(fs);
+    expect(text(promotion.task)).toMatch(/---\n$/);
+  });
+});
+
+describe('a line promoted already', () => {
+  it('is refused, so a second promotion never makes a second task', async () => {
+    const { fs, text } = vault();
+    const first = await promote(fs);
+    const after = text(source);
+    await expect(
+      promoteChecklistLine({
+        fs,
+        markdown: remarkMarkdown,
+        openNotes: closed,
+        rng: { next: () => 0.5 },
+        today,
+        notePaths: [source, first.task],
+        taskType: TASK_TYPE_FILE.type,
+        choice: { source, line: 1, text: 'Order chairs' },
+      }),
+    ).rejects.toThrow(LineAlreadyPromotedError);
+    expect(text(source)).toBe(after);
+    expect(text('plans/Order chairs 2.md')).toBeUndefined();
+  });
+
+  it('is a line starting with a link to a note that is not a task: that one may be promoted', async () => {
+    const mara = createVaultPath('People/Mara Quill.md');
+    const note = createVaultPath('Plan.md');
+    const { fs, text } = vault({
+      [note]: '- [ ] [[Mara Quill]] about the hall\n',
+      [mara]: '---\ntype: person\n---\n',
+    });
+    const promotion = await promoteChecklistLine({
+      fs,
+      markdown: remarkMarkdown,
+      openNotes: closed,
+      rng: { next: () => 0.5 },
+      today,
+      notePaths: [note, mara],
+      taskType: TASK_TYPE_FILE.type,
+      choice: { source: note, line: 0, text: 'Mara Quill about the hall' },
+    });
+    expect(text(promotion.task)).toContain('[[Mara Quill]] about the hall');
   });
 });
 
@@ -318,3 +394,7 @@ describe('the rest of the checklist keeps its bytes', () => {
     for (const row of others) expect(after.split('\n')).toContain(row);
   });
 });
+
+function escaped(words: string): string {
+  return words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

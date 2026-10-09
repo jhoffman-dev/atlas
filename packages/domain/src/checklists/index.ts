@@ -9,7 +9,10 @@ export {
 } from './progress-field.ts';
 export {
   inheritedProject,
+  leadingLinkTarget,
   lineBlockId,
+  lineContent,
+  plainWords,
   promotedTaskName,
   promotedTaskProperties,
   promotedTaskStatus,

@@ -116,16 +116,23 @@ describe('mayHoldChecklist', () => {
     '> - [ ] Quoted\n',
     '> [!note]\n> - [ ] In a callout\n',
     '- [ ]\n',
+    '- - [ ] Nested on its parent’s line\n',
+    '1. - [x] Under a numbered item\n',
+    '-\n  [ ] Words on the next line\n',
+    '- [\t] A tab for a space\n',
   ])('says yes to a box in %j', (body) => {
     expect(mayHoldChecklist(body)).toBe(true);
   });
 
-  it.each(['- Not a box\n', 'See [ ] here\n', '-[ ] no space\n', '- [y] not a box\n', ''])(
-    'says no to %j',
-    (body) => {
-      expect(mayHoldChecklist(body)).toBe(false);
-    },
-  );
+  it.each([
+    '- Not a box\n',
+    '- [y] not a box\n',
+    '- [xx] not a box\n',
+    'No brackets at all.\n',
+    '',
+  ])('says no to %j', (body) => {
+    expect(mayHoldChecklist(body)).toBe(false);
+  });
 });
 
 describe('carriesChecklistProgress', () => {

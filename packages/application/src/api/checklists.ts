@@ -1,9 +1,20 @@
-import { checklistLines, splitFrontmatter, TASK_TYPE, type VaultPath } from '@atlas/domain';
 import {
+  checklistLines,
+  lineContent,
+  splitFrontmatter,
+  TASK_TYPE,
+  type ChecklistLine,
+  type EditorDocument,
+  type VaultPath,
+} from '@atlas/domain';
+import {
+  LineAlreadyPromotedError,
+  lineMarkdown,
   promoteChecklistLine,
   PromotionRefused,
   type ChecklistLineChoice,
 } from '../checklists/promote-checklist-line.ts';
+import type { MarkdownPort } from '../notes/ports.ts';
 import { NoteNameTakenError } from '../notes/create-note.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';
@@ -19,7 +30,12 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
  * `createNote` and the line rewritten through `saveNote`, byte-preserving and
  * held to the task rules (ADR-0029). Answers both notes as they now are.
  *
- * Refused, writing nothing: `not_found` when no line says `text`; `invalid`
+ * The line is named by `text`: its words as Atlas shows them (`Ring Mara
+ * Quill`), or its markdown (`Ring [[Mara Quill]]`) as the note's writer
+ * writes it — the note's own spelling for links, tags and code.
+ *
+ * Refused, writing nothing: `not_found` when no line says `text`; `exists`
+ * when the line is a task already (it starts with a link to one); `invalid`
  * when two do and `line` does not say which, or `line` is not one that says
  * it; `unsaved_in_app` when Atlas holds unsaved typing in the note; `conflict`
  * when the note changed while the task was being made — then the task this
@@ -64,13 +80,32 @@ async function chosenLine(
   const text = requiredText(fields, 'text').trim();
   const { text: contents } = await readNote(request, source);
   const body = splitFrontmatter(contents).body;
-  const lines = checklistLines(request.markdown.parseBody(body).doc);
-  const saying = lines.flatMap((line, index) => (line.text === text ? [index] : []));
+  const doc = request.markdown.parseBody(body).doc;
+  const lines = checklistLines(doc);
+  const saying = lines.flatMap((line, index) =>
+    says({ markdown: request.markdown, doc, line, text }) ? [index] : [],
+  );
   if (saying.length === 0) {
     throw new ApiError('not_found', `No checklist line in ${source} says ${JSON.stringify(text)}`);
   }
   const line = lineAsked(fields, saying);
-  return { source, line, text };
+  return { source, line, text: lines[line]?.text ?? text };
+}
+
+/** Whether a line says `text`: its words as shown, or its markdown as written. */
+function says({
+  markdown,
+  doc,
+  line,
+  text,
+}: {
+  markdown: MarkdownPort;
+  doc: EditorDocument;
+  line: ChecklistLine;
+  text: string;
+}): boolean {
+  if (line.text === text) return true;
+  return lineMarkdown({ markdown, content: lineContent(doc, line.at) }) === text;
 }
 
 /** The line among those that say the text: the one asked for, or the only one. */
@@ -96,6 +131,7 @@ function refusalOf(error: unknown, source: VaultPath): unknown {
   if (error instanceof UnsavedTypingError) {
     return new ApiError('unsaved_in_app', `${source} is open in Atlas with unsaved edits`);
   }
+  if (error instanceof LineAlreadyPromotedError) return new ApiError('exists', error.message);
   if (error instanceof PromotionRefused || error instanceof NoteNameTakenError) {
     return new ApiError('conflict', error.message);
   }

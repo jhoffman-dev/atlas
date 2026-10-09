@@ -87,6 +87,29 @@ describe('POST /v1/notes/{path}/promote', () => {
     expect(api.writes).toEqual([]);
   });
 
+  it('answers exists for a line that is a task already, writing nothing', async () => {
+    const api = vault();
+    expect((await api.send(promote({ text: 'Ring Mara Quill' }))).status).toBe(201);
+    const writes = api.writes.length;
+    const again = await api.send(promote({ text: 'Ring Mara Quill' }));
+    expect(codeOf(again)).toBe('exists');
+    expect(JSON.stringify(bodyOf(again))).toContain('is the task “Ring Mara Quill” already');
+    expect(api.writes).toHaveLength(writes);
+  });
+
+  it('finds a line by its markdown — emphasis, code and links as written — as well as its words', async () => {
+    const api = vault({ 'tasks/Rich.md': '- [ ] Ring **Mara** about `hall.md` and [[Launch]]\n' });
+    const markdown = await api.send(
+      promote({ text: 'Ring **Mara** about `hall.md` and [[Launch]]' }, 'tasks/Rich.md'),
+    );
+    expect(markdown.status).toBe(201);
+    const api2 = vault({ 'tasks/Rich.md': '- [ ] Ring **Mara** about `hall.md` and [[Launch]]\n' });
+    const words = await api2.send(
+      promote({ text: 'Ring Mara about hall.md and Launch' }, 'tasks/Rich.md'),
+    );
+    expect(words.status).toBe(201);
+  });
+
   it('refuses a note Atlas holds unsaved typing in', async () => {
     const api = vault();
     api.deps = { ...api.deps, openNotes: { ...api.deps.openNotes, state: () => 'dirty' } };

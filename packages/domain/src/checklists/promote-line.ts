@@ -11,6 +11,7 @@ import { locateFragment, nodeAt, type NodePath } from '../markdown/block-outline
 import type { EditorDocument, EditorNode } from '../markdown/editor-node.ts';
 import { formatWikiLink } from '../markdown/wikilink.ts';
 import { FILED_UNDER_KEY, FILED_UNDER_TYPES } from '../types/para.ts';
+import { fitFileNameStem } from '../vault/file-name-bytes.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
 
 /*
@@ -19,17 +20,58 @@ import { cleanEntryName } from '../vault/new-note.ts';
  * and is filed under the project the line was in; the line becomes a link to
  * the task. What is written where is decided here; reading and writing the
  * files is the application's.
+ *
+ * Nothing the line said is lost. A line of plain words becomes the link
+ * alone, showing those words (`[[Task|words]]` when the task's name differs
+ * from them). A line holding anything else — a link, a tag, code, emphasis,
+ * markdown's own characters — keeps all of it after the link, and its
+ * markdown is also the task's body, so its links and tags reach the task.
  */
 
 /** What `[[`, `]]`, `#`, `^` and `|` mean inside a link: a task named with one could not be linked. */
 const LINK_SYNTAX = /[#^[\]|]/g;
 
 /**
+ * Room kept after a promoted task's name for the number a taken name is
+ * given and the extension: ` 999.md`.
+ */
+const NUMBERED_ENDING = ' 999.md';
+
+/**
  * The name a promoted line's task is given: its words, made a name a file
- * and a link can both hold. Empty when nothing usable is left.
+ * and a link can both hold, cut by whole characters to fit on disk with a
+ * number after it. Empty when nothing usable is left.
  */
 export function promotedTaskName(text: string): string {
-  return cleanEntryName(text.replace(LINK_SYNTAX, ' '));
+  const name = cleanEntryName(text.replace(LINK_SYNTAX, ' '));
+  return cleanEntryName(fitFileNameStem(name, NUMBERED_ENDING));
+}
+
+/** The inline content of the line at `at`: its own words, not the lines nested under it. */
+export function lineContent(doc: EditorDocument, at: NodePath): readonly EditorNode[] {
+  const own = nodeAt(doc, at).content?.[0];
+  return own?.type === 'paragraph' ? (own.content ?? []) : [];
+}
+
+/** Characters that are markdown, or a tag or a link, when written in plain words. */
+const MARKDOWN_SYNTAX = /[[\]|#^`\\<>*_~&!]/;
+
+/**
+ * The line's words, when it holds nothing but plain words a link's alias can
+ * show exactly: unmarked text, none of markdown's own characters. Null for a
+ * line that holds anything more — which is then kept as it is.
+ */
+export function plainWords(content: readonly EditorNode[]): string | null {
+  if (content.some((node) => node.type !== 'text' || (node.marks ?? []).length > 0)) return null;
+  const words = content.map((node) => node.text ?? '').join('');
+  return MARKDOWN_SYNTAX.test(words) ? null : words.trim();
+}
+
+/** The target of the link a line starts with, or null when it starts with anything else. */
+export function leadingLinkTarget(content: readonly EditorNode[]): string | null {
+  const first = content.find((node) => node.type !== 'text' || (node.text ?? '').trim() !== '');
+  const target = first?.type === 'wikiLink' ? first.attrs?.['target'] : null;
+  return typeof target === 'string' && target !== '' ? target : null;
 }
 
 type Properties = Readonly<Record<string, unknown>>;
@@ -156,17 +198,27 @@ function promotedItem(
   { blockId, linkToTask }: { blockId: string; linkToTask: string },
 ): EditorNode {
   const [own, ...nested] = item.content ?? [];
-  const link: EditorNode = {
-    type: 'wikiLink',
-    attrs: { target: linkToTask, heading: null, alias: null },
-  };
   const paragraph: EditorNode = {
     ...(own?.type === 'paragraph' ? own : { type: 'paragraph' }),
-    content: [link],
+    content: promotedContent(own?.type === 'paragraph' ? (own.content ?? []) : [], linkToTask),
   };
   return {
     ...item,
     attrs: { ...item.attrs, [BLOCK_ANCHOR_ATTR]: blockId },
     content: [paragraph, ...(own?.type === 'paragraph' ? nested : (item.content ?? []))],
   };
+}
+
+/**
+ * What the line says once promoted: the link to its task, showing the line's
+ * plain words — or, for a line holding more, the link and then all it held.
+ */
+function promotedContent(content: readonly EditorNode[], linkToTask: string): EditorNode[] {
+  const words = plainWords(content);
+  const alias = words === null || words === linkToTask ? null : words;
+  const link: EditorNode = {
+    type: 'wikiLink',
+    attrs: { target: linkToTask, heading: null, alias },
+  };
+  return words === null ? [link, { type: 'text', text: ' ' }, ...content] : [link];
 }

@@ -41,18 +41,20 @@ function lineOf(item: EditorNode, at: NodePath): ChecklistLine {
 }
 
 /**
- * A line a list item with a box could start: a marker, then `[ ]`, `[x]` or
- * `[X]`, under any quote or indent. A body without one holds no box.
+ * What every box is written with, wherever its line starts: `[`, a space (or
+ * any blank) or an `x`, `]`. A box can follow a marker on its parent's line
+ * (`- - [ ] x`) or start the line after a bare marker, so nothing about the
+ * line around it is asked: when in doubt, the body is parsed.
  */
-const BOX_LINE = /^[ \t>]*(?:[-*+]|\d+[.)])[ \t]+\[[ xX]\]/m;
+const BOX = /\[[\s xX]\]/;
 
 /**
  * Whether a note's body may hold a box, read cheaply off its text: a body
  * that cannot need not be parsed to find none. A yes may still find none —
- * a box in code — but a no is never wrong.
+ * `[ ]` in prose, a box in code — but a no is never wrong.
  */
 export function mayHoldChecklist(body: string): boolean {
-  return BOX_LINE.test(body);
+  return BOX.test(body);
 }
 
 /**
