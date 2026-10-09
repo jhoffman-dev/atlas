@@ -239,6 +239,92 @@ catches that: a second file with the same `provider` + `external_id` is marked
   **Same meeting?** skips a path that already holds this provider and Source
   ID, broken or not, so a re-send over it writes nothing.
 
+## Bringing in the meetings already in Notion (once)
+
+The workflow only sends meetings from now on. The ones already in the Notion
+Meeting Notes database come in once, through the same mapper, with
+`tools/import-notion-meetings.mjs` (P28-07). It reads a Notion export, maps
+each row as the workflow would, checks each file with the validator Atlas
+runs, and writes it into a vault. It never writes into your vault unless you
+give it that vault's path.
+
+1. **Export.** In Notion, open the Meeting Notes database, then **••• →
+   Export → Markdown & CSV**, with **Include subpages** on (the pages hold
+   the notes and transcripts). Unzip it into a folder of its own, and any
+   zip inside it. Notion
+   writes two CSVs, `Meeting Notes <id>.csv` and `Meeting Notes <id>_all.csv`:
+   use the `_all` one, which has every column. The pages are the `.md`
+   files in the folder beside it. Before exporting, set the Date property's
+   format to **Full date** (`October 6, 2026`): `10/06/2026` could be either
+   day, so a row written that way is refused, never guessed at.
+2. **Run it on a copy of the vault first.**
+
+   ```sh
+   cp -R ~/"Atlas Vault" /tmp/atlas-vault-copy
+   pnpm import:notion-meetings --csv ~/Downloads/<export>/"Meeting Notes <id>_all.csv" \
+     --vault /tmp/atlas-vault-copy
+   ```
+
+   Use absolute paths: pnpm runs the script from the repository's folder.
+   Do not open the copy in Atlas: it carries the vault's sync settings and
+   would sync into `pkm-space`. Read the files in it instead, and
+   `pnpm validate:meeting /tmp/atlas-vault-copy/Inbox/Meetings/*.md` if you
+   like (the import has already checked each one).
+
+3. **Read the report.** One line per row, then the totals:
+
+   | Line       | Means                                                                                                 |
+   | ---------- | ----------------------------------------------------------------------------------------------------- |
+   | `wrote`    | The meeting's file, at the path the workflow would use (two `1:1`s on one day: the second's names it) |
+   | `in vault` | The vault already holds this provider and Source ID, wherever it is filed; nothing written            |
+   | `no id`    | A row with no Source ID: listed, never given one, so not imported                                     |
+   | `refused`  | Why not: no start time, no page for the row, two pages with one Source ID, a file Atlas would refuse  |
+
+   It exits 0 when every row with a Source ID is in the vault, 1 when one was
+   refused, 2 when it could not run (no such vault, not the Meeting Notes
+   CSV). Fix a refused row in Notion, export again and run again: the rows
+   already brought in are `in vault`, and only the rest are written.
+
+4. **Check the times.** The Date cell is read the way Notion wrote it. A time
+   with no zone, or with a zone other than UTC, is kept as written; a UTC
+   time (`(UTC)`, or a date-time ending in `Z`) is an instant, shown on the
+   clock of `--time-zone` (default `America/Los_Angeles`, as the workflow's).
+   Compare a few meetings' `date` and `start` with your calendar, a few
+   from each provider. The import cannot tell a real UTC time from a local
+   time a workflow stored marked as UTC: if one provider's meetings are all
+   off by your offset from UTC, that is what happened, and the real run
+   would file them at those times (some on the day before). Stop there.
+5. **Run it for real**, naming the vault:
+
+   ```sh
+   pnpm import:notion-meetings --csv ~/Downloads/<export>/"Meeting Notes <id>_all.csv" \
+     --vault ~/"Atlas Vault"
+   ```
+
+   The files land in `Inbox/Meetings/`, and Atlas takes each in as it does a
+   meeting from n8n (below): checked, stamped, listed in the Inbox. Running it
+   again writes nothing new.
+
+| Option                    | Default               | What it does                                                                                 |
+| ------------------------- | --------------------- | -------------------------------------------------------------------------------------------- |
+| `--csv <file>`            | (required)            | The export's `_all.csv`; its pages are the `.md` files in its folder and below               |
+| `--vault <folder>`        | (required)            | The vault to write into. It must exist                                                       |
+| `--folder <path>`         | `Inbox/Meetings`      | Where in the vault the files go                                                              |
+| `--time-zone <zone>`      | `America/Los_Angeles` | The clock UTC times are read on; `none` refuses a UTC time rather than read it as local time |
+| `--group-address <email>` | none                  | An address to mark as a group (repeat it), as the workflow's `groupAddresses`                |
+
+**Which folder.** In `Inbox/Meetings/`, Atlas imports each file on arrival,
+and the Inbox lists every one until you file it: a whole history at once.
+With `--folder Meetings/From Notion` (any folder outside `Inbox/Meetings/`)
+they are filed from the start: the importer has already checked them, Atlas
+does not stamp or list them, and if n8n later sends one of them again, that
+copy is archived as a duplicate of the filed one.
+
+**Not imported:** a row's Attendees relation (the page's Attendees section is
+read instead), and its other properties. A page's sections the workflow did
+not write, such as a summary you added by hand, go into Notes under their own
+heading, so nothing in the page is dropped.
+
 ## Changing the mapper
 
 Edit `tools/n8n/meeting-*.ts`, run `pnpm n8n:build`, then in n8n replace the

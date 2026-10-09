@@ -277,3 +277,33 @@ they are.
   is stamped, but the shipped Inbox query cannot list it (`GET /v1/meetings`
   does, and so will P30-01's Inbox page). Files under `Inbox/Meetings/` that
   are not meetings are judged as arrivals and stamped `error`.
+
+## As built (P28-07, 2026-10-08)
+
+The meetings already in Notion come in once through
+`tools/import-notion-meetings.mjs` (how to run it: `tools/n8n/README.md`).
+Where it goes past the text above:
+
+- **It writes into a folder, not through GitHub.** It reads a Notion
+  "Markdown & CSV" export and writes into a vault folder it is named
+  (`--vault`, no default), `Inbox/Meetings/` unless told otherwise. The
+  files are the mapper's (P28-02), at the paths n8n would use, so Atlas
+  takes them in as it takes n8n's.
+- **A row is paired with its page by Source ID**, not by title: titles
+  repeat (`1:1`). A row with no page, or with two, is refused, not guessed.
+- **It checks each file with the validator before writing it**, and never
+  writes over a file. A file Atlas would refuse is listed, not written.
+- **It dedupes against the whole vault**, not one folder: a provider +
+  trimmed external_id held anywhere (filed, archived, stamped) is not
+  written again, so a second run writes nothing. Hidden folders are left
+  out, as everywhere (ADR-0014).
+- **The Date cell is read as Notion shows it.** A time with no zone, or a
+  zone other than UTC, is kept as written; a UTC time is an instant on the
+  clock of `--time-zone`. A form that could be two days (`10/06/2026`) is
+  refused.
+- **Not carried over:** the Attendees relation (the page's Attendees
+  section is read instead) and the other properties. A page section the
+  workflow did not write goes into Notes under its own heading.
+- **Known gap:** a local time stored marked as UTC cannot be told from a
+  real UTC time, and is moved by the zone's offset. The README has the
+  check to make on a vault copy before the real run.
