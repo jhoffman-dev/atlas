@@ -51,8 +51,13 @@ The block model and its scheduling rules, which sync builds on:
 - **The Block type** has `start` and `end` (dates with a time, both
   required), `tasks` (a relation to tasks, many) and `gcal_event_id` and
   `gcal_etag`. It is built in — it cannot be deleted — and is written into a
-  vault that has a Task type, as it opens, never over one that is there, and
-  said in Activity. `gcal_missing` comes with sync (P31-04).
+  vault once its tasks follow GTD (its Task type's status is the eight), as it
+  opens or as soon as the move to GTD lands, never over one that is there,
+  and said in Activity. A vault on statuses of its own is left as it is:
+  writing a type into every vault with tasks changed what small vaults show
+  first (the dashboard sheet's first type) for no use. Undoing the move to GTD
+  leaves the Block type, which the move did not write. `gcal_missing` comes
+  with sync (P31-04).
 - **A one-task block gives that task its whole length.** A block of several
   is a container: when its tasks need at least the whole block it is shared
   in proportion to what each has left of its estimate; when they need less,

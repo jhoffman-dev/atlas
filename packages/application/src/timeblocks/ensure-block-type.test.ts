@@ -1,6 +1,6 @@
 /**
- * P31-01: opening a vault that has tasks writes the Block type it lacks, and
- * never touches a type the vault has.
+ * P31-01: a vault whose tasks follow GTD is given the Block type it lacks,
+ * and a type the vault has is never touched.
  */
 import { describe, expect, it } from 'vitest';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -10,7 +10,26 @@ import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { ensureBlockType } from './ensure-block-type.ts';
 
-const TASK = jsonNote({ name: 'task', label: 'Task', properties: { status: 'select' } });
+const GTD_STATUSES = [
+  'inbox',
+  'backlog',
+  'next-action',
+  'in-progress',
+  'waiting',
+  'someday',
+  'longterm',
+  'archive',
+];
+const TASK = jsonNote({
+  name: 'task',
+  label: 'Task',
+  properties: { status: { kind: 'select', options: GTD_STATUSES, done: 'archive' } },
+});
+const OWN_TASK = jsonNote({
+  name: 'task',
+  label: 'Task',
+  properties: { status: { kind: 'select', options: ['backlog', 'done'], done: 'done' } },
+});
 const OWN_BLOCK = jsonNote({ name: 'block', label: 'Focus block', properties: { when: 'date' } });
 
 /** JSON frontmatter, read and written, so the type file written can be read back whole. */
@@ -43,7 +62,7 @@ function vault(files: Record<string, string>) {
 }
 
 describe('ensureBlockType', () => {
-  it('writes the Block type into a vault that has tasks', async () => {
+  it('writes the Block type into a vault whose tasks follow GTD', async () => {
     const v = vault({ '.atlas/types/task.md': TASK });
 
     const ensured = await ensureBlockType(v);
@@ -60,10 +79,13 @@ describe('ensureBlockType', () => {
     ]);
   });
 
-  it('writes nothing into a vault with no tasks', async () => {
-    const v = vault({});
-    expect(await ensureBlockType(v)).toEqual({ created: [], failed: [] });
-    expect([...v.files.keys()]).toEqual([]);
+  it('writes nothing into a vault with no tasks, or tasks on statuses of its own', async () => {
+    const empty = vault({});
+    expect(await ensureBlockType(empty)).toEqual({ created: [], failed: [] });
+    expect([...empty.files.keys()]).toEqual([]);
+    const own = vault({ '.atlas/types/task.md': OWN_TASK });
+    expect(await ensureBlockType(own)).toEqual({ created: [], failed: [] });
+    expect([...own.files.keys()]).toEqual(['.atlas/types/task.md']);
   });
 
   it('leaves a Block type the vault has as it is', async () => {

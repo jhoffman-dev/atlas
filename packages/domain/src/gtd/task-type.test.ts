@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { parseObjectType, type ObjectType } from '../types/property-def.ts';
 import { statusOf } from '../types/status-property.ts';
 import { GTD_STATUSES } from './gtd-status.ts';
-import { capturedTaskStatus, TASK_TYPE_FILE, taskTypeChange, taskTypeLines } from './task-type.ts';
+import {
+  capturedTaskStatus,
+  followsGtd,
+  GTD_STATUS_PROPERTY,
+  TASK_TYPE_FILE,
+  taskTypeChange,
+  taskTypeLines,
+} from './task-type.ts';
 
 /** P30-02: the built-in Task type, and what a vault's own becomes. */
 
@@ -138,5 +145,31 @@ describe('capturedTaskStatus', () => {
       properties: { stage: { kind: 'select', options: ['inbox', 'done'], done: 'done' } },
     });
     expect(capturedTaskStatus(elsewhere)).toBeNull();
+  });
+});
+
+describe('followsGtd', () => {
+  const typeWith = (properties: ObjectType['properties']): ObjectType => ({
+    name: 'task',
+    label: 'Task',
+    properties,
+  });
+
+  it('is true once the status is GTD’s eight, finished by Archive (P31-01)', () => {
+    expect(followsGtd(TASK_TYPE_FILE.type)).toBe(true);
+    expect(followsGtd(typeWith([GTD_STATUS_PROPERTY]))).toBe(true);
+  });
+
+  it('is false for statuses of the vault’s own, out of order, finished another way, or none', () => {
+    const own = { ...GTD_STATUS_PROPERTY, options: ['backlog', 'done'], done: 'done' };
+    const reordered = {
+      ...GTD_STATUS_PROPERTY,
+      options: [...GTD_STATUS_PROPERTY.options].reverse(),
+    };
+    const finishedElsewhere = { ...GTD_STATUS_PROPERTY, done: 'someday' };
+    for (const status of [own, reordered, finishedElsewhere]) {
+      expect(followsGtd(typeWith([status]))).toBe(false);
+    }
+    expect(followsGtd(typeWith([]))).toBe(false);
   });
 });

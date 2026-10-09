@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { createVault, emitVaultChanged, expectFile, installHost, type FakeVault } from './host.ts';
 
 /**
- * P31-01: timeblocks are notes of the Block type, written into a vault that
- * has tasks as it opens. A task's page shows its estimate beside what its
+ * P31-01: timeblocks are notes of the Block type, written into a vault whose
+ * tasks follow GTD as it opens. A task's page shows its estimate beside what its
  * blocks schedule and what is done, and says when it is over-scheduled.
  */
 
@@ -90,7 +90,7 @@ async function openNote(page: Page, name: string) {
 
 const schedule = (page: Page) => page.getByRole('region', { name: 'Schedule' });
 
-test('a vault with tasks gets the Block type as it opens', async ({ page }) => {
+test('a vault whose tasks follow GTD gets the Block type as it opens', async ({ page }) => {
   const vault = await openVault(page);
 
   await expectFile(vault, '.atlas/types/block.md').toContain('name: block\n');

@@ -1,4 +1,5 @@
 import { TASK_TYPE } from '../gtd/gtd-status.ts';
+import { followsGtd } from '../gtd/task-type.ts';
 import type { BuiltInTypeFile } from '../types/para.ts';
 import type { ObjectType, PropertyDef } from '../types/property-def.ts';
 
@@ -27,7 +28,7 @@ const plain = (key: string, kind: PropertyDef['kind'], label: string): PropertyD
   many: false,
 });
 
-/** The Block type, as written into a vault that has tasks and no blocks yet. */
+/** The Block type, as written into a vault whose tasks follow GTD and that has none. */
 export const BLOCK_TYPE_FILE: BuiltInTypeFile = {
   type: {
     name: BLOCK_TYPE,
@@ -55,11 +56,14 @@ export const BLOCK_TYPE_FILE: BuiltInTypeFile = {
 const folded = (name: string) => name.trim().toLowerCase();
 
 /**
- * The Block type to write into a vault, or null when there is none to write:
- * the vault has a Block type already, or has no Task type — blocks schedule
- * tasks, so a vault without them has nothing to put in one.
+ * The Block type to write into a vault, or null when there is none to write.
+ * It is written once the vault's tasks follow GTD (ADR-0029) — timeblocking
+ * schedules GTD's tasks against their estimates — and never over a Block
+ * type the vault has. A vault on task statuses of its own, or with no tasks,
+ * is left as it is.
  */
 export function blockTypeToWrite(existing: readonly ObjectType[]): BuiltInTypeFile | null {
-  const names = new Set(existing.map((type) => folded(type.name)));
-  return names.has(TASK_TYPE) && !names.has(BLOCK_TYPE) ? BLOCK_TYPE_FILE : null;
+  const task = existing.find((type) => folded(type.name) === TASK_TYPE);
+  const hasBlock = existing.some((type) => folded(type.name) === BLOCK_TYPE);
+  return task !== undefined && followsGtd(task) && !hasBlock ? BLOCK_TYPE_FILE : null;
 }

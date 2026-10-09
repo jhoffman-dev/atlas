@@ -322,11 +322,12 @@ export function App({
     activity: activityLog,
     onChanged: typesChanged,
   });
-  // Timeblocks are notes of the Block type, written into a vault with tasks (P31-01).
+  // Timeblocks are notes of the Block type, written once a vault's tasks follow GTD (P31-01).
   useBlockType({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
+    types,
     activity: activityLog,
     onChanged: typesChanged,
   });

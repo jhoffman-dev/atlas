@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TASK_TYPE_FILE } from '../gtd/task-type.ts';
+import { GTD_STATUS_PROPERTY, TASK_TYPE_FILE } from '../gtd/task-type.ts';
 import { isBuiltInType, typeDeleteRefusal } from '../types/built-in-types.ts';
 import { relationTypes, type ObjectType } from '../types/property-def.ts';
 import { BLOCK_KEYS, BLOCK_TYPE_FILE, blockTypeToWrite } from './block-type.ts';
@@ -33,18 +33,27 @@ describe('the Block type', () => {
 });
 
 describe('blockTypeToWrite', () => {
-  it('writes the Block type into a vault that has tasks and no blocks', () => {
+  const ownTask: ObjectType = {
+    name: 'task',
+    label: 'Task',
+    properties: [{ ...GTD_STATUS_PROPERTY, options: ['backlog', 'next', 'done'], done: 'done' }],
+  };
+
+  it('writes the Block type into a vault whose tasks follow GTD', () => {
     expect(blockTypeToWrite([TASK_TYPE_FILE.type])).toBe(BLOCK_TYPE_FILE);
-    expect(blockTypeToWrite([typeNamed('Task'), typeNamed('project')])).toBe(BLOCK_TYPE_FILE);
+    const gtdStatusOnly = { name: 'Task', label: 'Task', properties: [GTD_STATUS_PROPERTY] };
+    expect(blockTypeToWrite([gtdStatusOnly, typeNamed('project')])).toBe(BLOCK_TYPE_FILE);
   });
 
-  it('writes nothing into a vault with no tasks to schedule', () => {
+  it('writes nothing into a vault on task statuses of its own, or with no tasks', () => {
+    expect(blockTypeToWrite([ownTask])).toBeNull();
+    expect(blockTypeToWrite([typeNamed('task')])).toBeNull();
     expect(blockTypeToWrite([])).toBeNull();
     expect(blockTypeToWrite([typeNamed('project')])).toBeNull();
   });
 
   it('never writes over a Block type the vault has, in any case', () => {
-    expect(blockTypeToWrite([typeNamed('task'), typeNamed('block')])).toBeNull();
-    expect(blockTypeToWrite([typeNamed('task'), typeNamed('Block')])).toBeNull();
+    expect(blockTypeToWrite([TASK_TYPE_FILE.type, typeNamed('block')])).toBeNull();
+    expect(blockTypeToWrite([TASK_TYPE_FILE.type, typeNamed('Block')])).toBeNull();
   });
 });

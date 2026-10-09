@@ -514,6 +514,6 @@ ADR-0030 makes a timeblock a note of type `block`. What the API does about it:
   done and over, worked out by the same application code the task's page
   uses. A read the index's row cap cut short is `query_failed`, not a short
   answer.
-- **The Block type is the app's to write**, into a vault that has a Task type,
-  as it opens; the API never writes `.atlas/types`.
+- **The Block type is the app's to write**, into a vault whose tasks follow
+  GTD; the API never writes `.atlas/types`.
 - MCP's `atlas_query` takes `schedule`.

@@ -1,20 +1,56 @@
 // @vitest-environment jsdom
 /**
- * P31-01: opening a vault that has tasks writes the Block type through the
- * real markdown writer, and says so in Activity.
+ * P31-01: a vault whose tasks follow GTD is given the Block type through the
+ * real markdown writer — as it opens, or as soon as its tasks move to GTD —
+ * and Activity says so.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { fakeVaultFs, memoryVault, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { GTD_STATUS_PROPERTY, type ObjectType } from '@atlas/domain';
 import { useBlockType } from './use-block-type.ts';
 
-const TASK = '---\nname: task\nlabel: Task\nproperties:\n  estimate: number\n---\n\n# Task\n';
+const TASK = [
+  '---',
+  'name: task',
+  'label: Task',
+  'properties:',
+  '  status:',
+  '    kind: select',
+  '    options: [inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive]',
+  '    done: archive',
+  '  estimate: number',
+  '---',
+  '',
+  '# Task',
+  '',
+].join('\n');
 
-function setup(files: Record<string, string>, createNote?: () => Promise<void>) {
+/** The types as the app read them: a GTD Task type, or one on statuses of its own. */
+const GTD_TYPES: readonly ObjectType[] = [
+  { name: 'task', label: 'Task', properties: [GTD_STATUS_PROPERTY] },
+];
+const OWN_TYPES: readonly ObjectType[] = [
+  {
+    name: 'task',
+    label: 'Task',
+    properties: [{ ...GTD_STATUS_PROPERTY, options: ['backlog', 'done'], done: 'done' }],
+  },
+];
+
+function setup(
+  files: Record<string, string>,
+  {
+    types = GTD_TYPES,
+    createNote,
+  }: { types?: readonly ObjectType[]; createNote?: () => Promise<void> } = {},
+) {
   const memory = memoryVault(files);
+  const listed = vi.fn(memory.fs.listDirectory);
   const fs = fakeVaultFs({
     ...memory.fs,
+    listDirectory: listed,
     ...(createNote !== undefined && { createNote }),
     readNotes: async (paths) =>
       paths.flatMap((path) => {
@@ -24,14 +60,23 @@ function setup(files: Record<string, string>, createNote?: () => Promise<void>) 
   });
   const onChanged = vi.fn();
   const activity = recordingActivity();
-  renderHook(() =>
-    useBlockType({ fs, markdown: remarkMarkdown, vaultKey: '/vault', activity, onChanged }),
+  const hook = renderHook(
+    ({ known }: { known: readonly ObjectType[] }) =>
+      useBlockType({
+        fs,
+        markdown: remarkMarkdown,
+        vaultKey: '/vault',
+        types: known,
+        activity,
+        onChanged,
+      }),
+    { initialProps: { known: types } },
   );
-  return { files: memory.files, onChanged, activity };
+  return { files: memory.files, onChanged, activity, hook, listed };
 }
 
 describe('useBlockType', () => {
-  it('writes the Block type into a vault that has tasks, says so, and says the vault changed', async () => {
+  it('writes the Block type into a vault whose tasks follow GTD, says so, and says the vault changed', async () => {
     const { files, onChanged, activity } = setup({ '.atlas/types/task.md': TASK });
 
     await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
@@ -75,24 +120,47 @@ describe('useBlockType', () => {
     ).toEqual([
       [
         'info',
-        'Added the Block type: this vault has tasks, and timeblocks schedule them.',
+        'Added the Block type: this vault’s tasks follow GTD, and timeblocks schedule them.',
         { kind: 'note', path: '.atlas/types/block.md' },
       ],
     ]);
   });
 
   it('writes nothing, and says nothing, in a vault without tasks', async () => {
-    const { files, onChanged, activity } = setup({ 'Notes.md': '# Notes\n' });
-    // Give the read of the types a turn to finish before looking.
+    const { files, onChanged, activity, listed } = setup(
+      { 'Notes.md': '# Notes\n' },
+      { types: [] },
+    );
+    // Give a read of the types a turn to finish before looking.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect([...files.keys()]).toEqual(['Notes.md']);
     expect(onChanged).not.toHaveBeenCalled();
     expect(activity.reports).toEqual([]);
+    // The types the app already read say there is nothing to write, so the files are not read again.
+    expect(listed).not.toHaveBeenCalled();
+  });
+
+  it('waits for a vault on statuses of its own, and writes it once its tasks move to GTD', async () => {
+    const own = TASK.replace(
+      '[inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive]',
+      '[backlog, done]',
+    ).replace('done: archive', 'done: done');
+    const { files, onChanged, hook } = setup({ '.atlas/types/task.md': own }, { types: OWN_TYPES });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(files.has('.atlas/types/block.md')).toBe(false);
+
+    // The move to GTD rewrites the Task type, and the app reads its types again.
+    files.set('.atlas/types/task.md', TASK);
+    hook.rerender({ known: GTD_TYPES });
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(files.has('.atlas/types/block.md')).toBe(true);
   });
 
   it('records in Activity why the type could not be written', async () => {
-    const { activity, onChanged } = setup({ '.atlas/types/task.md': TASK }, async () =>
-      Promise.reject(new Error('the disk is full')),
+    const { activity, onChanged } = setup(
+      { '.atlas/types/task.md': TASK },
+      { createNote: async () => Promise.reject(new Error('the disk is full')) },
     );
     await waitFor(() =>
       expect(activity.reports.map(({ level, message }) => [level, message])).toEqual([

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { blockTypeToWrite, type ObjectType } from '@atlas/domain';
 import {
   ensureBlockType,
   type ActivityRecorder,
@@ -7,19 +8,23 @@ import {
 } from '@atlas/application';
 
 /**
- * Writes the Block type into a vault that has tasks and lacks it, as the vault
- * opens (P31-01), and says so in Activity: nothing is added without a word.
+ * Writes the Block type into a vault whose tasks follow GTD and that lacks it
+ * (P31-01) — as it opens, or as soon as its tasks move to GTD — and says so in
+ * Activity: nothing is added without a word.
  */
 export function useBlockType({
   fs,
   markdown,
   vaultKey,
+  types,
   activity,
   onChanged,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
+  /** The vault's types as last read: the type files are read again only when they call for it. */
+  types: readonly ObjectType[];
   activity: ActivityRecorder;
   /** After the type file is written, so the types and the tree are read again. */
   onChanged: () => void;
@@ -31,7 +36,7 @@ export function useBlockType({
   }, [onChanged]);
 
   useEffect(() => {
-    if (vaultKey === null) return;
+    if (vaultKey === null || blockTypeToWrite(types) === null) return;
     let cancelled = false;
     const warn = (reason: string) =>
       activity.record({
@@ -48,7 +53,8 @@ export function useBlockType({
           activity.record({
             level: 'info',
             kind: 'app',
-            message: 'Added the Block type: this vault has tasks, and timeblocks schedule them.',
+            message:
+              'Added the Block type: this vault’s tasks follow GTD, and timeblocks schedule them.',
             subject: { kind: 'note', path },
           });
         }
@@ -60,5 +66,5 @@ export function useBlockType({
     return () => {
       cancelled = true;
     };
-  }, [fs, markdown, vaultKey, activity]);
+  }, [fs, markdown, vaultKey, types, activity]);
 }

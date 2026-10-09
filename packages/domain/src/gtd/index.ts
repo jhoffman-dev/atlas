@@ -46,6 +46,7 @@ export { taskRuleChanges, WAITING_NEEDS_SOMEONE } from './task-rules.ts';
 export type { TaskRuleOutcome } from './task-rules.ts';
 export {
   capturedTaskStatus,
+  followsGtd,
   GTD_STATUS_PROPERTY,
   TASK_TYPE_FILE,
   taskTypeChange,
