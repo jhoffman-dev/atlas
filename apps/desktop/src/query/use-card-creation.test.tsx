@@ -90,6 +90,14 @@ describe('a card that could not be added', () => {
     ]);
   });
 
+  it('is not recorded when a task rule refuses it, which the board shows to act on', async () => {
+    const { hook, created, errors, activity } = creation({ groupBy: 'status', subGroupBy: null });
+    act(() => hook.result.current.addCard({ value: 'waiting', name: 'Ship' }));
+    await waitFor(() => expect(errors).toEqual([expect.stringMatching(/waiting/i)]));
+    expect(created).toEqual([]);
+    expect(activity.reports).toEqual([]);
+  });
+
   it('is not recorded when it is added', async () => {
     const { hook, created, activity } = creation({ groupBy: 'status', subGroupBy: null });
     act(() => hook.result.current.addCard({ value: 'doing', name: 'Ship' }));

@@ -41,7 +41,8 @@ function changing({ refuse }: { refuse: string | null }) {
       onError,
     }),
   );
-  const change = () => act(() => hook.result.current({ path: NOTE, values: { status: 'done' } }));
+  const change = (values: Readonly<Record<string, unknown>> = { status: 'done' }) =>
+    act(() => hook.result.current({ path: NOTE, values }));
   return { activity, onChanged, onError, change };
 }
 
@@ -58,6 +59,13 @@ describe('useChangeProperties and the Activity log', () => {
         subject: { kind: 'note', path: NOTE },
       },
     ]);
+  });
+
+  it('records nothing for a task rule’s refusal, which the view shows to act on', async () => {
+    const { activity, onError, change } = changing({ refuse: null });
+    change({ status: 'waiting' });
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringMatching(/waiting/i)));
+    expect(activity.reports).toEqual([]);
   });
 
   it('records nothing for a write that lands', async () => {
