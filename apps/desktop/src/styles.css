@@ -12553,3 +12553,204 @@ select.type-editor__field,
   line-height: var(--leading-tight);
   padding: 0 4px 4px 22px;
 }
+
+/* ---------------------------------------------------------------------------
+   Proposals (P29-02): what Claude proposes, waiting to be accepted, edited or
+   rejected. Each card says what Accept would write and the line it cites.
+   --------------------------------------------------------------------------- */
+
+.proposals__notice {
+  align-items: center;
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-ui);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 6px 8px 6px 16px;
+}
+
+.proposals__notice > span {
+  flex: 1 1 auto;
+}
+
+.proposals__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+.proposals__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.proposal-card {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.proposal-card__head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.proposal-card__kind {
+  color: var(--accent-text);
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.proposal-card__title {
+  color: var(--ink);
+  flex: 1 1 auto;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.proposal-card__confidence {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.proposal-card__confidence--low {
+  color: var(--warning);
+}
+
+.proposal-card__provenance {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-small);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.proposal-card__source,
+.proposal-card__file,
+.proposals__path {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--accent-text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  padding: 0;
+  text-align: start;
+}
+
+.proposal-card__uncited {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.proposal-card__change,
+.proposal-card__body {
+  color: var(--ink-2);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.proposal-card__props {
+  display: grid;
+  font-size: var(--text-small);
+  gap: 2px var(--space-3);
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0;
+}
+
+.proposal-card__props > div {
+  display: contents;
+}
+
+.proposal-card__props dt {
+  color: var(--ink-3);
+}
+
+.proposal-card__props dd {
+  color: var(--ink);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.proposal-card__form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proposal-card__form label {
+  color: var(--ink-3);
+  display: grid;
+  font-size: var(--text-small);
+  gap: 2px;
+}
+
+.proposal-card__form :is(input, textarea) {
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-ui);
+  padding: 4px 8px;
+}
+
+.proposal-card__problem {
+  color: var(--danger);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.proposal-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.proposals__unreadable {
+  margin-top: var(--space-5);
+}
+
+.proposals__unreadable h2 {
+  align-items: center;
+  color: var(--danger);
+  display: flex;
+  font-size: var(--text-ui);
+  gap: 6px;
+}
+
+.proposals__unreadable ul {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.proposals__unreadable li {
+  color: var(--ink-2);
+  display: grid;
+  font-size: var(--text-small);
+}

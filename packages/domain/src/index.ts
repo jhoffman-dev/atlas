@@ -37,3 +37,4 @@ export * from './sync/index.ts';
 export * from './templates/index.ts';
 export * from './meetings/index.ts';
 export * from './terms/index.ts';
+export * from './proposals/index.ts';

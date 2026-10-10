@@ -14,6 +14,7 @@ import { backlinksRoute, listNotes, readNoteRoute } from './notes-read.ts';
 import { appendRoute, replaceBodyRoute, setPropertiesRoute } from './notes-write.ts';
 import type { ApiRouterDeps } from './ports.ts';
 import { profileRoute } from './profile.ts';
+import { acceptProposalRoute, proposalsRoute, rejectProposalRoute } from './proposals.ts';
 import { queryRoute, sqlRoute } from './query.ts';
 import { quickAddRoute, quickAddTypesRoute } from './quick-add.ts';
 import { searchRoute } from './search.ts';
@@ -112,6 +113,9 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'POST /v1/automations/{id}/dry-run': vaultRoute(automationDryRunRoute),
   'GET /v1/terms': vaultRoute(termsRoute),
   'GET /v1/meetings': vaultRoute(meetingsRoute),
+  'GET /v1/proposals': vaultRoute(proposalsRoute),
+  'POST /v1/proposals/{path}/accept': vaultWrite(acceptProposalRoute),
+  'POST /v1/proposals/{path}/reject': vaultWrite(rejectProposalRoute),
 };
 
 /** The segments a route pattern leaves open, and what a request filled them with. */

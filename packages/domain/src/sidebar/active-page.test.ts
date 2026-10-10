@@ -107,4 +107,11 @@ describe('activeSidebarPage', () => {
       activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, termsOpen: true }),
     ).toEqual({ kind: 'terms' });
   });
+
+  it('is the Proposals page while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, proposalsOpen: true }),
+    ).toEqual({ kind: 'proposals' });
+  });
 });

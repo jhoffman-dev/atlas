@@ -137,7 +137,7 @@ function noteAt(raw: string, notePaths: readonly VaultPath[]): VaultPath | { rea
  * belong to whichever vault is open now, so once another is, they are left
  * alone: nothing of this vault is in them.
  */
-function archivePorts(request: VaultRequest): ArchivePorts {
+export function archivePorts(request: VaultRequest): ArchivePorts {
   return {
     fs: request.fs,
     index: request.index,

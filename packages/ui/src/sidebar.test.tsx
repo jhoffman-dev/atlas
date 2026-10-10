@@ -216,6 +216,21 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('button', { name: 'Terms' })).toBeNull();
   });
 
+  it('opens the Proposals page from its row, counting what waits, marked while it is open', async () => {
+    const onOpen = vi.fn();
+    show({ proposals: { onOpen, count: 3 }, active: { kind: 'proposals' } });
+    const row = screen.getByRole('button', { name: 'Proposals, 3 waiting' });
+    expect(row.getAttribute('aria-current')).toBe('page');
+    await userEvent.click(row);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it('shows the Proposals row unmarked and with no count when none wait', () => {
+    show({ proposals: { onOpen: () => {}, count: 0 }, active: { kind: 'templates' } });
+    const row = screen.getByRole('button', { name: 'Proposals' });
+    expect(row.getAttribute('aria-current')).toBeNull();
+  });
+
   it('keeps the browser’s own menu on a type when there is nothing to offer', async () => {
     show();
     await userEvent.pointer({

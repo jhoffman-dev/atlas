@@ -145,6 +145,7 @@ td:first-child { white-space: nowrap; }
     <a href="#people">People and mentions</a>
     <a href="#meetings">Meetings</a>
     <a href="#terms">Terms</a>
+    <a href="#proposals">Proposals</a>
     <a href="#tags">Tags</a>
     <a href="#automations">Automations</a>
     <a href="#activity">Activity</a>
@@ -177,7 +178,7 @@ pnpm tauri:dev</pre>
       <h2>Finding your way</h2>
       <p class="sub">The sidebar lists everything; each page opens in a panel with a bar across the top.</p>
       <div class="grid2">
-        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, <a href="#para">Inbox</a>, Graph, Tags, Automations, <a href="#activity">Activity</a>, <a href="#templates">Templates</a> and <a href="#terms">Terms</a>. Counts show how many notes each holds; Activity's red badge counts new errors.</p></div>
+        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, <a href="#para">Inbox</a>, <a href="#proposals">Proposals</a>, Graph, Tags, Automations, <a href="#activity">Activity</a>, <a href="#templates">Templates</a> and <a href="#terms">Terms</a>. Counts show how many notes each holds, and Proposals how many wait for an answer; Activity's red badge counts new errors.</p></div>
         <div class="card"><h4>Favorites</h4><p>Star any page (the ☆ in its top bar) to pin it here.</p></div>
         <div class="card"><h4>Types · Views · Dashboards</h4><p>Built from your vault. The <b>+</b> beside a heading makes a new one.</p></div>
         <div class="card"><h4>Pages</h4><p>Your folders and notes. Near the end, <b>Archive</b> opens the <a href="#archive">Archive</a>; <b>System</b>, last, is the <code>.atlas</code> folder (types, automations, sources, settings). Templates aren't in it — they have their <a href="#templates">own page</a>.</p></div>
@@ -394,7 +395,7 @@ pnpm tauri:dev</pre>
       <h3>Options for select properties</h3>
       <p>Rename, reorder, colour and remove options — for example a project's statuses <code>planned, active, paused, done</code>. (A task's eight <a href="#tasks">GTD statuses</a> are moved to all at once, from the Inbox.) Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
       <h3>Built-in types</h3>
-      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Area</b>, <b>Resource</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b> and <b>Term</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
+      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Area</b>, <b>Resource</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b> and <b>Decision</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
       <p>A type you made has <b>Delete &lt;Type&gt;…</b> at the foot of <b>Edit type</b>; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
       <h3>Projects</h3>
       <p>Atlas ships a <b>Project</b> type (status: planned, active, paused, done; owner; due; summary). Every task has a <code>project</code> relation — to a project or an area, once your types are set up for <a href="#para">PARA</a> — and the <b>Projects</b> view is a board grouped by project.</p>
@@ -971,6 +972,50 @@ ORDER BY phase</pre>
       <div class="note"><b>What's next.</b> For now Atlas keeps the list; nothing is corrected yet. Next (P28-06): when a meeting arrives, its transcript is corrected by this list — every change recorded on the note, and undoable.</div>
     </section>
 
+    <section id="proposals">
+      <h2>The Inbox: what Claude proposes</h2>
+      <p class="sub">Claude never edits a note on its own. What it — or an automation — suggests lands as a <b>proposal</b>, a note waiting in <code>Inbox/Proposals</code>, and nothing it proposes is written until you accept it.</p>
+      <h3>Open the proposals</h3>
+      <ol class="steps">
+        <li>Click <b>Proposals</b> near the top of the sidebar, under Today and Inbox, or find it in search (<kbd>⌘K</kbd>). Its count is how many are waiting. The row shows while something waits; the page is in search any time.</li>
+        <li>Each card says what it would make — <i>TASK · Send Mara the payroll file</i> — with what it would write under it, how sure its maker was (<i>high confidence</i>), and the line it came from: click <b>[[2026-10-01 Standup#^t0003]]</b> and the meeting opens at that line. A proposal that cites nothing says <b>Cites no source</b>, so you know to check it yourself.</li>
+        <li>Answer it: <b>Accept</b>, <b>Edit</b> or <b>Reject</b>.</li>
+      </ol>
+      <h3>What each answer does</h3>
+      <ul>
+        <li><b>Accept</b> writes what the card shows and files the proposal in the <a href="#archive">Archive</a> with <code>state: accepted</code> and <code>answered_via: app</code> — <code>api</code> when Claude answered it for you through the <a href="#connect">Local API</a>, so the Archive keeps who said yes. The notice at the top says <i>“Accepted: Send Mara the payroll file.”</i> with <b>Open Send Mara the payroll file</b> to go to it, and <b>Undo</b>.</li>
+        <li><b>Edit</b> opens what it would write — the title, each property, the body (for a link, just the link) — so you can change it, then <b>Accept as edited</b>. A list shows as items with commas between; an item holding a comma of its own is in double quotes (<code>"[[Larkspur Payroll, Inc.]]", [[Fenn &amp; Co]]</code>). A property you don't touch is written exactly as proposed. <b>Cancel</b> leaves it as it was. The proposal is archived with your edit, so the Archive shows what was actually accepted.</li>
+        <li><b>Reject</b> writes nothing it proposed and files it in the Archive with <code>state: rejected</code> — kept, never deleted.</li>
+        <li><b>Undo</b> after an accept takes away what it made — if nothing has changed it since — and puts the proposal back, open again.</li>
+      </ul>
+      <h3>What a proposal can make</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>Task, Follow-up</td><td>A new task, with <code>source</code> linking the line it came from and <code>meeting</code> linking the meeting the proposal names — whatever made it from a meeting says which. A follow-up is a task to chase someone.</td></tr>
+            <tr><td>Decision</td><td>A new note of the built-in <b>Decision</b> type — title, date, meeting, project, people — citing its line the same way.</td></tr>
+            <tr><td>Person, Term, Project</td><td>A new note of that type.</td></tr>
+            <tr><td>Link</td><td>Adds one link to a note's relation — Mara Quill's <b>Companies</b> gets <code>[[Larkspur Payroll]]</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>When it says no</h3>
+      <p>Accept never writes over anything. If it can't go ahead, the reason shows on the card and the proposal stays waiting:</p>
+      <ul>
+        <li><i>“There is already a note at Send Mara the payroll file.md, which may be this one. Edit the title to make another.”</i></li>
+        <li><i>“Mara Quill changed since this was proposed, so it was left as it is.”</i> — the note a link would change has been edited since; check it and answer again.</li>
+        <li>A proposal, or the note it would change, with unsaved typing: save it first.</li>
+        <li>A proposal may only write where your notes live: never in <code>.atlas</code>, a hidden folder, a folder Atlas doesn't show (<code>node_modules</code>), the Archive or <code>Inbox/Proposals</code> itself. A title too long for a file name is cut to fit.</li>
+      </ul>
+      <h3>Where they live</h3>
+      <ul>
+        <li>A proposal is an ordinary note of the built-in <b>Proposal</b> type, so it syncs to your other Mac, survives a restart, and shows in queries. Only open ones stay in <code>Inbox/Proposals</code>; one answered that the Archive couldn't take is listed under <b>Answered, still in the Inbox</b>, to archive from its page.</li>
+        <li><b>Proposal</b> and <b>Decision</b> are <a href="#types">built-in types</a>, and every task gains a <b>Meeting</b> link.</li>
+        <li>Claude can list and answer them for you through <a href="#connect"><code>atlas_proposals</code></a> — only when you ask it to.</li>
+      </ul>
+      <div class="note"><b>What's coming.</b> Proposals arrive by themselves once automations can run a Claude step on a new meeting (phase 29). The Proposals page will become a section of the <b>Inbox</b> page, beside the notes waiting to be filed.</div>
+    </section>
+
     <section id="tags">
       <h2>Tags</h2>
       <p class="sub">A tag is plain text in the note — <code>#idea</code> — read the same way when it is drawn, counted, clicked and renamed.</p>
@@ -1203,6 +1248,7 @@ do: archive</pre>
         <li><b>Accept</b> writes exactly what the card showed, at exactly that path.</li>
         <li><b>Undo</b> on an accepted card puts the note back as it was, if nothing has written it since.</li>
       </ol>
+      <p>A chat's cards live in the chat. What Claude proposes while you're away waits as a note on the <a href="#proposals">Proposals</a> page instead, answered the same way.</p>
       <div class="note"><b>When Accept refuses.</b> If the note changed after the proposal, the card says <i>&lt;note&gt; changed since this was proposed; nothing was written.</i> If it's open with typing not yet saved: <i>&lt;note&gt; has unsaved typing; save it first, so nothing you typed is written over.</i> Nothing can be proposed into <code>.atlas</code>, any other hidden folder, or <code>Chats/</code>. A tool call Claude shows inside a code block is shown as an example, not run.</div>
       <ul>
         <li>Cards sit in the conversation, which scrolls on its own; the window doesn't.</li>
@@ -1319,6 +1365,7 @@ do: archive</pre>
         <li><b>Read how names are spelt</b> (<code>atlas_terms</code>): every <a href="#terms">term</a>, every spelling Atlas puts right with what it should be — people's and companies' names and their other spellings included — and the conflicts, which Claude is told never to correct. Read-only: Claude adds a term by making a note with <code>type: term</code>, and changes its misheard spellings as it changes any property.</li>
         <li><b>Archive and unarchive</b> (<code>atlas_archive</code>, <code>atlas_unarchive</code>), up to 100 notes at a time, by the <a href="#archive">same rules</a> as the app, updating links as it goes. A note with unsaved typing in Atlas is left where it is and reported, since Claude never saves your typing for you. <code>atlas_archived</code> lists and searches the Archive.</li>
         <li><b>Process the Inbox</b> (<code>atlas_process_inbox_item</code>): file a waiting note under a project or an area, by the <a href="#para">same rules</a> as the Inbox page — into the project's folder, linked, links to it updated. Anything that isn't a project or an area still in use is refused before the note moves, and a note with unsaved typing in Atlas is left where it is. <code>atlas_capture_task</code> captures into the Inbox, starting a <a href="#tasks">GTD</a> task at <b>Inbox</b>; <code>atlas_update_properties</code> is held to the same task rules as the app — <b>Waiting</b> needs someone, <b>Archive</b> writes the day — and moving a vault's tasks to GTD stays in the app. <code>atlas_list_notes</code> with the folder <code>Inbox</code> lists what's waiting.</li>
+        <li><b>Answer proposals</b> (<code>atlas_proposals</code>, <code>atlas_accept_proposal</code>, <code>atlas_reject_proposal</code>): list what is waiting in the <a href="#proposals">Inbox</a> and accept or reject one, by the same rules as its buttons — nothing written over, a proposal with unsaved typing left alone. Ask Claude to show you a proposal before it accepts; editing one first and <b>Undo</b> stay in the app.</li>
         <li><b>Run a saved query view</b> (<code>atlas_run_view</code>), the same as any view: it answers with the query's rows as the app finds them — the query's own <code>INCLUDE ARCHIVED</code> decides whether archived notes come too — and a query with a mistake is refused with the reason. A grouped table or board view answers its groups and sub-groups beside its rows, in the order the app draws them — a board every column, an empty one too, since that's somewhere to move a card; a gallery only its first level. <code>atlas_list_views</code> shows each view's <b>Group by</b> and <b>Then by</b>, and its place among its type's tabs; it lists Today and Inbox first, as the sidebar lifts them — they're views too, run by their paths like any other — then the other views by name, then the dashboards. Changing a view's grouping stays in the app.</li>
         <li><b>List a type's views</b> (<code>atlas_list_type_views</code>), in the same tab order the app shows, with each view's name and layout. A type with no views answers its default table, which isn't a file yet, so run it with a query (<code>atlas_run_query</code> with <code>FROM</code> the type) instead. Up to 500 at a time. Adding, renaming, copying, reordering and deleting views stay in the app.</li>
         <li><b>Move a card on a board</b> (<code>atlas_move_card</code>) to another column, another <a href="#views">lane</a>, or both, by the same rules as dragging it: one write, and a task finishes only through its type's status, a repeating one rolling on to its next date once. Only the board's own columns and lanes are accepted; anything else is refused, naming them, so <code>Done</code> for <code>done</code> never makes a column the type doesn't have. A move that would finish a task needs the note's last-modified time, so a retried move can't finish a repeating task twice. Only a board's cards move — a view note can't be moved this way.</li>
@@ -1446,6 +1493,7 @@ do: archive</pre>
         <li>The search index lives in <code>.atlas-cache/</code>. It's only a copy; if it's ever wrong, Settings → <b>Index</b> → <b>Rebuild</b>.</li>
         <li>Pictures you add go in <code>attachments/</code> (or beside the note, if you chose that in Settings → Images). Thumbnails Atlas makes of pages live in <code>.atlas-cache/thumbnails</code>; an artifact's is kept with its saved copy.</li>
         <li>Each <a href="#claude">chat with Claude</a> is a note in <code>Chats/</code>, written once and then only added to. Claude's proposed changes are written only when you press <b>Accept</b>, never into <code>.atlas</code>, a hidden folder or <code>Chats/</code>.</li>
+        <li><a href="#proposals">Proposals</a> wait as notes in <code>Inbox/Proposals/</code>; answered ones move to <code>Archive/Inbox/Proposals/</code> with their <code>state</code>.</li>
         <li>A synced vault is a git repository; Atlas keeps its own lines in <code>.gitignore</code> (the index, Finder and Obsidian per-Mac files). See <a href="#sync">Sync between Macs</a>.</li>
         <li>Secrets live in the macOS Keychain, never in the vault. The chat's settings (which way to reach Claude, the model) are kept on this Mac; your <a href="#profile">name</a> is in the vault's settings, so it syncs.</li>
         <li>Nothing leaves your Mac unless you turn on the Local API, connect a <a href="#sources">source</a>, turn on <a href="#sync">sync</a> (the vault goes to your GitHub repository), or ask <a href="#claude">Claude</a> in the chat — then what you ask, the page on the chip and what Claude reads go to Anthropic, through Claude Code or your API key.</li>

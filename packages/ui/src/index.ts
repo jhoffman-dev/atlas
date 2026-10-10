@@ -9,6 +9,7 @@ export type {
   ActivityRowLink,
   InboxRowLink,
   HeaderMenu,
+  ProposalsRowLink,
   SidebarQuickView,
   SidebarTree,
   SidebarType,
@@ -157,6 +158,7 @@ export { SelectAllBox, SelectBox, SelectionBar } from './row-selection.tsx';
 export type { BulkAction, RowSelection } from './row-selection.tsx';
 export * from './query-language/index.ts';
 export * from './automations/index.ts';
+export * from './proposals/index.ts';
 export * from './activity/index.ts';
 export type { Choice } from './choice-select.tsx';
 export { ChatPanel } from './chat/chat-panel.tsx';

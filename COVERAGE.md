@@ -35,6 +35,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `domain/terms`             | The vocabulary: decides how every name in a transcript is spelt.              | 28      |
 | `application/terms`        | Adds terms as notes and rewrites their variants in the frontmatter.           | 28      |
 | `tools/notion-import/*.ts` | The Notion meeting import: writes your meeting history into a vault at once.  | 28      |
+| `application/proposals`    | Accepting a proposal writes notes, archives it, and undo takes them back.     | 29      |
 
 Rules that apply everywhere:
 

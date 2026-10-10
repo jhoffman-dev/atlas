@@ -1,6 +1,13 @@
 import { lazy, Suspense, type ComponentProps, type ReactNode } from 'react';
 import type { GraphScope } from '@atlas/domain';
-import { ArchivePage, InboxPage, TemplatesPage, TermsPage, type PageHistory } from '@atlas/ui';
+import {
+  ArchivePage,
+  InboxPage,
+  ProposalsPage,
+  TemplatesPage,
+  TermsPage,
+  type PageHistory,
+} from '@atlas/ui';
 import { TypePage } from './types/type-page.tsx';
 import { QueryScreen } from './query/query-screen.tsx';
 import { TagsScreen } from './tags/tags-screen.tsx';
@@ -21,10 +28,11 @@ type AutomationsProps = Omit<ComponentProps<typeof AutomationsScreen>, 'onShowSi
 type ActivityProps = Omit<ComponentProps<typeof ActivityScreen>, 'onShowSidebar' | 'history'>;
 type TemplatesProps = Omit<ComponentProps<typeof TemplatesPage>, 'onShowSidebar' | 'history'>;
 type TermsProps = Omit<ComponentProps<typeof TermsPage>, 'onShowSidebar' | 'history'>;
+type ProposalsProps = Omit<ComponentProps<typeof ProposalsPage>, 'onShowSidebar' | 'history'>;
 
 /**
  * The page open over the panes, if any: the graph, a type's page, the query
- * page, the tags, the Archive, the Inbox, the Automations, the Activity, the Templates or the Terms page, in that order when more than one
+ * page, the tags, the Archive, the Inbox, the Automations, the Activity, the Templates, the Terms or the Proposals page, in that order when more than one
  * could show. Null leaves the panes —
  * which is why this is called rather than rendered as a component: the shell
  * shows the panes only when it is handed no page at all.
@@ -40,6 +48,7 @@ export function mainRoute({
   activity,
   templates,
   terms,
+  proposals,
   onShowSidebar,
   history,
 }: {
@@ -56,6 +65,7 @@ export function mainRoute({
   activity: { open: boolean; screen: ActivityProps };
   templates: { open: boolean; page: TemplatesProps };
   terms: { open: boolean; page: TermsProps };
+  proposals: { open: boolean; page: ProposalsProps };
   onShowSidebar?: () => void;
   /** The focused pane's Back and Forward: the page is shown in its place. */
   history?: PageHistory;
@@ -85,5 +95,6 @@ export function mainRoute({
   if (activity.open) return <ActivityScreen {...activity.screen} {...sidebar} />;
   if (templates.open) return <TemplatesPage {...templates.page} {...sidebar} />;
   if (terms.open) return <TermsPage {...terms.page} {...sidebar} />;
+  if (proposals.open) return <ProposalsPage {...proposals.page} {...sidebar} />;
   return null;
 }

@@ -8,6 +8,7 @@
  */
 
 import type {
+  ApiAcceptedProposal,
   ApiAddViewNoteBody,
   ApiAppendBody,
   ApiArchiveBody,
@@ -27,6 +28,8 @@ import type {
   ApiCreateNoteBody,
   ApiErrorBody,
   ApiNote,
+  ApiProposal,
+  ApiProposalArchived,
   ApiImageUpload,
   ApiMoveCardBody,
   ApiNoteImage,
@@ -347,6 +350,25 @@ export class AtlasClient {
     this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
 
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
+
+  proposals = () =>
+    this.json<{
+      proposals: readonly ApiProposal[];
+      stranded: readonly { path: string; headline: string; state: 'accepted' | 'rejected' }[];
+      unreadable: readonly { path: string; problem: string }[];
+    }>({ method: 'GET', path: '/v1/proposals' });
+
+  acceptProposal = (path: string) =>
+    this.json<{ accepted: ApiAcceptedProposal }>({
+      method: 'POST',
+      path: `/v1/proposals/${encodeURIComponent(path)}/accept`,
+    });
+
+  rejectProposal = (path: string) =>
+    this.json<{ rejected: ApiProposalArchived }>({
+      method: 'POST',
+      path: `/v1/proposals/${encodeURIComponent(path)}/reject`,
+    });
 
   automationLog = (id: string, query: { limit?: number }) =>
     this.json<ApiAutomationLog>({

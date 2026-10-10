@@ -3,6 +3,7 @@ import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { COMPANY_TYPE } from '../people/company.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { TERM_TYPE } from '../terms/term.ts';
+import { DECISION_TYPE, PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import { vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { TYPES_DIRECTORY } from '../vault/vault-visibility.ts';
 import { AREA_TYPE, RESOURCE_TYPE } from './para.ts';
@@ -22,6 +23,8 @@ const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   [TERM_TYPE, 'the Terms page lists its notes, and Atlas spells names by them'],
   [AREA_TYPE, 'the Inbox files notes under areas as well as projects'],
   [RESOURCE_TYPE, 'reference is kept as resources, filed under a project or an area'],
+  [PROPOSAL_TYPE, 'what Claude proposes waits in the Inbox as notes of it'],
+  [DECISION_TYPE, 'accepted decision proposals are notes of it'],
 ]);
 
 /** Whether a type is one Atlas's own features depend on. */
