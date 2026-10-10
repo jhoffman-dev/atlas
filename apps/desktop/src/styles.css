@@ -2468,6 +2468,101 @@ ul.sidebar__sections {
   padding: 10px var(--space-4);
 }
 
+/* ---- query blocks (P30-05) ----
+   A live query in a note: a line naming it, with how many notes it found and
+   the switch to its text, then the rows as the Query page draws them, on the
+   page's raised surface. Its text is code, edited in place; a problem is said
+   in the danger colour, as the Query page says one. */
+
+.query-block {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  margin: var(--space-3) 0;
+  padding: 10px var(--space-4) 12px;
+  transition: box-shadow 120ms ease;
+}
+
+.query-block--selected {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.query-block__bar {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: 6px;
+  margin-bottom: 6px;
+  user-select: none;
+}
+
+.query-block__name {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+
+.query-block__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.query-block__toggle {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+
+.query-block__toggle:hover {
+  background: var(--track);
+}
+
+.query-block__text {
+  background: var(--track);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-button);
+  box-sizing: border-box;
+  color: var(--ink);
+  font: 12.5px/1.6 var(--font-mono);
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.query-block__text:focus {
+  border-color: var(--accent-text);
+  outline: none;
+}
+
+/* The note's own column is narrower than the Query page's, so the table
+   sizes its columns to what they hold: the name takes what the others
+   leave, rather than half the width the page's fixed layout gives it. */
+.query-block .qresult__table {
+  table-layout: auto;
+}
+
+.query-block__note {
+  color: var(--ink-3);
+  font-size: var(--text-body);
+  margin: 4px 0 0;
+}
+
+.query-block__note--warn {
+  color: var(--danger);
+}
+
+/* Where a query block is only drawn — a feed, a picture of the page — it is
+   the code Obsidian shows. */
+.query-block--plain {
+  box-shadow: none;
+}
+
 /* A note's blocks in the `#` list: a line or two of each, as Capacities shows them. */
 .suggestions--blocks {
   max-width: 440px;

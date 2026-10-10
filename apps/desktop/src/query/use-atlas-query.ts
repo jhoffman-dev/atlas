@@ -234,7 +234,20 @@ export function resultFor({
   /** The vault's notes, which a relation's groups are named by. */
   names: NoteNames;
 }): Pick<GroupedResultProps, 'fields' | 'rows' | 'groups' | 'lanes'> | null {
-  if (answer === null) return null;
+  return answer === null ? null : answerRows({ answer, layout, names });
+}
+
+/** An answer's rows as the result panel draws them, grouped for the layout. */
+export function answerRows({
+  answer,
+  layout,
+  names,
+}: {
+  answer: AtlasQueryAnswer;
+  layout: ViewLayout;
+  /** The vault's notes, which a relation's groups are named by. */
+  names: NoteNames;
+}): Pick<GroupedResultProps, 'fields' | 'rows' | 'groups' | 'lanes'> {
   const rows = toBoardRows(answer.result);
   const fields = resultFields(answer.compiled);
   // A board's columns are its groups, so a group nothing is in still stands;

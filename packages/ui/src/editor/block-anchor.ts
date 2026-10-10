@@ -18,6 +18,7 @@ const ANCHORED_TYPES = [
   'blockquote',
   'callout',
   'codeBlock',
+  'queryBlock',
   'table',
   'bulletList',
   'orderedList',

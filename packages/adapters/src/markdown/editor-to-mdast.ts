@@ -6,6 +6,7 @@ import {
   formatCalloutMarker,
   formatWikiLink,
   nestedBlockOf,
+  QUERY_BLOCK_NODE,
   type EditorMark,
   type EditorNode,
 } from '@atlas/domain';
@@ -13,6 +14,7 @@ import type { BlockContent, Nodes as MdastNode, PhrasingContent } from 'mdast';
 import './mdast-custom-nodes.ts';
 import { bookmarkToMdast } from './bookmark-block.ts';
 import { embedToMdast } from './block-embed.ts';
+import { queryBlockToMdast } from './query-block.ts';
 import { expressible } from './expressible.ts';
 
 /**
@@ -116,6 +118,8 @@ function blockToMdast(node: EditorNode): MdastNode {
       return bookmarkToMdast(node);
     case BLOCK_EMBED_NODE:
       return embedToMdast(node);
+    case QUERY_BLOCK_NODE:
+      return queryBlockToMdast(node);
     default:
       throw new UnsupportedNodeError(node.type);
   }

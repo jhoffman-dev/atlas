@@ -34,6 +34,7 @@ import { BlockEmbed, type TransclusionSource } from './block-embed.tsx';
 import type { BlockPicking } from './block-picking.ts';
 import { Bookmark, TopLevelDocument, type BookmarkSource } from './bookmark.tsx';
 import { LinkKeys } from './link-keys.ts';
+import { QueryBlock, type QueryBlockSource } from './query-block.tsx';
 import { Callout } from './callout.ts';
 import { VaultImage } from './image.tsx';
 import { ImageUploads, type EmbedImage } from './image-uploads.ts';
@@ -68,6 +69,7 @@ export function createEditorExtensions({
   people = NO_PEOPLE,
   bookmarks = null,
   transclusions = null,
+  queries = null,
   picking = null,
 }: {
   suggest: (query: string) => NoteSuggestion[];
@@ -89,6 +91,8 @@ export function createEditorExtensions({
   bookmarks?: BookmarkSource | null;
   /** Where shown blocks read their notes; left out, one is drawn as its embed's link. */
   transclusions?: TransclusionSource | null;
+  /** Where query blocks are answered; left out, one is drawn as its code. */
+  queries?: QueryBlockSource | null;
   /** A note's headings and blocks after `[[Note#`; left out, `#` offers nothing. */
   picking?: BlockPicking | null;
 }) {
@@ -109,12 +113,18 @@ export function createEditorExtensions({
       source: transclusions,
       reading: (loadBlockImage) => createReadingExtensions({ loadImage: loadBlockImage }),
     }),
+    QueryBlock.configure({ source: queries }),
     LinkKeys,
     RevealedBlock,
     ImageUploads.configure({ embed: embedImage }),
     WikiLinkSuggestion.configure({ suggest, onView, blocks: picking }),
     TagSuggestionExtension.configure({ suggest: suggestTags, onView: onTagView }),
-    SlashCommands.configure({ onView: onSlashView, offerLink, offerImage: embedImage !== null }),
+    SlashCommands.configure({
+      onView: onSlashView,
+      offerLink,
+      offerImage: embedImage !== null,
+      offerQuery: queries !== null,
+    }),
   ];
 }
 
@@ -155,6 +165,8 @@ export function createReadingExtensions({
     Bookmark,
     // Drawn as its link: a block shown inside a shown block is not opened in turn.
     BlockEmbed,
+    // Drawn as its code: a note read elsewhere is not the note `this` names.
+    QueryBlock,
   ];
 }
 

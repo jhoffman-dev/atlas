@@ -28,6 +28,7 @@ export * from './automations/index.ts';
 export * from './chat/index.ts';
 export * from './profile/index.ts';
 export * from './transclusion/index.ts';
+export * from './query-block/index.ts';
 export * from './errors/index.ts';
 export * from './activity/index.ts';
 export * from './sync/index.ts';

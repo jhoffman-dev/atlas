@@ -3,6 +3,7 @@ import type { EditorDocument, EditorNode } from './editor-node.ts';
 import type { LinkFragment } from './link-fragment.ts';
 import { nodeText } from './node-text.ts';
 import { linkBreakingCharacter } from './wikilink.ts';
+import { QUERY_BLOCK_NODE } from '../query-block/query-block.ts';
 
 /*
  * A note's blocks as a link into them sees them (P26-01, P26-02): which of
@@ -16,6 +17,7 @@ const LINE_ANCHORED: ReadonlySet<string> = new Set([
   'blockquote',
   'callout',
   'codeBlock',
+  QUERY_BLOCK_NODE,
   'table',
   'bulletList',
   'orderedList',
@@ -33,6 +35,7 @@ const LISTS: ReadonlySet<string> = new Set(['bulletList', 'orderedList', 'taskLi
 const OPAQUE: ReadonlySet<string> = new Set([
   'table',
   'codeBlock',
+  QUERY_BLOCK_NODE,
   'rawBlock',
   'paragraph',
   'heading',

@@ -18,6 +18,7 @@ import {
   type NoteBookmarks,
   type NoteEditorHandle,
   type NotePeople,
+  type NoteQueryBlocks,
   type NoteReveal,
   type NoteTransclusions,
 } from './note-editor.tsx';
@@ -113,6 +114,8 @@ export interface NotePaneProps {
   bookmarks?: NoteBookmarks;
   /** Where shown blocks read the blocks they show; left out, each is drawn as its embed. */
   transclusions?: NoteTransclusions;
+  /** Where query blocks are answered, `this` being this note; left out, each is drawn as its code. */
+  queries?: NoteQueryBlocks;
   /** A note's headings and blocks after `[[Note#`; left out, `#` offers nothing. */
   picking?: BlockPicking;
   /** A block or heading of this note to bring into view: where a followed link pointed. */
@@ -468,6 +471,7 @@ function NoteBody({
           {...(props.people !== undefined && { people: props.people })}
           {...(props.bookmarks !== undefined && { bookmarks: props.bookmarks })}
           {...(props.transclusions !== undefined && { transclusions: props.transclusions })}
+          {...(props.queries !== undefined && { queries: props.queries })}
           {...(props.picking !== undefined && { picking: props.picking })}
           reveal={props.reveal ?? null}
         />

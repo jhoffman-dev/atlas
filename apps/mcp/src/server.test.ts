@@ -176,6 +176,13 @@ describe('tools/list', () => {
     expect(described('atlas_automation_dry_run')).toContain('it has not handled as they are now');
   });
 
+  it('tells the model how to answer a query block a note holds', async () => {
+    const { tools } = await mcp.listTools();
+    const described = tools.find((t) => t.name === 'atlas_run_query')?.description ?? '';
+    expect(described).toContain('```atlas-query block');
+    expect(described).toMatch(/without that line, with the note as context/);
+  });
+
   it('requires ifModified for replace_note_body and not for append', async () => {
     const { tools } = await mcp.listTools();
     const required = (name: string) =>
