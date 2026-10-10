@@ -67,6 +67,13 @@ describe('POST /v1/notes/{path}/promote', () => {
     expect(noteOf(response, 'note').body).toContain('[[Ring Mara Quill]]');
   });
 
+  it('finds the vault’s Task type however its name is cased, so the task starts at inbox', async () => {
+    const api = vault({ '.atlas/types/task.md': TASK_TYPE.replace('name: task', 'name: Task') });
+    const response = await api.send(promote({ text: 'Ring Mara Quill' }));
+    expect(response.status).toBe(201);
+    expect(noteOf(response, 'task').properties).toMatchObject({ status: 'inbox' });
+  });
+
   it('asks which line, when two say the same, and takes the one named', async () => {
     const api = vault();
     const ambiguous = await api.send(promote({ text: 'Order chairs' }));

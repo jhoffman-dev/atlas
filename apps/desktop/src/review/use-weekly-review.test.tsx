@@ -219,4 +219,9 @@ describe('useWeeklyReview', () => {
     expect(setUp().result.current.shown).toBe(true);
     expect(setUp({ types: TYPES.slice(1) }).result.current.shown).toBe(false);
   });
+
+  it('finds the Task type however its name is cased, as taskTypeOf does', () => {
+    const cased = [{ ...TYPES[0]!, name: 'Task' }, ...TYPES.slice(1)];
+    expect(setUp({ types: cased }).result.current.shown).toBe(true);
+  });
 });
