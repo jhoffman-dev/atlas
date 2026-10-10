@@ -396,6 +396,7 @@ export function NotePaneContainer({
     types,
     onChanged,
     onOpenNote,
+    activity: context.activity,
   });
   const embedImage = useEmbedImage({
     ports: {

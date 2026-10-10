@@ -2,22 +2,34 @@ import { useCallback, useMemo, useState } from 'react';
 import { noteTitle, taskTypeOf, type ObjectType, type VaultPath } from '@atlas/domain';
 import {
   promoteChecklistLine,
+  PromotionRefused,
+  TaskRuleRefusedError,
   undoPromotion,
+  UnsavedTypingError,
+  type ActivityLog,
   type MarkdownPort,
   type OpenNotes,
   type Promotion,
   type VaultFsPort,
 } from '@atlas/application';
 import type { LinePromotion, PromotedLine, PromotionNotice } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { cryptoRng } from '../random.ts';
 import { localToday } from '../today.ts';
 
 /**
+ * What Make task and its Undo refuse so as not to lose or double anything —
+ * shown on the page for the person to act on, and no fault to record.
+ */
+const PROMOTION_REFUSALS = [PromotionRefused, TaskRuleRefusedError, UnsavedTypingError];
+
+/**
  * Making a checklist line of the note in a pane a task (P30-03). The pane's
  * typing is written first, so the line is promoted as it is on screen; then
  * the task is made and the line rewritten in one use-case, and the page says
- * what was made, with one Undo that takes back both. A refusal says why.
+ * what was made, with one Undo that takes back both. A refusal says why;
+ * a promotion or an Undo it gives up on is also recorded in the Activity log.
  */
 export function useLinePromotion({
   fs,
@@ -29,6 +41,7 @@ export function useLinePromotion({
   types,
   onChanged,
   onOpenNote,
+  activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
@@ -41,6 +54,7 @@ export function useLinePromotion({
   /** Re-reads the tree and the index, after the promotion wrote. */
   onChanged: () => void;
   onOpenNote: (path: VaultPath) => void;
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): LinePromotion | undefined {
   // Kept with the note it is about, so what was said of one is not shown over another.
   const [said, setSaid] = useState<{ path: VaultPath; notice: Said } | null>(null);
@@ -49,31 +63,40 @@ export function useLinePromotion({
 
   const undo = useCallback(
     async (promotion: Promotion) => {
+      const named = {
+        activity,
+        write: 'task',
+        path: promotion.source,
+        refusal: PROMOTION_REFUSALS,
+      } as const;
       try {
-        await undoPromotion({ fs, openNotes, promotion });
+        await withGiveUpRecorded(named, () => undoPromotion({ fs, openNotes, promotion }));
         onChanged();
         setSaid(null);
       } catch (error) {
         setSaid({ path: promotion.source, notice: { message: errorMessage(error) } });
       }
     },
-    [fs, openNotes, onChanged],
+    [fs, openNotes, onChanged, activity],
   );
 
   const promote = useCallback(
     async (source: VaultPath, line: PromotedLine) => {
+      const named = { activity, write: 'task', path: source, refusal: PROMOTION_REFUSALS } as const;
       try {
         await flush();
-        const promotion = await promoteChecklistLine({
-          fs,
-          markdown,
-          openNotes,
-          rng: cryptoRng,
-          today: localToday(),
-          notePaths,
-          taskType,
-          choice: { source, line: line.index, text: line.text },
-        });
+        const promotion = await withGiveUpRecorded(named, () =>
+          promoteChecklistLine({
+            fs,
+            markdown,
+            openNotes,
+            rng: cryptoRng,
+            today: localToday(),
+            notePaths,
+            taskType,
+            choice: { source, line: line.index, text: line.text },
+          }),
+        );
         onChanged();
         setSaid({
           path: source,
@@ -83,7 +106,7 @@ export function useLinePromotion({
         setSaid({ path: source, notice: { message: errorMessage(error) } });
       }
     },
-    [fs, markdown, openNotes, flush, notePaths, taskType, onChanged],
+    [fs, markdown, openNotes, flush, notePaths, taskType, onChanged, activity],
   );
 
   return useMemo(() => {
