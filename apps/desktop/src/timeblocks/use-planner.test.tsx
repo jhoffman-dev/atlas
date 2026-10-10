@@ -307,3 +307,58 @@ describe('the undo', () => {
     );
   });
 });
+
+/** `memoryVault`, listing the notes made in it as the host lists the vault's notes. */
+function listedVault() {
+  const vault = memoryVault({});
+  const made: VaultPath[] = [];
+  const fs = {
+    ...vault.fs,
+    createNote: async (note: { path: VaultPath; contents: string }) => {
+      await vault.fs.createNote(note);
+      made.push(note.path);
+    },
+    listNotes: async () =>
+      [...NOTE_PATHS.map(createVaultPath), ...made].map((path) => ({
+        name: path,
+        path,
+        modified: 1,
+        size: 1,
+      })),
+  };
+  return { ...vault, fs };
+}
+
+describe('adversarial (P31-02)', () => {
+  it('sizes a second drop of the same task, made before the tray reads again, to what the first left', async () => {
+    const vault = listedVault();
+    const hook = planWith({ vault });
+
+    // 2h estimated, 45m scheduled: the first block takes the 1h 15m left, so
+    // the second is for nothing more — the half hour a fully planned task gets.
+    await act(async () => {
+      hook.result.current?.place({ kind: 'time', task: REPORT, date: '2026-10-12', minutes: 540 });
+      hook.result.current?.place({ kind: 'time', task: REPORT, date: '2026-10-13', minutes: 540 });
+    });
+
+    await waitFor(() => expect(vault.text('Quarterly report block 2.md')).toBeDefined());
+    expect(vault.text('Quarterly report block.md')).toContain('end: 2026-10-12T10:15\n');
+    expect(vault.text('Quarterly report block 2.md')).toContain('end: 2026-10-13T09:30\n');
+  });
+
+  it('says nothing went wrong when Undo is pressed twice before the first has finished', async () => {
+    const vault = memoryVault({});
+    const hook = planWith({ vault });
+    await drop(hook, { kind: 'time', task: REPORT, date: '2026-10-12', minutes: 540 });
+    const undo = hook.result.current?.undo;
+
+    await act(async () => {
+      undo?.run();
+      undo?.run();
+    });
+
+    await waitFor(() => expect(vault.trashed).toEqual(['Quarterly report block.md']));
+    expect(hook.result.current?.undo).toBeNull();
+    expect(hook.result.current?.problem).toBeNull();
+  });
+});

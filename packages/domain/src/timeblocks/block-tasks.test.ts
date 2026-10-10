@@ -75,3 +75,17 @@ describe('undoing the drop', () => {
     expect(blockTasksWithout({ tasks: undefined, task: REPORT, notePaths: NOTES })).toBeNull();
   });
 });
+
+describe('adversarial (P31-02): a block whose tasks are written in one line', () => {
+  // The index reads every link in a property's text as one of its relations
+  // (`relationsOf`), so the block below already links the report.
+  it('changes nothing when the task is the second link of the line', () => {
+    expect(
+      blockTasksWith({
+        tasks: '[[Call Mara]], [[Quarterly report]]',
+        task: REPORT,
+        notePaths: NOTES,
+      }),
+    ).toBeNull();
+  });
+});

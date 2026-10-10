@@ -215,6 +215,54 @@ describe('placing a task from the keyboard', () => {
   });
 });
 
+describe('adversarial (P31-02): placing from the keyboard', () => {
+  it('places a chosen task in a block drawn all day with Enter, as in any block, rather than opening it', async () => {
+    const plan = planner();
+    const onOpenNote = vi.fn();
+    const allDay: BoardRow = {
+      path: 'Offsite.md',
+      title: 'Offsite',
+      values: { start: '2026-10-13', end: '2026-10-13' },
+    };
+    render(
+      <CalendarView {...props} rows={[...blocks, allDay]} onOpenNote={onOpenNote} planner={plan} />,
+    );
+
+    task('Call Mara').focus();
+    await userEvent.keyboard('{Enter}');
+    const offsite = within(screen.getByRole('group', { name: 'All day 2026-10-13' })).getByRole(
+      'button',
+      { name: /Offsite/ },
+    );
+    offsite.focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(onOpenNote).not.toHaveBeenCalled();
+    expect(plan.place).toHaveBeenCalledExactlyOnceWith({
+      kind: 'block',
+      task: CALL,
+      block: 'Offsite.md',
+    });
+  });
+
+  it('lets a chosen task go once the tray no longer lists it, so it cannot be placed', async () => {
+    const plan = planner();
+    const view = render(<CalendarView {...props} planner={plan} />);
+    task('Quarterly report').focus();
+    await userEvent.keyboard('{Enter}');
+
+    // Finished in another pane: the tray reads again without it.
+    view.rerender(<CalendarView {...props} planner={{ ...plan, tasks: [CALL, INVOICE] }} />);
+    within(column('2026-10-12'))
+      .getByRole('button', { name: /at 09:00 on Monday 12 October 2026$/ })
+      .focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(plan.place).not.toHaveBeenCalled();
+    expect(within(tray()).getByRole('status').textContent).not.toContain('Quarterly report');
+  });
+});
+
 /** Seven 100px columns from 100px down; the Admin block a box inside Monday's. */
 function clockBoxes(element: Element): Box | null {
   if (element.matches('.clock__columns')) return { left: 0, top: 100, width: 700, height: 1152 };

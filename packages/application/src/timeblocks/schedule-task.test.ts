@@ -188,6 +188,38 @@ describe('a task dropped on empty time', () => {
     expect(vault.stored.get('Quarterly report block.md')).toBe('the first block');
   });
 
+  // Adversarial (P31-02): a task's own name may use nearly all of a file name's
+  // 255 bytes; " block" after it must not push the block's name past them.
+  it('is made for a task whose name fills nearly all of a file name, its own name fitting the disk', async () => {
+    const title = `Quarterly report ${'é'.repeat(115)}`;
+    const task = createVaultPath(`${title}.md`);
+    const bytes = (path: string) => new TextEncoder().encode(path.split('/').at(-1) ?? path).length;
+    expect(bytes(task)).toBeLessThanOrEqual(255);
+    const vault = memoryVault();
+    const disk = {
+      ...vault.fs,
+      // As APFS answers a name over 255 bytes.
+      createNote: async (note: { path: VaultPath; contents: string }) => {
+        if (bytes(note.path) > 255) throw new Error('File name too long (os error 63)');
+        return vault.fs.createNote(note);
+      },
+    };
+
+    const done = await createBlockForTask({
+      fs: disk,
+      markdown: listMarkdown(),
+      types: TYPES,
+      task: { path: task, title },
+      start: '2026-10-12T09:00',
+      minutes: 30,
+      notePaths: [...NOTES, task],
+      today: TODAY,
+    });
+
+    expect(bytes(done.block)).toBeLessThanOrEqual(255);
+    expect(vault.stored.has(done.block)).toBe(true);
+  });
+
   it('is refused before anything is made when the times make no block', async () => {
     const vault = memoryVault();
     const make = (start: string, minutes: number) =>

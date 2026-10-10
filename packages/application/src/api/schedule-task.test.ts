@@ -149,6 +149,23 @@ describe('POST /v1/tasks/schedule', () => {
     expect(api.writes).toEqual([]);
   });
 
+  // Adversarial (P31-02): a start written with a zone names another moment than
+  // its wall-clock digits. An agent's `toISOString()` is UTC; written as local
+  // time, the block silently lands hours away from when it was asked for.
+  it.each([
+    '2026-10-13T14:00Z',
+    '2026-10-13T14:00:00.000Z',
+    '2026-10-13T14:00-07:00',
+    '2026-10-13T14:00 or so',
+  ])('refuses a start of %j, which is not wall-clock time, rather than misplace the block', async (start) => {
+    const api = fixture();
+
+    const response = await schedule(api, { task: 'Call Mara.md', start, minutes: 30 });
+
+    expect(codeOf(response)).toBe('invalid');
+    expect(api.writes).toEqual([]);
+  });
+
   it('is not_found for a task that is not there', async () => {
     const api = fixture();
 
