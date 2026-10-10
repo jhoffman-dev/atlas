@@ -44,14 +44,15 @@ const BROKEN_TEXT = [
 async function openVault(page: Page): Promise<FakeVault> {
   await page.setViewportSize({ width: 1440, height: 900 });
   const vault = await createVault();
-  for (const folder of ['.atlas/types', '.atlas/views', 'Inbox/Meetings', 'tasks']) {
+  for (const folder of ['.atlas/types', '.atlas/views', 'Inbox/Meetings']) {
     await vault.mkdir(folder);
   }
   for (const type of ['task', 'meeting', 'person', 'company', 'project']) {
     await vault.write(`.atlas/types/${type}.md`, shipped(`.atlas/types/${type}.md`));
   }
   await vault.write('.atlas/views/Inbox.md', shipped('.atlas/views/Inbox.md'));
-  await vault.write('tasks/Call Mara.md', '---\ntype: task\nstatus: backlog\n---\n\n# Call Mara\n');
+  // Captured, so waiting in the Inbox beside the meetings that arrive (P30-01).
+  await vault.write('Inbox/Call Mara.md', '---\ntype: task\nstatus: backlog\n---\n\n# Call Mara\n');
 
   await installHost(page, vault);
   await page.goto('/');

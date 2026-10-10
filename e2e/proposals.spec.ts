@@ -81,9 +81,7 @@ test('a task proposal accepted on the Inbox page makes the task, and the task op
 
   const inbox = page.getByRole('article', { name: 'Inbox' });
   await expect(inbox.getByRole('region', { name: 'Proposals' })).toBeVisible();
-  await expect(
-    inbox.getByRole('combobox', { name: 'File 2026-10-01 Standup under' }),
-  ).toBeVisible();
+  await expect(inbox.getByRole('combobox', { name: 'File Standup under' })).toBeVisible();
   await expect(
     inbox.getByRole('combobox', { name: /File Send the payroll file under/ }),
   ).toHaveCount(0);
