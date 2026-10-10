@@ -43,6 +43,10 @@ const FIELD_SOURCES: readonly (readonly [string, string])[] = [
   ['date', text('Date')],
   ['start', text('Start')],
   ['end', text('End')],
+  // The Gemini email's subject states the meeting's day; its arrival, less the
+  // transcript's length, the start. The Notion Date is when the notes arrived.
+  ['stated', text('Subject')],
+  ['arrived', text('Received')],
   ['attendees', lines('Attendees')],
   ['summary', text('Summary')],
   ['decisions', text('Decisions')],

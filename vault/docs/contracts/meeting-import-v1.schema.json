@@ -15,6 +15,9 @@
       "format": "date"
     },
     "start": { "$ref": "#/$defs/clockTime" },
+    "start_approximate": {
+      "description": "Optional. true when the mapping worked start out (the notes' arrival less the transcript's length) rather than read it. Atlas does not read it, so, like any key not named here, any value is allowed."
+    },
     "end": { "anyOf": [{ "$ref": "#/$defs/clockTime" }, { "type": "null" }] },
     "kind": {
       "description": "What the provider or the mapping called it: Standup, Retro, 1:1…",

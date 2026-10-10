@@ -152,6 +152,19 @@ describe('the JSON Schema and the validator', () => {
     },
   );
 
+  it.each(['true', 'false', "'yes'"])(
+    'agree that start_approximate (a mapping’s note, which Atlas does not read) may be %s',
+    (value) => {
+      const text = fixture('valid', 'gemini-platform-sync.md').replace(
+        /^(start: .*)$/m,
+        `$1\nstart_approximate: ${value}`,
+      );
+      expect(frontmatterOf(text)).toHaveProperty('start_approximate');
+      expect(schemaAccepts(frontmatterOf(text))).toBe(true);
+      expect(validate(text).ok).toBe(true);
+    },
+  );
+
   it('agree on 30 February, which only a real calendar check refuses', () => {
     const text = fixture('valid', 'gemini-platform-sync.md').replace(
       "'2026-09-29'",

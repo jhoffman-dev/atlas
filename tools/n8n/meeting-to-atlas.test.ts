@@ -343,6 +343,108 @@ describe('the time of the meeting', () => {
   });
 });
 
+describe('the start of a Gemini meeting, from its email', () => {
+  const zone = { timeZone: 'America/Los_Angeles' };
+  // The Notion Date for a Gemini meeting: when the notes arrived, not when the meeting began.
+  const fromEmail: MeetingFields = { ...GEMINI, date: '2026-10-06T10:52:00.000Z', start: '' };
+  const subject = 'Notes: “Platform weekly sync” Oct 6, 2026';
+
+  it('takes the day and time the email states, over the Notion date', () => {
+    const { file, meeting } = mapped(
+      { ...fromEmail, stated: 'Platform weekly sync - 2026/10/06 09:30 PDT - Notes by Gemini' },
+      zone,
+    );
+    expect([meeting.date, meeting.start]).toEqual(['2026-10-06', '09:30']);
+    expect(file.content).not.toMatch(/start_approximate/);
+  });
+
+  it('reads a subject that states only the day, a 12-hour time, and a title holding a date', () => {
+    const day = mapped({ ...fromEmail, stated: subject, start: '10:00' }, zone).meeting;
+    expect([day.date, day.start]).toEqual(['2026-10-06', '10:00']);
+    const twelve = mapped(
+      { ...fromEmail, stated: 'Notes: “Plan for Oct 9, 2026” Oct 6, 2026 2:30 PM' },
+      zone,
+    ).meeting;
+    expect([twelve.date, twelve.start]).toEqual(['2026-10-06', '14:30']);
+    for (const [stated, day] of [
+      ['Notes: “Retro” Sept 30, 2026', '2026-09-30'],
+      ['Notes: “Retro” Wednesday, September 30 2026', '2026-09-30'],
+      ['Notes: “Retro” 2026-05-04', '2026-05-04'],
+    ]) {
+      expect(mapped({ ...fromEmail, stated, start: '10:00' }, zone).meeting.date).toBe(day);
+    }
+    expect(() => mapMeeting({ ...fromEmail, stated: 'Notes: Feb 30, 2026' }, zone)).toThrow(
+      /stated: 2026-02-30 is not a real day/,
+    );
+  });
+
+  it('works the start out as arrival less the transcript’s length, and marks it approximate', () => {
+    // Arrived 10:52:30 PDT; the transcript ran 00:51:49, so the meeting began about 10:00.
+    const { file, meeting } = mapped(
+      {
+        ...fromEmail,
+        stated: subject,
+        arrived: '2026-10-06T17:52:30Z',
+        transcript: [
+          '### 00:00:12',
+          'Mara Quill: Morning.',
+          '### 00:48:00',
+          'Tobias Fenn: Done.',
+          '### Transcription ended after 00:51:49',
+        ].join('\n'),
+      },
+      zone,
+    );
+    expect([meeting.date, meeting.start]).toEqual(['2026-10-06', '10:00']);
+    expect(file.content).toMatch(/^start: '10:00'\nstart_approximate: true$/m);
+  });
+
+  it('uses the last section stamp when the transcript has no end mark', () => {
+    const { meeting } = mapped(
+      {
+        ...fromEmail,
+        stated: subject,
+        arrived: '2026-10-06T17:52:00Z',
+        transcript: '### 00:00:01\nAnn: Hi.\n### 00:42:00\nBo: Bye.',
+      },
+      zone,
+    );
+    expect(meeting.start).toBe('10:10');
+  });
+
+  it('takes the arrival itself, marked approximate, when there is no transcript to measure', () => {
+    const { file, meeting } = mapped(
+      { ...fromEmail, stated: subject, arrived: '2026-10-06T17:52:00Z', transcript: '' },
+      zone,
+    );
+    expect(meeting.start).toBe('10:52');
+    expect(file.content).toMatch(/^start_approximate: true$/m);
+  });
+
+  it('keeps a start it is given over the email’s', () => {
+    const { file, meeting } = mapped(
+      {
+        ...fromEmail,
+        start: '09:00',
+        stated: 'Weekly - 2026/10/06 09:30',
+        arrived: '2026-10-06T17:52:00Z',
+      },
+      zone,
+    );
+    expect(meeting.start).toBe('09:00');
+    expect(file.content).not.toMatch(/start_approximate/);
+  });
+
+  it('refuses stated words with no date in them, and an arrival with no time', () => {
+    expect(() => mapMeeting({ ...fromEmail, stated: 'Notes: “Weekly”' }, zone)).toThrow(
+      /stated: no date/,
+    );
+    expect(() =>
+      mapMeeting({ ...fromEmail, stated: subject, arrived: '2026-10-06' }, zone),
+    ).toThrow(/arrived: /);
+  });
+});
+
 describe('what a meeting may lack', () => {
   it('without a transcript, has no Transcript section and no transcript clock', () => {
     const { file, meeting } = mapped({ ...GEMINI, transcript: '' });
@@ -568,8 +670,46 @@ describe('transcripts', () => {
       ]);
     });
 
-    it('continues the turn for a label that is no attendee and was never heard', () => {
+    it('gives a Gemini speaker who is no attendee and was never heard a turn of their own', () => {
+      expect(
+        speakers('### 00:00:01\nAnn Lee: The plan.\nCy Guest: A question.\nAnn Lee: Go on.'),
+      ).toEqual([
+        ['Ann Lee', 'The plan.'],
+        ['Cy Guest', 'A question.'],
+        ['Ann Lee', 'Go on.'],
+      ]);
       expect(speakers('Ann Lee: The plan.\nPhase two: the rollout.')).toEqual([
+        ['Ann Lee', 'The plan.'],
+        ['Phase two', 'the rollout.'],
+      ]);
+    });
+
+    it('writes one turn per labelled line of a Gemini transcript, attendee or not', () => {
+      const people = ['Ann Lee', 'Bo Park', 'Cy Guest', 'Dee Room', 'Eli Visitor'];
+      const lines = Array.from({ length: 20 }, (_, at) => `${people[at % 5]}: Point ${at}.`);
+      const transcript = lines.flatMap((line, at) =>
+        at % 6 === 0 ? [`### 00:${String(at).padStart(2, '0')}:00`, line] : [line],
+      );
+      const turns = speakers(transcript.join('\n'));
+      expect(turns).toHaveLength(lines.length);
+      expect(turns.map(([speaker]) => speaker)).toEqual(lines.map((line) => line.split(':')[0]));
+    });
+
+    it('continues the turn for a known note label, never a speaker', () => {
+      expect(
+        speakers(
+          'Ann Lee: Two things.\nNote: we ship Friday.\nAction item: call Bo.\nTODO: tests.\nLink: the doc.\nURL: https://example.com',
+        ),
+      ).toEqual([
+        [
+          'Ann Lee',
+          'Two things. Note: we ship Friday. Action item: call Bo. TODO: tests. Link: the doc. URL: https://example.com',
+        ],
+      ]);
+    });
+
+    it('in a Granola transcript, still reads an unstamped label nobody answers to as words', () => {
+      expect(speakers('**[14:00:00] Ann Lee:** The plan.\nPhase two: the rollout.')).toEqual([
         ['Ann Lee', 'The plan. Phase two: the rollout.'],
       ]);
     });

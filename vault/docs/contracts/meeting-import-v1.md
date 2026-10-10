@@ -87,19 +87,20 @@ Quote dates, times and ids. Atlas's YAML reader keeps `2026-09-29` and
 unquoted date into a timestamp, a YAML 1.1 reader turns `10:00` into a
 number, and an id of digits is a number to every reader. A value of the wrong kind is refused, not converted.
 
-| Key                | Required | What it holds                                                                                                                                  |
-| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`             | yes      | `meeting`.                                                                                                                                     |
-| `atlas_import`     | yes      | `meeting/v1`: the contract the file follows. A v2 is read beside v1, never instead of it.                                                      |
-| `title`            | yes      | The meeting's name, as the provider gave it. Not blank.                                                                                        |
-| `date`             | yes      | The day, `YYYY-MM-DD`, and a day the calendar has (no 30 February).                                                                            |
-| `start`            | yes      | Local start time, 24-hour `HH:MM`.                                                                                                             |
-| `end`              | no       | Local end time, `HH:MM`.                                                                                                                       |
-| `kind`             | no       | What sort of meeting: the Notion "Category" (Standup, Retro, 1:1…). Free text, not blank.                                                      |
-| `provider`         | yes      | Who wrote it up, lowercase: `gemini`, `granola`, or the next one.                                                                              |
-| `external_id`      | yes      | The provider's own id for the meeting (the Notion "Source ID"), as text. `provider` + `external_id` is what makes a second copy a duplicate.   |
-| `transcript_clock` | no       | What the transcript's times count: `elapsed` (time since the recording started — Gemini) or `wall` (time of day — Granola). Default `elapsed`. |
-| `attendees`        | no       | A list of `{ name, email?, group? }`. See below.                                                                                               |
+| Key                 | Required | What it holds                                                                                                                                  |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`              | yes      | `meeting`.                                                                                                                                     |
+| `atlas_import`      | yes      | `meeting/v1`: the contract the file follows. A v2 is read beside v1, never instead of it.                                                      |
+| `title`             | yes      | The meeting's name, as the provider gave it. Not blank.                                                                                        |
+| `date`              | yes      | The day, `YYYY-MM-DD`, and a day the calendar has (no 30 February).                                                                            |
+| `start`             | yes      | Local start time, 24-hour `HH:MM`.                                                                                                             |
+| `start_approximate` | no       | `true` when the mapping worked `start` out rather than read it: a Gemini email's arrival less the transcript's length. Atlas does not read it. |
+| `end`               | no       | Local end time, `HH:MM`.                                                                                                                       |
+| `kind`              | no       | What sort of meeting: the Notion "Category" (Standup, Retro, 1:1…). Free text, not blank.                                                      |
+| `provider`          | yes      | Who wrote it up, lowercase: `gemini`, `granola`, or the next one.                                                                              |
+| `external_id`       | yes      | The provider's own id for the meeting (the Notion "Source ID"), as text. `provider` + `external_id` is what makes a second copy a duplicate.   |
+| `transcript_clock`  | no       | What the transcript's times count: `elapsed` (time since the recording started — Gemini) or `wall` (time of day — Granola). Default `elapsed`. |
+| `attendees`         | no       | A list of `{ name, email?, group? }`. See below.                                                                                               |
 
 `null` (a key written with no value, `end:`) is the same as leaving the key
 out. Keys this table does not name are allowed and left alone: Atlas writes

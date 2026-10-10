@@ -1,10 +1,13 @@
 import { MeetingMappingError } from './meeting-mapping-error.ts';
+import type { StatedWhen } from './meeting-stated.ts';
 
 /** When a meeting was: the day, its local start, and its end when known. */
 export interface MeetingWhen {
   readonly date: string;
   readonly start: string;
   readonly end: string | null;
+  /** True when the start was worked out (arrival less transcript length), not read. */
+  readonly startApproximate: boolean;
 }
 
 /** A day and a time read off one input value; either may be missing. */
@@ -127,27 +130,67 @@ export interface WhenInput {
   readonly date: unknown;
   readonly start: unknown;
   readonly end: unknown;
+  /** The day and time the provider's email states; when given, `date` is not read. */
+  readonly stated: StatedWhen | null;
+  /** When the notes arrived (an instant, or a local date-time), for an approximate start. */
+  readonly arrived: unknown;
+  /** How long the recording ran, in seconds, to take off `arrived`. */
+  readonly transcriptLength: number | null;
   /** The transcript's first time of day, for a provider (Granola) that stamps every turn. */
   readonly firstSpoken: string | null;
   readonly timeZone: string | null;
 }
 
+/** The stated day and time, each checked as a value of `date` and `start` would be. */
+function statedMoment(stated: StatedWhen): Moment {
+  const { day } = readMoment(stated.day, 'stated', null);
+  if (stated.time === null) return { day, time: null };
+  const time = clockTime(stated.time);
+  if (time === null) throw new MeetingMappingError(`stated: ${stated.time} is not a time of day`);
+  return { day, time };
+}
+
 /**
- * The meeting's day, start and end. The start is the one given, else the
- * time on the date, else when the first word was spoken (a wall-clock
- * transcript only). With none of those the meeting has no start, and the
- * contract requires one — so it is refused rather than given a made-up time.
+ * When the meeting began, about: the arrival less the recording's length
+ * (none without a transcript). Worked on the local clock, so a meeting that
+ * spans a daylight-saving change is out by that hour — it is marked approximate.
+ */
+function arrivalLessLength(input: WhenInput): Moment {
+  if (input.arrived === null || input.arrived === undefined || input.arrived === '') {
+    return NOTHING;
+  }
+  const { day, time } = readMoment(input.arrived, 'arrived', input.timeZone);
+  if (day === null || time === null) {
+    throw new MeetingMappingError('arrived: needs a date and a time (when the notes arrived)');
+  }
+  const arrival = Date.parse(`${day}T${time}:00Z`);
+  const began = new Date(arrival - (input.transcriptLength ?? 0) * 1000).toISOString();
+  return { day: began.slice(0, 10), time: began.slice(11, 16) };
+}
+
+/**
+ * The meeting's day, start and end. The day is the one the email states,
+ * else the date's, else the start's. The start is the one given, else the
+ * time the email states, else the time on the date, else when the first
+ * word was spoken (a wall-clock transcript only), else — marked approximate —
+ * the arrival less the transcript's length. With none of those the meeting
+ * has no start, and the contract requires one — so it is refused rather than
+ * given a made-up time.
  */
 export function meetingWhen(input: WhenInput): MeetingWhen {
   if (input.timeZone !== null) zoneClock(input.timeZone);
-  const date = readMoment(input.date, 'date', input.timeZone);
+  const stated = input.stated === null ? null : statedMoment(input.stated);
+  // A stated day means the date is the provider's arrival time (Gemini's Notion Date): not the meeting's.
+  const date = stated ?? readMoment(input.date, 'date', input.timeZone);
   const start = readMoment(input.start, 'start', input.timeZone);
   const end = readMoment(input.end, 'end', input.timeZone);
-  const day = date.day ?? start.day;
+  const read = start.time ?? date.time ?? input.firstSpoken;
+  const worked = read === null ? arrivalLessLength(input) : NOTHING;
+  const day = date.day ?? start.day ?? worked.day;
   if (day === null) throw new MeetingMappingError('date: the meeting has no date');
-  const startTime = start.time ?? date.time ?? input.firstSpoken;
+  const startTime = read ?? worked.time;
   if (startTime === null) {
     throw new MeetingMappingError('start: the meeting has no start time (pass `start`)');
   }
-  return { date: day, start: startTime, end: end.time };
+  return { date: day, start: startTime, end: end.time, startApproximate: read === null };
 }
