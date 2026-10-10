@@ -306,7 +306,15 @@ async fn an_access_token_near_its_end_is_renewed_before_the_call() {
     let setup = Setup::new().await;
     setup.connect(Browser::Allows).await.unwrap();
     // Held, but inside the margin: it would die on the way.
-    setup.state.remember_access(VAULT, "ya29.NEARLY-OVER", 30);
+    let nearly_over = super::held::Access {
+        value: "ya29.NEARLY-OVER",
+        expires_in: 30,
+    };
+    setup
+        .state
+        .held
+        .replace(VAULT, || Ok(()), Some(&nearly_over))
+        .unwrap();
 
     setup.session().call(&get(CALENDAR_LIST)).await.unwrap();
 
@@ -453,7 +461,7 @@ async fn no_answer_or_failure_handed_to_the_webview_carries_a_token() {
     setup.google().expire_access_tokens();
     handed.push(as_handed(session.call(&get(CALENDAR_LIST)).await));
     setup.google().revoke_everything();
-    setup.state.forget_access(VAULT);
+    setup.state.held.forget_access(VAULT);
     handed.push(as_handed(session.call(&get(CALENDAR_LIST)).await));
     handed.push(as_handed(setup.connect(Browser::Denies).await));
     handed.push(as_handed(session.disconnect().await));
@@ -480,22 +488,6 @@ async fn no_answer_or_failure_handed_to_the_webview_carries_a_token() {
 }
 
 #[test]
-fn an_access_token_is_held_only_while_it_has_more_than_the_margin_left() {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()
-        .unwrap();
-    runtime.block_on(async {
-        let state = GoogleState::default();
-        state.remember_access(VAULT, "ya29.SHORT", 59);
-        assert_eq!(state.fresh_access(VAULT), None);
-        state.remember_access(VAULT, "ya29.LONG", 61);
-        assert_eq!(state.fresh_access(VAULT).as_deref(), Some("ya29.LONG"));
-        assert_eq!(state.fresh_access("v2"), None);
-    });
-}
-
-#[test]
 fn the_store_holds_nothing_but_the_grant_after_connecting() {
     // The access token is memory only: nothing else is written to the Keychain.
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -515,17 +507,103 @@ fn the_store_holds_nothing_but_the_grant_after_connecting() {
     });
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn the_browser_hears_connected_only_once_the_sign_in_is_kept() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    assert_eq!(
+        pages_shown(&setup).await,
+        vec![page_saying("Atlas is connected to Google Calendar.")]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_browser_hears_not_connected_when_the_sign_in_is_not_kept() {
+    let setup = Setup::new().await;
+    setup.google().code_answer = Some(CodeAnswer::WithoutTheScope);
+
+    setup.connect(Browser::Allows).await.unwrap_err();
+
+    let pages = pages_shown(&setup).await;
+    assert_eq!(pages.len(), 1);
+    assert!(pages[0].contains("Atlas was not connected"), "{}", pages[0]);
+}
+
+/// What the browser's tab showed, once it has read the page: the sign-in
+/// settles as the page is sent, not when the browser has read it.
+async fn pages_shown(setup: &Setup) -> Vec<String> {
+    let read = async {
+        loop {
+            let pages = setup.google().pages.clone();
+            if !pages.is_empty() {
+                return pages;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    };
+    tokio::time::timeout(PATIENCE, read)
+        .await
+        .expect("the browser's tab never showed a page")
+}
+
+/// The page the loopback answers with, around `text`.
+fn page_saying(text: &str) -> String {
+    let pages = [
+        "Atlas is connected to Google Calendar. You can close this tab.",
+        "Atlas was not connected to Google Calendar. You can close this tab; Atlas says why in Settings.",
+    ];
+    let full = pages.iter().find(|page| page.starts_with(text)).unwrap();
+    format!(
+        "<!doctype html><meta charset=\"utf-8\"><title>Atlas</title>\
+         <body style=\"font:16px system-ui;margin:3em\"><p>{full}</p>"
+    )
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn disconnecting_a_vault_whose_client_another_vault_shares_forgets_without_revoking() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+    let other = setup.session_for("v2");
+    let open = setup.fake.browser(Browser::Allows);
+    let sign_in = SignIn {
+        open: &open,
+        timeout: PATIENCE,
+    };
+    other.connect(&request(None), &sign_in).await.unwrap();
+
+    let disconnected = setup.session().disconnect().await.unwrap();
+
+    assert!(disconnected.shared);
+    assert!(!disconnected.revoked);
+    assert!(setup.kept().is_none());
+    assert!(setup.google().revoked.is_empty());
+    other.call(&get(CALENDAR_LIST)).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn disconnecting_a_vault_whose_client_no_other_vault_uses_revokes() {
+    let setup = Setup::new().await;
+    setup.connect(Browser::Allows).await.unwrap();
+
+    let disconnected = setup.session().disconnect().await.unwrap();
+
+    assert!(!disconnected.shared);
+    assert!(disconnected.revoked);
+}
+
 // ---------------------------------------------------------------------------
 // Adversarial: answers the faithful fake never gives, and orderings it never
 // produces. Each test below is a defect report; all ids are fictional.
 // ---------------------------------------------------------------------------
 
 /// A token endpoint, revocation and API that answer as a test scripts them,
-/// with the token endpoint optionally held until the test lets it answer.
+/// with the token endpoint (or `path`) optionally held until the test lets it
+/// answer.
 #[derive(Default)]
 struct Hold {
     reached: tokio::sync::Notify,
     release: tokio::sync::Notify,
+    path: Option<&'static str>,
 }
 
 type Script = dyn Fn(&str) -> (u16, String) + Send + Sync;
@@ -553,7 +631,8 @@ async fn scripted_google(
                 let (script, hold) = (script.clone(), hold.clone());
                 async move {
                     let path = request.uri().path().to_string();
-                    if let (Some(hold), "/token") = (hold, path.as_str()) {
+                    let held = hold.filter(|hold| path == hold.path.unwrap_or("/token"));
+                    if let Some(hold) = held {
                         hold.reached.notify_one();
                         hold.release.notified().await;
                     }
@@ -879,4 +958,133 @@ fn flooded_sign_in() {
     // The browser's task may still be waiting on stdin.
     runtime.shutdown_background();
     assert!(connected.is_ok(), "{:?}", connected.err());
+}
+
+/// A refresh still out when the person connects again must not write the
+/// old sign-in's rotated token over the new one, nor hold its access token.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refresh_that_lands_after_connecting_again_leaves_the_new_sign_in_kept() {
+    let hold = std::sync::Arc::new(Hold::default());
+    let endpoints = scripted_google(
+        std::sync::Arc::new(|path: &str| match path {
+            "/token" => (
+                200,
+                r#"{"access_token":"ya29.FICTIONAL-LATE","expires_in":3599,"refresh_token":"1//FICTIONAL-ROTATED"}"#
+                    .into(),
+            ),
+            _ => (200, r#"{"items":[]}"#.into()),
+        }),
+        Some(hold.clone()),
+    )
+    .await;
+    let session = leaked_session(endpoints);
+    grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
+
+    let listing = get(CALENDAR_LIST);
+    let (late, _) = tokio::join!(session.call(&listing), async {
+        hold.reached.notified().await;
+        // What connecting again keeps, as `keep` does.
+        let newer = kept_grant("1//FICTIONAL-NEWER");
+        let access = super::held::Access {
+            value: "ya29.FICTIONAL-NEWER",
+            expires_in: 3599,
+        };
+        session
+            .state
+            .held
+            .replace(
+                VAULT,
+                || grant::save(session.store, VAULT, &newer),
+                Some(&access),
+            )
+            .unwrap();
+        hold.release.notify_one();
+    });
+
+    assert_eq!(
+        grant::load(session.store, VAULT)
+            .unwrap()
+            .map(|kept| kept.refresh_token),
+        Some("1//FICTIONAL-NEWER".to_string())
+    );
+    assert_eq!(late.unwrap().status, 200);
+    assert_eq!(
+        session.state.held.current(VAULT).1.as_deref(),
+        Some("ya29.FICTIONAL-NEWER")
+    );
+}
+
+/// A call whose refresh lands after Disconnect does not go out with that
+/// refresh's token: the sign-in it was for is gone.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_call_whose_refresh_lands_after_disconnecting_is_not_connected() {
+    let hold = std::sync::Arc::new(Hold::default());
+    let endpoints = scripted_google(
+        std::sync::Arc::new(|path: &str| match path {
+            "/token" => (
+                200,
+                r#"{"access_token":"ya29.FICTIONAL-LATE","expires_in":3599}"#.into(),
+            ),
+            _ => (200, r#"{"items":[]}"#.into()),
+        }),
+        Some(hold.clone()),
+    )
+    .await;
+    let session = leaked_session(endpoints);
+    grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
+
+    let listing = get(CALENDAR_LIST);
+    let (late, _) = tokio::join!(session.call(&listing), async {
+        hold.reached.notified().await;
+        session.disconnect().await.unwrap();
+        hold.release.notify_one();
+    });
+
+    assert_eq!(
+        late.map(|answer| answer.status)
+            .map_err(|failure| failure.kind),
+        Err(FailureKind::NotConnected)
+    );
+}
+
+/// A refresh that starts and settles while Disconnect is revoking still
+/// leaves no access token held once Disconnect has forgotten the sign-in.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refresh_made_during_the_revocation_leaves_no_token_held() {
+    let hold = std::sync::Arc::new(Hold {
+        path: Some("/revoke"),
+        ..Hold::default()
+    });
+    let endpoints = scripted_google(
+        std::sync::Arc::new(|path: &str| match path {
+            "/token" => (
+                200,
+                r#"{"access_token":"ya29.FICTIONAL-DURING","expires_in":3599}"#.into(),
+            ),
+            "/revoke" => (200, "{}".into()),
+            _ => (200, r#"{"items":[]}"#.into()),
+        }),
+        Some(hold.clone()),
+    )
+    .await;
+    let session = leaked_session(endpoints);
+    grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
+
+    let (disconnected, during) = tokio::join!(session.disconnect(), async {
+        hold.reached.notified().await;
+        let during = session.call(&get(CALENDAR_LIST)).await;
+        hold.release.notify_one();
+        during
+    });
+    assert!(disconnected.unwrap().revoked);
+    assert_eq!(during.unwrap().status, 200);
+
+    let after = session.call(&get(CALENDAR_LIST)).await;
+
+    assert_eq!(
+        after
+            .map(|answer| answer.status)
+            .map_err(|failure| failure.kind),
+        Err(FailureKind::NotConnected)
+    );
 }

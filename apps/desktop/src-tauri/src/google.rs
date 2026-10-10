@@ -15,7 +15,6 @@
 //! Google's endpoints, fixed here rather than named by the webview, the way
 //! `model_http` fixes its one endpoint.
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -23,7 +22,6 @@ use reqwest::Url;
 use serde::Serialize;
 use tauri::State;
 use tokio::sync::Notify;
-use tokio::time::Instant;
 
 use crate::opener::open_web_link;
 use crate::secrets::{redact, vault_scope, SecretState, SecretStore};
@@ -32,7 +30,8 @@ use crate::vault::{root_for_write, VaultState};
 pub use api::{ApiCall, GoogleAnswer};
 pub use failure::{FailureKind, GoogleFailure};
 use grant::Grant;
-use loopback::{Callback, Loopback};
+use held::{Access, HeldSignIns};
+use loopback::{Callback, Ending, Loopback};
 use pkce::{new_state, Pkce};
 
 const AUTHORIZE: &str = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -43,9 +42,9 @@ const API: &str = "https://www.googleapis.com/";
 /// Long enough to sign in, pick an account and read a consent screen.
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// An access token is renewed this long before Google says it expires, so a
-/// call never leaves with one that dies on the way.
-const EXPIRY_MARGIN: Duration = Duration::from_secs(60);
+/// How many times a call starts its refresh again when the sign-in changed
+/// under it, before it gives up.
+const REFRESH_ATTEMPTS: usize = 2;
 
 /// Where each part of the flow is sent. Google's in the app; a local fake in
 /// the tests, which is the only reason this is not four constants.
@@ -89,11 +88,14 @@ impl GoogleConnection {
 }
 
 /// What disconnecting did. The sign-in is always forgotten here; `revoked`
-/// is false when Google could not be told, so the person can remove Atlas's
-/// access from their Google account themselves.
+/// is false when Google was not told, so the person can remove Atlas's access
+/// from their Google account themselves — and `shared` says it was not told
+/// on purpose, because another vault on this Mac signs in with the same
+/// client and revoking one grant may end the other's (ADR-0030).
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct GoogleDisconnection {
     pub revoked: bool,
+    pub shared: bool,
 }
 
 /// What a sign-in asks Google for, as TypeScript decided it.
@@ -103,16 +105,11 @@ pub struct ConnectRequest {
     pub scopes: Vec<String>,
 }
 
-struct AccessToken {
-    value: String,
-    expires_at: Instant,
-}
-
-/// The host's Google state: access tokens by vault, and the sign-in waiting
-/// in the browser, if any.
+/// The host's Google state: each vault's sign-in as held between calls, and
+/// the sign-in waiting in the browser, if any.
 #[derive(Default)]
 pub struct GoogleState {
-    access: Mutex<HashMap<String, AccessToken>>,
+    held: HeldSignIns,
     signing_in: Mutex<Option<Arc<Notify>>>,
 }
 
@@ -125,25 +122,6 @@ fn held<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 impl GoogleState {
-    fn fresh_access(&self, scope: &str) -> Option<String> {
-        held(&self.access)
-            .get(scope)
-            .filter(|token| Instant::now() + EXPIRY_MARGIN < token.expires_at)
-            .map(|token| token.value.clone())
-    }
-
-    fn remember_access(&self, scope: &str, value: &str, expires_in: u64) {
-        let token = AccessToken {
-            value: value.to_string(),
-            expires_at: Instant::now() + Duration::from_secs(expires_in),
-        };
-        held(&self.access).insert(scope.to_string(), token);
-    }
-
-    fn forget_access(&self, scope: &str) {
-        held(&self.access).remove(scope);
-    }
-
     /// Claims the one sign-in that may wait in the browser at a time.
     fn begin_sign_in(&self) -> Result<SigningIn<'_>, GoogleFailure> {
         let mut waiting = held(&self.signing_in);
@@ -265,6 +243,14 @@ fn not_connected() -> GoogleFailure {
     )
 }
 
+fn ending_of(kept: &Result<GoogleConnection, GoogleFailure>) -> Ending {
+    if kept.is_ok() {
+        Ending::Connected
+    } else {
+        Ending::NotConnected
+    }
+}
+
 impl Session<'_> {
     pub fn status(&self) -> Result<GoogleConnection, GoogleFailure> {
         Ok(GoogleConnection::of(
@@ -296,8 +282,8 @@ impl Session<'_> {
         );
         (sign_in.open)(&url).map_err(invalid)?;
 
-        let callback = tokio::select! {
-            heard = loopback.wait(state) => heard?,
+        let (heard, answering) = tokio::select! {
+            heard = loopback.wait(state) => heard,
             _ = tokio::time::sleep(sign_in.timeout) => return Err(GoogleFailure::new(
                 FailureKind::Timeout,
                 "the browser did not come back from Google in time",
@@ -307,17 +293,22 @@ impl Session<'_> {
                 "the sign-in was cancelled",
             )),
         };
-        let code = match callback {
-            Callback::Code(code) => code,
-            Callback::Refused(code) => {
-                return Err(
-                    GoogleFailure::new(FailureKind::Refused, "Google did not let Atlas in")
-                        .with_code(&code),
-                )
+        let kept = match heard {
+            Ok(Callback::Code(code)) => {
+                self.keep(request, &code, &pkce.verifier, &redirect_uri)
+                    .await
             }
+            Ok(Callback::Refused(code)) => Err(GoogleFailure::new(
+                FailureKind::Refused,
+                "Google did not let Atlas in",
+            )
+            .with_code(&code)),
+            Err(failure) => Err(failure),
         };
-        self.keep(request, &code, &pkce.verifier, &redirect_uri)
-            .await
+        // The browser's tab hears how it ended only now, so it never says
+        // connected for a sign-in that was then refused or not kept.
+        answering.finish(ending_of(&kept)).await;
+        kept
     }
 
     /// Trades the code for tokens and keeps the refresh token.
@@ -363,9 +354,17 @@ impl Session<'_> {
             refresh_token,
             scopes,
         };
-        grant::save(self.store, self.scope, &grant)?;
-        self.state
-            .remember_access(self.scope, &tokens.access_token, tokens.expires_in);
+        // Every check has passed: from here the sign-in is kept whole, and a
+        // refresh still out from an earlier one is discarded when it lands.
+        let access = Access {
+            value: &tokens.access_token,
+            expires_in: tokens.expires_in,
+        };
+        self.state.held.replace(
+            self.scope,
+            || grant::save(self.store, self.scope, &grant),
+            Some(&access),
+        )?;
         log::info!("Google Calendar connected");
         Ok(GoogleConnection::of(Some(&grant)))
     }
@@ -381,28 +380,51 @@ impl Session<'_> {
             .flatten()
     }
 
-    /// An access token: the one held, while it lasts, or a fresh one.
+    /// An access token: the one held, while it lasts, or a fresh one. A
+    /// refresh whose sign-in was replaced or removed while it was out keeps
+    /// nothing, and starts again from what is kept now.
     async fn access_token(&self, renew: bool) -> Result<String, GoogleFailure> {
-        if !renew {
-            if let Some(token) = self.state.fresh_access(self.scope) {
+        let mut renew = renew;
+        for _ in 0..REFRESH_ATTEMPTS {
+            let (seen, held) = self.state.held.current(self.scope);
+            if let (false, Some(token)) = (renew, held) {
                 return Ok(token);
             }
-        }
-        let grant = grant::load(self.store, self.scope)?.ok_or_else(not_connected)?;
-        let tokens = token::refresh(&self.endpoints.token, &grant).await?;
-        if let Some(rotated) = tokens
-            .refresh_token
-            .filter(|token| *token != grant.refresh_token)
-        {
-            let renewed = Grant {
-                refresh_token: rotated,
-                ..grant
+            let grant = grant::load(self.store, self.scope)?.ok_or_else(not_connected)?;
+            let tokens = token::refresh(&self.endpoints.token, &grant).await?;
+            let rotated = tokens
+                .refresh_token
+                .filter(|token| *token != grant.refresh_token);
+            let access = Access {
+                value: &tokens.access_token,
+                expires_in: tokens.expires_in,
             };
-            grant::save(self.store, self.scope, &renewed)?;
+            let kept = self.state.held.settle(
+                self.scope,
+                seen,
+                || match rotated {
+                    Some(refresh_token) => grant::save(
+                        self.store,
+                        self.scope,
+                        &Grant {
+                            refresh_token,
+                            ..grant
+                        },
+                    ),
+                    None => Ok(()),
+                },
+                &access,
+            )?;
+            if kept {
+                return Ok(tokens.access_token);
+            }
+            // A token from a sign-in since replaced is not this sign-in's.
+            renew = false;
         }
-        self.state
-            .remember_access(self.scope, &tokens.access_token, tokens.expires_in);
-        Ok(tokens.access_token)
+        Err(GoogleFailure::new(
+            FailureKind::NotConnected,
+            "the Google sign-in changed while a call was waiting for it",
+        ))
     }
 
     /// Sends one Calendar API call and hands back its answer.
@@ -413,7 +435,7 @@ impl Session<'_> {
         if answer.0 == 401 {
             // Revoked or ended early at Google's end: one fresh token, one
             // more try, and whatever that answers is the answer.
-            self.state.forget_access(self.scope);
+            self.state.held.forget_access(self.scope);
             access = self.access_token(true).await?;
             answer = api::send(&checked, &access).await?;
         }
@@ -431,19 +453,29 @@ impl Session<'_> {
         })
     }
 
-    /// Asks Google to revoke the sign-in, and forgets it here either way.
+    /// Asks Google to revoke the sign-in, unless another vault may share its
+    /// grant, and forgets it here either way.
     pub async fn disconnect(&self) -> Result<GoogleDisconnection, GoogleFailure> {
-        self.state.forget_access(self.scope);
-        let revoked = match grant::load(self.store, self.scope) {
+        let kept = grant::load(self.store, self.scope);
+        let shared = match &kept {
+            Ok(Some(grant)) => grant::shared_with_another_vault(self.store, self.scope, grant)?,
+            _ => false,
+        };
+        let revoked = match kept {
+            Ok(Some(_)) if shared => false,
             Ok(Some(grant)) => token::revoke(&self.endpoints.revoke, &grant.refresh_token).await,
             Ok(None) => true,
             // Unreadable, so it cannot be revoked; it is still removed, which
             // is what the person asked for.
             Err(_) => false,
         };
-        grant::forget(self.store, self.scope)?;
-        log::info!("Google Calendar disconnected (revoked: {revoked})");
-        Ok(GoogleDisconnection { revoked })
+        // Forgotten under the same lock a refresh settles under, so one that
+        // was out during the revocation cannot write the grant back.
+        self.state
+            .held
+            .replace(self.scope, || grant::forget(self.store, self.scope), None)?;
+        log::info!("Google Calendar disconnected (revoked: {revoked}, shared: {shared})");
+        Ok(GoogleDisconnection { revoked, shared })
     }
 }
 
@@ -559,6 +591,7 @@ mod failure;
 #[cfg(test)]
 mod fake_google;
 mod grant;
+mod held;
 mod loopback;
 mod pkce;
 #[cfg(test)]

@@ -73,6 +73,8 @@ pub struct Google {
     /// Every form the token endpoint was sent.
     pub token_forms: Vec<HashMap<String, String>>,
     pub revoked: Vec<String>,
+    /// What the browser's tab said once the loopback answered it, in order.
+    pub pages: Vec<String>,
     pub calendars: Vec<String>,
 }
 
@@ -320,19 +322,28 @@ impl FakeGoogle {
                 );
                 code
             };
-            tokio::spawn(come_back(person, redirect, state, code));
+            tokio::spawn(come_back(google.clone(), person, redirect, state, code));
             Ok(())
         }
     }
 }
 
-async fn come_back(person: Browser, redirect: String, state: String, code: String) {
+async fn come_back(
+    google: Arc<Mutex<Google>>,
+    person: Browser,
+    redirect: String,
+    state: String,
+    code: String,
+) {
     let visit = |query: String| {
         let url = format!("{redirect}?{query}");
+        let google = google.clone();
         async move {
-            reqwest::get(url)
-                .await
-                .map(|answer| answer.status().as_u16())
+            let answer = reqwest::get(url).await?;
+            let status = answer.status().as_u16();
+            let page = answer.text().await?;
+            google.lock().unwrap().pages.push(page);
+            Ok::<_, reqwest::Error>(status)
         }
     };
     match person {

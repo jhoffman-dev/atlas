@@ -58,6 +58,35 @@ pub fn save(store: &dyn SecretStore, scope: &str, grant: &Grant) -> Result<(), G
         .map_err(keychain)
 }
 
+/// Whether another vault on this Mac keeps a sign-in for the same client.
+///
+/// Google may revoke a grant — every token one person gave one client —
+/// rather than the one token it is sent, so disconnecting one vault could end
+/// another's sign-in. Which Google account a sign-in is for is not known here
+/// (Atlas asks for no identity scope), so the same client counts as possibly
+/// the same account. A sign-in another vault keeps that cannot be read is no
+/// sign-in to protect.
+pub fn shared_with_another_vault(
+    store: &dyn SecretStore,
+    scope: &str,
+    grant: &Grant,
+) -> Result<bool, GoogleFailure> {
+    let suffix = oauth_account("", PROVIDER);
+    let others: Vec<String> = store
+        .accounts()
+        .map_err(keychain)?
+        .into_iter()
+        .filter_map(|account| account.strip_suffix(&suffix).map(str::to_string))
+        .filter(|other| other != scope)
+        .collect();
+    Ok(others.iter().any(|other| {
+        load(store, other)
+            .ok()
+            .flatten()
+            .is_some_and(|kept| kept.client_id == grant.client_id)
+    }))
+}
+
 pub fn forget(store: &dyn SecretStore, scope: &str) -> Result<(), GoogleFailure> {
     store
         .delete(&oauth_account(scope, PROVIDER))
@@ -66,7 +95,7 @@ pub fn forget(store: &dyn SecretStore, scope: &str) -> Result<(), GoogleFailure>
 
 #[cfg(test)]
 mod tests {
-    use super::{forget, load, save, Grant};
+    use super::{forget, load, save, shared_with_another_vault, Grant};
     use crate::secrets::{entries_in, oauth_account, MemoryStore, SecretStore};
 
     fn grant() -> Grant {
@@ -93,6 +122,23 @@ mod tests {
         let store = MemoryStore::default();
         save(&store, "v1", &grant()).unwrap();
         assert!(entries_in(&store, "v1").unwrap().is_empty());
+    }
+
+    #[test]
+    fn another_vault_with_the_same_client_shares_the_grant_and_one_with_another_does_not() {
+        let store = MemoryStore::default();
+        save(&store, "v1", &grant()).unwrap();
+        assert!(!shared_with_another_vault(&store, "v1", &grant()).unwrap());
+
+        let other_client = Grant {
+            client_id: "999-other.apps.googleusercontent.com".into(),
+            ..grant()
+        };
+        save(&store, "v2", &other_client).unwrap();
+        assert!(!shared_with_another_vault(&store, "v1", &grant()).unwrap());
+
+        save(&store, "v3", &grant()).unwrap();
+        assert!(shared_with_another_vault(&store, "v1", &grant()).unwrap());
     }
 
     #[test]
