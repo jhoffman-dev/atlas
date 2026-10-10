@@ -51,7 +51,7 @@ describe('GET /v1/review/weekly', () => {
     expect(paths('projectsWithoutNextAction')).toEqual(['Projects/Garden.md']);
     expect(paths('overdue')).toEqual(['Tasks/Ship.md']);
     expect(paths('untouchedSomeday')).toEqual(['Tasks/Cello.md']);
-    expect(review['inbox']).toEqual({ count: 1, more: false });
+    expect(review['inbox']).toEqual({ count: 1, toFile: 1, toAnswer: 0, more: false });
     expect(review['truncated']).toBe(false);
     expect(review['staleWaiting']).toEqual([
       {

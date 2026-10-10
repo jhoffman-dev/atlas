@@ -4,6 +4,7 @@ export {
   filingFolder,
   filingRefusal,
   inboxItem,
+  inboxWaiting,
   INBOX_DIRECTORY,
   INBOX_LIST_LIMIT,
   INBOX_PREFIX,

@@ -1069,8 +1069,17 @@ export interface ApiWeeklyReview {
   readonly overdue: readonly ApiReviewTask[];
   /** Someday or Longterm, and untouched for more than 30 days; the longest untouched first. */
   readonly untouchedSomeday: readonly ApiReviewTask[];
-  /** How many notes wait in the Inbox; `more` when there are more than it counts. */
-  readonly inbox: { readonly count: number; readonly more: boolean };
+  /**
+   * What waits in the one Inbox, as the sidebar counts it: `count` is the notes
+   * to file (`toFile`) plus the proposals to answer (`toAnswer`); `more` when
+   * there are more notes than it counts.
+   */
+  readonly inbox: {
+    readonly count: number;
+    readonly toFile: number;
+    readonly toAnswer: number;
+    readonly more: boolean;
+  };
   /** The index held tasks back, so a task section may be missing items. */
   readonly truncated: boolean;
 }

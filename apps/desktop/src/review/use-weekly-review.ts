@@ -69,8 +69,8 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
   useEffect(() => {
     if (!open || !indexReady) return;
     let cancelled = false;
-    const index = ports.index;
-    readWeeklyReview({ index, clock })
+    const { index, fs, markdown } = ports;
+    readWeeklyReview({ index, fs, markdown, clock })
       .then((report) => {
         if (!cancelled) setRead({ index, report, error: null });
       })
@@ -80,7 +80,7 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
     return () => {
       cancelled = true;
     };
-  }, [ports.index, clock, indexKey, indexReady, open]);
+  }, [ports, clock, indexKey, indexReady, open]);
 
   // Only what this index answered, and only while it is ready: after a vault
   // switch or during a rebuild the last review's paths are not this vault's,

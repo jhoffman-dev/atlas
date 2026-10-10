@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { fakeIndexPort, fakeMarkdown } from '../testing/fake-ports.ts';
+import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
+import { jsonLinesNote, proposalVault } from '../testing/proposal-vault.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { readWeeklyReview } from './read-weekly-review.ts';
+
+/** A vault with nothing proposed: no Inbox/Proposals folder to read. */
+const NO_PROPOSALS = { fs: fakeVaultFs(), markdown: fakeMarkdown() };
 
 /** P30-07: the weekly review read from a vault's index, on a fixed clock. */
 const NOW = Date.UTC(2026, 9, 8, 12);
@@ -45,14 +49,18 @@ const titles = (items: readonly { title: string }[]) => items.map((item) => item
 describe('readWeeklyReview', () => {
   it('yields exactly the expected items per section, and counts the Inbox', async () => {
     const query = atlasQueryIndex({ markdown: fakeMarkdown(), files: FILES, modified: MODIFIED });
-    const review = await readWeeklyReview({ index: fakeIndexPort({ query }), clock: CLOCK });
+    const review = await readWeeklyReview({
+      index: fakeIndexPort({ query }),
+      ...NO_PROPOSALS,
+      clock: CLOCK,
+    });
 
     expect(titles(review.staleWaiting)).toEqual(['Quote from Larkspur']);
     expect(review.staleWaiting[0]?.waitingOn).toBe('Mara Quill');
     expect(titles(review.projectsWithoutNextAction)).toEqual(['Garden']);
     expect(titles(review.overdue)).toEqual(['Ship the review']);
     expect(titles(review.untouchedSomeday)).toEqual(['Learn the cello']);
-    expect(review.inbox).toEqual({ count: 2, more: false });
+    expect(review.inbox).toEqual({ count: 2, toFile: 2, toAnswer: 0, more: false });
     expect(review.today).toBe('2026-10-08');
     expect(review.truncated).toBe(false);
   });
@@ -67,7 +75,7 @@ describe('readWeeklyReview', () => {
           truncated: sql.includes(mark),
         }),
       });
-      const review = await readWeeklyReview({ index: heldBack, clock: CLOCK });
+      const review = await readWeeklyReview({ index: heldBack, ...NO_PROPOSALS, clock: CLOCK });
       expect(review.truncated).toBe(true);
       expect(review.inbox.more).toBe(false);
     },
@@ -77,8 +85,27 @@ describe('readWeeklyReview', () => {
     const failing = fakeIndexPort({
       query: () => Promise.reject(new Error('the index is closed')),
     });
-    await expect(readWeeklyReview({ index: failing, clock: CLOCK })).rejects.toThrow(
-      'the index is closed',
-    );
+    await expect(
+      readWeeklyReview({ index: failing, ...NO_PROPOSALS, clock: CLOCK }),
+    ).rejects.toThrow('the index is closed');
+  });
+
+  it('counts the proposals waiting for an answer in the Inbox, as the sidebar does', async () => {
+    const query = atlasQueryIndex({ markdown: fakeMarkdown(), files: FILES, modified: MODIFIED });
+    const proposed = proposalVault({
+      'Inbox/Proposals/Send the file.md': jsonLinesNote({
+        type: 'proposal',
+        kind: 'task',
+        state: 'open',
+        payload: { title: 'Send Mara the file' },
+      }),
+    });
+    const review = await readWeeklyReview({
+      index: fakeIndexPort({ query }),
+      fs: proposed.ports.fs,
+      markdown: proposed.ports.markdown,
+      clock: CLOCK,
+    });
+    expect(review.inbox).toEqual({ count: 3, toFile: 2, toAnswer: 1, more: false });
   });
 });

@@ -14,6 +14,7 @@ import {
   vaultInitial,
   FAVORITE_KEY,
   hasFullName,
+  inboxWaiting,
   NAME_PLACEHOLDER,
   moveRefusal,
   noteNames,
@@ -938,11 +939,13 @@ export function App({
   });
   const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
   // One Inbox: its count is what waits to be filed and the proposals waiting for an answer.
-  const inboxWaiting =
-    inbox.contents === null ? null : inbox.contents.items.length + (proposals.count ?? 0);
+  const waiting = inboxWaiting({
+    toFile: inbox.contents?.items.length ?? null,
+    toAnswer: proposals.count,
+  });
   // As with Today, no row that opens nothing: the Inbox shows once the vault
   // has an Inbox view or something waits in it.
-  const inboxRowShown = inboxView !== null || (inboxWaiting ?? 0) > 0;
+  const inboxRowShown = inboxView !== null || (waiting ?? 0) > 0;
   const automationPorts = useMemo(
     () => ({ ...archivePorts, types, notePaths }),
     [archivePorts, types, notePaths],
@@ -1376,7 +1379,7 @@ export function App({
                     onOpenTemplates={main.openTemplates}
                     onOpenTerms={main.openTerms}
                     {...(inboxRowShown && {
-                      inbox: { onOpen: main.openInbox, count: inboxWaiting },
+                      inbox: { onOpen: main.openInbox, count: waiting },
                     })}
                     {...(review.shown && { onOpenReview: main.openReview })}
                     onOpenType={openTypePage}

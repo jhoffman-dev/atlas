@@ -9,7 +9,9 @@ export const weeklyReview = defineTool({
   description:
     "GTD's weekly review, as Atlas's Weekly review page shows it, read on the app's clock: " +
     '{ review: { today, staleWaiting, projectsWithoutNextAction, overdue, untouchedSomeday, ' +
-    'inbox: { count, more }, truncated } }. staleWaiting: tasks Waiting and untouched for more ' +
+    'inbox: { count, toFile, toAnswer, more }, truncated } }. inbox counts the one Inbox as ' +
+    'the sidebar does: notes to file plus proposals to answer. ' +
+    'staleWaiting: tasks Waiting and untouched for more ' +
     'than 7 days, with "waitingOn" (who, link or plain name). projectsWithoutNextAction: ' +
     'projects with status active and no task filed under them (by "project") that is ' +
     'next-action or in-progress. overdue: open tasks (inbox, backlog, next-action, ' +

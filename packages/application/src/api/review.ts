@@ -9,13 +9,12 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
  * task rules, and a project into the Archive.
  */
 export async function weeklyReviewRoute(request: VaultRequest): Promise<RouteResult> {
-  const review = await readWeeklyReview({ index: request.index, clock: request.clock }).catch(
-    (error: unknown) => {
-      throw new ApiError(
-        'query_failed',
-        `The index could not take the weekly review: ${messageWithoutPaths(error)}`,
-      );
-    },
-  );
+  const { index, fs, markdown, clock } = request;
+  const review = await readWeeklyReview({ index, fs, markdown, clock }).catch((error: unknown) => {
+    throw new ApiError(
+      'query_failed',
+      `The index could not take the weekly review: ${messageWithoutPaths(error)}`,
+    );
+  });
   return { status: 200, body: { review } };
 }

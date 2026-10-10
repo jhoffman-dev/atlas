@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { REVIEW_TASKS_QUERY_MARK, taskRuleChanges } from '@atlas/domain';
-import { fakeIndexPort, fakeMarkdown } from '../testing/fake-ports.ts';
+import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { readWeeklyReview } from './read-weekly-review.ts';
+
+/** A vault with nothing proposed: no Inbox/Proposals folder to read. */
+const NO_PROPOSALS = { fs: fakeVaultFs(), markdown: fakeMarkdown() };
 
 /** P30-07, adversarial: the weekly review read from a real index, on a fixed clock. */
 const NOW = Date.UTC(2026, 9, 8, 12);
@@ -27,7 +30,11 @@ describe('readWeeklyReview, adversarial', () => {
       files,
       modified: { 'Tasks/Signed lease.md': NOW - 10 * DAY },
     });
-    const review = await readWeeklyReview({ index: fakeIndexPort({ query }), clock: CLOCK });
+    const review = await readWeeklyReview({
+      index: fakeIndexPort({ query }),
+      ...NO_PROPOSALS,
+      clock: CLOCK,
+    });
 
     expect(titles(review.staleWaiting)).toEqual(['Signed lease']);
     // Observed: '' — the page says "Waiting on nobody" and the API/MCP report nobody.
@@ -54,7 +61,7 @@ describe('readWeeklyReview, adversarial', () => {
           : result;
       },
     });
-    const review = await readWeeklyReview({ index: capped, clock: CLOCK });
+    const review = await readWeeklyReview({ index: capped, ...NO_PROPOSALS, clock: CLOCK });
 
     expect(review.truncated).toBe(true);
     // Observed: ['Atlas'] — its next action was beyond the cap, so it is listed as having none,

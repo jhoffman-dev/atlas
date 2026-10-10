@@ -31,7 +31,7 @@ const REVIEW: WeeklyReviewReport = {
   projectsWithoutNextAction: [GARDEN],
   overdue: [task('Ship the review', { due: '2026-10-05' })],
   untouchedSomeday: [task('Learn the cello', { status: 'someday' })],
-  inbox: { count: 2, more: false },
+  inbox: { count: 2, toFile: 2, toAnswer: 0, more: false },
   truncated: false,
 };
 
@@ -84,7 +84,9 @@ describe('WeeklyReviewPage', () => {
   });
 
   it('says a section is clear rather than leaving it blank', () => {
-    page({ review: { ...REVIEW, overdue: [], inbox: { count: 0, more: false } } });
+    page({
+      review: { ...REVIEW, overdue: [], inbox: { count: 0, toFile: 0, toAnswer: 0, more: false } },
+    });
     expect(within(section('Overdue')).getByText('Nothing is late.')).toBeDefined();
     expect(within(section('Inbox')).getByText('Nothing waits to be processed.')).toBeDefined();
   });

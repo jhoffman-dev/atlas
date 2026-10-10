@@ -60,6 +60,22 @@ export interface InboxItem {
   readonly importError: string | null;
 }
 
+/**
+ * How many wait in the one Inbox: the notes to file and the proposals to
+ * answer, as the sidebar and the weekly review both count it. Null only while
+ * neither has been read; one not read yet counts as none.
+ */
+export function inboxWaiting({
+  toFile,
+  toAnswer,
+}: {
+  toFile: number | null;
+  toAnswer: number | null;
+}): number | null {
+  if (toFile === null && toAnswer === null) return null;
+  return (toFile ?? 0) + (toAnswer ?? 0);
+}
+
 /** How many notes the Inbox lists at once. */
 export const INBOX_LIST_LIMIT = 500;
 
