@@ -14,6 +14,7 @@ import {
 } from '@atlas/domain';
 import type { OpenNote } from '@atlas/application';
 import { useNoteNames, type AtlasQueryPanelProps, type GroupFolds } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import { resultFor, useAtlasQuery } from './use-atlas-query.ts';
 import { useQueryChoices } from './use-query-choices.ts';
@@ -114,8 +115,10 @@ export function useQueryView({
     }
     const values = { [QUERY_VIEW_KEY]: text, layout };
     written.current = text;
-    const { editors, fs, markdown } = ports;
-    writeNoteProperties({ editors, fs, markdown, path, values })
+    const { editors, fs, markdown, activity } = ports;
+    withGiveUpRecorded({ activity, write: 'edit', path }, () =>
+      writeNoteProperties({ editors, fs, markdown, path, values }),
+    )
       .then(() => {
         setSaveError(null);
         onChanged();

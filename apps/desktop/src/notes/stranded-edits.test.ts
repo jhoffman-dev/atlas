@@ -57,6 +57,16 @@ describe('work a closing pane could not write', () => {
     expect(result.current.waiting).toEqual([NOTE]);
   });
 
+  it('names a chat note as one, never by its title, which is the question', () => {
+    const { result } = run({ store: memoryStrandedStore().store });
+    act(() =>
+      result.current.keep(stranding(createVaultPath('Chats/Should Mara Quill get a raise.md'))),
+    );
+
+    expect(result.current.notice).toContain('Unsaved changes to a chat note could not be saved');
+    expect(result.current.notice).not.toContain('Mara Quill');
+  });
+
   it('hands the work back once, and stops saying so', () => {
     const { result } = run({ store: memoryStrandedStore().store });
     act(() => result.current.keep(stranding()));

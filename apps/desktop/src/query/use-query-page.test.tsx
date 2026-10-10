@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, type ObjectType, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote } from '@atlas/application';
+import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useQueryPage } from './use-query-page.ts';
@@ -42,16 +42,21 @@ const NO_PANE: OpenEditors = {
   reloadOthers: () => {},
 };
 
-function vault() {
+/** `refuse`: what the disk says to every write, when it says no. */
+function vault({ refuse = null }: { refuse?: string | null } = {}) {
   const files: Record<string, string> = { [DASHBOARD]: HOME };
   const created: { path: VaultPath; contents: string }[] = [];
   const fs = fakeVaultFs({
     readTextFile: async (path) => ({ text: files[path] ?? '', modified: 1 }),
     writeTextFile: async ({ path, contents }) => {
+      if (refuse !== null) throw new Error(refuse);
       files[path] = contents;
       return 2;
     },
-    createNote: async (args) => void created.push(args),
+    createNote: async (args) => {
+      if (refuse !== null) throw new Error(refuse);
+      created.push(args);
+    },
   });
   return { fs, files, created };
 }
@@ -63,9 +68,10 @@ const NO_NOTES: readonly string[] = [];
 function queryPage(fs: ReturnType<typeof vault>['fs']) {
   const onSavedView = vi.fn();
   const onChanged = vi.fn();
+  const activity = recordingActivity();
   const view = renderHook(() =>
     useQueryPage({
-      ports: { index: INDEX, fs, markdown: remarkMarkdown, editors: NO_PANE },
+      ports: { index: INDEX, fs, markdown: remarkMarkdown, editors: NO_PANE, activity },
       open: true,
       indexKey: 'ready:1',
       viewPaths: VIEW_PATHS,
@@ -77,7 +83,7 @@ function queryPage(fs: ReturnType<typeof vault>['fs']) {
       onOpenNote: () => {},
     }),
   );
-  return { view, onSavedView, onChanged };
+  return { view, onSavedView, onChanged, activity };
 }
 
 const VIEW_PATHS = ['.atlas/views/Tasks.md'];
@@ -153,6 +159,60 @@ describe('the query page', () => {
     expect(files[DASHBOARD]).toContain('show: bar');
     expect(files[DASHBOARD]).toContain('sql: "SELECT status, n FROM counts"');
     expect(onChanged).toHaveBeenCalled();
+  });
+});
+
+describe('the query page and the Activity log', () => {
+  it('records a SQL view that could not be written, once', async () => {
+    const { view, activity } = queryPage(vault({ refuse: 'The disk is full.' }).fs);
+    await run(view, 'SELECT status, n FROM counts');
+    act(() => view.result.current.saveAsView({ name: 'Counts', layout: 'table' }));
+    await waitFor(() => expect(view.result.current.saveError).toBe('The disk is full.'));
+    expect(activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not save the view. The disk is full.',
+        subject: null,
+      },
+    ]);
+  });
+
+  it('records nothing for a SQL view saved, or one refused for its name', async () => {
+    const { view, activity, onSavedView } = queryPage(vault().fs);
+    await run(view, 'SELECT status, n FROM counts');
+    act(() => view.result.current.saveAsView({ name: 'tasks', layout: 'table' }));
+    await waitFor(() => expect(view.result.current.saveError).toMatch(/already a view/));
+    act(() => view.result.current.saveAsView({ name: 'Counts', layout: 'table' }));
+    await waitFor(() => expect(onSavedView).toHaveBeenCalled());
+    expect(activity.reports).toEqual([]);
+  });
+
+  it('records a dashboard that could not take the statement, once, naming it', async () => {
+    const { view, activity } = queryPage(vault({ refuse: 'The disk is full.' }).fs);
+    await run(view, 'SELECT status, n FROM counts');
+    act(() =>
+      view.result.current.addToDashboard({ path: DASHBOARD, show: 'bar', title: 'By status' }),
+    );
+    await waitFor(() => expect(view.result.current.dashboardNotice).toBe('The disk is full.'));
+    expect(activity.reports).toHaveLength(1);
+    expect(activity.reports[0]).toMatchObject({
+      level: 'error',
+      message: 'Could not add the query to the dashboard — Home. The disk is full.',
+      subject: { kind: 'note', path: DASHBOARD },
+    });
+  });
+
+  it('records nothing for a statement added to a dashboard', async () => {
+    const { view, activity } = queryPage(vault().fs);
+    await run(view, 'SELECT status, n FROM counts');
+    act(() =>
+      view.result.current.addToDashboard({ path: DASHBOARD, show: 'bar', title: 'By status' }),
+    );
+    await waitFor(() =>
+      expect(view.result.current.dashboardNotice).toBe('Added to the dashboard.'),
+    );
+    expect(activity.reports).toEqual([]);
   });
 });
 

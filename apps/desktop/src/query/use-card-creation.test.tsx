@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { parseObjectType } from '@atlas/domain';
-import { fakeVaultFs } from '@atlas/application';
+import { fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useCardCreation } from './use-card-creation.ts';
 
@@ -15,15 +15,28 @@ const TASK = parseObjectType({
   properties: { phase: 'number', flagged: 'checkbox', status: 'select' },
 });
 
-function creation({ groupBy, subGroupBy }: { groupBy: string; subGroupBy: string | null }) {
+function creation({
+  groupBy,
+  subGroupBy,
+  refuse = null,
+}: {
+  groupBy: string;
+  subGroupBy: string | null;
+  /** What the disk says to the write, when it says no. */
+  refuse?: string | null;
+}) {
   const created: string[] = [];
+  const errors: string[] = [];
+  const activity = recordingActivity();
   const fs = fakeVaultFs({
     createNote: async ({ contents }) => {
+      if (refuse !== null) throw new Error(refuse);
       created.push(contents);
     },
   });
   const hook = renderHook(() =>
     useCardCreation({
+      activity,
       fs,
       markdown: remarkMarkdown,
       query: { type: 'task', columns: [], filters: [], sorts: [], limit: 50 },
@@ -34,10 +47,10 @@ function creation({ groupBy, subGroupBy }: { groupBy: string; subGroupBy: string
       groupOptions: [],
       notePaths: [],
       onChanged: () => {},
-      onError: () => {},
+      onError: (message) => errors.push(message),
     }),
   );
-  return { hook, created };
+  return { hook, created, errors, activity };
 }
 
 describe('a card added in a column and a lane', () => {
@@ -55,5 +68,32 @@ describe('a card added in a column and a lane', () => {
     await waitFor(() => expect(created).toHaveLength(1));
     expect(created[0]).toMatch(/^status: doing$/m);
     expect(created[0]).not.toMatch(/flagged/);
+  });
+});
+
+describe('a card that could not be added', () => {
+  it('is recorded once in the Activity log, with no link to a note that is not there', async () => {
+    const { hook, errors, activity } = creation({
+      groupBy: 'status',
+      subGroupBy: null,
+      refuse: 'The disk is full.',
+    });
+    act(() => hook.result.current.addCard({ value: 'doing', name: 'Ship' }));
+    await waitFor(() => expect(errors).toEqual(['The disk is full.']));
+    expect(activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not add the card. The disk is full.',
+        subject: null,
+      },
+    ]);
+  });
+
+  it('is not recorded when it is added', async () => {
+    const { hook, created, activity } = creation({ groupBy: 'status', subGroupBy: null });
+    act(() => hook.result.current.addCard({ value: 'doing', name: 'Ship' }));
+    await waitFor(() => expect(created).toHaveLength(1));
+    expect(activity.reports).toEqual([]);
   });
 });

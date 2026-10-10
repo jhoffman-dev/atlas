@@ -183,7 +183,8 @@ export type ChatHappening =
       readonly problem: string;
     }
   | { readonly kind: 'turnFailed'; readonly reason: ChatFailure }
-  | { readonly kind: 'notKept'; readonly problem: string };
+  /** The chat note could not be written. Said without the error's words: they can name the note, whose name is the question. */
+  | { readonly kind: 'notKept' };
 
 /**
  * Why a turn failed, by kind alone. A provider's own words can quote the
@@ -223,7 +224,7 @@ export function chatReport(happening: ChatHappening): ActivityReport {
     case 'turnFailed':
       return chatLine('error', CHAT_FAILURE_WORDS[happening.reason], null);
     case 'notKept':
-      return chatLine('error', `The chat could not be saved to Chats/. ${happening.problem}`, null);
+      return chatLine('error', 'The chat could not be saved to Chats/.', null);
   }
 }
 
@@ -285,6 +286,45 @@ export function writeFailedReport({
     kind: 'save',
     message: `${WRITE_WORDS[write]} ${path}. ${problem}`,
     subject,
+  };
+}
+
+/** What a screen was writing when it gave up, as its line says it. */
+export type ScreenWrite =
+  'edit' | 'view' | 'dashboard' | 'card' | 'image' | 'artifact' | 'setting' | 'connection';
+
+const SCREEN_WRITE_WORDS: Readonly<Record<ScreenWrite, string>> = {
+  edit: 'Could not save an edit',
+  view: 'Could not save the view',
+  dashboard: 'Could not add the query to the dashboard',
+  card: 'Could not add the card',
+  image: 'Could not add the image',
+  artifact: 'Could not save the artifact',
+  setting: 'Could not save a setting',
+  connection: 'Could not change the API connection',
+};
+
+/**
+ * A write a screen gave up on and shows in its own place — a view's edit, an
+ * image, a setting — said once, where it gave up: never for a name tried and
+ * passed over, or a write tried again. `path` is the note it was writing, when
+ * there is one yet.
+ */
+export function screenWriteFailedReport({
+  write,
+  path,
+  problem,
+}: {
+  write: ScreenWrite;
+  path: VaultPath | null;
+  problem: string;
+}): ActivityReport {
+  const target = path === null ? '' : ` — ${noteTitle(path)}`;
+  return {
+    level: 'error',
+    kind: 'save',
+    message: `${SCREEN_WRITE_WORDS[write]}${target}. ${problem}`,
+    subject: path === null ? null : noteSubject(path),
   };
 }
 

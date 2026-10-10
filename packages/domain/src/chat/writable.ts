@@ -1,5 +1,5 @@
 import { isMarkdownName } from '../vault/vault-entry.ts';
-import { CHATS_FOLDER } from './chat-note.ts';
+import { CHATS_FOLDER, isInChats } from './chat-note.ts';
 
 /**
  * Why the chat may not propose a change to this path, or null when it may.
@@ -20,8 +20,7 @@ export function chatWriteRefusal(path: string): string | null {
   if (segments.some((segment) => segment.startsWith('.'))) {
     return `${JSON.stringify(path)} is hidden configuration; the chat does not change it.`;
   }
-  // Compared without case: on a case-insensitive disk `chats/` is the same folder.
-  if (segments[0]?.toLowerCase() === CHATS_FOLDER.toLowerCase()) {
+  if (isInChats(path)) {
     return `${JSON.stringify(path)} is in ${CHATS_FOLDER}/, the record of past chats; the chat does not change it.`;
   }
   if (!isMarkdownName(path)) return `${JSON.stringify(path)} is not a note.`;

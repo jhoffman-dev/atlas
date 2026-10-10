@@ -1,6 +1,5 @@
 import {
   imagePathsToCheck,
-  noteTitle,
   notesAfterMoves,
   parentVaultPath,
   retargetLinks,
@@ -32,10 +31,14 @@ export interface LinkUpdateFailure {
   readonly unsavedInApp?: true;
 }
 
-/** A note left alone because a pane holds typing in it that is not saved. */
+/**
+ * A note left alone because a pane holds typing in it that is not saved. Its
+ * words do not name the note: whoever shows them names it first, and a chat
+ * note's title is the question that began it.
+ */
 export class UnsavedTypingError extends Error {
-  constructor(path: VaultPath) {
-    super(`${noteTitle(path)} has unsaved changes.`);
+  constructor(readonly path: VaultPath) {
+    super('The note has unsaved changes.');
     this.name = 'UnsavedTypingError';
   }
 }

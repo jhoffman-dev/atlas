@@ -9,7 +9,9 @@ import {
 } from '@atlas/domain';
 import {
   addArtifactCopy,
+  ArtifactRefusedError,
   loadArtifactCopy,
+  type ActivityLog,
   type Clock,
   type ExternalLinkPort,
   type OpenNote,
@@ -18,6 +20,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import type { ArtifactViewerCopy } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { pickedFiles } from './picked-files.ts';
 import { remadeCover, useThumbnailSnapshot } from './use-thumbnails.ts';
 
@@ -62,6 +65,7 @@ export function useArtifactCopy({
   links,
   thumbnails,
   setProperties,
+  activity,
   onChanged,
 }: {
   note: OpenNote | null;
@@ -70,6 +74,8 @@ export function useArtifactCopy({
   links: ExternalLinkPort;
   thumbnails: ThumbnailQueue;
   setProperties: (changes: PropertyChanges) => Promise<void>;
+  /** Where a copy that could not be saved is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onChanged: () => void;
 }): ArtifactCopyView | null {
   const isArtifact = note !== null && isArtifactNote(note.properties);
@@ -102,12 +108,18 @@ export function useArtifactCopy({
     (files: File[]) => {
       if (path === null) return;
       setAdding(true);
-      void pickedFiles(files)
-        .then((inputs) =>
-          addArtifactCopy({ fs, notePath: path, files: inputs, today: clock.today() }),
-        )
-        .then(async ({ copy: added }) => {
-          await setProperties(savedCopyValues(added));
+      const named = { activity, write: 'artifact', path, refusal: ArtifactRefusedError } as const;
+      void withGiveUpRecorded(named, async () => {
+        const inputs = await pickedFiles(files);
+        const { copy: added } = await addArtifactCopy({
+          fs,
+          notePath: path,
+          files: inputs,
+          today: clock.today(),
+        });
+        await setProperties(savedCopyValues(added));
+      })
+        .then(() => {
           setError(null);
           onChanged();
           void thumbnails.request({ path, asked: false });
@@ -115,7 +127,7 @@ export function useArtifactCopy({
         .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
         .finally(() => setAdding(false));
     },
-    [fs, path, clock, setProperties, onChanged, thumbnails],
+    [fs, path, clock, setProperties, activity, onChanged, thumbnails],
   );
   const thumbnail = useThumbnail({
     note,

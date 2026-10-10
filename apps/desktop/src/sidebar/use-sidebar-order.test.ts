@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs } from '@atlas/application';
+import { fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useSidebarOrder } from './use-sidebar-order.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 const SETTINGS = '.atlas/settings.md';
 
@@ -25,7 +28,13 @@ function vaultWithSettings({ refuse = false }: { refuse?: boolean } = {}) {
 
 const render = (fs: ReturnType<typeof vaultWithSettings>['fs']) =>
   renderHook(() =>
-    useSidebarOrder({ fs, markdown: remarkMarkdown, vaultKey: 'v', changeKey: '0' }),
+    useSidebarOrder({
+      fs,
+      markdown: remarkMarkdown,
+      vaultKey: 'v',
+      changeKey: '0',
+      activity: ACTIVITY,
+    }),
   );
 
 describe('useSidebarOrder', () => {

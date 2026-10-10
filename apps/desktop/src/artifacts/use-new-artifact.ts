@@ -7,8 +7,10 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import {
+  ArtifactRefusedError,
   notesInUseOfType,
   saveArtifact,
+  type ActivityLog,
   type Clock,
   type IndexPort,
   type MarkdownPort,
@@ -16,6 +18,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import type { ArtifactChoice, NewArtifactDraft } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { pageTextOf, pickedFiles, titleFromFiles } from './picked-files.ts';
 
 const EMPTY: NewArtifactDraft = { url: '', title: '', kind: 'page', project: '', files: [] };
@@ -35,6 +38,7 @@ export function useNewArtifact({
   index,
   clock,
   indexKey,
+  activity,
   onCreated,
 }: {
   thumbnails: Pick<ThumbnailQueue, 'request'>;
@@ -43,6 +47,8 @@ export function useNewArtifact({
   index: IndexPort;
   clock: Clock;
   indexKey: string;
+  /** Where an artifact that could not be saved is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onCreated: (path: VaultPath) => void;
 }) {
   const [draft, setDraft] = useState<NewArtifactDraft>(EMPTY);
@@ -77,12 +83,20 @@ export function useNewArtifact({
   const create = useCallback(async () => {
     setSaving(true);
     try {
-      const saved = await saveArtifact({
-        fs,
-        markdown,
-        clock,
-        artifact: { ...artifactOf(draft), files: await pickedFiles(draft.files) },
-      });
+      const named = {
+        activity,
+        write: 'artifact',
+        path: null,
+        refusal: ArtifactRefusedError,
+      } as const;
+      const saved = await withGiveUpRecorded(named, async () =>
+        saveArtifact({
+          fs,
+          markdown,
+          clock,
+          artifact: { ...artifactOf(draft), files: await pickedFiles(draft.files) },
+        }),
+      );
       setError(null);
       onCreated(saved.path);
       if (saved.saved !== null) void thumbnails.request({ path: saved.path, asked: false });
@@ -91,7 +105,7 @@ export function useNewArtifact({
     } finally {
       setSaving(false);
     }
-  }, [fs, markdown, clock, draft, onCreated, thumbnails]);
+  }, [fs, markdown, clock, draft, activity, onCreated, thumbnails]);
 
   return { draft, error, saving, projects, start, change, create };
 }

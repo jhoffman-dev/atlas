@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CHAT_NOTE_LABEL,
   deleteRefusal,
+  isInChats,
   isMovable,
   moveTargets,
   newFolderRefusal,
+  noteLabelForNotice,
   noteTitle,
   parentVaultPath,
   renameRefusal,
@@ -110,14 +113,13 @@ function destinationOf(folder: VaultPath): MoveDestination {
 
 /** What a warning about a shared name says: which note `[[name]]` opens now. */
 const clashNotice = (clashes: readonly NameClash[]): string | null =>
-  clashes.length === 0
-    ? null
-    : clashes
-        .map(
-          ({ name, opens }) =>
-            `More than one note is called “${name}”: [[${name}]] now opens ${opens}.`,
-        )
-        .join(' ');
+  clashes.length === 0 ? null : clashes.map(clashLine).join(' ');
+
+/** One shared name; one a chat note now answers to is its question, so it is not repeated. */
+const clashLine = ({ name, opens }: NameClash): string =>
+  isInChats(opens)
+    ? `More than one note now shares a name with ${CHAT_NOTE_LABEL}; links to that name open the chat note.`
+    : `More than one note is called “${name}”: [[${name}]] now opens ${opens}.`;
 
 /**
  * Making, renaming, moving and deleting in Pages, and everything that has to
@@ -365,7 +367,7 @@ export function useVaultEntries(ports: VaultEntryPorts, notePaths: readonly Vaul
             if (report.failed.length > 0) {
               setNotice(
                 `${count(report.failed.length, 'note', 'notes')} could not be updated: ${report.failed
-                  .map(({ path, reason }) => `${noteTitle(path)} (${reason})`)
+                  .map(({ path, reason }) => `${noteLabelForNotice(path)} (${reason})`)
                   .join(', ')}.`,
               );
             }

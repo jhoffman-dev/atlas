@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import {
   loadSidebarOrder,
   saveSidebarOrder,
+  type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
 } from '@atlas/application';
@@ -23,11 +24,14 @@ export function useSidebarOrder({
   markdown,
   vaultKey,
   changeKey,
+  activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
   changeKey: string;
+  /** Where a save that fails is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): { order: SectionOrder; problem: string | null; unreadable: string | null } {
   const load = useCallback(() => loadSidebarOrder({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
@@ -40,6 +44,7 @@ export function useSidebarOrder({
     store,
     vaultKey,
     changeKey,
+    activity,
   });
   const order = useMemo(
     () => (loaded ? { saved: value, onChange: save } : { saved: value }),

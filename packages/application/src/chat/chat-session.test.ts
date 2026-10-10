@@ -411,6 +411,24 @@ describe('a chat session in the Activity log', () => {
     expect(chat.state().notice).not.toBeNull();
     expect(activity.reports).toHaveLength(1);
     expect(activity.reports[0]).toMatchObject({ level: 'error', kind: 'chat' });
-    expect(activity.reports[0]?.message).toMatch(/^The chat could not be saved to Chats\/\. /);
+    expect(activity.reports[0]?.message).toBe('The chat could not be saved to Chats/.');
+  });
+
+  it("records an unsaved chat in fixed words, never the error's, which name the note after the question", async () => {
+    const question = 'Should Tobias Fenn be promoted this spring';
+    const { chat, fixture, activity } = session([[{ type: 'text', text: 'Perhaps.' }]]);
+    let tried: string | null = null;
+    fixture.fs.createNote = async ({ path }) => {
+      tried = path;
+      throw new Error(`${path} could not be written: the disk is full`);
+    };
+    await chat.send(question);
+    expect(tried).toContain('Tobias Fenn');
+    expect(chat.state().notice).toContain('the disk is full');
+    expect(activity.reports).toHaveLength(1);
+    const { message } = activity.reports[0] ?? { message: '' };
+    expect(message).toBe('The chat could not be saved to Chats/.');
+    expect(message).not.toContain('Tobias');
+    expect(message).not.toContain(tried);
   });
 });

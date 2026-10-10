@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ObjectType, VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs } from '@atlas/application';
+import { fakeIndexPort, fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useTypeTable } from './use-type-table.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
@@ -67,7 +67,11 @@ function fakeVault() {
 
 const settle = () => act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
-const showTable = (vault: ReturnType<typeof fakeVault>, editors: OpenEditors) =>
+const showTable = (
+  vault: ReturnType<typeof fakeVault>,
+  editors: OpenEditors,
+  activity = recordingActivity(),
+) =>
   renderHook(() =>
     useTypeTable({
       fs: vault.fs,
@@ -78,6 +82,7 @@ const showTable = (vault: ReturnType<typeof fakeVault>, editors: OpenEditors) =>
       indexKey: 'ready:1',
       onChanged: () => {},
       editors,
+      activity,
     }),
   );
 
@@ -104,5 +109,33 @@ describe('a type table writing a note', () => {
 
     expect(asked).toHaveLength(1);
     expect(vault.written[0]?.contents).toContain('status: doing');
+  });
+
+  it('records a cell edit it gives up on once, naming the note, and nothing for one that lands', async () => {
+    const refusing = fakeVault();
+    refusing.fs.writeTextFile = async () => {
+      throw new Error('The disk is full.');
+    };
+    const refusedLog = recordingActivity();
+    const refused = showTable(refusing, fakeEditors(false).registry, refusedLog);
+    act(() =>
+      refused.result.current.editCell({ path: TASK_PATH, column: 'status', value: 'doing' }),
+    );
+    await waitFor(() => expect(refused.result.current.error).toBe('The disk is full.'));
+    expect(refusedLog.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not save an edit — first. The disk is full.',
+        subject: { kind: 'note', path: TASK_PATH },
+      },
+    ]);
+
+    const savedLog = recordingActivity();
+    const vault = fakeVault();
+    const saved = showTable(vault, fakeEditors(false).registry, savedLog);
+    act(() => saved.result.current.editCell({ path: TASK_PATH, column: 'status', value: 'doing' }));
+    await waitFor(() => expect(vault.written).toHaveLength(1));
+    expect(savedLog.reports).toEqual([]);
   });
 });

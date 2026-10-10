@@ -2,10 +2,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, parseObjectType, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote } from '@atlas/application';
+import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useQueryView } from './use-query-view.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 /** Nothing folded, and folding remembered nowhere: these tests are about the query. */
 const NO_FOLDS = { collapsed: new Set<string>(), onToggle: () => {} };
@@ -64,7 +67,7 @@ async function opened(text: string) {
   const hook = renderHook(() =>
     useQueryView({
       note,
-      ports: { index, fs, markdown: remarkMarkdown, editors: NO_PANE },
+      ports: { index, fs, markdown: remarkMarkdown, editors: NO_PANE, activity: ACTIVITY },
       folds: NO_FOLDS,
       types: TYPES,
       notePaths: NONE,

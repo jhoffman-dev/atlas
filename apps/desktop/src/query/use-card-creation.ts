@@ -11,7 +11,8 @@ import {
   type ViewQuery,
 } from '@atlas/domain';
 import type { CardAdd } from '@atlas/ui';
-import type { MarkdownPort, VaultFsPort } from '@atlas/application';
+import type { ActivityLog, MarkdownPort, VaultFsPort } from '@atlas/application';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 
 /**
@@ -29,6 +30,7 @@ export function useCardCreation({
   dateKey,
   groupOptions,
   notePaths,
+  activity,
   onChanged,
   onError,
 }: {
@@ -45,6 +47,7 @@ export function useCardCreation({
   dateKey: string | null;
   groupOptions: readonly string[];
   notePaths: readonly string[];
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onChanged: () => void;
   onError: (message: string) => void;
 }) {
@@ -73,7 +76,9 @@ export function useCardCreation({
       });
 
       try {
-        await fs.createNote({ path, contents: frontmatter + NEW_NOTE_CONTENTS });
+        await withGiveUpRecorded({ activity, write: 'card', path: null }, () =>
+          fs.createNote({ path, contents: frontmatter + NEW_NOTE_CONTENTS }),
+        );
         onChanged();
         return path;
       } catch (cause) {
@@ -81,7 +86,7 @@ export function useCardCreation({
         return null;
       }
     },
-    [fs, markdown, query, notePaths, onChanged, onError],
+    [fs, markdown, query, notePaths, activity, onChanged, onError],
   );
 
   /** A board's group value as the property to write — typed by its kind, as a table's "+ New" is. */

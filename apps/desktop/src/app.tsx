@@ -518,7 +518,13 @@ export function App({
   });
 
   const typeRoute = useTypeRoute({
-    ports: { fs: vault.fs, markdown: notes.markdown, index: index.index, editors },
+    ports: {
+      fs: vault.fs,
+      markdown: notes.markdown,
+      index: index.index,
+      editors,
+      activity: activityLog,
+    },
     types,
     typeName: openTypeName,
     indexKey,
@@ -538,6 +544,7 @@ export function App({
     markdown: notes.markdown,
     types,
     viewPaths,
+    activity: activityLog,
     onCreated: (path) => {
       hideOverlay('new-view');
       onChanged();
@@ -551,6 +558,7 @@ export function App({
     index: index.index,
     clock: localClock,
     indexKey,
+    activity: activityLog,
     onCreated: (path) => {
       hideOverlay('new-artifact');
       onChanged();
@@ -575,7 +583,13 @@ export function App({
   );
 
   const query = useQueryPage({
-    ports: { index: index.index, fs: vault.fs, markdown: notes.markdown, editors },
+    ports: {
+      index: index.index,
+      fs: vault.fs,
+      markdown: notes.markdown,
+      editors,
+      activity: activityLog,
+    },
     open: queryOpen,
     indexKey,
     viewPaths,
@@ -592,6 +606,7 @@ export function App({
     markdown: notes.markdown,
     vaultKey,
     changeKey: indexKey,
+    activity: activityLog,
   });
   const chat = useChat({
     ports: chatPorts,
@@ -853,12 +868,14 @@ export function App({
     markdown: notes.markdown,
     vaultKey,
     changeKey: indexKey,
+    activity: activityLog,
   });
   const sidebarOrder = useSidebarOrder({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
     changeKey: indexKey,
+    activity: activityLog,
   });
   const secrets = useSecrets({
     store: sources.secrets,
@@ -1086,21 +1103,28 @@ export function App({
     typeViews.error,
     newNoteOfType.error,
     templatesPage.notice,
-    sidebarOrder.problem === null
-      ? null
-      : `The sidebar's order could not be saved: ${sidebarOrder.problem}`,
     sidebarOrder.unreadable,
   ];
   const indexFailure =
     location !== null && indexStatus.kind === 'failed' ? indexStatus.message : null;
+  const sidebarOrderFailure =
+    sidebarOrder.problem === null
+      ? null
+      : `The sidebar's order could not be saved: ${sidebarOrder.problem}`;
   // A red notice is where a use case gave up, so it is kept in the Activity log
   // once each time it appears. The index's failure is not: syncIndex records
-  // it. Nor is the offer to update links, which is a question, not a failure;
-  // edits kept for later are a warning.
+  // it. Nor is the sidebar's order, whose setting records it. Nor is the offer
+  // to update links, which is a question, not a failure; edits kept for later
+  // are a warning.
   useNoticeActivity({ errors: noticeMessages, warnings: [stranded.notice] }, activityLog);
   const notices = (
     <AppNotices
-      messages={[...noticeMessages, indexFailure, syncConflictNotice(sync.phase)]}
+      messages={[
+        ...noticeMessages,
+        sidebarOrderFailure,
+        indexFailure,
+        syncConflictNotice(sync.phase),
+      ]}
       links={entries.links}
       stranded={stranded}
     />
@@ -1430,6 +1454,7 @@ export function App({
             overlay === 'settings' ? (
               <SettingsPanel
                 ports={api}
+                activity={activityLog}
                 onClose={() => hideOverlay('settings')}
                 fallbackFocus={focusFallback}
               >

@@ -10,6 +10,7 @@ import {
   indexFailedReport,
   indexRebuiltReport,
   noticeReport,
+  screenWriteFailedReport,
   sourceRefreshReport,
   writeFailedReport,
 } from './activity-reports.ts';
@@ -289,9 +290,12 @@ describe('chatReport', () => {
       message: 'Claude could not answer.',
       subject: null,
     });
-    expect(chatReport({ kind: 'notKept', problem: 'disk full' }).message).toBe(
-      'The chat could not be saved to Chats/. disk full',
-    );
+    expect(chatReport({ kind: 'notKept' })).toEqual({
+      level: 'error',
+      kind: 'chat',
+      message: 'The chat could not be saved to Chats/.',
+      subject: null,
+    });
   });
 });
 
@@ -343,6 +347,39 @@ describe('index, save and notice reports', () => {
     expect(
       writeFailedReport({ write: 'create', path: p('N.md'), problem: 'x' }).subject,
     ).toBeNull();
+  });
+
+  it('records a write a screen gave up on, linked to the note it was writing', () => {
+    expect(
+      screenWriteFailedReport({ write: 'edit', path: p('Tasks/Call.md'), problem: 'locked' }),
+    ).toEqual({
+      level: 'error',
+      kind: 'save',
+      message: 'Could not save an edit — Call. locked',
+      subject: { kind: 'note', path: 'Tasks/Call.md' },
+    });
+  });
+
+  it('records a write with no note yet without a name or a link', () => {
+    expect(screenWriteFailedReport({ write: 'view', path: null, problem: 'disk full' })).toEqual({
+      level: 'error',
+      kind: 'save',
+      message: 'Could not save the view. disk full',
+      subject: null,
+    });
+  });
+
+  it.each([
+    ['dashboard', 'Could not add the query to the dashboard'],
+    ['card', 'Could not add the card'],
+    ['image', 'Could not add the image'],
+    ['artifact', 'Could not save the artifact'],
+    ['setting', 'Could not save a setting'],
+    ['connection', 'Could not change the API connection'],
+  ] as const)('says what a %s write was doing when it gave up', (write, words) => {
+    expect(screenWriteFailedReport({ write, path: null, problem: 'x' }).message).toBe(
+      `${words}. x`,
+    );
   });
 
   it('records a red notice as an error of the app', () => {

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ActivityLog } from '@atlas/application';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 
 /** One setting kept in the vault's settings note: what it holds, and a way to change it. */
 export interface VaultSetting<Value> {
@@ -21,13 +23,15 @@ const messageOf = (cause: unknown) => (cause instanceof Error ? cause.message : 
  * and is written behind it; it stays shown until its write has landed, and a
  * read that comes back in the meantime is set aside rather than shown, since
  * it may predate the write. Once the writes have landed the note is read again,
- * which puts back what the file holds if one of them failed.
+ * which puts back what the file holds if one of them failed. A failed write is
+ * shown by the setting and recorded in the Activity log.
  */
 export function useVaultSetting<Value>({
   load,
   store,
   vaultKey,
   changeKey,
+  activity,
 }: {
   /** Reads the setting; a new function means the ports changed and it is read again. */
   load: () => Promise<Value | null>;
@@ -39,6 +43,7 @@ export function useVaultSetting<Value>({
   store: (value: Value, previous: Value | null) => Promise<void>;
   vaultKey: string | null;
   changeKey: string;
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): VaultSetting<Value> {
   // Held with the vault it belongs to, so another vault's value is never handed out.
   const [held, setHeld] = useState<{ vault: string | null; value: Value | null } | null>(null);
@@ -82,14 +87,14 @@ export function useVaultSetting<Value>({
       writing.current += 1;
       setHeld({ vault: vaultKey, value: next });
       setProblem(null);
-      store(next, value)
+      withGiveUpRecorded({ activity, write: 'setting', path: null }, () => store(next, value))
         .catch((cause: unknown) => setProblem(messageOf(cause)))
         .finally(() => {
           writing.current -= 1;
           if (writing.current === 0) setLanded((count) => count + 1);
         });
     },
-    [store, vaultKey, value],
+    [store, vaultKey, value, activity],
   );
 
   return {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ApiConnectionStatus, ApiSettingsPort } from '@atlas/application';
+import type { ActivityLog, ApiConnectionStatus, ApiSettingsPort } from '@atlas/application';
 import type { ConnectionSettingsState } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { ClipboardWriter } from './clipboard.ts';
 
 export interface ConnectionSettings extends ConnectionSettingsState {
@@ -23,9 +24,12 @@ const messageOf = (error: unknown): string =>
 export function useConnectionSettings({
   settings,
   clipboard,
+  activity,
 }: {
   settings: ApiSettingsPort;
   clipboard: ClipboardWriter;
+  /** Where a change to the switch or the token that fails is recorded; a copy is no change. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): ConnectionSettings {
   const [status, setStatus] = useState<ApiConnectionStatus | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -72,10 +76,14 @@ export function useConnectionSettings({
   const setEnabled = useCallback(
     (enabled: boolean) =>
       run(async () => {
-        setStatus(await settings.setEnabled(enabled));
+        const changed = await withGiveUpRecorded(
+          { activity, write: 'connection', path: null },
+          () => settings.setEnabled(enabled),
+        );
+        setStatus(changed);
         return null;
       }, reread),
-    [run, settings, reread],
+    [run, settings, activity, reread],
   );
 
   const copyToken = useCallback(
@@ -90,10 +98,12 @@ export function useConnectionSettings({
   const rotateToken = useCallback(
     () =>
       run(async () => {
-        await settings.rotateToken();
+        await withGiveUpRecorded({ activity, write: 'connection', path: null }, () =>
+          settings.rotateToken(),
+        );
         return 'Token rotated. Tools that read the connection file pick up the new one by themselves.';
       }),
-    [run, settings],
+    [run, settings, activity],
   );
 
   const copyText = useCallback(

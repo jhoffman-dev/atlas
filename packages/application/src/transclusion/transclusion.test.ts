@@ -195,6 +195,14 @@ describe('anchorBlock', () => {
     expect(reloaded).toEqual([plans]);
   });
 
+  it('says a chat note moved its blocks without naming it, since its name is the question', () => {
+    const chat = createVaultPath('Chats/Should Mara Quill get a raise.md');
+    expect(new BlockMovedError(chat).message).toBe(
+      'a chat note changed while its blocks were being offered. Pick the block again.',
+    );
+    expect(new BlockMovedError(plans).message).toMatch(/^Plans changed while/);
+  });
+
   it('refuses when the block is no longer what was offered, or no longer there', async () => {
     const { fs, written } = vault({ [plans]: 'Something new\n' });
     const ask = (at: number[], text: string) =>

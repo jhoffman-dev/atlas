@@ -9,13 +9,16 @@
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, parseObjectType, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote } from '@atlas/application';
+import { fakeIndexPort, fakeVaultFs, openNote, recordingActivity } from '@atlas/application';
 import type { IndexPort } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory } from './tick-memory.ts';
 import { useSavedView } from './use-saved-view.ts';
 import { useViewDrafts } from './use-view-drafts.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 const VIEW_PATH = createVaultPath('.atlas/views/Work.md');
 
@@ -83,6 +86,7 @@ async function show({
   const note = await openNote({ fs, markdown: remarkMarkdown, path: VIEW_PATH });
   const hook = renderHook(() =>
     useSavedView({
+      activity: ACTIVITY,
       note,
       index,
       fs,

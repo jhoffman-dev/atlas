@@ -160,6 +160,38 @@ describe('useArchive', () => {
     await waitFor(() => expect(hook.result.current.notice).toBe('Gone: no such entry'));
   });
 
+  it('says a linking chat note held unsaved typing without its question, in the name or the reason', async () => {
+    const CHAT = 'Chats/Should Mara Quill get a raise.md';
+    const { hook, options } = setUp({
+      'Projects/X.md': '',
+      'Y.md': '',
+      [CHAT]: 'See [[Projects/X]].\n',
+    });
+    const typing = {
+      ...options.ports,
+      editors: {
+        ...options.ports.editors,
+        state: (at: VaultPath) => (at === CHAT ? 'dirty' : 'closed'),
+      },
+    } as ArchivePorts;
+    hook.rerender({ ...options, ports: typing });
+    act(() => {
+      void hook.result.current.commands.archive([path('Projects/X.md'), path('Y.md')]);
+    });
+    await waitFor(() => expect(hook.result.current.notice).not.toBeNull());
+    expect(hook.result.current.notice).toBe(
+      'a chat note: Its links to the notes that moved were not updated: The note has unsaved changes.',
+    );
+  });
+
+  it('says a chat note could not be archived without naming it, since its name is the question', async () => {
+    const { hook } = setUp({ 'a.md': '' });
+    act(() => {
+      void hook.result.current.commands.archive([path('Chats/Should Mara Quill get a raise.md')]);
+    });
+    await waitFor(() => expect(hook.result.current.notice).toBe('a chat note: no such entry'));
+  });
+
   it('reads the Archive only while its page is open, and again as the search changes', async () => {
     const { hook, options, query } = setUp({});
     expect(hook.result.current.page.contents).toBeNull();

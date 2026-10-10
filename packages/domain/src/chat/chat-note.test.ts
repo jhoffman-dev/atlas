@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { appendChatEntries, chatNoteName, newChatNoteText, readChatNote } from './chat-note.ts';
+import {
+  appendChatEntries,
+  chatNoteName,
+  newChatNoteText,
+  noteLabelForNotice,
+  readChatNote,
+} from './chat-note.ts';
 import { splitFrontmatter } from '../markdown/markdown-document.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
 
 describe('chatNoteName', () => {
   it('is the first few words of what was asked, safe as a file name', () => {
@@ -67,5 +74,20 @@ describe('appendChatEntries', () => {
 describe('readChatNote', () => {
   it('ignores anything before the first heading', () => {
     expect(readChatNote('preamble\n## Claude\n\nHi')).toEqual([{ role: 'assistant', text: 'Hi' }]);
+  });
+});
+
+describe('noteLabelForNotice', () => {
+  it('names a note by its title', () => {
+    expect(noteLabelForNotice(createVaultPath('Projects/Launch plan.md'))).toBe('Launch plan');
+  });
+
+  it('names a chat note as one, in any case of its folder, never by the question', () => {
+    expect(noteLabelForNotice(createVaultPath('Chats/Should Mara Quill get a raise.md'))).toBe(
+      'a chat note',
+    );
+    expect(noteLabelForNotice(createVaultPath('chats/Should Mara Quill get a raise.md'))).toBe(
+      'a chat note',
+    );
   });
 });

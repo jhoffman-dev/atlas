@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { recordingActivity } from '@atlas/application';
 import { useVaultSetting } from './use-vault-setting.ts';
 
 /** A read that does not come back until `release`, or fails when `fail` is called. */
@@ -15,21 +16,28 @@ function pendingRead(value: string) {
   return { load, release: () => release(), fail: (cause: Error) => fail(cause) };
 }
 
-function renderSetting(initial: { load: () => Promise<string | null>; vaultKey: string }) {
+function renderSetting(
+  initial: { load: () => Promise<string | null>; vaultKey: string },
+  /** What the settings note's writer says to every save, when it says no. */
+  refuse: string | null = null,
+) {
   const stored: { next: string; previous: string | null }[] = [];
+  const activity = recordingActivity();
   const hook = renderHook(
     (props: { load: () => Promise<string | null>; vaultKey: string }) =>
       useVaultSetting<string>({
         ...props,
         changeKey: '0',
+        activity,
         store: (next, previous) => {
+          if (refuse !== null) return Promise.reject(new Error(refuse));
           stored.push({ next, previous });
           return Promise.resolve();
         },
       }),
     { initialProps: initial },
   );
-  return { hook, stored };
+  return { hook, stored, activity };
 }
 
 describe('useVaultSetting across a vault switch', () => {
@@ -74,5 +82,37 @@ describe('useVaultSetting across a vault switch', () => {
       { next: 'new in A', previous: 'from A' },
       { next: 'new in B', previous: null },
     ]);
+  });
+});
+
+describe('useVaultSetting and the Activity log', () => {
+  it('records a save it gives up on, once', async () => {
+    const { hook, activity } = renderSetting(
+      { load: () => Promise.resolve('from A'), vaultKey: 'a' },
+      'The settings note is locked.',
+    );
+    await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+    act(() => hook.result.current.save('changed'));
+    await waitFor(() => expect(hook.result.current.problem).toBe('The settings note is locked.'));
+    expect(activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not save a setting. The settings note is locked.',
+        subject: null,
+      },
+    ]);
+  });
+
+  it('records nothing for a save that lands', async () => {
+    const { hook, stored, activity } = renderSetting({
+      load: () => Promise.resolve('from A'),
+      vaultKey: 'a',
+    });
+    await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+    act(() => hook.result.current.save('changed'));
+    await waitFor(() => expect(stored).toHaveLength(1));
+    expect(hook.result.current.problem).toBeNull();
+    expect(activity.reports).toEqual([]);
   });
 });

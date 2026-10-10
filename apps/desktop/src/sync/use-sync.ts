@@ -8,7 +8,7 @@ import {
 import {
   loadSyncSettings,
   saveSyncSettings,
-  type ActivityRecorder,
+  type ActivityLog,
   type Clock,
   type GitFoldersPort,
   type GitHubPort,
@@ -48,7 +48,7 @@ export interface SyncOptions {
   /** Changes when the vault's files do: an edit, a move, a Claude edit, an automation's run. */
   readonly changeKey: string;
   readonly clock: Pick<Clock, 'now' | 'localNow'>;
-  readonly activity: { inVault(vault: string): ActivityRecorder };
+  readonly activity: Pick<ActivityLog, 'inVault' | 'inOpenVault'>;
   /** Writes every pane's unsaved typing. */
   readonly flushAll: () => Promise<void>;
   /** The window's close, which waits for the last sync. */
@@ -196,14 +196,14 @@ function usePause(store: SyncPauseStore, vaultKey: string | null) {
 }
 
 /** The vault's sync settings, read from its settings note and saved through its one writer. */
-function useSyncSettings({ fs, markdown, vaultKey, changeKey }: SyncOptions) {
+function useSyncSettings({ fs, markdown, vaultKey, changeKey, activity }: SyncOptions) {
   const load = useCallback(() => loadSyncSettings({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
     (value: SyncSettings) =>
       saveSyncSettings({ settings: vaultSettingsWriter({ fs, markdown }), changes: value }),
     [fs, markdown],
   );
-  const setting = useVaultSetting({ load, store, vaultKey, changeKey });
+  const setting = useVaultSetting({ load, store, vaultKey, changeKey, activity });
   const { value, save: saveWhole } = setting;
   const save = useCallback(
     (changes: Partial<SyncSettings>) =>
