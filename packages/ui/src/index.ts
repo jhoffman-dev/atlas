@@ -75,6 +75,7 @@ export { LayoutMenu } from './layout-menu.tsx';
 export { CapturePalette } from './capture-palette.tsx';
 export { CalendarView } from './calendar-view.tsx';
 export type { CalendarWrite } from './calendar-view.tsx';
+export type { PlanDrop, Planner } from './schedule-tray.tsx';
 export { CalendarNav, useCalendarNav } from './calendar-nav.tsx';
 export type { CalendarNavigation } from './calendar-nav.tsx';
 export { DashboardView } from './dashboard-view.tsx';

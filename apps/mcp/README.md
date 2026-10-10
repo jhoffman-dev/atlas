@@ -109,6 +109,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_unarchive`          | `POST /v1/unarchive`                                                         | yes     |
 | `atlas_archived`           | `GET /v1/archive`                                                            | no      |
 | `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
+| `atlas_schedule_task`      | `POST /v1/tasks/schedule`                                                    | yes     |
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
 | `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
 | `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
@@ -143,6 +144,13 @@ cites. `atlas_accept_proposal` writes that and archives the proposal, as its
 Accept button does; `atlas_reject_proposal` archives it unwritten. Neither is
 idempotent: a second answer to one proposal is refused as `conflict`. Editing a
 proposal first, and undoing an accept, stay in the app.
+
+`atlas_schedule_task` sets time aside for a task as dragging it onto the
+calendar's empty time does: a new block note from `start` (local wall-clock to
+the minute, `2026-10-12T09:00` — a `Z`, offset or seconds is refused) for `minutes`, linking the task — or, without `minutes`,
+as long as the task still needs. Calling it again makes another block, which
+is how a task is split. `atlas_query` with `schedule: true` reads what each
+task now has scheduled.
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

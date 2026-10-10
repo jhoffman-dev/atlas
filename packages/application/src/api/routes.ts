@@ -18,6 +18,7 @@ import { acceptProposalRoute, proposalsRoute, rejectProposalRoute } from './prop
 import { queryRoute, sqlRoute } from './query.ts';
 import { quickAddRoute, quickAddTypesRoute } from './quick-add.ts';
 import { searchRoute } from './search.ts';
+import { scheduleTaskRoute } from './schedule-task.ts';
 import { refreshSourceRoute } from './sources.ts';
 import { statusRoute } from './status.ts';
 import { renameTagRoute, taggedNotesRoute, tagsRoute } from './tags.ts';
@@ -108,6 +109,7 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'POST /v1/archive': vaultWrite(archiveRoute),
   'POST /v1/unarchive': vaultWrite(unarchiveRoute),
   'POST /v1/inbox/process': vaultWrite(processInboxRoute),
+  'POST /v1/tasks/schedule': vaultWrite(scheduleTaskRoute),
   'GET /v1/automations': vaultRoute(automationsRoute),
   'GET /v1/automations/{id}/log': vaultRoute(automationLogRoute),
   'POST /v1/automations/{id}/dry-run': vaultRoute(automationDryRunRoute),

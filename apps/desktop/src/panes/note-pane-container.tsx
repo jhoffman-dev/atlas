@@ -4,6 +4,7 @@ import {
   archiveRefusal,
   createVaultPath,
   isArchivedPath,
+  isBlockType,
   isFavorite,
   deleteRefusal,
   isMovable,
@@ -49,6 +50,7 @@ import {
   type NotePeople,
   type NoteReveal,
   type PaneArrangement,
+  type Planner,
   type TemplateNotice,
   type ViewTabEditing,
 } from '@atlas/ui';
@@ -59,6 +61,7 @@ import { useBookmarks } from '../notes/use-bookmarks.ts';
 import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
 import { cryptoRng } from '../random.ts';
+import { usePlanner } from '../timeblocks/use-planner.ts';
 import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
 import { webviewImageProbe } from '../notes/webview-image-probe.ts';
 import { browserImagePlacementStore } from '../notes/browser-image-placement-store.ts';
@@ -82,7 +85,7 @@ import { QueryViewBody } from './query-view-body.tsx';
 import { useQueryBlocks } from '../query/use-query-blocks.ts';
 import { pageHeading } from './page-heading.ts';
 import { localClock, localNow, localToday } from '../today.ts';
-import type { OpenEditors } from './open-editors.ts';
+import type { OpenEditors, PaneEditors } from './open-editors.ts';
 import type { StrandedEdits } from '../notes/stranded-edits.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
@@ -124,7 +127,8 @@ export interface PaneContext {
   readonly people: NotePeople;
   /** Opens the tags page on a tag, by its name as written. */
   readonly openTag: (name: string) => void;
-  readonly editors: OpenEditors;
+  /** The panes' editors, and whether one holds typing in a note not yet saved. */
+  readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf'>;
   /** Work a closed pane could not write, kept until its note is opened again. */
   readonly stranded: StrandedEdits;
   /** Where a save the pane gave up on is said (U-28). */
@@ -268,6 +272,20 @@ export function NotePaneContainer({
     drafts: context.viewDrafts,
     viewPaths: context.viewPaths,
     activity: context.activity,
+  });
+  const planner = usePlanner({
+    active:
+      savedView.display.layout === 'calendar' &&
+      isBlockType(savedView.type?.name ?? savedView.query?.type),
+    vault: context.vault,
+    fs: notes.fs,
+    markdown: notes.markdown,
+    index,
+    editors,
+    types,
+    notePaths,
+    indexKey,
+    onChanged,
   });
   const sqlView = useSqlView({ note: note.open, index, indexKey });
   const folds = useGroupFolds({
@@ -475,6 +493,7 @@ export function NotePaneContainer({
               source,
               dashboard: { ...dashboard, ...dashboardEditing },
               savedView,
+              planner,
               sqlView,
               queryView,
               calendar,
@@ -700,6 +719,7 @@ function paneBody({
   source,
   dashboard,
   savedView,
+  planner,
   sqlView,
   queryView,
   calendar,
@@ -715,6 +735,8 @@ function paneBody({
   source: ReturnType<typeof useSource>;
   dashboard: ReturnType<typeof useDashboard> & ReturnType<typeof useDashboardEditing>;
   savedView: ReturnType<typeof useSavedView>;
+  /** The tray of tasks to plan, for a calendar of blocks; null for any other view. */
+  planner: Planner | null;
   sqlView: ReturnType<typeof useSqlView>;
   queryView: QueryViewState | null;
   calendar: CalendarNavigation;
@@ -770,6 +792,7 @@ function paneBody({
   return (
     <ViewBody
       view={savedView}
+      planner={planner}
       calendar={calendar}
       onOpenNote={openTarget}
       onFollowLink={followLink}
