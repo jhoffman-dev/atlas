@@ -6,8 +6,8 @@ destination** beside Notion: the same meeting, committed as one markdown file
 to the vault's sync repository, `jhoffman-dev/pkm-space`, at
 `Inbox/Meetings/<YYYY-MM-DD> <title>.md`. Atlas pulls that repository every
 minute, so meetings arrive even while the Mac is asleep (ADR-0027). The
-Notion path is not touched: the Atlas branch runs in parallel with it, reads
-the meeting from your nodes by name, and nothing in it can stop the run.
+Notion path is not touched: the Atlas branch runs beside it, from the
+assembled meeting before any Notion step, and nothing in it can stop the run.
 
 | File                                                | What it is                                                                     |
 | --------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -61,13 +61,14 @@ The nodes fit a workflow shaped like this:
   email's subject and arrival time (a Gmail trigger names them `subject` and
   `date`). With a second, manual trigger for tests, use the first step both
   triggers feed, so the field is there whichever one ran;
-- a **merged meeting** node, whose one item per meeting holds `title`,
-  `attendees` (a list of `{ name, email }`), `summaryMd` (the notes, with
-  `## Summary`, `## Decisions`, `## Next steps` and `## Details` headings),
-  `transcriptMd`, `source` (`gemini`), `sourceId` (the email's id) and
-  `category`. Any date it holds is when the notes arrived, and is not read;
-- the Notion steps after it: a "was it synced already?" lookup, then the
-  page create.
+- an **assembled meeting** node, before any Notion step, whose one item per
+  meeting holds `title`, `attendees` (a list of `{ name, email }`),
+  `summaryMd` (the notes, with `## Summary`, `## Decisions`, `## Next steps`
+  and `## Details` headings), `transcriptMd`, `source` (`gemini`), `sourceId`
+  (the email's id) and `category`. Any date it holds is when the notes
+  arrived, and is not read;
+- the Notion steps after it: the People lookups and creates, a "was it synced
+  already?" lookup, then the page create.
 
 Work on an inactive copy, so the live workflow keeps running untouched until
 the copy is proven:
@@ -78,16 +79,15 @@ the copy is proven:
 2. In the copy, open `meeting-to-atlas.workflow.json`, copy all of it, click
    the canvas and press **Cmd+V**. Twelve nodes appear, starting at
    **Meeting fields for Atlas**.
-3. Drag a connection from **the merged meeting node's output** to **Meeting
-   fields for Atlas**, beside the connection that already goes to the Notion
-   lookup. Put the Atlas nodes **above** the Notion branch on the canvas: n8n
-   (execution order v1) runs the branches of one output top to bottom, so
-   Atlas runs first and a Notion failure later in the run cannot keep it from
-   running. The Atlas branch cannot stop the Notion one: every failure in it
-   leaves by an error output.
-   - Or wire it from **your Notion create node's output** instead. Atlas then
-     runs only for a meeting Notion has just created: one Notion skipped as
-     already synced, or failed to write, is not tried.
+3. Drag a connection from **the assembled meeting node's output** to
+   **Meeting fields for Atlas**, beside the connections that already go to
+   the Notion steps. Wire it from there, not from a later node: the People
+   lookups, the merge with their ids and the Notion writes all come after,
+   so a Notion failure, or a meeting with no people to look up, cannot keep
+   Atlas from running. Put the Atlas nodes **above** the Notion branches on
+   the canvas: n8n (execution order v1) runs the branches of one output top
+   to bottom, so Atlas runs first. The Atlas branch cannot stop the Notion
+   one: every failure in it leaves by an error output.
 4. Open each of the four GitHub nodes and check that the credential shows
    `GitHub pkm-space (contents)`; pick it from the list if n8n asks. Open
    **Email me: meeting not in Atlas**, pick your Gmail credential, and put
@@ -97,21 +97,21 @@ the copy is proven:
 
 Open **Meeting fields for Atlas**. Each row is one field the mapper reads; the
 right-hand side reads one of your nodes by name, so it works wherever the
-branch is wired. The rows name the nodes `Meeting with people` (the merged
-meeting) and `Notes email` (the email): rename your nodes to those, or change
-the name in each row (drag the field in from the input panel).
+branch is wired. The rows name the nodes `Assembled meeting` and
+`Notes email` (the email): rename your nodes to those, or change the name in
+each row (drag the field in from the input panel).
 
-| Mapper field | Read from                          | Becomes in the file                   |
-| ------------ | ---------------------------------- | ------------------------------------- |
-| `title`      | merged meeting `title`             | `title`, and the file name            |
-| `stated`     | notes email `subject`              | `date`, and `start` if it has a time  |
-| `arrived`    | notes email `date` (when it came)  | `start` (approximate), see below      |
-| `attendees`  | merged meeting `attendees` (Array) | `attendees` (groups marked)           |
-| `sections`   | merged meeting `summaryMd`         | `## Summary`, `## Notes`, next steps  |
-| `transcript` | merged meeting `transcriptMd`      | `## Transcript`, a paragraph per turn |
-| `category`   | merged meeting `category`          | `kind`                                |
-| `source`     | merged meeting `source`            | `provider`                            |
-| `sourceId`   | merged meeting `sourceId`          | `external_id`                         |
+| Mapper field | Read from                             | Becomes in the file                   |
+| ------------ | ------------------------------------- | ------------------------------------- |
+| `title`      | assembled meeting `title`             | `title`, and the file name            |
+| `stated`     | notes email `subject`                 | `date`, and `start` if it has a time  |
+| `arrived`    | notes email `date` (when it came)     | `start` (approximate), see below      |
+| `attendees`  | assembled meeting `attendees` (Array) | `attendees` (groups marked)           |
+| `sections`   | assembled meeting `summaryMd`         | `## Summary`, `## Notes`, next steps  |
+| `transcript` | assembled meeting `transcriptMd`      | `## Transcript`, a paragraph per turn |
+| `category`   | assembled meeting `category`          | `kind`                                |
+| `source`     | assembled meeting `source`            | `provider`                            |
+| `sourceId`   | assembled meeting `sourceId`          | `external_id`                         |
 
 `sections` is split by its headings: `## Summary` becomes the Summary;
 `## Details` the Notes, with `## Decisions` under them as `### Decisions`;
@@ -128,8 +128,9 @@ arrival as `date` or `start`: it would be taken as when the meeting began.
 
 `title`, a day (`stated` or `date`), a start time, `source` and `sourceId`
 are required. Without a start time (in `start`, `stated` or `date`, or worked
-out from `arrived`), the mapper stops with "start: the meeting has no start
-time" rather than inventing one.
+out from `arrived` less a transcript's length), the mapper refuses the
+meeting with "start: the meeting has no start time…" and it goes to the
+failure email. It never makes a start up.
 
 **When a Gemini meeting began.** A Gemini meeting's notes arrive about when
 it ended, so the day and start come from the email itself:
@@ -137,22 +138,33 @@ it ended, so the day and start come from the email itself:
 1. `stated` — the email's subject. The mapper reads the **last** date in it
    (`Oct 6, 2026`, `October 6 2026`, `2026/10/06`, `2026-10-06`; a date in
    the meeting's title comes before it) and a time right after it, if any
-   (`10:00`, `2:30 PM`; a zone after the time is not read: it is taken as
-   your local clock). Gemini's doc title,
-   `Title - 2026/10/06 10:00 PDT - Notes by Gemini`, works too. When `stated`
-   is given, `date` is not read at all. Words with no date in them are refused.
+   (`10:00`, `2:30 PM`). A zone after the time (`13:00 EDT`, `UTC+1`,
+   `-04:00`) is converted to `timeZone`'s clock, which may move the day; a
+   zone it does not know (`IST` means several), or no `timeZone`, keeps the
+   time as written and marks it `start_approximate: true`. Gemini's doc
+   title, `Title - 2026/10/06 10:00 PDT - Notes by Gemini`, works too. When
+   `stated` is given, `date` is not read at all. Words with no date in them
+   are refused.
 2. `arrived` — when the email arrived (an instant). When nothing gives a
    start time, the start is the arrival less the transcript's length —
    Gemini's "Transcription ended after 00:51:49" line, else its last
    `### hh:mm:ss` section stamp (a little short) — and the file says
-   `start_approximate: true`. With no transcript, the start is the arrival
-   itself, still marked approximate.
+   `start_approximate: true`. With no length to take off (no transcript, or
+   one with no stamps and no end mark), the arrival is **never** taken as the
+   start: it is about when the meeting ended, so the meeting is refused.
 
 The order is: `start`, then the time in `stated`, then the time in `date`,
 then (Granola) the first stamped turn, then `arrived` less the transcript.
 
 `attendees` is an **Array** row: the mapper reads `{ name, email }` records.
-It reads `Name — email` lines too; for those, make the row a **String**.
+It reads `Name — email` lines too; for those, make the row a **String**. A
+name that is itself an address counts as no name: the attendee is named by
+the address's local part, and a real name given for that address wins.
+
+**Transcript title lines.** Above the first `### hh:mm:ss` stamp or turn, a
+transcript doc's title is dropped: `## Transcript`, `# Transcript`,
+`Weekly sync - Transcript`, `## Q4: planning – Transcript`. Below it, or in a
+code fence, the same words are kept as someone's.
 
 **Dates and instants.** Open **Map meeting to Atlas file**; at the bottom is
 `const OPTIONS = { timeZone: 'America/Los_Angeles', groupAddresses: [] };`.
@@ -200,12 +212,14 @@ attendees to check against; otherwise it continues the turn before.
 meeting the mapper refuses (no start time, say), an existing file it cannot
 read, both of a meeting's paths taken by other meetings, a commit GitHub
 rejects (an expired token) — leaves by that node's error output to **Atlas
-commit failed**, and the run goes on. Notion already has the meeting.
-**Email me: meeting not in Atlas** then sends you the meeting's title and
-Source ID, the error, and the execution number to open in n8n. If that email
-cannot be sent either, nothing stops: the execution still shows the error.
-To be told another way (Slack, say), swap that node for one that posts there,
-reading the same expressions.
+commit failed**, and the run goes on to the Notion steps, which the Atlas
+branch never touches. **Email me: meeting not in Atlas** then sends you
+"This meeting was not committed to the Atlas vault: <the error>", with the
+meeting's title and Source ID and the execution number to open in n8n. It
+says nothing of Notion: Atlas runs first, so Notion may not have the meeting
+yet. If that email cannot be sent either, nothing stops: the execution still
+shows the error. To be told another way (Slack, say), swap that node for one
+that posts there, reading the same expressions.
 
 ## 5. Dry run, then swap
 
@@ -228,10 +242,13 @@ In the inactive copy:
    execution's trigger data and press **Test workflow**.
 4. Open **Map meeting to Atlas file**'s output. Check `path`, `commitMessage`
    and `content`: the date and start are right (fix `timeZone` if not; a
-   start worked out from the arrival says `start_approximate: true`), the
-   attendees are split, the transcript has one
-   `**Speaker** [~00:09:44] … ^t0001` paragraph per turn. Check **Atlas commit
-   failed** received nothing.
+   start worked out from the arrival says `start_approximate: true`). A
+   meeting with no transcript and no time in its subject goes to **Atlas
+   commit failed** instead, with "start: the meeting has no start time"; that
+   is by design, not a fault. Check the
+   attendees are split, and the transcript has one
+   `**Speaker** [~00:09:44] … ^t0001` paragraph per turn. Otherwise **Atlas
+   commit failed** should receive nothing.
 5. Optional, on the Mac: copy `content` into a file and run
    `pnpm validate:meeting that-file.md` in the Atlas repo. `ok` means Atlas
    will accept it.

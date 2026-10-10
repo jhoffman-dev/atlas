@@ -25,16 +25,18 @@ export const NODES = {
 } as const;
 
 /**
- * Where the Atlas branch reads a meeting in your workflow, by node name: it
- * may be wired after the Notion node, where `$json` is Notion's page, so
- * every field is read from these nodes by name (paired items carry each
- * meeting through).
+ * Where the Atlas branch reads a meeting in your workflow, by node name, so
+ * a field reads the same whichever node's output the branch hangs off
+ * (paired items carry each meeting through).
  */
 export interface MeetingSources {
   /**
-   * The node whose output is one merged meeting item: `title`,
-   * `attendees` (`[{ name, email }]`), `summaryMd`, `transcriptMd`, `source`,
-   * `sourceId`, `category`. Its date is when the notes arrived, so it is not read.
+   * The node whose output is the assembled meeting, before any Notion step
+   * (the People lookups and creates): `title`, `attendees`
+   * (`[{ name, email }]`), `summaryMd`, `transcriptMd`, `source`, `sourceId`,
+   * `category`. The branch is wired from this node too, so a Notion failure,
+   * or a meeting with no people, cannot keep it from running. Its date is
+   * when the notes arrived, so it is not read.
    */
   readonly meetingNode: string;
   /** The node whose output is the notes email itself, for its subject and arrival. */
@@ -47,7 +49,7 @@ export interface MeetingSources {
 
 /** Example names: a Gmail trigger's own fields are `subject` and `date`. Edit them to yours. */
 export const EXAMPLE_SOURCES: MeetingSources = {
-  meetingNode: 'Meeting with people',
+  meetingNode: 'Assembled meeting',
   emailNode: 'Notes email',
   subjectField: 'subject',
   arrivedField: 'date',
@@ -190,8 +192,9 @@ const WHY =
   '{{ typeof $json.error === "string" ? $json.error : JSON.stringify($json.error ?? $json) }}';
 
 /**
- * An email to you when a meeting did not reach Atlas. Notion has the meeting
- * either way. A notification that cannot be sent stops nothing.
+ * An email to you when a meeting did not reach Atlas. It says nothing of
+ * Notion: Atlas runs first, so Notion may not have the meeting yet. A
+ * notification that cannot be sent stops nothing.
  */
 function notifyNode(sources: MeetingSources) {
   const meeting = (field: string) => `{{ ${read(sources.meetingNode, field)} }}`;
@@ -208,11 +211,10 @@ function notifyNode(sources: MeetingSources) {
       subject: `=Atlas did not get a meeting: ${meeting('title')}`,
       emailType: 'text',
       message: [
-        '=The meeting is in Notion but was not committed to the vault.',
+        `=This meeting was not committed to the Atlas vault: ${WHY}`,
         '',
         `Meeting: ${meeting('title')}`,
         `Source ID: ${meeting('sourceId')}`,
-        `Why: ${WHY}`,
         'Execution: {{ $workflow.name }} #{{ $execution.id }}',
       ].join('\n'),
       options: { appendAttribution: false },
@@ -250,8 +252,8 @@ function ifSameNode() {
 const to = (...names: string[]) => names.map((node) => ({ node, type: 'main', index: 0 }));
 
 /**
- * The nodes to paste after the Notion node, with the mapper's scripts in
- * them. Idempotent: a meeting already at its path, or at its own collision
+ * The nodes to paste beside the Notion steps, wired from the assembled
+ * meeting, with the mapper's scripts in them. Idempotent: a meeting already at its path, or at its own collision
  * path, is skipped; a different meeting at its path sends it to the
  * collision path; only a free path is written. Nothing in it stops the run:
  * every failure — a refused meeting, a file it cannot read, both paths taken

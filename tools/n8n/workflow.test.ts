@@ -98,8 +98,8 @@ describe('the committed workflow', () => {
     expect(() => run({ ...MEETING, start: '' }, fail)).toThrow(/no start time/);
   });
 
-  it('maps a merged meeting item and its email as n8n runs the two nodes', () => {
-    // Fictional. The merged item's dateISO is when the notes arrived, 10:52 local.
+  it('maps an assembled meeting item and its email as n8n runs the two nodes', () => {
+    // Fictional. The assembled item's dateISO is when the notes arrived, 10:52 local.
     const meetingItem = {
       title: 'Platform weekly sync',
       attendees: [
@@ -248,10 +248,10 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
       .filter(([, { main }]) => main.some((output) => output.some((each) => each.node === name)))
       .map(([from]) => from);
 
-  it('is wired by James, after the Notion node or beside it, reading the meeting by node name', () => {
+  it('is wired by James from the assembled meeting, reading it by node name', () => {
     expect(incoming(NODES.fields)).toEqual([]);
     const fieldValues = JSON.stringify(node(NODES.fields).parameters);
-    // After the Notion node, $json is Notion's page: the fields come from named nodes.
+    // Read by name, not $json, so each field reads the same wherever the branch hangs.
     expect(fieldValues).not.toContain('$json');
     expect(fieldValues).toContain(`$('${EXAMPLE_SOURCES.meetingNode}').item.json`);
   });
@@ -308,7 +308,9 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
     });
     expect(notify.onError).toBe('continueErrorOutput');
     expect(next(NODES.notify, 1)).toEqual([]);
-    expect(String(notify.parameters.message)).toContain('$json.error');
+    expect(String(notify.parameters.message)).toMatch(
+      /^=This meeting was not committed to the Atlas vault: \{\{ .*\$json\.error/,
+    );
     expect(String(notify.parameters.subject)).toContain(
       `$('${EXAMPLE_SOURCES.meetingNode}').item.json["title"]`,
     );
