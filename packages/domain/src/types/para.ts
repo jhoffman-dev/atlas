@@ -136,6 +136,34 @@ export interface TypeExtension<Type extends ObjectType = ObjectType> {
   readonly widened: readonly PropertyDef[];
 }
 
+/** The property keys an extension adds or widens: what an offer to make it shows. */
+export function extensionKeys(extension: TypeExtension): ReadonlySet<string> {
+  return new Set([...extension.added, ...extension.widened].map((property) => property.key));
+}
+
+/**
+ * The part of `extension` that touches only `keys` — what an offer showed for
+ * its type — or null when none of it does. Worked out again from the type as
+ * the extension found it, so a change nobody was shown is never written.
+ */
+export function extensionWithin<Type extends ObjectType>(
+  extension: TypeExtension<Type>,
+  keys: ReadonlySet<string>,
+): TypeExtension<Type> | null {
+  const added = extension.added.filter((property) => keys.has(property.key));
+  const widened = extension.widened.filter((property) => keys.has(property.key));
+  if (added.length + widened.length === 0) return null;
+  const wider = new Map(widened.map((property) => [property.key, property]));
+  const { before } = extension;
+  const properties = before.properties.map((property) => wider.get(property.key) ?? property);
+  return {
+    before,
+    after: { ...before, properties: [...properties, ...added] },
+    added,
+    widened,
+  };
+}
+
 /** What making a vault's types whole for PARA would do. */
 export interface BuiltInTypePlan<Type extends ObjectType = ObjectType> {
   /** The PARA types the vault has no file for. */

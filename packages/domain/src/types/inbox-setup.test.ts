@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { combinedExtensions, inboxTypePlan } from './inbox-setup.ts';
-import { builtInTypePlan, typeSetupLines } from './para.ts';
+import { builtInTypePlan, extensionKeys, extensionWithin, typeSetupLines } from './para.ts';
 import { parseObjectType, type ObjectType } from './property-def.ts';
 import { typeFrontmatter } from './type-frontmatter.ts';
 
@@ -82,5 +82,23 @@ describe('combinedExtensions', () => {
       inboxTypePlan([task, meeting]).extensions,
     );
     expect(combined.map((extension) => extension.before.name)).toEqual(['task', 'meeting']);
+  });
+});
+
+describe('extensionWithin', () => {
+  it('keeps only the part of a change an offer showed, worked out from the type as it was', () => {
+    const meeting = type({ name: 'meeting', label: 'Meeting', properties: { date: 'date' } });
+    const [both] = combinedExtensions(
+      builtInTypePlan([meeting]).extensions,
+      inboxTypePlan([meeting]).extensions,
+    );
+    if (both === undefined) throw new Error('Meeting should be extended');
+    const onlyImport = extensionWithin(both, new Set(['atlas_import_error']));
+    expect(keys(onlyImport?.added)).toEqual(['atlas_import_error']);
+    expect(keys(onlyImport?.after.properties)).toEqual(['date', 'atlas_import_error']);
+    expect(extensionWithin(both, new Set(['somewhere else']))).toBeNull();
+    expect(extensionKeys(both)).toEqual(
+      new Set(['project', 'atlas_import_outcome', 'atlas_import_error', 'atlas_duplicate_of']),
+    );
   });
 });

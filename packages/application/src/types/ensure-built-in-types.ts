@@ -2,6 +2,8 @@ import {
   builtInTypePlan,
   combinedExtensions,
   createVaultPath,
+  extensionKeys,
+  extensionWithin,
   inboxTypePlan,
   newTypeFrontmatter,
   type BuiltInTypeFile,
@@ -121,16 +123,29 @@ export async function acceptTypeSetup({
   return { created: written.created, extended, failed };
 }
 
-/** What of `offer` the vault's types still lack, worked out from their files as they are now. */
+/**
+ * What of `offer` the vault's types still lack, worked out from their files as
+ * they are now — and no more than it showed: each plan's change to a type is
+ * kept only for the properties the offer listed for that type, so a change
+ * one plan came to want while the offer waited is never written unseen.
+ */
 async function stillOffered(ports: TypePorts, offer: TypeSetupOffer): Promise<TypeSetupOffer> {
   const types = await loadObjectTypes(ports);
-  const lacking = [...builtInTypePlan(types).missing, ...inboxTypePlan(types).missing];
-  const now = setupPlan(types).offer;
+  const para = builtInTypePlan(types);
+  const inbox = inboxTypePlan(types);
   const named = new Set(offer.types.map((file) => file.type.name));
-  const extended = new Set(offer.extensions.map((extension) => extension.before.name));
+  const shown = new Map(
+    offer.extensions.map((extension) => [extension.before.name, extensionKeys(extension)]),
+  );
+  const asShown = (extensions: readonly PendingTypeExtension[]) =>
+    extensions.flatMap((extension) => {
+      const keys = shown.get(extension.before.name);
+      const within = keys === undefined ? null : extensionWithin(extension, keys);
+      return within === null ? [] : [within];
+    });
   return {
-    types: lacking.filter((file) => named.has(file.type.name)),
-    extensions: now.extensions.filter((extension) => extended.has(extension.before.name)),
+    types: [...para.missing, ...inbox.missing].filter((file) => named.has(file.type.name)),
+    extensions: combinedExtensions(asShown(para.extensions), asShown(inbox.extensions)),
   };
 }
 

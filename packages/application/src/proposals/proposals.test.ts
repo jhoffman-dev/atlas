@@ -226,7 +226,7 @@ describe('acceptProposalNote — a link', () => {
     });
     const setup = vault({ ...files(proposalFor), 'People/Mara Quill.md': shouting });
     await accept(setup);
-    expect(setup.propertiesOf('People/Mara Quill.md')['companies']).toEqual([
+    expect(setup.propertiesOf('People/Mara Quill.md')?.['companies']).toEqual([
       '[[Fenn & Co]]',
       '[[Larkspur Payroll]]',
     ]);

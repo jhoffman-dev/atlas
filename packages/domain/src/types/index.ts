@@ -68,6 +68,8 @@ export {
 export {
   AREA_TYPE,
   builtInTypePlan,
+  extensionKeys,
+  extensionWithin,
   FILED_UNDER,
   FILED_UNDER_KEY,
   FILED_UNDER_TYPES,
