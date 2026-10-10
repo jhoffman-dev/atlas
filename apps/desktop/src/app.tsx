@@ -369,6 +369,7 @@ export function App({
       newUploadId: () => crypto.randomUUID(),
       automationClock: apiAutomations.clock,
       activity: activityLog,
+      googleCalendar,
     }),
     [
       apiHost,
@@ -386,6 +387,7 @@ export function App({
       refreshSpacing,
       apiAutomations.clock,
       activityLog,
+      googleCalendar,
     ],
   );
   // A write from another tool shows up the way one made here does.

@@ -1,4 +1,5 @@
 import { recordingActivity } from './fake-activity.ts';
+import { fakeGoogleCalendar } from './fake-google-calendar.ts';
 import {
   createVaultPath,
   type EntryMove,
@@ -89,6 +90,8 @@ export interface ApiFixture {
   readonly fs: VaultFsPort;
   /** What the router and the refresher said in the Activity log. */
   readonly activity: ReturnType<typeof recordingActivity>;
+  /** Google Calendar's sign-ins, by vault, as the host keeps them. */
+  readonly google: ReturnType<typeof fakeGoogleCalendar>;
   send(request: Partial<ApiRequest> & Pick<ApiRequest, 'method' | 'path'>): Promise<ApiResponse>;
 }
 
@@ -111,6 +114,7 @@ export function apiFixture({
   const folders = new Set<string>();
   let uploads = 0;
   const activity = recordingActivity();
+  const google = fakeGoogleCalendar();
   const state = {
     open: VAULT as VaultLocation | null,
     now: NOW,
@@ -338,6 +342,7 @@ export function apiFixture({
       forVault: (vault) => fixture.automations.get(vault) ?? null,
     },
     activity,
+    googleCalendar: google.port,
   };
   const fixture: ApiFixture = Object.assign(state, {
     automations: new Map<string, AutomationClockState>(),
@@ -353,6 +358,7 @@ export function apiFixture({
     deps,
     fs: inVault({ fs, vault: VAULT.absolutePath }),
     activity,
+    google,
     send: (request: Partial<ApiRequest> & Pick<ApiRequest, 'method' | 'path'>) =>
       routeApiRequest({ id: 'r1', query: {}, body: null, ...request }, fixture.deps),
   });

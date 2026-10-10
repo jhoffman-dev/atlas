@@ -10,9 +10,11 @@ export const status = defineTool({
   name: 'atlas_status',
   title: 'Atlas status',
   description:
-    'Check that Atlas is running and which vault it has open: { app, version, vault, index }. ' +
-    'When "vault" is null no vault is open and every other tool fails with "no_vault". Call this ' +
-    'first if another tool reports a connection problem.',
+    'Check that Atlas is running and which vault it has open: ' +
+    '{ app, version, vault, index, googleCalendar }. When "vault" is null no vault is open and ' +
+    'every other tool fails with "no_vault". "googleCalendar" says only whether Google Calendar ' +
+    'is connected ({ connected }); no tool reads or changes the calendar or sees a Google token. ' +
+    'Call this first if another tool reports a connection problem.',
   inputSchema: noInput,
   annotations: READ_ONLY,
   call: (client) => client.status(),

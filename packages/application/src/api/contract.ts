@@ -170,6 +170,12 @@ export interface ApiStatus {
   /** Null when no vault is open; every other route then answers `no_vault`. */
   readonly vault: { readonly name: string } | null;
   readonly index: { readonly ready: boolean; readonly notes: number };
+  /**
+   * Whether Google Calendar is connected for the open vault on this Mac;
+   * null when no vault is open. Status only: the API never hands out a
+   * Google token and makes no calendar call (ADR-0030).
+   */
+  readonly googleCalendar: { readonly connected: boolean } | null;
 }
 
 export interface ApiSearchHit {
@@ -869,7 +875,8 @@ export const API_ROUTES = [
   {
     method: 'GET',
     path: '/v1/status',
-    summary: 'What Atlas has open, and whether its index is ready.',
+    summary:
+      'What Atlas has open, whether its index is ready, and whether Google Calendar is connected.',
   },
   { method: 'GET', path: '/v1/notes', summary: 'List notes. Query: folder, type, limit, cursor.' },
   { method: 'POST', path: '/v1/notes', summary: 'Create a note, optionally from a template.' },
