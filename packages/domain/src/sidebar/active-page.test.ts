@@ -80,6 +80,13 @@ describe('activeSidebarPage', () => {
     ).toEqual({ kind: 'inbox' });
   });
 
+  it('is the weekly review while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, reviewOpen: true }),
+    ).toEqual({ kind: 'review' });
+  });
+
   it('is the Automations page while it is open, over the graph, the type and the note', () => {
     const layout = openInFocused(SINGLE_PANE, acme);
     expect(

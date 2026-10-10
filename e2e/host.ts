@@ -826,6 +826,10 @@ export async function installHost(
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
         }
+        // The weekly review (P30-07): tasks and projects, over files, props and relations, run for real.
+        if (statement.startsWith('/* weekly review:')) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
         // The vocabulary's notes (P28-05) and the Inbox (P30-01) read the same
         // files and props tables the Archive does, so they run for real by
         // SQLite the same way.

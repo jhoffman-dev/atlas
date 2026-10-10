@@ -102,6 +102,7 @@ export function Sidebar({
   onOpenTerms,
   inbox,
   proposals,
+  onOpenReview,
   onOpen,
   onOpenType,
   onEditType,
@@ -141,6 +142,8 @@ export function Sidebar({
   inbox?: InboxRowLink;
   /** The Proposals page's row, under Today and Inbox, and how many proposals wait. */
   proposals?: ProposalsRowLink;
+  /** Opens the weekly review; its row sits under the Inbox's when given (P30-07). */
+  onOpenReview?: () => void;
   onOpen: (path: VaultPath) => void;
   onOpenType: (name: string) => void;
   /** Opens a type's definition; a type's menu offers it when given. */
@@ -242,6 +245,7 @@ export function Sidebar({
         termsOn={active?.kind === 'terms'}
         inboxOn={active?.kind === 'inbox'}
         proposalsOn={active?.kind === 'proposals'}
+        reviewOn={active?.kind === 'review'}
         onSearch={onSearch}
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
@@ -252,6 +256,7 @@ export function Sidebar({
         {...(onOpenTerms !== undefined && { onOpenTerms })}
         {...(inbox !== undefined && { inbox })}
         {...(proposals !== undefined && { proposals })}
+        {...(onOpenReview !== undefined && { onOpenReview })}
       />
 
       <div className="sidebar__scroll" ref={setScroller}>
@@ -297,6 +302,7 @@ function QuickRows({
   termsOn,
   inboxOn,
   proposalsOn,
+  reviewOn,
   onSearch,
   onOpenGraph,
   onOpenTags,
@@ -306,6 +312,7 @@ function QuickRows({
   onOpenTerms,
   inbox,
   proposals,
+  onOpenReview,
   onOpen,
 }: {
   quick: readonly SidebarQuickView[];
@@ -318,6 +325,7 @@ function QuickRows({
   termsOn: boolean;
   inboxOn: boolean;
   proposalsOn: boolean;
+  reviewOn: boolean;
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
@@ -327,6 +335,7 @@ function QuickRows({
   onOpenTerms?: () => void;
   inbox?: InboxRowLink;
   proposals?: ProposalsRowLink;
+  onOpenReview?: () => void;
   onOpen: (path: VaultPath) => void;
 }) {
   const views = inbox === undefined ? quick : quick.filter((view) => view.id !== 'inbox');
@@ -360,6 +369,19 @@ function QuickRows({
       })}
       {inbox !== undefined && <InboxQuickRow {...inbox} on={inboxOn} />}
       {proposals !== undefined && <ProposalsQuickRow {...proposals} on={proposalsOn} />}
+      {onOpenReview !== undefined && (
+        <li className={reviewOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+          <button
+            type="button"
+            className="sidebar__row"
+            aria-current={reviewOn ? 'page' : undefined}
+            onClick={onOpenReview}
+          >
+            <Icon name="calendar" className="sidebar__icon" />
+            <span className="sidebar__name">Weekly review</span>
+          </button>
+        </li>
+      )}
       {onOpenGraph !== undefined && (
         <li className={graphOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
           <button

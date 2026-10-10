@@ -110,6 +110,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_archived`           | `GET /v1/archive`                                                            | no      |
 | `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
 | `atlas_schedule_task`      | `POST /v1/tasks/schedule`                                                    | yes     |
+| `atlas_weekly_review`      | `GET /v1/review/weekly`                                                      | no      |
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
 | `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
 | `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
@@ -151,6 +152,12 @@ the minute, `2026-10-12T09:00` — a `Z`, offset or seconds is refused) for `min
 as long as the task still needs. Calling it again makes another block, which
 is how a task is split. `atlas_query` with `schedule: true` reads what each
 task now has scheduled.
+
+`atlas_weekly_review` reads the weekly review as the app's page shows it:
+Waiting tasks untouched for more than 7 days, active projects with nothing
+next, overdue tasks, Someday and Longterm untouched for more than 30 days, and
+the Inbox's count. It writes nothing; act on an item with
+`atlas_update_properties` (a status, or `defer`) or `atlas_archive` (a project).
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

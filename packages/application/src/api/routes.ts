@@ -10,6 +10,7 @@ import { captureRoute, dailyRoute } from './daily.ts';
 import { noteImageRoute } from './images.ts';
 import { meetingsRoute } from './meetings.ts';
 import { processInboxRoute } from './inbox.ts';
+import { weeklyReviewRoute } from './review.ts';
 import { createNoteRoute } from './notes-create.ts';
 import { backlinksRoute, listNotes, readNoteRoute } from './notes-read.ts';
 import { appendRoute, replaceBodyRoute, setPropertiesRoute } from './notes-write.ts';
@@ -112,6 +113,7 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'POST /v1/unarchive': vaultWrite(unarchiveRoute),
   'POST /v1/inbox/process': vaultWrite(processInboxRoute),
   'POST /v1/tasks/schedule': vaultWrite(scheduleTaskRoute),
+  'GET /v1/review/weekly': vaultRoute(weeklyReviewRoute),
   'GET /v1/automations': vaultRoute(automationsRoute),
   'GET /v1/automations/{id}/log': vaultRoute(automationLogRoute),
   'POST /v1/automations/{id}/dry-run': vaultRoute(automationDryRunRoute),

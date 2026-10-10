@@ -640,3 +640,24 @@ Planning the day drags a task onto the calendar. What the API does about it:
   task already, and promoting it is refused with `exists`: a request sent
   twice makes one task, so MCP marks the tool idempotent. The line is named
   by its words as shown or by its markdown as the note's writer writes it.
+
+## The weekly review is read; its actions are routes that already write (P30-07, 2026-10-08)
+
+`GET /v1/review/weekly` answers the app's Weekly review page: Waiting tasks
+untouched for more than 7 days, active projects with no Next Action or In
+Progress task, overdue tasks, Someday and Longterm untouched for more than 30
+days, and the Inbox's count. It is read from the index on the app's clock, by
+the same use-case the page runs, and writes nothing. MCP's
+`atlas_weekly_review` is that one call.
+
+- **No route of its own for the quick actions.** The page's Move, Defer and
+  Archive are a status or `defer` written through
+  `PATCH /v1/notes/{path}/properties` — held to the task rules at
+  `setNoteProperties` — and a project put in the Archive through
+  `POST /v1/archive`. A second route doing the same writes would be a second
+  place for the rules to drift. The one gap, named rather than hidden: the
+  page's Archive finishes a task as the done tick does, so a repeating task
+  rolls on to its next date, where `PATCH` with `status: archive` ends its
+  series (only a board's move into done rolls one on through the API).
+- **Nothing it lists is outside what the API already reads**: user space only,
+  never `.atlas` or a hidden folder, never what is archived.

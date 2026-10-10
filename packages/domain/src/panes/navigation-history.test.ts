@@ -134,6 +134,8 @@ describe('samePlace', () => {
     expect(samePlace({ kind: 'activity' }, { kind: 'automations' })).toBe(false);
     expect(samePlace({ kind: 'inbox' }, { kind: 'inbox' })).toBe(true);
     expect(samePlace({ kind: 'inbox' }, { kind: 'archive' })).toBe(false);
+    expect(samePlace({ kind: 'review' }, { kind: 'review' })).toBe(true);
+    expect(samePlace({ kind: 'review' }, { kind: 'inbox' })).toBe(false);
     expect(samePlace(QUERY, note('A.md'))).toBe(false);
     expect(samePlace({ kind: 'tags', tag: null }, { kind: 'tags', tag: null })).toBe(true);
     expect(samePlace({ kind: 'tags', tag: 'idea' }, { kind: 'tags', tag: 'idea' })).toBe(true);

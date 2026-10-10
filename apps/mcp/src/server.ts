@@ -14,6 +14,7 @@ import { noteTools } from './tools/notes.ts';
 import { proposalTools } from './tools/proposals.ts';
 import { queryTools } from './tools/queries.ts';
 import { scheduleTools } from './tools/schedule.ts';
+import { reviewTools } from './tools/review.ts';
 import { sourceTools } from './tools/sources.ts';
 import { tagTools } from './tools/tags.ts';
 import { templateTools } from './tools/templates.ts';
@@ -40,6 +41,7 @@ export const ATLAS_TOOLS = [
   ...inboxTools,
   ...scheduleTools,
   ...checklistTools,
+  ...reviewTools,
   ...automationTools,
   ...meetingTools,
   ...proposalTools,

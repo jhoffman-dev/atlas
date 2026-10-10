@@ -152,6 +152,8 @@ export type { TemplateNotice } from './template-banner.tsx';
 export { lostUsesText, TEMPLATE_EXPLANATION, templateUsesText } from './template-words.ts';
 export type { ArchiveContents, ArchivePageProps } from './archive-page.tsx';
 export type { InboxContents, InboxPageProps, InboxTypesOffer } from './inbox-page.tsx';
+export { WeeklyReviewPage } from './weekly-review-page.tsx';
+export type { WeeklyReviewPageProps } from './weekly-review-page.tsx';
 export { TaskMigration } from './task-migration.tsx';
 export type {
   TaskMigrationMapping,
