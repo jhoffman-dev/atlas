@@ -32,6 +32,7 @@ import type {
   ApiNoteImageBody,
   ApiNoteSummary,
   ApiProcessInboxBody,
+  ApiScheduleTaskBody,
   ApiProfile,
   ApiQueryBody,
   ApiQuickAddBody,
@@ -328,6 +329,9 @@ export class AtlasClient {
 
   processInbox = (body: ApiProcessInboxBody) =>
     this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
+
+  scheduleTask = (body: ApiScheduleTaskBody) =>
+    this.json<{ note: ApiNote }>({ method: 'POST', path: '/v1/tasks/schedule', body });
 
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
 
