@@ -55,6 +55,7 @@ export async function quickAddRoute(request: VaultRequest): Promise<RouteResult>
     template: contents,
     beside: null,
     notePaths,
+    today: request.clock.today(),
   });
   return answerWithNote(request, { path, status: 201 });
 }

@@ -1,3 +1,4 @@
+import { REOPENED_TASK_STATUS } from '../gtd/gtd-status.ts';
 import { statusTone } from '../page/status-tone.ts';
 import type { ObjectType, PropertyDef } from './property-def.ts';
 
@@ -61,8 +62,9 @@ export function statusToRemember({
 
 /**
  * What unticking puts the status back to: the value it held before it was
- * ticked, when that is known and is still an option; otherwise the first
- * option that is not the done one — where new work starts.
+ * ticked, when that is known and is still an option; otherwise Next Action
+ * for a GTD task (ADR-0029), and for any other the first option that is not
+ * the done one — where new work starts.
  */
 export function untickedValue({
   status,
@@ -73,6 +75,10 @@ export function untickedValue({
 }): string | null {
   if (previous !== null && previous !== status.done && status.options.includes(previous)) {
     return previous;
+  }
+  // A GTD task reopened with nothing remembered is something to do next, not new work to sort.
+  if (status.done !== REOPENED_TASK_STATUS && status.options.includes(REOPENED_TASK_STATUS)) {
+    return REOPENED_TASK_STATUS;
   }
   return status.options.find((option) => option !== status.done) ?? null;
 }

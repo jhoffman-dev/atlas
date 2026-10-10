@@ -122,14 +122,24 @@ async function writeTypeFiles(
     try {
       const folder = await ensureFolder({ fs: ports.fs, folder: createVaultPath(TYPES_FOLDER) });
       const path = createVaultPath(`${folder}/${type.name}.md`);
-      const frontmatter = ports.markdown.updateFrontmatter(null, newTypeFrontmatter(type));
-      await ports.fs.createNote({ path, contents: `${frontmatter}\n${body}` });
+      await ports.fs.createNote({
+        path,
+        contents: builtInTypeContents(ports.markdown, { type, body }),
+      });
       created.push(path);
     } catch (cause) {
       failed.push({ name: type.label, reason: reasonOf(cause) });
     }
   }
   return { created, failed };
+}
+
+/** A built-in type's file as Atlas writes it: its definition, then a body saying what it is. */
+export function builtInTypeContents(
+  markdown: MarkdownPort,
+  { type, body }: BuiltInTypeFile,
+): string {
+  return `${markdown.updateFrontmatter(null, newTypeFrontmatter(type))}\n${body}`;
 }
 
 const reasonOf = (cause: unknown): string =>

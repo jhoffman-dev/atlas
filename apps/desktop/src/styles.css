@@ -10951,6 +10951,64 @@ select.type-editor__field,
   margin: 0;
 }
 
+/* ---- moving tasks to GTD (P30-02) ----
+   The offer is one line; its preview opens in place, every task listed. */
+
+.task-migration__offer,
+.task-migration__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.task-migration__offer p {
+  flex: 1;
+  min-width: 20ch;
+}
+
+.task-migration__preview {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.task-migration__lines h3 {
+  font-size: var(--text-small);
+  font-weight: 700;
+  margin: 0 0 var(--space-1);
+}
+
+.task-migration__lines ul {
+  padding-left: var(--space-4);
+}
+
+.task-migration__mapping,
+.task-migration__tasks table {
+  border-collapse: collapse;
+  font-size: var(--text-small);
+  width: 100%;
+}
+
+.task-migration__mapping th,
+.task-migration__tasks th {
+  color: var(--ink-3);
+  font-weight: 700;
+  text-align: left;
+}
+
+.task-migration__mapping td,
+.task-migration__mapping th,
+.task-migration__tasks td,
+.task-migration__tasks th {
+  padding: 4px 12px 4px 0;
+}
+
+/* Every task is listed; a long list scrolls inside the offer, not the page. */
+.task-migration__tasks {
+  max-height: 320px;
+  overflow: auto;
+}
+
 .table__choose {
   text-align: center;
   width: 36px;

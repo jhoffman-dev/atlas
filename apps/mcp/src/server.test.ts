@@ -195,6 +195,19 @@ describe('tools/list', () => {
     expect(described).toMatch(/without that line, with the note as context/);
   });
 
+  it('tells the model the GTD statuses and their rules wherever it writes a task (P30-02)', async () => {
+    const { tools } = await mcp.listTools();
+    const described = (name: string) => tools.find((t) => t.name === name)?.description ?? '';
+    for (const tool of ['atlas_capture_task', 'atlas_update_properties']) {
+      expect(described(tool)).toContain(
+        'inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive',
+      );
+      expect(described(tool)).toContain('"waiting" needs "waiting_on"');
+      expect(described(tool)).toContain('"completed" to today');
+    }
+    expect(described('atlas_capture_task')).toContain('with status "inbox"');
+  });
+
   it('requires ifModified for replace_note_body and not for append', async () => {
     const { tools } = await mcp.listTools();
     const required = (name: string) =>

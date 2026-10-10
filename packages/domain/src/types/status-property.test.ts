@@ -116,6 +116,24 @@ describe('untickedValue', () => {
   it('is null when there is nothing but done to go back to', () => {
     expect(untickedValue({ status: { ...status, options: ['done'] }, previous: null })).toBeNull();
   });
+  it('reopens a GTD task as Next Action when nothing remembers where it was (ADR-0029)', () => {
+    const gtd = {
+      key: 'status',
+      done: 'archive',
+      options: [
+        'inbox',
+        'backlog',
+        'next-action',
+        'in-progress',
+        'waiting',
+        'someday',
+        'longterm',
+        'archive',
+      ],
+    };
+    expect(untickedValue({ status: gtd, previous: null })).toBe('next-action');
+    expect(untickedValue({ status: gtd, previous: 'waiting' })).toBe('waiting');
+  });
 });
 
 describe('editing the done option', () => {

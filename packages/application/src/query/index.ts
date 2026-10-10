@@ -3,7 +3,12 @@ export type { ViewResult } from './run-view.ts';
 export { cardMoveChanges, movesToDone } from './card-move.ts';
 export type { CardPlacement } from './card-move.ts';
 export { relationGroupLinks } from './relation-group-links.ts';
-export { propertyChange, setNoteProperties, setNoteProperty } from './set-property.ts';
+export {
+  propertyChange,
+  setNoteProperties,
+  setNoteProperty,
+  writeFrontmatterChanges,
+} from './set-property.ts';
 export type { CompletionRule, PropertyChanges } from './set-property.ts';
 export { doneChange } from './tick-done.ts';
 export { createView, ViewRefusedError, writeViewNote } from './create-view.ts';

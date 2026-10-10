@@ -23,7 +23,8 @@ export async function dailyRoute(request: VaultRequest): Promise<RouteResult> {
 /**
  * A task, as quick capture makes one: named by what was typed, from the Task
  * template when there is one, and numbered rather than refused if the name is
- * taken. It waits in the Inbox, as everything captured does (P30-01).
+ * taken. It waits in the Inbox, as everything captured does (P30-01), and
+ * starts with the Inbox status when the vault's Task type has it (P30-02).
  */
 export async function captureRoute(request: VaultRequest): Promise<RouteResult> {
   const text = requiredText(bodyObject(request.body), 'text');
@@ -35,6 +36,8 @@ export async function captureRoute(request: VaultRequest): Promise<RouteResult> 
   request.assertStillOpen();
   const path = await captureToInbox({
     fs,
+    markdown: request.markdown,
+    today: request.clock.today(),
     name: text,
     notePaths,
     ...(contents === undefined ? {} : { contents }),

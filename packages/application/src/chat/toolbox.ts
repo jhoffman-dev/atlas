@@ -93,13 +93,20 @@ export function createChatToolbox({
       try {
         const proposal =
           call.name === 'propose_edit'
-            ? await proposeEdit({ fs, markdown, input: call.input, id: newId() })
+            ? await proposeEdit({
+                fs,
+                markdown,
+                input: call.input,
+                id: newId(),
+                today: api.clock.today(),
+              })
             : call.name === 'propose_note'
               ? proposeNote({
                   markdown,
                   input: call.input,
                   id: newId(),
                   notePaths: await listVaultNotes({ fs }),
+                  today: api.clock.today(),
                 })
               : null;
         if (proposal === null) return failed(call, `There is no tool "${call.name}".`);

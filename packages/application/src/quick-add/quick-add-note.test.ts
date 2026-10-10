@@ -35,6 +35,7 @@ describe('quickAddNote', () => {
   it('makes a task from its template, with the fields filled in, beside the note in view', async () => {
     const { fs, created } = recordingFs();
     const path = await quickAddNote({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       type: TASK,
@@ -58,6 +59,7 @@ describe('quickAddNote', () => {
   it('makes a note of a type with no template, saying what type it is', async () => {
     const { fs, created } = recordingFs();
     await quickAddNote({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       type: PROJECT,
@@ -76,6 +78,7 @@ describe('quickAddNote', () => {
   it('numbers a name that is taken rather than refusing', async () => {
     const { fs, created } = recordingFs();
     await quickAddNote({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       type: PROJECT,
@@ -93,6 +96,7 @@ describe('quickAddNote', () => {
     const fs = fakeVaultFs({ createNote: () => Promise.reject(new Error('disk full')) });
     await expect(
       quickAddNote({
+        today: '2026-10-08',
         fs,
         markdown: fakeMarkdown(),
         type: TASK,

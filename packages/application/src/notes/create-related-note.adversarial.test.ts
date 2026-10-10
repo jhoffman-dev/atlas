@@ -33,6 +33,7 @@ function memoryFs(files: Record<string, string>) {
 
 const make = (type: ObjectType, name: string, vault = memoryFs({ 'Home.md': '' })) =>
   createRelatedNote({
+    today: '2026-10-08',
     fs: vault.fs,
     markdown: fakeMarkdown(),
     type,
@@ -74,6 +75,7 @@ describe('createRelatedNote — attacks (issue #15)', () => {
     const archived = createVaultPath('Archive/Projects/Old launch.md');
     const vault = memoryFs({ [archived]: '---\ntype: project\n---\n' });
     const made = await createRelatedNote({
+      today: '2026-10-08',
       fs: vault.fs,
       markdown: fakeMarkdown(),
       type: { name: 'task', label: 'Task', properties: [] },

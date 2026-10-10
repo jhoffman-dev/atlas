@@ -1,3 +1,5 @@
+import { GTD_STATUS_LABELS, isGtdStatus } from '../gtd/gtd-status.ts';
+
 /**
  * The colour ramp a status pill takes. The five match the board's columns;
  * any other value is drawn in the quietest one rather than guessed at.
@@ -16,6 +18,12 @@ const TONES: Readonly<Record<string, StatusTone>> = {
   review: 'review',
   done: 'done',
   complete: 'done',
+  // GTD's statuses (ADR-0029): what can be done now is `next`, started work is
+  // `doing`, waiting on someone is `review`, and finished work is `done`.
+  'next-action': 'next',
+  'in-progress': 'doing',
+  waiting: 'review',
+  archive: 'done',
 };
 
 export function statusTone(value: string): StatusTone {
@@ -36,8 +44,12 @@ export function noteTone(values: Readonly<Record<string, unknown>>): StatusTone 
   return statusTone(status);
 }
 
-/** A select's value as a pill's text: `backlog` reads "Backlog". */
+/**
+ * A select's value as a pill's text: `backlog` reads "Backlog", and a GTD
+ * status reads as James writes it — `next-action` is "Next Action".
+ */
 export function optionLabel(value: string): string {
   const trimmed = value.trim();
+  if (isGtdStatus(trimmed)) return GTD_STATUS_LABELS[trimmed];
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }

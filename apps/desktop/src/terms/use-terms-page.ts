@@ -13,6 +13,7 @@ import {
 } from '@atlas/application';
 import type { NewTerm, TermsPageProps } from '@atlas/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
+import { localToday } from '../today.ts';
 
 /** What the Terms page reads and writes through: the index, the files, and the panes. */
 export interface TermsPagePorts {
@@ -102,7 +103,9 @@ export function useTermsPage({
       const write = editors
         .setPropertiesIfOpen({ path, values: termVariantsChange(variants) })
         .then((takenByAPane) =>
-          takenByAPane ? undefined : setTermVariants({ fs, markdown, path, variants }),
+          takenByAPane
+            ? undefined
+            : setTermVariants({ fs, markdown, path, variants, today: localToday() }),
         );
       void run(write, 'The variants could not be saved');
     },

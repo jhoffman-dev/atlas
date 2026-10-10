@@ -20,6 +20,7 @@ import {
 import type { FabAnchorStore, QuickAddRequest, RelationChoice } from '@atlas/ui';
 import type { Overlay } from '../overlay.ts';
 import type { QuickAddSetting } from './use-quick-add-setting.ts';
+import { localToday } from '../today.ts';
 
 /** The note just added, for the toast that offers to open it. */
 export interface QuickAdded {
@@ -102,6 +103,7 @@ export function useQuickAdd({
         template: template === null ? null : await contentsOf(template),
         beside,
         notePaths,
+        today: localToday(),
       });
       hide('quick-add');
       setAdded(open ? null : { label: chosen.label, path });

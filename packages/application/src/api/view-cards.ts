@@ -141,6 +141,8 @@ export async function addViewNoteRoute(request: VaultRequest): Promise<RouteResu
   request.assertStillOpen();
   const path = await createNumberedNote({
     fs: request.fs,
+    markdown: request.markdown,
+    today: request.clock.today(),
     name,
     beside: null,
     folder: VAULT_ROOT,

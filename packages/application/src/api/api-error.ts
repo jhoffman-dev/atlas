@@ -1,3 +1,4 @@
+import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 import {
   API_ERROR_STATUS,
   type ApiErrorBody,
@@ -38,6 +39,9 @@ export const INTERNAL_MESSAGE = 'Atlas could not answer this request';
 
 /** The status and body for anything a handler threw. */
 export function failureOf(error: unknown): { status: number; body: ApiErrorBody } {
+  // A task the rules refuse, from whichever write: the caller's to fix, so it says why.
+  if (error instanceof TaskRuleRefusedError)
+    return failureOf(new ApiError('invalid', error.message));
   if (!(error instanceof ApiError)) {
     const internal = { code: 'internal' as const, message: INTERNAL_MESSAGE };
     return { status: API_ERROR_STATUS.internal, body: { error: internal } };

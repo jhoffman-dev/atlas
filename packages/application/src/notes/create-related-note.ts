@@ -45,9 +45,12 @@ export async function createRelatedNote({
   name,
   beside,
   notePaths,
+  today,
 }: {
   fs: VaultFsPort;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
+  /** `YYYY-MM-DD`, from the injected clock: the task rules date by it. */
+  today: string;
   type: ObjectType;
   name: string;
   /** The note whose relation is being set. */
@@ -68,6 +71,7 @@ export async function createRelatedNote({
     template: template === null ? null : await readTemplate({ fs, template }),
     beside,
     notePaths,
+    today,
   });
   return { path, target: wikiLinkTargetFor(path, [...notePaths, path]) };
 }

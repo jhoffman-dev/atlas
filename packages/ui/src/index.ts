@@ -146,6 +146,13 @@ export type { TemplateNotice } from './template-banner.tsx';
 export { lostUsesText, TEMPLATE_EXPLANATION, templateUsesText } from './template-words.ts';
 export type { ArchiveContents, ArchivePageProps } from './archive-page.tsx';
 export type { InboxContents, InboxPageProps, InboxTypesOffer } from './inbox-page.tsx';
+export { TaskMigration } from './task-migration.tsx';
+export type {
+  TaskMigrationMapping,
+  TaskMigrationPreviewData,
+  TaskMigrationProps,
+  TaskMigrationRow,
+} from './task-migration.tsx';
 export { SelectAllBox, SelectBox, SelectionBar } from './row-selection.tsx';
 export type { BulkAction, RowSelection } from './row-selection.tsx';
 export * from './query-language/index.ts';

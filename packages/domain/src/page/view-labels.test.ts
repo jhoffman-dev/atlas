@@ -219,7 +219,15 @@ describe('noteTone', () => {
   it('tints a note by its status', () => {
     expect(noteTone({ status: 'doing' })).toBe('doing');
     expect(noteTone({ status: 'Done' })).toBe('done');
-    expect(noteTone({ status: 'waiting' })).toBe('backlog');
+    expect(noteTone({ status: 'blocked' })).toBe('backlog');
+  });
+
+  it('tints the GTD statuses by where work stands (ADR-0029)', () => {
+    expect(noteTone({ status: 'next-action' })).toBe('next');
+    expect(noteTone({ status: 'in-progress' })).toBe('doing');
+    expect(noteTone({ status: 'waiting' })).toBe('review');
+    expect(noteTone({ status: 'archive' })).toBe('done');
+    expect(noteTone({ status: 'someday' })).toBe('backlog');
   });
 
   it('leaves a note with no status untinted', () => {

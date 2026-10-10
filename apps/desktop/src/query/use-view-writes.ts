@@ -17,6 +17,7 @@ import {
 import type { CardMove } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
+import { localToday } from '../today.ts';
 import { errorMessage } from './error-message.ts';
 
 /** Writes one note the view shows — a row, a card, or the view note itself. */
@@ -43,7 +44,7 @@ export async function writeNoteProperties({
   values: PropertyChanges;
 }): Promise<void> {
   const takenByAPane = await editors.setPropertiesIfOpen({ path: createVaultPath(path), values });
-  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values });
+  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values, today: localToday() });
 }
 
 /**

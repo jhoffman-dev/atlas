@@ -55,6 +55,7 @@ describe('setNoteProperties', () => {
   it('writes the changed keys and leaves the others alone', async () => {
     const { fs, writes } = vault();
     await setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -71,6 +72,7 @@ describe('setNoteProperties', () => {
   it('keeps the body exactly as it was', async () => {
     const { fs, writes } = vault();
     await setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -83,6 +85,7 @@ describe('setNoteProperties', () => {
   it('writes against the version it read, so a change underneath is caught', async () => {
     const { fs, writes } = vault();
     await setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -95,6 +98,7 @@ describe('setNoteProperties', () => {
   it('refuses, writing nothing, when the note moved on from the time the caller read', async () => {
     const { fs, writes } = vault();
     const write = setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -109,6 +113,7 @@ describe('setNoteProperties', () => {
   it('writes when the note is still at the time the caller read', async () => {
     const { fs, writes } = vault();
     await setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -122,6 +127,7 @@ describe('setNoteProperties', () => {
   it('reads the note once and writes it once', async () => {
     const { fs, reads, writes } = vault();
     await setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -134,6 +140,7 @@ describe('setNoteProperties', () => {
   it('works the changes out from the properties the note has, when asked to', async () => {
     const { fs, writes } = vault();
     await setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -146,6 +153,7 @@ describe('setNoteProperties', () => {
   it('writes nothing when given nothing to change', async () => {
     const { fs, writes } = vault('---\nstatus: doing\n---\n\nBody.\n');
     await setNoteProperties({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -160,6 +168,7 @@ describe('setNoteProperty', () => {
   it('changes the one property it was given', async () => {
     const { fs, writes } = vault();
     await setNoteProperty({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -175,6 +184,7 @@ describe('setNoteProperty', () => {
       '---\nstatus: doing\ndue: 2026-01-05\nrecurrence: every week\n---\n\nBody.\n',
     );
     await setNoteProperty({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -191,6 +201,7 @@ describe('setNoteProperty', () => {
       '---\nstatus: doing\ndue: 2026-01-05\nrecurrence: every week\n---\n\nBody.\n',
     );
     await setNoteProperty({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -209,6 +220,7 @@ describe('setNoteProperty', () => {
   it('finishes a task that does not repeat', async () => {
     const { fs, writes } = vault();
     await setNoteProperty({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',
@@ -225,6 +237,7 @@ describe('setNoteProperty', () => {
       '---\nstatus: doing\ndue: 2026-01-05\nrecurrence: every week\n---\n\nBody.\n',
     );
     await setNoteProperty({
+      today: '2026-10-08',
       fs,
       markdown: fakeMarkdown(),
       path: 'Tasks/ship.md',

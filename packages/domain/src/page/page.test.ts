@@ -258,6 +258,13 @@ describe('optionLabel', () => {
     expect(optionLabel(' in review')).toBe('In review');
     expect(optionLabel('')).toBe('');
   });
+
+  it('writes a GTD status as James does (ADR-0029)', () => {
+    expect(optionLabel('next-action')).toBe('Next Action');
+    expect(optionLabel(' in-progress ')).toBe('In Progress');
+    expect(optionLabel('longterm')).toBe('Longterm');
+    expect(optionLabel('next-actions')).toBe('Next-actions');
+  });
 });
 
 describe('newPropertyKey', () => {

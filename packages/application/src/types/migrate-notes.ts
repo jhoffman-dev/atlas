@@ -83,12 +83,15 @@ export async function migrateNotes({
   openNotes,
   paths,
   migration,
+  today,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   openNotes: Pick<OpenNotes, 'setPropertiesIfOpen'>;
   paths: readonly VaultPath[];
   migration: NoteMigration;
+  /** `YYYY-MM-DD`: a task the migration finishes is dated by it, as any write's is (ADR-0029). */
+  today: string;
 }): Promise<MigrationReport> {
   const migrated: VaultPath[] = [];
   const failed: { path: VaultPath; reason: string }[] = [];
@@ -104,7 +107,7 @@ export async function migrateNotes({
     };
     try {
       const takenByAPane = await openNotes.setPropertiesIfOpen({ path, values });
-      if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values });
+      if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values, today });
       if (changed) migrated.push(path);
     } catch (cause) {
       failed.push({ path, reason: cause instanceof Error ? cause.message : String(cause) });

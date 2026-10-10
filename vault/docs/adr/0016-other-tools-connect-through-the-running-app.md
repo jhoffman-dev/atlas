@@ -513,3 +513,25 @@ yes, since it rewrites files the vault already has. Writing the types into
 every vault that opened put a Project, an Area and a Resource into vaults
 that never asked for them. Accepting works the change out again from the
 type files as they are then, so an edit made while the offer waited is kept.
+
+## Amendment: tasks follow GTD, and the migration stays in the app (P30-02, 2026-10-08)
+
+ADR-0029 gives tasks eight statuses. What the API does about it:
+
+- **Writes are held to the same rules as the app's**, by the same code: the
+  rules live in the application's write chokepoints — `setNoteProperties`, a
+  pane's `saveNote`, `createNote` — which the app and every API route that
+  changes or makes a note go through. `waiting` without `waiting_on` is
+  refused with `invalid` (mapped once, in `failureOf`) and writes nothing;
+  `archive` sets `completed` to the request's day. A rule kept in one place
+  cannot drift between the app and the API.
+- **Capture starts a task in the Inbox** when the vault's Task type has the
+  `inbox` status; a vault still on statuses of its own keeps its template's.
+- **The migration has no route.** Moving a vault's tasks to the eight statuses
+  rewrites every task, the Task type, and the views and automations that name
+  a status. It is previewed, run and undone in the app, from the Inbox, where
+  the person sees every task old → new before anything is written; a request
+  that rewrote every task at once is the blind bulk write this ADR keeps out.
+  Its record lives in `.atlas/migrations`, which the API never writes.
+- MCP's `atlas_capture_task` and `atlas_update_properties` describe the eight
+  statuses and the two rules, so a model writes them as the app does.

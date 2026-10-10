@@ -182,13 +182,16 @@ export async function setTermVariants({
   markdown,
   path,
   variants,
+  today,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   path: VaultPath;
   variants: string;
+  /** `YYYY-MM-DD`, for the task rules every property write is held to (ADR-0029). */
+  today: string;
 }): Promise<void> {
-  await setNoteProperties({ fs, markdown, path, values: termVariantsChange(variants) });
+  await setNoteProperties({ fs, markdown, path, values: termVariantsChange(variants), today });
 }
 
 /** What changing a term's variants to what was typed writes into its frontmatter. */

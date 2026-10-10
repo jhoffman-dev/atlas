@@ -310,6 +310,7 @@ describe('setTermVariants', () => {
       markdown: vault.markdown,
       path: path('Terms/Larkspur.md'),
       variants: 'lark spur,  Lark Spur, Larks Burr',
+      today: '2026-10-08',
     });
     expect(vault.changes).toEqual([{ variants: ['lark spur', 'Larks Burr'] }]);
     expect(vault.written).toEqual([
@@ -328,6 +329,7 @@ describe('setTermVariants', () => {
       markdown: vault.markdown,
       path: path('Terms/Larkspur.md'),
       variants: ' , ',
+      today: '2026-10-08',
     });
     expect(vault.changes).toEqual([{ variants: [] }]);
   });

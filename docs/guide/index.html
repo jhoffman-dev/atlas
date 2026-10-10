@@ -138,7 +138,7 @@ td:first-child { white-space: nowrap; }
     <a href="#queries">Queries</a>
     <a href="#sql">SQL queries</a>
     <a href="#dashboards">Dashboards</a>
-    <a href="#tasks">Tasks and daily notes</a>
+    <a href="#tasks">Tasks (GTD) and daily notes</a>
     <a href="#graph">Links and the graph</a>
     <a href="#bookmarks">Bookmarks</a>
     <a href="#blocks">Blocks and embeds</a>
@@ -355,7 +355,7 @@ pnpm tauri:dev</pre>
       </ul>
       <h3>Capture goes to the Inbox</h3>
       <ul>
-        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd> makes its task in the <code>Inbox</code> folder at the top of the vault — made the first time it's needed — whatever note you're on.</li>
+        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd> makes its task in the <code>Inbox</code> folder at the top of the vault — made the first time it's needed — whatever note you're on. Once your tasks follow <a href="#tasks">GTD</a>, it starts with the status <b>Inbox</b>, whatever the Task template says.</li>
         <li><a href="#meetings">Meetings</a> arrive in <code>Inbox/Meetings</code>, and anything you drop into <code>Inbox</code> yourself waits there too, of any type or none.</li>
       </ul>
       <h3>Process the Inbox</h3>
@@ -392,7 +392,7 @@ pnpm tauri:dev</pre>
       <p>Each of these places also has <b>Edit template</b>, for what new notes of the type start as — see <a href="#edit-template">Templates</a>.</p>
       <p>On the type's page, the <b>Notes</b> side of the <b>Notes | Edit type</b> switch goes back to its views.</p>
       <h3>Options for select properties</h3>
-      <p>Rename, reorder, colour and remove options — for example the task statuses <code>backlog, next, doing, review, done</code>. Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
+      <p>Rename, reorder, colour and remove options — for example a project's statuses <code>planned, active, paused, done</code>. (A task's eight <a href="#tasks">GTD statuses</a> are moved to all at once, from the Inbox.) Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
       <h3>Built-in types</h3>
       <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Area</b>, <b>Resource</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b> and <b>Term</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
       <p>A type you made has <b>Delete &lt;Type&gt;…</b> at the foot of <b>Edit type</b>; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
@@ -524,7 +524,7 @@ pnpm tauri:dev</pre>
         <li>Drag a card to any cell — another column, another lane, or both. Both properties change together, as one <kbd>⌘Z</kbd>. Dropping in a <b>No value</b> column or lane takes that property off the note. A number column writes a number and a checkbox column ticks or unticks the box, never text. From the keyboard: <kbd>Space</kbd> to pick a card up, arrows to move it across columns and up and down lanes, <kbd>Space</kbd> to drop.</li>
         <li>Each cell shows its first cards and <b>+ N more</b>, like a column, and has its own <b>+ New</b> that fills in both values.</li>
         <li>A card doesn't show a chip for the lane's property; the lane already says it.</li>
-        <li>Dragging a task into done finishes it, whether done is a column or a lane. When the type has a status, only that status counts — the last column of some other property is just a column. A repeating task rolls on to its next date once, and the other property you dropped it into is kept.</li>
+        <li>Dragging a task into its finished status — <b>Archive</b> for a <a href="#tasks">GTD</a> task — finishes it, whether that is a column or a lane. When the type has a status, only that status counts — the last column of some other property is just a column. A repeating task rolls on to its next date once, and the other property you dropped it into is kept.</li>
       </ul>
       <h3>Act on several rows</h3>
       <ol class="steps">
@@ -719,13 +719,61 @@ ORDER BY phase</pre>
     </section>
 
     <section id="tasks">
-      <h2>Tasks and daily notes</h2>
+      <h2>Tasks (GTD) and daily notes</h2>
+      <p class="sub">Tasks follow GTD: a task is in exactly one of eight statuses, from <b>Inbox</b> to <b>Archive</b>. Capture lands in the Inbox; deciding what a task is moves it on.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Status</th><th>What it means</th></tr></thead>
+          <tbody>
+            <tr><td><b>Inbox</b></td><td>Captured, not yet decided on. Every new task starts here.</td></tr>
+            <tr><td><b>Backlog</b></td><td>Worth doing, not now — so <b>Next Action</b> stays short.</td></tr>
+            <tr><td><b>Next Action</b></td><td>The next thing to do, ready to be picked up.</td></tr>
+            <tr><td><b>In Progress</b></td><td>Started; it may take days.</td></tr>
+            <tr><td><b>Waiting</b></td><td>Waiting on someone. It must say who, in <b>Waiting on</b>.</td></tr>
+            <tr><td><b>Someday</b></td><td>An idea kept for later.</td></tr>
+            <tr><td><b>Longterm</b></td><td>Real, but a long way off.</td></tr>
+            <tr><td><b>Archive</b></td><td>Finished. Ticking a task puts it here, with the day.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>A task's properties</h3>
+      <ul>
+        <li><b>Waiting on</b> links a person; a status written <code>waiting </code> or <code>[waiting]</code> is Waiting too, and is saved as <code>waiting</code>. Moving a task to <b>Waiting</b> without one is refused wherever it happens — a board, the properties panel, a new card or note, the add button, an automation, Claude: <i>“A waiting task needs someone to wait on: set Waiting on first, then move it to Waiting.”</i> Set the person, then move it.</li>
+        <li><b>Contexts</b> — where it can be done (<i>@phone</i>, <i>@errands</i>); add your own options in <a href="#edit-type">Edit type</a>.</li>
+        <li><b>Defer until</b> — a day before which it stays out of <b>Next actions</b>. <b>Due</b> — when it must be done.</li>
+        <li><b>Estimate (minutes)</b>, <b>Source</b> — where it came from — and <b>Project</b>, filing it under a <a href="#para">project or an area</a>.</li>
+        <li><b>Completed</b> is written for you: the day a task was finished.</li>
+      </ul>
+      <h3>Tick it off</h3>
+      <ul>
+        <li>Every task shows a <b>checkbox</b> in tables, lists, boards, galleries and feeds. Ticking moves it to <b>Archive</b> and writes today as <b>Completed</b>; unticking puts back the status it had and takes the day away. (Unticking after a restart, when Atlas no longer remembers, puts it at <b>Next Action</b>.)</li>
+        <li>A task made already in <b>Archive</b> — from a board's Archive column, say — is given today as <b>Completed</b> too.</li>
+        <li>Recurring tasks roll on to their next date when ticked, or when dragged into Archive on a board, and go back to <b>Next Action</b>.</li>
+      </ul>
+      <h3>The GTD views</h3>
+      <ul>
+        <li><b>Inbox</b> — tasks still to decide on. <b>Next actions</b> — what can be done now, leaving out anything deferred to a later day until that day comes. <b>Waiting</b> — grouped by who it waits on. <b>Someday and Longterm</b> — a board of the two, to drag between.</li>
+        <li>They are ordinary <a href="#queries">query views</a> in <code>.atlas/views</code>, added when your tasks move to GTD. A view of yours with the same name is never replaced.</li>
+      </ul>
+      <h3>Move your tasks to GTD</h3>
+      <p>A vault whose tasks use other statuses — this project's own <code>backlog, next, doing, review, done</code>, say — is offered the move on the <a href="#para">Inbox page</a>: <i>“Tasks follow GTD's eight statuses, from Inbox to Archive. 85 tasks would move to them.”</i></p>
+      <ol class="steps">
+        <li>Press <b>Preview the move</b>. Nothing is written yet.</li>
+        <li>Check the mapping. Each status your tasks hold is listed with how many tasks hold it and what it becomes: <i>backlog → Backlog</i>, <i>next → Next Action</i>, <i>doing</i> and <i>review → In Progress</i>, <i>done → Archive</i>, anything else <i>→ Inbox</i>. Change any of them from its menu. A task the mapping would send to <b>Waiting</b> with nobody in Waiting on goes to the Inbox instead, and says why on its row.</li>
+        <li>Read the rest: what changes in the Task type (its status becomes the eight; the GTD properties it lacks are added, and properties you added stay), views and automations rewritten (<i>Roadmap: done → archive</i>), any listed for you to change by hand — a filter like <i>status contains “do”</i> that no one status can stand for, <i>status != review</i> (review and doing both become In Progress, so leaving it out would leave out doing too), a status nobody knew, a query or automation over tasks and another type (a project's <i>done</i> is not a task's), an automation that would set Waiting, or a SQL view — the GTD views to be added, and every task, old status → new. A finished task is given the day its file last changed as <b>Completed</b>.</li>
+        <li>Press <b>Move N tasks</b>. Only the files in the preview are written, each in its status and Completed alone — the rest of every file stays byte for byte. A task with unsaved typing in Atlas is left as it is, and said so.</li>
+      </ol>
+      <ul>
+        <li><b>Undo the move to GTD</b> on the Inbox page puts back each file's properties exactly as they were, and takes away the views it added; a file nobody touched since is back byte for byte. A file whose properties changed since the move is left as it is, and said so in <a href="#activity">Activity</a>; one whose text alone changed gets its properties back and keeps the new text.</li>
+        <li>The move and its undo are each a line in <a href="#activity">Activity</a>, with every file left alone and why. Nothing about it is silent.</li>
+        <li>If the move stops partway — the Mac sleeps, a disk refuses a file — open the Inbox again: the preview lists only what is left, and one undo covers both runs — keeping anything you changed in between. Running it again when nothing is left changes nothing, and once the move is done the Inbox no longer reads your tasks to check — unless a file was left, a GTD view is missing, or a task is Waiting with nobody to wait on.</li>
+        <li>The record undo works from is kept in <code>.atlas/migrations</code>, so it syncs and works from either Mac.</li>
+      </ul>
+      <h3>Daily notes</h3>
       <ul>
         <li><b>Quick capture</b> <kbd>⇧⌘N</kbd>: type a line and it becomes a task in the <a href="#para">Inbox</a>, without leaving what you're doing.</li>
         <li><b>Today's note</b> <kbd>⇧⌘D</kbd> opens the daily note, making it if needed.</li>
         <li><b>Today</b> in the sidebar is a view, and <b>Inbox</b> the <a href="#para">Inbox page</a>, which lists everything in the <code>Inbox</code> folder — new <a href="#meetings">meetings</a> among them; their counts update as you work.</li>
-        <li>Every task shows a <b>checkbox</b> in tables, lists, boards, galleries and feeds. Ticking sets it to done; unticking puts back the status it had.</li>
-        <li>Recurring tasks roll on to their next date when ticked, or when dragged into done on a board.</li>
       </ul>
     </section>
 
@@ -1270,7 +1318,7 @@ do: archive</pre>
         <li><b>List tags and their notes</b> (<code>atlas_tags</code>, <code>atlas_tagged_notes</code>), as the <a href="#tags">Tags page</a> does. A tag used only in templates isn't listed.</li>
         <li><b>Read how names are spelt</b> (<code>atlas_terms</code>): every <a href="#terms">term</a>, every spelling Atlas puts right with what it should be — people's and companies' names and their other spellings included — and the conflicts, which Claude is told never to correct. Read-only: Claude adds a term by making a note with <code>type: term</code>, and changes its misheard spellings as it changes any property.</li>
         <li><b>Archive and unarchive</b> (<code>atlas_archive</code>, <code>atlas_unarchive</code>), up to 100 notes at a time, by the <a href="#archive">same rules</a> as the app, updating links as it goes. A note with unsaved typing in Atlas is left where it is and reported, since Claude never saves your typing for you. <code>atlas_archived</code> lists and searches the Archive.</li>
-        <li><b>Process the Inbox</b> (<code>atlas_process_inbox_item</code>): file a waiting note under a project or an area, by the <a href="#para">same rules</a> as the Inbox page — into the project's folder, linked, links to it updated. Anything that isn't a project or an area still in use is refused before the note moves, and a note with unsaved typing in Atlas is left where it is. <code>atlas_capture_task</code> captures into the Inbox, and <code>atlas_list_notes</code> with the folder <code>Inbox</code> lists what's waiting.</li>
+        <li><b>Process the Inbox</b> (<code>atlas_process_inbox_item</code>): file a waiting note under a project or an area, by the <a href="#para">same rules</a> as the Inbox page — into the project's folder, linked, links to it updated. Anything that isn't a project or an area still in use is refused before the note moves, and a note with unsaved typing in Atlas is left where it is. <code>atlas_capture_task</code> captures into the Inbox, starting a <a href="#tasks">GTD</a> task at <b>Inbox</b>; <code>atlas_update_properties</code> is held to the same task rules as the app — <b>Waiting</b> needs someone, <b>Archive</b> writes the day — and moving a vault's tasks to GTD stays in the app. <code>atlas_list_notes</code> with the folder <code>Inbox</code> lists what's waiting.</li>
         <li><b>Run a saved query view</b> (<code>atlas_run_view</code>), the same as any view: it answers with the query's rows as the app finds them — the query's own <code>INCLUDE ARCHIVED</code> decides whether archived notes come too — and a query with a mistake is refused with the reason. A grouped table or board view answers its groups and sub-groups beside its rows, in the order the app draws them — a board every column, an empty one too, since that's somewhere to move a card; a gallery only its first level. <code>atlas_list_views</code> shows each view's <b>Group by</b> and <b>Then by</b>, and its place among its type's tabs; it lists Today and Inbox first, as the sidebar lifts them — they're views too, run by their paths like any other — then the other views by name, then the dashboards. Changing a view's grouping stays in the app.</li>
         <li><b>List a type's views</b> (<code>atlas_list_type_views</code>), in the same tab order the app shows, with each view's name and layout. A type with no views answers its default table, which isn't a file yet, so run it with a query (<code>atlas_run_query</code> with <code>FROM</code> the type) instead. Up to 500 at a time. Adding, renaming, copying, reordering and deleting views stay in the app.</li>
         <li><b>Move a card on a board</b> (<code>atlas_move_card</code>) to another column, another <a href="#views">lane</a>, or both, by the same rules as dragging it: one write, and a task finishes only through its type's status, a repeating one rolling on to its next date once. Only the board's own columns and lanes are accepted; anything else is refused, naming them, so <code>Done</code> for <code>done</code> never makes a column the type doesn't have. A move that would finish a task needs the note's last-modified time, so a retried move can't finish a repeating task twice. Only a board's cards move — a view note can't be moved this way.</li>
