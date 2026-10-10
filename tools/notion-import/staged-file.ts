@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { link, open, rm, writeFile } from 'node:fs/promises';
+import { link, open, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
@@ -11,6 +11,8 @@ import { join } from 'node:path';
 export interface StagedFile {
   /** Gives the file `path`, unless something already has that name: true when it took it. */
   readonly linkTo: (path: string) => Promise<boolean>;
+  /** Puts the file in place of the one at `path`, in one step: a reader sees the old file or the new, never part of either. */
+  readonly replace: (path: string) => Promise<void>;
   /** Takes the staged copy away; the names it was linked to keep the file. */
   readonly discard: () => Promise<void>;
 }
@@ -42,6 +44,7 @@ export async function stageFile(folder: string, content: string): Promise<Staged
         throw error;
       }
     },
+    replace: (path) => rename(staged, path),
     discard,
   };
 }

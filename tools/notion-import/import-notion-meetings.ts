@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { messageWithoutPaths, validateMeetingImport } from '../../packages/domain/src/index.ts';
 import { MeetingMappingError } from '../n8n/meeting-mapping-error.ts';
@@ -27,6 +27,8 @@ export interface ImportOptions {
   readonly providers?: readonly string[];
   /** How Gemini's Dates are read (issue #44); left out, Gemini's rows are held. */
   readonly geminiDates?: GeminiDates;
+  /** Says what each row would come to, writing nothing (the workspace import's `--dry-run`). */
+  readonly dryRun?: boolean;
 }
 
 /** A row, and why it is not in the vault. */
@@ -38,6 +40,7 @@ interface Reasoned {
 /** What became of one row. */
 export type RowOutcome =
   | { readonly kind: 'written'; readonly row: RowName; readonly path: string }
+  | { readonly kind: 'would-write'; readonly row: RowName; readonly path: string }
   | { readonly kind: 'in-vault'; readonly row: RowName; readonly path: string }
   | { readonly kind: 'no-source-id'; readonly row: RowName }
   | ({ readonly kind: 'left-out' } & Reasoned)
@@ -45,12 +48,15 @@ export type RowOutcome =
   | ({ readonly kind: 'refused' } & Reasoned);
 
 /** What placing a mapped meeting can come to. */
-type Placed = Extract<RowOutcome, { readonly kind: 'written' | 'in-vault' | 'refused' }>;
+type Placed = Extract<
+  RowOutcome,
+  { readonly kind: 'written' | 'would-write' | 'in-vault' | 'refused' }
+>;
 
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
 
 /** A file of the export as text; one that is not UTF-8 is refused rather than read with its letters lost. */
-async function exportText(path: string, name: string): Promise<string> {
+export async function exportText(path: string, name: string): Promise<string> {
   try {
     return UTF8.decode(await readFile(path));
   } catch (error) {
@@ -115,6 +121,31 @@ async function place(meeting: MeetingFile, row: RowName, target: ImportTarget): 
   return { kind: 'refused', row, reason };
 }
 
+/** Where `place` would write the meeting, by the same rule, writing nothing. */
+async function wouldPlace(
+  meeting: MeetingFile,
+  row: RowName,
+  target: ImportTarget,
+): Promise<Placed> {
+  for (const name of [basename(meeting.path), basename(meeting.collisionPath)]) {
+    const path = join(target.folder, name);
+    if (!(await exists(path))) return { kind: 'would-write', row, path: shownIn(target, path) };
+    if (await holdsAt(path, meeting)) return { kind: 'in-vault', row, path: shownIn(target, path) };
+  }
+  const reason = `another meeting holds both of its paths in ${shownIn(target, target.folder)}`;
+  return { kind: 'refused', row, reason };
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
 interface Run {
   readonly target: ImportTarget;
   readonly options: ImportOptions;
@@ -129,6 +160,7 @@ async function bringIn(plan: Extract<RowPlan, { kind: 'meeting' }>, run: Run): P
     const meeting = mapMeeting(plan.fields, run.options);
     const problem = contractProblem(meeting.content);
     if (problem !== null) return { kind: 'refused', row, reason: problem };
+    if (run.options.dryRun === true) return await wouldPlace(meeting, row, run.target);
     return await place(meeting, row, run.target);
   } catch (error) {
     if (error instanceof MeetingMappingError)
@@ -172,7 +204,7 @@ export async function importNotionMeetings(options: ImportOptions): Promise<RowO
     providers: options.providers ?? null,
     geminiDates: options.geminiDates ?? null,
   });
-  await mkdir(target.folder, { recursive: true });
+  if (options.dryRun !== true) await mkdir(target.folder, { recursive: true });
   const run: Run = { target, options, held: await meetingsInVault(target.vault) };
   const outcomes: RowOutcome[] = [];
   for (const plan of plans) outcomes.push(await importRow(plan, run));

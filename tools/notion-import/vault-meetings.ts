@@ -27,7 +27,7 @@ export const holdsMeeting = (text: string, meeting: MeetingIdentity): boolean =>
   meetingHolding({ text, readFrontmatter, meeting }) !== null;
 
 /** Every markdown file under `folder`, hidden files and folders left out as everywhere in Atlas (ADR-0014). */
-async function markdownFiles(folder: string): Promise<string[]> {
+export async function markdownFiles(folder: string): Promise<string[]> {
   const entries = await readdir(folder, { withFileTypes: true });
   const found: string[] = [];
   for (const entry of entries) {
