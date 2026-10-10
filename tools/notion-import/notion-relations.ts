@@ -1,5 +1,5 @@
 /**
- * A Notion page id, dashed (`3e3672aa-2c4a-…`) or not, anywhere in a file
+ * A Notion page id, dashed (`a1000000-0000-4000-…`) or not, anywhere in a file
  * name, a relative link or a notion.so address. The last one in the text is
  * the page's: a path names its folders' pages first.
  */

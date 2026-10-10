@@ -13,8 +13,8 @@ describe('a Notion page id', () => {
   });
 
   it('is written without dashes and in lower case, as the vault keeps it', () => {
-    expect(notionIdIn('Page 3E3672AA-2C4A-8088-A946-C8723C97E78D')).toBe(
-      '3e3672aa2c4a8088a946c8723c97e78d',
+    expect(notionIdIn('Page A1000000-0000-4000-8000-0000000000AB')).toBe(
+      'a10000000000400080000000000000ab',
     );
   });
 

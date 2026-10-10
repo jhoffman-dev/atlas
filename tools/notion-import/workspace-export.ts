@@ -31,7 +31,7 @@ export interface WorkspaceExport {
 }
 
 const ALL = /_all$/;
-/** `Tasks 3e3672aa…` as Notion names a database's files: its name and its id. */
+/** `Tasks a1000000…` as Notion names a database's files: its name and its id. */
 const NAMED_WITH_ID = /^(.*?)\s+[0-9a-f]{32}$/i;
 
 const shown = (root: string, path: string) => relative(root, path).split(sep).join('/');
