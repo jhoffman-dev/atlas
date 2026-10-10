@@ -133,8 +133,9 @@ card. Where the build went past or around the text above:
 - **The browser's tab hears the truth.** The loopback answers the redirect
   only once the code is traded, the scope checked and the grant kept, so it
   says connected only when it is. A failed accept (out of descriptors, a
-  reset) is waited out rather than ending the sign-in, and connections past
-  16 are closed as soon as they are taken.
+  reset) is waited out rather than ending the sign-in, and past 16
+  connections no more are taken until one ends: a newcomer waits in the
+  kernel's queue rather than being closed, since it may be the browser.
 - **A sign-in other vaults may share is not revoked.** Google may revoke a
   whole grant — every token one person gave one client — rather than the
   single token it is sent; this is not verified here. Atlas asks for no
