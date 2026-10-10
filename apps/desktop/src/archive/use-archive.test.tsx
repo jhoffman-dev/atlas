@@ -160,6 +160,14 @@ describe('useArchive', () => {
     await waitFor(() => expect(hook.result.current.notice).toBe('Gone: no such entry'));
   });
 
+  it('says a chat note could not be archived without naming it, since its name is the question', async () => {
+    const { hook } = setUp({ 'a.md': '' });
+    act(() => {
+      void hook.result.current.commands.archive([path('Chats/Should Mara Quill get a raise.md')]);
+    });
+    await waitFor(() => expect(hook.result.current.notice).toBe('a chat note: no such entry'));
+  });
+
   it('reads the Archive only while its page is open, and again as the search changes', async () => {
     const { hook, options, query } = setUp({});
     expect(hook.result.current.page.contents).toBeNull();

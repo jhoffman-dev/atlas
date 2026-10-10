@@ -16,10 +16,12 @@ export type { BlockChange, FoldedBlocks } from './block-diff.ts';
 export {
   appendChatEntries,
   CHAT_TYPE,
+  CHAT_NOTE_LABEL,
   CHATS_FOLDER,
   chatNoteName,
   isInChats,
   newChatNoteText,
+  noteLabelForNotice,
   readChatNote,
 } from './chat-note.ts';
 export type { ChatNoteEntry, ChatNoteMessage } from './chat-note.ts';

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   isStrandedEditExpired,
-  noteTitle,
+  noteLabelForNotice,
   redateStrandedEdit,
   type StrandedEdit,
   type VaultPath,
@@ -56,7 +56,7 @@ export interface StrandedEdits {
 }
 
 const namesOf = (edits: readonly StrandedEdit[]): string =>
-  edits.map((edit) => noteTitle(edit.path)).join(', ');
+  edits.map((edit) => noteLabelForNotice(edit.path)).join(', ');
 
 /** A vault as a person knows it: its folder's name, not the whole path. */
 const vaultName = (vaultKey: string): string =>

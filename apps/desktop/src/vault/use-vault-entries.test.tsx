@@ -78,6 +78,77 @@ describe('useVaultEntries', () => {
     expect(disk.get('b.md')).toBe('Also [[Roadmap]].\n');
   });
 
+  it('says which notes kept their old links, a chat note as one rather than by its question', async () => {
+    const CHAT = 'Chats/Should Mara Quill get a raise.md';
+    const disk = new Map([
+      ['Notes/Plan.md', '# Plan\n'],
+      [CHAT, 'See [[Plan]].\n'],
+      ['b.md', 'Also [[Plan]].\n'],
+    ]);
+    const fs = fakeVaultFs({
+      moveEntry: async ({ from, to }) => {
+        disk.set(to, disk.get(from) ?? '');
+        disk.delete(from);
+      },
+      readNotes: async (paths) =>
+        paths.map((path) => ({ path, text: disk.get(path) ?? '', modified: 1, size: 1 })),
+      readTextFile: async (path) => ({ text: disk.get(path) ?? '', modified: 1 }),
+      writeTextFile: async () => {
+        throw new Error('the disk is full');
+      },
+    });
+    const notes = ['Notes/Plan.md', CHAT, 'b.md'] as VaultPath[];
+    const { result } = renderHook(() =>
+      useVaultEntries(
+        ports(async () => {}, fs),
+        notes,
+      ),
+    );
+    act(() => result.current.rename({ kind: 'file', path: NOTE }, 'Roadmap'));
+    await waitFor(() => expect(result.current.links).not.toBeNull());
+    act(() => result.current.links?.update());
+
+    await waitFor(() => expect(result.current.notice).toMatch(/could not be updated/));
+    expect(result.current.notice).toContain('a chat note (the disk is full)');
+    expect(result.current.notice).toContain('b (the disk is full)');
+    expect(result.current.notice).not.toContain('Mara Quill');
+  });
+
+  it('warns of a name a chat note now shares without saying the name, which is the question', async () => {
+    const DEEP = 'Notes/Drafts/Plan.md' as VaultPath;
+    const CHAT = 'Chats/Should Mara Quill get a raise.md' as VaultPath;
+    const { result } = renderHook(() =>
+      useVaultEntries(
+        ports(async () => {}),
+        [DEEP, CHAT],
+      ),
+    );
+    act(() => result.current.rename({ kind: 'file', path: DEEP }, 'Should Mara Quill get a raise'));
+
+    await waitFor(() => expect(result.current.notice).not.toBeNull());
+    expect(result.current.notice).toBe(
+      'More than one note now shares a name with a chat note; links to that name open the chat note.',
+    );
+  });
+
+  it('names a shared name, and the note it opens, when that note is no chat', async () => {
+    const DEEP = 'Notes/Drafts/Plan.md' as VaultPath;
+    const ROADMAP = 'Roadmap.md' as VaultPath;
+    const { result } = renderHook(() =>
+      useVaultEntries(
+        ports(async () => {}),
+        [DEEP, ROADMAP],
+      ),
+    );
+    act(() => result.current.rename({ kind: 'file', path: DEEP }, 'Roadmap'));
+
+    await waitFor(() =>
+      expect(result.current.notice).toBe(
+        'More than one note is called “Roadmap”: [[Roadmap]] now opens Roadmap.md.',
+      ),
+    );
+  });
+
   it('leaves the links as they are when the offer is dismissed', async () => {
     const disk = new Map([['a.md', '[[Plan]]']]);
     const fs = fakeVaultFs({
