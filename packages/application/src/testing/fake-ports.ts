@@ -78,6 +78,9 @@ export function fakeMarkdown(): MarkdownPort {
     serializeBody: () => {
       throw new Error('not used here');
     },
+    rawParts: () => {
+      throw new Error('not used here');
+    },
     frontmatterProperties: (frontmatter) => Object.fromEntries(frontmatterLines(frontmatter)),
     frontmatterProblem: () => null,
     frontmatterKeyTexts: (frontmatter) =>

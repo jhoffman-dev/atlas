@@ -142,8 +142,9 @@ export const exportNote = defineTool({
     'Properties, block ids, comments and images in the vault are left out, and "dropped" lists ' +
     'everything left out, by kind: property, link, embed, missing-embed, image, block-id, ' +
     'comment, callout-fold. Atlas writes nothing: to share the note, create the page with the ' +
-    'Atlassian connector — "title" as its title, "markdown" as its body, in markdown format — ' +
-    'and tell the user what "dropped" lists, so they can attach an image or fill a gap.',
+    'Atlassian connector — "title" as its title, "markdown" as its body, in markdown format, ' +
+    'passed verbatim: add, reword or reformat nothing, or "dropped" is no longer the whole ' +
+    'story — and tell the user what "dropped" lists, so they can attach an image or fill a gap.',
   inputSchema: z.object({ path: notePath }),
   annotations: READ_ONLY,
   call: (client, { path }) => client.exportNote(path),

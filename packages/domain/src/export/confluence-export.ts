@@ -13,7 +13,16 @@ import {
 import { BLOCK_EMBED_NODE } from '../transclusion/block-embed.ts';
 import { missingTransclusion, type Transclusion } from '../transclusion/transclusion-card.ts';
 import { DroppedContent, type ExportDrops } from './export-drops.ts';
-import { calloutName, rawMarkdownForExport } from './raw-markdown.ts';
+import { PageScopes, RAW_BLOCK, rawMarkdownOf, type ExportScope } from './export-scope.ts';
+import {
+  calloutName,
+  imageWords,
+  ON_THE_WEB,
+  rawMarkdownForExport,
+  REACHABLE,
+  unlinkable,
+} from './raw-markdown.ts';
+import type { RawPartsReader } from './raw-parts.ts';
 
 /*
  * A note made ready for a Confluence page (P32-07): the same blocks, with
@@ -31,6 +40,8 @@ export interface ExportSources {
   readonly titleOf: (target: string) => string | null;
   /** What a block shown in place shows. */
   readonly shown: (link: WikiLinkOrEmbed) => Transclusion;
+  /** What markdown the editor does not model holds, as the markdown reader reads it. */
+  readonly readRaw: RawPartsReader;
 }
 
 export interface ConfluenceExport {
@@ -55,7 +66,7 @@ export function exportForConfluence({
 }): ConfluenceExport {
   const exporter = new Exporter({ title, sources });
   for (const key of propertyKeys) exporter.dropped.add('property', key);
-  const content = exporter.nodes(doc.content);
+  const content = exporter.document(doc.content);
   return { doc: { type: 'doc', content }, dropped: exporter.dropped.list() };
 }
 
@@ -71,7 +82,7 @@ export function shownBlocksOf(doc: EditorDocument): WikiLinkOrEmbed[] {
  * note's own, and each block it shows — so they can be read before it runs.
  * Found by the export itself, so it can never ask for one not listed here.
  */
-export function linkTargetsOf(docs: readonly EditorDocument[]): string[] {
+export function linkTargetsOf(docs: readonly EditorDocument[], readRaw: RawPartsReader): string[] {
   const asked = new Set<string>();
   const sources: ExportSources = {
     titleOf: (target) => {
@@ -79,18 +90,14 @@ export function linkTargetsOf(docs: readonly EditorDocument[]): string[] {
       return null;
     },
     shown: missingTransclusion,
+    readRaw,
   };
-  for (const doc of docs) new Exporter({ title: '', sources }).nodes(doc.content);
+  for (const doc of docs) new Exporter({ title: '', sources }).document(doc.content);
   return [...asked];
 }
 
 const ITALIC: EditorMark = { type: 'italic' };
 const BOLD: EditorMark = { type: 'bold' };
-/** Where a page's link may go: the web, or an email. A note's path, or an app's, goes nowhere. */
-const REACHABLE = /^(?:https?:|mailto:)/i;
-/** Where a page's image may come from: the web. */
-const ON_THE_WEB = /^https?:/i;
-const RAW_BLOCK = 'rawBlock';
 
 const text = (words: string, marks?: readonly EditorMark[]): EditorNode => ({
   type: 'text',
@@ -102,10 +109,26 @@ const paragraph = (content: readonly EditorNode[]): EditorNode => ({ type: 'para
 
 class Exporter {
   readonly dropped = new DroppedContent();
+  private readonly scopes: PageScopes;
+  /** The note whose blocks are being exported: the page's own, or one a block is shown from. */
+  private scope: ExportScope | null = null;
 
-  constructor(private readonly context: { title: string; sources: ExportSources }) {}
+  constructor(private readonly context: { title: string; sources: ExportSources }) {
+    this.scopes = new PageScopes(context.sources.readRaw);
+  }
 
-  nodes(nodes: readonly EditorNode[]): EditorNode[] {
+  /** A note's blocks, or the blocks shown from the note titled `shownFrom`. */
+  document(nodes: readonly EditorNode[], shownFrom: string | null = null): EditorNode[] {
+    const outer = this.scope;
+    this.scope = shownFrom === null ? this.scopes.note(nodes) : this.scopes.shown(nodes, shownFrom);
+    try {
+      return this.nodes(nodes);
+    } finally {
+      this.scope = outer;
+    }
+  }
+
+  private nodes(nodes: readonly EditorNode[]): EditorNode[] {
     return nodes.flatMap((node) => this.node(this.withoutId(node)));
   }
 
@@ -143,8 +166,15 @@ class Exporter {
     return [text(this.wordsOf(link), from?.marks)];
   }
 
-  /** What a link reads as: its alias, else the note's title and the heading it points at. */
+  /**
+   * What a link reads as: its alias, else the note's title and the heading it
+   * points at — words that cannot become a link to somewhere else.
+   */
   private wordsOf(link: WikiLink): string {
+    return unlinkable(this.linkWords(link));
+  }
+
+  private linkWords(link: WikiLink): string {
     if (link.alias !== null && link.alias.trim() !== '') return link.alias;
     const fragment = linkFragment(link);
     const heading = fragment?.kind === 'heading' ? fragment.heading : null;
@@ -164,8 +194,8 @@ class Exporter {
       this.dropped.add('missing-embed', formatWikiLink(link));
       return [paragraph([text(`[Not found: ${this.wordsOf(link)}]`)])];
     }
-    const source = paragraph([text(`From ${shown.title}`, [ITALIC])]);
-    const content = this.nodes(shown.content.content);
+    const source = paragraph([text(`From ${unlinkable(shown.title)}`, [ITALIC])]);
+    const content = this.document(shown.content.content, shown.title);
     if (content.some((node) => node.type === RAW_BLOCK)) return [source, ...content];
     return [{ type: 'blockquote', content: [source, ...content] }];
   }
@@ -193,35 +223,58 @@ class Exporter {
   }
 
   private raw(node: EditorNode): EditorNode {
-    const markdown = String(node.attrs?.['markdown'] ?? '');
-    const exported = rawMarkdownForExport(markdown, {
+    const { scope } = this;
+    if (scope === null) throw new Error('A raw block was exported outside any note');
+    const markdown = rawMarkdownOf(node);
+    const parts = this.context.sources.readRaw(markdown, scope.definitions);
+    const exported = rawMarkdownForExport(markdown, parts, {
       wordsOf: (link) => this.wordsOf(link),
+      footnoteLabel: scope.footnoteLabel,
+      escapeStrayFootnotes: scope.escapeStrayFootnotes,
       dropped: this.dropped,
     });
     return { ...node, attrs: { ...node.attrs, markdown: exported } };
   }
 
-  /** An image on the web stays; one in the vault is named, as the page cannot reach it. */
+  /**
+   * An image on the web stays; one in the vault is named, as the page cannot
+   * reach it. A link around it is kept where the page can follow it.
+   */
   private image(node: EditorNode): EditorNode {
+    const marks = this.reachableMarks(node.marks ?? []);
     const src = typeof node.attrs?.['src'] === 'string' ? node.attrs['src'] : '';
-    if (ON_THE_WEB.test(src)) return node;
+    if (ON_THE_WEB.test(src)) return withMarks(node, marks);
     this.dropped.add('image', src);
-    const alt = typeof node.attrs?.['alt'] === 'string' ? node.attrs['alt'].trim() : '';
-    return text(`[Image: ${alt === '' ? src : alt}]`, node.marks);
+    const alt = typeof node.attrs?.['alt'] === 'string' ? node.attrs['alt'] : '';
+    return text(imageWords(alt, src), marks);
   }
 
   /** Text whose link goes somewhere the page cannot follow keeps its words and loses the link. */
   private withReachableLinks(node: EditorNode): EditorNode {
-    const marks = node.marks ?? [];
-    const kept = marks.filter((mark) => {
+    return withMarks(node, this.reachableMarks(node.marks ?? []));
+  }
+
+  /** The marks, less a link the page cannot follow, which is listed. */
+  private reachableMarks(marks: readonly EditorMark[]): readonly EditorMark[] {
+    return marks.filter((mark) => {
       if (mark.type !== 'link') return true;
       const href = typeof mark.attrs?.['href'] === 'string' ? mark.attrs['href'] : '';
       if (REACHABLE.test(href)) return true;
       this.dropped.add('link', href);
       return false;
     });
-    return kept.length === marks.length ? node : text(node.text ?? '', kept);
   }
+}
+
+/** An inline node with these marks: itself when they are its own. */
+function withMarks(node: EditorNode, marks: readonly EditorMark[]): EditorNode {
+  if (marks.length === (node.marks ?? []).length) return node;
+  return {
+    type: node.type,
+    ...(node.attrs !== undefined && { attrs: node.attrs }),
+    ...(node.text !== undefined && { text: node.text }),
+    ...(marks.length > 0 && { marks }),
+  };
 }
 
 function calloutMarkerOf(node: EditorNode): CalloutMarker {

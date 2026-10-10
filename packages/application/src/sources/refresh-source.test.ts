@@ -52,6 +52,7 @@ function fakeMarkdown(): MarkdownPort {
       `---\n${JSON.stringify(apply(frontmatter, changes))}\n---\n`,
     parseBody: () => ({ blocks: [], doc: { type: 'doc', content: [] } }) as never,
     serializeBody: ({ originalBody }) => originalBody,
+    rawParts: () => [],
   } as MarkdownPort;
 }
 

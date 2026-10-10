@@ -320,3 +320,86 @@ describe('a note exported for Confluence, attacked (P32-07)', () => {
     expect(dropped).not.toContainEqual({ kind: 'block-id', items: ['c1'] });
   });
 });
+
+describe('a note exported for Confluence, after review (P32-07)', () => {
+  it('writes a reference link or image in place, and names one the page cannot reach', async () => {
+    const note = [
+      'See [the spec][d] and [the site][s] and ![pic][p] <img src="attachments/p.png" alt="Plan">.',
+      '',
+      '[d]: Docs/Spec.md',
+      '[s]: https://example.com',
+      '[p]: https://example.com/p.png',
+      '',
+    ].join('\n');
+
+    const { markdown, dropped } = await exported(note).result;
+
+    expect(markdown).toBe(
+      'See the spec and [the site](https://example.com) and ' +
+        '![pic](https://example.com/p.png) \\[Image: Plan\\].\n',
+    );
+    expect(dropped).toEqual([
+      { kind: 'link', items: ['Docs/Spec.md'] },
+      { kind: 'image', items: ['attachments/p.png'] },
+    ]);
+  });
+
+  it('keeps an image on the web, and names the link around it the page cannot follow', async () => {
+    const { markdown, dropped } = await exported(
+      'Logo: [![map](https://example.com/m.png)](Docs/Map.md)\n',
+    ).result;
+
+    expect(markdown).toBe('Logo: ![map](https://example.com/m.png)\n');
+    expect(dropped).toEqual([{ kind: 'link', items: ['Docs/Map.md'] }]);
+  });
+
+  it('keeps an id-like ending mid-paragraph as text, in a block it models or not', async () => {
+    const modelled = await exported('One ^a1\ntwo\n').result;
+    const raw = await exported('One ^a1\ntwo <b>x</b>\n').result;
+
+    expect(modelled).toEqual({ title: 'Weekly sync', markdown: 'One ^a1\ntwo\n', dropped: [] });
+    expect(raw).toEqual({ title: 'Weekly sync', markdown: 'One ^a1\ntwo <b>x</b>\n', dropped: [] });
+  });
+
+  it('converts a callout inside one it cannot model, and lists each fold by its marker', async () => {
+    const note = '> [!warning]- Outer\n> Body.[^1]\n> > [!tip]+ Inner\n> > body\n\n[^1]: Why.\n';
+
+    const { markdown, dropped } = await exported(note).result;
+
+    expect(markdown).toBe(
+      '> **Warning:** Outer\n> Body.[^1]\n> > **Tip:** Inner\n> > body\n\n[^1]: Why.\n',
+    );
+    expect(dropped).toEqual([{ kind: 'callout-fold', items: ['[!warning]-', '[!tip]+'] }]);
+  });
+
+  it('names nothing for a frontmatter block with nothing in it', async () => {
+    expect(await exported('---\n---\nBody\n').result).toEqual({
+      title: 'Weekly sync',
+      markdown: 'Body\n',
+      dropped: [],
+    });
+  });
+
+  it('names frontmatter of comments alone, or of a single value, as not properties', async () => {
+    for (const frontmatter of ['# just a comment', 'hello']) {
+      const { markdown, dropped } = await exported(`---\n${frontmatter}\n---\nBody\n`).result;
+      expect(markdown).toBe('Body\n');
+      expect(dropped).toEqual([
+        { kind: 'property', items: ['(frontmatter that is not properties)'] },
+      ]);
+    }
+  });
+
+  it("keeps a link's words from becoming a link, in a block it cannot model too", async () => {
+    const { markdown } = await exported('Ask [[Plans|www.example.com]] <b>x</b>\n').result;
+
+    expect(markdown).toBe('Ask www\u2060.example.com <b>x</b>\n');
+    const [first] = blocksOf(markdown);
+    expect(first?.type === 'paragraph' && first.children.map((child) => child.type)).toEqual([
+      'text',
+      'html',
+      'text',
+      'html',
+    ]);
+  });
+});

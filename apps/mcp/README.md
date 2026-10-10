@@ -123,8 +123,9 @@ leave archived notes out unless `includeArchived` is true.
 their words, shown blocks quoted under their note, callouts as quotes, and a
 `dropped` list of everything left out (properties, block ids, comments, vault
 images, where links went). It writes nothing; Claude creates the page with its
-own Atlassian connector, `title` as the title and `markdown` as the body, and
-says what `dropped` lists.
+own Atlassian connector, `title` as the title and `markdown` as the body —
+passed verbatim, so `dropped` stays the whole story — and says what `dropped`
+lists.
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

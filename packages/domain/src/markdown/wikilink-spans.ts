@@ -17,12 +17,6 @@ export interface CommentSpan {
   readonly end: number;
 }
 
-/** A fenced code block, from its opening fence's line to the end of its closing one's. */
-export interface FenceSpan {
-  readonly start: number;
-  readonly end: number;
-}
-
 /**
  * Every wiki link in a note's markdown, read as the editor reads it
  * (ADR-0004, A21-04), and every comment. A link is text, not a link, where
@@ -40,12 +34,10 @@ export interface FenceSpan {
  * row is split into cells at each unescaped `|` before a link is read, so an
  * alias's pipe there must be written `\|`. HTML blocks and tags, autolinks
  * and indented code are not modelled: a link in one is still read as a link.
- * The fenced code blocks it read are given too.
  */
 export function scanMarkdown(markdown: string): {
   links: WikiLinkSpan[];
   comments: CommentSpan[];
-  fences: FenceSpan[];
 } {
   return new Scan(markdown).run();
 }
@@ -102,7 +94,7 @@ class Scan {
   private readonly lines: Line[] = [];
   /** For each line, where the paragraph it is in ends. */
   private readonly paragraphEnd: number[] = [];
-  private readonly fences: FenceSpan[] = [];
+  private readonly fences: { start: number; end: number }[] = [];
   /** Where each run of backticks starts, by its length. */
   private readonly runs = new Map<number, number[]>();
   private readonly links: WikiLinkSpan[] = [];
@@ -116,7 +108,7 @@ class Scan {
     this.readRuns();
   }
 
-  run(): { links: WikiLinkSpan[]; comments: CommentSpan[]; fences: FenceSpan[] } {
+  run(): { links: WikiLinkSpan[]; comments: CommentSpan[] } {
     const { text } = this;
     let fence = 0;
     let at = 0;
@@ -129,7 +121,7 @@ class Scan {
       }
       at = this.step(at);
     }
-    return { links: this.links, comments: this.comments, fences: this.fences };
+    return { links: this.links, comments: this.comments };
   }
 
   /** Reads what starts at `at`, and returns where to read next. */

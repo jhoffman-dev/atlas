@@ -19,6 +19,7 @@ import { refreshIndex } from './refresh-index.ts';
 const markdown: MarkdownPort = {
   parseBody: () => ({ blocks: [], doc: { type: 'doc', content: [] } }),
   serializeBody: () => '',
+  rawParts: () => [],
   frontmatterProblem: () => null,
   frontmatterKeyTexts: () => ({}),
   frontmatterProperties: (frontmatter) =>

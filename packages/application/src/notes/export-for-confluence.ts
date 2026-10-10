@@ -2,6 +2,7 @@ import {
   createVaultPath,
   exportForConfluence,
   formatWikiLink,
+  isBlankFrontmatter,
   linkTargetsOf,
   missingTransclusion,
   noteTitle,
@@ -11,6 +12,7 @@ import {
   splitFrontmatter,
   type EditorDocument,
   type ExportDrops,
+  type RawPartsReader,
   type Transclusion,
   type VaultPath,
 } from '@atlas/domain';
@@ -31,6 +33,9 @@ export interface NoteForConfluence {
 
 /** What a property key reads as when the frontmatter holding it cannot be read at all. */
 export const UNREADABLE_FRONTMATTER = '(frontmatter Atlas cannot read)';
+
+/** What it reads as when the frontmatter is YAML but no map of properties: a list, a value, comments. */
+export const NOT_PROPERTIES = '(frontmatter that is not properties)';
 
 interface ExportPorts {
   readonly fs: VaultFsPort;
@@ -64,17 +69,37 @@ export async function exportNoteForConfluence({
   const exported = exportForConfluence({
     doc,
     title,
-    propertyKeys:
-      ports.markdown.frontmatterProblem(frontmatter) === null
-        ? Object.keys(properties)
-        : [UNREADABLE_FRONTMATTER],
+    propertyKeys: propertyKeysOf(ports.markdown, { frontmatter, properties }),
     sources: {
       titleOf: (target) => titles.get(target) ?? null,
       shown: (link) => shown.get(formatWikiLink(link)) ?? missingTransclusion(link),
+      readRaw: readRawOf(ports.markdown),
     },
   });
   return { title, markdown: written(ports.markdown, exported.doc), dropped: exported.dropped };
 }
+
+/**
+ * The frontmatter as the page leaves it out: its keys, or what stands for a
+ * block holding something that is not keys, so even that is never lost unsaid.
+ */
+function propertyKeysOf(
+  markdown: MarkdownPort,
+  {
+    frontmatter,
+    properties,
+  }: { frontmatter: string | null; properties: Readonly<Record<string, unknown>> },
+): string[] {
+  if (frontmatter === null || isBlankFrontmatter(frontmatter)) return [];
+  if (markdown.frontmatterProblem(frontmatter) !== null) return [UNREADABLE_FRONTMATTER];
+  const keys = Object.keys(properties);
+  return keys.length > 0 ? keys : [NOT_PROPERTIES];
+}
+
+const readRawOf =
+  (markdown: MarkdownPort): RawPartsReader =>
+  (raw, definitions) =>
+    markdown.rawParts(raw, definitions);
 
 /** What each block the note shows in place shows, by its link as written. */
 async function shownBlocks(
@@ -99,7 +124,7 @@ async function linkTitles(
   { docs, notePaths }: { docs: readonly EditorDocument[]; notePaths: readonly VaultPath[] },
 ): Promise<Map<string, string>> {
   const pathOf = new Map(
-    linkTargetsOf(docs).flatMap((target) => {
+    linkTargetsOf(docs, readRawOf(markdown)).flatMap((target) => {
       const path = resolveWikiLinkTarget(target, notePaths);
       return path === null ? [] : [[target, path] as const];
     }),

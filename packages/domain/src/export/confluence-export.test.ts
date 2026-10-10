@@ -2,10 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { bookmarkNode } from '../bookmarks/bookmark.ts';
 import type { EditorDocument, EditorMark, EditorNode } from '../markdown/editor-node.ts';
 import { formatWikiLink, type WikiLinkOrEmbed } from '../markdown/wikilink.ts';
+import { wikiLinkSpans } from '../markdown/wikilink-spans.ts';
 import { blockEmbedNode } from '../transclusion/block-embed.ts';
 import { missingTransclusion, type Transclusion } from '../transclusion/transclusion-card.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
-import { exportForConfluence, linkTargetsOf, shownBlocksOf, type ExportSources } from './index.ts';
+import {
+  exportForConfluence,
+  linkTargetsOf,
+  shownBlocksOf,
+  type ExportSources,
+  type RawPart,
+  type RawPartsReader,
+} from './index.ts';
 
 const text = (value: string, marks?: EditorMark[]): EditorNode => ({
   type: 'text',
@@ -22,9 +30,54 @@ const raw = (markdown: string): EditorNode => ({ type: 'rawBlock', attrs: { mark
 
 const TITLES: Record<string, string> = { 'mara quill': 'Mara Quill', Plans: 'Summer plans' };
 
+const found = (markdown: string, pattern: RegExp) =>
+  [...markdown.matchAll(pattern)].map((match) => ({ match, start: match.index }));
+
+/**
+ * Raw markdown read as the markdown reader would, for what these tests hold:
+ * wiki links, comments and footnotes. The real reader is the markdown
+ * adapter's, and is tested there.
+ */
+const readRaw: RawPartsReader = (markdown, definitions) => {
+  const defined = new Set(
+    [markdown, ...definitions].flatMap((written) =>
+      found(written, /^\[\^([^\]]+)\]:/gm).map(({ match }) => match[1]),
+    ),
+  );
+  return [
+    ...wikiLinkSpans(markdown).map(({ start, end, link: read }): RawPart => ({
+      start,
+      end,
+      kind: 'wiki-link',
+      link: read,
+    })),
+    ...found(markdown, /<!--[\s\S]*?(?:-->|$)/g).map(({ match, start }): RawPart => ({
+      start,
+      end: start + match[0].length,
+      kind: 'html',
+    })),
+    ...found(markdown, /^\[\^[^\]]+\]:.*$/gm).map(({ match, start }): RawPart => ({
+      start,
+      end: start + match[0].length,
+      kind: 'footnote-definition',
+    })),
+    ...found(markdown, /\[\^([^\]\s]+)\]/g).map(({ match, start }): RawPart => {
+      const label = match[1] ?? '';
+      return {
+        start: start + 2,
+        end: start + 2 + label.length,
+        kind: 'footnote-label',
+        label,
+        defined: defined.has(label),
+      };
+    }),
+  ];
+};
+
 const sources = (shown: Record<string, Transclusion> = {}): ExportSources => ({
   titleOf: (target) => TITLES[target] ?? null,
   shown: (wanted) => shown[formatWikiLink(wanted)] ?? missingTransclusion(wanted),
+  readRaw,
 });
 
 const exported = (
@@ -152,10 +205,10 @@ describe('a block shown in place', () => {
   });
 
   it('holding markdown the editor does not model follows its note unquoted', () => {
-    const shown = { '![[Plans#^p1]]': shownBlock([raw('Pack light.[^1]')]) };
+    const shown = { '![[Plans#^p1]]': shownBlock([raw('Pack light. <kbd>x</kbd>')]) };
     expect(blocksOf(doc(embed), { shown })).toEqual([
       paragraph(text('From Summer plans', [{ type: 'italic' }])),
-      raw('Pack light.[^1]'),
+      raw('Pack light. <kbd>x</kbd>'),
     ]);
   });
 
@@ -339,16 +392,19 @@ describe('linkTargetsOf', () => {
       attrs: { kind: 'note', title: '[[Tobias Fenn]]', fold: null },
       content: [paragraph(link('Plans'))],
     };
-    const targets = linkTargetsOf([
-      doc(
-        paragraph(link('mara quill'), link('', { heading: '#Plans' })),
-        bookmarkNode({ target: 'Larkspur Payroll', heading: null, alias: null }),
-        raw('A [[Ledger]].[^1]'),
-        callout,
-        blockEmbedNode({ target: 'Plans', heading: '#^p1', alias: null }),
-      ),
-      doc(paragraph(link('Mara Quill'))),
-    ]);
+    const targets = linkTargetsOf(
+      [
+        doc(
+          paragraph(link('mara quill'), link('', { heading: '#Plans' })),
+          bookmarkNode({ target: 'Larkspur Payroll', heading: null, alias: null }),
+          raw('A [[Ledger]].[^1]'),
+          callout,
+          blockEmbedNode({ target: 'Plans', heading: '#^p1', alias: null }),
+        ),
+        doc(paragraph(link('Mara Quill'))),
+      ],
+      readRaw,
+    );
     expect(targets).toEqual([
       'mara quill',
       'Larkspur Payroll',
@@ -360,6 +416,101 @@ describe('linkTargetsOf', () => {
   });
 
   it('asks nothing of a link that has an alias', () => {
-    expect(linkTargetsOf([doc(paragraph(link('Plans', { alias: 'it' })))])).toEqual([]);
+    expect(linkTargetsOf([doc(paragraph(link('Plans', { alias: 'it' })))], readRaw)).toEqual([]);
+  });
+});
+
+describe('footnotes on one page', () => {
+  const fromSources = (...content: EditorNode[]): Transclusion => ({
+    kind: 'block',
+    path: 'Sources.md' as VaultPath,
+    title: 'Sources',
+    archived: false,
+    fragment: { kind: 'heading', heading: 'Cited' },
+    content: doc(...content),
+  });
+  const cited = blockEmbedNode({ target: 'Sources', heading: '#Cited', alias: null });
+
+  it("label a shown block's after its note, past every label already on the page", () => {
+    const shown = { '![[Sources#Cited]]': fromSources(raw('Theirs.[^1]'), raw('[^1]: C.')) };
+    const page = blocksOf(
+      doc(
+        raw('Ours.[^1] and [^Sources-1]'),
+        raw('[^1]: A.\n[^Sources-1]: B.'),
+        cited,
+        cited,
+        raw('More.[^1]'),
+      ),
+      { shown },
+    );
+    expect(page.filter((node) => node.type === 'rawBlock')).toEqual([
+      raw('Ours.[^1] and [^Sources-1]'),
+      raw('[^1]: A.\n[^Sources-1]: B.'),
+      raw('Theirs.[^Sources-2-1]'),
+      raw('[^Sources-2-1]: C.'),
+      raw('Theirs.[^Sources-3-1]'),
+      raw('[^Sources-3-1]: C.'),
+      raw('More.[^1]'),
+    ]);
+  });
+
+  it('label one after its note title in letters, digits and dashes alone', () => {
+    const block = { ...fromSources(raw('Theirs.[^1]'), raw('[^1]: C.')), title: 'Q3 / Plans!' };
+    const page = blocksOf(doc(cited), { shown: { '![[Sources#Cited]]': block } });
+    expect(page.at(-1)).toEqual(raw('[^Q3-Plans-1]: C.'));
+  });
+
+  it("leave a shown block's reference to a footnote its note does not hold as text", () => {
+    const shown = { '![[Sources#Cited]]': fromSources(raw('Theirs.[^1]')) };
+    const page = blocksOf(doc(raw('Ours.[^1]'), raw('[^1]: A.'), cited), { shown });
+    expect(page.at(-1)).toEqual(raw('Theirs.\\[^1]'));
+  });
+});
+
+describe('a link around an image', () => {
+  const href = (url: string): EditorMark => ({ type: 'link', attrs: { href: url, title: null } });
+  const image = (src: string, marks: EditorMark[]): EditorNode => ({
+    type: 'image',
+    attrs: { src, alt: 'Map', title: null },
+    marks,
+  });
+
+  it('stays where the page can follow it, on the image or on its words', () => {
+    const site = href('https://example.com');
+    expect(
+      blocksOf(doc(paragraph(image('https://example.com/m.png', [site]), image('m.png', [site])))),
+    ).toEqual([
+      paragraph(image('https://example.com/m.png', [site]), text('[Image: Map]', [site])),
+    ]);
+  });
+
+  it('is dropped and listed where the page cannot follow it', () => {
+    const { doc: page, dropped } = exported(
+      doc(paragraph(image('https://example.com/m.png', [href('Docs/Map.md')]))),
+    );
+    expect(page.content).toEqual([
+      paragraph({
+        type: 'image',
+        attrs: { src: 'https://example.com/m.png', alt: 'Map', title: null },
+      }),
+    ]);
+    expect(dropped).toEqual([{ kind: 'link', items: ['Docs/Map.md'] }]);
+  });
+});
+
+describe("a link's words", () => {
+  it('never become a link to somewhere else on the page', () => {
+    expect(
+      blocksOf(doc(paragraph(link('Plans', { alias: 'www.example.com' }), link('x@example.com')))),
+    ).toEqual([paragraph(text('www\u2060.example.com'), text('x\u2060@example.com'))]);
+  });
+
+  it('nor does the title of a note a block is shown from', () => {
+    const block = { ...shownBlock([paragraph(text('Hi.'))]), title: 'www.example.com' };
+    const embed = blockEmbedNode({ target: 'Plans', heading: '#^p1', alias: null });
+    const [quote] = blocksOf(doc(embed), { shown: { '![[Plans#^p1]]': block } });
+    expect(quote?.content?.[0]).toEqual(
+      paragraph(text('From www\u2060.example.com', [{ type: 'italic' }])),
+    );
   });
 });

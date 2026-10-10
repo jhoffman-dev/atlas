@@ -170,6 +170,7 @@ describe('tools/list', () => {
     expect(described).toContain('Atlas writes nothing');
     expect(described).toContain('Atlassian connector');
     expect(described).toContain('tell the user what "dropped" lists');
+    expect(described).toContain('passed verbatim: add, reword or reformat nothing');
     const kinds = ['property', 'link', 'embed', 'missing-embed', 'image', 'block-id', 'comment'];
     for (const kind of [...kinds, 'callout-fold']) expect(described).toContain(kind);
   });
