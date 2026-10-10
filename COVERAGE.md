@@ -28,6 +28,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/automations`  | Runs rules on a clock: archives or rewrites notes, logs it, undoes it.        | 25      |
 | `application/sync`         | Merges other Macs' changes into notes; settles conflicts; never loses a side. | U-29    |
 | `tools/n8n/*.ts`           | The n8n meeting mapper: commits files into your vault from outside Atlas.     | 28      |
+| `*/google-calendar`        | Connects your Google account and reads its answers; tokens stay in Rust.      | 31      |
 
 Rules that apply everywhere:
 

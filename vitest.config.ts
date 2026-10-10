@@ -66,6 +66,13 @@ export default defineConfig({
         'apps/mcp/src/{connection,client}.ts': { lines: 90, functions: 90, branches: 85 },
         // The n8n meeting mapper writes files into the vault from outside it (P28-02).
         'tools/n8n/*.ts': { lines: 90, functions: 90, branches: 85 },
+        // Connects Google Calendar and reads Google's answers (P31-03). The tokens
+        // themselves never reach TypeScript; their handling is the host's, tested in Rust.
+        'packages/{application,adapters}/src/google-calendar/**': {
+          lines: 90,
+          functions: 90,
+          branches: 85,
+        },
       },
     },
   },
