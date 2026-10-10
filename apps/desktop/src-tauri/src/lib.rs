@@ -1,6 +1,7 @@
 mod activity;
 mod api;
 mod git_process;
+mod google;
 mod http;
 mod index;
 mod model_http;
@@ -38,6 +39,7 @@ pub fn run() {
         .manage(sqlite_source::SqliteGrants::default())
         .manage(model_process::ModelProcesses::default())
         .manage(git_process::GitHost::default())
+        .manage(google::GoogleState::default())
         .invoke_handler(tauri::generate_handler![
             report_error,
             activity::activity_append,
@@ -60,6 +62,11 @@ pub fn run() {
             secrets::secret_set,
             secrets::secret_bind,
             secrets::secret_delete,
+            google::google_status,
+            google::google_connect,
+            google::google_connect_cancel,
+            google::google_disconnect,
+            google::google_calendar_request,
             sqlite_source::sqlite_source_query,
             sqlite_source::pick_sqlite_file,
             vault::pick_vault,
