@@ -10,7 +10,7 @@ export { NoteChangedError } from './note-changed-error.ts';
 export { NoteStillOpeningError } from './note-still-opening-error.ts';
 export { PREVIEW_BATCH, readNotePreviews } from './read-note-previews.ts';
 export type { NotePreview } from './read-note-previews.ts';
-export { embedImage, ImageEmbedError } from './embed-image.ts';
+export { embedImage, ImageEmbedError, ImageRefusedError } from './embed-image.ts';
 export type { EmbeddedImage, ImageProbePort } from './embed-image.ts';
 export { createRelatedNote, RelatedNoteRefusedError } from './create-related-note.ts';
 export type { RelatedNote } from './create-related-note.ts';

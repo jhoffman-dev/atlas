@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { noteTitle, type MovableEntry, type VaultPath } from '@atlas/domain';
+import { noteLabelForNotice, type MovableEntry, type VaultPath } from '@atlas/domain';
 import {
   archiveNotes,
   listArchive,
@@ -49,7 +49,9 @@ export interface ArchiveOptions {
  */
 function outcomeNotice(outcome: ArchiveOutcome): string | null {
   if (outcome.failed.length === 0) return null;
-  return outcome.failed.map(({ path, reason }) => `${noteTitle(path)}: ${reason}`).join(' ');
+  return outcome.failed
+    .map(({ path, reason }) => `${noteLabelForNotice(path)}: ${reason}`)
+    .join(' ');
 }
 
 /**

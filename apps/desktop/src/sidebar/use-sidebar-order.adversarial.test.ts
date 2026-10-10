@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, type VaultFsPort } from '@atlas/application';
+import { fakeVaultFs, type VaultFsPort, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useQuickAddSetting } from '../quick-add/use-quick-add-setting.ts';
 import { useSidebarOrder } from './use-sidebar-order.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 const SETTINGS = '.atlas/settings.md';
 
@@ -41,8 +44,20 @@ function hostLikeVault(initial: string | null) {
 const renderBoth = (fs: VaultFsPort, changeKey = '0') =>
   renderHook(
     ({ key }) => ({
-      order: useSidebarOrder({ fs, markdown: remarkMarkdown, vaultKey: 'v', changeKey: key }),
-      quickAdd: useQuickAddSetting({ fs, markdown: remarkMarkdown, vaultKey: 'v', changeKey: key }),
+      order: useSidebarOrder({
+        fs,
+        markdown: remarkMarkdown,
+        vaultKey: 'v',
+        changeKey: key,
+        activity: ACTIVITY,
+      }),
+      quickAdd: useQuickAddSetting({
+        fs,
+        markdown: remarkMarkdown,
+        vaultKey: 'v',
+        changeKey: key,
+        activity: ACTIVITY,
+      }),
     }),
     { initialProps: { key: changeKey } },
   );
@@ -113,7 +128,14 @@ describe('useSidebarOrder while a save is in flight', () => {
       },
     });
     const hook = renderHook(
-      ({ key }) => useSidebarOrder({ fs, markdown: remarkMarkdown, vaultKey: 'v', changeKey: key }),
+      ({ key }) =>
+        useSidebarOrder({
+          fs,
+          markdown: remarkMarkdown,
+          vaultKey: 'v',
+          changeKey: key,
+          activity: ACTIVITY,
+        }),
       { initialProps: { key: '0' } },
     );
     await waitFor(() => expect(hook.result.current.order.saved).toEqual(['views']));

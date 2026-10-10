@@ -10,6 +10,7 @@ import {
   type OpenNote,
   type ThumbnailJob,
   type VaultFsPort,
+  recordingActivity,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useArtifactCopy } from './use-artifact-copy.ts';
@@ -84,10 +85,20 @@ function copyHook(fs: VaultFsPort, note: OpenNote | null) {
   const setProperties = vi.fn<(changes: unknown) => Promise<void>>(async () => {});
   const onChanged = vi.fn();
   const { thumbnails, jobs, finish } = handQueue();
+  const activity = recordingActivity();
   const hook = renderHook(() =>
-    useArtifactCopy({ note, fs, clock: CLOCK, links, thumbnails, setProperties, onChanged }),
+    useArtifactCopy({
+      note,
+      fs,
+      clock: CLOCK,
+      links,
+      thumbnails,
+      setProperties,
+      activity,
+      onChanged,
+    }),
   );
-  return { hook, links, setProperties, onChanged, jobs, finish };
+  return { hook, links, setProperties, onChanged, jobs, finish, activity };
 }
 
 describe('useArtifactCopy', () => {
@@ -136,6 +147,38 @@ describe('useArtifactCopy', () => {
     act(() => hook.result.current?.addCopy([new File(['x'], 'a.css')]));
     await waitFor(() => expect(hook.result.current?.error).toMatch(/no page to open/));
     expect(setProperties).not.toHaveBeenCalled();
+  });
+});
+
+describe('useArtifactCopy and the Activity log', () => {
+  const page = () => new File(['<p>hi</p>'], 'q3.html', { type: 'text/html' });
+
+  it('records a copy that could not be written once, naming the artifact', async () => {
+    const vault = memoryVault({ [NOTE_PATH]: '---\ntype: artifact\n---\n' });
+    vault.fs.writeBinaryFile = async () => {
+      throw new Error('The disk is full.');
+    };
+    const { hook, activity } = copyHook(vault.fs, await open(vault.fs));
+    act(() => hook.result.current?.addCopy([page()]));
+    await waitFor(() => expect(hook.result.current?.error).toBe('The disk is full.'));
+    expect(activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not save the artifact — Q3. The disk is full.',
+        subject: { kind: 'note', path: NOTE_PATH },
+      },
+    ]);
+  });
+
+  it('records nothing for a copy saved, or files refused as no copy', async () => {
+    const { fs } = memoryVault({ [NOTE_PATH]: '---\ntype: artifact\n---\n' });
+    const { hook, onChanged, activity } = copyHook(fs, await open(fs));
+    act(() => hook.result.current?.addCopy([new File(['x'], 'a.css')]));
+    await waitFor(() => expect(hook.result.current?.error).toMatch(/no page to open/));
+    act(() => hook.result.current?.addCopy([page()]));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(activity.reports).toEqual([]);
   });
 });
 
@@ -188,8 +231,10 @@ describe('useNewArtifact', () => {
     const index = fakeIndexPort({
       notesOfType: async () => [{ path: 'Projects/Atlas.md', title: 'Atlas' }],
     });
+    const activity = recordingActivity();
     const hook = renderHook(() =>
       useNewArtifact({
+        activity,
         thumbnails,
         fs,
         markdown: remarkMarkdown,
@@ -199,7 +244,7 @@ describe('useNewArtifact', () => {
         onCreated,
       }),
     );
-    return { hook, onCreated, thumbnails };
+    return { hook, onCreated, thumbnails, activity };
   }
 
   it('guesses the kind from a pasted link, until one is chosen', async () => {
@@ -274,5 +319,44 @@ describe('useNewArtifact', () => {
     expect(hook.result.current.error).toMatch(/no page to open/);
     expect(onCreated).not.toHaveBeenCalled();
     expect(hook.result.current.saving).toBe(false);
+  });
+
+  it('records an artifact that could not be saved, once, and nothing for a refusal or a save', async () => {
+    const vault = memoryVault({});
+    vault.fs.createNote = async () => {
+      throw new Error('The disk is full.');
+    };
+    const failing = newArtifact(vault.fs);
+    act(() => failing.hook.result.current.start(LINK));
+    act(() =>
+      failing.hook.result.current.change({ ...failing.hook.result.current.draft, title: 'Q3' }),
+    );
+    await act(() => failing.hook.result.current.create());
+    expect(failing.hook.result.current.error).toBe('The disk is full.');
+    expect(failing.activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not save the artifact. The disk is full.',
+        subject: null,
+      },
+    ]);
+
+    const { hook, onCreated, activity } = newArtifact(memoryVault({}).fs);
+    act(() => hook.result.current.start());
+    act(() =>
+      hook.result.current.change({
+        ...hook.result.current.draft,
+        title: 'X',
+        files: [new File(['x'], 'a.css')],
+      }),
+    );
+    await act(() => hook.result.current.create());
+    expect(hook.result.current.error).toMatch(/no page to open/);
+    act(() => hook.result.current.start(LINK));
+    act(() => hook.result.current.change({ ...hook.result.current.draft, title: 'Q3' }));
+    await act(() => hook.result.current.create());
+    expect(onCreated).toHaveBeenCalledWith('artifacts/Q3.md');
+    expect(activity.reports).toEqual([]);
   });
 });

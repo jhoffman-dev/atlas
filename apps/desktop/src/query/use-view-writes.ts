@@ -9,11 +9,13 @@ import {
 import {
   cardMoveChanges,
   setNoteProperties,
+  type ActivityLog,
   type MarkdownPort,
   type PropertyChanges,
   type VaultFsPort,
 } from '@atlas/application';
 import type { CardMove } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from './error-message.ts';
 
@@ -44,27 +46,34 @@ export async function writeNoteProperties({
   if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values });
 }
 
-/** `writeNoteProperties` for a view's gestures, which report through the view. */
+/**
+ * `writeNoteProperties` for a view's gestures, which report through the view:
+ * a failed one is shown there and recorded in the Activity log.
+ */
 export function useChangeProperties({
   editors,
   fs,
   markdown,
+  activity,
   onChanged,
   onError,
 }: {
   editors: OpenEditors;
   fs: VaultFsPort;
   markdown: MarkdownPort;
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onChanged: () => void;
   onError: (message: string) => void;
 }): ChangeProperties {
   return useCallback(
     ({ path, values }) => {
-      writeNoteProperties({ editors, fs, markdown, path, values })
+      withGiveUpRecorded({ activity, write: 'edit', path }, () =>
+        writeNoteProperties({ editors, fs, markdown, path, values }),
+      )
         .then(onChanged)
         .catch((cause: unknown) => onError(errorMessage(cause)));
     },
-    [editors, fs, markdown, onChanged, onError],
+    [editors, fs, markdown, activity, onChanged, onError],
   );
 }
 

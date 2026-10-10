@@ -7,7 +7,14 @@ import {
   type ObjectType,
   type VaultPath,
 } from '@atlas/domain';
-import { createView, type MarkdownPort, type VaultFsPort } from '@atlas/application';
+import {
+  createView,
+  ViewRefusedError,
+  type ActivityLog,
+  type MarkdownPort,
+  type VaultFsPort,
+} from '@atlas/application';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 
 const BLANK: NewViewRequest = { name: '', type: '', layout: 'table' };
@@ -22,12 +29,15 @@ export function useNewView({
   markdown,
   types,
   viewPaths,
+  activity,
   onCreated,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   types: readonly ObjectType[];
   viewPaths: readonly string[];
+  /** Where a view that could not be written is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onCreated: (path: VaultPath) => void;
 }) {
   const [request, setRequest] = useState<NewViewRequest>(BLANK);
@@ -56,10 +66,13 @@ export function useNewView({
   }, []);
 
   const create = useCallback(() => {
-    createView({ fs, markdown, request, types, takenPaths: viewPaths })
+    const named = { activity, write: 'view', path: null, refusal: ViewRefusedError } as const;
+    withGiveUpRecorded(named, () =>
+      createView({ fs, markdown, request, types, takenPaths: viewPaths }),
+    )
       .then(onCreated)
       .catch((cause: unknown) => setWriteError(errorMessage(cause)));
-  }, [fs, markdown, request, types, viewPaths, onCreated]);
+  }, [fs, markdown, request, types, viewPaths, activity, onCreated]);
 
   const typeChoices = useMemo(
     () => types.map((type) => ({ value: type.name, label: type.label })),

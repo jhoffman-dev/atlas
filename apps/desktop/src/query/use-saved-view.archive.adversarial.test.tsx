@@ -8,12 +8,21 @@
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote, type OpenNote } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeVaultFs,
+  openNote,
+  type OpenNote,
+  recordingActivity,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useSavedView } from './use-saved-view.ts';
 import { useViewDrafts } from './use-view-drafts.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory } from './tick-memory.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 const view = (title: string) =>
   ['---', 'atlas: view', 'type: task', 'layout: table', '---', '', `# ${title}`, ''].join('\n');
@@ -48,6 +57,7 @@ describe('Include archived belongs to the view it was turned on in (A23)', () =>
     const hook = renderHook(
       ({ note }: { note: OpenNote }) =>
         useSavedView({
+          activity: ACTIVITY,
           note,
           index: INDEX,
           fs,

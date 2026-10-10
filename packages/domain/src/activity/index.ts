@@ -48,6 +48,7 @@ export {
   indexFailedReport,
   indexRebuiltReport,
   noticeReport,
+  screenWriteFailedReport,
   sourceRefreshReport,
   writeFailedReport,
 } from './activity-reports.ts';
@@ -55,6 +56,7 @@ export type {
   ChatFailure,
   ChatHappening,
   RuleNamed,
+  ScreenWrite,
   SourceOutcome,
   VaultWrite,
 } from './activity-reports.ts';

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ApiSettingsPort } from '@atlas/application';
+import type { ActivityLog, ApiSettingsPort } from '@atlas/application';
 import { SettingsDialog } from '@atlas/ui';
 import type { ClipboardWriter } from './clipboard.ts';
 import { mcpAddCommand } from './mcp-command.ts';
@@ -16,17 +16,20 @@ export interface SettingsPorts {
 /** Settings, wired to the host. */
 export function SettingsPanel({
   ports,
+  activity,
   onClose,
   fallbackFocus,
   children,
 }: {
   ports: SettingsPorts;
+  /** Where a change to the connection that fails is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onClose: () => void;
   fallbackFocus?: () => HTMLElement | null;
   /** Sections after Connections, which the app supplies. */
   children?: ReactNode;
 }) {
-  const connection = useConnectionSettings(ports);
+  const connection = useConnectionSettings({ ...ports, activity });
   const mcp = mcpAddCommand(ports.mcpEntry);
 
   return (

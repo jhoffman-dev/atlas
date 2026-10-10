@@ -2,7 +2,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, parseObjectType, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote, type OpenNote } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeVaultFs,
+  openNote,
+  type OpenNote,
+  recordingActivity,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useQueryView } from './use-query-view.ts';
@@ -82,10 +88,11 @@ async function opened() {
 function render(note: OpenNote | null, fs: ReturnType<typeof fakeVaultFs>) {
   const { index, asked } = taskIndex();
   const onChanged = vi.fn();
+  const activity = recordingActivity();
   const view = renderHook(() =>
     useQueryView({
       note,
-      ports: { index, fs, markdown: remarkMarkdown, editors: NO_PANE },
+      ports: { index, fs, markdown: remarkMarkdown, editors: NO_PANE, activity },
       folds: NO_FOLDS,
       types: TYPES,
       notePaths: NOTES,
@@ -97,7 +104,7 @@ function render(note: OpenNote | null, fs: ReturnType<typeof fakeVaultFs>) {
       onOpenNote: () => {},
     }),
   );
-  return { view, asked, onChanged };
+  return { view, asked, onChanged, activity };
 }
 
 describe('useQueryView', () => {
@@ -143,6 +150,37 @@ describe('useQueryView', () => {
     );
   });
 
+  it('records a save it gives up on once, naming the view, and nothing for one that lands', async () => {
+    const { files, note } = await opened();
+    const refusing = fakeVaultFs({
+      readTextFile: async (path) => ({ text: files[path] ?? '', modified: 1 }),
+      writeTextFile: async () => {
+        throw new Error('The disk is full.');
+      },
+    });
+    const refused = render(note, refusing);
+    await waitFor(() => expect(refused.view.result.current).not.toBeNull());
+    act(() => refused.view.result.current?.panel.onLayout('list'));
+    act(() => refused.view.result.current?.save());
+    await waitFor(() => expect(refused.view.result.current?.saveError).toBe('The disk is full.'));
+    expect(refused.activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not save an edit — Open work. The disk is full.',
+        subject: { kind: 'note', path: PATH },
+      },
+    ]);
+
+    const { fs } = await opened();
+    const saved = render(note, fs);
+    await waitFor(() => expect(saved.view.result.current).not.toBeNull());
+    act(() => saved.view.result.current?.panel.onLayout('list'));
+    act(() => saved.view.result.current?.save());
+    await waitFor(() => expect(saved.onChanged).toHaveBeenCalled());
+    expect(saved.activity.reports).toEqual([]);
+  });
+
   it('stays in the text after a save reloads the note, and keeps what was typed since', async () => {
     const { fs, files, note } = await opened();
     const { index } = taskIndex();
@@ -150,7 +188,13 @@ describe('useQueryView', () => {
     const view = renderHook(() =>
       useQueryView({
         note: current,
-        ports: { index, fs, markdown: remarkMarkdown, editors: NO_PANE },
+        ports: {
+          index,
+          fs,
+          markdown: remarkMarkdown,
+          editors: NO_PANE,
+          activity: recordingActivity(),
+        },
         folds: NO_FOLDS,
         types: TYPES,
         notePaths: NOTES,

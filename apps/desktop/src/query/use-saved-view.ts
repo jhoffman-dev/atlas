@@ -39,6 +39,7 @@ import {
   type OpenNote,
   type VaultFsPort,
   type ViewResult,
+  type ActivityLog,
 } from '@atlas/application';
 import { useNoteNames, type CardAdd, type CardMove, type DoneTicks } from '@atlas/ui';
 import type { OpenEditors } from '../panes/open-editors.ts';
@@ -73,6 +74,7 @@ export function useSavedView({
   drafts,
   viewPaths,
   tickMemory,
+  activity,
 }: {
   note: OpenNote | null;
   index: IndexPort;
@@ -91,6 +93,8 @@ export function useSavedView({
   viewPaths: readonly string[];
   /** What ticked notes' statuses were, so unticking can put them back. */
   tickMemory: TickMemory;
+  /** Where an edit the view gives up on is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): {
   query: ViewQuery | null;
   display: ViewDisplay;
@@ -169,6 +173,7 @@ export function useSavedView({
     editors,
     onChanged,
     types,
+    activity,
   });
   const { result, error, setError, query, display, type, status, hidden, fields } = shownView;
   const { applyEdits, ...viewEdits } = shownView.edits;
@@ -186,6 +191,7 @@ export function useSavedView({
     editors,
     fs,
     markdown,
+    activity,
     onChanged,
     onError: setError,
   });
@@ -216,6 +222,7 @@ export function useSavedView({
     dateKey: display.dateKey,
     groupOptions,
     notePaths,
+    activity,
     onChanged,
     onError: setError,
   });
@@ -288,6 +295,7 @@ function useShownView({
   onChanged,
   types,
   includeArchived,
+  activity,
 }: {
   note: OpenNote | null;
   index: IndexPort;
@@ -300,12 +308,14 @@ function useShownView({
   editors: OpenEditors;
   onChanged: () => void;
   types: readonly ObjectType[];
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const changeView = useChangeProperties({
     editors,
     fs,
     markdown,
+    activity,
     onChanged,
     onError: setSaveError,
   });
@@ -316,6 +326,7 @@ function useShownView({
     fs,
     markdown,
     viewPaths,
+    activity,
     onChanged,
   });
   const query = useMemo(

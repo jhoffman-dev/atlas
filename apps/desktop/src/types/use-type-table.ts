@@ -3,11 +3,13 @@ import { createVaultPath, typeTableQuery, type ObjectType, type QuerySort } from
 import {
   runView,
   setNoteProperties,
+  type ActivityLog,
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
   type ViewResult,
 } from '@atlas/application';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 
 const message = (error: unknown): string =>
@@ -31,6 +33,7 @@ export function useTypeTable({
   indexKey,
   onChanged,
   editors,
+  activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
@@ -42,6 +45,8 @@ export function useTypeTable({
   onChanged: () => void;
   /** The panes, so a note one of them holds is written through it. */
   editors: OpenEditors;
+  /** Where a cell edit the table gives up on is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): {
   type: ObjectType | null;
   result: ViewResult | null;
@@ -105,15 +110,17 @@ export function useTypeTable({
       // Through the pane holding the note, when one does: writing the file
       // underneath it would leave its next save to be refused.
       const values = { [column]: value === '' ? null : value };
-      editors
-        .setPropertiesIfOpen({ path: createVaultPath(path), values })
-        .then((takenByAPane) =>
-          takenByAPane ? undefined : setNoteProperties({ fs, markdown, path, values }),
-        )
+      withGiveUpRecorded({ activity, write: 'edit', path }, async () => {
+        const takenByAPane = await editors.setPropertiesIfOpen({
+          path: createVaultPath(path),
+          values,
+        });
+        if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values });
+      })
         .then(onChanged)
         .catch((cause: unknown) => setError(message(cause)));
     },
-    [editors, fs, markdown, onChanged],
+    [editors, fs, markdown, activity, onChanged],
   );
 
   return { type, result, sorts: query?.sorts ?? [], error, toggleSort, editCell };

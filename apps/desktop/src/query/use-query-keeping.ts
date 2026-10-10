@@ -9,8 +9,9 @@ import {
   type VaultPath,
   type ViewLayout,
 } from '@atlas/domain';
-import { dashboardChange, writeViewNote } from '@atlas/application';
+import { dashboardChange, ViewRefusedError, writeViewNote } from '@atlas/application';
 import type { AddQueryToDashboard, Choice, SaveQuery } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import type { QueryPagePorts } from './use-query-page.ts';
 import { writeNoteProperties } from './use-view-writes.ts';
@@ -42,7 +43,7 @@ export function useQueryKeeping({
 }): { save: SaveQuery; dashboards: AddQueryToDashboard } {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { fs, markdown, editors } = ports;
+  const { fs, markdown, editors, activity } = ports;
 
   const onSave = useCallback(
     ({ name, layout }: { name: string; layout: ViewLayout }) => {
@@ -52,7 +53,10 @@ export function useQueryKeeping({
         return;
       }
       const frontmatter = queryViewFrontmatter({ query: text, layout });
-      writeViewNote({ fs, markdown, takenPaths: viewPaths, name, frontmatter })
+      const named = { activity, write: 'view', path: null, refusal: ViewRefusedError } as const;
+      withGiveUpRecorded(named, () =>
+        writeViewNote({ fs, markdown, takenPaths: viewPaths, name, frontmatter }),
+      )
         .then((path) => {
           setSaveError(null);
           onChanged();
@@ -60,7 +64,7 @@ export function useQueryKeeping({
         })
         .catch((cause: unknown) => setSaveError(errorMessage(cause)));
     },
-    [fs, markdown, text, viewPaths, onChanged, onSavedView],
+    [fs, markdown, activity, text, viewPaths, onChanged, onSavedView],
   );
 
   const onAdd = useCallback(
@@ -69,14 +73,16 @@ export function useQueryKeeping({
         kind: 'add',
         draft: queryWidgetDraft({ query: text, title }),
       });
-      writeNoteProperties({ editors, fs, markdown, path, values })
+      withGiveUpRecorded({ activity, write: 'dashboard', path }, () =>
+        writeNoteProperties({ editors, fs, markdown, path, values }),
+      )
         .then(() => {
           setNotice('Added to the dashboard.');
           onChanged();
         })
         .catch((cause: unknown) => setNotice(errorMessage(cause)));
     },
-    [editors, fs, markdown, text, onChanged],
+    [editors, fs, markdown, activity, text, onChanged],
   );
 
   const choices = useMemo(

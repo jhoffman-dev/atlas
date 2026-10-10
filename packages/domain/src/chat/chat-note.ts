@@ -1,4 +1,5 @@
 import { cleanEntryName } from '../vault/new-note.ts';
+import { noteTitle } from '../vault/vault-entry.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 
 /**
@@ -29,6 +30,27 @@ export type ChatNoteEntry =
 export interface ChatNoteMessage {
   readonly role: 'user' | 'assistant';
   readonly text: string;
+}
+
+/**
+ * Whether the path is in `Chats/`, whose notes are named by the first words of
+ * what was asked. Compared without case: on a case-insensitive disk `chats/`
+ * is the same folder.
+ */
+export function isInChats(path: string): boolean {
+  return path.split('/')[0]?.toLowerCase() === CHATS_FOLDER.toLowerCase();
+}
+
+/** What a notice or a log line calls a chat note, whose own name is the question. */
+export const CHAT_NOTE_LABEL = 'a chat note';
+
+/**
+ * How a notice names a note: by its title, except a chat note, which is named
+ * by the first words of what was asked — so a notice, and the Activity log
+ * that keeps it, never repeats the question.
+ */
+export function noteLabelForNotice(path: VaultPath): string {
+  return isInChats(path) ? CHAT_NOTE_LABEL : noteTitle(path);
 }
 
 /** What a new chat is called: the first words of what was asked. */

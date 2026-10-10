@@ -33,6 +33,18 @@ export class ImageEmbedError extends Error {
   }
 }
 
+/**
+ * The image itself was refused — too large, of a kind Atlas does not take, or
+ * one this Mac cannot draw — before anything was written: the person's to act
+ * on, and no fault of the vault's.
+ */
+export class ImageRefusedError extends ImageEmbedError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImageRefusedError';
+  }
+}
+
 /** An image saved into the vault, and what the note writes to show it. */
 export interface EmbeddedImage {
   readonly path: VaultPath;
@@ -75,13 +87,13 @@ export async function embedImage({
   now: string;
 }): Promise<EmbeddedImage> {
   const check = checkIncomingImage(image);
-  if (check.kind === 'refused') throw new ImageEmbedError(check.message);
+  if (check.kind === 'refused') throw new ImageRefusedError(check.message);
 
   const name = imageFileName({ image, extension: check.extension, now });
   const bytes = await readBytes();
   const mimeType = imageMimeType(name);
   if (!(await probe.canShow({ bytes, mimeType }))) {
-    throw new ImageEmbedError(
+    throw new ImageRefusedError(
       undrawableImageMessage({ name: image.name, extension: check.extension }),
     );
   }

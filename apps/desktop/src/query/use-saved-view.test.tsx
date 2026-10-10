@@ -2,12 +2,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, type ObjectType, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, openNote, type OpenNote } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeVaultFs,
+  openNote,
+  type OpenNote,
+  recordingActivity,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useSavedView } from './use-saved-view.ts';
 import { useViewDrafts } from './use-view-drafts.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory, type TickMemory } from './tick-memory.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 /**
  * R13-03: a view writes notes other panes are holding.
@@ -108,11 +117,13 @@ async function showView(args: {
   onChanged?: () => void;
   index?: typeof INDEX;
   tickMemory?: TickMemory;
+  activity?: ReturnType<typeof recordingActivity>;
 }) {
   const tickMemory = args.tickMemory ?? createTickMemory();
   const note = await openView(args.vault.fs);
   const view = renderHook(() =>
     useSavedView({
+      activity: args.activity ?? ACTIVITY,
       note,
       index: args.index ?? INDEX,
       fs: args.vault.fs,
@@ -264,6 +275,58 @@ describe('the toolbar changing the view', () => {
     });
     expect(view.result.current.saveAsError).toMatch(/already a view called/);
     expect(view.result.current.edited).toBe(true);
+  });
+
+  it('records a new view it could not write, once, and nothing for a name refused', async () => {
+    const vault = fakeVault();
+    const fs = {
+      ...vault.fs,
+      createNote: async () => {
+        throw new Error('The disk is full.');
+      },
+    };
+    const activity = recordingActivity();
+    const view = await showView({
+      vault: { ...vault, fs },
+      editors: fakeEditors(true).registry,
+      activity,
+    });
+    act(() => view.result.current.setFilters([NOT_DONE]));
+    await act(async () => {
+      await view.result.current.saveAs('board');
+    });
+    expect(view.result.current.saveAsError).toMatch(/already a view called/);
+    expect(activity.reports).toEqual([]);
+
+    await act(async () => {
+      await view.result.current.saveAs('Open work');
+    });
+    expect(view.result.current.saveAsError).toBe('The disk is full.');
+    expect(activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not save the view. The disk is full.',
+        subject: null,
+      },
+    ]);
+  });
+
+  it('records nothing for a new view written', async () => {
+    const vault = fakeVault();
+    const fs = { ...vault.fs, createNote: async () => {} };
+    const activity = recordingActivity();
+    const view = await showView({
+      vault: { ...vault, fs },
+      editors: fakeEditors(true).registry,
+      activity,
+    });
+    act(() => view.result.current.setFilters([NOT_DONE]));
+    await act(async () => {
+      await view.result.current.saveAs('Open work');
+    });
+    expect(view.result.current.edited).toBe(false);
+    expect(activity.reports).toEqual([]);
   });
 
   it('knows the type it lists', async () => {

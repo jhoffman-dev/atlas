@@ -89,7 +89,7 @@ describe('updateLinks', () => {
     expect(openNotes.flush).toHaveBeenCalledWith(['a.md']);
     // A20-06: marked, so a caller can tell typing left alone from a refused write.
     expect(report.failed).toEqual([
-      { path: 'a.md', reason: 'a has unsaved changes.', unsavedInApp: true },
+      { path: 'a.md', reason: 'The note has unsaved changes.', unsavedInApp: true },
     ]);
     expect(report.updated).toEqual(['b.md']);
     expect(openNotes.reload).toHaveBeenCalledWith('b.md');

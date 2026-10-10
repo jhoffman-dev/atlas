@@ -309,7 +309,7 @@ describe('POST /v1/tags/{tag}/rename', () => {
 
     expect(bodyOf(response)['report']).toEqual({
       updated: ['Notes/b.md'],
-      failed: [{ path: 'Notes/a.md', reason: 'a has unsaved changes.' }],
+      failed: [{ path: 'Notes/a.md', reason: 'The note has unsaved changes.' }],
     });
     expect(textOf(api, 'Notes/a.md')).toBe(FILES['Notes/a.md']);
     expect(reload).toHaveBeenCalledWith('Notes/b.md');

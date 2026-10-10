@@ -1,5 +1,11 @@
 import { useCallback } from 'react';
-import { loadProfile, saveProfile, type MarkdownPort, type VaultFsPort } from '@atlas/application';
+import {
+  loadProfile,
+  saveProfile,
+  type ActivityLog,
+  type MarkdownPort,
+  type VaultFsPort,
+} from '@atlas/application';
 import {
   changeProfile,
   EMPTY_PROFILE,
@@ -28,11 +34,14 @@ export function useProfileSetting({
   markdown,
   vaultKey,
   changeKey,
+  activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
   changeKey: string;
+  /** Where a save that fails is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): ProfileSetting {
   const load = useCallback(() => loadProfile({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
@@ -56,6 +65,7 @@ export function useProfileSetting({
     store,
     vaultKey,
     changeKey,
+    activity,
   });
   const save = useCallback(
     (change: ProfileChange) => saveValue(changeProfile(value ?? EMPTY_PROFILE, change)),
