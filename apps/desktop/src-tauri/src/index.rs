@@ -347,32 +347,55 @@ pub struct IndexOpened {
 /// says which: a fact about the cache, which TypeScript decides what to do with.
 fn open_database(root: &Path) -> Result<(Connection, IndexOpened), String> {
     let path = database_path(root)?;
+    // Read before the journal is set up: on a file that is not a database at
+    // all, setting WAL is the first thing that fails, and the cache would never heal.
+    let fresh = stored_version(&path)? != Some(SCHEMA_VERSION);
+    if fresh {
+        // The cache is derived, so an old shape — or a broken file — is discarded rather than migrated.
+        discard(&path);
+    }
     let connection =
         Connection::open(&path).map_err(|error| format!("cannot open index: {error}"))?;
-
     connection
         .execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")
         .map_err(|error| format!("cannot configure index: {error}"))?;
-
-    let version: i64 = connection
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(|error| format!("cannot read index version: {error}"))?;
-
-    if version != SCHEMA_VERSION {
-        // The cache is derived, so an old shape is discarded rather than migrated.
-        drop(connection);
-        let _ = fs::remove_file(&path);
-        let connection =
-            Connection::open(&path).map_err(|error| format!("cannot open index: {error}"))?;
-        create_schema(&connection)?;
+    create_schema(&connection)?;
+    if fresh {
         connection
             .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))
             .map_err(|error| format!("cannot set index version: {error}"))?;
-        return Ok((connection, IndexOpened { fresh: true }));
     }
+    Ok((connection, IndexOpened { fresh }))
+}
 
-    create_schema(&connection)?;
-    Ok((connection, IndexOpened { fresh: false }))
+/// The schema version the index on disk says it has: none when there is no
+/// file yet, or the file is not a database (cut short, overwritten), which is
+/// a cache to rebuild rather than an error to stop on.
+fn stored_version(path: &Path) -> Result<Option<i64>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let connection =
+        Connection::open(path).map_err(|error| format!("cannot open index: {error}"))?;
+    match connection.query_row("PRAGMA user_version", [], |row| row.get(0)) {
+        Ok(version) => Ok(Some(version)),
+        Err(rusqlite::Error::SqliteFailure(failure, _))
+            if failure.code == rusqlite::ErrorCode::NotADatabase =>
+        {
+            Ok(None)
+        }
+        Err(error) => Err(format!("cannot read index version: {error}")),
+    }
+}
+
+/// Removes the index and its journal files. A file already gone is what was wanted.
+fn discard(path: &Path) {
+    let _ = fs::remove_file(path);
+    for suffix in ["-wal", "-shm"] {
+        let mut sidecar = path.as_os_str().to_owned();
+        sidecar.push(suffix);
+        let _ = fs::remove_file(sidecar);
+    }
 }
 
 fn with_connection<T>(
@@ -1619,6 +1642,29 @@ mod tests {
 
         let (_, opened) = open_database(vault.path()).unwrap();
         assert!(opened.fresh);
+    }
+
+    #[test]
+    fn an_index_file_that_is_not_a_database_is_thrown_away_and_rebuilt() {
+        let vault = tempfile::tempdir().unwrap();
+        let path = database_path(vault.path()).unwrap();
+        fs::write(
+            &path,
+            b"this was cut short and is no database at all, not even a header",
+        )
+        .unwrap();
+
+        let (mut index, opened) = open_database(vault.path()).unwrap();
+
+        assert!(opened.fresh);
+        put_notes(&mut index, &[task_with_progress("a.md", Some(40))]).unwrap();
+        let kept: i64 = index
+            .query_row("SELECT count(*) FROM files", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(kept, 1);
+        drop(index);
+        let (_, reopened) = open_database(vault.path()).unwrap();
+        assert!(!reopened.fresh);
     }
 
     #[test]
