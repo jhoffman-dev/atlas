@@ -128,8 +128,8 @@ what it captures in the Inbox, and `atlas_list_notes` with `folder: "Inbox"`
 lists what waits there.
 
 `atlas_schedule_task` sets time aside for a task as dragging it onto the
-calendar's empty time does: a new block note from `start` (local wall-clock,
-`2026-10-12T09:00`) for `minutes`, linking the task — or, without `minutes`,
+calendar's empty time does: a new block note from `start` (local wall-clock to
+the minute, `2026-10-12T09:00` — a `Z`, offset or seconds is refused) for `minutes`, linking the task — or, without `minutes`,
 as long as the task still needs. Calling it again makes another block, which
 is how a task is split. `atlas_query` with `schedule: true` reads what each
 task now has scheduled.

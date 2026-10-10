@@ -528,8 +528,10 @@ Planning the day drags a task onto the calendar. What the API does about it:
   never over a note that is there. It is the only route that writes a block
   of its own making; a block's other changes, adding a task to one included,
   stay with the notes routes, guarded and byte-preserving.
-- **The task must be a task**, named by its path; a start with no time, or a
-  length outside 1 to 1440 minutes, is `invalid` before anything is made.
+- **The task must be a task**, named by its path; a start that is not exactly
+  local wall-clock time to the minute (`2026-10-12T09:00` — no seconds, `Z`
+  or offset, which would name another moment than its digits), or a length
+  outside 1 to 1440 minutes, is `invalid` before anything is made.
   Without `minutes`, the block is sized as the app sizes a dropped task, from
   the schedule `POST /v1/query` reads.
 - **No undo route.** The app's Undo puts a block it made in the Trash; the
