@@ -32,9 +32,11 @@ export type {
   NoteBookmarks,
   NoteEditorHandle,
   NotePeople,
+  NoteQueryBlocks,
   NoteReveal,
   NoteTransclusions,
 } from './note-editor.tsx';
+export type { QueryBlockRows, QueryBlockShown } from './editor/query-block.tsx';
 export type { BlockChoices, BlockPicking } from './editor/block-picking.ts';
 export type { BookmarkPreview } from './bookmark-card.tsx';
 export type { EmbedImage, ImageOrigin, SavedImage } from './editor/image-uploads.ts';

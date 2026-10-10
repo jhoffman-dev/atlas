@@ -107,6 +107,7 @@ const EXPRESSED: Readonly<Record<string, readonly string[]>> = {
   wikiLink: ['target', 'heading', 'alias', 'embed'],
   bookmark: ['target', 'heading', 'alias'],
   blockEmbed: ['target', 'heading', 'alias'],
+  queryBlock: ['text'],
   link: ['href', 'title'],
   bold: [],
   italic: [],

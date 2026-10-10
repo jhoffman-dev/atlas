@@ -9,6 +9,7 @@ import {
 } from '@atlas/domain';
 import type { BookmarkSource } from './editor/bookmark.tsx';
 import type { TransclusionSource } from './editor/block-embed.tsx';
+import type { QueryBlockShown, QueryBlockSource } from './editor/query-block.tsx';
 import type { BlockPicking } from './editor/block-picking.ts';
 import { positionOf } from './editor/block-link-commands.ts';
 import { markRevealed } from './editor/revealed-block.ts';
@@ -35,6 +36,16 @@ export interface NoteTransclusions {
   /** A picture in a shown block, found beside the note the block is in. */
   readonly loadImage: (args: { path: string; src: string }) => Promise<string | null>;
   /** Changes whenever a shown block may show something new — any note saved — so each is read again. */
+  readonly revision: unknown;
+}
+
+/** Where the note's query blocks (P30-05) are answered, `this` being the note. */
+export interface NoteQueryBlocks {
+  /** What a block holding `text` shows. */
+  readonly run: (text: string) => Promise<QueryBlockShown>;
+  /** Opens a note one of a block's rows names. */
+  readonly onOpenNote: (path: string) => void;
+  /** Changes whenever an answer may have changed — the index refreshed — so each is asked again. */
   readonly revision: unknown;
 }
 
@@ -100,6 +111,27 @@ export function useTransclusionSource(
                 ? Promise.reject(new Error('Blocks cannot be shown here.'))
                 : latest.current.load(link),
             loadImage: (args) => latest.current?.loadImage(args) ?? Promise.resolve(null),
+            subscribe,
+          }
+        : null,
+    [has, latest, subscribe],
+  );
+}
+
+/** The editor's source of query answers, as `useTransclusionSource` is of shown blocks. */
+export function useQueryBlockSource(queries: NoteQueryBlocks | undefined): QueryBlockSource | null {
+  const latest = useLatest(queries);
+  const subscribe = useRevision(queries?.revision);
+  const has = queries !== undefined;
+  return useMemo<QueryBlockSource | null>(
+    () =>
+      has
+        ? {
+            run: (text) =>
+              latest.current === undefined
+                ? Promise.reject(new Error('Queries cannot be run here.'))
+                : latest.current.run(text),
+            onOpenNote: (path) => latest.current?.onOpenNote(path),
             subscribe,
           }
         : null,

@@ -29,6 +29,7 @@ import { writeAsTyped, type ReadMarkdown } from './as-typed.ts';
 import { readingOf } from './reading.ts';
 import { bookmarkFromMdast } from './bookmark-block.ts';
 import { shownBlockOr } from './block-embed.ts';
+import { queryBlockFromMdast } from './query-block.ts';
 import { anchoredParagraph, anchorSlots } from './block-anchors.ts';
 import { remarkWikiLink } from './wiki-link-syntax.ts';
 import { expressible } from './expressible.ts';
@@ -550,7 +551,9 @@ const takesLineAnchor = (read: ReadBlock): boolean =>
 function editorNodeFor(child: RootContent, body: string): EditorNode {
   const converted = escapesATag(child, body)
     ? null
-    : (bookmarkFromMdast(child, body) ?? shownBlockOr(mdastBlockToEditorNode(child, body)));
+    : (bookmarkFromMdast(child, body) ??
+      queryBlockFromMdast(child) ??
+      shownBlockOr(mdastBlockToEditorNode(child, body)));
   if (
     (converted?.type === 'paragraph' && child.type === 'paragraph') ||
     (converted?.type === 'heading' && child.type === 'heading')

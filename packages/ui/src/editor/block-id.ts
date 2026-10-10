@@ -15,6 +15,7 @@ export const BLOCK_TYPES = [
   'rawBlock',
   'bookmark',
   'blockEmbed',
+  'queryBlock',
 ] as const;
 
 /**
