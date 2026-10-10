@@ -6,6 +6,7 @@ export type {
   ViewColumnSpec,
   ViewTypeSpec,
   IndexedBlockRow,
+  IndexedCheckRow,
   IndexedLinkRow,
   IndexedNote,
   IndexEntry,

@@ -396,6 +396,19 @@ export interface ApiAddViewNoteBody {
   readonly subGroup?: string | null;
 }
 
+/**
+ * `POST /v1/notes/{path}/promote`: a checklist line of the note to make a task
+ * (P30-03), named by its words — and, where two lines say the same, by its
+ * place among the note's boxes, counting from 0 in the order they are written,
+ * nested ones after the line they are under.
+ */
+export interface ApiPromoteLineBody {
+  /** The line's words as the note writes them, without its box: "Order chairs". */
+  readonly text: string;
+  /** Its place among the note's boxes; needed only when another line says the same. */
+  readonly line?: number;
+}
+
 /** Notes to put in the Archive, or take out of it. */
 export interface ApiArchiveBody {
   /** Vault-relative note paths, as other routes answer them: 1 to 100 of them. */
@@ -819,6 +832,7 @@ export type ApiSuccessBody =
   | { readonly notes: readonly ApiNoteSummary[]; readonly next: string | null }
   | { readonly note: ApiNote }
   | { readonly note: ApiNote; readonly moved: boolean }
+  | { readonly note: ApiNote; readonly task: ApiNote }
   | { readonly backlinks: readonly ApiNoteSummary[] }
   | { readonly hits: readonly ApiSearchHit[] }
   | { readonly types: readonly ApiType[] }
@@ -904,6 +918,11 @@ export const API_ROUTES = [
     summary: 'Replace the body. Requires ifModified.',
   },
   { method: 'GET', path: '/v1/notes/{path}/backlinks', summary: 'Notes that link to this one.' },
+  {
+    method: 'POST',
+    path: '/v1/notes/{path}/promote',
+    summary: 'Make a checklist line of a note a task of its own, linked both ways.',
+  },
   {
     method: 'PUT',
     path: '/v1/notes/{path}/images/{name}',

@@ -5,6 +5,7 @@ import type { AtlasClient } from './client.ts';
 import { archiveTools } from './tools/archive.ts';
 import { artifactTools } from './tools/artifacts.ts';
 import { automationTools } from './tools/automations.ts';
+import { checklistTools } from './tools/checklists.ts';
 import { captureTools } from './tools/capture.ts';
 import { imageTools } from './tools/images.ts';
 import { inboxTools } from './tools/inbox.ts';
@@ -32,6 +33,7 @@ export const ATLAS_TOOLS = [
   ...templateTools,
   ...archiveTools,
   ...inboxTools,
+  ...checklistTools,
   ...automationTools,
 ];
 

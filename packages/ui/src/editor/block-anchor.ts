@@ -37,11 +37,16 @@ const READ_FROM_FILE = 'atlas:readFromFile';
  * Shows `doc`, read from its file, in place of what the editor holds. Its ids
  * are taken as the file has them — two blocks holding one id included — as
  * untouched text is (ADR-0003, A26-01).
+ *
+ * Not a step to undo: the file changed, the person did not type it. Undoing
+ * it would put back what the file no longer says — after a promoted line, the
+ * line without the task it now names — and save that over the file.
  */
 export function showAsRead(editor: Editor, doc: EditorDocument): void {
   editor
     .chain()
     .setMeta(READ_FROM_FILE, true)
+    .setMeta('addToHistory', false)
     .setContent(doc as object, { emitUpdate: false })
     .run();
 }

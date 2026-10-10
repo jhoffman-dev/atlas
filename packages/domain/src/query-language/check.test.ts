@@ -4,6 +4,7 @@ import { directFields, fieldsThrough } from './fields.ts';
 import { parseAtlasQuery } from './parse.ts';
 import { QUERY_TEST_TYPES } from './query-fixtures.ts';
 import { QueryTextError } from './query-text-error.ts';
+import { parseObjectType } from '../types/property-def.ts';
 
 function problem(text: string): { message: string; at: string } | null {
   try {
@@ -147,7 +148,7 @@ describe('comparisonsFor', () => {
 });
 
 describe('directFields and fieldsThrough', () => {
-  it('lists the built-ins, then each listed type’s properties, a shared key once', () => {
+  it('lists the built-ins, then each listed type’s properties, a shared key once, then progress', () => {
     const fields = directFields(QUERY_TEST_TYPES, ['project', 'task']).map((field) => field.text);
     expect(fields).toEqual([
       'title',
@@ -164,6 +165,20 @@ describe('directFields and fieldsThrough', () => {
       'flagged',
       'labels',
       'notes',
+      'progress',
+    ]);
+  });
+
+  it('reads a checklist’s progress as a number, unless a listed type declares its own (P30-03)', () => {
+    const progress = directFields(QUERY_TEST_TYPES, ['task']).find(
+      (field) => field.key === 'progress',
+    );
+    expect(progress).toMatchObject({ kind: 'progress', via: null, many: false });
+    expect(comparisonsFor('progress')).toEqual(['=', '!=', '<', '<=', '>', '>=']);
+    const own = parseObjectType({ name: 'goal', properties: { progress: 'text' } });
+    const fields = directFields([...QUERY_TEST_TYPES, own], ['task', 'goal']);
+    expect(fields.filter((field) => field.key === 'progress')).toEqual([
+      expect.objectContaining({ kind: 'text' }),
     ]);
   });
 

@@ -80,6 +80,9 @@ export function drawsGroups(layout: ViewLayout): boolean {
   return GROUPING_LAYOUTS.includes(layout);
 }
 
+/** The layouts that draw a note's checklist progress as a bar. */
+const PROGRESS_LAYOUTS: readonly ViewLayout[] = ['board', 'list', 'table'];
+
 /** The column the index adds to every type's view: when the file last changed. */
 export const MODIFIED_COLUMN = 'modified';
 
@@ -93,7 +96,9 @@ export const MODIFIED_COLUMN = 'modified';
  * each note last changed, so its previews are read again only for notes that
  * did. A calendar that spans notes to an end reads that end, hidden, so a
  * week can draw how long each note runs. A grouped layout reads what it groups
- * by, hidden, so a grouping need not be a shown column. A feed with no sort of its own reads newest first. The saved query is never changed: the Sort control still shows what
+ * by, hidden, so a grouping need not be a shown column. A board, a list and a
+ * table read each note's checklist progress, hidden, to draw its bar (P30-03).
+ * A feed with no sort of its own reads newest first. The saved query is never changed: the Sort control still shows what
  * the view asks for.
  */
 export function queryForLayout({
@@ -102,6 +107,7 @@ export function queryForLayout({
   statusKey,
   endKey = null,
   groupKeys = [],
+  progressKey = null,
 }: {
   query: ViewQuery;
   layout: ViewLayout;
@@ -110,10 +116,13 @@ export function queryForLayout({
   endKey?: string | null;
   /** What a table, a board or a gallery groups by, which its rows must carry to be grouped. */
   groupKeys?: readonly string[];
+  /** The column holding each note's checklist progress, when the type's view has one. */
+  progressKey?: string | null;
 }): { query: ViewQuery; hidden: readonly string[] } {
   const wanted = [
     statusKey,
     ...(drawsGroups(layout) ? groupKeys : []),
+    PROGRESS_LAYOUTS.includes(layout) ? progressKey : null,
     layout === 'feed' || layout === 'gallery' ? MODIFIED_COLUMN : null,
     layout === 'calendar' ? endKey : null,
   ];

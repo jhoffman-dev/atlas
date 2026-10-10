@@ -43,6 +43,7 @@ import {
   type MentionSuggestionView,
 } from './mention-suggestion.ts';
 import { PendingMention } from './pending-mention.ts';
+import { PromoteLineButton, type PromoteLine } from './promote-line.ts';
 import { PersonChips, type PersonFor } from './person-chips.ts';
 import { RawBlock } from './raw-block.ts';
 import { WikiLink } from './wiki-link.ts';
@@ -69,6 +70,7 @@ export function createEditorExtensions({
   bookmarks = null,
   transclusions = null,
   picking = null,
+  promoteLine = null,
 }: {
   suggest: (query: string) => NoteSuggestion[];
   onView: (view: WikiSuggestionView | null) => void;
@@ -91,6 +93,8 @@ export function createEditorExtensions({
   transclusions?: TransclusionSource | null;
   /** A note's headings and blocks after `[[Note#`; left out, `#` offers nothing. */
   picking?: BlockPicking | null;
+  /** Makes a checklist line a task; left out, no line offers it. */
+  promoteLine?: PromoteLine | null;
 }) {
   return [
     ...baseExtensions,
@@ -115,6 +119,7 @@ export function createEditorExtensions({
     WikiLinkSuggestion.configure({ suggest, onView, blocks: picking }),
     TagSuggestionExtension.configure({ suggest: suggestTags, onView: onTagView }),
     SlashCommands.configure({ onView: onSlashView, offerLink, offerImage: embedImage !== null }),
+    PromoteLineButton.configure({ promote: promoteLine }),
   ];
 }
 

@@ -4,7 +4,7 @@ import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { SourceRefresher } from '../sources/source-refresher.ts';
 import type { VaultTagRenames } from '../tags/index.ts';
-import type { Clock } from '../ports.ts';
+import type { Clock, Rng } from '../ports.ts';
 import { inVault } from '../vault/in-vault.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { ApiError } from './api-error.ts';
@@ -61,6 +61,8 @@ export interface VaultRequest {
   readonly tagRenames: VaultTagRenames;
   readonly refreshSpacing: RefreshSpacing;
   readonly newUploadId: () => string;
+  /** Where a new block id is drawn from (P30-03). */
+  readonly rng: Rng;
   /** The app's automation runner, for this request's vault; null when it is not watching it. */
   readonly automationClock: AutomationClockState | null;
   /** Refuses with `no_vault` once the vault this request arrived for is no longer open. */
@@ -103,6 +105,7 @@ export function vaultRequest({
     tagRenames: deps.tagRenames.forVault(vault),
     refreshSpacing: deps.refreshSpacing,
     newUploadId: deps.newUploadId,
+    rng: deps.rng,
     automationClock: deps.automationClock.forVault(vault),
     assertStillOpen: () => {
       if (deps.host.currentVault()?.absolutePath !== vault) {

@@ -9,8 +9,10 @@ import {
   type QueryFilter,
   type QuerySort,
   type ViewQuery,
+  withChecklistProgress,
 } from '@atlas/domain';
 import { runView } from '../query/run-view.ts';
+import { loadObjectTypes } from '../types/load-types.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import type { ApiRows } from './contract.ts';
 import {
@@ -27,13 +29,20 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 const QUERY_ROWS = { fallback: DEFAULT_QUERY_LIMIT, max: MAX_QUERY_LIMIT };
 
-/** Notes of a type, filtered and sorted, compiled to SQL exactly as a saved view is. */
+/**
+ * Notes of a type, filtered and sorted, compiled to SQL exactly as a saved
+ * view is — with each note's checklist progress as a column, where its type
+ * has one (P30-03).
+ */
 export async function queryRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
   const includeArchived = optionalBoolean(fields, 'includeArchived') ?? false;
+  const query = viewQueryFrom(fields);
+  const types = await loadObjectTypes({ fs: request.fs, markdown: request.markdown });
+  const type = types.find((candidate) => candidate.name === query.type) ?? null;
   return {
     status: 200,
-    body: await runViewQuery(request, viewQueryFrom(fields), { includeArchived }),
+    body: await runViewQuery(request, withChecklistProgress(query, type), { includeArchived }),
   };
 }
 

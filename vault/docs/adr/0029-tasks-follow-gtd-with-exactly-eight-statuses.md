@@ -143,3 +143,45 @@ Where the build differs from, or settles, what is written above:
   while a preview has work, except for a status written as a one-item list,
   which the index flattens: the rules already read it as its item, and the
   next write of its status rewrites it.
+
+## As built (P30-03, 2026-10-08): checklists
+
+- **A box is what the editor draws.** `checklistLines` reads every
+  `taskItem` of the parsed note, nested ones after their line, so the index,
+  the bar and promoting a line count the same boxes. A list that mixes boxed
+  and plain items is a checklist to the editor, and so to the count.
+- **Progress is worked out once, in TypeScript**, as the index is filled:
+  the share ticked, a whole percentage rounded down (100 only when every box
+  is), null with no box. It is stored on the file's row beside its summary
+  (`files.progress`, schema 11) with a `checks` row per box, and Rust only
+  selects it into each type's view (ADR-0005). A type that declares its own
+  `progress` keeps it: TypeScript tells the host not to add the column, the
+  query language does not offer the built-in, and no bar is drawn.
+- **Promoting a line is one use-case** for the app and the API
+  (`promoteChecklistLine`): the task is made by `createNote` and the line
+  rewritten by `saveNote`, the chokepoints above. A ticked line's task starts
+  in Archive, dated by those rules. If the line's note cannot be written, the
+  task just made is taken back. Undo (the app only) restores the note's bytes
+  and trashes the task, refused if either changed since.
+- **Nothing the line said is lost** (after the adversarial pass). A line of
+  plain words becomes the link alone, aliased with those words when the
+  task's name had to differ; a line holding anything more — a link, a tag,
+  code, marks, a character markdown reads — keeps it all after the link, and
+  its markdown becomes the task's body. A line starting with a link to a task
+  note is that task already: promoting it again is refused. The task's name
+  is cut by whole characters to fit a file name with a number after it.
+- **The box prefilter is a superset**: any `[ ]`, `[x]` or `[X]` in a body
+  sends it to the parser, since a box may follow a marker on its parent's
+  line or start the line after a bare marker.
+- **A note read again from its file is not undoable** (`showAsRead`), app
+  wide: ⌘Z after a promotion, a sync or another pane's save would otherwise
+  put back what the file no longer says, and save it.
+- **Schema 11 collides with P28-03's change feed (#9)**, which is also 11 with
+  other columns: whichever of #9 and #22 merges second must bump to 12 and
+  create both sets of columns.
+- **Not done**: grouping a board by `progress` is allowed, as by `modified`,
+  and dropping a card there writes a `progress` key nobody reads. A list
+  written with `*`, `+` or numbers is rewritten with `-` when a line of it is
+  promoted, as any edit to it is (ADR-0003): the editor's checklist node
+  holds no marker or numbering, so keeping them would mean a new node
+  attribute through the editor, the reader and the writer — not cheap.

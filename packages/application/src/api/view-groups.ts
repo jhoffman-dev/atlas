@@ -14,6 +14,7 @@ import {
   type RowGroup,
   type ViewDisplay,
   type ViewQuery,
+  withChecklistProgress,
 } from '@atlas/domain';
 import { readNamedNotes } from '../graph/load-graph.ts';
 import { relationGroupLinks } from '../query/relation-group-links.ts';
@@ -40,21 +41,23 @@ export async function viewTypeOf(request: VaultRequest, name: string): Promise<O
  * A saved view's rows, and — when its layout draws groups — those groups.
  * The rows then carry what they are grouped by even when the view does not
  * show it as a column; those columns are read, then left out of the answer,
- * so `columns` is the view's own either way. A board keeps a group for every
+ * so `columns` is the view's own either way — and each note's checklist
+ * progress, where its type has one (P30-03). A board keeps a group for every
  * value its first level declares, an empty column included.
  */
 export async function runSavedView(
   request: VaultRequest,
   {
-    query,
+    query: asSaved,
     display,
     includeArchived,
   }: { query: ViewQuery; display: ViewDisplay; includeArchived: boolean },
 ): Promise<ApiAtlasQueryRows> {
+  const type = await viewTypeOf(request, asSaved.type);
+  const query = withChecklistProgress(asSaved, type);
   if (!drawsGroups(display.layout) || display.groupBy === null) {
     return runViewQuery(request, query, { includeArchived });
   }
-  const type = await viewTypeOf(request, query.type);
   const { names, related } = await relationGroups(request, { display, type });
   const levels = drawnLevels({ display, type, sorts: query.sorts, related });
   if (levels.length === 0) return runViewQuery(request, query, { includeArchived });
