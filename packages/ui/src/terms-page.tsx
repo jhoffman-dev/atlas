@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import {
+  listAsInput,
   newTermRefusal,
   TERM_KINDS,
   termKindOf,
@@ -8,7 +9,6 @@ import {
   type VaultPath,
   type VocabularyClaim,
   type VocabularyConflict,
-  variantsAsInput,
 } from '@atlas/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon } from './icon.tsx';
@@ -278,7 +278,7 @@ function TermList({ contents, error, onOpen, onEditVariants }: TermsPageProps) {
                   <CommitField
                     className="field terms__variants-input"
                     label={`Misheard spellings of ${term.canonical}`}
-                    value={variantsAsInput(term.variants)}
+                    value={listAsInput(term.variants)}
                     placeholder="None yet"
                     onCommit={(variants) => onEditVariants({ path: term.path, variants })}
                   />

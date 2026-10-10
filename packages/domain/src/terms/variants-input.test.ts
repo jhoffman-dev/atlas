@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { variantsAsInput, variantsFromInput } from './variants-input.ts';
+import { listAsInput } from '../types/list-input.ts';
+import { variantsFromInput } from './variants-input.ts';
 
 describe('a term’s variants as one line of text', () => {
   it('are written with commas between, and plain ones read back as they were', () => {
-    expect(variantsAsInput(['lark spur', 'Larks Burr'])).toBe('lark spur, Larks Burr');
+    expect(listAsInput(['lark spur', 'Larks Burr'])).toBe('lark spur, Larks Burr');
     expect(variantsFromInput('lark spur, Larks Burr')).toEqual(['lark spur', 'Larks Burr']);
   });
 
   it('quote a variant holding a comma or a quote, a quote inside doubled', () => {
-    expect(variantsAsInput(['Quill, Mara', 'the "QD"', 'Mara Quil'])).toBe(
+    expect(listAsInput(['Quill, Mara', 'the "QD"', 'Mara Quil'])).toBe(
       '"Quill, Mara", "the ""QD""", Mara Quil',
     );
   });
@@ -22,7 +23,7 @@ describe('a term’s variants as one line of text', () => {
       [],
     ];
     for (const variants of lists) {
-      expect(variantsFromInput(variantsAsInput(variants))).toEqual(variants);
+      expect(variantsFromInput(listAsInput(variants))).toEqual(variants);
     }
   });
 

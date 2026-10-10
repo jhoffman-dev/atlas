@@ -1,13 +1,11 @@
 /*
  * A list as one line of text, for a box the person edits: commas between the
  * items, as a list is typed everywhere in Atlas. An item can hold a comma of
- * its own — `[[Larkspur Payroll, Inc.]]` — so one that does is written in
- * double quotes, a quote inside it doubled, as a CSV cell is. Reading the line
- * back gives the same list, so editing one item never cuts another in two.
- *
- * The same codec as the Terms page's variants (P28-05, `terms/variants-input.ts`,
- * on its own branch), less the vocabulary's tidying and de-duplication; when
- * both are on main they are one function.
+ * its own — `[[Larkspur Payroll, Inc.]]`, `Quill, Mara` — so one that does is
+ * written in double quotes, a quote inside it doubled, as a CSV cell is.
+ * Reading the line back gives the same list, so editing one item never cuts
+ * another in two. A proposal's list properties and a term's variants are both
+ * edited this way.
  */
 
 const QUOTE = '"';
@@ -27,13 +25,17 @@ function quotedWhereNeeded(item: string): string {
  * blanks dropped. A quote never closed runs to the end of the line.
  */
 export function listFromInput(typed: string): string[] {
-  return splitAtCommas(typed)
+  return listInputCells(typed)
     .map((cell) => cell.trim())
     .filter((cell) => cell !== '');
 }
 
-/** The cells of the line, quotes taken off: a cell is quoted when its first non-space character is a quote. */
-function splitAtCommas(typed: string): string[] {
+/**
+ * The cells of the line as typed, quotes taken off and nothing else done to
+ * them — for a reader with its own idea of a blank or a repeat. A cell is
+ * quoted when its first non-space character is a quote.
+ */
+export function listInputCells(typed: string): string[] {
   const cells: string[] = [];
   let at = 0;
   while (at <= typed.length) {

@@ -1,4 +1,4 @@
-import { listAsInput, listFromInput } from './list-input.ts';
+import { listAsInput, listFromInput } from '../types/list-input.ts';
 import type { ProposalNote } from './proposal.ts';
 
 /**

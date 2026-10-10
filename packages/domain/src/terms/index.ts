@@ -8,7 +8,7 @@ export {
   termKindOf,
   VARIANTS_KEY,
 } from './term.ts';
-export { variantsAsInput, variantsFromInput } from './variants-input.ts';
+export { variantsFromInput } from './variants-input.ts';
 export type { TermKind, TermNote } from './term.ts';
 export { tidySpelling, vocabularyKey } from './spelling.ts';
 export { vocabulary } from './vocabulary.ts';
