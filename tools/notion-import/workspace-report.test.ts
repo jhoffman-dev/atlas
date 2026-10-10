@@ -8,6 +8,7 @@ const placed = (path: string, notes: string[] = []) => ({
   title: path,
   id: 'a1000000000000000000000000000001',
   path: createVaultPath(path),
+  type: 'task',
   notes,
   imported: { fields: {}, body: 'nothing' },
 });
@@ -32,6 +33,12 @@ const PAGES: PageOutcome[] = [
     kept: [],
   },
   { kind: 'refused', database: 'People', title: '', reason: 'no page in the export has its title' },
+  {
+    kind: 'deleted',
+    database: 'Tasks Tracker',
+    title: 'Ship it',
+    id: 'a1000000000000000000000000000004',
+  },
 ];
 
 const outcome = (pages: PageOutcome[], more: Partial<WorkspaceOutcome> = {}): WorkspaceOutcome => ({
@@ -40,6 +47,8 @@ const outcome = (pages: PageOutcome[], more: Partial<WorkspaceOutcome> = {}): Wo
   skipped: [{ what: 'Teams', reason: 'left out by --only' }],
   otherFiles: 2,
   meetings: null,
+  warnings: [],
+  recordProblem: null,
   ...more,
 });
 
@@ -54,8 +63,9 @@ describe('the workspace report', () => {
       "kept      Tasks/B.md: status changed in Atlas and in Notion since the last import; Atlas's kept",
       'note      Tasks/D.md: status "Blocked" is not one this import maps: put in the Inbox',
       'refused   People "Untitled": no page in the export has its title',
+      'deleted   Tasks Tracker "Ship it": imported before and deleted in Atlas, so not made again (--recreate-deleted brings it back)',
       'skipped   Teams: left out by --only',
-      "5 pages: 1 created, 1 updated, 2 unchanged, 1 refused, 1 with Atlas's edits kept, 1 skipped, 2 attachments not brought in",
+      "6 pages: 1 created, 1 updated, 2 unchanged, 1 refused, 1 with Atlas's edits kept, 1 deleted in Atlas, 1 skipped, 2 attachments not brought in",
     ]);
   });
 
@@ -86,14 +96,16 @@ describe('the workspace report', () => {
       'Meeting notes:',
       'would write Inbox/Meetings/x.md',
       '1 rows: 0 written, 1 would be written, 0 already in the vault, 0 without a Source ID, 0 left out, 0 held, 0 refused',
-      "2 pages: 1 to create, 1 to update, 0 unchanged, 0 refused, 0 with Atlas's edits kept, 1 skipped, 2 attachments not brought in",
+      "2 pages: 1 to create, 1 to update, 0 unchanged, 0 refused, 0 with Atlas's edits kept, 0 deleted in Atlas, 1 skipped, 2 attachments not brought in",
     ]);
   });
 });
 
 describe('whether the run brought everything in', () => {
-  it('is so with nothing refused, no edit kept over Notion, and every meeting in', () => {
-    expect(workspaceImported(outcome([PAGES[0], PAGES[2], PAGES[3]] as PageOutcome[]))).toBe(true);
+  it('is so with nothing refused, no edit kept over Notion, and every meeting in; a deletion is no failure', () => {
+    expect(
+      workspaceImported(outcome([PAGES[0], PAGES[2], PAGES[3], PAGES[5]] as PageOutcome[])),
+    ).toBe(true);
   });
 
   it('is not so with a page refused, an edit kept, or a meeting held', () => {

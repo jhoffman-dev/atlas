@@ -31,6 +31,10 @@ const input = (
   record: new Map(),
   statuses: DEFAULT_TASK_STATUSES,
   today: '2026-10-10',
+  timeZone: 'America/Los_Angeles',
+  recreateDeleted: false,
+  meetingPaths: new Map(),
+  meetingIds: new Set(),
 });
 
 describe('the plan', () => {

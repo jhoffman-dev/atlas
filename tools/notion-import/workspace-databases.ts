@@ -1,5 +1,5 @@
 import type { CsvRow } from './notion-csv.ts';
-import { notionWhen } from './notion-date.ts';
+import { readDay } from './notion-day.ts';
 import { readOptions, readRelation, type RelationEntry } from './notion-relations.ts';
 import { taskState, type GtdStatus } from './task-status.ts';
 
@@ -48,11 +48,13 @@ export const PLACES = {
   notes: { folder: 'Notes', type: 'notes' },
   people: { folder: 'People', type: 'person' },
   teams: { folder: 'Teams', type: 'team' },
-  daily: { folder: 'Daily', type: 'daily' },
+  /** A daily note's path is the app's own, `<YYYY-MM-DD>.md` at the root: see `dailyNotePath`. */
+  daily: { folder: '', type: 'daily' },
   project: { folder: 'Projects', type: 'project' },
   area: { folder: 'Areas', type: 'area' },
   resource: { folder: 'Resources', type: 'resource' },
-  archive: { folder: 'Archive', type: 'project' },
+  /** Where archiving puts a project (`Archive/<its path>`), so unarchiving takes it back to Projects/. */
+  archive: { folder: 'Archive/Projects', type: 'project' },
 } as const;
 
 /** Where a note goes and what it is. */
@@ -64,13 +66,22 @@ export interface Place {
 /** How a column's cell becomes a property: as text, a list of options, a date, or links to other notes. */
 type ValueKind = 'text' | 'options' | 'date' | 'link' | 'links';
 
+/** A column's property; a date whose cell is a range writes its end into `endKey`, where the type has one. */
+interface PropertyRule {
+  readonly key: string;
+  readonly kind: ValueKind;
+  readonly endKey?: string;
+}
+
 type ColumnRule =
-  | { readonly key: string; readonly kind: ValueKind }
-  | { readonly special: 'status' | 'para-type' }
-  | { readonly skip: string };
+  PropertyRule | { readonly special: 'status' | 'para-type' } | { readonly skip: string };
 
 const BACK_LINK = { skip: 'it links back here, and Atlas shows that as a backlink' };
-const property = (key: string, kind: ValueKind) => ({ key, kind });
+const property = (key: string, kind: ValueKind, endKey?: string): PropertyRule => ({
+  key,
+  kind,
+  ...(endKey === undefined ? {} : { endKey }),
+});
 
 /** Each kind's columns, by name in lower case. A column not named here is listed, not imported. */
 const COLUMN_RULES: Readonly<
@@ -110,7 +121,7 @@ const COLUMN_RULES: Readonly<
   para: {
     type: { special: 'para-type' },
     priority: property('priority', 'text'),
-    'start date': property('start', 'date'),
+    'start date': property('start', 'date', 'end'),
     'end date': property('end', 'date'),
     tasks: BACK_LINK,
     notes: BACK_LINK,
@@ -129,19 +140,45 @@ export type NoteKind = keyof typeof COLUMN_RULES;
 const ruleOf = (kind: NoteKind, column: string): ColumnRule | undefined =>
   COLUMN_RULES[kind][column.trim().toLowerCase()];
 
+/**
+ * Each column's property rule, in the CSV's order, the title left out. Where
+ * two columns map to one property, the first has it and the later one none.
+ */
+function propertyColumns(kind: NoteKind, columns: readonly string[]): Map<string, PropertyRule> {
+  const claimed = new Set<string>();
+  const rules = new Map<string, PropertyRule>();
+  for (const column of columns.slice(1)) {
+    const rule = ruleOf(kind, column);
+    if (rule === undefined || !('kind' in rule) || claimed.has(rule.key)) continue;
+    claimed.add(rule.key);
+    rules.set(column, rule);
+  }
+  return rules;
+}
+
+/** Why a column brings nothing in, or null when it does. */
+function leftOutBecause(kind: NoteKind, columns: readonly string[], column: string): string | null {
+  const rule = ruleOf(kind, column);
+  if (rule === undefined) return 'not a column this import maps';
+  if ('skip' in rule) return rule.skip;
+  if (!('kind' in rule) || propertyColumns(kind, columns).has(column)) return null;
+  const first = columns.find((each) => propertyColumns(kind, columns).get(each)?.key === rule.key);
+  return `it maps to ${rule.key}, which "${first ?? ''}" fills: not imported`;
+}
+
 /** The columns of a database that are not imported, and why, for the report. The first is the title. */
 export function columnsLeftOut(kind: NoteKind, columns: readonly string[]): string[] {
   return columns.slice(1).flatMap((column) => {
-    const rule = ruleOf(kind, column);
-    if (rule === undefined) return [`"${column}": not a column this import maps`];
-    return 'skip' in rule ? [`"${column}": ${rule.skip}`] : [];
+    const reason = leftOutBecause(kind, columns, column);
+    return reason === null ? [] : [`"${column}": ${reason}`];
   });
 }
 
-/** A link to a page, as written into a property, and whether the page is in the export or the vault. */
+/** A link to a page, as written into a property, and whether the page is in the export or the vault; `why` says what the report should, when it is not. */
 export interface ResolvedLink {
   readonly link: string;
   readonly known: boolean;
+  readonly why?: string;
 }
 
 /** Everything a row's note is made from. */
@@ -153,6 +190,8 @@ export interface RowContext {
   readonly statuses: ReadonlyMap<string, GtdStatus>;
   /** The day of the run, `YYYY-MM-DD`. */
   readonly today: string;
+  /** The zone a UTC time's day is read in; null refuses to read one. */
+  readonly timeZone: string | null;
 }
 
 /** What a row should come to in the vault. */
@@ -160,37 +199,71 @@ export interface WantedNote {
   readonly place: Place;
   /** The properties the import keeps in step with Notion, in order. */
   readonly fields: Readonly<Record<string, unknown>>;
-  /** Properties set only where the note has none: never changed once there. */
+  /** Properties set only where the note has none, and offered once. */
   readonly fillOnly: Readonly<Record<string, unknown>>;
+  /** Properties Notion says something about that could not be read: the note keeps what it has. */
+  readonly unread: readonly string[];
+  /** The day a PARA Archive row was archived on (its end, else the day of the run); null for any other row. */
+  readonly archivedOn: string | null;
+  /** The day a daily note is for (its Date, else its title); null for any other row, or one with no day. */
+  readonly day: string | null;
   /** What the report should say about the row. */
   readonly notes: readonly string[];
 }
 
-const ISO_DAY = /^(\d{4}-\d{2}-\d{2})/;
-
-/** A date cell's day, or null with a note when Notion wrote it some way that cannot be read. */
-function dayOf(column: string, cell: string, notes: string[]): string | null {
-  const day = ISO_DAY.exec(notionWhen(cell).date)?.[1];
-  if (day !== undefined) return day;
-  notes.push(`${column} "${cell}" is not a date this import reads: set its format to Full date`);
-  return null;
+/** What reading a row's cells comes to, as it goes. */
+interface Reading {
+  readonly fields: Record<string, unknown>;
+  readonly unread: string[];
+  readonly notes: string[];
+  /** Range ends, by the property they go into, written where that property has nothing of its own. */
+  readonly ends: Map<string, string>;
 }
 
-/** The links a relation cell names, each noted when its page is in neither the export nor the vault. */
+/** A date cell's day; a cell that cannot be read is noted, and the property left as the note has it. */
+function readDateCell(
+  rule: PropertyRule,
+  column: string,
+  cell: string,
+  context: RowContext,
+  reading: Reading,
+) {
+  const day = readDay(cell, context.timeZone);
+  if (day.kind === 'unread') {
+    reading.unread.push(rule.key);
+    reading.notes.push(
+      `${column} "${cell}" cannot be read (${day.why}), so the note keeps its ${rule.key}: set the column's format to Full date`,
+    );
+    return null;
+  }
+  if (day.endText !== null && rule.endKey !== undefined && day.end !== null) {
+    reading.ends.set(rule.endKey, day.end);
+  } else if (day.endText !== null) {
+    reading.notes.push(
+      `${column} "${cell}" is a range: its end, ${day.endText}, is not brought in`,
+    );
+  }
+  return day.day;
+}
+
+/** The links a relation cell names, each noted when its page is not one this run knows. */
 function linksOf(column: string, cell: string, context: RowContext, notes: string[]): string[] {
   return readRelation(cell).map((entry) => {
-    const { link, known } = context.resolve(entry);
-    if (!known) notes.push(`${column}: "${entry.title}" is not in the export; linked by its name`);
+    const { link, known, why } = context.resolve(entry);
+    if (!known)
+      notes.push(
+        `${column}: "${entry.title}" ${why ?? 'is not in the export'}; linked by its name`,
+      );
     return link;
   });
 }
 
-/** A cell as the value its rule writes; null for an empty cell, which writes nothing. */
+/** A cell as the value its rule writes; null for an empty or unreadable cell, which writes nothing. */
 function valueOf(
-  rule: { readonly kind: ValueKind },
+  rule: PropertyRule,
   column: string,
   context: RowContext,
-  notes: string[],
+  reading: Reading,
 ): unknown {
   const cell = (context.row.get(column) ?? '').trim();
   if (cell === '') return null;
@@ -200,26 +273,28 @@ function valueOf(
     case 'options':
       return readOptions(cell);
     case 'date':
-      return dayOf(column, cell, notes);
+      return readDateCell(rule, column, cell, context, reading);
     case 'links':
-      return linksOf(column, cell, context, notes);
+      return linksOf(column, cell, context, reading.notes);
     case 'link': {
-      const links = linksOf(column, cell, context, notes);
+      const links = linksOf(column, cell, context, reading.notes);
       return links.length === 1 ? links[0] : links;
     }
   }
 }
 
-/** Each mapped column's property, in the CSV's order, empty ones left out. */
-function mappedFields(context: RowContext, notes: string[]): Record<string, unknown> {
-  const fields: Record<string, unknown> = {};
-  for (const column of context.columns.slice(1)) {
-    const rule = ruleOf(context.kind, column);
-    if (rule === undefined || !('kind' in rule)) continue;
-    const value = valueOf(rule, column, context, notes);
-    if (value !== null && fields[rule.key] === undefined) fields[rule.key] = value;
+/** Each mapped column's property, in the CSV's order, empty ones left out; a range's end where its property has none. */
+function readRow(context: RowContext): Reading {
+  const reading: Reading = { fields: {}, unread: [], notes: [], ends: new Map() };
+  for (const [column, rule] of propertyColumns(context.kind, context.columns)) {
+    const value = valueOf(rule, column, context, reading);
+    if (value !== null) reading.fields[rule.key] = value;
   }
-  return fields;
+  for (const [key, end] of reading.ends) {
+    if (reading.fields[key] === undefined && !reading.unread.includes(key))
+      reading.fields[key] = end;
+  }
+  return reading;
 }
 
 /** What a row is read from: its database's kind and columns, and its cells. */
@@ -279,6 +354,24 @@ function taskFields(context: RowContext, fields: Record<string, unknown>, notes:
   return { fields: { ...gtd, ...fields }, fillOnly };
 }
 
+/**
+ * The day a daily row is for: its Date, else a title Notion wrote as a date
+ * (`October 6, 2026`). Null when neither is a day.
+ */
+export function rowDay(context: RowCells & Pick<RowContext, 'timeZone'>): string | null {
+  const dateColumn = [...propertyColumns(context.kind, context.columns)].find(
+    ([, rule]) => rule.key === 'date' && rule.kind === 'date',
+  )?.[0];
+  for (const cell of [dateColumn, context.columns[0]].map((column) =>
+    context.row.get(column ?? ''),
+  )) {
+    const day =
+      cell === undefined || cell.trim() === '' ? null : readDay(cell.trim(), context.timeZone);
+    if (day?.kind === 'day') return day.day;
+  }
+  return null;
+}
+
 const STAMP = { source: 'notion' } as const;
 
 /**
@@ -288,19 +381,24 @@ const STAMP = { source: 'notion' } as const;
  * run finds the note wherever it was moved.
  */
 export function wantedNote(context: RowContext, notionId: string): WantedNote {
-  const notes: string[] = [];
-  const fields = mappedFields(context, notes);
+  const { fields, unread, notes } = readRow(context);
   const ids = { ...STAMP, notion_id: notionId };
   const { done, ...place } = placeOf(context, notes);
+  const common = {
+    place,
+    unread,
+    notes,
+    archivedOn: done === true ? ((fields['end'] as string | undefined) ?? context.today) : null,
+    day: context.kind === 'daily' ? rowDay(context) : null,
+  };
   if (context.kind === 'tasks') {
     const task = taskFields(context, fields, notes);
     return {
-      place,
+      ...common,
       fields: { type: place.type, ...task.fields, ...ids },
       fillOnly: task.fillOnly,
-      notes,
     };
   }
   const status = done === true ? { status: 'done' } : {};
-  return { place, fields: { type: place.type, ...status, ...fields, ...ids }, fillOnly: {}, notes };
+  return { ...common, fields: { type: place.type, ...status, ...fields, ...ids }, fillOnly: {} };
 }

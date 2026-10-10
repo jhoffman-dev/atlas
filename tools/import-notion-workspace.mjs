@@ -2,7 +2,7 @@
 // tools/notion-import/README.md):
 //
 //   node tools/import-notion-workspace.mjs --export <unzipped export folder> --vault <vault folder>
-//     [--dry-run] [--only tasks,notes,meetings,people,para,teams,daily]
+//     [--dry-run] [--recreate-deleted] [--only tasks,notes,meetings,people,para,teams,daily]
 //     [--task-status "Later=longterm"]… [--gemini-dates arrival-local] [--time-zone <IANA zone>]
 //
 // Prints what became of every page; exits 1 when a page was refused, an edit
@@ -18,7 +18,7 @@ const { DATABASE_KINDS } = await import('./notion-import/workspace-databases.ts'
 const { GEMINI_DATES } = await import('./notion-import/gemini-dates.ts');
 
 const USAGE =
-  'usage: node tools/import-notion-workspace.mjs --export <folder> --vault <vault> [--dry-run] [--only tasks,notes,meetings,people,para,teams,daily] [--task-status "<Notion status>=<status>"]… [--gemini-dates arrival-local] [--time-zone <IANA zone>|none]';
+  'usage: node tools/import-notion-workspace.mjs --export <folder> --vault <vault> [--dry-run] [--recreate-deleted] [--only tasks,notes,meetings,people,para,teams,daily] [--task-status "<Notion status>=<status>"]… [--gemini-dates arrival-local] [--time-zone <IANA zone>|none]';
 
 /** A value the command was given: an empty one (an unset shell variable) is no value at all. */
 const given = (value) => (value === undefined || value.trim() === '' ? null : value);
@@ -50,6 +50,7 @@ function options() {
       export: { type: 'string' },
       vault: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
+      'recreate-deleted': { type: 'boolean', default: false },
       only: { type: 'string' },
       'task-status': { type: 'string', multiple: true, default: [] },
       'gemini-dates': { type: 'string' },
@@ -66,6 +67,7 @@ function options() {
     exportDir,
     vault,
     dryRun: values['dry-run'],
+    recreateDeleted: values['recreate-deleted'],
     only: only(values.only),
     taskStatuses: values['task-status'],
     today: today(),

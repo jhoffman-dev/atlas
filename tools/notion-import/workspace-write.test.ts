@@ -22,6 +22,7 @@ const placed = {
   title: 'Plan the offsite',
   id: 'a1000000000000000000000000000005',
   path: createVaultPath('Tasks/Plan the offsite.md'),
+  type: 'task',
   notes: [],
   imported: { fields: {}, body: 'nothing' },
 };

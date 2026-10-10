@@ -1,9 +1,8 @@
 import {
-  cleanEntryName,
-  createVaultPath,
+  archiveStamp,
+  ARCHIVE_PREFIX,
+  isArchivedPath,
   joinFrontmatter,
-  linkBreakingCharacter,
-  nextAvailableNotePath,
   splitFrontmatter,
   wikiLinkTargetFor,
   type VaultPath,
@@ -11,6 +10,7 @@ import {
 import { remarkMarkdown } from '../../packages/adapters/src/index.ts';
 import type { ImportRecord } from './import-record.ts';
 import { importedAs, mergeNote, type ImportedPage, type WantedContent } from './note-merge.ts';
+import { dailyNotesToRead, notePaths, type Candidate, type NotePlace } from './note-paths.ts';
 import type { RelationEntry } from './notion-relations.ts';
 import { withWikiLinks } from './page-links.ts';
 import { pairRows, type ExportPage, type PairedRow } from './row-pages.ts';
@@ -19,11 +19,10 @@ import type { VaultNotes } from './vault-notes.ts';
 import { readFrontmatter } from './vault-meetings.ts';
 import {
   columnsLeftOut,
-  placeOf,
   wantedNote,
   type DatabaseKind,
-  type NoteKind,
   type ResolvedLink,
+  type WantedNote,
 } from './workspace-databases.ts';
 import type { ExportDatabase } from './workspace-export.ts';
 
@@ -37,6 +36,8 @@ export interface Named {
 export interface Placed extends Named {
   readonly id: string;
   readonly path: VaultPath;
+  /** The type its note is written as. */
+  readonly type: string;
   /** What the report should say about the page. */
   readonly notes: readonly string[];
   /** What this run brings in, for the record. */
@@ -55,6 +56,8 @@ export type PagePlan =
       readonly kept: readonly string[];
     } & Placed)
   | ({ readonly kind: 'unchanged'; readonly kept: readonly string[] } & Placed)
+  /** Imported before, and its note is gone from the vault: deleted (or hidden) in Atlas, so not made again. */
+  | ({ readonly kind: 'deleted'; readonly id: string } & Named)
   | ({ readonly kind: 'refused'; readonly reason: string } & Named);
 
 /** Something in the export not brought in, and why. */
@@ -68,7 +71,7 @@ export interface WorkspacePlan {
   readonly skipped: readonly Skipped[];
 }
 
-/** Everything the plan is made from: the export, the vault as read, and how to read tasks. */
+/** Everything the plan is made from: the export, the vault as read, and how to read it. */
 export interface PlanInput {
   readonly databases: readonly ExportDatabase[];
   readonly selected: ReadonlySet<DatabaseKind>;
@@ -78,31 +81,19 @@ export interface PlanInput {
   readonly record: ImportRecord;
   readonly statuses: ReadonlyMap<string, GtdStatus>;
   readonly today: string;
+  readonly timeZone: string | null;
+  /** Makes again the notes of pages imported before whose notes are gone. */
+  readonly recreateDeleted: boolean;
+  /** The note of each Meeting Notes page, by its page id, as the meeting import placed it in this run. */
+  readonly meetingPaths: ReadonlyMap<string, VaultPath>;
+  /** Every Meeting Notes page id in the export, placed or not. */
+  readonly meetingIds: ReadonlySet<string>;
 }
 
-/** A row of a database this import writes itself, paired with its page. */
-interface Candidate {
-  readonly database: ExportDatabase & { readonly kind: NoteKind };
-  readonly title: string;
-  readonly row: ReadonlyMap<string, string>;
-  readonly page: ExportPage & { readonly id: string };
-}
-
-const writesItself = (database: ExportDatabase): database is Candidate['database'] =>
+const writesItself = (
+  database: ExportDatabase,
+): database is Candidate['database'] & ExportDatabase =>
   database.kind !== null && database.kind !== 'meetings';
-
-/**
- * A title as a note's name that links can reach: `#`, `|`, `^` and brackets
- * are link syntax, so a note named with one could never be linked to.
- */
-function linkableName(title: string): string {
-  let name = title;
-  for (let character = linkBreakingCharacter(name); character !== null;) {
-    name = name.replaceAll(character, ' ');
-    character = linkBreakingCharacter(name);
-  }
-  return name;
-}
 
 /**
  * A paired row's page, with its id, or why it cannot be planned: no page, no
@@ -132,7 +123,7 @@ function skipsOf(database: Candidate['database'], leftOver: readonly ExportPage[
 }
 
 /** The pages to plan, each once, and the refusals and skips found on the way. */
-function candidatesOf(input: PlanInput) {
+function candidatesOf(input: Pick<PlanInput, 'databases' | 'selected'>) {
   const candidates: Candidate[] = [];
   const refused: PagePlan[] = [];
   const skipped: Skipped[] = [];
@@ -154,53 +145,45 @@ function candidatesOf(input: PlanInput) {
   return { candidates, refused, skipped };
 }
 
-/**
- * Where every page's note is, or will be: where a note already holds its
- * `notion_id`, or a new path in its database's folder, numbered when the name
- * is taken. Planned for every database in the export, chosen or not, so
- * links to a page this run leaves out still name its note.
- */
-function pathsOf(candidates: readonly Candidate[], vault: VaultNotes) {
-  const taken = new Set<string>(vault.paths);
-  const paths = new Map<string, VaultPath>();
-  const conflicts = new Map<string, string>();
-  for (const { database, title, row, page } of candidates) {
-    const found = vault.byNotionId.get(page.id) ?? [];
-    // Two notes claiming one page: neither is a guess to make.
-    if (found.length > 1) {
-      conflicts.set(page.id, `${found.join(' and ')} all hold its notion_id: merge them first`);
-      continue;
-    }
-    if (found[0] !== undefined) {
-      paths.set(page.id, found[0]);
-      continue;
-    }
-    const folder = createVaultPath(
-      placeOf({ kind: database.kind, columns: database.csv.columns, row }).folder,
-    );
-    const path = nextAvailableNotePath({ folder, name: linkableName(title), taken });
-    taken.add(path);
-    paths.set(page.id, path);
-  }
-  return { paths, conflicts };
+/** Every page's place, in the export's order. */
+function placesOf(candidates: readonly Candidate[], input: PlanInput): Map<string, NotePlace> {
+  const place = notePaths(input);
+  return new Map(candidates.map((candidate) => [candidate.page.id, place(candidate)]));
 }
 
-/** Links to the notes of the export's pages, by id, else by a title only one page has. */
+/** Why a link to a page by its id names no note: the report's words. */
+function unplacedBecause(
+  id: string,
+  places: ReadonlyMap<string, NotePlace>,
+  input: PlanInput,
+): string {
+  if (places.get(id)?.kind === 'deleted') return 'was deleted in Atlas';
+  if (input.meetingIds.has(id)) return 'is a meeting this run does not bring in';
+  return 'is not in this run';
+}
+
+/**
+ * Links to the notes of the export's pages and meetings, by page id. A
+ * relation that names a page by id links its note, or, when that page has
+ * none this run, its title, noted — never another page of the same title.
+ * Only a relation with no id is matched by a title one page alone has.
+ */
 function linking(
   candidates: readonly Candidate[],
-  paths: ReadonlyMap<string, VaultPath>,
-  vault: VaultNotes,
+  places: ReadonlyMap<string, NotePlace>,
+  input: PlanInput,
 ) {
-  const notes = [...new Set([...vault.paths, ...paths.values()])];
+  const paths = new Map<string, VaultPath>(input.meetingPaths);
+  for (const [id, place] of places) if (place.kind === 'placed') paths.set(id, place.path);
+  for (const [id, found] of input.vault.byNotionId) {
+    if (found.length === 1 && found[0] !== undefined && !paths.has(id)) paths.set(id, found[0]);
+  }
+  const notes = [...new Set([...input.vault.paths, ...paths.values()])];
   const targets = new Map<VaultPath, string>();
   const targetOf = (path: VaultPath) => {
     const known = targets.get(path) ?? wikiLinkTargetFor(path, notes);
     targets.set(path, known);
     return known;
-  };
-  const pathOfId = (id: string) => {
-    const existing = vault.byNotionId.get(id);
-    return paths.get(id) ?? (existing?.length === 1 ? existing[0] : undefined);
   };
   const byTitle = new Map<string, VaultPath | null>();
   for (const { title, page } of candidates) {
@@ -208,15 +191,15 @@ function linking(
     if (path !== undefined) byTitle.set(title, byTitle.has(title) ? null : path);
   }
   const linkFor = (id: string) => {
-    const path = pathOfId(id);
+    const path = paths.get(id);
     return path === undefined ? null : targetOf(path);
   };
   const resolve = (entry: RelationEntry): ResolvedLink => {
-    const path =
-      (entry.id === null ? undefined : pathOfId(entry.id)) ?? byTitle.get(entry.title) ?? null;
-    if (path !== null) return { link: `[[${targetOf(path)}]]`, known: true };
-    const name = cleanEntryName(linkableName(entry.title));
-    return { link: `[[${name === '' ? entry.title : name}]]`, known: false };
+    const path = entry.id === null ? byTitle.get(entry.title) : paths.get(entry.id);
+    if (path !== null && path !== undefined) return { link: `[[${targetOf(path)}]]`, known: true };
+    const link = `[[${entry.title}]]`;
+    if (entry.id === null) return { link, known: false };
+    return { link, known: false, why: unplacedBecause(entry.id, places, input) };
   };
   return { linkFor, resolve };
 }
@@ -275,23 +258,42 @@ function merged(
   return { kind: 'update', ...common, before: text, after, changed };
 }
 
+/** What the page should be, with the Archive's own stamp on a note that is in the Archive (`archiveStamp`). */
+function wantedContent(note: WantedNote, path: VaultPath, body: string): WantedContent {
+  const stamp =
+    note.archivedOn !== null && isArchivedPath(path)
+      ? archiveStamp({ from: path.slice(ARCHIVE_PREFIX.length) as VaultPath, on: note.archivedOn })
+      : {};
+  return {
+    fields: note.fields,
+    fillOnly: { ...note.fillOnly, ...stamp },
+    unread: note.unread,
+    body,
+  };
+}
+
 /**
  * The whole run, planned before anything is written: every page's path
  * first, so each relation can be written as a link to the name its note
  * will have, then what to write. A page already in the vault is merged with
- * its note (see `mergeNote`); any other is a new note. Only the chosen
+ * its note (see `mergeNote`); any other is a new note, unless the record
+ * says it was imported and its note has since gone. Only the chosen
  * databases are written, but every one is planned.
  */
 export function planWorkspace(input: PlanInput): WorkspacePlan {
   const { candidates, refused, skipped } = candidatesOf(input);
-  const { paths, conflicts } = pathsOf(candidates, input.vault);
-  const { linkFor, resolve } = linking(candidates, paths, input.vault);
+  const places = placesOf(candidates, input);
+  const { linkFor, resolve } = linking(candidates, places, input);
   const pages: PagePlan[] = [...refused];
   for (const candidate of candidates.filter(({ database }) => input.selected.has(database.kind))) {
     const named = { database: candidate.database.name, title: candidate.title };
-    const path = paths.get(candidate.page.id);
-    if (path === undefined) {
-      pages.push({ kind: 'refused', ...named, reason: conflicts.get(candidate.page.id) ?? '' });
+    const place = places.get(candidate.page.id) ?? { kind: 'refused', reason: 'it has no place' };
+    if (place.kind === 'refused') {
+      pages.push({ kind: 'refused', ...named, reason: place.reason });
+      continue;
+    }
+    if (place.kind === 'deleted') {
+      pages.push({ kind: 'deleted', ...named, id: candidate.page.id });
       continue;
     }
     const context = {
@@ -301,30 +303,30 @@ export function planWorkspace(input: PlanInput): WorkspacePlan {
       resolve,
       statuses: input.statuses,
       today: input.today,
+      timeZone: input.timeZone,
     };
     const note = wantedNote(context, candidate.page.id);
-    const wanted = {
-      fields: note.fields,
-      fillOnly: note.fillOnly,
-      body: bodyOf(candidate.page, linkFor),
+    const wanted = wantedContent(note, place.path, bodyOf(candidate.page, linkFor));
+    const placed = {
+      ...named,
+      id: candidate.page.id,
+      path: place.path,
+      type: note.place.type,
+      notes: [...place.notes, ...note.notes],
     };
-    const placed = { ...named, id: candidate.page.id, path, notes: note.notes };
-    pages.push(
-      input.vault.byNotionId.has(candidate.page.id)
-        ? merged(placed, wanted, input)
-        : created(placed, wanted),
-    );
+    pages.push(place.existing ? merged(placed, wanted, input) : created(placed, wanted));
   }
   return { pages, skipped };
 }
 
-/** The notes the export's pages are already in, for the run to read before it plans. */
-export function notesToRead(databases: readonly ExportDatabase[], vault: VaultNotes): VaultPath[] {
-  return databases
-    .filter(writesItself)
-    .flatMap((database) => database.pages)
-    .flatMap((page) => {
-      const found = page.id === null ? [] : (vault.byNotionId.get(page.id) ?? []);
-      return found.length === 1 ? found : [];
-    });
+/** The notes the export's pages are already in, by `notion_id` or as a day's note, for the run to read before it plans. */
+export function notesToRead(
+  input: Pick<PlanInput, 'databases' | 'vault' | 'record' | 'recreateDeleted' | 'timeZone'>,
+): VaultPath[] {
+  const { candidates } = candidatesOf({ databases: input.databases, selected: new Set() });
+  const byId = candidates.flatMap(({ page }) => {
+    const found = input.vault.byNotionId.get(page.id) ?? [];
+    return found.length === 1 ? found : [];
+  });
+  return [...new Set([...byId, ...dailyNotesToRead(candidates, input)])];
 }

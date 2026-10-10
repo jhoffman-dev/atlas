@@ -17,7 +17,7 @@ export interface ExportDatabase {
   readonly csvPath: string;
   readonly csvFile: string;
   readonly csv: Csv;
-  /** Its rows' pages: the `.md` files directly in its folder. Not read for a database this import does not write itself. */
+  /** Its rows' pages: the `.md` files directly in its folder. Not read for a database this import does not know. */
   readonly pages: readonly ExportPage[];
 }
 
@@ -65,9 +65,13 @@ function databaseCsvs(files: readonly string[]): string[] {
 const pagesFolder = (csvPath: string) =>
   join(dirname(csvPath), basename(csvPath, '.csv').replace(ALL, ''));
 
-async function readPage(root: string, path: string): Promise<ExportPage> {
+async function readPage(
+  root: string,
+  path: string,
+  columns: readonly string[],
+): Promise<ExportPage> {
   const file = shown(root, path);
-  const page = readNotionPage(await exportText(path, `the page ${file}`));
+  const page = readNotionPage(await exportText(path, `the page ${file}`), new Set(columns));
   return { file, id: notionIdIn(basename(path, '.md')), page };
 }
 
@@ -83,17 +87,18 @@ async function readDatabase(
   const csv = readCsv(await exportText(csvPath, `the CSV ${csvFile}`));
   const folder = pagesFolder(csvPath);
   const rows = pageFiles.filter((file) => dirname(file) === folder);
-  const writesItself = kind !== null && kind !== 'meetings';
-  const pages = writesItself ? await Promise.all(rows.map((file) => readPage(root, file))) : [];
+  const pages =
+    kind === null ? [] : await Promise.all(rows.map((file) => readPage(root, file, csv.columns)));
   return { name, kind, csvPath, csvFile, csv, pages };
 }
 
 /**
  * Reads a Notion workspace export: each database's CSV and its rows' pages,
- * every file read as UTF-8 or refused. A page is a database's row when it is
- * directly in the folder beside the database's CSV; the Meeting Notes pages
- * are left to the meeting import, which reads them itself. Every other page
- * and file is counted for the report, not read.
+ * every one read as UTF-8 or the run refused, the Meeting Notes pages too. A
+ * page is a database's row when it is directly in the folder beside the
+ * database's CSV. Every other page is listed and every other file counted,
+ * not read here: the meeting import, which runs before any other note is
+ * written, reads every page under its CSV's folder as UTF-8 itself.
  */
 export async function readWorkspaceExport(dir: string): Promise<WorkspaceExport> {
   const root = await exportFolder(dir);

@@ -99,6 +99,23 @@ describe('import-notion-workspace', { timeout: 120_000 }, () => {
     expect(again.status, again.stderr).toBe(0);
     expect(again.stdout).toMatch(/18 pages: 0 created, 0 updated, 18 unchanged, 0 refused/);
     expect(await readdir(join(home, 'Atlas Vault'))).toEqual([]);
+
+    await rm(join(copy, 'Teams', 'Platform.md'));
+    const deleted = run('--export', exportDir, '--vault', copy, '--gemini-dates', 'arrival-local');
+    expect(deleted.status, deleted.stderr).toBe(0);
+    expect(deleted.stdout).toContain(
+      'deleted   Teams "Platform": imported before and deleted in Atlas',
+    );
+    const back = run(
+      '--export',
+      exportDir,
+      '--vault',
+      copy,
+      '--recreate-deleted',
+      '--gemini-dates',
+      'arrival-local',
+    );
+    expect(back.stdout).toContain('created   Teams/Platform.md');
   });
 
   it('exits 1 while a meeting is held for its dates, and runs only the databases named', () => {

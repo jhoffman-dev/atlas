@@ -32,6 +32,7 @@ function context(kind: NoteKind, cells: Record<string, string>): RowContext {
     resolve,
     statuses: DEFAULT_TASK_STATUSES,
     today: '2026-10-10',
+    timeZone: 'America/Los_Angeles',
   };
 }
 
@@ -107,10 +108,11 @@ describe('a task row', () => {
       ID,
     );
     expect(note.fields).not.toHaveProperty('due');
+    expect(note.unread).toEqual(['due']);
     expect(note.fields).not.toHaveProperty('notion_status');
     expect(note.fields['people']).toEqual(['[[Someone Else]]']);
     expect(note.notes).toEqual([
-      'Due date "10/06/2026" is not a date this import reads: set its format to Full date',
+      'Due date "10/06/2026" cannot be read (cannot read "10/06/2026" as a date or a time), so the note keeps its due: set the column\'s format to Full date',
       'People: "Someone Else" is not in the export; linked by its name',
     ]);
   });
@@ -121,7 +123,7 @@ describe('a PARA row', () => {
     ['Project', { folder: 'Projects', type: 'project' }],
     ['Area', { folder: 'Areas', type: 'area' }],
     ['Resource', { folder: 'Resources', type: 'resource' }],
-    ['Archive', { folder: 'Archive', type: 'project' }],
+    ['Archive', { folder: 'Archive/Projects', type: 'project' }],
   ])('of Type %s goes where its kind goes', (type, place) => {
     expect(wantedNote(context('para', { Type: type }), ID).place).toEqual(place);
   });
@@ -145,6 +147,22 @@ describe('a PARA row', () => {
       source: 'notion',
       notion_id: ID,
     });
+  });
+
+  it("writes a Start date range's end into end, unless End date says otherwise", () => {
+    const range = 'January 5, 2026 → June 30, 2026';
+    expect(
+      wantedNote(context('para', { Type: 'Project', 'Start date': range }), ID).fields,
+    ).toMatchObject({
+      start: '2026-01-05',
+      end: '2026-06-30',
+    });
+    const both = wantedNote(
+      context('para', { Type: 'Project', 'Start date': range, 'End date': 'July 31, 2026' }),
+      ID,
+    );
+    expect(both.fields).toMatchObject({ start: '2026-01-05', end: '2026-07-31' });
+    expect(both.notes).toEqual([]);
   });
 
   it('of no Type it knows is a project, and says so', () => {
@@ -174,7 +192,7 @@ describe('the other rows', () => {
     });
   });
 
-  it('a note keeps its tags, date and links; a daily note and a team go to their folders', () => {
+  it('a note keeps its tags, date and links; a daily note is for its day; a team goes to Teams', () => {
     const note = wantedNote(
       context('notes', { Tags: 'inbox, 1on1', Date: 'October 2, 2026', Related: 'Pricing' }),
       ID,
@@ -185,10 +203,9 @@ describe('the other rows', () => {
       date: '2026-10-02',
       related: ['[[Pricing]]'],
     });
-    expect(wantedNote(context('daily', { Date: 'October 6, 2026' }), ID).place).toEqual({
-      folder: 'Daily',
-      type: 'daily',
-    });
+    const daily = wantedNote(context('daily', { Date: 'October 6, 2026' }), ID);
+    expect(daily.place).toEqual({ folder: '', type: 'daily' });
+    expect(daily.day).toBe('2026-10-06');
     expect(wantedNote(context('teams', {}), ID).place).toEqual({ folder: 'Teams', type: 'team' });
   });
 });

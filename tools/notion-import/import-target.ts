@@ -44,6 +44,19 @@ async function existingPart(path: string): Promise<string> {
 }
 
 /**
+ * A folder of Atlas's own in the vault (`.atlas/imports`), as the disk names
+ * it: hidden, as Atlas's files are, but like any folder the import writes
+ * into, never one whose existing part is linked out of the vault.
+ */
+export async function ownFolder(vault: string, folder: string): Promise<string> {
+  const path = resolve(vault, folder);
+  if (!isInside(vault, path) || !isInside(vault, await existingPart(path))) {
+    throw new ImportSetupError(`${folder} is not a folder inside the vault`);
+  }
+  return path;
+}
+
+/**
  * The vault and the folder the files go in. The vault must exist; the folder
  * is named relative to it, is not hidden (Atlas would never see a file there,
  * and the next run would not either), and stays inside the vault however its

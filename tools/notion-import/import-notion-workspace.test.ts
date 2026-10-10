@@ -1,4 +1,5 @@
 import {
+  chmod,
   cp,
   mkdir,
   mkdtemp,
@@ -15,7 +16,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { remarkMarkdown } from '@atlas/adapters';
-import { createVaultPath, resolveWikiLinkTarget, splitFrontmatter } from '@atlas/domain';
+import { createVaultPath, originOf, resolveWikiLinkTarget, splitFrontmatter } from '@atlas/domain';
 import {
   importNotionWorkspace,
   type PageOutcome,
@@ -143,9 +144,9 @@ describe('importing a workspace export', () => {
     const written = [...(await files()).keys()].filter((path) => !path.startsWith('.atlas'));
     expect(written.sort()).toEqual(
       [
-        'Archive/Old migration.md',
+        'Archive/Projects/Old migration.md',
         'Areas/Engineering.md',
-        'Daily/October 6, 2026.md',
+        '2026-10-06.md',
         'Inbox/Meetings/2026-10-01 Larkspur Payroll renewal, final terms.md',
         'Inbox/Meetings/2026-10-02 1 1 (gemini da17a49f).md',
         'Inbox/Meetings/2026-10-02 1 1.md',
@@ -205,7 +206,7 @@ describe('importing a workspace export', () => {
     const outcome = await run();
     expect(await properties('Tasks/Ask about the audit.md')).toMatchObject({ status: 'inbox' });
     const audit = outcome.pages.find((page) => page.title === 'Ask about the audit');
-    expect(audit?.kind === 'refused' ? [] : audit?.notes).toEqual([
+    expect(audit !== undefined && 'notes' in audit ? audit.notes : []).toEqual([
       'Waiting with nobody in People: held in the Inbox',
     ]);
   });
@@ -527,6 +528,15 @@ describe('the vault', () => {
     expect(await readdir(join(root, 'elsewhere'))).toEqual([]);
   });
 
+  it('writes nothing, not even a meeting, when its record cannot be written', async () => {
+    await mkdir(join(vault, '.atlas', 'imports'));
+    await chmod(join(vault, '.atlas', 'imports'), 0o555);
+    const before = await files();
+    await expect(run()).rejects.toThrow('.atlas/imports/notion-workspace.md cannot be written');
+    await chmod(join(vault, '.atlas', 'imports'), 0o755);
+    expect([...(await files()).keys()]).toEqual([...before.keys()]);
+  });
+
   it('keeps a record the run trusts, or the run does not start', async () => {
     await mkdir(join(vault, '.atlas', 'imports'));
     await writeFile(join(vault, '.atlas', 'imports', 'notion-workspace.md'), 'not a record\n');
@@ -535,5 +545,239 @@ describe('the vault', () => {
     await writeFile(join(vault, '.atlas', 'imports', 'notion-workspace.md'), Buffer.from([0xff]));
     await expect(run()).rejects.toThrow('cannot be read (it is not UTF-8 text)');
     expect([...(await files()).keys()]).toEqual([...before.keys()]);
+  });
+});
+
+const NOTES = `${SHARED}/Notes b2000000000000000000000000000000`;
+const MEETING_PAGE =
+  '../Meeting%20Notes%205d0c9e2a7b1f4c3e8a6d2b9f0e1c7a54/Platform%20weekly%20sync%207c41e0d2a9b84f6e9d3a1c5b7e2f8a06.md';
+
+const pageTitled = (pages: readonly PageOutcome[], title: string) =>
+  pages.find((page) => page.title === title);
+
+const notesOf = (page: PageOutcome | undefined) =>
+  page !== undefined && 'notes' in page ? page.notes : [];
+
+describe('a note deleted in Atlas', () => {
+  const SHIP = 'Tasks/Ship the payroll export.md';
+
+  it('is listed and not made again, deleted or hidden, until asked for', async () => {
+    await run();
+    await rm(join(vault, SHIP));
+    const second = await run();
+    expect((await files()).has(SHIP)).toBe(false);
+    expect(pageTitled(second.pages, 'Ship the payroll export')).toEqual({
+      kind: 'deleted',
+      database: 'Tasks Tracker',
+      title: 'Ship the payroll export',
+      id: 'a1000000000000000000000000000004',
+    });
+    expect(workspaceImported(second)).toBe(true);
+    const third = await run({ recreateDeleted: true });
+    expect(pageTitled(third.pages, 'Ship the payroll export')).toMatchObject({ kind: 'create' });
+    expect(await properties(SHIP)).toMatchObject({ status: 'archive' });
+  });
+
+  it('is linked by its name from the notes that name it, and the report says why', async () => {
+    await run();
+    await rm(join(vault, 'People/Mara Quill.md'));
+    const outcome = await run();
+    expect(await properties('Tasks/Renew the Larkspur contract.md')).toMatchObject({
+      people: ['[[Mara Quill]]'],
+    });
+    expect(notesOf(pageTitled(outcome.pages, 'Renew the Larkspur contract'))).toContain(
+      'People: "Mara Quill" was deleted in Atlas; linked by its name',
+    );
+  });
+});
+
+describe('a relation naming a page by its id', () => {
+  it('is never taken for another page of the same title when its own is not in the run', async () => {
+    const people = `${SHARED}/People c3000000000000000000000000000000`;
+    await editExport(`${people}_all.csv`, 'Tobias Fenn,tobias.fenn@example.com,,Engineer,,\n', '');
+    await rm(join(exportDir, people, 'Tobias Fenn c3000000000000000000000000000002.md'));
+    await editExport(
+      `${SHARED}/Teams e5000000000000000000000000000000_all.csv`,
+      'Platform,',
+      'Tobias Fenn,',
+    );
+    await editExport(
+      `${SHARED}/Teams e5000000000000000000000000000000/Platform e5000000000000000000000000000001.md`,
+      '# Platform',
+      '# Tobias Fenn',
+    );
+    const outcome = await run();
+    expect(notesOf(pageTitled(outcome.pages, 'Chase the signed order form'))).toContain(
+      'People: "Tobias Fenn" is not in this run; linked by its name',
+    );
+  });
+});
+
+describe('a new note', () => {
+  it("never takes another note's [[links]]: it is numbered instead, and the report says so", async () => {
+    await mkdir(join(vault, 'Old', 'Deep'), { recursive: true });
+    await writeFile(join(vault, 'Old', 'Deep', 'Mara Quill.md'), 'Someone else.\n');
+    const outcome = await run();
+    expect(notesOf(pageTitled(outcome.pages, 'Mara Quill'))).toEqual([
+      '[[Mara Quill]] already opens Old/Deep/Mara Quill.md: named People/Mara Quill 2.md so it does not take its links',
+    ]);
+    const all = [...(await files()).keys()].map(createVaultPath);
+    expect(resolveWikiLinkTarget('Mara Quill', all)).toBe('Old/Deep/Mara Quill.md');
+    expect(await properties('Tasks/Renew the Larkspur contract.md')).toMatchObject({
+      people: ['[[Mara Quill 2]]'],
+    });
+  });
+});
+
+describe('a link to a meeting page', () => {
+  it('names the note the meeting import wrote for it in the same run', async () => {
+    await editExport(
+      `${NOTES}/Renewal terms b2000000000000000000000000000001.md`,
+      'Three-year term',
+      `[The sync](${MEETING_PAGE}) agreed a three-year term`,
+    );
+    await editExport(
+      `${NOTES}_all.csv`,
+      'Pricing [draft],inbox,,,,,Quarterly numbers,',
+      `Pricing [draft],inbox,,,,,Platform weekly sync (${MEETING_PAGE}),`,
+    );
+    await run();
+    expect(splitFrontmatter(await note('Notes/Renewal terms.md')).body).toContain(
+      '[[2026-10-06 Platform weekly sync|The sync]] agreed',
+    );
+    expect(await properties('Notes/Pricing draft.md')).toMatchObject({
+      related: ['[[2026-10-06 Platform weekly sync]]'],
+    });
+  });
+
+  it('says so when the run does not bring that meeting in', async () => {
+    await editExport(
+      `${NOTES}_all.csv`,
+      'Pricing [draft],inbox,,,,,Quarterly numbers,',
+      `Pricing [draft],inbox,,,,,Platform weekly sync (${MEETING_PAGE}),`,
+    );
+    // Without --gemini-dates, the Gemini meeting is held.
+    const outcome = await importNotionWorkspace({
+      exportDir,
+      vault,
+      dryRun: false,
+      only: null,
+      taskStatuses: [],
+      today: '2026-10-10',
+      timeZone: 'America/Los_Angeles',
+    });
+    expect(notesOf(pageTitled(outcome.pages, 'Pricing [draft]'))).toContain(
+      'Related: "Platform weekly sync" is a meeting this run does not bring in; linked by its name',
+    );
+  });
+});
+
+describe("the app's own places", () => {
+  it('fills in the daily note the vault already has for the day, keeping its own words', async () => {
+    await writeFile(join(vault, '2026-10-06.md'), '---\ntype: daily\n---\nMy own day.\n');
+    const outcome = await run();
+    expect(await properties('2026-10-06.md')).toMatchObject({
+      type: 'daily',
+      date: '2026-10-06',
+      tags: ['daily'],
+      notion_id: 'f6000000000000000000000000000001',
+    });
+    expect(splitFrontmatter(await note('2026-10-06.md')).body).toBe('My own day.\n');
+    expect(pageTitled(outcome.pages, 'October 6, 2026')).toMatchObject({
+      kind: 'update',
+      kept: ['body'],
+    });
+  });
+
+  it('refuses a daily page with no day', async () => {
+    const daily = `${SHARED}/Daily Notes f6000000000000000000000000000000`;
+    await editExport(
+      `${daily}_all.csv`,
+      '"October 6, 2026","October 6, 2026",daily',
+      'Week notes,,daily',
+    );
+    await editExport(
+      `${daily}/October 6, 2026 f6000000000000000000000000000001.md`,
+      '# October 6, 2026\n\nDate: October 6, 2026\n',
+      '# Week notes\n\n',
+    );
+    const outcome = await run();
+    expect(pageTitled(outcome.pages, 'Week notes')).toMatchObject({
+      kind: 'refused',
+      reason: 'neither its Date nor its title is a day',
+    });
+  });
+
+  it('files a PARA Archive item as archiving would, so unarchiving takes it back to Projects', async () => {
+    await run();
+    const stamped = await properties('Archive/Projects/Old migration.md');
+    expect(stamped).toMatchObject({
+      archived: '2026-06-30',
+      archivedFrom: 'Projects/Old migration.md',
+    });
+    expect(
+      originOf(createVaultPath('Archive/Projects/Old migration.md'), stamped['archivedFrom']),
+    ).toBe('Projects/Old migration.md');
+  });
+
+  it('says which types the vault does not declare, and writes no type file', async () => {
+    const outcome = await run({ only: ['people', 'teams'] });
+    expect([...outcome.warnings].sort()).toEqual([
+      'the vault declares no person type: its notes are written with type: person. Open the vault in Atlas first, which adds the types it builds in, or add the type.',
+      'the vault declares no team type: its notes are written with type: team. Open the vault in Atlas first, which adds the types it builds in, or add the type.',
+    ]);
+    expect(await readdir(join(vault, '.atlas', 'types'))).toEqual(['task.md']);
+  });
+});
+
+describe('two columns that map to one property', () => {
+  it('keep the first, and list the second: a text Notes column never replaces the Note relation', async () => {
+    const csv = join(exportDir, `${TASKS}_all.csv`);
+    const lines = (await readFile(csv, 'utf8')).split('\n');
+    lines[0] = `${lines[0]},Notes`;
+    lines[1] = `${lines[1]},Bring the signed copy`;
+    await writeFile(csv, lines.join('\n'));
+    const outcome = await run();
+    expect(await properties('Tasks/Renew the Larkspur contract.md')).toMatchObject({
+      notes: ['[[Renewal terms]]'],
+    });
+    expect(outcome.skipped).toContainEqual({
+      what: 'Tasks Tracker',
+      reason: '"Notes": it maps to notes, which "Note" fills: not imported',
+    });
+  });
+});
+
+describe('a title ending in a markdown extension', () => {
+  it('names a note that links reach', async () => {
+    await editExport(
+      `${TASKS}_all.csv`,
+      'Renew the Larkspur contract,Ready',
+      'setup.markdown,Ready',
+    );
+    await editExport(
+      `${TASKS}/Renew the Larkspur contract a1000000000000000000000000000001.md`,
+      '# Renew the Larkspur contract',
+      '# setup.markdown',
+    );
+    await run();
+    const [link] = (await properties('Notes/Renewal terms.md'))['tasks'] as string[];
+    const all = [...(await files()).keys()].map(createVaultPath);
+    expect(resolveWikiLinkTarget(link?.slice(2, -2) ?? '', all)).toBe('Tasks/setup markdown.md');
+  });
+});
+
+describe('a meeting page that is not UTF-8', () => {
+  it('stops the run before anything is written', async () => {
+    await writeFile(
+      join(
+        exportDir,
+        `${SHARED}/Meeting Notes 5d0c9e2a7b1f4c3e8a6d2b9f0e1c7a54/Platform weekly sync 7c41e0d2a9b84f6e9d3a1c5b7e2f8a06.md`,
+      ),
+      Buffer.from('# Platform weekly sync\n\nCaf\xe9\n', 'latin1'),
+    );
+    const before = await files();
+    await expect(run()).rejects.toThrow(NotionExportError);
+    expect(await files()).toEqual(before);
   });
 });

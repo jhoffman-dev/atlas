@@ -63,7 +63,18 @@ function importedPage(id: string, raw: unknown): ImportedPage {
   if (fields.some(([, digest]) => typeof digest !== 'string')) {
     throw new ImportRecordError(`a property of ${id} has no digest`);
   }
-  return { fields: Object.fromEntries(fields) as Record<string, string>, body: raw['body'] };
+  const offered = raw['offered'];
+  if (
+    offered !== undefined &&
+    !(Array.isArray(offered) && offered.every((key) => typeof key === 'string'))
+  ) {
+    throw new ImportRecordError(`what it says was offered to ${id} is not a list of properties`);
+  }
+  return {
+    fields: Object.fromEntries(fields) as Record<string, string>,
+    body: raw['body'],
+    ...(offered === undefined ? {} : { offered: offered as string[] }),
+  };
 }
 
 /** Reads a record back; anything but a record this import wrote is refused, never half read. */

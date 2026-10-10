@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 export interface ImportedPage {
   readonly fields: Readonly<Record<string, string>>;
   readonly body: string;
+  /** The properties set only where a note has none that have been offered: never offered again. */
+  readonly offered?: readonly string[];
 }
 
 /** The digest of a value that says nothing: absent, empty, or a list of nothing. */
@@ -34,6 +36,8 @@ export const bodyDigest = (body: string): string =>
 export interface WantedContent {
   readonly fields: Readonly<Record<string, unknown>>;
   readonly fillOnly: Readonly<Record<string, unknown>>;
+  /** Properties Notion says something about that could not be read: no information, so left as they are. */
+  readonly unread?: readonly string[];
   readonly body: string;
 }
 
@@ -83,7 +87,10 @@ function settle({ last, now, notion }: Sides): 'same' | 'take' | 'keep' | 'kept'
  * only what the note lacks is filled in and every other difference is kept
  * and listed. Each Notion value is recorded once it has been offered, so a
  * difference is listed when it appears, and a run with nothing new in
- * Notion changes nothing.
+ * Notion changes nothing. A value Notion holds that could not be read says
+ * nothing, so the note keeps its own and the record its last digest. A
+ * property set only where the note has none is offered once: one taken out
+ * in Atlas is not put back.
  */
 export function mergeNote(args: {
   readonly now: NoteNow;
@@ -94,8 +101,13 @@ export function mergeNote(args: {
   const changes: Record<string, unknown> = {};
   const kept: string[] = [];
   const fields: Record<string, string> = {};
+  const unread = new Set(wanted.unread ?? []);
   const keys = new Set([...Object.keys(wanted.fields), ...Object.keys(last?.fields ?? {})]);
-  for (const key of keys) {
+  for (const key of [...keys].filter((each) => unread.has(each))) {
+    const before = last?.fields[key];
+    if (before !== undefined) fields[key] = before;
+  }
+  for (const key of [...keys].filter((each) => !unread.has(each))) {
     const notion = valueDigest(wanted.fields[key]);
     const sides = {
       last: last?.fields[key] ?? NOTHING,
@@ -107,8 +119,10 @@ export function mergeNote(args: {
     if (outcome === 'kept') kept.push(key);
     if (notion !== NOTHING) fields[key] = notion;
   }
+  const offered = new Set(last?.offered ?? []);
   for (const [key, value] of Object.entries(wanted.fillOnly)) {
-    if (valueDigest(now.properties[key]) === NOTHING) changes[key] = value;
+    if (!offered.has(key) && valueDigest(now.properties[key]) === NOTHING) changes[key] = value;
+    offered.add(key);
   }
   const notionBody = bodyDigest(wanted.body);
   const body = settle({
@@ -121,7 +135,11 @@ export function mergeNote(args: {
     changes,
     body: body === 'take' ? wanted.body : null,
     kept,
-    imported: { fields, body: notionBody },
+    imported: {
+      fields,
+      body: notionBody,
+      ...(offered.size === 0 ? {} : { offered: [...offered] }),
+    },
   };
 }
 
@@ -131,5 +149,6 @@ export function importedAs(wanted: WantedContent): ImportedPage {
   for (const [key, value] of Object.entries(wanted.fields)) {
     if (!isNothing(value)) fields[key] = valueDigest(value);
   }
-  return { fields, body: bodyDigest(wanted.body) };
+  const offered = Object.keys(wanted.fillOnly);
+  return { fields, body: bodyDigest(wanted.body), ...(offered.length === 0 ? {} : { offered }) };
 }

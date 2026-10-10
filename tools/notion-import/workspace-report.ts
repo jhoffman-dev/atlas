@@ -10,6 +10,11 @@ const keptLine = (path: string, kept: readonly string[]) =>
 /** The lines one page gets: what became of it, then anything else about it. An unchanged page gets a line only for what it says. */
 function pageLines(outcome: PageOutcome): string[] {
   if (outcome.kind === 'refused') return [`refused   ${named(outcome)}: ${outcome.reason}`];
+  if (outcome.kind === 'deleted') {
+    return [
+      `deleted   ${named(outcome)}: imported before and deleted in Atlas, so not made again (--recreate-deleted brings it back)`,
+    ];
+  }
   const notes = outcome.notes.map((note) => `note      ${outcome.path}: ${note}`);
   const kept =
     outcome.kind === 'create' || outcome.kept.length === 0
@@ -33,9 +38,7 @@ const count = (outcomes: readonly PageOutcome[], kind: PageOutcome['kind']) =>
   outcomes.filter((outcome) => outcome.kind === kind).length;
 
 const keptCount = (outcomes: readonly PageOutcome[]) =>
-  outcomes.filter(
-    (outcome) => outcome.kind !== 'refused' && outcome.kind !== 'create' && outcome.kept.length > 0,
-  ).length;
+  outcomes.filter((outcome) => 'kept' in outcome && outcome.kept.length > 0).length;
 
 function totals(outcome: WorkspaceOutcome): string {
   const { pages } = outcome;
@@ -46,6 +49,7 @@ function totals(outcome: WorkspaceOutcome): string {
     `${count(pages, 'unchanged')} unchanged`,
     `${count(pages, 'refused')} refused`,
     `${keptCount(pages)} with Atlas's edits kept`,
+    `${count(pages, 'deleted')} deleted in Atlas`,
     `${outcome.skipped.length} skipped`,
     `${outcome.otherFiles} attachments not brought in`,
   ].join(', ');
@@ -55,6 +59,10 @@ function totals(outcome: WorkspaceOutcome): string {
 export function workspaceReportLines(outcome: WorkspaceOutcome): string[] {
   const lines = [
     ...(outcome.dryRun ? ['dry run: nothing was written'] : []),
+    ...outcome.warnings.map((warning) => `warning   ${warning}`),
+    ...(outcome.recordProblem === null
+      ? []
+      : [`stopped   ${outcome.recordProblem}: the notes listed as written were, and no others`]),
     ...outcome.pages.flatMap(pageLines),
     ...outcome.skipped.map(({ what, reason }) => `skipped   ${what}: ${reason}`),
   ];
@@ -65,10 +73,12 @@ export function workspaceReportLines(outcome: WorkspaceOutcome): string[] {
 
 /**
  * Whether the run brought everything in: no page refused, no edit in Atlas
- * kept over a change in Notion (each wants a look), and every meeting with a
- * Source ID in the vault. Skipped pages and notes do not count against it.
+ * kept over a change in Notion (each wants a look), the record kept, and
+ * every meeting with a Source ID in the vault. Skipped pages, notes, notes
+ * deleted in Atlas and warnings do not count against it.
  */
 export const workspaceImported = (outcome: WorkspaceOutcome): boolean =>
   count(outcome.pages, 'refused') === 0 &&
   keptCount(outcome.pages) === 0 &&
+  outcome.recordProblem === null &&
   (outcome.meetings === null || allImported(outcome.meetings));
