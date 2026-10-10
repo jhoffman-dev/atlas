@@ -36,6 +36,14 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # The sync tests merge with real git under an isolated HOME, so a merge
+      # commit takes the identity git guesses from the machine: the account's
+      # full name and the host's domain. A Mac has both; this runner has neither.
+      - name: Give git a name and host to guess from, as a Mac does
+        run: |
+          sudo usermod --comment 'Atlas CI' "$(whoami)"
+          sudo hostname "$(hostname).local"
+
       - name: Test with coverage
         run: pnpm test:coverage
 

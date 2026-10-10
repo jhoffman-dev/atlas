@@ -381,11 +381,6 @@ export async function isolatedWorld() {
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_TERMINAL_PROMPT: '0',
     LANG: 'C',
-    // A merge commit takes git's own identity, and with HOME isolated git
-    // guesses the email from the host name. A Mac's ends in `.local`; a Linux
-    // CI runner's has no domain, so git refuses to merge. EMAIL is the guess
-    // a Mac would make, and git reads it only after any `user.email`.
-    EMAIL: 'atlas@two-macs.local',
   };
   const bare = join(base, 'github', 'vault.git');
   await mkdir(dirname(bare), { recursive: true });
