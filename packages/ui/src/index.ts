@@ -134,6 +134,7 @@ export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts'
 export type { NotePageRendering } from './note-page-renderer.ts';
 export { ArchivePage } from './archive-page.tsx';
 export { InboxPage } from './inbox-page.tsx';
+export { TaskScheduleSummary } from './task-schedule.tsx';
 export { TemplatesPage } from './templates-page.tsx';
 export type { TemplateLessType, TemplateListing, TemplatesPageProps } from './templates-page.tsx';
 export { TemplateBanner } from './template-banner.tsx';

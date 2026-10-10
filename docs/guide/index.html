@@ -139,6 +139,7 @@ td:first-child { white-space: nowrap; }
     <a href="#sql">SQL queries</a>
     <a href="#dashboards">Dashboards</a>
     <a href="#tasks">Tasks (GTD) and daily notes</a>
+    <a href="#timeblocking">Timeblocking</a>
     <a href="#graph">Links and the graph</a>
     <a href="#bookmarks">Bookmarks</a>
     <a href="#blocks">Blocks and embeds</a>
@@ -717,7 +718,7 @@ ORDER BY phase</pre>
         <li><b>Waiting on</b> links a person; a status written <code>waiting </code> or <code>[waiting]</code> is Waiting too, and is saved as <code>waiting</code>. Moving a task to <b>Waiting</b> without one is refused wherever it happens — a board, the properties panel, a new card or note, the add button, an automation, Claude: <i>“A waiting task needs someone to wait on: set Waiting on first, then move it to Waiting.”</i> Set the person, then move it.</li>
         <li><b>Contexts</b> — where it can be done (<i>@phone</i>, <i>@errands</i>); add your own options in <a href="#edit-type">Edit type</a>.</li>
         <li><b>Defer until</b> — a day before which it stays out of <b>Next actions</b>. <b>Due</b> — when it must be done.</li>
-        <li><b>Estimate (minutes)</b>, <b>Source</b> — where it came from — and <b>Project</b>, filing it under a <a href="#para">project or an area</a>.</li>
+        <li><b>Estimate (minutes)</b> — what <a href="#timeblocking">timeblocks</a> are measured against — <b>Source</b> — where it came from — and <b>Project</b>, filing it under a <a href="#para">project or an area</a>.</li>
         <li><b>Completed</b> is written for you: the day a task was finished.</li>
       </ul>
       <h3>Tick it off</h3>
@@ -750,6 +751,36 @@ ORDER BY phase</pre>
         <li><b>Quick capture</b> <kbd>⇧⌘N</kbd>: type a line and it becomes a task in the <a href="#para">Inbox</a>, without leaving what you're doing.</li>
         <li><b>Today's note</b> <kbd>⇧⌘D</kbd> opens the daily note, making it if needed.</li>
         <li><b>Today</b> in the sidebar is a view, and <b>Inbox</b> the <a href="#para">Inbox page</a>; their counts update as you work.</li>
+      </ul>
+    </section>
+
+    <section id="timeblocking">
+      <h2>Timeblocking</h2>
+      <p class="sub">Set time aside on the calendar for your tasks: one block for a big task, or one block that several small tasks are pushed into. Each task shows how much of its estimate is scheduled.</p>
+      <h3>Blocks</h3>
+      <ul>
+        <li>A block is a note of the <b>Block</b> type: <b>Start</b> and <b>End</b>, each a day and a time (<code>2026-10-12T09:00</code>), and <b>Tasks</b>, the tasks it holds. Make one like any note, from <a href="#add">the add button</a>.</li>
+        <li>Atlas adds the Block type once your tasks follow <a href="#tasks">GTD</a> — when the vault opens, or as soon as you move your tasks — and says so in <a href="#activity">Activity</a>. A Block type you already have is left as it is, and it can't be deleted — its properties are yours to change.</li>
+        <li>A block also keeps the Google Calendar event it will sync with (<b>Google event</b>, <b>Google version</b>); leave them alone.</li>
+      </ul>
+      <h3>Scheduled, estimate and done</h3>
+      <p>A task's page shows, under its properties, <b>Scheduled</b> — <i>1h 30m of 2h</i> — and <b>Done</b> — <i>0m of 2h</i>. Both follow from the blocks and the status, so there is nothing to type.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>The block holds</th><th>What each task gets</th></tr></thead>
+          <tbody>
+            <tr><td>One task</td><td>The whole block, whatever its estimate.</td></tr>
+            <tr><td>Several tasks that need the whole block or more</td><td>A share in proportion to what each has left of its estimate. An hour with three 20-minute tasks gives each 20m.</td></tr>
+            <tr><td>Several tasks that need less</td><td>What each has left; the rest goes in equal parts to the tasks with no estimate, or stays free.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li><b>Split a big task</b> by putting it in several blocks: a 2-hour task in blocks of 1h, 30m and 30m reads <i>2h of 2h</i>.</li>
+        <li><b>Over-scheduled</b>: more time than the estimate says so — <i>30m over the estimate</i>. Two blocks that overlap both count, so a task in both shows up this way.</li>
+        <li><b>Done</b> is all of the estimate once the task is finished (in <b>Archive</b>), none before. A finished task has nothing left, so a block of several gives it no more time.</li>
+        <li><b>Estimate</b> is in minutes. A vault that keeps its own text estimates can write <code>2h</code> or <code>1h30m</code>; a day or a week (<code>1d</code>) is read as no estimate, since only you know how many hours your day holds. A task with no estimate shows the time scheduled alone.</li>
+        <li>Times are read as written, on the wall clock. A block from 23:45 to 00:15 is half an hour, into the next day; one across a daylight-saving change is as long as the clock says. A block without a time at both ends, or ending before it starts, gives no time to anything.</li>
       </ul>
     </section>
 
@@ -1214,6 +1245,7 @@ do: archive</pre>
       <ul>
         <li><b>Add a picture to a note</b> (<code>atlas_add_image</code>). From a file, it reads only PNG, JPEG, GIF, WebP, SVG or HEIC images up to 20 MB in your Desktop, Downloads or Pictures folder, or the temporary folder — never anything else on the disk. To use other folders, set <code>ATLAS_MCP_IMAGE_DIRS</code> to them, separated by <code>:</code>; it replaces the list. The picture lands where <a href="#images">pictures you add</a> do, and a link to it goes at the end of the note.</li>
         <li><b>Quick add a note of a type</b> (<code>atlas_quick_add</code>), the way <a href="#add">the add button</a> does, from the same list of types (<code>atlas_quick_add_types</code>).</li>
+        <li><b>Read each task's schedule</b> (<code>atlas_query</code> with <code>schedule</code>): its estimate, the time its <a href="#timeblocking">blocks</a> set aside, what is done and how far it is over — the same numbers as the task's page. Blocks are notes, made and changed like any other.</li>
         <li><b>Read a calendar view's days</b> (<code>atlas_calendar</code>): which notes fall on which day of a saved view's <a href="#calendar">calendar</a>, and which have no date yet.</li>
         <li><b>Refresh a source</b> (<code>atlas_refresh_source</code>), as its <b>Refresh</b> button does — at most once every 30 seconds per source, and only where the source <a href="#sources">may run</a>.</li>
         <li><b>List tags and their notes</b> (<code>atlas_tags</code>, <code>atlas_tagged_notes</code>), as the <a href="#tags">Tags page</a> does. A tag used only in templates isn't listed.</li>

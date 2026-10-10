@@ -61,7 +61,9 @@ export const query = defineTool({
     '{ type: "task", filters: [{ key: "status", operator: "isNot", value: "done" }], ' +
     'sorts: [{ key: "due", direction: "asc" }] }. Call atlas_list_types first for real keys and ' +
     `values. "isEmpty" and "isNotEmpty" take no value. Archived notes are left out unless ` +
-    `includeArchived is true. ${ROWS}`,
+    `includeArchived is true. For tasks, schedule: true adds a "schedule" column: each task's ` +
+    '{ estimate, scheduled, done, overBy } in minutes — scheduled being the time its timeblocks ' +
+    `(notes of type block) set aside for it, and overBy how far that runs past its estimate. ${ROWS}`,
   inputSchema: z.object({
     type: z.string().min(1).describe("The type's name, as atlas_list_types gives it."),
     columns: z.array(z.string()).optional().describe('Property keys to return. Omit for all.'),
@@ -78,6 +80,10 @@ export const query = defineTool({
     sorts: z.array(z.object({ key: z.string(), direction: z.enum(['asc', 'desc']) })).optional(),
     limit: limit.optional(),
     includeArchived: includeArchived.optional(),
+    schedule: z
+      .boolean()
+      .optional()
+      .describe('For a query of tasks: add each task’s schedule. Refused for any other type.'),
   }),
   annotations: READ_ONLY,
   call: (client, { filters, ...rest }) =>
