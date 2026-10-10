@@ -82,6 +82,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_append_to_note`     | `POST /v1/notes/{path}/append`                                               | yes     |
 | `atlas_replace_note_body`  | `PUT /v1/notes/{path}/body`                                                  | yes     |
 | `atlas_backlinks`          | `GET /v1/notes/{path}/backlinks`                                             | no      |
+| `atlas_export_note`        | `GET /v1/notes/{path}/export?format=confluence`                              | no      |
 | `atlas_list_types`         | `GET /v1/types`                                                              | no      |
 | `atlas_list_views`         | `GET /v1/views`                                                              | no      |
 | `atlas_list_type_views`    | `GET /v1/types/{name}/views`                                                 | no      |
@@ -117,6 +118,13 @@ them. A path that cannot move is listed in the answer's `failed` with a reason;
 the rest still move, so it is not a tool error. `atlas_archived` lists what is
 archived, a page at a time. `atlas_search`, `atlas_run_view` and `atlas_query`
 leave archived notes out unless `includeArchived` is true.
+
+`atlas_export_note` turns a note into markdown for a Confluence page: links as
+their words, shown blocks quoted under their note, callouts as quotes, and a
+`dropped` list of everything left out (properties, block ids, comments, vault
+images, where links went). It writes nothing; Claude creates the page with its
+own Atlassian connector, `title` as the title and `markdown` as the body, and
+says what `dropped` lists.
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

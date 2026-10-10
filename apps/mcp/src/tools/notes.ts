@@ -131,6 +131,24 @@ export const backlinks = defineTool({
   call: (client, { path }) => client.backlinks(path),
 });
 
+export const exportNote = defineTool({
+  name: 'atlas_export_note',
+  title: 'Export a note for Confluence',
+  description:
+    'A note as markdown for a Confluence page. Returns { export: { path, format, title, ' +
+    'markdown, dropped } }. In "markdown", each [[wiki link]] is its words (its alias, or the ' +
+    "linked note's title), a block shown in place is quoted under the note it came from, and a " +
+    'callout is a quote opening with its name in bold; tasks, tables, code and web links stay. ' +
+    'Properties, block ids, comments and images in the vault are left out, and "dropped" lists ' +
+    'everything left out, by kind: property, link, embed, missing-embed, image, block-id, ' +
+    'comment, callout-fold. Atlas writes nothing: to share the note, create the page with the ' +
+    'Atlassian connector — "title" as its title, "markdown" as its body, in markdown format — ' +
+    'and tell the user what "dropped" lists, so they can attach an image or fill a gap.',
+  inputSchema: z.object({ path: notePath }),
+  annotations: READ_ONLY,
+  call: (client, { path }) => client.exportNote(path),
+});
+
 export const noteTools = [
   listNotes,
   readNote,
@@ -139,4 +157,5 @@ export const noteTools = [
   appendToNote,
   replaceNoteBody,
   backlinks,
+  exportNote,
 ];

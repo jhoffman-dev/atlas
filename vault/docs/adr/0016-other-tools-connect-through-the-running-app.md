@@ -438,3 +438,27 @@ views above:
   lands, the API/MCP keeper decides whether it is a route of its own or
   `/v1/quick-add` followed by `PATCH /v1/notes/{path}/properties`, which
   callers can already do.
+
+## A note exported for Confluence: read, never published (P32-07, 2026-10-10)
+
+`GET /v1/notes/{path}/export?format=confluence` answers a note as markdown
+for a Confluence page, `{ export: { path, format, title, markdown, dropped } }`,
+so Claude can share it through its own Atlassian connector. MCP's
+`atlas_export_note` is that one call.
+
+- **Atlas never publishes.** The route writes nothing, and nothing in Atlas
+  talks to Confluence: no credentials, no site, no second network path. The
+  connector Claude already has does the write, as the user asked it to.
+- **Only user space reaches the page.** The note is named as any note is
+  (`isApiNotePath`), and the titles its links show and the blocks it shows in
+  place are read only from notes the API can name. A link into `.atlas` or a
+  hidden folder is shared as written, and a block shown from there is
+  "not found". The frontmatter never reaches the page at all.
+- **Nothing is left out silently.** The conversion is the domain's
+  (`exportForConfluence`), and every kind of thing it leaves out — property
+  keys, where links went, embeds of files, missing blocks, vault images,
+  block ids, comments, callout folds — is listed in `dropped`, each as the
+  note writes it.
+- **One format, asked for by name.** `format` is required, and `confluence`
+  is the only value, so another target can be added without changing what an
+  existing caller gets.
