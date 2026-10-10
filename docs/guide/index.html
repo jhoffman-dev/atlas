@@ -116,7 +116,7 @@ td:first-child { white-space: nowrap; }
     <div>
       <h1>Atlas Field Guide</h1>
       <p>How to use Atlas day to day: notes and pictures, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
-      <div class="facts"><span class="fact">Version 0.1 · updated Oct 7, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
+      <div class="facts"><span class="fact">Version 0.1 · updated Oct 10, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
     </div>
   </header>
 
@@ -1136,7 +1136,26 @@ do: archive</pre>
         <li><b>Read your name</b> (<code>atlas_profile</code>): the full name and preferred name from <a href="#profile">Settings → Profile</a>, and <code>[Your name]</code> to write when there's no full name. Claude is told to use exactly that name for an owner, author, assignee or attendee, and never to guess one from a username, an email address or a path. Read-only: the name is changed only in Settings. If the settings can't be read, it says so rather than answer “no name”.</li>
         <li><b>List and read templates</b> (<code>atlas_list_templates</code>, <code>atlas_read_template</code>): every <a href="#templates">template</a> with what it's used for — new notes of a type, today's note, captured tasks or saved artifacts — and which types have none, so their new notes start empty; and one template's properties and text, exactly what a new note made from it would start as. A template's name can be passed when making a note. Making, editing, renaming, deleting and moving templates to notes stay in the app.</li>
         <li><b>Rename or merge a tag</b> (<code>atlas_rename_tag</code>), by the <a href="#tags">same rules</a> as the Tags page. It only previews unless told <code>dryRun: false</code>, and merges into a tag in use only when told to. Renaming to the same name in other capitals makes every spelling match. A rename that timed out may still finish, so preview again before retrying.</li>
+        <li><b>Export a note for Confluence</b> (<code>atlas_export_note</code>), read-only — see <a href="#confluence">Share a note on Confluence</a> below.</li>
       </ul>
+      <h3 id="confluence">Share a note on Confluence</h3>
+      <p>Ask Claude something like “put my Weekly sync note on Confluence, in the Team space”. Claude asks Atlas for the note as a page (<code>atlas_export_note</code>), then creates the page itself with its <b>Atlassian connector</b>, so that connector has to be connected in Claude too. Atlas never talks to Confluence and writes nothing — not to the note, not anywhere.</p>
+      <ul>
+        <li><b>The page's title</b> is the note's title, as its page in Atlas shows it.</li>
+        <li><b>A link</b> becomes its words: its alias if it has one, otherwise the title of the note it names — <code>[[mara quill]]</code> reads <i>Mara Quill</i>, and a link to a heading reads <i>Summer plans › Packing</i>. A link to a block reads as its note's title, so a citation to a meeting line names the meeting.</li>
+        <li><b>An embed</b> of a block or a heading (<a href="#blocks">Blocks and embeds</a>) is that block or section, quoted, under <i>From Summer plans</i>. One whose note or block is gone reads <i>[Not found: …]</i>.</li>
+        <li><b>A callout</b> becomes a quote that opens with its name in bold — <b>Warning:</b> Mind the gap.</li>
+        <li><b>Tasks, tables, code, headings</b> and links and pictures on the web come across as they are.</li>
+      </ul>
+      <p>Some things can't go on the page, and Atlas lists every one of them — Claude is told to tell you what was left out:</p>
+      <ul>
+        <li>the note's properties (frontmatter);</li>
+        <li>where each link went — its words stay, but the page can't open a note in your vault;</li>
+        <li>pictures in your vault, which read <i>[Image: …]</i> — attach them to the page yourself;</li>
+        <li>files shown in place, like <code>![[diagram.png]]</code>, which read as their name;</li>
+        <li>block ids (<code>^abc123</code>), comments (<code>&lt;!-- … --&gt;</code>) and whether a callout was folded.</li>
+      </ul>
+      <p>Only notes outside <code>.atlas</code> and hidden folders are read for a title or an embed, so nothing from Atlas's own settings ever reaches the page.</p>
       <div class="note"><b>Claude inside Atlas needs none of this.</b> The <a href="#claude">chat pane</a> (<kbd>⌘J</kbd>) uses the same read tools in the app itself, with the Local API off, and proposes changes for you to accept rather than writing them.</div>
       <div class="note"><b>Don't see the new tools?</b> Rebuild the MCP server with <code>pnpm --filter @atlas/mcp build</code>, then restart it — in Claude Code start a new session; in Claude Desktop quit and reopen it.</div>
     </section>
