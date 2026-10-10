@@ -1,4 +1,5 @@
 import { isArchiveMove } from '../archive/archive.ts';
+import { isProcessMove } from '../inbox/inbox.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
 /**
@@ -80,8 +81,9 @@ export interface UnpairedChanges {
  * What one sync's changes say arrived, and which paths a note left. The feed
  * pairs nothing, so this does, one note to one, in three passes:
  *
- * - archiving a note, or putting it back, by its two paths (`isArchiveMove`):
- *   the stamp changes its bytes, so they cannot tell;
+ * - archiving a note, or putting it back, by its two paths (`isArchiveMove`),
+ *   and filing one out of the Inbox (`isProcessMove`): the stamp each writes
+ *   changes its bytes, so they cannot tell;
  * - a move to another folder: the same bytes under the same name;
  * - a rename: the same bytes under another name.
  *
@@ -90,7 +92,8 @@ export interface UnpairedChanges {
  * archived from: that note left, and the one at its path now is new.
  *
  * So of a note copied and the original moved, one is the move and the copy
- * arrived; filing, renaming, archiving or restoring a note is not its arrival.
+ * arrived; filing (by hand or by Process), renaming, archiving or restoring a
+ * note is not its arrival.
  */
 export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges {
   const gone = new Set(changes.filter((change) => change.kind === 'removed'));
@@ -115,6 +118,7 @@ export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges
     }
   };
   pairOff((went, came) => isArchiveMove(createVaultPath(went.path), createVaultPath(came.path)));
+  pairOff((went, came) => isProcessMove(createVaultPath(went.path), createVaultPath(came.path)));
   pairOff((went, came) => went.digest === came.digest && nameOf(went.path) === nameOf(came.path));
   pairOff((went, came) => went.digest === came.digest);
   return { arrived: new Set([...[...arrived].map((change) => change.path), ...renewed]), left };

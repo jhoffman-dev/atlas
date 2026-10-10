@@ -10,6 +10,7 @@ export {
   INBOX_QUERY_MARK,
   INBOX_QUERY_COLUMNS,
   isInInbox,
+  isProcessMove,
   processDestination,
   processRefusal,
 } from './inbox.ts';

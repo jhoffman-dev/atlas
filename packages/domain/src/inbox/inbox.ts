@@ -1,4 +1,4 @@
-import { freeNotePath, isArchivedPath } from '../archive/archive.ts';
+import { freeNotePath, isArchivedPath, isPlaceOrNumbered } from '../archive/archive.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import {
   IMPORT_ERROR_KEY,
@@ -142,6 +142,18 @@ export function inboxItem({
 
 const textOrNull = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+
+/**
+ * Whether a note going from `from` to `to` is Process filing it: out of the
+ * Inbox into a folder outside the Inbox and the Archive, under its own name
+ * — numbered if that was taken — as {@link processDestination} puts it. Its
+ * bytes differ, since Process stamps `project`, so the feed cannot pair the
+ * two ends by them.
+ */
+export function isProcessMove(from: VaultPath, to: VaultPath): boolean {
+  if (!isInInbox(from) || isInInbox(to) || isArchivedPath(to)) return false;
+  return isPlaceOrNumbered(to, joinVaultPath(parentVaultPath(to), vaultPathName(from)));
+}
 
 /** Why a note cannot be processed out of the Inbox, or null when it can. */
 export function processRefusal(path: VaultPath): string | null {

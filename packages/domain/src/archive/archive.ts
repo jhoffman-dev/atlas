@@ -197,7 +197,7 @@ export function isArchiveMove(from: VaultPath, to: VaultPath): boolean {
 }
 
 /** Whether `path` is `place`, or `place` numbered as {@link freeNotePath} numbers it: `X 2.md`. */
-function isPlaceOrNumbered(path: VaultPath, place: VaultPath): boolean {
+export function isPlaceOrNumbered(path: VaultPath, place: VaultPath): boolean {
   if (foldedVaultPath(path) === foldedVaultPath(place)) return true;
   const name = vaultPathName(place);
   const extension = MARKDOWN.exec(name)?.[0] ?? '';

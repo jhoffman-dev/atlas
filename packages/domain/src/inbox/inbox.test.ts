@@ -6,6 +6,7 @@ import {
   filingRefusal,
   inboxItem,
   isInInbox,
+  isProcessMove,
   processDestination,
   processRefusal,
 } from './inbox.ts';
@@ -178,5 +179,22 @@ describe('inboxItem', () => {
       arrivedIn: '',
     });
     expect(inboxItem({ path: path('Inbox/Call.md'), title: 'Call', type: '  ' }).type).toBeNull();
+  });
+});
+
+describe('isProcessMove', () => {
+  it('is a note filed out of the Inbox under its own name, numbered or not', () => {
+    const from = path('Inbox/Meetings/Kickoff.md');
+    expect(isProcessMove(from, path('Projects/Atlas/Kickoff.md'))).toBe(true);
+    expect(isProcessMove(from, path('projects/atlas/kickoff.md'))).toBe(true);
+    expect(isProcessMove(from, path('Projects/Atlas/Kickoff 2.md'))).toBe(true);
+  });
+
+  it('is not a move within the Inbox, into the Archive, or to another name', () => {
+    const from = path('Inbox/Kickoff.md');
+    expect(isProcessMove(from, path('Inbox/Meetings/Kickoff.md'))).toBe(false);
+    expect(isProcessMove(from, path('Archive/Inbox/Kickoff.md'))).toBe(false);
+    expect(isProcessMove(from, path('Projects/Atlas/Launch.md'))).toBe(false);
+    expect(isProcessMove(path('Notes/Kickoff.md'), path('Projects/Atlas/Kickoff.md'))).toBe(false);
   });
 });
