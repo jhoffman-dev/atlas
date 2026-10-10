@@ -120,6 +120,28 @@ card. Where the build went past or around the text above:
   (already revoked) counts as revoked. The Keychain item is removed even
   when Google cannot be told, and Settings then says to remove Atlas from
   the Google Account's third-party access.
+- **Each vault's sign-in is serialised by a generation** (after review and
+  an adversarial pass). Connecting and disconnecting move it on; a refresh
+  saves its rotated refresh token and holds its access token only if the
+  generation it started from is still current, checked and written under
+  one lock. So a refresh still out when the person disconnects, or connects
+  again, keeps nothing: the removed sign-in does not come back, a newer one
+  is not overwritten, and no access token outlives a disconnect. A call
+  whose refresh was discarded starts again from what is kept now. An
+  `expires_in` past the clock's range is held for a day at most rather
+  than panicking the command.
+- **The browser's tab hears the truth.** The loopback answers the redirect
+  only once the code is traded, the scope checked and the grant kept, so it
+  says connected only when it is. A failed accept (out of descriptors, a
+  reset) is waited out rather than ending the sign-in, and connections past
+  16 are closed as soon as they are taken.
+- **A sign-in other vaults may share is not revoked.** Google may revoke a
+  whole grant — every token one person gave one client — rather than the
+  single token it is sent; this is not verified here. Atlas asks for no
+  identity scope, so it cannot tell which account a sign-in is for. When
+  another vault on this Mac keeps a sign-in for the same client ID,
+  disconnecting forgets this vault's and does not revoke it, and Settings
+  says so; disconnecting the last one revokes.
 - **An expired or revoked sign-in** comes back from the token endpoint as
   `invalid_grant`; Settings says to connect again, and that a sign-in which
   lapses every week means the Cloud project's consent screen is in Testing,

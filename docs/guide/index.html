@@ -528,12 +528,13 @@ pnpm tauri:dev</pre>
       <h3>Connect</h3>
       <ol class="steps">
         <li><b>Settings</b> (<kbd>⌘,</kbd>) → <b>Google Calendar</b>. Paste the client ID into <i>OAuth client ID</i>, and the secret, if Google gave you one, into <i>Client secret</i>. Press <b>Connect</b>.</li>
-        <li>Your browser opens Google's sign-in. Pick your account and press <b>Allow</b>. The tab then says <i>Atlas is connected to Google Calendar</i>; close it. While Atlas waits it says <i>Finish signing in in your browser…</i> — <b>Cancel</b> stops waiting.</li>
+        <li>Your browser opens Google's sign-in. Pick your account and press <b>Allow</b>. Once Atlas has kept the sign-in, the tab says <i>Atlas is connected to Google Calendar</i>; close it. If it couldn't, the tab says <i>Atlas was not connected</i> and Settings says why. While Atlas waits it says <i>Finish signing in in your browser…</i> — <b>Cancel</b> stops waiting.</li>
         <li>Back in Settings it says <i>Connected</i>. Press <b>Create “Atlas blocks”</b> to make the calendar blocks will go to. If you'd made it before, choose it in <i>Calendar for blocks</i> instead. It then says <i>Blocks go to Atlas blocks</i>.</li>
       </ol>
       <p>The client ID and the calendar are saved in the vault's settings, so your other Mac uses the same calendar. Each Mac signs in for itself.</p>
       <h3>Disconnect</h3>
       <p>Press <b>Disconnect…</b>, then <b>Disconnect</b>. Atlas forgets the sign-in on this Mac and asks Google to cancel it. The calendar and its events stay on your Google account. If Google can't be reached, Atlas still forgets it and tells you to remove Atlas yourself from your Google Account's third-party access.</p>
+      <p>If another vault on this Mac is connected with the same client ID, Atlas forgets this vault's sign-in but doesn't ask Google to cancel it, because that could disconnect the other vault too. Settings says so; disconnect the other vault as well to end Atlas's access.</p>
       <h3>If it doesn't connect</h3>
       <div class="table-wrap">
         <table>
