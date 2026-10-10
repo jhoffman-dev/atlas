@@ -4,7 +4,7 @@
  * export says it left out.
  */
 import { describe, expect, it } from 'vitest';
-import type { RootContent } from 'mdast';
+import type { Nodes, RootContent } from 'mdast';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
@@ -401,5 +401,113 @@ describe('a note exported for Confluence, after review (P32-07)', () => {
       'text',
       'html',
     ]);
+  });
+});
+
+describe('a note exported for Confluence, attacked again (P32-07)', () => {
+  /** Every link, image and definition on the page that goes somewhere the page cannot follow. */
+  const unreachableOn = (markdown: string): string[] => {
+    const found: string[] = [];
+    const visit = (node: Nodes) => {
+      const goes = node.type === 'link' || node.type === 'image' || node.type === 'definition';
+      if (goes && !/^(?:https?:|mailto:)/i.test(node.url)) found.push(node.url);
+      if ('children' in node) for (const child of node.children) visit(child as Nodes);
+    };
+    visit(unified().use(remarkParse).use(remarkGfm).parse(markdown));
+    return found;
+  };
+
+  it('puts no vault link or image on the page when an HTML block opens with a vault image', async () => {
+    const note =
+      '<img src="attachments/diagram.png" width="400">\n' +
+      'See [the spec](Docs/Spec.md) and ![map](attachments/map.png).\n';
+
+    const { markdown, dropped } = await exported(note).result;
+
+    expect(dropped).toContainEqual({ kind: 'image', items: ['attachments/diagram.png'] });
+    expect(unreachableOn(markdown)).toEqual([]);
+  });
+
+  it('puts no vault link on the page when an HTML block opens with a comment', async () => {
+    const { markdown, dropped } = await exported('<!-- todo --> See [the spec](Docs/Spec.md).\n')
+      .result;
+
+    expect(dropped).toContainEqual({ kind: 'comment', items: ['<!-- todo -->'] });
+    expect(unreachableOn(markdown)).toEqual([]);
+  });
+
+  it("keeps a dropped link's words from opening a code fence that takes the rest of the page", async () => {
+    const note = 'Intro <b>x</b>\n[```](Docs/Spec.md)\n\nNext paragraph.\n\n# Heading\n';
+
+    const { markdown } = await exported(note).result;
+
+    expect(blocksOf(markdown).map((block) => block.type)).toEqual([
+      'paragraph',
+      'paragraph',
+      'heading',
+    ]);
+  });
+
+  it("keeps a dropped link's words from opening a list, a heading or a quote, or underlining a line", async () => {
+    for (const words of ['1. Plan', '- Plan', '# Plan', '> Plan', '---']) {
+      const { markdown } = await exported(`Intro <b>x</b>\n[${words}](Docs/Spec.md) more\n`).result;
+
+      expect(blocksOf(markdown).map((block) => block.type)).toEqual(['paragraph']);
+    }
+  });
+
+  it("keeps a shown block's footnote apart from the note's own label that differs only in case", async () => {
+    const note = 'Ours.[^sources-1]\n\n![[Sources#Cited]]\n\n[^sources-1]: Our own.\n';
+
+    const { markdown } = await exported(note).result;
+
+    const identifiers = blocksOf(markdown).flatMap((block) =>
+      block.type === 'footnoteDefinition' ? [block.identifier] : [],
+    );
+    expect(identifiers).toHaveLength(2);
+    expect(new Set(identifiers).size).toBe(identifiers.length);
+  });
+
+  it('keeps a table cell whole when a reference link in it is written in place', async () => {
+    const note = '| Query |\n| - |\n| [logs][q] <b>x</b> |\n\n[q]: https://example.com/q?a|b\n';
+
+    const { markdown } = await exported(note).result;
+
+    const [table] = blocksOf(markdown);
+    const row = table?.type === 'table' ? table.children[1] : undefined;
+    expect(row?.children).toHaveLength(1);
+    const [link] = row?.children[0]?.children.filter((node) => node.type === 'link') ?? [];
+    expect(link?.type === 'link' && decodeURIComponent(link.url)).toBe('https://example.com/q?a|b');
+  });
+
+  it('exports a callout whose marker a definition also names, rather than failing', async () => {
+    const note = '> [!note] Title[^1]\n\n[^1]: Why.\n\n[!note]: https://example.com\n';
+
+    const { markdown } = await exported(note).result;
+
+    expect(markdown).toContain('**Note:** Title');
+  });
+
+  it('writes a reference in place with the definition the note reads, the first of two', async () => {
+    const note =
+      '[dup]: https://example.com/1\n\n> See [c][dup].[^1]\n>\n> [dup]: https://example.com/2\n\n[^1]: n.\n';
+
+    const { markdown } = await exported(note).result;
+
+    expect(markdown).toContain('[c](https://example.com/1)');
+  });
+
+  it("keeps a dropped link's words from becoming an email link", async () => {
+    for (const note of [
+      'Ask [mara@example.com](People/Mara%20Quill.md) now.\n',
+      'Ask [mara@example.com](People/Mara%20Quill.md) now <b>x</b>\n',
+    ]) {
+      const { markdown } = await exported(note).result;
+      const [first] = blocksOf(markdown);
+
+      expect(
+        first?.type === 'paragraph' && first.children.map((child) => child.type),
+      ).not.toContain('link');
+    }
   });
 });

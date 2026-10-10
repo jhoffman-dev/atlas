@@ -467,6 +467,49 @@ describe('footnotes on one page', () => {
   });
 });
 
+describe('footnotes on one page, attacked again (P32-07)', () => {
+  const shownFrom = (title: string, path: string): Transclusion => ({
+    kind: 'block',
+    path: path as VaultPath,
+    title,
+    archived: false,
+    fragment: { kind: 'heading', heading: 'Cited' },
+    content: doc(raw('Theirs.[^1]'), raw('[^1]: C.')),
+  });
+  /** Each footnote defined on the page, as markdown matches one: case folded. */
+  const definedLabels = (page: readonly EditorNode[]) =>
+    page
+      .filter((node) => node.type === 'rawBlock')
+      .flatMap((node) => [...String(node.attrs?.['markdown']).matchAll(/^\[\^([^\]]+)\]:/gm)])
+      .map((match) => (match[1] ?? '').toLowerCase());
+
+  it("keep a shown block's label apart from one of the note's own that differs only in case", () => {
+    const cited = blockEmbedNode({ target: 'Sources', heading: '#Cited', alias: null });
+    const page = blocksOf(doc(raw('Ours.[^sources-1]'), raw('[^sources-1]: A.'), cited), {
+      shown: { '![[Sources#Cited]]': shownFrom('Sources', 'Sources.md') },
+    });
+
+    const labels = definedLabels(page);
+    expect(labels).toHaveLength(2);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it('keep apart the labels of two shown notes whose titles differ only in case', () => {
+    const fieldNotes = blockEmbedNode({ target: 'Q3 plan', heading: '#Cited', alias: null });
+    const archived = blockEmbedNode({ target: 'Archive/Q3 Plan', heading: '#Cited', alias: null });
+    const page = blocksOf(doc(fieldNotes, archived), {
+      shown: {
+        '![[Q3 plan#Cited]]': shownFrom('Q3 plan', 'Q3 plan.md'),
+        '![[Archive/Q3 Plan#Cited]]': shownFrom('Q3 Plan', 'Archive/Q3 Plan.md'),
+      },
+    });
+
+    const labels = definedLabels(page);
+    expect(labels).toHaveLength(2);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
 describe('a link around an image', () => {
   const href = (url: string): EditorMark => ({ type: 'link', attrs: { href: url, title: null } });
   const image = (src: string, marks: EditorMark[]): EditorNode => ({
