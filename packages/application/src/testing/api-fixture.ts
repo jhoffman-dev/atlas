@@ -335,6 +335,7 @@ export function apiFixture({
     tagRenames: createTagRenames(),
     refreshSpacing: createRefreshSpacing(),
     newUploadId: () => `upload-${(uploads += 1)}`,
+    rng: { next: () => 0.5 },
     automationClock: {
       forVault: (vault) => fixture.automations.get(vault) ?? null,
     },

@@ -2,8 +2,9 @@
  * What a name in a query refers to, read from the vault's types.
  *
  * A field is a property one of the listed types declares, one of the few
- * every note has (`title`, `type`, `path`, `modified`, `tag`), or either of
- * those on the note a relation points at: `project.owner`. Knowing its kind
+ * every note has (`title`, `type`, `path`, `modified`, `tag`, and `progress`
+ * through its checklist), or either of those on the note a relation points
+ * at: `project.owner`. Knowing its kind
  * is what lets a query be checked — `due < @today` makes sense, `status < 3`
  * does not — and what lets the builder offer the right operators and values.
  */
@@ -15,11 +16,12 @@ import {
   type PropertyDef,
   type PropertyKind,
 } from '../types/property-def.ts';
+import { carriesChecklistProgress, PROGRESS_FIELD } from '../checklists/progress-field.ts';
 import { fieldText, type FieldRef, type Name } from './ast.ts';
 import { QueryTextError } from './query-text-error.ts';
 
 /** A property's kind, or one of the fields every note has. */
-export type FieldKind = PropertyKind | 'tag' | 'modified' | 'title' | 'path' | 'type';
+export type FieldKind = PropertyKind | 'tag' | 'modified' | 'title' | 'path' | 'type' | 'progress';
 
 export interface QueryField {
   /** As written in a query: `status`, `project.owner`. */
@@ -50,6 +52,13 @@ export const BUILT_IN_FIELDS: readonly { key: string; label: string; kind: Field
   { key: 'path', label: 'Path', kind: 'path' },
 ];
 
+/**
+ * How far through its checklist a note is (P30-03): a whole percentage, worked
+ * out from its boxes, which every note has unless its type declares a
+ * `progress` of its own — then the type's is the one meant.
+ */
+const PROGRESS = { key: PROGRESS_FIELD, label: 'Progress', kind: 'progress' } as const;
+
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** The types a query lists, in the order it lists them; a name the vault lacks is left out. */
@@ -59,8 +68,9 @@ export function listedTypes(types: readonly ObjectType[], from: readonly string[
 
 /**
  * Every field a query over these types can name directly: the built-ins,
- * then each property in the order the types declare them. A key declared by
- * two types is one field, as the first type declares it.
+ * then each property in the order the types declare them, then the progress
+ * through a note's checklist where none of them declares its own. A key
+ * declared by two types is one field, as the first type declares it.
  */
 export function directFields(types: readonly ObjectType[], from: readonly string[]): QueryField[] {
   const listed = listedTypes(types, from);
@@ -74,7 +84,10 @@ export function directFields(types: readonly ObjectType[], from: readonly string
       declared.push(propertyField(property));
     }
   }
-  return [...builtIns, ...declared];
+  const progress = listed.every(carriesChecklistProgress)
+    ? [builtInField(PROGRESS, null, types)]
+    : [];
+  return [...builtIns, ...declared, ...progress];
 }
 
 /** A property a type declares, as the field a query — or a view's grouping — names. */
@@ -171,7 +184,7 @@ function findField(fields: readonly QueryField[], name: Name, owner: string): Qu
 }
 
 function builtInField(
-  field: (typeof BUILT_IN_FIELDS)[number],
+  field: (typeof BUILT_IN_FIELDS)[number] | typeof PROGRESS,
   via: string | null,
   types: readonly ObjectType[],
 ): QueryField {

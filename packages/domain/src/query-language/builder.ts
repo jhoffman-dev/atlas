@@ -192,6 +192,7 @@ const EDITORS: Readonly<Record<FieldKind, ValueEditor>> = {
   checkbox: 'boolean',
   tag: 'tag',
   number: 'number',
+  progress: 'number',
   text: 'text',
   url: 'text',
   thumbnail: 'text',

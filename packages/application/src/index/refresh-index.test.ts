@@ -437,6 +437,70 @@ describe('toIndexedNote', () => {
     expect(parseBody).toHaveBeenCalledWith('Plan ^f3k9x2\n\nNo id\n');
   });
 
+  it('records each checklist box and the progress through them (P30-03)', () => {
+    const box = (text: string, checked: boolean) => ({
+      type: 'taskItem',
+      attrs: { checked },
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const parseBody = vi.fn(() => ({
+      blocks: [],
+      doc: {
+        type: 'doc' as const,
+        content: [
+          {
+            type: 'taskList',
+            content: [
+              box('One', true),
+              box('Two', false),
+              box('Three', true),
+              box('Four', false),
+              box('Five', false),
+            ],
+          },
+        ],
+      },
+    }));
+    const body = '- [x] One\n- [ ] Two\n- [x] Three\n- [ ] Four\n- [ ] Five\n';
+    const note = toIndexedNote({
+      file: { path: 'a.md', text: body, modified: 1, size: body.length },
+      notePaths,
+      markdown: { ...markdown, parseBody },
+    });
+    expect(note.checks).toEqual([
+      { done: true, text: 'One' },
+      { done: false, text: 'Two' },
+      { done: true, text: 'Three' },
+      { done: false, text: 'Four' },
+      { done: false, text: 'Five' },
+    ]);
+    expect(note.progress).toBe(40);
+    expect(note.blocks).toEqual([]);
+    expect(parseBody).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads ids and boxes from one parse of a body that may hold both', () => {
+    const parseBody = vi.fn(markdown.parseBody);
+    toIndexedNote({
+      file: { path: 'a.md', text: '- [ ] One ^a1\n', modified: 1, size: 14 },
+      notePaths,
+      markdown: { ...markdown, parseBody },
+    });
+    expect(parseBody).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not parse a body with no box and no caret, and gives it no progress', () => {
+    const parseBody = vi.fn(markdown.parseBody);
+    const note = toIndexedNote({
+      file: { path: 'a.md', text: '- a list\n', modified: 1, size: 9 },
+      notePaths,
+      markdown: { ...markdown, parseBody },
+    });
+    expect(note.checks).toEqual([]);
+    expect(note.progress).toBeNull();
+    expect(parseBody).not.toHaveBeenCalled();
+  });
+
   it('does not parse a body with no caret in it for block ids', () => {
     const parseBody = vi.fn(markdown.parseBody);
     const note = toIndexedNote({

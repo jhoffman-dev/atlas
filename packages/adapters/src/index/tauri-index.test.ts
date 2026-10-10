@@ -47,6 +47,8 @@ describe('tauriIndex', () => {
           { key: 'owner', index: 0, target: 'Julie', name: 'julie', path: 'people/Julie.md' },
         ],
         blocks: [{ id: 'f3k9x2', text: 'The plan' }],
+        checks: [{ done: true, text: 'Book the hall' }],
+        progress: 100,
       },
     ];
     await tauriIndex.put(notes);
@@ -93,7 +95,9 @@ describe('tauriIndex', () => {
   });
 
   it('rebuilds the views for the types it is given', async () => {
-    const types = [{ name: 'task', columns: [{ key: 'status', kind: 'select', many: false }] }];
+    const types = [
+      { name: 'task', columns: [{ key: 'status', kind: 'select', many: false }], progress: true },
+    ];
     await tauriIndex.rebuildViews(types);
     expect(invoke).toHaveBeenCalledWith('index_rebuild_views', { types });
   });

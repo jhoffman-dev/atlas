@@ -4,7 +4,7 @@ import type { HttpPort, SqliteSourcePort } from '../sources/ports.ts';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { ThumbnailQueue } from '../artifacts/thumbnail-queue.ts';
-import type { AppInfoPort, Clock } from '../ports.ts';
+import type { AppInfoPort, Clock, Rng } from '../ports.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 import type { SourceRefresher } from '../sources/source-refresher.ts';
 import type { TagRenames } from '../tags/index.ts';
@@ -111,6 +111,8 @@ export interface ApiRouterDeps {
   readonly refreshSpacing: RefreshSpacing;
   /** A new id no one can guess, for an image upload staged a chunk at a time. */
   readonly newUploadId: () => string;
+  /** Where a new block id is drawn from, when a checklist line is promoted (P30-03). */
+  readonly rng: Rng;
   /** The app's automation runner: when it began watching, and which rules it has paused. */
   readonly automationClock: AutomationClock;
   /** Where each write through the API is said, by route and note (U-28). */

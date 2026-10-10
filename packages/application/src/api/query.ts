@@ -9,8 +9,10 @@ import {
   type QueryFilter,
   type QuerySort,
   type ViewQuery,
+  withChecklistProgress,
 } from '@atlas/domain';
 import { runView } from '../query/run-view.ts';
+import { loadObjectTypes } from '../types/load-types.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import type { ApiRows } from './contract.ts';
 import {
@@ -30,19 +32,24 @@ const QUERY_ROWS = { fallback: DEFAULT_QUERY_LIMIT, max: MAX_QUERY_LIMIT };
 
 /**
  * Notes of a type, filtered and sorted, compiled to SQL exactly as a saved
- * view is. A query of tasks with `schedule` gains each task's schedule.
+ * view is — with each note's checklist progress as a column, where its type
+ * has one (P30-03). A query of tasks with `schedule` gains each task's schedule.
  */
 export async function queryRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
   const includeArchived = optionalBoolean(fields, 'includeArchived') ?? false;
   const schedule = optionalBoolean(fields, 'schedule') ?? false;
   const query = viewQueryFrom(fields);
-  // Merging with P30-03 (checklist progress) keeps both, in this order: check
-  // `schedule` on the query as asked, then add the progress column to it, run
-  // it, and add the schedule last — checkScheduleAsked, withChecklistProgress,
-  // runViewQuery, withSchedules.
+  // P30-03 (checklist progress) and P31-01 (schedules) both shape this, in
+  // this order: check `schedule` on the query as asked, then add the progress
+  // column to it, run it, and add the schedule last — checkScheduleAsked,
+  // withChecklistProgress, runViewQuery, withSchedules.
   if (schedule) checkScheduleAsked(query);
-  const rows = await runViewQuery(request, query, { includeArchived });
+  const types = await loadObjectTypes({ fs: request.fs, markdown: request.markdown });
+  const type = types.find((candidate) => candidate.name === query.type) ?? null;
+  const rows = await runViewQuery(request, withChecklistProgress(query, type), {
+    includeArchived,
+  });
   return { status: 200, body: schedule ? await withSchedules(request, rows) : rows };
 }
 

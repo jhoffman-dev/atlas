@@ -16,6 +16,18 @@ describe('viewSpecsFor', () => {
           { key: 'points', kind: 'number', many: false },
           { key: 'tags', kind: 'text', many: true },
         ],
+        progress: true,
+      },
+    ]);
+  });
+
+  it('asks for each note’s checklist progress, unless the type declares its own (P30-03)', () => {
+    const goal = parseObjectType({ name: 'goal', properties: { Progress: 'number' } });
+    expect(viewSpecsFor([goal])).toEqual([
+      {
+        name: 'goal',
+        columns: [{ key: 'Progress', kind: 'number', many: false }],
+        progress: false,
       },
     ]);
   });

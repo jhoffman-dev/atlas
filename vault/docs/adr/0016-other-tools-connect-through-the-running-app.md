@@ -617,3 +617,26 @@ Planning the day drags a task onto the calendar. What the API does about it:
 - **No undo route.** The app's Undo puts a block it made in the Trash; the
   API deletes no note, so a block made through it is deleted in the app, as
   any note is.
+
+## Checklists: progress read, a line promoted (P30-03, 2026-10-08)
+
+- **Progress is read wherever rows are**: a `progress` column of
+  `POST /v1/query` and saved-view runs (unless the type declares its own),
+  the `progress` field of an Atlas query, and `files.progress` and the
+  `checks` table for SQL. It is worked out in TypeScript as the index is
+  filled (ADR-0005), so every reader agrees with the bar the app draws.
+- **`POST /v1/notes/{path}/promote`** runs the app's own use-case, so the
+  task is made by `createNote` and the line rewritten by `saveNote`: byte-
+  preserving, refused under unsaved typing, held to the task rules. The line
+  is named by its words, and by its place only when two say the same — what a
+  model reads in the note, not a count it must keep. MCP:
+  `atlas_promote_checklist_line`.
+- **The one take-back.** A promotion whose line could not be written (the
+  note moved on mid-request) trashes the task that same request made, so
+  nothing is left half done. This is not a delete of anything the caller
+  could name before the request; "no delete in v1" still holds, and the
+  app's Undo of a promotion — which trashes the task — has no route.
+- **A retry is safe.** A line that starts with a link to a task note is a
+  task already, and promoting it is refused with `exists`: a request sent
+  twice makes one task, so MCP marks the tool idempotent. The line is named
+  by its words as shown or by its markdown as the note's writer writes it.

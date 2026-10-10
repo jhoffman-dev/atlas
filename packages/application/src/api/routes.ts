@@ -5,6 +5,7 @@ import { automationDryRunRoute, automationLogRoute, automationsRoute } from './a
 import { API_ROUTES, type ApiRequest, type ApiRoute } from './contract.ts';
 import { artifactFileRoute, artifactThumbnailRoute, saveArtifactRoute } from './artifacts.ts';
 import { calendarRoute } from './calendar.ts';
+import { promoteLineRoute } from './checklists.ts';
 import { captureRoute, dailyRoute } from './daily.ts';
 import { noteImageRoute } from './images.ts';
 import { meetingsRoute } from './meetings.ts';
@@ -79,6 +80,7 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'POST /v1/notes/{path}/append': vaultWrite(appendRoute),
   'PUT /v1/notes/{path}/body': vaultWrite(replaceBodyRoute),
   'GET /v1/notes/{path}/backlinks': vaultRoute(backlinksRoute),
+  'POST /v1/notes/{path}/promote': vaultWrite(promoteLineRoute),
   'PUT /v1/notes/{path}/images/{name}': vaultWrite(noteImageRoute, created),
   'GET /v1/search': vaultRoute(searchRoute),
   'GET /v1/types': vaultRoute(typesRoute),

@@ -37,6 +37,7 @@ import type {
   ApiNoteSummary,
   ApiProcessInboxBody,
   ApiScheduleTaskBody,
+  ApiPromoteLineBody,
   ApiProfile,
   ApiQueryBody,
   ApiQuickAddBody,
@@ -180,6 +181,13 @@ export class AtlasClient {
 
   append = (path: string, body: ApiAppendBody) =>
     this.json<{ note: ApiNote }>({ method: 'POST', path: notePath(path, '/append'), body });
+
+  promoteChecklistLine = (path: string, body: ApiPromoteLineBody) =>
+    this.json<{ note: ApiNote; task: ApiNote }>({
+      method: 'POST',
+      path: notePath(path, '/promote'),
+      body,
+    });
 
   replaceBody = (path: string, body: ApiReplaceBodyBody) =>
     this.json<{ note: ApiNote }>({ method: 'PUT', path: notePath(path, '/body'), body });

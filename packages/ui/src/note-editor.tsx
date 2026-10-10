@@ -30,6 +30,7 @@ import type { MentionSuggestionView } from './editor/mention-suggestion.ts';
 import { MentionSuggestionPopup } from './editor/mention-suggestion-popup.tsx';
 import { LinkSuggestionPopup } from './editor/link-suggestion-popup.tsx';
 import type { BlockPicking } from './editor/block-picking.ts';
+import type { PromoteLine } from './editor/promote-line.ts';
 import { withoutPendingMentions } from './editor/pending-mention.ts';
 import { redrawPersonChips } from './editor/person-chips.ts';
 import { useLinkMenu } from './note-link-menu.tsx';
@@ -100,6 +101,7 @@ export function NoteEditor({
   queries,
   picking,
   reveal = null,
+  onPromoteLine,
   ref,
 }: {
   doc: EditorDocument;
@@ -131,6 +133,8 @@ export function NoteEditor({
   picking?: BlockPicking;
   /** A block or heading to bring into view: where a followed link pointed. */
   reveal?: NoteReveal | null;
+  /** Makes the checklist line the caret is in a task (P30-03); left out, none is offered. */
+  onPromoteLine?: PromoteLine;
   ref?: Ref<NoteEditorHandle>;
 }) {
   const [links, setLinks] = useState<WikiSuggestionView | null>(null);
@@ -180,6 +184,11 @@ export function NoteEditor({
     [hasPeople, peopleNow],
   );
 
+  // Read through a ref, as the tags are: a new function each render would rebuild the editor.
+  const promoter = useLatest(onPromoteLine);
+  const promotes = onPromoteLine !== undefined;
+  const stablePromote = useCallback<PromoteLine>((line) => promoter.current?.(line), [promoter]);
+
   const bookmarkSource = useBookmarkSource(bookmarks);
   const transclusionSource = useTransclusionSource(transclusions);
   const queryBlockSource = useQueryBlockSource(queries);
@@ -202,8 +211,11 @@ export function NoteEditor({
         transclusions: transclusionSource,
         queries: queryBlockSource,
         picking: blockPicking,
+        promoteLine: promotes ? stablePromote : null,
       }),
     [
+      promotes,
+      stablePromote,
       editorPeople,
       bookmarkSource,
       transclusionSource,

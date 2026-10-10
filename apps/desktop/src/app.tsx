@@ -98,6 +98,7 @@ import { browserThemeStore } from './theme/browser-theme-store.ts';
 import { useVaultGraph } from './graph/use-vault-graph.ts';
 
 import { localClock, localToday } from './today.ts';
+import { cryptoRng } from './random.ts';
 import {
   closeOverlay,
   openOverlay,
@@ -406,6 +407,7 @@ export function App({
       tagRenames,
       refreshSpacing,
       newUploadId: () => crypto.randomUUID(),
+      rng: cryptoRng,
       automationClock: apiAutomations.clock,
       activity: activityLog,
     }),

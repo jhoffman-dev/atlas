@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { cardChips, cardFields, plainText, type BoardRow, type PropertyKind } from '@atlas/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
+import { ChecklistProgress } from './checklist-progress.tsx';
 import { chipGlyph, Icon } from './icon.tsx';
 import { useNoteNames } from './note-names.tsx';
 import { StatusPill } from './status-pill.tsx';
@@ -103,7 +104,8 @@ export function LiftedCard({ row, look }: { row: BoardRow; look: CardLook }) {
 
 /**
  * What a card shows: its done box — or, for a type that has none, a tick when
- * it sits in the finished column — the title, what it is about, and its chips.
+ * it sits in the finished column — the title, what it is about, how far
+ * through its checklist it is, and its chips.
  */
 function CardFace({
   row,
@@ -130,6 +132,7 @@ function CardFace({
         {title}
       </div>
       {summary !== '' && <p className="board__summary">{summary}</p>}
+      <ChecklistProgress values={row.values} kinds={look.kinds} />
       <CardFieldList row={row} look={look} />
     </>
   );

@@ -29,6 +29,7 @@ import { LinkPicker } from './link-picker.tsx';
 import { EditableTitle, PageHead } from './page-head.tsx';
 import { PageBar, type PageHistory, type PageMenuItem } from './page-bar.tsx';
 import { TemplateBanner, type TemplateNotice } from './template-banner.tsx';
+import { PromotionBanner, type LinePromotion } from './promotion-notice.tsx';
 import {
   PropertiesPanel,
   type NewProperty,
@@ -118,6 +119,8 @@ export interface NotePaneProps {
   queries?: NoteQueryBlocks;
   /** A note's headings and blocks after `[[Note#`; left out, `#` offers nothing. */
   picking?: BlockPicking;
+  /** Making a checklist line a task, and what the last try came to; left out, none is offered. */
+  promotion?: LinePromotion;
   /** A block or heading of this note to bring into view: where a followed link pointed. */
   reveal?: NoteReveal | null;
   /** What the note links to and what links to it, for its foot. */
@@ -273,6 +276,7 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
       />
       <SaveConflict state={state} onOverwrite={props.onOverwrite} onDiscard={props.onDiscard} />
       {props.template !== undefined && <TemplateBanner {...props.template} />}
+      <PromotionBanner notice={props.promotion?.notice ?? null} />
       <div className="panel__body">
         {/* A view is a table or a board, not prose, so it is not held to a
             reading width — it uses the window it has been given. */}
@@ -473,6 +477,7 @@ function NoteBody({
           {...(props.transclusions !== undefined && { transclusions: props.transclusions })}
           {...(props.queries !== undefined && { queries: props.queries })}
           {...(props.picking !== undefined && { picking: props.picking })}
+          {...(props.promotion !== undefined && { onPromoteLine: props.promotion.promote })}
           reveal={props.reveal ?? null}
         />
       </div>

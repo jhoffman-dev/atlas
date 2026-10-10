@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { holdsLinks, isYou, linkedNames, propertyRole, type PropertyKind } from '@atlas/domain';
+import { ChecklistProgress } from './checklist-progress.tsx';
 import { DoneCheckbox, doneClass, type DoneTicks } from './done-checkbox.tsx';
 import type { LinePlace } from './grouped-rows.tsx';
 import { Icon } from './icon.tsx';
@@ -76,6 +77,7 @@ export function TableRow({
               onCommit: (next: string) => onEditCell({ path, column, value: next }),
             })}
           />
+          {column === TITLE && <ChecklistProgress values={values} kinds={look.kinds} />}
         </td>
       ))}
     </tr>
