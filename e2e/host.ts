@@ -461,23 +461,22 @@ export async function installHost(
   /** Files whose writes wait, and what lets them go. */
   const held = new Map<string, Promise<void>>();
   const countWrite = (relative: string) => writes.set(relative, (writes.get(relative) ?? 0) + 1);
-  /** The last text write to each file, which the next one waits for. */
-  const textWrites = new Map<string, Promise<unknown>>();
+  /** The last text write, which the next one waits for. */
+  let textWriteTail: Promise<unknown> = Promise.resolve();
   /**
-   * Runs one text write to a file at a time. The host's `write_text_file` is a
-   * synchronous command, so it never interleaves with another: the second of
-   * two writes sees what the first wrote, and its time check refuses it.
+   * Runs one text write at a time, whatever file it names. The host's
+   * `write_text_file` is a synchronous command on the main thread, so it never
+   * interleaves with another: the second of two writes to a note — under any
+   * spelling or link that reaches the same file — sees what the first wrote,
+   * and its time check refuses it.
    */
-  const oneTextWriteAtATime = <T>(file: string, write: () => Promise<T>): Promise<T> => {
-    const turn = (textWrites.get(file) ?? Promise.resolve()).then(write);
+  const oneTextWriteAtATime = <T>(write: () => Promise<T>): Promise<T> => {
+    const turn = textWriteTail.then(write);
     // The next write waits for this one to finish, not to succeed; a refusal
     // still reaches this write's caller through `turn`.
-    textWrites.set(
-      file,
-      turn.then(
-        () => undefined,
-        () => undefined,
-      ),
+    textWriteTail = turn.then(
+      () => undefined,
+      () => undefined,
     );
     return turn;
   };
@@ -1105,7 +1104,7 @@ export async function installHost(
         await held.get(path);
         const file = containedPath(writeRoot(args), path);
         const { rename, writeFile, stat: statFile } = await import('node:fs/promises');
-        return oneTextWriteAtATime(file, async () => {
+        return oneTextWriteAtATime(async () => {
           if (expectedModified !== null) {
             const info = await statFile(file);
             if (Math.floor(info.mtimeMs) !== expectedModified) {
