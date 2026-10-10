@@ -110,3 +110,38 @@ The block model and its scheduling rules, which sync builds on:
   block linking more tasks than the cap returns is refused, never answered
   short. The API reads the same with `POST /v1/query` and
   `schedule: true` (ADR-0016's P31-01 amendment).
+
+## As built (P31-02, 2026-10-10)
+
+Planning the day by dragging tasks onto the calendar:
+
+- **The tray stands beside a calendar of blocks** — a view of the Block type
+  drawn as a week, three days or a day — and lists the next actions as the
+  Next actions view reads them (deferred ones stay out until their day), the
+  ones with no time set aside yet first. A new calendar view of blocks spans
+  each from its `start` to its `end`; switching an existing view to Calendar
+  does not, since a view edit cannot set an end.
+- **Let go on empty time, a task becomes a block** from the quarter hour the
+  pointer is in, as long as what the task still needs — its estimate less
+  what blocks give it and what is done — at most a day, and half an hour when
+  it has no estimate or needs nothing more. Dragging the same task again makes
+  another block for what is left: that is splitting. The block is a new note
+  made through `createNote`, from the Block type's template when there is one,
+  at the top of the vault, named "<task> block" (numbered when taken), with
+  `start` and `end` as wall-clock times with no offset.
+- **Let go on a block, the task joins its `tasks`**, linked after the others,
+  which are written back as they were; a block already linking it is left
+  alone. The write goes through a pane holding the block, else
+  `setNoteProperties` — the task-rule chokepoints — never to the file directly.
+- **The keyboard has the same path**: Enter (or a click) on a task chooses it,
+  focus goes to today's first hour, and Enter on an hour or a block places it;
+  Escape lets it go. The pointer drag takes no keys, since a held task has no
+  step on the clock to make.
+- **The last drop can be undone.** A block it made goes to the Trash while it
+  holds exactly what the drop wrote; one edited since is left and said. A
+  task it linked is unlinked, the block's other links kept. The undo is kept
+  for the vault the drop was made in only. A pane holding the new block with
+  unsaved typing is not told before it goes to the Trash — the block was made
+  a moment before, so this is left rather than threaded through the panes.
+- **A drag near the clock's edge does not scroll it**: the tray is not inside
+  the clock's scroller. Scroll to the part of the day first.
