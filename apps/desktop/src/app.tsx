@@ -925,6 +925,7 @@ export function App({
     open: reviewOpen,
     onSettled: settleArchive,
     archiveNote: (path) => archiveCommands.archive([path]),
+    activity: activityLog,
   });
   const proposals = useProposals({
     ports: archivePorts,

@@ -11,6 +11,8 @@ import {
 import {
   archiveTaskChange,
   readWeeklyReview,
+  TaskRuleRefusedError,
+  type ActivityLog,
   type Clock,
   type IndexPort,
   type MarkdownPort,
@@ -18,6 +20,7 @@ import {
   type VaultFsPort,
   type WeeklyReviewReport,
 } from '@atlas/application';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { writeNoteProperties } from '../query/use-view-writes.ts';
@@ -43,6 +46,8 @@ export interface WeeklyReviewOptions {
   readonly onSettled: () => void;
   /** Moves a project into the Archive, as the app's Archive command does. */
   readonly archiveNote: (path: VaultPath) => Promise<unknown>;
+  /** Where a write the review gives up on is recorded; a task rule's refusal is not. */
+  readonly activity: Pick<ActivityLog, 'inOpenVault'>;
 }
 
 /**
@@ -52,7 +57,8 @@ export interface WeeklyReviewOptions {
  * item leaves its section once the index has the change.
  */
 export function useWeeklyReview(options: WeeklyReviewOptions) {
-  const { ports, editors, clock, types, indexKey, open, onSettled, archiveNote } = options;
+  const { ports, editors, clock, types, indexKey, open, onSettled, archiveNote, activity } =
+    options;
   const indexReady = options.indexReady ?? true;
   const [read, setRead] = useState<ReadFrom | null>(null);
   const [busy, setBusy] = useState(false);
@@ -101,11 +107,18 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
   );
 
   const write = useCallback(
-    (path: VaultPath, values: PropertyChanges) =>
-      act(() =>
-        writeNoteProperties({ editors, fs: ports.fs, markdown: ports.markdown, path, values }),
-      ),
-    [act, editors, ports.fs, ports.markdown],
+    (path: VaultPath, values: PropertyChanges) => {
+      const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
+      const { fs, markdown } = ports;
+      // Dated by the review's own clock, the one its sections were read on.
+      const today = clock.today();
+      return act(() =>
+        withGiveUpRecorded(edit, () =>
+          writeNoteProperties({ editors, fs, markdown, path, values, today }),
+        ),
+      );
+    },
+    [act, activity, clock, editors, ports],
   );
 
   const setStatus = useCallback(

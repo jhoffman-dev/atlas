@@ -8,10 +8,18 @@ import {
   WAITING_NEEDS_SOMEONE,
   type ObjectType,
 } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, memoryVault, type QueryResult } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeVaultFs,
+  memoryVault,
+  recordingActivity,
+  type QueryResult,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useWeeklyReview } from './use-weekly-review.ts';
+
+const ACTIVITY = recordingActivity();
 
 /** P30-07: the weekly review page's reading and quick actions, on a fixed clock. */
 const NOW = Date.UTC(2026, 9, 8, 12);
@@ -84,6 +92,7 @@ function setUp({
     useWeeklyReview({
       ports,
       editors: noPane,
+      activity: ACTIVITY,
       clock: CLOCK,
       types,
       indexKey: '1',
@@ -151,6 +160,7 @@ describe('useWeeklyReview', () => {
         useWeeklyReview({
           ports,
           editors: noPane,
+          activity: ACTIVITY,
           clock: CLOCK,
           types: TYPES,
           indexKey: indexReady ? 'ready:1' : 'building',

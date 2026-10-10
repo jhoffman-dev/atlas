@@ -37,15 +37,18 @@ export async function writeNoteProperties({
   markdown,
   path,
   values,
+  today = localToday(),
 }: {
   editors: OpenEditors;
   fs: VaultFsPort;
   markdown: MarkdownPort;
   path: string;
   values: PropertyChanges;
+  /** `YYYY-MM-DD`, for the task rules; the Mac's day unless the caller has a clock of its own. */
+  today?: string;
 }): Promise<void> {
   const takenByAPane = await editors.setPropertiesIfOpen({ path: createVaultPath(path), values });
-  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values, today: localToday() });
+  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values, today });
 }
 
 /**

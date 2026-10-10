@@ -396,7 +396,19 @@ export function writeFailedReport({
 
 /** What a screen was writing when it gave up, as its line says it. */
 export type ScreenWrite =
-  'edit' | 'view' | 'dashboard' | 'card' | 'image' | 'artifact' | 'setting' | 'connection';
+  | 'edit'
+  | 'view'
+  | 'dashboard'
+  | 'card'
+  | 'image'
+  | 'artifact'
+  | 'setting'
+  | 'connection'
+  | 'proposal'
+  | 'filing'
+  | 'task'
+  | 'term'
+  | 'block';
 
 const SCREEN_WRITE_WORDS: Readonly<Record<ScreenWrite, string>> = {
   edit: 'Could not save an edit',
@@ -407,6 +419,11 @@ const SCREEN_WRITE_WORDS: Readonly<Record<ScreenWrite, string>> = {
   artifact: 'Could not save the artifact',
   setting: 'Could not save a setting',
   connection: 'Could not change the API connection',
+  proposal: 'Could not answer the proposal',
+  filing: 'Could not file the note',
+  task: 'Could not make the task',
+  term: 'Could not save the term',
+  block: 'Could not plan the task',
 };
 
 /**

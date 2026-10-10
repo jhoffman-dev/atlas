@@ -6,10 +6,18 @@ import {
   REVIEW_PROJECTS_QUERY_MARK,
   REVIEW_TASKS_QUERY_MARK,
 } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, memoryVault, type QueryResult } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeVaultFs,
+  memoryVault,
+  recordingActivity,
+  type QueryResult,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useWeeklyReview, type WeeklyReviewOptions } from './use-weekly-review.ts';
+
+const ACTIVITY = recordingActivity();
 
 /** P30-07, adversarial: the review page's reading across a vault switch. */
 const NOW = Date.UTC(2026, 9, 8, 12);
@@ -48,6 +56,7 @@ describe('useWeeklyReview, adversarial', () => {
     ): WeeklyReviewOptions => ({
       ports,
       editors: noPane,
+      activity: ACTIVITY,
       clock: CLOCK,
       types: [{ name: 'task', label: 'Task', properties: [] }],
       indexKey,
