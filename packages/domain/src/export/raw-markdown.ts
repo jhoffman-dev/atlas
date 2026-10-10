@@ -1,6 +1,6 @@
 import { calloutLabel, parseCalloutMarker, type CalloutMarker } from '../markdown/callout.ts';
 import { formatWikiLink, type WikiLinkOrEmbed } from '../markdown/wikilink.ts';
-import type { DroppedContent } from './export-drops.ts';
+import type { DroppedContent, ExportDropKind } from './export-drops.ts';
 import type { MarkdownSpan, RawPart } from './raw-parts.ts';
 
 /*
@@ -9,8 +9,14 @@ import type { MarkdownSpan, RawPart } from './raw-parts.ts';
  * by the same rules as every other block, at the parts the markdown reader
  * found in it: each wiki link as its words; an image or a link the page cannot
  * reach as its words, and a reference as the link it stands for; each
- * comment, closed or not, gone; each id gone; and each callout's marker as
- * its name in bold. Code, and everything else, is the note's own markdown.
+ * comment, closed or not, gone; and each callout's marker as its name in
+ * bold. Code, and everything else, is the note's own markdown.
+ *
+ * Text rewritten in place can read as something else: an HTML block that
+ * loses its opening tag is a paragraph, and the link it held comes alive. So
+ * the rewrite is read again, and kept only if it has the same blocks and goes
+ * nowhere the page cannot follow. Otherwise the block is shared as its words
+ * alone, every mark escaped, and that is listed too.
  */
 
 /** What rewriting a raw block needs from the export it is part of. */
@@ -24,11 +30,21 @@ export interface RawExport {
    * does not define is escaped, so another note's footnote cannot answer it.
    */
   readonly escapeStrayFootnotes: boolean;
+  /** Reads markdown as the parts were read: what the rewrite is checked by. */
+  readonly reread: (markdown: string) => readonly RawPart[];
   readonly dropped: DroppedContent;
 }
 
 interface Edit extends MarkdownSpan {
   readonly text: string;
+}
+
+type Drop = readonly [ExportDropKind, string];
+
+/** What one part asks of the rewrite: its edits, and what they leave out. */
+interface Plan {
+  readonly edits: readonly Edit[];
+  readonly drops: readonly Drop[];
 }
 
 /** Where a page's link may go: the web, or an email. A note's path, or an app's, goes nowhere. */
@@ -42,49 +58,93 @@ export function rawMarkdownForExport(
   parts: readonly RawPart[],
   context: RawExport,
 ): string {
-  const ordered = [...parts].sort((a, b) => a.start - b.start || b.end - a.end);
-  const edits = ordered.flatMap((part) => editsFor(part, markdown, context));
-  return withEdits(markdown, edits);
+  const { edits, drops } = acceptedPlans(markdown, parts, context);
+  for (const [kind, item] of drops) context.dropped.add(kind, item);
+  const written = withEdits(markdown, edits);
+  if (readsTheSame({ markdown, parts }, { markdown: written, parts: context.reread(written) })) {
+    return written;
+  }
+  context.dropped.add('formatting', firstLineOf(markdown));
+  return asWords(written);
 }
 
-function editsFor(part: RawPart, markdown: string, context: RawExport): Edit[] {
-  const { dropped } = context;
+/**
+ * Each part's plan, outermost first, less any whose edits would cut into one
+ * already taken — a link inside a callout's marker, say. What a skipped part
+ * would have rewritten is still checked by the second reading.
+ */
+function acceptedPlans(
+  markdown: string,
+  parts: readonly RawPart[],
+  context: RawExport,
+): { edits: Edit[]; drops: Drop[] } {
+  const ordered = [...parts].sort((a, b) => a.start - b.start || b.end - a.end);
+  const edits: Edit[] = [];
+  const drops: Drop[] = [];
+  for (const part of ordered) {
+    const plan = planFor(part, { markdown, context, parts: ordered });
+    if (plan.edits.some((edit) => edits.some((taken) => overlap(edit, taken)))) continue;
+    edits.push(...plan.edits);
+    drops.push(...plan.drops);
+  }
+  return { edits, drops };
+}
+
+/** Whether two edits touch the same bytes; an insertion only where it falls strictly inside the other. */
+function overlap(a: Edit, b: Edit): boolean {
+  if (a.start === a.end) return b.start < a.start && a.start < b.end;
+  if (b.start === b.end) return a.start < b.start && b.start < a.end;
+  return a.start < b.end && b.start < a.end;
+}
+
+const NOTHING: Plan = { edits: [], drops: [] };
+
+interface Block {
+  readonly markdown: string;
+  readonly context: RawExport;
+  readonly parts: readonly RawPart[];
+}
+
+function planFor(part: RawPart, block: Block): Plan {
   switch (part.kind) {
     case 'wiki-link':
-      dropped.add(part.link.embed ? 'embed' : 'link', formatWikiLink(part.link));
-      return [{ ...span(part), text: escapedForMarkdown(context.wordsOf(part.link)) }];
+      return {
+        edits: [{ ...span(part), text: escapedForMarkdown(block.context.wordsOf(part.link)) }],
+        drops: [[part.link.embed ? 'embed' : 'link', formatWikiLink(part.link)]],
+      };
     case 'image':
-      return imageEdits(part, dropped);
+      return imagePlan(part);
     case 'link':
-      return linkEdits(part, dropped);
+      return linkPlan(part, block);
     case 'definition':
-      if (!REACHABLE.test(part.url)) dropped.add('link', part.url);
-      return [{ ...span(part), text: '' }];
+      return {
+        edits: [{ ...span(part), text: '' }],
+        drops: REACHABLE.test(part.url) ? [] : [['link', part.url]],
+      };
     case 'footnote-label':
-      return footnoteEdits(part, context);
+      return footnotePlan(part, block.context);
     case 'html':
-      return htmlEdits(part, markdown, dropped);
-    case 'block-id':
-      dropped.add('block-id', part.id);
-      return [{ ...span(part), text: '' }];
+      return htmlPlan(part, block.markdown);
     case 'quote-opening':
-      return calloutOpening(part, markdown, dropped);
+      return calloutPlan(part, block.markdown);
     case 'footnote-definition':
-      return [];
+    case 'block':
+      return NOTHING;
   }
 }
 
 const span = ({ start, end }: MarkdownSpan): MarkdownSpan => ({ start, end });
 
 /** An image on the web stays, written in place if it was a reference; any other is named. */
-function imageEdits(part: Extract<RawPart, { kind: 'image' }>, dropped: DroppedContent): Edit[] {
+function imagePlan(part: Extract<RawPart, { kind: 'image' }>): Plan {
   if (ON_THE_WEB.test(part.url)) {
-    if (!part.reference) return [];
+    if (!part.reference) return NOTHING;
     const alt = escapedForMarkdown(part.alt);
-    return [{ ...span(part), text: `![${alt}](${destination(part.url, part.title)})` }];
+    const text = `![${alt}](${destination(part.url, part.title)})`;
+    return { edits: [{ ...span(part), text }], drops: [] };
   }
-  dropped.add('image', part.url);
-  return [{ ...span(part), text: escapedForMarkdown(imageWords(part.alt, part.url)) }];
+  const text = escapedForMarkdown(imageWords(part.alt, part.url));
+  return { edits: [{ ...span(part), text }], drops: [['image', part.url]] };
 }
 
 /** What an image the page cannot show reads as: its alt text, else its address. */
@@ -95,38 +155,79 @@ export function imageWords(alt: string, url: string): string {
 /**
  * A link the page can follow stays, written in place if it was a reference,
  * so no definition is needed and none from another note can answer it. Any
- * other link is its words.
+ * other link is its words, kept as written — but never opening a block on
+ * their line, and never a link of their own.
  */
-function linkEdits(part: Extract<RawPart, { kind: 'link' }>, dropped: DroppedContent): Edit[] {
+function linkPlan(part: Extract<RawPart, { kind: 'link' }>, block: Block): Plan {
   const { words } = part;
   if (REACHABLE.test(part.url)) {
-    if (!part.reference) return [];
-    return [{ start: words.end, end: part.end, text: `](${destination(part.url, part.title)})` }];
+    if (!part.reference) return NOTHING;
+    const text = `](${destination(part.url, part.title)})`;
+    return { edits: [{ start: words.end, end: part.end, text }], drops: [] };
   }
-  dropped.add('link', part.url);
-  return [
-    { start: part.start, end: words.start, text: '' },
-    { start: words.end, end: part.end, text: '' },
+  return {
+    edits: [
+      { start: part.start, end: words.start, text: '' },
+      ...wordsKeptAsWords(part, block),
+      { start: words.end, end: part.end, text: '' },
+    ],
+    drops: [['link', part.url]],
+  };
+}
+
+/**
+ * What keeps a link's words words once its brackets are gone: a backslash
+ * before anything they would open their line with, and a word joiner where
+ * GFM would link them — outside code, and outside anything else read in them.
+ */
+function wordsKeptAsWords(part: Extract<RawPart, { kind: 'link' }>, block: Block): Edit[] {
+  const { words } = part;
+  const text = block.markdown.slice(words.start, words.end);
+  const inner = block.parts.filter(
+    (other) => other !== part && other.start >= words.start && other.end <= words.end,
+  );
+  const opener = opensALine(block.markdown, part.start) ? lineOpenerAt(text) : null;
+  const insertions = [
+    ...(opener === null ? [] : [{ at: words.start + opener, text: '\\' }]),
+    ...linkablePoints(text, codeSpansIn(text)).map((at) => ({
+      at: words.start + at,
+      text: WORD_JOINER,
+    })),
   ];
+  return insertions
+    .filter(({ at }) => !inner.some((other) => other.start < at && at < other.end))
+    .map(({ at, text: inserted }) => ({ start: at, end: at, text: inserted }));
 }
 
-/** A link's destination as markdown writes it, in angle brackets when it must be. */
+/** Whether only a line's quote and list markers, and spaces, come before `at`. */
+function opensALine(markdown: string, at: number): boolean {
+  const lineStart = markdown.lastIndexOf('\n', at - 1) + 1;
+  return /^[ \t]*(?:(?:>|[-*+]|\d{1,9}[.)])[ \t]*)*$/.test(markdown.slice(lineStart, at));
+}
+
+/**
+ * A link's destination as markdown writes it, in angle brackets when it must
+ * be, its `|` escaped so a table cell holding it stays one cell.
+ */
 function destination(url: string, title: string | null): string {
-  const address = url === '' || /[\s()<>]/.test(url) ? `<${url.replace(/[<>]/g, '\\$&')}>` : url;
-  return title === null ? address : `${address} "${title.replace(/["\\]/g, '\\$&')}"`;
+  const piped = (text: string) => text.replace(/\|/g, '\\|');
+  const bare = /[\s()<>]/.test(url) || url === '';
+  const address = bare ? `<${piped(url.replace(/[<>]/g, '\\$&'))}>` : piped(url);
+  return title === null ? address : `${address} "${piped(title.replace(/["\\]/g, '\\$&'))}"`;
 }
 
-function footnoteEdits(
+function footnotePlan(
   part: Extract<RawPart, { kind: 'footnote-label' }>,
   context: RawExport,
-): Edit[] {
+): Plan {
   if (!part.defined) {
+    if (!context.escapeStrayFootnotes) return NOTHING;
     // The `[` of `[^label]`, two before the label: escaped, it is text on any page.
     const bracket = part.start - 2;
-    return context.escapeStrayFootnotes ? [{ start: bracket, end: bracket, text: '\\' }] : [];
+    return { edits: [{ start: bracket, end: bracket, text: '\\' }], drops: [] };
   }
   const label = context.footnoteLabel(part.label);
-  return label === part.label ? [] : [{ ...span(part), text: label }];
+  return label === part.label ? NOTHING : { edits: [{ ...span(part), text: label }], drops: [] };
 }
 
 const COMMENT_OPEN = '<!--';
@@ -137,45 +238,73 @@ const COMMENT_CLOSE = '-->';
  * it does in the note — and an `<img>` or `<a>` outside them held to the rules
  * any image or link is.
  */
-function htmlEdits(part: MarkdownSpan, markdown: string, dropped: DroppedContent): Edit[] {
+function htmlPlan(part: MarkdownSpan, markdown: string): Plan {
   const edits: Edit[] = [];
+  const drops: Drop[] = [];
   let at = part.start;
-  while (at < part.end) {
+  for (const comment of commentsIn(part, markdown)) {
+    const tags = tagPlan({ start: at, end: comment.start }, markdown);
+    edits.push(...tags.edits, { ...comment, text: '' });
+    drops.push(...tags.drops, ['comment', markdown.slice(comment.start, comment.end)]);
+    at = comment.end;
+  }
+  const tags = tagPlan({ start: at, end: part.end }, markdown);
+  return { edits: [...edits, ...tags.edits], drops: [...drops, ...tags.drops] };
+}
+
+/** Each comment in the span: to its `-->`, or to the span's end when it has none. */
+function commentsIn(part: MarkdownSpan, markdown: string): MarkdownSpan[] {
+  const found: MarkdownSpan[] = [];
+  let at = part.start;
+  for (;;) {
     const open = markdown.indexOf(COMMENT_OPEN, at);
-    const opens = open !== -1 && open < part.end;
-    edits.push(...tagEdits({ start: at, end: opens ? open : part.end }, markdown, dropped));
-    if (!opens) break;
+    if (open === -1 || open >= part.end) return found;
     const close = markdown.indexOf(COMMENT_CLOSE, open + COMMENT_OPEN.length);
     const end = close === -1 || close >= part.end ? part.end : close + COMMENT_CLOSE.length;
-    dropped.add('comment', markdown.slice(open, end));
-    edits.push({ start: open, end, text: '' });
+    found.push({ start: open, end });
     at = end;
   }
-  return edits;
+}
+
+function tagPlan(region: MarkdownSpan, markdown: string): Plan {
+  const tags = unreachableTags(markdown.slice(region.start, region.end));
+  return {
+    edits: tags.map((tag) => ({
+      start: region.start + tag.start,
+      end: region.start + tag.end,
+      text: tag.text,
+    })),
+    drops: tags.map((tag) => [tag.kind, tag.address] as const),
+  };
+}
+
+interface UnreachableTag extends MarkdownSpan {
+  /** What replaces it. */
+  readonly text: string;
+  readonly kind: 'image' | 'link';
+  readonly address: string;
 }
 
 const IMG_TAG = /<img\b[^>]*>/gi;
 const A_TAG = /<a\b[^>]*>/gi;
 
-function tagEdits(region: MarkdownSpan, markdown: string, dropped: DroppedContent): Edit[] {
-  const html = markdown.slice(region.start, region.end);
-  const edits: Edit[] = [];
+/** The `<img>` and `<a href>` in HTML that go where the page cannot follow, and what replaces each. */
+function unreachableTags(html: string): UnreachableTag[] {
+  const found: UnreachableTag[] = [];
   for (const tag of html.matchAll(IMG_TAG)) {
     const src = attributeOf(tag[0], 'src');
     if (src === null || ON_THE_WEB.test(src.value)) continue;
-    dropped.add('image', src.value);
-    const words = imageWords(attributeOf(tag[0], 'alt')?.value ?? '', src.value);
-    const start = region.start + tag.index;
-    edits.push({ start, end: start + tag[0].length, text: escapedForMarkdown(words) });
+    const text = escapedForMarkdown(imageWords(attributeOf(tag[0], 'alt')?.value ?? '', src.value));
+    const end = tag.index + tag[0].length;
+    found.push({ start: tag.index, end, text, kind: 'image', address: src.value });
   }
   for (const tag of html.matchAll(A_TAG)) {
     const href = attributeOf(tag[0], 'href');
     if (href === null || REACHABLE.test(href.value)) continue;
-    dropped.add('link', href.value);
-    const start = region.start + tag.index + href.start;
-    edits.push({ start, end: start + href.length, text: '' });
+    const start = tag.index + href.start;
+    found.push({ start, end: start + href.length, text: '', kind: 'link', address: href.value });
   }
-  return edits;
+  return found;
 }
 
 /** An attribute of a tag: its value, and where the whole attribute, the space before it included, is. */
@@ -194,15 +323,17 @@ function attributeOf(
  * A callout's marker, where a quote opens with one, as the bold name a
  * converted callout gets: `> [!warning] Mind the gap` is `> **Warning:** Mind the gap`.
  */
-function calloutOpening(part: MarkdownSpan, markdown: string, dropped: DroppedContent): Edit[] {
+function calloutPlan(part: MarkdownSpan, markdown: string): Plan {
   const newline = markdown.indexOf('\n', part.start);
   const lineEnd = newline === -1 || newline > part.end ? part.end : newline;
   const line = markdown.slice(part.start, lineEnd).trimEnd();
   const marker = parseCalloutMarker(line);
-  if (marker === null) return [];
-  if (marker.fold !== null) dropped.add('callout-fold', `[!${marker.kind}]${marker.fold}`);
+  if (marker === null) return NOTHING;
   const markerLength = line.length - (marker.title?.length ?? 0);
-  return [{ start: part.start, end: part.start + markerLength, text: calloutHeading(marker) }];
+  return {
+    edits: [{ start: part.start, end: part.start + markerLength, text: calloutHeading(marker) }],
+    drops: marker.fold === null ? [] : [['callout-fold', `[!${marker.kind}]${marker.fold}`]],
+  };
 }
 
 /** The name a callout opens with on the page. */
@@ -216,19 +347,95 @@ function calloutHeading(marker: CalloutMarker): string {
 }
 
 /**
+ * Whether a rewrite reads as the block it came from: the same blocks, at the
+ * same depths — leaving out definitions and HTML of nothing but comments,
+ * which a rewrite takes out on purpose — and nothing in it the page cannot
+ * follow or must not show.
+ */
+function readsTheSame(
+  before: { markdown: string; parts: readonly RawPart[] },
+  after: { markdown: string; parts: readonly RawPart[] },
+): boolean {
+  const same = shapeOf(before).join(' ') === shapeOf(after).join(' ');
+  return same && after.parts.every((part) => shareable(part, after.markdown));
+}
+
+function shapeOf({ markdown, parts }: { markdown: string; parts: readonly RawPart[] }): string[] {
+  return parts.flatMap((part) => {
+    if (part.kind !== 'block' || part.type === 'definition') return [];
+    if (part.type === 'html' && onlyComments(markdown.slice(part.start, part.end))) return [];
+    return [`${part.depth}:${part.type}`];
+  });
+}
+
+const onlyComments = (html: string): boolean =>
+  html.replace(/<!--[\s\S]*?(?:-->|$)/g, '').trim() === '';
+
+/** Whether a part of a rewrite may stand on the page as it is. */
+function shareable(part: RawPart, markdown: string): boolean {
+  switch (part.kind) {
+    case 'wiki-link':
+      return false;
+    case 'image':
+      return ON_THE_WEB.test(part.url);
+    case 'link':
+    case 'definition':
+      return REACHABLE.test(part.url);
+    case 'html': {
+      const html = markdown.slice(part.start, part.end);
+      return !html.includes(COMMENT_OPEN) && unreachableTags(html).length === 0;
+    }
+    default:
+      return true;
+  }
+}
+
+const firstLineOf = (markdown: string): string => markdown.trim().split(/\r?\n/)[0] ?? '';
+
+/**
+ * Markdown as its words alone: each line's indent taken off and every mark
+ * escaped once — any escape it held read first — so nothing in it is a block,
+ * a link or HTML on the page.
+ */
+function asWords(markdown: string): string {
+  return markdown
+    .split('\n')
+    .map((line) => escapedForMarkdown(unlinkable(unescaped(line.trimStart()))))
+    .join('\n');
+}
+
+/** Markdown's backslash escapes read: `\*` is `*`. */
+const unescaped = (text: string): string => text.replace(/\\([!-/:-@[-`{-~])/g, '$1');
+
+/**
  * Words dropped into markdown, escaped so they read as the words they are,
  * wherever they land: no emphasis, link, code or HTML in them, and nothing a
- * line could open with — a list's marker, a quote, a heading or its
- * underline — as remark escapes them in any other block.
+ * line could open with — a list's marker, a quote, a heading, its underline
+ * or a fence — as remark escapes them in any other block.
  */
 export function escapedForMarkdown(text: string): string {
-  return text
-    .replace(/[\\`*_[\]<>|~&#!]/g, '\\$&')
-    .replace(/^[-+=]/, '\\$&')
-    .replace(/^(\d{1,9})([.)])/, '$1\\$2');
+  const escaped = text.replace(/[\\`*_[\]<>|~&#!]/g, '\\$&');
+  const opener = lineOpenerAt(escaped);
+  return opener === null ? escaped : `${escaped.slice(0, opener)}\\${escaped.slice(opener)}`;
+}
+
+/**
+ * Where a backslash would stop `text` opening a block, were it to start a
+ * line: before a list's, a quote's or a heading's marker, an underline or a
+ * fence, or before the `.` or `)` of a number. Null when it would open none.
+ */
+function lineOpenerAt(text: string): number | null {
+  if (/^(?:[>=+-]|#{1,6}(?=[ \t]|$)|\*(?=[ \t]|$)|`{3}|~{3})/.test(text)) return 0;
+  const numbered = /^(\d{1,9})[.)](?=[ \t]|$)/.exec(text);
+  return numbered === null ? null : (numbered[1] ?? '').length;
 }
 
 const WORD_JOINER = '\u2060';
+/**
+ * Where GFM would start a link in words: after `www` or `http(s):`, or at an
+ * email's `@` — none where a word joiner already stands.
+ */
+const LINKABLE = /\b(?:www(?=\.)|https?:(?=\/\/))|(?<!\u2060)(?=@)/gi;
 
 /**
  * Words that cannot become a link: a word joiner, which no one sees, after
@@ -236,10 +443,28 @@ const WORD_JOINER = '\u2060';
  * otherwise link them on the page.
  */
 export function unlinkable(words: string): string {
-  return words
-    .replace(/\b(www)(?=\.)/gi, `$1${WORD_JOINER}`)
-    .replace(/\b(https?:)(?=\/\/)/gi, `$1${WORD_JOINER}`)
-    .replace(/@/g, `${WORD_JOINER}@`);
+  let written = '';
+  let cursor = 0;
+  for (const at of linkablePoints(words, [])) {
+    written += `${words.slice(cursor, at)}${WORD_JOINER}`;
+    cursor = at;
+  }
+  return written + words.slice(cursor);
+}
+
+/** Where a word joiner keeps words from becoming a link, outside the spans given. */
+function linkablePoints(words: string, outside: readonly MarkdownSpan[]): number[] {
+  return [...words.matchAll(LINKABLE)]
+    .map((found) => found.index + found[0].length)
+    .filter((at) => !outside.some((code) => code.start < at && at < code.end));
+}
+
+/** The code spans in markdown's words, roughly: a run of backticks to the next as long. */
+function codeSpansIn(text: string): MarkdownSpan[] {
+  return [...text.matchAll(/(`+)[\s\S]*?\1/g)].map((found) => ({
+    start: found.index,
+    end: found.index + found[0].length,
+  }));
 }
 
 function withEdits(markdown: string, edits: readonly Edit[]): string {
@@ -247,9 +472,6 @@ function withEdits(markdown: string, edits: readonly Edit[]): string {
   let cursor = 0;
   let written = '';
   for (const edit of ordered) {
-    if (edit.start < cursor) {
-      throw new Error(`Export edits overlap at ${edit.start}: the markdown reader's parts nest`);
-    }
     written += markdown.slice(cursor, edit.start) + edit.text;
     cursor = edit.end;
   }

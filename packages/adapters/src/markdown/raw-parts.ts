@@ -1,19 +1,15 @@
-import {
-  readWikiLink,
-  standaloneBlockAnchor,
-  type MarkdownSpan,
-  type RawPart,
-} from '@atlas/domain';
-import type { Definition, ListItem, Nodes, Parents, Root } from 'mdast';
-import { paragraphAnchor } from './block-anchors.ts';
+import { readWikiLink, type MarkdownSpan, type RawPart } from '@atlas/domain';
+import type { Definition, Nodes, Parents, Root } from 'mdast';
 import { parseBodyToMdast } from './markdown-blocks.ts';
 import './mdast-custom-nodes.ts';
 
 /*
  * What a raw block holds that an export rewrites (P32-07), read by the same
  * parser that found the block unmodelled: remark, with GFM and the wiki-link
- * syntax. The note's definitions are read after it, as they are in the note,
- * so a reference reads as it does there. Code is never descended into.
+ * syntax. The note's definitions are read after it, so a reference reads as
+ * it does there: by the first definition of its label in the note, which is
+ * the order they are given in. No id is a part: the editor reads none inside
+ * a block it does not model, only on the line after one.
  */
 
 /** The parts of `markdown`, with `definitions` in reach; none found in the definitions themselves. */
@@ -21,7 +17,7 @@ export function readRawParts(markdown: string, definitions: readonly string[]): 
   const text = [markdown, ...definitions].join('\n\n');
   const root = parseBodyToMdast(text);
   const parts: RawPart[] = [];
-  const reader = new PartReader(text, definitionsIn(root), parts);
+  const reader = new PartReader(text, definitionsIn(root, markdown.length), parts);
   reader.children(root);
   return parts
     .filter((part) => part.start < markdown.length)
@@ -37,19 +33,22 @@ class PartReader {
     private readonly parts: RawPart[],
   ) {}
 
-  children(parent: Parents): void {
-    for (const child of parent.children) this.node(child as Nodes, parent);
+  children(parent: Parents, depth = 0): void {
+    const blocks = HOLDS_BLOCKS.has(parent.type);
+    for (const child of parent.children) this.node(child as Nodes, blocks ? depth : null);
   }
 
-  private node(node: Nodes, parent: Parents): void {
+  /** A node, and its depth among blocks when it is one (null when it is inline). */
+  private node(node: Nodes, depth: number | null): void {
     const at = spanOf(node);
     // Code holds no nodes, only its text: nothing in it is ever a part.
     if (at === null) return;
-    this.read(node, at, parent);
-    if ('children' in node) this.children(node);
+    if (depth !== null) this.parts.push({ ...at, kind: 'block', type: node.type, depth });
+    this.read(node, at);
+    if ('children' in node) this.children(node, (depth ?? 0) + 1);
   }
 
-  private read(node: Nodes, at: MarkdownSpan, parent: Parents): void {
+  private read(node: Nodes, at: MarkdownSpan): void {
     const { parts } = this;
     switch (node.type) {
       case 'wikiLink': {
@@ -106,13 +105,6 @@ class PartReader {
       case 'blockquote':
         this.quoteOpening(node);
         return;
-      case 'paragraph':
-      case 'heading':
-        if (parent.type === 'root') this.idAtEnd(node);
-        return;
-      case 'listItem':
-        this.itemId(node);
-        return;
       default:
         return;
     }
@@ -136,28 +128,6 @@ class PartReader {
     const [first] = node.children;
     const at = first?.type === 'paragraph' ? spanOf(first) : null;
     if (at !== null) this.parts.push({ ...at, kind: 'quote-opening' });
-  }
-
-  /** The id ending a paragraph or a heading of the block's own, as the editor reads one. */
-  private idAtEnd(node: Extract<Nodes, { type: 'paragraph' | 'heading' }>): void {
-    const anchor = paragraphAnchor(node, this.text);
-    if (anchor !== null) {
-      this.parts.push({ start: anchor.start, end: anchor.end, kind: 'block-id', id: anchor.id });
-    }
-  }
-
-  /** A list item's id: ending its first line, or alone after a task's box (`- [ ] ^id`). */
-  private itemId(item: ListItem): void {
-    const [first] = item.children;
-    if (first?.type !== 'paragraph') return;
-    const at = spanOf(first);
-    const task = item.checked !== null && item.checked !== undefined;
-    const alone = at === null ? null : standaloneBlockAnchor(this.text.slice(at.start, at.end));
-    if (task && at !== null && alone !== null) {
-      this.parts.push({ ...at, kind: 'block-id', id: alone });
-      return;
-    }
-    this.idAtEnd(first);
   }
 }
 
@@ -201,15 +171,38 @@ function strayFootnotes(source: string, offset: number): RawPart[] {
   );
 }
 
-function definitionsIn(root: Root): Map<string, Resolved> {
-  const found = new Map<string, Resolved>();
+/** The nodes whose children are blocks, rather than words. */
+const HOLDS_BLOCKS: ReadonlySet<string> = new Set([
+  'root',
+  'blockquote',
+  'list',
+  'listItem',
+  'footnoteDefinition',
+  'table',
+  'tableRow',
+]);
+
+/**
+ * Where each label goes, by the first definition of it in the note: those
+ * given in reach, which are the note's own in its order, before any in the
+ * block itself (which are among them whenever the note's are given).
+ */
+function definitionsIn(root: Root, blockLength: number): Map<string, Resolved> {
+  const given: Definition[] = [];
+  const own: Definition[] = [];
   const visit = (node: Nodes) => {
-    if (node.type === 'definition' && !found.has(node.identifier)) {
-      found.set(node.identifier, { url: node.url, title: node.title ?? null });
+    if (node.type === 'definition') {
+      ((node.position?.start.offset ?? 0) >= blockLength ? given : own).push(node);
     } else if ('children' in node) {
       for (const child of node.children) visit(child as Nodes);
     }
   };
   visit(root);
+  const found = new Map<string, Resolved>();
+  for (const node of [...given, ...own]) {
+    if (!found.has(node.identifier)) {
+      found.set(node.identifier, { url: node.url, title: node.title ?? null });
+    }
+  }
   return found;
 }

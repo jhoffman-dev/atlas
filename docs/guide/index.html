@@ -1156,6 +1156,7 @@ do: archive</pre>
         <li>block ids (<code>^abc123</code>), comments (<code>&lt;!-- … --&gt;</code>) — one you never closed hides the rest of its block, on the page as in the note — and whether a callout was folded.</li>
       </ul>
       <p>A footnote in an embed is renamed after the note it came from, like <code>[^Sources-1]</code>, so it can never be mistaken for one of this note's own.</p>
+      <p>Some blocks — one with a footnote, raw HTML or a comment in it — are tidied as written. Atlas then reads the tidied block again, and if it would come out differently on the page (HTML turned into a paragraph, say) or still points into your vault, that block goes across as plain words instead, and is listed under <b>formatting</b> by its first line, so you know which to fix up by hand.</p>
       <p>Only notes outside <code>.atlas</code> and hidden folders are read for a title or an embed, so nothing from Atlas's own settings ever reaches the page.</p>
       <div class="note"><b>Claude inside Atlas needs none of this.</b> The <a href="#claude">chat pane</a> (<kbd>⌘J</kbd>) uses the same read tools in the app itself, with the Local API off, and proposes changes for you to accept rather than writing them.</div>
       <div class="note"><b>Don't see the new tools?</b> Rebuild the MCP server with <code>pnpm --filter @atlas/mcp build</code>, then restart it — in Claude Code start a new session; in Claude Desktop quit and reopen it.</div>

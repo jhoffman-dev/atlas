@@ -44,10 +44,13 @@ export type RawPart = MarkdownSpan &
     | { readonly kind: 'footnote-label'; readonly label: string; readonly defined: boolean }
     /** HTML, inline or a block of it, comments included. */
     | { readonly kind: 'html' }
-    /** A `^id` the reader takes as a block's id, from the space before it. */
-    | { readonly kind: 'block-id'; readonly id: string }
     /** The first line of a quote's text, where a callout's marker would be. */
     | { readonly kind: 'quote-opening' }
+    /**
+     * A block — a paragraph, a list, an item, a quote, HTML, a definition —
+     * by its markdown type, and how deep it sits: what the markdown is shaped as.
+     */
+    | { readonly kind: 'block'; readonly type: string; readonly depth: number }
   );
 
 /**

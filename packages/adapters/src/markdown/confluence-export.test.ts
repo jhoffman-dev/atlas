@@ -203,7 +203,7 @@ describe('a note exported for Confluence', () => {
         '',
         '## Heading',
         '',
-        'Text with <kbd>x</kbd>',
+        'Text with <kbd>x</kbd> ^r1',
         '',
       ].join('\n'),
     );
@@ -220,7 +220,7 @@ describe('a note exported for Confluence', () => {
         ],
       },
       { kind: 'embed', items: ['![[diagram.png]]'] },
-      { kind: 'block-id', items: ['h1', 'r1'] },
+      { kind: 'block-id', items: ['h1'] },
       { kind: 'comment', items: ['<!-- alone -->'] },
     ]);
   });

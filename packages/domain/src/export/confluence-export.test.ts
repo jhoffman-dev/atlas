@@ -41,7 +41,7 @@ const found = (markdown: string, pattern: RegExp) =>
 const readRaw: RawPartsReader = (markdown, definitions) => {
   const defined = new Set(
     [markdown, ...definitions].flatMap((written) =>
-      found(written, /^\[\^([^\]]+)\]:/gm).map(({ match }) => match[1]),
+      found(written, /^\[\^([^\]]+)\]:/gm).map(({ match }) => match[1]?.toLowerCase()),
     ),
   );
   return [
@@ -68,7 +68,7 @@ const readRaw: RawPartsReader = (markdown, definitions) => {
         end: start + 2 + label.length,
         kind: 'footnote-label',
         label,
-        defined: defined.has(label),
+        defined: defined.has(label.toLowerCase()),
       };
     }),
   ];
@@ -460,6 +460,14 @@ describe('footnotes on one page', () => {
     expect(page.at(-1)).toEqual(raw('[^Q3-Plans-1]: C.'));
   });
 
+  it('label a reference and its definition alike, as the definition spells it, when only their case differs', () => {
+    const shown = { '![[Sources#Cited]]': fromSources(raw('Theirs.[^Note]'), raw('[^note]: C.')) };
+    expect(blocksOf(doc(cited), { shown }).slice(-2)).toEqual([
+      raw('Theirs.[^Sources-note]'),
+      raw('[^Sources-note]: C.'),
+    ]);
+  });
+
   it("leave a shown block's reference to a footnote its note does not hold as text", () => {
     const shown = { '![[Sources#Cited]]': fromSources(raw('Theirs.[^1]')) };
     const page = blocksOf(doc(raw('Ours.[^1]'), raw('[^1]: A.'), cited), { shown });
@@ -546,6 +554,15 @@ describe("a link's words", () => {
     expect(
       blocksOf(doc(paragraph(link('Plans', { alias: 'www.example.com' }), link('x@example.com')))),
     ).toEqual([paragraph(text('www\u2060.example.com'), text('x\u2060@example.com'))]);
+  });
+
+  it('nor do the words of a link left off, outside code', () => {
+    const local = { type: 'link', attrs: { href: 'People/Mara.md', title: null } };
+    expect(
+      blocksOf(
+        doc(paragraph(text('mara@example.com', [local]), text('a@b', [local, { type: 'code' }]))),
+      ),
+    ).toEqual([paragraph(text('mara\u2060@example.com'), text('a@b', [{ type: 'code' }]))]);
   });
 
   it('nor does the title of a note a block is shown from', () => {

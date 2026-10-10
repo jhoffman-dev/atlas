@@ -31,7 +31,7 @@ export class PageScopes {
   /** The scope of the note being exported: its footnotes keep their labels. */
   note(nodes: readonly EditorNode[]): ExportScope {
     const definitions = this.definitionsIn(nodes);
-    for (const part of this.labelsIn(nodes)) this.taken.add(part.label);
+    for (const part of this.labelsIn(nodes)) this.taken.add(labelKey(part.label));
     return { definitions, footnoteLabel: (label) => label, escapeStrayFootnotes: false };
   }
 
@@ -42,19 +42,17 @@ export class PageScopes {
    */
   shown(nodes: readonly EditorNode[], title: string): ExportScope {
     const definitions = this.definitionsIn(nodes);
-    const labels = [
-      ...new Set(
-        this.labelsIn(nodes)
-          .filter((part) => part.defined)
-          .map((part) => part.label),
-      ),
-    ];
-    const prefix = this.freePrefix(slugOf(title), labels);
-    const renamed = new Map(labels.map((label) => [label, `${prefix}-${label}`]));
-    for (const label of renamed.values()) this.taken.add(label);
+    const labels = new Map<string, string>();
+    for (const part of this.labelsIn(nodes)) {
+      const key = labelKey(part.label);
+      if (part.defined && !labels.has(key)) labels.set(key, part.label);
+    }
+    const prefix = this.freePrefix(slugOf(title), [...labels.values()]);
+    const renamed = new Map([...labels].map(([key, label]) => [key, `${prefix}-${label}`]));
+    for (const label of renamed.values()) this.taken.add(labelKey(label));
     return {
       definitions,
-      footnoteLabel: (label) => renamed.get(label) ?? label,
+      footnoteLabel: (label) => renamed.get(labelKey(label)) ?? label,
       escapeStrayFootnotes: true,
     };
   }
@@ -62,7 +60,7 @@ export class PageScopes {
   private freePrefix(base: string, labels: readonly string[]): string {
     for (let count = 1; ; count += 1) {
       const prefix = count === 1 ? base : `${base}-${count}`;
-      if (labels.every((label) => !this.taken.has(`${prefix}-${label}`))) return prefix;
+      if (labels.every((label) => !this.taken.has(labelKey(`${prefix}-${label}`)))) return prefix;
     }
   }
 
@@ -84,6 +82,12 @@ export class PageScopes {
     );
   }
 }
+
+/**
+ * A label as markdown matches it: case folded and its runs of space made one,
+ * so `[^Sources-1]` and `[^sources-1]` are the same footnote.
+ */
+const labelKey = (label: string): string => label.trim().replace(/\s+/g, ' ').toLowerCase();
 
 function rawBlocksIn(nodes: readonly EditorNode[]): string[] {
   return nodes.flatMap((node) =>

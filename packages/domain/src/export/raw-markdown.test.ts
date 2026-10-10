@@ -28,6 +28,7 @@ const exported = (
     wordsOf,
     footnoteLabel: (label) => label,
     escapeStrayFootnotes: false,
+    reread: () => [],
     ...context,
     dropped,
   });
@@ -206,14 +207,6 @@ describe('raw markdown, exported', () => {
     });
   });
 
-  it('leaves out an id the reader found, and lists it', () => {
-    const markdown = 'Text <b>x</b> ^r1';
-    expect(exported(markdown, [{ ...at(markdown, ' ^r1'), kind: 'block-id', id: 'r1' }])).toEqual({
-      markdown: 'Text <b>x</b>',
-      dropped: [{ kind: 'block-id', items: ['r1'] }],
-    });
-  });
-
   it("opens a callout with its name in bold, then its title, at each quote's opening", () => {
     const markdown = '> [!warning]- Mind the gap\r\n> > [!tip]\n> > Inner.\n> Body.[^1]';
     const opening = (piece: string): RawPart => ({ ...at(markdown, piece), kind: 'quote-opening' });
@@ -231,10 +224,195 @@ describe('raw markdown, exported', () => {
     expect(exported(markdown, [opening]).markdown).toBe(markdown);
   });
 
-  it('refuses parts that overlap, rather than write over one', () => {
-    const markdown = '[[a]]';
-    const link = wikiLink(markdown, '[[a]]', { target: 'a' });
-    expect(() => exported(markdown, [link, { ...link, start: 1 }])).toThrow(/overlap/);
+  it('keeps the outer of two parts that would rewrite the same bytes, and lists only what it rewrote', () => {
+    const markdown = '> [!note] Title';
+    const opening: RawPart = { ...at(markdown, '[!note] Title'), kind: 'quote-opening' };
+    const reference: RawPart = {
+      ...at(markdown, '[!note]'),
+      kind: 'link',
+      url: 'Docs/Note.md',
+      title: null,
+      reference: true,
+      words: at(markdown, '!note'),
+    };
+    expect(exported(markdown, [reference, opening])).toEqual({
+      markdown: '> **Note:** Title',
+      dropped: [],
+    });
+  });
+
+  it('takes an insertion that falls where another part ends', () => {
+    const markdown = '[[a]][^9]';
+    const stray: RawPart = {
+      ...at(markdown, '9'),
+      kind: 'footnote-label',
+      label: '9',
+      defined: false,
+    };
+    expect(
+      exported(markdown, [wikiLink(markdown, '[[a]]', { target: 'a' }), stray], {
+        escapeStrayFootnotes: true,
+      }).markdown,
+    ).toBe('A\\[^9]');
+  });
+
+  it("keeps a dropped link's words from opening their line, and from becoming a link", () => {
+    const markdown =
+      'Intro\n[1. Plan](a.md) and\n- [# x](b.md)\nAsk [mara@example.com `a@b`](c.md)\n' +
+      'Mid [- y](d.md)\n[**b** c](e.md)\n[1.5 x](f.md)\n[#tag y](g.md)';
+    const link = (piece: string, words: string): RawPart => ({
+      ...at(markdown, piece),
+      kind: 'link',
+      url: piece.slice(piece.indexOf('](') + 2, -1),
+      title: null,
+      reference: false,
+      words: at(markdown, words),
+    });
+    expect(
+      exported(markdown, [
+        link('[1. Plan](a.md)', '1. Plan'),
+        link('[# x](b.md)', '# x'),
+        link('[mara@example.com `a@b`](c.md)', 'mara@example.com `a@b`'),
+        link('[- y](d.md)', '- y'),
+        link('[**b** c](e.md)', '**b** c'),
+        link('[1.5 x](f.md)', '1.5 x'),
+        link('[#tag y](g.md)', '#tag y'),
+      ]).markdown,
+    ).toBe(
+      'Intro\n1\\. Plan and\n- \\# x\nAsk mara\u2060@example.com `a@b`\nMid - y\n**b** c\n1.5 x\n#tag y',
+    );
+  });
+
+  it('leaves words inside a dropped link to the parts read in them', () => {
+    const markdown = '[![m@x](https://example.com/m.png) @home](Docs/Map.md)';
+    const image: RawPart = {
+      ...at(markdown, '![m@x](https://example.com/m.png)'),
+      kind: 'image',
+      url: 'https://example.com/m.png',
+      alt: 'm@x',
+      title: null,
+      reference: false,
+    };
+    const link: RawPart = {
+      ...at(markdown, markdown),
+      kind: 'link',
+      url: 'Docs/Map.md',
+      title: null,
+      reference: false,
+      words: at(markdown, '![m@x](https://example.com/m.png) @home'),
+    };
+    expect(exported(markdown, [link, image]).markdown).toBe(
+      '![m@x](https://example.com/m.png) \u2060@home',
+    );
+  });
+});
+
+describe('a rewrite read again', () => {
+  const block = (markdown: string, type: string, depth = 0): RawPart => ({
+    start: 0,
+    end: markdown.length,
+    kind: 'block',
+    type,
+    depth,
+  });
+  const html = (markdown: string, piece: string): RawPart => ({
+    ...at(markdown, piece),
+    kind: 'html',
+  });
+
+  it('is kept when it has the same blocks and goes nowhere the page cannot follow', () => {
+    const markdown = 'Text <b>x</b> <!-- c -->';
+    const parts = [block(markdown, 'paragraph'), html(markdown, '<!-- c -->')];
+    const reread = (written: string) => [block(written, 'paragraph')];
+    expect(exported(markdown, parts, { reread })).toEqual({
+      markdown: 'Text <b>x</b> ',
+      dropped: [{ kind: 'comment', items: ['<!-- c -->'] }],
+    });
+  });
+
+  it('is shared as its words alone, and listed, when it reads as another kind of block', () => {
+    const markdown = '<img src="a.png">\n  See [spec](Docs/Spec.md) at www.example.com.';
+    const parts = [block(markdown, 'html'), html(markdown, markdown)];
+    const reread = (written: string) => [block(written, 'paragraph')];
+    expect(exported(markdown, parts, { reread })).toEqual({
+      markdown: '\\[Image: a.png\\]\nSee \\[spec\\](Docs/Spec.md) at www\u2060.example.com.',
+      dropped: [
+        { kind: 'image', items: ['a.png'] },
+        { kind: 'formatting', items: ['<img src="a.png">'] },
+      ],
+    });
+  });
+
+  it('is shared as its words alone when it would still link where the page cannot follow', () => {
+    const markdown = 'See it[^1]';
+    const reread = (written: string): RawPart[] => [
+      {
+        ...at(written, written),
+        kind: 'link',
+        url: 'Docs/Spec.md',
+        title: null,
+        reference: false,
+        words: at(written, 'it'),
+      },
+    ];
+    expect(exported(markdown, [], { reread }).dropped).toEqual([
+      { kind: 'formatting', items: ['See it[^1]'] },
+    ]);
+  });
+
+  it.each([
+    [
+      'a wiki link',
+      { kind: 'wiki-link', link: { target: 'a', heading: null, alias: null, embed: false } },
+    ],
+    [
+      'an image in the vault',
+      { kind: 'image', url: 'a.png', alt: '', title: null, reference: false },
+    ],
+    ['a definition of a path', { kind: 'definition', url: 'Docs/Spec.md' }],
+  ] as const)('is shared as its words alone when it still holds %s', (_label, part) => {
+    const reread = (written: string): RawPart[] => [
+      { ...at(written, written), ...part } as RawPart,
+    ];
+    expect(exported('x', [], { reread }).dropped).toEqual([{ kind: 'formatting', items: ['x'] }]);
+  });
+
+  it('is shared as its words alone when its HTML still holds a comment or goes nowhere', () => {
+    for (const written of ['<!-- c -->', '<a href="Docs/x.md">x</a>', '<img src="a.png">']) {
+      const reread = (text: string): RawPart[] => [{ ...at(text, text), kind: 'html' }];
+      expect(exported(written, [], { reread }).dropped).toContainEqual({
+        kind: 'formatting',
+        items: [written],
+      });
+    }
+  });
+
+  it('leaves out definitions and comment-only HTML when it compares blocks', () => {
+    const markdown = 'Text.\n\n[d]: https://example.com\n<!-- c -->';
+    const parts: RawPart[] = [
+      block(markdown, 'paragraph'),
+      { ...at(markdown, '[d]: https://example.com'), kind: 'block', type: 'definition', depth: 0 },
+      {
+        ...at(markdown, '[d]: https://example.com'),
+        kind: 'definition',
+        url: 'https://example.com',
+      },
+      { ...at(markdown, '<!-- c -->'), kind: 'block', type: 'html', depth: 0 },
+      html(markdown, '<!-- c -->'),
+    ];
+    const reread = (written: string) => [block(written, 'paragraph')];
+    expect(exported(markdown, parts, { reread }).dropped).toEqual([
+      { kind: 'comment', items: ['<!-- c -->'] },
+    ]);
+  });
+
+  it('compares depth too', () => {
+    const markdown = '- a';
+    const parts = [block(markdown, 'list'), block(markdown, 'listItem', 1)];
+    const reread = (written: string) => [block(written, 'list'), block(written, 'listItem', 2)];
+    expect(exported(markdown, parts, { reread }).dropped).toEqual([
+      { kind: 'formatting', items: ['- a'] },
+    ]);
   });
 });
 
@@ -262,5 +440,6 @@ describe('unlinkable', () => {
     expect(unlinkable('See https://example.com')).toBe('See https:\u2060//example.com');
     expect(unlinkable('mara@example.com')).toBe('mara\u2060@example.com');
     expect(unlinkable('Summer plans › Packing')).toBe('Summer plans › Packing');
+    expect(unlinkable(unlinkable('mara@www.example.com'))).toBe('mara\u2060@www\u2060.example.com');
   });
 });

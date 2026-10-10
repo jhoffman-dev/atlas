@@ -141,7 +141,9 @@ export const exportNote = defineTool({
     'callout is a quote opening with its name in bold; tasks, tables, code and web links stay. ' +
     'Properties, block ids, comments and images in the vault are left out, and "dropped" lists ' +
     'everything left out, by kind: property, link, embed, missing-embed, image, block-id, ' +
-    'comment, callout-fold. Atlas writes nothing: to share the note, create the page with the ' +
+    'comment, callout-fold, formatting (a block shared as plain words, named by its first ' +
+    'line, because its rewrite would have read differently). Atlas writes nothing: to share ' +
+    'the note, create the page with the ' +
     'Atlassian connector — "title" as its title, "markdown" as its body, in markdown format, ' +
     'passed verbatim: add, reword or reformat nothing, or "dropped" is no longer the whole ' +
     'story — and tell the user what "dropped" lists, so they can attach an image or fill a gap.',

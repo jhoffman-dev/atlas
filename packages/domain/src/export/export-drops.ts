@@ -20,6 +20,12 @@ export const EXPORT_DROP_KINDS = [
   'comment',
   /** A callout's fold, `[!faq]-`: a quote on the page is always open. */
   'callout-fold',
+  /**
+   * The formatting of a block whose rewrite would have read as something
+   * else — another kind of block, or a link the page cannot follow — and so
+   * is shared as its words alone. Named by its first line.
+   */
+  'formatting',
 ] as const;
 
 export type ExportDropKind = (typeof EXPORT_DROP_KINDS)[number];

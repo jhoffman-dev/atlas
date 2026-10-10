@@ -231,6 +231,7 @@ class Exporter {
       wordsOf: (link) => this.wordsOf(link),
       footnoteLabel: scope.footnoteLabel,
       escapeStrayFootnotes: scope.escapeStrayFootnotes,
+      reread: (written) => this.context.sources.readRaw(written, scope.definitions),
       dropped: this.dropped,
     });
     return { ...node, attrs: { ...node.attrs, markdown: exported } };
@@ -249,9 +250,16 @@ class Exporter {
     return text(imageWords(alt, src), marks);
   }
 
-  /** Text whose link goes somewhere the page cannot follow keeps its words and loses the link. */
+  /**
+   * Text whose link goes somewhere the page cannot follow keeps its words and
+   * loses the link — words that cannot become a link of their own there.
+   */
   private withReachableLinks(node: EditorNode): EditorNode {
-    return withMarks(node, this.reachableMarks(node.marks ?? []));
+    const marks = node.marks ?? [];
+    const kept = this.reachableMarks(marks);
+    if (kept.length === marks.length) return node;
+    const code = kept.some((mark) => mark.type === 'code');
+    return text(code ? (node.text ?? '') : unlinkable(node.text ?? ''), kept);
   }
 
   /** The marks, less a link the page cannot follow, which is listed. */

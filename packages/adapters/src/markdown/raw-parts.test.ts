@@ -2,12 +2,17 @@ import type { RawPart } from '@atlas/domain';
 import { describe, expect, it } from 'vitest';
 import { readRawParts } from './raw-parts.ts';
 
-/** Each part as the markdown it covers, with what it says beyond where it is. */
+/** Each part but the blocks, as the markdown it covers, with what it says beyond where it is. */
 const read = (markdown: string, definitions: string[] = []) =>
-  readRawParts(markdown, definitions).map(({ start, end, ...part }) => ({
-    ...part,
-    source: markdown.slice(start, end),
-  }));
+  readRawParts(markdown, definitions)
+    .filter((part) => part.kind !== 'block')
+    .map(({ start, end, ...part }) => ({ ...part, source: markdown.slice(start, end) }));
+
+/** The blocks the markdown is shaped as: each one's type, at its depth. */
+const shapeOf = (markdown: string) =>
+  readRawParts(markdown, []).flatMap((part) =>
+    part.kind === 'block' ? [`${'  '.repeat(part.depth)}${part.type}`] : [],
+  );
 
 const ofKind = <Kind extends RawPart['kind']>(
   parts: ReturnType<typeof read>,
@@ -34,7 +39,9 @@ describe('readRawParts', () => {
         source: '![map](a.png "M")',
       },
     ]);
-    const [link] = readRawParts('[*the* spec](Docs/Spec.md)', []);
+    const link = readRawParts('[*the* spec](Docs/Spec.md)', []).find(
+      (part) => part.kind === 'link',
+    );
     expect(link).toMatchObject({
       kind: 'link',
       url: 'Docs/Spec.md',
@@ -100,18 +107,42 @@ describe('readRawParts', () => {
     expect(comment).toMatchObject({ start: 0, end: '<!-- draft'.length });
   });
 
-  it('finds an id where the editor reads one: ending a paragraph, a heading or a list item, or after a box', () => {
-    const ids = (markdown: string) => ofKind(read(markdown), 'block-id').map((part) => part.source);
-    expect(ids('Text <b>x</b> ^r1')).toEqual([' ^r1']);
-    expect(ids('## Heading <b>x</b> ^h1')).toEqual([' ^h1']);
-    expect(ids('- One <b>x</b> ^a1\n  - Two ^b2\n- [ ] ^c3')).toEqual([' ^a1', ' ^b2', '^c3']);
+  it('finds no id: the editor reads none inside a block it does not model', () => {
+    const ids = (markdown: string) =>
+      readRawParts(markdown, []).filter((part) => (part.kind as string) === 'block-id');
+    expect(ids('Text <b>x</b> ^r1')).toEqual([]);
+    expect(ids('## Heading <b>x</b> ^h1')).toEqual([]);
+    expect(ids('- One <b>x</b> ^a1\n- [ ] ^c3')).toEqual([]);
   });
 
-  it('finds no id mid-paragraph, in code, or inside a quote, where the editor reads none', () => {
-    const ids = (markdown: string) => ofKind(read(markdown), 'block-id');
-    expect(ids('One ^a1\ntwo <b>x</b>')).toEqual([]);
-    expect(ids('Start `span\nend ^c1` <b>x</b>')).toEqual([]);
-    expect(ids('> Quoted <b>x</b> ^q1')).toEqual([]);
+  it('reads the blocks the markdown is shaped as, at their depths, and only its own', () => {
+    expect(shapeOf('> - a <b>x</b>\n>   - b\n\n<div>\nc\n</div>')).toEqual([
+      'blockquote',
+      '  list',
+      '    listItem',
+      '      paragraph',
+      '      list',
+      '        listItem',
+      '          paragraph',
+      'html',
+    ]);
+    expect(readRawParts('Text <b>x</b>', ['[d]: https://example.com'])).not.toContainEqual(
+      expect.objectContaining({ kind: 'block', type: 'definition' }),
+    );
+  });
+
+  it("reads a reference by the first definition of its label in the note, the block's own after those in reach", () => {
+    const urlOf = (markdown: string, definitions: string[]) =>
+      readRawParts(markdown, definitions).find((part) => part.kind === 'link');
+    expect(
+      urlOf('> [c][dup]\n>\n> [dup]: https://example.com/2', [
+        '[dup]: https://example.com/1',
+        '[dup]: https://example.com/2',
+      ]),
+    ).toMatchObject({ url: 'https://example.com/1' });
+    expect(urlOf('[c][dup]\n\n[dup]: https://example.com/2', [])).toMatchObject({
+      url: 'https://example.com/2',
+    });
   });
 
   it("finds where each quote's text opens, nested ones too", () => {
