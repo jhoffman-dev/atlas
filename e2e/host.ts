@@ -461,6 +461,27 @@ export async function installHost(
   /** Files whose writes wait, and what lets them go. */
   const held = new Map<string, Promise<void>>();
   const countWrite = (relative: string) => writes.set(relative, (writes.get(relative) ?? 0) + 1);
+  /** The last text write, which the next one waits for. */
+  let textWriteTail: Promise<unknown> = Promise.resolve();
+  /**
+   * Runs one text write at a time, whatever file it names. The host's
+   * `write_text_file` is a synchronous command on the main thread, so it never
+   * interleaves with another: the second of two writes to a note — under any
+   * spelling or link that reaches the same file — sees what the first wrote,
+   * and its time check refuses it.
+   */
+  const oneTextWriteAtATime = <T>(write: () => Promise<T>): Promise<T> => {
+    const turn = textWriteTail.then(write);
+    // The next write waits for this one to finish, not to succeed; a refusal
+    // still reaches this write's caller through `turn`.
+    textWriteTail = turn.then(
+      () => undefined,
+      () => undefined,
+    );
+    return turn;
+  };
+  /** Numbers each text write's temporary, so no two writes ever share one. */
+  let temporaries = 0;
   /** The fake Trash: a folder beside the vault, never inside it. */
   const trashRoot = `${vault.root}.trash`;
   const trashed: string[] = [];
@@ -1085,19 +1106,22 @@ export async function installHost(
         await held.get(path);
         const file = containedPath(writeRoot(args), path);
         const { rename, writeFile, stat: statFile } = await import('node:fs/promises');
-        if (expectedModified !== null) {
-          const info = await statFile(file);
-          if (Math.floor(info.mtimeMs) !== expectedModified) {
-            throw new Error('the note changed on disk since it was opened');
+        return oneTextWriteAtATime(async () => {
+          if (expectedModified !== null) {
+            const info = await statFile(file);
+            if (Math.floor(info.mtimeMs) !== expectedModified) {
+              throw new Error('the note changed on disk since it was opened');
+            }
           }
-        }
-        // Beside the file, then over it, as the Rust host does: a read while
-        // the write is under way sees the old file or the new one, never an
-        // empty one — which would read as a type file with no type in it.
-        const temporary = join(dirname(file), `.${basename(file)}.atlas-tmp`);
-        await writeFile(temporary, contents, 'utf8');
-        await rename(temporary, file);
-        return Math.floor((await statFile(file)).mtimeMs);
+          // Beside the file, then over it, as the Rust host does: a read while
+          // the write is under way sees the old file or the new one, never an
+          // empty one — which would read as a type file with no type in it.
+          // Its own temporary per write, so no other write can land in it.
+          const temporary = join(dirname(file), `.${basename(file)}.atlas-tmp-${++temporaries}`);
+          await writeFile(temporary, contents, 'utf8');
+          await rename(temporary, file);
+          return Math.floor((await statFile(file)).mtimeMs);
+        });
       }
       case 'write_binary_file': {
         // As `vault_files.rs` does: offset 0 creates and never overwrites; past
