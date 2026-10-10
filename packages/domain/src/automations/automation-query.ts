@@ -30,12 +30,16 @@ export const MAX_ACTIONS_PER_RUN = 500;
  * can be left out before the cap is counted, rather than taking the places of
  * the ones still to do. An archive rule never asks for archived notes, even
  * with `INCLUDE ARCHIVED`: it cannot archive them again.
+ *
+ * A rule a note set off asks only `among` the notes that did (P29-01): its
+ * query is the "where" those notes must meet.
  */
 export function automationQuery({
   query,
   today,
   olderThanDays,
   action,
+  among,
 }: {
   query: AtlasQuery;
   /** `YYYY-MM-DD`, from the injected clock. */
@@ -43,12 +47,15 @@ export function automationQuery({
   /** Only notes not modified in this many days; null for any. */
   olderThanDays: number | null;
   action: AutomationAction;
+  /** Only these notes, by path; left out for every note the query matches. */
+  among?: readonly string[];
 }): AtlasQuery {
   const pinned = query.where === null ? null : pinExpression(query.where, today);
   const age = olderThanDays === null ? null : modifiedBefore(addDays(today, -olderThanDays)!);
+  const only = among === undefined ? null : pathIsOneOf(among);
   return {
     ...query,
-    where: both(pinned, age),
+    where: both(both(pinned, age), only),
     includeArchived: query.includeArchived && action.kind !== 'archive',
     limit: query.limit ?? MAX_QUERY_LIMIT,
   };
@@ -116,6 +123,19 @@ function modifiedBefore(day: string): Expression {
     value: { kind: 'text', text: day, span: NO_SPAN },
     span: NO_SPAN,
   };
+}
+
+/** `path = a OR path = b …`; for no paths, a condition no note meets. */
+function pathIsOneOf(paths: readonly string[]): Expression {
+  const field = { via: null, name: { text: 'path', span: NO_SPAN }, span: NO_SPAN };
+  const operands = (paths.length === 0 ? [''] : paths).map((path): Expression => ({
+    kind: 'compare',
+    field,
+    op: '=',
+    value: { kind: 'text', text: path, span: NO_SPAN },
+    span: NO_SPAN,
+  }));
+  return operands.length === 1 ? operands[0]! : { kind: 'or', operands, span: NO_SPAN };
 }
 
 function both(first: Expression | null, second: Expression | null): Expression | null {

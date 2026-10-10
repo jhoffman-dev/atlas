@@ -116,11 +116,19 @@ async function synced(notes: Record<string, string> = {}) {
   return { vault, ...syncer };
 }
 
-const change = (kind: NoteChange['kind'], path: string, text: string, type: string | null) => ({
+const change = (
+  kind: NoteChange['kind'],
+  path: string,
+  text: string,
+  type: string | null,
+  /** A changed note's text before, which the feed says the digest of (P29-01). */
+  was?: string,
+) => ({
   kind,
   path,
   type,
   digest: digestOf(text),
+  ...(was !== undefined && { before: digestOf(was) }),
 });
 
 const editors: OpenEditorsPort = {
@@ -147,7 +155,7 @@ describe('the index syncer reports what changed (P28-03)', () => {
     vault.write(KICKOFF, edited);
     await sync();
 
-    expect(news()).toEqual([change('changed', KICKOFF, edited, 'meeting')]);
+    expect(news()).toEqual([change('changed', KICKOFF, edited, 'meeting', KICKOFF_TEXT)]);
   });
 
   it('reports a deleted note as removed once, as it last was', async () => {
@@ -185,7 +193,7 @@ describe('the index syncer reports what changed (P28-03)', () => {
     vault.write('Idea.md', 'a bigger spark');
     await sync(true);
 
-    expect(news()).toEqual([change('changed', 'Idea.md', 'a bigger spark', null)]);
+    expect(news()).toEqual([change('changed', 'Idea.md', 'a bigger spark', null, 'a spark')]);
   });
 
   it('reports nothing when the first sync since opening is a rebuild', async () => {

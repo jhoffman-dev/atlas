@@ -97,6 +97,71 @@ describe('parseRunLog', () => {
     expect(parseRunLog(newLogText('Tidy', entries))).toEqual(entries);
   });
 
+  it('reads back the versions a note-triggered run handled and wrote', () => {
+    const noted: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [
+        {
+          kind: 'set',
+          path: p('Inbox/Meetings/Standup "daily".md'),
+          key: 'status',
+          before: { absent: true },
+          after: { value: 'new' },
+        },
+      ],
+      left: [],
+      capped: false,
+      versions: [
+        { path: p('Inbox/Meetings/Standup "daily".md'), digest: '1a2b3c4d', wrote: false },
+        { path: p('Inbox/Meetings/Standup "daily".md'), digest: '5e6f7a8b', wrote: true },
+      ],
+    };
+    const text = newLogText('Mark', [noted]);
+    expect(text).toContain('## 2026-10-08 09:00:00 · Ran when a note appeared or changed');
+    expect(text).toContain(
+      '- triggered by `"Inbox/Meetings/Standup \\"daily\\".md"` at `"1a2b3c4d"`',
+    );
+    expect(text).toContain('- wrote `"Inbox/Meetings/Standup \\"daily\\".md"` at `"5e6f7a8b"`');
+    expect(parseRunLog(text)).toEqual([noted]);
+  });
+
+  it('reads back the notes a run says went', () => {
+    const forgot: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      went: [p('Inbox/Meetings/Standup.md')],
+    };
+    const text = newLogText('Mark', [forgot]);
+    expect(text).toContain('- went `"Inbox/Meetings/Standup.md"`');
+    expect(parseRunLog(text)).toEqual([forgot]);
+    const edited = text.replace('`"Inbox/Meetings/Standup.md"`', '`{broken`');
+    expect(parseRunLog(edited)[0]).toMatchObject({ kind: 'run', trigger: 'note' });
+    expect(parseRunLog(edited)[0]).not.toHaveProperty('went');
+  });
+
+  it('leaves out a version line edited into one that does not read', () => {
+    const text = [
+      '## 2026-10-08 09:00:00 · Ran when a note appeared or changed',
+      '',
+      'Nothing to do.',
+      '',
+      '- triggered by `"A.md"` at `"good"`',
+      '- triggered by `"B.md"` at `{broken`',
+      '- wrote `"C.md"` at `7`',
+      '- wrote `"/outside.md"` at `"abc"`',
+    ].join('\n');
+    const [entry] = parseRunLog(text);
+    expect(entry?.kind === 'run' && entry.versions).toEqual([
+      { path: 'A.md', digest: 'good', wrote: false },
+    ]);
+  });
+
   it('reads back paths and values that would break a looser format', () => {
     const awkward: LogEntry = {
       kind: 'run',
@@ -221,5 +286,32 @@ describe('stillAsLeft', () => {
 describe('logPathFor', () => {
   it('names the log after the rule’s id, under log/', () => {
     expect(logPathFor('Tidy up')).toBe('.atlas/automations/log/Tidy up.md');
+  });
+});
+
+describe('lastRunOf, attacked (P29-01 round 2)', () => {
+  it('does not take a note deleted since — written down as went — for the rule’s last run', () => {
+    const ran: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [{ kind: 'archived', from: p('Tasks/A.md'), to: p('Archive/Tasks/A.md') }],
+      left: [],
+      capped: false,
+      versions: [{ path: p('Tasks/A.md'), digest: '1a2b3c4d', wrote: false }],
+    };
+    // Tobias deletes a task the rule had handled: the rule does not run, the log notes the path went.
+    const gone: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:05:00',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      went: [p('Tasks/B.md')],
+    };
+
+    // The page and the API show the last run: the archive at 09:00, not "Nothing to do." at 09:05.
+    expect(lastRunOf([ran, gone])).toBe(ran);
   });
 });

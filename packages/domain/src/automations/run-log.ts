@@ -16,6 +16,21 @@
  * - left `"Tasks/C.md"`: It is open in Atlas with unsaved typing.
  * ```
  *
+ * A rule a note sets off (P29-01) also writes which version of each note it
+ * handled, and the version its own write left, so neither sets it off again:
+ *
+ * ```markdown
+ * - triggered by `"Inbox/Meetings/Standup.md"` at `"1a2b3c4d"`
+ * - wrote `"Inbox/Meetings/Standup.md"` at `"5e6f7a8b"`
+ * ```
+ *
+ * And a note of its type it had handled that was deleted, so a new note made
+ * at that path later — even from the same bytes — is new to it:
+ *
+ * ```markdown
+ * - went `"Inbox/Meetings/Standup.md"`
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
@@ -23,6 +38,7 @@
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
 import type { PassedOver } from './automation-plan.ts';
+import type { NoteVersionRef } from './note-trigger.ts';
 import type { LocalTime } from './schedule.ts';
 
 export const MAX_LOG_ENTRIES = 100;
@@ -44,7 +60,13 @@ export type DoneAction =
     };
 
 /** What started a run. */
-export type RunTrigger = 'schedule' | 'open' | 'hand';
+export type RunTrigger = 'schedule' | 'open' | 'hand' | 'note';
+
+/** A note version a run of a note-triggered rule handled, or left by its own write. */
+export interface LoggedVersion extends NoteVersionRef {
+  /** True for the version the run's own write left; false for one that was handled. */
+  readonly wrote: boolean;
+}
 
 export type LogEntry =
   | {
@@ -54,6 +76,10 @@ export type LogEntry =
       readonly done: readonly DoneAction[];
       readonly left: readonly PassedOver[];
       readonly capped: boolean;
+      /** For a rule a note sets off: the versions it handled and the ones it wrote. */
+      readonly versions?: readonly LoggedVersion[];
+      /** For a rule a note sets off: notes it had handled that were deleted, ending their history. */
+      readonly went?: readonly VaultPath[];
     }
   | {
       readonly kind: 'undo';
@@ -90,6 +116,7 @@ const TRIGGER_WORDS: Readonly<Record<RunTrigger, string>> = {
   schedule: 'Ran on schedule',
   open: 'Ran when Atlas opened',
   hand: 'Ran by hand',
+  note: 'Ran when a note appeared or changed',
 };
 
 /** A wall-clock time as a heading shows it: a space where ISO has the `T`. */
@@ -157,6 +184,10 @@ function countDone(done: readonly DoneAction[]): string {
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
 }
 
+function versionLine({ path, digest, wrote }: LoggedVersion): string {
+  return `- ${wrote ? 'wrote' : 'triggered by'} ${code(path)} at ${code(digest)}`;
+}
+
 /** One entry, as the markdown the log holds. */
 export function formatLogEntry(entry: LogEntry): string {
   const lines = [`## ${shown(entry.at)} · ${logEntryHeading(entry)}`, '', logEntrySummary(entry)];
@@ -165,7 +196,11 @@ export function formatLogEntry(entry: LogEntry): string {
     'left' in entry
       ? entry.left.map(({ path, reason }) => `- left ${code(path)}: ${oneLine(reason)}`)
       : [];
-  if (done.length + left.length > 0) lines.push('', ...done, ...left);
+  const versions = entry.kind === 'run' ? (entry.versions ?? []).map(versionLine) : [];
+  const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
+  if (done.length + left.length + versions.length + went.length > 0) {
+    lines.push('', ...done, ...left, ...versions, ...went);
+  }
   return `${lines.join('\n')}\n`;
 }
 
@@ -242,6 +277,8 @@ const SET_LINE = new RegExp(
   `^- (set|restored) ${JSON_SPAN} ${JSON_SPAN}: ${PRIOR_SPAN} → ${PRIOR_SPAN}$`,
 );
 const LEFT_LINE = new RegExp(`^- left ${JSON_SPAN}: (.*)$`);
+const VERSION_LINE = new RegExp(`^- (triggered by|wrote) ${JSON_SPAN} at ${JSON_SPAN}$`);
+const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
 
 /**
  * Reads a log back into its entries, oldest first. A section or line that does
@@ -274,7 +311,47 @@ function parseSection(section: string): LogEntry | null {
     return { kind: 'failed', at, trigger, problem: body.find((line) => line !== '') ?? '' };
   }
   const capped = body.some((line) => line.includes('the most one run may do'));
-  return { kind: 'run', at, trigger, capped, ...linesOf(body) };
+  const versions = body.flatMap((line) => {
+    const version = readVersion(line);
+    return version === null ? [] : [version];
+  });
+  const went = body.flatMap((line) => {
+    const path = readWent(line);
+    return path === null ? [] : [path];
+  });
+  return {
+    kind: 'run',
+    at,
+    trigger,
+    capped,
+    ...linesOf(body),
+    ...(versions.length > 0 && { versions }),
+    ...(went.length > 0 && { went }),
+  };
+}
+
+function readWent(line: string): VaultPath | null {
+  const match = WENT_LINE.exec(line);
+  if (match === null) return null;
+  try {
+    return pathOf(match[1]!);
+  } catch {
+    // A line edited into JSON that does not read, or a path that is no path, is left out.
+    return null;
+  }
+}
+
+function readVersion(line: string): LoggedVersion | null {
+  const match = VERSION_LINE.exec(line);
+  if (match === null) return null;
+  try {
+    const digest = JSON.parse(match[3]!) as unknown;
+    if (typeof digest !== 'string') return null;
+    return { path: pathOf(match[2]!), digest, wrote: match[1] === 'wrote' };
+  } catch {
+    // A line edited into JSON that does not read is left out, as any other line is.
+    return null;
+  }
 }
 
 function triggerOf(title: string): RunTrigger | null {
@@ -386,13 +463,23 @@ export function futureMarkOf(entries: readonly LogEntry[], now: LocalTime): Loca
   return ahead.length === 0 ? null : ahead.reduce((latest, at) => (at > latest ? at : latest));
 }
 
-/** The newest run, successful or not; null when it has never run. */
+/** Whether a run entry only says notes went: it did, left and handled nothing. */
+const isOnlyWent = (entry: Extract<LogEntry, { kind: 'run' }>): boolean =>
+  (entry.went ?? []).length > 0 &&
+  entry.done.length === 0 &&
+  entry.left.length === 0 &&
+  (entry.versions ?? []).length === 0;
+
+/**
+ * The newest run, successful or not; null when it has never run. An entry
+ * that only says notes went (P29-01) is the rule's memory, not a run.
+ */
 export function lastRunOf(
   entries: readonly LogEntry[],
 ): Extract<LogEntry, { kind: 'run' | 'failed' }> | null {
   const runs = entries.filter(
     (entry): entry is Extract<LogEntry, { kind: 'run' | 'failed' }> =>
-      entry.kind === 'run' || entry.kind === 'failed',
+      entry.kind === 'failed' || (entry.kind === 'run' && !isOnlyWent(entry)),
   );
   return runs.at(-1) ?? null;
 }

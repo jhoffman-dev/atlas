@@ -13,6 +13,7 @@ export {
   freeNotePath,
   isArchivedPath,
   isArchiveFolder,
+  isArchiveMove,
   originOf,
   outsideArchiveSql,
   restoreDestination,

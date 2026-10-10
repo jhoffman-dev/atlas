@@ -230,7 +230,13 @@ describe('refreshIndex says what changed (P28-03)', () => {
     const { changes } = await refreshIndex({ fs, index, markdown });
 
     expect(changes).toEqual([
-      { kind: 'changed', path: 'Kickoff.md', type: 'meeting', digest: digestOf(meeting) },
+      {
+        kind: 'changed',
+        path: 'Kickoff.md',
+        type: 'meeting',
+        digest: digestOf(meeting),
+        before: digestOf('Agenda'),
+      },
       { kind: 'removed', path: 'Gone.md', type: 'task', digest: 'aa' },
     ]);
   });

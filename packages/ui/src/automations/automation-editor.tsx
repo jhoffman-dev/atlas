@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { AutomationAction, AutomationDraft, Schedule } from '@atlas/domain';
+import type { AutomationAction, AutomationDraft, NoteEvent, Schedule } from '@atlas/domain';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { Toggle } from '../toggle.tsx';
 import type { DryRunView, LogEntryView } from './automation-views.ts';
@@ -14,6 +14,8 @@ export interface AutomationEditorProps {
   readonly problem: string | null;
   /** Where "which notes" is edited: the query builder, as the query page has it. */
   readonly which: ReactNode;
+  /** The vault's types, by name: what a note trigger can watch for. */
+  readonly typeNames: readonly string[];
   readonly busy: boolean;
   readonly onSave: () => void;
   readonly onCancel: () => void;
@@ -33,6 +35,12 @@ const SCHEDULES = [
   { value: 'hourly' as const, label: 'Every few hours' },
   { value: 'open' as const, label: 'When Atlas opens' },
   { value: 'manual' as const, label: 'By hand' },
+  { value: 'note' as const, label: 'When a note appears' },
+];
+
+const NOTE_EVENTS: readonly { value: NoteEvent; label: string }[] = [
+  { value: 'created', label: 'is created' },
+  { value: 'changed', label: 'is changed' },
 ];
 
 const ACTIONS = [
@@ -40,12 +48,24 @@ const ACTIONS = [
   { value: 'set' as const, label: 'Set a property' },
 ];
 
-/** What a schedule becomes when its kind is picked: the time or gap it had, or a start. */
-function scheduleOf(kind: ScheduleKind, was: Schedule): Schedule {
+/**
+ * What a schedule becomes when its kind is picked: the time or gap it had, or
+ * a start — for a note trigger, a note of `type` being created.
+ */
+function scheduleOf(kind: ScheduleKind, was: Schedule, type: string): Schedule {
   if (kind === was.kind) return was;
   if (kind === 'daily') return { kind, at: '03:00' };
   if (kind === 'hourly') return { kind, every: 6 };
+  if (kind === 'note') return { kind, type, on: ['created'] };
   return { kind };
+}
+
+/** The events picked once one is turned on or off, in their order; the last one stays on. */
+function eventsWith(on: readonly NoteEvent[], event: NoteEvent, picked: boolean): NoteEvent[] {
+  const next = NOTE_EVENTS.map((each) => each.value).filter((each) =>
+    each === event ? picked : on.includes(each),
+  );
+  return next.length === 0 ? [...on] : next;
 }
 
 /**
@@ -75,11 +95,12 @@ export function AutomationEditor(props: AutomationEditorProps) {
             onChange={(enabled) => onChange({ ...draft, enabled })}
           />
         </div>
-        <ScheduleField draft={draft} onChange={onChange} />
+        <ScheduleField draft={draft} onChange={onChange} typeNames={props.typeNames} />
         <div className="automation-editor__field automation-editor__field--wide">
           <span className="automation-editor__label">Which notes</span>
           {props.which}
-          <AgeField draft={draft} onChange={onChange} />
+          {/* The note that sets a rule off has just changed: an age filter would leave it out. */}
+          {draft.when.kind !== 'note' && <AgeField draft={draft} onChange={onChange} />}
         </div>
         <ActionField draft={draft} onChange={onChange} />
       </div>
@@ -97,7 +118,11 @@ export function AutomationEditor(props: AutomationEditorProps) {
   );
 }
 
-function ScheduleField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' | 'onChange'>) {
+function ScheduleField({
+  draft,
+  onChange,
+  typeNames,
+}: Pick<AutomationEditorProps, 'draft' | 'onChange' | 'typeNames'>) {
   const { when } = draft;
   return (
     <div className="automation-editor__field automation-editor__field--wide">
@@ -107,7 +132,13 @@ function ScheduleField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' 
           label="When it runs"
           options={SCHEDULES}
           value={when.kind}
-          onChange={(kind) => onChange({ ...draft, when: scheduleOf(kind, when) })}
+          onChange={(kind) =>
+            onChange({
+              ...draft,
+              when: scheduleOf(kind, when, typeNames[0] ?? ''),
+              ...(kind === 'note' && { olderThanDays: null }),
+            })
+          }
         />
         {when.kind === 'daily' && (
           <input
@@ -138,8 +169,56 @@ function ScheduleField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' 
             hours
           </label>
         )}
+        {when.kind === 'note' && (
+          <NoteTriggerFields draft={draft} onChange={onChange} typeNames={typeNames} />
+        )}
       </div>
     </div>
+  );
+}
+
+/** A note trigger's type, and whether a note being created, changed or both sets it off. */
+function NoteTriggerFields({
+  draft,
+  onChange,
+  typeNames,
+}: Pick<AutomationEditorProps, 'draft' | 'onChange' | 'typeNames'>) {
+  const { when } = draft;
+  if (when.kind !== 'note') return null;
+  // A type the file names that the vault lacks is still shown, so the select says what the rule says.
+  const names = typeNames.includes(when.type) ? typeNames : [when.type, ...typeNames];
+  return (
+    <span className="automation-editor__inline">
+      a
+      <select
+        className="field automation-editor__small"
+        aria-label="Type of note"
+        value={when.type}
+        onChange={(event) => onChange({ ...draft, when: { ...when, type: event.target.value } })}
+      >
+        {names.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+      {NOTE_EVENTS.map(({ value, label }) => (
+        <label key={value} className="automation-editor__inline">
+          <input
+            type="checkbox"
+            className="select-box"
+            checked={when.on.includes(value)}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                when: { ...when, on: eventsWith(when.on, value, event.target.checked) },
+              })
+            }
+          />
+          {label}
+        </label>
+      ))}
+    </span>
   );
 }
 

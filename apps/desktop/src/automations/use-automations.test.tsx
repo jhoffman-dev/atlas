@@ -3,13 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
   createVaultPath,
+  digestOf,
   movedPath,
+  NOTE_RUNS_PER_HOUR,
   parseRunLog,
   type EntryMove,
   type VaultEntry,
   type VaultPath,
 } from '@atlas/domain';
 import {
+  createNoteChanges,
   fakeIndexPort,
   fakeVaultFs,
   type AutomationPorts,
@@ -337,5 +340,270 @@ describe('useAutomations', () => {
     });
     expect(hook.result.current.notice).toBe('Its log could not be written (The disk is full.).');
     expect(hook.result.current.busy).toBe(false);
+  });
+});
+
+describe('useAutomations: rules a note sets off (P29-01)', () => {
+  const VAULT = '/vaults/home';
+  const TASK = 'Tasks/A.md';
+  const onNewTask = () => rule('a task is created');
+  const added = (vault: ReturnType<typeof memoryVault>, path: string, vaultKey = VAULT) => ({
+    vault: vaultKey,
+    changes: [
+      { kind: 'added' as const, path, type: 'task', digest: digestOf(vault.files[path] ?? '') },
+    ],
+  });
+
+  it('runs a rule when the feed says a note of its type arrived, once per version', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    mount(vault, { changes });
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+    const news = added(vault, TASK);
+
+    act(() => changes.publish(news));
+    await settle();
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+    expect(runsIn(vault.files[LOG]).map((entry) => entry.kind === 'run' && entry.trigger)).toEqual([
+      'note',
+    ]);
+
+    act(() => changes.publish(news));
+    await settle();
+    expect(runsIn(vault.files[LOG])).toHaveLength(1);
+  });
+
+  it('holds news heard before the index is ready, and runs on it once it is', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, indexReady: false });
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+
+    hook.rerender({ ...initial, changes, indexReady: true });
+    await settle();
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+  });
+
+  it('runs nothing on a Mac that does not run the vault’s automations', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    mount(vault, { changes, scheduled: false });
+    await settle();
+
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+    expect(vault.files[LOG]).toBeUndefined();
+  });
+
+  it('lets go of news of a vault that is not the one open', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    mount(vault, { changes });
+    await settle();
+
+    act(() => changes.publish(added(vault, TASK, '/vaults/work')));
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+    expect(vault.files[LOG]).toBeUndefined();
+  });
+
+  it('holds a rule that has run as often this hour as one may, once, then runs what it heard', async () => {
+    const full = Array.from(
+      { length: NOTE_RUNS_PER_HOUR },
+      (_, at) =>
+        `## 2026-09-27 08:${String(10 + at).padStart(2, '0')}:00 · Ran when a note appeared or changed\n\n` +
+        `Archived 1 note.\n\n- archived \`"Tasks/O${at}.md"\` → \`"Archive/Tasks/O${at}.md"\`\n`,
+    );
+    const log = ['---\natlas: automation-log\n---\n\n# Sweep — run log\n', ...full].join('\n');
+    const vault = memoryVault({
+      [RULE]: onNewTask(),
+      [LOG]: log,
+      [TASK]: '---\ntype: task\n---\n',
+    });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes });
+    await settle();
+
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    // Not tried again while held: one line in Activity, not one per sync heard.
+    const reports = (initial.activity as ReturnType<typeof recordingActivity>).reports;
+    expect(reports.filter((report) => report.level === 'error')).toHaveLength(1);
+    expect(vault.files[TASK]).toBeDefined();
+    expect(vault.files[LOG]).toBe(log);
+    // Held for the hour, not failing: one pause, no failure counted however much it hears.
+    expect(hook.result.current.pauses.get('Sweep')).toEqual({
+      reason:
+        'Held back: It has run 20 times in the last hour, the most a rule may. ' +
+        'It runs on what changed meanwhile at 09:10.',
+      failures: 0,
+      retryAt: '2026-09-27T09:10:00',
+    });
+
+    now = '2026-09-27T09:11:00';
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SCHEDULE_TICK_MS);
+    });
+    await settle();
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+    expect(runsIn(vault.files[LOG])).toHaveLength(NOTE_RUNS_PER_HOUR + 1);
+  });
+
+  it('drops news on a Mac known not to run the automations, and holds it while that is unknown', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, scheduled: null });
+    await settle();
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+
+    hook.rerender({ ...initial, changes, scheduled: true });
+    await settle();
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+  });
+
+  it('keeps nothing heard on a Mac known not to run them, even if it is named later', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, scheduled: false });
+    await settle();
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+
+    hook.rerender({ ...initial, changes, scheduled: true });
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+    expect(vault.files[LOG]).toBeUndefined();
+  });
+});
+
+describe('useAutomations: rules a note sets off, attacked (P29-01)', () => {
+  const VAULT = '/vaults/home';
+  const TASK = 'Tasks/A.md';
+  const onNewTask = () => rule('a task is created');
+  const added = (vault: ReturnType<typeof memoryVault>, path: string, vaultKey = VAULT) => ({
+    vault: vaultKey,
+    changes: [
+      { kind: 'added' as const, path, type: 'task', digest: digestOf(vault.files[path] ?? '') },
+    ],
+  });
+
+  it('runs on a note’s news once a rule held back by a failure is tried again, as its pause says', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const base = vault.ports();
+    let failing = true;
+    const fs = {
+      ...base.fs,
+      listNotes: async (...args: Parameters<typeof base.fs.listNotes>) => {
+        if (failing) throw new Error('the disk was busy');
+        return base.fs.listNotes(...args);
+      },
+    };
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook } = mount(vault, { changes, ports: { ...base, fs, types: [TASK_TYPE] } });
+    await settle();
+
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+    expect(vault.files[TASK]).toBeDefined();
+    expect(hook.result.current.pauses.get('Sweep')?.reason).toMatch(/it is tried again at 09:01/);
+
+    // The disk recovers, and the time the pause named comes and goes.
+    failing = false;
+    now = '2026-09-27T09:05:00';
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SCHEDULE_TICK_MS * 5);
+    });
+    await settle();
+
+    expect(vault.files[`Archive/${TASK}`]).toBeDefined();
+  });
+
+  it('never runs one vault’s rule on another vault opened while its news waited its turn', async () => {
+    const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes });
+    await settle();
+    // A save from the editor holds the one door while the news comes in.
+    let release = () => {};
+    const holding = new Promise<void>((resolve) => (release = resolve));
+    let held: Promise<unknown> = Promise.resolve();
+    act(() => {
+      held = hook.result.current.exclusive(() => holding, { wait: true });
+    });
+    act(() => changes.publish(added(vault, TASK)));
+    await settle();
+
+    // The work vault is opened: the ports now read and write it. It has no rules, and its own Tasks/A.md.
+    const workTask = '---\ntype: task\n---\nWork notes kept by Tobias Fenn.\n';
+    delete vault.files[RULE];
+    vault.files[TASK] = workTask;
+    hook.rerender({ ...initial, changes, vaultKey: '/vaults/work' });
+    await settle();
+    release();
+    await act(async () => {
+      await held;
+    });
+    await settle();
+
+    expect(vault.files[TASK]).toBe(workTask);
+    expect(vault.files[`Archive/${TASK}`]).toBeUndefined();
+    expect(vault.files[LOG]).toBeUndefined();
+  });
+});
+
+describe('useAutomations: rules a note sets off, attacked again (round 2)', () => {
+  const VAULT = '/vaults/home';
+  const onNewTask = () => rule('a task is created');
+  const added = (vault: ReturnType<typeof memoryVault>, path: string) => ({
+    vault: VAULT,
+    changes: [
+      { kind: 'added' as const, path, type: 'task', digest: digestOf(vault.files[path] ?? '') },
+    ],
+  });
+
+  it('runs none of a rule’s held news once this Mac is known not to run the vault’s automations', async () => {
+    const first = 'Tasks/A.md';
+    const second = 'Tasks/B.md';
+    const vault = memoryVault({
+      [RULE]: onNewTask(),
+      [first]: '---\ntype: task\n---\n',
+      [second]: '---\ntype: task\n---\nFor Mara Quill.\n',
+    });
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, scheduled: true });
+    await settle();
+    // A save from the editor holds the one door while two syncs' news comes in and is queued.
+    let release = () => {};
+    const holding = new Promise<void>((resolve) => (release = resolve));
+    let held: Promise<unknown> = Promise.resolve();
+    act(() => {
+      held = hook.result.current.exclusive(() => holding, { wait: true });
+    });
+    act(() => changes.publish(added(vault, first)));
+    act(() => changes.publish(added(vault, second)));
+    await settle();
+
+    // Sync settings now name the other Mac as the one that runs this vault's automations.
+    hook.rerender({ ...initial, changes, scheduled: false });
+    await settle();
+    release();
+    await act(async () => {
+      await held;
+    });
+    await settle();
+
+    // "False drops": what was held is let go, not run here as well as on the other Mac.
+    expect(vault.files[second]).toBeDefined();
+    expect(vault.files[`Archive/${second}`]).toBeUndefined();
+    expect(vault.files[first]).toBeDefined();
+    expect(vault.files[LOG]).toBeUndefined();
   });
 });

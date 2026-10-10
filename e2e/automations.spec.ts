@@ -1,7 +1,7 @@
 import { utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import { createVault, emitVaultChanged, expectFile, installHost, type FakeVault } from './host.ts';
 
 /**
  * Phase 25 (U-24): James's first automation — archive done tasks after 30
@@ -151,4 +151,56 @@ test('a rule that runs when Atlas opens runs once, on opening, and logs it', asy
   await expectFile(vault, '.atlas/automations/Sweep.md').toBe(
     sweep.replace('do: archive\n---', 'do: archive\nid: Sweep\n---'),
   );
+});
+
+test('a rule a note sets off archives a new standup when it appears, and only that one (P29-01)', async ({
+  page,
+}) => {
+  const meetingType = ['---', 'name: meeting', 'properties:', '  kind: text', '---', ''].join('\n');
+  const meeting = (kind: string) =>
+    ['---', 'type: meeting', `kind: ${kind}`, '---', '', ''].join('\n');
+  const fileStandups = [
+    '---',
+    'atlas: automation',
+    'name: File standups',
+    'id: File standups',
+    'enabled: true',
+    'when: a meeting is created',
+    'which: FROM meeting WHERE kind = standup',
+    'do: archive',
+    '---',
+    '',
+  ].join('\n');
+  const vault = await createVault();
+  await vault.mkdir('.atlas/types');
+  await vault.mkdir('.atlas/automations');
+  await vault.mkdir('Inbox/Meetings');
+  await vault.write('.atlas/types/meeting.md', meetingType);
+  await vault.write('.atlas/automations/File standups.md', fileStandups);
+  await vault.write('Inbox/Meetings/Last week standup.md', meeting('standup'));
+  await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+
+  // Two meetings arrive, as a pull or another app would bring them: the standup is filed.
+  await vault.write('Inbox/Meetings/Standup.md', meeting('standup'));
+  await vault.write('Inbox/Meetings/Kickoff.md', meeting('kickoff'));
+  await emitVaultChanged(page, ['Inbox/Meetings/Standup.md', 'Inbox/Meetings/Kickoff.md']);
+
+  await expect.poll(() => vault.exists('Archive/Inbox/Meetings/Standup.md')).toBe(true);
+  expect(await vault.exists('Inbox/Meetings/Standup.md')).toBe(false);
+  expect(await vault.exists('Inbox/Meetings/Kickoff.md')).toBe(true);
+  // One already there when the vault opened did not appear: it is left where it is.
+  expect(await vault.exists('Inbox/Meetings/Last week standup.md')).toBe(true);
+  const log = '.atlas/automations/log/File standups.md';
+  await expectFile(vault, log).toContain('· Ran when a note appeared or changed');
+  await expectFile(vault, log).toContain('- triggered by `"Inbox/Meetings/Standup.md"` at');
+
+  // Listed with its trigger, and run once: the archive it made sets nothing off again.
+  await page.getByRole('button', { name: 'Automations', exact: true }).click();
+  const list = page.getByRole('list', { name: 'All automations' });
+  await expect(list.getByText('Archive · When a meeting is created')).toBeVisible();
+  await expect(list.getByText(/Archived 1 note\./)).toBeVisible();
+  expect((await vault.read(log)).match(/· Ran when a note appeared or changed/g)).toHaveLength(1);
 });

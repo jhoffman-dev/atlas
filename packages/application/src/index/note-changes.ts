@@ -9,7 +9,9 @@ export interface NoteChangeNews {
 
 /**
  * Where everything that reacts to a note arriving or changing hears of it
- * (P28-03). Every sync of the index publishes here — after a typed edit, an
+ * (P28-03). A changed note carries the digest it had before (`before`,
+ * P29-01), so a path whose note left and was replaced in one sync can be told
+ * from an edit. Every sync of the index publishes here — after a typed edit, an
  * API write, a change the watcher saw or a sync pull alike — because each of
  * them ends in one; a sync that found nothing publishes nothing.
  *

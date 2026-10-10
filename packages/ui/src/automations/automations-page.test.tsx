@@ -152,6 +152,7 @@ function Editor({
       isNew={false}
       problem={null}
       which={<p>query builder here</p>}
+      typeNames={['task', 'meeting']}
       busy={false}
       onSave={() => {}}
       onCancel={() => {}}
@@ -180,6 +181,62 @@ describe('AutomationEditor', () => {
     expect(screen.getByLabelText('Hours between runs')).toBeTruthy();
     await userEvent.click(screen.getByRole('radio', { name: 'When Atlas opens' }));
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ when: { kind: 'open' } }));
+  });
+
+  it('shows the note trigger: a type, and whether a note being created or changed sets it off', async () => {
+    const onChange = vi.fn();
+    render(<Editor onChange={onChange} />);
+    expect(screen.queryByLabelText('Type of note')).toBeNull();
+
+    expect(screen.getByLabelText('Days unchanged')).toBeTruthy();
+    await userEvent.click(screen.getByRole('radio', { name: 'When a note appears' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        when: { kind: 'note', type: 'task', on: ['created'] },
+        olderThanDays: null,
+      }),
+    );
+    // The note that sets it off has just changed: there is no age to filter by.
+    expect(screen.queryByLabelText('Days unchanged')).toBeNull();
+    expect(screen.queryByLabelText('Time of day')).toBeNull();
+    const type = screen.getByLabelText('Type of note') as HTMLSelectElement;
+    expect(type.value).toBe('task');
+
+    await userEvent.selectOptions(type, 'meeting');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'is changed' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        when: { kind: 'note', type: 'meeting', on: ['created', 'changed'] },
+      }),
+    );
+    await userEvent.click(screen.getByRole('checkbox', { name: 'is created' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ when: { kind: 'note', type: 'meeting', on: ['changed'] } }),
+    );
+  });
+
+  it('keeps one event on: the last cannot be turned off', async () => {
+    const onChange = vi.fn();
+    const start: AutomationDraft = {
+      ...BLANK_AUTOMATION,
+      when: { kind: 'note', type: 'meeting', on: ['changed'] },
+    };
+    render(<Editor start={start} onChange={onChange} />);
+    const changed = screen.getByRole('checkbox', { name: 'is changed' }) as HTMLInputElement;
+    expect(changed.checked).toBe(true);
+    await userEvent.click(changed);
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ when: { kind: 'note', type: 'meeting', on: ['changed'] } }),
+    );
+  });
+
+  it('shows a type the rule names that the vault does not have, as the rule says it', () => {
+    const start: AutomationDraft = {
+      ...BLANK_AUTOMATION,
+      when: { kind: 'note', type: 'interview', on: ['created'] },
+    };
+    render(<Editor start={start} />);
+    expect((screen.getByLabelText('Type of note') as HTMLSelectElement).value).toBe('interview');
   });
 
   it('turns the age filter off and on', async () => {

@@ -11,5 +11,10 @@ export {
   RELATION_NAMES_PER_QUERY,
 } from './relation-rows.ts';
 export type { IndexableRelation } from './relation-rows.ts';
-export { noteChangesBetween, versionsAfter } from './note-changes.ts';
-export type { NoteChange, NoteChangeKind, NoteVersion } from './note-changes.ts';
+export {
+  arrivedPaths,
+  noteChangesBetween,
+  unpairedChanges,
+  versionsAfter,
+} from './note-changes.ts';
+export type { NoteChange, NoteChangeKind, NoteVersion, UnpairedChanges } from './note-changes.ts';

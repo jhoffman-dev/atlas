@@ -44,25 +44,48 @@ const READ_BATCH = 200;
  * hold its values — are left out before the cap is counted, so they cannot
  * take the places of the notes still to do (A25-01).
  */
-export async function planRun({
-  ports,
-  rule,
-  today,
-}: {
-  ports: RuleQueryPorts;
-  rule: Pick<AutomationRule, 'which' | 'olderThanDays' | 'action'>;
+export async function planRun(args: PlanArgs): Promise<AutomationPlan> {
+  const matched = await matchedPaths(args);
+  return planMatched({ ports: args.ports, action: args.rule.action, matched });
+}
+
+interface PlanArgs {
+  readonly ports: RuleQueryPorts;
+  readonly rule: Pick<AutomationRule, 'which' | 'olderThanDays' | 'action'>;
   /** `YYYY-MM-DD`, from the injected clock. */
-  today: string;
-}): Promise<AutomationPlan> {
-  const text = pinnedText(rule, today, ports.types);
+  readonly today: string;
+  /** Only these notes, for a rule notes set off (P29-01); left out for every note it matches. */
+  readonly among?: readonly VaultPath[];
+}
+
+/** The paths the rule's query matches today, in its order. Rejects as {@link planRun} does. */
+export async function matchedPaths({ ports, rule, today, among }: PlanArgs): Promise<VaultPath[]> {
+  const text = pinnedText({
+    rule,
+    today,
+    types: ports.types,
+    ...(among !== undefined && { among }),
+  });
   const answer = await runAtlasQuery({ ...ports, text });
   const column = answer.result.columns.indexOf('path');
-  const matched = answer.result.rows.flatMap((row): VaultPath[] => {
+  return answer.result.rows.flatMap((row): VaultPath[] => {
     const path = row[column];
     return typeof path === 'string' ? [createVaultPath(path)] : [];
   });
-  const changing = await toChange({ ports, action: rule.action, matched });
-  return planAutomation({ action: rule.action, matched: changing });
+}
+
+/** What the action would do to the notes matched: those it would change, planned by the domain. */
+export async function planMatched({
+  ports,
+  action,
+  matched,
+}: {
+  ports: RuleQueryPorts;
+  action: AutomationAction;
+  matched: readonly VaultPath[];
+}): Promise<AutomationPlan> {
+  const changing = await toChange({ ports, action, matched });
+  return planAutomation({ action, matched: changing });
 }
 
 /** The matched notes the action would change, read in batches until there are more than a run may do. */
@@ -96,16 +119,24 @@ async function toChange({
   return changing;
 }
 
-function pinnedText(
-  rule: Pick<AutomationRule, 'which' | 'olderThanDays' | 'action'>,
-  today: string,
-  types: readonly ObjectType[],
-): string {
+function pinnedText({
+  rule,
+  today,
+  types,
+  among,
+}: Omit<PlanArgs, 'ports'> & { types: readonly ObjectType[] }): string {
   try {
     const query = parseAtlasQuery(rule.which);
     checkAtlasQuery(query, types);
+    const { olderThanDays, action } = rule;
     return printAtlasQuery(
-      automationQuery({ query, today, olderThanDays: rule.olderThanDays, action: rule.action }),
+      automationQuery({
+        query,
+        today,
+        olderThanDays,
+        action,
+        ...(among !== undefined && { among }),
+      }),
     );
   } catch (cause) {
     if (cause instanceof QueryTextError) throw new AtlasQueryError(cause.message, problemOf(cause));
