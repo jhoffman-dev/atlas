@@ -973,10 +973,11 @@ do: archive</pre>
         <li><a href="#automations">Automation</a> runs, dry runs and undos; the rule's own log keeps the detail.</li>
         <li><a href="#sources">Source</a> refreshes.</li>
         <li>Notes written through the Local API or MCP: the route and the note, never the contents.</li>
-        <li>Claude's edits accepted and undone, and failed turns, in fixed wording — never your question.</li>
+        <li>Claude's edits accepted and undone, failed turns, and a chat that couldn't be saved to <code>Chats/</code>, in fixed wording — never your question. A chat note is never named, since its name is the start of your question; a line about one says “a chat note”.</li>
         <li>Index rebuilds and failures.</li>
         <li>Each <a href="#sync">sync</a> — what it saved, brought in and sent — plus conflicts, files left out and failures.</li>
         <li>Saves a note gives up on; edits kept on screen after a failed save show as a warning.</li>
+        <li>Writes a screen gives up on, under <b>Saves</b>: an edit in a view or dashboard, a view saved, a query added to a dashboard, a card added, an image, an artifact or its copy, a setting, and the Local API's switch and token. One line each. Something refused before anything is written — a name already taken, a file that isn't an image — isn't recorded; the screen says why.</li>
         <li>Every red notice. One failure is one line.</li>
       </ul>
       <p>Not recorded: typing, autosaves, reads, note contents, secrets, folder paths, or the “update links?” offer.</p>
