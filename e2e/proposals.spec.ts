@@ -69,6 +69,20 @@ async function openProposalsVault(page: Page): Promise<FakeVault> {
   return vault;
 }
 
+/**
+ * The Inbox page as it is once everything it reads has come in: the offers
+ * above the proposals are drawn last, and push the cards down as they arrive,
+ * so a click aimed before then can land where a card used to be.
+ */
+async function settledInbox(page: Page) {
+  const inbox = page.getByRole('article', { name: 'Inbox' });
+  await expect(
+    inbox.getByRole('complementary', { name: 'Set your types up for the Inbox' }),
+  ).toBeVisible();
+  await expect(inbox.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
+  return inbox;
+}
+
 test('a task proposal accepted on the Inbox page makes the task, and the task opens', async ({
   page,
 }) => {
@@ -79,7 +93,7 @@ test('a task proposal accepted on the Inbox page makes the task, and the task op
   await expect(row).toContainText('2');
   await row.click();
 
-  const inbox = page.getByRole('article', { name: 'Inbox' });
+  const inbox = await settledInbox(page);
   await expect(inbox.getByRole('region', { name: 'Proposals' })).toBeVisible();
   await expect(inbox.getByRole('combobox', { name: 'File Standup under' })).toBeVisible();
   await expect(
@@ -123,6 +137,7 @@ test('a refused accept says why on the proposal and leaves it waiting', async ({
   await vault.write('Send Mara the payroll file.md', 'Made by hand.\n');
 
   await page.getByRole('button', { name: /^Inbox/ }).click();
+  await settledInbox(page);
   const card = page.getByRole('region', { name: 'Task: Send Mara the payroll file' });
   await card.getByRole('button', { name: 'Accept' }).click();
 
