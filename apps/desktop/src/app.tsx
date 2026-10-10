@@ -904,6 +904,7 @@ export function App({
     indexKey,
     open: inboxOpen,
     onSettled: settleArchive,
+    activity: activityLog,
   });
   // Moving the tasks to GTD's statuses, previewed from the Inbox page (P30-02).
   const taskMigration = useTaskMigration({

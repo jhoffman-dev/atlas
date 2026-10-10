@@ -7,13 +7,16 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import {
+  FilingRefusedError,
   listInbox,
   notesInUseOfTypes,
   processInboxItems,
+  type ActivityLog,
   type ArchiveOutcome,
   type ArchivePorts,
 } from '@atlas/application';
 import type { InboxContents, RelationChoice } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 
 export interface InboxOptions {
   readonly ports: ArchivePorts;
@@ -24,6 +27,8 @@ export interface InboxOptions {
   readonly open: boolean;
   /** Re-reads the tree and the index once a note has been filed. */
   readonly onSettled: () => void;
+  /** Where a filing the page gives up on is recorded; a refused project is not. */
+  readonly activity: Pick<ActivityLog, 'inOpenVault'>;
 }
 
 /** What the window says once a note is filed: only what could not be done. */
@@ -40,7 +45,7 @@ function outcomeProblem(outcome: ArchiveOutcome): string | null {
  * The list is read whatever page is open, so the sidebar's count is right;
  * the projects and areas only while the page shows.
  */
-export function useInbox({ ports, notePaths, indexKey, open, onSettled }: InboxOptions) {
+export function useInbox({ ports, notePaths, indexKey, open, onSettled, activity }: InboxOptions) {
   const [contents, setContents] = useState<InboxContents | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filing, setFiling] = useState<readonly RelationChoice[]>([]);
@@ -90,14 +95,11 @@ export function useInbox({ ports, notePaths, indexKey, open, onSettled }: InboxO
       running.current = true;
       setBusy(true);
       setProblem(null);
+      const filing = { activity, write: 'filing', path, refusal: FilingRefusedError } as const;
       try {
-        const outcome = await processInboxItems({
-          ports,
-          paths: [path],
-          notePaths,
-          project,
-          updateLinks: true,
-        });
+        const outcome = await withGiveUpRecorded(filing, () =>
+          processInboxItems({ ports, paths: [path], notePaths, project, updateLinks: true }),
+        );
         setProblem(outcomeProblem(outcome));
         onSettled();
       } catch (cause) {
@@ -107,7 +109,7 @@ export function useInbox({ ports, notePaths, indexKey, open, onSettled }: InboxO
         setBusy(false);
       }
     },
-    [ports, notePaths, onSettled],
+    [ports, notePaths, onSettled, activity],
   );
 
   return { contents, error, filing, busy, problem, process };

@@ -6,7 +6,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { fakeIndexPort, fakeMarkdown, fakeVaultFs, type ArchivePorts } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeMarkdown,
+  fakeVaultFs,
+  recordingActivity,
+  type ArchivePorts,
+} from '@atlas/application';
 import { useInbox } from './use-inbox.ts';
 
 function ports(): ArchivePorts {
@@ -37,8 +43,16 @@ function ports(): ArchivePorts {
 describe('useInbox — what it offers to file under', () => {
   it('does not offer a project that is itself still in the Inbox', async () => {
     const stable = ports();
+    const activity = recordingActivity();
     const { result } = renderHook(() =>
-      useInbox({ ports: stable, notePaths: [], indexKey: '1', open: true, onSettled: () => {} }),
+      useInbox({
+        ports: stable,
+        notePaths: [],
+        indexKey: '1',
+        open: true,
+        onSettled: () => {},
+        activity,
+      }),
     );
 
     await waitFor(() => expect(result.current.filing.length).toBeGreaterThan(0));
