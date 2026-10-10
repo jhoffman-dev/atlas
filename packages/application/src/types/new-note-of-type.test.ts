@@ -33,6 +33,7 @@ describe('a new note of a type', () => {
       markdown: fakeMarkdown(),
       type: BOOK,
       notePaths: [],
+      today: '2026-10-08',
     });
     expect(path).toBe('New Book.md');
     expect(vault.created).toEqual([
@@ -47,6 +48,7 @@ describe('a new note of a type', () => {
       markdown: fakeMarkdown(),
       type: BOOK,
       notePaths: ['New Book.md'],
+      today: '2026-10-08',
     });
     expect(vault.created).toEqual([{ path: 'New Book 2.md', contents: '---\ntype: book\n---\n' }]);
   });

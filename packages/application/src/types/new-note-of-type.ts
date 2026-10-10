@@ -1,4 +1,5 @@
-import { nextAvailableNotePath, VAULT_ROOT, type ObjectType, type VaultPath } from '@atlas/domain';
+import { createVaultPath, VAULT_ROOT, type ObjectType, type VaultPath } from '@atlas/domain';
+import { createNote } from '../notes/create-note.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { quickAddContents } from '../quick-add/quick-add-note.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -15,20 +16,26 @@ export async function createNoteOfType({
   markdown,
   type,
   notePaths,
+  today,
 }: {
   fs: VaultFsPort;
-  markdown: Pick<MarkdownPort, 'updateFrontmatter'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
   type: Pick<ObjectType, 'name' | 'label' | 'properties'>;
   notePaths: readonly string[];
+  /** `YYYY-MM-DD`: the task rules date a task made already finished by it (ADR-0029). */
+  today: string;
 }): Promise<VaultPath> {
   const template = findTypeTemplate(await loadTemplates({ fs }), type);
   const text = template === null ? null : await readTemplate({ fs, template });
   const contents = quickAddContents({ markdown, type, values: {}, template: text });
-  const path = nextAvailableNotePath({
-    folder: VAULT_ROOT,
+  return createNote({
+    fs,
+    markdown,
+    today,
     name: `New ${type.label}`,
-    taken: new Set(notePaths),
+    beside: null,
+    folder: VAULT_ROOT,
+    notePaths: notePaths.map(createVaultPath),
+    contents,
   });
-  await fs.createNote({ path, contents });
-  return path;
 }

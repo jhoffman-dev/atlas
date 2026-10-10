@@ -789,6 +789,13 @@ export async function installHost(
         if (statement.startsWith('/* inbox */')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
+        // The Inbox's quick look before reading every task (P30-02): statuses, and Waiting on nobody, run for real.
+        if (
+          statement.startsWith('/* task statuses */') ||
+          statement.startsWith('/* tasks waiting on nobody */')
+        ) {
+          return runArchiveQuery(statement, bound, indexed.values());
+        }
         // SQL written by hand — the query page, a SQL view or widget — binds
         // nothing, where everything the app compiles binds at least its LIMIT.
         if (bound.length === 0) return runHandWrittenSql(statement, indexed.values(), views);

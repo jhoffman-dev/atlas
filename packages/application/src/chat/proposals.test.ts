@@ -23,7 +23,13 @@ const closed = { state: () => 'closed' as const, reload: vi.fn() };
 
 async function proposal(input: Record<string, unknown>, files?: Record<string, string>) {
   const setup = vault(files);
-  const made = await proposeEdit({ fs: setup.fs, markdown: setup.markdown, input, id: 'p1' });
+  const made = await proposeEdit({
+    today: '2026-10-08',
+    fs: setup.fs,
+    markdown: setup.markdown,
+    input,
+    id: 'p1',
+  });
   return { ...setup, made };
 }
 
@@ -144,6 +150,7 @@ describe('proposeNote and accepting it', () => {
   it('describes the new note, then creates it where asked', async () => {
     const { fs, markdown, fixture } = vault({ 'Projects/Q3.md': 'x' });
     const made = proposeNote({
+      today: '2026-10-08',
       markdown,
       input: {
         title: 'Launch/plan',
@@ -177,7 +184,13 @@ describe('proposeNote and accepting it', () => {
       ...fs,
       trashEntry: async ({ path: gone }: { path: string }) => void trashed.push(gone),
     };
-    const made = proposeNote({ markdown, input: { title: 'Idea' }, id: 'n1', notePaths: [] });
+    const made = proposeNote({
+      today: '2026-10-08',
+      markdown,
+      input: { title: 'Idea' },
+      id: 'n1',
+      notePaths: [],
+    });
     const applied = await acceptProposal({
       fs: tracked,
       openNotes: closed,
@@ -192,8 +205,29 @@ describe('proposeNote and accepting it', () => {
     [{ title: 'x', folder: '.atlas/templates' }, /hidden configuration/],
     [{ title: 'x', body: 4 }, /"body" must be text/],
   ])('refuses %j', (input, reason) => {
-    expect(() => proposeNote({ markdown: blockMarkdown(), input, id: 'n', notePaths: [] })).toThrow(
-      reason,
+    expect(() =>
+      proposeNote({
+        today: '2026-10-08',
+        markdown: blockMarkdown(),
+        input,
+        id: 'n',
+        notePaths: [],
+      }),
+    ).toThrow(reason);
+  });
+
+  it('holds a proposed task to the task rules: Waiting needs someone, Archive is dated (P30-02)', () => {
+    const propose = (properties: Record<string, unknown>) =>
+      proposeNote({
+        today: '2026-10-08',
+        markdown: blockMarkdown(),
+        input: { title: 'Hear back', properties },
+        id: 'n',
+        notePaths: [],
+      });
+    expect(() => propose({ type: 'task', status: 'waiting' })).toThrow(/set Waiting on first/);
+    expect(propose({ type: 'task', status: 'archive' }).contents).toContain(
+      'completed: 2026-10-08',
     );
   });
 });

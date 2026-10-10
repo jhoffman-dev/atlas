@@ -9,7 +9,7 @@ import {
   type VaultEntry,
   type VaultPath,
 } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs } from '../testing/fake-ports.ts';
+import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { createNote } from '../notes/create-note.ts';
 import { createFolder, listVaultFolders } from './create-folder.ts';
 import { countOtherFiles, deleteEntry, previewDeletion } from './delete-entry.ts';
@@ -511,6 +511,8 @@ describe('new folders', () => {
   it('takes a new note made inside it', async () => {
     const vault = memoryVault({ folders: ['Projects'], notes: ['Other/Beside.md'] });
     const made = await createNote({
+      markdown: fakeMarkdown(),
+      today: '2026-10-08',
       fs: vault.fs,
       name: 'Untitled',
       beside: path('Other/Beside.md'),

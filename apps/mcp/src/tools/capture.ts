@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { defineTool, definedOnly } from './define.ts';
 import { noInput } from './inputs.ts';
+import { TASK_STATUSES_DESCRIBED } from './task-statuses.ts';
 
 export const dailyNote = defineTool({
   name: 'atlas_daily_note',
@@ -21,9 +22,10 @@ export const captureTask = defineTool({
   description:
     "Capture a task exactly as Atlas's quick capture does: a new Task note named by the text, " +
     'from the Task template when there is one, waiting in Inbox/ (numbered if the name is ' +
-    'taken). Returns the created note. To set more properties, follow up with ' +
-    'atlas_update_properties on its path; to file it under a project or an area, ' +
-    'atlas_process_inbox_item.',
+    'taken), with status "inbox" when the vault\'s Task type has it. Returns the created note. ' +
+    'To set more properties, follow up with atlas_update_properties on its path; to file it ' +
+    'under a project or an area, atlas_process_inbox_item. ' +
+    TASK_STATUSES_DESCRIBED,
   inputSchema: z.object({
     text: z
       .string()

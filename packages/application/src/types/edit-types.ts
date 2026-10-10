@@ -12,7 +12,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
-import { setNoteProperties } from '../query/set-property.ts';
+import { writeFrontmatterChanges } from '../query/set-property.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { TYPES_FOLDER, type DefinedType } from './load-types.ts';
 
@@ -70,7 +70,7 @@ export async function saveObjectType({
   type: ObjectType;
   ifModified?: number;
 }): Promise<void> {
-  await setNoteProperties({
+  await writeFrontmatterChanges({
     fs,
     markdown,
     path,

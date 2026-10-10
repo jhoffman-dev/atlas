@@ -123,7 +123,7 @@ async function applyPlan({
         to: { value },
       })),
     );
-    return changeProperties({ ports, changes, kind: 'set' });
+    return changeProperties({ ports, changes, kind: 'set', today });
   }
   const outcome = await archiveNotes({
     ports,

@@ -9,6 +9,7 @@ import {
   type NoteTemplate,
   type VaultFsPort,
 } from '@atlas/application';
+import { localToday } from '../today.ts';
 
 /**
  * Adds a note to the vault and opens it.
@@ -27,7 +28,7 @@ export function useCreateNote({
   onCreated,
 }: {
   fs: VaultFsPort;
-  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  markdown: MarkdownPort;
   notePaths: readonly VaultPath[];
   beside: VaultPath | null;
   templates: readonly NoteTemplate[];
@@ -54,6 +55,8 @@ export function useCreateNote({
       try {
         const path = await createNote({
           fs,
+          markdown,
+          today: localToday(),
           name,
           beside,
           notePaths,
@@ -82,6 +85,8 @@ export function useCreateNote({
         const contents = template === null ? undefined : await contentsOf(template);
         const path = await captureToInbox({
           fs,
+          markdown,
+          today: localToday(),
           name,
           notePaths,
           ...(contents === undefined ? {} : { contents }),
@@ -94,7 +99,7 @@ export function useCreateNote({
         return null;
       }
     },
-    [fs, notePaths, contentsOf, onCreated],
+    [fs, markdown, notePaths, contentsOf, onCreated],
   );
 
   const openDailyNote = useCallback(

@@ -7,6 +7,8 @@ import {
 import { listVaultNotes } from '../vault/read-vault.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { guardTemplateEdit } from '../vault/template-guard.ts';
+import { newNoteTaskRules } from '../gtd/task-rules.ts';
+import type { MarkdownPort } from './ports.ts';
 
 /**
  * How many names are tried when each one is taken between listing and
@@ -28,25 +30,8 @@ export class NoteNameTakenError extends Error {
   }
 }
 
-/**
- * Creates a note and reports where it landed.
- *
- * It goes into `folder` when one is named — "New note here" on a folder.
- * Otherwise `newNoteFolder` says: a dashboard or a view with its kind,
- * anything else beside the note in view, or at the root. A name
- * already in use is numbered rather than refused, so the button always works —
- * including when another program takes the name after `notePaths` was listed:
- * the host refuses, the vault is listed again and the next number is tried.
- */
-export async function createNote({
-  fs,
-  name,
-  beside,
-  folder: named,
-  notePaths,
-  contents,
-  properties = {},
-}: {
+/** Where a new note goes and what it starts as. */
+interface NewNote {
   fs: VaultFsPort;
   name: string;
   /** The note currently open, whose folder the new one joins. */
@@ -58,7 +43,55 @@ export async function createNote({
   contents?: string;
   /** The frontmatter `contents` starts with, read as values. */
   properties?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Creates a note and reports where it landed.
+ *
+ * It goes into `folder` when one is named — "New note here" on a folder.
+ * Otherwise `newNoteFolder` says: a dashboard or a view with its kind,
+ * anything else beside the note in view, or at the root. A name
+ * already in use is numbered rather than refused, so the button always works —
+ * including when another program takes the name after `notePaths` was listed:
+ * the host refuses, the vault is listed again and the next number is tried.
+ *
+ * A note whatever its starting text says is made here, so the task rules
+ * (ADR-0029) are held here: a new task Waiting with nobody to wait on is
+ * refused with `TaskRuleRefusedError` before a file is made, and one made
+ * already in Archive is dated today.
+ */
+export async function createNote({
+  markdown,
+  today,
+  contents,
+  ...note
+}: NewNote & {
+  /** What a new note's frontmatter is read and dated through. */
+  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
+  /** `YYYY-MM-DD`: the day a task made already finished is dated. */
+  today: string;
 }): Promise<VaultPath> {
+  return createNoteFile({
+    ...note,
+    ...(contents === undefined
+      ? {}
+      : { contents: newNoteTaskRules({ markdown, contents, today }) }),
+  });
+}
+
+/**
+ * {@link createNote} without the task rules: for a note whose text Atlas
+ * writes whole and which is never a task — a chat's transcript.
+ */
+export async function createNoteFile({
+  fs,
+  name,
+  beside,
+  folder: named,
+  notePaths,
+  contents,
+  properties = {},
+}: NewNote): Promise<VaultPath> {
   const folder = named ?? newNoteFolder({ beside, properties });
   let taken: readonly VaultPath[] = notePaths;
 

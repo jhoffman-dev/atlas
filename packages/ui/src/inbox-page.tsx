@@ -5,6 +5,7 @@ import { PageBar, type PageHistory } from './page-bar.tsx';
 import { PageHead } from './page-head.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 import { RelationOptions } from './relation-options.tsx';
+import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 
 /** What the Inbox lists, once it has been read. */
 export interface InboxContents {
@@ -33,6 +34,8 @@ export interface InboxPageProps {
   /** Why the last note could not be filed, or null. */
   problem: string | null;
   typesOffer?: InboxTypesOffer | null;
+  /** Moving the vault's tasks to GTD's eight statuses, previewed first (P30-02). */
+  taskMigration?: TaskMigrationProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
   view?: { readonly title: string; readonly onOpen: () => void } | null;
   onShowSidebar?: () => void;
@@ -48,6 +51,7 @@ export interface InboxPageProps {
 export function InboxPage(props: InboxPageProps) {
   const view = props.view ?? null;
   const offer = props.typesOffer ?? null;
+  const migration = props.taskMigration ?? null;
   return (
     <>
       <PageBar
@@ -71,6 +75,7 @@ export function InboxPage(props: InboxPageProps) {
             })}
           />
           {offer !== null && <TypesOffer {...offer} />}
+          {migration !== null && <TaskMigration {...migration} />}
           {props.problem !== null && (
             <p className="table__error" role="alert">
               {props.problem}
