@@ -22,7 +22,7 @@ import {
   type WorkspaceImportOptions,
 } from './import-notion-workspace.ts';
 import { ImportSetupError } from './import-target.ts';
-import { GTD_STATUSES } from './task-status.ts';
+import { GTD_STATUSES } from '../../packages/domain/src/index.ts';
 
 /*
  * Adversarial cases for the workspace import (issue #79): each test states one

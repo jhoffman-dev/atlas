@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { importNotionWorkspace } from './import-notion-workspace.ts';
 import { parseRecord, RECORD_PATH } from './import-record.ts';
-import { GTD_STATUSES } from './task-status.ts';
+import { GTD_STATUSES } from '../../packages/domain/src/index.ts';
 import type * as workspaceWrite from './workspace-write.ts';
 
 /*

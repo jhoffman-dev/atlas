@@ -1,47 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ObjectType, PropertyDef } from '@atlas/domain';
-import {
-  DEFAULT_TASK_STATUSES,
-  GTD_STATUSES,
-  isGtdTaskType,
-  taskState,
-  TaskStatusError,
-  taskStatuses,
-} from './task-status.ts';
-
-const status = (options: readonly string[], done: string | null = 'archive'): PropertyDef => ({
-  key: 'status',
-  kind: 'select',
-  label: 'Status',
-  required: true,
-  options: [...options],
-  target: null,
-  many: false,
-  ...(done === null ? {} : { done }),
-});
-
-const taskType = (property: PropertyDef): ObjectType => ({
-  name: 'task',
-  label: 'Task',
-  properties: [property],
-});
-
-describe("whether the vault's Task type follows GTD", () => {
-  it('is so when its status is exactly the eight, in order, finished by Archive', () => {
-    expect(isGtdTaskType(taskType(status(GTD_STATUSES)))).toBe(true);
-  });
-
-  it('is not so for the old statuses, another order, another done option, or no Task type', () => {
-    expect(
-      isGtdTaskType(taskType(status(['backlog', 'next', 'doing', 'review', 'done'], 'done'))),
-    ).toBe(false);
-    expect(isGtdTaskType(taskType(status([...GTD_STATUSES].reverse())))).toBe(false);
-    expect(isGtdTaskType(taskType(status(GTD_STATUSES, null)))).toBe(false);
-    expect(isGtdTaskType(taskType({ ...status(GTD_STATUSES), kind: 'multiSelect' }))).toBe(false);
-    expect(isGtdTaskType(taskType({ ...status(GTD_STATUSES), key: 'stage' }))).toBe(false);
-    expect(isGtdTaskType(null)).toBe(false);
-  });
-});
+import { DEFAULT_TASK_STATUSES, taskState, TaskStatusError, taskStatuses } from './task-status.ts';
 
 const TODAY = '2026-10-10';
 const state = (notionStatus: string, more: { firstPerson?: string; due?: string } = {}) =>

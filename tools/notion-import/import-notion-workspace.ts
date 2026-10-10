@@ -1,10 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  followsGtd,
   InvalidTypeError,
   messageWithoutPaths,
   parseObjectType,
   splitFrontmatter,
+  taskTypeOf,
   type ObjectType,
   type VaultPath,
 } from '../../packages/domain/src/index.ts';
@@ -22,7 +24,7 @@ import {
   recordFile,
   saveRecord,
 } from './record-file.ts';
-import { isGtdTaskType, taskStatuses } from './task-status.ts';
+import { taskStatuses } from './task-status.ts';
 import { readFrontmatter } from './vault-meetings.ts';
 import { vaultNotes } from './vault-notes.ts';
 import { DATABASE_KINDS, PLACES, type DatabaseKind } from './workspace-databases.ts';
@@ -149,7 +151,8 @@ function checkTasks(
   selected: ReadonlySet<DatabaseKind>,
 ) {
   if (!selected.has('tasks') || !databases.some((database) => database.kind === 'tasks')) return;
-  if (!isGtdTaskType(types.get('task') ?? null)) throw new ImportSetupError(TASKS_NEED_GTD);
+  const task = taskTypeOf([...types.values()]);
+  if (task === null || !followsGtd(task)) throw new ImportSetupError(TASKS_NEED_GTD);
 }
 
 /** The types this run writes notes of that the vault does not declare, for the report. */

@@ -1,7 +1,8 @@
 import type { CsvRow } from './notion-csv.ts';
 import { readDay } from './notion-day.ts';
 import { readOptions, readRelation, type RelationEntry } from './notion-relations.ts';
-import { taskState, type GtdStatus } from './task-status.ts';
+import type { GtdStatus } from '../../packages/domain/src/index.ts';
+import { taskState } from './task-status.ts';
 
 /** The Notion databases this import knows, by what they hold. */
 export const DATABASE_KINDS = [

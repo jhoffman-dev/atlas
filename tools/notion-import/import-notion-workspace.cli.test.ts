@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GTD_STATUSES } from './task-status.ts';
+import { GTD_STATUSES } from '../../packages/domain/src/index.ts';
 
 /* The command James runs, from plain `node`: what it prints, what it exits with, and where it never writes. */
 

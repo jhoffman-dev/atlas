@@ -1,47 +1,20 @@
-import type { ObjectType } from '../../packages/domain/src/index.ts';
+import {
+  FINISHED_TASK_STATUS,
+  GTD_STATUSES,
+  isGtdStatus,
+  NEW_TASK_STATUS,
+  WAITING_STATUS,
+  type GtdStatus,
+} from '../../packages/domain/src/index.ts';
 
-/**
- * The eight GTD statuses (ADR-0029), in order. The domain holds them once the
- * GTD move (#21) is merged; this import is built beside it, so it reads the
- * vault's Task type for them and refuses to guess when they are not there.
+/*
+ * The GTD statuses and rules are the domain's (ADR-0029); this maps Notion's
+ * statuses onto them. Whether the vault's Task type follows GTD is the
+ * domain's `followsGtd`, which the import checks before it writes a task.
  */
-export const GTD_STATUSES = [
-  'inbox',
-  'backlog',
-  'next-action',
-  'in-progress',
-  'waiting',
-  'someday',
-  'longterm',
-  'archive',
-] as const;
-
-export type GtdStatus = (typeof GTD_STATUSES)[number];
-
-const isGtdStatus = (value: string): value is GtdStatus =>
-  (GTD_STATUSES as readonly string[]).includes(value);
-
-/** What ticking a task sets, and so what a finished Notion task becomes. */
-const FINISHED: GtdStatus = 'archive';
-const WAITING: GtdStatus = 'waiting';
-const CAPTURED: GtdStatus = 'inbox';
-
-/**
- * Whether the vault's Task type follows GTD: its `status` is a choice of
- * exactly the eight, in order, finished by Archive — what the GTD move
- * leaves it as. Until then, a task's status would be a value its type does
- * not offer.
- */
-export function isGtdTaskType(type: ObjectType | null): boolean {
-  const status = type?.properties.find((property) => property.key === 'status');
-  return (
-    status !== undefined &&
-    status.kind === 'select' &&
-    status.done === FINISHED &&
-    status.options.length === GTD_STATUSES.length &&
-    status.options.every((option, at) => option === GTD_STATUSES[at])
-  );
-}
+const FINISHED = FINISHED_TASK_STATUS;
+const WAITING = WAITING_STATUS;
+const CAPTURED = NEW_TASK_STATUS;
 
 /** A status as written in Notion, compared without case or extra spaces. */
 const spelled = (status: string) => status.trim().replace(/\s+/g, ' ').toLowerCase();

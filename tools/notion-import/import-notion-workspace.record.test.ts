@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { importNotionWorkspace } from './import-notion-workspace.ts';
 import type * as recordFile from './record-file.ts';
 import { saveRecord } from './record-file.ts';
-import { GTD_STATUSES } from './task-status.ts';
+import { GTD_STATUSES } from '../../packages/domain/src/index.ts';
 import { workspaceImported, workspaceReportLines } from './workspace-report.ts';
 
 /* The record failing partway through a run: what was written is reported, and nothing after it is written. */

@@ -10,7 +10,7 @@ import {
   type PageOutcome,
   type WorkspaceImportOptions,
 } from './import-notion-workspace.ts';
-import { GTD_STATUSES } from './task-status.ts';
+import { GTD_STATUSES } from '../../packages/domain/src/index.ts';
 
 /*
  * Round-2 adversarial cases for the workspace import (PR #88): each test

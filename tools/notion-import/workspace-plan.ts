@@ -14,7 +14,7 @@ import { dailyNotesToRead, notePaths, type Candidate, type NotePlace } from './n
 import type { RelationEntry } from './notion-relations.ts';
 import { withWikiLinks } from './page-links.ts';
 import { pairRows, propertiesHold, type ExportPage, type PairedRow } from './row-pages.ts';
-import type { GtdStatus } from './task-status.ts';
+import type { GtdStatus } from '../../packages/domain/src/index.ts';
 import type { VaultNotes } from './vault-notes.ts';
 import { readFrontmatter } from './vault-meetings.ts';
 import {

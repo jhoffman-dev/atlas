@@ -168,7 +168,13 @@ describe('followsGtd', () => {
       options: [...GTD_STATUS_PROPERTY.options].reverse(),
     };
     const finishedElsewhere = { ...GTD_STATUS_PROPERTY, done: 'someday' };
-    for (const status of [own, reordered, finishedElsewhere]) {
+    // Cases the Notion workspace importer's own copy of this check was tested on (#79).
+    const noDone = Object.fromEntries(
+      Object.entries(GTD_STATUS_PROPERTY).filter(([key]) => key !== 'done'),
+    ) as typeof GTD_STATUS_PROPERTY;
+    const multiSelect = { ...GTD_STATUS_PROPERTY, kind: 'multiSelect' as const };
+    const anotherKey = { ...GTD_STATUS_PROPERTY, key: 'stage' };
+    for (const status of [own, reordered, finishedElsewhere, noDone, multiSelect, anotherKey]) {
       expect(followsGtd(typeWith([status]))).toBe(false);
     }
     expect(followsGtd(typeWith([]))).toBe(false);

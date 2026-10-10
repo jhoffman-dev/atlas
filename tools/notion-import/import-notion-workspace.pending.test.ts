@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { importNotionWorkspace } from './import-notion-workspace.ts';
-import { GTD_STATUSES } from './task-status.ts';
+import { GTD_STATUSES } from '../../packages/domain/src/index.ts';
 import type * as workspaceWrite from './workspace-write.ts';
 
 /* A new note that could not be written, then the run cut off: the write-ahead log must not count it as made. */

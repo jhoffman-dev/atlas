@@ -24,7 +24,7 @@ import {
 } from './import-notion-workspace.ts';
 import { ImportSetupError } from './import-target.ts';
 import { NotionExportError } from './notion-meetings.ts';
-import { GTD_STATUSES } from './task-status.ts';
+import { GTD_STATUSES } from '../../packages/domain/src/index.ts';
 import { workspaceImported } from './workspace-report.ts';
 
 /*
