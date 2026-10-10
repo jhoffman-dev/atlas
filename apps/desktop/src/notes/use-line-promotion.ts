@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { noteTitle, TASK_TYPE, type ObjectType, type VaultPath } from '@atlas/domain';
+import { noteTitle, taskTypeOf, type ObjectType, type VaultPath } from '@atlas/domain';
 import {
   promoteChecklistLine,
   undoPromotion,
@@ -45,7 +45,7 @@ export function useLinePromotion({
   // Kept with the note it is about, so what was said of one is not shown over another.
   const [said, setSaid] = useState<{ path: VaultPath; notice: Said } | null>(null);
   const dismiss = useCallback(() => setSaid(null), []);
-  const taskType = useMemo(() => types.find((type) => type.name === TASK_TYPE) ?? null, [types]);
+  const taskType = useMemo(() => taskTypeOf(types), [types]);
 
   const undo = useCallback(
     async (promotion: Promotion) => {

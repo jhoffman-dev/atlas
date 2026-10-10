@@ -2,7 +2,7 @@ import {
   checklistLines,
   lineContent,
   splitFrontmatter,
-  TASK_TYPE,
+  taskTypeOf,
   type ChecklistLine,
   type EditorDocument,
   type VaultPath,
@@ -57,7 +57,7 @@ export async function promoteLineRoute(request: VaultRequest): Promise<RouteResu
       rng: request.rng,
       today: request.clock.today(),
       notePaths,
-      taskType: types.find((type) => type.name === TASK_TYPE) ?? null,
+      taskType: taskTypeOf(types),
       choice,
     });
     const answer = async (path: VaultPath) =>

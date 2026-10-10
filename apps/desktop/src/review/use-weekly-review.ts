@@ -4,7 +4,7 @@ import {
   PROJECT_TYPE,
   reviewDeferral,
   TASK_KEYS,
-  TASK_TYPE,
+  taskTypeOf,
   type ObjectType,
   type VaultPath,
 } from '@atlas/domain';
@@ -138,7 +138,7 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
   const projectStatuses = useMemo(() => projectStatusesOf(types), [types]);
   return {
     /** Whether the vault has tasks to review, which is when its sidebar row shows. */
-    shown: types.some((type) => type.name === TASK_TYPE),
+    shown: taskTypeOf(types) !== null,
     page: {
       review: current?.report ?? null,
       error: current?.error ?? null,
