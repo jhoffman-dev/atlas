@@ -8,6 +8,7 @@ import {
   splitFrontmatter,
   vaultPathSegments,
   VAULT_ROOT,
+  VAULT_WALK_DEPTH,
   type ProposalNote,
   type VaultPath,
 } from '@atlas/domain';
@@ -39,10 +40,11 @@ export interface ProposalListing {
 }
 
 /**
- * The proposals waiting in `Inbox/Proposals/`: every note there of the
- * proposal type that is still open, newest first; the ones answered but still
- * there; and the ones that say they are proposals but cannot be read. A note there of another type is not a
- * proposal and is left to the Inbox.
+ * The proposals waiting in `Inbox/Proposals/`, at any depth: every note there
+ * of the proposal type that is still open, newest first; the ones answered but
+ * still there; and the ones that say they are proposals but cannot be read. A
+ * note there of another type is not a proposal and is left to the Inbox,
+ * which lists it.
  */
 export async function listProposals({
   fs,
@@ -52,12 +54,7 @@ export async function listProposals({
   markdown: MarkdownPort;
 }): Promise<ProposalListing> {
   const folder = await proposalsFolderOf(fs);
-  const paths =
-    folder === null
-      ? []
-      : (await listVaultDirectory({ fs, path: folder }))
-          .filter(isMarkdownFile)
-          .map((entry) => entry.path);
+  const paths = folder === null ? [] : await notesUnder(fs, folder);
   if (paths.length === 0) return { open: [], stranded: [], unreadable: [] };
 
   const open: ListedProposal[] = [];
@@ -101,6 +98,21 @@ async function proposalsFolderOf(fs: VaultFsPort): Promise<VaultPath | null> {
     folder = found.path;
   }
   return folder;
+}
+
+/** Every note under `folder`, a folder at a time, as far down as the vault is read. */
+async function notesUnder(fs: VaultFsPort, folder: VaultPath): Promise<VaultPath[]> {
+  const found: VaultPath[] = [];
+  const walk = async (path: VaultPath, depth: number): Promise<void> => {
+    for (const entry of await listVaultDirectory({ fs, path })) {
+      if (isMarkdownFile(entry)) found.push(entry.path);
+      else if (entry.kind === 'directory' && depth < VAULT_WALK_DEPTH) {
+        await walk(entry.path, depth + 1);
+      }
+    }
+  };
+  await walk(folder, vaultPathSegments(folder).length);
+  return found;
 }
 
 function newestFirst(left: ListedProposal, right: ListedProposal): number {

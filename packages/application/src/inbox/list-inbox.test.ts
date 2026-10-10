@@ -26,20 +26,21 @@ describe('listInbox', () => {
     expect(items).toHaveLength(3);
   });
 
-  it('leaves out proposals, which are answered rather than filed', async () => {
+  it('leaves out proposals by their type, wherever they are, and lists any other note', async () => {
     const query = atlasQueryIndex({
       markdown: fakeMarkdown(),
       files: {
         'Inbox/Call the bank.md': '---\ntype: task\n---\n',
         'Inbox/Proposals/Send the file.md': '---\ntype: proposal\nkind: task\n---\n',
-        'inbox/proposals/Lower case.md': '---\ntype: proposal\nkind: task\n---\n',
-        'Inbox/Proposals old/Kept.md': 'Not the proposals folder.\n',
+        'inbox/proposals/Lower case.md': '---\ntype: Proposal\nkind: task\n---\n',
+        'Inbox/Moved by hand.md': '---\ntype: proposal\nkind: task\n---\n',
+        'Inbox/Proposals/Ideas.md': 'A plain note dropped in with the proposals.\n',
       },
     });
     const { items } = await listInbox({ index: fakeIndexPort({ query }) });
     expect(items.map((item) => item.path).sort()).toEqual([
       'Inbox/Call the bank.md',
-      'Inbox/Proposals old/Kept.md',
+      'Inbox/Proposals/Ideas.md',
     ]);
   });
 

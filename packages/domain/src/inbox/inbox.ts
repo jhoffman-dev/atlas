@@ -6,7 +6,7 @@ import {
   importStanding,
   type ImportOutcome,
 } from '../meetings/meeting-arrival.ts';
-import { isProposalPath, PROPOSALS_FOLDER } from '../proposals/proposal.ts';
+import { PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import { FILED_UNDER, FILED_UNDER_KEY } from '../types/para.ts';
 import { relationTypeRefusal } from '../types/property-value.ts';
@@ -41,9 +41,6 @@ const MARKDOWN = /\.(md|markdown)$/i;
 export function isInInbox(path: string): boolean {
   return path.toLowerCase().startsWith(INBOX_PREFIX);
 }
-
-/** Where proposals wait, lower-cased: in the Inbox, but answered on its own section, never filed. */
-const PROPOSALS_PREFIX = `${PROPOSALS_FOLDER.toLowerCase()}/`;
 
 /** A note waiting in the Inbox, as the Inbox lists it. */
 export interface InboxItem {
@@ -85,10 +82,11 @@ const firstValue = (key: string) =>
 
 /**
  * The Inbox's notes, asked of the index: newest first, so what just arrived
- * is on top, then by title so the list never reshuffles. Proposals are left
- * out — they wait in the Inbox to be answered, which its Proposals section
- * does, and are never filed — and each note carries what the meeting import
- * wrote into it.
+ * is on top, then by title so the list never reshuffles. Notes of the
+ * proposal type are left out, wherever in the Inbox they are — they are
+ * answered in its Proposals section, never filed — and any other note is
+ * listed, one dropped into `Inbox/Proposals` included. Each note carries
+ * what the meeting import wrote into it.
  */
 export function compileInboxQuery({
   limit = INBOX_LIST_LIMIT,
@@ -103,7 +101,7 @@ export function compileInboxQuery({
       `  ${firstValue(IMPORT_ERROR_KEY)} AS "importError"`,
       `FROM files`,
       `WHERE lower(substr(files.path, 1, ${INBOX_PREFIX.length})) = '${INBOX_PREFIX}'`,
-      `  AND lower(substr(files.path, 1, ${PROPOSALS_PREFIX.length})) <> '${PROPOSALS_PREFIX}'`,
+      `  AND NOT EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND p.key = 'type' AND lower(trim(p.value_text)) = '${PROPOSAL_TYPE}')`,
       `  AND ${userSpaceNoteSql('files.path')}`,
       `ORDER BY files.modified DESC, lower(files.title), files.path`,
       `LIMIT ?`,
@@ -155,10 +153,22 @@ export function isProcessMove(from: VaultPath, to: VaultPath): boolean {
   return isPlaceOrNumbered(to, joinVaultPath(parentVaultPath(to), vaultPathName(from)));
 }
 
-/** Why a note cannot be processed out of the Inbox, or null when it can. */
-export function processRefusal(path: VaultPath): string | null {
+/**
+ * Why a note cannot be processed out of the Inbox, or null when it can. A
+ * proposal — by its type, wherever it sits — is answered, never filed.
+ */
+export function processRefusal({
+  path,
+  type,
+}: {
+  path: VaultPath;
+  /** The note's `type:`, or null when it has none or cannot be read. */
+  type: string | null;
+}): string | null {
   if (!isInInbox(path)) return 'It is not in the Inbox.';
-  if (isProposalPath(path)) return 'A proposal is answered, not filed: accept or reject it.';
+  if (type?.trim().toLowerCase() === PROPOSAL_TYPE) {
+    return 'A proposal is answered, not filed: accept or reject it.';
+  }
   if (!MARKDOWN.test(path)) return 'Only notes can be processed.';
   return null;
 }

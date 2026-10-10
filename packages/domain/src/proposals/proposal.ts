@@ -1,5 +1,6 @@
 import { isArchivedPath } from '../archive/archive.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
+import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
@@ -206,6 +207,10 @@ export function proposedWriteRefusal(path: VaultPath): string | null {
   if (isArchivedPath(within)) return `${shown} is in the Archive; a proposal does not write there.`;
   if (isProposalPath(within)) {
     return `${shown} is where proposals wait; a proposal does not write there.`;
+  }
+  // The meeting import judges every note that lands there as a meeting file (ADR-0027).
+  if (isMeetingInboxPath(`${within}note.md`)) {
+    return `${shown} is where meeting files land; a proposal does not write there.`;
   }
   return null;
 }

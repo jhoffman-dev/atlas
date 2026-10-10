@@ -123,21 +123,16 @@ describe('One Inbox — a proposal whose payload folder is where meeting files l
       }),
     });
 
-    // Accepting is allowed: proposedWriteRefusal guards Inbox/Proposals and the Archive only.
-    const accepted = await acceptProposalNote({
-      ports: setup.ports,
-      path: vaultPath(PROPOSAL),
-      today: TODAY,
-    });
-    expect(accepted.wrote.map((wrote) => wrote.path)).toEqual([TASK]);
-    const task = setup.propertiesOf(TASK) ?? {};
-    expect(task).toMatchObject({ type: 'task' });
+    // Fix 5 (PR #90 review): proposedWriteRefusal now refuses where meeting
+    // files land, so the task is never written there for the import to judge.
+    await expect(
+      acceptProposalNote({ ports: setup.ports, path: vaultPath(PROPOSAL), today: TODAY }),
+    ).rejects.toThrow(/where meeting files land/);
+    expect(setup.paths()).not.toContain(TASK);
+    expect(setup.paths()).toContain(PROPOSAL);
 
-    // The sync after the accept reports the task as added where meeting files land.
-    const vault = automationVault({
-      notes: { [TASK]: `---\n${JSON.stringify(task)}\n---\n` },
-      today: TODAY,
-    });
+    // Even so, the sync's report of that path finds nothing there to stamp.
+    const vault = automationVault({ notes: {}, today: TODAY });
     const change: NoteChange = { kind: 'added', path: TASK, type: 'task', digest: '' };
     await importArrivedMeetings({
       ports: vault.ports,

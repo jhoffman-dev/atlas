@@ -165,6 +165,13 @@ describe('proposedWriteRefusal', () => {
     expect(proposedWriteRefusal(createVaultPath('Inbox/Call.md'))).toBeNull();
   });
 
+  it('refuses where meeting files land, which the meeting import judges as meetings', () => {
+    for (const where of ['Inbox/Meetings', 'inbox/meetings/Older', 'Inbox/Meetings/Call.md']) {
+      expect(proposedWriteRefusal(createVaultPath(where))).toMatch(/where meeting files land/);
+    }
+    expect(proposedWriteRefusal(createVaultPath('Inbox/Meetings old'))).toBeNull();
+  });
+
   it('refuses a dot-folder at any depth', () => {
     expect(proposedWriteRefusal(createVaultPath('Work/.git/x.md'))).toMatch(/hidden/);
   });

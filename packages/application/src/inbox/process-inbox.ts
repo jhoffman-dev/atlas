@@ -39,11 +39,38 @@ export async function processInboxItems(
 ): Promise<ArchiveOutcome> {
   const project = await filingTarget(batch);
   const link = filedUnderStamp({ project, notePaths: batch.notePaths });
+  const types = await typesOf(batch.ports, batch.paths);
   return moveAndStampNotes(batch, {
-    refusal: processRefusal,
+    refusal: (path) => processRefusal({ path, type: types.get(path) ?? null }),
     destination: async ({ path, taken }) => processDestination({ path, project, taken }),
     stamp: () => () => ({ changes: link, keepsBlock: true }),
   });
+}
+
+/**
+ * Each note's `type:`, read before anything moves so a proposal is refused
+ * whatever folder it is in. A note that cannot be read has none here; the
+ * move says why it cannot go.
+ */
+async function typesOf(
+  { fs, markdown }: Pick<ArchivePorts, 'fs' | 'markdown'>,
+  paths: readonly VaultPath[],
+): Promise<ReadonlyMap<VaultPath, string | null>> {
+  const typeOf = (text: string): string | null => {
+    const { frontmatter } = splitFrontmatter(text);
+    if (markdown.frontmatterProblem(frontmatter) !== null) return null;
+    return noteTypeName(markdown.frontmatterProperties(frontmatter));
+  };
+  const read = async (path: VaultPath) =>
+    // A note that cannot be read has no type to judge; its move reports why it did not go.
+    [
+      path,
+      await fs.readTextFile(path).then(
+        ({ text }) => typeOf(text),
+        () => null,
+      ),
+    ] as const;
+  return new Map(await Promise.all(paths.map(read)));
 }
 
 /** The project or area the batch files under, as the vault spells it, or a refusal. */

@@ -27,20 +27,24 @@ describe('isInInbox', () => {
 });
 
 describe('processRefusal', () => {
-  it('lets a note in the Inbox be processed', () => {
-    expect(processRefusal(path('Inbox/Call the bank.md'))).toBeNull();
+  const refusal = (raw: string, type: string | null = null) =>
+    processRefusal({ path: path(raw), type });
+
+  it('lets a note in the Inbox be processed, one dropped into Inbox/Proposals included', () => {
+    expect(refusal('Inbox/Call the bank.md', 'task')).toBeNull();
+    expect(refusal('Inbox/Proposals/Ideas.md')).toBeNull();
   });
 
   it('refuses a note that is not in the Inbox, or is not a note', () => {
-    expect(processRefusal(path('Projects/Plan.md'))).toBe('It is not in the Inbox.');
-    expect(processRefusal(path('Inbox/scan.pdf'))).toBe('Only notes can be processed.');
+    expect(refusal('Projects/Plan.md')).toBe('It is not in the Inbox.');
+    expect(refusal('Inbox/scan.pdf')).toBe('Only notes can be processed.');
   });
 
-  it('refuses a proposal, which is accepted or rejected rather than filed', () => {
-    expect(processRefusal(path('Inbox/Proposals/Send the file.md'))).toBe(
+  it('refuses a proposal by its type, wherever in the Inbox it sits', () => {
+    expect(refusal('Inbox/Proposals/Send the file.md', 'proposal')).toBe(
       'A proposal is answered, not filed: accept or reject it.',
     );
-    expect(processRefusal(path('inbox/PROPOSALS/Send the file.md'))).not.toBeNull();
+    expect(refusal('Inbox/Send the file.md', ' Proposal ')).not.toBeNull();
   });
 });
 
