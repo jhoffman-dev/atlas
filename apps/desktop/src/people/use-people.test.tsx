@@ -13,7 +13,7 @@ function setUp({ failCreate = false } = {}) {
   const created: string[] = [];
   const index = fakeIndexPort({
     notesOfType: async () => [{ path: julie, title: 'Julie' }],
-    manifest: async () => [{ path: julie, modified: 5, size: 1 }],
+    manifest: async () => [{ path: julie, modified: 5, size: 1, digest: '', type: null }],
   });
   const fs = fakeVaultFs({
     createNote: async ({ path }) => {

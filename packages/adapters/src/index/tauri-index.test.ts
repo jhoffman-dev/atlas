@@ -12,8 +12,9 @@ describe('tauriIndex', () => {
     invoke.mockResolvedValue(undefined);
   });
 
-  it('opens the index', async () => {
-    await tauriIndex.open();
+  it('opens the index, and passes on whether the host had to make it', async () => {
+    invoke.mockResolvedValue({ fresh: true });
+    await expect(tauriIndex.open()).resolves.toEqual({ fresh: true });
     expect(invoke).toHaveBeenCalledWith('index_open');
   });
 
@@ -35,6 +36,8 @@ describe('tauriIndex', () => {
         title: 'A',
         modified: 1,
         size: 2,
+        type: 'meeting',
+        digest: '1a2b3c4d',
         body: 'text',
         summary: 'text',
         properties: [],

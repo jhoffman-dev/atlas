@@ -1,4 +1,4 @@
-import type { VaultPath } from '@atlas/domain';
+import type { NoteVersion, VaultPath } from '@atlas/domain';
 
 /** One column of a type's SQL view. */
 export interface ViewColumnSpec {
@@ -19,8 +19,11 @@ export interface QueryResult {
   readonly truncated: boolean;
 }
 
-/** What the index knows about a file, enough to tell whether it has changed. */
-export interface IndexEntry {
+/**
+ * What the index knows about a file: enough to tell whether it needs reading
+ * again, and — its version — whether its text changed and what it was (P28-03).
+ */
+export interface IndexEntry extends NoteVersion {
   readonly path: string;
   readonly modified: number;
   readonly size: number;
@@ -34,7 +37,7 @@ export interface IndexedLinkRow {
   readonly kind: 'wikilink' | 'markdown';
 }
 
-export interface IndexedNote {
+export interface IndexedNote extends NoteVersion {
   readonly path: string;
   readonly title: string;
   readonly modified: number;
@@ -110,8 +113,17 @@ export interface IndexStats {
  * The derived index. Everything in it restates what the markdown files already
  * say, so it can be thrown away and rebuilt at any time.
  */
+/** What opening the index found. */
+export interface IndexOpening {
+  /**
+   * True when the host made the index just now — there was none, or it threw
+   * away one of an older shape — so it holds nothing of the vault yet.
+   */
+  readonly fresh: boolean;
+}
+
 export interface IndexPort {
-  open(): Promise<void>;
+  open(): Promise<IndexOpening>;
   clear(): Promise<void>;
   manifest(): Promise<readonly IndexEntry[]>;
   put(notes: readonly IndexedNote[]): Promise<void>;

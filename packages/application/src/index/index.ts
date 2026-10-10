@@ -1,5 +1,8 @@
 export { refreshIndex, toIndexedNote } from './refresh-index.ts';
-export { syncIndex } from './sync-index.ts';
+export { createIndexSyncer } from './sync-index.ts';
+export type { IndexSyncer } from './sync-index.ts';
+export { createNoteChanges } from './note-changes.ts';
+export type { NoteChangeNews, NoteChanges } from './note-changes.ts';
 export type { IndexRefresh, RefreshOptions } from './refresh-index.ts';
 export type {
   QueryResult,
@@ -9,6 +12,7 @@ export type {
   IndexedLinkRow,
   IndexedNote,
   IndexEntry,
+  IndexOpening,
   IndexPort,
   IndexStats,
   SearchHit,

@@ -19,7 +19,9 @@ async function linkIn(text: string): Promise<string | null> {
   });
   await linkUnlinkedMention({
     index: fakeIndexPort({
-      manifest: async () => [{ path: 'projects/Atlas.md', modified: 1, size: 1 }],
+      manifest: async () => [
+        { path: 'projects/Atlas.md', modified: 1, size: 1, digest: '', type: null },
+      ],
     }),
     fs,
     markdown: remarkMarkdown,

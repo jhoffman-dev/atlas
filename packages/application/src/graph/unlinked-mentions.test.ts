@@ -105,7 +105,10 @@ function writableVault(text: string) {
 
 /** An index that knows these notes, which decides how a link must name its target. */
 const indexOf = (...paths: string[]) =>
-  fakeIndexPort({ manifest: async () => paths.map((path) => ({ path, modified: 1, size: 1 })) });
+  fakeIndexPort({
+    manifest: async () =>
+      paths.map((path) => ({ path, modified: 1, size: 1, digest: '', type: null })),
+  });
 const indexed = indexOf(atlas.path, 'mentions.md');
 
 const panes = (state: OpenNoteState) => ({ state: () => state, reload: vi.fn() });

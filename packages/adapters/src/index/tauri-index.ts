@@ -3,6 +3,7 @@ import type { VaultPath } from '@atlas/domain';
 import type {
   IndexedNote,
   IndexEntry,
+  IndexOpening,
   IndexPort,
   IndexStats,
   QueryResult,
@@ -14,8 +15,8 @@ import { throughHost } from '../vault/host-error.ts';
 
 /** The SQLite-backed index living in the vault's cache directory. */
 export const tauriIndex: IndexPort = {
-  async open() {
-    await throughHost(invoke('index_open'));
+  open() {
+    return throughHost(invoke<IndexOpening>('index_open'));
   },
 
   async clear() {

@@ -42,7 +42,7 @@ function vaultWith(noteText: string, pictures: readonly string[]) {
 function bookmarksOver(
   fs: ReturnType<typeof fakeVaultFs>,
   index: IndexPort = fakeIndexPort({
-    manifest: async () => [{ path: rome, modified: 1, size: 1 }],
+    manifest: async () => [{ path: rome, modified: 1, size: 1, digest: '', type: null }],
   }),
 ) {
   return renderHook(() =>
@@ -127,7 +127,9 @@ describe('useBookmarks, as notes are saved (A22-01)', () => {
       },
     });
     const index = fakeIndexPort({
-      manifest: async () => [{ path: rome, modified: state.modified, size: 1 }],
+      manifest: async () => [
+        { path: rome, modified: state.modified, size: 1, digest: '', type: null },
+      ],
     });
     return { fs, index, readNotes, state };
   }
