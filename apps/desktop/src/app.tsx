@@ -932,6 +932,7 @@ export function App({
     clock: localClock,
     indexKey,
     onSettled: settleArchive,
+    activity: activityLog,
   });
   const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
   // One Inbox: its count is what waits to be filed and the proposals waiting for an answer.

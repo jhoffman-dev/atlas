@@ -13,7 +13,12 @@ import {
   type VaultEntry,
   type VaultPath,
 } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type ProposalPorts } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeVaultFs,
+  recordingActivity,
+  type ProposalPorts,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useProposals } from './use-proposals.ts';
 
@@ -110,18 +115,35 @@ function vault(notes: Record<string, string>) {
   return { files, ports };
 }
 
-function render(notes: Record<string, string> = { [PROPOSAL]: PROPOSAL_TEXT }) {
+function render(
+  notes: Record<string, string> = { [PROPOSAL]: PROPOSAL_TEXT },
+  failCreate: string | null = null,
+) {
   const setup = vault(notes);
+  const ports: ProposalPorts =
+    failCreate === null
+      ? setup.ports
+      : {
+          ...setup.ports,
+          fs: {
+            ...setup.ports.fs,
+            createNote: async () => {
+              throw new Error(failCreate);
+            },
+          },
+        };
   const onSettled = vi.fn();
+  const activity = recordingActivity();
   const hook = renderHook(() =>
     useProposals({
-      ports: setup.ports,
+      ports,
       clock: { today: () => '2026-10-08' },
       indexKey: 'v1',
       onSettled,
+      activity,
     }),
   );
-  return { ...setup, hook, onSettled };
+  return { ...setup, hook, onSettled, activity };
 }
 
 describe('useProposals', () => {
@@ -177,6 +199,27 @@ describe('useProposals', () => {
     expect(files.get(TASK)?.text).toBe('Made by hand.\n');
   });
 
+  it('records a refused accept nowhere, and an accept it gave up on once', async () => {
+    const refused = render({ [PROPOSAL]: PROPOSAL_TEXT, [TASK]: 'Made by hand.\n' });
+    await waitFor(() => expect(refused.hook.result.current.count).toBe(1));
+    act(() => refused.hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(refused.hook.result.current.section.problems.size).toBe(1));
+    expect(refused.activity.reports).toEqual([]);
+
+    const failed = render({ [PROPOSAL]: PROPOSAL_TEXT }, 'The disk is full.');
+    await waitFor(() => expect(failed.hook.result.current.count).toBe(1));
+    act(() => failed.hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(failed.hook.result.current.section.problems.size).toBe(1));
+    expect(failed.activity.reports).toEqual([
+      expect.objectContaining({
+        level: 'error',
+        kind: 'save',
+        subject: { kind: 'note', path: PROPOSAL },
+      }),
+    ]);
+    expect(failed.activity.reports[0]?.message).toMatch(/^Could not answer the proposal/);
+  });
+
   it('rejects one, archiving it, with nothing to undo', async () => {
     const { hook, files } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
@@ -223,6 +266,7 @@ describe('useProposals — adversarial: another vault opened after an accept', (
           clock: { today: () => '2026-10-08' },
           indexKey: 'v1',
           onSettled: () => {},
+          activity: recordingActivity(),
         }),
       { initialProps: { ports: first.ports } },
     );

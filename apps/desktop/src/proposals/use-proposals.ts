@@ -3,14 +3,18 @@ import { noteTitle, type VaultPath } from '@atlas/domain';
 import {
   acceptProposalNote,
   listProposals,
+  ProposalRefused,
   rejectProposalNote,
+  TaskRuleRefusedError,
   undoAcceptedProposal,
   type AcceptedProposal,
+  type ActivityLog,
   type Clock,
   type ProposalArchived,
   type ProposalPorts,
 } from '@atlas/application';
 import type { ProposalNotice, ProposalsContents, ProposalsSectionProps } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 
 export interface ProposalsOptions {
   readonly ports: ProposalPorts;
@@ -19,7 +23,12 @@ export interface ProposalsOptions {
   readonly indexKey: string;
   /** Re-reads the tree and the index once an answer has written or moved notes. */
   readonly onSettled: () => void;
+  /** Where an answer the section gives up on is recorded; a refusal is not. */
+  readonly activity: Pick<ActivityLog, 'inOpenVault'>;
 }
+
+/** What an answer refuses so as not to write over or lose anything: shown on the card, no fault. */
+const ANSWER_REFUSALS = [ProposalRefused, TaskRuleRefusedError];
 
 /** What the Inbox's Proposals section takes from here: everything but where it opens notes. */
 export type ProposalsSectionState = Omit<ProposalsSectionProps, 'onOpen' | 'onOpenSource'>;
@@ -48,7 +57,7 @@ function acceptedNotice(accepted: AcceptedProposal): ProposalNotice {
  * proposal is being answered, why an answer was refused, and the last accept,
  * for its Undo.
  */
-export function useProposals({ ports, clock, indexKey, onSettled }: ProposalsOptions) {
+export function useProposals({ ports, clock, indexKey, onSettled, activity }: ProposalsOptions) {
   const [contents, setContents] = useState<ProposalsContents | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<VaultPath | 'undo' | null>(null);
@@ -97,8 +106,10 @@ export function useProposals({ ports, clock, indexKey, onSettled }: ProposalsOpt
       if (answering.current) return;
       answering.current = true;
       setBusy(key);
+      const path = key === 'undo' ? null : key;
+      const named = { activity, write: 'proposal', path, refusal: ANSWER_REFUSALS } as const;
       try {
-        setNotice(await run());
+        setNotice(await withGiveUpRecorded(named, run));
         if (key !== 'undo') setProblems((was) => without(was, key));
         onSettled();
         setReads((count) => count + 1);
@@ -110,7 +121,7 @@ export function useProposals({ ports, clock, indexKey, onSettled }: ProposalsOpt
         setBusy(null);
       }
     },
-    [onSettled],
+    [onSettled, activity],
   );
 
   const onAccept = useCallback(
