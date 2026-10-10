@@ -27,8 +27,14 @@ export interface GoogleCalendarPort {
   }): Promise<GoogleConnection>;
   /** Ends the sign-in waiting in the browser, if there is one. */
   cancelConnect(): Promise<void>;
-  /** Forgets the sign-in; `revoked` is false when Google could not be told. */
-  disconnect(args: { vault: string }): Promise<{ readonly revoked: boolean }>;
+  /**
+   * Forgets the sign-in. `revoked` is false when Google was not told: it
+   * could not be reached, or — `shared` — another vault on this Mac signs in
+   * with the same client, and revoking might end that one's sign-in too.
+   */
+  disconnect(args: {
+    vault: string;
+  }): Promise<{ readonly revoked: boolean; readonly shared: boolean }>;
   listCalendars(args: { vault: string }): Promise<readonly GoogleCalendar[]>;
   createCalendar(args: { vault: string; name: string }): Promise<GoogleCalendar>;
 }

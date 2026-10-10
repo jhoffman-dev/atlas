@@ -10,6 +10,7 @@ export function fakeGoogleCalendar(calendars: GoogleCalendar[] = []) {
   const state = {
     next: null as Error | null,
     revoked: true,
+    shared: false,
     cancels: 0,
     calendars,
   };
@@ -31,7 +32,7 @@ export function fakeGoogleCalendar(calendars: GoogleCalendar[] = []) {
     },
     disconnect: async ({ vault }) => {
       connected.delete(vault);
-      return { revoked: state.revoked };
+      return { revoked: state.revoked, shared: state.shared };
     },
     listCalendars: async () => state.calendars,
     createCalendar: async ({ name }) => {

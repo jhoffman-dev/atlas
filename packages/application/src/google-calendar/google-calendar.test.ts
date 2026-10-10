@@ -30,7 +30,7 @@ function fakePort(overrides: Partial<GoogleCalendarPort> = {}): GoogleCalendarPo
     status: vi.fn(async () => ({ connected: false, clientId: null, scopes: [] })),
     connect: vi.fn(async ({ clientId, scopes }) => ({ connected: true, clientId, scopes })),
     cancelConnect: vi.fn(async () => undefined),
-    disconnect: vi.fn(async () => ({ revoked: true })),
+    disconnect: vi.fn(async () => ({ revoked: true, shared: false })),
     listCalendars: vi.fn(async () => []),
     createCalendar: vi.fn(async ({ name }) => calendar(name)),
     ...overrides,
@@ -120,12 +120,23 @@ describe('disconnectGoogleCalendar', () => {
   });
 
   it('says what is left to do when Google could not be told', async () => {
-    const port = fakePort({ disconnect: async () => ({ revoked: false }) });
+    const port = fakePort({ disconnect: async () => ({ revoked: false, shared: false }) });
 
     const left = await disconnectGoogleCalendar({ port, vault: VAULT });
 
     expect(left?.problem).toMatch(/could not tell Google/);
     expect(left?.fix).toMatch(/Google Account/);
+  });
+});
+
+describe('disconnectGoogleCalendar, with a client another vault shares', () => {
+  it('says the sign-in was forgotten here and not revoked, and how to end it', async () => {
+    const port = fakePort({ disconnect: async () => ({ revoked: false, shared: true }) });
+
+    const left = await disconnectGoogleCalendar({ port, vault: VAULT });
+
+    expect(left?.problem).toMatch(/another vault on this Mac/);
+    expect(left?.fix).toMatch(/disconnect the other vault/);
   });
 });
 

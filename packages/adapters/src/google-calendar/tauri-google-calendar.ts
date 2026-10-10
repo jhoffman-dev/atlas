@@ -107,7 +107,9 @@ export const tauriGoogleCalendar: GoogleCalendarPort = {
     return throughGoogle(invoke<void>('google_connect_cancel'));
   },
   disconnect({ vault }) {
-    return throughGoogle(invoke<{ revoked: boolean }>('google_disconnect', { vault }));
+    return throughGoogle(
+      invoke<{ revoked: boolean; shared: boolean }>('google_disconnect', { vault }),
+    );
   },
   listCalendars,
   async createCalendar({ vault, name }) {

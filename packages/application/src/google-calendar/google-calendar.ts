@@ -82,6 +82,12 @@ const NOT_REVOKED: GoogleProblem = {
   fix: 'Remove Atlas from the third-party access in your Google Account’s security settings.',
 };
 
+const SHARED: GoogleProblem = {
+  problem:
+    'Atlas forgot the sign-in for this vault, but did not ask Google to revoke it: another vault on this Mac connects with the same client, and revoking could disconnect that one too.',
+  fix: 'To end Atlas’s access altogether, disconnect the other vault as well.',
+};
+
 /** Forgets the sign-in. Returns what the person still has to do, or null when nothing. */
 export async function disconnectGoogleCalendar({
   port,
@@ -90,7 +96,8 @@ export async function disconnectGoogleCalendar({
   port: GoogleCalendarPort;
   vault: string;
 }): Promise<GoogleProblem | null> {
-  const { revoked } = await port.disconnect({ vault });
+  const { revoked, shared } = await port.disconnect({ vault });
+  if (shared) return SHARED;
   return revoked ? null : NOT_REVOKED;
 }
 

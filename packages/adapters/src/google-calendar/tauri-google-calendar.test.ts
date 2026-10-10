@@ -44,11 +44,12 @@ describe('tauriGoogleCalendar', () => {
   });
 
   it('asks status, cancel and disconnect of the host by name', async () => {
-    invoke.mockResolvedValue({ revoked: true });
+    invoke.mockResolvedValue({ revoked: true, shared: false });
     await tauriGoogleCalendar.status({ vault: VAULT });
     await tauriGoogleCalendar.cancelConnect();
     await expect(tauriGoogleCalendar.disconnect({ vault: VAULT })).resolves.toEqual({
       revoked: true,
+      shared: false,
     });
     expect(invoke.mock.calls).toEqual([
       ['google_status', { vault: VAULT }],

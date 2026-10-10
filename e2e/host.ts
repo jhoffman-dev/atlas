@@ -1070,7 +1070,7 @@ export async function installHost(
         return null;
       case 'google_disconnect':
         googleSignIns.delete(writeRoot(args));
-        return { revoked: true };
+        return { revoked: true, shared: false };
       case 'google_calendar_request': {
         if (!googleSignIns.has(writeRoot(args))) {
           return { [REJECT]: { kind: 'not_connected', message: 'not connected' } };
