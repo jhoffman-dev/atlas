@@ -41,6 +41,7 @@ const RESERVED = new Set([
   'WITH',
   'BY',
   'ARCHIVED',
+  'THIS',
 ]);
 
 export function printAtlasQuery(query: AtlasQuery): string {
@@ -68,6 +69,8 @@ function printExpression(expression: Expression, within: 'or' | 'and' | 'not'): 
       return `${fieldText(expression.field)} ${opText(expression.op)} ${printValue(expression.value)}`;
     case 'empty':
       return `${fieldText(expression.field)} IS ${expression.negated ? 'NOT ' : ''}EMPTY`;
+    case 'linksTo':
+      return `LINKS TO ${printValue(expression.value)}`;
     case 'not':
       return `NOT ${printExpression(expression.operand, 'not')}`;
     default: {
@@ -92,6 +95,8 @@ export function printValue(value: QueryValue): string {
       return /\s/.test(value.name) ? quoted(value.name) : `#${value.name}`;
     case 'relativeDate':
       return `@${value.name}`;
+    case 'this':
+      return 'this';
     case 'text':
       return isBare(value.text) ? value.text : quoted(value.text);
   }

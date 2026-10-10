@@ -506,6 +506,7 @@ describe('tools/call → REST', () => {
     ['atlas_run_query', { query: 'FROM task', limit: 0 }],
     ['atlas_run_query', { query: 'FROM task', limit: 5001 }],
     ['atlas_run_query', { query: 'FROM task', limit: 2.5 }],
+    ['atlas_run_query', { query: 'FROM task', context: '' }],
   ])('refuses %s with %j before any request is made', async (tool, args) => {
     const result = await call(tool, args);
     expect(result.isError).toBe(true);
@@ -535,6 +536,23 @@ describe('atlas_run_query', () => {
         body: { query: 'FROM task GROUP BY status' },
       }),
       expect.objectContaining({ body: { query: 'FROM task', limit: 5000 } }),
+    ]);
+  });
+
+  it('posts the note given as context, which this in the query names', async () => {
+    atlas.respondWith(() => ({ status: 200, body: ROWS }));
+    await call('atlas_run_query', {
+      query: 'FROM meeting WHERE people = this AND date > @-30d',
+      context: 'People/Mara Quill.md',
+    });
+    expect(atlas.requests).toEqual([
+      expect.objectContaining({
+        url: '/v1/atlas-query',
+        body: {
+          query: 'FROM meeting WHERE people = this AND date > @-30d',
+          context: 'People/Mara Quill.md',
+        },
+      }),
     ]);
   });
 

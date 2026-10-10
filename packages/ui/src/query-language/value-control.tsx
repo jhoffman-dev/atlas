@@ -1,5 +1,5 @@
 import {
-  MOVING_DATES,
+  movingDateChoices,
   valueEditorFor,
   valueFromInput,
   valueInputText,
@@ -119,7 +119,8 @@ function DateControl({
   text: string;
   onChange: (input: string) => void;
 }) {
-  const moving = MOVING_DATES.some((date) => date.value === text);
+  const movingDates = movingDateChoices(text);
+  const moving = movingDates.some((date) => date.value === text);
   return (
     <span className="qb__date">
       <ChoiceSelect
@@ -127,7 +128,7 @@ function DateControl({
         value={moving ? text : text === '' ? '' : ON_A_DAY}
         choices={[
           ...(text === '' ? [{ value: '', label: 'Choose…' }] : []),
-          ...MOVING_DATES,
+          ...movingDates,
           { value: ON_A_DAY, label: 'On a day…' },
         ]}
         onChange={(picked) => onChange(picked === ON_A_DAY ? '' : picked)}

@@ -8,6 +8,7 @@ import {
   type BoardRow,
   type CompiledAtlasQuery,
   type RowGroup,
+  type VaultPath,
 } from '@atlas/domain';
 import { readNamedNotes } from '../graph/load-graph.ts';
 import { AtlasQueryError, runAtlasQuery, type AtlasQueryAnswer } from '../query/run-atlas-query.ts';
@@ -33,38 +34,54 @@ export async function vaultQueryContext(request: VaultRequest) {
   return { types, notePaths };
 }
 
+/** A query's text, as asked for through the API. */
+export interface AskedAtlasQuery {
+  readonly text: string;
+  /** The caller's limit, or null for the text's own LIMIT (or the default) alone. */
+  readonly asked: number | null;
+  /** The note the query is shown on, which `this` names; null for none. */
+  readonly thisNote?: VaultPath | null;
+}
+
 /**
  * A query's text run against the request's vault, one row past the page so
- * `truncated` can say whether more matched. `asked` is the caller's limit, or
- * null for the text's own LIMIT (or the default) alone.
+ * `truncated` can say whether more matched.
  */
 export async function answerAtlasQueryPage(
   request: VaultRequest,
-  text: string,
-  asked: number | null,
+  { text, asked, thisNote = null }: AskedAtlasQuery,
 ): Promise<{ answer: AtlasQueryAnswer; rows: ApiRows }> {
-  const answer = await answerAtlasQuery(request, text, (textLimit) =>
-    Math.min(rowLimit(textLimit, asked) + 1, MAX_QUERY_LIMIT),
-  );
+  const answer = await answerAtlasQuery(request, {
+    text,
+    thisNote,
+    fetchLimit: (textLimit) => Math.min(rowLimit(textLimit, asked) + 1, MAX_QUERY_LIMIT),
+  });
   return { answer, rows: pageOf(answer, rowLimit(answer.query.limit, asked)) };
 }
 
 /**
  * Runs a query's text against the request's vault. A problem in the text is
- * `invalid`, with where it is; the index refusing the SQL is `query_failed`.
+ * `invalid`, with where it is; the index refusing the SQL is `query_failed`;
+ * a `this` naming a note the vault does not have is `not_found`.
  */
 async function answerAtlasQuery(
   request: VaultRequest,
-  text: string,
-  fetchLimit: (textLimit: number | null) => number,
+  {
+    text,
+    thisNote,
+    fetchLimit,
+  }: {
+    text: string;
+    thisNote: VaultPath | null;
+    fetchLimit: (textLimit: number | null) => number;
+  },
 ): Promise<AtlasQueryAnswer> {
   try {
-    return await runAtlasQuery({
-      index: request.index,
-      text,
-      ...(await vaultQueryContext(request)),
-      fetchLimit,
-    });
+    const context = await vaultQueryContext(request);
+    if (thisNote !== null && !context.notePaths.includes(thisNote)) {
+      throw new ApiError('not_found', `No note at ${thisNote}`);
+    }
+    return await runAtlasQuery({ index: request.index, text, ...context, thisNote, fetchLimit });
   } catch (error) {
     if (error instanceof AtlasQueryError && error.problem !== null) {
       const { span, message } = error.problem;

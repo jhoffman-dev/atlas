@@ -33,6 +33,7 @@ export {
   builderOperatorsFor,
   builderOperatorWords,
   MOVING_DATES,
+  movingDateChoices,
   isComplete,
   operatorTakesQueryValue,
   queryFromBuilder,

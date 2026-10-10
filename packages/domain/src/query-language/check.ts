@@ -10,9 +10,9 @@
 import { isDateLike } from '../index/property-value.ts';
 import { isTagName } from '../tags/tag-name.ts';
 import type { ObjectType } from '../types/property-def.ts';
-import { RELATIVE_DATE_NAMES } from '../query/view-query.ts';
-import type { AtlasQuery, Comparison, Condition, Expression, QueryValue } from './ast.ts';
+import type { AtlasQuery, Comparison, Condition, Expression, FieldRef, QueryValue } from './ast.ts';
 import { resolveField, type FieldKind, type QueryField } from './fields.ts';
+import { movingDateProblem } from './moving-date.ts';
 import { opText } from './parse.ts';
 import { QueryTextError } from './query-text-error.ts';
 
@@ -64,15 +64,23 @@ export function groupRefusal(field: Pick<QueryField, 'kind' | 'text' | 'many'>):
   return `A note can have several ${field.kind === 'tag' ? 'tags' : `of ${field.text}`}, so it cannot be grouped by it.`;
 }
 
-/** Throws a {@link QueryTextError} at the first thing in the query the vault cannot answer. */
-export function checkAtlasQuery(query: AtlasQuery, types: readonly ObjectType[]): void {
+/**
+ * Throws a {@link QueryTextError} at the first thing in the query the vault
+ * cannot answer. `thisNote` is the note the query is shown on, which `this`
+ * names; a query shown on none cannot say `this`.
+ */
+export function checkAtlasQuery(
+  query: AtlasQuery,
+  types: readonly ObjectType[],
+  thisNote: string | null = null,
+): void {
   checkFrom(query, types);
   const from = query.from.map((name) => name.text);
-  const field = (ref: Parameters<typeof resolveField>[0]) => resolveField(ref, types, from);
+  const field = (ref: FieldRef) => resolveField(ref, types, from);
 
   if (query.where !== null) {
     checkConditionCount(query.where);
-    checkExpression(query.where, field);
+    checkExpression(query.where, { field, onPage: thisNote !== null });
   }
   for (const key of query.sort) {
     if (!isSortable(field(key.field))) {
@@ -110,7 +118,11 @@ function checkFrom(query: AtlasQuery, types: readonly ObjectType[]): void {
   }
 }
 
-type Resolve = (ref: Condition['field']) => QueryField;
+interface Scope {
+  readonly field: (ref: FieldRef) => QueryField;
+  /** Whether the query is shown on a note, so `this` names one. */
+  readonly onPage: boolean;
+}
 
 /**
  * How many conditions one query may hold: each binds a few values, and the
@@ -129,26 +141,49 @@ function checkConditionCount(where: Expression): void {
   }
 }
 
-function conditionsOf(expression: Expression): Condition[] {
-  if (expression.kind === 'compare' || expression.kind === 'empty') return [expression];
+/** Every condition in an expression, however deep in brackets and NOTs. */
+export function conditionsOf(expression: Expression): Condition[] {
+  const { kind } = expression;
+  if (kind === 'compare' || kind === 'empty' || kind === 'linksTo') return [expression];
   if (expression.kind === 'not') return conditionsOf(expression.operand);
   return expression.operands.flatMap(conditionsOf);
 }
 
-function checkExpression(expression: Expression, field: Resolve): void {
+function checkExpression(expression: Expression, scope: Scope): void {
   switch (expression.kind) {
     case 'and':
     case 'or':
-      expression.operands.forEach((operand) => checkExpression(operand, field));
+      expression.operands.forEach((operand) => checkExpression(operand, scope));
       return;
     case 'not':
-      checkExpression(expression.operand, field);
+      checkExpression(expression.operand, scope);
       return;
     case 'empty':
-      field(expression.field);
+      scope.field(expression.field);
+      return;
+    case 'linksTo':
+      checkLinksTo(expression.value, scope);
       return;
     case 'compare':
-      checkComparison(expression, field(expression.field));
+      checkComparison(expression, scope.field(expression.field));
+      if (expression.value.kind === 'this') checkOnPage(expression.value, scope);
+  }
+}
+
+/** `LINKS TO this`: the links in a note's body, to the note the query is shown on. */
+function checkLinksTo(value: QueryValue, scope: Scope): void {
+  if (value.kind !== 'this') {
+    throw new QueryTextError('LINKS TO takes this: the note the query is shown on.', value.span);
+  }
+  checkOnPage(value, scope);
+}
+
+function checkOnPage(value: QueryValue, scope: Scope): void {
+  if (!scope.onPage) {
+    throw new QueryTextError(
+      'this is the note a query is shown on, and this query is not shown on one.',
+      value.span,
+    );
   }
 }
 
@@ -172,9 +207,12 @@ function checkComparison(
 function valueProblem(field: QueryField, op: Comparison, value: QueryValue): string | null {
   if (value.kind === 'relativeDate') {
     if (!DATES.includes(field.kind)) return `@${value.name} is a date, and ${field.text} is not.`;
-    return RELATIVE_DATE_NAMES.includes(`@${value.name}`)
+    return movingDateProblem(value.name);
+  }
+  if (value.kind === 'this') {
+    return field.kind === 'relation' && (op === '=' || op === '!=')
       ? null
-      : `There is no date called @${value.name}. Try ${RELATIVE_DATE_NAMES.join(', ')}.`;
+      : `this is a note: compare a relation with it using = or !=, like people = this. To mean the word, quote it: 'this'.`;
   }
   if (op === 'contains' || op === 'startsWith') {
     return value.kind === 'text' || value.kind === 'number' ? null : `${opText(op)} takes text.`;
@@ -183,7 +221,7 @@ function valueProblem(field: QueryField, op: Comparison, value: QueryValue): str
 }
 
 type ValueRule = (
-  value: Exclude<QueryValue, { kind: 'relativeDate' }>,
+  value: Exclude<QueryValue, { kind: 'relativeDate' | 'this' }>,
   field: QueryField,
 ) => string | null;
 

@@ -46,6 +46,7 @@ export async function runAtlasQuery({
   text,
   types,
   notePaths,
+  thisNote = null,
   fetchLimit,
 }: {
   index: IndexPort;
@@ -53,6 +54,8 @@ export async function runAtlasQuery({
   types: readonly ObjectType[];
   /** Every note in the vault, so `[[Julie]]` in the query names the note it means. */
   notePaths: readonly string[];
+  /** The note the query is shown on, which `this` names; without one, `this` is refused. */
+  thisNote?: string | null;
   /**
    * How many rows to ask the index for, given the LIMIT the text says (null
    * when it says none). Omitted: the text's own LIMIT, or the default. The
@@ -60,7 +63,7 @@ export async function runAtlasQuery({
    */
   fetchLimit?: (textLimit: number | null) => number;
 }): Promise<AtlasQueryAnswer> {
-  const { query, compiled } = compileText({ text, types, notePaths, fetchLimit });
+  const { query, compiled } = compileText({ text, types, notePaths, thisNote, fetchLimit });
   try {
     const result = await index.query(compiled.sql, compiled.parameters);
     return { query, compiled, result: { ...result, sql: compiled.sql } };
@@ -73,18 +76,20 @@ function compileText({
   text,
   types,
   notePaths,
+  thisNote,
   fetchLimit,
 }: {
   text: string;
   types: readonly ObjectType[];
   notePaths: readonly string[];
+  thisNote: string | null;
   fetchLimit: ((textLimit: number | null) => number) | undefined;
 }): { query: AtlasQuery; compiled: CompiledAtlasQuery } {
   try {
     const query = parseAtlasQuery(text);
     const resolveLink = createWikiLinkResolver(notePaths.map(createVaultPath));
     const asked = fetchLimit === undefined ? query : { ...query, limit: fetchLimit(query.limit) };
-    return { query, compiled: compileAtlasQuery(asked, { types, resolveLink }) };
+    return { query, compiled: compileAtlasQuery(asked, { types, resolveLink, thisNote }) };
   } catch (cause) {
     if (cause instanceof QueryTextError) throw new AtlasQueryError(cause.message, problemOf(cause));
     throw cause;

@@ -117,6 +117,13 @@ describe('automationQuery, as a query', () => {
     ).toContain('NOT (due < 2999-03-03 OR due > 2999-03-17) AND due != 2999-03-11');
   });
 
+  it('pins a count from today and the start of the week to the day it is handed', () => {
+    // 2999-03-10 is a Sunday; its week began on Monday the 4th.
+    expect(pinned('FROM task WHERE due > @-30d AND due < @+2w AND due >= @startOfWeek')).toContain(
+      'due > 2999-02-08 AND due < 2999-03-24 AND due >= 2999-03-04',
+    );
+  });
+
   it('asks for as many notes as a query may return, unless the query has its own limit', () => {
     const query = automationQuery({
       query: parseAtlasQuery('FROM task'),

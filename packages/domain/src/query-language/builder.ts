@@ -18,8 +18,9 @@ import {
 } from './ast.ts';
 import { splitWikiLinks } from '../markdown/wikilink.ts';
 import { MAX_QUERY_LIMIT } from '../query/view-query.ts';
-import { comparisonsFor } from './check.ts';
+import { comparisonsFor, conditionsOf } from './check.ts';
 import type { FieldKind, QueryField } from './fields.ts';
+import { countedLabel } from './moving-date.ts';
 
 /** How a condition compares: one of the comparisons, or whether there is a value at all. */
 export type BuilderOperator = Comparison | 'isEmpty' | 'isNotEmpty';
@@ -54,7 +55,12 @@ export type BuilderReading =
 const MIXED =
   'This query brackets conditions together — AND with OR, or NOT over a group — which the builder cannot show as one list. Edit it as text.';
 
+const LINKS_TO = 'This query says LINKS TO, which the builder has no control for. Edit it as text.';
+
 export function builderFromQuery(query: AtlasQuery): BuilderReading {
+  const said = query.where === null ? [] : conditionsOf(query.where);
+  if (said.some((condition) => condition.kind === 'linksTo'))
+    return { ok: false, reason: LINKS_TO };
   const flat = flatten(query.where);
   if (flat === null) return { ok: false, reason: MIXED };
   return {
@@ -233,7 +239,20 @@ export const MOVING_DATES: readonly { readonly value: string; readonly label: st
   { value: '@weekAgo', label: 'A week ago' },
   { value: '@weekAhead', label: 'A week from now' },
   { value: '@monthAhead', label: 'A month from now' },
+  { value: '@startOfWeek', label: 'Start of this week' },
 ];
+
+/**
+ * The moving dates the date control offers while it holds `text`: the list,
+ * and `text` itself when it is a count from today — `@-30d` reads "30 days
+ * ago" — so a count typed as text is shown as the date it is, not as no day.
+ */
+export function movingDateChoices(
+  text: string,
+): readonly { readonly value: string; readonly label: string }[] {
+  const label = text.startsWith('@') ? countedLabel(text.slice(1)) : null;
+  return label === null ? MOVING_DATES : [...MOVING_DATES, { value: text, label }];
+}
 
 /** The operators the builder offers for a field, emptiness last. */
 export function builderOperatorsFor(field: QueryField): BuilderOperator[] {
@@ -267,6 +286,8 @@ export function valueFromInput(
   if (editor === 'number' && NUMBER.test(typed))
     return { kind: 'number', number: Number(typed), text: typed, span };
   if (editor === 'boolean') return { kind: 'boolean', value: typed.toLowerCase() === 'true', span };
+  // Shown as `this`, read back as `this`; a note called "this" is [[this]].
+  if (editor === 'note' && typed === 'this') return { kind: 'this', span };
   if (editor === 'note') return { kind: 'link', target: linkTarget(typed), span };
   if (editor === 'tag') return { kind: 'tag', name: typed.replace(/^#/, ''), span };
   return { kind: 'text', text: typed, span };
@@ -292,6 +313,8 @@ export function valueInputText(value: QueryValue | null): string {
       return value.name;
     case 'relativeDate':
       return `@${value.name}`;
+    case 'this':
+      return 'this';
     case 'text':
       return value.text;
   }
