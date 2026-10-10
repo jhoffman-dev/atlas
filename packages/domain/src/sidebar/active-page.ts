@@ -17,7 +17,6 @@ export type ActiveSidebarPage =
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
   | { readonly kind: 'terms' }
-  | { readonly kind: 'proposals' }
   | null;
 
 /**
@@ -41,7 +40,6 @@ export function activeSidebarPage({
   activityOpen = false,
   templatesOpen = false,
   termsOpen = false,
-  proposalsOpen = false,
   viewOwner = () => null,
 }: {
   layout: PaneLayout;
@@ -64,8 +62,6 @@ export function activeSidebarPage({
   templatesOpen?: boolean;
   /** And the Terms page. */
   termsOpen?: boolean;
-  /** And the Proposals page. */
-  proposalsOpen?: boolean;
   /**
    * The type a note is one of the views of, or null. A type owns its views
    * (ADR-0023), so a pane on one of them is that type's page and marks the type.
@@ -79,7 +75,6 @@ export function activeSidebarPage({
   if (activityOpen) return { kind: 'activity' };
   if (templatesOpen) return { kind: 'templates' };
   if (termsOpen) return { kind: 'terms' };
-  if (proposalsOpen) return { kind: 'proposals' };
   if (graphOpen) return { kind: 'graph' };
   if (tagsOpen) return { kind: 'tags' };
   if (openTypeName !== null) return { kind: 'type', name: openTypeName };

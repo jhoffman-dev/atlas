@@ -11120,6 +11120,18 @@ select.type-editor__field,
   width: 1%;
 }
 
+/* What the meeting import made of a file, under its kind (P28-04). */
+.inbox__import {
+  color: var(--ink-3);
+  display: block;
+  font-size: var(--text-small);
+  white-space: normal;
+}
+
+.inbox__import--error {
+  color: var(--danger);
+}
+
 .inbox__file {
   background: var(--raised);
   border: 0;
@@ -12853,6 +12865,26 @@ select.type-editor__field,
    Proposals (P29-02): what Claude proposes, waiting to be accepted, edited or
    rejected. Each card says what Accept would write and the line it cites.
    --------------------------------------------------------------------------- */
+
+/* A section of the Inbox page, above the notes waiting to be filed (P30-01). */
+.proposals {
+  margin: 0 0 var(--space-5);
+}
+
+.proposals__heading {
+  align-items: center;
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: 6px;
+  margin: 0 0 var(--space-1);
+}
+
+.proposals__summary {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: 0 0 var(--space-3);
+}
 
 .proposals__notice {
   align-items: center;

@@ -3,7 +3,7 @@ atlas: view
 layout: list
 query: |-
   FROM task, meeting
-  WHERE status = backlog OR path STARTS WITH 'Inbox/' OR atlas_import_error IS NOT EMPTY
+  WHERE status = inbox OR path STARTS WITH 'Inbox/' OR atlas_import_error IS NOT EMPTY
   SORT BY title
   SHOW status, source, atlas_import_error
   LIMIT 200

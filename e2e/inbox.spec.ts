@@ -146,7 +146,7 @@ test('a task’s project, once its type is extended, offers projects and areas a
     .click();
 
   const offer = inboxPage(page).getByRole('complementary', {
-    name: 'Link your types to projects and areas',
+    name: 'Set your types up for the Inbox',
   });
   await expect(offer).toContainText('task gains Project, linking project or area notes.');
   // Nothing is written to a type the vault already has until James says so.

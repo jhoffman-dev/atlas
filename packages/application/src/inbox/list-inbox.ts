@@ -34,6 +34,9 @@ export async function listInbox({
       path: createVaultPath(String(cell(row, 'path'))),
       title: String(cell(row, 'title') ?? ''),
       type: cell(row, 'type'),
+      importStamped: Boolean(cell(row, 'importStamped')),
+      importOutcome: cell(row, 'importOutcome'),
+      importError: cell(row, 'importError'),
     }),
   );
   return { items: items.slice(0, limit), truncated: result.truncated || items.length > limit };

@@ -3,7 +3,7 @@ import { createVault, expectFile, installHost, type FakeVault } from './host.ts'
 
 /**
  * P29-02: what Claude proposes waits as a note in `Inbox/Proposals/`, and the
- * Proposals page answers it. Accepting a task proposal makes the task — citing
+ * Inbox page's Proposals section answers it — never offering to file it. Accepting a task proposal makes the task — citing
  * the line it came from and linking its meeting — files the proposal in the
  * Archive, and offers to open the task. Every claim about a file reads the disk.
  */
@@ -69,16 +69,24 @@ async function openProposalsVault(page: Page): Promise<FakeVault> {
   return vault;
 }
 
-test('a task proposal accepted from the Proposals page makes the task, and the task opens', async ({
+test('a task proposal accepted on the Inbox page makes the task, and the task opens', async ({
   page,
 }) => {
   const vault = await openProposalsVault(page);
 
-  const row = page.getByRole('button', { name: 'Proposals, 1 waiting' });
-  await expect(row).toBeVisible();
+  // One Inbox: its count is the meeting waiting to be filed and the proposal waiting for an answer.
+  const row = page.getByRole('button', { name: /^Inbox/ });
+  await expect(row).toContainText('2');
   await row.click();
 
-  await expect(page.getByRole('article', { name: 'Proposals' })).toBeVisible();
+  const inbox = page.getByRole('article', { name: 'Inbox' });
+  await expect(inbox.getByRole('region', { name: 'Proposals' })).toBeVisible();
+  await expect(
+    inbox.getByRole('combobox', { name: 'File 2026-10-01 Standup under' }),
+  ).toBeVisible();
+  await expect(
+    inbox.getByRole('combobox', { name: /File Send the payroll file under/ }),
+  ).toHaveCount(0);
   const card = page.getByRole('region', { name: 'Task: Send Mara the payroll file' });
   await expect(card.getByText('high confidence')).toBeVisible();
   await expect(card.getByRole('button', { name: /2026-10-01 Standup#\^t0003/ })).toBeVisible();
@@ -90,7 +98,7 @@ test('a task proposal accepted from the Proposals page makes the task, and the t
   await expect(notice).toBeVisible();
   await expect(card).toHaveCount(0);
   await expect(page.getByText('Nothing to answer.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Proposals', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Inbox/ })).toContainText('1');
 
   await expectFile(vault, 'Send Mara the payroll file.md').toContain(
     'source: "[[2026-10-01 Standup#^t0003]]"',
@@ -108,8 +116,7 @@ test('a task proposal accepted from the Proposals page makes the task, and the t
   await expect(
     opened.getByRole('heading', { level: 1, name: 'Send Mara the payroll file' }),
   ).toBeVisible();
-  await expect(page.getByRole('article', { name: 'Proposals' })).toHaveCount(0);
-  // Nothing waits now, and the page is closed: the sidebar row goes until something does.
+  await expect(page.getByRole('article', { name: 'Inbox' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Proposals/ })).toHaveCount(0);
 });
 
@@ -117,7 +124,7 @@ test('a refused accept says why on the proposal and leaves it waiting', async ({
   const vault = await openProposalsVault(page);
   await vault.write('Send Mara the payroll file.md', 'Made by hand.\n');
 
-  await page.getByRole('button', { name: 'Proposals, 1 waiting' }).click();
+  await page.getByRole('button', { name: /^Inbox/ }).click();
   const card = page.getByRole('region', { name: 'Task: Send Mara the payroll file' });
   await card.getByRole('button', { name: 'Accept' }).click();
 

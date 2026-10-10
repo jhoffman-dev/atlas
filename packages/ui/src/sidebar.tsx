@@ -101,7 +101,6 @@ export function Sidebar({
   onOpenTemplates,
   onOpenTerms,
   inbox,
-  proposals,
   onOpenReview,
   onOpen,
   onOpenType,
@@ -140,8 +139,6 @@ export function Sidebar({
    * view titled Inbox, which the page then links to (P30-01).
    */
   inbox?: InboxRowLink;
-  /** The Proposals page's row, under Today and Inbox, and how many proposals wait. */
-  proposals?: ProposalsRowLink;
   /** Opens the weekly review; its row sits under the Inbox's when given (P30-07). */
   onOpenReview?: () => void;
   onOpen: (path: VaultPath) => void;
@@ -244,7 +241,6 @@ export function Sidebar({
         templatesOn={active?.kind === 'templates'}
         termsOn={active?.kind === 'terms'}
         inboxOn={active?.kind === 'inbox'}
-        proposalsOn={active?.kind === 'proposals'}
         reviewOn={active?.kind === 'review'}
         onSearch={onSearch}
         onOpen={onOpen}
@@ -255,7 +251,6 @@ export function Sidebar({
         {...(onOpenTemplates !== undefined && { onOpenTemplates })}
         {...(onOpenTerms !== undefined && { onOpenTerms })}
         {...(inbox !== undefined && { inbox })}
-        {...(proposals !== undefined && { proposals })}
         {...(onOpenReview !== undefined && { onOpenReview })}
       />
 
@@ -301,7 +296,6 @@ function QuickRows({
   templatesOn,
   termsOn,
   inboxOn,
-  proposalsOn,
   reviewOn,
   onSearch,
   onOpenGraph,
@@ -311,7 +305,6 @@ function QuickRows({
   onOpenTemplates,
   onOpenTerms,
   inbox,
-  proposals,
   onOpenReview,
   onOpen,
 }: {
@@ -324,7 +317,6 @@ function QuickRows({
   templatesOn: boolean;
   termsOn: boolean;
   inboxOn: boolean;
-  proposalsOn: boolean;
   reviewOn: boolean;
   onSearch: () => void;
   onOpenGraph?: () => void;
@@ -334,7 +326,6 @@ function QuickRows({
   onOpenTemplates?: () => void;
   onOpenTerms?: () => void;
   inbox?: InboxRowLink;
-  proposals?: ProposalsRowLink;
   onOpenReview?: () => void;
   onOpen: (path: VaultPath) => void;
 }) {
@@ -368,7 +359,6 @@ function QuickRows({
         );
       })}
       {inbox !== undefined && <InboxQuickRow {...inbox} on={inboxOn} />}
-      {proposals !== undefined && <ProposalsQuickRow {...proposals} on={proposalsOn} />}
       {onOpenReview !== undefined && (
         <li className={reviewOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
           <button
@@ -449,35 +439,6 @@ function QuickRows({
         </li>
       )}
     </ul>
-  );
-}
-
-/**
- * The Proposals row's link: how to open the page, and how many proposals wait
- * (null until counted). Named Proposals, not Inbox: it sits beside the Inbox
- * until the two become one page.
- */
-export interface ProposalsRowLink {
-  readonly onOpen: () => void;
-  readonly count: number | null;
-}
-
-function ProposalsQuickRow({ onOpen, count, on }: ProposalsRowLink & { on: boolean }) {
-  const waiting = count !== null && count > 0;
-  return (
-    <li className={on ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
-      <button
-        type="button"
-        className="sidebar__row"
-        aria-current={on ? 'page' : undefined}
-        aria-label={waiting ? `Proposals, ${count} waiting` : 'Proposals'}
-        onClick={onOpen}
-      >
-        <Icon name="spark" className="sidebar__icon" />
-        <span className="sidebar__name">Proposals</span>
-        {waiting && <span className="sidebar__badge">{count}</span>}
-      </button>
-    </li>
   );
 }
 

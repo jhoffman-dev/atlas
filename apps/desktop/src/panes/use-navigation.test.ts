@@ -138,19 +138,6 @@ describe('useNavigation', () => {
     act(() => result.current.navigation.forward());
     expect(result.current.main.termsOpen).toBe(false);
   });
-
-  it('goes back to the Proposals page, and forward from it, by the way it was opened', () => {
-    const result = render();
-    act(() => result.current.panes.openInFocusedPane(alpha));
-    act(() => result.current.main.openProposals());
-    act(() => result.current.main.showPanes());
-    expect(result.current.navigation.historyFor(0)).toMatchObject({ back: 'Proposals' });
-
-    act(() => result.current.navigation.back());
-    expect(result.current.main.proposalsOpen).toBe(true);
-    act(() => result.current.navigation.forward());
-    expect(result.current.main.proposalsOpen).toBe(false);
-  });
 });
 
 describe('mainViewPlace', () => {
@@ -165,7 +152,6 @@ describe('mainViewPlace', () => {
     expect(mainViewPlace({ kind: 'activity' })).toEqual({ kind: 'activity' });
     expect(mainViewPlace({ kind: 'terms' })).toEqual({ kind: 'terms' });
     expect(mainViewPlace({ kind: 'inbox' })).toEqual({ kind: 'inbox' });
-    expect(mainViewPlace({ kind: 'proposals' })).toEqual({ kind: 'proposals' });
     expect(mainViewPlace({ kind: 'review' })).toEqual({ kind: 'review' });
   });
 });
@@ -185,6 +171,5 @@ describe('placeName', () => {
     expect(nameOf({ kind: 'tags', tag: 'idea' })).toBe('#Idea');
     expect(nameOf({ kind: 'tags', tag: 'tag me' })).toBe('#tag me#');
     expect(nameOf({ kind: 'terms' })).toBe('Terms');
-    expect(nameOf({ kind: 'proposals' })).toBe('Proposals');
   });
 });

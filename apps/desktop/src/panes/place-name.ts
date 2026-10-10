@@ -43,7 +43,5 @@ export function placeName(
       return 'Templates';
     case 'terms':
       return 'Terms';
-    case 'proposals':
-      return 'Proposals';
   }
 }

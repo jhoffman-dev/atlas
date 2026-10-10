@@ -3,10 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   createVaultPath,
   findQuickViews,
+  MEETING_IMPORT_PROPERTIES,
   parseObjectType,
   parseQueryView,
+  PROPOSAL_TYPE_FILES,
+  rewrittenQuery,
   sidebarEntry,
   splitFrontmatter,
+  statusMappingFor,
 } from '@atlas/domain';
 import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
 import { countQuickViews, fakeIndexPort, fakeVaultFs, runAtlasQuery } from '@atlas/application';
@@ -15,8 +19,8 @@ import { remarkMarkdown } from './markdown-port.ts';
 /*
  * The Inbox this vault ships, read with the YAML reader every note is read
  * with and run as the app runs it, over the Task and Meeting types the vault
- * ships: captured tasks, meetings that arrived and are not yet filed, and
- * meeting files that failed import (P28-04).
+ * ships: captured tasks (GTD's `inbox` status, P30-02), meetings that arrived
+ * and are not yet filed, and meeting files that failed import (P28-04).
  */
 
 const root = new URL('../../../../', import.meta.url);
@@ -34,7 +38,8 @@ const meeting = (more: string) =>
   `---\ntype: meeting\nprovider: gemini\nexternal_id: g-1\n${more}---\n\nBody.\n`;
 
 const NOTES: Record<string, string> = {
-  'tasks/Call Mara.md': '---\ntype: task\nstatus: backlog\n---\n',
+  'tasks/Call Mara.md': '---\ntype: task\nstatus: inbox\n---\n',
+  'tasks/Someday.md': '---\ntype: task\nstatus: backlog\n---\n',
   'tasks/Ship it.md': '---\ntype: task\nstatus: done\n---\n',
   'Inbox/Meetings/2026-10-06 Standup.md': meeting(''),
   'Projects/Larkspur/2026-10-01 Kickoff.md': meeting(''),
@@ -49,7 +54,7 @@ const index = fakeIndexPort({
 });
 
 describe('the Inbox this vault ships', () => {
-  it('lists backlog tasks, meetings in the Inbox, and meetings failing import', async () => {
+  it('lists GTD inbox tasks, meetings in the Inbox, and meetings failing import', async () => {
     const text = parseQueryView(frontmatterOf(INBOX));
     if (text === null) throw new Error('the shipped Inbox is not a query view');
 
@@ -86,5 +91,28 @@ describe('the Inbox this vault ships', () => {
 
     expect(quick.map((view) => view.id)).toEqual(['inbox']);
     expect(counts.get('inbox')).toBe(3);
+  });
+
+  it('is listed by the move to GTD rather than rewritten, since it reads meetings too (P30-02)', () => {
+    const text = parseQueryView(frontmatterOf(INBOX));
+    if (text === null) throw new Error('the shipped Inbox is not a query view');
+    const mapping = statusMappingFor({ found: ['backlog', 'next', 'doing', 'review', 'done'] });
+
+    expect(rewrittenQuery({ text, mapping })).toBeNull();
+    const before = text.replace('status = inbox', 'status = next');
+    expect(before).not.toBe(text);
+    expect(rewrittenQuery({ text: before, mapping })).toEqual({
+      problem: expect.stringMatching(/lists other types beside tasks/),
+    });
+  });
+
+  it('declares what Atlas offers another vault, so the two never drift apart', () => {
+    for (const { type } of PROPOSAL_TYPE_FILES) {
+      expect(parseObjectType(frontmatterOf(shipped(`.atlas/types/${type.name}.md`)))).toEqual(type);
+    }
+    const meeting = TYPES.find((each) => each.name === 'meeting');
+    for (const property of MEETING_IMPORT_PROPERTIES) {
+      expect(meeting?.properties.find((each) => each.key === property.key)).toEqual(property);
+    }
   });
 });

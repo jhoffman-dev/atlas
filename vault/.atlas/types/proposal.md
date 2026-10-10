@@ -29,10 +29,10 @@ properties:
 
 Something Claude or an automation suggests, waiting for you to accept, edit or
 reject it (ADR-0028, P29-02). Claude never edits a note on its own: what it
-produces lands here, in `Inbox/Proposals/`, and the **Proposals** page lists the
-open ones.
+produces lands here, in `Inbox/Proposals/`, and the **Inbox** page lists the
+open ones in its Proposals section.
 
-Proposal is built in: the Proposals page reads notes of it, so it cannot be
+Proposal is built in: the Inbox's Proposals section reads notes of it, so it cannot be
 deleted. Its properties are yours to change.
 
 ## What a proposal holds
@@ -61,4 +61,4 @@ deleted. Its properties are yours to change.
 Accepting writes the payload and archives the proposal with `state: accepted`;
 rejecting archives it with `state: rejected`. So `Inbox/Proposals/` holds only
 open ones, and the Archive keeps the rest. One the Archive refused stays,
-answered, and the Proposals page lists it apart so it never just vanishes.
+answered, and the Inbox lists it apart so it never just vanishes.

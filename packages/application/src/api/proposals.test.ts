@@ -1,6 +1,6 @@
 /**
  * Proposals through the API (P29-02): listed, accepted and rejected by the
- * Proposals page's own use-cases, each route naming its vault, writing in
+ * Inbox's Proposals section's own use-cases, each route naming its vault, writing in
  * user space only, and never saving someone's typing (ADR-0016).
  */
 

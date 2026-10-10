@@ -1,5 +1,12 @@
 import { freeNotePath, isArchivedPath } from '../archive/archive.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
+import {
+  IMPORT_ERROR_KEY,
+  IMPORT_OUTCOME_KEY,
+  importStanding,
+  type ImportOutcome,
+} from '../meetings/meeting-arrival.ts';
+import { isProposalPath, PROPOSALS_FOLDER } from '../proposals/proposal.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import { FILED_UNDER, FILED_UNDER_KEY } from '../types/para.ts';
 import { relationTypeRefusal } from '../types/property-value.ts';
@@ -35,6 +42,9 @@ export function isInInbox(path: string): boolean {
   return path.toLowerCase().startsWith(INBOX_PREFIX);
 }
 
+/** Where proposals wait, lower-cased: in the Inbox, but answered on its own section, never filed. */
+const PROPOSALS_PREFIX = `${PROPOSALS_FOLDER.toLowerCase()}/`;
+
 /** A note waiting in the Inbox, as the Inbox lists it. */
 export interface InboxItem {
   readonly path: VaultPath;
@@ -43,6 +53,14 @@ export interface InboxItem {
   readonly type: string | null;
   /** The folder it arrived in under the Inbox — `Meetings` — or '' for the Inbox itself. */
   readonly arrivedIn: string;
+  /**
+   * Where a meeting file stands with the import (ADR-0027): its outcome once
+   * stamped, `pending` while it waits in `Inbox/Meetings`, null for a note the
+   * import never handles.
+   */
+  readonly importOutcome: ImportOutcome | 'pending' | null;
+  /** Why the file failed the import, as written into it, or null. */
+  readonly importError: string | null;
 }
 
 /** How many notes the Inbox lists at once. */
@@ -52,11 +70,25 @@ export const INBOX_LIST_LIMIT = 500;
 export const INBOX_QUERY_MARK = '/* inbox */';
 
 /** The columns {@link compileInboxQuery} comes back as, in order. */
-export const INBOX_QUERY_COLUMNS = ['path', 'title', 'type'] as const;
+export const INBOX_QUERY_COLUMNS = [
+  'path',
+  'title',
+  'type',
+  'importStamped',
+  'importOutcome',
+  'importError',
+] as const;
+
+/** A note's first value under `key`, as a column of the Inbox's statement. */
+const firstValue = (key: string) =>
+  `(SELECT p.value_text FROM props AS p WHERE p.path = files.path AND p.key = '${key}' ORDER BY p.idx LIMIT 1)`;
 
 /**
  * The Inbox's notes, asked of the index: newest first, so what just arrived
- * is on top, then by title so the list never reshuffles.
+ * is on top, then by title so the list never reshuffles. Proposals are left
+ * out — they wait in the Inbox to be answered, which its Proposals section
+ * does, and are never filed — and each note carries what the meeting import
+ * wrote into it.
  */
 export function compileInboxQuery({
   limit = INBOX_LIST_LIMIT,
@@ -64,9 +96,14 @@ export function compileInboxQuery({
   return {
     sql: [
       `${INBOX_QUERY_MARK} SELECT files.path AS "path", files.title AS "title",`,
-      `  (SELECT p.value_text FROM props AS p WHERE p.path = files.path AND p.key = 'type' ORDER BY p.idx LIMIT 1) AS "type"`,
+      `  ${firstValue('type')} AS "type",`,
+      // A stamp with its value cleared is a stamp still, as the import reads it.
+      `  EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND p.key = '${IMPORT_OUTCOME_KEY}') AS "importStamped",`,
+      `  ${firstValue(IMPORT_OUTCOME_KEY)} AS "importOutcome",`,
+      `  ${firstValue(IMPORT_ERROR_KEY)} AS "importError"`,
       `FROM files`,
       `WHERE lower(substr(files.path, 1, ${INBOX_PREFIX.length})) = '${INBOX_PREFIX}'`,
+      `  AND lower(substr(files.path, 1, ${PROPOSALS_PREFIX.length})) <> '${PROPOSALS_PREFIX}'`,
       `  AND ${userSpaceNoteSql('files.path')}`,
       `ORDER BY files.modified DESC, lower(files.title), files.path`,
       `LIMIT ?`,
@@ -80,19 +117,36 @@ export function inboxItem({
   path,
   title,
   type,
+  importStamped = false,
+  importOutcome = null,
+  importError = null,
 }: {
   path: VaultPath;
   title: string;
   type: unknown;
+  /** Whether the note carries `atlas_import_outcome` at all, cleared or not. */
+  importStamped?: boolean;
+  importOutcome?: unknown;
+  importError?: unknown;
 }): InboxItem {
   const within = parentVaultPath(path).split('/').slice(1).join('/');
-  const declared = typeof type === 'string' && type.trim() !== '' ? type.trim() : null;
-  return { path, title, type: declared, arrivedIn: within };
+  return {
+    path,
+    title,
+    type: textOrNull(type),
+    arrivedIn: within,
+    importOutcome: importStanding({ path, stamped: importStamped, stamp: importOutcome }),
+    importError: textOrNull(importError),
+  };
 }
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 
 /** Why a note cannot be processed out of the Inbox, or null when it can. */
 export function processRefusal(path: VaultPath): string | null {
   if (!isInInbox(path)) return 'It is not in the Inbox.';
+  if (isProposalPath(path)) return 'A proposal is answered, not filed: accept or reject it.';
   if (!MARKDOWN.test(path)) return 'Only notes can be processed.';
   return null;
 }

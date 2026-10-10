@@ -539,7 +539,7 @@ ADR-0029 gives tasks eight statuses. What the API does about it:
 ## Proposals: listed, accepted, rejected (P29-02, 2026-10-08)
 
 Proposals are notes of the built-in `proposal` type in `Inbox/Proposals/`
-(ADR-0028), answered on the Proposals page. The API follows on the same terms
+(ADR-0028), answered in the Inbox page's Proposals section. The API follows on the same terms
 as every route above, through the page's own use-cases (`listProposals`,
 `acceptProposalNote`, `rejectProposalNote`), so no rule is decided twice:
 

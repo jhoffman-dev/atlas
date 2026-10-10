@@ -3,6 +3,11 @@ import { Icon } from './icon.tsx';
 import { useNoteNames } from './note-names.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
 import { PageHead } from './page-head.tsx';
+import {
+  proposalsToShow,
+  ProposalsSection,
+  type ProposalsSectionProps,
+} from './proposals/proposals-section.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 import { RelationOptions } from './relation-options.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
@@ -14,7 +19,7 @@ export interface InboxContents {
   readonly truncated: boolean;
 }
 
-/** The offer to let the vault's own types link a project or an area, with what each gains. */
+/** The offer to set the vault's types up for PARA and the Inbox, with what each gains. */
 export interface InboxTypesOffer {
   readonly lines: readonly string[];
   readonly onAccept: () => void;
@@ -38,6 +43,8 @@ export interface InboxPageProps {
   taskMigration?: TaskMigrationProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
   view?: { readonly title: string; readonly onOpen: () => void } | null;
+  /** What Claude or an automation proposed, answered here rather than filed (P29-02). */
+  proposals?: ProposalsSectionProps | null;
   onShowSidebar?: () => void;
   history?: PageHistory;
 }
@@ -46,12 +53,15 @@ export interface InboxPageProps {
  * The Inbox: every note waiting in the `Inbox` folder — captured, imported or
  * dropped there — each a click from opening, and one choice from being filed
  * under a project or an area, which moves it into that project's folder and
- * links it (P30-01).
+ * links it (P30-01). Proposals wait there too, and are answered in their own
+ * section rather than filed (P29-02). A meeting the import is waiting on, or
+ * could not import, says so on its row (P28-04).
  */
 export function InboxPage(props: InboxPageProps) {
   const view = props.view ?? null;
   const offer = props.typesOffer ?? null;
   const migration = props.taskMigration ?? null;
+  const proposals = props.proposals ?? null;
   return (
     <>
       <PageBar
@@ -65,7 +75,7 @@ export function InboxPage(props: InboxPageProps) {
           <PageHead
             icon="inbox"
             title="Inbox"
-            description={describe(props.contents)}
+            description={describe(props.contents, proposals?.contents?.open.length ?? 0)}
             {...(view !== null && {
               actions: (
                 <button type="button" className="btn btn--ghost btn--sm" onClick={view.onOpen}>
@@ -81,6 +91,7 @@ export function InboxPage(props: InboxPageProps) {
               {props.problem}
             </p>
           )}
+          {proposals !== null && proposalsToShow(proposals) && <ProposalsSection {...proposals} />}
           <InboxList {...props} />
         </article>
       </div>
@@ -88,19 +99,23 @@ export function InboxPage(props: InboxPageProps) {
   );
 }
 
-function describe(contents: InboxContents | null): string | null {
+function describe(contents: InboxContents | null, proposals: number): string | null {
   if (contents === null) return null;
   const count = contents.items.length;
-  if (count === 0) return 'Nothing waiting';
-  return `${count}${contents.truncated ? '+' : ''} to process · file each under a project or an area`;
+  const toAnswer = proposals === 0 ? '' : ` · ${proposals} to answer`;
+  if (count === 0) return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
+  return `${count}${contents.truncated ? '+' : ''} to process · file each under a project or an area${toAnswer}`;
 }
 
 function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
   return (
-    <aside className="inbox__offer" aria-label="Link your types to projects and areas">
+    <aside className="inbox__offer" aria-label="Set your types up for the Inbox">
       <Icon name="link" size={16} className="inbox__offer-icon" />
       <div className="inbox__offer-text">
-        <p>Notes are filed under a project or an area. Your types could link either:</p>
+        <p>
+          Notes are filed under a project or an area, and proposals and meetings arrive here. Your
+          types could hold what that needs:
+        </p>
         <ul>
           {lines.map((line) => (
             <li key={line}>{line}</li>
@@ -155,7 +170,10 @@ function InboxList({ contents, error, filing, onOpen, onProcess, busy }: InboxPa
                     <span className="table__title">{item.title}</span>
                   </button>
                 </td>
-                <td className="inbox__kind">{kindOf(item)}</td>
+                <td className="inbox__kind">
+                  {kindOf(item)}
+                  <ImportStanding item={item} />
+                </td>
                 <td className="inbox__actions">
                   <FileUnder item={item} filing={filing} busy={busy} onProcess={onProcess} />
                 </td>
@@ -177,6 +195,19 @@ function InboxList({ contents, error, filing, onOpen, onProcess, busy }: InboxPa
 function kindOf(item: InboxItem): string {
   const type = item.type === null ? 'Note' : humanizeKey(item.type);
   return item.arrivedIn === '' ? type : `${type} · ${item.arrivedIn}`;
+}
+
+/** What the meeting import made of a file, where it is still the Inbox's business. */
+function ImportStanding({ item }: { item: InboxItem }) {
+  if (item.importOutcome === 'pending') {
+    return <span className="inbox__import">Waiting to be imported</span>;
+  }
+  if (item.importOutcome !== 'error') return null;
+  return (
+    <span className="inbox__import inbox__import--error">
+      Not imported: {item.importError ?? 'it does not follow the meeting contract'}
+    </span>
+  );
 }
 
 function FileUnder({

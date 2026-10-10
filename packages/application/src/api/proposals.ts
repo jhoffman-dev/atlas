@@ -22,7 +22,7 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /**
  * Proposals through the API (P29-02, ADR-0028): listed, accepted and
- * rejected by the same use-cases as the Proposals page. Accepting writes a
+ * rejected by the same use-cases as the Inbox's Proposals section. Accepting writes a
  * note in user space through the byte-preserving paths and moves only the
  * proposal, into the Archive (ADR-0016's amendment).
  */

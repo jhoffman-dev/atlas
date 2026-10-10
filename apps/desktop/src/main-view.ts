@@ -6,7 +6,7 @@ import type { TypePageMode } from './types/type-page.tsx';
  * What fills the main area: the panes, or one page in their place — a type's
  * table or editor, the graph, the query page, the tags (with the key of the
  * tag whose notes are listed, if one is), the Archive, the Inbox, the weekly review, the Automations page, the Activity page,
- * the Templates page, the Terms page or the Proposals page.
+ * the Templates page or the Terms page.
  * Only one at a time; the panes
  * keep what they hold underneath, and leaving the page puts them back.
  */
@@ -22,8 +22,7 @@ export type MainView =
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
-  | { readonly kind: 'terms' }
-  | { readonly kind: 'proposals' };
+  | { readonly kind: 'terms' };
 
 const PANES: MainView = { kind: 'panes' };
 
@@ -50,7 +49,6 @@ export function useMainView() {
   const openActivity = useCallback(() => setView({ kind: 'activity' }), []);
   const openTemplates = useCallback(() => setView({ kind: 'templates' }), []);
   const openTerms = useCallback(() => setView({ kind: 'terms' }), []);
-  const openProposals = useCallback(() => setView({ kind: 'proposals' }), []);
 
   return useMemo(
     () => ({
@@ -69,7 +67,6 @@ export function useMainView() {
       activityOpen: view.kind === 'activity',
       templatesOpen: view.kind === 'templates',
       termsOpen: view.kind === 'terms',
-      proposalsOpen: view.kind === 'proposals',
       showPanes,
       openType,
       setTypeMode,
@@ -83,7 +80,6 @@ export function useMainView() {
       openActivity,
       openTemplates,
       openTerms,
-      openProposals,
     }),
     [
       view,
@@ -100,7 +96,6 @@ export function useMainView() {
       openActivity,
       openTemplates,
       openTerms,
-      openProposals,
     ],
   );
 }

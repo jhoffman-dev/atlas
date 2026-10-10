@@ -1,7 +1,8 @@
 /**
  * Opening a vault that files by project writes the PARA types it has no file
  * for; anything else — PARA for a vault that has not taken it up, a change to
- * the vault's own types — is offered, and made only when accepted. Over a vault in
+ * the vault's own types, the Inbox's Proposal and Decision types and the
+ * meeting import's keys — is offered, and made only when accepted. Over a vault in
  * memory whose frontmatter is JSON, so what each file ends up saying can be
  * read back whole; how the real writer keeps every byte is the adapters'.
  */
@@ -58,6 +59,11 @@ const JAMES_PROJECT = note({
   properties: { status: 'select', budget: { kind: 'number', label: 'Budget' } },
 });
 
+/** The types the one Inbox always asks about in a vault that lacks them. */
+const INBOX_TYPES = ['proposal', 'decision'];
+const offeredNames = (offer: { types: readonly { type: { name: string } }[] }) =>
+  offer.types.map((file) => file.type.name);
+
 const JAMES_TASK = note(
   {
     name: 'task',
@@ -74,7 +80,8 @@ describe('ensureBuiltInTypes', () => {
     const ensured = await ensureBuiltInTypes(v);
 
     expect(ensured.created).toEqual(['.atlas/types/area.md', '.atlas/types/resource.md']);
-    expect(ensured.offer).toEqual({ types: [], extensions: [] });
+    expect(offeredNames(ensured.offer)).toEqual(INBOX_TYPES);
+    expect(ensured.offer.extensions).toEqual([]);
     expect(v.files.get('.atlas/types/project.md')).toBe(JAMES_PROJECT);
     const types = await loadObjectTypes(v);
     expect(types.map((type) => type.name)).toEqual(['area', 'project', 'resource']);
@@ -87,11 +94,7 @@ describe('ensureBuiltInTypes', () => {
     const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
     expect(ensured.created).toEqual([]);
-    expect(ensured.offer.types.map((file) => file.type.name)).toEqual([
-      'project',
-      'area',
-      'resource',
-    ]);
+    expect(offeredNames(ensured.offer)).toEqual(['project', 'area', 'resource', ...INBOX_TYPES]);
     expect(v.files).toEqual(before);
   });
 
@@ -106,8 +109,46 @@ describe('ensureBuiltInTypes', () => {
     });
     const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
-    expect(ensured).toEqual({ created: [], offer: { types: [], extensions: [] }, failed: [] });
+    expect(ensured.created).toEqual([]);
+    expect(ensured.failed).toEqual([]);
+    expect(offeredNames(ensured.offer)).toEqual(INBOX_TYPES);
     expect(v.files).toEqual(before);
+  });
+
+  it('offers nothing to a vault that has every type the Inbox and PARA use', async () => {
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/area.md': note({ name: 'area' }),
+      '.atlas/types/resource.md': note({
+        name: 'resource',
+        properties: { project: { kind: 'relation', target: ['project', 'area'] } },
+      }),
+      '.atlas/types/proposal.md': note({ name: 'proposal' }),
+      '.atlas/types/decision.md': note({ name: 'Decision' }),
+    });
+    const ensured = await ensureBuiltInTypes(v);
+    expect(ensured).toEqual({ created: [], offer: { types: [], extensions: [] }, failed: [] });
+  });
+
+  it('offers the meeting import’s keys to a Meeting type without them, never writing them', async () => {
+    const meeting = note({
+      name: 'meeting',
+      label: 'Meeting',
+      properties: { atlas_import_error: { kind: 'text', label: 'Why it failed' } },
+    });
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/meeting.md': meeting,
+    });
+    const ensured = await ensureBuiltInTypes(v);
+    expect(v.files.get('.atlas/types/meeting.md')).toBe(meeting);
+    const [extension] = ensured.offer.extensions;
+    expect(ensured.offer.extensions).toHaveLength(1);
+    expect(extension?.added.map((property) => property.key)).toEqual([
+      'project',
+      'atlas_import_outcome',
+      'atlas_duplicate_of',
+    ]);
   });
 
   it('only offers to change a type the vault has: its task file is not touched on opening', async () => {
@@ -149,10 +190,25 @@ describe('acceptTypeSetup', () => {
     const done = await acceptTypeSetup({ ...v, offer });
 
     expect(done).toEqual({
-      created: ['.atlas/types/project.md', '.atlas/types/area.md', '.atlas/types/resource.md'],
+      created: [
+        '.atlas/types/project.md',
+        '.atlas/types/area.md',
+        '.atlas/types/resource.md',
+        '.atlas/types/proposal.md',
+        '.atlas/types/decision.md',
+      ],
       extended: ['.atlas/types/task.md'],
       failed: [],
     });
+    const proposal = (await loadObjectTypes(v)).find((type) => type.name === 'proposal');
+    expect(proposal?.properties.map((property) => property.key)).toEqual([
+      'kind',
+      'state',
+      'confidence',
+      'source',
+      'made_by',
+      'answered_via',
+    ]);
     const text = v.files.get('.atlas/types/task.md') ?? '';
     expect(splitFrontmatter(text).body).toBe('\n# Task\n\nJames’s own words about tasks.\n');
     const properties = v.markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)[
@@ -244,8 +300,12 @@ describe('acceptTypeSetup', () => {
     expect(done.failed).toEqual([{ name: 'Task', reason: 'the disk is full' }]);
     expect(done.extended).toEqual(['.atlas/types/meeting.md']);
     const widened = (await loadObjectTypes(v)).find((type) => type.name === 'meeting');
-    expect(widened?.properties.map((property) => relationTypes(property))).toEqual([
-      ['project', 'area'],
+    expect(widened?.properties.map((property) => property.key)).toEqual([
+      'project',
+      'atlas_import_outcome',
+      'atlas_import_error',
+      'atlas_duplicate_of',
     ]);
+    expect(relationTypes(widened?.properties[0] ?? { target: null })).toEqual(['project', 'area']);
   });
 });

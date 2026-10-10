@@ -174,7 +174,7 @@ import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
 const OPEN_TERMS = 'open-terms';
-const OPEN_PROPOSALS = 'open-proposals';
+const OPEN_INBOX = 'open-inbox';
 const OPEN_REVIEW = 'open-review';
 
 /** What the search palette can do besides find notes. */
@@ -185,9 +185,9 @@ const PALETTE_COMMANDS = [
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
   { id: OPEN_TERMS, label: 'Terms', keywords: ['glossary', 'spelling', 'vocabulary', 'aliases'] },
   {
-    id: OPEN_PROPOSALS,
-    label: 'Proposals',
-    keywords: ['inbox', 'accept', 'reject', 'suggestions', 'claude'],
+    id: OPEN_INBOX,
+    label: 'Inbox',
+    keywords: ['process', 'file', 'proposals', 'accept', 'reject', 'suggestions', 'claude'],
   },
   { id: OPEN_REVIEW, label: 'Weekly review', keywords: ['review', 'gtd', 'week'] },
 ] as const;
@@ -504,7 +504,6 @@ export function App({
     activityOpen,
     templatesOpen,
     termsOpen,
-    proposalsOpen,
   } = main;
   const activity = useActivity({
     log: activityLog,
@@ -927,16 +926,19 @@ export function App({
     onSettled: settleArchive,
     archiveNote: (path) => archiveCommands.archive([path]),
   });
-  const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
-  // As with Today, no row that opens nothing: the Inbox shows once the vault
-  // has an Inbox view or something waits in its folder.
-  const inboxRowShown = inboxView !== null || (inbox.contents?.items.length ?? 0) > 0;
   const proposals = useProposals({
     ports: archivePorts,
     clock: localClock,
     indexKey,
     onSettled: settleArchive,
   });
+  const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
+  // One Inbox: its count is what waits to be filed and the proposals waiting for an answer.
+  const inboxWaiting =
+    inbox.contents === null ? null : inbox.contents.items.length + (proposals.count ?? 0);
+  // As with Today, no row that opens nothing: the Inbox shows once the vault
+  // has an Inbox view or something waits in it.
+  const inboxRowShown = inboxView !== null || (inboxWaiting ?? 0) > 0;
   const automationPorts = useMemo(
     () => ({ ...archivePorts, types, notePaths }),
     [archivePorts, types, notePaths],
@@ -1354,7 +1356,6 @@ export function App({
                       activityOpen,
                       templatesOpen,
                       termsOpen,
-                      proposalsOpen,
                       viewOwner: typeViews.ownerOf,
                     })}
                     sectionStore={browserSectionStore}
@@ -1371,14 +1372,7 @@ export function App({
                     onOpenTemplates={main.openTemplates}
                     onOpenTerms={main.openTerms}
                     {...(inboxRowShown && {
-                      inbox: {
-                        onOpen: main.openInbox,
-                        count: inbox.contents?.items.length ?? null,
-                      },
-                    })}
-                    // The row shows while something waits, and while its page is open.
-                    {...(((proposals.count ?? 0) > 0 || proposalsOpen) && {
-                      proposals: { onOpen: main.openProposals, count: proposals.count },
+                      inbox: { onOpen: main.openInbox, count: inboxWaiting },
                     })}
                     {...(review.shown && { onOpenReview: main.openReview })}
                     onOpenType={openTypePage}
@@ -1527,6 +1521,11 @@ export function App({
                       inboxView === null
                         ? null
                         : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
+                    proposals: {
+                      ...proposals.section,
+                      onOpen: openNote,
+                      onOpenSource: (link) => followSource(link),
+                    },
                   },
                 },
                 review: {
@@ -1559,14 +1558,6 @@ export function App({
                 },
                 templates: { open: templatesOpen, page: templatesPage.page },
                 terms: { open: termsOpen, page: { ...termsPage.page, onOpen: openNote } },
-                proposals: {
-                  open: proposalsOpen,
-                  page: {
-                    ...proposals.page,
-                    onOpen: openNote,
-                    onOpenSource: (link) => followSource(link),
-                  },
-                },
                 ...(!sidebarOpen && { onShowSidebar: toggleSidebar }),
                 history: navigation.historyFor(panes.layout.focused),
               })
@@ -1792,7 +1783,7 @@ export function App({
                   }
                   if (id === OPEN_TEMPLATES) main.openTemplates();
                   else if (id === OPEN_TERMS) main.openTerms();
-                  else if (id === OPEN_PROPOSALS) main.openProposals();
+                  else if (id === OPEN_INBOX) main.openInbox();
                   else if (id === OPEN_REVIEW) main.openReview();
                   else if (id === 'new-query') openQuery();
                   else if (id === 'new-artifact') startNewArtifact();

@@ -263,7 +263,7 @@ they are.
   it changes.
 - **Activity has a Meetings kind**: one line per outcome.
 - **The Inbox.** This repository's vault ships an Inbox view that is an
-  Atlas query over tasks and meetings: backlog tasks, anything under
+  Atlas query over tasks and meetings: tasks at GTD's `inbox` status, anything under
   `Inbox/`, and any meeting with an import error, shown as a column. Its
   Meeting type declares the three keys so the query can name them and the
   properties panel shows them. **Another vault has neither until they are
@@ -271,8 +271,9 @@ they are.
   only once its Inbox view says so and its Meeting type declares the keys
   (copy `.atlas/views/Inbox.md` and the three properties from
   `.atlas/types/meeting.md`). P30-01's Inbox page, which lists everything in
-  `Inbox/`, and its step that writes built-in types into a vault are what
-  make that automatic.
+  `Inbox/` with each meeting's import outcome or error on its row, makes the
+  view unnecessary, and the Inbox offers to add the three keys to a vault's
+  own Meeting type (previewed, written only on a yes).
 - **Known gaps:** a file that fails import and declares no `type: meeting`
   is stamped, but the shipped Inbox query cannot list it (`GET /v1/meetings`
   does, and so will P30-01's Inbox page). Files under `Inbox/Meetings/` that

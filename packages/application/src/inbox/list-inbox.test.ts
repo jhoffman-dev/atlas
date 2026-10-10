@@ -26,6 +26,46 @@ describe('listInbox', () => {
     expect(items).toHaveLength(3);
   });
 
+  it('leaves out proposals, which are answered rather than filed', async () => {
+    const query = atlasQueryIndex({
+      markdown: fakeMarkdown(),
+      files: {
+        'Inbox/Call the bank.md': '---\ntype: task\n---\n',
+        'Inbox/Proposals/Send the file.md': '---\ntype: proposal\nkind: task\n---\n',
+        'inbox/proposals/Lower case.md': '---\ntype: proposal\nkind: task\n---\n',
+        'Inbox/Proposals old/Kept.md': 'Not the proposals folder.\n',
+      },
+    });
+    const { items } = await listInbox({ index: fakeIndexPort({ query }) });
+    expect(items.map((item) => item.path).sort()).toEqual([
+      'Inbox/Call the bank.md',
+      'Inbox/Proposals old/Kept.md',
+    ]);
+  });
+
+  it('says where each meeting stands with the import, and why one failed', async () => {
+    const query = atlasQueryIndex({
+      markdown: fakeMarkdown(),
+      files: {
+        'Inbox/Meetings/Waiting.md': '---\ntype: meeting\n---\n',
+        'Inbox/Meetings/Broken.md':
+          '---\ntype: meeting\natlas_import_outcome: error\natlas_import_error: title is required\n---\n',
+        'Inbox/Meetings/Done.md': '---\ntype: meeting\natlas_import_outcome: imported\n---\n',
+        'Inbox/Call.md': '---\ntype: task\n---\n',
+      },
+    });
+    const { items } = await listInbox({ index: fakeIndexPort({ query }) });
+    const standing = Object.fromEntries(
+      items.map((item) => [item.path, [item.importOutcome, item.importError]]),
+    );
+    expect(standing).toEqual({
+      'Inbox/Meetings/Waiting.md': ['pending', null],
+      'Inbox/Meetings/Broken.md': ['error', 'title is required'],
+      'Inbox/Meetings/Done.md': ['imported', null],
+      'Inbox/Call.md': [null, null],
+    });
+  });
+
   it('says when there were more than it lists', async () => {
     const query = atlasQueryIndex({
       markdown: fakeMarkdown(),

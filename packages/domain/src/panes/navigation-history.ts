@@ -20,8 +20,7 @@ export type NavigationPlace =
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
-  | { readonly kind: 'terms' }
-  | { readonly kind: 'proposals' };
+  | { readonly kind: 'terms' };
 
 /**
  * One pane's Back and Forward, as a browser keeps them.
@@ -70,8 +69,6 @@ export function samePlace(left: NavigationPlace, right: NavigationPlace): boolea
       return right.kind === 'templates';
     case 'terms':
       return right.kind === 'terms';
-    case 'proposals':
-      return right.kind === 'proposals';
   }
 }
 

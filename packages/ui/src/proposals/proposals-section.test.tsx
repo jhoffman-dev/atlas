@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type ProposalNote, type VaultPath } from '@atlas/domain';
-import { ProposalsPage, type ProposalsPageProps } from './proposals-page.tsx';
+import { ProposalsSection, type ProposalsSectionProps } from './proposals-section.tsx';
 
 function proposal(name: string, properties: Record<string, unknown>): ProposalNote {
   const reading = readProposal({
@@ -36,7 +36,7 @@ const LINK = proposal('Mara works at Larkspur', {
   },
 });
 
-function page(props: Partial<ProposalsPageProps> = {}) {
+function page(props: Partial<ProposalsSectionProps> = {}) {
   const handlers = {
     onAccept: vi.fn<(path: VaultPath, payload?: unknown) => void>(),
     onReject: vi.fn<(path: VaultPath) => void>(),
@@ -45,7 +45,7 @@ function page(props: Partial<ProposalsPageProps> = {}) {
     onOpenSource: vi.fn<(link: string) => void>(),
   };
   render(
-    <ProposalsPage
+    <ProposalsSection
       contents={{ open: [TASK, LINK], stranded: [], unreadable: [] }}
       error={null}
       notice={null}
@@ -60,7 +60,7 @@ function page(props: Partial<ProposalsPageProps> = {}) {
 
 const card = (name: RegExp) => screen.getByRole('region', { name });
 
-describe('ProposalsPage', () => {
+describe('ProposalsSection', () => {
   it('lists each open proposal with what it would write, the line it cites and its maker', () => {
     page();
     const task = card(/^Task: Send Mara the payroll file/);

@@ -1,10 +1,8 @@
 import { proposalHeadline, type ProposalNote, type VaultPath } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
-import { PageBar, type PageHistory } from '../page-bar.tsx';
-import { PageHead } from '../page-head.tsx';
 import { ProposalCard } from './proposal-card.tsx';
 
-/** What the Proposals page lists, once the folder has been read. */
+/** What the Inbox's Proposals section lists, once the folder has been read. */
 export interface ProposalsContents {
   /** Newest first. */
   readonly open: readonly ProposalNote[];
@@ -14,7 +12,7 @@ export interface ProposalsContents {
   readonly unreadable: readonly { readonly path: VaultPath; readonly problem: string }[];
 }
 
-/** What the last answer did, said at the top of the page. */
+/** What the last answer did, said at the top of the section. */
 export interface ProposalNotice {
   readonly text: string;
   /** The note an accept made or changed, to open from the notice. */
@@ -23,7 +21,7 @@ export interface ProposalNotice {
   readonly undoable: boolean;
 }
 
-export interface ProposalsPageProps {
+export interface ProposalsSectionProps {
   /** Null while the folder is being read. */
   readonly contents: ProposalsContents | null;
   readonly error: string | null;
@@ -39,39 +37,39 @@ export interface ProposalsPageProps {
   readonly onOpen: (path: VaultPath) => void;
   /** Opens the block a proposal cites, given as its link. */
   readonly onOpenSource: (link: string) => void;
-  readonly onShowSidebar?: () => void;
-  readonly history?: PageHistory;
 }
 
 /**
- * The proposals waiting for an answer (P29-02): what Claude or an automation
- * suggested, each with the line it came from, to accept, edit first, or
- * reject. Nothing it proposes is written until it is accepted.
+ * The proposals waiting for an answer, as a section of the Inbox page
+ * (P29-02, P30-01): what Claude or an automation suggested, each with the
+ * line it came from, to accept, edit first, or reject. Nothing it proposes is
+ * written until it is accepted. Proposals wait in the Inbox but are answered
+ * here, never filed with the notes beside them.
  */
-export function ProposalsPage(props: ProposalsPageProps) {
+export function ProposalsSection(props: ProposalsSectionProps) {
   return (
-    <>
-      <PageBar
-        crumb={{ icon: 'proposal', parent: 'Proposals' }}
-        name="Open proposals"
-        {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
-        {...(props.history !== undefined && { history: props.history })}
-      />
-      <div className="panel__body">
-        <article className="page page--wide proposals" aria-label="Proposals">
-          <PageHead icon="proposal" title="Proposals" description={describe(props.contents)} />
-          {props.notice !== null && <Notice {...props} notice={props.notice} />}
-          <ProposalList {...props} />
-          {props.contents !== null && props.contents.stranded.length > 0 && (
-            <Stranded stranded={props.contents.stranded} onOpen={props.onOpen} />
-          )}
-          {props.contents !== null && props.contents.unreadable.length > 0 && (
-            <Unreadable unreadable={props.contents.unreadable} onOpen={props.onOpen} />
-          )}
-        </article>
-      </div>
-    </>
+    <section className="proposals" aria-label="Proposals">
+      <h2 className="proposals__heading">
+        <Icon name="spark" size={16} /> Proposals
+      </h2>
+      <p className="proposals__summary">{describe(props.contents)}</p>
+      {props.notice !== null && <Notice {...props} notice={props.notice} />}
+      <ProposalList {...props} />
+      {props.contents !== null && props.contents.stranded.length > 0 && (
+        <Stranded stranded={props.contents.stranded} onOpen={props.onOpen} />
+      )}
+      {props.contents !== null && props.contents.unreadable.length > 0 && (
+        <Unreadable unreadable={props.contents.unreadable} onOpen={props.onOpen} />
+      )}
+    </section>
   );
+}
+
+/** Whether the section has anything to show: something to answer, to look at, or to undo. */
+export function proposalsToShow({ contents, error, notice }: ProposalsSectionProps): boolean {
+  if (error !== null || notice !== null) return true;
+  if (contents === null) return false;
+  return contents.open.length + contents.stranded.length + contents.unreadable.length > 0;
 }
 
 function describe(contents: ProposalsContents | null): string | null {
@@ -80,7 +78,12 @@ function describe(contents: ProposalsContents | null): string | null {
   return `${count} open ${count === 1 ? 'proposal' : 'proposals'} · nothing is written until you accept`;
 }
 
-function Notice({ notice, busy, onOpen, onUndo }: ProposalsPageProps & { notice: ProposalNotice }) {
+function Notice({
+  notice,
+  busy,
+  onOpen,
+  onUndo,
+}: ProposalsSectionProps & { notice: ProposalNotice }) {
   return (
     <div className="proposals__notice" role="status">
       <span>{notice.text}</span>
@@ -102,7 +105,7 @@ function Notice({ notice, busy, onOpen, onUndo }: ProposalsPageProps & { notice:
   );
 }
 
-function ProposalList(props: ProposalsPageProps) {
+function ProposalList(props: ProposalsSectionProps) {
   const { contents, error } = props;
   if (error !== null) {
     return (

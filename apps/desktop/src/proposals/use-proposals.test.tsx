@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The Proposals page as the app drives it, over a vault in memory and the
+ * The Inbox's Proposals section as the app drives it, over a vault in memory and the
  * real markdown adapter: what is listed, what an answer writes and moves, and
  * what the page is told afterwards.
  */
@@ -128,19 +128,19 @@ describe('useProposals', () => {
   it('lists the open proposals and counts them for the sidebar', async () => {
     const { hook } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
-    expect(hook.result.current.page.contents?.open[0]?.path).toBe(PROPOSAL);
+    expect(hook.result.current.section.contents?.open[0]?.path).toBe(PROPOSAL);
   });
 
   it('accepts one: the task is made, the proposal archived, and the page offers to open it', async () => {
     const { hook, files, onSettled } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
-    act(() => hook.result.current.page.onAccept(path(PROPOSAL)));
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
     await waitFor(() => expect(hook.result.current.count).toBe(0));
 
     expect(files.get(TASK)?.text).toContain('source: "[[2026-10-01 Standup#^t0003]]"');
     expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
-    expect(hook.result.current.page.notice).toEqual({
+    expect(hook.result.current.section.notice).toEqual({
       text: 'Accepted: Send Mara the payroll file.',
       opens: { path: TASK, title: 'Send Mara the payroll file' },
       undoable: true,
@@ -151,15 +151,15 @@ describe('useProposals', () => {
   it('undoes the accept: the task goes and the proposal is back, open', async () => {
     const { hook, files } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
-    act(() => hook.result.current.page.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.page.notice?.undoable).toBe(true));
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
 
-    act(() => hook.result.current.page.onUndo());
+    act(() => hook.result.current.section.onUndo());
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     expect(files.has(TASK)).toBe(false);
     expect(files.get(PROPOSAL)?.text).toContain('state: open');
-    expect(hook.result.current.page.notice).toMatchObject({
+    expect(hook.result.current.section.notice).toMatchObject({
       text: 'Undone: Send Mara the payroll file is back in the Inbox.',
       undoable: false,
     });
@@ -169,11 +169,11 @@ describe('useProposals', () => {
     const { hook, files } = render({ [PROPOSAL]: PROPOSAL_TEXT, [TASK]: 'Made by hand.\n' });
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
-    act(() => hook.result.current.page.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.page.problems.size).toBe(1));
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.problems.size).toBe(1));
 
-    expect(hook.result.current.page.problems.get(path(PROPOSAL))).toMatch(/already a note at/);
-    expect(hook.result.current.page.busy).toBeNull();
+    expect(hook.result.current.section.problems.get(path(PROPOSAL))).toMatch(/already a note at/);
+    expect(hook.result.current.section.busy).toBeNull();
     expect(files.get(TASK)?.text).toBe('Made by hand.\n');
   });
 
@@ -181,12 +181,12 @@ describe('useProposals', () => {
     const { hook, files } = render();
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
-    act(() => hook.result.current.page.onReject(path(PROPOSAL)));
+    act(() => hook.result.current.section.onReject(path(PROPOSAL)));
     await waitFor(() => expect(hook.result.current.count).toBe(0));
 
     expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: rejected');
     expect(files.has(TASK)).toBe(false);
-    expect(hook.result.current.page.notice).toEqual({
+    expect(hook.result.current.section.notice).toEqual({
       text: 'Rejected: Send the file.',
       opens: null,
       undoable: false,
@@ -198,13 +198,13 @@ describe('useProposals', () => {
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     act(() => {
-      hook.result.current.page.onAccept(path(PROPOSAL));
-      hook.result.current.page.onReject(path(PROPOSAL));
+      hook.result.current.section.onAccept(path(PROPOSAL));
+      hook.result.current.section.onReject(path(PROPOSAL));
     });
     await waitFor(() => expect(hook.result.current.count).toBe(0));
 
     expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
-    expect(hook.result.current.page.problems.size).toBe(0);
+    expect(hook.result.current.section.problems.size).toBe(0);
   });
 });
 
@@ -227,12 +227,12 @@ describe('useProposals — adversarial: another vault opened after an accept', (
       { initialProps: { ports: first.ports } },
     );
     await waitFor(() => expect(hook.result.current.count).toBe(1));
-    act(() => hook.result.current.page.onAccept(path(PROPOSAL)));
-    await waitFor(() => expect(hook.result.current.page.notice?.undoable).toBe(true));
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
 
     hook.rerender({ ports: second.ports });
     await waitFor(() => expect(hook.result.current.count).toBe(0));
 
-    expect(hook.result.current.page.notice?.undoable ?? false).toBe(false);
+    expect(hook.result.current.section.notice?.undoable ?? false).toBe(false);
   });
 });

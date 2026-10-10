@@ -228,18 +228,27 @@ export function typeSetupLines({
 }
 
 function addedTypesLine(labels: readonly string[]): string {
-  if (labels.length === 1) return `Adds the ${labels[0] ?? ''} type.`;
-  return `Adds the ${labels.slice(0, -1).join(', ')} and ${labels.at(-1) ?? ''} types.`;
+  return `Adds the ${listed(labels)} ${labels.length === 1 ? 'type' : 'types'}.`;
 }
 
 function extensionLine({ before, added, widened }: TypeExtension): string {
-  const gains = added.map(
+  const links = added.filter((property) => property.kind === 'relation');
+  const plain = added.filter((property) => property.kind !== 'relation');
+  const gains = links.map(
     (property) =>
       `${before.label} gains ${property.label}, linking ${relationTypesText(property)} notes.`,
   );
+  const fields =
+    plain.length === 0 ? [] : [`${before.label} gains ${listed(plain.map((p) => p.label))}.`];
   const wider = widened.map(
     (property) =>
       `${before.label}'s ${property.label} will link ${relationTypesText(property)} notes.`,
   );
-  return [...gains, ...wider].join(' ');
+  return [...gains, ...fields, ...wider].join(' ');
+}
+
+/** "A", "A and B", "A, B and C". */
+function listed(words: readonly string[]): string {
+  if (words.length < 2) return words.join('');
+  return `${words.slice(0, -1).join(', ')} and ${words.at(-1) ?? ''}`;
 }

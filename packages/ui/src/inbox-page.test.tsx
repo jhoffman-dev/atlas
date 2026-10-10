@@ -2,16 +2,47 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, type InboxItem } from '@atlas/domain';
+import { createVaultPath, readProposal, type InboxItem } from '@atlas/domain';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 
-const item = (path: string, title: string, type: string | null, arrivedIn = ''): InboxItem => ({
+const item = (
+  path: string,
+  title: string,
+  type: string | null,
+  arrivedIn = '',
+  more: Partial<InboxItem> = {},
+): InboxItem => ({
   path: createVaultPath(path),
   title,
   type,
   arrivedIn,
+  importOutcome: null,
+  importError: null,
+  ...more,
 });
+
+function proposalNamed(title: string) {
+  const reading = readProposal({
+    path: createVaultPath(`Inbox/Proposals/${title}.md`),
+    properties: { type: 'proposal', kind: 'task', payload: { title } },
+  });
+  if (!reading.ok) throw new Error(reading.problem);
+  return reading.proposal;
+}
+
+const PROPOSALS: NonNullable<InboxPageProps['proposals']> = {
+  contents: { open: [proposalNamed('Send Mara the file')], stranded: [], unreadable: [] },
+  error: null,
+  notice: null,
+  busy: null,
+  problems: new Map(),
+  onAccept: vi.fn(),
+  onReject: vi.fn(),
+  onUndo: vi.fn(),
+  onOpen: vi.fn(),
+  onOpenSource: vi.fn(),
+};
 
 const CONTENTS: InboxContents = {
   items: [
@@ -120,7 +151,7 @@ describe('InboxPage', () => {
       },
     });
     const offer = screen.getByRole('complementary', {
-      name: 'Link your types to projects and areas',
+      name: 'Set your types up for the Inbox',
     });
     expect(offer.textContent).toContain('Task gains Project, linking project or area notes.');
     await userEvent.click(within(offer).getByRole('button', { name: 'Add to the types' }));
@@ -140,5 +171,45 @@ describe('InboxPage', () => {
     page();
     expect(screen.queryByRole('complementary')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Open the/ })).toBeNull();
+  });
+
+  it('says on a meeting’s row that it waits for the import, or why it was not imported', () => {
+    page({
+      contents: {
+        items: [
+          item('Inbox/Meetings/New.md', 'New', 'meeting', 'Meetings', { importOutcome: 'pending' }),
+          item('Inbox/Meetings/Broken.md', 'Broken', null, 'Meetings', {
+            importOutcome: 'error',
+            importError: 'title is required',
+          }),
+          item('Inbox/Meetings/Done.md', 'Done', 'meeting', 'Meetings', {
+            importOutcome: 'imported',
+          }),
+        ],
+        truncated: false,
+      },
+    });
+    expect(within(rowOf('New')).getByText('Waiting to be imported')).toBeDefined();
+    expect(within(rowOf('Broken')).getByText('Not imported: title is required')).toBeDefined();
+    expect(within(rowOf('Done')).queryByText(/import/i)).toBeNull();
+  });
+
+  it('answers proposals in a section of its own, counted beside what is to process', async () => {
+    page({ proposals: PROPOSALS });
+    const section = screen.getByRole('region', { name: 'Proposals' });
+    expect(within(section).getByText(/1 open proposal/)).toBeDefined();
+    expect(screen.getByText(/3 to process .* · 1 to answer/)).toBeDefined();
+    await userEvent.click(within(section).getByRole('button', { name: 'Accept' }));
+    expect(PROPOSALS.onAccept).toHaveBeenCalledWith(
+      'Inbox/Proposals/Send Mara the file.md',
+      undefined,
+    );
+    expect(screen.queryByRole('combobox', { name: /File Send Mara the file under/ })).toBeNull();
+  });
+
+  it('shows no Proposals section while none wait', () => {
+    page({ proposals: { ...PROPOSALS, contents: { open: [], stranded: [], unreadable: [] } } });
+    expect(screen.getByRole('table')).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Proposals' })).toBeNull();
   });
 });

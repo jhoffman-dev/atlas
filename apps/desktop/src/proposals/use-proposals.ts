@@ -10,7 +10,7 @@ import {
   type ProposalArchived,
   type ProposalPorts,
 } from '@atlas/application';
-import type { ProposalNotice, ProposalsContents, ProposalsPageProps } from '@atlas/ui';
+import type { ProposalNotice, ProposalsContents, ProposalsSectionProps } from '@atlas/ui';
 
 export interface ProposalsOptions {
   readonly ports: ProposalPorts;
@@ -21,11 +21,8 @@ export interface ProposalsOptions {
   readonly onSettled: () => void;
 }
 
-/** What the page takes from here: everything but where it opens notes and its bar. */
-export type ProposalsPageState = Omit<
-  ProposalsPageProps,
-  'onOpen' | 'onOpenSource' | 'onShowSidebar' | 'history'
->;
+/** What the Inbox's Proposals section takes from here: everything but where it opens notes. */
+export type ProposalsSectionState = Omit<ProposalsSectionProps, 'onOpen' | 'onOpenSource'>;
 
 const messageOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
@@ -159,11 +156,11 @@ export function useProposals({ ports, clock, indexKey, onSettled }: ProposalsOpt
     });
   }, [answer, ports]);
 
-  const page = useMemo<ProposalsPageState>(
+  const section = useMemo<ProposalsSectionState>(
     () => ({ contents, error, notice, busy, problems, onAccept, onReject, onUndo }),
     [contents, error, notice, busy, problems, onAccept, onReject, onUndo],
   );
-  return { page, count: contents?.open.length ?? null };
+  return { section, count: contents?.open.length ?? null };
 }
 
 function without(problems: ReadonlyMap<VaultPath, string>, path: VaultPath) {

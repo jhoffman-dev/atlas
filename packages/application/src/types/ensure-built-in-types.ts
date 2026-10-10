@@ -1,6 +1,8 @@
 import {
   builtInTypePlan,
+  combinedExtensions,
   createVaultPath,
+  inboxTypePlan,
   newTypeFrontmatter,
   type BuiltInTypeFile,
   type TypeExtension,
@@ -15,11 +17,17 @@ import { loadObjectTypes, TYPES_FOLDER, type DefinedType } from './load-types.ts
 /** A type of the vault's own that PARA would extend; `before.path` is its file. */
 export type PendingTypeExtension = TypeExtension<DefinedType>;
 
-/** What setting the vault up for PARA would still do, once the person says yes. */
+/** What setting the vault's types up would still do, once the person says yes. */
 export interface TypeSetupOffer {
-  /** The PARA types to write, in a vault that has not taken PARA up. */
+  /**
+   * The types to write: PARA's, in a vault that has not taken PARA up, and
+   * the Inbox's Proposal and Decision, which are always asked about.
+   */
   readonly types: readonly BuiltInTypeFile[];
-  /** The vault's own types that would gain a `project` linking a project or an area. */
+  /**
+   * The vault's own types that would gain a `project` linking a project or an
+   * area, and its Meeting type the keys the meeting import writes.
+   */
   readonly extensions: readonly PendingTypeExtension[];
 }
 
@@ -45,19 +53,32 @@ interface TypePorts {
 
 /**
  * Makes a vault's types whole for PARA as it opens, as far as that can be
- * done without asking (P30-01).
+ * done without asking (P30-01), and works out what else the Inbox would have
+ * the vault's types hold (P29-02, P28-04).
  *
  * A vault that files by project — it has a Project type — has the Area and
  * Resource types it lacks written in. A vault that has not taken PARA up is
  * only offered them, and so is the change PARA would make to the vault's own
- * types: nothing the vault has is changed here, and the host refuses to write
- * over a file that is there, readable or not. See {@link acceptTypeSetup}.
+ * types. The Proposal and Decision types, and the meeting import's keys on
+ * the vault's Meeting type, are only ever offered: nothing the vault has is
+ * changed here, and the host refuses to write over a file that is there,
+ * readable or not. See {@link acceptTypeSetup}.
  */
 export async function ensureBuiltInTypes(ports: TypePorts): Promise<BuiltInTypesEnsured> {
-  const plan = builtInTypePlan(await loadObjectTypes(ports));
-  const offer = { types: plan.filesByProject ? [] : plan.missing, extensions: plan.extensions };
-  if (!plan.filesByProject) return { created: [], offer, failed: [] };
-  return { ...(await writeTypeFiles(ports, plan.missing)), offer };
+  const { para, offer } = setupPlan(await loadObjectTypes(ports));
+  if (!para.filesByProject) return { created: [], offer, failed: [] };
+  return { ...(await writeTypeFiles(ports, para.missing)), offer };
+}
+
+/** PARA's plan for the vault's types, and what is offered rather than done. */
+function setupPlan(types: readonly DefinedType[]) {
+  const para = builtInTypePlan(types);
+  const inbox = inboxTypePlan(types);
+  const offer: TypeSetupOffer = {
+    types: [...(para.filesByProject ? [] : para.missing), ...inbox.missing],
+    extensions: combinedExtensions(para.extensions, inbox.extensions),
+  };
+  return { para, offer };
 }
 
 /**
@@ -102,12 +123,14 @@ export async function acceptTypeSetup({
 
 /** What of `offer` the vault's types still lack, worked out from their files as they are now. */
 async function stillOffered(ports: TypePorts, offer: TypeSetupOffer): Promise<TypeSetupOffer> {
-  const plan = builtInTypePlan(await loadObjectTypes(ports));
-  const types = new Set(offer.types.map((file) => file.type.name));
+  const types = await loadObjectTypes(ports);
+  const lacking = [...builtInTypePlan(types).missing, ...inboxTypePlan(types).missing];
+  const now = setupPlan(types).offer;
+  const named = new Set(offer.types.map((file) => file.type.name));
   const extended = new Set(offer.extensions.map((extension) => extension.before.name));
   return {
-    types: plan.missing.filter((file) => types.has(file.type.name)),
-    extensions: plan.extensions.filter((extension) => extended.has(extension.before.name)),
+    types: lacking.filter((file) => named.has(file.type.name)),
+    extensions: now.extensions.filter((extension) => extended.has(extension.before.name)),
   };
 }
 

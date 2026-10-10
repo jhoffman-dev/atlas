@@ -147,7 +147,7 @@ td:first-child { white-space: nowrap; }
     <a href="#people">People and mentions</a>
     <a href="#meetings">Meetings</a>
     <a href="#terms">Terms</a>
-    <a href="#proposals">Proposals</a>
+    <a href="#proposals">Proposals in the Inbox</a>
     <a href="#tags">Tags</a>
     <a href="#automations">Automations</a>
     <a href="#activity">Activity</a>
@@ -180,7 +180,7 @@ pnpm tauri:dev</pre>
       <h2>Finding your way</h2>
       <p class="sub">The sidebar lists everything; each page opens in a panel with a bar across the top.</p>
       <div class="grid2">
-        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, <a href="#para">Inbox</a>, <a href="#proposals">Proposals</a>, <a href="#tasks">Weekly review</a>, Graph, Tags, Automations, <a href="#activity">Activity</a>, <a href="#templates">Templates</a> and <a href="#terms">Terms</a>. Counts show how many notes each holds, and Proposals how many wait for an answer; Activity's red badge counts new errors.</p></div>
+        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, <a href="#para">Inbox</a>, <a href="#tasks">Weekly review</a>, Graph, Tags, Automations, <a href="#activity">Activity</a>, <a href="#templates">Templates</a> and <a href="#terms">Terms</a>. Counts show how many notes each holds — the Inbox's counts proposals waiting for an answer too; Activity's red badge counts new errors.</p></div>
         <div class="card"><h4>Favorites</h4><p>Star any page (the ☆ in its top bar) to pin it here.</p></div>
         <div class="card"><h4>Types · Views · Dashboards</h4><p>Built from your vault. The <b>+</b> beside a heading makes a new one.</p></div>
         <div class="card"><h4>Pages</h4><p>Your folders and notes. Near the end, <b>Archive</b> opens the <a href="#archive">Archive</a>; <b>System</b>, last, is the <code>.atlas</code> folder (types, automations, sources, settings). Templates aren't in it — they have their <a href="#templates">own page</a>.</p></div>
@@ -354,6 +354,7 @@ pnpm tauri:dev</pre>
         <li><b>A vault that has a Project type</b> gets the <b>Area</b> and <b>Resource</b> types it's missing when it opens, written into <code>.atlas/types</code>, and each one written is a line in <a href="#activity">Activity</a>. A type you already have is never replaced, and a property you added to Project stays exactly as you wrote it.</li>
         <li><b>A vault without a Project type</b> isn't given PARA's types on its own: it hasn't taken PARA up, so they're offered instead (below).</li>
         <li><b>Anything more is offered, not done.</b> On the Inbox page a box lists it — <i>“Adds the Project, Area and Resource types.”</i> for a vault without them, <i>“Task gains Project, linking project or area notes.”</i> for a Task type with no project yet, <i>“Meeting's Project will link project or area notes.”</i> for one that links projects only. <b>Add to the types</b> makes those changes against the type files as they are at that moment — an edit you made while the box waited is kept — and keeps everything else in each file byte for byte; <b>Not now</b> puts the box away until the vault is opened again.</li>
+        <li><b>The Inbox's own types are offered the same way.</b> A vault without them is offered <i>“Adds the Proposal and Decision types.”</i>, which <a href="#proposals">proposals</a> are notes of, and a Meeting type that doesn't declare what the <a href="#meeting-import">meeting import</a> writes is offered it: <i>“Meeting gains Duplicate of, linking meeting notes. Meeting gains Import and Import error.”</i> Nothing is written until you press <b>Add to the types</b>.</li>
         <li>Area and Resource are <a href="#types">built in</a>, like Project: they can't be deleted, and their properties are yours to change.</li>
       </ul>
       <h3>Capture goes to the Inbox</h3>
@@ -363,14 +364,15 @@ pnpm tauri:dev</pre>
       </ul>
       <h3>Process the Inbox</h3>
       <ol class="steps">
-        <li>Click <b>Inbox</b> at the top of the sidebar. Its count is how many notes are waiting. (The row shows once something is waiting, or when the vault has a view called Inbox.)</li>
-        <li>The Inbox page lists every waiting note, newest first, with its kind and the folder it came in — <i>Meeting · Meetings</i>. Click a name to open it.</li>
+        <li>Click <b>Inbox</b> at the top of the sidebar, or find it in search (<kbd>⌘K</kbd>). Its count is how many notes are waiting, and how many <a href="#proposals">proposals</a> wait for an answer. (The row shows once something is waiting, or when the vault has a view called Inbox.)</li>
+        <li>The Inbox page lists every waiting note, newest first, with its kind and the folder it came in — <i>Meeting · Meetings</i>. A meeting the import hasn't got to yet says <i>Waiting to be imported</i>; one it couldn't import says why, in red — <i>Not imported: title is required</i>. Click a name to open it.</li>
         <li>Pick a project or an area from <b>File under…</b> on its row.</li>
       </ol>
       <ul>
         <li>The note moves into a folder named after the project, beside it — filing under <code>Projects/Atlas.md</code> puts it in <code>Projects/Atlas/</code> — and gets <code>project: "[[Atlas]]"</code>. A project that is already its folder's own note (<code>Projects/Atlas/Atlas.md</code>) files into that folder. Only the note's name goes with it, numbered if the folder has one by that name; nothing else in the file changes, and links to it are updated.</li>
         <li>Only a project or an area still in use can be chosen — not one waiting in the Inbox itself, not an archived one, and not one whose folder would be the Inbox or the Archive (a project kept at the top as <code>Archive.md</code>). If a note can't be filed, the page says why, and it stays in the Inbox.</li>
-        <li>If your vault has a view called <b>Inbox</b>, the page's <b>Open the Inbox view</b> button opens it; it's still there under its own name.</li>
+        <li>Proposals aren't filed: they're answered, in the page's <a href="#proposals">Proposals</a> section, and are never in this list.</li>
+        <li>If your vault has a view called <b>Inbox</b>, the page's <b>Open the Inbox view</b> button opens it; it's still there under its own name. The view this repository's vault ships lists tasks at the <b>Inbox</b> status, everything under <code>Inbox/</code> and any meeting that failed import.</li>
         <li>Claude can do the same through <a href="#connect"><code>atlas_process_inbox_item</code></a>.</li>
       </ul>
     </section>
@@ -1089,7 +1091,7 @@ ORDER BY phase</pre>
       <p class="sub">Claude never edits a note on its own. What it — or an automation — suggests lands as a <b>proposal</b>, a note waiting in <code>Inbox/Proposals</code>, and nothing it proposes is written until you accept it.</p>
       <h3>Open the proposals</h3>
       <ol class="steps">
-        <li>Click <b>Proposals</b> near the top of the sidebar, under Today and Inbox, or find it in search (<kbd>⌘K</kbd>). Its count is how many are waiting. The row shows while something waits; the page is in search any time.</li>
+        <li>Open the <a href="#para">Inbox</a>: proposals are its <b>Proposals</b> section, above the notes waiting to be filed. The section shows while something waits for an answer, and the Inbox's count includes them.</li>
         <li>Each card says what it would make — <i>TASK · Send Mara the payroll file</i> — with what it would write under it, how sure its maker was (<i>high confidence</i>), and the line it came from: click <b>[[2026-10-01 Standup#^t0003]]</b> and the meeting opens at that line. A proposal that cites nothing says <b>Cites no source</b>, so you know to check it yourself.</li>
         <li>Answer it: <b>Accept</b>, <b>Edit</b> or <b>Reject</b>.</li>
       </ol>
@@ -1125,7 +1127,7 @@ ORDER BY phase</pre>
         <li><b>Proposal</b> and <b>Decision</b> are <a href="#types">built-in types</a>, and every task gains a <b>Meeting</b> link.</li>
         <li>Claude can list and answer them for you through <a href="#connect"><code>atlas_proposals</code></a> — only when you ask it to.</li>
       </ul>
-      <div class="note"><b>What's coming.</b> Proposals arrive by themselves once automations can run a Claude step on a new meeting (phase 29). The Proposals page will become a section of the <b>Inbox</b> page, beside the notes waiting to be filed.</div>
+      <div class="note"><b>What's coming.</b> Proposals arrive by themselves once automations can run a Claude step on a new meeting (phase 29).</div>
     </section>
 
     <section id="tags">
@@ -1360,7 +1362,7 @@ do: archive</pre>
         <li><b>Accept</b> writes exactly what the card showed, at exactly that path.</li>
         <li><b>Undo</b> on an accepted card puts the note back as it was, if nothing has written it since.</li>
       </ol>
-      <p>A chat's cards live in the chat. What Claude proposes while you're away waits as a note on the <a href="#proposals">Proposals</a> page instead, answered the same way.</p>
+      <p>A chat's cards live in the chat. What Claude proposes while you're away waits as a note in the <a href="#proposals">Inbox</a> instead, answered the same way.</p>
       <div class="note"><b>When Accept refuses.</b> If the note changed after the proposal, the card says <i>&lt;note&gt; changed since this was proposed; nothing was written.</i> If it's open with typing not yet saved: <i>&lt;note&gt; has unsaved typing; save it first, so nothing you typed is written over.</i> Nothing can be proposed into <code>.atlas</code>, any other hidden folder, or <code>Chats/</code>. A tool call Claude shows inside a code block is shown as an example, not run.</div>
       <ul>
         <li>Cards sit in the conversation, which scrolls on its own; the window doesn't.</li>
