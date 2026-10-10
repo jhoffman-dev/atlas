@@ -32,6 +32,7 @@ import type {
   ApiNoteImage,
   ApiNoteImageBody,
   ApiNoteSummary,
+  ApiProcessInboxBody,
   ApiProfile,
   ApiQueryBody,
   ApiQuickAddBody,
@@ -342,6 +343,8 @@ export class AtlasClient {
       path: '/v1/meetings',
       query: { ...query, includeArchived: includeArchived === true ? 'true' : undefined },
     });
+  processInbox = (body: ApiProcessInboxBody) =>
+    this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
 
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
 

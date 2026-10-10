@@ -10878,6 +10878,79 @@ select.type-editor__field,
   padding: var(--space-5) 0;
 }
 
+/* ---- the Inbox (P30-01) ----
+   A page like the Archive's: what waits in the Inbox folder, each row with a
+   picker that files it under a project or an area. */
+
+.inbox__grid th {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding-left: 10px;
+}
+
+/* Scoped to the grid, as the Archive's cells are: `.table__grid td` zeroes padding. */
+.inbox__grid .inbox__kind {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  padding: 0 24px 0 10px;
+  white-space: nowrap;
+}
+
+.inbox__actions {
+  text-align: right;
+  width: 1%;
+}
+
+.inbox__file {
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  max-width: 220px;
+  padding: 7px 12px;
+}
+
+.inbox__file:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.inbox__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+.inbox__offer {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-4);
+}
+
+.inbox__offer-icon {
+  color: var(--accent-text);
+  flex: none;
+}
+
+.inbox__offer-text {
+  flex: 1;
+  font-size: var(--text-ui);
+  min-width: 20ch;
+}
+
+.inbox__offer-text p,
+.inbox__offer-text ul {
+  margin: 0;
+}
+
 .table__choose {
   text-align: center;
   width: 36px;

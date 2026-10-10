@@ -7,6 +7,7 @@ export type { TreeEditing } from './vault-tree.tsx';
 export { Sidebar } from './sidebar.tsx';
 export type {
   ActivityRowLink,
+  InboxRowLink,
   HeaderMenu,
   SidebarQuickView,
   SidebarTree,
@@ -134,6 +135,7 @@ export { sidebarGlyph } from './icon.tsx';
 export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts';
 export type { NotePageRendering } from './note-page-renderer.ts';
 export { ArchivePage } from './archive-page.tsx';
+export { InboxPage } from './inbox-page.tsx';
 export { TemplatesPage } from './templates-page.tsx';
 export { TermsPage } from './terms-page.tsx';
 export type { NewTerm, TermsContents, TermsPageProps } from './terms-page.tsx';
@@ -143,6 +145,7 @@ export { TemplateToNoteDialog } from './template-to-note-dialog.tsx';
 export type { TemplateNotice } from './template-banner.tsx';
 export { lostUsesText, TEMPLATE_EXPLANATION, templateUsesText } from './template-words.ts';
 export type { ArchiveContents, ArchivePageProps } from './archive-page.tsx';
+export type { InboxContents, InboxPageProps, InboxTypesOffer } from './inbox-page.tsx';
 export { SelectAllBox, SelectBox, SelectionBar } from './row-selection.tsx';
 export type { BulkAction, RowSelection } from './row-selection.tsx';
 export * from './query-language/index.ts';

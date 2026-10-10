@@ -11,6 +11,7 @@ export type ActiveSidebarPage =
   | { readonly kind: 'graph' }
   | { readonly kind: 'tags' }
   | { readonly kind: 'archive' }
+  | { readonly kind: 'inbox' }
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
@@ -32,6 +33,7 @@ export function activeSidebarPage({
   graphOpen = false,
   tagsOpen = false,
   archiveOpen = false,
+  inboxOpen = false,
   automationsOpen = false,
   activityOpen = false,
   templatesOpen = false,
@@ -46,6 +48,8 @@ export function activeSidebarPage({
   tagsOpen?: boolean;
   /** So does the Archive. */
   archiveOpen?: boolean;
+  /** And the Inbox. */
+  inboxOpen?: boolean;
   /** And the Automations page. */
   automationsOpen?: boolean;
   /** And the Activity page. */
@@ -61,6 +65,7 @@ export function activeSidebarPage({
   viewOwner?: (path: VaultPath) => string | null;
 }): ActiveSidebarPage {
   if (archiveOpen) return { kind: 'archive' };
+  if (inboxOpen) return { kind: 'inbox' };
   if (automationsOpen) return { kind: 'automations' };
   if (activityOpen) return { kind: 'activity' };
   if (templatesOpen) return { kind: 'templates' };

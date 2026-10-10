@@ -209,7 +209,11 @@ export function NotePaneContainer({
 
   const note = usePaneNote({ paneId, path, context });
   const links = useNoteLinks({ context, path });
-  const noteProperties = useNoteProperties({ note: note.open, types, index });
+  const linkCheck = useMemo(
+    () => ({ fs: notes.fs, markdown: notes.markdown, notePaths }),
+    [notes.fs, notes.markdown, notePaths],
+  );
+  const noteProperties = useNoteProperties({ note: note.open, types, index, links: linkCheck });
   const addProperty = useAddProperty({
     fs: notes.fs,
     markdown: notes.markdown,

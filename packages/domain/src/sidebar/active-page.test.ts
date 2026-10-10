@@ -73,6 +73,13 @@ describe('activeSidebarPage', () => {
     ).toEqual({ kind: 'archive' });
   });
 
+  it('is the Inbox while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, inboxOpen: true }),
+    ).toEqual({ kind: 'inbox' });
+  });
+
   it('is the Automations page while it is open, over the graph, the type and the note', () => {
     const layout = openInFocused(SINGLE_PANE, acme);
     expect(

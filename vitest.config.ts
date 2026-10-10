@@ -52,12 +52,14 @@ export default defineConfig({
         // A refresh writes files into the vault, so it is held to the same bar
         // as the rules it carries out.
         'packages/application/src/sources/**': { lines: 90, functions: 90, branches: 85 },
-        // Editing a type rewrites its file, and can rewrite every note of it.
-        'packages/application/src/types/{edit-types,migrate-notes,load-types}.ts': {
-          lines: 90,
-          functions: 90,
-          branches: 85,
-        },
+        // Editing a type rewrites its file, and can rewrite every note of it; setting a
+        // vault up for PARA writes type files and adds to the vault's own (P30-01).
+        'packages/application/src/types/{edit-types,migrate-notes,load-types,ensure-built-in-types}.ts':
+          {
+            lines: 90,
+            functions: 90,
+            branches: 85,
+          },
         // The local API writes into the vault on behalf of other programs.
         'packages/application/src/api/**': { lines: 90, functions: 90, branches: 85 },
         // Renaming a tag rewrites every note that uses it.
@@ -66,6 +68,8 @@ export default defineConfig({
         'packages/application/src/artifacts/**': { lines: 90, functions: 90, branches: 85 },
         // Archiving moves notes and rewrites their frontmatter (U-22).
         'packages/application/src/archive/**': { lines: 90, functions: 90, branches: 85 },
+        // Processing the Inbox moves notes and rewrites their frontmatter (P30-01).
+        'packages/application/src/inbox/**': { lines: 90, functions: 90, branches: 85 },
         // An automation moves and rewrites notes by itself, on a clock (P25).
         'packages/application/src/automations/**': { lines: 90, functions: 90, branches: 85 },
         // A sync merges other Macs' changes into the notes and settles conflicts (U-29).

@@ -108,6 +108,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_archive`            | `POST /v1/archive`                                                           | yes     |
 | `atlas_unarchive`          | `POST /v1/unarchive`                                                         | yes     |
 | `atlas_archived`           | `GET /v1/archive`                                                            | no      |
+| `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
 | `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
 | `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
@@ -125,6 +126,13 @@ each: `importError` says why a file that arrived broke the meeting import
 contract, and `duplicateOf` links the meeting an archived copy duplicates.
 Meetings are imported in the app as they arrive; fixing a file with
 `atlas_update_properties` or `atlas_replace_note_body` has the app import it.
+
+`atlas_process_inbox_item` files one note from the Inbox under a project or an
+area, as the Inbox's Process does: it moves into the project's folder and gets
+`project: "[[…]]"` linking it. `project` must be a project or an area still in
+use; anything else is refused before the note moves. `atlas_capture_task` puts
+what it captures in the Inbox, and `atlas_list_notes` with `folder: "Inbox"`
+lists what waits there.
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

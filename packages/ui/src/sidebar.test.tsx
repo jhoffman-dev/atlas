@@ -292,6 +292,52 @@ describe('Sidebar', () => {
   });
 });
 
+describe('the Inbox row (P30-01)', () => {
+  const inboxView: SidebarQuickView = {
+    id: 'inbox',
+    entry: sidebarEntry(createVaultPath('.atlas/views/Inbox.md'), 'list'),
+    count: 11,
+  };
+  const goTo = () => within(screen.getByRole('list', { name: 'Go to' }));
+
+  it('opens the Inbox page, after Today, with how many notes wait there', async () => {
+    const onOpen = vi.fn();
+    const onOpenView = vi.fn();
+    show({ quick: [today, inboxView], onOpen: onOpenView, inbox: { onOpen, count: 3 } });
+
+    const names = goTo()
+      .getAllByRole('button')
+      .map((button) => button.textContent);
+    expect(names.slice(1, 3)).toEqual(['Today4', 'Inbox3']);
+
+    await userEvent.click(goTo().getByRole('button', { name: /^Inbox/ }));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(onOpenView).not.toHaveBeenCalled();
+  });
+
+  it('stands in for an Inbox view: there is one Inbox row, not two', () => {
+    show({ quick: [today, inboxView], inbox: { onOpen: () => {}, count: 3 } });
+    expect(goTo().getAllByRole('button', { name: /^Inbox/ })).toHaveLength(1);
+  });
+
+  it('is there in a vault with no Inbox view, and shows no count while none wait', () => {
+    show({ quick: [], inbox: { onOpen: () => {}, count: 0 } });
+    expect(goTo().getByRole('button', { name: 'Inbox' }).textContent).toBe('Inbox');
+  });
+
+  it('is marked while the Inbox page is open', () => {
+    show({ inbox: { onOpen: () => {}, count: null }, active: { kind: 'inbox' } });
+    expect(goTo().getByRole('button', { name: 'Inbox' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('leaves an Inbox view as its own row when the app has no Inbox page to offer', async () => {
+    const onOpen = vi.fn();
+    show({ quick: [inboxView], onOpen });
+    await userEvent.click(goTo().getByRole('button', { name: /^Inbox/ }));
+    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Inbox.md');
+  });
+});
+
 describe('Sidebar quick rows', () => {
   it('opens search from the Search row', async () => {
     const onSearch = vi.fn();

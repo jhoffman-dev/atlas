@@ -471,3 +471,45 @@ The API follows on the same terms as every route above:
 - **MCP.** `atlas_terms` is the route, read-only; its description points a
   model at `atlas_create_note` and `atlas_update_properties` for writing, and
   tells it never to correct a spelling in conflict.
+
+## Amendment: processing the Inbox is the second move (P30-01, 2026-10-08)
+
+The Inbox's **Process** files a note under a project or an area: it moves
+into the project's folder and gets `project: "[[…]]"` linking it. An agent
+triaging the Inbox needs it, so `POST /v1/inbox/process` (MCP
+`atlas_process_inbox_item`) is the second route that moves notes. It runs the
+app's own `processInboxItems`, on the same move-and-stamp as the Archive, and
+is held to the Archive's limits above, with one change to where a note goes:
+
+- **Only out of the Inbox.** Every path is a `.md` note under `Inbox/` at the
+  root of the vault; any other is listed in `failed` and left where it is.
+- **The destination is fixed by the note's name and the project's own path.**
+  The caller chooses the project, not the place: a note lands in the
+  project's folder — beside the project's note, named as it, or the folder it
+  is already the note of — under its own file name, numbered if that is
+  taken, never over anything. The project must be a note of type `project` or
+  `area` that is in use (not in the Inbox, not archived, not in `.atlas` or a
+  hidden folder), whose folder is not the Inbox, the Archive or a hidden
+  folder (a project at `Archive.md` would file into `Archive/`, archiving
+  what it files), and not so deep that a note filed under it would be past
+  `VAULT_WALK_DEPTH`; anything else refuses the whole request with `invalid`
+  before a note moves.
+- **At most 100 paths**, **typing never saved** (`unsaved_in_app`), links
+  rewritten and counted, and every unfinished note named in `failed` — as for
+  the Archive.
+
+Setting a vault's types up for PARA writes into `.atlas/types` and stays in
+the app, which offers it; `/v1/types` reads the result, including each
+relation's `targets`.
+
+**Narrowed from P30-01's card (2026-10-08).** The card asked that opening a
+vault missing the Area type add it. Atlas does that only for a vault that
+already files by project — one with a Project type: there the Area and
+Resource files it lacks are written on opening, and each one written is a
+line in Activity. A vault with no Project type has not taken PARA up, so the
+types are only offered, on the Inbox page, beside the offer to add `project`
+to the vault's own Task and Meeting types — which is never done without a
+yes, since it rewrites files the vault already has. Writing the types into
+every vault that opened put a Project, an Area and a Resource into vaults
+that never asked for them. Accepting works the change out again from the
+type files as they are then, so an edit made while the offer waited is kept.

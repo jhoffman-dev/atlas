@@ -189,7 +189,7 @@ function filesAndProps(notes: Iterable<StoredNote>): DatabaseSync {
   return database;
 }
 
-/** A compiled statement over `files` and `props` — the Archive's, a meeting's — run for real by SQLite with what it binds. */
+/** A compiled statement over `files` and `props` — the Archive's, a meeting's, the Inbox's — run for real by SQLite with what it binds. */
 function runArchiveQuery(
   statement: string,
   bound: readonly unknown[],
@@ -808,9 +808,10 @@ export async function installHost(
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
         }
-        // The vocabulary's notes (P28-05) read the same files and props tables
-        // the Archive does, so they run for real by SQLite the same way.
-        if (statement.startsWith('/* terms:')) {
+        // The vocabulary's notes (P28-05) and the Inbox (P30-01) read the same
+        // files and props tables the Archive does, so they run for real by
+        // SQLite the same way.
+        if (statement.startsWith('/* terms:') || statement.startsWith('/* inbox */')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
         // SQL written by hand — the query page, a SQL view or widget — binds

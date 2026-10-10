@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   createVaultPath,
+  relationTypes,
   wikiLinkTargetFor,
   type ObjectType,
   type QueryField,
@@ -30,9 +31,7 @@ export function useQueryChoices({
   indexKey: string;
 }) {
   // Keyed by the names, so a new list of the same targets asks the index nothing.
-  const targetKey = [
-    ...new Set(fields.flatMap((field) => (field.target === null ? [] : [field.target]))),
-  ].join(',');
+  const targetKey = [...new Set(fields.flatMap((field) => relationTypes(field)))].join(',');
   const targets = useMemo(() => (targetKey === '' ? [] : targetKey.split(',')), [targetKey]);
   const wantsTags = fields.some((field) => field.kind === 'tag');
   const notes = useNotesOfTypes({ index, targets, notePaths, indexKey });
@@ -41,7 +40,11 @@ export function useQueryChoices({
   const valueChoices = useCallback(
     (field: QueryField): readonly string[] => {
       if (field.kind === 'tag') return tags;
-      return field.target === null ? NONE : (notes.get(field.target) ?? NONE);
+      const [only, ...more] = relationTypes(field);
+      if (only === undefined) return NONE;
+      if (more.length === 0) return notes.get(only) ?? NONE;
+      // A relation to several types offers the notes of each, in the order it names them.
+      return [only, ...more].flatMap((type) => notes.get(type) ?? NONE);
     },
     [notes, tags],
   );

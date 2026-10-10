@@ -3,6 +3,7 @@ import {
   NEW_PROPERTY_LABEL,
   PROPERTY_KINDS,
   propertyIcon,
+  relationTypes,
   type ObjectType,
   type PropertyDef,
   type PropertyKind,
@@ -385,6 +386,7 @@ function RelationDetails({
   onEdit: (edit: TypeEdit) => void;
 }) {
   const target = property.target ?? '';
+  const others = relationTypes(property).filter((name) => name !== target);
   return (
     <>
       <label className="type-editor__row">
@@ -409,6 +411,13 @@ function RelationDetails({
           ))}
         </select>
       </label>
+      {/* Written as a list in the type file; kept unless "Points at" is changed. */}
+      {others.length > 0 && (
+        <div className="type-editor__row">
+          <span className="type-editor__row-label">And at</span>
+          <span>{others.join(', ')}</span>
+        </div>
+      )}
       <div className="type-editor__row">
         <span className="type-editor__row-label">Several notes</span>
         <Toggle

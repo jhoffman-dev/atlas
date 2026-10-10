@@ -36,6 +36,13 @@ export interface SidebarQuickView {
   readonly count: number | null;
 }
 
+/** The Inbox's row: what it opens, and how many notes wait there. */
+export interface InboxRowLink {
+  readonly onOpen: () => void;
+  /** How many notes wait in the Inbox, when that is known. */
+  readonly count: number | null;
+}
+
 /** The vault as it is on disk, which only Pages draws. */
 export interface SidebarTree {
   readonly rows: readonly SidebarTreeRow[];
@@ -93,6 +100,7 @@ export function Sidebar({
   activity,
   onOpenTemplates,
   onOpenTerms,
+  inbox,
   onOpen,
   onOpenType,
   onEditType,
@@ -125,6 +133,11 @@ export function Sidebar({
   onOpenTemplates?: () => void;
   /** Opens the Terms page; its row sits last when given. */
   onOpenTerms?: () => void;
+  /**
+   * The Inbox page's row, after Today, when given: it stands in for a saved
+   * view titled Inbox, which the page then links to (P30-01).
+   */
+  inbox?: InboxRowLink;
   onOpen: (path: VaultPath) => void;
   onOpenType: (name: string) => void;
   /** Opens a type's definition; a type's menu offers it when given. */
@@ -224,6 +237,7 @@ export function Sidebar({
         activityOn={active?.kind === 'activity'}
         templatesOn={active?.kind === 'templates'}
         termsOn={active?.kind === 'terms'}
+        inboxOn={active?.kind === 'inbox'}
         onSearch={onSearch}
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
@@ -232,6 +246,7 @@ export function Sidebar({
         {...(activity !== undefined && { activity })}
         {...(onOpenTemplates !== undefined && { onOpenTemplates })}
         {...(onOpenTerms !== undefined && { onOpenTerms })}
+        {...(inbox !== undefined && { inbox })}
       />
 
       <div className="sidebar__scroll" ref={setScroller}>
@@ -262,7 +277,10 @@ export function Sidebar({
   );
 }
 
-/** Search, then whichever of Today and Inbox the vault has, then the graph and the tags. */
+/**
+ * Search, then whichever of Today and Inbox the vault has — the Inbox page's
+ * row in place of an Inbox view's, when it is given — then the graph and the tags.
+ */
 function QuickRows({
   quick,
   open,
@@ -272,6 +290,7 @@ function QuickRows({
   activityOn,
   templatesOn,
   termsOn,
+  inboxOn,
   onSearch,
   onOpenGraph,
   onOpenTags,
@@ -279,6 +298,7 @@ function QuickRows({
   activity,
   onOpenTemplates,
   onOpenTerms,
+  inbox,
   onOpen,
 }: {
   quick: readonly SidebarQuickView[];
@@ -289,6 +309,7 @@ function QuickRows({
   activityOn: boolean;
   templatesOn: boolean;
   termsOn: boolean;
+  inboxOn: boolean;
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
@@ -296,8 +317,10 @@ function QuickRows({
   activity?: ActivityRowLink;
   onOpenTemplates?: () => void;
   onOpenTerms?: () => void;
+  inbox?: InboxRowLink;
   onOpen: (path: VaultPath) => void;
 }) {
+  const views = inbox === undefined ? quick : quick.filter((view) => view.id !== 'inbox');
   return (
     <ul className="sidebar__list sidebar__quick" aria-label="Go to">
       <li className="sidebar__item">
@@ -309,7 +332,7 @@ function QuickRows({
           </kbd>
         </button>
       </li>
-      {quick.map(({ id, entry, count }) => {
+      {views.map(({ id, entry, count }) => {
         const on = open.has(entry.path);
         return (
           <li key={id} className={on ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
@@ -326,6 +349,7 @@ function QuickRows({
           </li>
         );
       })}
+      {inbox !== undefined && <InboxQuickRow {...inbox} on={inboxOn} />}
       {onOpenGraph !== undefined && (
         <li className={graphOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
           <button
@@ -406,6 +430,23 @@ export interface ActivityRowLink {
  * The Activity page's row. A badge counts the errors that arrived since the
  * page was last open, and the row's name says so too, for a screen reader.
  */
+function InboxQuickRow({ onOpen, count, on }: InboxRowLink & { on: boolean }) {
+  return (
+    <li className={on ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+      <button
+        type="button"
+        className="sidebar__row"
+        aria-current={on ? 'page' : undefined}
+        onClick={onOpen}
+      >
+        <Icon name="inbox" className="sidebar__icon" />
+        <span className="sidebar__name">Inbox</span>
+        {count !== null && count > 0 && <span className="sidebar__badge">{count}</span>}
+      </button>
+    </li>
+  );
+}
+
 function ActivityQuickRow({ onOpen, unseenErrors, on }: ActivityRowLink & { on: boolean }) {
   const errors = `${unseenErrors} new ${unseenErrors === 1 ? 'error' : 'errors'}`;
   return (

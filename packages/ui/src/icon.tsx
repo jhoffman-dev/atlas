@@ -388,6 +388,7 @@ const SIDEBAR_GLYPHS: Readonly<Record<SidebarIcon, IconName>> = {
   activity: 'pulse',
   template: 'template',
   term: 'term',
+  inbox: 'inbox',
 };
 
 export function sidebarGlyph(icon: SidebarIcon): IconName {

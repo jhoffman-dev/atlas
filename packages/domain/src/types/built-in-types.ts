@@ -5,6 +5,7 @@ import { PERSON_TYPE } from '../people/person.ts';
 import { TERM_TYPE } from '../terms/term.ts';
 import { vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { TYPES_DIRECTORY } from '../vault/vault-visibility.ts';
+import { AREA_TYPE, RESOURCE_TYPE } from './para.ts';
 
 /**
  * The types a feature of Atlas is built on, and what would stop working
@@ -19,6 +20,8 @@ const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   [MEETING_TYPE, 'imported meetings are notes of it'],
   [COMPANY_TYPE, 'meetings and terms point at companies'],
   [TERM_TYPE, 'the Terms page lists its notes, and Atlas spells names by them'],
+  [AREA_TYPE, 'the Inbox files notes under areas as well as projects'],
+  [RESOURCE_TYPE, 'reference is kept as resources, filed under a project or an area'],
 ]);
 
 /** Whether a type is one Atlas's own features depend on. */

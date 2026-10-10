@@ -42,6 +42,7 @@ const ALL_TOOLS = [
   'atlas_list_views',
   'atlas_meetings',
   'atlas_move_card',
+  'atlas_process_inbox_item',
   'atlas_profile',
   'atlas_query',
   'atlas_quick_add',
@@ -128,7 +129,7 @@ describe('tools/list', () => {
       destructiveHint: false,
     });
     expect(byName.get('atlas_archived')).toMatchObject({ readOnlyHint: true });
-    for (const name of ['atlas_archive', 'atlas_unarchive']) {
+    for (const name of ['atlas_archive', 'atlas_unarchive', 'atlas_process_inbox_item']) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: false, destructiveHint: false });
     }
     // Automations are read here and run in the app: not one of their tools writes.
@@ -170,7 +171,7 @@ describe('tools/list', () => {
     for (const table of ['files(', 'props(', 'links(', 'fts', 'v_<type>', 'sqlite_master']) {
       expect(described('atlas_sql')).toContain(table);
     }
-    expect(described('atlas_capture_task')).toContain('at the vault root');
+    expect(described('atlas_capture_task')).toContain('waiting in Inbox/');
   });
 
   it('tells the model a rule can be set off by a note, once per version, and how to read it', async () => {
@@ -418,6 +419,13 @@ describe('tools/call → REST', () => {
       null,
     ],
     ['atlas_meetings', { includeArchived: false }, 'GET', '/v1/meetings', null],
+    [
+      'atlas_process_inbox_item',
+      { path: 'Inbox/Call Sam.md', project: 'Projects/Atlas.md' },
+      'POST',
+      '/v1/inbox/process',
+      { paths: ['Inbox/Call Sam.md'], project: 'Projects/Atlas.md' },
+    ],
     ['atlas_automations', {}, 'GET', '/v1/automations', null],
     ['atlas_automation_log', { id: 'tidy' }, 'GET', '/v1/automations/tidy/log', null],
     [
@@ -515,6 +523,9 @@ describe('tools/call → REST', () => {
     ['atlas_archive', { paths: Array.from({ length: 101 }, (_, at) => `N${at}.md`) }],
     ['atlas_unarchive', { paths: [''] }],
     ['atlas_archived', { offset: -1 }],
+    ['atlas_process_inbox_item', { path: 'Inbox/Call.md' }],
+    ['atlas_process_inbox_item', { path: '', project: 'Projects/Atlas.md' }],
+    ['atlas_process_inbox_item', { path: 'Inbox/Call.md', project: '' }],
     ['atlas_list_type_views', { type: '' }],
     ['atlas_read_template', {}],
     ['atlas_read_template', { name: '' }],
