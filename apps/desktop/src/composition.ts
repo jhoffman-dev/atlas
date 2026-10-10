@@ -10,6 +10,7 @@ import {
   tauriExternalLinks,
   tauriHttp,
   tauriSecrets,
+  tauriGoogleCalendar,
   tauriSqliteSource,
   tauriPageSnapshot,
   tauriIndex,
@@ -32,6 +33,7 @@ import type {
   WindowClosingPort,
   AppInfoPort,
   ExternalLinkPort,
+  GoogleCalendarPort,
   PageSnapshotPort,
 } from '@atlas/application';
 import type { VaultPorts } from './vault/use-vault.ts';
@@ -73,6 +75,11 @@ export function resolveIndexPorts(): OnHost<IndexPorts> {
 
 export function resolveSourcePorts(): SourcePorts {
   return { http: tauriHttp, sqlite: tauriSqliteSource, secrets: tauriSecrets };
+}
+
+/** Google Calendar, through the host's sign-in (ADR-0030). */
+export function resolveGoogleCalendar(): GoogleCalendarPort {
+  return tauriGoogleCalendar;
 }
 
 export function resolveExternalLinks(): ExternalLinkPort {

@@ -14,6 +14,7 @@ export { tauriIndex } from './index/tauri-index.ts';
 export { tauriVaultWatch } from './vault/tauri-vault-watch.ts';
 export { tauriHttp } from './sources/tauri-http.ts';
 export { tauriSecrets } from './sources/tauri-secrets.ts';
+export { tauriGoogleCalendar } from './google-calendar/tauri-google-calendar.ts';
 export { tauriSqliteSource } from './sources/tauri-sqlite-source.ts';
 export { tauriApiBridge } from './api/tauri-api-bridge.ts';
 export { tauriApiSettings } from './api/tauri-api-settings.ts';

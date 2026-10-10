@@ -9,6 +9,9 @@ import type { Locator, Page } from '@playwright/test';
 import { createGitStub, type GitStub } from './git-host.ts';
 
 /** The host commands sync runs through (`git_process.rs`), answered by the git stub. */
+/** What a stubbed command answers to reject with a value, as Tauri does for a command's `Err`. */
+const REJECT = '__atlasReject';
+
 const SYNC_COMMANDS = new Set([
   'git_run',
   'git_run_in',
@@ -369,6 +372,18 @@ export interface FakeHost {
     loggedIn(yes: boolean): void;
     runs(): readonly { args: readonly string[]; stdin: string }[];
   };
+  /**
+   * Google Calendar, as `google.rs` answers for it: a sign-in kept per vault,
+   * and the Calendar API's calendar list and calendar insert. The sign-in
+   * itself — the browser, PKCE, the Keychain — is Rust's and tested there
+   * against a fake Google. `refuseNext` makes the next connect fail the way
+   * the host reports a failure: rejected with `{ kind, code, message }`.
+   */
+  readonly google: {
+    refuseNext(failure: { kind: string; code?: string; message: string }): void;
+    connected(): boolean;
+    calendars(): readonly string[];
+  };
   /** SQLite files a source may read, by the name the note gives, and what the picker offers. */
   readonly sqlite: {
     serve(file: string, rows: { columns: string[]; rows: unknown[][] }): void;
@@ -477,6 +492,10 @@ export async function installHost(
   const bindings = new Map<string, readonly string[]>();
   const answers: string[] = [];
   const requests: unknown[] = [];
+  /** Google sign-ins by vault root, and the calendars Atlas made on the account. */
+  const googleSignIns = new Map<string, { clientId: string; scopes: string[] }>();
+  const googleCalendars: { id: string; summary: string }[] = [];
+  let googleRefusal: { kind: string; code?: string; message: string } | null = null;
   const databases = new Map<string, { columns: string[]; rows: unknown[][] }>();
   const sqliteQueries: { file: string; sql: string }[] = [];
   let offeredDatabase: string | null = null;
@@ -1028,6 +1047,43 @@ export async function installHost(
         bindings.delete(name);
         return null;
       }
+      case 'google_status': {
+        const signIn = googleSignIns.get(writeRoot(args));
+        return {
+          connected: signIn !== undefined,
+          clientId: signIn?.clientId ?? null,
+          scopes: signIn?.scopes ?? [],
+        };
+      }
+      case 'google_connect': {
+        const root = writeRoot(args);
+        const { clientId, scopes } = args as { clientId: string; scopes: string[] };
+        if (googleRefusal !== null) {
+          const refusal = googleRefusal;
+          googleRefusal = null;
+          return { [REJECT]: refusal };
+        }
+        googleSignIns.set(root, { clientId, scopes });
+        return { connected: true, clientId, scopes };
+      }
+      case 'google_connect_cancel':
+        return null;
+      case 'google_disconnect':
+        googleSignIns.delete(writeRoot(args));
+        return { revoked: true };
+      case 'google_calendar_request': {
+        if (!googleSignIns.has(writeRoot(args))) {
+          return { [REJECT]: { kind: 'not_connected', message: 'not connected' } };
+        }
+        const { call } = args as { call: { method: string; path: string } };
+        if (call.method === 'POST' && call.path === '/calendar/v3/calendars') {
+          const made = { id: 'atlas-blocks@group.calendar.example.com', summary: 'Atlas blocks' };
+          googleCalendars.push(made);
+          return { status: 200, body: JSON.stringify(made) };
+        }
+        const items = googleCalendars.map((calendar) => ({ ...calendar, accessRole: 'owner' }));
+        return { status: 200, body: JSON.stringify({ items }) };
+      }
       case 'sqlite_source_query': {
         const { file, sql } = args as { file: string; sql: string };
         sqliteQueries.push({ file, sql });
@@ -1250,7 +1306,15 @@ export async function installHost(
         }
         const answer = (
           window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
-        ).__atlasInvoke(command, args);
+        )
+          .__atlasInvoke(command, args)
+          // A command that rejects with a value rather than a message, as
+          // Tauri hands the webview whatever a command's `Err` serializes to.
+          .then((value) =>
+            typeof value === 'object' && value !== null && '__atlasReject' in value
+              ? Promise.reject((value as { __atlasReject: unknown }).__atlasReject)
+              : value,
+          );
         return command === 'read_binary_file'
           ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
           : answer;
@@ -1334,6 +1398,13 @@ export async function installHost(
         claudeLoggedIn = yes;
       },
       runs: () => [...claudeRuns],
+    },
+    google: {
+      refuseNext: (failure) => {
+        googleRefusal = failure;
+      },
+      connected: () => googleSignIns.size > 0,
+      calendars: () => googleCalendars.map((calendar) => calendar.summary),
     },
     sqlite: {
       serve: (file, rows) => {

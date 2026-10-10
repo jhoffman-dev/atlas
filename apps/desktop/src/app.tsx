@@ -43,6 +43,7 @@ import {
   type ApiRouterDeps,
   type AppInfoPort,
   type ExternalLinkPort,
+  type GoogleCalendarPort,
   type PageSnapshotPort,
 } from '@atlas/application';
 import {
@@ -136,6 +137,8 @@ import { QuickAdd } from './quick-add/quick-add.tsx';
 import { QuickAddSettingsCard } from './quick-add/quick-add-settings-card.tsx';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { SecretsSettingsCard } from './settings/secrets-settings-card.tsx';
+import { GoogleCalendarSettingsCard } from './settings/google-calendar-settings-card.tsx';
+import { useGoogleCalendar } from './settings/use-google-calendar.ts';
 import { useSecrets } from './settings/use-secrets.ts';
 import { useQuickAdd } from './quick-add/use-quick-add.ts';
 import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
@@ -203,6 +206,7 @@ export function App({
   chat: chatPorts,
   activity: activityPorts,
   sync: syncPorts,
+  googleCalendar,
 }: {
   appInfo: AppInfoPort;
   vault: OnHost<VaultPorts>;
@@ -221,6 +225,8 @@ export function App({
   activity: { store: ActivityStore; closing: WindowClosingPort };
   /** The Mac's own git and gh, for syncing the vault through GitHub (U-29). */
   sync: SyncHostPorts;
+  /** Google Calendar, signed in to by the host, which keeps the tokens (ADR-0030). */
+  googleCalendar: GoogleCalendarPort;
 }) {
   const [app, setApp] = useState<AppInfoState>({ kind: 'loading' });
   // The last sync runs before the Activity log's final write, so its line is kept.
@@ -859,6 +865,14 @@ export function App({
     changeKey: indexKey,
     active: overlay === 'settings',
   });
+  const googleCalendarSetting = useGoogleCalendar({
+    port: googleCalendar,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vault: vaultKey,
+    changeKey: indexKey,
+    active: overlay === 'settings',
+  });
   const quickAddPorts = useMemo(
     () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),
     [vault.fs, notes.markdown, index.index],
@@ -1434,6 +1448,9 @@ export function App({
                   <QuickAddSettingsCard setting={quickAddSetting} types={types} />
                 )}
                 {location !== null && <SecretsSettingsCard setting={secrets} />}
+                {location !== null && (
+                  <GoogleCalendarSettingsCard setting={googleCalendarSetting} />
+                )}
                 <ClaudeSettingsCard chat={chat} />
                 {location !== null && <SyncSettingsCard sync={sync} vaultName={location.name} />}
               </SettingsPanel>

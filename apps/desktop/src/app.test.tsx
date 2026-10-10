@@ -6,6 +6,7 @@ import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain'
 import {
   VaultAccessError,
   memoryActivityStore,
+  fakeGoogleCalendar,
   failed,
   memorySyncFiles,
   scriptedFolders,
@@ -125,6 +126,9 @@ const fakeIndexPorts = (vault: VaultPorts): IndexPorts => ({
   },
 });
 
+/** Google Calendar with no sign-in, as on a Mac that never connected. */
+const googleCalendar = fakeGoogleCalendar().port;
+
 /** Nothing in these tests fetches; a source that did would say so by throwing. */
 const sources: SourcePorts = {
   http: {
@@ -207,6 +211,7 @@ const renderApp = (
       chat={chat}
       activity={activityIn(activity)}
       sync={noSync}
+      googleCalendar={googleCalendar}
     />,
   );
 
@@ -635,6 +640,7 @@ describe('the palettes and the shortcuts around them', () => {
         chat={chat}
         activity={activityIn()}
         sync={noSync}
+        googleCalendar={googleCalendar}
       />,
     );
     await screen.findByRole('treeitem', { name: 'recipes' });
@@ -838,6 +844,7 @@ describe('the Activity log, adversarial (U-28)', () => {
         chat={chat}
         activity={activityIn(activity)}
         sync={noSync}
+        googleCalendar={googleCalendar}
       />,
     );
     // The window shows the failure as a red notice; both lines are batched into one write.
