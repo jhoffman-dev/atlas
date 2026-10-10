@@ -16,6 +16,7 @@ import { CalendarMonthGrid } from './calendar-month-grid.tsx';
 import type { CalendarNavigation } from './calendar-nav.tsx';
 import { CalendarTimeGrid } from './calendar-time-grid.tsx';
 import type { DoneTicks } from './done-checkbox.tsx';
+import type { Planner } from './schedule-tray.tsx';
 
 /** What a move or a resize writes: the date, and the end when that changes too. */
 export interface CalendarWrite {
@@ -82,6 +83,9 @@ function useGestures({
  *
  * With the calendar focused, M, W, 3, D and A choose the range, T goes to
  * today, and Left and Right (or [ and ]) page.
+ *
+ * A calendar of blocks plans the day (P31-02): its week, three days or day
+ * has the next actions beside the clock, to drag into time.
  */
 export function CalendarView({
   rows,
@@ -96,6 +100,7 @@ export function CalendarView({
   onOpenNote,
   onReschedule,
   onCreate,
+  planner = null,
 }: {
   rows: readonly BoardRow[];
   dateKey: string;
@@ -114,6 +119,8 @@ export function CalendarView({
   onReschedule: (write: CalendarWrite) => void;
   /** Adds a note of the view's type on a day or at a time; without it, nothing is added. */
   onCreate?: (args: { value: string; name: string }) => void;
+  /** The tray of tasks to plan into a calendar of blocks; null for any other calendar. */
+  planner?: Planner | null;
 }) {
   const holdingRef = useRef(false);
   const { events, unscheduled } = useMemo(
@@ -159,6 +166,7 @@ export function CalendarView({
           today={today}
           now={now}
           gestures={gestures}
+          planner={planner}
         />
       )}
     </div>

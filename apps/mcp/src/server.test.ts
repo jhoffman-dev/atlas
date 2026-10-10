@@ -54,6 +54,7 @@ const ALL_TOOLS = [
   'atlas_run_query',
   'atlas_run_view',
   'atlas_save_artifact',
+  'atlas_schedule_task',
   'atlas_search',
   'atlas_sql',
   'atlas_status',
@@ -127,7 +128,12 @@ describe('tools/list', () => {
       destructiveHint: false,
     });
     expect(byName.get('atlas_archived')).toMatchObject({ readOnlyHint: true });
-    for (const name of ['atlas_archive', 'atlas_unarchive', 'atlas_process_inbox_item']) {
+    for (const name of [
+      'atlas_archive',
+      'atlas_unarchive',
+      'atlas_process_inbox_item',
+      'atlas_schedule_task',
+    ]) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: false, destructiveHint: false });
     }
     // Automations are read here and run in the app: not one of their tools writes.
@@ -397,6 +403,20 @@ describe('tools/call → REST', () => {
       '/v1/inbox/process',
       { paths: ['Inbox/Call Sam.md'], project: 'Projects/Atlas.md' },
     ],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 90 },
+      'POST',
+      '/v1/tasks/schedule',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 90 },
+    ],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T23:30' },
+      'POST',
+      '/v1/tasks/schedule',
+      { task: 'Quarterly report.md', start: '2026-10-12T23:30' },
+    ],
     ['atlas_automations', {}, 'GET', '/v1/automations', null],
     ['atlas_automation_log', { id: 'tidy' }, 'GET', '/v1/automations/tidy/log', null],
     [
@@ -504,6 +524,20 @@ describe('tools/call → REST', () => {
     ['atlas_process_inbox_item', { path: 'Inbox/Call.md' }],
     ['atlas_process_inbox_item', { path: '', project: 'Projects/Atlas.md' }],
     ['atlas_process_inbox_item', { path: 'Inbox/Call.md', project: '' }],
+    ['atlas_schedule_task', { start: '2026-10-12T09:00' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00Z' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00:00' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00+02:00' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 0 }],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 1441 },
+    ],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 2.5 },
+    ],
     ['atlas_list_type_views', { type: '' }],
     ['atlas_read_template', {}],
     ['atlas_read_template', { name: '' }],

@@ -8,6 +8,7 @@
  * asked the moment it opens rather than falling back to a table.
  */
 
+import { BLOCK_CALENDAR, isBlockType } from '../timeblocks/block-type.ts';
 import type { ObjectType, PropertyDef, PropertyKind } from '../types/property-def.ts';
 import { MAX_NAME_BYTES } from '../vault/file-name-bytes.ts';
 import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
@@ -163,6 +164,7 @@ function layoutSettings(layout: ViewLayout, type: ObjectType): Record<string, st
   const [firstDate, secondDate] = dateProperties(type);
   const [firstGroup] = groupableProperties(type);
   if (layout === 'board' && firstGroup !== undefined) return { groupBy: firstGroup.key };
+  if (layout === 'calendar' && isBlockType(type.name)) return { ...BLOCK_CALENDAR };
   if (layout === 'calendar' && firstDate !== undefined) return { dateKey: firstDate.key };
   if (layout === 'timeline' && firstDate !== undefined) {
     return {

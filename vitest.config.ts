@@ -62,7 +62,8 @@ export default defineConfig({
         'packages/application/src/inbox/**': { lines: 90, functions: 90, branches: 85 },
         // Moving tasks to GTD rewrites every task, view and rule naming a status, and undoes it (P30-02).
         'packages/application/src/gtd/**': { lines: 90, functions: 90, branches: 85 },
-        // A task's schedule is read from the index and answered to the API (P31-01).
+        // A task's schedule is read from the index and answered to the API (P31-01);
+        // a drop on the calendar writes a block or links a task into one, and undoes it (P31-02).
         'packages/application/src/timeblocks/**': { lines: 90, functions: 90, branches: 85 },
         // An automation moves and rewrites notes by itself, on a clock (P25).
         'packages/application/src/automations/**': { lines: 90, functions: 90, branches: 85 },

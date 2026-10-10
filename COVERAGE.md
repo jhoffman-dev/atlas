@@ -28,7 +28,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/archive`      | Moves notes in and out of the Archive, rewriting frontmatter.                 | 23      |
 | `application/inbox`        | Moves notes out of the Inbox into a project's folder, rewriting frontmatter.  | 30      |
 | `application/gtd`          | Moves every task to GTD's statuses, rewrites views and rules, undoes it all.  | 30      |
-| `application/timeblocks`   | Reads each task's schedule from the index; a short read would answer wrong.   | 31      |
+| `application/timeblocks`   | Reads each task's schedule; writes blocks and links tasks into them, undone.  | 31      |
 | `application/automations`  | Runs rules on a clock: archives or rewrites notes, logs it, undoes it.        | 25      |
 | `application/sync`         | Merges other Macs' changes into notes; settles conflicts; never loses a side. | U-29    |
 | `tools/n8n/*.ts`           | The n8n meeting mapper: commits files into your vault from outside Atlas.     | 28      |

@@ -552,6 +552,7 @@ pnpm tauri:dev</pre>
       <ul>
         <li><b>Add:</b> click an empty part of a day — or, on the clock, an empty time — to make a note there.</li>
         <li><b>Move:</b> drag a note to another day or time. On the clock, drag its bottom edge to change when it ends.</li>
+        <li><b>Plan:</b> a calendar of blocks has your next actions beside its week, to drag into time — see <a href="#timeblocking">Timeblocking</a>.</li>
         <li><b>Keyboard:</b> click the calendar, then <kbd>M</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>D</kbd> <kbd>A</kbd> pick the range, <kbd>T</kbd> goes to today, and <kbd>←</kbd> <kbd>→</kbd> (or <kbd>[</kbd> <kbd>]</kbd>) step. In the month, <kbd>Tab</kbd> to a note, <kbd>Space</kbd> to pick it up, arrows to move it a day or a week, <kbd>Space</kbd> to drop.</li>
       </ul>
       <p class="muted">In the agenda, a past note of a type with no “done” status (a meeting, a journal entry) stays under Overdue. That's on purpose for now.</p>
@@ -762,6 +763,16 @@ ORDER BY phase</pre>
         <li>A block is a note of the <b>Block</b> type: <b>Start</b> and <b>End</b>, each a day and a time (<code>2026-10-12T09:00</code>), and <b>Tasks</b>, the tasks it holds. Make one like any note, from <a href="#add">the add button</a>.</li>
         <li>Atlas adds the Block type once your tasks follow <a href="#tasks">GTD</a> — when the vault opens, or as soon as you move your tasks — and says so in <a href="#activity">Activity</a>. A Block type you already have is left as it is, and it can't be deleted — its properties are yours to change.</li>
         <li>A block also keeps the Google Calendar event it will sync with (<b>Google event</b>, <b>Google version</b>); leave them alone.</li>
+      </ul>
+      <h3>Plan the day</h3>
+      <p>Open the <b>Block</b> type, add a view with <b>+</b> and choose <b>Calendar</b>: each block sits on the clock from its start to its end. In <b>Week</b>, <b>3 days</b> or <b>Day</b>, your <b>Next actions</b> stand beside the clock, the ones with no time set aside yet at the top, each with <i>1h of 2h scheduled</i> under its name.</p>
+      <ul>
+        <li><b>Drag a task onto empty time</b> to make a block for it, starting on the quarter hour you let go in and as long as the task still needs — its estimate less what its blocks already give it (half an hour if it has no estimate, or already has all it needs; a day at most). The block is named after the task — <i>Quarterly report block</i> — and uses your <b>Block</b> <a href="#templates">template</a> if you have one.</li>
+        <li><b>Drag a task onto a block</b> to add it to the block's tasks. The block then shares its time among them, as the table below says. A block that already holds the task is left as it is.</li>
+        <li><b>Split a task</b> by dragging it again: the next block is sized to what is left. Shorten the first block from its bottom edge, and the next drag fills the rest.</li>
+        <li><b>Undo</b>, beside the last drop, takes it back: a block it made goes to the Trash — unless you've changed it since, or are typing in it, which Atlas tells you and leaves — and a task it added to a block comes out again.</li>
+        <li><b>Keyboard:</b> <kbd>Tab</kbd> to a task and press <kbd>Return</kbd> (or click it). Focus goes to 9:00 today, or on the first day shown; <kbd>↑</kbd> <kbd>↓</kbd> move through the hours and <kbd>Tab</kbd> to the next day, or to a block. <kbd>Return</kbd> places the task there; <kbd>Esc</kbd> puts it back.</li>
+        <li>Press <kbd>Esc</kbd> during a drag to cancel it: nothing is written. The clock doesn't scroll while you drag a task, so scroll to the part of the day first.</li>
       </ul>
       <h3>Scheduled, estimate and done</h3>
       <p>A task's page shows, under its properties, <b>Scheduled</b> — <i>1h 30m of 2h</i> — and <b>Done</b> — <i>0m of 2h</i>. Both follow from the blocks and the status, so there is nothing to type.</p>
@@ -1246,6 +1257,7 @@ do: archive</pre>
         <li><b>Add a picture to a note</b> (<code>atlas_add_image</code>). From a file, it reads only PNG, JPEG, GIF, WebP, SVG or HEIC images up to 20 MB in your Desktop, Downloads or Pictures folder, or the temporary folder — never anything else on the disk. To use other folders, set <code>ATLAS_MCP_IMAGE_DIRS</code> to them, separated by <code>:</code>; it replaces the list. The picture lands where <a href="#images">pictures you add</a> do, and a link to it goes at the end of the note.</li>
         <li><b>Quick add a note of a type</b> (<code>atlas_quick_add</code>), the way <a href="#add">the add button</a> does, from the same list of types (<code>atlas_quick_add_types</code>).</li>
         <li><b>Read each task's schedule</b> (<code>atlas_query</code> with <code>schedule</code>): its estimate, the time its <a href="#timeblocking">blocks</a> set aside, what is done and how far it is over — the same numbers as the task's page. Blocks are notes, made and changed like any other.</li>
+        <li><b>Schedule a task</b> (<code>atlas_schedule_task</code>): a new block for it from a start, for some minutes, linking it — or, with no minutes, as long as it still needs — the same as dragging it onto the calendar's empty time. Ask again to split it across another block.</li>
         <li><b>Read a calendar view's days</b> (<code>atlas_calendar</code>): which notes fall on which day of a saved view's <a href="#calendar">calendar</a>, and which have no date yet.</li>
         <li><b>Refresh a source</b> (<code>atlas_refresh_source</code>), as its <b>Refresh</b> button does — at most once every 30 seconds per source, and only where the source <a href="#sources">may run</a>.</li>
         <li><b>List tags and their notes</b> (<code>atlas_tags</code>, <code>atlas_tagged_notes</code>), as the <a href="#tags">Tags page</a> does. A tag used only in templates isn't listed.</li>

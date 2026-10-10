@@ -171,6 +171,38 @@ export const clockWords = {
   cancel: (note: string) => `Cancelled. ${note} stays where it was.`,
 };
 
+/** Where a task held over the calendar from the planning tray would go. */
+export type PlanLanding =
+  /** Empty time: a block made for it, from `value` (`2026-10-12T09:15`). */
+  | { readonly kind: 'time'; readonly value: string }
+  /** A block that is there: the task joins it. */
+  | { readonly kind: 'block'; readonly title: string }
+  | null;
+
+const planned = (landing: PlanLanding) =>
+  landing === null
+    ? ''
+    : landing.kind === 'time'
+      ? `on ${spokenMoment(landing.value)}`
+      : `in ${landing.title}`;
+
+export const planWords = {
+  instructions:
+    'To plan a task, press Enter on it, then go to an hour or a block on the calendar and press Enter there, or Escape to cancel. With a pointer, drag it onto the calendar, or click it and then the time.',
+  start: (task: string) => `Picked up ${task}.`,
+  over: (task: string, landing: PlanLanding) =>
+    landing === null
+      ? `${task} is not over the calendar.`
+      : `${task} would go ${planned(landing)}.`,
+  end: (task: string, landing: PlanLanding) =>
+    landing === null
+      ? `${task} was let go off the calendar, so nothing was planned.`
+      : `${task} is planned ${planned(landing)}.`,
+  cancel: (task: string) => `Cancelled. ${task} is not planned.`,
+  choosing: (task: string) =>
+    `Choose where ${task} goes: an hour, or a block. Press Enter there, or Escape to cancel.`,
+};
+
 /** What a screen reader hears as a view's tab is moved along its type's tabs. */
 export const tabWords = {
   start: (tab: string) => `Picked up the ${tab} tab.`,
