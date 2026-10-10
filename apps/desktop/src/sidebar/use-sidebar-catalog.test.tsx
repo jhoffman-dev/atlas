@@ -32,6 +32,8 @@ function fakePorts() {
   return { fs, index: fakeIndexPort({ query }), markdown: remarkMarkdown, query };
 }
 
+const NO_NOTES: readonly string[] = [];
+
 describe('useSidebarCatalog: quick-view counts', () => {
   it('counts the quick views once per change, with a COUNT', async () => {
     const { fs, index, markdown, query } = fakePorts();
@@ -39,7 +41,15 @@ describe('useSidebarCatalog: quick-view counts', () => {
 
     const { result, rerender } = renderHook(
       ({ changeKey }) =>
-        useSidebarCatalog({ fs, markdown, index, types: TYPES, vaultKey: 'vault', changeKey }),
+        useSidebarCatalog({
+          fs,
+          markdown,
+          index,
+          types: TYPES,
+          notePaths: NO_NOTES,
+          vaultKey: 'vault',
+          changeKey,
+        }),
       { initialProps: { changeKey: 'first' } },
     );
     await waitFor(() => expect(result.current.quick[0]?.count).toBe(3));

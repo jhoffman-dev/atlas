@@ -20,6 +20,7 @@ import type {
   ApiAutomationDryRun,
   ApiAutomationList,
   ApiAutomationLog,
+  ApiMeeting,
   ApiCalendar,
   ApiCalendarBody,
   ApiCaptureBody,
@@ -97,6 +98,13 @@ interface Answer {
 export interface SearchQuery {
   readonly q: string;
   readonly limit?: number;
+  readonly includeArchived?: boolean;
+}
+
+export interface MeetingsQuery {
+  readonly since?: string;
+  readonly limit?: number;
+  readonly offset?: number;
   readonly includeArchived?: boolean;
 }
 
@@ -327,6 +335,13 @@ export class AtlasClient {
 
   unarchive = (body: ApiArchiveBody) =>
     this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/unarchive', body });
+
+  meetings = ({ includeArchived, ...query }: MeetingsQuery) =>
+    this.json<{ meetings: readonly ApiMeeting[]; truncated: boolean; next: number | null }>({
+      method: 'GET',
+      path: '/v1/meetings',
+      query: { ...query, includeArchived: includeArchived === true ? 'true' : undefined },
+    });
 
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
 

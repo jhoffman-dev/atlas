@@ -14,9 +14,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { remarkMarkdown } from '@atlas/adapters';
 import {
+  compileAtlasQuery,
   isDashboard,
   isSavedView,
+  parseAtlasQuery,
   parseDashboard,
+  parseObjectType,
+  parseQueryView,
   parseSavedView,
   parseViewDisplay,
   isDatasource,
@@ -40,6 +44,17 @@ const filesIn = (dir: string): string[] => {
   }
 };
 
+/** Why an Atlas query view's text does not read against this vault's types, or null. */
+function atlasQueryProblem(text: string): string | null {
+  const types = filesIn('vault/.atlas/types').map((path) => parseObjectType(frontmatterOf(path)));
+  try {
+    compileAtlasQuery(parseAtlasQuery(text), { types, resolveLink: () => null });
+    return null;
+  } catch (cause) {
+    return cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
 describe("Atlas's own vault", () => {
   /**
    * Everything below asks "is anything here broken?", which an empty list
@@ -59,7 +74,14 @@ describe("Atlas's own vault", () => {
         broken.push(`${path}: not marked atlas: view`);
         continue;
       }
-      if (parseSavedView(fm) === null) broken.push(`${path}: does not parse`);
+      if (parseSavedView(fm) !== null) continue;
+      const query = parseQueryView(fm);
+      if (query === null) {
+        broken.push(`${path}: does not parse`);
+        continue;
+      }
+      const problem = atlasQueryProblem(query);
+      if (problem !== null) broken.push(`${path}: ${problem}`);
     }
     expect(broken).toEqual([]);
   });

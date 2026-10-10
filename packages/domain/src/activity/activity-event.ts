@@ -22,6 +22,7 @@ export type ActivityLevel = (typeof ACTIVITY_LEVELS)[number];
 export const ACTIVITY_KINDS = [
   'automation',
   'source',
+  'meeting',
   'api',
   'chat',
   'index',

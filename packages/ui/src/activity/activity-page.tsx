@@ -52,6 +52,7 @@ const LEVELS: readonly SegmentedOption<ActivityLevelFilter>[] = [
 export const ACTIVITY_KIND_LABELS: Readonly<Record<ActivityKind, string>> = {
   automation: 'Automations',
   source: 'Sources',
+  meeting: 'Meetings',
   api: 'API & MCP',
   chat: 'Claude',
   index: 'Index',

@@ -171,3 +171,151 @@ differs from the issue (#8) and the text above:
   never a skip or a guess.
 - **Known gap:** titles that differ only in case on one day are two GitHub
   paths but one macOS file name; the single-path lookup cannot see it.
+
+## As built (P28-04, 2026-10-08)
+
+Import on arrival is `importArrivedMeetings` and `catchUpMeetings` in
+`packages/application/src/meetings`, run by `createMeetingImporter`. Where the
+build went past or around the text above:
+
+### Decision: every handled file carries its outcome
+
+**Each file the import handles gets one frontmatter line,
+`atlas_import_outcome: imported | duplicate | error`.** This departs from the
+first build's rule that a valid first copy stays byte for byte. Two review
+rounds showed that with nothing written, a file never handled and a file
+handled and then edited, renamed, moved, unarchived or copied by a sync
+conflict look the same. Outcomes then hung on an in-memory record of what
+was heard and on guessing moves from names and digests. That memory is lost
+on a restart and differs between Macs. The stamp puts the outcome in the
+file, where every Mac reads the same thing. No other byte of the file
+changes (ADR-0003). The stamp goes right after the `atlas_import:` line the
+mapping always writes, not at the end of the frontmatter. A property added
+on another Mac lands at the end, so the two are separate changes git merges
+rather than a conflict. Keys the import already wrote are changed where
+they are.
+
+- **Its own key.** `atlas_import` already names the contract a file follows
+  (`meeting/v1`), and the validator requires that value, so the outcome
+  cannot share it. `atlas_import_error` and `atlas_duplicate_of` stay as the
+  readable detail.
+- **What a stamp means.** A file under `Inbox/Meetings/` with no outcome is
+  an arrival not finished, whatever the change feed called it. `imported`
+  and `duplicate` are never judged again: an edit, rename, move, unarchive
+  or sync conflict copy of the file carries the stamp. `error` is checked
+  again whenever the file changes, so a fix lets it in and restamps it
+  `imported`. An outcome Atlas does not know, or one cleared by hand, is
+  read as `imported`, and the file is left alone; the API says the same.
+- **A sync conflict's copy is the person's.** A file named
+  `… (conflict from <Mac>).md` (U-29) is the other Mac's version of a file
+  both changed. It is never judged, never counted as a holder and never
+  archived. Activity warns of it each time it is looked at, until the
+  person merges it and deletes it.
+- **Only the Mac that runs the automations writes stamps**
+  (`sync.automationsHere`, as automations, U-29). Another Mac does nothing,
+  and loses nothing by it. While the automations move from one Mac to the
+  other, each Mac reads the setting on its own next sync, so for that
+  window both may import. They still reach the same outcomes: the rules
+  depend only on the files. They write the same values too, except the
+  day an archived copy is stamped with. A copy's link is its original's
+  path, so it is the same on both Macs. If the two Macs' writes do meet,
+  the sync rules (ADR-0025) keep both.
+- **It catches up.** When the import starts for a vault, once the index is
+  ready, and when this Mac takes the automations over, it lists
+  `Inbox/Meetings/` (hidden files and folders left out, as everywhere,
+  ADR-0014) and settles every file without an outcome. "Ready" means ready
+  since this vault opened: the window's index status is the last vault's
+  until the new vault's sync starts. The change
+  feed only says where to look. That covers a fresh index's first sync
+  (P28-03's baseline), what was heard while another Mac imported, and a run
+  that failed.
+
+### The rules
+
+- **Which copy is kept.** Among the notes holding a provider + trimmed
+  external_id that are not stamped `duplicate` or `error`, and are not a
+  sync conflict's copy: one already stamped `imported`, wherever it is, is
+  the original. It counts by its stamp and its own keys, even when the
+  person's additions mean it no longer follows the contract. An unstamped
+  holder counts only when it follows the contract.
+  Otherwise a meeting filed elsewhere comes first, then one in the Archive,
+  then one in `Inbox/Meetings/`, then by path compared without case,
+  Unicode composition or extension. So `<date> <title>` comes before its
+  `… 2` and `(<provider> <hash>)` variants. Every other unstamped holder
+  in `Inbox/Meetings/` is archived, then stamped `duplicate` where it lands
+  and linked to its original by the original's path. Holders filed or
+  archived elsewhere, and any already stamped, are left as they are.
+- **A copy is moved before it is stamped.** A copy whose move fails stays
+  unstamped and is archived when next looked at. So a `duplicate` stamp
+  under `Inbox/Meetings/` only ever means the person brought the copy back
+  from the Archive, and it is left there.
+- **Holders are read, not taken from the index**, which lags the import's
+  own writes. Ids are compared trimmed, in SQL and when read.
+- **One file's failure is its own.** A copy that cannot be written (a pane
+  typing in it, a refused write) is said against that copy. The original
+  and the other copies still settle, and the unwritten one is settled when
+  it next changes or at the next catch-up.
+- **The error is one line**: the first three problems and how many more
+  (`tools/n8n/validate-meeting.mjs` prints them all). A body problem names
+  its section and its line, counted with the stamp already in the file, so
+  writing it does not move what it points at. A file whose YAML cannot be
+  read is never written to; Activity says why. It is looked at again when
+  it changes.
+- **Activity has a Meetings kind**: one line per outcome.
+- **The Inbox.** This repository's vault ships an Inbox view that is an
+  Atlas query over tasks and meetings: backlog tasks, anything under
+  `Inbox/`, and any meeting with an import error, shown as a column. Its
+  Meeting type declares the three keys so the query can name them and the
+  properties panel shows them. **Another vault has neither until they are
+  put there.** The import works without them, but its Inbox lists meetings
+  only once its Inbox view says so and its Meeting type declares the keys
+  (copy `.atlas/views/Inbox.md` and the three properties from
+  `.atlas/types/meeting.md`). P30-01's Inbox page, which lists everything in
+  `Inbox/`, and its step that writes built-in types into a vault are what
+  make that automatic.
+- **Known gaps:** a file that fails import and declares no `type: meeting`
+  is stamped, but the shipped Inbox query cannot list it (`GET /v1/meetings`
+  does, and so will P30-01's Inbox page). Files under `Inbox/Meetings/` that
+  are not meetings are judged as arrivals and stamped `error`.
+
+## As built (P28-07, 2026-10-08)
+
+The meetings already in Notion come in once through
+`tools/import-notion-meetings.mjs` (how to run it: `tools/n8n/README.md`).
+Where it goes past the text above:
+
+- **It writes into a folder, not through GitHub.** It reads a Notion
+  "Markdown & CSV" export and writes into a vault folder it is named
+  (`--vault`, no default; an empty one is refused), `Inbox/Meetings/` unless
+  told otherwise. The folder may not be hidden, nor linked out of the
+  vault. The files are the mapper's (P28-02), at the paths n8n would use, so
+  Atlas takes them in as it takes n8n's.
+- **A row is paired with its page by Source ID**, not by title: titles
+  repeat (`1:1`). A row with no page, or with two, is refused, not guessed.
+- **It checks each file with the validator before writing it**, and writes
+  it whole under a hidden name, flushed, before linking it to its name. A
+  name never holds part of a meeting, and no file is written over.
+- **"Already in the vault" is P28-04's holder rule**, shared, not copied:
+  `meetingHolding` in `packages/domain/src/meetings` decides for both the
+  import on arrival and this tool. It is asked of the whole vault (hidden
+  folders and sync conflict copies left out) before a row is mapped, so a
+  second run writes nothing.
+- **The Date cell is read as Notion shows it.** A time with no zone, or a
+  zone other than UTC, is kept as written; a UTC time is an instant on the
+  clock of `--time-zone`. A range is on one clock: a zone on either side is
+  both sides'. A form that could be two days (`10/06/2026`) is refused.
+- **Gemini's rows are held by default** (issue #44): their Date is when the
+  notes arrived, near the meeting's end, written as local time marked UTC.
+  `--gemini-dates arrival-local` reads it as local time and starts the
+  meeting the transcript's last section stamp before it. meeting/v1 has no
+  field for an approximate start, so Notes open with a line saying so.
+- **Not carried over:** the Attendees relation (the page's Attendees
+  section is read instead) and the other properties. A page section the
+  workflow did not write goes into Notes under its own heading, and a
+  transcript block is taken only at the page's top level, outside code; a
+  `## Transcript` section is preferred to one.
+- **Known gap:** a local time marked UTC cannot be told from a real UTC
+  time from the export alone. For Gemini that is issue #44, handled above
+  by choice, not by default; any other provider's would be moved by the
+  zone's offset. The README's step 4 is the check to make on a vault copy
+  before the real run.

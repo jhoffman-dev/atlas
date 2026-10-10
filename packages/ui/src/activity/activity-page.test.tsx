@@ -118,6 +118,7 @@ describe('ActivityPage', () => {
     expect(kinds.map((kind) => kind.textContent)).toEqual([
       'Automations',
       'Sources',
+      'Meetings',
       'API & MCP',
       'Claude',
       'Index',

@@ -232,6 +232,111 @@ function chatLine(level: ActivityLevel, message: string, path: VaultPath | null)
   return { level, kind: 'chat', message, subject: path === null ? null : noteSubject(path) };
 }
 
+/** What the meeting import did with one meeting file (ADR-0027). */
+export type MeetingImportHappening =
+  /** It follows the contract and is the first copy: it waits in the Inbox, its bytes as they came. */
+  | { readonly kind: 'arrived'; readonly path: VaultPath }
+  /** It carried an import error and now follows the contract, so the error was taken out. */
+  | { readonly kind: 'fixed'; readonly path: VaultPath }
+  /**
+   * It breaks the contract. `unmarked` says why the problem could not be
+   * written into it, or is null when it was — or was there already.
+   */
+  | {
+      readonly kind: 'invalid';
+      readonly path: VaultPath;
+      readonly problem: string;
+      readonly unmarked: string | null;
+    }
+  /** A second copy of `of`: archived to `archivedTo` and marked there — or not — and what went wrong. */
+  | {
+      readonly kind: 'duplicate';
+      readonly path: VaultPath;
+      readonly of: VaultPath;
+      readonly archivedTo: VaultPath | null;
+      readonly problem: string | null;
+    }
+  /** Something stopped the import before it could say what the file is. */
+  | { readonly kind: 'failed'; readonly path: VaultPath; readonly problem: string }
+  /** The other Mac's version of a meeting file both changed: the person's to compare, never a copy to archive. */
+  | { readonly kind: 'conflict'; readonly path: VaultPath };
+
+/** One line per meeting file the import looked at and did something about. */
+export function meetingImportReport(happening: MeetingImportHappening): ActivityReport {
+  const title = noteTitle(happening.path);
+  switch (happening.kind) {
+    case 'arrived':
+      return meetingLine('info', `${title}: arrived in the Inbox.`, happening.path);
+    case 'fixed':
+      return meetingLine(
+        'info',
+        `${title}: now follows the import contract, so its import error was taken out.`,
+        happening.path,
+      );
+    case 'invalid': {
+      const unmarked =
+        happening.unmarked === null
+          ? ''
+          : ` The problem is not in the file: ${happening.unmarked}.`;
+      return meetingLine(
+        'warning',
+        `${title}: could not be imported.${unmarked} ${happening.problem}`,
+        happening.path,
+      );
+    }
+    case 'duplicate':
+      return duplicateLine(happening);
+    case 'failed':
+      return meetingLine(
+        'error',
+        `${title}: could not be imported. ${happening.problem}`,
+        happening.path,
+      );
+    case 'conflict':
+      return meetingLine(
+        'warning',
+        `${title}: another Mac's version of a meeting both changed, kept beside it. Compare the two, keep what you want, and delete the copy; it is not imported.`,
+        happening.path,
+      );
+  }
+}
+
+/** The import could not look at one sync's meetings at all — the files are as they were. */
+export function meetingImportStoppedReport(problem: string): ActivityReport {
+  return {
+    level: 'error',
+    kind: 'meeting',
+    message: `Meetings that arrived could not be imported. ${problem}`,
+    subject: null,
+  };
+}
+
+function duplicateLine({
+  path,
+  of,
+  archivedTo,
+  problem,
+}: Extract<MeetingImportHappening, { kind: 'duplicate' }>): ActivityReport {
+  const copy = `${noteTitle(path)}: a second copy of ${noteTitle(of)}`;
+  const why = problem === null ? '' : ` ${problem}`;
+  if (archivedTo === null) {
+    return meetingLine(
+      'warning',
+      `${copy}, but it could not be archived.${why} It is tried again when it next changes.`,
+      path,
+    );
+  }
+  return meetingLine(
+    problem === null ? 'info' : 'warning',
+    `${copy}, so it was archived.${why}`,
+    archivedTo,
+  );
+}
+
+function meetingLine(level: ActivityLevel, message: string, path: VaultPath): ActivityReport {
+  return { level, kind: 'meeting', message, subject: noteSubject(path) };
+}
+
 /** The index made again from nothing, and how many notes it holds. */
 export function indexRebuiltReport(notes: number): ActivityReport {
   return {

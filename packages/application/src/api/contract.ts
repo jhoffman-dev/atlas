@@ -436,6 +436,40 @@ export interface ApiArchivedNote {
   readonly archivedOn: string | null;
 }
 
+/**
+ * A meeting, as its file says (ADR-0027). A file that failed import may lack
+ * any of the contract's keys, so each is null when it is not there.
+ */
+export interface ApiMeeting {
+  readonly path: string;
+  /** The meeting's own `title`, else the note's name. */
+  readonly title: string;
+  /** `YYYY-MM-DD`. */
+  readonly date: string | null;
+  /** Local time, `HH:MM`. */
+  readonly start: string | null;
+  readonly end: string | null;
+  /** What sort of meeting the provider called it: Standup, 1:1… */
+  readonly kind: string | null;
+  readonly provider: string | null;
+  /** The provider's own id for it. */
+  readonly externalId: string | null;
+  /**
+   * How the import settled the file (`atlas_import_outcome`): `imported`,
+   * `duplicate` or `error` (a stamp cleared by hand reads `imported`, as the
+   * import reads it); `pending` while it waits in `Inbox/Meetings/` for the
+   * Mac that imports; null for a meeting elsewhere the import never handled —
+   * one filed before Atlas imported meetings, or made by hand.
+   */
+  readonly importOutcome: 'imported' | 'duplicate' | 'error' | 'pending' | null;
+  /** Why it failed the import contract (`atlas_import_error`), or null when it imported. */
+  readonly importError: string | null;
+  /** The meeting this is a second copy of, as `atlas_duplicate_of` links it (`[[…]]`), or null. */
+  readonly duplicateOf: string | null;
+  /** Present, and true, for an archived meeting — only listed with `includeArchived`. */
+  readonly archived?: true;
+}
+
 export interface ApiSqlBody {
   /** Run on the index's read-only connection, under its row cap and step budget. */
   readonly sql: string;
@@ -924,7 +958,13 @@ export type ApiSuccessBody =
   | ApiAutomationList
   | ApiAutomationLog
   | ApiAutomationDryRun
-  | ApiTerms;
+  | ApiTerms
+  | {
+      readonly meetings: readonly ApiMeeting[];
+      readonly truncated: boolean;
+      /** The `offset` for the next page, or null when this was the last. */
+      readonly next: number | null;
+    };
 
 /**
  * Every route, as the router and the MCP server both need to know them.
@@ -1108,6 +1148,12 @@ export const API_ROUTES = [
     method: 'GET',
     path: '/v1/terms',
     summary: 'The vocabulary: every term, every spelling Atlas puts right, and the conflicts.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/meetings',
+    summary:
+      'Meetings, newest first, with any import error. Query: since, limit, offset, includeArchived.',
   },
 ] as const;
 

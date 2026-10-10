@@ -189,7 +189,7 @@ function filesAndProps(notes: Iterable<StoredNote>): DatabaseSync {
   return database;
 }
 
-/** The Archive's compiled statement, run for real by SQLite with what it binds. */
+/** A compiled statement over `files` and `props` — the Archive's, a meeting's — run for real by SQLite with what it binds. */
 function runArchiveQuery(
   statement: string,
   bound: readonly unknown[],
@@ -824,6 +824,11 @@ export async function installHost(
         // The Archive: archived notes with the two keys archiving wrote, newest
         // first, narrowed by the words it binds — run for real by SQLite.
         if (statement.includes('"archivedFrom"')) {
+          return runArchiveQuery(statement, bound, indexed.values());
+        }
+        // A meeting's holders and the meetings list (P28-04): the compiled
+        // statement, run for real by SQLite the same way.
+        if (statement.startsWith('/* meetings */')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
 

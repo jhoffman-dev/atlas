@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { objectTypeIcon, type ObjectType, type QuickView, type QuickViewId } from '@atlas/domain';
 import {
   countNotesByType,
@@ -34,6 +34,7 @@ export function useSidebarCatalog({
   markdown,
   index,
   types,
+  notePaths,
   vaultKey,
   changeKey,
 }: {
@@ -41,6 +42,8 @@ export function useSidebarCatalog({
   markdown: MarkdownPort;
   index: IndexPort;
   types: readonly ObjectType[];
+  /** Every note in the vault, so a link in a query view's text names the note it means. */
+  notePaths: readonly string[];
   vaultKey: string | null;
   /** Changes when the vault's files do, so a new view shows up without a restart. */
   changeKey: string;
@@ -52,6 +55,10 @@ export function useSidebarCatalog({
   const [catalog, setCatalog] = useState<SidebarCatalog>(NOTHING);
   const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
   const [quickCounts, setQuickCounts] = useState<ReadonlyMap<QuickViewId, number>>(new Map());
+  // Read when a count runs, not a reason to run one: the tree re-reads the
+  // notes on the same change that moves `changeKey`, which recounts already.
+  const notePathsNow = useRef(notePaths);
+  notePathsNow.current = notePaths;
 
   const load = useCallback(() => {
     if (vaultKey === null) {
@@ -92,7 +99,14 @@ export function useSidebarCatalog({
 
   useEffect(() => {
     let cancelled = false;
-    countQuickViews({ fs, markdown, index, quick: catalog.quick })
+    countQuickViews({
+      fs,
+      markdown,
+      index,
+      quick: catalog.quick,
+      types,
+      notePaths: notePathsNow.current,
+    })
       .then((counted) => {
         if (!cancelled) setQuickCounts(counted);
       })
@@ -103,7 +117,7 @@ export function useSidebarCatalog({
     return () => {
       cancelled = true;
     };
-  }, [fs, markdown, index, catalog.quick, changeKey]);
+  }, [fs, markdown, index, catalog.quick, types, changeKey]);
 
   const sidebarTypes = types.map((type) => ({
     name: type.name,

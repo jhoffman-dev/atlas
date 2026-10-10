@@ -13,6 +13,11 @@ export default defineConfig({
       '@atlas/ui/graph': fileURLToPath(
         new URL('./packages/ui/src/graph/index.ts', import.meta.url),
       ),
+      // Before '@atlas/application', for the same reason: test support that needs
+      // node:sqlite, kept out of the barrel the app's browser bundle is built from.
+      '@atlas/application/testing/sqlite': fileURLToPath(
+        new URL('./packages/application/src/testing/sqlite.ts', import.meta.url),
+      ),
       '@atlas/domain': pkg('domain'),
       '@atlas/application': pkg('application'),
       '@atlas/adapters': pkg('adapters'),
@@ -32,7 +37,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html', 'lcov'],
-      include: ['packages/*/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}', 'tools/n8n/*.ts'],
+      include: [
+        'packages/*/src/**/*.{ts,tsx}',
+        'apps/*/src/**/*.{ts,tsx}',
+        'tools/n8n/*.ts',
+        'tools/notion-import/*.ts',
+      ],
       exclude: ['**/*.test.{ts,tsx}', '**/index.ts', '**/*.d.ts'],
       // Repo-wide floor. The high-impact slice named in COVERAGE.md is held higher,
       // with its own threshold added as each module lands.
@@ -60,6 +70,8 @@ export default defineConfig({
         'packages/application/src/automations/**': { lines: 90, functions: 90, branches: 85 },
         // A sync merges other Macs' changes into the notes and settles conflicts (U-29).
         'packages/application/src/sync/**': { lines: 90, functions: 90, branches: 85 },
+        // Meeting import marks, and archives, files that arrived from outside Atlas (P28-04).
+        'packages/application/src/meetings/**': { lines: 90, functions: 90, branches: 85 },
         // Kept work is the only copy of typing the vault never got.
         'apps/desktop/src/notes/*stranded*.ts': { lines: 90, functions: 90, branches: 85 },
         // Carries the API token, and turns every failure into what the model is told.
@@ -68,6 +80,8 @@ export default defineConfig({
         'tools/n8n/*.ts': { lines: 90, functions: 90, branches: 85 },
         // Adding a term writes a note; editing one rewrites its frontmatter (P28-05).
         'packages/application/src/terms/**': { lines: 90, functions: 90, branches: 85 },
+        // The Notion meeting import writes a history of meetings into a vault (P28-07).
+        'tools/notion-import/*.ts': { lines: 90, functions: 90, branches: 85 },
       },
     },
   },
