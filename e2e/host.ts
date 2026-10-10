@@ -785,6 +785,10 @@ export async function installHost(
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
         }
+        // The weekly review (P30-07): tasks and projects, over files, props and relations, run for real.
+        if (statement.startsWith('/* weekly review:')) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
         // The Inbox (P30-01): what waits in its folder, over files and props, run for real.
         if (statement.startsWith('/* inbox */')) {
           return runArchiveQuery(statement, bound, indexed.values());

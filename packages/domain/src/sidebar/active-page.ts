@@ -12,6 +12,7 @@ export type ActiveSidebarPage =
   | { readonly kind: 'tags' }
   | { readonly kind: 'archive' }
   | { readonly kind: 'inbox' }
+  | { readonly kind: 'review' }
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
@@ -33,6 +34,7 @@ export function activeSidebarPage({
   tagsOpen = false,
   archiveOpen = false,
   inboxOpen = false,
+  reviewOpen = false,
   automationsOpen = false,
   activityOpen = false,
   templatesOpen = false,
@@ -48,6 +50,8 @@ export function activeSidebarPage({
   archiveOpen?: boolean;
   /** And the Inbox. */
   inboxOpen?: boolean;
+  /** And the weekly review. */
+  reviewOpen?: boolean;
   /** And the Automations page. */
   automationsOpen?: boolean;
   /** And the Activity page. */
@@ -62,6 +66,7 @@ export function activeSidebarPage({
 }): ActiveSidebarPage {
   if (archiveOpen) return { kind: 'archive' };
   if (inboxOpen) return { kind: 'inbox' };
+  if (reviewOpen) return { kind: 'review' };
   if (automationsOpen) return { kind: 'automations' };
   if (activityOpen) return { kind: 'activity' };
   if (templatesOpen) return { kind: 'templates' };

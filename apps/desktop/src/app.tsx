@@ -143,6 +143,7 @@ import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
 import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
 import { useInbox } from './inbox/use-inbox.ts';
+import { useWeeklyReview } from './review/use-weekly-review.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useAutomations } from './automations/use-automations.ts';
@@ -162,6 +163,7 @@ import { syncConflictNotice, syncIndicatorBadge } from './sync/sync-view.ts';
 import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
+const OPEN_REVIEW = 'open-review';
 
 /** What the search palette can do besides find notes. */
 const PALETTE_COMMANDS = [
@@ -169,6 +171,7 @@ const PALETTE_COMMANDS = [
   { id: 'new-view', label: 'New view' },
   { id: 'new-artifact', label: 'New artifact', keywords: ['claude', 'save', 'link', 'html'] },
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
+  { id: OPEN_REVIEW, label: 'Weekly review', keywords: ['review', 'gtd', 'week'] },
 ] as const;
 
 /** The kinds an artifact can be, as the New artifact dialog offers them. */
@@ -455,6 +458,7 @@ export function App({
     tagsTag,
     archiveOpen,
     inboxOpen,
+    reviewOpen,
     automationsOpen,
     activityOpen,
     templatesOpen,
@@ -620,7 +624,8 @@ export function App({
         graphScope !== null ||
         tagsTag !== undefined ||
         archiveOpen ||
-        inboxOpen,
+        inboxOpen ||
+        reviewOpen,
       focused: focusedPath,
     }),
     clipboard: browserClipboard,
@@ -830,6 +835,18 @@ export function App({
     open: inboxOpen,
     activity: activityLog,
     onChanged: typesChanged,
+  });
+  // The weekly review (P30-07): its Archive is the app's, for a project.
+  const review = useWeeklyReview({
+    ports: archivePorts,
+    editors,
+    clock: localClock,
+    types,
+    indexKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: reviewOpen,
+    onSettled: settleArchive,
+    archiveNote: (path) => archiveCommands.archive([path]),
   });
   const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
   // As with Today, no row that opens nothing: the Inbox shows once the vault
@@ -1214,6 +1231,7 @@ export function App({
                       tagsOpen: tagsTag !== undefined,
                       archiveOpen,
                       inboxOpen,
+                      reviewOpen,
                       automationsOpen,
                       activityOpen,
                       templatesOpen,
@@ -1237,6 +1255,7 @@ export function App({
                         count: inbox.contents?.items.length ?? null,
                       },
                     })}
+                    {...(review.shown && { onOpenReview: main.openReview })}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
@@ -1383,6 +1402,14 @@ export function App({
                       inboxView === null
                         ? null
                         : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
+                  },
+                },
+                review: {
+                  open: reviewOpen,
+                  page: {
+                    ...review.page,
+                    onOpen: openNote,
+                    onOpenInbox: main.openInbox,
                   },
                 },
                 automations: {
@@ -1626,6 +1653,7 @@ export function App({
                     return;
                   }
                   if (id === OPEN_TEMPLATES) main.openTemplates();
+                  else if (id === OPEN_REVIEW) main.openReview();
                   else if (id === 'new-query') openQuery();
                   else if (id === 'new-artifact') startNewArtifact();
                   else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);

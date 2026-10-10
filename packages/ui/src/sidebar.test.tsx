@@ -320,6 +320,33 @@ describe('the Inbox row (P30-01)', () => {
   });
 });
 
+describe('the weekly review row (P30-07)', () => {
+  const goTo = () => within(screen.getByRole('list', { name: 'Go to' }));
+
+  it('opens the weekly review, under the Inbox', async () => {
+    const onOpenReview = vi.fn();
+    show({ quick: [], inbox: { onOpen: () => {}, count: 2 }, onOpenReview });
+    const names = goTo()
+      .getAllByRole('button')
+      .map((button) => button.textContent);
+    expect(names.slice(1, 3)).toEqual(['Inbox2', 'Weekly review']);
+    await userEvent.click(goTo().getByRole('button', { name: 'Weekly review' }));
+    expect(onOpenReview).toHaveBeenCalledOnce();
+  });
+
+  it('is marked while the review is open', () => {
+    show({ onOpenReview: () => {}, active: { kind: 'review' } });
+    const row = goTo().getByRole('button', { name: 'Weekly review' });
+    expect(row.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('is absent when the app does not offer it', () => {
+    show({});
+    expect(goTo().queryByRole('button', { name: 'Weekly review' })).toBeNull();
+    expect(goTo().getByRole('button', { name: /Search/ })).toBeDefined();
+  });
+});
+
 describe('Sidebar quick rows', () => {
   it('opens search from the Search row', async () => {
     const onSearch = vi.fn();

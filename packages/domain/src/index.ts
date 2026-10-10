@@ -23,6 +23,7 @@ export * from './tags/index.ts';
 export * from './archive/index.ts';
 export * from './inbox/index.ts';
 export * from './gtd/index.ts';
+export * from './review/index.ts';
 export * from './people/index.ts';
 export * from './query-language/index.ts';
 export * from './bookmarks/index.ts';

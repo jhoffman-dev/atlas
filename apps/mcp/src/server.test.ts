@@ -61,6 +61,7 @@ const ALL_TOOLS = [
   'atlas_tags',
   'atlas_unarchive',
   'atlas_update_properties',
+  'atlas_weekly_review',
 ];
 
 let atlas: FakeAtlas;
@@ -127,6 +128,7 @@ describe('tools/list', () => {
       destructiveHint: false,
     });
     expect(byName.get('atlas_archived')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('atlas_weekly_review')).toMatchObject({ readOnlyHint: true });
     for (const name of ['atlas_archive', 'atlas_unarchive', 'atlas_process_inbox_item']) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: false, destructiveHint: false });
     }
@@ -174,6 +176,17 @@ describe('tools/list', () => {
       expect(described(tool)).toContain('"completed" to today');
     }
     expect(described('atlas_capture_task')).toContain('with status "inbox"');
+  });
+
+  it('tells the model what puts an item in the weekly review, and how to act on one (P30-07)', async () => {
+    const { tools } = await mcp.listTools();
+    const review = tools.find((t) => t.name === 'atlas_weekly_review')?.description ?? '';
+    expect(review).toContain('untouched for more than 7 days');
+    expect(review).toContain('untouched for more than 30 days');
+    expect(review).toContain('next-action or in-progress');
+    expect(review).toContain('atlas_update_properties');
+    expect(review).toContain('atlas_archive');
+    expect(review).toContain('for a repeating one (with "recurrence"), ends its series');
   });
 
   it('requires ifModified for replace_note_body and not for append', async () => {
@@ -398,6 +411,7 @@ describe('tools/call → REST', () => {
       { paths: ['Inbox/Call Sam.md'], project: 'Projects/Atlas.md' },
     ],
     ['atlas_automations', {}, 'GET', '/v1/automations', null],
+    ['atlas_weekly_review', {}, 'GET', '/v1/review/weekly', null],
     ['atlas_automation_log', { id: 'tidy' }, 'GET', '/v1/automations/tidy/log', null],
     [
       'atlas_automation_log',

@@ -108,6 +108,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_unarchive`          | `POST /v1/unarchive`                                                         | yes     |
 | `atlas_archived`           | `GET /v1/archive`                                                            | no      |
 | `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
+| `atlas_weekly_review`      | `GET /v1/review/weekly`                                                      | no      |
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
 | `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
 | `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
@@ -125,6 +126,12 @@ area, as the Inbox's Process does: it moves into the project's folder and gets
 use; anything else is refused before the note moves. `atlas_capture_task` puts
 what it captures in the Inbox, and `atlas_list_notes` with `folder: "Inbox"`
 lists what waits there.
+
+`atlas_weekly_review` reads the weekly review as the app's page shows it:
+Waiting tasks untouched for more than 7 days, active projects with nothing
+next, overdue tasks, Someday and Longterm untouched for more than 30 days, and
+the Inbox's count. It writes nothing; act on an item with
+`atlas_update_properties` (a status, or `defer`) or `atlas_archive` (a project).
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

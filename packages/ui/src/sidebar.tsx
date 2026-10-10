@@ -100,6 +100,7 @@ export function Sidebar({
   activity,
   onOpenTemplates,
   inbox,
+  onOpenReview,
   onOpen,
   onOpenType,
   onEditType,
@@ -135,6 +136,8 @@ export function Sidebar({
    * view titled Inbox, which the page then links to (P30-01).
    */
   inbox?: InboxRowLink;
+  /** Opens the weekly review; its row sits under the Inbox's when given (P30-07). */
+  onOpenReview?: () => void;
   onOpen: (path: VaultPath) => void;
   onOpenType: (name: string) => void;
   /** Opens a type's definition; a type's menu offers it when given. */
@@ -234,6 +237,7 @@ export function Sidebar({
         activityOn={active?.kind === 'activity'}
         templatesOn={active?.kind === 'templates'}
         inboxOn={active?.kind === 'inbox'}
+        reviewOn={active?.kind === 'review'}
         onSearch={onSearch}
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
@@ -242,6 +246,7 @@ export function Sidebar({
         {...(activity !== undefined && { activity })}
         {...(onOpenTemplates !== undefined && { onOpenTemplates })}
         {...(inbox !== undefined && { inbox })}
+        {...(onOpenReview !== undefined && { onOpenReview })}
       />
 
       <div className="sidebar__scroll" ref={setScroller}>
@@ -285,6 +290,7 @@ function QuickRows({
   activityOn,
   templatesOn,
   inboxOn,
+  reviewOn,
   onSearch,
   onOpenGraph,
   onOpenTags,
@@ -292,6 +298,7 @@ function QuickRows({
   activity,
   onOpenTemplates,
   inbox,
+  onOpenReview,
   onOpen,
 }: {
   quick: readonly SidebarQuickView[];
@@ -302,6 +309,7 @@ function QuickRows({
   activityOn: boolean;
   templatesOn: boolean;
   inboxOn: boolean;
+  reviewOn: boolean;
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
@@ -309,6 +317,7 @@ function QuickRows({
   activity?: ActivityRowLink;
   onOpenTemplates?: () => void;
   inbox?: InboxRowLink;
+  onOpenReview?: () => void;
   onOpen: (path: VaultPath) => void;
 }) {
   const views = inbox === undefined ? quick : quick.filter((view) => view.id !== 'inbox');
@@ -341,6 +350,19 @@ function QuickRows({
         );
       })}
       {inbox !== undefined && <InboxQuickRow {...inbox} on={inboxOn} />}
+      {onOpenReview !== undefined && (
+        <li className={reviewOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+          <button
+            type="button"
+            className="sidebar__row"
+            aria-current={reviewOn ? 'page' : undefined}
+            onClick={onOpenReview}
+          >
+            <Icon name="calendar" className="sidebar__icon" />
+            <span className="sidebar__name">Weekly review</span>
+          </button>
+        </li>
+      )}
       {onOpenGraph !== undefined && (
         <li className={graphOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
           <button

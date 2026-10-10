@@ -33,6 +33,8 @@ export function placeName(
       return 'Archive';
     case 'inbox':
       return 'Inbox';
+    case 'review':
+      return 'Weekly review';
     case 'automations':
       return 'Automations';
     case 'activity':
