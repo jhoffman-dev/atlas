@@ -6,8 +6,8 @@ destination** beside Notion: the same meeting, committed as one markdown file
 to the vault's sync repository, `jhoffman-dev/pkm-space`, at
 `Inbox/Meetings/<YYYY-MM-DD> <title>.md`. Atlas pulls that repository every
 minute, so meetings arrive even while the Mac is asleep (ADR-0027). The
-Notion path is not touched: the Atlas branch runs only after the Notion node
-has written the meeting, and nothing in it can stop the run.
+Notion path is not touched: the Atlas branch runs in parallel with it, reads
+the meeting from your nodes by name, and nothing in it can stop the run.
 
 | File                                                | What it is                                                                     |
 | --------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -53,57 +53,86 @@ On your work computer's n8n: **Credentials → Add credential → GitHub API**.
 - **User**: `jhoffman-dev`. **Access Token**: the token from step 1.
 - **GitHub server**: leave `https://api.github.com`.
 
-## 3. Paste the nodes into your workflow
+## 3. Paste the nodes into a copy of your workflow
 
-1. Open your existing Gemini → Notion workflow.
-2. Open `meeting-to-atlas.workflow.json`, copy all of it, click the canvas
-   and press **Cmd+V**. Eleven nodes appear, starting at **Meeting fields for
-   Atlas**.
-3. Drag a connection from **your Notion node's output** (the one that creates
-   the Meeting Notes page) to **Meeting fields for Atlas**. Atlas now runs
-   only after Notion has the meeting; if the Notion write fails, the run
-   stops there as it always has, and Atlas is not tried.
-4. Rename **your parse step** (the node whose output feeds the Notion node)
-   to `Parse meeting email`. After the Notion node, `$json` is Notion's page,
-   so **Meeting fields for Atlas** reads the parse step by that name:
-   `$('Parse meeting email').item.json["Meeting name"]`. (Or keep your name
-   and change it in each of that node's expressions.)
-5. Open each of the four GitHub nodes and check that the credential shows
-   `GitHub pkm-space (contents)`; pick it from the list if n8n asks.
+The nodes fit a workflow shaped like this:
 
-## 4. Map your parse step's fields
+- a **notes email** node: the Gmail trigger, or a step after it that keeps the
+  email's subject and arrival time (a Gmail trigger names them `subject` and
+  `date`). With a second, manual trigger for tests, use the first step both
+  triggers feed, so the field is there whichever one ran;
+- a **merged meeting** node, whose one item per meeting holds `title`,
+  `attendees` (a list of `{ name, email }`), `summaryMd` (the notes, with
+  `## Summary`, `## Decisions`, `## Next steps` and `## Details` headings),
+  `transcriptMd`, `source` (`gemini`), `sourceId` (the email's id) and
+  `category`. Any date it holds is when the notes arrived, and is not read;
+- the Notion steps after it: a "was it synced already?" lookup, then the
+  page create.
+
+Work on an inactive copy, so the live workflow keeps running untouched until
+the copy is proven:
+
+1. In n8n, open your Gemini → Notion workflow, **⋯ → Duplicate**, and name the
+   copy (say, `Meeting notes → Notion + Atlas (staging)`). It is created
+   inactive; leave it so.
+2. In the copy, open `meeting-to-atlas.workflow.json`, copy all of it, click
+   the canvas and press **Cmd+V**. Twelve nodes appear, starting at
+   **Meeting fields for Atlas**.
+3. Drag a connection from **the merged meeting node's output** to **Meeting
+   fields for Atlas**, beside the connection that already goes to the Notion
+   lookup. Put the Atlas nodes **above** the Notion branch on the canvas: n8n
+   (execution order v1) runs the branches of one output top to bottom, so
+   Atlas runs first and a Notion failure later in the run cannot keep it from
+   running. The Atlas branch cannot stop the Notion one: every failure in it
+   leaves by an error output.
+   - Or wire it from **your Notion create node's output** instead. Atlas then
+     runs only for a meeting Notion has just created: one Notion skipped as
+     already synced, or failed to write, is not tried.
+4. Open each of the four GitHub nodes and check that the credential shows
+   `GitHub pkm-space (contents)`; pick it from the list if n8n asks. Open
+   **Email me: meeting not in Atlas**, pick your Gmail credential, and put
+   your own address in **To** (it comes as `you@example.com`).
+
+## 4. Point the fields at your nodes
 
 Open **Meeting fields for Atlas**. Each row is one field the mapper reads; the
-right-hand side is an expression reading your parse step's output by name. The rows
-assume your parse step names its fields like your Notion properties; change
-the expression wherever yours differs (drag the field in from the input panel).
+right-hand side reads one of your nodes by name, so it works wherever the
+branch is wired. The rows name the nodes `Meeting with people` (the merged
+meeting) and `Notes email` (the email): rename your nodes to those, or change
+the name in each row (drag the field in from the input panel).
 
-| Mapper field | What to give it                                                | Becomes in the file                   |
-| ------------ | -------------------------------------------------------------- | ------------------------------------- |
-| `title`      | Meeting name                                                   | `title`, and the file name            |
-| `date`       | The meeting's date: `2026-10-06`, or a date-time (see below)   | `date` (and `start` if it has a time) |
-| `start`      | Start time (`10:00`, `2:30 PM`) — leave empty if `date` has it | `start`                               |
-| `end`        | End time, if you have it                                       | `end`                                 |
-| `stated`     | Gemini: the email's **Subject** (`Notes: “Title” Oct 6, 2026`) | `date`, and `start` if it has a time  |
-| `arrived`    | Gemini: when the email **Received** arrived (an instant)       | `start` (approximate), see below      |
-| `attendees`  | The Attendees text: `Name — email` lines                       | `attendees` (groups marked)           |
-| `summary`    | Summary                                                        | `## Summary`                          |
-| `decisions`  | Decisions, if Gemini gave any                                  | `### Decisions` under `## Notes`      |
-| `nextSteps`  | Next steps: `- [Owner] Title: description` lines               | `## Provider next steps`              |
-| `details`    | Details                                                        | `## Notes`                            |
-| `transcript` | The transcript text, as it came                                | `## Transcript`, a paragraph per turn |
-| `category`   | Category                                                       | `kind`                                |
-| `source`     | Source: `gemini` (or `granola`)                                | `provider`                            |
-| `sourceId`   | Source ID                                                      | `external_id`                         |
+| Mapper field | Read from                          | Becomes in the file                   |
+| ------------ | ---------------------------------- | ------------------------------------- |
+| `title`      | merged meeting `title`             | `title`, and the file name            |
+| `stated`     | notes email `subject`              | `date`, and `start` if it has a time  |
+| `arrived`    | notes email `date` (when it came)  | `start` (approximate), see below      |
+| `attendees`  | merged meeting `attendees` (Array) | `attendees` (groups marked)           |
+| `sections`   | merged meeting `summaryMd`         | `## Summary`, `## Notes`, next steps  |
+| `transcript` | merged meeting `transcriptMd`      | `## Transcript`, a paragraph per turn |
+| `category`   | merged meeting `category`          | `kind`                                |
+| `source`     | merged meeting `source`            | `provider`                            |
+| `sourceId`   | merged meeting `sourceId`          | `external_id`                         |
 
-`title`, a day (`date` or `stated`), a start time, `source` and `sourceId`
+`sections` is split by its headings: `## Summary` becomes the Summary;
+`## Details` the Notes, with `## Decisions` under them as `### Decisions`;
+`## Next steps` the Provider next steps (`- [Owner] Title: description`). Text
+before the first of those headings is Summary, and any other heading stays in
+the section it is in.
+
+The mapper reads other fields too, for a workflow shaped differently: add a
+row with that name. `summary`, `decisions`, `nextSteps` and `details` give the
+four parts separately (one given on its own wins over its part of
+`sections`); `date`, `start` and `end` give a meeting's real day and times
+(Granola's Notion Date is its real start). Never give a Gemini meeting's
+arrival as `date` or `start`: it would be taken as when the meeting began.
+
+`title`, a day (`stated` or `date`), a start time, `source` and `sourceId`
 are required. Without a start time (in `start`, `stated` or `date`, or worked
 out from `arrived`), the mapper stops with "start: the meeting has no start
-time" rather than inventing one — see step 5.
+time" rather than inventing one.
 
-**When a Gemini meeting began.** The Notion "Date" of a Gemini meeting is
-when its notes _arrived_ (about when the meeting ended), not when it began, so
-for Gemini the day and start come from the email itself:
+**When a Gemini meeting began.** A Gemini meeting's notes arrive about when
+it ended, so the day and start come from the email itself:
 
 1. `stated` — the email's subject. The mapper reads the **last** date in it
    (`Oct 6, 2026`, `October 6 2026`, `2026/10/06`, `2026-10-06`; a date in
@@ -112,23 +141,18 @@ for Gemini the day and start come from the email itself:
    your local clock). Gemini's doc title,
    `Title - 2026/10/06 10:00 PDT - Notes by Gemini`, works too. When `stated`
    is given, `date` is not read at all. Words with no date in them are refused.
-2. `arrived` — when the email arrived (your trigger's received time, an
-   instant). When nothing gives a start time, the start is the arrival less
-   the transcript's length — Gemini's "Transcription ended after 00:51:49"
-   line, else its last `### hh:mm:ss` section stamp (a little short) — and
-   the file says `start_approximate: true`. With no transcript, the start is
-   the arrival itself, still marked approximate.
+2. `arrived` — when the email arrived (an instant). When nothing gives a
+   start time, the start is the arrival less the transcript's length —
+   Gemini's "Transcription ended after 00:51:49" line, else its last
+   `### hh:mm:ss` section stamp (a little short) — and the file says
+   `start_approximate: true`. With no transcript, the start is the arrival
+   itself, still marked approximate.
 
 The order is: `start`, then the time in `stated`, then the time in `date`,
 then (Granola) the first stamped turn, then `arrived` less the transcript.
-Rename `Subject` and `Received` in those two rows to your parse step's
-names. For Granola, leave both empty: its Notion Date is the real start.
 
-The `attendees`, `nextSteps` and `transcript` rows accept text or a list of
-lines. If your parse step gives attendees or next steps as records
-(`{ name, email }`, `{ owner, title, description, confidence }`), change that
-row's type to **Array** and drop the `.join` from its expression: the mapper
-reads records too.
+`attendees` is an **Array** row: the mapper reads `{ name, email }` records.
+It reads `Name — email` lines too; for those, make the row a **String**.
 
 **Dates and instants.** Open **Map meeting to Atlas file**; at the bottom is
 `const OPTIONS = { timeZone: 'America/Los_Angeles', groupAddresses: [] };`.
@@ -176,11 +200,14 @@ attendees to check against; otherwise it continues the turn before.
 meeting the mapper refuses (no start time, say), an existing file it cannot
 read, both of a meeting's paths taken by other meetings, a commit GitHub
 rejects (an expired token) — leaves by that node's error output to **Atlas
-commit failed**, and the run goes on. Notion already has the meeting. The
-node does nothing by itself: hang a notification off it (email, Slack) to be
-told, and its input shows the meeting and the error.
+commit failed**, and the run goes on. Notion already has the meeting.
+**Email me: meeting not in Atlas** then sends you the meeting's title and
+Source ID, the error, and the execution number to open in n8n. If that email
+cannot be sent either, nothing stops: the execution still shows the error.
+To be told another way (Slack, say), swap that node for one that posts there,
+reading the same expressions.
 
-## 5. Dry run before anything is committed
+## 5. Dry run, then swap
 
 **This dry run is the real test of the Code nodes.** The tests run the
 mapper under Node; n8n's Code node sandbox is close but not the same. The
@@ -188,22 +215,36 @@ mapper uses `Buffer` (which n8n documents) to read GitHub's files, and falls
 back to `atob`; it uses `Intl.Segmenter` and the time zone database where
 present. A sandbox without them shows up here, not in the tests.
 
+In the inactive copy:
+
 1. Select **Commit meeting file** and **Commit meeting file (other path)** and
    press **D** to deactivate them. (A deactivated n8n node passes its input
    on rather than stopping the flow, so deactivate the two commits — they are
    last — not the lookups.) The lookups still run; they only read.
-2. Run the workflow on one real email (or pin a past execution's data on your
-   trigger and press **Test workflow**).
-3. Open **Map meeting to Atlas file**'s output. Check `path`, `commitMessage`
-   and `content`: the date and start are right (fix `timeZone` if not), the
-   attendees are split, the transcript has one `**Speaker** [~00:09:44] … ^t0001`
-   paragraph per turn. Check **Atlas commit failed** received nothing.
-4. Optional, on the Mac: copy `content` into a file and run
+2. Deactivate every node that writes to Notion, so the test cannot touch it:
+   the People create, the Meeting page create, and the transcript appends
+   after it (and any Code node between them that reads an append's output).
+3. Run the copy on one recent email: your manual test trigger, or pin a past
+   execution's trigger data and press **Test workflow**.
+4. Open **Map meeting to Atlas file**'s output. Check `path`, `commitMessage`
+   and `content`: the date and start are right (fix `timeZone` if not; a
+   start worked out from the arrival says `start_approximate: true`), the
+   attendees are split, the transcript has one
+   `**Speaker** [~00:09:44] … ^t0001` paragraph per turn. Check **Atlas commit
+   failed** received nothing.
+5. Optional, on the Mac: copy `content` into a file and run
    `pnpm validate:meeting that-file.md` in the Atlas repo. `ok` means Atlas
    will accept it.
-5. Reactivate both commit nodes, run once more, and look in
-   `pkm-space` on GitHub for `Inbox/Meetings/<date> <title>.md` and a commit
-   `Meeting: <title> (gemini)`.
+6. Reactivate both commit nodes (leave the Notion writes off), run once more,
+   and look in `pkm-space` on GitHub for `Inbox/Meetings/<date> <title>.md`
+   and a commit `Meeting: <title> (gemini)`. Within a minute of the Mac
+   being awake, it is in Atlas's Inbox.
+7. Reactivate the Notion writes. Then, in one sitting, **activate the copy and
+   deactivate the original**, so each email is handled by exactly one of
+   them. Both poll on the same schedule, so an email that arrives while both
+   are active can reach Notion twice (both runs pass the "already synced"
+   lookup together); Atlas writes it once either way. To go back, do the
+   reverse: activate the original, deactivate the copy.
 
 ## How the workflow avoids writing a meeting twice
 
@@ -263,4 +304,9 @@ catches that: a second file with the same `provider` + `external_id` is marked
 Edit `tools/n8n/meeting-*.ts`, run `pnpm n8n:build`, then in n8n replace the
 three Code nodes' code (**Map meeting to Atlas file**, **Same meeting?**,
 **Same meeting at the other path?**) with the new `jsCode` from the JSON — or
-delete the eleven nodes and paste the file again. A test fails while the JSON is out of date with the mapper.
+delete the twelve nodes and paste the file again. A test fails while the JSON
+is out of date with the mapper.
+
+The node names the fields are read from are `EXAMPLE_SOURCES` in
+`workflow.ts`; `meetingWorkflow(scripts, sources)` builds the same nodes for
+other names. The notification's address is `NOTIFY_TO`, a placeholder.

@@ -7,7 +7,16 @@ import {
   MAP_MEETING_NODE,
 } from './code-node.ts';
 import { mapMeeting, type MeetingFields } from './meeting-to-atlas.ts';
-import { GITHUB_CREDENTIAL, meetingWorkflow, NODES, PARSE_NODE, VAULT_REPO } from './workflow.ts';
+import {
+  EXAMPLE_SOURCES,
+  fieldRows,
+  GITHUB_CREDENTIAL,
+  GMAIL_CREDENTIAL,
+  meetingWorkflow,
+  NODES,
+  NOTIFY_TO,
+  VAULT_REPO,
+} from './workflow.ts';
 
 /*
  * The workflow JSON is what James imports into n8n. These tests hold it to
@@ -89,6 +98,86 @@ describe('the committed workflow', () => {
     expect(() => run({ ...MEETING, start: '' }, fail)).toThrow(/no start time/);
   });
 
+  it('maps a merged meeting item and its email as n8n runs the two nodes', () => {
+    // Fictional. The merged item's dateISO is when the notes arrived, 10:52 local.
+    const meetingItem = {
+      title: 'Platform weekly sync',
+      attendees: [
+        { name: 'Mara Quill', email: 'mara.quill@example.com' },
+        { name: 'Platform Team', email: 'platform-team@example.com' },
+      ],
+      summaryMd: [
+        '## Summary',
+        '',
+        'The cache ships behind a flag.',
+        '',
+        '## Decisions',
+        '',
+        '* Ship behind a flag.',
+        '',
+        '## Next steps',
+        '',
+        '* [Tobias Fenn] Flag the cache: before Friday.',
+        '',
+        '## Details',
+        '',
+        '* Cache rollout: ready (00:00:12).',
+      ].join('\n'),
+      transcriptMd: [
+        '📖 Transcript',
+        'Oct 6, 2026',
+        '## Platform weekly sync - Transcript',
+        '### 00:00:12',
+        'Mara Quill: Morning.',
+        '### Transcription ended after 00:51:49',
+      ].join('\n'),
+      sourceId: 'fake-gmail-0001',
+      source: 'gemini',
+      category: 'Standup',
+      dateISO: '2026-10-06T10:52:30',
+    };
+    const email = {
+      subject: 'Notes: “Platform weekly sync” Oct 6, 2026',
+      date: '2026-10-06T17:52:30.000Z',
+    };
+    const $ = (name: string) => {
+      if (name === EXAMPLE_SOURCES.meetingNode) return { item: { json: meetingItem } };
+      if (name === EXAMPLE_SOURCES.emailNode) return { item: { json: email } };
+      throw new Error(`the fields read no node ${name}`);
+    };
+    const rows = (
+      node(NODES.fields).parameters.assignments as {
+        assignments: { name: string; value: string }[];
+      }
+    ).assignments;
+    const fields = Object.fromEntries(
+      rows.map(({ name, value }) => {
+        const expression = /^=\{\{ (.*) \}\}$/s.exec(value)?.[1] ?? '';
+        return [
+          name,
+          (new Function('$', `return (${expression});`) as (s: typeof $) => unknown)($),
+        ];
+      }),
+    );
+    const fail = () => {
+      throw new Error('the map node reads no other node');
+    };
+    const { content } = codeOf(MAP_MEETING_NODE)(fields, fail).json as { content: string };
+
+    // Arrived 10:52:30 PDT less 00:51:49 of transcript: begun about 10:00, never 10:52.
+    expect(content).toMatch(/^date: '2026-10-06'\nstart: '10:00'\nstart_approximate: true$/m);
+    expect(content).toContain(
+      "  - name: 'Platform Team'\n    email: 'platform-team@example.com'\n    group: true",
+    );
+    expect(content).toContain('## Summary\n\nThe cache ships behind a flag.\n\n## Notes');
+    expect(content).toContain('### Decisions\n\n* Ship behind a flag.');
+    expect(content).toContain(
+      '## Provider next steps\n\n- [Tobias Fenn] Flag the cache: before Friday.',
+    );
+    expect(content).toContain('## Transcript\n\n**Mara Quill** [~00:00:12] Morning. ^t0001\n');
+    expect(content).not.toMatch(/- Transcript|\*\*Unknown\*\*/);
+  });
+
   it('reads an instant in James’s zone, America/Los_Angeles, unless told otherwise', () => {
     const run = codeOf(MAP_MEETING_NODE);
     const fail = () => {
@@ -159,23 +248,37 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
       .filter(([, { main }]) => main.some((output) => output.some((each) => each.node === name)))
       .map(([from]) => from);
 
-  it('is wired by James from the Notion node’s success output, so it starts after Notion', () => {
+  it('is wired by James, after the Notion node or beside it, reading the meeting by node name', () => {
     expect(incoming(NODES.fields)).toEqual([]);
     const fieldValues = JSON.stringify(node(NODES.fields).parameters);
-    // After the Notion node, $json is Notion's page: the fields come from the parse step by name.
+    // After the Notion node, $json is Notion's page: the fields come from named nodes.
     expect(fieldValues).not.toContain('$json');
-    expect(fieldValues).toContain(`$('${PARSE_NODE}').item.json`);
+    expect(fieldValues).toContain(`$('${EXAMPLE_SOURCES.meetingNode}').item.json`);
   });
 
-  it('hands the mapper the email’s stated date and its arrival, for a Gemini start', () => {
-    const rows = (
-      node(NODES.fields).parameters.assignments as {
-        assignments: { name: string; value: string }[];
-      }
-    ).assignments;
+  it('hands the mapper the email’s subject and its arrival, never the meeting item’s date', () => {
+    const value = (name: string) => fieldRows(EXAMPLE_SOURCES).find((row) => row.name === name);
+    expect(value('stated')?.value).toBe(`={{ $('Notes email').item.json["subject"] }}`);
+    expect(value('arrived')?.value).toBe(`={{ $('Notes email').item.json["date"] }}`);
+    // The merged item's date is when the notes arrived: as a date or start it would be wrong.
+    for (const field of ['date', 'start', 'end']) expect(value(field), field).toBeUndefined();
+    const committedRows = JSON.stringify(node(NODES.fields).parameters);
+    expect(committedRows).not.toContain('dateISO');
+    expect(committedRows).not.toContain(`$('${EXAMPLE_SOURCES.meetingNode}').item.json["date"]`);
+  });
+
+  it('reads the fields from the nodes it is told to', () => {
+    const rows = fieldRows({
+      meetingNode: 'Merged',
+      emailNode: 'Parse',
+      subjectField: 'emailSubject',
+      arrivedField: 'emailDate',
+    });
     const value = (name: string) => rows.find((row) => row.name === name)?.value;
-    expect(value('stated')).toBe(`={{ $('${PARSE_NODE}').item.json["Subject"] }}`);
-    expect(value('arrived')).toBe(`={{ $('${PARSE_NODE}').item.json["Received"] }}`);
+    expect(value('title')).toBe(`={{ $('Merged').item.json["title"] }}`);
+    expect(value('sections')).toBe(`={{ $('Merged').item.json["summaryMd"] }}`);
+    expect(value('stated')).toBe(`={{ $('Parse').item.json["emailSubject"] }}`);
+    expect(value('arrived')).toBe(`={{ $('Parse').item.json["emailDate"] }}`);
   });
 
   it('sends every failure in it to "Atlas commit failed", never stopping the run', () => {
@@ -192,7 +295,23 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
       expect(next(name, 1), name).toEqual([NODES.failed]);
     }
     expect(node(NODES.failed).type).toBe('n8n-nodes-base.noOp');
-    expect(committed.connections[NODES.failed]).toBeUndefined();
+  });
+
+  it('emails a failure to you, and a notification that cannot be sent stops nothing', () => {
+    expect(next(NODES.failed, 0)).toEqual([NODES.notify]);
+    const notify = node(NODES.notify);
+    expect(notify.type).toBe('n8n-nodes-base.gmail');
+    expect(notify.parameters).toMatchObject({
+      resource: 'message',
+      operation: 'send',
+      sendTo: NOTIFY_TO,
+    });
+    expect(notify.onError).toBe('continueErrorOutput');
+    expect(next(NODES.notify, 1)).toEqual([]);
+    expect(String(notify.parameters.message)).toContain('$json.error');
+    expect(String(notify.parameters.subject)).toContain(
+      `$('${EXAMPLE_SOURCES.meetingNode}').item.json["title"]`,
+    );
   });
 
   it('lets no node in it stop the run', () => {
@@ -203,7 +322,7 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
   });
 
   it('ends every path at a commit, a skip, or the failure node', () => {
-    const ends = new Set<string>([NODES.create, NODES.createCollision, NODES.skip, NODES.failed]);
+    const ends = new Set<string>([NODES.create, NODES.createCollision, NODES.skip, NODES.notify]);
     const seen = new Set<string>();
     const walk = (name: string): void => {
       if (seen.has(name)) return;
@@ -236,6 +355,7 @@ describe('the GitHub nodes', () => {
   it('name their credential and carry no token', () => {
     for (const each of github)
       expect(each.credentials).toEqual({ githubApi: { name: GITHUB_CREDENTIAL } });
+    expect(node(NODES.notify).credentials).toEqual({ gmailOAuth2: { name: GMAIL_CREDENTIAL } });
     expect(committedText).not.toMatch(/gh[pousr]_[A-Za-z0-9]{20,}|github_pat_|"id":\s*"\d+"/);
   });
 });

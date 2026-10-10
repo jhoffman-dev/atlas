@@ -589,7 +589,105 @@ describe('prose sections', () => {
   });
 });
 
+describe('notes handed over as one text, by their headings', () => {
+  const GEMINI_NOTES = [
+    '## Summary',
+    '',
+    'Mara and Tobias agreed to ship the cache behind a flag.',
+    '',
+    '## Decisions',
+    '',
+    'Ship behind a flag.',
+    '',
+    '## Next steps',
+    '',
+    '* [Tobias Fenn] Flag the cache: put it behind a flag before Friday.',
+    '* [The group] Review the rollout: look at it together next week.',
+    '',
+    '## Details',
+    '',
+    '- Cache rollout: the cache is ready.',
+  ].join('\n');
+  const together: MeetingFields = {
+    ...GEMINI,
+    summary: '',
+    decisions: '',
+    nextSteps: '',
+    details: '',
+    sections: GEMINI_NOTES,
+  };
+
+  it('puts Summary, Decisions, Next steps and Details where the separate fields go', () => {
+    expect(mapped(together).file.content).toBe(mapped(GEMINI).file.content);
+  });
+
+  it('keeps a field given on its own over its part of the text', () => {
+    const { file } = mapped({ ...together, summary: 'Said separately.' });
+    expect(file.content).toContain('## Summary\n\nSaid separately.\n\n## Notes');
+    expect(file.content).toContain('### Decisions\n\nShip behind a flag.');
+  });
+
+  it('reads text before any heading as summary, gathers a heading named twice, keeps others in place', () => {
+    const { file, meeting } = mapped({
+      ...together,
+      sections: [
+        'Opening words.',
+        '# Details',
+        'First detail.',
+        '## Topic',
+        'Under the topic.',
+        '### next steps ###',
+        '- [Ann Lee] Plan: write it',
+        '## Details',
+        'Second detail.',
+      ].join('\n'),
+    });
+    expect(file.content).toContain('## Summary\n\nOpening words.\n\n## Notes');
+    expect(file.content).toContain(
+      '## Notes\n\nFirst detail.\n### Topic\nUnder the topic.\nSecond detail.\n\n## Provider next steps',
+    );
+    expect(meeting.nextSteps.map((step) => step.owner)).toEqual(['Ann Lee']);
+  });
+
+  it('opens no section at a heading inside a code fence', () => {
+    const { file } = mapped({
+      ...together,
+      sections: '## Summary\n```\n## Details\n```\nAfter the fence.',
+    });
+    expect(file.content).toContain(
+      '## Summary\n\n```\n## Details\n```\nAfter the fence.\n\n## Transcript',
+    );
+  });
+
+  it('reads notes with none of the headings as all summary, and none at all as nothing', () => {
+    const plain = mapped({ ...together, sections: 'Only a paragraph.' }).file.content;
+    expect(plain).toContain('## Summary\n\nOnly a paragraph.\n\n## Transcript');
+    expect(mapped({ ...together, sections: '' }).file.content).not.toMatch(/## (Summary|Notes)/);
+  });
+
+  it('refuses notes that are not text', () => {
+    expect(() => mapMeeting({ ...together, sections: { summary: 'x' } })).toThrow(
+      /sections: expected text/,
+    );
+  });
+});
+
 describe('transcripts', () => {
+  it('drops the heading a Gemini transcript doc opens with, `## Title - Transcript`', () => {
+    const { meeting } = mapped({
+      ...GEMINI,
+      transcript: [
+        '## Platform weekly sync - Transcript',
+        '### 00:00:12',
+        'Mara Quill: Next up - transcript tooling.',
+        '## Retro – Transcript',
+      ].join('\n'),
+    });
+    expect(meeting.transcript.map((turn) => [turn.writtenSpeaker, turn.words])).toEqual([
+      ['Mara Quill', 'Next up - transcript tooling.'],
+    ]);
+  });
+
   const turnsOf = (transcript: string) =>
     mapped({ ...GEMINI, transcript }).meeting.transcript.map((turn) => [
       turn.writtenSpeaker,

@@ -23,10 +23,14 @@ export interface Transcript {
   readonly length: number | null;
 }
 
-/** The provider's wrapper and end lines: a date, `📖 Transcript`, `<details>`, the end mark. */
+/**
+ * The provider's wrapper and end lines: a date, `📖 Transcript`, the transcript
+ * doc's `## Title - Transcript` heading, `<details>`, the end mark.
+ */
 const DROPPED = [
   /^<\/?(details|summary)\b[^>]*>(.*<\/summary>)?$/i,
   /^(📖\s*)?transcript$/i,
+  /^#{1,6}\s+.*\s[-–—]\s*transcript$/i,
   /^(#{1,6}\s*)?transcription ended after\b/i,
   /^((mon|tues|wednes|thurs|fri|satur|sun)day,?\s+)?[a-z]{3,9}\.?\s+\d{1,2},\s+\d{4}$/i,
   /^\d{4}-\d{2}-\d{2}$/,
