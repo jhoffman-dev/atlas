@@ -42,7 +42,7 @@ export {
 export type { StatusMapping, TaskStatusMove } from './status-mapping.ts';
 export { automationStatusRewrite, rewrittenQuery, viewStatusRewrite } from './status-references.ts';
 export type { StatusesInUse, StatusRewrite } from './status-references.ts';
-export { taskRuleChanges, WAITING_NEEDS_SOMEONE } from './task-rules.ts';
+export { isTaskNote, taskRuleChanges, WAITING_NEEDS_SOMEONE } from './task-rules.ts';
 export type { TaskRuleOutcome } from './task-rules.ts';
 export {
   capturedTaskStatus,

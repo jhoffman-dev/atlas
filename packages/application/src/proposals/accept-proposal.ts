@@ -2,6 +2,7 @@ import {
   ANSWERED_VIA_KEY,
   applyProposal,
   digestOf,
+  FINISHED_TASK_STATUS,
   joinFrontmatter,
   joinVaultPath,
   messageOf,
@@ -10,6 +11,8 @@ import {
   proposalHeadline,
   readProposalPayload,
   splitFrontmatter,
+  isTaskNote,
+  TASK_KEYS,
   vaultPathName,
   vaultSpellingOf,
   type LinkPayload,
@@ -21,6 +24,8 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import { ProposalRefused, undoProposal, type AppliedProposal } from '../chat/proposals.ts';
+import { newNoteTaskRules, withTaskRules } from '../gtd/task-rules.ts';
+import { archiveTaskChange } from '../review/review-actions.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { noteModified } from '../notes/note-modified.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
@@ -66,6 +71,12 @@ interface LinkNote {
  * in the proposal or the note it changes. Two accepts of one proposal at once
  * make one write: the second finds the note the first made, or the proposal
  * already accepted.
+ *
+ * What it writes is held to the task rules (ADR-0029) as every write that
+ * makes or changes a task is: a task Waiting with nobody is refused with
+ * `TaskRuleRefusedError` before anything is written, leaving the proposal
+ * open, and one made already finished is dated — or, when it repeats, rolled
+ * on to its next date as ticking it done would.
  */
 export async function acceptProposalNote({
   ports,
@@ -91,7 +102,8 @@ export async function acceptProposalNote({
   const applied = applyProposal(proposal, { notePaths, target: link?.target ?? null });
   if (!applied.ok) throw new ProposalRefused(applied.problem);
 
-  const wrote = await carryOut(ports, applied.writes, link);
+  const ruled = applied.writes.map((write) => heldToTaskRules(ports, { write, link, today }));
+  const wrote = await carryOut(ports, ruled, link);
   const headline = proposalHeadline(proposal);
   await stampProposal(
     ports,
@@ -173,7 +185,7 @@ async function readLinkNote(ports: ProposalPorts, payload: LinkPayload): Promise
   const document = splitFrontmatter(read.text);
   const properties = ports.markdown.frontmatterProperties(document.frontmatter);
   const types = await loadObjectTypes({ fs: ports.fs, markdown: ports.markdown });
-  const type = types.find((candidate) => candidate.name === properties['type']);
+  const type = typeNamed(types, properties['type']);
   const relation = type?.properties.find(
     (property) => property.key === payload.property && property.kind === 'relation',
   );
@@ -189,9 +201,64 @@ async function readLinkNote(ports: ProposalPorts, payload: LinkPayload): Promise
   };
 }
 
+/** A note's type among the vault's, its name matched in any case and spacing as type files are. */
+function typeNamed<Type extends { readonly name: string }>(
+  types: readonly Type[],
+  name: unknown,
+): Type | undefined {
+  if (typeof name !== 'string') return undefined;
+  const folded = name.trim().toLowerCase();
+  return types.find((candidate) => candidate.name.trim().toLowerCase() === folded);
+}
+
+/** A proposal's write once held to the task rules: a new note carries the text it will have. */
+type RuledWrite =
+  | (Extract<ProposalWrite, { kind: 'create' }> & { readonly contents: string })
+  | Extract<ProposalWrite, { kind: 'set' }>;
+
+/**
+ * One of the proposal's writes as the task rules have it, worked out before
+ * anything is written so a refusal leaves the vault as it was: a new note's
+ * text judged as a new note's is, a link's change judged against the note it
+ * changes.
+ */
+function heldToTaskRules(
+  ports: ProposalPorts,
+  { write, link, today }: { write: ProposalWrite; link: LinkNote | null; today: string },
+): RuledWrite {
+  if (write.kind === 'create') {
+    const text = joinFrontmatter(
+      ports.markdown.updateFrontmatter(null, finishedAsTicked(write.properties)),
+      write.body,
+    );
+    return {
+      ...write,
+      contents: newNoteTaskRules({ markdown: ports.markdown, contents: text, today }),
+    };
+  }
+  if (link === null) return write;
+  const properties = ports.markdown.frontmatterProperties(link.document.frontmatter);
+  return { ...write, changes: withTaskRules({ values: write.changes, today })(properties) };
+}
+
+/**
+ * A task proposed already finished, as ticking it done would leave it: a
+ * repeating one rolls on to its next date and back to Next Action, rather
+ * than being made as the end of its series.
+ */
+function finishedAsTicked(
+  properties: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  if (!isTaskNote(properties) || properties[TASK_KEYS.status] !== FINISHED_TASK_STATUS) {
+    return properties;
+  }
+  const change = archiveTaskChange();
+  return { ...properties, ...(typeof change === 'function' ? change(properties) : change) };
+}
+
 async function carryOut(
   ports: ProposalPorts,
-  writes: readonly ProposalWrite[],
+  writes: readonly RuledWrite[],
   link: LinkNote | null,
 ): Promise<AppliedProposal[]> {
   const wrote: AppliedProposal[] = [];
@@ -207,14 +274,10 @@ async function carryOut(
 
 async function createNote(
   ports: ProposalPorts,
-  write: Extract<ProposalWrite, { kind: 'create' }>,
+  { path: proposed, contents }: Extract<RuledWrite, { kind: 'create' }>,
 ): Promise<AppliedProposal> {
-  const folder = await ensureFolder({ fs: ports.fs, folder: parentVaultPath(write.path) });
-  const path = joinVaultPath(folder, vaultPathName(write.path));
-  const contents = joinFrontmatter(
-    ports.markdown.updateFrontmatter(null, write.properties),
-    write.body,
-  );
+  const folder = await ensureFolder({ fs: ports.fs, folder: parentVaultPath(proposed) });
+  const path = joinVaultPath(folder, vaultPathName(proposed));
   try {
     await ports.fs.createNote({ path, contents });
   } catch (error) {

@@ -212,6 +212,26 @@ describe('acceptProposalNote — a link', () => {
     expect(setup.fixture.files.get('People/Mara Quill.md')?.text).toMatch(/\nMara\.\n$/);
   });
 
+  it('finds the note’s type however its type: is cased, as type files are matched', async () => {
+    const shouting = jsonLinesNote({ type: 'Person', companies: ['[[Fenn & Co]]'] }, 'Mara.\n');
+    const proposalFor = jsonLinesNote({
+      type: 'proposal',
+      kind: 'link',
+      payload: {
+        note: 'People/Mara Quill.md',
+        property: 'companies',
+        link: '[[Larkspur Payroll]]',
+        digest: digestOf(shouting),
+      },
+    });
+    const setup = vault({ ...files(proposalFor), 'People/Mara Quill.md': shouting });
+    await accept(setup);
+    expect(setup.propertiesOf('People/Mara Quill.md')['companies']).toEqual([
+      '[[Fenn & Co]]',
+      '[[Larkspur Payroll]]',
+    ]);
+  });
+
   it('refuses when the note changed since the proposal was made, with the reason', async () => {
     const setup = vault(files(linkProposal('00000000')));
     await expect(accept(setup)).rejects.toThrow(

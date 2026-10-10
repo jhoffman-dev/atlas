@@ -32,20 +32,21 @@ function changed(before: Properties, changes: Properties): Properties {
 /** The key a note says what it is by. */
 const TASK_TYPE_KEY = 'type';
 
-const isTask = (properties: Properties) =>
+/** Whether a note's properties say it is a task: its `type` is Task, in any case and spacing. */
+export const isTaskNote = (properties: Properties) =>
   String(properties[TASK_TYPE_KEY] ?? '')
     .trim()
     .toLowerCase() === TASK_TYPE;
 
 /** A task Waiting with nobody to wait on: what the rules never let a change leave. */
 const waitsOnNobody = (note: Properties) =>
-  isTask(note) &&
+  isTaskNote(note) &&
   holdsStatus(note[TASK_KEYS.status], WAITING_STATUS) &&
   isBlankValue(note[TASK_KEYS.waitingOn]);
 
 /** A finished task: Archive, on a note that is a task. */
 const isFinished = (note: Properties) =>
-  isTask(note) && holdsStatus(note[TASK_KEYS.status], FINISHED_TASK_STATUS);
+  isTaskNote(note) && holdsStatus(note[TASK_KEYS.status], FINISHED_TASK_STATUS);
 
 /**
  * The change with a GTD status it sets in another spelling — `waiting `,
@@ -54,7 +55,7 @@ const isFinished = (note: Properties) =>
  */
 function spelledAsStatus(before: Properties, changes: Properties): Properties {
   const status = TASK_KEYS.status;
-  if (!has(changes, status) || !isTask(changed(before, changes))) return changes;
+  if (!has(changes, status) || !isTaskNote(changed(before, changes))) return changes;
   const canonical = gtdStatusOf(changes[status]);
   return canonical === null || canonical === changes[status]
     ? changes
@@ -115,7 +116,7 @@ function heldToRules({
   if (isFinished(after) && !isFinished(before) && isBlankValue(after[completed])) {
     return { changes: { ...changes, [completed]: today } };
   }
-  const reopened = isFinished(before) && !isFinished(after) && isTask(after);
+  const reopened = isFinished(before) && !isFinished(after) && isTaskNote(after);
   if (reopened && !has(changes, completed) && !isBlankValue(before[completed])) {
     return { changes: { ...changes, [completed]: null } };
   }
