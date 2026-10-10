@@ -11,8 +11,9 @@
 //! traded and the grant kept, or not — so it never says connected for a
 //! sign-in that then failed. Another program flooding the listener can delay
 //! the sign-in but not end it: a failed accept (out of file descriptors, a
-//! connection reset before it was taken) is waited out, and connections past
-//! a handful are closed as soon as they are taken.
+//! connection reset before it was taken) is waited out, and past a handful of
+//! connections no more are taken until one ends — a newcomer waits in the
+//! kernel's queue rather than being closed, since it may be the browser.
 
 use std::convert::Infallible;
 use std::net::Ipv4Addr;
@@ -42,7 +43,8 @@ const FLUSH_TIMEOUT: Duration = Duration::from_secs(1);
 /// How long a failed accept is waited out before listening again.
 const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 
-/// Connections served at once. A browser opens a few; more is a flood.
+/// Connections served at once. A browser opens a few; more is a flood, and an
+/// idle one ends at the header timeout.
 const MAX_CONNECTIONS: usize = 16;
 
 const SIGNED_IN: &str = "Atlas is connected to Google Calendar. You can close this tab.";
@@ -130,13 +132,9 @@ async fn until_redirect(listener: &impl Accepts, state: String) -> (Outcome, Ans
     let mut connections = JoinSet::new();
     let (outcome, reply) = loop {
         tokio::select! {
-            accepted = listener.accept_one() => match accepted {
+            accepted = listener.accept_one(), if connections.len() < MAX_CONNECTIONS => match accepted {
                 Ok(stream) => {
-                    while connections.try_join_next().is_some() {}
-                    // Past the cap the connection is dropped, which closes it.
-                    if connections.len() < MAX_CONNECTIONS {
-                        connections.spawn(serve(stream, state.clone(), sender.clone()));
-                    }
+                    connections.spawn(serve(stream, state.clone(), sender.clone()));
                 }
                 // Out of descriptors, or a connection reset before it was
                 // taken: both pass, and the sign-in is still waiting.
@@ -145,6 +143,8 @@ async fn until_redirect(listener: &impl Accepts, state: String) -> (Outcome, Ans
                     tokio::time::sleep(ACCEPT_BACKOFF).await;
                 }
             },
+            // A connection that ended frees its place for the next.
+            Some(_) = connections.join_next(), if !connections.is_empty() => {}
             Some(heard) = received.recv() => break heard,
         }
     };
@@ -284,7 +284,6 @@ mod tests {
     use std::time::Duration;
 
     use hyper::{Method, Uri};
-    use tokio::io::AsyncReadExt;
     use tokio::net::{TcpListener, TcpStream};
 
     use super::{heard, until_redirect, Accepts, Callback, Ending, Heard, MAX_CONNECTIONS};
@@ -336,39 +335,71 @@ mod tests {
         assert_eq!(browser.await.unwrap().unwrap().status(), 200);
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn connections_past_the_cap_are_closed_as_soon_as_they_are_taken() {
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let waiting = tokio::spawn(async move { until_redirect(&listener, "S7ATE".into()).await });
-        let flood = MAX_CONNECTIONS + 8;
-        let mut readers = tokio::task::JoinSet::new();
-        for _ in 0..flood {
-            let mut stream = TcpStream::connect((Ipv4Addr::LOCALHOST, port))
-                .await
-                .unwrap();
-            // A closed connection reads its end at once; a served one waits
-            // for a request it is never sent.
-            readers.spawn(async move {
-                let mut byte = [0u8; 1];
-                let read = tokio::time::timeout(Duration::from_secs(1), stream.read(&mut byte));
-                matches!(read.await, Ok(Ok(0)) | Ok(Err(_)))
-            });
+    /// The listener, counting what it has taken.
+    struct Counted {
+        listener: TcpListener,
+        taken: AtomicUsize,
+    }
+
+    impl Accepts for Counted {
+        async fn accept_one(&self) -> std::io::Result<TcpStream> {
+            let (stream, _) = self.listener.accept().await?;
+            self.taken.fetch_add(1, Ordering::SeqCst);
+            Ok(stream)
         }
+    }
 
-        let closed = readers
-            .join_all()
-            .await
-            .into_iter()
-            .filter(|closed| *closed)
-            .count();
-
-        waiting.abort();
-        assert_eq!(closed, flood - MAX_CONNECTIONS);
+    /// Time is paused, so a sleep ends only once the runtime has nothing left
+    /// to do: every connection that could be taken has been. It is shorter
+    /// than the header timeout, which would otherwise end the idle ones.
+    async fn settled() {
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
     fn at(path: &str) -> Heard {
         heard(&Method::GET, &path.parse::<Uri>().unwrap(), "S7ATE")
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn past_the_cap_a_connection_waits_for_a_place_rather_than_being_taken() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        // Queued before the listener serves, so they are all there at once.
+        let mut flood = Vec::new();
+        for _ in 0..MAX_CONNECTIONS + 8 {
+            flood.push(
+                TcpStream::connect((Ipv4Addr::LOCALHOST, port))
+                    .await
+                    .unwrap(),
+            );
+        }
+        let counted = std::sync::Arc::new(Counted {
+            listener,
+            taken: AtomicUsize::new(0),
+        });
+        let serving = counted.clone();
+        let waiting = tokio::spawn(async move { until_redirect(&*serving, "S7ATE".into()).await });
+
+        settled().await;
+        assert_eq!(counted.taken.load(Ordering::SeqCst), MAX_CONNECTIONS);
+
+        // One ends; the next in the queue takes its place, and only that one.
+        // The end reaches the listener's side through the kernel, so it is
+        // waited for rather than assumed to have landed by a moment.
+        drop(flood.remove(0));
+        let freed = tokio::time::timeout(Duration::from_secs(5), async {
+            while counted.taken.load(Ordering::SeqCst) == MAX_CONNECTIONS {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        });
+        assert!(
+            freed.await.is_ok(),
+            "the place a connection left was never taken"
+        );
+        settled().await;
+        assert_eq!(counted.taken.load(Ordering::SeqCst), MAX_CONNECTIONS + 1);
+
+        waiting.abort();
     }
 
     #[test]
