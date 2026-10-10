@@ -22,6 +22,7 @@ export * from './api/index.ts';
 export * from './archive/index.ts';
 export * from './inbox/index.ts';
 export * from './gtd/index.ts';
+export * from './timeblocks/index.ts';
 export * from './automations/index.ts';
 export * from './people/index.ts';
 export * from './terms/index.ts';

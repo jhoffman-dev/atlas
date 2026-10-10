@@ -3632,6 +3632,18 @@ ul.sidebar__sections {
   font-size: 11.5px;
 }
 
+/* A task's schedule (P31-01): read-only rows under its properties. */
+.task-schedule__note {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.task-schedule__over {
+  color: var(--danger);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
 .props__add {
   align-items: center;
   appearance: none;

@@ -4,6 +4,7 @@ import { COMPANY_TYPE } from '../people/company.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { TERM_TYPE } from '../terms/term.ts';
 import { DECISION_TYPE, PROPOSAL_TYPE } from '../proposals/proposal.ts';
+import { BLOCK_TYPE } from '../timeblocks/block-type.ts';
 import { vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { TYPES_DIRECTORY } from '../vault/vault-visibility.ts';
 import { AREA_TYPE, RESOURCE_TYPE } from './para.ts';
@@ -25,6 +26,7 @@ const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   [RESOURCE_TYPE, 'reference is kept as resources, filed under a project or an area'],
   [PROPOSAL_TYPE, 'what Claude proposes waits in the Inbox as notes of it'],
   [DECISION_TYPE, 'accepted decision proposals are notes of it'],
+  [BLOCK_TYPE, 'timeblocks on the calendar are notes of it'],
 ]);
 
 /** Whether a type is one Atlas's own features depend on. */

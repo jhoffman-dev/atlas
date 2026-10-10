@@ -582,3 +582,18 @@ MCP: `atlas_proposals` (read-only), `atlas_accept_proposal` and
 `atlas_reject_proposal`. Accepting through MCP is James asking his own Claude
 to accept for him; the step that _makes_ proposals unattended (P29-03) has no
 tools at all (ADR-0028), so it cannot accept its own.
+
+## Amendment: blocks are notes, and a task's schedule is read with a query (P31-01, 2026-10-08)
+
+ADR-0030 makes a timeblock a note of type `block`. What the API does about it:
+
+- **No block routes.** A block is made, read and changed through the notes
+  routes, guarded and byte-preserving as every note write is.
+- **The schedule is read, never written.** `POST /v1/query` with
+  `schedule: true` on a query of tasks adds each task's estimate, scheduled,
+  done and over, worked out by the same application code the task's page
+  uses. A read the index's row cap cut short is `query_failed`, not a short
+  answer.
+- **The Block type is the app's to write**, into a vault whose tasks follow
+  GTD; the API never writes `.atlas/types`.
+- MCP's `atlas_query` takes `schedule`.

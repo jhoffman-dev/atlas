@@ -821,6 +821,10 @@ export async function installHost(
         ) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
+        // A task's schedule (P31-01): the tasks and the blocks linking them, run for real.
+        if (statement.startsWith('/* task schedule */')) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
         // SQL written by hand — the query page, a SQL view or widget — binds
         // nothing, where everything the app compiles binds at least its LIMIT.
         if (bound.length === 0) return runHandWrittenSql(statement, indexed.values(), views);

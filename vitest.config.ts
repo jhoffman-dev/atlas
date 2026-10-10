@@ -74,6 +74,8 @@ export default defineConfig({
         'packages/application/src/gtd/**': { lines: 90, functions: 90, branches: 85 },
         // Accepting a proposal writes notes and archives it; undo takes them back (P29-02).
         'packages/application/src/proposals/**': { lines: 90, functions: 90, branches: 85 },
+        // A task's schedule is read from the index and answered to the API (P31-01).
+        'packages/application/src/timeblocks/**': { lines: 90, functions: 90, branches: 85 },
         // An automation moves and rewrites notes by itself, on a clock (P25).
         'packages/application/src/automations/**': { lines: 90, functions: 90, branches: 85 },
         // A sync merges other Macs' changes into the notes and settles conflicts (U-29).

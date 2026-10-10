@@ -5,6 +5,7 @@ import {
   splitFrontmatter,
   TASK_KEYS,
   TASK_TYPE,
+  taskTypeOf,
   type VaultPath,
 } from '@atlas/domain';
 import { createNote } from '../notes/create-note.ts';
@@ -72,9 +73,7 @@ export async function capturedTaskContents({
   if (frontmatter === null || noteTypeName(properties)?.toLowerCase() !== TASK_TYPE)
     return contents;
   const types = await loadObjectTypes({ fs, markdown });
-  const status = capturedTaskStatus(
-    types.find((type) => type.name.toLowerCase() === TASK_TYPE) ?? null,
-  );
+  const status = capturedTaskStatus(taskTypeOf(types));
   if (status === null || properties[TASK_KEYS.status] === status) return contents;
   return markdown.updateFrontmatter(frontmatter, { [TASK_KEYS.status]: status }) + body;
 }

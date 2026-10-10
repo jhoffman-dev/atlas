@@ -351,6 +351,25 @@ export interface ApiQueryBody {
   readonly limit?: number;
   /** Lists archived notes too. Default false: the Archive is out of the way unless asked for. */
   readonly includeArchived?: boolean;
+  /**
+   * For a query of tasks: adds a `schedule` column, each task's
+   * {@link ApiTaskSchedule} (P31-01). Default false.
+   */
+  readonly schedule?: boolean;
+}
+
+/**
+ * A task's schedule, in minutes (P31-01): its estimate (null when it has
+ * none), the time its blocks set aside — a one-task block all of itself, a
+ * block of several shared by what each has left — what is done (all of the
+ * estimate once finished; null with no estimate), and how far the time
+ * scheduled runs past the estimate.
+ */
+export interface ApiTaskSchedule {
+  readonly estimate: number | null;
+  readonly scheduled: number;
+  readonly done: number | null;
+  readonly overBy: number;
 }
 
 /** An Atlas query (ADR-0019), run read-only against the vault's types and notes. */

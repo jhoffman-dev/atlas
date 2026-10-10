@@ -148,6 +148,7 @@ import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
 import { useInbox } from './inbox/use-inbox.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
+import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { useMeetingImport } from './meetings/use-meeting-import.ts';
@@ -338,6 +339,15 @@ export function App({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
+  // Timeblocks are notes of the Block type, written once a vault's tasks follow GTD (P31-01).
+  useBlockType({
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vaultKey,
+    types,
     activity: activityLog,
     onChanged: typesChanged,
   });
