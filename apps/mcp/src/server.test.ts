@@ -36,6 +36,7 @@ const ALL_TOOLS = [
   'atlas_capture_task',
   'atlas_create_note',
   'atlas_daily_note',
+  'atlas_export_note',
   'atlas_list_notes',
   'atlas_list_templates',
   'atlas_list_type_views',
@@ -136,6 +137,7 @@ describe('tools/list', () => {
     });
     expect(byName.get('atlas_archived')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('atlas_weekly_review')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('atlas_export_note')).toMatchObject({ readOnlyHint: true });
     for (const name of [
       'atlas_archive',
       'atlas_unarchive',
@@ -240,6 +242,17 @@ describe('tools/list', () => {
     expect(review).toContain('for a repeating one (with "recurrence"), ends its series');
   });
 
+  it('tells the model that Atlas only exports, and the connector writes the page (P32-07)', async () => {
+    const { tools } = await mcp.listTools();
+    const described = tools.find((t) => t.name === 'atlas_export_note')?.description ?? '';
+    expect(described).toContain('Atlas writes nothing');
+    expect(described).toContain('Atlassian connector');
+    expect(described).toContain('tell the user what "dropped" lists');
+    expect(described).toContain('passed verbatim: add, reword or reformat nothing');
+    const kinds = ['property', 'link', 'embed', 'missing-embed', 'image', 'block-id', 'comment'];
+    for (const kind of [...kinds, 'callout-fold', 'formatting']) expect(described).toContain(kind);
+  });
+
   it('requires ifModified for replace_note_body and not for append', async () => {
     const { tools } = await mcp.listTools();
     const required = (name: string) =>
@@ -306,6 +319,13 @@ describe('tools/call → REST', () => {
       null,
     ],
     ['atlas_backlinks', { path: 'P/Q.md' }, 'GET', '/v1/notes/P%2FQ.md/backlinks', null],
+    [
+      'atlas_export_note',
+      { path: 'P/Q.md' },
+      'GET',
+      '/v1/notes/P%2FQ.md/export?format=confluence',
+      null,
+    ],
     [
       'atlas_create_note',
       { folder: 'Tasks', name: 'Call Sam', template: 'Task', properties: { status: 'todo' } },
@@ -609,6 +629,7 @@ describe('tools/call → REST', () => {
     ['atlas_rename_tag', { tag: 'idea', to: 'x', dryRun: 'yes' }],
     ['atlas_read_note', { path: '..' }],
     ['atlas_backlinks', { path: '.' }],
+    ['atlas_export_note', { path: '..' }],
     ['atlas_update_properties', { path: '..', set: { x: 1 } }],
     ['atlas_append_to_note', { path: '..', markdown: 'x' }],
     ['atlas_replace_note_body', { path: '..', markdown: 'x', ifModified: 1 }],

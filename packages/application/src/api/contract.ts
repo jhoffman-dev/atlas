@@ -12,7 +12,14 @@
  * Everything here is data. No behaviour belongs in this file.
  */
 
-import type { DoneAction, FilterOperator, NoteEvent, RunTrigger, SetValue } from '@atlas/domain';
+import type {
+  DoneAction,
+  ExportDropKind,
+  FilterOperator,
+  NoteEvent,
+  RunTrigger,
+  SetValue,
+} from '@atlas/domain';
 
 /** Every path the API serves starts with this. A breaking change gets `/v2`. */
 export const API_VERSION_PREFIX = '/v1';
@@ -162,6 +169,25 @@ export interface ApiNote extends ApiNoteSummary {
   readonly properties: Readonly<Record<string, unknown>>;
   /** Everything after the frontmatter, as markdown, byte for byte. */
   readonly body: string;
+}
+
+/** One kind of thing a note's export left out, and each one, as the note writes it. */
+export interface ApiExportDrops {
+  readonly kind: ExportDropKind;
+  /** Once each, in the order the note has them. */
+  readonly items: readonly string[];
+}
+
+/** `GET /v1/notes/{path}/export`: a note made ready for a page elsewhere (P32-07). */
+export interface ApiNoteExport {
+  readonly path: string;
+  readonly format: 'confluence';
+  /** The note's title, as its page shows it: the title for the page. */
+  readonly title: string;
+  /** The page's body, as markdown: properties left out, links as their words. */
+  readonly markdown: string;
+  /** Everything left out, by kind. Empty when nothing was. */
+  readonly dropped: readonly ApiExportDrops[];
 }
 
 export interface ApiStatus {
@@ -1118,7 +1144,8 @@ export type ApiSuccessBody =
     }
   | { readonly accepted: ApiAcceptedProposal }
   | { readonly rejected: ApiProposalArchived }
-  | { readonly review: ApiWeeklyReview };
+  | { readonly review: ApiWeeklyReview }
+  | { readonly export: ApiNoteExport };
 
 /**
  * Every route, as the router and the MCP server both need to know them.
@@ -1163,6 +1190,11 @@ export const API_ROUTES = [
     method: 'POST',
     path: '/v1/notes/{path}/promote',
     summary: 'Make a checklist line of a note a task of its own, linked both ways.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/notes/{path}/export',
+    summary: 'A note as markdown for a Confluence page, and what it leaves out. Query: format.',
   },
   {
     method: 'PUT',

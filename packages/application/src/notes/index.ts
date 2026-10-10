@@ -14,3 +14,9 @@ export { embedImage, ImageEmbedError, ImageRefusedError } from './embed-image.ts
 export type { EmbeddedImage, ImageProbePort } from './embed-image.ts';
 export { createRelatedNote, RelatedNoteRefusedError } from './create-related-note.ts';
 export type { RelatedNote } from './create-related-note.ts';
+export {
+  exportNoteForConfluence,
+  NOT_PROPERTIES,
+  UNREADABLE_FRONTMATTER,
+} from './export-for-confluence.ts';
+export type { NoteForConfluence } from './export-for-confluence.ts';

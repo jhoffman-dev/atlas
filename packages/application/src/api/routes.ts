@@ -12,6 +12,7 @@ import { meetingsRoute } from './meetings.ts';
 import { processInboxRoute } from './inbox.ts';
 import { weeklyReviewRoute } from './review.ts';
 import { createNoteRoute } from './notes-create.ts';
+import { exportNoteRoute } from './notes-export.ts';
 import { backlinksRoute, listNotes, readNoteRoute } from './notes-read.ts';
 import { appendRoute, replaceBodyRoute, setPropertiesRoute } from './notes-write.ts';
 import type { ApiRouterDeps } from './ports.ts';
@@ -82,6 +83,7 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'PUT /v1/notes/{path}/body': vaultWrite(replaceBodyRoute),
   'GET /v1/notes/{path}/backlinks': vaultRoute(backlinksRoute),
   'POST /v1/notes/{path}/promote': vaultWrite(promoteLineRoute),
+  'GET /v1/notes/{path}/export': vaultRoute(exportNoteRoute),
   'PUT /v1/notes/{path}/images/{name}': vaultWrite(noteImageRoute, created),
   'GET /v1/search': vaultRoute(searchRoute),
   'GET /v1/types': vaultRoute(typesRoute),

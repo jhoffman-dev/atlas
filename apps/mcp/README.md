@@ -82,6 +82,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_append_to_note`     | `POST /v1/notes/{path}/append`                                               | yes     |
 | `atlas_replace_note_body`  | `PUT /v1/notes/{path}/body`                                                  | yes     |
 | `atlas_backlinks`          | `GET /v1/notes/{path}/backlinks`                                             | no      |
+| `atlas_export_note`        | `GET /v1/notes/{path}/export?format=confluence`                              | no      |
 | `atlas_list_types`         | `GET /v1/types`                                                              | no      |
 | `atlas_list_views`         | `GET /v1/views`                                                              | no      |
 | `atlas_list_type_views`    | `GET /v1/types/{name}/views`                                                 | no      |
@@ -158,6 +159,14 @@ Waiting tasks untouched for more than 7 days, active projects with nothing
 next, overdue tasks, Someday and Longterm untouched for more than 30 days, and
 the Inbox's count. It writes nothing; act on an item with
 `atlas_update_properties` (a status, or `defer`) or `atlas_archive` (a project).
+
+`atlas_export_note` turns a note into markdown for a Confluence page: links as
+their words, shown blocks quoted under their note, callouts as quotes, and a
+`dropped` list of everything left out (properties, block ids, comments, vault
+images, where links went). It writes nothing; Claude creates the page with its
+own Atlassian connector, `title` as the title and `markdown` as the body —
+passed verbatim, so `dropped` stays the whole story — and says what `dropped`
+lists.
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

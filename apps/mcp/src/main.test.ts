@@ -56,7 +56,7 @@ const search = async () => {
 describe('atlas-mcp over stdio', () => {
   it('lists every tool', async () => {
     const { tools } = await mcp.listTools();
-    expect(tools).toHaveLength(47);
+    expect(tools).toHaveLength(48);
   });
 
   it('picks up the connection file as it changes, without a restart', async () => {

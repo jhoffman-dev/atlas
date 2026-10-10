@@ -31,6 +31,7 @@ function fakeMarkdown(): MarkdownPort & { serialized: string[] } {
       serialized.push(text);
       return text;
     },
+    rawParts: () => [],
   };
 }
 

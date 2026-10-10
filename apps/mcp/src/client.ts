@@ -30,6 +30,7 @@ import type {
   ApiNote,
   ApiProposal,
   ApiProposalArchived,
+  ApiNoteExport,
   ApiImageUpload,
   ApiMoveCardBody,
   ApiNoteImage,
@@ -197,6 +198,13 @@ export class AtlasClient {
     this.json<{ backlinks: readonly ApiNoteSummary[] }>({
       method: 'GET',
       path: notePath(path, '/backlinks'),
+    });
+
+  exportNote = (path: string) =>
+    this.json<{ export: ApiNoteExport }>({
+      method: 'GET',
+      path: notePath(path, '/export'),
+      query: { format: 'confluence' },
     });
 
   search = ({ q, limit, includeArchived }: SearchQuery) =>

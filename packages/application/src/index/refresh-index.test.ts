@@ -9,6 +9,7 @@ import type { MarkdownPort } from '../notes/ports.ts';
 const markdown: MarkdownPort = {
   parseBody: () => ({ blocks: [], doc: { type: 'doc', content: [] } }),
   serializeBody: () => '',
+  rawParts: () => [],
   frontmatterProblem: () => null,
   frontmatterKeyTexts: () => ({}),
   frontmatterProperties: (frontmatter) =>
