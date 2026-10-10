@@ -23,11 +23,14 @@ import {
   loadSchema,
   runSql,
   writeViewNote,
+  ViewRefusedError,
+  type ActivityLog,
   type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
   type ViewResult,
 } from '@atlas/application';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from './error-message.ts';
 import { useAtlasQueryPage } from './use-atlas-query-page.ts';
@@ -46,6 +49,8 @@ export interface QueryPagePorts {
   readonly fs: VaultFsPort;
   readonly markdown: MarkdownPort;
   readonly editors: OpenEditors;
+  /** Where a save the page gives up on is recorded. */
+  readonly activity: Pick<ActivityLog, 'inOpenVault'>;
 }
 
 /** Which language the query page is asking in: an Atlas query, or SQL by hand. */
@@ -208,12 +213,15 @@ function useKeeping({
 }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [dashboardNotice, setDashboardNotice] = useState<string | null>(null);
-  const { fs, markdown, editors } = ports;
+  const { fs, markdown, editors, activity } = ports;
 
   const saveAsView = useCallback(
     ({ name, layout }: { name: string; layout: ViewLayout }) => {
       const frontmatter = sqlViewFrontmatter({ sql: ran, layout });
-      writeViewNote({ fs, markdown, takenPaths: viewPaths, name, frontmatter })
+      const named = { activity, write: 'view', path: null, refusal: ViewRefusedError } as const;
+      withGiveUpRecorded(named, () =>
+        writeViewNote({ fs, markdown, takenPaths: viewPaths, name, frontmatter }),
+      )
         .then((path) => {
           setSaveError(null);
           onChanged();
@@ -221,21 +229,23 @@ function useKeeping({
         })
         .catch((cause: unknown) => setSaveError(errorMessage(cause)));
     },
-    [fs, markdown, ran, viewPaths, onChanged, onSavedView],
+    [fs, markdown, activity, ran, viewPaths, onChanged, onSavedView],
   );
 
   const addToDashboard = useCallback(
     ({ path, show, title }: { path: string; show: SqlShow; title: string }) => {
       const draft = sqlWidgetDraft({ sql: ran, show, title });
       const values = dashboardChange({ kind: 'add', draft });
-      writeNoteProperties({ editors, fs, markdown, path, values })
+      withGiveUpRecorded({ activity, write: 'dashboard', path }, () =>
+        writeNoteProperties({ editors, fs, markdown, path, values }),
+      )
         .then(() => {
           setDashboardNotice('Added to the dashboard.');
           onChanged();
         })
         .catch((cause: unknown) => setDashboardNotice(errorMessage(cause)));
     },
-    [editors, fs, markdown, ran, onChanged],
+    [editors, fs, markdown, activity, ran, onChanged],
   );
 
   return { saveAsView, saveError, addToDashboard, dashboardNotice };

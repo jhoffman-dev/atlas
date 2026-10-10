@@ -18,10 +18,13 @@ import {
 } from '@atlas/domain';
 import {
   writeViewNote,
+  ViewRefusedError,
+  type ActivityLog,
   type MarkdownPort,
   type OpenNote,
   type VaultFsPort,
 } from '@atlas/application';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from './error-message.ts';
 import type { ViewDrafts } from './use-view-drafts.ts';
 import type { ChangeProperties } from './use-view-writes.ts';
@@ -41,6 +44,7 @@ export function useViewEdits({
   fs,
   markdown,
   viewPaths,
+  activity,
   onChanged,
 }: {
   note: OpenNote | null;
@@ -50,6 +54,7 @@ export function useViewEdits({
   markdown: MarkdownPort;
   /** Every saved view, so a new one's name is checked against them. */
   viewPaths: readonly string[];
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onChanged: () => void;
 }) {
   const saved = useMemo(() => (note === null ? null : viewSettingsOf(note.properties)), [note]);
@@ -81,6 +86,7 @@ export function useViewEdits({
     fs,
     markdown,
     viewPaths,
+    activity,
     onChanged,
   });
   const settingChanges = useSettingChanges({
@@ -153,6 +159,7 @@ function useSaving({
   fs,
   markdown,
   viewPaths,
+  activity,
   onChanged,
 }: {
   note: OpenNote | null;
@@ -162,6 +169,7 @@ function useSaving({
   fs: VaultFsPort;
   markdown: MarkdownPort;
   viewPaths: readonly string[];
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onChanged: () => void;
 }) {
   const [saveAsError, setSaveAsError] = useState<string | null>(null);
@@ -181,13 +189,10 @@ function useSaving({
       if (note === null) return null;
       try {
         const frontmatter = viewCopyFrontmatter(note.properties, edits);
-        const created = await writeViewNote({
-          fs,
-          markdown,
-          takenPaths: viewPaths,
-          name,
-          frontmatter,
-        });
+        const named = { activity, write: 'view', path: null, refusal: ViewRefusedError } as const;
+        const created = await withGiveUpRecorded(named, () =>
+          writeViewNote({ fs, markdown, takenPaths: viewPaths, name, frontmatter }),
+        );
         setSaveAsError(null);
         drafts.setEdits(note.path, NONE);
         onChanged();
@@ -197,7 +202,7 @@ function useSaving({
         return null;
       }
     },
-    [note, edits, fs, markdown, viewPaths, drafts, onChanged],
+    [note, edits, fs, markdown, viewPaths, drafts, activity, onChanged],
   );
 
   return { save, reset, saveAs, saveAsError };

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs } from '@atlas/application';
+import { fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useQuickAddSetting } from './use-quick-add-setting.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 const SETTINGS = '.atlas/settings.md';
 
@@ -33,7 +36,13 @@ describe('useQuickAddSetting, with a settings note that cannot be read', () => {
     const broken = '---\nquickAdd: [task]\nsidebarOrder: [views]\nsidebarOrder: [types]\n---\n';
     file.text = broken;
     const hook = renderHook(() =>
-      useQuickAddSetting({ fs, markdown: remarkMarkdown, vaultKey: 'v', changeKey: '0' }),
+      useQuickAddSetting({
+        fs,
+        markdown: remarkMarkdown,
+        vaultKey: 'v',
+        changeKey: '0',
+        activity: ACTIVITY,
+      }),
     );
 
     await waitFor(() => expect(hook.result.current.problem).toContain('.atlas/settings.md'));
@@ -48,7 +57,13 @@ describe('useQuickAddSetting, changed twice in quick succession', () => {
   it('ends with the last choice made written to the vault', async () => {
     const { fs, file } = vaultWithSettings();
     const hook = renderHook(() =>
-      useQuickAddSetting({ fs, markdown: remarkMarkdown, vaultKey: 'v', changeKey: '0' }),
+      useQuickAddSetting({
+        fs,
+        markdown: remarkMarkdown,
+        vaultKey: 'v',
+        changeKey: '0',
+        activity: ACTIVITY,
+      }),
     );
     await waitFor(() => expect(hook.result.current.configured).toEqual(['task']));
 

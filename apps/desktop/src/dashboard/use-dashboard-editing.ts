@@ -18,6 +18,7 @@ import {
 import {
   dashboardChange,
   previewWidget,
+  type ActivityLog,
   type DashboardEdit,
   type IndexPort,
   type OpenNote,
@@ -58,6 +59,7 @@ export function useDashboardEditing({
   notePaths,
   savedViews,
   editors,
+  activity,
   onChanged,
   editorSlot,
 }: {
@@ -70,6 +72,8 @@ export function useDashboardEditing({
   notePaths: readonly string[];
   savedViews: readonly SavedViewSummary[];
   editors: OpenEditors;
+  /** Where an edit the dashboard gives up on is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
   onChanged: () => void;
   /** The sheet's open state, held by the app's one-overlay rule. */
   editorSlot: OverlaySlot | undefined;
@@ -86,6 +90,7 @@ export function useDashboardEditing({
     editors,
     fs: ports.fs,
     markdown: ports.markdown,
+    activity,
     onChanged,
     onError: setError,
   });

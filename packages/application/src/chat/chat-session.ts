@@ -289,7 +289,8 @@ export function createChatSession(ports: ChatSessionPorts): ChatSession {
     } catch (error) {
       if (!live()) return;
       const problem = messageOf(error);
-      activity.record(chatReport({ kind: 'notKept', problem }));
+      // A fixed line: the error's words can name the chat note, and its name is the question.
+      activity.record(chatReport({ kind: 'notKept' }));
       set({ notice: `The chat could not be saved to Chats/: ${problem}` });
     }
   }

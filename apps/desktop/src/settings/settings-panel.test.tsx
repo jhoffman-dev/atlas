@@ -2,7 +2,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ApiConnectionStatus, ApiSettingsPort } from '@atlas/application';
+import {
+  recordingActivity,
+  type ApiConnectionStatus,
+  type ApiSettingsPort,
+} from '@atlas/application';
 import { SettingsPanel } from './settings-panel.tsx';
 
 /**
@@ -37,12 +41,15 @@ function fakeHost({ failToStart = null }: { failToStart?: string | null } = {}) 
 }
 
 function showSettings(host: ReturnType<typeof fakeHost>, mcpEntry: string | null = '/a/main.js') {
+  const activity = recordingActivity();
   render(
     <SettingsPanel
       ports={{ settings: host.settings, clipboard: host.clipboard, mcpEntry }}
+      activity={activity}
       onClose={() => {}}
     />,
   );
+  return { activity };
 }
 
 const statusText = () => screen.getByTestId('api-status').textContent;
@@ -137,5 +144,63 @@ describe('Settings → Connections', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Copy token' }));
 
     expect((await screen.findByRole('alert')).textContent).toBe('clipboard access was denied');
+  });
+});
+
+describe('Settings → Connections and the Activity log', () => {
+  it('records a switch the host could not turn, once', async () => {
+    const host = fakeHost({ failToStart: 'cannot listen on 127.0.0.1: address in use' });
+    const { activity } = showSettings(host);
+    await waitFor(() => expect(statusText()).toBe('Off'));
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Local API' }));
+
+    await screen.findByRole('alert');
+    await waitFor(() => expect(statusText()).toBe('On, but not running'));
+    expect(activity.reports).toEqual([
+      {
+        level: 'error',
+        kind: 'save',
+        message: 'Could not change the API connection. cannot listen on 127.0.0.1: address in use',
+        subject: null,
+      },
+    ]);
+  });
+
+  it('records a token the host could not rotate, once', async () => {
+    const host = fakeHost();
+    host.settings.rotateToken = vi.fn(async () => {
+      throw new Error('the Keychain refused the new token');
+    });
+    const { activity } = showSettings(host);
+    await waitFor(() => expect(statusText()).toBe('Off'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rotate token…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rotate' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'the Keychain refused the new token',
+    );
+    expect(activity.reports).toHaveLength(1);
+    expect(activity.reports[0]?.message).toBe(
+      'Could not change the API connection. the Keychain refused the new token',
+    );
+  });
+
+  it('records nothing for a switch turned, a token rotated, or a copy that failed', async () => {
+    const host = fakeHost();
+    host.clipboard.write.mockRejectedValue(new Error('clipboard access was denied'));
+    const { activity } = showSettings(host);
+    await waitFor(() => expect(statusText()).toBe('Off'));
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Local API' }));
+    await waitFor(() => expect(statusText()).toBe('Running on port 7420'));
+    await userEvent.click(screen.getByRole('button', { name: 'Rotate token…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rotate' }));
+    await screen.findByText(/^Token rotated\./);
+    await userEvent.click(screen.getByRole('button', { name: 'Copy token' }));
+    await screen.findByRole('alert');
+
+    expect(activity.reports).toEqual([]);
   });
 });

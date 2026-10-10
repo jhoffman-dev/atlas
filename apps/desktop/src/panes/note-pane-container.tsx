@@ -236,6 +236,7 @@ export function NotePaneContainer({
     notePaths,
     savedViews,
     editors,
+    activity: context.activity,
     onChanged,
     editorSlot: arrangement.popups?.('widget-editor'),
   });
@@ -252,6 +253,7 @@ export function NotePaneContainer({
     tickMemory: context.tickMemory,
     drafts: context.viewDrafts,
     viewPaths: context.viewPaths,
+    activity: context.activity,
   });
   const sqlView = useSqlView({ note: note.open, index, indexKey });
   const folds = useGroupFolds({
@@ -261,7 +263,7 @@ export function NotePaneContainer({
   const queryView = useQueryView({
     folds,
     note: note.open,
-    ports: { index, fs: notes.fs, markdown: notes.markdown, editors },
+    ports: { index, fs: notes.fs, markdown: notes.markdown, editors, activity: context.activity },
     types,
     notePaths,
     indexKey,
@@ -297,6 +299,7 @@ export function NotePaneContainer({
     links: context.links,
     thumbnails: context.thumbnails,
     setProperties: note.setProperties,
+    activity: context.activity,
     onChanged,
   });
   const pageThumbnail = usePageThumbnail({
@@ -348,6 +351,7 @@ export function NotePaneContainer({
       placement: browserImagePlacementStore,
       now: localNow,
       onSaved: onChanged,
+      activity: context.activity,
     },
     notePath: path,
   });

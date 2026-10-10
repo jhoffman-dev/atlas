@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs, type VaultFsPort } from '@atlas/application';
+import { fakeVaultFs, type VaultFsPort, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { chatSystemPrompt, type ProfileState } from '@atlas/domain';
 import { useProfileSetting } from './use-profile-setting.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 /* Adversarial pass on #10 / #1: the profile as the app hands it to the chat and to Settings. */
 
@@ -43,7 +46,7 @@ function slowVault(text: string) {
 function renderProfile(initial: { fs: VaultFsPort; vaultKey: string }) {
   return renderHook(
     (props: { fs: VaultFsPort; vaultKey: string }) =>
-      useProfileSetting({ ...props, markdown: remarkMarkdown, changeKey: '0' }),
+      useProfileSetting({ ...props, markdown: remarkMarkdown, changeKey: '0', activity: ACTIVITY }),
     { initialProps: initial },
   );
 }

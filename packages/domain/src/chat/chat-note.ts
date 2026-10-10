@@ -31,6 +31,15 @@ export interface ChatNoteMessage {
   readonly text: string;
 }
 
+/**
+ * Whether the path is in `Chats/`, whose notes are named by the first words of
+ * what was asked. Compared without case: on a case-insensitive disk `chats/`
+ * is the same folder.
+ */
+export function isInChats(path: string): boolean {
+  return path.split('/')[0]?.toLowerCase() === CHATS_FOLDER.toLowerCase();
+}
+
 /** What a new chat is called: the first words of what was asked. */
 export function chatNoteName(firstMessage: string): string {
   const words = cleanEntryName(firstMessage.replace(/[#[\]]/g, ' ')).split(' ');

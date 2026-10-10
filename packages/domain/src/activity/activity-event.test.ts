@@ -77,6 +77,47 @@ describe('activityEvent', () => {
   });
 });
 
+describe('activityEvent and chat notes, whose names are the question', () => {
+  const QUESTION = 'Should Mara Quill get a raise';
+  const CHAT = `Chats/${QUESTION}.md`;
+
+  it.each([
+    ['bare', `Could not save ${CHAT}. It changed since it was read.`],
+    ['quoted', `"${CHAT}" is in Chats/, the record of past chats.`],
+    ['under another folder', `Could not move Archive/${CHAT} back`],
+    ['without its extension', `cannot open chats/${QUESTION}`],
+    ['under a machine path', `unable to write /Users/mara/Vault/${CHAT}: denied`],
+  ])('says a chat note named in the words, %s, as a chat note', (_, words) => {
+    const made = event(words);
+    expect(made.message).not.toContain('Mara Quill');
+    expect(made.message).not.toContain('raise');
+  });
+
+  it('keeps the words around a chat note it names', () => {
+    expect(event(`Could not save ${CHAT}. It changed since it was read.`).message).toBe(
+      'Could not save a chat note. It changed since it was read.',
+    );
+  });
+
+  it('leaves the Chats folder named alone', () => {
+    expect(event('The chat could not be saved to Chats/.').message).toBe(
+      'The chat could not be saved to Chats/.',
+    );
+  });
+
+  it('drops a chat note as the subject, and its title from the words', () => {
+    const made = event(`Edited ${QUESTION}, as Claude proposed.`, CHAT);
+    expect(made.subject).toBeNull();
+    expect(made.message).toBe('Edited a chat note, as Claude proposed.');
+  });
+
+  it('keeps a note outside Chats as the subject, title and all', () => {
+    const made = event('Edited Chats and Things, as Claude proposed.', 'Chats and Things.md');
+    expect(made.subject).toEqual({ kind: 'note', path: 'Chats and Things.md' });
+    expect(made.message).toBe('Edited Chats and Things, as Claude proposed.');
+  });
+});
+
 describe('insideVault', () => {
   it('gives back a relative path as a vault path', () => {
     expect(insideVault('Sources/Feed.md')).toBe(createVaultPath('Sources/Feed.md'));

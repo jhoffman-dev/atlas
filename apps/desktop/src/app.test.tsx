@@ -849,4 +849,38 @@ describe('the Activity log, adversarial (U-28)', () => {
       .filter((line) => line.includes('"level":"error"'));
     expect(errors).toHaveLength(1);
   });
+
+  it('keeps one error line for a sidebar order that could not be saved, not one from its notice too', async () => {
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('todo.md', 'file')] },
+      files: { 'todo.md': '# Todo\n' },
+    });
+    const refuseSettings = (path: string) => {
+      if (path.startsWith('.atlas/')) throw new VaultAccessError('the settings note is locked');
+    };
+    const { createNote, writeTextFile } = vault.fs;
+    vault.fs.createNote = async (args) => {
+      refuseSettings(args.path);
+      return createNote(args);
+    };
+    vault.fs.writeTextFile = async (args) => {
+      refuseSettings(args.path);
+      return writeTextFile(args);
+    };
+    const activity = memoryActivityStore();
+    renderApp(vault, activity);
+
+    (await screen.findByRole('button', { name: 'Move Favorites' })).focus();
+    await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}');
+    expect(await screen.findByText(/The sidebar's order could not be saved/)).toBeDefined();
+
+    const kept = () => activity.files.get(location.absolutePath) ?? '';
+    await vi.waitFor(() => expect(kept()).toContain('the settings note is locked'));
+    const errors = kept()
+      .split('\n')
+      .filter((line) => line.includes('"level":"error"'));
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('Could not save a setting.');
+  });
 });

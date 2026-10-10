@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath, type IncomingImage, type VaultEntry } from '@atlas/domain';
-import { embedImage, ImageEmbedError, type ImageProbePort } from './embed-image.ts';
+import {
+  embedImage,
+  ImageEmbedError,
+  ImageRefusedError,
+  type ImageProbePort,
+} from './embed-image.ts';
 import { fakeVaultFs } from '../testing/fake-ports.ts';
 
 const NOW = '2026-09-25T14:30:12';
@@ -131,7 +136,7 @@ describe('embedImage', () => {
         image: { name: 'scan.tiff', mimeType: 'image/tiff', size: 4, origin: 'file' },
       }),
     ).rejects.toThrow(
-      new ImageEmbedError(
+      new ImageRefusedError(
         '“scan.tiff” is not an image a note can hold. Use PNG, JPEG, GIF, WebP, SVG or HEIC.',
       ),
     );
@@ -185,6 +190,25 @@ describe('embedImage', () => {
       new ImageEmbedError('The image could not be saved: the disk is full'),
     );
     expect(tries).toBe(1);
+  });
+
+  it('tells a refused image from a write that failed, so only the failure is a fault', async () => {
+    const tiff = { name: 'scan.tiff', mimeType: 'image/tiff', size: 4, origin: 'file' } as const;
+    await expect(embed(memoryVault({ attachments: [] }), { image: tiff })).rejects.toBeInstanceOf(
+      ImageRefusedError,
+    );
+    const blind: ImageProbePort = { canShow: async () => false };
+    await expect(embed(memoryVault({ attachments: [] }), { probe: blind })).rejects.toBeInstanceOf(
+      ImageRefusedError,
+    );
+
+    const full = memoryVault({ attachments: [] });
+    full.fs.writeBinaryFile = async () => {
+      throw new Error('the disk is full');
+    };
+    const failure = await embed(full).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ImageEmbedError);
+    expect(failure).not.toBeInstanceOf(ImageRefusedError);
   });
 
   it('gives up after three names taken in a row', async () => {

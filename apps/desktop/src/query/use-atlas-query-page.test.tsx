@@ -2,10 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { parseObjectType, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs } from '@atlas/application';
+import { fakeIndexPort, fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useAtlasQueryPage } from './use-atlas-query-page.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 const TYPES: readonly ObjectType[] = [parseObjectType({ name: 'task', properties: {} })];
 const NOTES: readonly string[] = [];
@@ -24,7 +27,13 @@ const FS = fakeVaultFs();
 function page() {
   return renderHook(() =>
     useAtlasQueryPage({
-      ports: { index: INDEX, fs: FS, markdown: remarkMarkdown, editors: NO_PANE },
+      ports: {
+        index: INDEX,
+        fs: FS,
+        markdown: remarkMarkdown,
+        editors: NO_PANE,
+        activity: ACTIVITY,
+      },
       types: TYPES,
       notePaths: NOTES,
       indexKey: 'ready:1',

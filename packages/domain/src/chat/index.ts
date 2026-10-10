@@ -18,6 +18,7 @@ export {
   CHAT_TYPE,
   CHATS_FOLDER,
   chatNoteName,
+  isInChats,
   newChatNoteText,
   readChatNote,
 } from './chat-note.ts';

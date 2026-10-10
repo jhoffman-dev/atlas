@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { fakeVaultFs } from '@atlas/application';
+import { fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useProfileSetting } from './use-profile-setting.ts';
+
+/** Where the hooks under test record what they give up on; these tests do not read it. */
+const ACTIVITY = recordingActivity();
 
 const SETTINGS = '.atlas/settings.md';
 
@@ -43,7 +46,13 @@ function vaultWithSettings(text: string) {
 
 function renderProfile(fs: ReturnType<typeof vaultWithSettings>['fs']) {
   return renderHook(() =>
-    useProfileSetting({ fs, markdown: remarkMarkdown, vaultKey: 'v', changeKey: '0' }),
+    useProfileSetting({
+      fs,
+      markdown: remarkMarkdown,
+      vaultKey: 'v',
+      changeKey: '0',
+      activity: ACTIVITY,
+    }),
   );
 }
 

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import {
   loadQuickAddSetting,
   saveQuickAddSetting,
+  type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
 } from '@atlas/application';
@@ -23,11 +24,14 @@ export function useQuickAddSetting({
   markdown,
   vaultKey,
   changeKey,
+  activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
   changeKey: string;
+  /** Where a save that fails is recorded. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): QuickAddSetting {
   const load = useCallback(() => loadQuickAddSetting({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
@@ -40,6 +44,7 @@ export function useQuickAddSetting({
     store,
     vaultKey,
     changeKey,
+    activity,
   });
   // A settings note that cannot be read is said so here, rather than the
   // default types being offered as if they were what the vault chose.
