@@ -340,6 +340,9 @@ Meeting Notes database come in once, through the same mapper, with
 each row as the workflow would, checks each file with the validator Atlas
 runs, and writes it into a vault. It never writes into your vault unless you
 give it that vault's path.
+To bring in the rest of the workspace as well (tasks, notes, people, PARA,
+teams and daily notes), use the workspace import, which runs this one for
+the Meeting Notes: `tools/notion-import/README.md`.
 
 1. **Export.** In Notion, open the Meeting Notes database, then **••• →
    Export → Markdown & CSV**, with **Include subpages** on (the pages hold

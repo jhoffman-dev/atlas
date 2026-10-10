@@ -1,0 +1,8 @@
+﻿Name,Status,Priority,Effort,Task type,Tags,Due date,Project,People,Note,Created time
+Renew the Larkspur contract,Ready,H,M,Feature,"payroll, contracts","October 20, 2026",Larkspur Payroll renewal (../PARA%20d4000000000000000000000000000000/Larkspur%20Payroll%20renewal%20d4000000000000000000000000000001.md),Mara Quill (https://www.notion.so/Mara-Quill-c3000000000000000000000000000001?pvs=21),Renewal terms (../Notes%20b2000000000000000000000000000000/Renewal%20terms%20b2000000000000000000000000000001.md),"October 1, 2026 9:00 AM"
+Chase the signed order form,Waiting,M,,,,,Larkspur Payroll renewal (../PARA%20d4000000000000000000000000000000/Larkspur%20Payroll%20renewal%20d4000000000000000000000000000001.md),"Tobias Fenn (https://www.notion.so/Tobias-Fenn-c3000000000000000000000000000002?pvs=21), Mara Quill (https://www.notion.so/Mara-Quill-c3000000000000000000000000000001?pvs=21)",,
+Ask about the audit,Waiting,L,,,,,,,,
+Ship the payroll export,Done,,,Bug,,,Engineering (../PARA%20d4000000000000000000000000000000/Engineering%20d4000000000000000000000000000002.md),,,
+Plan the offsite,Later,,,,,"December 1, 2026",,,,
+Fix the sync bug,Blocked,,,Bug,,,,,,
+Write the onboarding guide,In progress,,L,Polish,docs,,,,,

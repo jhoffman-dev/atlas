@@ -6,6 +6,8 @@ export interface NotionPage {
   readonly title: string;
   readonly properties: ReadonlyMap<string, string>;
   readonly body: string;
+  /** The content after the title, the properties paragraph included: the body, should that paragraph prove not to be properties. */
+  readonly withProperties: string;
 }
 
 const TITLE = /^#\s+(.*)$/;
@@ -24,6 +26,7 @@ export function readNotionPage(text: string): NotionPage {
   let at = skipBlank(lines, 0);
   const title = TITLE.exec(lines[at] ?? '')?.[1]?.trim() ?? '';
   if (title !== '') at = skipBlank(lines, at + 1);
+  const withProperties = lines.slice(at).join('\n');
   let end = at;
   while (end < lines.length && PROPERTY.test(lines[end] ?? '')) end += 1;
   const closesParagraph = end > at && (end === lines.length || (lines[end] ?? '').trim() === '');
@@ -35,7 +38,7 @@ export function readNotionPage(text: string): NotionPage {
     }
     at = end;
   }
-  return { title, properties, body: lines.slice(at).join('\n') };
+  return { title, properties, body: lines.slice(at).join('\n'), withProperties };
 }
 
 /** The page's content as the meeting mapper's fields read it (tools/n8n/meeting-to-atlas.ts). */
