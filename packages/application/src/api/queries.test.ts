@@ -175,6 +175,33 @@ describe('GET /v1/types', () => {
   });
 });
 
+describe('GET /v1/types, with a relation to several types (P30-01)', () => {
+  it('names every type a relation may point at, and none for any other kind', async () => {
+    const api = apiFixture({
+      markdown: jsonMarkdown(),
+      files: {
+        '.atlas/types/task.md': json({
+          name: 'task',
+          properties: {
+            project: { kind: 'relation', target: ['project', 'area'] },
+            owner: { kind: 'relation', target: 'person' },
+            status: 'select',
+          },
+        }),
+      },
+    });
+
+    const response = await api.send({ method: 'GET', path: '/v1/types' });
+
+    const [task] = bodyOf(response)['types'] as { properties: Record<string, unknown>[] }[];
+    expect(task?.properties.map(({ key, target, targets }) => ({ key, target, targets }))).toEqual([
+      { key: 'project', target: 'project', targets: ['project', 'area'] },
+      { key: 'owner', target: 'person', targets: ['person'] },
+      { key: 'status', target: null, targets: [] },
+    ]);
+  });
+});
+
 describe('GET /v1/types, with a Thumbnail property (U-15)', () => {
   it('reports the kind, so a client knows the value is auto, false, or a chosen picture', async () => {
     const api = apiFixture({

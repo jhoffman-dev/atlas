@@ -31,6 +31,7 @@ import type {
   ApiNoteImage,
   ApiNoteImageBody,
   ApiNoteSummary,
+  ApiProcessInboxBody,
   ApiProfile,
   ApiQueryBody,
   ApiQuickAddBody,
@@ -324,6 +325,9 @@ export class AtlasClient {
 
   unarchive = (body: ApiArchiveBody) =>
     this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/unarchive', body });
+
+  processInbox = (body: ApiProcessInboxBody) =>
+    this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
 
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
 

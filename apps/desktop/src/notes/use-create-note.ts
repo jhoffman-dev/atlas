@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { DEFAULT_NOTE_NAME, splitFrontmatter, type VaultPath } from '@atlas/domain';
 import {
+  captureToInbox,
   createNote,
   ensureDailyNote,
   templateNoteName,
@@ -37,8 +38,8 @@ export function useCreateNote({
   /** A blank note in a folder of the person's choosing: "New note here". */
   createNoteIn: (folder: VaultPath) => Promise<void>;
   createFromTemplate: (templatePath: string) => Promise<void>;
-  /** Creates a note with a given name, optionally from a template. */
-  createNamedNote: (name: string, template: NoteTemplate | null) => Promise<VaultPath | null>;
+  /** Captures a note with a given name into the Inbox, from a template when there is one. */
+  captureNote: (name: string, template: NoteTemplate | null) => Promise<VaultPath | null>;
   /** Today's note, found or made at the root; `today` is `YYYY-MM-DD`. */
   openDailyNote: (today: string) => Promise<VaultPath | null>;
   error: string | null;
@@ -75,17 +76,25 @@ export function useCreateNote({
     [fs, markdown, beside, notePaths, onCreated],
   );
 
-  const createNamedNote = useCallback(
+  const captureNote = useCallback(
     async (name: string, template: NoteTemplate | null): Promise<VaultPath | null> => {
-      if (template === null) return make(name);
       try {
-        return await make(name, { contents: await contentsOf(template) });
+        const contents = template === null ? undefined : await contentsOf(template);
+        const path = await captureToInbox({
+          fs,
+          name,
+          notePaths,
+          ...(contents === undefined ? {} : { contents }),
+        });
+        setError(null);
+        onCreated(path);
+        return path;
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
         return null;
       }
     },
-    [contentsOf, make],
+    [fs, notePaths, contentsOf, onCreated],
   );
 
   const openDailyNote = useCallback(
@@ -130,7 +139,7 @@ export function useCreateNote({
       [make],
     ),
     createFromTemplate,
-    createNamedNote,
+    captureNote,
     openDailyNote,
     error,
   };

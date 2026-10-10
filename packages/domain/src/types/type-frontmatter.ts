@@ -15,7 +15,9 @@ export function propertySpec(property: PropertyDef): string | Record<string, unk
     spec['colors'] = { ...property.colors };
   }
   if (property.done !== undefined) spec['done'] = property.done;
-  if (property.target !== null) spec['target'] = property.target;
+  if (property.targets !== undefined && property.targets.length > 1) {
+    spec['target'] = [...property.targets];
+  } else if (property.target !== null) spec['target'] = property.target;
   // multiSelect is many by definition, and saying so again is noise.
   if (property.many && property.kind !== 'multiSelect') spec['many'] = true;
   if (property.required) spec['required'] = true;

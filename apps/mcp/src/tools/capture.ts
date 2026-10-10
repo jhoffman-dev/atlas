@@ -20,9 +20,10 @@ export const captureTask = defineTool({
   title: 'Capture a task',
   description:
     "Capture a task exactly as Atlas's quick capture does: a new Task note named by the text, " +
-    'from the Task template when there is one, at the vault root (numbered if the name is ' +
-    'taken). Returns the created note. ' +
-    'To set more properties, follow up with atlas_update_properties on its path.',
+    'from the Task template when there is one, waiting in Inbox/ (numbered if the name is ' +
+    'taken). Returns the created note. To set more properties, follow up with ' +
+    'atlas_update_properties on its path; to file it under a project or an area, ' +
+    'atlas_process_inbox_item.',
   inputSchema: z.object({
     text: z
       .string()

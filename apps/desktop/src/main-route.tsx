@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ComponentProps, type ReactNode } from 'react';
 import type { GraphScope } from '@atlas/domain';
-import { ArchivePage, TemplatesPage, type PageHistory } from '@atlas/ui';
+import { ArchivePage, InboxPage, TemplatesPage, type PageHistory } from '@atlas/ui';
 import { TypePage } from './types/type-page.tsx';
 import { QueryScreen } from './query/query-screen.tsx';
 import { TagsScreen } from './tags/tags-screen.tsx';
@@ -16,13 +16,14 @@ type QueryProps = Omit<ComponentProps<typeof QueryScreen>, 'onShowSidebar' | 'hi
 type TagsProps = Omit<ComponentProps<typeof TagsScreen>, 'selected' | 'onShowSidebar' | 'history'>;
 
 type ArchiveProps = Omit<ComponentProps<typeof ArchivePage>, 'onShowSidebar' | 'history'>;
+type InboxProps = Omit<ComponentProps<typeof InboxPage>, 'onShowSidebar' | 'history'>;
 type AutomationsProps = Omit<ComponentProps<typeof AutomationsScreen>, 'onShowSidebar' | 'history'>;
 type ActivityProps = Omit<ComponentProps<typeof ActivityScreen>, 'onShowSidebar' | 'history'>;
 type TemplatesProps = Omit<ComponentProps<typeof TemplatesPage>, 'onShowSidebar' | 'history'>;
 
 /**
  * The page open over the panes, if any: the graph, a type's page, the query
- * page, the tags, the Archive, the Automations, the Activity or the Templates page, in that order when more than one
+ * page, the tags, the Archive, the Inbox, the Automations, the Activity or the Templates page, in that order when more than one
  * could show. Null leaves the panes —
  * which is why this is called rather than rendered as a component: the shell
  * shows the panes only when it is handed no page at all.
@@ -33,6 +34,7 @@ export function mainRoute({
   query,
   tags,
   archive,
+  inbox,
   automations,
   activity,
   templates,
@@ -47,6 +49,7 @@ export function mainRoute({
   /** The chosen tag's key, null for none; undefined while the tags page is not open. */
   tags: { selected: string | null | undefined; screen: TagsProps };
   archive: { open: boolean; page: ArchiveProps };
+  inbox: { open: boolean; page: InboxProps };
   automations: { open: boolean; screen: AutomationsProps };
   activity: { open: boolean; screen: ActivityProps };
   templates: { open: boolean; page: TemplatesProps };
@@ -74,6 +77,7 @@ export function mainRoute({
     return <TagsScreen {...tags.screen} selected={tags.selected} {...sidebar} />;
   }
   if (archive.open) return <ArchivePage {...archive.page} {...sidebar} />;
+  if (inbox.open) return <InboxPage {...inbox.page} {...sidebar} />;
   if (automations.open) return <AutomationsScreen {...automations.screen} {...sidebar} />;
   if (activity.open) return <ActivityScreen {...activity.screen} {...sidebar} />;
   if (templates.open) return <TemplatesPage {...templates.page} {...sidebar} />;

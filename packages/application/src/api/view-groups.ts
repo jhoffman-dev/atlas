@@ -5,6 +5,7 @@ import {
   groupResultRows,
   noteNames,
   queryForLayout,
+  relationTypes,
   toBoardRows,
   viewGroupKeys,
   type GroupedBy,
@@ -119,14 +120,14 @@ async function relationGroups(
   const targets = [display.groupBy, display.subGroupBy].flatMap((key) => {
     const property = type?.properties.find((candidate) => candidate.key === key);
     return property?.kind === 'relation' && property.target !== null
-      ? [{ key: property.key, target: property.target }]
+      ? [{ key: property.key, targets: relationTypes(property) }]
       : [];
   });
   if (targets.length === 0) return { names: noteNames(null), related: {} };
   const names = noteNames(await readNamedNotes({ index: request.index }));
   const related: Record<string, readonly string[]> = {};
-  for (const { key, target } of targets) {
-    related[key] = await relationGroupLinks({ index: request.index, target, names });
+  for (const { key, targets: pointedAt } of targets) {
+    related[key] = await relationGroupLinks({ index: request.index, targets: pointedAt, names });
   }
   return { names, related };
 }

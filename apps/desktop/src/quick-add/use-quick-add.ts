@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   quickAddChoice,
   quickAddFields,
+  relationTypes,
   DEFAULT_FAB_ANCHOR,
   type FabAnchor,
   type ObjectType,
@@ -9,7 +10,7 @@ import {
 } from '@atlas/domain';
 import {
   findTypeTemplate,
-  notesInUseOfType,
+  notesInUseOfTypes,
   quickAddNote,
   type IndexPort,
   type MarkdownPort,
@@ -146,7 +147,7 @@ function useRelationChoices(
     Promise.all(
       relations.map(
         async (field) =>
-          [field.key, await notesInUseOfType({ index, type: field.target ?? '' })] as const,
+          [field.key, await notesInUseOfTypes({ index, types: relationTypes(field) })] as const,
       ),
     )
       .then((pairs) => {

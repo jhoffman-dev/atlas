@@ -660,7 +660,7 @@ describe('the palettes and the shortcuts around them', () => {
     expect(screen.queryByRole('article')).toBeNull();
   });
 
-  it('makes a captured line a note of its own and opens it (Shift+Cmd+N)', async () => {
+  it('makes a captured line a note of its own in the Inbox, and opens it (Shift+Cmd+N)', async () => {
     const vault = vaultWith();
     const createNote = vi.spyOn(vault.fs, 'createNote');
     renderApp(vault);
@@ -671,7 +671,7 @@ describe('the palettes and the shortcuts around them', () => {
 
     // Capture stays up for the next line; the note opens behind it.
     await vi.waitFor(() =>
-      expect(createNote.mock.calls.map(([args]) => args.path)).toEqual(['Buy flour.md']),
+      expect(createNote.mock.calls.map(([args]) => args.path)).toEqual(['Inbox/Buy flour.md']),
     );
     expect(screen.getByRole('dialog', { name: 'Capture a task' })).toBeDefined();
     await userEvent.keyboard('{Escape}');
