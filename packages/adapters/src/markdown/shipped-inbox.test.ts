@@ -19,8 +19,9 @@ import { remarkMarkdown } from './markdown-port.ts';
 /*
  * The Inbox this vault ships, read with the YAML reader every note is read
  * with and run as the app runs it, over the Task and Meeting types the vault
- * ships: captured tasks (GTD's `inbox` status, P30-02), meetings that arrived
- * and are not yet filed, and meeting files that failed import (P28-04).
+ * ships: backlog tasks (`backlog` is a status of the Task type this vault
+ * ships, and one of GTD's), meetings that arrived and are not yet filed, and
+ * meeting files that failed import (P28-04).
  */
 
 const root = new URL('../../../../', import.meta.url);
@@ -38,8 +39,8 @@ const meeting = (more: string) =>
   `---\ntype: meeting\nprovider: gemini\nexternal_id: g-1\n${more}---\n\nBody.\n`;
 
 const NOTES: Record<string, string> = {
-  'tasks/Call Mara.md': '---\ntype: task\nstatus: inbox\n---\n',
-  'tasks/Someday.md': '---\ntype: task\nstatus: backlog\n---\n',
+  'tasks/Call Mara.md': '---\ntype: task\nstatus: backlog\n---\n',
+  'tasks/Doing.md': '---\ntype: task\nstatus: doing\n---\n',
   'tasks/Ship it.md': '---\ntype: task\nstatus: done\n---\n',
   'Inbox/Meetings/2026-10-06 Standup.md': meeting(''),
   'Projects/Larkspur/2026-10-01 Kickoff.md': meeting(''),
@@ -54,7 +55,7 @@ const index = fakeIndexPort({
 });
 
 describe('the Inbox this vault ships', () => {
-  it('lists GTD inbox tasks, meetings in the Inbox, and meetings failing import', async () => {
+  it('lists backlog tasks, meetings in the Inbox, and meetings failing import', async () => {
     const text = parseQueryView(frontmatterOf(INBOX));
     if (text === null) throw new Error('the shipped Inbox is not a query view');
 
@@ -93,13 +94,15 @@ describe('the Inbox this vault ships', () => {
     expect(counts.get('inbox')).toBe(3);
   });
 
-  it('is listed by the move to GTD rather than rewritten, since it reads meetings too (P30-02)', () => {
+  it('is left alone by the move to GTD, and would be listed rather than rewritten (P30-02)', () => {
     const text = parseQueryView(frontmatterOf(INBOX));
     if (text === null) throw new Error('the shipped Inbox is not a query view');
     const mapping = statusMappingFor({ found: ['backlog', 'next', 'doing', 'review', 'done'] });
 
+    // `backlog` is one of GTD's statuses, so there is nothing to move.
     expect(rewrittenQuery({ text, mapping })).toBeNull();
-    const before = text.replace('status = inbox', 'status = next');
+    // Were it to name one that moves, it reads meetings too, so it is listed, never rewritten.
+    const before = text.replace('status = backlog', 'status = next');
     expect(before).not.toBe(text);
     expect(rewrittenQuery({ text: before, mapping })).toEqual({
       problem: expect.stringMatching(/lists other types beside tasks/),

@@ -263,7 +263,7 @@ they are.
   it changes.
 - **Activity has a Meetings kind**: one line per outcome.
 - **The Inbox.** This repository's vault ships an Inbox view that is an
-  Atlas query over tasks and meetings: tasks at GTD's `inbox` status, anything under
+  Atlas query over tasks and meetings: backlog tasks, anything under
   `Inbox/`, and any meeting with an import error, shown as a column. Its
   Meeting type declares the three keys so the query can name them and the
   properties panel shows them. **Another vault has neither until they are

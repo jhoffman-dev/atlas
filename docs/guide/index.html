@@ -372,7 +372,7 @@ pnpm tauri:dev</pre>
         <li>The note moves into a folder named after the project, beside it — filing under <code>Projects/Atlas.md</code> puts it in <code>Projects/Atlas/</code> — and gets <code>project: "[[Atlas]]"</code>. A project that is already its folder's own note (<code>Projects/Atlas/Atlas.md</code>) files into that folder. Only the note's name goes with it, numbered if the folder has one by that name; nothing else in the file changes, and links to it are updated.</li>
         <li>Only a project or an area still in use can be chosen — not one waiting in the Inbox itself, not an archived one, and not one whose folder would be the Inbox or the Archive (a project kept at the top as <code>Archive.md</code>). If a note can't be filed, the page says why, and it stays in the Inbox.</li>
         <li>Proposals aren't filed: they're answered, in the page's <a href="#proposals">Proposals</a> section, and are never in this list.</li>
-        <li>If your vault has a view called <b>Inbox</b>, the page's <b>Open the Inbox view</b> button opens it; it's still there under its own name. The view this repository's vault ships lists tasks at the <b>Inbox</b> status, everything under <code>Inbox/</code> and any meeting that failed import.</li>
+        <li>If your vault has a view called <b>Inbox</b>, the page's <b>Open the Inbox view</b> button opens it; it's still there under its own name. The view this repository's vault ships lists backlog tasks, everything under <code>Inbox/</code> and any meeting that failed import.</li>
         <li>Claude can do the same through <a href="#connect"><code>atlas_process_inbox_item</code></a>.</li>
       </ul>
     </section>
