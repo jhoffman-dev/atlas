@@ -3,8 +3,12 @@ import type { ObjectType, VaultPath } from '@atlas/domain';
 import {
   addTerm,
   loadTerms,
+  NoteNameTakenError,
   setTermVariants,
+  TaskRuleRefusedError,
+  TermRefusedError,
   termVariantsChange,
+  type ActivityLog,
   type IndexPort,
   type MarkdownPort,
   type NoteTemplate,
@@ -12,6 +16,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import type { NewTerm, TermsPageProps } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';
 
@@ -24,6 +29,9 @@ export interface TermsPagePorts {
 }
 
 const messageOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
+
+/** What adding a term or changing its variants refuses for the person to act on: no fault to record. */
+const TERM_REFUSALS = [TermRefusedError, NoteNameTakenError, TaskRuleRefusedError];
 
 /**
  * The Terms page: the terms and the vocabulary, read while the page is open
@@ -39,6 +47,7 @@ export function useTermsPage({
   templates,
   notePaths,
   onChanged,
+  activity,
 }: {
   ports: TermsPagePorts;
   /** Whether the page is showing, which is when it is read. */
@@ -50,6 +59,8 @@ export function useTermsPage({
   notePaths: readonly VaultPath[];
   /** Re-reads the tree and the index once a term was written. */
   onChanged: () => void;
+  /** Where a write the page gives up on is recorded; a refusal is not. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }) {
   const { index, fs, markdown, editors } = ports;
   const [catalog, setCatalog] = useState<TermsCatalog | null>(null);
@@ -73,25 +84,28 @@ export function useTermsPage({
     };
   }, [index, indexKey, open]);
 
-  /** Runs a write, and says why when it fails rather than letting it vanish. */
+  /**
+   * Runs a write, and says why when it fails rather than letting it vanish —
+   * recording it in the Activity log too, unless it was a refusal.
+   */
   const run = useCallback(
-    (work: Promise<unknown>, failed: string) =>
-      work.then(
+    (work: () => Promise<unknown>, { failed, path }: { failed: string; path: VaultPath | null }) =>
+      withGiveUpRecorded({ activity, write: 'term', path, refusal: TERM_REFUSALS }, work).then(
         () => {
           setNotice(null);
           onChanged();
         },
         (cause: unknown) => setNotice(`${failed}: ${messageOf(cause)}`),
       ),
-    [onChanged],
+    [onChanged, activity],
   );
 
   const onAdd = useCallback(
     (term: NewTerm) => {
-      void run(
-        addTerm({ fs, markdown, term, types, templates, notePaths }),
-        `“${term.canonical}” was not added`,
-      );
+      void run(() => addTerm({ fs, markdown, term, types, templates, notePaths }), {
+        failed: `“${term.canonical}” was not added`,
+        path: null,
+      });
     },
     [run, fs, markdown, types, templates, notePaths],
   );
@@ -100,14 +114,15 @@ export function useTermsPage({
     ({ path, variants }: { path: VaultPath; variants: string }) => {
       // Through the pane holding the term, when one does: writing the file
       // underneath it would leave its next save to be refused.
-      const write = editors
-        .setPropertiesIfOpen({ path, values: termVariantsChange(variants) })
-        .then((takenByAPane) =>
-          takenByAPane
-            ? undefined
-            : setTermVariants({ fs, markdown, path, variants, today: localToday() }),
-        );
-      void run(write, 'The variants could not be saved');
+      const write = () =>
+        editors
+          .setPropertiesIfOpen({ path, values: termVariantsChange(variants) })
+          .then((takenByAPane) =>
+            takenByAPane
+              ? undefined
+              : setTermVariants({ fs, markdown, path, variants, today: localToday() }),
+          );
+      void run(write, { failed: 'The variants could not be saved', path });
     },
     [run, editors, fs, markdown],
   );

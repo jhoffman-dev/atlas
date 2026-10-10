@@ -829,6 +829,7 @@ export function App({
     templates,
     notePaths,
     onChanged,
+    activity: activityLog,
   });
   const onRenameTemplate = templatesPage.page.onRename;
   const templateCommands = useMemo(

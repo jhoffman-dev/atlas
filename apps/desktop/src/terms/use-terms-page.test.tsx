@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, type VaultPath } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, type IndexPort } from '@atlas/application';
+import { fakeIndexPort, fakeVaultFs, recordingActivity, type IndexPort } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useTermsPage, type TermsPagePorts } from './use-terms-page.ts';
 
@@ -25,8 +25,8 @@ function oneTermIndex() {
   return { index, asked };
 }
 
-/** The vault's files in memory, the Terms folder among them. */
-function memoryFs(files: Record<string, string>) {
+/** The vault's files in memory, the Terms folder among them; a write fails with `refuse` when given. */
+function memoryFs(files: Record<string, string>, refuse: string | null = null) {
   const notes = new Map(Object.entries(files));
   const fs = fakeVaultFs({
     listDirectory: async () => [
@@ -34,6 +34,7 @@ function memoryFs(files: Record<string, string>) {
     ],
     readTextFile: async (path) => ({ text: notes.get(path) ?? '', modified: 1 }),
     writeTextFile: async ({ path, contents }) => {
+      if (refuse !== null) throw new Error(refuse);
       notes.set(path, contents);
       return 2;
     },
@@ -50,13 +51,16 @@ function renderPage({
   files = {},
   open = true,
   takenByAPane = false,
+  refuse = null,
 }: {
   index?: Pick<IndexPort, 'query'>;
   files?: Record<string, string>;
   open?: boolean;
   takenByAPane?: boolean;
+  refuse?: string | null;
 } = {}) {
-  const { fs, notes } = memoryFs(files);
+  const { fs, notes } = memoryFs(files, refuse);
+  const activity = recordingActivity();
   const setPropertiesIfOpen = vi.fn(async () => takenByAPane);
   const ports: TermsPagePorts = {
     index,
@@ -74,10 +78,11 @@ function renderPage({
         templates: [],
         notePaths: Object.keys(files).map(createVaultPath) as VaultPath[],
         onChanged,
+        activity,
       }),
     { initialProps: { open, indexKey: 'a' } },
   );
-  return { ...hook, notes, onChanged, setPropertiesIfOpen };
+  return { ...hook, notes, onChanged, setPropertiesIfOpen, activity };
 }
 
 describe('useTermsPage', () => {
@@ -130,13 +135,14 @@ describe('useTermsPage', () => {
     expect(result.current.notice).toBeNull();
   });
 
-  it('says why a term was not added, and re-reads nothing', async () => {
-    const { result, onChanged } = renderPage({ files: { 'Zeta/Larkspur.md': '' } });
+  it('says why a term was not added, records no refusal, and re-reads nothing', async () => {
+    const { result, onChanged, activity } = renderPage({ files: { 'Zeta/Larkspur.md': '' } });
     await act(async () =>
       result.current.page.onAdd({ canonical: 'Larkspur', variants: '', kind: null }),
     );
     await waitFor(() => expect(result.current.notice).toMatch(/^“Larkspur” was not added: /));
     expect(onChanged).not.toHaveBeenCalled();
+    expect(activity.reports).toEqual([]);
 
     // The next write that lands takes the notice down.
     await act(async () =>
@@ -173,5 +179,24 @@ describe('useTermsPage', () => {
     await act(async () => result.current.page.onEditVariants({ path: LARKSPUR, variants: 'x' }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
     expect(notes.get('Terms/Larkspur.md')).toBe(before);
+  });
+
+  it('records once a variants write it gave up on', async () => {
+    const { result, activity } = renderPage({
+      files: { 'Terms/Larkspur.md': '---\ntype: term\n---\n' },
+      refuse: 'The disk is full.',
+    });
+    await act(async () =>
+      result.current.page.onEditVariants({ path: LARKSPUR, variants: 'lark spur' }),
+    );
+    await waitFor(() => expect(result.current.notice).toMatch(/The disk is full\./));
+    expect(activity.reports).toEqual([
+      expect.objectContaining({
+        level: 'error',
+        kind: 'save',
+        subject: { kind: 'note', path: LARKSPUR },
+      }),
+    ]);
+    expect(activity.reports[0]?.message).toMatch(/^Could not save the term — Larkspur\./);
   });
 });
