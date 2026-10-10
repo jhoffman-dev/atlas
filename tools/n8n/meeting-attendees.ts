@@ -45,12 +45,17 @@ function attendee(
   rawEmail: string,
   { explicitGroup, groupAddresses }: { explicitGroup: boolean; groupAddresses: Set<string> },
 ): Read | null {
-  const candidate = rawEmail
-    .trim()
-    .replace(/^mailto:/i, '')
-    .replace(TRAILING_PUNCTUATION, '');
+  const written = oneLine(rawName.replace(/\\(.)/g, '$1'));
+  const asAddress = (text: string) =>
+    text
+      .trim()
+      .replace(/^mailto:/i, '')
+      .replace(TRAILING_PUNCTUATION, '');
+  // An address written as the display name is no name: it is named as a bare address is.
+  const nameIsAddress = EMAIL.test(asAddress(written));
+  const candidate = asAddress(rawEmail) || (nameIsAddress ? asAddress(written) : '');
   const email = EMAIL.test(candidate) ? candidate : undefined;
-  const displayName = oneLine(rawName.replace(/\\(.)/g, '$1'));
+  const displayName = nameIsAddress ? '' : written;
   const name = displayName || (email && localPart(email)) || '';
   if (name === '') return null;
   const group = explicitGroup || isGroup(email, groupAddresses);

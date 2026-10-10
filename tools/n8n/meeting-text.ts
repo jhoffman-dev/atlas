@@ -50,30 +50,49 @@ function trimmed(lines: readonly string[]): string[] {
   return lines.slice(first, last);
 }
 
+/** A line, and whether it is code: a fence line, or inside a fence. */
+export interface FencedLine {
+  readonly text: string;
+  readonly code: boolean;
+}
+
+/**
+ * The lines, each marked code or not, and the marker of a fence left open at
+ * the end (```` ``` ````, `~~~~`…), else null. A fence closes as CommonMark
+ * closes it: the same character, at least as many.
+ */
+export function fencedLines(lines: readonly string[]): {
+  lines: FencedLine[];
+  open: string | null;
+} {
+  const marked: FencedLine[] = [];
+  let fence: string | null = null;
+  for (const text of lines) {
+    if (fence !== null) {
+      const close = FENCE_CLOSE.exec(text)?.[1];
+      if (close !== undefined && close[0] === fence[0] && close.length >= fence.length) {
+        fence = null;
+      }
+      marked.push({ text, code: true });
+      continue;
+    }
+    fence = FENCE_OPEN.exec(text)?.[1] ?? null;
+    marked.push({ text, code: fence !== null });
+  }
+  return { lines: marked, open: fence };
+}
+
 /**
  * A provider's prose as a section's markdown: boilerplate dropped, `#`/`##`
  * headings made `###` (so they stay inside the section), and a code fence the
  * provider left open closed, so it cannot swallow the sections after it.
  */
 export function sectionText(value: unknown, field: string): string {
-  const lines: string[] = [];
-  // The open fence's marker (```` ``` ````, `~~~~`…); it closes as CommonMark closes it.
-  let fence: string | null = null;
-  for (const line of textLines(value, field)) {
-    if (isBoilerplate(line)) continue;
-    if (fence !== null) {
-      const close = FENCE_CLOSE.exec(line)?.[1];
-      if (close !== undefined && close[0] === fence[0] && close.length >= fence.length) {
-        fence = null;
-      }
-      lines.push(line);
-      continue;
-    }
-    fence = FENCE_OPEN.exec(line)?.[1] ?? null;
-    lines.push(fence === null ? proseLine(line) : line);
-  }
-  if (fence !== null) lines.push(fence);
-  return trimmed(lines).join('\n');
+  const prose = textLines(value, field).filter((line) => !isBoilerplate(line));
+  const { lines, open } = fencedLines(prose);
+  const written = lines.map(({ text, code }) => (code ? text : proseLine(text)));
+  if (open !== null) written.push(open);
+  return trimmed(written).join('\n');
 }
 
 /**

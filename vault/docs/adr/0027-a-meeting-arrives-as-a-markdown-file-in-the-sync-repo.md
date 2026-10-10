@@ -156,10 +156,20 @@ differs from the issue (#8) and the text above:
   `validate-meeting.mjs`), because the workflow JSON is generated from the
   mapper's TypeScript (`pnpm n8n:build`) and a test fails while the two
   differ. The contract stays in `vault/docs/contracts/`.
-- **Atlas runs after Notion, and never stops the run.** The branch is wired
-  from the Notion node's success output and reads the parse step by name;
-  every node that can fail sends its item to an "Atlas commit failed" node
-  instead of stopping, so the Notion write is never prevented.
+- **Atlas runs beside Notion, and never stops the run.** The branch is wired
+  from the assembled meeting, before any Notion step (the People lookups and
+  creates, the page write), and placed above the Notion branches so n8n's v1
+  order runs it first: a Notion failure, or a meeting with no people, cannot
+  keep it from running. It reads the meeting and the notes email by node
+  name. Every node that can fail sends its item to an "Atlas commit failed"
+  node, which emails the reason, instead of stopping, so the Notion write is
+  never prevented. (#80 changed this from the first build, which was wired
+  after the Notion page write.)
+- **A Gemini start is never the email's arrival.** The day and any time come
+  from the email's subject (a stated zone is converted, or the start marked
+  approximate); otherwise the start is the arrival less the transcript's
+  length, marked approximate. With no length to take off, the meeting is
+  refused rather than given the arrival, which is about when it ended.
 - **Instants need a time zone.** A date-time with `Z` or an offset is read on
   the clock of `timeZone` (default `America/Los_Angeles`); with none it is
   refused rather than kept as a UTC clock time. A date or time without an

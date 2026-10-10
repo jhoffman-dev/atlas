@@ -1,5 +1,5 @@
 import { MeetingMappingError } from './meeting-mapping-error.ts';
-import type { StatedWhen } from './meeting-stated.ts';
+import { zoneOffsetMinutes, type StatedWhen } from './meeting-stated.ts';
 
 /** When a meeting was: the day, its local start, and its end when known. */
 export interface MeetingWhen {
@@ -141,19 +141,37 @@ export interface WhenInput {
   readonly timeZone: string | null;
 }
 
-/** The stated day and time, each checked as a value of `date` and `start` would be. */
-function statedMoment(stated: StatedWhen): Moment {
-  const { day } = readMoment(stated.day, 'stated', null);
-  if (stated.time === null) return { day, time: null };
-  const time = clockTime(stated.time);
-  if (time === null) throw new MeetingMappingError(`stated: ${stated.time} is not a time of day`);
-  return { day, time };
+/** A stated day and time; approximate when it is another zone's clock that could not be converted. */
+interface StatedMoment extends Moment {
+  readonly approximate: boolean;
 }
 
 /**
- * When the meeting began, about: the arrival less the recording's length
- * (none without a transcript). Worked on the local clock, so a meeting that
- * spans a daylight-saving change is out by that hour — it is marked approximate.
+ * The stated day and time, each checked as a value of `date` and `start`
+ * would be. A time with a zone after it (`13:00 EDT`) is shown on the clock
+ * of `timeZone`, which may move the day. A zone the mapper does not know, or
+ * no `timeZone` to show it in, keeps the clock time as written but marks it
+ * approximate: another zone's clock is never written as local unflagged.
+ */
+function statedMoment(stated: StatedWhen, timeZone: string | null): StatedMoment {
+  const { day } = readMoment(stated.day, 'stated', null);
+  if (stated.time === null) return { day, time: null, approximate: false };
+  const time = clockTime(stated.time);
+  if (time === null) throw new MeetingMappingError(`stated: ${stated.time} is not a time of day`);
+  if (stated.zone === null) return { day, time, approximate: false };
+  const offset = zoneOffsetMinutes(stated.zone);
+  if (offset === null || timeZone === null) return { day, time, approximate: true };
+  const instant = new Date(Date.parse(`${day ?? ''}T${time}:00Z`) - offset * 60_000);
+  return { ...inZone(instant, timeZone), approximate: false };
+}
+
+/**
+ * When the meeting began, about: the arrival less the recording's length.
+ * Without a length (no transcript, or one with no stamps and no end mark)
+ * there is nothing to take off, and the arrival — about when the meeting
+ * ended — is never a start, so the meeting is refused. Worked on the local
+ * clock, so a meeting that spans a daylight-saving change is out by that
+ * hour — it is marked approximate.
  */
 function arrivalLessLength(input: WhenInput): Moment {
   if (input.arrived === null || input.arrived === undefined || input.arrived === '') {
@@ -163,8 +181,13 @@ function arrivalLessLength(input: WhenInput): Moment {
   if (day === null || time === null) {
     throw new MeetingMappingError('arrived: needs a date and a time (when the notes arrived)');
   }
+  if (input.transcriptLength === null) {
+    throw new MeetingMappingError(
+      'start: the meeting has no start time: the email states none, and with no transcript length the arrival (about when it ended) cannot give one',
+    );
+  }
   const arrival = Date.parse(`${day}T${time}:00Z`);
-  const began = new Date(arrival - (input.transcriptLength ?? 0) * 1000).toISOString();
+  const began = new Date(arrival - input.transcriptLength * 1000).toISOString();
   return { day: began.slice(0, 10), time: began.slice(11, 16) };
 }
 
@@ -175,11 +198,12 @@ function arrivalLessLength(input: WhenInput): Moment {
  * word was spoken (a wall-clock transcript only), else — marked approximate —
  * the arrival less the transcript's length. With none of those the meeting
  * has no start, and the contract requires one — so it is refused rather than
- * given a made-up time.
+ * given a made-up time. A start read off another zone's clock that could not
+ * be converted is marked approximate too.
  */
 export function meetingWhen(input: WhenInput): MeetingWhen {
   if (input.timeZone !== null) zoneClock(input.timeZone);
-  const stated = input.stated === null ? null : statedMoment(input.stated);
+  const stated = input.stated === null ? null : statedMoment(input.stated, input.timeZone);
   // A stated day means the date is the provider's arrival time (Gemini's Notion Date): not the meeting's.
   const date = stated ?? readMoment(input.date, 'date', input.timeZone);
   const start = readMoment(input.start, 'start', input.timeZone);
@@ -192,5 +216,12 @@ export function meetingWhen(input: WhenInput): MeetingWhen {
   if (startTime === null) {
     throw new MeetingMappingError('start: the meeting has no start time (pass `start`)');
   }
-  return { date: day, start: startTime, end: end.time, startApproximate: read === null };
+  const foreignClock =
+    start.time === null && stated !== null && stated.time !== null && stated.approximate;
+  return {
+    date: day,
+    start: startTime,
+    end: end.time,
+    startApproximate: read === null || foreignClock,
+  };
 }

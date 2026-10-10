@@ -192,3 +192,76 @@ describe('the collision path', () => {
     expect(name.startsWith('2026-10-06')).toBe(true);
   });
 });
+
+/*
+ * PR #86 (issue #80): a Gemini meeting as the staged workflow hands it over —
+ * the day from the email's subject, the start from its arrival less the
+ * transcript's length. All names are made up.
+ */
+const GEMINI_EMAIL: MeetingFields = {
+  title: 'Platform weekly sync',
+  stated: 'Notes: “Platform weekly sync” Oct 6, 2026',
+  // 10:52:30 in Los Angeles: when the notes arrived, not when the meeting began.
+  arrived: '2026-10-06T17:52:30.000Z',
+  source: 'gemini',
+  sourceId: 'fake-gmail-0086',
+};
+const IN_LA: MappingOptions = { timeZone: 'America/Los_Angeles' };
+
+describe('a Gemini start is never the email’s arrival (issue #80)', () => {
+  it.each([
+    ['no transcript', ''],
+    ['a transcript with turns but no stamps', 'Mara Quill: Morning.\nTobias Fenn: Hi.'],
+  ])('with %s, the arrival is not written as the start', (_, transcript) => {
+    // Issue #80: "Never use the arrival time as the start." With nothing to
+    // take off the arrival, the README's own rule applies: refuse, never invent.
+    expect(() => mapMeeting({ ...GEMINI_EMAIL, transcript }, IN_LA)).toThrow(/start/);
+  });
+});
+
+describe('a Gemini transcript’s wrapper lines are never a turn', () => {
+  it.each([
+    '## Transcript',
+    '# Transcript',
+    'Platform weekly sync - Transcript',
+    'Q4: planning - Transcript',
+  ])('drops `%s` above the first stamp', (heading) => {
+    const turns = meetingOf({
+      transcript: `${heading}\n### 00:00:12\nMara Quill: Morning.`,
+    }).transcript.map((turn) => [turn.writtenSpeaker, turn.words]);
+    expect(turns).toEqual([['Mara Quill', 'Morning.']]);
+  });
+});
+
+describe('a stated time in another zone', () => {
+  it('reads Gemini’s `13:00 EDT` as 10:00 on a Los Angeles clock, not as 13:00 there', () => {
+    const { content } = mapMeeting(
+      {
+        ...GEMINI_EMAIL,
+        stated: 'Platform weekly sync - 2026/10/06 13:00 EDT - Notes by Gemini',
+      },
+      IN_LA,
+    );
+    accepted(content);
+    expect(content).toMatch(/^start: '10:00'$/m);
+  });
+});
+
+describe('an attendee given only an address', () => {
+  const attendeesOf = (attendees: unknown) => meetingOf({ attendees }).attendees;
+
+  it('an address written as the display name is named as a bare address is', () => {
+    expect(attendeesOf([{ name: 'ann.lee@example.com', email: 'ann.lee@example.com' }])).toEqual([
+      { name: 'ann.lee', email: 'ann.lee@example.com', group: false },
+    ]);
+  });
+
+  it('an address written as the display name gives way to a real name for that address', () => {
+    expect(
+      attendeesOf([
+        { name: 'ann.lee@example.com', email: 'ann.lee@example.com' },
+        { name: 'Ann Lee', email: 'ann.lee@example.com' },
+      ]),
+    ).toEqual([{ name: 'Ann Lee', email: 'ann.lee@example.com', group: false }]);
+  });
+});
