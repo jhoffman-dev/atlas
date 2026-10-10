@@ -10,8 +10,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  gate:
-    # macOS because the Tauri shell links against WebKit; the JS half would run anywhere.
+  checks:
+    # Linux, because the account runs only five macOS jobs at once and none of these need it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # The sync tests merge with real git under an isolated HOME, so a merge
+      # commit takes the identity git guesses from the machine: the account's
+      # full name and the host's domain. A Mac has both; this runner has neither.
+      - name: Give git a name and host to guess from, as a Mac does
+        run: |
+          sudo usermod --comment 'Atlas CI' "$(whoami)"
+          sudo hostname "$(hostname).local"
+
+      - name: Test with coverage
+        run: pnpm test:coverage
+
+      - name: Build frontend
+        run: pnpm build
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  macos:
+    # macOS because the Tauri shell links against WebKit, and the end-to-end suite
+    # drives the same WebKit the Tauri window uses.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,21 +81,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Format
-        run: pnpm format:check
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Test with coverage
-        run: pnpm test:coverage
-
-      - name: Build frontend
-        run: pnpm build
-
       - name: Lint Rust shell
         run: pnpm rust:lint
 
@@ -60,9 +93,17 @@ jobs:
       - name: End-to-end smoke
         run: pnpm e2e
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage
-          path: coverage/
-          retention-days: 7
+  gate:
+    # The one check to require. `always()` because a job skipped after a failed
+    # dependency counts as passing, which would let a red run through.
+    needs: [checks, macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to pass
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          MACOS: ${{ needs.macos.result }}
+        run: |
+          echo "checks: $CHECKS, macos: $MACOS"
+          test "$CHECKS" = success && test "$MACOS" = success
