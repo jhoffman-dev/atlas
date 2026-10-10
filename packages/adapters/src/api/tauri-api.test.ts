@@ -28,7 +28,13 @@ const REQUEST: ApiRequest = { id: 'r7', method: 'GET', path: '/v1/status', query
 const ANSWER: ApiResponse = {
   id: 'r7',
   status: 200,
-  body: { app: 'atlas', version: '1', vault: null, index: { ready: false, notes: 0 } },
+  body: {
+    app: 'atlas',
+    version: '1',
+    vault: null,
+    index: { ready: false, notes: 0 },
+    googleCalendar: null,
+  },
 };
 
 /** Lets the promise chain started by a delivered event run to its end. */

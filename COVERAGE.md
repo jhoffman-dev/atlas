@@ -37,6 +37,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/terms`        | Adds terms as notes and rewrites their variants in the frontmatter.           | 28      |
 | `tools/notion-import/*.ts` | The Notion meeting import: writes your meeting history into a vault at once.  | 28      |
 | `application/proposals`    | Accepting a proposal writes notes, archives it, and undo takes them back.     | 29      |
+| `*/google-calendar`        | Connects your Google account and reads its answers; tokens stay in Rust.      | 31      |
 
 Rules that apply everywhere:
 

@@ -5,6 +5,7 @@ import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { ThumbnailQueue } from '../artifacts/thumbnail-queue.ts';
 import type { AppInfoPort, Clock, Rng } from '../ports.ts';
+import type { GoogleCalendarPort } from '../google-calendar/ports.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 import type { SourceRefresher } from '../sources/source-refresher.ts';
 import type { TagRenames } from '../tags/index.ts';
@@ -117,6 +118,8 @@ export interface ApiRouterDeps {
   readonly automationClock: AutomationClock;
   /** Where each write through the API is said, by route and note (U-28). */
   readonly activity: ActivityLog;
+  /** Whether Google Calendar is connected; the API reads nothing else of it. */
+  readonly googleCalendar: Pick<GoogleCalendarPort, 'status'>;
 }
 
 /** What a source refresh reaches outside the vault through. Never the secret store. */

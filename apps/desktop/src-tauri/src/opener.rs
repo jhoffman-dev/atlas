@@ -47,10 +47,18 @@ fn browser(url: &str) -> Command {
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
     let target = openable(&url)?;
+    open_web_link(&target)?;
+    log::info!("opened {target}");
+    Ok(())
+}
+
+/// Opens a link the host made itself — a sign-in page — in the default
+/// browser. Not logged: the link carries the sign-in's `state`.
+pub fn open_web_link(target: &Url) -> Result<(), String> {
+    openable(target.as_str())?;
     browser(target.as_str())
         .spawn()
         .map_err(|error| format!("cannot open the browser: {error}"))?;
-    log::info!("opened {target}");
     Ok(())
 }
 

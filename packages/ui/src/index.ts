@@ -87,6 +87,14 @@ export { TimelineView } from './timeline-view.tsx';
 export { SourcePanel } from './source-panel.tsx';
 export { SecretsSettings } from './secrets-settings.tsx';
 export type { SecretRow, SecretSave } from './secrets-settings.tsx';
+export { GoogleCalendarSettings } from './google-calendar-settings.tsx';
+export type {
+  GoogleCalendarChoice,
+  GoogleCalendarPhase,
+  GoogleCalendarProblem,
+  GoogleCalendarView,
+  GoogleConnectRequest,
+} from './google-calendar-settings.tsx';
 export { Toggle } from './toggle.tsx';
 export { SegmentedControl } from './segmented-control.tsx';
 export { TagsPage } from './tags-page.tsx';

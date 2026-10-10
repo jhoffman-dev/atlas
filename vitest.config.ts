@@ -93,6 +93,13 @@ export default defineConfig({
         'packages/application/src/terms/**': { lines: 90, functions: 90, branches: 85 },
         // The Notion meeting import writes a history of meetings into a vault (P28-07).
         'tools/notion-import/*.ts': { lines: 90, functions: 90, branches: 85 },
+        // Connects Google Calendar and reads Google's answers (P31-03). The tokens
+        // themselves never reach TypeScript; their handling is the host's, tested in Rust.
+        'packages/{application,adapters}/src/google-calendar/**': {
+          lines: 90,
+          functions: 90,
+          branches: 85,
+        },
       },
     },
   },

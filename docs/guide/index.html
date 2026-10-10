@@ -134,6 +134,7 @@ td:first-child { white-space: nowrap; }
     <a href="#templates">Templates</a>
     <a href="#views">Views</a>
     <a href="#calendar">Calendar</a>
+    <a href="#google-calendar">Google Calendar</a>
     <a href="#thumbnails">Thumbnails</a>
     <a href="#queries">Queries</a>
     <a href="#sql">SQL queries</a>
@@ -558,6 +559,43 @@ pnpm tauri:dev</pre>
         <li><b>Keyboard:</b> click the calendar, then <kbd>M</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>D</kbd> <kbd>A</kbd> pick the range, <kbd>T</kbd> goes to today, and <kbd>←</kbd> <kbd>→</kbd> (or <kbd>[</kbd> <kbd>]</kbd>) step. In the month, <kbd>Tab</kbd> to a note, <kbd>Space</kbd> to pick it up, arrows to move it a day or a week, <kbd>Space</kbd> to drop.</li>
       </ul>
       <p class="muted">In the agenda, a past note of a type with no “done” status (a meeting, a journal entry) stays under Overdue. That's on purpose for now.</p>
+    </section>
+
+    <section id="google-calendar">
+      <h2>Google Calendar</h2>
+      <p class="sub">Atlas can connect to your Google account so that, once block syncing arrives, your timeblocks show as busy on a calendar of their own. For now you can connect, make that calendar and disconnect.</p>
+      <p>Atlas only ever asks to see and change calendars it made itself — never your main calendar or anyone else's. You sign in in your own browser, and the sign-in is kept in your Mac's Keychain, never in the vault. Nothing in Atlas, and nothing that talks to it, can read the sign-in back.</p>
+      <h3>Before you start: a client ID</h3>
+      <p>Google needs to know which app is asking. Make one in your own <a href="https://console.cloud.google.com/">Google Cloud project</a>, once:</p>
+      <ol class="steps">
+        <li>Turn on the <b>Google Calendar API</b> for the project.</li>
+        <li>On the <b>OAuth consent screen</b>, add yourself and the scope <code>…/auth/calendar.app.created</code>.</li>
+        <li>Under <b>Credentials</b>, create an <b>OAuth client ID</b> of type <b>Desktop app</b>. Copy the client ID (it ends in <code>.apps.googleusercontent.com</code>), and the client secret if Google shows one.</li>
+      </ol>
+      <h3>Connect</h3>
+      <ol class="steps">
+        <li><b>Settings</b> (<kbd>⌘,</kbd>) → <b>Google Calendar</b>. Paste the client ID into <i>OAuth client ID</i>, and the secret, if Google gave you one, into <i>Client secret</i>. Press <b>Connect</b>.</li>
+        <li>Your browser opens Google's sign-in. Pick your account and press <b>Allow</b>. Once Atlas has kept the sign-in, the tab says <i>Atlas is connected to Google Calendar</i>; close it. If it couldn't, the tab says <i>Atlas was not connected</i> and Settings says why. While Atlas waits it says <i>Finish signing in in your browser…</i> — <b>Cancel</b> stops waiting.</li>
+        <li>Back in Settings it says <i>Connected</i>. Press <b>Create “Atlas blocks”</b> to make the calendar blocks will go to. If you'd made it before, choose it in <i>Calendar for blocks</i> instead. It then says <i>Blocks go to Atlas blocks</i>.</li>
+      </ol>
+      <p>The client ID and the calendar are saved in the vault's settings, so your other Mac uses the same calendar. Each Mac signs in for itself.</p>
+      <h3>Disconnect</h3>
+      <p>Press <b>Disconnect…</b>, then <b>Disconnect</b>. Atlas forgets the sign-in on this Mac and asks Google to cancel it. The calendar and its events stay on your Google account. If Google can't be reached, Atlas still forgets it and tells you to remove Atlas yourself from your Google Account's third-party access.</p>
+      <p>If another vault on this Mac is connected with the same client ID, Atlas forgets this vault's sign-in but doesn't ask Google to cancel it, because that could disconnect the other vault too. Settings says so; disconnect the other vault as well to end Atlas's access.</p>
+      <h3>If it doesn't connect</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Settings says</th><th scope="col">Do this</th></tr></thead>
+          <tbody>
+            <tr><td><i>access was not allowed</i></td><td>Connect again and press <b>Allow</b>. On a work account where Allow isn't offered, its administrator has to trust the client ID first.</td></tr>
+            <tr><td><i>the calendar permission was left unticked</i></td><td>Connect again and tick the permission to make and change Atlas's own calendars.</td></tr>
+            <tr><td><i>Google no longer accepts Atlas's sign-in</i></td><td>Connect again. If it happens every week, your Cloud project's consent screen is in <b>Testing</b>, where Google ends sign-ins after seven days — publish it to keep them.</td></tr>
+            <tr><td><i>Google does not recognise this client</i></td><td>Check the client ID, and the client secret if Google issued one.</td></tr>
+            <tr><td><i>No answer came back from the browser in time</i></td><td>Connect again and finish signing in within five minutes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted">The <a href="#connect">Local API and MCP</a> can only see whether Google Calendar is connected. They can't read your calendar or the sign-in.</p>
     </section>
 
     <section id="thumbnails">
@@ -1435,6 +1473,7 @@ do: archive</pre>
         <li><b>Quick add a note of a type</b> (<code>atlas_quick_add</code>), the way <a href="#add">the add button</a> does, from the same list of types (<code>atlas_quick_add_types</code>).</li>
         <li><b>Read each task's schedule</b> (<code>atlas_query</code> with <code>schedule</code>): its estimate, the time its <a href="#timeblocking">blocks</a> set aside, what is done and how far it is over — the same numbers as the task's page. Blocks are notes, made and changed like any other.</li>
         <li><b>Schedule a task</b> (<code>atlas_schedule_task</code>): a new block for it from a start, for some minutes, linking it — or, with no minutes, as long as it still needs — the same as dragging it onto the calendar's empty time. Ask again to split it across another block.</li>
+        <li><b>See whether Google Calendar is connected</b> (<code>atlas_status</code>, <code>GET /v1/status</code>): <code>googleCalendar: { connected }</code>, and nothing more. Claude can't read or change your Google calendar or see the sign-in; <a href="#google-calendar">connecting</a> stays in Settings.</li>
         <li><b>Read a calendar view's days</b> (<code>atlas_calendar</code>): which notes fall on which day of a saved view's <a href="#calendar">calendar</a>, and which have no date yet.</li>
         <li><b>Refresh a source</b> (<code>atlas_refresh_source</code>), as its <b>Refresh</b> button does — at most once every 30 seconds per source, and only where the source <a href="#sources">may run</a>.</li>
         <li><b>List tags and their notes</b> (<code>atlas_tags</code>, <code>atlas_tagged_notes</code>), as the <a href="#tags">Tags page</a> does. A tag used only in templates isn't listed.</li>
