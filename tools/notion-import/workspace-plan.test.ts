@@ -35,6 +35,7 @@ const input = (
   recreateDeleted: false,
   meetingPaths: new Map(),
   meetingIds: new Set(),
+  fillUnrecorded: true,
 });
 
 describe('the plan', () => {

@@ -118,6 +118,26 @@ describe('import-notion-workspace', { timeout: 120_000 }, () => {
     expect(back.stdout).toContain('created   Teams/Platform.md');
   });
 
+  it('leaves a note no run recorded importing as it is with --no-fill-unrecorded', async () => {
+    await writeFile(
+      join(copy, 'mara.md'),
+      "---\ntype: person\nnotion_id: 'c3000000000000000000000000000001'\n---\n",
+    );
+    const result = run(
+      '--export',
+      exportDir,
+      '--vault',
+      copy,
+      '--only',
+      'people',
+      '--no-fill-unrecorded',
+    );
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      'note      mara.md: no record of an earlier import: left as it is (--no-fill-unrecorded)',
+    );
+  });
+
   it('exits 1 while a meeting is held for its dates, and runs only the databases named', () => {
     const result = run('--export', exportDir, '--vault', copy, '--only', 'meetings, people');
     expect(result.status).toBe(1);

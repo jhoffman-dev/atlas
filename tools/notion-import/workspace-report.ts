@@ -25,7 +25,9 @@ function pageLines(outcome: PageOutcome): string[] {
       return [`${outcome.written ? 'created  ' : 'would create'} ${outcome.path}`, ...notes];
     case 'update':
       return [
-        `${outcome.written ? 'updated  ' : 'would update'} ${outcome.path}: ${outcome.changed.join(', ')}`,
+        outcome.filled
+          ? `${outcome.written ? 'filled   ' : 'would fill  '} ${outcome.path}: ${outcome.changed.join(', ')} (no record of an earlier import, so only what it lacked)`
+          : `${outcome.written ? 'updated  ' : 'would update'} ${outcome.path}: ${outcome.changed.join(', ')}`,
         ...kept,
         ...notes,
       ];

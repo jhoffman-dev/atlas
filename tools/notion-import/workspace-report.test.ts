@@ -23,6 +23,7 @@ const PAGES: PageOutcome[] = [
     kind: 'update',
     ...placed('Tasks/B.md'),
     written: true,
+    filled: false,
     changed: ['priority', 'body'],
     kept: ['status'],
   },
@@ -78,6 +79,7 @@ describe('the workspace report', () => {
             kind: 'update',
             ...placed('Tasks/B.md'),
             written: false,
+            filled: false,
             changed: ['status'],
             kept: [],
           },
@@ -97,6 +99,23 @@ describe('the workspace report', () => {
       'would write Inbox/Meetings/x.md',
       '1 rows: 0 written, 1 would be written, 0 already in the vault, 0 without a Source ID, 0 left out, 0 held, 0 refused',
       "2 pages: 1 to create, 1 to update, 0 unchanged, 0 refused, 0 with Atlas's edits kept, 0 deleted in Atlas, 1 skipped, 2 attachments not brought in",
+    ]);
+  });
+});
+
+describe('a note no run recorded importing', () => {
+  it('lists every property it filled in', () => {
+    const filled: PageOutcome = {
+      kind: 'update',
+      ...placed('People/mara.md'),
+      written: true,
+      filled: true,
+      changed: ['role', 'slack'],
+      kept: ['email'],
+    };
+    expect(workspaceReportLines(outcome([filled])).slice(0, 2)).toEqual([
+      'filled    People/mara.md: role, slack (no record of an earlier import, so only what it lacked)',
+      "kept      People/mara.md: email changed in Atlas and in Notion since the last import; Atlas's kept",
     ]);
   });
 });

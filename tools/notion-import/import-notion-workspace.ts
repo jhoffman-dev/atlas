@@ -11,8 +11,17 @@ import {
 import type { GeminiDates } from './gemini-dates.ts';
 import type { RowOutcome } from './import-notion-meetings.ts';
 import { ImportSetupError, importTarget } from './import-target.ts';
-import type { ImportedPage } from './note-merge.ts';
-import { checkRecordWritable, readRecord, recordFile, saveRecord } from './record-file.ts';
+import { NOTHING, type ImportedPage } from './note-merge.ts';
+import {
+  checkRecordWritable,
+  clearPending,
+  notePending,
+  pendingFile,
+  readPending,
+  readRecord,
+  recordFile,
+  saveRecord,
+} from './record-file.ts';
 import { isGtdTaskType, taskStatuses } from './task-status.ts';
 import { readFrontmatter } from './vault-meetings.ts';
 import { vaultNotes } from './vault-notes.ts';
@@ -47,6 +56,8 @@ export interface WorkspaceImportOptions {
   readonly geminiDates?: GeminiDates;
   /** Makes again the notes of pages imported before whose notes were deleted in Atlas. */
   readonly recreateDeleted?: boolean;
+  /** Whether a note no run recorded importing (the earlier one-off import's) is filled in where it lacks a property; on unless turned off. */
+  readonly fillUnrecorded?: boolean;
 }
 
 const TASKS_NEED_GTD =
@@ -61,6 +72,7 @@ export type PageOutcome =
       readonly written: boolean;
       readonly changed: readonly string[];
       readonly kept: readonly string[];
+      readonly filled: boolean;
     } & Placed);
 
 /** What the whole run came to, for the report. */
@@ -164,22 +176,24 @@ function shownOf(
   const { database, title, id, path, type, notes, imported } = plan;
   const placed = { database, title, id, path, type, notes, imported, written };
   if (plan.kind === 'create') return { kind: 'create', ...placed };
-  return { kind: 'update', ...placed, changed: plan.changed, kept: plan.kept };
+  return { kind: 'update', ...placed, changed: plan.changed, kept: plan.kept, filled: plan.filled };
 }
 
 /** How many notes are written between saves of the record. */
 const RECORD_EVERY = 25;
 
-/** Where the writes keep the record, and what they have recorded so far. */
+/** Where the writes keep the record and its write-ahead log, and what they have recorded so far. */
 interface Recording {
   readonly path: string;
+  readonly pending: string;
   readonly record: Map<string, ImportedPage>;
 }
 
-/** Saves the record; why it could not be, or null. A failure that is not the disk's is the run's. */
+/** Saves the record, then empties the log it has caught up with; why it could not, or null. A failure that is not the disk's is the run's. */
 async function saved(recording: Recording): Promise<string | null> {
   try {
     await saveRecord(recording.path, recording.record);
+    await clearPending(recording.pending);
     return null;
   } catch (error) {
     if (!(error instanceof Error && 'code' in error)) throw error;
@@ -189,18 +203,21 @@ async function saved(recording: Recording): Promise<string | null> {
 
 /**
  * Writes what the plan says, page by page, saving the record every few
- * notes and at the end: a note is never more than a few writes ahead of the
- * record, and a run cut off there leaves notes that already say what the
- * record would have, which the next run finds in step. A page whose write
- * fails is refused and the rest go on; once the record cannot be saved, no
- * further note is written. With no recording (a dry run), nothing is.
+ * notes and at the end. Before a note is made, its page goes into the
+ * record's write-ahead log, so a run cut off between saves leaves no note
+ * the next run does not know it made; a note brought into step already says
+ * what the record would. A page whose write fails is refused and the rest go
+ * on; once the record cannot be saved, no further note is written. With no
+ * recording (a dry run), nothing is.
  */
 async function written(plans: readonly PagePlan[], vault: string, recording: Recording | null) {
   const outcomes: PageOutcome[] = [];
   let problem: string | null = null;
   let unsaved = 0;
   for (const plan of plans) {
-    if (plan.kind === 'unchanged') recording?.record.set(plan.id, plan.imported);
+    if (plan.kind === 'unchanged' && plan.unrecorded !== true) {
+      recording?.record.set(plan.id, plan.imported);
+    }
     if (plan.kind !== 'create' && plan.kind !== 'update') {
       outcomes.push(plan);
       continue;
@@ -211,7 +228,7 @@ async function written(plans: readonly PagePlan[], vault: string, recording: Rec
     }
     const result =
       problem === null
-        ? await writePlanned(vault, plan)
+        ? await logged(plan, recording, () => writePlanned(vault, plan))
         : { ok: false as const, reason: `not written: ${problem}` };
     if (!result.ok) {
       outcomes.push({
@@ -232,6 +249,30 @@ async function written(plans: readonly PagePlan[], vault: string, recording: Rec
   }
   if (recording !== null && problem === null) problem = await saved(recording);
   return { outcomes, problem };
+}
+
+/** A note's write, with a new note's page put in the log first, and taken out again when it was not made. */
+async function logged(
+  plan: Extract<PagePlan, { kind: 'create' | 'update' }>,
+  recording: Recording,
+  write: () => ReturnType<typeof writePlanned>,
+): ReturnType<typeof writePlanned> {
+  if (plan.kind === 'update') return write();
+  await notePending(recording.pending, `+${plan.id}`);
+  const result = await write();
+  if (!result.ok) await notePending(recording.pending, `-${plan.id}`);
+  return result;
+}
+
+/**
+ * The record with the pages its log says may have notes it has not caught
+ * up with: each counts as imported, with nothing known of what, so its note
+ * is found in step if it is there, and taken as deleted if it is not.
+ */
+function caughtUp(record: ReadonlyMap<string, ImportedPage>, pending: ReadonlySet<string>) {
+  const known = new Map(record);
+  for (const id of pending) if (!known.has(id)) known.set(id, { fields: {}, body: NOTHING });
+  return known;
 }
 
 const leftOutByOnly = (
@@ -255,7 +296,7 @@ async function setUp(options: WorkspaceImportOptions) {
   const selected = new Set(options.only ?? DATABASE_KINDS);
   const types = await vaultTypes(vault);
   checkTasks(types, workspace.databases, selected);
-  const record = await readRecord(recordPath);
+  const record = caughtUp(await readRecord(recordPath), await readPending(pendingFile(recordPath)));
   return { vault, recordPath, statuses, workspace, selected, types, record };
 }
 
@@ -298,8 +339,11 @@ export async function importNotionWorkspace(
     today: options.today,
     meetingPaths: meetings.paths,
     meetingIds: meetings.ids,
+    fillUnrecorded: options.fillUnrecorded !== false,
   });
-  const recording = options.dryRun ? null : { path: recordPath, record: new Map(record) };
+  const recording = options.dryRun
+    ? null
+    : { path: recordPath, pending: pendingFile(recordPath), record: new Map(record) };
   const { outcomes, problem } = await written(plan.pages, vault, recording);
   const hasMeetings = workspace.databases.some((database) => database.kind === 'meetings');
   return {

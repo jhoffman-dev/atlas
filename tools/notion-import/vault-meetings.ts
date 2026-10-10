@@ -2,10 +2,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import {
   isConflictCopyPath,
+  isMarkdownFile,
   meetingHolding,
   splitFrontmatter,
   type FrontmatterReading,
   type MeetingIdentity,
+  type VaultPath,
 } from '../../packages/domain/src/index.ts';
 import { remarkMarkdown } from '../../packages/adapters/src/index.ts';
 
@@ -26,7 +28,14 @@ export function readFrontmatter(frontmatter: string): FrontmatterReading {
 export const holdsMeeting = (text: string, meeting: MeetingIdentity): boolean =>
   meetingHolding({ text, readFrontmatter, meeting }) !== null;
 
-/** Every markdown file under `folder`, hidden files and folders left out as everywhere in Atlas (ADR-0014). */
+/** Whether a file is a note as Atlas reads one: `.md` or `.markdown`. */
+const isNote = (name: string, path: string) =>
+  isMarkdownFile({ kind: 'file', name, path: path as VaultPath });
+
+/**
+ * Every note under `folder` (`.md` and `.markdown`, as Atlas reads them),
+ * hidden files and folders left out as everywhere in Atlas (ADR-0014).
+ */
 export async function markdownFiles(folder: string): Promise<string[]> {
   const entries = await readdir(folder, { withFileTypes: true });
   const found: string[] = [];
@@ -34,7 +43,7 @@ export async function markdownFiles(folder: string): Promise<string[]> {
     if (entry.name.startsWith('.')) continue;
     const path = join(folder, entry.name);
     if (entry.isDirectory()) found.push(...(await markdownFiles(path)));
-    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) found.push(path);
+    else if (entry.isFile() && isNote(entry.name, path)) found.push(path);
   }
   return found;
 }

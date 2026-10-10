@@ -13,7 +13,7 @@ import { importedAs, mergeNote, type ImportedPage, type WantedContent } from './
 import { dailyNotesToRead, notePaths, type Candidate, type NotePlace } from './note-paths.ts';
 import type { RelationEntry } from './notion-relations.ts';
 import { withWikiLinks } from './page-links.ts';
-import { pairRows, type ExportPage, type PairedRow } from './row-pages.ts';
+import { pairRows, propertiesHold, type ExportPage, type PairedRow } from './row-pages.ts';
 import type { GtdStatus } from './task-status.ts';
 import type { VaultNotes } from './vault-notes.ts';
 import { readFrontmatter } from './vault-meetings.ts';
@@ -54,8 +54,15 @@ export type PagePlan =
       readonly after: string;
       readonly changed: readonly string[];
       readonly kept: readonly string[];
+      /** Whether no run recorded importing it, so the changes only fill in what it lacked. */
+      readonly filled: boolean;
     } & Placed)
-  | ({ readonly kind: 'unchanged'; readonly kept: readonly string[] } & Placed)
+  | ({
+      readonly kind: 'unchanged';
+      readonly kept: readonly string[];
+      /** Left unfilled with no record of an earlier import (`--no-fill-unrecorded`): nothing is recorded for it either. */
+      readonly unrecorded?: true;
+    } & Placed)
   /** Imported before, and its note is gone from the vault: deleted (or hidden) in Atlas, so not made again. */
   | ({ readonly kind: 'deleted'; readonly id: string } & Named)
   | ({ readonly kind: 'refused'; readonly reason: string } & Named);
@@ -88,6 +95,8 @@ export interface PlanInput {
   readonly meetingPaths: ReadonlyMap<string, VaultPath>;
   /** Every Meeting Notes page id in the export, placed or not. */
   readonly meetingIds: ReadonlySet<string>;
+  /** Whether a note with no record of an earlier import is filled in where it lacks a property. */
+  readonly fillUnrecorded: boolean;
 }
 
 const writesItself = (
@@ -205,8 +214,10 @@ function linking(
 }
 
 /** The page's body as a note's: its own words, links to other pages made wiki links, on a line after the properties. */
-function bodyOf(page: ExportPage, linkFor: (id: string) => string | null): string {
-  const text = withWikiLinks(page.page.body, linkFor).trim();
+function bodyOf(candidate: Candidate, linkFor: (id: string) => string | null): string {
+  const { page } = candidate.page;
+  const own = propertiesHold(candidate.row, page) ? page.body : page.withProperties;
+  const text = withWikiLinks(own, linkFor).trim();
   return text === '' ? '' : `\n${text}\n`;
 }
 
@@ -226,7 +237,7 @@ function created(placed: Omit<Placed, 'imported'>, wanted: WantedContent): PageP
 function merged(
   placed: Omit<Placed, 'imported'>,
   wanted: WantedContent,
-  input: PlanInput,
+  input: PlanInput & { readonly last: ImportedPage | null },
 ): PagePlan {
   const text = input.texts.get(placed.path);
   const named = { database: placed.database, title: placed.title };
@@ -243,11 +254,22 @@ function merged(
       reason: `${placed.path}'s properties cannot be read (${problem}): not changed`,
     };
   }
-  const merge = mergeNote({
-    now: { properties, body },
-    wanted,
-    last: input.record.get(placed.id) ?? null,
-  });
+  const { last } = input;
+  if (last === null && !input.fillUnrecorded) {
+    const notes = [
+      ...placed.notes,
+      'no record of an earlier import: left as it is (--no-fill-unrecorded)',
+    ];
+    return {
+      kind: 'unchanged',
+      ...placed,
+      notes,
+      kept: [],
+      imported: importedAs(wanted),
+      unrecorded: true,
+    };
+  }
+  const merge = mergeNote({ now: { properties, body }, wanted, last });
   const after = joinFrontmatter(
     remarkMarkdown.updateFrontmatter(frontmatter, merge.changes),
     merge.body ?? body,
@@ -255,7 +277,7 @@ function merged(
   const changed = [...Object.keys(merge.changes), ...(merge.body === null ? [] : ['body'])];
   const common = { ...placed, kept: merge.kept, imported: merge.imported };
   if (after === text) return { kind: 'unchanged', ...common };
-  return { kind: 'update', ...common, before: text, after, changed };
+  return { kind: 'update', ...common, before: text, after, changed, filled: last === null };
 }
 
 /** What the page should be, with the Archive's own stamp on a note that is in the Archive (`archiveStamp`). */
@@ -306,7 +328,7 @@ export function planWorkspace(input: PlanInput): WorkspacePlan {
       timeZone: input.timeZone,
     };
     const note = wantedNote(context, candidate.page.id);
-    const wanted = wantedContent(note, place.path, bodyOf(candidate.page, linkFor));
+    const wanted = wantedContent(note, place.path, bodyOf(candidate, linkFor));
     const placed = {
       ...named,
       id: candidate.page.id,
@@ -314,7 +336,11 @@ export function planWorkspace(input: PlanInput): WorkspacePlan {
       type: note.place.type,
       notes: [...place.notes, ...note.notes],
     };
-    pages.push(place.existing ? merged(placed, wanted, input) : created(placed, wanted));
+    // A note filled in for the first time (a day's own note) is merged as a first import: no record of it applies.
+    const last = place.merge === 'recorded' ? (input.record.get(candidate.page.id) ?? null) : null;
+    pages.push(
+      place.merge === 'none' ? created(placed, wanted) : merged(placed, wanted, { ...input, last }),
+    );
   }
   return { pages, skipped };
 }

@@ -40,6 +40,7 @@ const update = (before: string, after: string): Extract<PagePlan, { kind: 'updat
   after,
   changed: ['status'],
   kept: [],
+  filled: false,
 });
 
 let vault: string;

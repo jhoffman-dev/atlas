@@ -32,8 +32,13 @@ export type NotePlace =
   | {
       readonly kind: 'placed';
       readonly path: VaultPath;
-      /** Whether a note is already at the path, to be merged rather than made. */
-      readonly existing: boolean;
+      /**
+       * How the note at the path comes in: made afresh (`none`); merged against
+       * the record, being the page's own note (`recorded`); or merged as a first
+       * import, being a note the page fills in that does not yet hold its
+       * `notion_id`, such as the vault's own note for a day (`fresh`).
+       */
+      readonly merge: 'none' | 'recorded' | 'fresh';
       readonly notes: readonly string[];
     }
   | { readonly kind: 'deleted' }
@@ -59,8 +64,11 @@ function nameFor(title: string): string {
     name = name.replaceAll(character, ' ');
     character = linkBreakingCharacter(name);
   }
-  const cleaned = cleanEntryName(name).replace(/\.(md|markdown)$/i, ' $1');
-  const fitted = fitFileNameStem(cleaned, ' 9999.md');
+  // Cut first: a cut can leave the name ending in `.markdown`, which links would read as its extension.
+  const fitted = fitFileNameStem(cleanEntryName(name), ' 9999.md').replace(
+    /\.(md|markdown)$/i,
+    ' $1',
+  );
   return fitted === '' ? DEFAULT_NOTE_NAME : fitted;
 }
 
@@ -110,16 +118,25 @@ export function notePaths(input: PlaceInput): (candidate: Candidate) => NotePlac
       return { kind: 'refused', reason: `"${other}" is the daily note for ${day} too` };
     days.set(day, candidate.title);
     const path = dailyNotePath(day);
-    const there = existing.get(foldedVaultPath(path));
+    // The vault's own note for the day, at the app's path or anywhere [[day]] opens it.
+    const there = existing.get(foldedVaultPath(path)) ?? linkTakeover(path, notes) ?? undefined;
     if (there !== undefined && pageNotes.has(there)) {
       return {
         kind: 'refused',
         reason: `${there}, the note for ${day}, holds another Notion page`,
       };
     }
-    if (there !== undefined) return { kind: 'placed', path: there, existing: true, notes: [] };
+    if (there !== undefined) {
+      const elsewhere =
+        there === path
+          ? []
+          : [
+              `filled ${there}, the vault's note for ${day}: one at ${path} would take its [[${day}]] links`,
+            ];
+      return { kind: 'placed', path: there, merge: 'fresh', notes: elsewhere };
+    }
     claim(path);
-    return { kind: 'placed', path, existing: false, notes: [] };
+    return { kind: 'placed', path, merge: 'none', notes: [] };
   }
 
   /** A new note's path in its folder, numbered past a taken name and past one that would take another note's links. */
@@ -141,7 +158,7 @@ export function notePaths(input: PlaceInput): (candidate: Candidate) => NotePlac
         ? []
         : [`[[${name}]] already opens ${overtaken}: named ${path} so it does not take its links`];
     claim(path);
-    return { kind: 'placed', path, existing: false, notes: [...renamed(title, name), ...takeover] };
+    return { kind: 'placed', path, merge: 'none', notes: [...renamed(title, name), ...takeover] };
   }
 
   return (candidate) => {
@@ -153,7 +170,7 @@ export function notePaths(input: PlaceInput): (candidate: Candidate) => NotePlac
       };
     }
     if (found[0] !== undefined)
-      return { kind: 'placed', path: found[0], existing: true, notes: [] };
+      return { kind: 'placed', path: found[0], merge: 'recorded', notes: [] };
     if (input.record.has(candidate.page.id) && !input.recreateDeleted) return { kind: 'deleted' };
     return candidate.database.kind === 'daily' ? dailyPlace(candidate) : newPlace(candidate);
   };
@@ -171,7 +188,9 @@ export function dailyNotesToRead(candidates: readonly Candidate[], input: PlaceI
         columns: candidate.database.csv.columns,
         timeZone: input.timeZone,
       });
-      const there = day === null ? undefined : existing.get(foldedVaultPath(dailyNotePath(day)));
-      return there === undefined ? [] : [there];
+      if (day === null) return [];
+      const path = dailyNotePath(day);
+      const there = existing.get(foldedVaultPath(path)) ?? linkTakeover(path, input.vault.paths);
+      return there === null || there === undefined ? [] : [there];
     });
 }

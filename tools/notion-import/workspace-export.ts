@@ -65,13 +65,9 @@ function databaseCsvs(files: readonly string[]): string[] {
 const pagesFolder = (csvPath: string) =>
   join(dirname(csvPath), basename(csvPath, '.csv').replace(ALL, ''));
 
-async function readPage(
-  root: string,
-  path: string,
-  columns: readonly string[],
-): Promise<ExportPage> {
+async function readPage(root: string, path: string): Promise<ExportPage> {
   const file = shown(root, path);
-  const page = readNotionPage(await exportText(path, `the page ${file}`), new Set(columns));
+  const page = readNotionPage(await exportText(path, `the page ${file}`));
   return { file, id: notionIdIn(basename(path, '.md')), page };
 }
 
@@ -87,8 +83,7 @@ async function readDatabase(
   const csv = readCsv(await exportText(csvPath, `the CSV ${csvFile}`));
   const folder = pagesFolder(csvPath);
   const rows = pageFiles.filter((file) => dirname(file) === folder);
-  const pages =
-    kind === null ? [] : await Promise.all(rows.map((file) => readPage(root, file, csv.columns)));
+  const pages = kind === null ? [] : await Promise.all(rows.map((file) => readPage(root, file)));
   return { name, kind, csvPath, csvFile, csv, pages };
 }
 

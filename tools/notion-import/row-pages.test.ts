@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readCsv } from './notion-csv.ts';
 import { readNotionPage } from './notion-page.ts';
-import { pairRows, type ExportPage } from './row-pages.ts';
+import { pairRows, propertiesHold, type ExportPage } from './row-pages.ts';
 
 const page = (id: string, text: string): ExportPage => ({
   file: `Tasks/${id}.md`,
@@ -45,5 +45,29 @@ describe('pairing rows with their pages', () => {
     const stray = page('stray', '# Stray\n');
     const { leftOver } = pairRows(CSV, [stray]);
     expect(leftOver).toEqual([stray]);
+  });
+});
+
+describe("whether a page's properties paragraph is its row's", () => {
+  const row = new Map([
+    ['Name', 'Hallway chat'],
+    ['Tags', 'inbox'],
+    ['Date', ''],
+  ]);
+
+  it('is so when the row has something under its labels and the page says the same', () => {
+    expect(propertiesHold(row, readNotionPage('# Hallway chat\n\nTags:  inbox\n'))).toBe(true);
+    expect(propertiesHold(row, readNotionPage('# Hallway chat\n\nJust words.\n'))).toBe(true);
+  });
+
+  it('is not so when the row has nothing there, or says otherwise', () => {
+    expect(propertiesHold(row, readNotionPage('# Hallway chat\n\nDate: after lunch\n'))).toBe(
+      false,
+    );
+    expect(propertiesHold(row, readNotionPage('# Hallway chat\n\nTags: inbox\nDate: x\n'))).toBe(
+      false,
+    );
+    expect(propertiesHold(row, readNotionPage('# Hallway chat\n\nTags: later\n'))).toBe(false);
+    expect(propertiesHold(row, readNotionPage('# Hallway chat\n\nDate:\n\nWords.\n'))).toBe(false);
   });
 });

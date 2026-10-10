@@ -6,6 +6,8 @@ export interface NotionPage {
   readonly title: string;
   readonly properties: ReadonlyMap<string, string>;
   readonly body: string;
+  /** The content after the title, the properties paragraph included: the body, should that paragraph prove not to be properties. */
+  readonly withProperties: string;
 }
 
 const TITLE = /^#\s+(.*)$/;
@@ -18,30 +20,25 @@ function skipBlank(lines: readonly string[], at: number): number {
   return next;
 }
 
-/**
- * The page's title, its properties, and the content after them. Given the
- * database's columns, the paragraph is its properties only when every label
- * in it is one of them: a first paragraph of `Label: text` lines that is not
- * stays in the body.
- */
-export function readNotionPage(text: string, columns?: ReadonlySet<string>): NotionPage {
+/** The page's title, its properties, and the content after them. */
+export function readNotionPage(text: string): NotionPage {
   const lines = text.replace(/^\uFEFF/, '').split(/\r\n?|\n/);
   let at = skipBlank(lines, 0);
   const title = TITLE.exec(lines[at] ?? '')?.[1]?.trim() ?? '';
   if (title !== '') at = skipBlank(lines, at + 1);
+  const withProperties = lines.slice(at).join('\n');
   let end = at;
   while (end < lines.length && PROPERTY.test(lines[end] ?? '')) end += 1;
   const closesParagraph = end > at && (end === lines.length || (lines[end] ?? '').trim() === '');
-  const labelled = (line: string) => columns?.has(PROPERTY.exec(line)?.[1]?.trim() ?? '') ?? true;
   const properties = new Map<string, string>();
-  if (closesParagraph && lines.slice(at, end).every(labelled)) {
+  if (closesParagraph) {
     for (const line of lines.slice(at, end)) {
       const [, key = '', value = ''] = PROPERTY.exec(line) ?? [];
       properties.set(key.trim(), value.trim());
     }
     at = end;
   }
-  return { title, properties, body: lines.slice(at).join('\n') };
+  return { title, properties, body: lines.slice(at).join('\n'), withProperties };
 }
 
 /** The page's content as the meeting mapper's fields read it (tools/n8n/meeting-to-atlas.ts). */

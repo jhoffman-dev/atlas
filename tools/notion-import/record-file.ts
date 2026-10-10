@@ -1,4 +1,4 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rm } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { messageWithoutPaths } from '../../packages/domain/src/index.ts';
 import {
@@ -74,3 +74,51 @@ export async function saveRecord(path: string, record: ImportRecord): Promise<vo
     await staged.discard();
   }
 }
+
+/**
+ * The record's write-ahead log, beside it: the id of each page whose note is
+ * about to be made, appended (and flushed) before the note is written, and
+ * cleared each time the record is saved. A run cut off between two saves
+ * leaves every page it may have made a note for in the log, so the next run
+ * knows it imported them: a note deleted in Atlas since stays deleted.
+ */
+export const pendingFile = (recordPath: string): string => recordPath.replace(/\.md$/, '.pending');
+
+const PENDING_LINE = /^([+-])([0-9a-f]{32})$/;
+
+/** The pages the log says may have a note the record has not caught up with. */
+export async function readPending(path: string): Promise<Set<string>> {
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
+    throw error;
+  }
+  const pending = new Set<string>();
+  for (const line of text.split('\n').filter((each) => each !== '')) {
+    const [, sign, id = ''] = PENDING_LINE.exec(line) ?? [];
+    if (sign === undefined) {
+      throw new ImportSetupError(
+        `${path} cannot be read ("${line}" is not a page id): put it back from sync, or remove it`,
+      );
+    }
+    if (sign === '+') pending.add(id);
+    else pending.delete(id);
+  }
+  return pending;
+}
+
+/** Appends `+id` before a note is made, or `-id` when it was not after all, and flushes it to the disk. */
+export async function notePending(path: string, line: string): Promise<void> {
+  const handle = await open(path, 'a');
+  try {
+    await handle.write(`${line}\n`);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Empties the log, once the record it was ahead of has caught up. */
+export const clearPending = (path: string): Promise<void> => rm(path, { force: true });

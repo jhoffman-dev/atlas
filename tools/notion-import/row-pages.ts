@@ -74,3 +74,20 @@ export function pairRows(
   });
   return { rows, leftOver: [...unclaimed] };
 }
+
+const spaced = (text: string | undefined) => (text ?? '').trim().replace(/\s+/g, ' ');
+
+/**
+ * Whether the paragraph a page's properties were read from really is its
+ * row's properties: the row has something under at least one of those
+ * labels, and the page says what the row says under every one. Otherwise it
+ * is the page's own first paragraph, and stays in its body.
+ */
+export function propertiesHold(row: CsvRow, page: NotionPage): boolean {
+  const labels = [...page.properties.keys()];
+  if (labels.length === 0) return true;
+  return (
+    labels.some((label) => spaced(row.get(label)) !== '') &&
+    labels.every((label) => spaced(row.get(label)) === spaced(page.properties.get(label)))
+  );
+}

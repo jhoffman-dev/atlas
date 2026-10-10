@@ -170,6 +170,8 @@ describe('importing a workspace export', () => {
     );
     expect(byKind(outcome.pages, 'create')).toHaveLength(18);
     expect(workspaceImported(outcome)).toBe(true);
+    // The record caught up with every note, so its write-ahead log is empty.
+    expect((await files()).has('.atlas/imports/notion-workspace.pending')).toBe(false);
   });
 
   it('writes a task with its GTD status, its relations as links, and its page as its body', async () => {
@@ -405,6 +407,22 @@ describe('a note already in the vault', () => {
     '',
   ].join('\n');
 
+  it('is left as it is with --no-fill-unrecorded, and nothing recorded, so a later run can fill it', async () => {
+    await mkdir(join(vault, 'Old'));
+    await writeFile(join(vault, 'Old', 'mara.md'), EARLIER);
+    const left = await run({ fillUnrecorded: false });
+    expect(await note('Old/mara.md')).toBe(EARLIER);
+    expect(notesOfPage(left.pages, 'Mara Quill')).toContain(
+      'no record of an earlier import: left as it is (--no-fill-unrecorded)',
+    );
+    const filled = await run();
+    expect(pageOf(filled.pages, 'Mara Quill')).toMatchObject({
+      kind: 'update',
+      filled: true,
+      changed: ['slack', 'role', 'source'],
+    });
+  });
+
   it('is found by its notion_id wherever it is, and filled in, never duplicated or written over', async () => {
     await mkdir(join(vault, 'Old'));
     await writeFile(join(vault, 'Old', 'mara.md'), EARLIER);
@@ -551,6 +569,14 @@ describe('the vault', () => {
 const NOTES = `${SHARED}/Notes b2000000000000000000000000000000`;
 const MEETING_PAGE =
   '../Meeting%20Notes%205d0c9e2a7b1f4c3e8a6d2b9f0e1c7a54/Platform%20weekly%20sync%207c41e0d2a9b84f6e9d3a1c5b7e2f8a06.md';
+
+const pageOf = (pages: readonly PageOutcome[], title: string) =>
+  pages.find((page) => page.title === title);
+
+const notesOfPage = (pages: readonly PageOutcome[], title: string) => {
+  const page = pageOf(pages, title);
+  return page !== undefined && 'notes' in page ? page.notes : [];
+};
 
 const pageTitled = (pages: readonly PageOutcome[], title: string) =>
   pages.find((page) => page.title === title);
@@ -779,5 +805,33 @@ describe('a meeting page that is not UTF-8', () => {
     const before = await files();
     await expect(run()).rejects.toThrow(NotionExportError);
     expect(await files()).toEqual(before);
+  });
+});
+
+describe("the vault's own note for a day, kept in a folder", () => {
+  it('is filled in, and the report says where', async () => {
+    await mkdir(join(vault, 'Journal'));
+    await writeFile(join(vault, 'Journal', '2026-10-06.md'), 'Written in Obsidian.\n');
+    const outcome = await run({ only: ['daily'] });
+    expect(await properties('Journal/2026-10-06.md')).toMatchObject({
+      notion_id: 'f6000000000000000000000000000001',
+    });
+    expect(notesOfPage(outcome.pages, 'October 6, 2026')).toContain(
+      "filled Journal/2026-10-06.md, the vault's note for 2026-10-06: one at 2026-10-06.md would take its [[2026-10-06]] links",
+    );
+  });
+
+  it('is never filled with a page when it holds another', async () => {
+    await mkdir(join(vault, 'Journal'));
+    await writeFile(
+      join(vault, 'Journal', '2026-10-06.md'),
+      "---\nnotion_id: 'f6000000000000000000000000000099'\n---\nAnother page.\n",
+    );
+    const outcome = await run({ only: ['daily'] });
+    expect(pageOf(outcome.pages, 'October 6, 2026')).toMatchObject({
+      kind: 'refused',
+      reason: 'Journal/2026-10-06.md, the note for 2026-10-06, holds another Notion page',
+    });
+    expect((await files()).has('2026-10-06.md')).toBe(false);
   });
 });

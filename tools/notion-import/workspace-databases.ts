@@ -236,8 +236,15 @@ function readDateCell(
     );
     return null;
   }
-  if (day.endText !== null && rule.endKey !== undefined && day.end !== null) {
-    reading.ends.set(rule.endKey, day.end);
+  if (day.endText !== null && rule.endKey !== undefined) {
+    if (day.end !== null) reading.ends.set(rule.endKey, day.end);
+    else {
+      // An end that cannot be read says nothing, as a date that cannot be read says nothing.
+      reading.unread.push(rule.endKey);
+      reading.notes.push(
+        `${column} "${cell}" ends on a day that cannot be read, so the note keeps its ${rule.endKey}`,
+      );
+    }
   } else if (day.endText !== null) {
     reading.notes.push(
       `${column} "${cell}" is a range: its end, ${day.endText}, is not brought in`,

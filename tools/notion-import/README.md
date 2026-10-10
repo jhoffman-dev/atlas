@@ -35,7 +35,10 @@ it by `notion_id` wherever you moved, renamed or archived it.
 
 - **Daily notes** go where Atlas keeps them: `<YYYY-MM-DD>.md` at the root,
   the day read from the page's Date (else its title). A day that already has
-  a note in the vault is filled in, never written over.
+  a note in the vault — at the root, or anywhere `[[YYYY-MM-DD]]` opens one,
+  such as `Journal/2026-10-06.md` — has that note filled in, never written
+  over, and no second note is made to take its links. A day note that holds
+  another Notion page is refused and listed.
 - **PARA Archive items** go where archiving puts a project,
   `Archive/Projects/<name>.md`, stamped as archiving stamps it, so
   unarchiving in Atlas takes it back to `Projects/`.
@@ -57,19 +60,23 @@ it by `notion_id` wherever you moved, renamed or archived it.
 - **Links in a page's text** to another page of the export become wiki links
   too. Images, attachments and any other links are left as written.
 - **Names.** A new note is named after its page's title, without what no
-  file name or no link can hold (`/`, `:`, `#`, `|`, `[`, `]`…), a `.md` or
-  `.markdown` ending kept as a word, cut to what a file name can hold, and
+  file name or no link can hold (`/`, `:`, `#`, `|`, `[`, `]`…), cut to what
+  a file name can hold, a `.md` or `.markdown` ending (after the cut) kept as
+  a word so links open it, and
   numbered when a note of that name is already in the folder — or when the
   name would take over `[[links]]` that open another note now (the rule Atlas
   follows when it adds a person). A renamed note is listed.
 - **Dates** are read as the meeting import reads them: a UTC time's day is the
   one it falls on in `--time-zone`. A range writes its end where the type has
   a place for it (PARA's Start date into `end`), and is listed otherwise. A
-  date that cannot be read is listed and left as the note has it: it is not
-  taken for Notion having cleared it.
+  date, or a range's end, that cannot be read is listed and left as the note
+  has it: it is not taken for Notion having cleared it.
 - **Properties paragraph.** A page's first `Label: value` lines are read as
-  its properties only when every label is one of its database's columns;
-  otherwise they stay in the body.
+  its properties only when every label is one of its database's columns, the
+  row has a value under at least one of them, and the page says what the row
+  says under each; otherwise they stay in the body.
+- **Notes** are `.md` and `.markdown` files, as Atlas reads them, for names
+  taken, links and `notion_id`.
 - **Not imported, and listed:** columns that link back to the page that
   holds the relation (People's Tasks, PARA's Tasks, Notes' Back Links: Atlas
   shows those as backlinks), columns the import does not map, subpages and
@@ -124,7 +131,10 @@ brings such notes back.
 
 A note with no record — one the earlier, one-off import made, or any note
 after the record is removed — is filled in where it lacks a property, and
-every value that differs is kept and listed. Each Notion value is recorded
+every value that differs is kept and listed. Every property it fills is
+listed too, on a `filled` line. `--no-fill-unrecorded` leaves such notes as
+they are, and records nothing for them, so a later run without it can still
+fill them. Each Notion value is recorded
 once it has been offered, so a difference is listed on the run that finds
 it, and a run with nothing new in Notion changes nothing at all, the record
 included.
@@ -141,10 +151,12 @@ next run only fills in what notes lack.
 
 **The record is kept as the notes are written.** The run checks it can write
 the record before it writes anything, meetings included, and saves it every
-25 notes and at the end. If it cannot be saved partway, no further note is
-written and the report says which were (exit 1). A note written just before a
-crash already says what the record would have, so the next run finds it in
-step.
+25 notes and at the end. Before each new note is written, its page goes into
+the record's write-ahead log (`.atlas/imports/notion-workspace.pending`),
+cleared at each save: a run cut off between saves leaves no note the next run
+does not know it made, so a note you delete after a crash stays deleted. If
+the record cannot be saved partway, no further note is written and the report
+says which were (exit 1).
 
 ## Running it
 
@@ -187,6 +199,7 @@ report, and the totals.
 | --------- | ------------------------------------------------------------------------------------ |
 | `created` | A new note, at this path                                                             |
 | `updated` | The note took Notion's change to these properties (or `body`)                        |
+| `filled`  | A note with no record of an earlier import: these properties it lacked were filled   |
 | `kept`    | You changed these in Atlas, and Notion changed them too: yours were left             |
 | `note`    | Something about the page: it was imported                                            |
 | `deleted` | Imported before and deleted in Atlas: not made again (see `--recreate-deleted`)      |
@@ -201,16 +214,17 @@ refused, and 2 when it could not run at all, having written nothing (no such
 vault or export, a folder linked out of the vault, a page that is not UTF-8,
 a record it cannot read or write, a Task type that is not GTD).
 
-| Option                 | Default               | What it does                                                    |
-| ---------------------- | --------------------- | --------------------------------------------------------------- |
-| `--export <folder>`    | (required)            | The unzipped export                                             |
-| `--vault <folder>`     | (required)            | The vault to write into. It must exist; there is no default     |
-| `--dry-run`            | off                   | Plans and reports everything, writes nothing                    |
-| `--recreate-deleted`   | off                   | Makes again the notes of imported pages deleted in Atlas        |
-| `--only <list>`        | every database        | `tasks,notes,meetings,people,para,teams,daily`, comma-separated |
-| `--task-status <a=b>`  | the table above       | A Notion status and the GTD status it becomes; repeat it        |
-| `--gemini-dates <how>` | none: Gemini held     | Passed to the meeting import (issue #44)                        |
-| `--time-zone <zone>`   | `America/Los_Angeles` | The clock UTC times are read on, for meetings and every date    |
+| Option                 | Default               | What it does                                                                                                                  |
+| ---------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--export <folder>`    | (required)            | The unzipped export                                                                                                           |
+| `--vault <folder>`     | (required)            | The vault to write into. It must exist; there is no default                                                                   |
+| `--dry-run`            | off                   | Plans and reports everything, writes nothing                                                                                  |
+| `--recreate-deleted`   | off                   | Makes again the notes of imported pages deleted in Atlas (a day's note the app has made since is filled in as a first import) |
+| `--no-fill-unrecorded` | off                   | Leaves notes no run recorded importing as they are                                                                            |
+| `--only <list>`        | every database        | `tasks,notes,meetings,people,para,teams,daily`, comma-separated                                                               |
+| `--task-status <a=b>`  | the table above       | A Notion status and the GTD status it becomes; repeat it                                                                      |
+| `--gemini-dates <how>` | none: Gemini held     | Passed to the meeting import (issue #44)                                                                                      |
+| `--time-zone <zone>`   | `America/Los_Angeles` | The clock UTC times are read on, for meetings and every date                                                                  |
 
 ## Safety
 
