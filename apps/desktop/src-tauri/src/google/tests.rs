@@ -514,3 +514,369 @@ fn the_store_holds_nothing_but_the_grant_after_connecting() {
         );
     });
 }
+
+// ---------------------------------------------------------------------------
+// Adversarial: answers the faithful fake never gives, and orderings it never
+// produces. Each test below is a defect report; all ids are fictional.
+// ---------------------------------------------------------------------------
+
+/// A token endpoint, revocation and API that answer as a test scripts them,
+/// with the token endpoint optionally held until the test lets it answer.
+#[derive(Default)]
+struct Hold {
+    reached: tokio::sync::Notify,
+    release: tokio::sync::Notify,
+}
+
+type Script = dyn Fn(&str) -> (u16, String) + Send + Sync;
+
+async fn scripted_google(
+    script: std::sync::Arc<Script>,
+    hold: Option<std::sync::Arc<Hold>>,
+) -> &'static super::Endpoints {
+    use http_body_util::Full;
+    use hyper::body::Bytes;
+    use hyper::service::service_fn;
+    use hyper_util::rt::TokioIo;
+
+    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let base = format!(
+        "http://127.0.0.1:{}/",
+        listener.local_addr().unwrap().port()
+    );
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            let (script, hold) = (script.clone(), hold.clone());
+            let service = service_fn(move |request: hyper::Request<hyper::body::Incoming>| {
+                let (script, hold) = (script.clone(), hold.clone());
+                async move {
+                    let path = request.uri().path().to_string();
+                    if let (Some(hold), "/token") = (hold, path.as_str()) {
+                        hold.reached.notify_one();
+                        hold.release.notified().await;
+                    }
+                    let (status, body) = script(&path);
+                    let mut response = hyper::Response::new(Full::new(Bytes::from(body)));
+                    *response.status_mut() = hyper::StatusCode::from_u16(status).unwrap();
+                    Ok::<_, std::convert::Infallible>(response)
+                }
+            });
+            tokio::spawn(
+                hyper::server::conn::http1::Builder::new()
+                    .serve_connection(TokioIo::new(stream), service),
+            );
+        }
+    });
+    let at = |path: &str| Url::parse(&base).unwrap().join(path).unwrap();
+    Box::leak(Box::new(super::Endpoints {
+        authorize: at("/auth"),
+        token: at("/token"),
+        revoke: at("/revoke"),
+        api: at("/"),
+    }))
+}
+
+fn kept_grant(refresh_token: &str) -> grant::Grant {
+    grant::Grant {
+        client_id: CLIENT_ID.into(),
+        client_secret: None,
+        refresh_token: refresh_token.into(),
+        scopes: vec![SCOPE.into()],
+    }
+}
+
+fn leaked_session(endpoints: &'static super::Endpoints) -> Session<'static> {
+    let store: &'static MemoryStore = Box::leak(Box::new(MemoryStore::default()));
+    let state: &'static GoogleState = Box::leak(Box::new(GoogleState::default()));
+    Session {
+        endpoints,
+        store,
+        scope: VAULT,
+        state,
+    }
+}
+
+/// `expires_in` is read as any u64, and `Instant + Duration` panics past the
+/// clock's range: a token answer the host cannot represent must be answered
+/// somehow, not take the command down (its promise would never settle).
+#[tokio::test(flavor = "multi_thread")]
+async fn an_access_token_expiry_past_the_clocks_range_is_answered_not_a_panic() {
+    let endpoints = scripted_google(
+        std::sync::Arc::new(|path: &str| match path {
+            "/token" => (
+                200,
+                r#"{"access_token":"ya29.FICTIONAL-FAR","expires_in":18446744073709551615,"token_type":"Bearer"}"#
+                    .into(),
+            ),
+            _ => (200, r#"{"items":[]}"#.into()),
+        }),
+        None,
+    )
+    .await;
+    let session = leaked_session(endpoints);
+    grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-REFRESH")).unwrap();
+
+    let outcome =
+        tokio::spawn(async move { session.call(&get(CALENDAR_LIST)).await.map(|_| ()) }).await;
+
+    // Refused as malformed or held for a bounded time: either answers.
+    assert!(
+        outcome.is_ok(),
+        "the call panicked on expires_in = u64::MAX instead of answering"
+    );
+}
+
+/// The same answer at sign-in: the grant is written to the Keychain and only
+/// then does the host panic, so the person is left with a kept sign-in and a
+/// Connect button that never finishes (Cancel finds no sign-in to end).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_in_whose_token_expiry_overflows_the_clock_settles_and_keeps_what_it_says() {
+    let endpoints = scripted_google(
+        std::sync::Arc::new(|path: &str| match path {
+            "/token" => (
+                200,
+                format!(
+                    r#"{{"access_token":"ya29.FICTIONAL-FAR","expires_in":18446744073709551615,"refresh_token":"1//FICTIONAL-REFRESH","scope":"{SCOPE}"}}"#
+                ),
+            ),
+            _ => (200, "{}".into()),
+        }),
+        None,
+    )
+    .await;
+    let session = leaked_session(endpoints);
+    let store = session.store;
+
+    let outcome = tokio::spawn(async move {
+        // A browser that comes straight back with this sign-in's state.
+        let open = |url: &Url| {
+            let query: std::collections::HashMap<String, String> =
+                url.query_pairs().into_owned().collect();
+            let back = format!(
+                "{}?state={}&code=4/0A-FICTIONAL-CODE",
+                query["redirect_uri"], query["state"]
+            );
+            tokio::spawn(async move { reqwest::get(back).await.map(|_| ()) });
+            Ok(())
+        };
+        let sign_in = SignIn {
+            open: &open,
+            timeout: PATIENCE,
+        };
+        session.connect(&request(None), &sign_in).await.map(|_| ())
+    })
+    .await;
+
+    let kept = grant::load(store, VAULT).unwrap();
+    let Ok(connected) = outcome else {
+        panic!(
+            "connect panicked after keeping the grant (kept: {})",
+            kept.is_some()
+        );
+    };
+    assert_eq!(
+        connected.is_ok(),
+        kept.is_some(),
+        "kept a sign-in that failed, or lost one that did not"
+    );
+}
+
+/// A refresh that is under way when the person disconnects lands afterwards
+/// and writes its (rotated) refresh token back to the Keychain: the sign-in
+/// they just removed is kept again, and `status` says connected.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refresh_that_lands_after_disconnecting_does_not_bring_the_sign_in_back() {
+    let hold = std::sync::Arc::new(Hold::default());
+    let endpoints = scripted_google(
+        std::sync::Arc::new(|path: &str| match path {
+            "/token" => (
+                200,
+                r#"{"access_token":"ya29.FICTIONAL-LATE","expires_in":3599,"refresh_token":"1//FICTIONAL-ROTATED"}"#
+                    .into(),
+            ),
+            "/revoke" => (200, "{}".into()),
+            _ => (200, r#"{"items":[]}"#.into()),
+        }),
+        Some(hold.clone()),
+    )
+    .await;
+    let session = leaked_session(endpoints);
+    grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
+
+    let listing = get(CALENDAR_LIST);
+    let (_, disconnected) = tokio::join!(session.call(&listing), async {
+        hold.reached.notified().await;
+        let disconnected = session.disconnect().await;
+        hold.release.notify_one();
+        disconnected
+    });
+
+    assert!(disconnected.unwrap().revoked);
+    assert!(
+        !session.status().unwrap().connected,
+        "the sign-in is kept again after disconnecting: {:?}",
+        grant::load(session.store, VAULT).unwrap()
+    );
+}
+
+/// The same race without rotation, while Google cannot be told: the access
+/// token the late refresh brought is held in memory and used for every call
+/// for its hour, though the sign-in was forgotten and Settings says
+/// disconnected.
+#[tokio::test(flavor = "multi_thread")]
+async fn no_access_token_outlives_a_disconnect() {
+    let hold = std::sync::Arc::new(Hold::default());
+    let endpoints = scripted_google(
+        std::sync::Arc::new(|path: &str| match path {
+            "/token" => (
+                200,
+                r#"{"access_token":"ya29.FICTIONAL-LATE","expires_in":3599}"#.into(),
+            ),
+            "/revoke" => (503, "unavailable".into()),
+            _ => (200, r#"{"items":[]}"#.into()),
+        }),
+        Some(hold.clone()),
+    )
+    .await;
+    let session = leaked_session(endpoints);
+    grant::save(session.store, VAULT, &kept_grant("1//FICTIONAL-ORIGINAL")).unwrap();
+
+    let listing = get(CALENDAR_LIST);
+    let (_, disconnected) = tokio::join!(session.call(&listing), async {
+        hold.reached.notified().await;
+        let disconnected = session.disconnect().await;
+        hold.release.notify_one();
+        disconnected
+    });
+    assert!(!disconnected.unwrap().revoked);
+    assert!(!session.status().unwrap().connected);
+
+    let after = session.call(&get(CALENDAR_LIST)).await;
+
+    assert_eq!(
+        after
+            .map(|answer| answer.status)
+            .map_err(|failure| failure.kind),
+        Err(FailureKind::NotConnected),
+        "a Calendar call went out with an access token after disconnecting"
+    );
+}
+
+const FLOOD_TEST: &str =
+    "google::tests::another_program_flooding_the_loopback_cannot_end_the_sign_in";
+const FLOOD_CHILD: &str = "ATLAS_TEST_LOOPBACK_FLOOD_CHILD";
+
+/// ADR-0030: "another program on the Mac can neither end the sign-in nor slip
+/// its own code into it". A program that opens more connections to the
+/// loopback than Atlas has file descriptors makes `accept` fail once, and
+/// `Loopback::wait` turns that one transient error into the end of the
+/// sign-in. (A Finder-launched app has 256 descriptors; the listener takes
+/// connections without limit.) The flood comes from this test process; the
+/// sign-in runs in a child of it with few descriptors, so no other test is
+/// starved.
+#[test]
+fn another_program_flooding_the_loopback_cannot_end_the_sign_in() {
+    if std::env::var_os(FLOOD_CHILD).is_some() {
+        return flooded_sign_in();
+    }
+    use std::io::{BufRead, BufReader, Read, Write};
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", FLOOD_TEST, "--nocapture", "--test-threads=1"])
+        .env(FLOOD_CHILD, "1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdout = BufReader::new(child.stdout.take().unwrap());
+    let mut seen = String::new();
+    let port: u16 = loop {
+        let mut line = String::new();
+        assert!(
+            stdout.read_line(&mut line).unwrap() > 0,
+            "no port from the child: {seen}"
+        );
+        // The harness prints the test's name on the same line, before it.
+        if let Some((_, port)) = line.trim().split_once("ATLAS_LOOPBACK_PORT=") {
+            break port.parse().unwrap();
+        }
+        seen.push_str(&line);
+    };
+
+    let flood: Vec<std::net::TcpStream> = (0..200)
+        .filter_map(|_| {
+            let at = (std::net::Ipv4Addr::LOCALHOST, port).into();
+            std::net::TcpStream::connect_timeout(&at, std::time::Duration::from_millis(200)).ok()
+        })
+        .collect();
+    // Fewer than were tried got through when the listener closed under them.
+    let flooded = flood.len();
+    drop(flood);
+    // The child may already have given up; then there is no one to tell.
+    let _ = writeln!(child.stdin.take().unwrap(), "come back");
+
+    let mut rest = String::new();
+    stdout.read_to_string(&mut rest).unwrap();
+    let mut errors = String::new();
+    child
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut errors)
+        .unwrap();
+    assert!(
+        child.wait().unwrap().success(),
+        "the sign-in ended under a flood of {flooded} connections:\n{rest}\n{errors}"
+    );
+}
+
+/// The child's half: a sign-in with 64 descriptors, whose browser comes back
+/// honestly once the parent's flood is over.
+fn flooded_sign_in() {
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    // SAFETY: plain syscalls on a struct this function owns.
+    unsafe {
+        libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit);
+        limit.rlim_cur = 64;
+        assert_eq!(libc::setrlimit(libc::RLIMIT_NOFILE, &limit), 0);
+    }
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let connected = runtime.block_on(async {
+        let setup = Setup::new().await;
+        let honest = std::sync::Arc::new(setup.fake.browser(Browser::Allows));
+        let open = move |url: &Url| {
+            let redirect = url
+                .query_pairs()
+                .find(|(name, _)| name == "redirect_uri")
+                .map(|(_, value)| value.into_owned())
+                .unwrap();
+            let port = Url::parse(&redirect).unwrap().port().unwrap();
+            println!("ATLAS_LOOPBACK_PORT={port}");
+            let (url, honest) = (url.clone(), honest.clone());
+            tokio::spawn(async move {
+                let _ =
+                    tokio::task::spawn_blocking(|| std::io::stdin().read_line(&mut String::new()))
+                        .await;
+                honest(&url).unwrap();
+            });
+            Ok(())
+        };
+        let sign_in = SignIn {
+            open: &open,
+            timeout: PATIENCE,
+        };
+
+        setup.session().connect(&request(None), &sign_in).await
+    });
+    // The browser's task may still be waiting on stdin.
+    runtime.shutdown_background();
+    assert!(connected.is_ok(), "{:?}", connected.err());
+}
