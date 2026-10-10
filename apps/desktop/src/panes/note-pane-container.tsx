@@ -287,6 +287,7 @@ export function NotePaneContainer({
     notePaths,
     indexKey,
     onChanged,
+    activity: context.activity,
   });
   const sqlView = useSqlView({ note: note.open, index, indexKey });
   const folds = useGroupFolds({

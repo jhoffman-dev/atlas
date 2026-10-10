@@ -10,9 +10,15 @@ import {
 } from '@atlas/domain';
 import {
   addTaskToBlock,
+  BlockBeingEditedError,
+  BlockChangedError,
+  BlockTimesError,
   createBlockForTask,
+  NotABlockError,
   readPlanTray,
+  TaskRuleRefusedError,
   undoScheduling,
+  type ActivityLog,
   type IndexPort,
   type MarkdownPort,
   type Scheduling,
@@ -20,9 +26,22 @@ import {
   type WriteNoteProperties,
 } from '@atlas/application';
 import type { PlanDrop, Planner } from '@atlas/ui';
+import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors, PaneEditors } from '../panes/open-editors.ts';
 import { writeNoteProperties } from '../query/use-view-writes.ts';
 import { localToday } from '../today.ts';
+
+/**
+ * What a drop or its Undo refuses to do so as not to lose or break something —
+ * shown in the tray for the person to act on, and no fault to record.
+ */
+const PLANNING_REFUSALS = [
+  TaskRuleRefusedError,
+  BlockTimesError,
+  BlockChangedError,
+  BlockBeingEditedError,
+  NotABlockError,
+];
 
 /** The last drop, in the vault it was made in, so another vault's is never undone here. */
 interface LastDrop {
@@ -101,6 +120,7 @@ export function usePlanner({
   notePaths,
   indexKey,
   onChanged,
+  activity,
 }: {
   active: boolean;
   vault: string | null;
@@ -114,6 +134,8 @@ export function usePlanner({
   indexKey: string;
   /** After a block is written, so the calendar and the tray read it. */
   onChanged: () => void;
+  /** Where a drop or an Undo the tray gives up on is recorded; a refusal is not. */
+  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): Planner | null {
   const [tasks, setTasks] = useState<readonly TrayTask[] | null>(null);
   const [readProblem, setReadProblem] = useState<string | null>(null);
@@ -149,18 +171,22 @@ export function usePlanner({
     [editors, fs, markdown],
   );
 
-  /** Runs a write, then has everything read again; a failure is said in the tray. */
+  /**
+   * Runs a write, then has everything read again; a failure is said in the
+   * tray, and recorded in the Activity log unless it was a refusal.
+   */
   const settle = useCallback(
     (write: Promise<LastDrop | null>, onDone: (drop: LastDrop | null) => void) => {
       setWriteProblem(null);
-      return write
+      const named = { activity, write: 'block', path: null, refusal: PLANNING_REFUSALS } as const;
+      return withGiveUpRecorded(named, () => write)
         .then((drop) => {
           onDone(drop);
           onChanged();
         })
         .catch((cause: unknown) => setWriteProblem(messageWithoutPaths(cause)));
     },
-    [onChanged],
+    [onChanged, activity],
   );
 
   const scheduleDrop = useCallback(

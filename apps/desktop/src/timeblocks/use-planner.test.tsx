@@ -11,6 +11,7 @@ import { remarkMarkdown } from '@atlas/adapters';
 import {
   fakeIndexPort,
   fakeVaultFs,
+  recordingActivity,
   type DefinedType,
   type PropertyChanges,
 } from '@atlas/application';
@@ -132,11 +133,13 @@ function planWith({
   editors = editorsHolding().editors,
   onChanged = vi.fn(),
   active = true,
+  activity = recordingActivity(),
 }: {
   vault: ReturnType<typeof memoryVault>;
   editors?: PlannerEditors;
   onChanged?: () => void;
   active?: boolean;
+  activity?: ReturnType<typeof recordingActivity>;
 }) {
   // Made once: the hook reads the tray again whenever its index or its notes change.
   const index = trayIndex();
@@ -153,6 +156,7 @@ function planWith({
         notePaths: NOTE_PATHS,
         indexKey,
         onChanged,
+        activity,
       }),
     {
       initialProps: { on: active, key: '/Vaults/Larkspur' } as {
@@ -281,14 +285,19 @@ describe('a task let go on a block', () => {
     expect(hook.result.current?.undo?.said).toBe('Added Quarterly report to Admin.');
   });
 
-  it('says why a write failed, and offers no undo for it', async () => {
+  it('says why a write failed, offers no undo for it, and records it once', async () => {
     const vault = memoryVault({});
-    const hook = planWith({ vault });
+    const activity = recordingActivity();
+    const hook = planWith({ vault, activity });
 
     await drop(hook, { kind: 'block', task: REPORT, block: 'Gone.md' });
 
     expect(hook.result.current?.problem).toBe('no such note: Gone.md');
     expect(hook.result.current?.undo).toBeNull();
+    expect(activity.reports).toEqual([
+      expect.objectContaining({ level: 'error', kind: 'save', subject: null }),
+    ]);
+    expect(activity.reports[0]?.message).toMatch(/^Could not plan the task\./);
   });
 });
 
@@ -304,9 +313,10 @@ describe('the undo', () => {
     expect(hook.result.current?.undo).toBeNull();
   });
 
-  it('leaves a block edited since the drop, and says so', async () => {
+  it('leaves a block edited since the drop, and says so without recording it', async () => {
     const vault = memoryVault({});
-    const hook = planWith({ vault });
+    const activity = recordingActivity();
+    const hook = planWith({ vault, activity });
     await drop(hook, { kind: 'time', task: REPORT, date: '2026-10-12', minutes: 540 });
     await vault.fs.writeTextFile({
       path: createVaultPath('Quarterly report block.md'),
@@ -320,6 +330,7 @@ describe('the undo', () => {
     expect(hook.result.current?.problem).toBe(
       'Quarterly report block.md has changed since the task was scheduled, so it is left as it is.',
     );
+    expect(activity.reports).toEqual([]);
   });
 });
 
