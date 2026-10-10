@@ -23,8 +23,11 @@ export const scheduleTask = defineTool({
     task: notePath.describe('The task to schedule, by its path, e.g. "Quarterly report.md".'),
     start: z
       .string()
-      .min(1)
-      .describe('When the block starts: local wall-clock time, "2026-10-12T09:00".'),
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'local wall-clock time, "2026-10-12T09:00"')
+      .describe(
+        'When the block starts: local wall-clock time to the minute, "2026-10-12T09:00" — no ' +
+          'seconds, "Z" or offset; convert a UTC time to the local clock first.',
+      ),
     minutes: z
       .number()
       .int()

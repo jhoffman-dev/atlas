@@ -245,6 +245,20 @@ describe('adversarial (P31-02): placing from the keyboard', () => {
     });
   });
 
+  it('names an all-day block by what Enter does there while a task is chosen', async () => {
+    const allDay: BoardRow = {
+      path: 'Offsite.md',
+      title: 'Offsite',
+      values: { start: '2026-10-13', end: '2026-10-13' },
+    };
+    render(<CalendarView {...props} rows={[...blocks, allDay]} planner={planner()} />);
+
+    task('Call Mara').focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(screen.getByRole('button', { name: 'Plan Call Mara in Offsite' })).toBeDefined();
+  });
+
   it('lets a chosen task go once the tray no longer lists it, so it cannot be placed', async () => {
     const plan = planner();
     const view = render(<CalendarView {...props} planner={plan} />);
@@ -351,6 +365,71 @@ describe('dragging a task with the pointer', () => {
         'Quarterly report is planned on Wednesday 14 October 2026 at 10:30.',
       ),
     );
+  });
+
+  it('lands where the pointer is, though the tray’s list scrolled under the held task', async () => {
+    const plan = planner();
+    render(<CalendarView {...props} planner={plan} />);
+    under = () => [column('2026-10-14')];
+    const list = tray().querySelector('.plan-tray__list') as HTMLElement;
+    // An overflowing list, as a long tray is: it scrolls under the held task.
+    list.style.overflowY = 'auto';
+    const item = task('Quarterly report').closest('li') as HTMLElement;
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 };
+
+    fireEvent.pointerDown(item, { ...pointer, clientX: 900, clientY: 55 });
+    await act(async () => {
+      fireEvent.pointerMove(document, { ...pointer, clientX: 890, clientY: 60 });
+    });
+    await act(async () => {
+      list.scrollTop = 400;
+      fireEvent.scroll(list);
+    });
+    // 10:44 is 644 minutes, 515.2px, below the column's top at 100px.
+    await act(async () => {
+      fireEvent.pointerMove(document, { ...pointer, clientX: 250, clientY: 100 + 644 * 0.8 });
+    });
+    await act(async () => {
+      fireEvent.pointerUp(document, { ...pointer, clientX: 250, clientY: 100 + 644 * 0.8 });
+    });
+
+    expect(plan.place).toHaveBeenCalledExactlyOnceWith({
+      kind: 'time',
+      task: REPORT,
+      date: '2026-10-14',
+      minutes: 10 * 60 + 30,
+    });
+  });
+
+  it('plans nothing when let go over another pane’s calendar', async () => {
+    const plan = planner();
+    const other = planner();
+    render(
+      <>
+        <CalendarView {...props} planner={plan} />
+        <CalendarView {...props} planner={other} />
+      </>,
+    );
+    const columns = screen.getAllByRole('group', { name: '2026-10-14' });
+    expect(columns).toHaveLength(2);
+    under = () => [columns[1] as HTMLElement];
+    const firstTray = screen.getAllByRole('complementary', { name: 'Next actions to plan' })[0];
+    const item = within(firstTray as HTMLElement)
+      .getByRole('button', { name: /^Quarterly report/ })
+      .closest('li') as HTMLElement;
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 };
+
+    fireEvent.pointerDown(item, { ...pointer, clientX: 900, clientY: 55 });
+    await act(async () => {
+      fireEvent.pointerMove(document, { ...pointer, clientX: 890, clientY: 60 });
+      fireEvent.pointerMove(document, { ...pointer, clientX: 250, clientY: 600 });
+    });
+    await act(async () => {
+      fireEvent.pointerUp(document, { ...pointer, clientX: 250, clientY: 600 });
+    });
+
+    expect(plan.place).not.toHaveBeenCalled();
+    expect(other.place).not.toHaveBeenCalled();
   });
 
   it('adds the task to the block it is let go on, which lies over its day', async () => {

@@ -71,7 +71,7 @@ export function linkedName(path: string): string {
   return foldedLinkName(path.split('/').at(-1) ?? path);
 }
 
-function linkTargets(text: string): string[] {
+export function linkTargets(text: string): string[] {
   return splitWikiLinks(text.trim()).flatMap((piece) =>
     // Trimmed as a query's link is, so `[[ Nowhere ]]` is written the same way as `[[Nowhere]]`.
     piece.kind === 'wikiLink' ? [piece.target.trim()] : [],

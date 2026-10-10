@@ -89,3 +89,22 @@ describe('adversarial (P31-02): a block whose tasks are written in one line', ()
     ).toBeNull();
   });
 });
+
+describe('undoing a drop on a block whose tasks are written in one line', () => {
+  it('leaves an item that links other tasks too: a drop never wrote it', () => {
+    expect(
+      blockTasksWithout({
+        tasks: ['[[Call Mara]], [[Quarterly report]]'],
+        task: REPORT,
+        notePaths: NOTES,
+      }),
+    ).toBeNull();
+    expect(
+      blockTasksWithout({
+        tasks: ['[[Call Mara]], [[Quarterly report]]', '[[Quarterly report]]'],
+        task: REPORT,
+        notePaths: NOTES,
+      }),
+    ).toEqual(['[[Call Mara]], [[Quarterly report]]']);
+  });
+});

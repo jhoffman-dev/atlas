@@ -32,6 +32,12 @@ describe('how long a new block runs', () => {
     expect(newBlockLength(schedule({ estimate: 120, scheduled: 45 }))).toBe(75);
   });
 
+  it('counts what blocks made since the schedule was read give, so a second drop gets what is left', () => {
+    expect(newBlockLength(schedule({ estimate: 120, scheduled: 45 }), 60)).toBe(15);
+    expect(newBlockLength(schedule({ estimate: 120, scheduled: 45 }), 75)).toBe(30);
+    expect(minutesLeftToSchedule(schedule({ estimate: 120, scheduled: 0 }), 200)).toBe(0);
+  });
+
   it('is half an hour for a task with no estimate, or one whose schedule could not be read', () => {
     expect(newBlockLength(schedule({ estimate: null, done: null }))).toBe(30);
     expect(newBlockLength(null)).toBe(30);
@@ -101,6 +107,20 @@ describe('what a new block is called', () => {
   it('is for its task, with "block" after the name so it is not the task’s name numbered', () => {
     expect(newBlockName('Quarterly report')).toBe('Quarterly report block');
     expect(newBlockName('  Call Mara ')).toBe('Call Mara block');
+  });
+
+  it('fits on the disk, numbered, for a task whose name fills nearly all of a file name', () => {
+    const bytes = (text: string) => new TextEncoder().encode(text).length;
+    const title = `Quarterly report ${'é'.repeat(115)}`;
+
+    const name = newBlockName(title);
+
+    expect(bytes(`${title}.md`)).toBeLessThanOrEqual(255);
+    expect(name.endsWith(' block')).toBe(true);
+    expect(bytes(`${name} 9999.md`)).toBeLessThanOrEqual(255);
+    expect(name.startsWith('Quarterly report éé')).toBe(true);
+    // Cut by whole characters: never half of one.
+    expect(name).not.toContain('\uFFFD');
   });
 
   it('is Block for a task with no name', () => {

@@ -4,11 +4,13 @@
  *
  * A link counts as the task's when it opens the task, the way every link in
  * the vault is resolved, so `[[Quarterly report]]` and
- * `[[Projects/Quarterly report]]` are the same task. The links already there
- * are kept as they are written.
+ * `[[Projects/Quarterly report]]` are the same task — and wherever it stands
+ * in an item, as the index reads a relation (`relationsOf`), so a block whose
+ * tasks are written `[[Call Mara]], [[Quarterly report]]` holds both. The links
+ * already there are kept as they are written.
  */
+import { linkTargets } from '../index/relation-rows.ts';
 import { resolveWikiLinkTarget, wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
-import { splitWikiLinks } from '../markdown/wikilink.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 
 /** The block's links as a list: one written alone is a list of one, none is an empty list. */
@@ -17,12 +19,21 @@ const itemsOf = (tasks: unknown): unknown[] => {
   return tasks === null || tasks === undefined || tasks === '' ? [] : [tasks];
 };
 
-/** Whether one item of a block's `tasks` is a link that opens `task`. */
-function opensTask(item: unknown, task: VaultPath, notePaths: readonly VaultPath[]): boolean {
-  if (typeof item !== 'string') return false;
-  const [piece] = splitWikiLinks(item.trim());
-  return piece?.kind === 'wikiLink' && resolveWikiLinkTarget(piece.target, notePaths) === task;
+/** The notes one item of a block's `tasks` links, as the index reads them. */
+function linkedBy(item: unknown, notePaths: readonly VaultPath[]): (VaultPath | null)[] {
+  if (typeof item !== 'string') return [];
+  return linkTargets(item).map((target) => resolveWikiLinkTarget(target, notePaths));
 }
+
+/** Whether an item of a block's `tasks` links `task` anywhere in it. */
+const linksTask = (item: unknown, task: VaultPath, notePaths: readonly VaultPath[]) =>
+  linkedBy(item, notePaths).includes(task);
+
+/** Whether an item is a link to `task` and nothing else: one a drop could have written. */
+const linksOnlyTask = (item: unknown, task: VaultPath, notePaths: readonly VaultPath[]) => {
+  const linked = linkedBy(item, notePaths);
+  return linked.length > 0 && linked.every((path) => path === task);
+};
 
 /** The `[[…]]` a block's `tasks` links `task` with: its name, or its path where the name is taken. */
 export function taskLink(task: VaultPath, notePaths: readonly VaultPath[]): string {
@@ -44,14 +55,16 @@ export function blockTasksWith({
   notePaths: readonly VaultPath[];
 }): unknown[] | null {
   const items = itemsOf(tasks);
-  if (items.some((item) => opensTask(item, task, notePaths))) return null;
+  if (items.some((item) => linksTask(item, task, notePaths))) return null;
   return [...items, taskLink(task, notePaths)];
 }
 
 /**
  * The block's `tasks` with the last link to `task` taken out — what undoing
- * the drop that added it writes — or null when the block no longer links it.
- * Every other link stays as it is written, in its place.
+ * the drop that added it writes — or null when the block no longer links it
+ * that way. Only an item linking the task alone is taken, as a drop wrote it:
+ * one that also links other tasks is someone's own writing, and stays. Every
+ * other link stays as it is written, in its place.
  */
 export function blockTasksWithout({
   tasks,
@@ -63,7 +76,7 @@ export function blockTasksWithout({
   notePaths: readonly VaultPath[];
 }): unknown[] | null {
   const items = itemsOf(tasks);
-  const at = items.findLastIndex((item) => opensTask(item, task, notePaths));
+  const at = items.findLastIndex((item) => linksOnlyTask(item, task, notePaths));
   if (at === -1) return null;
   return items.filter((_, index) => index !== at);
 }

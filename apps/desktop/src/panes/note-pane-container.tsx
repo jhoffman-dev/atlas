@@ -84,7 +84,7 @@ import { useQueryView, type QueryViewState } from '../query/use-query-view.ts';
 import { QueryViewBody } from './query-view-body.tsx';
 import { pageHeading } from './page-heading.ts';
 import { localClock, localNow, localToday } from '../today.ts';
-import type { OpenEditors } from './open-editors.ts';
+import type { OpenEditors, PaneEditors } from './open-editors.ts';
 import type { StrandedEdits } from '../notes/stranded-edits.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
@@ -126,7 +126,8 @@ export interface PaneContext {
   readonly people: NotePeople;
   /** Opens the tags page on a tag, by its name as written. */
   readonly openTag: (name: string) => void;
-  readonly editors: OpenEditors;
+  /** The panes' editors, and whether one holds typing in a note not yet saved. */
+  readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf'>;
   /** Work a closed pane could not write, kept until its note is opened again. */
   readonly stranded: StrandedEdits;
   /** Where a save the pane gave up on is said (U-28). */

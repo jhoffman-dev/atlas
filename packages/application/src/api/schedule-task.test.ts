@@ -132,8 +132,9 @@ describe('POST /v1/tasks/schedule', () => {
   it.each([
     [{ start: '2026-10-13T14:00' }, /task/],
     [{ task: 'Call Mara.md' }, /start/],
-    [{ task: 'Call Mara.md', start: '2026-10-13' }, /needs a day and a time/],
-    [{ task: 'Call Mara.md', start: 'tomorrow', minutes: 30 }, /needs a day and a time/],
+    [{ task: 'Call Mara.md', start: '2026-10-13' }, /wall-clock time to the minute/],
+    [{ task: 'Call Mara.md', start: '2026-02-30T09:00', minutes: 30 }, /needs a day and a time/],
+    [{ task: 'Call Mara.md', start: 'tomorrow', minutes: 30 }, /wall-clock time to the minute/],
     [{ task: 'Call Mara.md', start: '2026-10-13T14:00', minutes: 0 }, /minutes/],
     [{ task: 'Call Mara.md', start: '2026-10-13T14:00', minutes: 1441 }, /minutes/],
     [{ task: 'Call Mara.md', start: '2026-10-13T14:00', minutes: 2.5 }, /minutes/],
@@ -157,13 +158,30 @@ describe('POST /v1/tasks/schedule', () => {
     '2026-10-13T14:00:00.000Z',
     '2026-10-13T14:00-07:00',
     '2026-10-13T14:00 or so',
-  ])('refuses a start of %j, which is not wall-clock time, rather than misplace the block', async (start) => {
+  ])(
+    'refuses a start of %j, which is not wall-clock time, rather than misplace the block',
+    async (start) => {
+      const api = fixture();
+
+      const response = await schedule(api, { task: 'Call Mara.md', start, minutes: 30 });
+
+      expect(codeOf(response)).toBe('invalid');
+      expect(api.writes).toEqual([]);
+    },
+  );
+
+  it('says why a start with a zone is refused', async () => {
     const api = fixture();
 
-    const response = await schedule(api, { task: 'Call Mara.md', start, minutes: 30 });
+    const response = await schedule(api, {
+      task: 'Call Mara.md',
+      start: '2026-10-13T14:00Z',
+      minutes: 30,
+    });
 
-    expect(codeOf(response)).toBe('invalid');
-    expect(api.writes).toEqual([]);
+    expect((response.body as { error: { message: string } }).error.message).toMatch(
+      /wall-clock time to the minute, written 2026-10-12T09:00, with no seconds, zone or offset/,
+    );
   });
 
   it('is not_found for a task that is not there', async () => {

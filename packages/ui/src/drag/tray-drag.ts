@@ -6,11 +6,16 @@
  * the pointer when it is let go: a block, which it joins, or a day's clock, at
  * the quarter hour the pointer is in. What is under the pointer is asked of
  * the page as it is then, so a clock scrolled during the drag is read where it
- * now is. The keyboard takes another way in (`ScheduleTray`): pick the task,
- * then press Enter on an hour or a block.
+ * now is — and only of this calendar's own clock, so a drop over another
+ * pane's calendar plans nothing here. The keyboard takes another way in
+ * (`ScheduleTray`): pick the task, then press Enter on an hour or a block.
+ *
+ * Where the pointer is, is followed from its own moves. dnd-kit's travel is no
+ * measure of it: the tray's list scrolls, and dnd-kit counts a scroll of the
+ * list under a held task as travel, which would land the task hours away.
  */
-import { useMemo, useRef, useState } from 'react';
-import type { Announcements, DragEndEvent, DragMoveEvent, UniqueIdentifier } from '@dnd-kit/core';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Announcements, DragStartEvent, UniqueIdentifier } from '@dnd-kit/core';
 import { dropSlot, slotValue, type TrayTask } from '@atlas/domain';
 import { planWords, type PlanLanding } from './announcements.ts';
 import { MINUTE_HEIGHT } from './clock-drag.ts';
@@ -35,13 +40,22 @@ interface Point {
   readonly y: number;
 }
 
-/** Where the pointer is: where it was pressed, plus how far it has travelled since. */
-function pointerOf({
-  activatorEvent,
-  delta,
-}: Pick<DragMoveEvent, 'activatorEvent' | 'delta'>): Point | null {
-  if (!(activatorEvent instanceof MouseEvent)) return null;
-  return { x: activatorEvent.clientX + delta.x, y: activatorEvent.clientY + delta.y };
+/**
+ * The pointer, followed from where it was pressed through each of its moves
+ * until `stop`. Heard on the window as a move starts down, before anything
+ * on the page can act on it.
+ */
+function followPointer(pressed: Event): { at: () => Point | null; stop: () => void } {
+  let at: Point | null =
+    pressed instanceof MouseEvent ? { x: pressed.clientX, y: pressed.clientY } : null;
+  const moved = (event: PointerEvent) => {
+    at = { x: event.clientX, y: event.clientY };
+  };
+  window.addEventListener('pointermove', moved, { capture: true });
+  return {
+    at: () => at,
+    stop: () => window.removeEventListener('pointermove', moved, { capture: true }),
+  };
 }
 
 type ElementsAt = (x: number, y: number) => readonly Element[];
@@ -49,15 +63,18 @@ type ElementsAt = (x: number, y: number) => readonly Element[];
 const pageElementsAt: ElementsAt = (x, y) => document.elementsFromPoint(x, y);
 
 /**
- * What is under `point` on the calendar: the block there, or the day's clock
- * at the quarter hour the point is in; null over anything else. A block is
- * above its day in the page, so it is found first.
+ * What is under `point` on the calendar inside `within`: the block there, or
+ * the day's clock at the quarter hour the point is in; null over anything
+ * else, another calendar's clock included. A block is above its day in the
+ * page, so it is found first.
  */
 export function planTargetAt(
   point: Point,
-  elementsAt: ElementsAt = pageElementsAt,
+  { within, elementsAt = pageElementsAt }: { within: Element | null; elementsAt?: ElementsAt },
 ): PlanTarget | null {
+  if (within === null) return null;
   for (const element of elementsAt(point.x, point.y)) {
+    if (!within.contains(element)) continue;
     const block = element.closest<HTMLElement>('.clock__note[data-path]');
     if (block !== null) {
       return {
@@ -90,20 +107,30 @@ export function landingOf(target: PlanTarget | null): PlanLanding {
 export function useTrayDrag({
   tasks,
   onPlace,
+  within,
   elementsAt = pageElementsAt,
 }: {
   tasks: readonly TrayTask[];
   onPlace: (task: TrayTask, target: PlanTarget) => void;
+  /** This calendar's clock, read when the target is asked for. */
+  within: () => Element | null;
   elementsAt?: ElementsAt;
 }) {
   const byId = useMemo(() => new Map(tasks.map((task) => [trayDragId(task), task])), [tasks]);
   const [held, setHeld] = useState<TrayTask | null>(null);
-  // A ref, not state: the announcement for a move is asked for straight after the move.
+  // Refs, not state: the announcement for a move is asked for straight after the move.
   const landing = useRef<PlanTarget | null>(null);
+  const pointer = useRef<ReturnType<typeof followPointer> | null>(null);
+  const letGo = () => {
+    pointer.current?.stop();
+    pointer.current = null;
+  };
+  // A drag cut short by the calendar going away stops following the pointer too.
+  useEffect(() => letGo, []);
 
-  const targetOf = (event: Pick<DragMoveEvent, 'activatorEvent' | 'delta'>) => {
-    const point = pointerOf(event);
-    return point === null ? null : planTargetAt(point, elementsAt);
+  const target = () => {
+    const point = pointer.current?.at() ?? null;
+    return point === null ? null : planTargetAt(point, { within: within(), elementsAt });
   };
 
   const announcements = useMemo<Announcements>(() => {
@@ -121,20 +148,24 @@ export function useTrayDrag({
   return {
     held,
     announcements,
-    onDragStart: (id: UniqueIdentifier) => {
+    onDragStart: ({ active, activatorEvent }: DragStartEvent) => {
+      letGo();
+      pointer.current = followPointer(activatorEvent);
       landing.current = null;
-      setHeld(byId.get(String(id)) ?? null);
+      setHeld(byId.get(String(active.id)) ?? null);
     },
-    onDragMove: (event: DragMoveEvent) => {
-      landing.current = targetOf(event);
+    onDragMove: () => {
+      landing.current = target();
     },
-    onDragEnd: (event: DragEndEvent) => {
-      const task = byId.get(String(event.active.id));
-      landing.current = targetOf(event);
+    onDragEnd: ({ active }: { active: { id: UniqueIdentifier } }) => {
+      const task = byId.get(String(active.id));
+      landing.current = target();
+      letGo();
       setHeld(null);
       if (task !== undefined && landing.current !== null) onPlace(task, landing.current);
     },
     onDragCancel: () => {
+      letGo();
       landing.current = null;
       setHeld(null);
     },

@@ -23,7 +23,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import type { PlanDrop } from '@atlas/ui';
-import type { OpenEditors } from '../panes/open-editors.ts';
+import type { OpenEditors, PaneEditors } from '../panes/open-editors.ts';
 import { usePlanner } from './use-planner.ts';
 
 const TYPES: readonly DefinedType[] = [
@@ -88,17 +88,26 @@ function memoryVault(files: Record<string, string>) {
   return { fs, text: (path: string) => stored.get(path)?.text, trashed };
 }
 
-/** No pane holds any note, unless `held` says it does — and then the pane writes it. */
-function editorsHolding(held: (path: VaultPath, values: PropertyChanges) => boolean = () => false) {
+/**
+ * No pane holds any note, unless `held` says it does — and then the pane
+ * writes it — or `typing` says a pane holds unsaved typing in it.
+ */
+function editorsHolding(
+  held: (path: VaultPath, values: PropertyChanges) => boolean = () => false,
+  typing: (path: VaultPath) => boolean = () => false,
+) {
   const setPropertiesIfOpen = vi.fn(async ({ path, values }) => held(path, values));
-  const editors: OpenEditors = {
+  const editors: PlannerEditors = {
     register: () => {},
     setPropertiesIfOpen,
     savePane: () => {},
     reloadOthers: () => {},
+    stateOf: (path) => (typing(path) ? 'dirty' : 'closed'),
   };
   return { editors, setPropertiesIfOpen };
 }
+
+type PlannerEditors = OpenEditors & Pick<PaneEditors, 'stateOf'>;
 
 const trayIndex = () =>
   fakeIndexPort({
@@ -125,14 +134,14 @@ function planWith({
   active = true,
 }: {
   vault: ReturnType<typeof memoryVault>;
-  editors?: OpenEditors;
+  editors?: PlannerEditors;
   onChanged?: () => void;
   active?: boolean;
 }) {
   // Made once: the hook reads the tray again whenever its index or its notes change.
   const index = trayIndex();
   return renderHook(
-    ({ on, key }: { on: boolean; key: string | null }) =>
+    ({ on, key, indexKey = 'one' }: { on: boolean; key: string | null; indexKey?: string }) =>
       usePlanner({
         active: on,
         vault: key,
@@ -142,10 +151,16 @@ function planWith({
         editors,
         types: TYPES,
         notePaths: NOTE_PATHS,
-        indexKey: 'one',
+        indexKey,
         onChanged,
       }),
-    { initialProps: { on: active, key: '/Vaults/Larkspur' } },
+    {
+      initialProps: { on: active, key: '/Vaults/Larkspur' } as {
+        on: boolean;
+        key: string | null;
+        indexKey?: string;
+      },
+    },
   );
 }
 
@@ -360,5 +375,98 @@ describe('adversarial (P31-02)', () => {
     await waitFor(() => expect(vault.trashed).toEqual(['Quarterly report block.md']));
     expect(hook.result.current?.undo).toBeNull();
     expect(hook.result.current?.problem).toBeNull();
+  });
+});
+
+describe('review (P31-02)', () => {
+  it('leaves a block it made while a pane holds typing in it not yet saved, and says so', async () => {
+    const vault = memoryVault({});
+    const block = createVaultPath('Quarterly report block.md');
+    const { editors } = editorsHolding(undefined, (path) => path === block);
+    const hook = planWith({ vault, editors });
+    await drop(hook, { kind: 'time', task: REPORT, date: '2026-10-12', minutes: 540 });
+
+    await act(async () => hook.result.current?.undo?.run());
+
+    expect(vault.trashed).toEqual([]);
+    expect(vault.text(block)).toBeDefined();
+    expect(hook.result.current?.problem).toBe(
+      'Quarterly report block.md has typing not yet saved, so it is left as it is.',
+    );
+  });
+
+  it('keeps the drop started last as the one to undo, when an earlier one settles after it', async () => {
+    const vault = memoryVault({});
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = {
+      ...vault,
+      fs: {
+        ...vault.fs,
+        createNote: async (note: { path: VaultPath; contents: string }) => {
+          if (note.path === 'Quarterly report block.md') await held;
+          return vault.fs.createNote(note);
+        },
+      },
+    };
+    const call: TrayTask = { path: 'Call Mara.md', title: 'Call Mara', schedule: schedule(20, 0) };
+    const hook = planWith({ vault: slow });
+
+    await act(async () => {
+      hook.result.current?.place({ kind: 'time', task: REPORT, date: '2026-10-12', minutes: 540 });
+      hook.result.current?.place({ kind: 'time', task: call, date: '2026-10-12', minutes: 600 });
+    });
+    await waitFor(() =>
+      expect(hook.result.current?.undo?.said).toBe('Planned Call Mara in Call Mara block.'),
+    );
+    await act(async () => release());
+    await waitFor(() => expect(vault.text('Quarterly report block.md')).toBeDefined());
+
+    expect(hook.result.current?.undo?.said).toBe('Planned Call Mara in Call Mara block.');
+  });
+
+  it('forgets what a drop placed once a read begun after its block was written has finished', async () => {
+    const vault = listedVault();
+    const hook = planWith({ vault });
+    await drop(hook, { kind: 'time', task: REPORT, date: '2026-10-12', minutes: 540 });
+    expect(vault.text('Quarterly report block.md')).toContain('end: 2026-10-12T10:15\n');
+
+    // The index has taken the block in, and the tray reads again: what it reads counts it.
+    hook.rerender({ on: true, key: '/Vaults/Larkspur', indexKey: 'two' });
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    await drop(hook, { kind: 'time', task: REPORT, date: '2026-10-13', minutes: 540 });
+
+    // Sized by the schedule given alone: 1h 15m left of 2h, nothing held over.
+    await waitFor(() => expect(vault.text('Quarterly report block 2.md')).toBeDefined());
+    expect(vault.text('Quarterly report block 2.md')).toContain('end: 2026-10-13T10:15\n');
+  });
+
+  it('keeps a drop made while an undo runs as the next to undo', async () => {
+    const vault = memoryVault({ 'Admin.md': ADMIN });
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = {
+      ...vault,
+      fs: {
+        ...vault.fs,
+        trashEntry: async (entry: { path: VaultPath }) => {
+          await held;
+          return vault.fs.trashEntry(entry);
+        },
+      },
+    };
+    const hook = planWith({ vault: slow });
+    await drop(hook, { kind: 'time', task: REPORT, date: '2026-10-12', minutes: 540 });
+
+    await act(async () => hook.result.current?.undo?.run());
+    await drop(hook, { kind: 'block', task: REPORT, block: 'Admin.md' });
+    await act(async () => release());
+    await waitFor(() => expect(vault.trashed).toEqual(['Quarterly report block.md']));
+
+    expect(hook.result.current?.undo?.said).toBe('Added Quarterly report to Admin.');
   });
 });

@@ -16,14 +16,18 @@ import type { PropertyChanges } from '../query/set-property.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import {
   addTaskToBlock,
+  BlockBeingEditedError,
   BlockChangedError,
   BlockTimesError,
   createBlockForTask,
+  NotABlockError,
   undoScheduling,
   type Scheduling,
 } from './schedule-task.ts';
 
 const TODAY = '2026-10-10';
+/** No pane holds any note. */
+const NO_PANE = { state: () => 'closed' as const };
 const REPORT = createVaultPath('Quarterly report.md');
 const CALL = createVaultPath('Call Mara.md');
 const ADMIN = createVaultPath('Admin.md');
@@ -242,7 +246,7 @@ describe('a task dropped on empty time', () => {
 
 describe('a task dropped on a block', () => {
   it('is linked after the block’s tasks, through the property write the app gives', async () => {
-    const writes = recordingWrites({ [ADMIN]: { tasks: ['[[Call Mara]]'] } });
+    const writes = recordingWrites({ [ADMIN]: { type: 'block', tasks: ['[[Call Mara]]'] } });
 
     const done = await addTaskToBlock({
       writeProperties: writes.writeProperties,
@@ -253,12 +257,13 @@ describe('a task dropped on a block', () => {
 
     expect(done).toEqual({ kind: 'added', block: ADMIN, task: REPORT });
     expect(writes.blocks[ADMIN]).toEqual({
+      type: 'block',
       tasks: ['[[Call Mara]]', '[[Quarterly report]]'],
     });
   });
 
   it('writes nothing, and leaves nothing to undo, when the block already holds the task', async () => {
-    const writes = recordingWrites({ [ADMIN]: { tasks: ['[[Quarterly report]]'] } });
+    const writes = recordingWrites({ [ADMIN]: { type: 'block', tasks: ['[[Quarterly report]]'] } });
 
     const done = await addTaskToBlock({
       writeProperties: writes.writeProperties,
@@ -269,6 +274,36 @@ describe('a task dropped on a block', () => {
 
     expect(done).toBeNull();
     expect(writes.written).toEqual([{ path: ADMIN, values: {} }]);
+  });
+});
+
+describe('a task dropped on a note that is not a block', () => {
+  it('writes nothing to it, and says it is not a block', async () => {
+    const writes = recordingWrites({ [ADMIN]: { type: 'meeting', attendees: ['[[Mara Quill]]'] } });
+
+    await expect(
+      addTaskToBlock({
+        writeProperties: writes.writeProperties,
+        block: ADMIN,
+        task: REPORT,
+        notePaths: NOTES,
+      }),
+    ).rejects.toBeInstanceOf(NotABlockError);
+    expect(writes.written).toEqual([{ path: ADMIN, values: {} }]);
+    expect(writes.blocks[ADMIN]).toEqual({ type: 'meeting', attendees: ['[[Mara Quill]]'] });
+  });
+
+  it('takes a block typed in any case', async () => {
+    const writes = recordingWrites({ [ADMIN]: { type: 'Block' } });
+
+    await addTaskToBlock({
+      writeProperties: writes.writeProperties,
+      block: ADMIN,
+      task: REPORT,
+      notePaths: NOTES,
+    });
+
+    expect(writes.blocks[ADMIN]).toEqual({ type: 'Block', tasks: ['[[Quarterly report]]'] });
   });
 });
 
@@ -291,12 +326,41 @@ describe('undoing a drop', () => {
       scheduling: done,
       fs: vault.fs,
       index: fakeIndexPort(),
+      editors: NO_PANE,
       writeProperties: recordingWrites({}).writeProperties,
       notePaths: [...NOTES, done.block],
     });
 
     expect(vault.trashed).toEqual(['Quarterly report block.md']);
     expect(vault.stored.has(done.block)).toBe(false);
+  });
+
+  it('leaves a block with typing not yet saved in a pane, and says so', async () => {
+    const vault = memoryVault();
+    const done = await createBlockForTask({
+      fs: vault.fs,
+      markdown: listMarkdown(),
+      types: TYPES,
+      task: { path: REPORT, title: 'Quarterly report' },
+      start: '2026-10-12T09:00',
+      minutes: 60,
+      notePaths: NOTES,
+      today: TODAY,
+    });
+    const typing = { state: (path: string) => (path === done.block ? 'dirty' : 'closed') } as const;
+
+    await expect(
+      undoScheduling({
+        scheduling: done,
+        fs: vault.fs,
+        index: fakeIndexPort(),
+        editors: { state: typing.state },
+        writeProperties: recordingWrites({}).writeProperties,
+        notePaths: [...NOTES, done.block],
+      }),
+    ).rejects.toBeInstanceOf(BlockBeingEditedError);
+    expect(vault.trashed).toEqual([]);
+    expect(vault.stored.has(done.block)).toBe(true);
   });
 
   it('leaves a block edited since the drop, and says so', async () => {
@@ -309,6 +373,7 @@ describe('undoing a drop', () => {
         scheduling,
         fs: vault.fs,
         index: fakeIndexPort(),
+        editors: NO_PANE,
         writeProperties: recordingWrites({}).writeProperties,
         notePaths: [...NOTES, block],
       }),
@@ -326,6 +391,7 @@ describe('undoing a drop', () => {
       scheduling: { kind: 'added', block: ADMIN, task: REPORT },
       fs: memoryVault().fs,
       index: fakeIndexPort(),
+      editors: NO_PANE,
       writeProperties: writes.writeProperties,
       notePaths: NOTES,
     });
@@ -340,6 +406,7 @@ describe('undoing a drop', () => {
       scheduling: { kind: 'added', block: ADMIN, task: REPORT },
       fs: memoryVault().fs,
       index: fakeIndexPort(),
+      editors: NO_PANE,
       writeProperties: writes.writeProperties,
       notePaths: NOTES,
     });

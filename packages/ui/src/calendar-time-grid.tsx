@@ -85,7 +85,8 @@ export function CalendarTimeGrid({
   );
   const drag = useClockDrag({ events, gestures, dayWidth });
   const focus = useFocusFollower();
-  const plan = usePlanning({ planner, gestures, days, today, columns });
+  const clockRoot = useRef<HTMLDivElement>(null);
+  const plan = usePlanning({ planner, gestures, days, today, columns, clockRoot });
   const style = {
     gridTemplateColumns: `var(--clock-gutter) repeat(${days.length}, minmax(0, 1fr))`,
   };
@@ -101,7 +102,7 @@ export function CalendarTimeGrid({
   };
 
   const clock = (
-    <div className={`clock clock--${range}`}>
+    <div className={`clock clock--${range}`} ref={clockRoot}>
       <div className="clock__head" style={style}>
         <span className="clock__gutter" />
         {days.map((date) => (
@@ -115,8 +116,9 @@ export function CalendarTimeGrid({
             key={date}
             date={date}
             events={eventsOn(events, date).filter((event) => !isTimed(event))}
-            gestures={gestures}
+            gestures={plan.gestures}
             claimFocus={focus.claim}
+            placing={plan.choosing?.title ?? null}
             adding={adding?.date === date && adding.minutes === null}
             onAdd={() => setAdding({ date, minutes: null })}
             onCreate={create}
@@ -167,11 +169,11 @@ export function CalendarTimeGrid({
         screenReaderInstructions: { draggable: clockWords.instructions },
       }}
       onDragStart={(event) => {
-        if (isTrayDrag(event.active.id)) plan.tray.onDragStart(event.active.id);
+        if (isTrayDrag(event.active.id)) plan.tray.onDragStart(event);
         else drag.onDragStart();
       }}
       onDragMove={(event) => {
-        if (isTrayDrag(event.active.id)) plan.tray.onDragMove(event);
+        if (isTrayDrag(event.active.id)) plan.tray.onDragMove();
         else drag.onDragMove(event);
       }}
       onDragEnd={(event) => {
@@ -216,15 +218,21 @@ function usePlanning({
   days,
   today,
   columns,
+  clockRoot,
 }: {
   planner: Planner | null;
   gestures: CalendarGestures;
   days: readonly string[];
   today: string;
   columns: { readonly current: HTMLDivElement | null };
+  /** This calendar's clock: a task let go anywhere else is not over it. */
+  clockRoot: { readonly current: HTMLDivElement | null };
 }) {
   const [choosing, setChoosing] = useState<TrayTask | null>(null);
-  const chosen = planner === null ? null : choosing;
+  // As the tray lists it now: a task it no longer lists — finished, deferred —
+  // is let go, and one it still lists carries its schedule as last read.
+  const chosen =
+    planner?.tasks?.find((task) => choosing !== null && task.path === choosing.path) ?? null;
 
   const place = useCallback(
     (task: TrayTask, target: PlanTarget) => {
@@ -238,7 +246,11 @@ function usePlanning({
     },
     [planner],
   );
-  const tray = useTrayDrag({ tasks: planner?.tasks ?? NO_TASKS, onPlace: place });
+  const tray = useTrayDrag({
+    tasks: planner?.tasks ?? NO_TASKS,
+    onPlace: place,
+    within: () => clockRoot.current,
+  });
 
   const placeAt = useCallback(
     (target: PlanTarget) => {
@@ -325,6 +337,7 @@ function AllDayCell({
   events,
   gestures,
   claimFocus,
+  placing,
   adding,
   onAdd,
   onCreate,
@@ -334,6 +347,8 @@ function AllDayCell({
   events: readonly CalendarEvent[];
   gestures: CalendarGestures;
   claimFocus: FocusFollower['claim'];
+  /** The task being placed from the planner's tray, which a block here takes too. */
+  placing: string | null;
   adding: boolean;
   onAdd: () => void;
   onCreate: (name: string) => void;
@@ -363,6 +378,7 @@ function AllDayCell({
           date={date}
           gestures={gestures}
           claimFocus={claimFocus}
+          placing={placing}
         />
       ))}
       {adding && <AddCard label={`${date}, all day`} onAdd={onCreate} onClose={onClose} />}

@@ -526,6 +526,9 @@ describe('tools/call → REST', () => {
     ['atlas_process_inbox_item', { path: 'Inbox/Call.md', project: '' }],
     ['atlas_schedule_task', { start: '2026-10-12T09:00' }],
     ['atlas_schedule_task', { task: 'Quarterly report.md' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00Z' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00:00' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00+02:00' }],
     ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 0 }],
     [
       'atlas_schedule_task',

@@ -4,6 +4,7 @@ import {
   blockTasksWith,
   blockTasksWithout,
   blockTypeOf,
+  isBlockType,
   NEW_NOTE_CONTENTS,
   newBlockName,
   newBlockTimes,
@@ -20,7 +21,7 @@ import type { MarkdownPort } from '../notes/ports.ts';
 import type { PropertyChanges } from '../query/set-property.ts';
 import { findTypeTemplate, loadTemplates, readTemplate } from '../types/templates.ts';
 import { forgetNotes } from '../index/refresh-index.ts';
-import type { VaultFsPort } from '../vault/ports.ts';
+import type { OpenEditorsPort, VaultFsPort } from '../vault/ports.ts';
 
 /**
  * Writes a note's properties through whichever of the task rules' chokepoints
@@ -49,6 +50,22 @@ export class BlockChangedError extends Error {
   constructor(block: VaultPath) {
     super(`${block} has changed since the task was scheduled, so it is left as it is.`);
     this.name = 'BlockChangedError';
+  }
+}
+
+/** Undo found typing not yet saved in a pane holding the block, and left the block rather than lose it. */
+export class BlockBeingEditedError extends Error {
+  constructor(block: VaultPath) {
+    super(`${block} has typing not yet saved, so it is left as it is.`);
+    this.name = 'BlockBeingEditedError';
+  }
+}
+
+/** A task was to join a note that is not a block: nothing was written to it. */
+export class NotABlockError extends Error {
+  constructor(note: VaultPath) {
+    super(`${note} is not a block, so no task was added to it.`);
+    this.name = 'NotABlockError';
   }
 }
 
@@ -152,7 +169,9 @@ function blockContents({
  * Links a task into a block that is already there (P31-02), through
  * `writeProperties`, worked out against the block as it is when written so a
  * task linked a moment earlier elsewhere is kept. Null when the block already
- * links the task: nothing was written, and there is nothing to undo.
+ * links the task: nothing was written, and there is nothing to undo. A note
+ * that is not a block — its type changed since the calendar was drawn, say —
+ * is left as it is, with {@link NotABlockError}: a meeting gains no `tasks`.
  */
 export async function addTaskToBlock({
   writeProperties,
@@ -166,41 +185,53 @@ export async function addTaskToBlock({
   notePaths: readonly VaultPath[];
 }): Promise<(Scheduling & { readonly kind: 'added' }) | null> {
   let added = false;
+  let isBlock = true;
   await writeProperties({
     path: block,
     values: (properties) => {
+      isBlock = isBlockType(typeof properties['type'] === 'string' ? properties['type'] : null);
+      if (!isBlock) return {};
       const tasks = blockTasksWith({ tasks: properties[BLOCK_KEYS.tasks], task, notePaths });
       added = tasks !== null;
       return tasks === null ? {} : { [BLOCK_KEYS.tasks]: tasks };
     },
   });
+  if (!isBlock) throw new NotABlockError(block);
   return added ? { kind: 'added', block, task } : null;
 }
 
 /**
  * Takes back what a drop did. A block the drop made goes to the Trash, where
  * it can still be recovered, but only while it holds exactly what the drop
- * wrote — one edited since is left, with {@link BlockChangedError}, rather
- * than its edits lost. A task the drop linked into a block is unlinked, the
- * block's other tasks kept as written; a block that no longer links it is
- * left alone.
+ * wrote and no pane holds typing in it not yet saved — one edited since is
+ * left, with {@link BlockChangedError}, and one being edited with
+ * {@link BlockBeingEditedError}, rather than the edits lost. A task the drop
+ * linked into a block is unlinked, the block's other tasks kept as written; a
+ * block that no longer links it is left alone.
  */
 export async function undoScheduling({
   scheduling,
   fs,
   index,
+  editors,
   writeProperties,
   notePaths,
 }: {
   scheduling: Scheduling;
   fs: VaultFsPort;
   index: IndexPort;
+  /** The panes, asked whether one holds typing in the block not yet saved. */
+  editors: Pick<OpenEditorsPort, 'state'>;
   writeProperties: WriteNoteProperties;
   notePaths: readonly VaultPath[];
 }): Promise<void> {
   if (scheduling.kind === 'created') {
     const { text } = await fs.readTextFile(scheduling.block);
     if (text !== scheduling.contents) throw new BlockChangedError(scheduling.block);
+    // Asked after the read, as close to the Trash as it can be.
+    if (editors.state(scheduling.block) === 'dirty') {
+      throw new BlockBeingEditedError(scheduling.block);
+    }
     await fs.trashEntry({ path: scheduling.block });
     // Safe to let go of, as deleting a note does: the refresh after every
     // change removes what is no longer on disk, so a failure only delays it.
