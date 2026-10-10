@@ -5,9 +5,8 @@ import {
   duplicateLink,
   IMPORT_ERROR_KEY,
   IMPORT_OUTCOME_KEY,
-  importOutcomeOf,
   isConflictCopyPath,
-  MEETING_TYPE,
+  meetingHolding,
   messageWithoutPaths,
   splitFrontmatter,
   type MeetingImport,
@@ -16,7 +15,7 @@ import {
 } from '@atlas/domain';
 import { archiveNotes, type ArchivePorts } from '../archive/archive-notes.ts';
 import type { ActivityRecorder } from '../activity/ports.ts';
-import { readFrontmatter, validateMeetingFile } from './meeting-reading.ts';
+import { readFrontmatter } from './meeting-reading.ts';
 import { UNSAVED, writeStamp } from './meeting-stamp-writer.ts';
 
 /** One run of the import, and what it has done so far. */
@@ -82,26 +81,12 @@ async function holding(
     // Gone since the index read it — moved or deleted: it holds nothing here now.
     return null;
   }
-  const { properties } = readFrontmatter(markdown, splitFrontmatter(text).frontmatter);
-  const outcome = importOutcomeOf(properties);
-  if (outcome === 'imported') return holdsSameId(properties, meeting) ? 'imported' : null;
-  if (outcome !== null || Object.hasOwn(properties, IMPORT_ERROR_KEY)) return null;
-  const read = validateMeetingFile(markdown, text);
-  return read.ok && sameMeeting(read.meeting, meeting) ? 'unsettled' : null;
+  return meetingHolding({
+    text,
+    readFrontmatter: (frontmatter) => readFrontmatter(markdown, frontmatter),
+    meeting,
+  });
 }
-
-/** Whether a note's own keys name the meeting: what a holder let in is kept by, whatever else it says. */
-function holdsSameId(properties: Readonly<Record<string, unknown>>, meeting: MeetingImport) {
-  const text = (key: string) => (typeof properties[key] === 'string' ? properties[key] : '');
-  return (
-    properties['type'] === MEETING_TYPE &&
-    text('provider') === meeting.provider &&
-    text('external_id').trim() === meeting.externalId.trim()
-  );
-}
-
-const sameMeeting = (a: MeetingImport, b: MeetingImport) =>
-  a.provider === b.provider && a.externalId.trim() === b.externalId.trim();
 
 /**
  * Lets a meeting in: stamped `imported`, and any import error it carried

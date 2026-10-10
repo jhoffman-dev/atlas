@@ -29,6 +29,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/sync`         | Merges other Macs' changes into notes; settles conflicts; never loses a side. | U-29    |
 | `application/meetings`     | Marks and archives meeting files that arrived from outside Atlas, by itself.  | 28      |
 | `tools/n8n/*.ts`           | The n8n meeting mapper: commits files into your vault from outside Atlas.     | 28      |
+| `tools/notion-import/*.ts` | The Notion meeting import: writes your meeting history into a vault at once.  | 28      |
 
 Rules that apply everywhere:
 

@@ -37,7 +37,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html', 'lcov'],
-      include: ['packages/*/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}', 'tools/n8n/*.ts'],
+      include: [
+        'packages/*/src/**/*.{ts,tsx}',
+        'apps/*/src/**/*.{ts,tsx}',
+        'tools/n8n/*.ts',
+        'tools/notion-import/*.ts',
+      ],
       exclude: ['**/*.test.{ts,tsx}', '**/index.ts', '**/*.d.ts'],
       // Repo-wide floor. The high-impact slice named in COVERAGE.md is held higher,
       // with its own threshold added as each module lands.
@@ -73,6 +78,8 @@ export default defineConfig({
         'apps/mcp/src/{connection,client}.ts': { lines: 90, functions: 90, branches: 85 },
         // The n8n meeting mapper writes files into the vault from outside it (P28-02).
         'tools/n8n/*.ts': { lines: 90, functions: 90, branches: 85 },
+        // The Notion meeting import writes a history of meetings into a vault (P28-07).
+        'tools/notion-import/*.ts': { lines: 90, functions: 90, branches: 85 },
       },
     },
   },

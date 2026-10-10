@@ -277,3 +277,45 @@ they are.
   is stamped, but the shipped Inbox query cannot list it (`GET /v1/meetings`
   does, and so will P30-01's Inbox page). Files under `Inbox/Meetings/` that
   are not meetings are judged as arrivals and stamped `error`.
+
+## As built (P28-07, 2026-10-08)
+
+The meetings already in Notion come in once through
+`tools/import-notion-meetings.mjs` (how to run it: `tools/n8n/README.md`).
+Where it goes past the text above:
+
+- **It writes into a folder, not through GitHub.** It reads a Notion
+  "Markdown & CSV" export and writes into a vault folder it is named
+  (`--vault`, no default; an empty one is refused), `Inbox/Meetings/` unless
+  told otherwise. The folder may not be hidden, nor linked out of the
+  vault. The files are the mapper's (P28-02), at the paths n8n would use, so
+  Atlas takes them in as it takes n8n's.
+- **A row is paired with its page by Source ID**, not by title: titles
+  repeat (`1:1`). A row with no page, or with two, is refused, not guessed.
+- **It checks each file with the validator before writing it**, and writes
+  it whole under a hidden name, flushed, before linking it to its name. A
+  name never holds part of a meeting, and no file is written over.
+- **"Already in the vault" is P28-04's holder rule**, shared, not copied:
+  `meetingHolding` in `packages/domain/src/meetings` decides for both the
+  import on arrival and this tool. It is asked of the whole vault (hidden
+  folders and sync conflict copies left out) before a row is mapped, so a
+  second run writes nothing.
+- **The Date cell is read as Notion shows it.** A time with no zone, or a
+  zone other than UTC, is kept as written; a UTC time is an instant on the
+  clock of `--time-zone`. A range is on one clock: a zone on either side is
+  both sides'. A form that could be two days (`10/06/2026`) is refused.
+- **Gemini's rows are held by default** (issue #44): their Date is when the
+  notes arrived, near the meeting's end, written as local time marked UTC.
+  `--gemini-dates arrival-local` reads it as local time and starts the
+  meeting the transcript's last section stamp before it. meeting/v1 has no
+  field for an approximate start, so Notes open with a line saying so.
+- **Not carried over:** the Attendees relation (the page's Attendees
+  section is read instead) and the other properties. A page section the
+  workflow did not write goes into Notes under its own heading, and a
+  transcript block is taken only at the page's top level, outside code; a
+  `## Transcript` section is preferred to one.
+- **Known gap:** a local time marked UTC cannot be told from a real UTC
+  time from the export alone. For Gemini that is issue #44, handled above
+  by choice, not by default; any other provider's would be moved by the
+  zone's offset. The README's step 4 is the check to make on a vault copy
+  before the real run.
