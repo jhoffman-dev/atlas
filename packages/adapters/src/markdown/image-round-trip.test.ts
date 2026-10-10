@@ -20,6 +20,7 @@ const IMAGE_LINES: Array<[label: string, markdown: string]> = [
   ['HTML image', '<img src="a.png" width="200">'],
   ['reference-style', '![alt][pic]\n\n[pic]: attachments/pic.png'],
   ['several on a line with text', 'Before ![a](a.png) between ![b](b%20c.png) after'],
+  ['linked to a page', '[![logo](logo.png)](https://example.com)'],
 ];
 
 const body = (line: string) => `# Photos\n\n${line}\n\nSome text after.\n`;
@@ -46,6 +47,22 @@ describe('a note with images, saved after editing something else', () => {
     const parsed = parseMarkdownBody(original);
     expect(serializeMarkdownBody({ originalBody: original, parsed, doc: parsed.doc })).toBe(
       original,
+    );
+  });
+});
+
+describe('an image inside a link', () => {
+  it('keeps its link when the words beside it are edited', () => {
+    const original = 'See [![logo](logo.png)](https://example.com) here.\n';
+    const parsed = parseMarkdownBody(original);
+    const [paragraph] = parsed.doc.content;
+    const content = (paragraph?.content ?? []).map((node) =>
+      node.type === 'text' && node.text === ' here.' ? { ...node, text: ' there.' } : node,
+    );
+    const doc: EditorDocument = { type: 'doc', content: [{ ...paragraph!, content }] };
+
+    expect(serializeMarkdownBody({ originalBody: original, parsed, doc })).toBe(
+      'See [![logo](logo.png)](https://example.com) there.\n',
     );
   });
 });
