@@ -115,7 +115,7 @@ td:first-child { white-space: nowrap; }
     </div>
     <div>
       <h1>Atlas Field Guide</h1>
-      <p>How to use Atlas day to day: notes and pictures, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
+      <p>How to use Atlas day to day: notes and pictures, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings and how names are spelt, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
       <div class="facts"><span class="fact">Version 0.1 · updated Oct 8, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
     </div>
   </header>
@@ -143,6 +143,7 @@ td:first-child { white-space: nowrap; }
     <a href="#blocks">Blocks and embeds</a>
     <a href="#people">People and mentions</a>
     <a href="#meetings">Meetings</a>
+    <a href="#terms">Terms</a>
     <a href="#tags">Tags</a>
     <a href="#automations">Automations</a>
     <a href="#activity">Activity</a>
@@ -175,7 +176,7 @@ pnpm tauri:dev</pre>
       <h2>Finding your way</h2>
       <p class="sub">The sidebar lists everything; each page opens in a panel with a bar across the top.</p>
       <div class="grid2">
-        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, Inbox, Graph, Tags, Automations, <a href="#templates">Templates</a> and <a href="#activity">Activity</a>. Counts show how many notes each holds; Activity's red badge counts new errors.</p></div>
+        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, Inbox, Graph, Tags, Automations, <a href="#activity">Activity</a>, <a href="#templates">Templates</a> and <a href="#terms">Terms</a>. Counts show how many notes each holds; Activity's red badge counts new errors.</p></div>
         <div class="card"><h4>Favorites</h4><p>Star any page (the ☆ in its top bar) to pin it here.</p></div>
         <div class="card"><h4>Types · Views · Dashboards</h4><p>Built from your vault. The <b>+</b> beside a heading makes a new one.</p></div>
         <div class="card"><h4>Pages</h4><p>Your folders and notes. Near the end, <b>Archive</b> opens the <a href="#archive">Archive</a>; <b>System</b>, last, is the <code>.atlas</code> folder (types, automations, sources, settings). Templates aren't in it — they have their <a href="#templates">own page</a>.</p></div>
@@ -350,7 +351,7 @@ pnpm tauri:dev</pre>
       <h3>Options for select properties</h3>
       <p>Rename, reorder, colour and remove options — for example the task statuses <code>backlog, next, doing, review, done</code>. Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
       <h3>Built-in types</h3>
-      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Artifact</b> and <b>Meeting</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
+      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b> and <b>Term</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
       <p>A type you made has <b>Delete &lt;Type&gt;…</b> at the foot of <b>Edit type</b>; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
       <h3>Projects</h3>
       <p>Atlas ships a <b>Project</b> type (status: planned, active, paused, done; owner; due; summary). Every task has a <code>project</code> relation, and the <b>Projects</b> view is a board grouped by project.</p>
@@ -776,6 +777,9 @@ ORDER BY phase</pre>
       </ul>
       <h3>Mentioned in</h3>
       <p>On a person's page the <a href="#graph">Links</a> panel heads the notes linking to them <b>Mentioned in</b>. Only a note whose <code>type</code> is exactly <code>person</code> counts as a person — for <code>@</code> and for this heading.</p>
+      <h3>Other spellings of a name</h3>
+      <p>A Person — and a Company — has an <b>Also spelt</b> property (<code>aliases</code> in the file): a nickname, a short form, or how a notetaker mishears the name, commas between them in the properties panel. Atlas spells each of them as the person's name — see <a href="#terms">Terms</a>.</p>
+      <p class="muted">A vault whose Person or Company type was made before this has no such property yet: add one called <code>aliases</code> on <a href="#edit-type">Edit type</a> as a <b>Multi-select</b>, or give the note an <code>aliases</code> list by hand. Atlas reads <code>aliases</code> either way.</p>
     </section>
 
     <section id="meetings">
@@ -819,7 +823,41 @@ ORDER BY phase</pre>
       <p><code>ok</code> (with the number of turns) means Atlas will accept it. <code>FAIL</code> lists each problem with where it is — for example <i>attendees[0] must be a { name, email, group } entry, not a line of text</i>.</p>
       <h3>Built in</h3>
       <p><b>Meeting</b> is a <a href="#edit-type">built-in type</a>: <b>Delete</b> is turned off for it — <i>“Meeting is built in — imported meetings are notes of it — so it cannot be deleted. Its properties are yours to change.”</i></p>
-      <div class="note"><b>What's coming.</b> For now a meeting file is an ordinary note in <code>Inbox/Meetings</code>. Next (phases 28–29): meetings showing in the <b>Inbox</b> — with any file Atlas can't accept flagged there, never deleted or silently fixed, and a second copy marked as a duplicate and archived; correcting misheard names and terms; linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+      <div class="note"><b>What's coming.</b> For now a meeting file is an ordinary note in <code>Inbox/Meetings</code>. Next (phases 28–29): meetings showing in the <b>Inbox</b> — with any file Atlas can't accept flagged there, never deleted or silently fixed, and a second copy marked as a duplicate and archived; correcting misheard names in the transcript by your <a href="#terms">Terms</a>; linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+    </section>
+
+    <section id="terms">
+      <h2>Terms</h2>
+      <p class="sub">Teaching Atlas how names are spelt. A notetaker mishears the names it doesn't know — a product, a colleague, a vendor. A term is the one right spelling and the ways it gets misheard, and Atlas and Claude both use the list.</p>
+      <h3>Where it is</h3>
+      <div class="grid2">
+        <div class="card"><h4>Sidebar</h4><p><b>Terms</b>, at the end of the rows at the top.</p></div>
+        <div class="card"><h4>Search</h4><p><kbd>⌘K</kbd> → <b>Terms</b>.</p></div>
+      </div>
+      <h3>Add a term</h3>
+      <ol class="steps">
+        <li>On the Terms page, press <b>New term</b>.</li>
+        <li><b>Right spelling</b>: how it should be written, for example <i>Larkspur</i>.</li>
+        <li><b>Misheard as</b>: the ways it comes out wrong, commas between them — <i>lark spur, Larks Burr</i>. One that holds a comma of its own goes in double quotes: <code>"Quill, Mara", Mara Quil</code>. You can leave it empty and fill it in later.</li>
+        <li><b>Kind</b>: product, person, company, acronym or other — or leave it at <b>—</b>.</li>
+        <li><b>Add term</b>. It's listed as soon as Atlas has read it.</li>
+      </ol>
+      <p>A term is a note of the <b>Term</b> type, made in <code>Terms/</code> and named after its spelling: <code>Terms/Larkspur.md</code>. A spelling a file name can't hold, like <i>S/4 Ledger</i>, is kept as the note's <code>title</code>. If the vault's Term template has a <code>title</code> of its own, the new term's spelling is written over it. Open a term from its name to add notes about it, or to set <b>Refers to</b>: it points at a <b>Company</b> — the company a product or an acronym belongs to — and only at companies (where the vault's Term type has it — the Terms page works without the type's file). A misheard person is better given an <b>Also spelt</b> on their Person note. A spelling left empty is refused: <i>“A term needs its right spelling.”</i></p>
+      <h3>Change how it's misheard</h3>
+      <p>Each term's <b>Misheard as</b> is a box on the page. Change it and press <kbd>Return</kbd> or click away: only the <code>variants</code> list at the top of the note changes, nothing else in it. A variant holding a comma is shown in double quotes, so editing the others never cuts it in two; type one the same way. Two spellings that differ only in capitals or spaces are one, kept as first typed. Invisible characters pasted along with a spelling — zero-width spaces, word joiners — are dropped; the joiners that shape a Persian or Indic word or join an emoji are kept. A spelling with nothing visible in it counts as empty.</p>
+      <h3>What Atlas knows</h3>
+      <ul>
+        <li>Every term's right spelling and the ways it's misheard.</li>
+        <li>Every <a href="#people">person's</a> and company's name, and their <b>Also spelt</b> spellings. A name is its own right spelling, so <i>mara quill</i> comes back as <i>Mara Quill</i> without a term. A note is a person if any of its types is <code>person</code>, as <code>@</code> counts it; one that is both a person and a company counts as whichever its <code>type</code> names first.</li>
+        <li>Capitals and spaces don't matter when Atlas matches: <i>Lark&nbsp;&nbsp;Spur</i> and <i>lark spur</i> are one spelling. A longer name is tried before a shorter one inside it, so <i>Larkspur Payroll</i> wins over <i>Larkspur</i>.</li>
+        <li>The top of the page counts them: <i>“2 terms · 9 spellings Atlas puts right, people and companies included”</i>.</li>
+        <li>Templates, notes in hidden folders and archived notes don't count. To retire a term, <a href="#archive">archive</a> it.</li>
+      </ul>
+      <h3>Conflicts</h3>
+      <p>If two notes claim one spelling for two different right spellings — <i>lark spur</i> as a variant of both <i>Larkspur</i> and <i>Larkspur Payroll</i> — Atlas can't know which you meant, so it leaves that spelling alone. The page shows a <b>Conflicts</b> box above the list with each such spelling and the notes that claim it (click one to open it), and under the term: <i>“In conflict, so not used: “lark spur””</i>. Take the spelling off one of them and the conflict goes.</p>
+      <h3>Built in</h3>
+      <p><b>Term</b> and <b>Company</b> are <a href="#edit-type">built-in types</a>: <b>Delete</b> is turned off for both — <i>“Term is built in — the Terms page lists its notes, and Atlas spells names by them — so it cannot be deleted.”</i> Their properties are yours to change.</p>
+      <div class="note"><b>What's next.</b> For now Atlas keeps the list; nothing is corrected yet. Next (P28-06): when a meeting arrives, its transcript is corrected by this list — every change recorded on the note, and undoable.</div>
     </section>
 
     <section id="tags">
@@ -1166,6 +1204,7 @@ do: archive</pre>
         <li><b>Read a calendar view's days</b> (<code>atlas_calendar</code>): which notes fall on which day of a saved view's <a href="#calendar">calendar</a>, and which have no date yet.</li>
         <li><b>Refresh a source</b> (<code>atlas_refresh_source</code>), as its <b>Refresh</b> button does — at most once every 30 seconds per source, and only where the source <a href="#sources">may run</a>.</li>
         <li><b>List tags and their notes</b> (<code>atlas_tags</code>, <code>atlas_tagged_notes</code>), as the <a href="#tags">Tags page</a> does. A tag used only in templates isn't listed.</li>
+        <li><b>Read how names are spelt</b> (<code>atlas_terms</code>): every <a href="#terms">term</a>, every spelling Atlas puts right with what it should be — people's and companies' names and their other spellings included — and the conflicts, which Claude is told never to correct. Read-only: Claude adds a term by making a note with <code>type: term</code>, and changes its misheard spellings as it changes any property.</li>
         <li><b>Archive and unarchive</b> (<code>atlas_archive</code>, <code>atlas_unarchive</code>), up to 100 notes at a time, by the <a href="#archive">same rules</a> as the app, updating links as it goes. A note with unsaved typing in Atlas is left where it is and reported, since Claude never saves your typing for you. <code>atlas_archived</code> lists and searches the Archive.</li>
         <li><b>Run a saved query view</b> (<code>atlas_run_view</code>), the same as any view: it answers with the query's rows as the app finds them — the query's own <code>INCLUDE ARCHIVED</code> decides whether archived notes come too — and a query with a mistake is refused with the reason. A grouped table or board view answers its groups and sub-groups beside its rows, in the order the app draws them — a board every column, an empty one too, since that's somewhere to move a card; a gallery only its first level. <code>atlas_list_views</code> shows each view's <b>Group by</b> and <b>Then by</b>, and its place among its type's tabs; it lists Today and Inbox first, as the sidebar lifts them — they're views too, run by their paths like any other — then the other views by name, then the dashboards. Changing a view's grouping stays in the app.</li>
         <li><b>List a type's views</b> (<code>atlas_list_type_views</code>), in the same tab order the app shows, with each view's name and layout. A type with no views answers its default table, which isn't a file yet, so run it with a query (<code>atlas_run_query</code> with <code>FROM</code> the type) instead. Up to 500 at a time. Adding, renaming, copying, reordering and deleting views stay in the app.</li>

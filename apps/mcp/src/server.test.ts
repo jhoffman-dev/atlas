@@ -58,6 +58,7 @@ const ALL_TOOLS = [
   'atlas_status',
   'atlas_tagged_notes',
   'atlas_tags',
+  'atlas_terms',
   'atlas_unarchive',
   'atlas_update_properties',
 ];
@@ -139,12 +140,19 @@ describe('tools/list', () => {
     for (const name of ['atlas_list_templates', 'atlas_read_template']) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: true });
     }
+    // The vocabulary is read here; a term is written as any note is.
+    expect(byName.get('atlas_terms')).toMatchObject({ readOnlyHint: true });
   });
 
   it('points template callers at tools that exist', async () => {
     const { tools } = await mcp.listTools();
     const names = new Set(tools.map((t) => t.name));
-    for (const tool of ['atlas_list_templates', 'atlas_read_template', 'atlas_create_note']) {
+    for (const tool of [
+      'atlas_list_templates',
+      'atlas_read_template',
+      'atlas_create_note',
+      'atlas_terms',
+    ]) {
       const description = tools.find((t) => t.name === tool)?.description ?? '';
       const named = description.match(/atlas_[a-z_]+/g) ?? [];
       expect(named.length).toBeGreaterThan(0);
@@ -351,6 +359,7 @@ describe('tools/call → REST', () => {
       '/v1/sources/Sources%2FIssues.md/refresh',
       null,
     ],
+    ['atlas_terms', {}, 'GET', '/v1/terms', null],
     ['atlas_tags', {}, 'GET', '/v1/tags', null],
     ['atlas_tags', { sort: 'frequency' }, 'GET', '/v1/tags?sort=frequency', null],
     [

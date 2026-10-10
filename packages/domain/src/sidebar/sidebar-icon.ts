@@ -29,7 +29,8 @@ export type SidebarIcon =
   | 'artifact'
   | 'automation'
   | 'activity'
-  | 'template';
+  | 'template'
+  | 'term';
 
 /**
  * Words a type's name is recognised by, singular and plural. A vault defines
@@ -43,6 +44,7 @@ const TYPE_WORDS: readonly (readonly [SidebarIcon, readonly string[]])[] = [
   ['event', ['event', 'events', 'meeting', 'meetings']],
   ['board', ['project', 'projects']],
   ['artifact', ['artifact', 'artifacts']],
+  ['term', ['term', 'terms', 'glossary']],
 ];
 
 /** The icon beside a type, guessed from its name. */

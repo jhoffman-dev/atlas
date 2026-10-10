@@ -19,6 +19,7 @@ import { refreshSourceRoute } from './sources.ts';
 import { statusRoute } from './status.ts';
 import { renameTagRoute, taggedNotesRoute, tagsRoute } from './tags.ts';
 import { templateRoute, templatesRoute } from './templates.ts';
+import { termsRoute } from './terms.ts';
 import { typeViewsRoute } from './type-views.ts';
 import { typesRoute } from './types.ts';
 import { addViewNoteRoute, moveCardRoute } from './view-cards.ts';
@@ -106,6 +107,7 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'GET /v1/automations': vaultRoute(automationsRoute),
   'GET /v1/automations/{id}/log': vaultRoute(automationLogRoute),
   'POST /v1/automations/{id}/dry-run': vaultRoute(automationDryRunRoute),
+  'GET /v1/terms': vaultRoute(termsRoute),
 };
 
 /** The segments a route pattern leaves open, and what a request filled them with. */

@@ -198,6 +198,24 @@ describe('Sidebar', () => {
     expect(onOpenTemplates).toHaveBeenCalledOnce();
   });
 
+  it('opens the Terms page from its row, marked only while it is open (P28-05)', async () => {
+    const onOpenTerms = vi.fn();
+    const { unmount } = show({ onOpenTerms, active: null });
+    expect(screen.getByRole('button', { name: 'Terms' }).getAttribute('aria-current')).toBeNull();
+    unmount();
+    show({ onOpenTerms, active: { kind: 'terms' } });
+    const row = screen.getByRole('button', { name: 'Terms' });
+    expect(row.getAttribute('aria-current')).toBe('page');
+    await userEvent.click(row);
+    expect(onOpenTerms).toHaveBeenCalledOnce();
+  });
+
+  it('has no Terms row when nothing opens the page', () => {
+    show();
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Terms' })).toBeNull();
+  });
+
   it('keeps the browser’s own menu on a type when there is nothing to offer', async () => {
     show();
     await userEvent.pointer({

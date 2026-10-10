@@ -12,6 +12,7 @@ import { queryTools } from './tools/queries.ts';
 import { sourceTools } from './tools/sources.ts';
 import { tagTools } from './tools/tags.ts';
 import { templateTools } from './tools/templates.ts';
+import { termTools } from './tools/terms.ts';
 import { vaultTools } from './tools/vault.ts';
 import { viewTools } from './tools/views.ts';
 
@@ -29,6 +30,7 @@ export const ATLAS_TOOLS = [
   ...sourceTools,
   ...tagTools,
   ...templateTools,
+  ...termTools,
   ...archiveTools,
   ...automationTools,
 ];

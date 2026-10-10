@@ -121,6 +121,7 @@ import { typeTabsShown } from './types/type-tabs.ts';
 import { useTypeViews } from './types/use-type-views.ts';
 import { paletteEditTypeOffers, runPaletteEditTypeCommand } from './types/palette-edit-type.ts';
 import { useTemplatesPage } from './templates/use-templates-page.ts';
+import { useTermsPage } from './terms/use-terms-page.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
 import { useQueryPage } from './query/use-query-page.ts';
@@ -160,6 +161,7 @@ import { syncConflictNotice, syncIndicatorBadge } from './sync/sync-view.ts';
 import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
+const OPEN_TERMS = 'open-terms';
 
 /** What the search palette can do besides find notes. */
 const PALETTE_COMMANDS = [
@@ -167,6 +169,7 @@ const PALETTE_COMMANDS = [
   { id: 'new-view', label: 'New view' },
   { id: 'new-artifact', label: 'New artifact', keywords: ['claude', 'save', 'link', 'html'] },
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
+  { id: OPEN_TERMS, label: 'Terms', keywords: ['glossary', 'spelling', 'vocabulary', 'aliases'] },
 ] as const;
 
 /** The kinds an artifact can be, as the New artifact dialog offers them. */
@@ -450,6 +453,7 @@ export function App({
     automationsOpen,
     activityOpen,
     templatesOpen,
+    termsOpen,
   } = main;
   const activity = useActivity({
     log: activityLog,
@@ -761,6 +765,15 @@ export function App({
     onOpen: openNote,
   });
   const { editTypeTemplate, askDelete: askDeleteTemplate, askMoveToNotes } = templatesPage;
+  const termsPage = useTermsPage({
+    ports: { index: index.index, fs: vault.fs, markdown: notes.markdown, editors },
+    open: termsOpen,
+    indexKey,
+    types,
+    templates,
+    notePaths,
+    onChanged,
+  });
   const onRenameTemplate = templatesPage.page.onRename;
   const templateCommands = useMemo(
     () => ({
@@ -1103,6 +1116,7 @@ export function App({
     typeViews.error,
     newNoteOfType.error,
     templatesPage.notice,
+    termsPage.notice,
     sidebarOrder.unreadable,
   ];
   const indexFailure =
@@ -1209,6 +1223,7 @@ export function App({
                       automationsOpen,
                       activityOpen,
                       templatesOpen,
+                      termsOpen,
                       viewOwner: typeViews.ownerOf,
                     })}
                     sectionStore={browserSectionStore}
@@ -1223,6 +1238,7 @@ export function App({
                     }}
                     onOpen={openNote}
                     onOpenTemplates={main.openTemplates}
+                    onOpenTerms={main.openTerms}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
@@ -1367,6 +1383,7 @@ export function App({
                   },
                 },
                 templates: { open: templatesOpen, page: templatesPage.page },
+                terms: { open: termsOpen, page: { ...termsPage.page, onOpen: openNote } },
                 ...(!sidebarOpen && { onShowSidebar: toggleSidebar }),
                 history: navigation.historyFor(panes.layout.focused),
               })
@@ -1588,6 +1605,7 @@ export function App({
                     return;
                   }
                   if (id === OPEN_TEMPLATES) main.openTemplates();
+                  else if (id === OPEN_TERMS) main.openTerms();
                   else if (id === 'new-query') openQuery();
                   else if (id === 'new-artifact') startNewArtifact();
                   else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);

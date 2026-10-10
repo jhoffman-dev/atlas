@@ -21,6 +21,7 @@ export * from './api/index.ts';
 export * from './archive/index.ts';
 export * from './automations/index.ts';
 export * from './people/index.ts';
+export * from './terms/index.ts';
 export * from './bookmarks/index.ts';
 export * from './chat/index.ts';
 export * from './transclusion/index.ts';

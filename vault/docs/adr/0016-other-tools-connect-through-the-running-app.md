@@ -443,3 +443,31 @@ views above:
   lands, the API/MCP keeper decides whether it is a route of its own or
   `/v1/quick-add` followed by `PATCH /v1/notes/{path}/properties`, which
   callers can already do.
+
+## Terms: the vocabulary is read, terms are notes (issue #11, 2026-10-08)
+
+Terms now have a page of their own (P28-05): a term is a note of type `term`
+— its title the right spelling, `variants` the ways a notetaker mishears it —
+and a Person's or a Company's `aliases` are other spellings of their name.
+The API follows on the same terms as every route above:
+
+- **Read.** `GET /v1/terms` answers every term, the vocabulary (every
+  spelling Atlas puts right, longest first, with the notes that claim it) and
+  the conflicts (a spelling two notes claim for two right spellings, which is
+  not used). It runs `loadTerms`, the use-case the Terms page runs, and the
+  domain's `vocabulary` decides what is a spelling, what is a conflict and in
+  what order; nothing is decided again in the route. The notes are read from
+  the index by the domain's compiled query, which keeps to user space
+  (`userSpaceNoteSql`) and out of the Archive, so no template, hidden note or
+  retired term is handed out. A note counts when any item of its `type` is
+  a term, person or company — as `@` and a type's page count it — and as
+  the first of them it names. It names its vault, answers `no_vault` if
+  another is opened while it reads, and writes nothing.
+- **Not a route: writing a term.** A term is an ordinary note in user space,
+  so it is written as one: `POST /v1/notes` with `type: term` adds it, and
+  `PATCH /v1/notes/{path}/properties` changes its `variants` or a person's
+  `aliases` — byte-preserving and guarded by `ifModified` as every note write
+  is. A route of its own would be a second way to write the same frontmatter.
+- **MCP.** `atlas_terms` is the route, read-only; its description points a
+  model at `atlas_create_note` and `atlas_update_properties` for writing, and
+  tells it never to correct a spelling in conflict.
