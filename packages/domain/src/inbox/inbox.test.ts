@@ -6,6 +6,7 @@ import {
   filingRefusal,
   inboxItem,
   isInInbox,
+  inboxWaiting,
   isProcessMove,
   processDestination,
   processRefusal,
@@ -200,5 +201,14 @@ describe('isProcessMove', () => {
     expect(isProcessMove(from, path('Archive/Inbox/Kickoff.md'))).toBe(false);
     expect(isProcessMove(from, path('Projects/Atlas/Launch.md'))).toBe(false);
     expect(isProcessMove(path('Notes/Kickoff.md'), path('Projects/Atlas/Kickoff.md'))).toBe(false);
+  });
+});
+
+describe('inboxWaiting', () => {
+  it('counts notes to file and proposals to answer, a side not read yet as none', () => {
+    expect(inboxWaiting({ toFile: 2, toAnswer: 1 })).toBe(3);
+    expect(inboxWaiting({ toFile: null, toAnswer: 1 })).toBe(1);
+    expect(inboxWaiting({ toFile: 2, toAnswer: null })).toBe(2);
+    expect(inboxWaiting({ toFile: null, toAnswer: null })).toBeNull();
   });
 });

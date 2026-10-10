@@ -61,6 +61,7 @@ import type {
   ApiTemplate,
   ApiTemplateContent,
   ApiTerms,
+  ApiInboxItem,
   ApiType,
   ApiTypeView,
   ApiView,
@@ -364,6 +365,12 @@ export class AtlasClient {
       path: '/v1/meetings',
       query: { ...query, includeArchived: includeArchived === true ? 'true' : undefined },
     });
+  inbox = () =>
+    this.json<{ items: readonly ApiInboxItem[]; truncated: boolean }>({
+      method: 'GET',
+      path: '/v1/inbox',
+    });
+
   processInbox = (body: ApiProcessInboxBody) =>
     this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
 

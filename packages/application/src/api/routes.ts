@@ -9,7 +9,7 @@ import { promoteLineRoute } from './checklists.ts';
 import { captureRoute, dailyRoute } from './daily.ts';
 import { noteImageRoute } from './images.ts';
 import { meetingsRoute } from './meetings.ts';
-import { processInboxRoute } from './inbox.ts';
+import { inboxRoute, processInboxRoute } from './inbox.ts';
 import { weeklyReviewRoute } from './review.ts';
 import { createNoteRoute } from './notes-create.ts';
 import { exportNoteRoute } from './notes-export.ts';
@@ -113,6 +113,7 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'GET /v1/archive': vaultRoute(archiveListRoute),
   'POST /v1/archive': vaultWrite(archiveRoute),
   'POST /v1/unarchive': vaultWrite(unarchiveRoute),
+  'GET /v1/inbox': vaultRoute(inboxRoute),
   'POST /v1/inbox/process': vaultWrite(processInboxRoute),
   'POST /v1/tasks/schedule': vaultWrite(scheduleTaskRoute),
   'GET /v1/review/weekly': vaultRoute(weeklyReviewRoute),

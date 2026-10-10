@@ -1,10 +1,22 @@
 import { createVaultPath, InvalidVaultPathError, type VaultPath } from '@atlas/domain';
+import { listInbox } from '../inbox/list-inbox.ts';
 import { FilingRefusedError, processInboxItems } from '../inbox/process-inbox.ts';
 import { ApiError } from './api-error.ts';
 import { moveBatch } from './archive.ts';
 import { bodyObject, requiredString } from './fields.ts';
 import { isApiNotePath } from './paths.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
+
+/**
+ * The notes waiting in the Inbox to be filed, as its page lists them (P30-01):
+ * newest first, each with what the meeting import made of it. Notes of the
+ * proposal type are not among them — they are answered through the proposals
+ * routes, never filed. Reads the index and writes nothing.
+ */
+export async function inboxRoute(request: VaultRequest): Promise<RouteResult> {
+  const { items, truncated } = await listInbox({ index: request.index });
+  return { status: 200, body: { items, truncated } };
+}
 
 /**
  * Files notes from the Inbox under a project or an area, as the Inbox's

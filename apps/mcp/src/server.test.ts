@@ -37,6 +37,7 @@ const ALL_TOOLS = [
   'atlas_create_note',
   'atlas_daily_note',
   'atlas_export_note',
+  'atlas_inbox',
   'atlas_list_notes',
   'atlas_list_templates',
   'atlas_list_type_views',
@@ -138,6 +139,7 @@ describe('tools/list', () => {
     expect(byName.get('atlas_archived')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('atlas_weekly_review')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('atlas_export_note')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('atlas_inbox')).toMatchObject({ readOnlyHint: true });
     for (const name of [
       'atlas_archive',
       'atlas_unarchive',
@@ -476,6 +478,7 @@ describe('tools/call → REST', () => {
     ],
     ['atlas_archived', {}, 'GET', '/v1/archive', null],
     ['atlas_meetings', {}, 'GET', '/v1/meetings', null],
+    ['atlas_inbox', {}, 'GET', '/v1/inbox', null],
     [
       'atlas_meetings',
       { since: '2026-10-01', limit: 10, offset: 20, includeArchived: true },

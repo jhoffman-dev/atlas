@@ -109,6 +109,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_archive`            | `POST /v1/archive`                                                           | yes     |
 | `atlas_unarchive`          | `POST /v1/unarchive`                                                         | yes     |
 | `atlas_archived`           | `GET /v1/archive`                                                            | no      |
+| `atlas_inbox`              | `GET /v1/inbox`                                                              | no      |
 | `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
 | `atlas_schedule_task`      | `POST /v1/tasks/schedule`                                                    | yes     |
 | `atlas_weekly_review`      | `GET /v1/review/weekly`                                                      | no      |
@@ -136,9 +137,12 @@ Meetings are imported in the app as they arrive; fixing a file with
 `atlas_process_inbox_item` files one note from the Inbox under a project or an
 area, as the Inbox's Process does: it moves into the project's folder and gets
 `project: "[[…]]"` linking it. `project` must be a project or an area still in
-use; anything else is refused before the note moves. `atlas_capture_task` puts
-what it captures in the Inbox, and `atlas_list_notes` with `folder: "Inbox"`
-lists what waits there.
+use; anything else is refused before the note moves, and a proposal (a note of
+type `proposal`, wherever it sits) is refused — it is answered with
+`atlas_accept_proposal` or `atlas_reject_proposal`. `atlas_capture_task` puts
+what it captures in the Inbox, and `atlas_inbox` lists what waits there to be
+filed, each meeting with what the import made of it; proposals are listed by
+`atlas_proposals`, not by it.
 
 `atlas_proposals` lists what Claude or an automation proposed and is waiting in
 the Inbox (`Inbox/Proposals/`), with what each would write and the line it

@@ -472,6 +472,20 @@ export interface ApiArchiveBody {
   readonly paths: readonly string[];
 }
 
+/** A note waiting in the Inbox to be filed, as the Inbox page lists it. */
+export interface ApiInboxItem {
+  readonly path: string;
+  readonly title: string;
+  /** Its `type:`, or null for a plain note. */
+  readonly type: string | null;
+  /** The folder of the Inbox it arrived in — `Meetings` — or '' for the Inbox itself. */
+  readonly arrivedIn: string;
+  /** What the meeting import made of it: its outcome, `pending` while it waits, null when not a meeting file. */
+  readonly importOutcome: 'imported' | 'duplicate' | 'error' | 'pending' | null;
+  /** Why it failed the meeting import, or null. */
+  readonly importError: string | null;
+}
+
 /** `POST /v1/inbox/process`: notes in the Inbox, and the project or area to file them under. */
 export interface ApiProcessInboxBody {
   /** Vault-relative paths of notes in the Inbox: 1 to 100 of them. */
@@ -1140,6 +1154,7 @@ export type ApiSuccessBody =
   | ApiAutomationLog
   | ApiAutomationDryRun
   | ApiTerms
+  | { readonly items: readonly ApiInboxItem[]; readonly truncated: boolean }
   | {
       readonly meetings: readonly ApiMeeting[];
       readonly truncated: boolean;
@@ -1335,6 +1350,12 @@ export const API_ROUTES = [
     method: 'POST',
     path: '/v1/unarchive',
     summary: 'Take notes out of the Archive, back where each came from.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/inbox',
+    summary:
+      'The notes waiting in the Inbox to be filed, newest first; proposals are not among them.',
   },
   {
     method: 'POST',

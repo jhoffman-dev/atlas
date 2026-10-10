@@ -8,7 +8,9 @@
 import { describe, expect, it } from 'vitest';
 import type { VaultPath } from '@atlas/domain';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
+import { fakeMarkdown } from '../testing/fake-ports.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
+import { atlasQueryIndex } from '../testing/query-index.ts';
 
 const PROJECT = '---\ntype: project\n---\n\nThe app.\n';
 const AREA = '---\ntype: area\n---\n\nBeds and seeds.\n';
@@ -192,5 +194,36 @@ describe('PATCH /v1/notes/{path}/properties — a relation to a note of the wron
   it('judges nothing for a note whose type the vault does not define', async () => {
     const api = apiFixture({ files: { ...files, '.atlas/types/other.md': TYPE } });
     expect((await api.send(patch({ project: '[[Mara Quill]]' }))).status).toBe(200);
+  });
+});
+
+describe('GET /v1/inbox', () => {
+  it('lists what waits to be filed, with each meeting’s import standing, and no proposal', async () => {
+    const files = {
+      'Inbox/Call Sam.md': '---\ntype: task\n---\n',
+      'Inbox/Meetings/Standup.md': '---\ntype: meeting\n---\n',
+      'Inbox/Proposals/Send the file.md': '---\ntype: proposal\nkind: task\n---\n',
+      'Projects/Atlas.md': PROJECT,
+    };
+    const api = apiFixture({
+      files,
+      index: { query: atlasQueryIndex({ markdown: fakeMarkdown(), files }) },
+    });
+    const response = await api.send({ method: 'GET', path: '/v1/inbox' });
+
+    expect(response.status).toBe(200);
+    const body = bodyOf(response) as { items: { path: string; importOutcome: unknown }[] };
+    expect(body.items.map((item) => [item.path, item.importOutcome]).sort()).toEqual([
+      ['Inbox/Call Sam.md', null],
+      ['Inbox/Meetings/Standup.md', 'pending'],
+    ]);
+    expect(bodyOf(response)['truncated']).toBe(false);
+    expect(api.writes).toEqual([]);
+  });
+
+  it('answers no_vault when no vault is open', async () => {
+    const api = apiFixture({ files: {} });
+    api.open = null;
+    expect(codeOf(await api.send({ method: 'GET', path: '/v1/inbox' }))).toBe('no_vault');
   });
 });

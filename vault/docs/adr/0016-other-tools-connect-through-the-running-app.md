@@ -483,6 +483,10 @@ is held to the Archive's limits above, with one change to where a note goes:
 
 - **Only out of the Inbox.** Every path is a `.md` note under `Inbox/` at the
   root of the vault; any other is listed in `failed` and left where it is.
+  So is a proposal (a note of type `proposal`, wherever it is): it is
+  answered through the proposals routes, never filed. `GET /v1/inbox` (MCP
+  `atlas_inbox`) reads what waits to be filed, as the Inbox page lists it —
+  proposals aside — and writes nothing.
 - **The destination is fixed by the note's name and the project's own path.**
   The caller chooses the project, not the place: a note lands in the
   project's folder — beside the project's note, named as it, or the folder it

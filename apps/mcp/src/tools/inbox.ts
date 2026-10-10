@@ -1,8 +1,25 @@
-/** The Inbox: filing what waits there under a project or an area. */
+/** The Inbox: what waits there to be filed, and filing it under a project or an area. */
 
 import { z } from 'zod';
 import { defineTool } from './define.ts';
-import { notePath } from './inputs.ts';
+import { noInput, notePath } from './inputs.ts';
+
+export const inbox = defineTool({
+  name: 'atlas_inbox',
+  title: 'What waits in the Inbox',
+  description:
+    'The notes waiting in the Inbox to be filed, as its page lists them, newest first: ' +
+    '{ items: [{ path, title, type, arrivedIn, importOutcome, importError }], truncated }. ' +
+    'arrivedIn is the folder of the Inbox it came in ("Meetings", or "" for the Inbox ' +
+    'itself). importOutcome is what the meeting import made of a meeting file: imported, ' +
+    'duplicate, error (importError says why) or pending while it waits; null for any other ' +
+    'note. Proposals are not listed: they are answered with atlas_proposals, ' +
+    'atlas_accept_proposal and atlas_reject_proposal, never filed. File an item with ' +
+    'atlas_process_inbox_item. Read-only.',
+  inputSchema: noInput,
+  annotations: { readOnlyHint: true },
+  call: (client) => client.inbox(),
+});
 
 export const processInboxItem = defineTool({
   name: 'atlas_process_inbox_item',
@@ -12,7 +29,8 @@ export const processInboxItem = defineTool({
     "Atlas: it moves into the project's folder (Projects/Atlas.md files into Projects/Atlas/), " +
     'keeping its name, and gets project: "[[Atlas]]" linking it; links to it in other notes are ' +
     'rewritten. Captured tasks wait in Inbox/ and imported meetings in Inbox/Meetings/ — list ' +
-    'them with atlas_list_notes and folder "Inbox". "project" must be a note of type project or ' +
+    'what waits with atlas_inbox. A proposal (type proposal, wherever it is) is refused: answer ' +
+    'it with atlas_accept_proposal or atlas_reject_proposal. "project" must be a note of type project or ' +
     'area, still in use (not in the Inbox, not archived); anything else is refused before the ' +
     'note moves. Returns { moves: [{ from, to }], failed: [{ path, reason, code? }], ' +
     'linksUpdated }: a note that could not be filed — not in the Inbox, or open in Atlas with ' +
@@ -29,4 +47,4 @@ export const processInboxItem = defineTool({
   call: (client, { path, project }) => client.processInbox({ paths: [path], project }),
 });
 
-export const inboxTools = [processInboxItem];
+export const inboxTools = [inbox, processInboxItem];
