@@ -12,6 +12,7 @@ const MODULES = [
   'meeting-when.ts',
   'meeting-attendees.ts',
   'meeting-text.ts',
+  'meeting-sections.ts',
   'meeting-transcript.ts',
   'meeting-file-name.ts',
   'meeting-to-atlas.ts',

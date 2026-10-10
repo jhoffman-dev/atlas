@@ -412,13 +412,14 @@ describe('the start of a Gemini meeting, from its email', () => {
     expect(meeting.start).toBe('10:10');
   });
 
-  it('takes the arrival itself, marked approximate, when there is no transcript to measure', () => {
-    const { file, meeting } = mapped(
-      { ...fromEmail, stated: subject, arrived: '2026-10-06T17:52:00Z', transcript: '' },
-      zone,
+  it('refuses, never taking the arrival itself, when there is no transcript to measure', () => {
+    const noLength = { ...fromEmail, stated: subject, arrived: '2026-10-06T17:52:00Z' };
+    expect(() => mapMeeting({ ...noLength, transcript: '' }, zone)).toThrow(
+      new MeetingMappingError(
+        'start: the meeting has no start time: the email states none, and with no transcript length the arrival (about when it ended) cannot give one',
+      ),
     );
-    expect(meeting.start).toBe('10:52');
-    expect(file.content).toMatch(/^start_approximate: true$/m);
+    expect(() => mapMeeting({ ...noLength, transcript: 'Ann Lee: Hi.' }, zone)).toThrow(/^start: /);
   });
 
   it('keeps a start it is given over the email’s', () => {
@@ -432,6 +433,35 @@ describe('the start of a Gemini meeting, from its email', () => {
       zone,
     );
     expect(meeting.start).toBe('09:00');
+    expect(file.content).not.toMatch(/start_approximate/);
+  });
+
+  it('shows a stated time in another zone on the local clock, moving the day with it', () => {
+    const at = (stated: string) => mapped({ ...fromEmail, stated }, zone);
+    const late = at('Weekly - 2026/10/07 01:00 EDT - Notes by Gemini');
+    expect([late.meeting.date, late.meeting.start]).toEqual(['2026-10-06', '22:00']);
+    expect(late.file.content).not.toMatch(/start_approximate/);
+    for (const stated of [
+      'Weekly - 2026/10/06 18:00 UTC+1',
+      'Weekly - 2026/10/06 13:00 -04:00',
+      'Weekly - 2026/10/06 13:00 edt',
+      'Weekly - 2026/10/06 10:00 PDT',
+    ]) {
+      expect(at(stated).meeting.start, stated).toBe('10:00');
+    }
+  });
+
+  it('keeps a time in a zone it cannot convert as written, marked approximate', () => {
+    const unknown = mapped({ ...fromEmail, stated: 'Weekly - 2026/10/06 13:00 ACWT' }, zone);
+    expect(unknown.meeting.start).toBe('13:00');
+    expect(unknown.file.content).toMatch(/^start: '13:00'\nstart_approximate: true$/m);
+    const noLocal = mapped({ ...fromEmail, date: '', stated: 'Weekly - 2026/10/06 13:00 EDT' });
+    expect(noLocal.file.content).toMatch(/^start: '13:00'\nstart_approximate: true$/m);
+  });
+
+  it('reads a word after the time that is no zone as no zone', () => {
+    const { file, meeting } = mapped({ ...fromEmail, stated: 'Oct 6, 2026 10:00 Team sync' }, zone);
+    expect(meeting.start).toBe('10:00');
     expect(file.content).not.toMatch(/start_approximate/);
   });
 
@@ -495,6 +525,12 @@ describe('attendees', () => {
       { name: 'Ann Lee', email: 'ann@example.com', group: false },
       { name: 'bo', email: 'bo@example.com', group: false },
       { name: 'Cy Park', email: null, group: false },
+    ]);
+  });
+
+  it('takes an address written as the name, with no address given, as the address', () => {
+    expect(attendeesOf([{ name: 'mailto:dee.ray@example.com' }])).toEqual([
+      { name: 'dee.ray', email: 'dee.ray@example.com', group: false },
     ]);
   });
 
@@ -589,7 +625,113 @@ describe('prose sections', () => {
   });
 });
 
+describe('notes handed over as one text, by their headings', () => {
+  const GEMINI_NOTES = [
+    '## Summary',
+    '',
+    'Mara and Tobias agreed to ship the cache behind a flag.',
+    '',
+    '## Decisions',
+    '',
+    'Ship behind a flag.',
+    '',
+    '## Next steps',
+    '',
+    '* [Tobias Fenn] Flag the cache: put it behind a flag before Friday.',
+    '* [The group] Review the rollout: look at it together next week.',
+    '',
+    '## Details',
+    '',
+    '- Cache rollout: the cache is ready.',
+  ].join('\n');
+  const together: MeetingFields = {
+    ...GEMINI,
+    summary: '',
+    decisions: '',
+    nextSteps: '',
+    details: '',
+    sections: GEMINI_NOTES,
+  };
+
+  it('puts Summary, Decisions, Next steps and Details where the separate fields go', () => {
+    expect(mapped(together).file.content).toBe(mapped(GEMINI).file.content);
+  });
+
+  it('keeps a field given on its own over its part of the text', () => {
+    const { file } = mapped({ ...together, summary: 'Said separately.' });
+    expect(file.content).toContain('## Summary\n\nSaid separately.\n\n## Notes');
+    expect(file.content).toContain('### Decisions\n\nShip behind a flag.');
+  });
+
+  it('reads text before any heading as summary, gathers a heading named twice, keeps others in place', () => {
+    const { file, meeting } = mapped({
+      ...together,
+      sections: [
+        'Opening words.',
+        '# Details',
+        'First detail.',
+        '## Topic',
+        'Under the topic.',
+        '### next steps ###',
+        '- [Ann Lee] Plan: write it',
+        '## Details',
+        'Second detail.',
+      ].join('\n'),
+    });
+    expect(file.content).toContain('## Summary\n\nOpening words.\n\n## Notes');
+    expect(file.content).toContain(
+      '## Notes\n\nFirst detail.\n### Topic\nUnder the topic.\nSecond detail.\n\n## Provider next steps',
+    );
+    expect(meeting.nextSteps.map((step) => step.owner)).toEqual(['Ann Lee']);
+  });
+
+  it('opens no section at a heading inside a code fence', () => {
+    const { file } = mapped({
+      ...together,
+      sections: '## Summary\n```\n## Details\n```\nAfter the fence.',
+    });
+    expect(file.content).toContain(
+      '## Summary\n\n```\n## Details\n```\nAfter the fence.\n\n## Transcript',
+    );
+  });
+
+  it('reads notes with none of the headings as all summary, and none at all as nothing', () => {
+    const plain = mapped({ ...together, sections: 'Only a paragraph.' }).file.content;
+    expect(plain).toContain('## Summary\n\nOnly a paragraph.\n\n## Transcript');
+    expect(mapped({ ...together, sections: '' }).file.content).not.toMatch(/## (Summary|Notes)/);
+  });
+
+  it('refuses notes that are not text', () => {
+    expect(() => mapMeeting({ ...together, sections: { summary: 'x' } })).toThrow(
+      /sections: expected text/,
+    );
+  });
+});
+
 describe('transcripts', () => {
+  it('drops the title a Gemini transcript doc opens with, above its first stamp only', () => {
+    const turnsOf = (transcript: string) =>
+      mapped({ ...GEMINI, transcript }).meeting.transcript.map((turn) => [
+        turn.writtenSpeaker,
+        turn.words,
+      ]);
+    expect(
+      turnsOf(
+        [
+          '## Platform weekly sync - Transcript',
+          '# Retro – Transcript',
+          '### 00:00:12',
+          'Mara Quill: Next up - transcript tooling.',
+          '## Retro – Transcript',
+        ].join('\n'),
+      ),
+    ).toEqual([['Mara Quill', 'Next up - transcript tooling. ## Retro – Transcript']]);
+    // A fence line, or a line in a fence, is never the doc's title, even when it reads like one.
+    expect(
+      turnsOf('``` - Transcript\n## Transcript\n```\n### 00:00:12\nMara Quill: Hi.')[0],
+    ).toEqual(['Unknown', '``` - Transcript ## Transcript ```']);
+  });
+
   const turnsOf = (transcript: string) =>
     mapped({ ...GEMINI, transcript }).meeting.transcript.map((turn) => [
       turn.writtenSpeaker,
