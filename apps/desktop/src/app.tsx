@@ -510,7 +510,13 @@ export function App({
   });
 
   const typeRoute = useTypeRoute({
-    ports: { fs: vault.fs, markdown: notes.markdown, index: index.index, editors },
+    ports: {
+      fs: vault.fs,
+      markdown: notes.markdown,
+      index: index.index,
+      editors,
+      activity: activityLog,
+    },
     types,
     typeName: openTypeName,
     indexKey,

@@ -15,7 +15,7 @@ import {
 } from '@atlas/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
-import type { LinkUpdatePanes } from '../vault/update-links.ts';
+import { UnsavedTypingError, type LinkUpdatePanes } from '../vault/update-links.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { loadTagCounts, loadTaggedNotes, type TaggedNote } from './load-tags.ts';
 
@@ -222,7 +222,7 @@ async function rewrite({
   rename: TagRename;
 }): Promise<boolean> {
   if (openNotes.state(path) === 'dirty') await openNotes.flush([path]);
-  if (openNotes.state(path) === 'dirty') throw new Error(`${noteTitle(path)} has unsaved changes.`);
+  if (openNotes.state(path) === 'dirty') throw new UnsavedTypingError(path);
   const { text, modified } = await fs.readTextFile(path);
   const renamed = renameTagInNote({ text, markdown, rename });
   if (renamed.problem !== null) throw new Error(renamed.problem);

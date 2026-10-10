@@ -268,7 +268,7 @@ describe('renameTag', () => {
       reload: vi.fn(),
     };
     const report = await renameTag({ fs, markdown, openNotes, plan: found });
-    expect(report.failed).toEqual([{ path: 'a.md', reason: 'a has unsaved changes.' }]);
+    expect(report.failed).toEqual([{ path: 'a.md', reason: 'The note has unsaved changes.' }]);
     expect(disk.get('a.md')).toBe(FILES['a.md']);
     expect(report.updated).toEqual(['b.md']);
   });

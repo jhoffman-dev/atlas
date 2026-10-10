@@ -93,6 +93,15 @@ describe('activityEvent and chat notes, whose names are the question', () => {
     expect(made.message).not.toContain('raise');
   });
 
+  it.each(["'", '`', '!', ',', ';', ')', '}', '’', '”', '»', '"', '.', ':', '?', ']', '>'])(
+    'says a chat note whose name starts with %s as a chat note, in a line about no note',
+    (first) => {
+      const line = `Left Chats/${first}${QUESTION}.md out of the sync: it is over 100 MB.`;
+      const made = event(line);
+      expect(made.message).toBe('Left a chat note out of the sync: it is over 100 MB.');
+    },
+  );
+
   it('keeps the words around a chat note it names', () => {
     expect(event(`Could not save ${CHAT}. It changed since it was read.`).message).toBe(
       'Could not save a chat note. It changed since it was read.',

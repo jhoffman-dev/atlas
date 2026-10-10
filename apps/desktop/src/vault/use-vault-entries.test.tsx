@@ -114,6 +114,44 @@ describe('useVaultEntries', () => {
     expect(result.current.notice).not.toContain('Mara Quill');
   });
 
+  it('says a chat note held unsaved typing without its question, in the name or the reason', async () => {
+    const CHAT = 'Chats/Should Mara Quill get a raise.md';
+    const disk = new Map([
+      ['Notes/Plan.md', '# Plan\n'],
+      [CHAT, 'See [[Plan]].\n'],
+    ]);
+    const fs = fakeVaultFs({
+      moveEntry: async ({ from, to }) => {
+        disk.set(to, disk.get(from) ?? '');
+        disk.delete(from);
+      },
+      readNotes: async (paths) =>
+        paths.map((path) => ({ path, text: disk.get(path) ?? '', modified: 1, size: 1 })),
+      readTextFile: async (path) => ({ text: disk.get(path) ?? '', modified: 1 }),
+      writeTextFile: async () => 2,
+    });
+    const typing = ports(async () => {}, fs);
+    const editors = {
+      ...typing.editors,
+      state: (at: VaultPath) => (at === CHAT ? 'dirty' : 'closed'),
+    };
+    const { result } = renderHook(() =>
+      useVaultEntries(
+        { ...typing, editors } as VaultEntryPorts,
+        ['Notes/Plan.md', CHAT] as VaultPath[],
+      ),
+    );
+    act(() => result.current.rename({ kind: 'file', path: NOTE }, 'Roadmap'));
+    await waitFor(() => expect(result.current.links).not.toBeNull());
+    act(() => result.current.links?.update());
+
+    await waitFor(() =>
+      expect(result.current.notice).toBe(
+        '1 note could not be updated: a chat note (The note has unsaved changes.).',
+      ),
+    );
+  });
+
   it('warns of a name a chat note now shares without saying the name, which is the question', async () => {
     const DEEP = 'Notes/Drafts/Plan.md' as VaultPath;
     const CHAT = 'Chats/Should Mara Quill get a raise.md' as VaultPath;

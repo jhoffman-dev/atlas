@@ -4,7 +4,7 @@ import {
   joinFrontmatter,
   locateFragment,
   newBlockId,
-  noteTitle,
+  noteLabelForNotice,
   splitFrontmatter,
   withAnchorAt,
   type NodePath,
@@ -65,7 +65,10 @@ export function createBlockChoicesReader({
 /** The block a link was about to name is not where, or what, it was when it was offered. */
 export class BlockMovedError extends Error {
   constructor(path: VaultPath) {
-    super(`${noteTitle(path)} changed while its blocks were being offered. Pick the block again.`);
+    // Shown on its own, so the note is named — as a chat note, when it is one, never by the question.
+    super(
+      `${noteLabelForNotice(path)} changed while its blocks were being offered. Pick the block again.`,
+    );
     this.name = 'BlockMovedError';
   }
 }

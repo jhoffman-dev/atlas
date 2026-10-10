@@ -158,6 +158,18 @@ describe('linkUnlinkedMention', () => {
     expect(writeTextFile).not.toHaveBeenCalled();
   });
 
+  it('refuses a chat note open with unsaved typing without naming it, since its name is the question', async () => {
+    const refusal = linkUnlinkedMention({
+      index: indexed,
+      fs: writableVault('Atlas').fs,
+      markdown,
+      openNotes: panes('dirty'),
+      source: createVaultPath('Chats/Should Mara Quill get a raise.md'),
+      target: atlas,
+    });
+    await expect(refusal).rejects.toThrow('a chat note has unsaved changes. Save it first.');
+  });
+
   it('writes nothing when the mention has gone, or is only in code', async () => {
     const { fs: vaultFs, writeTextFile } = writableVault('```\nAtlas\n```\n');
     const open = panes('clean');

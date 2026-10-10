@@ -4,6 +4,7 @@ import {
   joinFrontmatter,
   linkFirstMention,
   mentionExcerpt,
+  noteLabelForNotice,
   noteTitle,
   proseText,
   splitFrontmatter,
@@ -135,7 +136,9 @@ export async function linkUnlinkedMention({
   }
   const pane = openNotes.state(source);
   if (pane === 'dirty') {
-    throw new MentionNotLinkedError(`${noteTitle(source)} has unsaved changes. Save it first.`);
+    throw new MentionNotLinkedError(
+      `${noteLabelForNotice(source)} has unsaved changes. Save it first.`,
+    );
   }
   const notes = (await index.manifest()).map((entry) => entry.path as VaultPath);
   const { text, modified } = await fs.readTextFile(source);

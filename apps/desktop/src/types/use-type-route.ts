@@ -1,6 +1,12 @@
 import { useCallback } from 'react';
 import type { VaultPath } from '@atlas/domain';
-import type { DefinedType, IndexPort, MarkdownPort, VaultFsPort } from '@atlas/application';
+import type {
+  ActivityLog,
+  DefinedType,
+  IndexPort,
+  MarkdownPort,
+  VaultFsPort,
+} from '@atlas/application';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useTypeTable } from './use-type-table.ts';
 import { useNewType } from './use-new-type.ts';
@@ -21,7 +27,13 @@ export function useTypeRoute({
   onTypeCreated,
   onNoteCreated,
 }: {
-  ports: { fs: VaultFsPort; markdown: MarkdownPort; index: IndexPort; editors: OpenEditors };
+  ports: {
+    fs: VaultFsPort;
+    markdown: MarkdownPort;
+    index: IndexPort;
+    editors: OpenEditors;
+    activity: Pick<ActivityLog, 'inOpenVault'>;
+  };
   types: readonly DefinedType[];
   /** The type whose page is open, or null. */
   typeName: string | null;
@@ -33,7 +45,7 @@ export function useTypeRoute({
   onTypeCreated: (type: DefinedType) => void;
   onNoteCreated: (path: VaultPath) => void;
 }) {
-  const { fs, markdown, index, editors } = ports;
+  const { fs, markdown, index, editors, activity } = ports;
   const table = useTypeTable({
     fs,
     markdown,
@@ -43,6 +55,7 @@ export function useTypeRoute({
     indexKey,
     onChanged,
     editors,
+    activity,
   });
 
   /** After the type editor writes a type file: the type, the tree and the index follow. */

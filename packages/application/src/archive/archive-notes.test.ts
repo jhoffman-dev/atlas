@@ -466,6 +466,27 @@ describe('a batch that must leave unsaved typing alone (A20-06)', () => {
     expect(vault.log.some((line) => line.startsWith('flush'))).toBe(false);
   });
 
+  it('names no chat note in why its links were left, since its name is the question', async () => {
+    const CHAT = 'Chats/Should Mara Quill get a raise.md';
+    const vault = memoryVault({ 'Projects/X.md': 'x\n', [CHAT]: 'See [[Projects/X]].\n' });
+    const outcome = await archiveNotes({
+      ports: portsFor(vault, [CHAT]),
+      paths: [path('Projects/X.md')],
+      notePaths: vault.notePaths(),
+      today: TODAY,
+      updateLinks: true,
+      unsavedTyping: 'leave',
+    });
+
+    expect(outcome.failed).toEqual([
+      {
+        path: CHAT,
+        reason: 'Its links to the notes that moved were not updated: The note has unsaved changes.',
+        unsavedInApp: true,
+      },
+    ]);
+  });
+
   it('still saves the typing first when the person asked from the app', async () => {
     const vault = memoryVault({ 'Projects/X.md': 'x\n', 'Linker.md': 'See [[Projects/X]].\n' });
     const outcome = await archiveNotes({

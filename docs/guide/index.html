@@ -713,7 +713,7 @@ ORDER BY phase</pre>
       <ul>
         <li>Type <code>![[</code> and pick a note. Its headings and blocks are offered next, each with a line of preview and its kind (<i>Heading 2</i>, <i>Text</i>, <i>List item</i>, <i>Task</i>, <i>Quote</i>, <i>Callout</i>, <i>Code</i>, <i>Table</i>); typing narrows them. <code>[[Note#</code> does the same for a plain link.</li>
         <li>Picking writes <code>![[Note#^id]]</code> for a block or <code>![[Note#Heading]]</code> for a heading.</li>
-        <li>If the block has no id yet, Atlas adds one (six letters and digits) to its note and changes nothing else there. While that note has unsaved typing it refuses with <i>&lt;Note&gt; has unsaved changes.</i> Save it, then pick again.</li>
+        <li>If the block has no id yet, Atlas adds one (six letters and digits) to its note and changes nothing else there. While that note has unsaved typing it refuses with <i>The note has unsaved changes.</i> Save it, then pick again.</li>
       </ul>
       <h3>The embed</h3>
       <ul>
@@ -973,7 +973,7 @@ do: archive</pre>
         <li><a href="#automations">Automation</a> runs, dry runs and undos; the rule's own log keeps the detail.</li>
         <li><a href="#sources">Source</a> refreshes.</li>
         <li>Notes written through the Local API or MCP: the route and the note, never the contents.</li>
-        <li>Claude's edits accepted and undone, failed turns, and a chat that couldn't be saved to <code>Chats/</code>, in fixed wording — never your question. A chat note is never named, since its name is the start of your question; a line about one, and the window's notices, say “a chat note”.</li>
+        <li>Claude's edits accepted and undone, failed turns, and a chat that couldn't be saved to <code>Chats/</code>, in fixed wording — never your question. A line never names a chat note, since its name is the start of your question: it says “a chat note” instead. So do the notices about links left, archiving and kept edits.</li>
         <li>Index rebuilds and failures.</li>
         <li>Each <a href="#sync">sync</a> — what it saved, brought in and sent — plus conflicts, files left out and failures.</li>
         <li>Saves a note gives up on; edits kept on screen after a failed save show as a warning.</li>

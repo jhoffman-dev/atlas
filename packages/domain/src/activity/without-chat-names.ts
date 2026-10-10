@@ -11,12 +11,14 @@ import type { VaultPath } from '../vault/vault-path.ts';
 
 /*
  * `Chats/` as a path's folder — bare, quoted, or under another folder — with
- * a name after it. A path runs to the last `.md` on its line, since a name can
- * hold spaces and dots; one without `.md` runs to the line's end. Stripping
- * too much is safe; too little leaks the question.
+ * a name after it. A name may start with any character, a quote or a bracket
+ * among them; only a closer with a space or the end after it ends the path
+ * there (`saved to Chats/.`). A path runs to the last `.md` on its line, since
+ * a name can hold spaces and dots; one without `.md` runs to the line's end.
+ * Stripping too much is safe; too little leaks the question.
  */
 const CHAT_PATH =
-  /(?<![\p{L}\p{N}_.-])chats\/(?=[^\s,.;:!?)\]}>"'`’”»])(?:[^\n]*\.md(?![\p{L}\p{N}])|[^\n]*)/giu;
+  /(?<![\p{L}\p{N}_.-])chats\/(?!\s|$|[,.;:!?)\]}>"'`’”»](?:\s|$))(?:[^\n]*\.md(?![\p{L}\p{N}])|[^\n]*)/gimu;
 
 /** The message with every chat note's path in it said as "a chat note". */
 export function withoutChatPaths(message: string): string {
