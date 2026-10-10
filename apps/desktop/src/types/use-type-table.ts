@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { typeTableQuery, type ObjectType, type QuerySort } from '@atlas/domain';
 import {
   runView,
+  TaskRuleRefusedError,
   type ActivityLog,
   type IndexPort,
   type MarkdownPort,
@@ -110,7 +111,7 @@ export function useTypeTable({
       // Through the pane holding the note, when one does: writing the file
       // underneath it would leave its next save to be refused.
       const values = { [column]: value === '' ? null : value };
-      const edit = { activity, write: 'edit', path } as const;
+      const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
       withGiveUpRecorded(edit, () => writeNoteProperties({ editors, fs, markdown, path, values }))
         .then(onChanged)
         .catch((cause: unknown) => setError(message(cause)));

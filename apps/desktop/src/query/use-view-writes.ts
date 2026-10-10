@@ -9,6 +9,7 @@ import {
 import {
   cardMoveChanges,
   setNoteProperties,
+  TaskRuleRefusedError,
   type ActivityLog,
   type MarkdownPort,
   type PropertyChanges,
@@ -68,9 +69,8 @@ export function useChangeProperties({
 }): ChangeProperties {
   return useCallback(
     ({ path, values }) => {
-      withGiveUpRecorded({ activity, write: 'edit', path }, () =>
-        writeNoteProperties({ editors, fs, markdown, path, values }),
-      )
+      const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
+      withGiveUpRecorded(edit, () => writeNoteProperties({ editors, fs, markdown, path, values }))
         .then(onChanged)
         .catch((cause: unknown) => onError(errorMessage(cause)));
     },

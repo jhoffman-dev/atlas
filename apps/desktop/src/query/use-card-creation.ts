@@ -13,6 +13,7 @@ import {
 import type { CardAdd } from '@atlas/ui';
 import {
   createNote as makeNote,
+  TaskRuleRefusedError,
   type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
@@ -79,7 +80,13 @@ export function useCardCreation({
       try {
         // Made as every new note is, so a card added to a Waiting column with
         // nobody to wait on is refused, and one added to Archive is dated.
-        const path = await withGiveUpRecorded({ activity, write: 'card', path: null }, () =>
+        const card = {
+          activity,
+          write: 'card',
+          path: null,
+          refusal: TaskRuleRefusedError,
+        } as const;
+        const path = await withGiveUpRecorded(card, () =>
           makeNote({
             fs,
             markdown,
