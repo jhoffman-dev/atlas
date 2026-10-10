@@ -1,5 +1,9 @@
 mod activity;
 mod api;
+// Public for the embedding spike (`examples/embedding_spike.rs`) and its
+// integration test, which run the real model outside the app.
+#[doc(hidden)]
+pub mod embeddings;
 mod git_process;
 mod http;
 mod index;
@@ -38,12 +42,14 @@ pub fn run() {
         .manage(sqlite_source::SqliteGrants::default())
         .manage(model_process::ModelProcesses::default())
         .manage(git_process::GitHost::default())
+        .manage(embeddings::EmbeddingState::default())
         .invoke_handler(tauri::generate_handler![
             report_error,
             activity::activity_append,
             activity::activity_read,
             activity::activity_replace,
             http::http_get,
+            embeddings::embed,
             model_http::model_http_post,
             model_process::model_process_start,
             model_process::model_process_cancel,

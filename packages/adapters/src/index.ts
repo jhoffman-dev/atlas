@@ -21,6 +21,7 @@ export { tauriExternalLinks } from './links/tauri-external-links.ts';
 export { tauriActivityStore } from './activity/tauri-activity-store.ts';
 export { tauriWindowClosing } from './activity/tauri-window-closing.ts';
 export { tauriPageSnapshot } from './artifacts/tauri-page-snapshot.ts';
+export { tauriEmbeddings } from './embeddings/tauri-embeddings.ts';
 export * from './chat/index.ts';
 export {
   tauriGit,
