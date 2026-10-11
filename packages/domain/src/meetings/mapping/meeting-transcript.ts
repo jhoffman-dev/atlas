@@ -43,8 +43,13 @@ const ENDED = /^(?:#{1,6}\s*)?transcription ended after\s+(\d{1,2}:\d{2}:\d{2})\
 const SECTION = /^(?:#{1,6}\s*)?(\d{1,2}:\d{2}:\d{2})$/;
 /** An elapsed time the contract reads: any hours, minutes and seconds under 60. */
 const ELAPSED_TIME = /^\d{2,}:[0-5]\d:[0-5]\d$/;
-/** Granola's turn: `**[14:14:22] You:** words`. */
-const STAMPED = /^(?:\*\*)?\[(\d{1,2}:\d{2}:\d{2})\]\s*([^:*\]]+?)\s*:(?:\*\*)?\s*(.*)$/;
+/**
+ * Granola's turn: `**[14:14:22] You:** words`. The speaker starts and ends on
+ * a character that is not a space, so a run of spaces is tried once, never
+ * once per character before it: the text arrives from outside, up to a MiB.
+ */
+const STAMPED =
+  /^(?:\*\*)?\[(\d{1,2}:\d{2}:\d{2})\]\s*([^:*\]\s](?:[^:*\]]*[^:*\]\s])?)\s*:(?:\*\*)?\s*(.*)$/;
 /** Gemini's turn: `Speaker Name: words`, `**Speaker Name:** words` or `**Speaker Name**: words`. */
 const SPOKEN = /^(?:\*\*)?([^:*\s][^:*]{0,79}?)(?:\*\*)?\s*:(?:\*\*)?(?:\s+(.*))?$/;
 /** A list bullet a provider may put before a turn. */

@@ -309,7 +309,7 @@ describe('the Atlas branch never stops or prevents the Notion write', () => {
     expect(notify.onError).toBe('continueErrorOutput');
     expect(next(NODES.notify, 1)).toEqual([]);
     expect(String(notify.parameters.message)).toMatch(
-      /^=This meeting was not committed to the Atlas vault: \{\{ .*\$json\.error/,
+      /^=This meeting did not reach Atlas: \{\{ .*\$json\.error/,
     );
     expect(String(notify.parameters.subject)).toContain(
       `$('${EXAMPLE_SOURCES.meetingNode}').item.json["title"]`,
