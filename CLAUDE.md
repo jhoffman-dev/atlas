@@ -70,7 +70,9 @@ change is merged. Don't wait to be asked:
   examples use fictional names only. It is a self-contained page (no build).
   Publish it as a claude.ai artifact from the account the session runs under;
   the first publish from a new account creates a new URL — tell James the URL
-  and record it here. (The original personal-account copy is
+  and record it here. The current published copy is
+  `claude.ai/artifact/XS3G54GvnJqpG5RFw6DjF8`, published 2026-10-11 from the
+  work-account session. (The earlier personal-account copy is
   `claude.ai/artifact/QXvTge2zPuY5YS5g7QYveH`, last updated 2026-10-07.)
 
 ## Working with James
