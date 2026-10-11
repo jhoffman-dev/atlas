@@ -1,5 +1,6 @@
 import {
   DAILY_NOTE_CONTENTS,
+  dailyNoteAmong,
   joinVaultPath,
   noteFileName,
   VAULT_ROOT,
@@ -22,8 +23,8 @@ export function dailyNotePath(today: string): VaultPath {
 /**
  * Today's note, made on demand.
  *
- * Found where it should be if it is already there — a daily note imported
- * from elsewhere included — otherwise created at the root, never beside
+ * Found where it should be if it is already there, however the disk spells
+ * its name — a daily note imported from elsewhere included — otherwise created at the root, never beside
  * whatever note happens to be in view, or the next ask would not find it. It
  * starts from the vault's Daily template when it has one, and as a note of the
  * built-in Daily type otherwise.
@@ -47,8 +48,9 @@ export async function ensureDailyNote({
   notePaths: readonly VaultPath[];
   templates: readonly NoteTemplate[];
 }): Promise<{ path: VaultPath; created: boolean }> {
+  const existing = dailyNoteAmong(today, notePaths);
+  if (existing !== null) return { path: existing, created: false };
   const path = dailyNotePath(today);
-  if (notePaths.includes(path)) return { path, created: false };
 
   const template = findDailyTemplate(templates);
   const started = template === null ? DAILY_NOTE_CONTENTS : await readTemplate({ fs, template });
@@ -56,8 +58,10 @@ export async function ensureDailyNote({
   try {
     await fs.createNote({ path, contents });
   } catch (error) {
-    // Another program made it after the listing: it is found, not numbered.
-    if ((await listVaultNotes({ fs })).includes(path)) return { path, created: false };
+    // Another program made it after the listing, or the disk holds it under
+    // another spelling: it is found, not numbered.
+    const found = dailyNoteAmong(today, await listVaultNotes({ fs }));
+    if (found !== null) return { path: found, created: false };
     throw error;
   }
   return { path, created: true };

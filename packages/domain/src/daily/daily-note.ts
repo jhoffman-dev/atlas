@@ -1,5 +1,8 @@
 import type { BuiltInTypeFile } from '../types/para.ts';
-import type { ObjectType } from '../types/property-def.ts';
+import type { ObjectType, PropertyDef } from '../types/property-def.ts';
+import { isMarkdownName, noteTitle } from '../vault/vault-entry.ts';
+import type { VaultPath } from '../vault/vault-path.ts';
+import { foldedVaultPath } from '../vault/vault-spelling.ts';
 
 /**
  * Today's note is a note of this type: one a day, named by its date at the
@@ -7,9 +10,23 @@ import type { ObjectType } from '../types/property-def.ts';
  */
 export const DAILY_TYPE = 'daily';
 
+const property = (key: string, kind: PropertyDef['kind'], label: string): PropertyDef => ({
+  key,
+  kind,
+  label,
+  required: false,
+  options: [],
+  target: null,
+  many: false,
+});
+
+/** The day and the tags the Notion import writes on a daily note, typed. */
+const DATE = property('date', 'date', 'Date');
+const TAGS = property('tags', 'multiSelect', 'Tags');
+
 /** The Daily type, as written into a vault that lacks it once the person says yes. */
 export const DAILY_TYPE_FILE: BuiltInTypeFile = {
-  type: { name: DAILY_TYPE, label: 'Daily', icon: 'calendar', properties: [] },
+  type: { name: DAILY_TYPE, label: 'Daily', icon: 'calendar', properties: [DATE, TAGS] },
   body: [
     '# Daily',
     '',
@@ -45,4 +62,22 @@ const folded = (name: string) => name.trim().toLowerCase();
  */
 export function dailyTypeToOffer(existing: readonly ObjectType[]): BuiltInTypeFile | null {
   return existing.some((type) => folded(type.name) === DAILY_TYPE) ? null : DAILY_TYPE_FILE;
+}
+
+/**
+ * The vault's note for `today`, if it has one: at the root, named by the date
+ * however the disk spells it — `2026-10-12.md`, `.MD`, `.markdown` — since
+ * APFS opens any of them by the other's name. `<date>.md` exactly wins;
+ * without it, the first note listed under another spelling is the day's.
+ */
+export function dailyNoteAmong(today: string, notePaths: readonly VaultPath[]): VaultPath | null {
+  const day = foldedVaultPath(today);
+  const exact = notePaths.find((path) => path === `${today}.md`);
+  if (exact !== undefined) return exact;
+  return (
+    notePaths.find(
+      (path) =>
+        !path.includes('/') && isMarkdownName(path) && foldedVaultPath(noteTitle(path)) === day,
+    ) ?? null
+  );
 }

@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import { isBuiltInType, typeDeleteRefusal } from '../types/built-in-types.ts';
 import type { ObjectType } from '../types/property-def.ts';
-import { DAILY_NOTE_CONTENTS, DAILY_TYPE_FILE, dailyTypeToOffer } from './daily-note.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
+import {
+  DAILY_NOTE_CONTENTS,
+  DAILY_TYPE_FILE,
+  dailyNoteAmong,
+  dailyTypeToOffer,
+} from './daily-note.ts';
 
 /** #81: today's note is a note of the built-in Daily type. */
 const typeNamed = (name: string): ObjectType => ({ name, label: name, properties: [] });
@@ -28,6 +34,13 @@ describe('the Daily type', () => {
   it('is named daily, as notes imported with `type: daily` already say', () => {
     expect(DAILY_TYPE_FILE.type).toMatchObject({ name: 'daily', label: 'Daily' });
   });
+
+  it('types the day and the tags the Notion import writes on a daily note', () => {
+    expect(DAILY_TYPE_FILE.type.properties.map(({ key, kind }) => [key, kind])).toEqual([
+      ['date', 'date'],
+      ['tags', 'multiSelect'],
+    ]);
+  });
 });
 
 describe("today's note without a Daily template", () => {
@@ -36,5 +49,34 @@ describe("today's note without a Daily template", () => {
     expect(frontmatter).toMatch(/^type: daily$/m);
     expect(body).toContain('## What happened');
     expect(body).toContain('## What is next');
+  });
+});
+
+describe("the vault's note for today", () => {
+  const paths = (...names: string[]) => names.map((name) => createVaultPath(name));
+
+  it('is `<date>.md` at the root', () => {
+    expect(dailyNoteAmong('2026-10-12', paths('Garden.md', '2026-10-12.md'))).toBe('2026-10-12.md');
+  });
+
+  it('is found however the disk spells its name: .MD, .markdown, in any case', () => {
+    for (const name of ['2026-10-12.MD', '2026-10-12.markdown', '2026-10-12.Markdown']) {
+      expect(dailyNoteAmong('2026-10-12', paths('Garden.md', name)), name).toBe(name);
+    }
+  });
+
+  it('prefers `<date>.md` over another spelling of the same day', () => {
+    expect(dailyNoteAmong('2026-10-12', paths('2026-10-12.MD', '2026-10-12.md'))).toBe(
+      '2026-10-12.md',
+    );
+  });
+
+  it('is never a note in a folder, another day, or a file that is not a note', () => {
+    expect(
+      dailyNoteAmong(
+        '2026-10-12',
+        paths('Journal/2026-10-12.md', '2026-10-11.md', '2026-10-12.txt', '2026-10-12 1.md'),
+      ),
+    ).toBeNull();
   });
 });

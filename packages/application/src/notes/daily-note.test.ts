@@ -103,6 +103,28 @@ describe("today's note", () => {
     expect(attempts).toEqual(['2026-09-22.md']);
   });
 
+  it('is found under the spelling the disk has when the create is refused for the name', async () => {
+    // Made as `2026-09-22.MD` after the listing; APFS refuses `2026-09-22.md` beside it.
+    const fs = fakeVaultFs({
+      listNotes: async () => [
+        { name: '2026-09-22.MD', path: createVaultPath('2026-09-22.MD'), modified: 1, size: 1 },
+      ],
+      createNote: async () => {
+        throw new Error('a note with that name already exists');
+      },
+    });
+
+    const found = await ensureDailyNote({
+      fs,
+      markdown,
+      today: TODAY,
+      notePaths: [],
+      templates: [],
+    });
+
+    expect(found).toEqual({ path: '2026-09-22.MD', created: false });
+  });
+
   it("propagates the host's refusal when today's note is still not there", async () => {
     const fs = fakeVaultFs({
       createNote: async () => {
