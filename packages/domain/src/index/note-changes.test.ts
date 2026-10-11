@@ -60,6 +60,40 @@ describe('noteChangesBetween', () => {
   });
 });
 
+describe('noteChangesBetween: how the meeting import settled a note (#92)', () => {
+  it('carries the stamp a note holds now, and on a changed note the one it held before', () => {
+    const plain = meeting('plain');
+    const stamped: NoteVersion = { ...meeting('stamped'), importOutcome: 'imported' };
+    expect(
+      noteChangesBetween(
+        versions({ 'Standup.md': plain, 'Retro.md': { ...plain, importOutcome: 'error' } }),
+        versions({ 'Standup.md': stamped, 'Retro.md': stamped, 'New.md': stamped }),
+      ),
+    ).toEqual([
+      { kind: 'changed', path: 'Standup.md', ...stamped, before: 'plain' },
+      {
+        kind: 'changed',
+        path: 'Retro.md',
+        ...stamped,
+        before: 'plain',
+        beforeImportOutcome: 'error',
+      },
+      { kind: 'added', path: 'New.md', ...stamped },
+    ]);
+  });
+
+  it('keeps the stamp in the versions the next sync is measured from', () => {
+    const after = versionsAfter(new Map(), [
+      { kind: 'added', path: 'New.md', type: 'meeting', digest: 'aa', importOutcome: 'imported' },
+    ]);
+    expect(after.get('New.md')).toEqual({
+      type: 'meeting',
+      digest: 'aa',
+      importOutcome: 'imported',
+    });
+  });
+});
+
 describe('versionsAfter', () => {
   it('adds, replaces and forgets notes as the changes say, leaving the rest', () => {
     const before = versions({
@@ -177,12 +211,28 @@ describe('arrivedPaths', () => {
     expect([...left]).toEqual(['Inbox/Standup.md']);
   });
 
-  it('takes a path changed while its old bytes moved away as a new note there, and the move as no arrival', () => {
+  // #92: this once read as the old note moving away and a new one made at its path. Two
+  // notes with the same bytes are not one note moved, while the old path still holds one.
+  it('takes a new note with the bytes a path held before its edit as arrived, and the edit as an edit', () => {
     const changes: NoteChange[] = [
       { ...change('changed', 'Inbox/Standup.md', 'next'), before: 'old' },
       change('added', 'Meetings/Standup.md', 'old'),
     ];
-    expect([...arrivedPaths(changes)]).toEqual(['Inbox/Standup.md']);
+    const { arrived, left } = unpairedChanges(changes);
+    expect([...arrived]).toEqual(['Meetings/Standup.md']);
+    expect([...left]).toEqual([]);
+  });
+
+  it('never reads a new note as a renamed old one whose path still holds it, though their bytes match (#92)', () => {
+    // The import stamps a meeting that waited in its folder in the same sync as a new meeting,
+    // with the bytes the old one had, lands beside it.
+    const changes: NoteChange[] = [
+      { ...change('changed', 'Inbox/Meetings/Last week standup.md', 'stamped'), before: 'same' },
+      change('added', 'Inbox/Meetings/Standup.md', 'same'),
+    ];
+    const { arrived, left } = unpairedChanges(changes);
+    expect([...arrived]).toEqual(['Inbox/Meetings/Standup.md']);
+    expect([...left]).toEqual([]);
   });
 
   it('leaves a plain edit an edit: nothing went from its path', () => {

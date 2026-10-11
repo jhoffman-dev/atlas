@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NoteChange } from '../index/note-changes.ts';
+import type { ImportOutcome } from '../meetings/meeting-arrival.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { parseAutomationRule } from './automation-rule.ts';
 import {
@@ -176,6 +177,76 @@ describe('triggeringVersions', () => {
   it('leaves a note in the Archive out: archiving it is not its arrival', () => {
     const archived = [change('added', 'Archive/Inbox/Meetings/Standup.md')];
     expect(triggeringVersions(ON_MEETING, archived)).toEqual([]);
+  });
+});
+
+describe('triggeringVersions where meeting files land (#92)', () => {
+  const ARRIVING = 'Inbox/Meetings/Standup.md';
+  const plain = change('added', ARRIVING, { digest: 'plain' });
+  const stampedFrom = (
+    importOutcome: ImportOutcome,
+    beforeImportOutcome?: ImportOutcome,
+  ): NoteChange => ({
+    ...change('changed', ARRIVING, { digest: `stamped-${importOutcome}` }),
+    before: 'plain',
+    importOutcome,
+    ...(beforeImportOutcome !== undefined && { beforeImportOutcome }),
+  });
+
+  it('hears nothing of a file the import has not let in yet: it is not a meeting yet', () => {
+    expect(triggeringVersions(ON_MEETING, [plain])).toEqual([]);
+    expect(noteTriggerHears(ON_MEETING, [plain])).toBe(false);
+  });
+
+  it('takes the import letting a file in as its arrival, once, and not as a change', () => {
+    const stamp = [stampedFrom('imported')];
+    expect(triggeringVersions(MEETING_CREATED, stamp)).toEqual([
+      { path: ARRIVING, digest: 'stamped-imported' },
+    ]);
+    expect(triggeringVersions(MEETING_CHANGED, stamp)).toEqual([]);
+  });
+
+  it('takes a file that comes already let in as arrived, as the import left it', () => {
+    const arrived = [{ ...plain, digest: 'stamped', importOutcome: 'imported' as const }];
+    expect(triggeringVersions(MEETING_CREATED, arrived)).toEqual([
+      { path: ARRIVING, digest: 'stamped' },
+    ]);
+  });
+
+  it('hears nothing of a file the import refused or archived as a copy, nor of its stamp', () => {
+    for (const refused of [stampedFrom('error'), stampedFrom('duplicate')]) {
+      expect(triggeringVersions(ON_MEETING, [refused])).toEqual([]);
+      expect(noteTriggerHears(ON_MEETING, [refused])).toBe(false);
+    }
+    expect(triggeringVersions(ON_MEETING, [stampedFrom('error', 'error')])).toEqual([]);
+  });
+
+  it('takes a refused file the import lets in once it is fixed as its arrival', () => {
+    expect(triggeringVersions(MEETING_CREATED, [stampedFrom('imported', 'error')])).toEqual([
+      { path: ARRIVING, digest: 'stamped-imported' },
+    ]);
+  });
+
+  it('takes an edit of a meeting the import let in as a change, not an arrival', () => {
+    const edited = [stampedFrom('imported', 'imported')];
+    expect(triggeringVersions(MEETING_CHANGED, edited)).toEqual([
+      { path: ARRIVING, digest: 'stamped-imported' },
+    ]);
+    expect(triggeringVersions(MEETING_CREATED, edited)).toEqual([]);
+  });
+
+  it('runs a rule once on a meeting heard arriving, then stamped, in two syncs', () => {
+    const heard = [[plain], [stampedFrom('imported')]].flatMap((sync) =>
+      triggeringVersions(ON_MEETING, sync),
+    );
+    expect(heard).toEqual([{ path: ARRIVING, digest: 'stamped-imported' }]);
+  });
+
+  it('leaves a meeting filed anywhere else as it was: arriving is being written', () => {
+    const filed = [change('added', 'Meetings/Standup.md', { digest: 'plain' })];
+    expect(triggeringVersions(MEETING_CREATED, filed)).toEqual([
+      { path: 'Meetings/Standup.md', digest: 'plain' },
+    ]);
   });
 });
 

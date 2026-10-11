@@ -309,6 +309,37 @@ describe('refreshIndex says what changed (P28-03)', () => {
   });
 });
 
+describe('refreshIndex says how the meeting import settled each note (#92)', () => {
+  const held = '---\ntype: meeting\natlas_import_outcome: imported\n---\nAgenda';
+  const edited = `${held} and more`;
+
+  it('reads the stamp from a note it reads again, and from the index for the note it held', async () => {
+    const fs = fakeVault({ 'Standup.md': { text: edited, modified: 2 } });
+    const { index } = fakeIndex([
+      { path: 'Standup.md', modified: 1, size: 5, digest: digestOf(held), type: 'meeting' },
+    ]);
+    index.query = async (_sql, parameters) => ({
+      columns: ['path', 'outcome'],
+      rows: parameters.includes('atlas_import_outcome') ? [['Standup.md', 'imported']] : [],
+      truncated: false,
+    });
+
+    const { changes } = await refreshIndex({ fs, index, markdown });
+
+    expect(changes).toEqual([
+      {
+        kind: 'changed',
+        path: 'Standup.md',
+        type: 'meeting',
+        digest: digestOf(edited),
+        before: digestOf(held),
+        importOutcome: 'imported',
+        beforeImportOutcome: 'imported',
+      },
+    ]);
+  });
+});
+
 describe('refreshIndex and relations to notes that come and go (P24 review)', () => {
   /** An index that answers the stale-relations question with `holders`, and records it. */
   function indexHolding(entries: HeldEntry[], holders: string[]) {
@@ -543,5 +574,12 @@ describe('toIndexedNote', () => {
     const text = '---\ntype: meeting\n---\nAgenda';
     expect(build(text)).toMatchObject({ digest: digestOf(text), type: 'meeting' });
     expect(build('Agenda')).toMatchObject({ digest: digestOf('Agenda'), type: null });
+  });
+
+  it('keeps how the meeting import settled the note, and nothing when it has not (#92)', () => {
+    expect(build('---\natlas_import_outcome: error\n---\n')).toMatchObject({
+      importOutcome: 'error',
+    });
+    expect(build('Agenda')).not.toHaveProperty('importOutcome');
   });
 });
