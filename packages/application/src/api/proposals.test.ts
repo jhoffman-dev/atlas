@@ -83,6 +83,49 @@ describe('GET /v1/proposals', () => {
 });
 
 describe('POST /v1/proposals/{path}/accept', () => {
+  it('makes a person proposed from a meeting and links them to it, readable on the meeting (P29-04)', async () => {
+    const MEETING = 'Inbox/Meetings/2026-10-06 Standup.md';
+    const PERSON = 'Inbox/Proposals/Ada Venn — Standup.md';
+    const api = vault({
+      [MEETING]: jsonLinesNote({ type: 'meeting', people: ['[[Mara Quill]]'] }),
+      '.atlas/types/meeting.md': jsonLinesNote({
+        name: 'meeting',
+        properties: { people: { kind: 'relation', target: 'person', many: true } },
+      }),
+      [PERSON]: jsonLinesNote({
+        type: 'proposal',
+        kind: 'person',
+        source: '[[2026-10-06 Standup]]',
+        made_by: 'meeting links',
+        payload: {
+          title: 'Ada Venn',
+          folder: 'People',
+          properties: { email: 'ada@larkspur.example' },
+          link_from: { note: MEETING, property: 'people' },
+        },
+      }),
+    });
+    const response = await api.send(answer(PERSON, 'accept'));
+
+    expect(response.status).toBe(200);
+    expect(bodyOf(response)).toMatchObject({
+      accepted: {
+        wrote: [
+          { kind: 'created', path: 'People/Ada Venn.md' },
+          { kind: 'edited', path: MEETING },
+        ],
+      },
+    });
+    const read = await api.send({ method: 'GET', path: `/v1/notes/${encoded(MEETING)}` });
+    expect(bodyOf(read)).toMatchObject({
+      note: { properties: { people: ['[[Mara Quill]]', '[[Ada Venn]]'] } },
+    });
+    expect(propertiesOf(api, 'People/Ada Venn.md')).toEqual({
+      type: 'person',
+      email: 'ada@larkspur.example',
+    });
+  });
+
   it('refuses a task the task rules refuse as invalid, writing nothing and leaving it open', async () => {
     const waiting = proposal({
       payload: { title: 'Send Mara the payroll file', properties: { status: 'waiting' } },

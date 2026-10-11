@@ -346,3 +346,62 @@ the way in while the Mac is asleep or Atlas is closed.
 - **The route writes what n8n would commit**, at the same paths, and leaves
   the stamp to the import, as for a commit. "Already in the vault" is the
   import's holder rule, plus a read of the two paths, since the index lags.
+
+## As built (P29-04, 2026-10-11)
+
+A meeting the import lets in is linked to its people, companies and likely
+project: `matchAttendees` and `planMeetingLinks` in
+`packages/domain/src/meeting-links`, run by the use-case `linkMeeting` in
+`packages/application/src/meeting-links`, which the "after a meeting"
+pipeline (#19) is to run as a deterministic step.
+
+- **Sure links are written; the rest is proposed.** An attendee is matched
+  by `email` or `other_emails` first, then by name or alias (spelt as the
+  vocabulary compares spellings, P28-05). Exactly one person is a link; two or
+  more are a `link` proposal for each, never a guess; none is a `person`
+  proposal with their name, address and the company their domain surely
+  names. A group address is never a person and never proposed; nor is the
+  vault's owner, by their profile's name. Companies come from an attendee's
+  domain — a company's `domains` or `site`, or a domain named for its name or
+  alias, never a public mail domain — and from a linked person's `company`.
+- **Speakers are linked too**, when a named speaker is exactly one person.
+  It was cheap: the transcript is already parsed by the validator. An
+  unmatched speaker is not proposed: a speaker has no address to tell two
+  people apart, and the attendees are what proposals come from.
+- **The project is only ever proposed**, for a meeting that has none: the
+  open project (outside the Archive, not done, cancelled or dropped) tied to
+  the most of its people and companies — by either note linking the other, or
+  by another note naming both in `project` and `people`/`companies`.
+- **It only adds, and records what it changed.** It writes `people` and
+  `companies` of the meeting and nothing else, with each key's value before
+  and after as an automation's log does (`DoneAction`), so `undoMeetingLink`
+  puts back what is unchanged since and takes away its still-open proposals. Nothing in the app offers that undo yet: the
+  run is said in Activity, and #19's pipeline is to log it in its rule's log,
+  where "Undo last run" will call it. A relation holding something other than
+  links is left as it is, and said.
+- **It runs once per meeting** until #19: when the import stamps a file
+  `imported` (an arrival, or a fixed error), never on later changes, so a
+  person taken out of `people` stays out. Each proposal carries a
+  `proposal_id`, looked up across the vault and the Archive, so running again
+  proposes nothing twice and a rejection stays an answer.
+- **Proposals grew two things** (ADR-0028's proposals): a note proposal's
+  `link_from: { note, property }`, so accepting a person makes them and adds
+  them to the meeting; and a link proposal with no `digest`, judged on the
+  relation alone — added to a list, or filling an empty single link, never
+  replacing one — since the steps after linking change the meeting. A link
+  proposal may name a meeting in `Inbox/Meetings/`: changing a note there
+  makes no new file for the import to judge; only making a note there is
+  refused.
+- **Accepting a person is all or nothing, and never stuck.** If adding them
+  to the meeting fails after the note was made, the note is taken back. A
+  meeting filed since is found by the proposal's `source`, as the move
+  rewrote that link; one gone altogether no longer blocks making the person.
+  A person already made, by another meeting's proposal for them, is linked
+  rather than refused, and a meeting that links them in another spelling
+  gets no second link. An attendee listed with and without an address is one
+  person; an address written `Name <address>` on a person is read as the
+  address; a company's `site` on a shared host (LinkedIn, GitHub…) claims no
+  one.
+- **Person and Company gained `other_emails` and `domains`** in this
+  repository's vault. Matching reads them whether or not a vault's types
+  declare them.

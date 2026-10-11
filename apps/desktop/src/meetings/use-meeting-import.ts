@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   createMeetingImporter,
+  createMeetingLinker,
   importMeetingsOnArrival,
+  linkImportedMeetings,
   type ActivityLog,
   type Clock,
+  type MeetingImporter,
   type MeetingImportPorts,
   type NoteChanges,
 } from '@atlas/application';
@@ -11,8 +14,9 @@ import {
 /**
  * Imports meetings (P28-04): every refresh of the index says which notes it
  * found, and the meeting files among them are settled; and once the index is
- * ready, every meeting file not settled yet is. The rules are the
- * use-case's; this connects them to the window.
+ * ready, every meeting file not settled yet is. Each meeting let in is then
+ * linked to its people, companies and likely project (P29-04) — once, as it
+ * is let in. The rules are the use-cases'; this connects them to the window.
  *
  * Only on the Mac that runs the vault's automations (`active`), so two Macs
  * never write the same file. It catches up when the vault opens there, and
@@ -30,6 +34,7 @@ export function useMeetingImport({
   vaultKey,
   active,
   indexReady,
+  selfName,
   onWritten,
 }: {
   changes: NoteChanges;
@@ -45,21 +50,34 @@ export function useMeetingImport({
    * the last vault's until the new one's sync starts.
    */
   indexReady: boolean;
+  /** The vault owner's name, from their profile: an attendee of that name is never proposed as someone new. */
+  selfName: string | null;
   /** Re-reads the tree and the index once the import has written or moved a note. */
   onWritten: () => void;
 }): void {
-  const latest = useRef({ ports, onWritten, vaultKey, active });
-  latest.current = { ports, onWritten, vaultKey, active };
-  const [importer, setImporter] = useState<ReturnType<typeof createMeetingImporter> | null>(null);
+  const latest = useRef({ ports, onWritten, vaultKey, active, selfName });
+  latest.current = { ports, onWritten, vaultKey, active, selfName };
+  const [importer, setImporter] = useState<MeetingImporter | null>(null);
 
   useEffect(() => {
-    const made = createMeetingImporter({
+    const linker = createMeetingLinker({
       ports: () => latest.current.ports,
       clock,
       activity,
       openVault: () => latest.current.vaultKey,
-      active: () => latest.current.active,
+      selfName: () => latest.current.selfName,
       onWritten: () => latest.current.onWritten(),
+    });
+    const made = linkImportedMeetings({
+      importer: createMeetingImporter({
+        ports: () => latest.current.ports,
+        clock,
+        activity,
+        openVault: () => latest.current.vaultKey,
+        active: () => latest.current.active,
+        onWritten: () => latest.current.onWritten(),
+      }),
+      linker,
     });
     setImporter(made);
     return importMeetingsOnArrival({ changes, importer: made });

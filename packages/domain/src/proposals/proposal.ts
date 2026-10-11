@@ -63,24 +63,41 @@ export const PROPOSAL_NOTE_TYPES: Readonly<Record<NoteProposalKind, string>> = {
   project: 'project',
 };
 
-/** What accepting a note proposal makes: a note called `title`, in `folder` or at the top of the vault. */
+/**
+ * A relation of another note the new note is added to once it is made: a
+ * person proposed from a meeting's attendees joins that meeting's `people`.
+ */
+export interface LinkFrom {
+  readonly note: VaultPath;
+  readonly property: string;
+}
+
+/**
+ * What accepting a note proposal makes: a note called `title`, in `folder` or
+ * at the top of the vault — and, with `linkFrom`, a link to it added to that
+ * note's relation.
+ */
 export interface NotePayload {
   readonly title: string;
   readonly folder: VaultPath | null;
   readonly properties: Readonly<Record<string, unknown>>;
   readonly body: string;
+  readonly linkFrom: LinkFrom | null;
 }
 
 /**
  * What accepting a link proposal changes: `link` added to the relation
- * `property` of the note at `note`, which held `digest` (`digestOf` its whole
- * text) when the proposal was made.
+ * `property` of the note at `note`. With a `digest` (`digestOf` its whole
+ * text when the proposal was made), the note must still hold exactly that.
+ * Without one, only the relation is judged: a link is added to a list, or
+ * fills an empty single link, and never replaces one — so a proposal made by
+ * a step that other steps follow is not refused for their writes.
  */
 export interface LinkPayload {
   readonly note: VaultPath;
   readonly property: string;
   readonly link: string;
-  readonly digest: string;
+  readonly digest: string | null;
 }
 
 interface ProposalCommon {
@@ -172,17 +189,36 @@ function readNotePayload(value: Readonly<Record<string, unknown>>): PayloadReadi
   if (at instanceof Error) return refused(at.message);
   const body = value['body'] ?? '';
   if (typeof body !== 'string') return refused('Its payload’s body must be text.');
-  return { ok: true, payload: { title, folder: at, properties, body } };
+  const linkFrom = readLinkFrom(value[LINK_FROM_KEY]);
+  if (linkFrom instanceof Error) return refused(linkFrom.message);
+  return { ok: true, payload: { title, folder: at, properties, body, linkFrom } };
+}
+
+/** The payload key naming the relation a new note joins. */
+const LINK_FROM_KEY = 'link_from';
+
+function readLinkFrom(value: unknown): LinkFrom | null | Error {
+  if (value === undefined || value === null) return null;
+  const note = isRecord(value) ? text(value['note']) : null;
+  const property = isRecord(value) ? text(value['property']) : null;
+  if (note === null || property === null) {
+    return new Error('Its payload’s link_from needs the note and the property.');
+  }
+  const path = notePath(note);
+  return path instanceof Error ? path : { note: path, property };
 }
 
 function readLinkPayload(value: Readonly<Record<string, unknown>>): PayloadReading {
   const note = text(value['note']);
   const property = text(value['property']);
   const link = text(value['link']);
-  const digest = text(value['digest']);
-  if (note === null || property === null || link === null || digest === null) {
-    return refused('A link proposal needs the note, the property, the link and the digest.');
+  if (note === null || property === null || link === null) {
+    return refused('A link proposal needs the note, the property and the link.');
   }
+  const written = value['digest'] ?? null;
+  const digest = written === null ? null : text(written);
+  if (written !== null && digest === null)
+    return refused('A link proposal’s digest, when it has one, must be text that is not blank.');
   const read = readWikiLink(link);
   if (read === null || read.embed) return refused(`${link} is not a link to a note.`);
   const path = notePath(note);
@@ -195,9 +231,27 @@ function readLinkPayload(value: Readonly<Record<string, unknown>>): PayloadReadi
  * one in — or null when it may. Only user space: not `.atlas` or a hidden
  * folder, nor one the vault's walk never reads (`node_modules`, in any case,
  * at any depth), where a note would be invisible. Nor the Archive, which is
- * what is done with, nor the proposals folder, where proposals wait.
+ * what is done with, nor the proposals folder, where proposals wait, nor
+ * where meeting files land.
  */
 export function proposedWriteRefusal(path: VaultPath): string | null {
+  const refusal = proposedChangeRefusal(path);
+  if (refusal !== null) return refusal;
+  // The meeting import judges every note that lands there as a meeting file (ADR-0027).
+  if (isMeetingInboxPath(`${path}/note.md`)) {
+    return `${JSON.stringify(path)} is where meeting files land; a proposal does not write there.`;
+  }
+  return null;
+}
+
+/**
+ * Why a proposal may not change the note at `path` that is already there —
+ * a link added to one of its relations — or null when it may. As for a new
+ * note, except where meeting files land: a meeting waiting there is the very
+ * note a proposal from it most often links (P29-04), and changing it makes
+ * no new file for the import to judge.
+ */
+export function proposedChangeRefusal(path: VaultPath): string | null {
   const shown = JSON.stringify(path);
   // A folder is judged as what would be written inside it.
   const within = `${path}/`;
@@ -208,10 +262,6 @@ export function proposedWriteRefusal(path: VaultPath): string | null {
   if (isProposalPath(within)) {
     return `${shown} is where proposals wait; a proposal does not write there.`;
   }
-  // The meeting import judges every note that lands there as a meeting file (ADR-0027).
-  if (isMeetingInboxPath(`${within}note.md`)) {
-    return `${shown} is where meeting files land; a proposal does not write there.`;
-  }
   return null;
 }
 
@@ -221,13 +271,17 @@ export function proposedWriteRefusal(path: VaultPath): string | null {
  * no empty folder, properties or body.
  */
 export function payloadRecord(payload: ProposalPayload): Readonly<Record<string, unknown>> {
-  if ('digest' in payload) return { ...payload };
-  const { title, folder, properties, body } = payload;
+  if ('digest' in payload) {
+    const { digest, ...link } = payload;
+    return digest === null ? link : { ...link, digest };
+  }
+  const { title, folder, properties, body, linkFrom } = payload;
   return {
     title,
     ...(folder !== null && { folder }),
     ...(Object.keys(properties).length > 0 && { properties }),
     ...(body !== '' && { body }),
+    ...(linkFrom !== null && { [LINK_FROM_KEY]: { ...linkFrom } }),
   };
 }
 
@@ -242,7 +296,7 @@ function notePath(raw: string): VaultPath | Error {
   const path = vaultPath(raw);
   if (path instanceof Error) return path;
   if (!/\.(md|markdown)$/i.test(path)) return new Error(`${JSON.stringify(raw)} is not a note.`);
-  const refusal = proposedWriteRefusal(path);
+  const refusal = proposedChangeRefusal(path);
   return refusal === null ? path : new Error(refusal);
 }
 

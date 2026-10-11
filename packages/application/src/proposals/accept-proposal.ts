@@ -5,17 +5,19 @@ import {
   FINISHED_TASK_STATUS,
   joinFrontmatter,
   joinVaultPath,
+  linkTargets,
   messageOf,
   parentVaultPath,
   payloadRecord,
   proposalHeadline,
   readProposalPayload,
+  resolveWikiLinkTarget,
   splitFrontmatter,
   isTaskNote,
   TASK_KEYS,
   vaultPathName,
   vaultSpellingOf,
-  type LinkPayload,
+  type LinkFrom,
   type LinkTarget,
   type MarkdownDocument,
   type ProposalAnswerer,
@@ -98,13 +100,14 @@ export async function acceptProposalNote({
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const asked = payload === undefined ? file.proposal : edited(file.proposal, payload);
   const proposal = spelledAsVault(asked, notePaths);
-  const link = proposal.kind === 'link' ? await readLinkNote(ports, proposal.payload) : null;
+  const joins = relationChanged(proposal);
+  const link = joins === null ? null : await readLinkNote(ports, joins);
   const applied = applyProposal(proposal, { notePaths, target: link?.target ?? null });
   if (!applied.ok) throw new ProposalRefused(applied.problem);
 
   const ruled = applied.writes.map((write) => heldToTaskRules(ports, { write, link, today }));
-  const wrote = await carryOut(ports, ruled, link);
   const headline = proposalHeadline(proposal);
+  const wrote = await carryOut(ports, { writes: ruled, link, headline });
   await stampProposal(
     ports,
     { ...file, path },
@@ -162,19 +165,43 @@ function edited(proposal: ProposalNote, payload: unknown): ProposalNote {
 }
 
 /**
- * A link proposal names its note as its maker spelled it; the disk a Mac
- * vault lives on ignores case, but the panes know each note by one spelling.
- * The note is named as the vault spells it, so its pane is the one asked
- * about typing and the one reloaded. A note proposal is as it was.
+ * A link proposal — or a note proposal's `linkFrom` — names its note as its
+ * maker spelled it; the disk a Mac vault lives on ignores case, but the panes
+ * know each note by one spelling. The note is named as the vault spells it,
+ * so its pane is the one asked about typing and the one reloaded.
  */
 function spelledAsVault(proposal: ProposalNote, notePaths: readonly VaultPath[]): ProposalNote {
-  if (proposal.kind !== 'link') return proposal;
-  const note = vaultSpellingOf(proposal.payload.note, notePaths) ?? proposal.payload.note;
-  return { ...proposal, payload: { ...proposal.payload, note } };
+  const spelled = (note: VaultPath) => vaultSpellingOf(note, notePaths);
+  if (proposal.kind === 'link') {
+    const note = spelled(proposal.payload.note) ?? proposal.payload.note;
+    return { ...proposal, payload: { ...proposal.payload, note } };
+  }
+  const { linkFrom } = proposal.payload;
+  if (linkFrom === null) return proposal;
+  const joined = {
+    ...linkFrom,
+    note: spelled(linkFrom.note) ?? movedTo(proposal, notePaths) ?? linkFrom.note,
+  };
+  return { ...proposal, payload: { ...proposal.payload, linkFrom: joined } };
 }
 
-/** The note a link proposal changes, as it is now; null when it is not there. */
-async function readLinkNote(ports: ProposalPorts, payload: LinkPayload): Promise<LinkNote | null> {
+/**
+ * Where the note a proposal joins went, when it is no longer at its path —
+ * a meeting filed out of the Inbox: the note its `source` links now, as the
+ * move rewrote that link. Null when nothing answers.
+ */
+function movedTo(proposal: ProposalNote, notePaths: readonly VaultPath[]): VaultPath | null {
+  const [target] = proposal.source === null ? [] : linkTargets(proposal.source);
+  return target === undefined ? null : resolveWikiLinkTarget(target.replace(/#.*$/, ''), notePaths);
+}
+
+/** The note whose relation accepting changes, and which relation; null when it changes none. */
+function relationChanged(proposal: ProposalNote): LinkFrom | null {
+  return proposal.kind === 'link' ? proposal.payload : proposal.payload.linkFrom;
+}
+
+/** The note a proposal links through, as it is now; null when it is not there. */
+async function readLinkNote(ports: ProposalPorts, payload: LinkFrom): Promise<LinkNote | null> {
   refuseUnsaved(ports.editors, payload.note);
   const read = await ports.fs.readTextFile(payload.note).catch((error: unknown) => {
     // Not there is an answer — the proposal is refused saying so; anything else is a fault.
@@ -258,16 +285,25 @@ function finishedAsTicked(
 
 async function carryOut(
   ports: ProposalPorts,
-  writes: readonly RuledWrite[],
-  link: LinkNote | null,
+  {
+    writes,
+    link,
+    headline,
+  }: { writes: readonly RuledWrite[]; link: LinkNote | null; headline: string },
 ): Promise<AppliedProposal[]> {
   const wrote: AppliedProposal[] = [];
-  for (const write of writes) {
-    wrote.push(
-      write.kind === 'create'
-        ? await createNote(ports, write)
-        : await setOnNote(ports, write, link),
-    );
+  try {
+    for (const write of writes) {
+      wrote.push(
+        write.kind === 'create'
+          ? await createNote(ports, write)
+          : await setOnNote(ports, write, link),
+      );
+    }
+  } catch (cause) {
+    // A person made but their meeting not linked is half an accept: what was written is taken back.
+    if (wrote.length > 0) throw await takenBack(ports, { wrote, headline, cause });
+    throw cause;
   }
   return wrote;
 }
