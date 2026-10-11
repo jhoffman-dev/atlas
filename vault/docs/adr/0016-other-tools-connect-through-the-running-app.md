@@ -717,11 +717,16 @@ not a replacement. It is held to the terms above:
   is answered 200 `in-vault` and nothing is written. The index lags writes,
   so a file already at either path is read too: the same meeting there is
   held; another meeting at both paths is `exists`. Creates are exclusive, so
-  two sends at once write one file (while the folder is being made, the
-  second may fail instead, and its retry is answered `in-vault`).
+  two sends of one meeting at once write one file. A folder another send made
+  between the listing and the create is used, not refused (`ensureFolder`),
+  so two different meetings sent at once into a vault without the folder are
+  both written.
 - **Refused with the reason.** A meeting with no trustworthy start (#80), or
   whose file meeting/v1 would refuse, is `invalid` with the mapper's or the
-  validator's words, before anything is written.
+  validator's words, before anything is written. So is a key the route does
+  not read: idempotency would otherwise lock in a meeting written without a
+  misspelt field's content. Null is taken as left out, as n8n sends it;
+  attendee records reach the mapper as sent, `group` and all.
 - **The import still decides.** The route writes no `atlas_import_outcome`.
   The importing Mac stamps the file as any arrival, after the index has
   heard of it, so the route and the import never write one file together.

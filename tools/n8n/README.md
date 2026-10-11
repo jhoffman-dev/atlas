@@ -215,7 +215,7 @@ read, both of a meeting's paths taken by other meetings, a commit GitHub
 rejects (an expired token) — leaves by that node's error output to **Atlas
 commit failed**, and the run goes on to the Notion steps, which the Atlas
 branch never touches. **Email me: meeting not in Atlas** then sends you
-"This meeting was not committed to the Atlas vault: <the error>", with the
+"This meeting did not reach Atlas: <the error>", with the
 meeting's title and Source ID and the execution number to open in n8n. It
 says nothing of Notion: Atlas runs first, so Notion may not have the meeting
 yet. If that email cannot be sent either, nothing stops: the execution still
@@ -395,9 +395,19 @@ Why each part:
   itself.
 - **`timeZone`** is left out: Atlas reads `arrived` on the Mac's own clock.
   Add `timeZone: 'America/Los_Angeles'` to the body to pin it.
-- **Every field is a string or left out** (an attendee's `name` or `email`
-  may be null). A field n8n hands over as null, or as a number, is refused
+- **Every field is a string, null or left out.** Null is taken as left out
+  (n8n sends it for a field with no value), but `provider`, `sourceId` and
+  `title` must be there. A field of another kind (a number, say) is refused
   `invalid`, naming it.
+- **Only these fields.** A key Atlas does not read — a misspelt
+  `transcriptMD` — is refused `invalid`, naming it, rather than ignored: the
+  meeting would be written without that content, and every send after it
+  answered "already in the vault". Add a field to the body only once Atlas
+  reads it.
+- **Groups, as in the commit.** Attendee records go to the mapper as they
+  are, so one with `group: true` is a group, and the body may carry
+  `groupAddresses: ['leads@example.com']`, as `OPTIONS` does in **Map
+  meeting to Atlas file**.
 - **Retry on fail** covers Atlas starting up, a sleeping Mac waking, or a
   timeout after the file was written: a retry of a meeting already written is
   answered "already in the vault" and writes nothing.

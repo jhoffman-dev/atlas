@@ -87,7 +87,8 @@ export default defineConfig({
         'apps/desktop/src/notes/*stranded*.ts': { lines: 90, functions: 90, branches: 85 },
         // Carries the API token, and turns every failure into what the model is told.
         'apps/mcp/src/{connection,client}.ts': { lines: 90, functions: 90, branches: 85 },
-        // The n8n meeting mapper writes files into the vault from outside it (P28-02).
+        // n8n's workflow builder and its GitHub checks decide what is committed into the vault (P28-02);
+        // the mapper they compile in is the domain's, held to the domain's bar (#93).
         'tools/n8n/*.ts': { lines: 90, functions: 90, branches: 85 },
         // Adding a term writes a note; editing one rewrites its frontmatter (P28-05).
         'packages/application/src/terms/**': { lines: 90, functions: 90, branches: 85 },
