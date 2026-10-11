@@ -6,15 +6,18 @@
 //! with no vault open, is the webview's to say. Which shortcut, and its
 //! default, are the webview's too: it keeps the choice for this Mac and hands
 //! it here when it starts. The one thing checked here is the backstop for an
-//! untrusted caller (ADR-0017): a shortcut with no ⌘, ⌥ or ⌃ would take its
-//! key from every other app, so it is refused, as the domain refuses it.
+//! untrusted caller (ADR-0017): a hot key reaches Atlas before any other app,
+//! so one without two of ⌘, ⌥ and ⌃, or one macOS uses itself, would take a
+//! key from every app or from macOS. It is refused, as the domain refuses it.
 
 use std::str::FromStr;
 use std::sync::{Mutex, MutexGuard};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{
+    Code, GlobalShortcut, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
+};
 
 /// `GLOBAL_CAPTURE_EVENT` in `packages/application/src/inbox/global-capture.ts`.
 const GLOBAL_CAPTURE_EVENT: &str = "global-capture";
@@ -139,13 +142,55 @@ fn activate_app() {}
 fn vetted(text: &str) -> Result<Shortcut, String> {
     let shortcut = Shortcut::from_str(text)
         .map_err(|error| format!("{text} is not a shortcut Atlas can register: {error}"))?;
-    let claiming = Modifiers::SUPER | Modifiers::CONTROL | Modifiers::ALT;
-    if !shortcut.mods.intersects(claiming) {
+    let claiming = [Modifiers::SUPER, Modifiers::CONTROL, Modifiers::ALT]
+        .into_iter()
+        .filter(|modifier| shortcut.mods.contains(*modifier))
+        .count();
+    if claiming < 2 {
         return Err(format!(
-            "{text} has no ⌘, ⌥ or ⌃, so it would take its key from every other app"
+            "{text} does not hold two of ⌘, ⌥ and ⌃, so it would take its key from every other app"
+        ));
+    }
+    if is_system_shortcut(&shortcut) {
+        return Err(format!("{text} is one of macOS's own shortcuts"));
+    }
+    if matches!(shortcut.key, Code::F21 | Code::F22 | Code::F23 | Code::F24) {
+        return Err(format!(
+            "{text} has no key code on a Mac, so it cannot be registered"
         ));
     }
     Ok(shortcut)
+}
+
+/// `SYSTEM_SHORTCUTS` in the domain: macOS's own that hold two of ⌘, ⌥ and ⌃.
+fn is_system_shortcut(shortcut: &Shortcut) -> bool {
+    let control_command = Modifiers::CONTROL | Modifiers::SUPER;
+    let option_command = Modifiers::ALT | Modifiers::SUPER;
+    [
+        (control_command, Code::KeyQ),
+        (control_command, Code::Space),
+        (control_command, Code::KeyF),
+        (option_command, Code::Escape),
+        (option_command, Code::Space),
+        (option_command, Code::KeyD),
+    ]
+    .contains(&(shortcut.mods, shortcut.key))
+}
+
+/// What changing the shortcut needs of the system: a seam, so the order of a
+/// change is tested without registering anything with macOS.
+trait Registry {
+    fn register(&self, shortcut: Shortcut) -> Result<(), String>;
+    fn unregister(&self, shortcut: Shortcut) -> Result<(), String>;
+}
+
+impl<R: Runtime> Registry for GlobalShortcut<R> {
+    fn register(&self, shortcut: Shortcut) -> Result<(), String> {
+        GlobalShortcut::register(self, shortcut).map_err(|error| error.to_string())
+    }
+    fn unregister(&self, shortcut: Shortcut) -> Result<(), String> {
+        GlobalShortcut::unregister(self, shortcut).map_err(|error| error.to_string())
+    }
 }
 
 #[tauri::command]
@@ -153,35 +198,52 @@ pub fn global_capture_status(state: State<'_, GlobalCaptureState>) -> GlobalCapt
     state.held().status.clone()
 }
 
-/// Registers `shortcut` in place of the one in force, or none when it is null.
-/// A shortcut refused here changes nothing; one the system will not take —
-/// another app holds it — is kept as the choice and reported as not registered.
 #[tauri::command]
 pub fn global_capture_set<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, GlobalCaptureState>,
     shortcut: Option<String>,
 ) -> Result<GlobalCaptureStatus, String> {
+    change(&mut state.held(), app.global_shortcut(), shortcut)
+}
+
+/// Puts `shortcut` in place of the one in force, or none when it is null.
+///
+/// A shortcut refused here changes nothing. The new one is registered before
+/// the old one is let go, so a shortcut macOS will not give never leaves the
+/// person with none: the old one keeps working, and the new one is kept as
+/// the choice and reported as not working.
+fn change(
+    held: &mut Held,
+    registry: &impl Registry,
+    shortcut: Option<String>,
+) -> Result<GlobalCaptureStatus, String> {
     let wanted = shortcut.as_deref().map(vetted).transpose()?;
-    let shortcuts = app.global_shortcut();
-    let mut held = state.held();
-    if let Some(previous) = held.registered.take() {
-        if let Err(error) = shortcuts.unregister(previous) {
-            // Nothing to undo: the system no longer holds it for this app either way.
-            log::warn!("the previous global capture shortcut could not be released: {error}");
-        }
-    }
     held.status = match wanted {
-        None => GlobalCaptureStatus::default(),
-        Some(next) => match shortcuts.register(next) {
+        None => {
+            release(registry, held.registered.take());
+            GlobalCaptureStatus::default()
+        }
+        // Asked for again — the app starting twice in development, say.
+        Some(next) if held.registered == Some(next) => registered(shortcut),
+        Some(next) => match registry.register(next) {
             Ok(()) => {
-                held.registered = Some(next);
+                release(registry, held.registered.replace(next));
                 registered(shortcut)
             }
-            Err(error) => taken(shortcut, &error.to_string()),
+            Err(error) => taken(shortcut, &error, held.registered.is_some()),
         },
     };
     Ok(held.status.clone())
+}
+
+fn release(registry: &impl Registry, previous: Option<Shortcut>) {
+    if let Some(previous) = previous {
+        if let Err(error) = registry.unregister(previous) {
+            // Nothing to undo: Atlas no longer listens for it either way.
+            log::warn!("the previous global capture shortcut could not be released: {error}");
+        }
+    }
 }
 
 fn registered(shortcut: Option<String>) -> GlobalCaptureStatus {
@@ -192,12 +254,17 @@ fn registered(shortcut: Option<String>) -> GlobalCaptureStatus {
     }
 }
 
-fn taken(shortcut: Option<String>, error: &str) -> GlobalCaptureStatus {
+fn taken(shortcut: Option<String>, error: &str, previous_kept: bool) -> GlobalCaptureStatus {
+    let kept = if previous_kept {
+        " The shortcut you had before still works until one does."
+    } else {
+        ""
+    };
     GlobalCaptureStatus {
         shortcut,
         registered: false,
         problem: Some(format!(
-            "macOS would not give Atlas this shortcut — another app may be using it. Choose another. ({error})"
+            "macOS would not give Atlas this shortcut. Choose another.{kept} ({error})"
         )),
     }
 }
@@ -272,13 +339,15 @@ mod tests {
         assert_eq!(*window.calls.borrow(), ["unminimize", "show"]);
     }
 
+    // Changed with the review of #81: one of ⌘, ⌥ and ⌃ used to be enough.
     #[test]
-    fn a_shortcut_with_command_option_or_control_is_registered() {
+    fn a_shortcut_holding_two_of_command_option_and_control_is_registered() {
         for text in [
             "Control+Alt+KeyN",
-            "Super+Space",
-            "Alt+Shift+F5",
-            "Control+Digit7",
+            "Control+Super+KeyK",
+            "Alt+Shift+Super+F5",
+            "Control+Alt+Super+Digit7",
+            "Control+Super+F20",
         ] {
             assert!(vetted(text).is_ok(), "{text} should be accepted");
         }
@@ -287,10 +356,47 @@ mod tests {
     }
 
     #[test]
-    fn a_shortcut_without_command_option_or_control_is_refused_whatever_the_webview_sends() {
-        for text in ["KeyN", "Shift+KeyN", "Space", "F5"] {
+    fn a_shortcut_with_fewer_than_two_is_refused_whatever_the_webview_sends() {
+        for text in [
+            "KeyN",
+            "Shift+KeyN",
+            "Alt+KeyE",
+            "Alt+Shift+KeyE",
+            "Super+KeyC",
+            "Super+KeyV",
+            "Super+KeyQ",
+            "Control+KeyN",
+            "Super+Space",
+        ] {
             let refused = vetted(text).unwrap_err();
-            assert!(refused.contains("no ⌘, ⌥ or ⌃"), "{text}: {refused}");
+            assert!(
+                refused.contains("does not hold two of"),
+                "{text}: {refused}"
+            );
+        }
+    }
+
+    #[test]
+    fn macos_own_shortcuts_are_refused() {
+        for text in [
+            "Control+Super+KeyQ",
+            "Super+Control+Space",
+            "Alt+Super+Escape",
+            "Control+Super+KeyF",
+            "Alt+Super+Space",
+            "Alt+Super+KeyD",
+        ] {
+            let refused = vetted(text).unwrap_err();
+            assert!(refused.contains("macOS's own"), "{text}: {refused}");
+        }
+        assert!(vetted("Control+Shift+Super+KeyQ").is_ok());
+    }
+
+    #[test]
+    fn a_function_key_a_mac_has_no_code_for_is_refused() {
+        for text in ["Control+Alt+F21", "Control+Alt+F24"] {
+            let refused = vetted(text).unwrap_err();
+            assert!(refused.contains("no key code"), "{text}: {refused}");
         }
     }
 
@@ -305,18 +411,112 @@ mod tests {
         }
     }
 
+    /// The system's side of a change: what was registered, in order, and what it refuses.
+    #[derive(Default)]
+    struct FakeRegistry {
+        calls: RefCell<Vec<String>>,
+        refuse: Option<&'static str>,
+    }
+
+    impl Registry for FakeRegistry {
+        fn register(&self, shortcut: Shortcut) -> Result<(), String> {
+            let call = format!("register {shortcut}");
+            self.calls.borrow_mut().push(call);
+            match self.refuse {
+                Some(refused) if vetted(refused).unwrap() == shortcut => {
+                    Err("RegisterEventHotKey failed".to_string())
+                }
+                _ => Ok(()),
+            }
+        }
+        fn unregister(&self, shortcut: Shortcut) -> Result<(), String> {
+            self.calls
+                .borrow_mut()
+                .push(format!("unregister {shortcut}"));
+            Ok(())
+        }
+    }
+
+    fn holding(text: &str) -> Held {
+        Held {
+            status: registered(Some(text.to_string())),
+            registered: Some(vetted(text).unwrap()),
+        }
+    }
+
+    const DEFAULT: &str = "Control+Alt+KeyN";
+    const OTHER: &str = "Control+Super+KeyK";
+
     #[test]
-    fn a_shortcut_the_system_will_not_take_is_kept_as_the_choice_and_says_why() {
-        let status = taken(
-            Some("Super+Space".to_string()),
-            "RegisterEventHotKey failed",
+    fn turning_it_on_registers_it() {
+        let registry = FakeRegistry::default();
+        let mut held = Held::default();
+        let status = change(&mut held, &registry, Some(DEFAULT.to_string())).unwrap();
+        assert_eq!(status, registered(Some(DEFAULT.to_string())));
+        assert_eq!(held.registered, Some(vetted(DEFAULT).unwrap()));
+        assert_eq!(*registry.calls.borrow(), ["register control+alt+KeyN"]);
+    }
+
+    #[test]
+    fn a_change_registers_the_new_one_before_letting_the_old_one_go() {
+        let registry = FakeRegistry::default();
+        let mut held = holding(DEFAULT);
+        let status = change(&mut held, &registry, Some(OTHER.to_string())).unwrap();
+        assert!(status.registered);
+        assert_eq!(held.registered, Some(vetted(OTHER).unwrap()));
+        assert_eq!(
+            *registry.calls.borrow(),
+            ["register control+super+KeyK", "unregister control+alt+KeyN"]
         );
-        assert_eq!(status.shortcut.as_deref(), Some("Super+Space"));
+    }
+
+    #[test]
+    fn a_shortcut_the_system_will_not_take_is_kept_as_the_choice_and_the_old_one_keeps_working() {
+        let registry = FakeRegistry {
+            refuse: Some(OTHER),
+            ..FakeRegistry::default()
+        };
+        let mut held = holding(DEFAULT);
+        let status = change(&mut held, &registry, Some(OTHER.to_string())).unwrap();
+        assert_eq!(status.shortcut.as_deref(), Some(OTHER));
         assert!(!status.registered);
-        assert!(status
-            .problem
-            .unwrap()
-            .contains("another app may be using it"));
+        let problem = status.problem.unwrap();
+        assert!(
+            problem.contains("would not give Atlas this shortcut"),
+            "{problem}"
+        );
+        assert!(problem.contains("had before still works"), "{problem}");
+        assert_eq!(held.registered, Some(vetted(DEFAULT).unwrap()));
+        assert_eq!(*registry.calls.borrow(), ["register control+super+KeyK"]);
+    }
+
+    #[test]
+    fn a_shortcut_refused_here_leaves_the_one_in_force_alone() {
+        let registry = FakeRegistry::default();
+        let mut held = holding(DEFAULT);
+        assert!(change(&mut held, &registry, Some("Super+KeyC".to_string())).is_err());
+        assert_eq!(held.status, registered(Some(DEFAULT.to_string())));
+        assert_eq!(held.registered, Some(vetted(DEFAULT).unwrap()));
+        assert!(registry.calls.borrow().is_empty());
+    }
+
+    #[test]
+    fn turning_it_off_lets_it_go() {
+        let registry = FakeRegistry::default();
+        let mut held = holding(DEFAULT);
+        let status = change(&mut held, &registry, None).unwrap();
+        assert_eq!(status, GlobalCaptureStatus::default());
+        assert_eq!(held.registered, None);
+        assert_eq!(*registry.calls.borrow(), ["unregister control+alt+KeyN"]);
+    }
+
+    #[test]
+    fn asking_for_the_one_in_force_again_registers_nothing() {
+        let registry = FakeRegistry::default();
+        let mut held = holding(DEFAULT);
+        let status = change(&mut held, &registry, Some(DEFAULT.to_string())).unwrap();
+        assert!(status.registered);
+        assert!(registry.calls.borrow().is_empty());
     }
 
     #[test]

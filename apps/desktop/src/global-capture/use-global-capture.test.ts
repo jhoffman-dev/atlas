@@ -51,7 +51,7 @@ describe('useGlobalCapture', () => {
   });
 
   it('hands the host what this Mac chose, and nothing when it was turned off', async () => {
-    window.localStorage.setItem('atlas.globalCaptureShortcut', 'Super+Space');
+    window.localStorage.setItem('atlas.globalCaptureShortcut', 'Control+Super+KeyK');
     const chosen = fakeHost();
     renderHook(() =>
       useGlobalCapture({
@@ -60,7 +60,7 @@ describe('useGlobalCapture', () => {
         pressed: vi.fn(),
       }),
     );
-    await waitFor(() => expect(chosen.asked).toEqual(['Super+Space']));
+    await waitFor(() => expect(chosen.asked).toEqual(['Control+Super+KeyK']));
 
     window.localStorage.setItem('atlas.globalCaptureShortcut', 'off');
     const off = fakeHost();
@@ -90,7 +90,7 @@ describe('useGlobalCapture', () => {
   it("shows the host's refusal rather than a shortcut that is not registered", async () => {
     const host = fakeHost((shortcut) =>
       shortcut === 'KeyN'
-        ? 'KeyN has no ⌘, ⌥ or ⌃, so it would take its key from every other app'
+        ? 'KeyN does not hold two of ⌘, ⌥ and ⌃, so it would take its key from every other app'
         : null,
     );
     const hook = renderHook(() =>
@@ -108,7 +108,8 @@ describe('useGlobalCapture', () => {
       expect(hook.result.current.status).toEqual({
         shortcut: 'KeyN',
         registered: false,
-        problem: 'KeyN has no ⌘, ⌥ or ⌃, so it would take its key from every other app',
+        problem:
+          'KeyN does not hold two of ⌘, ⌥ and ⌃, so it would take its key from every other app',
       }),
     );
   });

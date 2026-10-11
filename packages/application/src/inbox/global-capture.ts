@@ -10,7 +10,10 @@ export const GLOBAL_CAPTURE_EVENT = 'global-capture';
 export interface GlobalCaptureShortcut {
   /** As the host registers it — `Control+Alt+KeyN` — or null when it is turned off. */
   readonly shortcut: string | null;
-  /** Whether the system took it: false when it is off, or another app holds it. */
+  /**
+   * Whether macOS took it: false when it is off or macOS refused it. True does
+   * not prove no other app shares it, which macOS allows.
+   */
   readonly registered: boolean;
   /** Why it is not registered, in words Settings can show; null when it is or it is off. */
   readonly problem: string | null;
@@ -24,8 +27,9 @@ export interface GlobalCapturePort {
   status(): Promise<GlobalCaptureShortcut>;
   /**
    * Registers `shortcut` in place of the one in force — null turns it off —
-   * and keeps the choice. Resolves with what holds now, a shortcut another app
-   * holds included; rejects only when the host refuses the shortcut itself.
+   * and keeps the choice. Resolves with what holds now, a shortcut macOS
+   * refused included (the old one is kept until a new one registers);
+   * rejects only when the host refuses the shortcut itself.
    */
   set(shortcut: string | null): Promise<GlobalCaptureShortcut>;
   /** Calls `pressed` each time the shortcut is pressed; resolves with what stops it. */

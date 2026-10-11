@@ -102,6 +102,10 @@ test.describe('quick capture from any app', () => {
     page,
   }) => {
     const { vault, host } = await openVault(page);
+    // The window has settled on the vault, and the shortcut is the host's, before
+    // capture is said not to be open yet.
+    await expect(page.getByRole('treeitem', { name: 'Garden' })).toBeVisible();
+    await expect.poll(() => host.globalCapture.registered()).toBe('Control+Alt+KeyN');
     await expect(page.getByRole('dialog', { name: 'Capture a task' })).toHaveCount(0);
 
     await host.globalCapture.press();

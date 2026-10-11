@@ -12,7 +12,7 @@ const asShortcutError = (message: string): Error => new Error(message);
 
 /**
  * The global capture shortcut, registered and kept by the Rust host
- * (`quick_capture.rs`, ADR-0033). The webview only reads it, asks for another,
+ * (`global_capture.rs`, ADR-0033). The webview only reads it, asks for another,
  * and hears `global-capture` when it is pressed.
  */
 export const tauriGlobalCapture: GlobalCapturePort = {

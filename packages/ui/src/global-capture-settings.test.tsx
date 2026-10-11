@@ -21,9 +21,15 @@ describe('GlobalCaptureSettings', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Change…' }));
     const field = screen.getByRole('button', { name: 'Press the shortcut…' });
-    fireEvent.keyDown(field, { key: ' ', code: 'Space', metaKey: true, shiftKey: true });
+    fireEvent.keyDown(field, {
+      key: 'K',
+      code: 'KeyK',
+      metaKey: true,
+      altKey: true,
+      shiftKey: true,
+    });
 
-    expect(onChange).toHaveBeenCalledWith('Shift+Super+Space');
+    expect(onChange).toHaveBeenCalledWith('Alt+Shift+Super+KeyK');
     expect(screen.getByRole('button', { name: 'Change…' })).toBeDefined();
   });
 
@@ -33,12 +39,14 @@ describe('GlobalCaptureSettings', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Change…' }));
     const field = screen.getByRole('button', { name: 'Press the shortcut…' });
 
-    fireEvent.keyDown(field, { key: 'N', code: 'KeyN', shiftKey: true });
+    fireEvent.keyDown(field, { key: 'n', code: 'KeyN', metaKey: true });
 
     expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByRole('status').textContent).toMatch(/^Hold ⌘, ⌥ or ⌃ with it/);
-    fireEvent.keyDown(field, { key: 'n', code: 'KeyN', ctrlKey: true });
-    expect(onChange).toHaveBeenCalledWith('Control+KeyN');
+    expect(screen.getByRole('status').textContent).toBe(
+      'Hold two of ⌘, ⌥ and ⌃: ⌘N would stop working in every other app.',
+    );
+    fireEvent.keyDown(field, { key: 'n', code: 'KeyN', metaKey: true, ctrlKey: true });
+    expect(onChange).toHaveBeenCalledWith('Control+Super+KeyN');
   });
 
   it('lets no key reach the window while it records: ⌘N would make a note, Esc close Settings', async () => {
@@ -51,11 +59,12 @@ describe('GlobalCaptureSettings', () => {
 
     fireEvent.keyDown(field(), { key: 'n', code: 'KeyN' });
     fireEvent.keyDown(field(), { key: 'n', code: 'KeyN', metaKey: true });
+    fireEvent.keyDown(field(), { key: 'n', code: 'KeyN', metaKey: true, ctrlKey: true });
     await userEvent.click(screen.getByRole('button', { name: 'Change…' }));
     fireEvent.keyDown(field(), { key: 'Escape', code: 'Escape' });
     window.removeEventListener('keydown', windowHeard);
 
-    expect(onChange.mock.calls).toEqual([['Super+KeyN']]);
+    expect(onChange.mock.calls).toEqual([['Control+Super+KeyN']]);
     expect(windowHeard).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Change…' })).toBeDefined();
   });
@@ -82,15 +91,15 @@ describe('GlobalCaptureSettings', () => {
     render(
       <GlobalCaptureSettings
         view={{
-          shortcut: 'Super+Space',
+          shortcut: 'Control+Super+KeyK',
           registered: false,
-          problem: 'macOS would not give Atlas this shortcut — another app may be using it.',
+          problem: 'macOS would not give Atlas this shortcut. Choose another.',
         }}
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByText('⌘Space — not working')).toBeDefined();
-    expect(screen.getByRole('alert').textContent).toMatch(/another app may be using it/);
+    expect(screen.getByText('⌃⌘K — not working')).toBeDefined();
+    expect(screen.getByRole('alert').textContent).toMatch(/would not give Atlas this shortcut/);
   });
 
   it('says it is checking until the host has answered', () => {

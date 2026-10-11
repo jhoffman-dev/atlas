@@ -34,11 +34,16 @@ open — is the webview's, as everything the person sees is.
 **The webview chooses the shortcut; the host vets it.** Two commands cross the
 boundary: `global_capture_status` and `global_capture_set(shortcut | null)`. The
 default, ⌃⌥N (`Control+Alt+KeyN`), and what counts as a shortcut live in the
-domain (`globalShortcutFromKeys`). The host re-parses what it is handed and
-refuses one without ⌘, ⌥ or ⌃ — the backstop for an untrusted caller, the
-ADR-0014 nuance of obeying a rule rather than having one. A shortcut macOS will
-not give (another app holds it) is kept as the choice and reported as not
-working, so Settings can say so.
+domain (`globalShortcutFromKeys`): it must hold **two** of ⌘, ⌥ and ⌃ (Shift
+does not count), since a hot key reaches Atlas before any other app and one
+modifier alone is how every app copies (⌘C), quits (⌘Q) and types (⌥E is é);
+macOS's own two-modifier shortcuts (⌃⌘Q Lock Screen, ⌃⌘Space emoji, ⌥⌘Esc
+Force Quit, ⌃⌘F full screen, ⌥⌘Space, ⌥⌘D) are refused too, and so are F21–F24,
+which have no key code on a Mac. The host re-parses what it is handed and
+applies the same rule — the backstop for an untrusted caller, the ADR-0014
+nuance of obeying a rule rather than having one. The new shortcut is registered
+before the old one is let go: one macOS refuses is kept as the choice and
+reported as not working, and the old one keeps working meanwhile.
 
 **The choice is per Mac, kept in the webview's `localStorage`**, and handed to
 the host as the app starts. Which keys are free depends on what else runs on
@@ -64,9 +69,10 @@ Tauri upgrade.
 - While a palette or dialog holds the screen (Settings, search), a press brings
   the window forward and opens nothing over it — the same rule as ⇧⌘N inside
   the app.
-- A shortcut macOS itself uses (⌘Space for Spotlight, say) is taken by macOS
-  first; Atlas can register it and never hear it. Settings cannot detect that;
-  the guide says so.
+- Registration is not exclusive: macOS may let two apps register the same
+  shortcut, and a shortcut macOS itself uses may reach macOS first. Atlas
+  cannot always tell either case — "not working" appears only when macOS
+  refuses outright — and the guide says so.
 - Raising the window, activation and Spaces are checked by hand (the manual
   steps in #81's PR): the order is unit-tested against a fake window, but no
   test here can drive a real macOS Space.

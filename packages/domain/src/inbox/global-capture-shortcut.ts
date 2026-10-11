@@ -18,8 +18,26 @@ const MODIFIERS = [
   { name: 'Super', symbol: '⌘', held: (keys: ShortcutKeys) => keys.metaKey },
 ] as const;
 
-/** Holding one of these is what keeps a shortcut from taking a key from every other app. */
+/**
+ * A global shortcut reaches Atlas before any other app sees the press, so it
+ * holds two of these. One alone is how every app copies (⌘C), quits (⌘Q) and
+ * types (⌥E is é); Shift adds nothing, since ⇧ is typing too.
+ */
 const CLAIMING_MODIFIERS: ReadonlySet<string> = new Set(['Control', 'Alt', 'Super']);
+const CLAIMING_NEEDED = 2;
+
+/**
+ * macOS's own shortcuts that hold two of them, which a global shortcut would
+ * take from macOS: what each does, by the shortcut as it is written.
+ */
+const SYSTEM_SHORTCUTS: ReadonlyMap<string, string> = new Map([
+  ['Control+Super+KeyQ', 'Lock Screen'],
+  ['Control+Super+Space', 'the emoji picker'],
+  ['Alt+Super+Escape', 'Force Quit'],
+  ['Control+Super+KeyF', 'full screen'],
+  ['Alt+Super+Space', 'the Finder search window'],
+  ['Alt+Super+KeyD', 'hiding the Dock'],
+]);
 
 /** Keys a shortcut can end in that are not a letter, a digit or a function key, by `KeyboardEvent.code`. */
 const NAMED_KEYS: ReadonlyMap<string, string> = new Map([
@@ -51,7 +69,8 @@ const NAMED_KEYS: ReadonlyMap<string, string> = new Map([
 ]);
 
 const LETTER_OR_DIGIT = /^(?:Key[A-Z]|Digit[0-9])$/;
-const FUNCTION_KEY = /^F(?:[1-9]|1[0-9]|2[0-4])$/;
+/** F1 to F20: a Mac keyboard has no key code for F21 and up, so the host cannot register them. */
+const FUNCTION_KEY = /^F(?:[1-9]|1[0-9]|20)$/;
 
 /** A key press, as the shortcut field hears it. */
 export interface ShortcutKeys {
@@ -68,19 +87,29 @@ export type ShortcutReading = { readonly shortcut: string } | { readonly refused
 
 /**
  * A key press as a global shortcut — or, while only modifiers are down, or
- * the press would take a key from every app, why not.
+ * the press would take a key from every app or from macOS, why not.
  */
 export function globalShortcutFromKeys(keys: ShortcutKeys): ShortcutReading {
   if (!isShortcutKey(keys.code)) {
-    return { refused: 'Hold ⌘, ⌥ or ⌃ and press a letter, a digit, a function key or Space.' };
-  }
-  const held = MODIFIERS.filter((modifier) => modifier.held(keys)).map(({ name }) => name);
-  if (!held.some((name) => CLAIMING_MODIFIERS.has(name))) {
     return {
-      refused: `Hold ⌘, ⌥ or ⌃ with it: on its own, ${keyLabel(keys.code)} would stop working in every other app.`,
+      refused: 'Hold two of ⌘, ⌥ and ⌃ and press a letter, a digit, a function key or Space.',
     };
   }
-  return { shortcut: [...held, keys.code].join('+') };
+  const held = MODIFIERS.filter((modifier) => modifier.held(keys)).map(({ name }) => name);
+  const shortcut = [...held, keys.code].join('+');
+  const claiming = held.filter((name) => CLAIMING_MODIFIERS.has(name)).length;
+  if (claiming < CLAIMING_NEEDED) {
+    return {
+      refused: `Hold two of ⌘, ⌥ and ⌃: ${globalShortcutLabel(shortcut)} would stop working in every other app.`,
+    };
+  }
+  const system = SYSTEM_SHORTCUTS.get(shortcut);
+  if (system !== undefined) {
+    return {
+      refused: `${globalShortcutLabel(shortcut)} is macOS's own, for ${system}: choose another.`,
+    };
+  }
+  return { shortcut };
 }
 
 /** `Control+Alt+KeyN` as a Mac menu writes it: ⌃⌥N. A shortcut it cannot read is shown as written. */

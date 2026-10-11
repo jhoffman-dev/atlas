@@ -106,7 +106,7 @@ export function GlobalCaptureSettings({
       </div>
       {recording && (
         <p className="settings__lede" role="status">
-          {hint ?? 'Hold ⌘, ⌥ or ⌃ and press a key. Esc stops without changing it.'}
+          {hint ?? 'Hold two of ⌘, ⌥ and ⌃ and press a key. Esc stops without changing it.'}
         </p>
       )}
       {view !== null && view.problem !== null && (
