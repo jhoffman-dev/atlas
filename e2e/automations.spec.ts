@@ -182,6 +182,11 @@ test('a rule a note sets off archives a new standup when it appears, and only th
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
+  // The meeting import (P28-04) stamps what waits in Inbox/Meetings when the vault opens.
+  // Wait for that write first: the meetings below have the same bytes as this one did,
+  // and in one sync with its stamp the feed could pair the new standup with its old
+  // bytes — a rename — and read this path as where a new note arrived.
+  await expectFile(vault, 'Inbox/Meetings/Last week standup.md').toContain('atlas_import_outcome');
 
   // Two meetings arrive, as a pull or another app would bring them: the standup is filed.
   await vault.write('Inbox/Meetings/Standup.md', meeting('standup'));
