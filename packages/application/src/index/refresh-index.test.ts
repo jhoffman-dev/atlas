@@ -396,7 +396,9 @@ describe('refreshIndex and relations to notes that come and go (P24 review)', ()
     const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
     const { index, asked } = indexHolding([{ path: 'a.md', modified: 1, size: 5 }], ['a.md']);
     await refreshIndex({ fs, index, markdown });
-    expect(asked).toEqual([]);
+    // Only the question every refresh of a held index asks: how the import settled each note.
+    expect(asked.filter(([sql]) => String(sql).includes('FROM relations'))).toEqual([]);
+    expect(asked).toHaveLength(1);
   });
 });
 

@@ -48,7 +48,9 @@ digest, the same name first. When a note leaves a path and a new one is made
 there in the same sync, the feed reports that path `changed`; so a changed
 note carries the digest it had (`before`, an addition to the P28-03 feed),
 and one whose old bytes, or archived copy, turn up elsewhere is a new note.
-A note in the Archive never sets a rule off.
+A note in the Archive never sets a rule off. _(Amended 2026-10-11, #92:
+a path that still holds a note pairs only by its two paths — see the
+addendum.)_
 
 **It is idempotent per note version:** the run log records `(rule, path,
 digest)`, and a version already handled is never handled again — a restart,
@@ -90,6 +92,35 @@ changed on the note and is undoable like any automation run.
 
 **Every run is in Activity:** trigger, note, digest, step, outcome, model,
 duration, proposals made. Each rule has a run cap per hour.
+
+### Addendum (2026-10-11, #92): note triggers and the meeting import
+
+The meeting import (ADR-0027) writes `atlas_import_outcome` into every file
+that lands in `Inbox/Meetings`, so a meeting's arrival and the import's stamp
+reach the change feed close together, in one sync or two. A rule a meeting
+set off could run on the unstamped version and then miss the stamped one,
+run on a meeting the import went on to refuse, or — when two meetings had the
+same bytes — take an old meeting the import stamped for the new one.
+
+- **The feed says how the import settled each version.** A note's version
+  carries its `atlas_import_outcome` when it has one, and a changed note the
+  one it had before. The index already holds the stamp as a property; the
+  refresh asks for it beside the manifest, so a relaunch knows it too.
+- **Where meeting files land, a note is the import's until it lets it in.**
+  A rule hears no note in `Inbox/Meetings` that is not stamped `imported`.
+  The version that first carries `imported` is its arrival: a `created` rule
+  runs once, on the version the import accepted, and a refused (`error`) or
+  duplicate meeting never sets it off. The import's own stamp write is not a
+  change to the note; an edit to a meeting it let in is. A note filed
+  anywhere else is unchanged by this.
+- **The feed pairs nothing by bytes with a path that still holds a note.**
+  This replaces "one whose old bytes … turn up elsewhere is a new note"
+  above: a `changed` note is the far end of a move only by its two paths
+  (archived or filed out of the Inbox). A new note that reads as a changed
+  note did before its edit is a copy that arrived, never the old note moved
+  — two meetings from one template are two meetings.
+- News heard while the index opens is held and run once each, in the order
+  it was heard (already so; now tested).
 
 ## Consequences
 

@@ -215,7 +215,7 @@ describe('arrivedPaths', () => {
   // notes with the same bytes are not one note moved, while the old path still holds one.
   it('takes a new note with the bytes a path held before its edit as arrived, and the edit as an edit', () => {
     const changes: NoteChange[] = [
-      { ...change('changed', 'Inbox/Standup.md', 'next'), before: 'old' },
+      { ...change('changed', 'Notes/Standup.md', 'next'), before: 'old' },
       change('added', 'Meetings/Standup.md', 'old'),
     ];
     const { arrived, left } = unpairedChanges(changes);

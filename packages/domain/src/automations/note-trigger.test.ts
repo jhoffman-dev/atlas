@@ -126,9 +126,9 @@ describe('noteTriggerQueryProblem', () => {
 
 describe('triggeringVersions', () => {
   it('hears a note of its type that arrived, as the version the feed reported', () => {
-    const changes = [change('added', 'Inbox/Meetings/Standup.md', { digest: 'abc' })];
+    const changes = [change('added', 'Meetings/Standup.md', { digest: 'abc' })];
     expect(triggeringVersions(MEETING_CREATED, changes)).toEqual([
-      { path: 'Inbox/Meetings/Standup.md', digest: 'abc' },
+      { path: 'Meetings/Standup.md', digest: 'abc' },
     ]);
     expect(triggeringVersions(MEETING_CHANGED, changes)).toEqual([]);
   });
@@ -152,7 +152,7 @@ describe('triggeringVersions', () => {
 
   it('does not take a note moved or renamed for one that arrived', () => {
     const moved = [
-      change('removed', 'Inbox/Meetings/Standup.md', { digest: 'same' }),
+      change('removed', 'Meetings/Standup.md', { digest: 'same' }),
       change('added', 'Meetings/Standup.md', { digest: 'same' }),
     ];
     expect(triggeringVersions(ON_MEETING, moved)).toEqual([]);
@@ -160,22 +160,22 @@ describe('triggeringVersions', () => {
 
   it('takes two copies with the same bytes, nothing gone, as two arrivals', () => {
     const copies = [
-      change('added', 'Inbox/Meetings/A.md', { digest: 'same' }),
-      change('added', 'Inbox/Meetings/B.md', { digest: 'same' }),
+      change('added', 'Meetings/A.md', { digest: 'same' }),
+      change('added', 'Meetings/B.md', { digest: 'same' }),
     ];
     expect(triggeringVersions(MEETING_CREATED, copies)).toHaveLength(2);
   });
 
   it('does not take a note put back from the Archive for one that arrived', () => {
     const restored = [
-      change('removed', 'Archive/Inbox/Meetings/Standup.md', { digest: 'stamped' }),
-      change('added', 'Inbox/Meetings/Standup.md', { digest: 'plain' }),
+      change('removed', 'Archive/Meetings/Standup.md', { digest: 'stamped' }),
+      change('added', 'Meetings/Standup.md', { digest: 'plain' }),
     ];
     expect(triggeringVersions(MEETING_CREATED, restored)).toEqual([]);
   });
 
   it('leaves a note in the Archive out: archiving it is not its arrival', () => {
-    const archived = [change('added', 'Archive/Inbox/Meetings/Standup.md')];
+    const archived = [change('added', 'Archive/Meetings/Standup.md')];
     expect(triggeringVersions(ON_MEETING, archived)).toEqual([]);
   });
 });
@@ -264,24 +264,24 @@ describe('handledVersions', () => {
   it('remembers the versions a run handled and the ones it wrote, and no others', () => {
     const handled = handledVersions([
       run([
-        { path: p('Inbox/Meetings/A.md'), digest: 'one', wrote: false },
-        { path: p('Inbox/Meetings/A.md'), digest: 'two', wrote: true },
+        { path: p('Meetings/A.md'), digest: 'one', wrote: false },
+        { path: p('Meetings/A.md'), digest: 'two', wrote: true },
       ]),
       run(undefined),
       { kind: 'failed', at: '2026-10-08T09:01:00', trigger: 'note', problem: 'No.' },
     ]);
     const versions = [
-      { path: p('Inbox/Meetings/A.md'), digest: 'one' },
-      { path: p('Inbox/Meetings/A.md'), digest: 'two' },
-      { path: p('Inbox/Meetings/A.md'), digest: 'three' },
-      { path: p('Inbox/Meetings/B.md'), digest: 'one' },
+      { path: p('Meetings/A.md'), digest: 'one' },
+      { path: p('Meetings/A.md'), digest: 'two' },
+      { path: p('Meetings/A.md'), digest: 'three' },
+      { path: p('Meetings/B.md'), digest: 'one' },
     ];
     expect(unhandledVersions(versions, handled)).toEqual(versions.slice(2));
   });
 });
 
 describe('a note deleted, and what the rule remembers of it', () => {
-  const STANDUP = p('Inbox/Meetings/Standup.md');
+  const STANDUP = p('Meetings/Standup.md');
   const ran = (extra: Partial<Extract<LogEntry, { kind: 'run' }>>): LogEntry => ({
     kind: 'run',
     at: '2026-10-08T09:00:00',
@@ -309,30 +309,30 @@ describe('a note deleted, and what the rule remembers of it', () => {
       ran({
         versions: [
           { path: STANDUP, digest: 'one', wrote: false },
-          { path: p('Inbox/Meetings/Moved.md'), digest: 'two', wrote: false },
-          { path: p('Inbox/Meetings/Filed.md'), digest: 'three', wrote: false },
+          { path: p('Meetings/Moved.md'), digest: 'two', wrote: false },
+          { path: p('Meetings/Filed.md'), digest: 'three', wrote: false },
         ],
       }),
     ]);
     const changes = [
       change('removed', STANDUP, { digest: 'one' }),
-      change('removed', 'Inbox/Meetings/Moved.md', { digest: 'two' }),
+      change('removed', 'Meetings/Moved.md', { digest: 'two' }),
       change('added', 'Meetings/Moved.md', { digest: 'two' }),
-      change('removed', 'Inbox/Meetings/Filed.md', { digest: 'three' }),
-      change('added', 'Archive/Inbox/Meetings/Filed.md', { digest: 'stamped' }),
-      change('removed', 'Inbox/Meetings/Never.md'),
+      change('removed', 'Meetings/Filed.md', { digest: 'three' }),
+      change('added', 'Archive/Meetings/Filed.md', { digest: 'stamped' }),
+      change('removed', 'Meetings/Never.md'),
     ];
     expect(leftHandledNotes(changes, handled)).toEqual([
       STANDUP,
-      'Inbox/Meetings/Moved.md',
-      'Inbox/Meetings/Filed.md',
+      'Meetings/Moved.md',
+      'Meetings/Filed.md',
     ]);
   });
 
   it('forgets a path it archived a note from itself, so a new note there is new', () => {
     const handled = handledVersions([
       ran({
-        done: [{ kind: 'archived', from: STANDUP, to: p('Archive/Inbox/Meetings/Standup.md') }],
+        done: [{ kind: 'archived', from: STANDUP, to: p('Archive/Meetings/Standup.md') }],
         versions: [{ path: STANDUP, digest: 'one', wrote: false }],
       }),
     ]);
@@ -342,7 +342,7 @@ describe('a note deleted, and what the rule remembers of it', () => {
   it('takes a note made where a note it heard left in the same sync as created, not changed', () => {
     const replaced = [
       { ...change('changed', STANDUP, { digest: 'next' }), before: 'one' },
-      change('added', 'Archive/Inbox/Meetings/Standup.md', { digest: 'stamped' }),
+      change('added', 'Archive/Meetings/Standup.md', { digest: 'stamped' }),
     ];
     expect(triggeringVersions(MEETING_CREATED, replaced)).toEqual([
       { path: STANDUP, digest: 'next' },

@@ -18,6 +18,7 @@
 
 import { isArchivedPath } from '../archive/archive.ts';
 import { arrivedPaths, unpairedChanges, type NoteChange } from '../index/note-changes.ts';
+import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { QueryTextError } from '../query-language/query-text-error.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
@@ -81,20 +82,50 @@ export function noteTriggerQueryProblem(trigger: NoteTrigger, which: string): st
  * end of a move, or made at a path the note there left in the same sync — or
  * whose bytes changed. A note in the Archive is out of play, as every query
  * leaves it out; archiving a note is not its arrival.
+ *
+ * Where meeting files land, a note is the meeting import's until it lets it
+ * in (#92): see {@link eventWhereMeetingsLand}.
  */
 export function triggeringVersions(
   trigger: NoteTrigger,
   changes: readonly NoteChange[],
 ): NoteVersionRef[] {
   const arrived = arrivedPaths(changes);
-  const hears = (change: NoteChange): boolean =>
-    (trigger.on.includes('created') && arrived.has(change.path)) ||
-    (trigger.on.includes('changed') && change.kind === 'changed' && !arrived.has(change.path));
+  const hears = (change: NoteChange): boolean => {
+    const event = noteEventOf(change, arrived);
+    return event !== null && trigger.on.includes(event);
+  };
   return changes
     .filter(
       (change) => change.type === trigger.type && !isArchivedPath(change.path) && hears(change),
     )
     .map((change) => ({ path: createVaultPath(change.path), digest: change.digest }));
+}
+
+/** What a change is to a rule a note sets off, given the paths new notes arrived at; null when nothing. */
+function noteEventOf(change: NoteChange, arrived: ReadonlySet<string>): NoteEvent | null {
+  if (change.kind === 'removed') return null;
+  if (isMeetingInboxPath(change.path)) return eventWhereMeetingsLand(change, arrived);
+  if (arrived.has(change.path)) return 'created';
+  return change.kind === 'changed' ? 'changed' : null;
+}
+
+/**
+ * Where meeting files land, a note is not yet a note to a rule: the import
+ * has still to let it in, or has refused it, or archives it as a copy. Its
+ * arrival is the version the import let in — stamped `imported` — so a rule
+ * runs once a meeting is in, and never on one refused; and the import's own
+ * stamp is not a change to the note, nor is any write before it.
+ */
+function eventWhereMeetingsLand(
+  change: NoteChange,
+  arrived: ReadonlySet<string>,
+): NoteEvent | null {
+  if (change.importOutcome !== 'imported') return null;
+  if (arrived.has(change.path)) return 'created';
+  // Added, but one end of a move: a note let in before, moved or put back here.
+  if (change.kind === 'added') return null;
+  return change.beforeImportOutcome === 'imported' ? 'changed' : 'created';
 }
 
 /**

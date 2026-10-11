@@ -1,6 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { compileMeetingHoldersQuery, compileMeetingListQuery } from './meeting-queries.ts';
+import {
+  compileImportOutcomesQuery,
+  compileMeetingHoldersQuery,
+  compileMeetingListQuery,
+  importOutcomesOf,
+} from './meeting-queries.ts';
 
 /**
  * The meeting statements run for real against SQLite, over the index's own
@@ -27,6 +32,8 @@ function meetingIndex(notes: readonly { path: string; props: Record<string, stri
   const run = ({ sql, parameters }: { sql: string; parameters: readonly (string | number)[] }) =>
     database.prepare(sql).all(...parameters);
   return {
+    outcomes: () =>
+      importOutcomesOf(run(compileImportOutcomesQuery()).map((row) => Object.values(row))),
     holders: (provider: string, externalId: string) =>
       run(compileMeetingHoldersQuery({ provider, externalId })).map((row) => row['path']),
     list: (
@@ -87,6 +94,25 @@ const vault = meetingIndex([
     }),
   },
 ]);
+
+describe('compileImportOutcomesQuery (#92)', () => {
+  it('says how the import settled each note that holds a stamp, and of no other', () => {
+    const stamped = meetingIndex([
+      { path: 'Inbox/Meetings/In.md', props: meeting('g-1', { atlas_import_outcome: 'imported' }) },
+      { path: 'Inbox/Meetings/Bad.md', props: meeting('g-2', { atlas_import_outcome: 'error' }) },
+      { path: 'Inbox/Meetings/Odd.md', props: meeting('g-3', { atlas_import_outcome: 'maybe' }) },
+      { path: 'Inbox/Meetings/Waiting.md', props: meeting('g-4') },
+    ]);
+    expect(stamped.outcomes()).toEqual(
+      new Map([
+        ['Inbox/Meetings/Bad.md', 'error'],
+        ['Inbox/Meetings/In.md', 'imported'],
+        // A stamp the import does not know is a stamp all the same, read as it reads one.
+        ['Inbox/Meetings/Odd.md', 'imported'],
+      ]),
+    );
+  });
+});
 
 describe('compileMeetingHoldersQuery', () => {
   it('finds the meetings holding a provider and external id, archived and marked ones too', () => {

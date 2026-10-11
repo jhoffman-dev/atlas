@@ -26,7 +26,9 @@ export {
 } from './meeting-arrival.ts';
 export type { ImportOutcome, MeetingCopies } from './meeting-arrival.ts';
 export {
+  compileImportOutcomesQuery,
   compileMeetingHoldersQuery,
+  importOutcomesOf,
   compileMeetingListQuery,
   MEETING_LIST_COLUMNS,
   MEETING_LIST_LIMIT,

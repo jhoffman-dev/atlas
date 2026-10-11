@@ -2,12 +2,15 @@ import {
   anchoredBlocks,
   checklistLines,
   checklistProgress,
+  compileImportOutcomesQuery,
   mayHoldBlockIds,
   mayHoldChecklist,
   compileRelationHoldersQuery,
   createVaultPath,
   createWikiLinkResolver,
   digestOf,
+  importOutcomeOf,
+  importOutcomesOf,
   linkedName,
   noteChangesBetween,
   RELATION_NAMES_PER_QUERY,
@@ -76,7 +79,7 @@ export async function refreshIndex({
   const current = new Map<string, (typeof notes)[number]>(
     notes.map((note) => [note.path as string, note]),
   );
-  const known = new Map((await index.manifest()).map((entry) => [entry.path, entry]));
+  const known = await heldEntries(index);
 
   const stale = [...current.values()].filter((note) => {
     const entry = known.get(note.path);
@@ -117,6 +120,24 @@ export async function refreshIndex({
       versionsNow({ paths: current.keys(), reread, known, previous: previous ?? known }),
     ),
   };
+}
+
+/**
+ * What the index holds of each note, by path, with how the meeting import
+ * settled it: the manifest does not say, and a note's stamp is what tells the
+ * import's own write from an edit (#92). An empty index is not asked.
+ */
+export async function heldEntries(index: IndexPort): Promise<Map<string, IndexEntry>> {
+  const entries = await index.manifest();
+  if (entries.length === 0) return new Map();
+  const { sql, parameters } = compileImportOutcomesQuery();
+  const outcomes = importOutcomesOf((await index.query(sql, parameters)).rows);
+  return new Map(
+    entries.map((entry) => {
+      const importOutcome = outcomes.get(entry.path);
+      return [entry.path, importOutcome === undefined ? entry : { ...entry, importOutcome }];
+    }),
+  );
 }
 
 /** Reads and indexes the stale notes in batches; answers with what was read, by path. */
@@ -221,6 +242,7 @@ export function toIndexedNote({
   const path = createVaultPath(file.path);
   const document = splitFrontmatter(file.text);
   const frontmatter = markdown.frontmatterProperties(document.frontmatter);
+  const importOutcome = importOutcomeOf(frontmatter);
 
   const body = markdown.plainText(document.body);
 
@@ -231,6 +253,7 @@ export function toIndexedNote({
     size: file.size,
     type: noteTypeName(frontmatter),
     digest: digestOf(file.text),
+    ...(importOutcome !== null && { importOutcome }),
     body,
     summary: summaryOf(document.body),
     properties: indexablePropertiesOf(frontmatter),
