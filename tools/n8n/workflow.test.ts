@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { mapMeeting, type MeetingFields } from '@atlas/domain';
 import {
   mapMeetingScript,
   sameMeetingAtOtherPathScript,
   sameMeetingScript,
   MAP_MEETING_NODE,
 } from './code-node.ts';
-import { mapMeeting, type MeetingFields } from './meeting-to-atlas.ts';
 import {
   EXAMPLE_SOURCES,
   fieldRows,

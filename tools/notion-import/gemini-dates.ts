@@ -1,5 +1,5 @@
-import type { MeetingFields } from '../n8n/meeting-to-atlas.ts';
-import { readTranscript } from '../n8n/meeting-transcript.ts';
+import type { MeetingFields } from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
+import { readTranscript } from '../../packages/domain/src/meetings/mapping/meeting-transcript.ts';
 
 /** The provider whose Notion Date is not when the meeting started (issue #44). */
 export const GEMINI = 'gemini';

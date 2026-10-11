@@ -1,6 +1,6 @@
 import type { MeetingIdentity } from '../../packages/domain/src/index.ts';
-import { oneLine } from '../n8n/meeting-mapping-error.ts';
-import type { MeetingFields } from '../n8n/meeting-to-atlas.ts';
+import { oneLine } from '../../packages/domain/src/meetings/mapping/meeting-mapping-error.ts';
+import type { MeetingFields } from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
 import type { Csv, CsvRow } from './notion-csv.ts';
 import { notionWhen } from './notion-date.ts';
 import { fromArrival, GEMINI, type GeminiDates } from './gemini-dates.ts';

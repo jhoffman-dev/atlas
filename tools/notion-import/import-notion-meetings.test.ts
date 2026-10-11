@@ -25,7 +25,7 @@ import {
   type ImportOptions,
   type RowOutcome,
 } from './import-notion-meetings.ts';
-import { meetingPaths } from '../n8n/meeting-file-name.ts';
+import { meetingPaths } from '../../packages/domain/src/meetings/mapping/meeting-file-name.ts';
 import { NotionExportError } from './notion-meetings.ts';
 
 /*

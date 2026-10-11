@@ -2,10 +2,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { remarkMarkdown } from '@atlas/adapters';
-import { splitFrontmatter, validateMeetingImport, type MeetingImport } from '@atlas/domain';
-import { MeetingMappingError } from './meeting-mapping-error.ts';
-import { mapMeeting, type MappingOptions, type MeetingFields } from './meeting-to-atlas.ts';
+import {
+  mapMeeting,
+  MeetingMappingError,
+  splitFrontmatter,
+  validateMeetingImport,
+  type MappingOptions,
+  type MeetingFields,
+  type MeetingImport,
+} from '@atlas/domain';
+import { remarkMarkdown } from './markdown-port.ts';
 
 /*
  * Adversarial cases for the mapper (issue #8, P28-02). Each test names one
@@ -15,7 +21,7 @@ import { mapMeeting, type MappingOptions, type MeetingFields } from './meeting-t
  */
 
 const schemaFile = new URL(
-  '../../vault/docs/contracts/meeting-import-v1.schema.json',
+  '../../../../vault/docs/contracts/meeting-import-v1.schema.json',
   import.meta.url,
 );
 const ajv = new Ajv2020({ allErrors: true, strict: true });

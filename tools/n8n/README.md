@@ -12,7 +12,8 @@ assembled meeting before any Notion step, and nothing in it can stop the run.
 | File                                                | What it is                                                                     |
 | --------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `meeting-to-atlas.workflow.json`                    | The n8n nodes to paste in. No secrets: the credential is referenced by name.   |
-| `meeting-*.ts`                                      | The mapper, which the workflow's Code nodes run (compiled into the JSON).      |
+| `packages/domain/src/meetings/mapping/`             | The mapper, which the Code nodes and Atlas's `POST /v1/meetings` both run.     |
+| `github-file.ts`                                    | Whether a file already at a meeting's path is that meeting (compiled in too).  |
 | `validate-meeting.mjs`                              | Checks a file with the validator Atlas runs: `pnpm validate:meeting <file.md>` |
 | `build-workflow.mjs`, `code-node.ts`, `workflow.ts` | Rebuild the JSON after changing the mapper: `pnpm n8n:build`.                  |
 
@@ -457,7 +458,9 @@ heading, so nothing in the page is dropped.
 
 ## Changing the mapper
 
-Edit `tools/n8n/meeting-*.ts`, run `pnpm n8n:build`, then in n8n replace the
+The mapper is `packages/domain/src/meetings/mapping/` (since #93, so the app's
+`POST /v1/meetings` maps by the same rules); `github-file.ts` here holds the
+workflow's own checks. Edit them, run `pnpm n8n:build`, then in n8n replace the
 three Code nodes' code (**Map meeting to Atlas file**, **Same meeting?**,
 **Same meeting at the other path?**) with the new `jsCode` from the JSON — or
 delete the twelve nodes and paste the file again. A test fails while the JSON
