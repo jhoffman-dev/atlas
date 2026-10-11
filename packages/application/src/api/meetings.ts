@@ -7,7 +7,7 @@ import {
   readEventTime,
   type MeetingFields,
 } from '@atlas/domain';
-import { MeetingPathsTakenError, receiveMeeting, type MeetingReceipt } from '../meetings/index.ts';
+import { MeetingPathsTakenError, receiveMeeting } from '../meetings/index.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import type { ApiMeeting } from './contract.ts';
 import {
@@ -98,15 +98,46 @@ const textOrNull = (value: unknown): string | null =>
  * time, or whose file the contract would refuse, is `invalid`, with why.
  */
 export async function receiveMeetingRoute(request: VaultRequest): Promise<RouteResult> {
-  const body = bodyObject(request.body);
+  const body = meetingBody(request.body);
   const fields = meetingFieldsOf(body);
-  const timeZone = optionalString(body, 'timeZone') ?? request.timeZone;
-  const receipt = await receiveMeeting({ ports: request, fields, options: { timeZone } }).catch(
-    refusedMeeting,
-  );
+  const options = {
+    timeZone: optionalString(body, 'timeZone') ?? request.timeZone,
+    groupAddresses: groupAddressesOf(body),
+  };
+  const receipt = await receiveMeeting({ ports: request, fields, options }).catch(refusedMeeting);
   // A meeting found held is only held in the vault the request was for.
   request.assertStillOpen();
   return { status: receipt.outcome === 'written' ? 201 : 200, body: { meeting: receipt } };
+}
+
+/** Every field the route reads; any other is refused, so a misspelt one cannot drop content. */
+const MEETING_FIELDS = new Set([
+  'provider',
+  'sourceId',
+  'title',
+  'subject',
+  'arrived',
+  'attendees',
+  'summaryMd',
+  'transcriptMd',
+  'category',
+  'timeZone',
+  'groupAddresses',
+]);
+
+/**
+ * The body, with a null optional field taken as left out — n8n sends null
+ * for a field its node has no value for. A key the route does not read is
+ * refused rather than ignored: the meeting it sent without that content would
+ * be written, and every send after it answered `in-vault`.
+ */
+function meetingBody(raw: unknown): Fields {
+  const body = bodyObject(raw);
+  const unknown = Object.keys(body).find((key) => !MEETING_FIELDS.has(key));
+  if (unknown !== undefined) {
+    throw new ApiError('invalid', `${JSON.stringify(unknown)} is not a field of a meeting`);
+  }
+  return Object.fromEntries(Object.entries(body).filter(([, value]) => value !== null));
 }
 
 /** The request as the mapper's fields: the names n8n's "Meeting fields for Atlas" node gives them. */
@@ -124,22 +155,37 @@ function meetingFieldsOf(body: Fields): MeetingFields {
   };
 }
 
-/** Each attendee as `{ name, email }`, either text or left out. */
+/** The attendee records as sent, for the mapper to read as n8n's records are read, once their kinds are checked. */
 function attendeesOf(body: Fields): readonly Fields[] | undefined {
   return optionalArray(body, 'attendees')?.map((attendee, at) => {
     if (!isRecord(attendee)) throw new ApiError('invalid', `attendees[${at}] must be an object`);
+    const field = `attendees[${at}]`;
     for (const key of ['name', 'email']) {
       const value = attendee[key];
       if (value !== undefined && value !== null && typeof value !== 'string') {
-        throw new ApiError('invalid', `attendees[${at}].${key} must be a string`);
+        throw new ApiError('invalid', `${field}.${key} must be a string`);
       }
     }
-    return { name: attendee['name'], email: attendee['email'] };
+    if (attendee['group'] !== undefined && typeof attendee['group'] !== 'boolean') {
+      throw new ApiError('invalid', `${field}.group must be true or false`);
+    }
+    return attendee;
   });
 }
 
+/** Addresses that are groups though their local part does not say so, as n8n's `OPTIONS` lists them. */
+function groupAddressesOf(body: Fields): readonly string[] {
+  const addresses = optionalArray(body, 'groupAddresses') ?? [];
+  for (const [at, address] of addresses.entries()) {
+    if (typeof address !== 'string') {
+      throw new ApiError('invalid', `groupAddresses[${at}] must be a string`);
+    }
+  }
+  return addresses as readonly string[];
+}
+
 /** Why a meeting was not taken, as the caller is told it. */
-function refusedMeeting(error: unknown): MeetingReceipt {
+function refusedMeeting(error: unknown): never {
   if (error instanceof MeetingMappingError) throw new ApiError('invalid', error.message);
   if (error instanceof MeetingPathsTakenError) throw new ApiError('exists', error.message);
   throw error;

@@ -327,6 +327,69 @@ describe('POST /v1/meetings: refused', () => {
   });
 });
 
+describe('POST /v1/meetings: the fields n8n sends', () => {
+  it('takes null as left out, for every optional field', async () => {
+    const api = vault();
+    const optional = ['attendees', 'category', 'timeZone', 'groupAddresses'] as const;
+    const response = await send(api, {
+      ...SENT,
+      ...Object.fromEntries(optional.map((field) => [field, null])),
+    });
+    expect(response.status).toBe(201);
+    expect(frontmatterOf(api.files.get(PATH)?.text ?? '')).not.toHaveProperty('kind');
+  });
+
+  it('still requires provider, sourceId and title when they are null', async () => {
+    for (const field of ['provider', 'sourceId', 'title']) {
+      const response = await send(vault(), { ...SENT, [field]: null });
+      expect(codeOf(response)).toBe('invalid');
+      expect(JSON.stringify(response.body)).toContain(`${field} must be a string`);
+    }
+  });
+
+  it('refuses a key it does not read, naming it, rather than write the meeting without it', async () => {
+    const api = vault();
+    const response = await send(api, { ...SENT, transcriptMD: GEMINI_TRANSCRIPT });
+    expect(codeOf(response)).toBe('invalid');
+    expect(JSON.stringify(response.body)).toContain('\\"transcriptMD\\" is not a field');
+    expect(api.writes).toEqual([]);
+  });
+
+  it('marks as groups the addresses groupAddresses names, as n8n’s OPTIONS does', async () => {
+    const api = vault();
+    await send(api, { ...SENT, groupAddresses: ['tobias.fenn@example.com'] });
+    expect(frontmatterOf(api.files.get(PATH)?.text ?? '')).toMatchObject({
+      attendees: [
+        { name: 'Mara Quill' },
+        { name: 'Tobias Fenn', email: 'tobias.fenn@example.com', group: true },
+        { email: 'platform-team@example.com', group: true },
+      ],
+    });
+  });
+
+  it.each([
+    [
+      'groupAddresses that are not a list',
+      { groupAddresses: 'leads@example.com' },
+      'groupAddresses must be an array',
+    ],
+    [
+      'a group address that is not text',
+      { groupAddresses: [5] },
+      'groupAddresses[0] must be a string',
+    ],
+    [
+      'an attendee’s group that is not true or false',
+      { attendees: [{ name: 'Mara Quill', group: 'yes' }] },
+      'attendees[0].group must be true or false',
+    ],
+  ])('refuses %s as invalid', async (_, fields, message) => {
+    const response = await send(vault(), { ...SENT, ...fields });
+    expect(codeOf(response)).toBe('invalid');
+    expect(JSON.stringify(response.body)).toContain(message);
+  });
+});
+
 describe('POST /v1/meetings: the vault is switched mid-request', () => {
   const OTHER = { absolutePath: '/Users/j/Other', name: 'Other' };
 
