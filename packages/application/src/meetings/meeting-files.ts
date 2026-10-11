@@ -9,7 +9,7 @@ import {
   meetingHolding,
   messageWithoutPaths,
   splitFrontmatter,
-  type MeetingImport,
+  type MeetingIdentity,
   type MeetingImportHappening,
   type VaultPath,
 } from '@atlas/domain';
@@ -38,30 +38,48 @@ export interface Holders {
   readonly imported: readonly string[];
 }
 
+/** What finding a meeting's holders reads: the index, to know where to look, and the notes themselves. */
+export type HolderPorts = Pick<ArchivePorts, 'fs' | 'markdown' | 'index'>;
+
 /**
- * The other notes that hold a meeting now: the index names the notes that
- * held its provider + external_id when it last read them, and each is read
- * again, since the index is behind what the import writes and moves. One
- * stamped `imported` holds it whatever else it says — the person may have
- * added to it since. One not stamped holds it when it follows the contract.
- * One stamped `duplicate` or `error`, and a sync conflict's copy, holds
- * nothing. Ids are compared without the spaces around them, as the index
- * keeps them.
+ * The other notes that hold a meeting now, as the import counts them (see
+ * {@link meetingHoldersIn}), leaving out the file being settled and any this
+ * run has settled already.
  */
-export async function meetingHolders(
+export function meetingHolders(
   context: ImportContext,
-  { meeting, besides }: { meeting: MeetingImport; besides: string },
+  { meeting, besides }: { meeting: MeetingIdentity; besides: string },
+): Promise<Holders> {
+  return meetingHoldersIn(context.ports, {
+    meeting,
+    skip: (holder) => holder === besides || context.settled.has(holder),
+  });
+}
+
+/**
+ * The notes that hold a meeting now: the index names the notes that held its
+ * provider + external_id when it last read them, and each is read again,
+ * since the index is behind what the import writes and moves. One stamped
+ * `imported` holds it whatever else it says — the person may have added to it
+ * since. One not stamped holds it when it follows the contract. One stamped
+ * `duplicate` or `error`, and a sync conflict's copy, holds nothing. Ids are
+ * compared without the spaces around them, as the index keeps them. A note
+ * `skip` names is not read.
+ */
+export async function meetingHoldersIn(
+  ports: HolderPorts,
+  { meeting, skip }: { meeting: MeetingIdentity; skip: (holder: string) => boolean },
 ): Promise<Holders> {
   const { sql, parameters } = compileMeetingHoldersQuery({
     provider: meeting.provider,
     externalId: meeting.externalId,
   });
-  const found = await context.ports.index.query(sql, parameters);
+  const found = await ports.index.query(sql, parameters);
   const unsettled: string[] = [];
   const imported: string[] = [];
   for (const holder of found.rows.map((row) => String(row[0]))) {
-    if (holder === besides || context.settled.has(holder) || isConflictCopyPath(holder)) continue;
-    const held = await holding(context, { holder, meeting });
+    if (skip(holder) || isConflictCopyPath(holder)) continue;
+    const held = await holdingAt(ports, { holder, meeting });
     if (held === 'imported') imported.push(holder);
     else if (held === 'unsettled') unsettled.push(holder);
   }
@@ -69,11 +87,10 @@ export async function meetingHolders(
 }
 
 /** Whether a note holds the meeting now, and whether the import has let it in; null when it does not hold it. */
-async function holding(
-  context: ImportContext,
-  { holder, meeting }: { holder: string; meeting: MeetingImport },
+export async function holdingAt(
+  { fs, markdown }: Pick<HolderPorts, 'fs' | 'markdown'>,
+  { holder, meeting }: { holder: string; meeting: MeetingIdentity },
 ): Promise<'imported' | 'unsettled' | null> {
-  const { fs, markdown } = context.ports;
   let text: string;
   try {
     ({ text } = await fs.readTextFile(createVaultPath(holder)));

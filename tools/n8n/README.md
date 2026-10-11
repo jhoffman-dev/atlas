@@ -12,7 +12,8 @@ assembled meeting before any Notion step, and nothing in it can stop the run.
 | File                                                | What it is                                                                     |
 | --------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `meeting-to-atlas.workflow.json`                    | The n8n nodes to paste in. No secrets: the credential is referenced by name.   |
-| `meeting-*.ts`                                      | The mapper, which the workflow's Code nodes run (compiled into the JSON).      |
+| `packages/domain/src/meetings/mapping/`             | The mapper, which the Code nodes and Atlas's `POST /v1/meetings` both run.     |
+| `github-file.ts`                                    | Whether a file already at a meeting's path is that meeting (compiled in too).  |
 | `validate-meeting.mjs`                              | Checks a file with the validator Atlas runs: `pnpm validate:meeting <file.md>` |
 | `build-workflow.mjs`, `code-node.ts`, `workflow.ts` | Rebuild the JSON after changing the mapper: `pnpm n8n:build`.                  |
 
@@ -332,6 +333,83 @@ catches that: a second file with the same `provider` + `external_id` is marked
   **Same meeting?** skips a path that already holds this provider and Source
   ID, broken or not, so a re-send over it writes nothing.
 
+## API destination: send the meeting to the running app
+
+Instead of committing a file to `pkm-space`, n8n can send the meeting to
+Atlas's local API, `POST /v1/meetings` (#93). Atlas runs this folder's
+mapper itself (it lives in `packages/domain/src/meetings/mapping`), so the
+file it writes into `Inbox/Meetings/` is the one the commit would make, at
+the same path, and the import stamps it as any arrival. Sending the same
+meeting again writes nothing. The route is described in
+`vault/docs/api/v1.md` (Meetings).
+
+It needs **Atlas open, with the API on** (Settings → Connections), on the
+Mac n8n's Docker runs on. While Atlas is closed the request fails and the
+failure email says so; re-run that execution once Atlas is open. The commit
+does not have that limit, so keep it where the Mac may be asleep.
+
+**The token.** Settings → Connections shows the port and the token, which
+are also in `~/Library/Application Support/<bundle id>/api.json`. In n8n:
+**Credentials → Add credential → Bearer Auth**, named `Atlas local API`,
+with the token as **Bearer Token**. It lives only in n8n's credential store,
+never in the workflow or this repository. Rotating the token in Settings, or
+Atlas moving to another port (it does when its port was taken at launch),
+means changing the credential, or the URL and `Host` header below.
+
+**The node.** Add an **HTTP Request** node, say `Send meeting to Atlas`, and
+wire it from `Assembled meeting`, beside the Notion branches and above them,
+as for the commit (section 3). `<port>` is the port from Settings.
+
+| Setting                          | Value                                                       |
+| -------------------------------- | ----------------------------------------------------------- |
+| Method                           | `POST`                                                      |
+| URL                              | `http://host.docker.internal:<port>/v1/meetings`            |
+| Authentication                   | Generic Credential Type → Bearer Auth → `Atlas local API`   |
+| Send Headers → Header Parameters | Name `Host`, Value `127.0.0.1:<port>`                       |
+| Send Body                        | on; Body Content Type **JSON**; Specify Body **Using JSON** |
+| JSON                             | the expression below                                        |
+| Settings → Retry On Fail         | on; Max Tries `3`; Wait Between Tries (ms) `5000`           |
+| Settings → On Error              | **Continue (using error output)**                           |
+| Error output →                   | `Email me: meeting not in Atlas`                            |
+
+```
+={{ {
+  provider: $('Assembled meeting').item.json.source,
+  sourceId: $('Assembled meeting').item.json.sourceId,
+  title: $('Assembled meeting').item.json.title,
+  subject: $('Notes email').item.json.subject,
+  arrived: $('Notes email').item.json.date,
+  attendees: $('Assembled meeting').item.json.attendees,
+  summaryMd: $('Assembled meeting').item.json.summaryMd,
+  transcriptMd: $('Assembled meeting').item.json.transcriptMd,
+  category: $('Assembled meeting').item.json.category
+} }}
+```
+
+Why each part:
+
+- **`host.docker.internal` and the `Host` header.** Inside the container,
+  `127.0.0.1` is the container itself; `host.docker.internal` is the Mac.
+  Atlas refuses any `Host` but `127.0.0.1:<port>` or `localhost:<port>`, the
+  guard against web pages reaching the API, so the node sends that `Host`
+  itself.
+- **`timeZone`** is left out: Atlas reads `arrived` on the Mac's own clock.
+  Add `timeZone: 'America/Los_Angeles'` to the body to pin it.
+- **Every field is a string or left out** (an attendee's `name` or `email`
+  may be null). A field n8n hands over as null, or as a number, is refused
+  `invalid`, naming it.
+- **Retry on fail** covers Atlas starting up, a sleeping Mac waking, or a
+  timeout after the file was written: a retry of a meeting already written is
+  answered "already in the vault" and writes nothing.
+- **The error output** sends whatever is left after the retries — a meeting
+  with no start time (`invalid`, as in the commit's mapper), both paths held
+  by other meetings (`exists`), no vault open (`no_vault`), Atlas closed — to
+  the failure email, and the run goes on to the Notion steps.
+
+Atlas answers `201` with `{ "meeting": { "path": …, "outcome": "written" } }`
+or `200` with `"outcome": "in-vault"` and the path of the note holding it;
+both are success, and nothing follows the node.
+
 ## Bringing in the meetings already in Notion (once)
 
 The workflow only sends meetings from now on. The ones already in the Notion
@@ -457,7 +535,9 @@ heading, so nothing in the page is dropped.
 
 ## Changing the mapper
 
-Edit `tools/n8n/meeting-*.ts`, run `pnpm n8n:build`, then in n8n replace the
+The mapper is `packages/domain/src/meetings/mapping/` (since #93, so the app's
+`POST /v1/meetings` maps by the same rules); `github-file.ts` here holds the
+workflow's own checks. Edit them, run `pnpm n8n:build`, then in n8n replace the
 three Code nodes' code (**Map meeting to Atlas file**, **Same meeting?**,
 **Same meeting at the other path?**) with the new `jsCode` from the JSON — or
 delete the twelve nodes and paste the file again. A test fails while the JSON

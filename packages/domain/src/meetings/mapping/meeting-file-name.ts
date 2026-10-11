@@ -1,4 +1,4 @@
-/** Where n8n puts a meeting in the vault (ADR-0027). */
+/** Where a meeting arrives in the vault (ADR-0027): `MEETING_INBOX`, which this mapper cannot import. */
 export const MEETINGS_FOLDER = 'Inbox/Meetings';
 
 /** The most bytes a file name may have on macOS (the vault's `MAX_NAME_BYTES`). */

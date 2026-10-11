@@ -120,6 +120,8 @@ export interface ApiRouterDeps {
   readonly activity: ActivityLog;
   /** Whether Google Calendar is connected; the API reads nothing else of it. */
   readonly googleCalendar: Pick<GoogleCalendarPort, 'status'>;
+  /** The IANA zone this Mac keeps time in (`America/Los_Angeles`): a sent meeting's default (#93). */
+  readonly timeZone: () => string;
 }
 
 /** What a source refresh reaches outside the vault through. Never the secret store. */

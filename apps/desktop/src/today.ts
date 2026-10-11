@@ -24,6 +24,11 @@ export function localNow(): string {
   return new Date().toLocaleString('sv-SE', { hour12: false }).replace(' ', 'T');
 }
 
+/** The IANA zone the person's Mac keeps time in, as `America/Los_Angeles`. */
+export function localTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 /** Now, in milliseconds since the epoch — the clock the host dates files by. */
 export function epochNow(): number {
   return Date.now();

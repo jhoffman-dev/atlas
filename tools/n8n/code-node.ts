@@ -1,21 +1,26 @@
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 
+/** Where the mapper lives: the domain, so the app's API maps a meeting by the same rules (#93). */
+const MAPPING = '../../packages/domain/src/meetings/mapping/';
+
 /**
  * The mapper's modules in the order a single script needs them: each after
- * what it uses. An n8n Code node is one script with no imports, so the
- * modules are joined into it.
+ * what it uses, then the workflow's own GitHub checks. An n8n Code node is
+ * one script with no imports, so the modules are joined into it; they import
+ * nothing but each other.
  */
 const MODULES = [
-  'meeting-mapping-error.ts',
-  'meeting-stated.ts',
-  'meeting-when.ts',
-  'meeting-attendees.ts',
-  'meeting-text.ts',
-  'meeting-sections.ts',
-  'meeting-transcript.ts',
-  'meeting-file-name.ts',
-  'meeting-to-atlas.ts',
+  `${MAPPING}meeting-mapping-error.ts`,
+  `${MAPPING}meeting-stated.ts`,
+  `${MAPPING}meeting-when.ts`,
+  `${MAPPING}meeting-attendees.ts`,
+  `${MAPPING}meeting-text.ts`,
+  `${MAPPING}meeting-sections.ts`,
+  `${MAPPING}meeting-transcript.ts`,
+  `${MAPPING}meeting-file-name.ts`,
+  `${MAPPING}meeting-to-atlas.ts`,
+  './github-file.ts',
 ] as const;
 
 const IMPORT = /^import\s[^;]*;[ \t]*\n?/gm;
@@ -51,12 +56,13 @@ function moduleScript(name: string): string {
   });
   const code = outputText.replace(IMPORT, '').replace(EMPTY_EXPORT, '').replace(EXPORT, '');
   const list = names.join(', ');
-  return `// ${name}\nconst { ${list} } = (() => {\n${code}return { ${list} };\n})();\n`;
+  return `// ${name.slice(name.lastIndexOf('/') + 1)}\nconst { ${list} } = (() => {\n${code}return { ${list} };\n})();\n`;
 }
 
 const HEADER = [
   '// Atlas meeting mapper (meeting-import contract v1).',
-  '// Generated from tools/n8n/*.ts in the Atlas repo by `pnpm n8n:build`:',
+  '// Generated from packages/domain/src/meetings/mapping/*.ts and tools/n8n/*.ts',
+  '// in the Atlas repo by `pnpm n8n:build`:',
   '// change those files and rebuild rather than editing here.',
 ].join('\n');
 
