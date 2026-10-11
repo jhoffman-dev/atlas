@@ -1,8 +1,11 @@
 import { access, mkdir, readdir, readFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { messageWithoutPaths, validateMeetingImport } from '../../packages/domain/src/index.ts';
-import { MeetingMappingError } from '../n8n/meeting-mapping-error.ts';
-import { mapMeeting, type MeetingFile } from '../n8n/meeting-to-atlas.ts';
+import { MeetingMappingError } from '../../packages/domain/src/meetings/mapping/meeting-mapping-error.ts';
+import {
+  mapMeeting,
+  type MeetingFile,
+} from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
 import type { GeminiDates } from './gemini-dates.ts';
 import { importTarget, type ImportTarget } from './import-target.ts';
 import { readCsv } from './notion-csv.ts';

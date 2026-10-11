@@ -41,7 +41,7 @@ export function readNotionPage(text: string): NotionPage {
   return { title, properties, body: lines.slice(at).join('\n'), withProperties };
 }
 
-/** The page's content as the meeting mapper's fields read it (tools/n8n/meeting-to-atlas.ts). */
+/** The page's content as the meeting mapper's fields read it (packages/domain/src/meetings/mapping/meeting-to-atlas.ts). */
 export interface PageSections {
   readonly attendees: string;
   readonly summary: string;

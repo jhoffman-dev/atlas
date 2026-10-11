@@ -8,7 +8,7 @@ import { calendarRoute } from './calendar.ts';
 import { promoteLineRoute } from './checklists.ts';
 import { captureRoute, dailyRoute } from './daily.ts';
 import { noteImageRoute } from './images.ts';
-import { meetingsRoute } from './meetings.ts';
+import { meetingsRoute, receiveMeetingRoute } from './meetings.ts';
 import { inboxRoute, processInboxRoute } from './inbox.ts';
 import { weeklyReviewRoute } from './review.ts';
 import { createNoteRoute } from './notes-create.ts';
@@ -122,6 +122,7 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'POST /v1/automations/{id}/dry-run': vaultRoute(automationDryRunRoute),
   'GET /v1/terms': vaultRoute(termsRoute),
   'GET /v1/meetings': vaultRoute(meetingsRoute),
+  'POST /v1/meetings': vaultWrite(receiveMeetingRoute, created),
   'GET /v1/proposals': vaultRoute(proposalsRoute),
   'POST /v1/proposals/{path}/accept': vaultWrite(acceptProposalRoute),
   'POST /v1/proposals/{path}/reject': vaultWrite(rejectProposalRoute),

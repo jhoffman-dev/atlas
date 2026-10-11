@@ -101,7 +101,7 @@ import { NotePaneContainer, type PaneContext } from './panes/note-pane-container
 import { browserThemeStore } from './theme/browser-theme-store.ts';
 import { useVaultGraph } from './graph/use-vault-graph.ts';
 
-import { localClock, localToday } from './today.ts';
+import { localClock, localTimeZone, localToday } from './today.ts';
 import { cryptoRng } from './random.ts';
 import {
   closeOverlay,
@@ -428,6 +428,7 @@ export function App({
       automationClock: apiAutomations.clock,
       activity: activityLog,
       googleCalendar,
+      timeZone: localTimeZone,
     }),
     [
       apiHost,

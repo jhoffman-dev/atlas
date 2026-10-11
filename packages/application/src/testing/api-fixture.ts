@@ -71,6 +71,8 @@ export interface ApiFixture {
   /** The clock's now, in milliseconds; tests move it on. Starts at `NOW`. */
   now: number;
   indexReady: boolean;
+  /** The zone the Mac keeps time in; tests move it. Starts at `America/Los_Angeles`. */
+  timeZone: string;
   /** Pictures every page; a test swaps it to make pictures fail. */
   snapshot: PageSnapshotPort;
   /** Every request a source refresh handed the host, with the vault it named. */
@@ -119,6 +121,7 @@ export function apiFixture({
     open: VAULT as VaultLocation | null,
     now: NOW,
     indexReady: true,
+    timeZone: 'America/Los_Angeles',
     writes: [] as { path: string; contents: string }[],
     followed: [] as EntryMove[],
     flushed: [] as (readonly VaultPath[])[],
@@ -345,6 +348,7 @@ export function apiFixture({
     },
     activity,
     googleCalendar: google.port,
+    timeZone: () => state.timeZone,
   };
   const fixture: ApiFixture = Object.assign(state, {
     automations: new Map<string, AutomationClockState>(),

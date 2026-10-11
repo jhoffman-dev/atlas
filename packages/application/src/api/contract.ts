@@ -576,6 +576,44 @@ export interface ApiMeeting {
 }
 
 /**
+ * A meeting as another program sends it (#93), in the shape n8n's workflow
+ * assembles: mapped by the same rules its Code nodes run, into a meeting/v1
+ * file in `Inbox/Meetings/`.
+ */
+export interface ApiReceiveMeetingBody {
+  /** Who wrote the notes up: `gemini`, `granola`… — lower-case letters, digits and `-`. */
+  readonly provider: string;
+  /** The provider's own id for the meeting (the notes email's id): with `provider`, its identity. */
+  readonly sourceId: string;
+  readonly title: string;
+  /** The notes email's subject, which states the meeting's day, and time if given. */
+  readonly subject?: string;
+  /** When the notes arrived, an ISO instant: a start, less the transcript's length, when nothing states one. */
+  readonly arrived?: string;
+  readonly attendees?: readonly {
+    readonly name?: string | null;
+    readonly email?: string | null;
+  }[];
+  /** The notes, with `## Summary`, `## Decisions`, `## Next steps` and `## Details` headings. */
+  readonly summaryMd?: string;
+  /** The provider's transcript, as it gives it. */
+  readonly transcriptMd?: string;
+  /** What sort of meeting it was: Standup, 1:1… */
+  readonly category?: string;
+  /** The IANA zone an instant is read in. Omitted: the zone this Mac keeps time in. */
+  readonly timeZone?: string;
+}
+
+/**
+ * What became of a sent meeting: `written` into `Inbox/Meetings/` at `path`,
+ * or already `in-vault` at `path` (the same provider and id), nothing written.
+ */
+export interface ApiMeetingReceipt {
+  readonly path: string;
+  readonly outcome: 'written' | 'in-vault';
+}
+
+/**
  * A proposal waiting in `Inbox/Proposals/` (P29-02, ADR-0028): what Claude or
  * an automation suggested, and what accepting it would write.
  */
@@ -1161,6 +1199,7 @@ export type ApiSuccessBody =
       /** The `offset` for the next page, or null when this was the last. */
       readonly next: number | null;
     }
+  | { readonly meeting: ApiMeetingReceipt }
   | {
       readonly proposals: readonly ApiProposal[];
       /** Answered, yet still in Inbox/Proposals: the Archive refused them. */
@@ -1399,6 +1438,12 @@ export const API_ROUTES = [
     path: '/v1/meetings',
     summary:
       'Meetings, newest first, with any import error. Query: since, limit, offset, includeArchived.',
+  },
+  {
+    method: 'POST',
+    path: '/v1/meetings',
+    summary:
+      'Send a meeting, as n8n assembles it: mapped and written into Inbox/Meetings, once per provider and id.',
   },
   {
     method: 'GET',

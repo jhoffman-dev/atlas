@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { importNotionMeetings, type ImportOptions } from './import-notion-meetings.ts';
 import { notionWhen } from './notion-date.ts';
 import { pageSections } from './notion-page.ts';
-import { mapMeeting } from '../n8n/meeting-to-atlas.ts';
+import { mapMeeting } from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
 
 /*
  * Adversarial cases for the Notion import (issue #13, P28-07). Each test names

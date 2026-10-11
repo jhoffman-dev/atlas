@@ -79,7 +79,7 @@ function recordWrite({
   activity.record(apiWriteReport({ route, notePath, refusal }));
 }
 
-/** The note a write named: the one it made, as its answer says, or the one in its URL. */
+/** The note a write named: the one it made, as its answer says (a note, or a meeting's file), or the one in its URL. */
 function writtenNote({
   route,
   params,
@@ -89,8 +89,9 @@ function writtenNote({
   params: RouteParams;
   answered: RouteResult | undefined;
 }): VaultPath | null {
-  const note = (answered?.body as { note?: { path?: unknown } } | undefined)?.note;
-  if (typeof note?.path === 'string') return insideVault(note.path);
+  const made = answered?.body as { note?: { path?: unknown }; meeting?: { path?: unknown } };
+  const path = made?.note?.path ?? made?.meeting?.path;
+  if (typeof path === 'string') return insideVault(path);
   if (!route.includes('/v1/notes/{path}')) return null;
   try {
     return insideVault(decodeSegment(params.path));

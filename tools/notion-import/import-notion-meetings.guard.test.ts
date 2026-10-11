@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type * as Mapper from '../n8n/meeting-to-atlas.ts';
+import type * as Mapper from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
 
 /*
  * The importer checks each mapped file with Atlas's validator before writing
@@ -13,17 +13,20 @@ import type * as Mapper from '../n8n/meeting-to-atlas.ts';
 
 const BROKEN_ID = '18c3a0b6d2e4f710';
 
-vi.mock('../n8n/meeting-to-atlas.ts', async (importOriginal) => {
-  const original = await importOriginal<typeof Mapper>();
-  return {
-    ...original,
-    mapMeeting: (...args: Parameters<typeof original.mapMeeting>) => {
-      const file = original.mapMeeting(...args);
-      if (file.externalId !== BROKEN_ID) return file;
-      return { ...file, content: file.content.replace(/^title: .*$/m, "title: ''") };
-    },
-  };
-});
+vi.mock(
+  '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts',
+  async (importOriginal) => {
+    const original = await importOriginal<typeof Mapper>();
+    return {
+      ...original,
+      mapMeeting: (...args: Parameters<typeof original.mapMeeting>) => {
+        const file = original.mapMeeting(...args);
+        if (file.externalId !== BROKEN_ID) return file;
+        return { ...file, content: file.content.replace(/^title: .*$/m, "title: ''") };
+      },
+    };
+  },
+);
 
 const { importNotionMeetings } = await import('./import-notion-meetings.ts');
 

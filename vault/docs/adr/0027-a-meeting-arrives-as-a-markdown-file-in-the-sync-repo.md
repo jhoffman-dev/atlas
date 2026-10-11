@@ -330,3 +330,19 @@ Where it goes past the text above:
   by choice, not by default; any other provider's would be moved by the
   zone's offset. The README's step 4 is the check to make on a vault copy
   before the real run.
+
+## As built (#93, 2026-10-10)
+
+The first option weighed above — n8n calling the local API — is now a
+second way in, beside the commit, for a machine where n8n reaches the
+running app: `POST /v1/meetings` (ADR-0016's section on it). The commit stays
+the way in while the Mac is asleep or Atlas is closed.
+
+- **The mapper is in the domain**, `packages/domain/src/meetings/mapping`,
+  no longer in `tools/n8n`. The route runs it, the n8n Code nodes are
+  compiled from it, and `tools/import-notion-meetings.mjs` imports it, so
+  all three write the same file for the same meeting. The workflow's GitHub
+  checks stay in `tools/n8n/github-file.ts`.
+- **The route writes what n8n would commit**, at the same paths, and leaves
+  the stamp to the import, as for a commit. "Already in the vault" is the
+  import's holder rule, plus a read of the two paths, since the index lags.

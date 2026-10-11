@@ -1,4 +1,4 @@
-/** A Notion Date cell as the mapper reads it (tools/n8n/meeting-when.ts). */
+/** A Notion Date cell as the mapper reads it (packages/domain/src/meetings/mapping/meeting-when.ts). */
 export interface NotionWhen {
   readonly date: string;
   readonly end: string | null;

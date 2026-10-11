@@ -1,9 +1,9 @@
 /**
  * A meeting the mapping cannot turn into a contract file (a required field is
- * missing or unreadable), or one the workflow cannot safely write. The Code
- * node sends the item out of its error output to "Atlas commit failed", which
- * emails this message; the run goes on. The Atlas branch is wired beside the
- * Notion steps, so the Notion write goes ahead either way.
+ * missing or unreadable), or one the workflow cannot safely write. In n8n the
+ * Code node sends the item out of its error output to "Atlas commit failed",
+ * which emails this message, and the run goes on; `POST /v1/meetings` answers
+ * it as `invalid`, with this message.
  */
 export class MeetingMappingError extends Error {
   override readonly name = 'MeetingMappingError';

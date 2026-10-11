@@ -211,7 +211,7 @@ function notifyNode(sources: MeetingSources) {
       subject: `=Atlas did not get a meeting: ${meeting('title')}`,
       emailType: 'text',
       message: [
-        `=This meeting was not committed to the Atlas vault: ${WHY}`,
+        `=This meeting did not reach Atlas: ${WHY}`,
         '',
         `Meeting: ${meeting('title')}`,
         `Source ID: ${meeting('sourceId')}`,

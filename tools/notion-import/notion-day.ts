@@ -1,5 +1,5 @@
-import { meetingWhen } from '../n8n/meeting-when.ts';
-import { MeetingMappingError } from '../n8n/meeting-mapping-error.ts';
+import { meetingWhen } from '../../packages/domain/src/meetings/mapping/meeting-when.ts';
+import { MeetingMappingError } from '../../packages/domain/src/meetings/mapping/meeting-mapping-error.ts';
 import { notionWhen } from './notion-date.ts';
 
 /** What a Notion date cell says about a day: the day, and the end of a range, or why it says nothing readable. */

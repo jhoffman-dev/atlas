@@ -63,10 +63,30 @@ export async function ensureFolder({
       spelled = there.path;
       continue;
     }
-    await fs.createFolder({ path });
-    spelled = path;
+    spelled = await createOrFind(fs, { path, parent: spelled });
   }
   return spelled;
+}
+
+/**
+ * Makes a folder, or finds it made: another write making the same folder
+ * between the listing and this create (two captures at once, say) is what
+ * was wanted, so the folder it made is used. Anything else in the way, or a
+ * failure with nothing there, is the create's own refusal, passed on.
+ */
+async function createOrFind(
+  fs: VaultFsPort,
+  { path, parent }: { path: VaultPath; parent: VaultPath },
+): Promise<VaultPath> {
+  try {
+    await fs.createFolder({ path });
+    return path;
+  } catch (error) {
+    const siblings = await fs.listDirectory(parent);
+    const made = siblings.find((entry) => foldedVaultPath(entry.path) === foldedVaultPath(path));
+    if (made?.kind === 'directory') return made.path;
+    throw error;
+  }
 }
 
 /** How deep the folder walk goes; a symlink loop is otherwise endless. */

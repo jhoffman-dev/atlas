@@ -689,3 +689,49 @@ so Claude can share it through its own Atlassian connector. MCP's
 - **One format, asked for by name.** `format` is required, and `confluence`
   is the only value, so another target can be added without changing what an
   existing caller gets.
+
+## A meeting sent from n8n: written once into the Inbox (issue #93, 2026-10-10)
+
+`POST /v1/meetings` takes a meeting as n8n's workflow assembles it — the
+provider and its id, the title, the notes email's subject and arrival, the
+attendees, the notes and the transcript — and writes it into
+`Inbox/Meetings/` as a meeting/v1 file (ADR-0027). ADR-0027 chose a commit
+to the sync repository over this call because the app may be closed; the
+route is a second way in for a machine where n8n can reach the running app,
+not a replacement. It is held to the terms above:
+
+- **One mapper.** The mapping moved from `tools/n8n` into the domain
+  (`packages/domain/src/meetings/mapping`). The route runs it, and n8n's Code
+  nodes are compiled from the same files (`pnpm n8n:build`), so the start
+  rules (#44, #80), speaker turns (#43) and attendee rules cannot drift
+  between the two. Its modules import only each other, since a Code node is
+  one script; a test holds them to it.
+- **Names its vault, writes only what the domain fixes.** The path is the
+  mapper's — `Inbox/Meetings/<date> <title>.md`, else the collision path
+  naming provider and hash — in the Inbox folder as the vault spells it,
+  made when missing. No caller chooses a path, so it cannot reach `.atlas`
+  or a hidden folder. A switch of vault mid-request refuses the write, and a
+  meeting found held is answered only while its vault is still open.
+- **Never over anything, and once.** A note already holding the provider +
+  trimmed id, by the import's own rule (`meetingHolding`, P28-04's holders),
+  is answered 200 `in-vault` and nothing is written. The index lags writes,
+  so a file already at either path is read too: the same meeting there is
+  held; another meeting at both paths is `exists`. Creates are exclusive, so
+  two sends of one meeting at once write one file. A folder another send made
+  between the listing and the create is used, not refused (`ensureFolder`),
+  so two different meetings sent at once into a vault without the folder are
+  both written.
+- **Refused with the reason.** A meeting with no trustworthy start (#80), or
+  whose file meeting/v1 would refuse, is `invalid` with the mapper's or the
+  validator's words, before anything is written. So is a key the route does
+  not read: idempotency would otherwise lock in a meeting written without a
+  misspelt field's content. Null is taken as left out, as n8n sends it;
+  attendee records reach the mapper as sent, `group` and all.
+- **The import still decides.** The route writes no `atlas_import_outcome`.
+  The importing Mac stamps the file as any arrival, after the index has
+  heard of it, so the route and the import never write one file together.
+- **No secret, no content in Activity.** The host's zone (the default for
+  reading instants) is the only new thing the router is handed. Activity
+  says the route and the file, never what the meeting carried.
+- **No MCP tool.** The route takes a provider's raw meeting and email for a
+  program; a model recording a meeting writes a note with `atlas_create_note`.

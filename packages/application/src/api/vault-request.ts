@@ -65,6 +65,8 @@ export interface VaultRequest {
   readonly rng: Rng;
   /** The app's automation runner, for this request's vault; null when it is not watching it. */
   readonly automationClock: AutomationClockState | null;
+  /** The IANA zone this Mac kept time in as the request arrived. */
+  readonly timeZone: string;
   /** Refuses with `no_vault` once the vault this request arrived for is no longer open. */
   readonly assertStillOpen: () => void;
 }
@@ -107,6 +109,7 @@ export function vaultRequest({
     newUploadId: deps.newUploadId,
     rng: deps.rng,
     automationClock: deps.automationClock.forVault(vault),
+    timeZone: deps.timeZone(),
     assertStillOpen: () => {
       if (deps.host.currentVault()?.absolutePath !== vault) {
         throw noVault('The vault this request was for is no longer open');
