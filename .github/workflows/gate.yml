@@ -84,8 +84,24 @@ jobs:
       - name: Lint Rust shell
         run: pnpm rust:lint
 
+      # The embedding model the Rust tests run (ADR-0031), 91 MB, kept between
+      # runs under its pinned revision so a warm run never touches the network.
+      # rust-cache does not keep target/tmp, where the tests fetch it otherwise.
+      - name: Read the embedding model's revision
+        id: embedding-model
+        run: |
+          revision=$(grep -m1 -o 'revision: "[0-9a-f]*"' apps/desktop/src-tauri/src/embeddings.rs | cut -d'"' -f2)
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/atlas-test-models
+          key: embedding-model-${{ steps.embedding-model.outputs.revision }}
+
       - name: Test Rust shell
         run: pnpm rust:test
+        env:
+          ATLAS_TEST_MODEL_DIR: ${{ runner.temp }}/atlas-test-models
 
       - name: Install WebKit for end-to-end tests
         run: pnpm exec playwright install --with-deps webkit

@@ -73,6 +73,20 @@ describe('activeSidebarPage', () => {
     ).toEqual({ kind: 'archive' });
   });
 
+  it('is the Inbox while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, inboxOpen: true }),
+    ).toEqual({ kind: 'inbox' });
+  });
+
+  it('is the weekly review while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, reviewOpen: true }),
+    ).toEqual({ kind: 'review' });
+  });
+
   it('is the Automations page while it is open, over the graph, the type and the note', () => {
     const layout = openInFocused(SINGLE_PANE, acme);
     expect(
@@ -92,5 +106,12 @@ describe('activeSidebarPage', () => {
     expect(
       activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, templatesOpen: true }),
     ).toEqual({ kind: 'templates' });
+  });
+
+  it('is the Terms page while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, termsOpen: true }),
+    ).toEqual({ kind: 'terms' });
   });
 });

@@ -209,6 +209,28 @@ describe('queryForLayout for a grouped layout (issue #6)', () => {
   });
 });
 
+describe('queryForLayout and a checklist’s progress (P30-03)', () => {
+  const query: ViewQuery = { type: 'task', columns: ['phase'], filters: [], sorts: [], limit: 50 };
+
+  it.each(['board', 'list', 'table'] as const)('reads progress for a %s, hidden', (layout) => {
+    const run = queryForLayout({ query, layout, statusKey: null, progressKey: 'progress' });
+    expect(run.query.columns).toContain('progress');
+    expect(run.hidden).toContain('progress');
+  });
+
+  it.each(['gallery', 'feed', 'calendar', 'timeline'] as const)(
+    'reads none for a %s, which draws no bar',
+    (layout) => {
+      const run = queryForLayout({ query, layout, statusKey: null, progressKey: 'progress' });
+      expect(run.query.columns).not.toContain('progress');
+    },
+  );
+
+  it('reads none for a type whose view holds none', () => {
+    expect(queryForLayout({ query, layout: 'board', statusKey: null }).query).toEqual(query);
+  });
+});
+
 describe('drawsGroups', () => {
   it('is true for a table, a board and a gallery, and false for every other layout', () => {
     expect(VIEW_LAYOUTS.filter(drawsGroups)).toEqual(['table', 'board', 'gallery']);

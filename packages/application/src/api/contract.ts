@@ -12,7 +12,14 @@
  * Everything here is data. No behaviour belongs in this file.
  */
 
-import type { DoneAction, FilterOperator, NoteEvent, RunTrigger, SetValue } from '@atlas/domain';
+import type {
+  DoneAction,
+  ExportDropKind,
+  FilterOperator,
+  NoteEvent,
+  RunTrigger,
+  SetValue,
+} from '@atlas/domain';
 
 /** Every path the API serves starts with this. A breaking change gets `/v2`. */
 export const API_VERSION_PREFIX = '/v1';
@@ -164,12 +171,37 @@ export interface ApiNote extends ApiNoteSummary {
   readonly body: string;
 }
 
+/** One kind of thing a note's export left out, and each one, as the note writes it. */
+export interface ApiExportDrops {
+  readonly kind: ExportDropKind;
+  /** Once each, in the order the note has them. */
+  readonly items: readonly string[];
+}
+
+/** `GET /v1/notes/{path}/export`: a note made ready for a page elsewhere (P32-07). */
+export interface ApiNoteExport {
+  readonly path: string;
+  readonly format: 'confluence';
+  /** The note's title, as its page shows it: the title for the page. */
+  readonly title: string;
+  /** The page's body, as markdown: properties left out, links as their words. */
+  readonly markdown: string;
+  /** Everything left out, by kind. Empty when nothing was. */
+  readonly dropped: readonly ApiExportDrops[];
+}
+
 export interface ApiStatus {
   readonly app: 'atlas';
   readonly version: string;
   /** Null when no vault is open; every other route then answers `no_vault`. */
   readonly vault: { readonly name: string } | null;
   readonly index: { readonly ready: boolean; readonly notes: number };
+  /**
+   * Whether Google Calendar is connected for the open vault on this Mac;
+   * null when no vault is open. Status only: the API never hands out a
+   * Google token and makes no calendar call (ADR-0030).
+   */
+  readonly googleCalendar: { readonly connected: boolean } | null;
 }
 
 export interface ApiSearchHit {
@@ -187,8 +219,10 @@ export interface ApiTypeProperty {
   readonly label: string;
   readonly required: boolean;
   readonly options: readonly string[];
-  /** For a relation: the type it points at. */
+  /** For a relation: the type it points at — the first, when it may point at several. */
   readonly target: string | null;
+  /** For a relation: every type it may point at, `[project, area]`; empty when it names none. */
+  readonly targets: readonly string[];
   readonly many: boolean;
 }
 
@@ -349,6 +383,25 @@ export interface ApiQueryBody {
   readonly limit?: number;
   /** Lists archived notes too. Default false: the Archive is out of the way unless asked for. */
   readonly includeArchived?: boolean;
+  /**
+   * For a query of tasks: adds a `schedule` column, each task's
+   * {@link ApiTaskSchedule} (P31-01). Default false.
+   */
+  readonly schedule?: boolean;
+}
+
+/**
+ * A task's schedule, in minutes (P31-01): its estimate (null when it has
+ * none), the time its blocks set aside — a one-task block all of itself, a
+ * block of several shared by what each has left — what is done (all of the
+ * estimate once finished; null with no estimate), and how far the time
+ * scheduled runs past the estimate.
+ */
+export interface ApiTaskSchedule {
+  readonly estimate: number | null;
+  readonly scheduled: number;
+  readonly done: number | null;
+  readonly overBy: number;
 }
 
 /** An Atlas query (ADR-0019), run read-only against the vault's types and notes. */
@@ -360,6 +413,12 @@ export interface ApiAtlasQueryBody {
    * smaller; with neither, 500.
    */
   readonly limit?: number;
+  /**
+   * The note the query is shown on, as a vault path (`people/Mara Quill.md`):
+   * what `this` in the query names. Without it, a query that says `this` is
+   * `invalid`; a note the vault does not have is `not_found`.
+   */
+  readonly context?: string;
 }
 
 export interface ApiRunViewBody {
@@ -394,13 +453,65 @@ export interface ApiAddViewNoteBody {
   readonly subGroup?: string | null;
 }
 
+/**
+ * `POST /v1/notes/{path}/promote`: a checklist line of the note to make a task
+ * (P30-03), named by its words — and, where two lines say the same, by its
+ * place among the note's boxes, counting from 0 in the order they are written,
+ * nested ones after the line they are under.
+ */
+export interface ApiPromoteLineBody {
+  /** The line's words as the note writes them, without its box: "Order chairs". */
+  readonly text: string;
+  /** Its place among the note's boxes; needed only when another line says the same. */
+  readonly line?: number;
+}
+
 /** Notes to put in the Archive, or take out of it. */
 export interface ApiArchiveBody {
   /** Vault-relative note paths, as other routes answer them: 1 to 100 of them. */
   readonly paths: readonly string[];
 }
 
-/** What a batch of archiving or unarchiving did. */
+/** A note waiting in the Inbox to be filed, as the Inbox page lists it. */
+export interface ApiInboxItem {
+  readonly path: string;
+  readonly title: string;
+  /** Its `type:`, or null for a plain note. */
+  readonly type: string | null;
+  /** The folder of the Inbox it arrived in — `Meetings` — or '' for the Inbox itself. */
+  readonly arrivedIn: string;
+  /** What the meeting import made of it: its outcome, `pending` while it waits, null when not a meeting file. */
+  readonly importOutcome: 'imported' | 'duplicate' | 'error' | 'pending' | null;
+  /** Why it failed the meeting import, or null. */
+  readonly importError: string | null;
+}
+
+/** `POST /v1/inbox/process`: notes in the Inbox, and the project or area to file them under. */
+export interface ApiProcessInboxBody {
+  /** Vault-relative paths of notes in the Inbox: 1 to 100 of them. */
+  readonly paths: readonly string[];
+  /** The path of a project or an area. */
+  readonly project: string;
+}
+
+/**
+ * `POST /v1/tasks/schedule` (P31-02): a block for a task, as a task let go on
+ * the calendar's empty time makes one in the app.
+ */
+export interface ApiScheduleTaskBody {
+  /** The task's vault-relative path: a note of type task. */
+  readonly task: string;
+  /** When the block starts, as local wall-clock time with no offset: `2026-10-12T09:00`. */
+  readonly start: string;
+  /**
+   * How long it runs: whole minutes, 1 to 1440. Omitted: what the task still
+   * needs — its estimate less what its blocks already give it — or 30 when it
+   * has no estimate or needs nothing more, as the app sizes a dropped task.
+   */
+  readonly minutes?: number;
+}
+
+/** What a batch of archiving, unarchiving or processing the Inbox did. */
 export interface ApiArchiveOutcome {
   /** Every note that moved, in the order asked, from where it was to where it went. */
   readonly moves: readonly { readonly from: string; readonly to: string }[];
@@ -428,6 +539,74 @@ export interface ApiArchivedNote {
   readonly from: string;
   /** The day it was archived, `YYYY-MM-DD`, or null when it does not say. */
   readonly archivedOn: string | null;
+}
+
+/**
+ * A meeting, as its file says (ADR-0027). A file that failed import may lack
+ * any of the contract's keys, so each is null when it is not there.
+ */
+export interface ApiMeeting {
+  readonly path: string;
+  /** The meeting's own `title`, else the note's name. */
+  readonly title: string;
+  /** `YYYY-MM-DD`. */
+  readonly date: string | null;
+  /** Local time, `HH:MM`. */
+  readonly start: string | null;
+  readonly end: string | null;
+  /** What sort of meeting the provider called it: Standup, 1:1… */
+  readonly kind: string | null;
+  readonly provider: string | null;
+  /** The provider's own id for it. */
+  readonly externalId: string | null;
+  /**
+   * How the import settled the file (`atlas_import_outcome`): `imported`,
+   * `duplicate` or `error` (a stamp cleared by hand reads `imported`, as the
+   * import reads it); `pending` while it waits in `Inbox/Meetings/` for the
+   * Mac that imports; null for a meeting elsewhere the import never handled —
+   * one filed before Atlas imported meetings, or made by hand.
+   */
+  readonly importOutcome: 'imported' | 'duplicate' | 'error' | 'pending' | null;
+  /** Why it failed the import contract (`atlas_import_error`), or null when it imported. */
+  readonly importError: string | null;
+  /** The meeting this is a second copy of, as `atlas_duplicate_of` links it (`[[…]]`), or null. */
+  readonly duplicateOf: string | null;
+  /** Present, and true, for an archived meeting — only listed with `includeArchived`. */
+  readonly archived?: true;
+}
+
+/**
+ * A proposal waiting in `Inbox/Proposals/` (P29-02, ADR-0028): what Claude or
+ * an automation suggested, and what accepting it would write.
+ */
+export interface ApiProposal {
+  readonly path: string;
+  readonly kind: 'task' | 'decision' | 'follow-up' | 'person' | 'link' | 'term' | 'project';
+  /** What it would do, in one line: a note's title, or `Note · property → [[Link]]`. */
+  readonly headline: string;
+  readonly confidence: 'high' | 'medium' | 'low' | null;
+  /** The block it cites, as a link — `[[2026-10-01 Standup#^t0003]]` — or null when it cites none. */
+  readonly source: string | null;
+  /** The rule and run that made it. */
+  readonly madeBy: string | null;
+  /** What Accept writes, as the note holds it. */
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly modified: number;
+}
+
+/** What answering a proposal did to the proposal: archived, or left where it was and why. */
+export interface ApiProposalArchived {
+  readonly proposal: string;
+  /** Where it went in the Archive; null when it could not move (it is decided all the same). */
+  readonly archivedAt: string | null;
+  readonly archiveProblem: string | null;
+}
+
+/** What accepting a proposal wrote. */
+export interface ApiAcceptedProposal extends ApiProposalArchived {
+  readonly headline: string;
+  /** Each note it made (`created`) or changed (`edited`). */
+  readonly wrote: readonly { readonly kind: 'created' | 'edited'; readonly path: string }[];
 }
 
 export interface ApiSqlBody {
@@ -682,6 +861,48 @@ export interface ApiTagRenameReport {
   readonly failed: readonly { readonly path: string; readonly reason: string }[];
 }
 
+/** A term (P28-05): a name's one right spelling, the ways it is misheard, and what it names. */
+export interface ApiTerm {
+  readonly path: string;
+  /** The right spelling: the term's title. */
+  readonly canonical: string;
+  readonly variants: readonly string[];
+  /** `product`, `person`, `company`, `acronym` or `other`; null when the note names none of these. */
+  readonly kind: string | null;
+}
+
+/** A note's claim that a spelling means its own right spelling. */
+export interface ApiVocabularyClaim {
+  /** The spelling as that note writes it. */
+  readonly form: string;
+  /** What that note says it should be spelt as. */
+  readonly canonical: string;
+  readonly path: string;
+  /** A term's variant, or a person's or a company's name or alias. */
+  readonly source: 'term' | 'person' | 'company';
+}
+
+/** A spelling Atlas puts right, what to, and every note that says so. */
+export interface ApiVocabularyEntry {
+  readonly form: string;
+  readonly canonical: string;
+  readonly claims: readonly ApiVocabularyClaim[];
+}
+
+/** A spelling two notes claim for two different right spellings: not used until one lets it go. */
+export interface ApiVocabularyConflict {
+  readonly form: string;
+  readonly claims: readonly ApiVocabularyClaim[];
+}
+
+/** The vocabulary, as the Terms page reads it. */
+export interface ApiTerms {
+  readonly terms: readonly ApiTerm[];
+  /** Longest spelling first, matched however cased or spaced. */
+  readonly vocabulary: readonly ApiVocabularyEntry[];
+  readonly conflicts: readonly ApiVocabularyConflict[];
+}
+
 /**
  * An automation (P25), as its file says it and as the Automations page lists
  * it. The API reads automations and never runs, undoes or edits one (ADR-0016).
@@ -822,6 +1043,61 @@ export interface ApiAutomationDryRun {
   readonly plan: ApiAutomationPlan;
 }
 
+/** A task as the weekly review lists it. */
+export interface ApiReviewTask {
+  readonly path: string;
+  readonly title: string;
+  /** One of GTD's eight statuses, or null when it holds none of them. */
+  readonly status: string | null;
+  /** `YYYY-MM-DD`, or null. */
+  readonly due: string | null;
+  /** `YYYY-MM-DD`: the day it comes back into play, or null. */
+  readonly defer: string | null;
+  /** Who it waits on — a link by what it shows, a plain name as written — joined with ", "; '' for nobody. */
+  readonly waitingOn: string;
+  /** The note its `project` links, or null. */
+  readonly project: string | null;
+  /** When its file last changed, in milliseconds since the epoch. */
+  readonly modified: number;
+}
+
+/** A project as the weekly review lists it. */
+export interface ApiReviewProject {
+  readonly path: string;
+  readonly title: string;
+  /** Its `status:` as written, or null. */
+  readonly status: string | null;
+  /** Whether a task in use filed under it is Next Action or In Progress, as the index says. */
+  readonly moving: boolean;
+}
+
+/** `GET /v1/review/weekly`: the weekly review, as its page shows it. */
+export interface ApiWeeklyReview {
+  /** The day it was taken, `YYYY-MM-DD`, where the app is. */
+  readonly today: string;
+  /** Waiting, and untouched for more than 7 days; the longest untouched first. */
+  readonly staleWaiting: readonly ApiReviewTask[];
+  /** Active, with no Next Action or In Progress task filed under it; by title. */
+  readonly projectsWithoutNextAction: readonly ApiReviewProject[];
+  /** Due before today and still open (not Someday, Longterm or Archive); the earliest first. */
+  readonly overdue: readonly ApiReviewTask[];
+  /** Someday or Longterm, and untouched for more than 30 days; the longest untouched first. */
+  readonly untouchedSomeday: readonly ApiReviewTask[];
+  /**
+   * What waits in the one Inbox, as the sidebar counts it: `count` is the notes
+   * to file (`toFile`) plus the proposals to answer (`toAnswer`); `more` when
+   * there are more notes than it counts.
+   */
+  readonly inbox: {
+    readonly count: number;
+    readonly toFile: number;
+    readonly toAnswer: number;
+    readonly more: boolean;
+  };
+  /** The index held tasks back, so a task section may be missing items. */
+  readonly truncated: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Success bodies, per route
 // ---------------------------------------------------------------------------
@@ -831,6 +1107,7 @@ export type ApiSuccessBody =
   | { readonly notes: readonly ApiNoteSummary[]; readonly next: string | null }
   | { readonly note: ApiNote }
   | { readonly note: ApiNote; readonly moved: boolean }
+  | { readonly note: ApiNote; readonly task: ApiNote }
   | { readonly backlinks: readonly ApiNoteSummary[] }
   | { readonly hits: readonly ApiSearchHit[] }
   | { readonly types: readonly ApiType[] }
@@ -875,7 +1152,30 @@ export type ApiSuccessBody =
     }
   | ApiAutomationList
   | ApiAutomationLog
-  | ApiAutomationDryRun;
+  | ApiAutomationDryRun
+  | ApiTerms
+  | { readonly items: readonly ApiInboxItem[]; readonly truncated: boolean }
+  | {
+      readonly meetings: readonly ApiMeeting[];
+      readonly truncated: boolean;
+      /** The `offset` for the next page, or null when this was the last. */
+      readonly next: number | null;
+    }
+  | {
+      readonly proposals: readonly ApiProposal[];
+      /** Answered, yet still in Inbox/Proposals: the Archive refused them. */
+      readonly stranded: readonly {
+        readonly path: string;
+        readonly headline: string;
+        readonly state: 'accepted' | 'rejected';
+      }[];
+      /** Notes there that say they are proposals and cannot be read, with why. */
+      readonly unreadable: readonly { readonly path: string; readonly problem: string }[];
+    }
+  | { readonly accepted: ApiAcceptedProposal }
+  | { readonly rejected: ApiProposalArchived }
+  | { readonly review: ApiWeeklyReview }
+  | { readonly export: ApiNoteExport };
 
 /**
  * Every route, as the router and the MCP server both need to know them.
@@ -891,7 +1191,8 @@ export const API_ROUTES = [
   {
     method: 'GET',
     path: '/v1/status',
-    summary: 'What Atlas has open, and whether its index is ready.',
+    summary:
+      'What Atlas has open, whether its index is ready, and whether Google Calendar is connected.',
   },
   { method: 'GET', path: '/v1/notes', summary: 'List notes. Query: folder, type, limit, cursor.' },
   { method: 'POST', path: '/v1/notes', summary: 'Create a note, optionally from a template.' },
@@ -916,6 +1217,16 @@ export const API_ROUTES = [
     summary: 'Replace the body. Requires ifModified.',
   },
   { method: 'GET', path: '/v1/notes/{path}/backlinks', summary: 'Notes that link to this one.' },
+  {
+    method: 'POST',
+    path: '/v1/notes/{path}/promote',
+    summary: 'Make a checklist line of a note a task of its own, linked both ways.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/notes/{path}/export',
+    summary: 'A note as markdown for a Confluence page, and what it leaves out. Query: format.',
+  },
   {
     method: 'PUT',
     path: '/v1/notes/{path}/images/{name}',
@@ -969,7 +1280,8 @@ export const API_ROUTES = [
   {
     method: 'POST',
     path: '/v1/atlas-query',
-    summary: 'Run an Atlas query across types: rows, and its groups and sub-groups.',
+    summary:
+      'Run an Atlas query across types: rows, and its groups and sub-groups. `context` names the note `this` means.',
   },
   {
     method: 'POST',
@@ -1041,6 +1353,29 @@ export const API_ROUTES = [
   },
   {
     method: 'GET',
+    path: '/v1/inbox',
+    summary:
+      'The notes waiting in the Inbox to be filed, newest first; proposals are not among them.',
+  },
+  {
+    method: 'POST',
+    path: '/v1/inbox/process',
+    summary: "File notes from the Inbox under a project or an area, as the Inbox's Process does.",
+  },
+  {
+    method: 'POST',
+    path: '/v1/tasks/schedule',
+    summary:
+      'Make a block for a task, from a start for some minutes, linking it. Answers the block.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/review/weekly',
+    summary:
+      'The weekly review: stale waiting-fors, projects with nothing next, overdue, old ideas.',
+  },
+  {
+    method: 'GET',
     path: '/v1/automations',
     summary: 'Every automation: its rule, last and next run, and why one is paused or broken.',
   },
@@ -1053,6 +1388,32 @@ export const API_ROUTES = [
     method: 'POST',
     path: '/v1/automations/{id}/dry-run',
     summary: 'What an automation would do if it ran now. Writes nothing.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/terms',
+    summary: 'The vocabulary: every term, every spelling Atlas puts right, and the conflicts.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/meetings',
+    summary:
+      'Meetings, newest first, with any import error. Query: since, limit, offset, includeArchived.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/proposals',
+    summary: 'The open proposals in Inbox/Proposals, newest first, with what each would write.',
+  },
+  {
+    method: 'POST',
+    path: '/v1/proposals/{path}/accept',
+    summary: 'Accept a proposal, as its Accept button does: write its payload, then archive it.',
+  },
+  {
+    method: 'POST',
+    path: '/v1/proposals/{path}/reject',
+    summary: 'Reject a proposal: write nothing it proposed, and archive it as rejected.',
   },
 ] as const;
 

@@ -9,6 +9,9 @@ import type { Locator, Page } from '@playwright/test';
 import { createGitStub, type GitStub } from './git-host.ts';
 
 /** The host commands sync runs through (`git_process.rs`), answered by the git stub. */
+/** What a stubbed command answers to reject with a value, as Tauri does for a command's `Err`. */
+const REJECT = '__atlasReject';
+
 const SYNC_COMMANDS = new Set([
   'git_run',
   'git_run_in',
@@ -82,6 +85,8 @@ interface StoredNote {
   summary: string;
   /** When the file last changed, which the real view carries for a feed's order. */
   modified?: number;
+  /** How far through its checklist the note is, as the app worked it out (P30-03). */
+  progress?: number | null;
   size?: number;
   body: string;
   links: { target: string; path: string | null }[];
@@ -105,6 +110,13 @@ interface ViewColumn {
   many: boolean;
 }
 
+/** A type's view as the index is told to build it. */
+interface ViewSpec {
+  columns: readonly ViewColumn[];
+  /** Whether it carries each note's checklist progress. */
+  progress: boolean;
+}
+
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
@@ -112,7 +124,8 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
  *
  * The tables are the real index's (`files`, `props`), and each `v_<type>` view
  * is built the way `rebuild_views` in `src-tauri/src/index.rs` builds it: its
- * own `path`, `title`, `summary` and `modified`, then a column per declared
+ * own `path`, `title`, `summary` and `modified` (and `progress`, when told
+ * to carry it), then a column per declared
  * property — a number's from `value_num`, a date's from `value_date`, the rest
  * from `value_text`, several values joined with ", ". A key the type does not
  * declare is not a column, as in the app. The read-only guard is reduced to
@@ -122,15 +135,16 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 function runHandWrittenSql(
   statement: string,
   notes: Iterable<StoredNote>,
-  types: ReadonlyMap<string, readonly ViewColumn[]>,
+  types: ReadonlyMap<string, ViewSpec>,
 ): { columns: string[]; rows: unknown[][]; truncated: boolean } {
   if (!/^\s*(SELECT|WITH|PRAGMA)\b/i.test(statement)) {
     throw new Error('only a statement that reads the index can run here');
   }
   const database = filesAndProps(notes);
-  for (const [type, declared] of types) {
+  for (const [type, spec] of types) {
     if (!IDENTIFIER.test(type)) continue;
-    const columns = declared
+    const progress = spec.progress ? ', files.progress AS "progress"' : '';
+    const columns = spec.columns
       .filter((column) => IDENTIFIER.test(column.key))
       .map((column) => {
         const source =
@@ -149,7 +163,7 @@ function runHandWrittenSql(
       SELECT files.path AS "path",
              COALESCE(MAX(CASE WHEN props.key = 'title' THEN props.value_text END), files.title) AS "title",
              files.summary AS "summary",
-             files.modified AS "modified"${columns}
+             files.modified AS "modified"${progress}${columns}
       FROM files JOIN props ON props.path = files.path
       WHERE files.path IN (SELECT path FROM props WHERE key = 'type' AND value_text = '${type}')
       GROUP BY files.path;`);
@@ -168,13 +182,20 @@ function filesAndProps(notes: Iterable<StoredNote>): DatabaseSync {
   const database = new DatabaseSync(':memory:');
   database.exec(`
     CREATE TABLE files (path TEXT PRIMARY KEY, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
-                        modified INTEGER NOT NULL, size INTEGER NOT NULL);
+                        modified INTEGER NOT NULL, size INTEGER NOT NULL, progress INTEGER);
     CREATE TABLE props (path TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL DEFAULT 0,
                         value_text TEXT, value_num REAL, value_date TEXT, value_json TEXT);`);
-  const file = database.prepare('INSERT INTO files VALUES (?, ?, ?, ?, ?)');
+  const file = database.prepare('INSERT INTO files VALUES (?, ?, ?, ?, ?, ?)');
   const prop = database.prepare('INSERT INTO props VALUES (?, ?, ?, ?, ?, ?, NULL)');
   for (const note of notes) {
-    file.run(note.path, note.title, note.summary ?? '', note.modified ?? 0, note.size ?? 0);
+    file.run(
+      note.path,
+      note.title,
+      note.summary ?? '',
+      note.modified ?? 0,
+      note.size ?? 0,
+      note.progress ?? null,
+    );
     for (const property of note.properties ?? []) {
       prop.run(
         note.path,
@@ -189,7 +210,7 @@ function filesAndProps(notes: Iterable<StoredNote>): DatabaseSync {
   return database;
 }
 
-/** The Archive's compiled statement, run for real by SQLite with what it binds. */
+/** A compiled statement over `files` and `props` — the Archive's, a meeting's, the Inbox's — run for real by SQLite with what it binds. */
 function runArchiveQuery(
   statement: string,
   bound: readonly unknown[],
@@ -369,6 +390,18 @@ export interface FakeHost {
     loggedIn(yes: boolean): void;
     runs(): readonly { args: readonly string[]; stdin: string }[];
   };
+  /**
+   * Google Calendar, as `google.rs` answers for it: a sign-in kept per vault,
+   * and the Calendar API's calendar list and calendar insert. The sign-in
+   * itself — the browser, PKCE, the Keychain — is Rust's and tested there
+   * against a fake Google. `refuseNext` makes the next connect fail the way
+   * the host reports a failure: rejected with `{ kind, code, message }`.
+   */
+  readonly google: {
+    refuseNext(failure: { kind: string; code?: string; message: string }): void;
+    connected(): boolean;
+    calendars(): readonly string[];
+  };
   /** SQLite files a source may read, by the name the note gives, and what the picker offers. */
   readonly sqlite: {
     serve(file: string, rows: { columns: string[]; rows: unknown[][] }): void;
@@ -442,7 +475,7 @@ export async function installHost(
   // A stand-in for the SQLite index: enough behaviour to drive the interface.
   // The real queries are covered by the Rust tests.
   const indexed = new Map<string, StoredNote>();
-  const views = new Map<string, readonly ViewColumn[]>();
+  const views = new Map<string, ViewSpec>();
 
   // The local API's switch and token, as src-tauri/src/api keeps them. The
   // server itself — authentication, the Host and Origin checks, the port — is
@@ -498,6 +531,10 @@ export async function installHost(
   const bindings = new Map<string, readonly string[]>();
   const answers: string[] = [];
   const requests: unknown[] = [];
+  /** Google sign-ins by vault root, and the calendars Atlas made on the account. */
+  const googleSignIns = new Map<string, { clientId: string; scopes: string[] }>();
+  const googleCalendars: { id: string; summary: string }[] = [];
+  let googleRefusal: { kind: string; code?: string; message: string } | null = null;
   const databases = new Map<string, { columns: string[]; rows: unknown[][] }>();
   const sqliteQueries: { file: string; sql: string }[] = [];
   let offeredDatabase: string | null = null;
@@ -756,8 +793,8 @@ export async function installHost(
         // type it never created fails. Remembering the names is what lets a
         // widget pointing at nothing fail the way it would in the app.
         views.clear();
-        const specs = (args as { types: { name: string; columns: ViewColumn[] }[] }).types;
-        for (const spec of specs) views.set(spec.name, spec.columns);
+        const specs = (args as { types: ({ name: string } & ViewSpec)[] }).types;
+        for (const spec of specs) views.set(spec.name, spec);
         return null;
       }
       case 'index_query': {
@@ -808,6 +845,27 @@ export async function installHost(
         if (statement.startsWith('/* tags:')) {
           return runTagQuery(statement, bound, indexed.values());
         }
+        // The weekly review (P30-07): tasks and projects, over files, props and relations, run for real.
+        if (statement.startsWith('/* weekly review:')) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
+        // The vocabulary's notes (P28-05) and the Inbox (P30-01) read the same
+        // files and props tables the Archive does, so they run for real by
+        // SQLite the same way.
+        if (statement.startsWith('/* terms:') || statement.startsWith('/* inbox */')) {
+          return runArchiveQuery(statement, bound, indexed.values());
+        }
+        // The Inbox's quick look before reading every task (P30-02): statuses, and Waiting on nobody, run for real.
+        if (
+          statement.startsWith('/* task statuses */') ||
+          statement.startsWith('/* tasks waiting on nobody */')
+        ) {
+          return runArchiveQuery(statement, bound, indexed.values());
+        }
+        // A task's schedule (P31-01): the tasks and the blocks linking them, run for real.
+        if (statement.startsWith('/* task schedule */')) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
         // SQL written by hand — the query page, a SQL view or widget — binds
         // nothing, where everything the app compiles binds at least its LIMIT.
         if (bound.length === 0) return runHandWrittenSql(statement, indexed.values(), views);
@@ -819,6 +877,11 @@ export async function installHost(
         // The Archive: archived notes with the two keys archiving wrote, newest
         // first, narrowed by the words it binds — run for real by SQLite.
         if (statement.includes('"archivedFrom"')) {
+          return runArchiveQuery(statement, bound, indexed.values());
+        }
+        // A meeting's holders and the meetings list (P28-04): the compiled
+        // statement, run for real by SQLite the same way.
+        if (statement.startsWith('/* meetings */')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
 
@@ -862,6 +925,9 @@ export async function installHost(
           // Milliseconds since the epoch are all 13 digits wide, so ordering them
           // as text below orders them in time.
           if (column === 'modified') return note.modified ?? 0;
+          if (column === 'progress' && views.get(type)?.progress === true) {
+            return note.progress ?? null;
+          }
           if (column === 'title') {
             // The real view prefers the title the note gives itself.
             const declared = (note.properties ?? []).find((item) => item.key === 'title');
@@ -870,7 +936,8 @@ export async function installHost(
           // A property holding several values is one cell, joined as the real
           // view's group_concat joins it.
           const items = (note.properties ?? []).filter((item) => item.key === column);
-          const many = views.get(type)?.find((declared) => declared.key === column)?.many ?? false;
+          const many =
+            views.get(type)?.columns.find((declared) => declared.key === column)?.many ?? false;
           if (many && items.length > 0) return items.map((item) => item.text).join(', ');
           return items[0]?.text ?? null;
         };
@@ -1050,6 +1117,43 @@ export async function installHost(
         secrets.delete(name);
         bindings.delete(name);
         return null;
+      }
+      case 'google_status': {
+        const signIn = googleSignIns.get(writeRoot(args));
+        return {
+          connected: signIn !== undefined,
+          clientId: signIn?.clientId ?? null,
+          scopes: signIn?.scopes ?? [],
+        };
+      }
+      case 'google_connect': {
+        const root = writeRoot(args);
+        const { clientId, scopes } = args as { clientId: string; scopes: string[] };
+        if (googleRefusal !== null) {
+          const refusal = googleRefusal;
+          googleRefusal = null;
+          return { [REJECT]: refusal };
+        }
+        googleSignIns.set(root, { clientId, scopes });
+        return { connected: true, clientId, scopes };
+      }
+      case 'google_connect_cancel':
+        return null;
+      case 'google_disconnect':
+        googleSignIns.delete(writeRoot(args));
+        return { revoked: true, shared: false };
+      case 'google_calendar_request': {
+        if (!googleSignIns.has(writeRoot(args))) {
+          return { [REJECT]: { kind: 'not_connected', message: 'not connected' } };
+        }
+        const { call } = args as { call: { method: string; path: string } };
+        if (call.method === 'POST' && call.path === '/calendar/v3/calendars') {
+          const made = { id: 'atlas-blocks@group.calendar.example.com', summary: 'Atlas blocks' };
+          googleCalendars.push(made);
+          return { status: 200, body: JSON.stringify(made) };
+        }
+        const items = googleCalendars.map((calendar) => ({ ...calendar, accessRole: 'owner' }));
+        return { status: 200, body: JSON.stringify({ items }) };
       }
       case 'sqlite_source_query': {
         const { file, sql } = args as { file: string; sql: string };
@@ -1276,7 +1380,15 @@ export async function installHost(
         }
         const answer = (
           window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
-        ).__atlasInvoke(command, args);
+        )
+          .__atlasInvoke(command, args)
+          // A command that rejects with a value rather than a message, as
+          // Tauri hands the webview whatever a command's `Err` serializes to.
+          .then((value) =>
+            typeof value === 'object' && value !== null && '__atlasReject' in value
+              ? Promise.reject((value as { __atlasReject: unknown }).__atlasReject)
+              : value,
+          );
         return command === 'read_binary_file'
           ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
           : answer;
@@ -1360,6 +1472,13 @@ export async function installHost(
         claudeLoggedIn = yes;
       },
       runs: () => [...claudeRuns],
+    },
+    google: {
+      refuseNext: (failure) => {
+        googleRefusal = failure;
+      },
+      connected: () => googleSignIns.size > 0,
+      calendars: () => googleCalendars.map((calendar) => calendar.summary),
     },
     sqlite: {
       serve: (file, rows) => {

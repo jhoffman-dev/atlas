@@ -2,18 +2,26 @@
  * What a name in a query refers to, read from the vault's types.
  *
  * A field is a property one of the listed types declares, one of the few
- * every note has (`title`, `type`, `path`, `modified`, `tag`), or either of
- * those on the note a relation points at: `project.owner`. Knowing its kind
+ * every note has (`title`, `type`, `path`, `modified`, `tag`, and `progress`
+ * through its checklist), or either of those on the note a relation points
+ * at: `project.owner`. Knowing its kind
  * is what lets a query be checked — `due < @today` makes sense, `status < 3`
  * does not — and what lets the builder offer the right operators and values.
  */
 
-import type { ObjectType, PropertyDef, PropertyKind } from '../types/property-def.ts';
+import {
+  relationTypes,
+  relationTypesText,
+  type ObjectType,
+  type PropertyDef,
+  type PropertyKind,
+} from '../types/property-def.ts';
+import { carriesChecklistProgress, PROGRESS_FIELD } from '../checklists/progress-field.ts';
 import { fieldText, type FieldRef, type Name } from './ast.ts';
 import { QueryTextError } from './query-text-error.ts';
 
 /** A property's kind, or one of the fields every note has. */
-export type FieldKind = PropertyKind | 'tag' | 'modified' | 'title' | 'path' | 'type';
+export type FieldKind = PropertyKind | 'tag' | 'modified' | 'title' | 'path' | 'type' | 'progress';
 
 export interface QueryField {
   /** As written in a query: `status`, `project.owner`. */
@@ -27,8 +35,10 @@ export interface QueryField {
   readonly kind: FieldKind;
   /** A select's options, in the type's order; a relation's target type's notes are not here. */
   readonly options: readonly string[];
-  /** For a relation: the type it points at. */
+  /** For a relation: the type it points at — the first, when it may point at several. */
   readonly target: string | null;
+  /** For a relation to several types: all of them, as `PropertyDef.targets`. Read with `relationTypes`. */
+  readonly targets?: readonly string[];
   /** Whether a note can hold several values of it. */
   readonly many: boolean;
 }
@@ -42,6 +52,13 @@ export const BUILT_IN_FIELDS: readonly { key: string; label: string; kind: Field
   { key: 'path', label: 'Path', kind: 'path' },
 ];
 
+/**
+ * How far through its checklist a note is (P30-03): a whole percentage, worked
+ * out from its boxes, which every note has unless its type declares a
+ * `progress` of its own — then the type's is the one meant.
+ */
+const PROGRESS = { key: PROGRESS_FIELD, label: 'Progress', kind: 'progress' } as const;
+
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** The types a query lists, in the order it lists them; a name the vault lacks is left out. */
@@ -51,8 +68,9 @@ export function listedTypes(types: readonly ObjectType[], from: readonly string[
 
 /**
  * Every field a query over these types can name directly: the built-ins,
- * then each property in the order the types declare them. A key declared by
- * two types is one field, as the first type declares it.
+ * then each property in the order the types declare them, then the progress
+ * through a note's checklist where none of them declares its own. A key
+ * declared by two types is one field, as the first type declares it.
  */
 export function directFields(types: readonly ObjectType[], from: readonly string[]): QueryField[] {
   const listed = listedTypes(types, from);
@@ -66,7 +84,10 @@ export function directFields(types: readonly ObjectType[], from: readonly string
       declared.push(propertyField(property));
     }
   }
-  return [...builtIns, ...declared];
+  const progress = listed.every(carriesChecklistProgress)
+    ? [builtInField(PROGRESS, null, types)]
+    : [];
+  return [...builtIns, ...declared, ...progress];
 }
 
 /** A property a type declares, as the field a query — or a view's grouping — names. */
@@ -79,15 +100,26 @@ export function propertyField(property: PropertyDef): QueryField {
     kind: property.kind,
     options: property.options,
     target: property.target,
+    ...(property.targets !== undefined && { targets: property.targets }),
     many: property.many || property.kind === 'multiSelect',
   };
 }
 
-/** The fields of the notes a relation points at: `project.owner`, `project.title`. */
+/**
+ * The fields of the notes a relation points at: `project.owner`, `project.title`.
+ *
+ * A relation to several types reaches every field any of them declares, as a
+ * query over all of them would — the first type to declare a key decides its
+ * kind. The hop reads that key on whichever note is linked, whatever its
+ * type, so a linked note of a type that does not declare it simply has no
+ * value there (an area has no `due`: `project.due IS EMPTY` holds for it).
+ */
 export function fieldsThrough(relation: QueryField, types: readonly ObjectType[]): QueryField[] {
-  const target = types.find((type) => type.name === relation.target);
-  if (target === undefined) return [];
-  return directFields(types, [target.name])
+  const pointedAt = relationTypes(relation).filter((name) =>
+    types.some((type) => type.name === name),
+  );
+  if (pointedAt.length === 0) return [];
+  return directFields(types, pointedAt)
     .filter((field) => field.key !== 'path')
     .map((field) => ({
       ...field,
@@ -129,16 +161,16 @@ export function resolveField(
       ref.via.span,
     );
   }
-  if (!types.some((type) => type.name === relation.target)) {
+  if (!relationTypes(relation).some((name) => types.some((type) => type.name === name))) {
     throw new QueryTextError(
-      `${relation.text} points at ${relation.target ?? 'nothing'}, which is not a type here.`,
+      `${relation.text} points at ${relationTypesText(relation)}, which is not a type here.`,
       ref.via.span,
     );
   }
   const found = fieldsThrough(relation, types).find((field) => field.text === fieldText(ref));
   if (found === undefined) {
     throw new QueryTextError(
-      `A ${relation.target ?? ''} has no field called ${ref.name.text}.`,
+      `A ${relationTypesText(relation)} has no field called ${ref.name.text}.`,
       ref.name.span,
     );
   }
@@ -152,7 +184,7 @@ function findField(fields: readonly QueryField[], name: Name, owner: string): Qu
 }
 
 function builtInField(
-  field: (typeof BUILT_IN_FIELDS)[number],
+  field: (typeof BUILT_IN_FIELDS)[number] | typeof PROGRESS,
   via: string | null,
   types: readonly ObjectType[],
 ): QueryField {

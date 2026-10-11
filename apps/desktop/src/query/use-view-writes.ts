@@ -9,6 +9,7 @@ import {
 import {
   cardMoveChanges,
   setNoteProperties,
+  TaskRuleRefusedError,
   type ActivityLog,
   type MarkdownPort,
   type PropertyChanges,
@@ -17,6 +18,7 @@ import {
 import type { CardMove } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
+import { localToday } from '../today.ts';
 import { errorMessage } from './error-message.ts';
 
 /** Writes one note the view shows — a row, a card, or the view note itself. */
@@ -35,15 +37,18 @@ export async function writeNoteProperties({
   markdown,
   path,
   values,
+  today = localToday(),
 }: {
   editors: OpenEditors;
   fs: VaultFsPort;
   markdown: MarkdownPort;
   path: string;
   values: PropertyChanges;
+  /** `YYYY-MM-DD`, for the task rules; the Mac's day unless the caller has a clock of its own. */
+  today?: string;
 }): Promise<void> {
   const takenByAPane = await editors.setPropertiesIfOpen({ path: createVaultPath(path), values });
-  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values });
+  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values, today });
 }
 
 /**
@@ -67,9 +72,8 @@ export function useChangeProperties({
 }): ChangeProperties {
   return useCallback(
     ({ path, values }) => {
-      withGiveUpRecorded({ activity, write: 'edit', path }, () =>
-        writeNoteProperties({ editors, fs, markdown, path, values }),
-      )
+      const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
+      withGiveUpRecorded(edit, () => writeNoteProperties({ editors, fs, markdown, path, values }))
         .then(onChanged)
         .catch((cause: unknown) => onError(errorMessage(cause)));
     },

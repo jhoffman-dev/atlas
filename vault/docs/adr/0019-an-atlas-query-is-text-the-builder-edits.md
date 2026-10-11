@@ -155,3 +155,82 @@ and a relation's are named for the note.
   a stack overflow.
 - A number keeps its spelling: `notes = 1.0` compares with the text `1.0`, and
   the builder never writes `1e+22`.
+
+## Addendum, 2026-10-08 (P30-04): `this`, `LINKS TO`, and dates counted from today
+
+A Person or Company page needs "this person's meetings in the last 30 days",
+so the grammar gains two values and one condition:
+
+```
+condition = … | LINKS TO value                       -- value must be this
+value     = … | this | @-30d | @+2w | @+1m | @-1y | @startOfWeek
+```
+
+- **`this` is the note the query is shown on**, handed to the compiler by
+  whoever shows it (`thisNote`), never guessed. A query shown on no note — a
+  saved view, a dashboard widget, an automation — cannot say `this`: the check
+  refuses it at the word, before anything runs. It compares with a relation
+  only, with `=` or `!=` (`people = this`, `company.owner = this`), and binds
+  the note's path like any other value. `'this'` in quotes is still text.
+- **`this` is now reserved.** A saved view, widget or automation that wrote a
+  bare `this` to mean the word — `status = this` — no longer runs. It is not
+  rewritten: the check points at the word and says to quote it, `'this'`,
+  and the person decides. Such queries were judged rare enough not to need a
+  migration.
+- **`LINKS TO this`** asks the `links` table: the note's body links to the
+  page, resolved as backlinks are, and a note's link to itself does not count,
+  as it is not its own backlink. It takes only `this` for now: a link to a
+  named note would need a rule for one that does not exist, and nobody has
+  asked for it. The builder has no control for it, so a query that says it
+  stays text, with a reason that says so. `links = x` still compares a
+  property called `links`.
+- **A count from today** — a sign, up to four digits, and `d`, `w`, `m` or
+  `y` — and **`@startOfWeek`**, the Monday of this week as the calendar's
+  weeks start. The domain still has no clock: a query the app runs asks the
+  index for the day, over its own clock as `@today` always has, with the
+  modifier bound; an automation pins each one to the day it is handed. A
+  count reaches 1000 years at most: past the year 9999 the index dates
+  nothing, so the check refuses it rather than let it match nothing. Both
+  readings live in `query-language/moving-date.ts`, and a test runs the SQL
+  on every weekday and the awkward month ends to prove they agree. A month
+  counts as SQLite counts one: from 2026-01-31, `@+1m` is 2026-03-03. The
+  builder offers `@startOfWeek` beside the named dates, and shows a count it
+  holds as what it is ("30 days ago"), so it is never mistaken for no date.
+- The API takes the note as `context` on `/v1/atlas-query` (ADR-0016): a note
+  path in user space that must exist.
+
+## Addendum, 2026-10-08 (P30-05): a query inside a note
+
+A Person or Project page shows its own meetings and tasks, so a query can
+live in a note's body:
+
+````
+```atlas-query
+layout: list
+FROM meeting WHERE people = this SORT BY date DESC
+```
+````
+
+- **It is a fenced code block**, so Obsidian shows the code and nothing in the
+  file is Atlas's alone. The fence's language is exactly `atlas-query`, with
+  nothing after it on the line: a query block is written back with its
+  language alone, so anything there would be lost on its first edit, and such
+  a fence stays a code block. One rule reads it, `queryBlockOfCode` (domain).
+- **It is one of the note's own blocks**, as a shown block is (ADR-0022): in
+  a list, a quote or a callout the fence stays a code block, and a query block
+  moved or pasted there is written as one (`nestedBlockOf`).
+- **The editor holds it as an atom with its text** (`queryBlock`), like a
+  shown block, not as an editable code block: the answer is drawn live and
+  read-only, and the text is edited behind **Edit query**. Untouched, it is
+  written from its own bytes (ADR-0003) — tildes, a longer fence and a block
+  id on the line after it included.
+- **`this` is the note it is in**, handed to the compiler as `thisNote` by the
+  page that shows it. Where a note is only drawn — a feed, a page's picture, a
+  shown block in another note — it is drawn as its code, never run, since
+  that is not the note `this` would name.
+- **A first line `layout: table` or `layout: list`** says how it is drawn; left
+  out, a table. Any other layout, or no query, is a problem in the text,
+  said in the block. The layout line is the app's, not the query's: a tool
+  answering a block sends the rest, with the note as `context`.
+- It is asked again whenever the index changes, and once typing in its text
+  pauses.

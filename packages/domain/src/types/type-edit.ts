@@ -68,6 +68,14 @@ function withColors(
   return next;
 }
 
+/** The property pointing at exactly these types beside its target: none when undefined. */
+function withTargets(property: PropertyDef, targets: readonly string[] | undefined): PropertyDef {
+  const next: Mutable<PropertyDef> = { ...property };
+  if (targets === undefined) delete next.targets;
+  else next.targets = targets;
+  return next;
+}
+
 /** The property with exactly this done option: none at all when there is none. */
 function withDone(property: PropertyDef, done: string | undefined): PropertyDef {
   const next: Mutable<PropertyDef> = { ...property };
@@ -225,7 +233,7 @@ export function changePropertyKind(
     if (current.kind === kind) return current;
     const keepsOptions = HAS_OPTIONS.has(kind) && HAS_OPTIONS.has(current.kind);
     const changed: PropertyDef = {
-      ...current,
+      ...withTargets(current, kind === 'relation' ? current.targets : undefined),
       kind,
       options: keepsOptions ? current.options : [],
       target: kind === 'relation' ? (current.target ?? type.name) : null,
@@ -265,7 +273,10 @@ export function setRelation(
   }
   return withProperty(type, key, (current) => {
     if (current.kind !== 'relation') throw new TypeEditError(`${current.label} is not a relation`);
-    return { ...current, target, many };
+    // Pointed at the same type, it keeps the others the type file lists with it;
+    // pointed elsewhere, it points there alone.
+    const targets = target === current.target ? current.targets : undefined;
+    return { ...withTargets(current, targets), target, many };
   });
 }
 

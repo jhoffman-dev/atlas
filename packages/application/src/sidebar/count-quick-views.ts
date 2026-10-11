@@ -1,14 +1,17 @@
 import {
   compileViewQuery,
+  parseQueryView,
   parseSavedView,
   queryRowLimit,
   splitFrontmatter,
+  type ObjectType,
   type QuickView,
   type QuickViewId,
   type ViewQuery,
 } from '@atlas/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
+import { runAtlasQuery } from '../query/run-atlas-query.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /**
@@ -19,20 +22,28 @@ import type { VaultFsPort } from '../vault/ports.ts';
  * filters would count the wrong thing. A view that cannot be read or run gets
  * no count — the row still opens it, which is where its error belongs.
  *
- * The index counts, rather than handing back every row to be counted here, and
- * the count stops at the view's limit: the number beside a view is how many it
- * shows when opened.
+ * The index counts a saved view, rather than handing back every row to be
+ * counted here, and the count stops at the view's limit: the number beside a
+ * view is how many it shows when opened. An Atlas query view (ADR-0019) — an
+ * Inbox over tasks and meetings, say — is run as it is opened, and its rows
+ * counted: its own LIMIT already stops it there.
  */
 export async function countQuickViews({
   fs,
   markdown,
   index,
   quick,
+  types,
+  notePaths,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   index: IndexPort;
   quick: readonly QuickView[];
+  /** The vault's types, which a query view is checked against. */
+  types: readonly ObjectType[];
+  /** Every note in the vault, so a link in a query view names the note it means. */
+  notePaths: readonly string[];
 }): Promise<ReadonlyMap<QuickViewId, number>> {
   if (quick.length === 0) return new Map();
 
@@ -48,15 +59,17 @@ export async function countQuickViews({
   const counted = await Promise.all(
     quick.map(async ({ id, entry }) => {
       const text = textOf.get(entry.path);
-      const query =
-        text === undefined
-          ? null
-          : parseSavedView(markdown.frontmatterProperties(splitFrontmatter(text).frontmatter));
-      if (query === null) return null;
+      if (text === undefined) return null;
+      const properties = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
+      const saved = parseSavedView(properties);
+      const queryText = parseQueryView(properties);
       try {
-        return [id, await countView(index, query)] as const;
+        if (saved !== null) return [id, await countView(index, saved)] as const;
+        if (queryText === null) return null;
+        const answer = await runAtlasQuery({ index, text: queryText, types, notePaths });
+        return [id, answer.result.rows.length] as const;
       } catch {
-        // The view's own page reports why it cannot run; the count just stays off.
+        // The view's own page reports why it cannot run or read; the count just stays off.
         return null;
       }
     }),

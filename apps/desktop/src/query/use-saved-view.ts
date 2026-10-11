@@ -3,6 +3,7 @@ import {
   boardGroups,
   drawnLevels,
   calendarEndKey,
+  checklistProgressKey,
   groupChoices,
   groupColumnOptions,
   groupResultRows,
@@ -12,6 +13,7 @@ import {
   parseSavedView,
   parseViewDisplay,
   queryForLayout,
+  relationTypes,
   statusOf,
   toBoardRows,
   type BoardLane,
@@ -359,6 +361,7 @@ function useShownView({
               groupBy: display.groupBy,
               subGroupBy: display.subGroupBy,
             }),
+            progressKey: checklistProgressKey(type),
           }),
     [query, display, status, type],
   );
@@ -499,12 +502,18 @@ function useRelatedOptions({
   indexKey: string;
   names: NoteNames;
 }): Readonly<Record<string, readonly string[]>> {
-  const targetOf = (key: string | null) => {
+  // The types each level points at, as one key, so the same types read again ask nothing.
+  const targetsOf = (key: string | null) => {
     const property = type?.properties.find((candidate) => candidate.key === key);
-    return property?.kind === 'relation' ? property.target : null;
+    return property?.kind === 'relation' ? relationTypes(property).join(',') : '';
   };
-  const first = useRelatedNotes({ index, target: targetOf(display.groupBy), indexKey, names });
-  const second = useRelatedNotes({ index, target: targetOf(display.subGroupBy), indexKey, names });
+  const first = useRelatedNotes({ index, targets: targetsOf(display.groupBy), indexKey, names });
+  const second = useRelatedNotes({
+    index,
+    targets: targetsOf(display.subGroupBy),
+    indexKey,
+    names,
+  });
   return useMemo(() => {
     const related: Record<string, readonly string[]> = {};
     if (display.groupBy !== null) related[display.groupBy] = first;
@@ -520,12 +529,13 @@ function useRelatedOptions({
  */
 function useRelatedNotes({
   index,
-  target,
+  targets,
   indexKey,
   names,
 }: {
   index: IndexPort;
-  target: string | null;
+  /** The types the relation points at, joined by commas; '' for a level that is no relation. */
+  targets: string;
   indexKey: string;
   /** Links a note the way it is found, not by the title it may give itself. */
   names: NoteNames;
@@ -533,12 +543,12 @@ function useRelatedNotes({
   const [links, setLinks] = useState<readonly string[]>([]);
 
   useEffect(() => {
-    if (target === null) {
+    if (targets === '') {
       setLinks([]);
       return;
     }
     let cancelled = false;
-    relationGroupLinks({ index, target, names })
+    relationGroupLinks({ index, targets: targets.split(','), names })
       .then((links) => {
         if (!cancelled) setLinks(links);
       })
@@ -550,7 +560,7 @@ function useRelatedNotes({
     return () => {
       cancelled = true;
     };
-  }, [index, target, indexKey, names]);
+  }, [index, targets, indexKey, names]);
 
   return links;
 }

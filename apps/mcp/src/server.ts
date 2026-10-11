@@ -5,13 +5,20 @@ import type { AtlasClient } from './client.ts';
 import { archiveTools } from './tools/archive.ts';
 import { artifactTools } from './tools/artifacts.ts';
 import { automationTools } from './tools/automations.ts';
+import { checklistTools } from './tools/checklists.ts';
 import { captureTools } from './tools/capture.ts';
 import { imageTools } from './tools/images.ts';
+import { meetingTools } from './tools/meetings.ts';
+import { inboxTools } from './tools/inbox.ts';
 import { noteTools } from './tools/notes.ts';
+import { proposalTools } from './tools/proposals.ts';
 import { queryTools } from './tools/queries.ts';
+import { scheduleTools } from './tools/schedule.ts';
+import { reviewTools } from './tools/review.ts';
 import { sourceTools } from './tools/sources.ts';
 import { tagTools } from './tools/tags.ts';
 import { templateTools } from './tools/templates.ts';
+import { termTools } from './tools/terms.ts';
 import { vaultTools } from './tools/vault.ts';
 import { viewTools } from './tools/views.ts';
 
@@ -29,8 +36,15 @@ export const ATLAS_TOOLS = [
   ...sourceTools,
   ...tagTools,
   ...templateTools,
+  ...termTools,
   ...archiveTools,
+  ...inboxTools,
+  ...scheduleTools,
+  ...checklistTools,
+  ...reviewTools,
   ...automationTools,
+  ...meetingTools,
+  ...proposalTools,
 ];
 
 const INSTRUCTIONS =

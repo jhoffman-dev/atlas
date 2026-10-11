@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   quickAddChoice,
   quickAddFields,
+  relationTypes,
   DEFAULT_FAB_ANCHOR,
   type FabAnchor,
   type ObjectType,
@@ -9,7 +10,7 @@ import {
 } from '@atlas/domain';
 import {
   findTypeTemplate,
-  notesInUseOfType,
+  notesInUseOfTypes,
   quickAddNote,
   type IndexPort,
   type MarkdownPort,
@@ -19,6 +20,7 @@ import {
 import type { FabAnchorStore, QuickAddRequest, RelationChoice } from '@atlas/ui';
 import type { Overlay } from '../overlay.ts';
 import type { QuickAddSetting } from './use-quick-add-setting.ts';
+import { localToday } from '../today.ts';
 
 /** The note just added, for the toast that offers to open it. */
 export interface QuickAdded {
@@ -101,6 +103,7 @@ export function useQuickAdd({
         template: template === null ? null : await contentsOf(template),
         beside,
         notePaths,
+        today: localToday(),
       });
       hide('quick-add');
       setAdded(open ? null : { label: chosen.label, path });
@@ -146,7 +149,7 @@ function useRelationChoices(
     Promise.all(
       relations.map(
         async (field) =>
-          [field.key, await notesInUseOfType({ index, type: field.target ?? '' })] as const,
+          [field.key, await notesInUseOfTypes({ index, types: relationTypes(field) })] as const,
       ),
     )
       .then((pairs) => {

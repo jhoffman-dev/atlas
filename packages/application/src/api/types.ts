@@ -1,4 +1,4 @@
-import type { ObjectType } from '@atlas/domain';
+import { relationTypes, type ObjectType } from '@atlas/domain';
 import { loadObjectTypes } from '../types/load-types.ts';
 import type { ApiType } from './contract.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
@@ -20,6 +20,7 @@ function toApiType(type: ObjectType): ApiType {
       required: property.required,
       options: property.options,
       target: property.target,
+      targets: relationTypes(property),
       many: property.many,
     })),
   };

@@ -379,6 +379,8 @@ function holds(world: World, path: string, expression: Expression): boolean {
       return expression.operands.some((operand) => holds(world, path, operand));
     case 'not':
       return !holds(world, path, expression.operand);
+    case 'linksTo':
+      throw new Error('the fuzzed queries say no LINKS TO');
     case 'empty': {
       const present = holders(world, path, expression.field).some(
         (holder) => rowsOf(world, holder, expression.field.name.text).present,

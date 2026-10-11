@@ -19,6 +19,7 @@ import {
 
 const PERSON_TYPE = '---\nname: person\nlabel: Person\nproperties:\n  role: text\n---\n';
 const COMPANY_TYPE = '---\nname: company\nlabel: Company\nproperties:\n  site: text\n---\n';
+const EVENT_TYPE = '---\nname: event\nlabel: Event\nproperties:\n  when: date\n---\n';
 const PERSON_TEMPLATE = '---\ntype: person\nrole:\n---\n\nMet at:\n';
 const person = (role: string) => `---\ntype: person\nrole: ${role}\n---\n`;
 const STANDUP = '# Standup\n\nNotes here.\n';
@@ -28,6 +29,7 @@ async function openVault(page: Page): Promise<{ vault: FakeVault; host: FakeHost
   const files: Record<string, string> = {
     '.atlas/types/person.md': PERSON_TYPE,
     '.atlas/types/company.md': COMPANY_TYPE,
+    '.atlas/types/event.md': EVENT_TYPE,
     '.atlas/templates/Person.md': PERSON_TEMPLATE,
     'People/Julie Brandt-Hoffer.md': person('partner'),
     'People/Bob.md': person('neighbour'),
@@ -142,7 +144,9 @@ test('@ and a new name makes the person from the Person template and links them'
   await expectFile(vault, 'Standup.md').toBe('# Standup\n\nNotes here. With [[Ann Lee]] today\n');
 });
 
-test('the Person type cannot be deleted, while a type of your own can', async ({ page }) => {
+test('the Person and Company types cannot be deleted, while a type of your own can', async ({
+  page,
+}) => {
   const { host } = await openVault(page);
 
   await sidebarSection(page, 'types')
@@ -155,12 +159,20 @@ test('the Person type cannot be deleted, while a type of your own can', async ({
   // Its properties are still its own to change.
   await expect(page.getByRole('button', { name: 'Add property' })).toBeEnabled();
 
+  // Terms and meetings point at companies (P28-05).
   await sidebarSection(page, 'types')
     .getByRole('button', { name: /^Company, \d+ notes?$/ })
     .click();
   await page.getByRole('radio', { name: 'Edit type' }).click();
+  await expect(page.getByRole('button', { name: 'Delete Company…' })).toBeDisabled();
+  await expect(page.getByText(/Company is built in — meetings and terms point at/)).toBeVisible();
+
+  await sidebarSection(page, 'types')
+    .getByRole('button', { name: /^Event, \d+ notes?$/ })
+    .click();
+  await page.getByRole('radio', { name: 'Edit type' }).click();
   await expect(page.getByText(/is built in/)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Delete Company…' }).click();
+  await page.getByRole('button', { name: 'Delete Event…' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Move to Trash' }).click();
-  await expect.poll(() => host.trashed()).toEqual(['.atlas/types/company.md']);
+  await expect.poll(() => host.trashed()).toEqual(['.atlas/types/event.md']);
 });

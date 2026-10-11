@@ -33,6 +33,7 @@ import {
   ViewToolbar,
   type CalendarNavigation,
   type CoverSource,
+  type Planner,
   type GroupFolds,
   type OverlaySlots,
   type ViewField,
@@ -271,6 +272,7 @@ function ArtifactGallery({
 /** Draws a saved view the way the view note asks for. */
 export function ViewBody({
   view,
+  planner = null,
   calendar,
   onOpenNote,
   onFollowLink,
@@ -281,6 +283,8 @@ export function ViewBody({
   folds,
 }: {
   view: SavedView;
+  /** The tray of tasks to plan, for a calendar of blocks. */
+  planner?: Planner | null;
   /** Which of the view's groups and swimlanes are folded shut, remembered on this Mac. */
   folds: GroupFolds;
   /** What a calendar shows, changed from the toolbar. */
@@ -367,6 +371,7 @@ export function ViewBody({
         view={view}
         dateKey={view.display.dateKey}
         calendar={calendar}
+        planner={planner}
         kinds={schema.kinds}
         onOpenNote={onOpenNote}
         {...ticks}
@@ -445,6 +450,7 @@ function ViewCalendar({
   view,
   dateKey,
   calendar,
+  planner,
   kinds,
   ticks,
   onOpenNote,
@@ -452,6 +458,7 @@ function ViewCalendar({
   view: SavedView;
   dateKey: string;
   calendar: CalendarNavigation;
+  planner: Planner | null;
   kinds: ReturnType<typeof schemaOf>['kinds'];
   ticks?: NonNullable<SavedView['ticks']>;
   onOpenNote: (path: string) => void;
@@ -471,6 +478,7 @@ function ViewCalendar({
       onOpenNote={onOpenNote}
       onReschedule={view.reschedule}
       onCreate={view.addOnDate}
+      planner={planner}
       {...(ticks !== undefined && { ticks })}
     />
   );

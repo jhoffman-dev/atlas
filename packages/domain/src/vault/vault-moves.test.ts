@@ -197,6 +197,8 @@ describe('what may go to the Trash, or be renamed', () => {
       '.atlas/types/task.md',
       '.atlas/types/project.md',
       '.atlas/types/artifact.md',
+      '.atlas/types/company.md',
+      '.atlas/types/term.md',
       '.atlas/types/Person.md',
       '.Atlas/Types/TASK.MD',
     ]) {
@@ -204,7 +206,7 @@ describe('what may go to the Trash, or be renamed', () => {
       expect(renameRefusal(note(each))).toMatch(/built-in types stay/);
     }
     for (const each of [
-      '.atlas/types/company.md',
+      '.atlas/types/event.md',
       '.atlas/types/persons.md',
       '.atlas/templates/Person.md',
       'people/person.md',
@@ -219,7 +221,7 @@ describe('what may go to the Trash, or be renamed', () => {
     const entry = { ...note('.atlas/types/People.md'), definesType: 'person' };
     expect(deleteRefusal(entry)).toMatch(/built-in types stay/);
     expect(renameRefusal(entry)).toMatch(/built-in types stay/);
-    const own = { ...note('.atlas/types/People.md'), definesType: 'company' };
+    const own = { ...note('.atlas/types/People.md'), definesType: 'event' };
     expect(deleteRefusal(own)).toBeNull();
     // Only a type's own file defines a type: elsewhere `name:` is any property.
     const elsewhere = { ...note('Notes/People.md'), definesType: 'person' };

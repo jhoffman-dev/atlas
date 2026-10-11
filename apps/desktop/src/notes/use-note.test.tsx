@@ -373,6 +373,26 @@ describe('a note open in a pane while something else writes it', () => {
  * the local API — must settle the way the write went. Resolving on a refused
  * save would have the caller report a write that never landed.
  */
+describe('a task written through a pane is held to its rules (P30-02)', () => {
+  const TASK = '---\ntype: task\nstatus: next-action\n---\n\n# Call\n';
+
+  it('refuses Waiting with nobody to wait on, and writes nothing', async () => {
+    const vault = fakeVault(TASK);
+    const view = await readyPane(vault);
+    await expect(
+      act(() => view.result.current.setProperties({ status: 'waiting' })),
+    ).rejects.toThrow(/set Waiting on first/);
+    expect(vault.contents()).toBe(TASK);
+  });
+
+  it('dates a task finished from its pane', async () => {
+    const vault = fakeVault(TASK);
+    const view = await readyPane(vault);
+    await act(() => view.result.current.setProperties({ status: 'archive' }));
+    expect(vault.contents()).toMatch(/\ncompleted: \d{4}-\d{2}-\d{2}\n/);
+  });
+});
+
 describe('properties written through a pane', () => {
   it('settles once the properties are on disk', async () => {
     const vault = fakeVault();

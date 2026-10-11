@@ -3,7 +3,7 @@
 import type { ApiQueryBody } from '@atlas/application';
 import { z } from 'zod';
 import { defineTool, definedOnly } from './define.ts';
-import { includeArchived, limit } from './inputs.ts';
+import { includeArchived, limit, notePath } from './inputs.ts';
 
 const READ_ONLY = { readOnlyHint: true } as const;
 
@@ -61,7 +61,9 @@ export const query = defineTool({
     '{ type: "task", filters: [{ key: "status", operator: "isNot", value: "done" }], ' +
     'sorts: [{ key: "due", direction: "asc" }] }. Call atlas_list_types first for real keys and ' +
     `values. "isEmpty" and "isNotEmpty" take no value. Archived notes are left out unless ` +
-    `includeArchived is true. ${ROWS}`,
+    `includeArchived is true. For tasks, schedule: true adds a "schedule" column: each task's ` +
+    '{ estimate, scheduled, done, overBy } in minutes — scheduled being the time its timeblocks ' +
+    `(notes of type block) set aside for it, and overBy how far that runs past its estimate. ${ROWS}`,
   inputSchema: z.object({
     type: z.string().min(1).describe("The type's name, as atlas_list_types gives it."),
     columns: z.array(z.string()).optional().describe('Property keys to return. Omit for all.'),
@@ -78,6 +80,10 @@ export const query = defineTool({
     sorts: z.array(z.object({ key: z.string(), direction: z.enum(['asc', 'desc']) })).optional(),
     limit: limit.optional(),
     includeArchived: includeArchived.optional(),
+    schedule: z
+      .boolean()
+      .optional()
+      .describe('For a query of tasks: add each task’s schedule. Refused for any other type.'),
   }),
   annotations: READ_ONLY,
   call: (client, { filters, ...rest }) =>
@@ -117,12 +123,20 @@ export const runQuery = defineTool({
     "Run an Atlas query, the text the app's query builder writes, across one or more types, e.g. " +
     '"FROM task, project WHERE status != done AND project.owner = [[Julie]] AND tag = #q3 ' +
     'SORT BY due GROUP BY project THEN status". Clauses: FROM type, …; WHERE with AND, OR, NOT, ' +
-    'brackets, = != < <= > >=, CONTAINS, STARTS WITH, IS [NOT] EMPTY; SORT BY field [ASC|DESC]; ' +
-    'GROUP BY field [THEN field]; SHOW field, …; INCLUDE ARCHIVED; LIMIT n. A field is a property ' +
-    'of a listed type (atlas_list_types), one hop through a relation (project.owner), or title, ' +
-    "type, tag, modified, path. Values: words, 'quoted text', numbers, true/false, [[Note]], " +
-    '#tag, @today, @tomorrow, @weekAgo. Archived notes are left out unless the query says ' +
-    'INCLUDE ARCHIVED. Returns { columns, rows, truncated, sql }, plus "groups" for GROUP BY: ' +
+    'brackets, = != < <= > >=, CONTAINS, STARTS WITH, IS [NOT] EMPTY, LINKS TO this; SORT BY ' +
+    'field [ASC|DESC]; GROUP BY field [THEN field]; SHOW field, …; INCLUDE ARCHIVED; LIMIT n. A ' +
+    'field is a property of a listed type (atlas_list_types), one hop through a relation ' +
+    "(project.owner), or title, type, tag, modified, path. Values: words, 'quoted text', numbers, " +
+    'true/false, [[Note]], #tag, @today, @tomorrow, @weekAgo, @startOfWeek, a count from today ' +
+    '(@-30d, @+2w, @+1m, @-1y; up to 1000 years), and this — the note given as "context", e.g. ' +
+    'a person\'s meetings in the last 30 days, with their note as context: "FROM meeting WHERE ' +
+    'people = this AND date > @-30d AND date <= @today" (date > @-30d alone takes the meetings ' +
+    "to come too). this compares with a relation (= or !=); quote it, 'this', to mean the word. " +
+    "LINKS TO this lists notes whose body links to it. A note's fenced ```atlas-query block " +
+    'holds such a query after an optional "layout:" line; to answer it as the app shows it, ' +
+    'send the query without that line, with the note as context. Archived notes are ' +
+    'left out unless the query says INCLUDE ARCHIVED. Returns { columns, rows, truncated, sql }, ' +
+    'plus "groups" for GROUP BY: ' +
     '[{ label, value, rows: [indexes into rows], groups: [sub-groups] }]. A mistake in the text is ' +
     '"invalid" with its line and column; fix it there and run again. Read-only; saving a query ' +
     'as a view stays in the app.',
@@ -133,6 +147,12 @@ export const runQuery = defineTool({
       .optional()
       .describe(
         "At most this many rows, 1 to 5000; the query's own LIMIT wins when smaller. Default 500.",
+      ),
+    context: notePath
+      .optional()
+      .describe(
+        'The note the query is about, which "this" in the query names — a path exactly as another ' +
+          'tool returned it, e.g. "People/Mara Quill.md". Omit when the query does not say this.',
       ),
   }),
   annotations: READ_ONLY,

@@ -6,6 +6,9 @@ import {
 } from '@atlas/domain';
 import type { ActivityLog } from '@atlas/application';
 
+/** An error a write throws to refuse what the person asked for, rather than failing. */
+type Refusal = abstract new (...args: never[]) => Error;
+
 /** A screen's write, as its Activity line names it should the screen give up on it. */
 export interface ScreenWriteNamed {
   readonly activity: Pick<ActivityLog, 'inOpenVault'>;
@@ -13,10 +16,11 @@ export interface ScreenWriteNamed {
   /** The note being written, when it is there to open: never one being made. */
   readonly path: string | null;
   /**
-   * The write's refusal of what the person asked for — a name taken, a file
-   * that is no image — which the screen shows them to act on, and is no fault.
+   * The write's refusals of what the person asked for — a name taken, a file
+   * that is no image, a task rule — which the screen shows them to act on,
+   * and are no fault.
    */
-  readonly refusal?: abstract new (...args: never[]) => Error;
+  readonly refusal?: Refusal | readonly Refusal[];
 }
 
 /**
@@ -33,7 +37,8 @@ export async function withGiveUpRecorded<Result>(
   try {
     return await work();
   } catch (cause) {
-    if (refusal === undefined || !(cause instanceof refusal)) {
+    const refusals = refusal === undefined ? [] : [refusal].flat();
+    if (!refusals.some((each) => cause instanceof each)) {
       const problem = messageWithoutPaths(cause);
       const note = path === null ? null : insideVault(path);
       recorder.record(screenWriteFailedReport({ write, path: note, problem }));

@@ -23,6 +23,7 @@
     "paths": {
       "@atlas/domain": ["./packages/domain/src/index.ts"],
       "@atlas/application": ["./packages/application/src/index.ts"],
+      "@atlas/application/testing/sqlite": ["./packages/application/src/testing/sqlite.ts"],
       "@atlas/adapters": ["./packages/adapters/src/index.ts"],
       "@atlas/ui": ["./packages/ui/src/index.ts"],
       "@atlas/ui/graph": ["./packages/ui/src/graph/index.ts"]

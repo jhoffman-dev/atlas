@@ -63,6 +63,14 @@ export function conflictCopyPath({
   }
 }
 
+/** A name {@link conflictCopyPath} gives: ` (conflict from <Mac>)`, maybe numbered, before the extension. */
+const CONFLICT_COPY_NAME = / \(conflict from [^/)]+\)(?: \d+)?(?:\.[^./]+)?$/;
+
+/** Whether a path is the other Mac's version of a file a merge could not settle, kept beside it. */
+export function isConflictCopyPath(path: string): boolean {
+  return CONFLICT_COPY_NAME.test(path);
+}
+
 /**
  * What is done with one file a merge could not settle. Nothing is ever left
  * holding conflict markers, and no side's changes are thrown away:

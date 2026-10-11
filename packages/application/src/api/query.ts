@@ -9,8 +9,10 @@ import {
   type QueryFilter,
   type QuerySort,
   type ViewQuery,
+  withChecklistProgress,
 } from '@atlas/domain';
 import { runView } from '../query/run-view.ts';
+import { loadObjectTypes } from '../types/load-types.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import type { ApiRows } from './contract.ts';
 import {
@@ -23,18 +25,32 @@ import {
   type Fields,
 } from './fields.ts';
 import { isApiNotePath } from './paths.ts';
+import { checkScheduleAsked, withSchedules } from './task-schedule.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 const QUERY_ROWS = { fallback: DEFAULT_QUERY_LIMIT, max: MAX_QUERY_LIMIT };
 
-/** Notes of a type, filtered and sorted, compiled to SQL exactly as a saved view is. */
+/**
+ * Notes of a type, filtered and sorted, compiled to SQL exactly as a saved
+ * view is — with each note's checklist progress as a column, where its type
+ * has one (P30-03). A query of tasks with `schedule` gains each task's schedule.
+ */
 export async function queryRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
   const includeArchived = optionalBoolean(fields, 'includeArchived') ?? false;
-  return {
-    status: 200,
-    body: await runViewQuery(request, viewQueryFrom(fields), { includeArchived }),
-  };
+  const schedule = optionalBoolean(fields, 'schedule') ?? false;
+  const query = viewQueryFrom(fields);
+  // P30-03 (checklist progress) and P31-01 (schedules) both shape this, in
+  // this order: check `schedule` on the query as asked, then add the progress
+  // column to it, run it, and add the schedule last — checkScheduleAsked,
+  // withChecklistProgress, runViewQuery, withSchedules.
+  if (schedule) checkScheduleAsked(query);
+  const types = await loadObjectTypes({ fs: request.fs, markdown: request.markdown });
+  const type = types.find((candidate) => candidate.name === query.type) ?? null;
+  const rows = await runViewQuery(request, withChecklistProgress(query, type), {
+    includeArchived,
+  });
+  return { status: 200, body: schedule ? await withSchedules(request, rows) : rows };
 }
 
 /**

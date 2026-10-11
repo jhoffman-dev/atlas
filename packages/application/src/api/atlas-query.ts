@@ -1,8 +1,10 @@
-import { DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT } from '@atlas/domain';
+import { DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT, type VaultPath } from '@atlas/domain';
 import { ApiError } from './api-error.ts';
 import { answerAtlasQueryPage, groupsOf } from './atlas-query-answer.ts';
 import type { ApiAtlasQueryRows } from './contract.ts';
-import { bodyObject, countOf, requiredText, type Fields } from './fields.ts';
+import { bodyObject, countOf, optionalString, requiredText, type Fields } from './fields.ts';
+import { isApiNotePath, notePathFrom } from './paths.ts';
+import { spelledAsVault } from './vault-spelling.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /**
@@ -16,15 +18,16 @@ export const MAX_QUERY_TEXT = 200_000;
  * Runs an Atlas query (ADR-0019) as the query builder runs it, read-only:
  * the rows, and — for `GROUP BY` — the groups and sub-groups a list shows.
  * Archived notes are left out unless the text says `INCLUDE ARCHIVED`; the
- * text is the only place that says so.
+ * text is the only place that says so. `context` is the note the query is
+ * shown on, which `this` in it names.
  */
 export async function atlasQueryRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
-  const { answer, rows } = await answerAtlasQueryPage(
-    request,
-    queryTextOf(fields),
-    askedLimitOf(fields),
-  );
+  const { answer, rows } = await answerAtlasQueryPage(request, {
+    text: queryTextOf(fields),
+    asked: askedLimitOf(fields),
+    thisNote: await contextOf(request, fields),
+  });
   const groups =
     answer.compiled.groups.length > 0 ? await groupsOf(request, answer.compiled, rows) : null;
   // The index belongs to whichever vault is open now: an answer read after a
@@ -55,6 +58,17 @@ function queryTextOf(fields: Fields): string {
 function isLongerThan(text: string, most: number): boolean {
   // A text's characters are never more than its units, so most texts stop here.
   return text.length > most && [...text].length > most;
+}
+
+/** The note `this` names, spelled as the vault spells it; null when the body names none. */
+async function contextOf(request: VaultRequest, fields: Fields): Promise<VaultPath | null> {
+  const raw = optionalString(fields, 'context');
+  if (raw === undefined) return null;
+  return spelledAsVault({
+    fs: request.fs,
+    asked: notePathFrom(raw, 'context'),
+    accepts: isApiNotePath,
+  });
 }
 
 function askedLimitOf(fields: Fields): number | null {

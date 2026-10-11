@@ -59,12 +59,27 @@ keyring-core = "1.0.0"
 # percent-encoded, JSON-escaped or base64. Both are already in the tree.
 regex = "1.13.1"
 base64 = "0.22.1"
+# Embeddings (ADR-0031): a small BERT-family model run on this Mac. Candle is
+# Hugging Face's pure-Rust framework, so nothing is downloaded at build time and
+# no native runtime ships beside the app (ONNX Runtime would be both). The
+# tokenizer is the version candle-core already pulls in, without the C++ suffix
+# array and progress bar its default features add, which only training uses.
+candle-core = "0.11.0"
+candle-nn = "0.11.0"
+candle-transformers = "0.11.0"
+tokenizers = { version = "0.22.2", default-features = false, features = ["onig"] }
+# A fetch stages each model file in a temporary file of its own and names it
+# with a rename that never replaces (ADR-0031). Was a dev-dependency already.
+tempfile = "3.27.0"
 
 # The artifact thumbnail (`page_snapshot/macos.rs`): a WKWebView of its own,
 # with no IPC, pictured with `takeSnapshotWithConfiguration`. All five crates
 # are already in the tree under wry at these versions; this only asks for more
 # of their bindings. madsmtm's objc2 family, maintained and released in 2025.
 [target.'cfg(target_os = "macos")'.dependencies]
+# Apple's Accelerate for the model's matrix work: a system framework, so this
+# links it and adds nothing to the download.
+candle-transformers = { version = "0.11.0", features = ["accelerate"] }
 apple-native-keyring-store = { version = "1.0.2", features = ["keychain"] }
 objc2 = "0.6.4"
 block2 = "0.6.2"
@@ -120,6 +135,5 @@ name = "page_snapshot"
 harness = false
 
 [dev-dependencies]
-tempfile = "3.27.0"
 # Paused time, so a timeout test does not wait on the real clock.
 tokio = { version = "1.53.1", features = ["test-util", "rt-multi-thread"] }

@@ -24,21 +24,28 @@ describe('a proposed new note (adversarial)', () => {
     [{ title: 'Home', properties: { atlas: 'dashboard' } }],
   ])('is refused when its kind would file it in hidden configuration: %j', (input) => {
     const { markdown } = vault({});
-    expect(() => proposeNote({ markdown, input, id: 'n', notePaths: [] })).toThrow(
-      /hidden configuration/,
-    );
+    expect(() =>
+      proposeNote({ today: '2026-10-08', markdown, input, id: 'n', notePaths: [] }),
+    ).toThrow(/hidden configuration/);
   });
 
   it.each([['Chats'], ['chats'], ['Chats/Old']])('is refused in the chats folder %s', (folder) => {
     const { markdown } = vault({});
     expect(() =>
-      proposeNote({ markdown, input: { title: 'x', folder }, id: 'n', notePaths: [] }),
+      proposeNote({
+        today: '2026-10-08',
+        markdown,
+        input: { title: 'x', folder },
+        id: 'n',
+        notePaths: [],
+      }),
     ).toThrow(/Chats/);
   });
 
   it('names the path it will be written to, numbered past a note already there', () => {
     const { markdown, notePaths } = vault({ 'Projects/Idea.md': 'x' });
     const made = proposeNote({
+      today: '2026-10-08',
       markdown,
       input: { title: 'Idea', folder: 'Projects' },
       id: 'n',
@@ -50,6 +57,7 @@ describe('a proposed new note (adversarial)', () => {
   it('is written at the path it named, and refused if that path was taken since', async () => {
     const { fs, markdown, fixture } = vault({});
     const made = proposeNote({
+      today: '2026-10-08',
       markdown,
       input: { title: 'Idea', body: 'x' },
       id: 'n',
@@ -73,7 +81,7 @@ describe('a proposed edit (adversarial)', () => {
     async (path) => {
       const { fs, markdown } = vault({ [path]: 'x\n' });
       await expect(
-        proposeEdit({ fs, markdown, input: { path, append: 'y' }, id: 'p' }),
+        proposeEdit({ today: '2026-10-08', fs, markdown, input: { path, append: 'y' }, id: 'p' }),
       ).rejects.toThrow(/Chats/);
     },
   );
@@ -81,6 +89,7 @@ describe('a proposed edit (adversarial)', () => {
   it('writes the text it was drawn from, frontmatter and all, when it sets a property', async () => {
     const { fs, markdown, fixture } = vault({ 'Plan.md': '---\nstatus: open\n---\n* one\n' });
     const made = await proposeEdit({
+      today: '2026-10-08',
       fs,
       markdown,
       input: { path: 'Plan.md', append: '* two', properties: { status: 'done' } },

@@ -178,6 +178,7 @@ const byDate: ColumnOrder = (left, right) => {
 
 const VALUE_ORDER: Partial<Record<FieldKind, ColumnOrder>> = {
   number: byNumber,
+  progress: byNumber,
   date: byDate,
   modified: byDate,
 };

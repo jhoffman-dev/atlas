@@ -8,6 +8,7 @@
  */
 
 import type {
+  ApiAcceptedProposal,
   ApiAddViewNoteBody,
   ApiAppendBody,
   ApiArchiveBody,
@@ -20,17 +21,24 @@ import type {
   ApiAutomationDryRun,
   ApiAutomationList,
   ApiAutomationLog,
+  ApiMeeting,
   ApiCalendar,
   ApiCalendarBody,
   ApiCaptureBody,
   ApiCreateNoteBody,
   ApiErrorBody,
   ApiNote,
+  ApiProposal,
+  ApiProposalArchived,
+  ApiNoteExport,
   ApiImageUpload,
   ApiMoveCardBody,
   ApiNoteImage,
   ApiNoteImageBody,
   ApiNoteSummary,
+  ApiProcessInboxBody,
+  ApiScheduleTaskBody,
+  ApiPromoteLineBody,
   ApiProfile,
   ApiQueryBody,
   ApiQuickAddBody,
@@ -47,10 +55,13 @@ import type {
   ApiStatus,
   ApiTag,
   ApiTaggedNote,
+  ApiWeeklyReview,
   ApiTagRenamePreview,
   ApiTagRenameReport,
   ApiTemplate,
   ApiTemplateContent,
+  ApiTerms,
+  ApiInboxItem,
   ApiType,
   ApiTypeView,
   ApiView,
@@ -96,6 +107,13 @@ interface Answer {
 export interface SearchQuery {
   readonly q: string;
   readonly limit?: number;
+  readonly includeArchived?: boolean;
+}
+
+export interface MeetingsQuery {
+  readonly since?: string;
+  readonly limit?: number;
+  readonly offset?: number;
   readonly includeArchived?: boolean;
 }
 
@@ -167,6 +185,13 @@ export class AtlasClient {
   append = (path: string, body: ApiAppendBody) =>
     this.json<{ note: ApiNote }>({ method: 'POST', path: notePath(path, '/append'), body });
 
+  promoteChecklistLine = (path: string, body: ApiPromoteLineBody) =>
+    this.json<{ note: ApiNote; task: ApiNote }>({
+      method: 'POST',
+      path: notePath(path, '/promote'),
+      body,
+    });
+
   replaceBody = (path: string, body: ApiReplaceBodyBody) =>
     this.json<{ note: ApiNote }>({ method: 'PUT', path: notePath(path, '/body'), body });
 
@@ -174,6 +199,13 @@ export class AtlasClient {
     this.json<{ backlinks: readonly ApiNoteSummary[] }>({
       method: 'GET',
       path: notePath(path, '/backlinks'),
+    });
+
+  exportNote = (path: string) =>
+    this.json<{ export: ApiNoteExport }>({
+      method: 'GET',
+      path: notePath(path, '/export'),
+      query: { format: 'confluence' },
     });
 
   search = ({ q, limit, includeArchived }: SearchQuery) =>
@@ -208,6 +240,8 @@ export class AtlasClient {
       method: 'GET',
       path: `/v1/templates/${encodeURIComponent(name)}`,
     });
+
+  terms = () => this.json<ApiTerms>({ method: 'GET', path: '/v1/terms' });
 
   views = () => this.json<{ views: readonly ApiView[] }>({ method: 'GET', path: '/v1/views' });
 
@@ -325,7 +359,46 @@ export class AtlasClient {
   unarchive = (body: ApiArchiveBody) =>
     this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/unarchive', body });
 
+  meetings = ({ includeArchived, ...query }: MeetingsQuery) =>
+    this.json<{ meetings: readonly ApiMeeting[]; truncated: boolean; next: number | null }>({
+      method: 'GET',
+      path: '/v1/meetings',
+      query: { ...query, includeArchived: includeArchived === true ? 'true' : undefined },
+    });
+  inbox = () =>
+    this.json<{ items: readonly ApiInboxItem[]; truncated: boolean }>({
+      method: 'GET',
+      path: '/v1/inbox',
+    });
+
+  processInbox = (body: ApiProcessInboxBody) =>
+    this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
+
+  scheduleTask = (body: ApiScheduleTaskBody) =>
+    this.json<{ note: ApiNote }>({ method: 'POST', path: '/v1/tasks/schedule', body });
+  weeklyReview = () =>
+    this.json<{ review: ApiWeeklyReview }>({ method: 'GET', path: '/v1/review/weekly' });
+
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
+
+  proposals = () =>
+    this.json<{
+      proposals: readonly ApiProposal[];
+      stranded: readonly { path: string; headline: string; state: 'accepted' | 'rejected' }[];
+      unreadable: readonly { path: string; problem: string }[];
+    }>({ method: 'GET', path: '/v1/proposals' });
+
+  acceptProposal = (path: string) =>
+    this.json<{ accepted: ApiAcceptedProposal }>({
+      method: 'POST',
+      path: `/v1/proposals/${encodeURIComponent(path)}/accept`,
+    });
+
+  rejectProposal = (path: string) =>
+    this.json<{ rejected: ApiProposalArchived }>({
+      method: 'POST',
+      path: `/v1/proposals/${encodeURIComponent(path)}/reject`,
+    });
 
   automationLog = (id: string, query: { limit?: number }) =>
     this.json<ApiAutomationLog>({

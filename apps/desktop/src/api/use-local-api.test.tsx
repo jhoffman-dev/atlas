@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import {
+  fakeGoogleCalendar,
   recordingActivity,
   createRefreshSpacing,
   createSourceRefresher,
@@ -55,8 +56,10 @@ function emptyVault(): ApiRouterDeps {
     tagRenames: createTagRenames(),
     refreshSpacing: createRefreshSpacing(),
     newUploadId: () => 'upload-1',
+    rng: { next: () => 0.5 },
     automationClock: { forVault: () => null },
     activity: recordingActivity(),
+    googleCalendar: fakeGoogleCalendar().port,
   };
 }
 

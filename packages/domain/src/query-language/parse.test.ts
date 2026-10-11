@@ -23,6 +23,8 @@ function shape(expression: Expression | null): unknown {
       return [fieldText(expression.field), expression.op, expression.value];
     case 'empty':
       return [fieldText(expression.field), expression.negated ? 'IS NOT EMPTY' : 'IS EMPTY'];
+    case 'linksTo':
+      return ['LINKS TO', expression.value];
     case 'not':
       return ['NOT', shape(expression.operand)];
     default:
@@ -167,6 +169,12 @@ describe('parseAtlasQuery: values', () => {
     expect(valueOf('@weekAhead')).toEqual({ kind: 'relativeDate', name: 'weekAhead' });
   });
 
+  it('reads a count from today, signed either way, and the start of the week', () => {
+    expect(valueOf('@-30d')).toEqual({ kind: 'relativeDate', name: '-30d' });
+    expect(valueOf('@+2w')).toEqual({ kind: 'relativeDate', name: '+2w' });
+    expect(valueOf('@startOfWeek')).toEqual({ kind: 'relativeDate', name: 'startOfWeek' });
+  });
+
   it('reads true and false as a checkbox’s values', () => {
     expect(valueOf('TRUE')).toEqual({ kind: 'boolean', value: true });
     expect(valueOf('false')).toEqual({ kind: 'boolean', value: false });
@@ -222,6 +230,8 @@ describe('parseAtlasQuery: problems point at what caused them', () => {
     ['FROM task WHERE a = [[ ]]', 'A link needs the name of a note: [[Julie]].', '[[ ]]'],
     ['FROM task WHERE tag = #', 'A tag needs a name after #.', '#'],
     ['FROM task WHERE due < @', 'A date needs a name: @today.', '@'],
+    ['FROM task WHERE due < @+', 'A date needs a name: @today.', '@+'],
+    ['FROM task WHERE due < @++2w', 'A date needs a name: @today.', '@+'],
     ['FROM task WHERE a.b.c = 1', 'A field reaches one relation deep: project.owner.', '.'],
     ['FROM task WHERE project. = 1', 'Name a field of project after the dot.', '='],
     [
@@ -298,5 +308,52 @@ describe('printAtlasQuery', () => {
       where: { ...where, value: { ...where.value, kind: 'tag' as const, name: 'tag me' } },
     };
     expect(printAtlasQuery(spaced)).toBe("FROM t WHERE tag = 'tag me'");
+  });
+});
+
+describe('parseAtlasQuery: this, and LINKS TO', () => {
+  it('reads this, in any case, as the note the query is shown on', () => {
+    expect(valueOf('this')).toEqual({ kind: 'this' });
+    expect(valueOf('THIS')).toEqual({ kind: 'this' });
+    expect(valueOf("'this'")).toEqual({ kind: 'text', text: 'this' });
+  });
+
+  it('reads LINKS TO as a condition of its own, negated or joined like any other', () => {
+    expect(where('LINKS TO this')).toEqual(['LINKS TO', expect.objectContaining({ kind: 'this' })]);
+    expect(where('not links to this and status = done')).toEqual([
+      'and',
+      ['NOT', ['LINKS TO', expect.objectContaining({ kind: 'this' })]],
+      ['status', '=', expect.objectContaining({ kind: 'text', text: 'done' })],
+    ]);
+  });
+
+  it('still reads a property called links', () => {
+    expect(where('links = 3')).toEqual([
+      'links',
+      '=',
+      expect.objectContaining({ kind: 'number', number: 3 }),
+    ]);
+    expect(where('links IS EMPTY')).toEqual(['links', 'IS EMPTY']);
+  });
+
+  it('remembers where LINKS TO is in the text', () => {
+    const text = 'FROM task WHERE status = done AND LINKS TO this';
+    const query = parseAtlasQuery(text);
+    const linksTo = query.where?.kind === 'and' ? query.where.operands[1] : null;
+    expect(text.slice(linksTo?.span.start, linksTo?.span.end)).toBe('LINKS TO this');
+  });
+
+  it('prints this and LINKS TO back as they read, and quotes text that says this', () => {
+    const text = 'FROM task WHERE owner = this AND NOT LINKS TO this';
+    expect(printAtlasQuery(parseAtlasQuery(text))).toBe(text);
+    const quoted = "FROM task WHERE notes = 'this'";
+    expect(printAtlasQuery(parseAtlasQuery(quoted))).toBe(quoted);
+  });
+
+  it('wants a value after LINKS TO', () => {
+    expect(problem('FROM task WHERE LINKS TO')).toEqual({
+      message: 'Expected a value after LINKS TO.',
+      at: '',
+    });
   });
 });

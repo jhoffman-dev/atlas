@@ -21,6 +21,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import type { TypeEditorNotice, TypeEditorPrompt } from '@atlas/ui';
+import { localToday } from '../today.ts';
 
 const message = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -209,7 +210,11 @@ export function useTypeEditor({
         await saveObjectType({ fs, markdown, path: type.path, before, type: change.type });
         const { migrate } = decided;
         if (migrate !== null) {
-          setNotice(reportNotice(await migrateNotes({ fs, markdown, openNotes, ...migrate })));
+          setNotice(
+            reportNotice(
+              await migrateNotes({ fs, markdown, openNotes, today: localToday(), ...migrate }),
+            ),
+          );
         }
       } catch (cause) {
         // Put back only what this change put there: another type may be open by now.

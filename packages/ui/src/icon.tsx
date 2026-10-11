@@ -294,6 +294,14 @@ const GLYPHS = {
       <circle cx="8.2" cy="8.2" r="1.4" fill="currentColor" />
     </>
   ),
+  // A term: a capital and a small letter — a name and how it is spelt.
+  term: (
+    <>
+      <path d="M3.5 18.5 8 5.5l4.5 13M5.2 13.8h5.6" {...joined} />
+      <circle cx="17" cy="15.6" r="2.9" {...line} />
+      <path d="M19.9 12.2v6.3" {...round} />
+    </>
+  ),
   // Arranging a dashboard: the handle a widget is picked up by.
   grip: (
     <>
@@ -379,6 +387,8 @@ const SIDEBAR_GLYPHS: Readonly<Record<SidebarIcon, IconName>> = {
   automation: 'bolt',
   activity: 'pulse',
   template: 'template',
+  term: 'term',
+  inbox: 'inbox',
 };
 
 export function sidebarGlyph(icon: SidebarIcon): IconName {

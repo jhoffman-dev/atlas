@@ -31,7 +31,7 @@ const TABLES: Readonly<Record<RowTable, TableShape>> = {
 };
 
 /** The built-ins read from the file's own row rather than its properties. */
-const FILE_KINDS: readonly FieldKind[] = ['title', 'path', 'modified'];
+const FILE_KINDS: readonly FieldKind[] = ['title', 'path', 'modified', 'progress'];
 
 /** The table a field's values are read from, for showing, sorting or testing emptiness. */
 export function valueTable(field: QueryField): RowTable {
@@ -87,6 +87,8 @@ export function comparedValue(field: QueryField): string {
       return 'f.title';
     case 'path':
       return 'f.path';
+    case 'progress':
+      return 'f.progress';
     default:
       return 'p.value_text';
   }

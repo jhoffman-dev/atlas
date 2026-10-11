@@ -51,6 +51,7 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
     });
 
     const made = await createRelatedNote({
+      today: '2026-10-08',
       fs: vault.fs,
       markdown: fakeMarkdown(),
       type: COMPANY,
@@ -74,6 +75,7 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
     });
 
     const made = await createRelatedNote({
+      today: '2026-10-08',
       fs: vault.fs,
       markdown: fakeMarkdown(),
       type: COMPANY,
@@ -90,6 +92,7 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
     const vault = memoryFs({ '.atlas/templates/Person.md': '---\ntype: person\n---\n' });
 
     const made = await createRelatedNote({
+      today: '2026-10-08',
       fs: vault.fs,
       markdown: fakeMarkdown(),
       type: COMPANY,
@@ -106,6 +109,7 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
     const vault = memoryFs({});
     await expect(
       createRelatedNote({
+        today: '2026-10-08',
         fs: vault.fs,
         markdown: fakeMarkdown(),
         type: COMPANY,

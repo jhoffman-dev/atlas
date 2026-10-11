@@ -1,4 +1,4 @@
-import { createNote } from '../notes/create-note.ts';
+import { captureToInbox } from '../inbox/capture.ts';
 import { ensureDailyNote } from '../notes/daily-note.ts';
 import { findTaskTemplate, loadTemplates, readTemplate } from '../types/templates.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
@@ -23,7 +23,8 @@ export async function dailyRoute(request: VaultRequest): Promise<RouteResult> {
 /**
  * A task, as quick capture makes one: named by what was typed, from the Task
  * template when there is one, and numbered rather than refused if the name is
- * taken. With no note in view to sit beside, it goes at the root.
+ * taken. It waits in the Inbox, as everything captured does (P30-01), and
+ * starts with the Inbox status when the vault's Task type has it (P30-02).
  */
 export async function captureRoute(request: VaultRequest): Promise<RouteResult> {
   const text = requiredText(bodyObject(request.body), 'text');
@@ -33,10 +34,11 @@ export async function captureRoute(request: VaultRequest): Promise<RouteResult> 
   const contents = template === null ? undefined : await readTemplate({ fs, template });
 
   request.assertStillOpen();
-  const path = await createNote({
+  const path = await captureToInbox({
     fs,
+    markdown: request.markdown,
+    today: request.clock.today(),
     name: text,
-    beside: null,
     notePaths,
     ...(contents === undefined ? {} : { contents }),
   });

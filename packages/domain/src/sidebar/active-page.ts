@@ -11,9 +11,12 @@ export type ActiveSidebarPage =
   | { readonly kind: 'graph' }
   | { readonly kind: 'tags' }
   | { readonly kind: 'archive' }
+  | { readonly kind: 'inbox' }
+  | { readonly kind: 'review' }
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
+  | { readonly kind: 'terms' }
   | null;
 
 /**
@@ -31,9 +34,12 @@ export function activeSidebarPage({
   graphOpen = false,
   tagsOpen = false,
   archiveOpen = false,
+  inboxOpen = false,
+  reviewOpen = false,
   automationsOpen = false,
   activityOpen = false,
   templatesOpen = false,
+  termsOpen = false,
   viewOwner = () => null,
 }: {
   layout: PaneLayout;
@@ -44,12 +50,18 @@ export function activeSidebarPage({
   tagsOpen?: boolean;
   /** So does the Archive. */
   archiveOpen?: boolean;
+  /** And the Inbox. */
+  inboxOpen?: boolean;
+  /** And the weekly review. */
+  reviewOpen?: boolean;
   /** And the Automations page. */
   automationsOpen?: boolean;
   /** And the Activity page. */
   activityOpen?: boolean;
   /** And the Templates page. */
   templatesOpen?: boolean;
+  /** And the Terms page. */
+  termsOpen?: boolean;
   /**
    * The type a note is one of the views of, or null. A type owns its views
    * (ADR-0023), so a pane on one of them is that type's page and marks the type.
@@ -57,9 +69,12 @@ export function activeSidebarPage({
   viewOwner?: (path: VaultPath) => string | null;
 }): ActiveSidebarPage {
   if (archiveOpen) return { kind: 'archive' };
+  if (inboxOpen) return { kind: 'inbox' };
+  if (reviewOpen) return { kind: 'review' };
   if (automationsOpen) return { kind: 'automations' };
   if (activityOpen) return { kind: 'activity' };
   if (templatesOpen) return { kind: 'templates' };
+  if (termsOpen) return { kind: 'terms' };
   if (graphOpen) return { kind: 'graph' };
   if (tagsOpen) return { kind: 'tags' };
   if (openTypeName !== null) return { kind: 'type', name: openTypeName };

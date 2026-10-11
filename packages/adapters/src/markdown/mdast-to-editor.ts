@@ -300,10 +300,13 @@ function inlineToEditorNodes(
     case 'break':
       return [{ type: 'hardBreak' }];
     case 'image':
+      // A link around the image (`[![alt](src)](href)`) is a mark it carries,
+      // so it is written back around it rather than lost.
       return [
         {
           type: 'image',
           attrs: { src: node.url, alt: node.alt ?? null, title: node.title ?? null },
+          ...(marks.length > 0 && { marks }),
         },
       ];
     case 'strong':

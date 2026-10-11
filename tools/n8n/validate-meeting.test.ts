@@ -10,7 +10,8 @@ const fixture = (path: string) =>
 const run = (...files: string[]) =>
   spawnSync(process.execPath, [cli, ...files], { encoding: 'utf8', timeout: 60_000 });
 
-describe('validate-meeting', () => {
+// Each test starts `node`, which transpiles the domain and the adapters as it loads them: slow under load.
+describe('validate-meeting', { timeout: 120_000 }, () => {
   it('passes a file that follows the contract', () => {
     const result = run(fixture('valid/gemini-platform-sync.md'));
     expect(result.stdout).toMatch(/^ok {4}.*gemini-platform-sync\.md \(4 turns\)/);

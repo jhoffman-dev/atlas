@@ -2468,6 +2468,101 @@ ul.sidebar__sections {
   padding: 10px var(--space-4);
 }
 
+/* ---- query blocks (P30-05) ----
+   A live query in a note: a line naming it, with how many notes it found and
+   the switch to its text, then the rows as the Query page draws them, on the
+   page's raised surface. Its text is code, edited in place; a problem is said
+   in the danger colour, as the Query page says one. */
+
+.query-block {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  margin: var(--space-3) 0;
+  padding: 10px var(--space-4) 12px;
+  transition: box-shadow 120ms ease;
+}
+
+.query-block--selected {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.query-block__bar {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 600;
+  gap: 6px;
+  margin-bottom: 6px;
+  user-select: none;
+}
+
+.query-block__name {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+
+.query-block__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.query-block__toggle {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+
+.query-block__toggle:hover {
+  background: var(--track);
+}
+
+.query-block__text {
+  background: var(--track);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-button);
+  box-sizing: border-box;
+  color: var(--ink);
+  font: 12.5px/1.6 var(--font-mono);
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.query-block__text:focus {
+  border-color: var(--accent-text);
+  outline: none;
+}
+
+/* The note's own column is narrower than the Query page's, so the table
+   sizes its columns to what they hold: the name takes what the others
+   leave, rather than half the width the page's fixed layout gives it. */
+.query-block .qresult__table {
+  table-layout: auto;
+}
+
+.query-block__note {
+  color: var(--ink-3);
+  font-size: var(--text-body);
+  margin: 4px 0 0;
+}
+
+.query-block__note--warn {
+  color: var(--danger);
+}
+
+/* Where a query block is only drawn — a feed, a picture of the page — it is
+   the code Obsidian shows. */
+.query-block--plain {
+  box-shadow: none;
+}
+
 /* A note's blocks in the `#` list: a line or two of each, as Capacities shows them. */
 .suggestions--blocks {
   max-width: 440px;
@@ -3537,6 +3632,18 @@ ul.sidebar__sections {
   font-size: 11.5px;
 }
 
+/* A task's schedule (P31-01): read-only rows under its properties. */
+.task-schedule__note {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.task-schedule__over {
+  color: var(--danger);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
 .props__add {
   align-items: center;
   appearance: none;
@@ -4330,6 +4437,94 @@ button.props__link-title:focus-visible {
   line-height: 1.45;
   margin: 0;
   overflow: hidden;
+}
+
+/* How far through its checklist a note is (P30-03): a slim bar and the
+   share ticked, on a card, a list row and under a table row's name. */
+.checklist-progress {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  min-width: 0;
+}
+
+.checklist-progress__track {
+  background: var(--line);
+  border-radius: 999px;
+  display: block;
+  flex: 1 1 auto;
+  height: 4px;
+  min-width: 48px;
+  overflow: hidden;
+}
+
+.checklist-progress__fill {
+  background: var(--accent);
+  display: block;
+  height: 100%;
+}
+
+.checklist-progress__label {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.board__card .checklist-progress {
+  display: flex;
+}
+
+.list-view__row .checklist-progress {
+  width: 96px;
+}
+
+.table__name .checklist-progress {
+  display: flex;
+  max-width: 200px;
+  padding: 0 10px 6px 36px;
+}
+
+/* "Make task" after the words of the checklist line the caret is in. */
+.promote-line {
+  appearance: none;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin-left: 8px;
+  padding: 1px 8px;
+  user-select: none;
+  vertical-align: baseline;
+}
+
+.promote-line:hover {
+  background: color-mix(in srgb, var(--accent-text) 18%, var(--raised));
+}
+
+/* What making a line a task did, with its one Undo. */
+.promotion-notice {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 16px var(--space-2) 24px;
+  padding: 6px 12px 6px 16px;
+}
+
+.promotion-notice__text {
+  color: var(--ink);
+  flex: 1;
+  font-size: var(--text-small);
+  margin: 0;
+  min-width: 20ch;
 }
 
 .board__fields {
@@ -5674,6 +5869,124 @@ button.props__link-title:focus-visible {
 .clock--day .clock__all-day-cell {
   flex-direction: row;
   flex-wrap: wrap;
+}
+
+/* Planning the day (P31-02): the week's clock, and the next actions beside it. */
+.planner {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) 232px;
+  min-height: 0;
+}
+
+.plan-tray {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: calc(16 * 48px + 120px);
+  min-height: 0;
+  padding: var(--space-3);
+}
+
+.plan-tray__heading {
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.plan-tray__status:empty {
+  display: none;
+}
+
+.plan-tray__status,
+.plan-tray__empty,
+.plan-tray__problem {
+  font-size: 12px;
+  margin: 0;
+}
+
+.plan-tray__problem {
+  color: var(--danger);
+}
+
+.plan-tray__undo {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  margin-left: var(--space-1);
+  padding: 0;
+}
+
+.plan-tray__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.plan-tray__task {
+  background: var(--chip);
+  border-radius: 8px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.plan-tray__task--held {
+  opacity: 0.4;
+}
+
+.plan-tray__task > button {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: inherit;
+  color: var(--ink);
+  cursor: inherit;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: 1px;
+  padding: 6px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.plan-tray__task > button[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.plan-tray__task > button:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.plan-tray__title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.plan-tray__schedule {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-tray__task--lifted {
+  box-shadow: var(--shadow-overlay);
+  cursor: grabbing;
+  padding: 6px 8px;
 }
 
 /* The agenda: Overdue, then a card a day. */
@@ -10554,6 +10867,151 @@ select.type-editor__field,
   color: var(--accent-text);
 }
 
+/* ---- Terms (P28-05) ----
+   A page like the Templates': a head, a form for a new term that opens under
+   it, the conflicts when there are any, then a table of every term with its
+   misheard spellings edited in place. */
+
+.terms__new {
+  align-items: flex-end;
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+}
+
+.terms__field {
+  display: flex;
+  flex: 0 1 220px;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.terms__field--grow {
+  flex: 1 1 260px;
+}
+
+.terms__field--kind {
+  flex: 0 1 150px;
+}
+
+.terms__label {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+.terms__new-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.terms__hint {
+  color: var(--ink-2);
+  flex-basis: 100%;
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.terms__problem {
+  color: var(--danger);
+  flex-basis: 100%;
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Trouble worth seeing before the list, but not an error: the warning ink. */
+.terms__conflicts {
+  background: color-mix(in srgb, var(--warning) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.terms__conflicts-title {
+  align-items: center;
+  color: var(--warning);
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.terms__conflicts-why {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.terms__conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.terms__conflict {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.terms__form {
+  font-weight: 700;
+}
+
+.terms__claim-source {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin-left: var(--space-1);
+}
+
+.terms__grid th {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding-left: 10px;
+}
+
+/* Scoped to the grid, as the Archive's cells are: `.table__grid td` zeroes padding. */
+.terms__grid .terms__kind {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  padding-left: 10px;
+  white-space: nowrap;
+}
+
+.terms__grid .terms__variants {
+  padding: var(--space-1) 10px;
+  width: 55%;
+}
+
+.terms__variants-input {
+  padding: 6px 12px;
+  width: 100%;
+}
+
+.terms__in-conflict {
+  color: var(--warning);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: var(--space-1) 0 0;
+}
+
+.terms__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
 /* ---- the Archive (U-22) ----
    A page like a type's: its head, then a table of what is archived. Each row
    can be chosen, and a bar over the table puts the chosen ones back. */
@@ -10636,6 +11094,226 @@ select.type-editor__field,
 .archive__empty {
   color: var(--ink-2);
   padding: var(--space-5) 0;
+}
+
+/* ---- the Inbox (P30-01) ----
+   A page like the Archive's: what waits in the Inbox folder, each row with a
+   picker that files it under a project or an area. */
+
+.inbox__grid th {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding-left: 10px;
+}
+
+/* Scoped to the grid, as the Archive's cells are: `.table__grid td` zeroes padding. */
+.inbox__grid .inbox__kind {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  padding: 0 24px 0 10px;
+  white-space: nowrap;
+}
+
+.inbox__actions {
+  text-align: right;
+  width: 1%;
+}
+
+/* What the meeting import made of a file, under its kind (P28-04). */
+.inbox__import {
+  color: var(--ink-3);
+  display: block;
+  font-size: var(--text-small);
+  white-space: normal;
+}
+
+.inbox__import--error {
+  color: var(--danger);
+}
+
+.inbox__file {
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  max-width: 220px;
+  padding: 7px 12px;
+}
+
+.inbox__file:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.inbox__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+.inbox__offer {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-4);
+}
+
+.inbox__offer-icon {
+  color: var(--accent-text);
+  flex: none;
+}
+
+.inbox__offer-text {
+  flex: 1;
+  font-size: var(--text-ui);
+  min-width: 20ch;
+}
+
+.inbox__offer-text p,
+.inbox__offer-text ul {
+  margin: 0;
+}
+
+/* ---- the weekly review (P30-07) ----
+   One page of sections, each a table like the Inbox's: an item's name, what
+   it is about, and the quick actions that deal with it. */
+
+.review__section {
+  margin-top: var(--space-6);
+}
+
+.review__heading {
+  align-items: baseline;
+  display: flex;
+  font-size: var(--text-card);
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.review__count {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.review__empty,
+.review__note {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  margin: 0;
+}
+
+.review__inbox {
+  align-items: center;
+  color: var(--ink-2);
+  display: flex;
+  font-size: var(--text-ui);
+  gap: var(--space-3);
+}
+
+.review__inbox p {
+  margin: 0;
+}
+
+/* Scoped to the grid, as the Inbox's cells are: `.table__grid td` zeroes padding. */
+.review__grid .review__detail {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  padding: 0 24px 0 10px;
+  white-space: nowrap;
+}
+
+.review__actions {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.review__actions > * + * {
+  margin-left: var(--space-1);
+}
+
+.review__status {
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  max-width: 160px;
+  padding: 7px 12px;
+}
+
+.review__status:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* ---- moving tasks to GTD (P30-02) ----
+   The offer is one line; its preview opens in place, every task listed. */
+
+.task-migration__offer,
+.task-migration__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.task-migration__offer p {
+  flex: 1;
+  min-width: 20ch;
+}
+
+.task-migration__preview {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.task-migration__lines h3 {
+  font-size: var(--text-small);
+  font-weight: 700;
+  margin: 0 0 var(--space-1);
+}
+
+.task-migration__lines ul {
+  padding-left: var(--space-4);
+}
+
+.task-migration__mapping,
+.task-migration__tasks table {
+  border-collapse: collapse;
+  font-size: var(--text-small);
+  width: 100%;
+}
+
+.task-migration__mapping th,
+.task-migration__tasks th {
+  color: var(--ink-3);
+  font-weight: 700;
+  text-align: left;
+}
+
+.task-migration__mapping td,
+.task-migration__mapping th,
+.task-migration__tasks td,
+.task-migration__tasks th {
+  padding: 4px 12px 4px 0;
+}
+
+/* Every task is listed; a long list scrolls inside the offer, not the page. */
+.task-migration__tasks {
+  max-height: 320px;
+  overflow: auto;
 }
 
 .table__choose {
@@ -12181,4 +12859,225 @@ select.type-editor__field,
   font-size: 11.5px;
   line-height: var(--leading-tight);
   padding: 0 4px 4px 22px;
+}
+
+/* ---------------------------------------------------------------------------
+   Proposals (P29-02): what Claude proposes, waiting to be accepted, edited or
+   rejected. Each card says what Accept would write and the line it cites.
+   --------------------------------------------------------------------------- */
+
+/* A section of the Inbox page, above the notes waiting to be filed (P30-01). */
+.proposals {
+  margin: 0 0 var(--space-5);
+}
+
+.proposals__heading {
+  align-items: center;
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: 6px;
+  margin: 0 0 var(--space-1);
+}
+
+.proposals__summary {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: 0 0 var(--space-3);
+}
+
+.proposals__notice {
+  align-items: center;
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-ui);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 6px 8px 6px 16px;
+}
+
+.proposals__notice > span {
+  flex: 1 1 auto;
+}
+
+.proposals__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+.proposals__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.proposal-card {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.proposal-card__head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.proposal-card__kind {
+  color: var(--accent-text);
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.proposal-card__title {
+  color: var(--ink);
+  flex: 1 1 auto;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.proposal-card__confidence {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.proposal-card__confidence--low {
+  color: var(--warning);
+}
+
+.proposal-card__provenance {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--text-small);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.proposal-card__source,
+.proposal-card__file,
+.proposals__path {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--accent-text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  padding: 0;
+  text-align: start;
+}
+
+.proposal-card__uncited {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.proposal-card__change,
+.proposal-card__body {
+  color: var(--ink-2);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.proposal-card__props {
+  display: grid;
+  font-size: var(--text-small);
+  gap: 2px var(--space-3);
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0;
+}
+
+.proposal-card__props > div {
+  display: contents;
+}
+
+.proposal-card__props dt {
+  color: var(--ink-3);
+}
+
+.proposal-card__props dd {
+  color: var(--ink);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.proposal-card__form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proposal-card__form label {
+  color: var(--ink-3);
+  display: grid;
+  font-size: var(--text-small);
+  gap: 2px;
+}
+
+.proposal-card__form :is(input, textarea) {
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-ui);
+  padding: 4px 8px;
+}
+
+.proposal-card__problem {
+  color: var(--danger);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.proposal-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.proposals__unreadable {
+  margin-top: var(--space-5);
+}
+
+.proposals__unreadable h2 {
+  align-items: center;
+  color: var(--danger);
+  display: flex;
+  font-size: var(--text-ui);
+  gap: 6px;
+}
+
+.proposals__unreadable ul {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.proposals__unreadable li {
+  color: var(--ink-2);
+  display: grid;
+  font-size: var(--text-small);
 }

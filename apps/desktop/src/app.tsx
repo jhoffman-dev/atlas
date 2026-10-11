@@ -8,11 +8,13 @@ import {
   favoriteValue,
   rankNoteSuggestions,
   linkFragment,
+  readWikiLink,
   resolveWikiLinkTarget,
   sidebarTreeRows,
   vaultInitial,
   FAVORITE_KEY,
   hasFullName,
+  inboxWaiting,
   NAME_PLACEHOLDER,
   moveRefusal,
   noteNames,
@@ -44,6 +46,7 @@ import {
   type ApiRouterDeps,
   type AppInfoPort,
   type ExternalLinkPort,
+  type GoogleCalendarPort,
   type PageSnapshotPort,
 } from '@atlas/application';
 import {
@@ -97,6 +100,7 @@ import { browserThemeStore } from './theme/browser-theme-store.ts';
 import { useVaultGraph } from './graph/use-vault-graph.ts';
 
 import { localClock, localToday } from './today.ts';
+import { cryptoRng } from './random.ts';
 import {
   closeOverlay,
   openOverlay,
@@ -121,6 +125,8 @@ import { typeTabsShown } from './types/type-tabs.ts';
 import { useTypeViews } from './types/use-type-views.ts';
 import { paletteEditTypeOffers, runPaletteEditTypeCommand } from './types/palette-edit-type.ts';
 import { useTemplatesPage } from './templates/use-templates-page.ts';
+import { useTermsPage } from './terms/use-terms-page.ts';
+import { useProposals } from './proposals/use-proposals.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
 import { useQueryPage } from './query/use-query-page.ts';
@@ -137,13 +143,21 @@ import { QuickAdd } from './quick-add/quick-add.tsx';
 import { QuickAddSettingsCard } from './quick-add/quick-add-settings-card.tsx';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { SecretsSettingsCard } from './settings/secrets-settings-card.tsx';
+import { GoogleCalendarSettingsCard } from './settings/google-calendar-settings-card.tsx';
+import { useGoogleCalendar } from './settings/use-google-calendar.ts';
 import { useSecrets } from './settings/use-secrets.ts';
 import { useQuickAdd } from './quick-add/use-quick-add.ts';
 import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
 import { useSidebarOrder } from './sidebar/use-sidebar-order.ts';
 import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
+import { useInbox } from './inbox/use-inbox.ts';
+import { useWeeklyReview } from './review/use-weekly-review.ts';
+import { useBuiltInTypes } from './types/use-built-in-types.ts';
+import { useBlockType } from './timeblocks/use-block-type.ts';
+import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useAutomations } from './automations/use-automations.ts';
+import { useMeetingImport } from './meetings/use-meeting-import.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
 import { paletteArchiveCommands, runPaletteArchiveCommand } from './archive/palette-archive.ts';
 import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
@@ -160,6 +174,9 @@ import { syncConflictNotice, syncIndicatorBadge } from './sync/sync-view.ts';
 import { browserClipboard } from './settings/clipboard.ts';
 
 const OPEN_TEMPLATES = 'open-templates';
+const OPEN_TERMS = 'open-terms';
+const OPEN_INBOX = 'open-inbox';
+const OPEN_REVIEW = 'open-review';
 
 /** What the search palette can do besides find notes. */
 const PALETTE_COMMANDS = [
@@ -167,6 +184,13 @@ const PALETTE_COMMANDS = [
   { id: 'new-view', label: 'New view' },
   { id: 'new-artifact', label: 'New artifact', keywords: ['claude', 'save', 'link', 'html'] },
   { id: OPEN_TEMPLATES, label: 'Templates', keywords: ['template', 'edit templates'] },
+  { id: OPEN_TERMS, label: 'Terms', keywords: ['glossary', 'spelling', 'vocabulary', 'aliases'] },
+  {
+    id: OPEN_INBOX,
+    label: 'Inbox',
+    keywords: ['process', 'file', 'proposals', 'accept', 'reject', 'suggestions', 'claude'],
+  },
+  { id: OPEN_REVIEW, label: 'Weekly review', keywords: ['review', 'gtd', 'week'] },
 ] as const;
 
 /** The kinds an artifact can be, as the New artifact dialog offers them. */
@@ -204,6 +228,7 @@ export function App({
   chat: chatPorts,
   activity: activityPorts,
   sync: syncPorts,
+  googleCalendar,
 }: {
   appInfo: AppInfoPort;
   vault: OnHost<VaultPorts>;
@@ -222,6 +247,8 @@ export function App({
   activity: { store: ActivityStore; closing: WindowClosingPort };
   /** The Mac's own git and gh, for syncing the vault through GitHub (U-29). */
   sync: SyncHostPorts;
+  /** Google Calendar, signed in to by the host, which keeps the tokens (ADR-0030). */
+  googleCalendar: GoogleCalendarPort;
 }) {
   const [app, setApp] = useState<AppInfoState>({ kind: 'loading' });
   // The last sync runs before the Activity log's final write, so its line is kept.
@@ -314,6 +341,27 @@ export function App({
     void reload();
     void refresh();
   }, [reload, refresh]);
+  const typesChanged = useCallback(() => {
+    onChanged();
+    reloadTypes();
+  }, [onChanged, reloadTypes]);
+  // PARA's types are written into a vault that lacks them as it opens (P30-01).
+  const typesOffer = useBuiltInTypes({
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vaultKey,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
+  // Timeblocks are notes of the Block type, written once a vault's tasks follow GTD (P31-01).
+  useBlockType({
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vaultKey,
+    types,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
 
   // Sync through GitHub (U-29): pulls on open, on its schedule, and before the window closes.
   const sync = useSync({
@@ -369,8 +417,10 @@ export function App({
       tagRenames,
       refreshSpacing,
       newUploadId: () => crypto.randomUUID(),
+      rng: cryptoRng,
       automationClock: apiAutomations.clock,
       activity: activityLog,
+      googleCalendar,
     }),
     [
       apiHost,
@@ -388,6 +438,7 @@ export function App({
       refreshSpacing,
       apiAutomations.clock,
       activityLog,
+      googleCalendar,
     ],
   );
   // A write from another tool shows up the way one made here does.
@@ -434,6 +485,7 @@ export function App({
     markdown: notes.markdown,
     index: index.index,
     types,
+    notePaths,
     vaultKey: location?.absolutePath ?? null,
     changeKey: indexKey,
   });
@@ -447,9 +499,12 @@ export function App({
     queryOpen,
     tagsTag,
     archiveOpen,
+    inboxOpen,
+    reviewOpen,
     automationsOpen,
     activityOpen,
     templatesOpen,
+    termsOpen,
   } = main;
   const activity = useActivity({
     log: activityLog,
@@ -623,7 +678,12 @@ export function App({
     window: chatWindowOf({
       query: queryOpen ? (query.language === 'atlas' ? query.atlas.composer.text : '') : null,
       otherPage:
-        openTypeName !== null || graphScope !== null || tagsTag !== undefined || archiveOpen,
+        openTypeName !== null ||
+        graphScope !== null ||
+        tagsTag !== undefined ||
+        archiveOpen ||
+        inboxOpen ||
+        reviewOpen,
       focused: focusedPath,
     }),
     clipboard: browserClipboard,
@@ -659,6 +719,7 @@ export function App({
             path,
             key: FAVORITE_KEY,
             value,
+            today: localToday(),
           }).then(() => reload());
         })
         .then(() => void refresh())
@@ -679,7 +740,7 @@ export function App({
     createNewNote,
     createNoteIn,
     createFromTemplate,
-    createNamedNote,
+    captureNote,
     openDailyNote: openOrMakeDailyNote,
     error: createError,
   } = useCreateNote({
@@ -761,6 +822,16 @@ export function App({
     onOpen: openNote,
   });
   const { editTypeTemplate, askDelete: askDeleteTemplate, askMoveToNotes } = templatesPage;
+  const termsPage = useTermsPage({
+    ports: { index: index.index, fs: vault.fs, markdown: notes.markdown, editors },
+    open: termsOpen,
+    indexKey,
+    types,
+    templates,
+    notePaths,
+    onChanged,
+    activity: activityLog,
+  });
   const onRenameTemplate = templatesPage.page.onRename;
   const templateCommands = useMemo(
     () => ({
@@ -807,6 +878,18 @@ export function App({
     void refresh();
     void reload();
   }, [refresh, reload]);
+  // Meetings that n8n commits arrive by pull: each is checked, deduplicated and marked (P28-04).
+  useMeetingImport({
+    changes: noteChanges,
+    ports: archivePorts,
+    clock: localClock,
+    activity: activityLog,
+    vaultKey,
+    // Only the Mac that runs the automations writes into meeting files (U-29).
+    active: sync.automationsHere,
+    indexReady: indexStatus.kind === 'ready',
+    onWritten: settleArchive,
+  });
   const archive = useArchive({
     ports: archivePorts,
     clock: localClock,
@@ -817,6 +900,52 @@ export function App({
     offerLinks: entries.offerLinks,
   });
   const archiveCommands = archive.commands;
+  const inbox = useInbox({
+    ports: archivePorts,
+    notePaths,
+    indexKey,
+    open: inboxOpen,
+    onSettled: settleArchive,
+    activity: activityLog,
+  });
+  // Moving the tasks to GTD's statuses, previewed from the Inbox page (P30-02).
+  const taskMigration = useTaskMigration({
+    ports: archivePorts,
+    vaultKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: inboxOpen,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
+  // The weekly review (P30-07): its Archive is the app's, for a project.
+  const review = useWeeklyReview({
+    ports: archivePorts,
+    editors,
+    clock: localClock,
+    types,
+    indexKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: reviewOpen,
+    onSettled: settleArchive,
+    archiveNote: (path) => archiveCommands.archive([path]),
+    activity: activityLog,
+  });
+  const proposals = useProposals({
+    ports: archivePorts,
+    clock: localClock,
+    indexKey,
+    onSettled: settleArchive,
+    activity: activityLog,
+  });
+  const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
+  // One Inbox: its count is what waits to be filed and the proposals waiting for an answer.
+  const waiting = inboxWaiting({
+    toFile: inbox.contents?.items.length ?? null,
+    toAnswer: proposals.count,
+  });
+  // As with Today, no row that opens nothing: the Inbox shows once the vault
+  // has an Inbox view or something waits in it.
+  const inboxRowShown = inboxView !== null || (waiting ?? 0) > 0;
   const automationPorts = useMemo(
     () => ({ ...archivePorts, types, notePaths }),
     [archivePorts, types, notePaths],
@@ -886,6 +1015,15 @@ export function App({
     changeKey: indexKey,
     active: overlay === 'settings',
   });
+  const googleCalendarSetting = useGoogleCalendar({
+    port: googleCalendar,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    vault: vaultKey,
+    changeKey: indexKey,
+    active: overlay === 'settings',
+    activity: activityLog,
+  });
   const quickAddPorts = useMemo(
     () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),
     [vault.fs, notes.markdown, index.index],
@@ -907,10 +1045,10 @@ export function App({
 
   const captureTask = useCallback(
     async (name: string) => {
-      const path = await createNamedNote(name, captureTemplate);
+      const path = await captureNote(name, captureTemplate);
       if (path !== null) openNote(path);
     },
-    [createNamedNote, captureTemplate, openNote],
+    [captureNote, captureTemplate, openNote],
   );
 
   /** Today's note, made on demand — where and from what is `ensureDailyNote`'s to say. */
@@ -975,6 +1113,18 @@ export function App({
       if (fragment !== null) reveals.request({ pane, path: resolved, fragment });
     },
     [notePaths, openInPane, showPanes, panes.layout.paths, reveals],
+  );
+  /** Opens the line a proposal cites — `[[2026-10-01 Standup#^t0003]]` — in the focused pane. */
+  const followSource = useCallback(
+    (link: string) => {
+      const read = readWikiLink(link.trim());
+      if (read === null) {
+        setLinkError(`${link} is not a link to a note`);
+        return;
+      }
+      followLinkInPane({ pane: panes.layout.focused, target: read.target, heading: read.heading });
+    },
+    [followLinkInPane, panes.layout.focused],
   );
 
   const paneOpenNotes = useMemo(() => openNotesIn(editors), [editors]);
@@ -1103,6 +1253,7 @@ export function App({
     typeViews.error,
     newNoteOfType.error,
     templatesPage.notice,
+    termsPage.notice,
     sidebarOrder.unreadable,
   ];
   const indexFailure =
@@ -1206,9 +1357,12 @@ export function App({
                       graphOpen: graphScope !== null,
                       tagsOpen: tagsTag !== undefined,
                       archiveOpen,
+                      inboxOpen,
+                      reviewOpen,
                       automationsOpen,
                       activityOpen,
                       templatesOpen,
+                      termsOpen,
                       viewOwner: typeViews.ownerOf,
                     })}
                     sectionStore={browserSectionStore}
@@ -1223,6 +1377,11 @@ export function App({
                     }}
                     onOpen={openNote}
                     onOpenTemplates={main.openTemplates}
+                    onOpenTerms={main.openTerms}
+                    {...(inboxRowShown && {
+                      inbox: { onOpen: main.openInbox, count: waiting },
+                    })}
+                    {...(review.shown && { onOpenReview: main.openReview })}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
@@ -1346,6 +1505,44 @@ export function App({
                     busy: archiveCommands.busy,
                   },
                 },
+                inbox: {
+                  open: inboxOpen,
+                  page: {
+                    contents: inbox.contents,
+                    error: inbox.error,
+                    filing: inbox.filing,
+                    onOpen: openNote,
+                    onProcess: (args) => void inbox.process(args),
+                    busy: inbox.busy,
+                    problem: inbox.problem,
+                    typesOffer:
+                      typesOffer === null
+                        ? null
+                        : {
+                            lines: typesOffer.lines,
+                            onAccept: () => void typesOffer.accept(),
+                            onDismiss: typesOffer.dismiss,
+                          },
+                    taskMigration,
+                    view:
+                      inboxView === null
+                        ? null
+                        : { title: inboxView.title, onOpen: () => openNote(inboxView.path) },
+                    proposals: {
+                      ...proposals.section,
+                      onOpen: openNote,
+                      onOpenSource: (link) => followSource(link),
+                    },
+                  },
+                },
+                review: {
+                  open: reviewOpen,
+                  page: {
+                    ...review.page,
+                    onOpen: openNote,
+                    onOpenInbox: main.openInbox,
+                  },
+                },
                 automations: {
                   open: automationsOpen,
                   screen: {
@@ -1367,6 +1564,7 @@ export function App({
                   },
                 },
                 templates: { open: templatesOpen, page: templatesPage.page },
+                terms: { open: termsOpen, page: { ...termsPage.page, onOpen: openNote } },
                 ...(!sidebarOpen && { onShowSidebar: toggleSidebar }),
                 history: navigation.historyFor(panes.layout.focused),
               })
@@ -1469,6 +1667,9 @@ export function App({
                   <QuickAddSettingsCard setting={quickAddSetting} types={types} />
                 )}
                 {location !== null && <SecretsSettingsCard setting={secrets} />}
+                {location !== null && (
+                  <GoogleCalendarSettingsCard setting={googleCalendarSetting} />
+                )}
                 <ClaudeSettingsCard chat={chat} />
                 {location !== null && <SyncSettingsCard sync={sync} vaultName={location.name} />}
               </SettingsPanel>
@@ -1588,6 +1789,9 @@ export function App({
                     return;
                   }
                   if (id === OPEN_TEMPLATES) main.openTemplates();
+                  else if (id === OPEN_TERMS) main.openTerms();
+                  else if (id === OPEN_INBOX) main.openInbox();
+                  else if (id === OPEN_REVIEW) main.openReview();
                   else if (id === 'new-query') openQuery();
                   else if (id === 'new-artifact') startNewArtifact();
                   else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);

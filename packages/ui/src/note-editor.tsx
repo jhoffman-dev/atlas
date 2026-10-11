@@ -30,6 +30,7 @@ import type { MentionSuggestionView } from './editor/mention-suggestion.ts';
 import { MentionSuggestionPopup } from './editor/mention-suggestion-popup.tsx';
 import { LinkSuggestionPopup } from './editor/link-suggestion-popup.tsx';
 import type { BlockPicking } from './editor/block-picking.ts';
+import type { PromoteLine } from './editor/promote-line.ts';
 import { withoutPendingMentions } from './editor/pending-mention.ts';
 import { redrawPersonChips } from './editor/person-chips.ts';
 import { useLinkMenu } from './note-link-menu.tsx';
@@ -37,13 +38,15 @@ import {
   useBlockPicking,
   useBookmarkSource,
   useLatest,
+  useQueryBlockSource,
   useReveal,
   useTransclusionSource,
   type NoteBookmarks,
+  type NoteQueryBlocks,
   type NoteTransclusions,
 } from './note-editor-sources.ts';
 
-export type { NoteBookmarks, NoteTransclusions } from './note-editor-sources.ts';
+export type { NoteBookmarks, NoteQueryBlocks, NoteTransclusions } from './note-editor-sources.ts';
 
 /** The vault's people, as a note needs them for `@` and for drawing links to them. */
 export interface NotePeople {
@@ -95,8 +98,10 @@ export function NoteEditor({
   people,
   bookmarks,
   transclusions,
+  queries,
   picking,
   reveal = null,
+  onPromoteLine,
   ref,
 }: {
   doc: EditorDocument;
@@ -122,10 +127,14 @@ export function NoteEditor({
   bookmarks?: NoteBookmarks;
   /** Shown blocks drawn live from their notes; left out, each is drawn as its embed. */
   transclusions?: NoteTransclusions;
+  /** Query blocks answered live, `this` being this note; left out, each is drawn as its code. */
+  queries?: NoteQueryBlocks;
   /** A note's headings and blocks after `[[Note#`; left out, `#` offers nothing. */
   picking?: BlockPicking;
   /** A block or heading to bring into view: where a followed link pointed. */
   reveal?: NoteReveal | null;
+  /** Makes the checklist line the caret is in a task (P30-03); left out, none is offered. */
+  onPromoteLine?: PromoteLine;
   ref?: Ref<NoteEditorHandle>;
 }) {
   const [links, setLinks] = useState<WikiSuggestionView | null>(null);
@@ -175,8 +184,14 @@ export function NoteEditor({
     [hasPeople, peopleNow],
   );
 
+  // Read through a ref, as the tags are: a new function each render would rebuild the editor.
+  const promoter = useLatest(onPromoteLine);
+  const promotes = onPromoteLine !== undefined;
+  const stablePromote = useCallback<PromoteLine>((line) => promoter.current?.(line), [promoter]);
+
   const bookmarkSource = useBookmarkSource(bookmarks);
   const transclusionSource = useTransclusionSource(transclusions);
+  const queryBlockSource = useQueryBlockSource(queries);
   const blockPicking = useBlockPicking(picking);
 
   const extensions = useMemo(
@@ -194,12 +209,17 @@ export function NoteEditor({
         ...(editorPeople !== undefined && { people: editorPeople }),
         bookmarks: bookmarkSource,
         transclusions: transclusionSource,
+        queries: queryBlockSource,
         picking: blockPicking,
+        promoteLine: promotes ? stablePromote : null,
       }),
     [
+      promotes,
+      stablePromote,
       editorPeople,
       bookmarkSource,
       transclusionSource,
+      queryBlockSource,
       blockPicking,
       suggestNotes,
       stableSuggestTags,

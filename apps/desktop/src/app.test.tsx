@@ -6,6 +6,7 @@ import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain'
 import {
   VaultAccessError,
   memoryActivityStore,
+  fakeGoogleCalendar,
   failed,
   memorySyncFiles,
   scriptedFolders,
@@ -125,6 +126,9 @@ const fakeIndexPorts = (vault: VaultPorts): IndexPorts => ({
   },
 });
 
+/** Google Calendar with no sign-in, as on a Mac that never connected. */
+const googleCalendar = fakeGoogleCalendar().port;
+
 /** Nothing in these tests fetches; a source that did would say so by throwing. */
 const sources: SourcePorts = {
   http: {
@@ -207,6 +211,7 @@ const renderApp = (
       chat={chat}
       activity={activityIn(activity)}
       sync={noSync}
+      googleCalendar={googleCalendar}
     />,
   );
 
@@ -635,6 +640,7 @@ describe('the palettes and the shortcuts around them', () => {
         chat={chat}
         activity={activityIn()}
         sync={noSync}
+        googleCalendar={googleCalendar}
       />,
     );
     await screen.findByRole('treeitem', { name: 'recipes' });
@@ -660,7 +666,7 @@ describe('the palettes and the shortcuts around them', () => {
     expect(screen.queryByRole('article')).toBeNull();
   });
 
-  it('makes a captured line a note of its own and opens it (Shift+Cmd+N)', async () => {
+  it('makes a captured line a note of its own in the Inbox, and opens it (Shift+Cmd+N)', async () => {
     const vault = vaultWith();
     const createNote = vi.spyOn(vault.fs, 'createNote');
     renderApp(vault);
@@ -671,7 +677,7 @@ describe('the palettes and the shortcuts around them', () => {
 
     // Capture stays up for the next line; the note opens behind it.
     await vi.waitFor(() =>
-      expect(createNote.mock.calls.map(([args]) => args.path)).toEqual(['Buy flour.md']),
+      expect(createNote.mock.calls.map(([args]) => args.path)).toEqual(['Inbox/Buy flour.md']),
     );
     expect(screen.getByRole('dialog', { name: 'Capture a task' })).toBeDefined();
     await userEvent.keyboard('{Escape}');
@@ -838,6 +844,7 @@ describe('the Activity log, adversarial (U-28)', () => {
         chat={chat}
         activity={activityIn(activity)}
         sync={noSync}
+        googleCalendar={googleCalendar}
       />,
     );
     // The window shows the failure as a red notice; both lines are batched into one write.

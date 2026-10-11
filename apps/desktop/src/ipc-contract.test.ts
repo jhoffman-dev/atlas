@@ -87,4 +87,25 @@ describe('IPC contract', () => {
       'secret_set',
     ]);
   });
+
+  // P31-03: Google's tokens stay in the host as well (ADR-0030). The refresh
+  // token is in the Keychain and the access token in the host's memory; these
+  // commands answer with whether a sign-in is kept, its client and scopes, and
+  // an API call's answer with every token struck from it. That none of them
+  // ever carries a token is tested in Rust, where the answers are made
+  // (`no_answer_or_failure_handed_to_the_webview_carries_a_token`); this holds
+  // the list, so a command that could is not added without being seen.
+  it('exposes only the Google commands that answer without a token', () => {
+    const exposed = [...commandsExposedByRust()];
+    const google = exposed.filter((name) => /google|oauth/i.test(name));
+    expect(google.sort()).toEqual([
+      'google_calendar_request',
+      'google_connect',
+      'google_connect_cancel',
+      'google_disconnect',
+      'google_status',
+    ]);
+    const tokenCommands = exposed.filter((name) => /token/i.test(name));
+    expect(tokenCommands.sort()).toEqual(['api_rotate_token', 'api_token']);
+  });
 });

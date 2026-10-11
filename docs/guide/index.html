@@ -115,8 +115,8 @@ td:first-child { white-space: nowrap; }
     </div>
     <div>
       <h1>Atlas Field Guide</h1>
-      <p>How to use Atlas day to day: notes and pictures, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
-      <div class="facts"><span class="fact">Version 0.1 · updated Oct 8, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
+      <p>How to use Atlas day to day: notes and pictures, PARA and the Inbox, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings and how names are spelt, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
+      <div class="facts"><span class="fact">Version 0.1 · updated Oct 10, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
     </div>
   </header>
 
@@ -129,20 +129,25 @@ td:first-child { white-space: nowrap; }
     <a href="#add">The add button</a>
     <a href="#pages">Folders, move, delete</a>
     <a href="#archive">Archive</a>
+    <a href="#para">PARA and the Inbox</a>
     <a href="#types">Types and properties</a>
     <a href="#templates">Templates</a>
     <a href="#views">Views</a>
     <a href="#calendar">Calendar</a>
+    <a href="#google-calendar">Google Calendar</a>
     <a href="#thumbnails">Thumbnails</a>
     <a href="#queries">Queries</a>
     <a href="#sql">SQL queries</a>
     <a href="#dashboards">Dashboards</a>
-    <a href="#tasks">Tasks and daily notes</a>
+    <a href="#tasks">Tasks (GTD) and daily notes</a>
+    <a href="#timeblocking">Timeblocking</a>
     <a href="#graph">Links and the graph</a>
     <a href="#bookmarks">Bookmarks</a>
     <a href="#blocks">Blocks and embeds</a>
     <a href="#people">People and mentions</a>
     <a href="#meetings">Meetings</a>
+    <a href="#terms">Terms</a>
+    <a href="#proposals">Proposals in the Inbox</a>
     <a href="#tags">Tags</a>
     <a href="#automations">Automations</a>
     <a href="#activity">Activity</a>
@@ -175,7 +180,7 @@ pnpm tauri:dev</pre>
       <h2>Finding your way</h2>
       <p class="sub">The sidebar lists everything; each page opens in a panel with a bar across the top.</p>
       <div class="grid2">
-        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, Inbox, Graph, Tags, Automations, <a href="#templates">Templates</a> and <a href="#activity">Activity</a>. Counts show how many notes each holds; Activity's red badge counts new errors.</p></div>
+        <div class="card"><h4>Sidebar, top</h4><p>Search <kbd>⌘K</kbd>, Today, <a href="#para">Inbox</a>, <a href="#tasks">Weekly review</a>, Graph, Tags, Automations, <a href="#activity">Activity</a>, <a href="#templates">Templates</a> and <a href="#terms">Terms</a>. Counts show how many notes each holds — the Inbox's counts proposals waiting for an answer too; Activity's red badge counts new errors.</p></div>
         <div class="card"><h4>Favorites</h4><p>Star any page (the ☆ in its top bar) to pin it here.</p></div>
         <div class="card"><h4>Types · Views · Dashboards</h4><p>Built from your vault. The <b>+</b> beside a heading makes a new one.</p></div>
         <div class="card"><h4>Pages</h4><p>Your folders and notes. Near the end, <b>Archive</b> opens the <a href="#archive">Archive</a>; <b>System</b>, last, is the <code>.atlas</code> folder (types, automations, sources, settings). Templates aren't in it — they have their <a href="#templates">own page</a>.</p></div>
@@ -223,7 +228,7 @@ pnpm tauri:dev</pre>
         <li>The round <b>+</b> button in the corner, or <kbd>⌥⌘N</kbd>, adds a note of one of your chosen types without leaving the page — see <a href="#add">The add button</a>.</li>
       </ul>
       <h3>Write</h3>
-      <p>Type markdown as you go (<code>#</code> for headings, <code>-</code> for lists, <code>[]</code> for a checkbox) or type <kbd>/</kbd> for the block menu: headings, lists, task list, quote, code block, callout, table, divider, <b>Link to note</b> and <b>Image</b>.</p>
+      <p>Type markdown as you go (<code>#</code> for headings, <code>-</code> for lists, <code>[]</code> for a checkbox) or type <kbd>/</kbd> for the block menu: headings, lists, task list, quote, code block, callout, table, divider, <b>Link to note</b>, <b>Image</b> and <b>Query</b> (a <a href="#query-blocks">live query</a>).</p>
       <p>A link to a note can sit on its own line as a card with the note's picture and summary — see <a href="#bookmarks">Bookmarks</a>.</p>
       <p><code>#</code> with a space after it is a heading; <code>#</code> straight followed by a word is a tag, like <code>#idea</code> — see <a href="#tags">Tags</a>. <code>@</code> and a name links a person — see <a href="#people">People and mentions</a>.</p>
       <h3>Properties</h3>
@@ -328,6 +333,50 @@ pnpm tauri:dev</pre>
       </ul>
     </section>
 
+    <section id="para">
+      <h2>PARA and the Inbox</h2>
+      <p class="sub">Atlas follows PARA: everything is filed under a <b>Project</b> or an <b>Area</b>, reference is kept as <b>Resources</b>, and finished things go to the <a href="#archive">Archive</a>. Whatever you capture lands in the <b>Inbox</b> first, to be filed when you process it.</p>
+      <div class="grid2">
+        <div class="card"><h4>Project</h4><p>Something with an end — <i>Atlas 1.0</i>, <i>Move house</i>. Status, the area it's part of, a due date, a summary.</p></div>
+        <div class="card"><h4>Area</h4><p>A responsibility with no end date — <i>Garden</i>, <i>Health</i>, a team. Projects and notes are filed under it just as under a project.</p></div>
+        <div class="card"><h4>Resource</h4><p>Reference worth keeping — an article, a manual, a how-to — with a link and a summary, filed under a project or an area.</p></div>
+        <div class="card"><h4>Archive</h4><p>Done or no longer needed. One move, never deleted, and it can come back — see <a href="#archive">Archive</a>.</p></div>
+      </div>
+      <h3>Every note can be filed</h3>
+      <ul>
+        <li>A <b>Project</b> property on a task, a meeting or a resource links a project <i>or</i> an area. Its picker lists both, under a <b>Project</b> and an <b>Area</b> heading, with <b>New project…</b> and <b>New area…</b> at the end. A person, a company or any other note is never offered.</li>
+        <li>A note with no type can be filed too: processing it gives it <code>project</code> all the same.</li>
+        <li>Linking the wrong kind of note — a person in a task's <b>Project</b>, typed by hand — shows <i>“Project links to a project or area, not a person”</i> under the property. A link to a note not written yet, or to one with no type, is left alone.</li>
+        <li>Any relation can point at several types this way: in the type's file write <code>target: [project, area]</code>. <b>Edit type</b> shows the first under <b>Points at</b> and the others under <b>And at</b>; switching <b>Several notes</b> keeps them, while choosing another type in <b>Points at</b> points it at that one alone.</li>
+      </ul>
+      <h3>The types are set up for you</h3>
+      <ul>
+        <li><b>A vault that has a Project type</b> gets the <b>Area</b> and <b>Resource</b> types it's missing when it opens, written into <code>.atlas/types</code>, and each one written is a line in <a href="#activity">Activity</a>. A type you already have is never replaced, and a property you added to Project stays exactly as you wrote it.</li>
+        <li><b>A vault without a Project type</b> isn't given PARA's types on its own: it hasn't taken PARA up, so they're offered instead (below).</li>
+        <li><b>Anything more is offered, not done.</b> On the Inbox page a box lists it — <i>“Adds the Project, Area and Resource types.”</i> for a vault without them, <i>“Task gains Project, linking project or area notes.”</i> for a Task type with no project yet, <i>“Meeting's Project will link project or area notes.”</i> for one that links projects only. <b>Add to the types</b> makes those changes against the type files as they are at that moment — an edit you made while the box waited is kept — and keeps everything else in each file byte for byte; <b>Not now</b> puts the box away until the vault is opened again.</li>
+        <li><b>The Inbox's own types are offered the same way.</b> A vault without them is offered <i>“Adds the Proposal and Decision types.”</i>, which <a href="#proposals">proposals</a> are notes of, and a Meeting type that doesn't declare what the <a href="#meeting-import">meeting import</a> writes is offered it: <i>“Meeting gains Duplicate of, linking meeting notes. Meeting gains Import and Import error.”</i> Nothing is written until you press <b>Add to the types</b>.</li>
+        <li>Area and Resource are <a href="#types">built in</a>, like Project: they can't be deleted, and their properties are yours to change.</li>
+      </ul>
+      <h3>Capture goes to the Inbox</h3>
+      <ul>
+        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd> makes its task in the <code>Inbox</code> folder at the top of the vault — made the first time it's needed — whatever note you're on. Once your tasks follow <a href="#tasks">GTD</a>, it starts with the status <b>Inbox</b>, whatever the Task template says.</li>
+        <li><a href="#meetings">Meetings</a> arrive in <code>Inbox/Meetings</code>, and anything you drop into <code>Inbox</code> yourself waits there too, of any type or none.</li>
+      </ul>
+      <h3>Process the Inbox</h3>
+      <ol class="steps">
+        <li>Click <b>Inbox</b> at the top of the sidebar, or find it in search (<kbd>⌘K</kbd>). Its count is how many notes are waiting, and how many <a href="#proposals">proposals</a> wait for an answer. (The row shows once something is waiting, or when the vault has a view called Inbox.)</li>
+        <li>The Inbox page lists every waiting note, newest first, with its kind and the folder it came in — <i>Meeting · Meetings</i>. A meeting the import hasn't got to yet says <i>Waiting to be imported</i>; one it couldn't import says why, in red — <i>Not imported: title is required</i>. Click a name to open it.</li>
+        <li>Pick a project or an area from <b>File under…</b> on its row.</li>
+      </ol>
+      <ul>
+        <li>The note moves into a folder named after the project, beside it — filing under <code>Projects/Atlas.md</code> puts it in <code>Projects/Atlas/</code> — and gets <code>project: "[[Atlas]]"</code>. A project that is already its folder's own note (<code>Projects/Atlas/Atlas.md</code>) files into that folder. Only the note's name goes with it, numbered if the folder has one by that name; nothing else in the file changes, and links to it are updated.</li>
+        <li>Only a project or an area still in use can be chosen — not one waiting in the Inbox itself, not an archived one, and not one whose folder would be the Inbox or the Archive (a project kept at the top as <code>Archive.md</code>). If a note can't be filed, the page says why, and it stays in the Inbox.</li>
+        <li>Proposals aren't filed: they're answered, in the page's <a href="#proposals">Proposals</a> section, and are never in this list.</li>
+        <li>If your vault has a view called <b>Inbox</b>, the page's <b>Open the Inbox view</b> button opens it; it's still there under its own name. The view this repository's vault ships lists backlog tasks, everything under <code>Inbox/</code> and any meeting that failed import.</li>
+        <li>Claude can do the same through <a href="#connect"><code>atlas_process_inbox_item</code></a>.</li>
+      </ul>
+    </section>
+
     <section id="types">
       <h2>Types and properties</h2>
       <p class="sub">A type is a kind of note — Task, Project, Person — with its own properties. Types live as files in <code>.atlas/types</code>.</p>
@@ -348,12 +397,12 @@ pnpm tauri:dev</pre>
       <p>Each of these places also has <b>Edit template</b>, for what new notes of the type start as — see <a href="#edit-template">Templates</a>.</p>
       <p>On the type's page, the <b>Notes</b> side of the <b>Notes | Edit type</b> switch goes back to its views.</p>
       <h3>Options for select properties</h3>
-      <p>Rename, reorder, colour and remove options — for example the task statuses <code>backlog, next, doing, review, done</code>. Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
+      <p>Rename, reorder, colour and remove options — for example a project's statuses <code>planned, active, paused, done</code>. (A task's eight <a href="#tasks">GTD statuses</a> are moved to all at once, from the Inbox.) Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
       <h3>Built-in types</h3>
-      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Artifact</b> and <b>Meeting</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
+      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Area</b>, <b>Resource</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b> and <b>Decision</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
       <p>A type you made has <b>Delete &lt;Type&gt;…</b> at the foot of <b>Edit type</b>; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
       <h3>Projects</h3>
-      <p>Atlas ships a <b>Project</b> type (status: planned, active, paused, done; owner; due; summary). Every task has a <code>project</code> relation, and the <b>Projects</b> view is a board grouped by project.</p>
+      <p>Atlas ships a <b>Project</b> type (status: planned, active, paused, done; owner; due; summary). Every task has a <code>project</code> relation — to a project or an area, once your types are set up for <a href="#para">PARA</a> — and the <b>Projects</b> view is a board grouped by project.</p>
     </section>
 
     <section id="templates">
@@ -480,7 +529,7 @@ pnpm tauri:dev</pre>
         <li>Drag a card to any cell — another column, another lane, or both. Both properties change together, as one <kbd>⌘Z</kbd>. Dropping in a <b>No value</b> column or lane takes that property off the note. A number column writes a number and a checkbox column ticks or unticks the box, never text. From the keyboard: <kbd>Space</kbd> to pick a card up, arrows to move it across columns and up and down lanes, <kbd>Space</kbd> to drop.</li>
         <li>Each cell shows its first cards and <b>+ N more</b>, like a column, and has its own <b>+ New</b> that fills in both values.</li>
         <li>A card doesn't show a chip for the lane's property; the lane already says it.</li>
-        <li>Dragging a task into done finishes it, whether done is a column or a lane. When the type has a status, only that status counts — the last column of some other property is just a column. A repeating task rolls on to its next date once, and the other property you dropped it into is kept.</li>
+        <li>Dragging a task into its finished status — <b>Archive</b> for a <a href="#tasks">GTD</a> task — finishes it, whether that is a column or a lane. When the type has a status, only that status counts — the last column of some other property is just a column. A repeating task rolls on to its next date once, and the other property you dropped it into is kept.</li>
       </ul>
       <h3>Act on several rows</h3>
       <ol class="steps">
@@ -508,9 +557,47 @@ pnpm tauri:dev</pre>
       <ul>
         <li><b>Add:</b> click an empty part of a day — or, on the clock, an empty time — to make a note there.</li>
         <li><b>Move:</b> drag a note to another day or time. On the clock, drag its bottom edge to change when it ends.</li>
+        <li><b>Plan:</b> a calendar of blocks has your next actions beside its week, to drag into time — see <a href="#timeblocking">Timeblocking</a>.</li>
         <li><b>Keyboard:</b> click the calendar, then <kbd>M</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>D</kbd> <kbd>A</kbd> pick the range, <kbd>T</kbd> goes to today, and <kbd>←</kbd> <kbd>→</kbd> (or <kbd>[</kbd> <kbd>]</kbd>) step. In the month, <kbd>Tab</kbd> to a note, <kbd>Space</kbd> to pick it up, arrows to move it a day or a week, <kbd>Space</kbd> to drop.</li>
       </ul>
       <p class="muted">In the agenda, a past note of a type with no “done” status (a meeting, a journal entry) stays under Overdue. That's on purpose for now.</p>
+    </section>
+
+    <section id="google-calendar">
+      <h2>Google Calendar</h2>
+      <p class="sub">Atlas can connect to your Google account so that, once block syncing arrives, your timeblocks show as busy on a calendar of their own. For now you can connect, make that calendar and disconnect.</p>
+      <p>Atlas only ever asks to see and change calendars it made itself — never your main calendar or anyone else's. You sign in in your own browser, and the sign-in is kept in your Mac's Keychain, never in the vault. Nothing in Atlas, and nothing that talks to it, can read the sign-in back.</p>
+      <h3>Before you start: a client ID</h3>
+      <p>Google needs to know which app is asking. Make one in your own <a href="https://console.cloud.google.com/">Google Cloud project</a>, once:</p>
+      <ol class="steps">
+        <li>Turn on the <b>Google Calendar API</b> for the project.</li>
+        <li>On the <b>OAuth consent screen</b>, add yourself and the scope <code>…/auth/calendar.app.created</code>.</li>
+        <li>Under <b>Credentials</b>, create an <b>OAuth client ID</b> of type <b>Desktop app</b>. Copy the client ID (it ends in <code>.apps.googleusercontent.com</code>), and the client secret if Google shows one.</li>
+      </ol>
+      <h3>Connect</h3>
+      <ol class="steps">
+        <li><b>Settings</b> (<kbd>⌘,</kbd>) → <b>Google Calendar</b>. Paste the client ID into <i>OAuth client ID</i>, and the secret, if Google gave you one, into <i>Client secret</i>. Press <b>Connect</b>.</li>
+        <li>Your browser opens Google's sign-in. Pick your account and press <b>Allow</b>. Once Atlas has kept the sign-in, the tab says <i>Atlas is connected to Google Calendar</i>; close it. If it couldn't, the tab says <i>Atlas was not connected</i> and Settings says why. While Atlas waits it says <i>Finish signing in in your browser…</i> — <b>Cancel</b> stops waiting.</li>
+        <li>Back in Settings it says <i>Connected</i>. Press <b>Create “Atlas blocks”</b> to make the calendar blocks will go to. If you'd made it before, choose it in <i>Calendar for blocks</i> instead. It then says <i>Blocks go to Atlas blocks</i>.</li>
+      </ol>
+      <p>The client ID and the calendar are saved in the vault's settings, so your other Mac uses the same calendar. Each Mac signs in for itself.</p>
+      <h3>Disconnect</h3>
+      <p>Press <b>Disconnect…</b>, then <b>Disconnect</b>. Atlas forgets the sign-in on this Mac and asks Google to cancel it. The calendar and its events stay on your Google account. If Google can't be reached, Atlas still forgets it and tells you to remove Atlas yourself from your Google Account's third-party access.</p>
+      <p>If another vault on this Mac is connected with the same client ID, Atlas forgets this vault's sign-in but doesn't ask Google to cancel it, because that could disconnect the other vault too. Settings says so; disconnect the other vault as well to end Atlas's access.</p>
+      <h3>If it doesn't connect</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Settings says</th><th scope="col">Do this</th></tr></thead>
+          <tbody>
+            <tr><td><i>access was not allowed</i></td><td>Connect again and press <b>Allow</b>. On a work account where Allow isn't offered, its administrator has to trust the client ID first.</td></tr>
+            <tr><td><i>the calendar permission was left unticked</i></td><td>Connect again and tick the permission to make and change Atlas's own calendars.</td></tr>
+            <tr><td><i>Google no longer accepts Atlas's sign-in</i></td><td>Connect again. If it happens every week, your Cloud project's consent screen is in <b>Testing</b>, where Google ends sign-ins after seven days — publish it to keep them.</td></tr>
+            <tr><td><i>Google does not recognise this client</i></td><td>Check the client ID, and the client secret if Google issued one.</td></tr>
+            <tr><td><i>No answer came back from the browser in time</i></td><td>Connect again and finish signing in within five minutes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted">The <a href="#connect">Local API and MCP</a> can only see whether Google Calendar is connected. They can't read your calendar or the sign-in.</p>
     </section>
 
     <section id="thumbnails">
@@ -552,9 +639,9 @@ pnpm tauri:dev</pre>
         </table>
       </div>
       <ul>
-        <li><b>Fields</b> are the properties of the types in From, plus <b>Title</b>, <b>Type</b>, <b>Tag</b>, <b>Modified</b> and <b>Path</b>, which every note has. A relation's own fields are offered too, as <i>Project · Status</i>: the status of the task's project.</li>
+        <li><b>Fields</b> are the properties of the types in From, plus <b>Title</b>, <b>Type</b>, <b>Tag</b>, <b>Modified</b>, <b>Path</b> and <b>Progress</b> through its checklist, which every note has. A relation's own fields are offered too, as <i>Project · Status</i>: the status of the task's project.</li>
         <li><b>What it should be</b> fits the field: <i>is</i>, <i>is not</i>, <i>contains</i>, <i>starts with</i>, <i>is empty</i>, <i>is not empty</i>; numbers add <i>is less than</i>, <i>is at most</i> and so on; dates read <i>is before</i>, <i>is on or after</i>…</li>
-        <li><b>The value</b> fits the field too: a select's options, the notes a relation can point at (people for an owner), your tags, <b>ticked</b> or <b>not ticked</b> for a checkbox, and for a date either a date that moves — <b>Today</b>, <b>Yesterday</b>, <b>Tomorrow</b>, <b>A week ago</b>, <b>A week from now</b>, <b>A month from now</b> — or <b>On a day…</b> and a date picker. Numbers and words are typed.</li>
+        <li><b>The value</b> fits the field too: a select's options, the notes a relation can point at (people for an owner), your tags, <b>ticked</b> or <b>not ticked</b> for a checkbox, and for a date either a date that moves — <b>Today</b>, <b>Yesterday</b>, <b>Tomorrow</b>, <b>A week ago</b>, <b>A week from now</b>, <b>A month from now</b>, <b>Start of this week</b> — or <b>On a day…</b> and a date picker. A count from today written in the text, such as <code>@-30d</code>, is in the list as what it is — <b>30 days ago</b>. Numbers and words are typed.</li>
         <li>A pick in the builder runs the query at once.</li>
       </ul>
       <h3>Switching between builder and text</h3>
@@ -563,6 +650,7 @@ pnpm tauri:dev</pre>
         <li>Text you type is kept as you typed it; the builder's own spelling replaces it only when you change something in the builder.</li>
         <li>The builder shows conditions that are all joined by AND, or all by OR, each plain or NOT. A query that brackets AND with OR, or puts NOT over a group, stays text, and says why: <i>“This query brackets conditions together — AND with OR, or NOT over a group — which the builder cannot show as one list. Edit it as text.”</i> A query with a mistake in it stays text too, with <i>“Fix the query to open it in the builder: …”</i></li>
         <li><code>SHOW</code> has no dropdown; a SHOW you wrote in text is kept when you go back to the builder.</li>
+        <li><code>LINKS TO this</code> has no dropdown either, so a query with it stays text: <i>“This query says LINKS TO, which the builder has no control for. Edit it as text.”</i> A condition like <code>people = this</code> goes through the builder unchanged.</li>
       </ul>
       <h3>Writing it as text</h3>
       <pre>FROM task, project
@@ -590,8 +678,10 @@ GROUP BY project THEN status</pre>
             <tr><td>Compare</td><td><code>=</code> <code>!=</code> <code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code></td></tr>
             <tr><td>Search words</td><td><code>title CONTAINS plan</code> · <code>title STARTS WITH 'Q3 '</code> — any capitals</td></tr>
             <tr><td>Empty or not</td><td><code>due IS EMPTY</code> · <code>due IS NOT EMPTY</code></td></tr>
-            <tr><td>Values</td><td>A word (<code>done</code>), <code>'quoted text'</code>, a number, <code>true</code> / <code>false</code>, a link <code>[[Atlas]]</code>, a tag <code>#q3</code>, a day <code>2026-09-30</code>, or a date that moves: <code>@today</code>, <code>@yesterday</code>, <code>@tomorrow</code>, <code>@weekAgo</code>, <code>@weekAhead</code>, <code>@monthAhead</code></td></tr>
-            <tr><td>Fields</td><td>A property of a listed type, or <code>title</code>, <code>type</code>, <code>tag</code>, <code>modified</code>, <code>path</code>. One step through a relation: <code>project.status</code></td></tr>
+            <tr><td>Values</td><td>A word (<code>done</code>), <code>'quoted text'</code>, a number, <code>true</code> / <code>false</code>, a link <code>[[Atlas]]</code>, a tag <code>#q3</code>, a day <code>2026-09-30</code>, or a date that moves: <code>@today</code>, <code>@yesterday</code>, <code>@tomorrow</code>, <code>@weekAgo</code>, <code>@weekAhead</code>, <code>@monthAhead</code>, <code>@startOfWeek</code></td></tr>
+            <tr><td>Count from today</td><td><code>@-30d</code> · <code>@+2w</code> · <code>@+1m</code> · <code>@-1y</code> — a sign, a number, then <code>d</code>ays, <code>w</code>eeks, <code>m</code>onths or <code>y</code>ears</td></tr>
+            <tr><td>The note it's on</td><td><code>people = this</code> · <code>company.owner = this</code> · <code>LINKS TO this</code></td></tr>
+            <tr><td>Fields</td><td>A property of a listed type, or <code>title</code>, <code>type</code>, <code>tag</code>, <code>modified</code>, <code>path</code>, <code>progress</code> (see <a href="#tasks">Checklists and progress</a>). One step through a relation: <code>project.status</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -601,6 +691,10 @@ GROUP BY project THEN status</pre>
         <li><code>!=</code> means no value is: a note without the property is listed by <code>status != done</code>. A field with several values (tags, a multi-select, several links) matches when any of them does.</li>
         <li><code>tag = #q3</code> finds tags written in the text or in <code>tags:</code>, and tags nested under it (<code>#q3/plan</code>).</li>
         <li>Dates compare by the day as written: <code>2026-09-30T22:00-05:00</code> is the 30th.</li>
+        <li><b>Counting from today.</b> <code>date &gt; @-30d AND date &lt;= @today</code> is the last 30 days, not counting the 30th day back; <code>due &gt;= @today AND due &lt;= @+2w</code> is the next two weeks. Each end needs saying: <code>date &gt; @-30d</code> alone takes everything after that day, next month's too, and <code>due &lt;= @+2w</code> alone takes everything overdue. A count reaches 1000 years at most. <code>@startOfWeek</code> is this week's Monday, as the calendar's weeks start. Months count the way the index counts them: a month on from 31 January is 3 March. The sign is needed — <code>@30d</code> is pointed at.</li>
+        <li><b><code>this</code> is the note the query is on.</b> <code>FROM meeting WHERE people = this AND date &gt; @-30d AND date &lt;= @today</code>, asked about Mara Quill's note, lists her meetings in the last 30 days. <code>this</code> compares with a relation, with <code>=</code> or <code>!=</code>, also one step through one. <code>LINKS TO this</code> lists the notes whose text links to it; a note linking to itself doesn't count, as it isn't its own backlink. <code>this</code> is a word of the query now, so a query that used it to mean the word — <code>status = this</code> — is pointed at, with <i>“… To mean the word, quote it: 'this'.”</i> Write <code>'this'</code> in quotes and it works as before.</li>
+        <li>A query is on a note when it is a <a href="#query-blocks">query block</a> in that note, or when Claude or another tool asks it about one (<code>atlas_run_query</code> with a <code>context</code>, below). On the Query page, in a saved view, on a dashboard or in an automation, <code>this</code> is pointed at: <i>“this is the note a query is shown on, and this query is not shown on one.”</i></li>
+        <li>A relation to several types reaches every field any of them has: with a task's <code>project</code> linking a project or an area, <code>project.steward</code> works even if only areas have a steward, and is empty for a task filed under a project.</li>
         <li>Only one step through a relation: <code>project.owner.team</code> is refused. A step through a relation never reaches a note in <code>.atlas</code> or a hidden folder: a field read through a link to a template is empty. Notes can't be sorted or grouped by a field that holds several values, such as <code>tag</code>.</li>
         <li>A query holds 2000 conditions at most, and brackets and NOTs nest 64 deep at most.</li>
       </ul>
@@ -618,7 +712,24 @@ GROUP BY project THEN status</pre>
         <li>On a saved query view, change the query or the layout and <b>Reset</b> · <b>Save as new view…</b> · <b>Save view</b> appear, as on any view.</li>
         <li><b>Add to dashboard</b>: pick the <b>Dashboard</b>, give it a <b>Title</b> if you like, then <b>Add widget</b>. The widget is an <b>Atlas query</b> that lists the rows in their groups and sub-groups, each folding on its own, with relation groups headed by the note's title.</li>
         <li>The view's file keeps the query as text, exactly as typed, in its <code>query:</code> property.</li>
-        <li>An <a href="#automations">automation</a> takes its notes with the same builder or text, under <b>Which notes</b>. There, <code>@today</code> and the other moving dates mean the day the rule runs.</li>
+        <li>An <a href="#automations">automation</a> takes its notes with the same builder or text, under <b>Which notes</b>. There, <code>@today</code> and the other moving dates — counts from today and <code>@startOfWeek</code> too — mean the day the rule runs.</li>
+      </ul>
+      <h3 id="query-blocks">In a note: query blocks</h3>
+      <p>A query can live inside a page — a person's meetings on their page, a project's open tasks on the project.</p>
+      <ul>
+        <li>In a note, type <kbd>/</kbd> → <b>Query</b>. The block opens at its text; write the query and its answer shows under it a moment after you stop typing. <b>Done</b> puts the text away, <b>Edit query</b> brings it back. A mistake is said in place of the rows — <i>“A meeting has no field called stauts.”</i></li>
+        <li><b><code>this</code> is the note the block is in.</b> On Mara Quill's page, <code>FROM meeting WHERE people = this SORT BY date DESC</code> lists her meetings, and the same block on Tobias Fenn's lists his.</li>
+        <li>A table, unless the first line says <code>layout: list</code> (<code>layout: table</code> works too). Other layouts are pointed at: <i>“A query block shows a table or a list; “board” is neither.”</i></li>
+        <li>The answer is read-only and live: a note saved here, in another pane or by another app shows up as soon as the index has it. The count says how many notes, with <i>(more were left out)</i> past the row limit. Click a note to open it.</li>
+        <li>In the file it's a fenced code block, so Obsidian shows it as code:
+          <pre><code>```atlas-query
+layout: list
+FROM meeting WHERE people = this SORT BY date DESC
+```</code></pre>
+          Saving the note leaves it byte for byte unless you change its text. A fence written in another editor (backticks or <code>~~~</code>) is shown the same way.</li>
+        <li>Only a block of the note's own is a query block. Inside a list, quote or callout, or with anything after <code>atlas-query</code> on the fence's line, it stays a code block. Typing <code>```atlas-query</code> in Atlas makes a code block until the note is opened again; <kbd>/</kbd> → <b>Query</b> makes the live one at once.</li>
+        <li>Copy a query block and paste it among another note's blocks and it is the same live block there, its <code>this</code> now that note; pasted into a list, quote or callout it is the code. Pasted as plain text elsewhere, it is the fence.</li>
+        <li>Where a note is only drawn — a feed, a page's picture, a <a href="#blocks">shown block</a> in another note — a query block shows as its code.</li>
       </ul>
     </section>
 
@@ -651,13 +762,133 @@ ORDER BY phase</pre>
     </section>
 
     <section id="tasks">
-      <h2>Tasks and daily notes</h2>
+      <h2>Tasks (GTD) and daily notes</h2>
+      <p class="sub">Tasks follow GTD: a task is in exactly one of eight statuses, from <b>Inbox</b> to <b>Archive</b>. Capture lands in the Inbox; deciding what a task is moves it on.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Status</th><th>What it means</th></tr></thead>
+          <tbody>
+            <tr><td><b>Inbox</b></td><td>Captured, not yet decided on. Every new task starts here.</td></tr>
+            <tr><td><b>Backlog</b></td><td>Worth doing, not now — so <b>Next Action</b> stays short.</td></tr>
+            <tr><td><b>Next Action</b></td><td>The next thing to do, ready to be picked up.</td></tr>
+            <tr><td><b>In Progress</b></td><td>Started; it may take days.</td></tr>
+            <tr><td><b>Waiting</b></td><td>Waiting on someone. It must say who, in <b>Waiting on</b>.</td></tr>
+            <tr><td><b>Someday</b></td><td>An idea kept for later.</td></tr>
+            <tr><td><b>Longterm</b></td><td>Real, but a long way off.</td></tr>
+            <tr><td><b>Archive</b></td><td>Finished. Ticking a task puts it here, with the day.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>A task's properties</h3>
       <ul>
-        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd>: type a line and it becomes a task, without leaving what you're doing.</li>
+        <li><b>Waiting on</b> links a person; a status written <code>waiting </code> or <code>[waiting]</code> is Waiting too, and is saved as <code>waiting</code>. Moving a task to <b>Waiting</b> without one is refused wherever it happens — a board, the properties panel, a new card or note, the add button, an automation, Claude: <i>“A waiting task needs someone to wait on: set Waiting on first, then move it to Waiting.”</i> Set the person, then move it.</li>
+        <li><b>Contexts</b> — where it can be done (<i>@phone</i>, <i>@errands</i>); add your own options in <a href="#edit-type">Edit type</a>.</li>
+        <li><b>Defer until</b> — a day before which it stays out of <b>Next actions</b>. <b>Due</b> — when it must be done.</li>
+        <li><b>Estimate (minutes)</b> — what <a href="#timeblocking">timeblocks</a> are measured against — <b>Source</b> — where it came from — and <b>Project</b>, filing it under a <a href="#para">project or an area</a>.</li>
+        <li><b>Completed</b> is written for you: the day a task was finished.</li>
+      </ul>
+      <h3>Tick it off</h3>
+      <ul>
+        <li>Every task shows a <b>checkbox</b> in tables, lists, boards, galleries and feeds. Ticking moves it to <b>Archive</b> and writes today as <b>Completed</b>; unticking puts back the status it had and takes the day away. (Unticking after a restart, when Atlas no longer remembers, puts it at <b>Next Action</b>.)</li>
+        <li>A task made already in <b>Archive</b> — from a board's Archive column, say — is given today as <b>Completed</b> too.</li>
+        <li>Recurring tasks roll on to their next date when ticked, or when dragged into Archive on a board, and go back to <b>Next Action</b>.</li>
+      </ul>
+      <h3>Checklists and progress</h3>
+      <p>A task that takes days stays <b>In Progress</b>, and its steps are a checklist in its text — <code>- [ ]</code> lines, typed or made with <kbd>/</kbd> → <b>Task list</b>.</p>
+      <ul>
+        <li><b>Progress</b> is the share of boxes ticked: a bar and a percentage on its card on a board, its row in a list, and under its name in a table. 2 of 5 ticked is <b>40%</b>; it reads <b>100%</b> only when every box is ticked. Nested boxes and boxes in a quote count; a note with no box shows no bar.</li>
+        <li>Ask for it in a query: <code>FROM task WHERE progress &gt;= 50 SORT BY progress DESC</code>, or a project's with <code>project.progress</code>. It is worked out from the file whenever the note is saved, so rebuilding the index gives the same numbers. A type with a <b>Progress</b> property of its own keeps that instead, and draws no bar.</li>
+      </ul>
+      <h3>Make a line its own task</h3>
+      <p>When a step grows into a task of its own, click into its line and press <b>Make task</b> after its words, or <kbd>⇧⌘↩</kbd>.</p>
+      <ul>
+        <li>A task named by the line is made beside the note, in the <b>Inbox</b> — or <b>Archive</b>, with today as Completed, if the line was ticked. Its <b>Source</b> links back to the line, and its <b>Project</b> is the note's project (or the note itself, when it is a project or an area).</li>
+        <li>Nothing the line said is lost. A line of plain words becomes a link to the task that reads the same — <i>Order chairs</i> stays <i>Order chairs</i>, even when the file had to be named differently. A line with a link, a tag, code or bold in it keeps all of that after the new link, and the new task starts with the line in its text too, so the person it mentions and its tags are linked from the task as well.</li>
+        <li>The line keeps its box, and the lines under it stay. The list it is in is written again, so a list written with <code>*</code> or numbers comes back with <code>-</code> — the same as typing in it would. The rest of the note is untouched.</li>
+        <li>A line that is a task already — it starts with a link to one — isn't made a task again: <i>That line is the task “Order chairs” already.</i> A very long line's task gets a name cut short to fit a file name.</li>
+        <li>The page says <i>“Order chairs” is a task now.</i> with <b>Open</b> and <b>Undo</b>. <b>Undo</b> puts the line back exactly as it was and sends the task to the Trash, in one step — unless either changed since, which it says. <kbd>⌘Z</kbd> in the note doesn't take a promotion back: a note read again from its file is never a step to undo.</li>
+        <li>Typing in the note is saved first. A line that is empty can't be made a task, and a template's lines aren't offered.</li>
+      </ul>
+      <h3>The GTD views</h3>
+      <ul>
+        <li><b>Inbox</b> — tasks still to decide on. <b>Next actions</b> — what can be done now, leaving out anything deferred to a later day until that day comes. <b>Waiting</b> — grouped by who it waits on. <b>Someday and Longterm</b> — a board of the two, to drag between.</li>
+        <li>They are ordinary <a href="#queries">query views</a> in <code>.atlas/views</code>, added when your tasks move to GTD. A view of yours with the same name is never replaced.</li>
+      </ul>
+      <h3>The weekly review</h3>
+      <p><b>Weekly review</b> in the sidebar, under the Inbox — or <kbd>⌘K</kbd> → <b>Weekly review</b> — puts GTD's questions of the week on one page:</p>
+      <ul>
+        <li><b>Inbox</b> — how many wait in the Inbox, counted as the sidebar counts them: notes to file and <a href="#proposals">proposals</a> to answer — and <b>Open the Inbox</b>.</li>
+        <li><b>Waiting for more than 7 days</b> — Waiting tasks nobody has touched in over a week, the longest first, with who they wait on — a linked person or a name you typed: <i>Quote from Larkspur — On Mara Quill</i>.</li>
+        <li><b>Active projects with no next action</b> — a project whose status is <b>active</b> with no task filed under it at <b>Next Action</b> or <b>In Progress</b>.</li>
+        <li><b>Overdue</b> — tasks due before today that are still open: Inbox, Backlog, Next Action, In Progress or Waiting. Someday and Longterm promise no day, so they are never overdue.</li>
+        <li><b>Someday and Longterm, untouched for 30 days</b> — ideas left alone for over a month, the oldest first.</li>
+      </ul>
+      <p>“Untouched” means the file hasn't changed: Atlas keeps no “waiting since”, so any edit — yours, or the review's own — counts as a look. A task <b>deferred</b> to a later day is in no section until that day, as it is out of Next actions. Finished and archived notes are never listed. Whether a project has a next action is asked of the whole vault, so it is right even in a vault too big for the review to read every task.</p>
+      <p>Each item opens from its name, and has quick actions. Acting on one takes it out of its section:</p>
+      <ul>
+        <li><b>Move to…</b> another status — only ones that take it out of its section. A waiting task or an old idea can go to any status but Archive; a late task only to <b>Someday</b> or <b>Longterm</b>, since in any other open status it would still be late (or <b>Defer</b> it, or <b>Archive</b> it). A project can go to any of its type's statuses — <b>paused</b>, say. Moving a task to <b>Waiting</b> needs someone in Waiting on, as everywhere.</li>
+        <li><b>Defer</b> a task a week: <b>Defer until</b> becomes seven days from today, and the task comes back then.</li>
+        <li><b>Archive</b> a task to finish it, as ticking it does: today becomes <b>Completed</b>, or a repeating task rolls on to its next date, back at <b>Next Action</b>. A project goes into the <a href="#archive">Archive</a>, as its Archive command does.</li>
+      </ul>
+      <h3>Move your tasks to GTD</h3>
+      <p>A vault whose tasks use other statuses — this project's own <code>backlog, next, doing, review, done</code>, say — is offered the move on the <a href="#para">Inbox page</a>: <i>“Tasks follow GTD's eight statuses, from Inbox to Archive. 85 tasks would move to them.”</i></p>
+      <ol class="steps">
+        <li>Press <b>Preview the move</b>. Nothing is written yet.</li>
+        <li>Check the mapping. Each status your tasks hold is listed with how many tasks hold it and what it becomes: <i>backlog → Backlog</i>, <i>next → Next Action</i>, <i>doing</i> and <i>review → In Progress</i>, <i>done → Archive</i>, anything else <i>→ Inbox</i>. Change any of them from its menu. A task the mapping would send to <b>Waiting</b> with nobody in Waiting on goes to the Inbox instead, and says why on its row.</li>
+        <li>Read the rest: what changes in the Task type (its status becomes the eight; the GTD properties it lacks are added, and properties you added stay), views and automations rewritten (<i>Roadmap: done → archive</i>), any listed for you to change by hand — a filter like <i>status contains “do”</i> that no one status can stand for, <i>status != review</i> (review and doing both become In Progress, so leaving it out would leave out doing too), a status nobody knew, a query or automation over tasks and another type (a project's <i>done</i> is not a task's), an automation that would set Waiting, or a SQL view — the GTD views to be added, and every task, old status → new. A finished task is given the day its file last changed as <b>Completed</b>.</li>
+        <li>Press <b>Move N tasks</b>. Only the files in the preview are written, each in its status and Completed alone — the rest of every file stays byte for byte. A task with unsaved typing in Atlas is left as it is, and said so.</li>
+      </ol>
+      <ul>
+        <li><b>Undo the move to GTD</b> on the Inbox page puts back each file's properties exactly as they were, and takes away the views it added; a file nobody touched since is back byte for byte. A file whose properties changed since the move is left as it is, and said so in <a href="#activity">Activity</a>; one whose text alone changed gets its properties back and keeps the new text.</li>
+        <li>The move and its undo are each a line in <a href="#activity">Activity</a>, with every file left alone and why. Nothing about it is silent.</li>
+        <li>If the move stops partway — the Mac sleeps, a disk refuses a file — open the Inbox again: the preview lists only what is left, and one undo covers both runs — keeping anything you changed in between. Running it again when nothing is left changes nothing, and once the move is done the Inbox no longer reads your tasks to check — unless a file was left, a GTD view is missing, or a task is Waiting with nobody to wait on.</li>
+        <li>The record undo works from is kept in <code>.atlas/migrations</code>, so it syncs and works from either Mac.</li>
+      </ul>
+      <h3>Daily notes</h3>
+      <ul>
+        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd>: type a line and it becomes a task in the <a href="#para">Inbox</a>, without leaving what you're doing.</li>
         <li><b>Today's note</b> <kbd>⇧⌘D</kbd> opens the daily note, making it if needed.</li>
-        <li><b>Today</b> and <b>Inbox</b> in the sidebar are views; their counts update as you work.</li>
-        <li>Every task shows a <b>checkbox</b> in tables, lists, boards, galleries and feeds. Ticking sets it to done; unticking puts back the status it had.</li>
-        <li>Recurring tasks roll on to their next date when ticked, or when dragged into done on a board.</li>
+        <li><b>Today</b> in the sidebar is a view, and <b>Inbox</b> the <a href="#para">Inbox page</a>, which lists everything in the <code>Inbox</code> folder — new <a href="#meetings">meetings</a> among them; their counts update as you work.</li>
+      </ul>
+    </section>
+
+    <section id="timeblocking">
+      <h2>Timeblocking</h2>
+      <p class="sub">Set time aside on the calendar for your tasks: one block for a big task, or one block that several small tasks are pushed into. Each task shows how much of its estimate is scheduled.</p>
+      <h3>Blocks</h3>
+      <ul>
+        <li>A block is a note of the <b>Block</b> type: <b>Start</b> and <b>End</b>, each a day and a time (<code>2026-10-12T09:00</code>), and <b>Tasks</b>, the tasks it holds. Make one like any note, from <a href="#add">the add button</a>.</li>
+        <li>Atlas adds the Block type once your tasks follow <a href="#tasks">GTD</a> — when the vault opens, or as soon as you move your tasks — and says so in <a href="#activity">Activity</a>. A Block type you already have is left as it is, and it can't be deleted — its properties are yours to change.</li>
+        <li>A block also keeps the Google Calendar event it will sync with (<b>Google event</b>, <b>Google version</b>); leave them alone.</li>
+      </ul>
+      <h3>Plan the day</h3>
+      <p>Open the <b>Block</b> type, add a view with <b>+</b> and choose <b>Calendar</b>: each block sits on the clock from its start to its end. In <b>Week</b>, <b>3 days</b> or <b>Day</b>, your <b>Next actions</b> stand beside the clock, the ones with no time set aside yet at the top, each with <i>1h of 2h scheduled</i> under its name.</p>
+      <ul>
+        <li><b>Drag a task onto empty time</b> to make a block for it, starting on the quarter hour you let go in and as long as the task still needs — its estimate less what its blocks already give it (half an hour if it has no estimate, or already has all it needs; a day at most). The block is named after the task — <i>Quarterly report block</i> — and uses your <b>Block</b> <a href="#templates">template</a> if you have one.</li>
+        <li><b>Drag a task onto a block</b> to add it to the block's tasks. The block then shares its time among them, as the table below says. A block that already holds the task is left as it is.</li>
+        <li><b>Split a task</b> by dragging it again: the next block is sized to what is left. Shorten the first block from its bottom edge, and the next drag fills the rest.</li>
+        <li><b>Undo</b>, beside the last drop, takes it back: a block it made goes to the Trash — unless you've changed it since, or are typing in it, which Atlas tells you and leaves — and a task it added to a block comes out again.</li>
+        <li><b>Keyboard:</b> <kbd>Tab</kbd> to a task and press <kbd>Return</kbd> (or click it). Focus goes to 9:00 today, or on the first day shown; <kbd>↑</kbd> <kbd>↓</kbd> move through the hours and <kbd>Tab</kbd> to the next day, or to a block. <kbd>Return</kbd> places the task there; <kbd>Esc</kbd> puts it back.</li>
+        <li>Press <kbd>Esc</kbd> during a drag to cancel it: nothing is written. The clock doesn't scroll while you drag a task, so scroll to the part of the day first.</li>
+      </ul>
+      <h3>Scheduled, estimate and done</h3>
+      <p>A task's page shows, under its properties, <b>Scheduled</b> — <i>1h 30m of 2h</i> — and <b>Done</b> — <i>0m of 2h</i>. Both follow from the blocks and the status, so there is nothing to type.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>The block holds</th><th>What each task gets</th></tr></thead>
+          <tbody>
+            <tr><td>One task</td><td>The whole block, whatever its estimate.</td></tr>
+            <tr><td>Several tasks that need the whole block or more</td><td>A share in proportion to what each has left of its estimate. An hour with three 20-minute tasks gives each 20m.</td></tr>
+            <tr><td>Several tasks that need less</td><td>What each has left; the rest goes in equal parts to the tasks with no estimate, or stays free.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li><b>Split a big task</b> by putting it in several blocks: a 2-hour task in blocks of 1h, 30m and 30m reads <i>2h of 2h</i>.</li>
+        <li><b>Over-scheduled</b>: more time than the estimate says so — <i>30m over the estimate</i>. Two blocks that overlap both count, so a task in both shows up this way.</li>
+        <li><b>Done</b> is all of the estimate once the task is finished (in <b>Archive</b>), none before. A finished task has nothing left, so a block of several gives it no more time.</li>
+        <li><b>Estimate</b> is in minutes. A vault that keeps its own text estimates can write <code>2h</code> or <code>1h30m</code>; a day or a week (<code>1d</code>) is read as no estimate, since only you know how many hours your day holds. A task with no estimate shows the time scheduled alone.</li>
+        <li>Times are read as written, on the wall clock. A block from 23:45 to 00:15 is half an hour, into the next day; one across a daylight-saving change is as long as the clock says. A block without a time at both ends, or ending before it starts, gives no time to anything.</li>
       </ul>
     </section>
 
@@ -753,6 +984,9 @@ ORDER BY phase</pre>
       </ul>
       <h3>Mentioned in</h3>
       <p>On a person's page the <a href="#graph">Links</a> panel heads the notes linking to them <b>Mentioned in</b>. Only a note whose <code>type</code> is exactly <code>person</code> counts as a person — for <code>@</code> and for this heading.</p>
+      <h3>Other spellings of a name</h3>
+      <p>A Person — and a Company — has an <b>Also spelt</b> property (<code>aliases</code> in the file): a nickname, a short form, or how a notetaker mishears the name, commas between them in the properties panel. Atlas spells each of them as the person's name — see <a href="#terms">Terms</a>.</p>
+      <p class="muted">A vault whose Person or Company type was made before this has no such property yet: add one called <code>aliases</code> on <a href="#edit-type">Edit type</a> as a <b>Multi-select</b>, or give the note an <code>aliases</code> list by hand. Atlas reads <code>aliases</code> either way.</p>
     </section>
 
     <section id="meetings">
@@ -765,6 +999,25 @@ ORDER BY phase</pre>
         <li>Atlas <a href="#sync">pulls</a> the repository every minute, so the file shows up in <code>Inbox/Meetings</code> within a minute. If the Mac was asleep, it comes in on the next pull.</li>
       </ol>
       <p>Atlas never logs in to Gmail, Notion or the notetaker. If Notion's write fails, n8n stops there as it always has and nothing reaches the vault; if only the GitHub commit fails, Notion still has the meeting. The same meeting is never committed twice.</p>
+      <h3 id="meeting-import">What Atlas does when it arrives</h3>
+      <p>Once the pull brings the file in, Atlas checks it against the meeting import contract (the same check as <code>pnpm validate:meeting</code> below). It then writes one line saying what it did, <code>atlas_import_outcome:</code>, right under the file's <code>atlas_import: meeting/v1</code> line, and does one of three things. Each is one line in <a href="#activity">Activity</a>, under <b>Meetings</b>.</p>
+      <div class="grid2">
+        <div class="card"><h4>It's fine — <code>imported</code></h4><p>That line is the only thing written; the rest of the file is as it came. It waits in <code>Inbox/Meetings</code> and shows in the <b>Inbox</b> until you file it. Activity: <i>“2026-09-29 Platform weekly sync: arrived in the Inbox.”</i></p></div>
+        <div class="card"><h4>It's a second copy — <code>duplicate</code></h4><p>Same <code>provider</code> and provider's id as a meeting already in the vault, even one you filed or archived. The copy goes to the <a href="#archive">Archive</a> and is marked there with a link to the one kept, by its path: <code>atlas_duplicate_of: "[[Inbox/Meetings/2026-09-29 Platform weekly sync]]"</code>. Activity: <i>“… a second copy of 2026-09-29 Platform weekly sync, so it was archived.”</i></p><p>A meeting already imported is always the one kept. Of two that arrive together, the one at <code>Inbox/Meetings/&lt;date&gt; &lt;title&gt;.md</code> is kept over the one n8n wrote at <code>… (gemini 1a2b3c4d).md</code> because that name was taken.</p></div>
+      </div>
+      <div class="card"><h4>Something's wrong with it — <code>error</code></h4><p>It stays where it landed. Nothing in it is fixed or deleted. Atlas writes at the top why it failed, the first few problems with line numbers:</p>
+        <pre>atlas_import_error: "external_id is required; Transcript: Line 15: the turn has no block id — end it with ^t0001 and so on"</pre>
+        <p>It shows in the <b>Inbox</b> with that error beside it (and as <b>Import error</b> in its properties). Activity gets a warning: <i>“2026-10-02 Vendor call: could not be imported. external_id is required”</i>.</p></div>
+      <ul>
+        <li><b>Fix it in place.</b> Correct the file in Atlas and save. Atlas checks it again, takes <code>atlas_import_error</code> out, and stamps it <code>imported</code>. Activity: <i>“… now follows the import contract, so its import error was taken out.”</i> To see every problem, not just the first few, run <code>pnpm validate:meeting</code> on it.</li>
+        <li><b>Or send it again.</b> If the n8n mapping was wrong, fix the mapping, then <b>delete the broken file</b> before n8n sends the meeting again. n8n skips a path that already holds that meeting, broken or not, so a re-send over it writes nothing.</li>
+        <li><b>Want the copy back?</b> <a href="#archive">Unarchive</a> it. It keeps its <code>duplicate</code> stamp, and Atlas leaves it alone.</li>
+        <li><b>Your edits are yours.</b> Once a file has its <code>imported</code> or <code>duplicate</code> line, Atlas never looks at it again. Editing it, adding your own sections, renaming it or filing it under a project is never undone, marked or archived, and it is still the meeting a later copy is matched against. Keep the line: take it out and Atlas sees the file as just arrived.</li>
+        <li><b>A sync conflict.</b> If both Macs changed a meeting before they synced, sync keeps this Mac's version and puts the other beside it as <code>… (conflict from <i>Mac</i>).md</code>. Atlas never imports or archives that copy. Activity warns you about it: compare the two, keep what you want, and delete the copy.</li>
+        <li><b>One Mac does it.</b> Only the Mac that runs your <a href="#sync">automations</a> imports meetings. After you move the automations to the other Mac, both may import until the first Mac next syncs and reads that: they come to the same answer for every file, and sync keeps both if they write the same file. When the importing Mac opens the vault, once its index is ready, it settles every file in <code>Inbox/Meetings</code> without the line. That includes files that came while it was closed or asleep, and files it couldn't finish (you were typing in it, or its frontmatter wouldn't read); Activity says which. Hidden files there are left alone, as everywhere in Atlas.</li>
+        <li>Only files in <code>Inbox/Meetings</code> are checked. A meeting you make yourself, anywhere else, is just a note.</li>
+      </ul>
+      <div class="note"><b>Your own vault's Inbox.</b> Meetings are imported in any vault. Whether the <b>Inbox</b> lists them depends on the vault's Inbox view and Meeting type, which Atlas doesn't change for you yet. The vault in the Atlas repository has both. In yours, copy its <code>.atlas/views/Inbox.md</code> over your Inbox view. Then, in <a href="#edit-type">Edit type</a>, add three properties to your Meeting type: <code>atlas_import_outcome</code> (select: imported, duplicate, error; “Import”), <code>atlas_import_error</code> (text, “Import error”) and <code>atlas_duplicate_of</code> (relation to Meeting, “Duplicate of”). Until then, the files are in <code>Inbox/Meetings</code>, and Activity lists every one.</div>
       <h3>What's in a meeting file</h3>
       <div class="grid2">
         <div class="card"><h4>At the top (frontmatter)</h4><p><code>title</code>, <code>date</code>, <code>start</code> (and <code>end</code> when known), <code>kind</code> (Notion's Category: Standup, Retro, 1:1…), <code>provider</code> (<code>gemini</code>, earlier <code>granola</code>), the provider's own id, and <code>attendees</code> — each a name and email. A list address like <code>platform-team@…</code> is kept as an attendee marked <code>group: true</code>, and never becomes a Person.</p></div>
@@ -796,7 +1049,85 @@ ORDER BY phase</pre>
       <p><code>ok</code> (with the number of turns) means Atlas will accept it. <code>FAIL</code> lists each problem with where it is — for example <i>attendees[0] must be a { name, email, group } entry, not a line of text</i>.</p>
       <h3>Built in</h3>
       <p><b>Meeting</b> is a <a href="#edit-type">built-in type</a>: <b>Delete</b> is turned off for it — <i>“Meeting is built in — imported meetings are notes of it — so it cannot be deleted. Its properties are yours to change.”</i></p>
-      <div class="note"><b>What's coming.</b> For now a meeting file is an ordinary note in <code>Inbox/Meetings</code>. Next (phases 28–29): meetings showing in the <b>Inbox</b> — with any file Atlas can't accept flagged there, never deleted or silently fixed, and a second copy marked as a duplicate and archived; correcting misheard names and terms; linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+      <div class="note"><b>What's coming.</b> A meeting file waits in <code>Inbox/Meetings</code> and shows on the <a href="#para">Inbox page</a>, where it can be filed under a project or an area. Next (phases 28–29): correcting misheard names by your <a href="#terms">Terms</a>; linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+    </section>
+
+    <section id="terms">
+      <h2>Terms</h2>
+      <p class="sub">Teaching Atlas how names are spelt. A notetaker mishears the names it doesn't know — a product, a colleague, a vendor. A term is the one right spelling and the ways it gets misheard, and Atlas and Claude both use the list.</p>
+      <h3>Where it is</h3>
+      <div class="grid2">
+        <div class="card"><h4>Sidebar</h4><p><b>Terms</b>, at the end of the rows at the top.</p></div>
+        <div class="card"><h4>Search</h4><p><kbd>⌘K</kbd> → <b>Terms</b>.</p></div>
+      </div>
+      <h3>Add a term</h3>
+      <ol class="steps">
+        <li>On the Terms page, press <b>New term</b>.</li>
+        <li><b>Right spelling</b>: how it should be written, for example <i>Larkspur</i>.</li>
+        <li><b>Misheard as</b>: the ways it comes out wrong, commas between them — <i>lark spur, Larks Burr</i>. One that holds a comma of its own goes in double quotes: <code>"Quill, Mara", Mara Quil</code>. You can leave it empty and fill it in later.</li>
+        <li><b>Kind</b>: product, person, company, acronym or other — or leave it at <b>—</b>.</li>
+        <li><b>Add term</b>. It's listed as soon as Atlas has read it.</li>
+      </ol>
+      <p>A term is a note of the <b>Term</b> type, made in <code>Terms/</code> and named after its spelling: <code>Terms/Larkspur.md</code>. A spelling a file name can't hold, like <i>S/4 Ledger</i>, is kept as the note's <code>title</code>. If the vault's Term template has a <code>title</code> of its own, the new term's spelling is written over it. Open a term from its name to add notes about it, or to set <b>Refers to</b>: it points at a <b>Company</b> — the company a product or an acronym belongs to — and only at companies (where the vault's Term type has it — the Terms page works without the type's file). A misheard person is better given an <b>Also spelt</b> on their Person note. A spelling left empty is refused: <i>“A term needs its right spelling.”</i></p>
+      <h3>Change how it's misheard</h3>
+      <p>Each term's <b>Misheard as</b> is a box on the page. Change it and press <kbd>Return</kbd> or click away: only the <code>variants</code> list at the top of the note changes, nothing else in it. A variant holding a comma is shown in double quotes, so editing the others never cuts it in two; type one the same way. Two spellings that differ only in capitals or spaces are one, kept as first typed. Invisible characters pasted along with a spelling — zero-width spaces, word joiners — are dropped; the joiners that shape a Persian or Indic word or join an emoji are kept. A spelling with nothing visible in it counts as empty.</p>
+      <h3>What Atlas knows</h3>
+      <ul>
+        <li>Every term's right spelling and the ways it's misheard.</li>
+        <li>Every <a href="#people">person's</a> and company's name, and their <b>Also spelt</b> spellings. A name is its own right spelling, so <i>mara quill</i> comes back as <i>Mara Quill</i> without a term. A note is a person if any of its types is <code>person</code>, as <code>@</code> counts it; one that is both a person and a company counts as whichever its <code>type</code> names first.</li>
+        <li>Capitals and spaces don't matter when Atlas matches: <i>Lark&nbsp;&nbsp;Spur</i> and <i>lark spur</i> are one spelling. A longer name is tried before a shorter one inside it, so <i>Larkspur Payroll</i> wins over <i>Larkspur</i>.</li>
+        <li>The top of the page counts them: <i>“2 terms · 9 spellings Atlas puts right, people and companies included”</i>.</li>
+        <li>Templates, notes in hidden folders and archived notes don't count. To retire a term, <a href="#archive">archive</a> it.</li>
+      </ul>
+      <h3>Conflicts</h3>
+      <p>If two notes claim one spelling for two different right spellings — <i>lark spur</i> as a variant of both <i>Larkspur</i> and <i>Larkspur Payroll</i> — Atlas can't know which you meant, so it leaves that spelling alone. The page shows a <b>Conflicts</b> box above the list with each such spelling and the notes that claim it (click one to open it), and under the term: <i>“In conflict, so not used: “lark spur””</i>. Take the spelling off one of them and the conflict goes.</p>
+      <h3>Built in</h3>
+      <p><b>Term</b> and <b>Company</b> are <a href="#edit-type">built-in types</a>: <b>Delete</b> is turned off for both — <i>“Term is built in — the Terms page lists its notes, and Atlas spells names by them — so it cannot be deleted.”</i> Their properties are yours to change.</p>
+      <div class="note"><b>What's next.</b> For now Atlas keeps the list; nothing is corrected yet. Next (P28-06): when a meeting arrives, its transcript is corrected by this list — every change recorded on the note, and undoable.</div>
+    </section>
+
+    <section id="proposals">
+      <h2>The Inbox: what Claude proposes</h2>
+      <p class="sub">Claude never edits a note on its own. What it — or an automation — suggests lands as a <b>proposal</b>, a note waiting in <code>Inbox/Proposals</code>, and nothing it proposes is written until you accept it.</p>
+      <h3>Open the proposals</h3>
+      <ol class="steps">
+        <li>Open the <a href="#para">Inbox</a>: proposals are its <b>Proposals</b> section, above the notes waiting to be filed. The section shows while something waits for an answer, and the Inbox's count includes them.</li>
+        <li>Each card says what it would make — <i>TASK · Send Mara the payroll file</i> — with what it would write under it, how sure its maker was (<i>high confidence</i>), and the line it came from: click <b>[[2026-10-01 Standup#^t0003]]</b> and the meeting opens at that line. A proposal that cites nothing says <b>Cites no source</b>, so you know to check it yourself.</li>
+        <li>Answer it: <b>Accept</b>, <b>Edit</b> or <b>Reject</b>.</li>
+      </ol>
+      <h3>What each answer does</h3>
+      <ul>
+        <li><b>Accept</b> writes what the card shows and files the proposal in the <a href="#archive">Archive</a> with <code>state: accepted</code> and <code>answered_via: app</code> — <code>api</code> when Claude answered it for you through the <a href="#connect">Local API</a>, so the Archive keeps who said yes. The notice at the top says <i>“Accepted: Send Mara the payroll file.”</i> with <b>Open Send Mara the payroll file</b> to go to it, and <b>Undo</b>.</li>
+        <li><b>Edit</b> opens what it would write — the title, each property, the body (for a link, just the link) — so you can change it, then <b>Accept as edited</b>. A list shows as items with commas between; an item holding a comma of its own is in double quotes (<code>"[[Larkspur Payroll, Inc.]]", [[Fenn &amp; Co]]</code>). A property you don't touch is written exactly as proposed. <b>Cancel</b> leaves it as it was. The proposal is archived with your edit, so the Archive shows what was actually accepted.</li>
+        <li><b>Reject</b> writes nothing it proposed and files it in the Archive with <code>state: rejected</code> — kept, never deleted.</li>
+        <li><b>Undo</b> after an accept takes away what it made — if nothing has changed it since — and puts the proposal back, open again.</li>
+      </ul>
+      <h3>What a proposal can make</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>Task, Follow-up</td><td>A new task, with <code>source</code> linking the line it came from and <code>meeting</code> linking the meeting the proposal names — whatever made it from a meeting says which. A follow-up is a task to chase someone.</td></tr>
+            <tr><td>Decision</td><td>A new note of the built-in <b>Decision</b> type — title, date, meeting, project, people — citing its line the same way.</td></tr>
+            <tr><td>Person, Term, Project</td><td>A new note of that type.</td></tr>
+            <tr><td>Link</td><td>Adds one link to a note's relation — Mara Quill's <b>Companies</b> gets <code>[[Larkspur Payroll]]</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>When it says no</h3>
+      <p>Accept never writes over anything. If it can't go ahead, the reason shows on the card and the proposal stays waiting:</p>
+      <ul>
+        <li><i>“There is already a note at Send Mara the payroll file.md, which may be this one. Edit the title to make another.”</i></li>
+        <li><i>“Mara Quill changed since this was proposed, so it was left as it is.”</i> — the note a link would change has been edited since; check it and answer again.</li>
+        <li>A proposal, or the note it would change, with unsaved typing: save it first.</li>
+        <li>A proposal may only write where your notes live: never in <code>.atlas</code>, a hidden folder, a folder Atlas doesn't show (<code>node_modules</code>), the Archive or <code>Inbox/Proposals</code> itself. A title too long for a file name is cut to fit.</li>
+      </ul>
+      <h3>Where they live</h3>
+      <ul>
+        <li>A proposal is an ordinary note of the built-in <b>Proposal</b> type, so it syncs to your other Mac, survives a restart, and shows in queries. Only open ones stay in <code>Inbox/Proposals</code>; one answered that the Archive couldn't take is listed under <b>Answered, still in the Inbox</b>, to archive from its page.</li>
+        <li><b>Proposal</b> and <b>Decision</b> are <a href="#types">built-in types</a>, and every task gains a <b>Meeting</b> link.</li>
+        <li>Claude can list and answer them for you through <a href="#connect"><code>atlas_proposals</code></a> — only when you ask it to.</li>
+      </ul>
+      <div class="note"><b>What's coming.</b> Proposals arrive by themselves once automations can run a Claude step on a new meeting (phase 29).</div>
     </section>
 
     <section id="tags">
@@ -982,19 +1313,20 @@ do: archive</pre>
       <h3>The page</h3>
       <ul>
         <li>Newest first. Each line: time, level (<b>Info</b>, <b>Warning</b>, <b>Error</b>), kind, and one line of what happened.</li>
-        <li><b>Show</b>: <b>Everything</b>, <b>Warnings and errors</b> or <b>Errors only</b>. Kinds: <b>Automations</b>, <b>Sources</b>, <b>API &amp; MCP</b>, <b>Claude</b>, <b>Index</b>, <b>Saves</b>, <b>Sync</b>, <b>App</b>. Search box: <b>Search the activity…</b></li>
+        <li><b>Show</b>: <b>Everything</b>, <b>Warnings and errors</b> or <b>Errors only</b>. Kinds: <b>Automations</b>, <b>Sources</b>, <b>Meetings</b>, <b>API &amp; MCP</b>, <b>Claude</b>, <b>Index</b>, <b>Saves</b>, <b>Sync</b>, <b>App</b>. Search box: <b>Search the activity…</b></li>
         <li>Click a line to open its note or source — or the Automations page, for a rule.</li>
       </ul>
       <h3>What's recorded</h3>
       <ul>
         <li><a href="#automations">Automation</a> runs, dry runs and undos — a run a note set off names the note; the rule's own log keeps the detail.</li>
         <li><a href="#sources">Source</a> refreshes.</li>
+        <li><a href="#meeting-import">Meetings</a> as they arrive: imported, archived as a second copy, or could not be imported and why.</li>
         <li>Notes written through the Local API or MCP: the route and the note, never the contents.</li>
         <li>Claude's edits accepted and undone, failed turns, and a chat that couldn't be saved to <code>Chats/</code>, in fixed wording — never your question. A line never names a chat note, since its name is the start of your question: it says “a chat note” instead. So do the notices about links left, archiving and kept edits.</li>
         <li>Index rebuilds and failures.</li>
         <li>Each <a href="#sync">sync</a> — what it saved, brought in and sent — plus conflicts, files left out and failures.</li>
         <li>Saves a note gives up on; edits kept on screen after a failed save show as a warning.</li>
-        <li>Writes a screen gives up on, under <b>Saves</b>: an edit in a view or dashboard, a view saved, a query added to a dashboard, a card added, an image, an artifact or its copy, a setting, and the Local API's switch and token. One line each. Something refused before anything is written — a name already taken, a file that isn't an image — isn't recorded; the screen says why.</li>
+        <li>Writes a screen gives up on, under <b>Saves</b>: an edit in a view or dashboard, a view saved, a query added to a dashboard, a card added, an image, an artifact or its copy, a setting, the Local API's switch and token, a weekly review action, a task planned on the calendar or its Undo, a proposal answered, a note filed from the Inbox, <b>Make task</b> or its Undo, and a term added or its spellings changed. One line each. Something refused before anything is written — a name already taken, a file that isn't an image, a Waiting task with nobody to wait on, a block changed since — isn't recorded; the screen says why.</li>
         <li>Every red notice. One failure is one line.</li>
       </ul>
       <p>Not recorded: typing, autosaves, reads, note contents, secrets, folder paths, or the “update links?” offer.</p>
@@ -1030,6 +1362,7 @@ do: archive</pre>
         <li><b>Accept</b> writes exactly what the card showed, at exactly that path.</li>
         <li><b>Undo</b> on an accepted card puts the note back as it was, if nothing has written it since.</li>
       </ol>
+      <p>A chat's cards live in the chat. What Claude proposes while you're away waits as a note in the <a href="#proposals">Inbox</a> instead, answered the same way.</p>
       <div class="note"><b>When Accept refuses.</b> If the note changed after the proposal, the card says <i>&lt;note&gt; changed since this was proposed; nothing was written.</i> If it's open with typing not yet saved: <i>&lt;note&gt; has unsaved typing; save it first, so nothing you typed is written over.</i> Nothing can be proposed into <code>.atlas</code>, any other hidden folder, or <code>Chats/</code>. A tool call Claude shows inside a code block is shown as an example, not run.</div>
       <ul>
         <li>Cards sit in the conversation, which scrolls on its own; the window doesn't.</li>
@@ -1135,26 +1468,56 @@ do: archive</pre>
       </ol>
       <pre>claude mcp add atlas -- node ~/Projects/atlas/apps/mcp/dist/main.js</pre>
       <button type="button" class="copy" data-copy="claude mcp add atlas -- node ~/Projects/atlas/apps/mcp/dist/main.js">Copy</button>
-      <p style="margin-top:12px">Then ask Claude things like “find my open tasks in phase 17” or “make a task to call Sam”. It reads a note before changing it, and never overwrites unsaved typing. Nothing can be deleted through the API, and the only thing it moves is a note into or out of the Archive. <b>Rotate token</b> in Settings cuts off anything using the old key.</p>
+      <p style="margin-top:12px">Then ask Claude things like “find my open tasks in phase 17” or “make a task to call Sam”. It reads a note before changing it, and never overwrites unsaved typing. Nothing can be deleted through the API, and the only things it moves are a note into or out of the Archive, and a note out of the Inbox to the project it's filed under. <b>Rotate token</b> in Settings cuts off anything using the old key.</p>
       <h3>What Claude can do besides reading and writing notes</h3>
       <ul>
         <li><b>Add a picture to a note</b> (<code>atlas_add_image</code>). From a file, it reads only PNG, JPEG, GIF, WebP, SVG or HEIC images up to 20 MB in your Desktop, Downloads or Pictures folder, or the temporary folder — never anything else on the disk. To use other folders, set <code>ATLAS_MCP_IMAGE_DIRS</code> to them, separated by <code>:</code>; it replaces the list. The picture lands where <a href="#images">pictures you add</a> do, and a link to it goes at the end of the note.</li>
         <li><b>Quick add a note of a type</b> (<code>atlas_quick_add</code>), the way <a href="#add">the add button</a> does, from the same list of types (<code>atlas_quick_add_types</code>).</li>
+        <li><b>Read each task's schedule</b> (<code>atlas_query</code> with <code>schedule</code>): its estimate, the time its <a href="#timeblocking">blocks</a> set aside, what is done and how far it is over — the same numbers as the task's page. Blocks are notes, made and changed like any other.</li>
+        <li><b>Schedule a task</b> (<code>atlas_schedule_task</code>): a new block for it from a start, for some minutes, linking it — or, with no minutes, as long as it still needs — the same as dragging it onto the calendar's empty time. Ask again to split it across another block.</li>
+        <li><b>See whether Google Calendar is connected</b> (<code>atlas_status</code>, <code>GET /v1/status</code>): <code>googleCalendar: { connected }</code>, and nothing more. Claude can't read or change your Google calendar or see the sign-in; <a href="#google-calendar">connecting</a> stays in Settings.</li>
         <li><b>Read a calendar view's days</b> (<code>atlas_calendar</code>): which notes fall on which day of a saved view's <a href="#calendar">calendar</a>, and which have no date yet.</li>
         <li><b>Refresh a source</b> (<code>atlas_refresh_source</code>), as its <b>Refresh</b> button does — at most once every 30 seconds per source, and only where the source <a href="#sources">may run</a>.</li>
         <li><b>List tags and their notes</b> (<code>atlas_tags</code>, <code>atlas_tagged_notes</code>), as the <a href="#tags">Tags page</a> does. A tag used only in templates isn't listed.</li>
+        <li><b>Read how names are spelt</b> (<code>atlas_terms</code>): every <a href="#terms">term</a>, every spelling Atlas puts right with what it should be — people's and companies' names and their other spellings included — and the conflicts, which Claude is told never to correct. Read-only: Claude adds a term by making a note with <code>type: term</code>, and changes its misheard spellings as it changes any property.</li>
         <li><b>Archive and unarchive</b> (<code>atlas_archive</code>, <code>atlas_unarchive</code>), up to 100 notes at a time, by the <a href="#archive">same rules</a> as the app, updating links as it goes. A note with unsaved typing in Atlas is left where it is and reported, since Claude never saves your typing for you. <code>atlas_archived</code> lists and searches the Archive.</li>
+        <li><b>Process the Inbox</b> (<code>atlas_process_inbox_item</code>): file a waiting note under a project or an area, by the <a href="#para">same rules</a> as the Inbox page — into the project's folder, linked, links to it updated. Anything that isn't a project or an area still in use is refused before the note moves, and a note with unsaved typing in Atlas is left where it is. <code>atlas_capture_task</code> captures into the Inbox, starting a <a href="#tasks">GTD</a> task at <b>Inbox</b>; <code>atlas_update_properties</code> is held to the same task rules as the app — <b>Waiting</b> needs someone, <b>Archive</b> writes the day — and moving a vault's tasks to GTD stays in the app. <code>atlas_inbox</code> lists what's waiting to be filed, as the Inbox page does — each meeting with what the import made of it, and no proposals, which Claude answers with the proposal tools and can't file.</li>
+        <li><b>Answer proposals</b> (<code>atlas_proposals</code>, <code>atlas_accept_proposal</code>, <code>atlas_reject_proposal</code>): list what is waiting in the <a href="#proposals">Inbox</a> and accept or reject one, by the same rules as its buttons — nothing written over, a proposal with unsaved typing left alone. Ask Claude to show you a proposal before it accepts; editing one first and <b>Undo</b> stay in the app.</li>
+        <li><b>Make a checklist line a task</b> (<code>atlas_promote_checklist_line</code>), as <a href="#tasks">Make task</a> does: name the line by its words or its markdown, and by its place only if two say the same; a line that is a task already is refused. There is no undo from Claude — that sends a note to the Trash, which stays in the app. A note's <a href="#tasks">progress</a> comes back in the rows of <code>atlas_query</code> and <code>atlas_run_view</code>, and as <code>progress</code> in <code>atlas_run_query</code>.</li>
         <li><b>Run a saved query view</b> (<code>atlas_run_view</code>), the same as any view: it answers with the query's rows as the app finds them — the query's own <code>INCLUDE ARCHIVED</code> decides whether archived notes come too — and a query with a mistake is refused with the reason. A grouped table or board view answers its groups and sub-groups beside its rows, in the order the app draws them — a board every column, an empty one too, since that's somewhere to move a card; a gallery only its first level. <code>atlas_list_views</code> shows each view's <b>Group by</b> and <b>Then by</b>, and its place among its type's tabs; it lists Today and Inbox first, as the sidebar lifts them — they're views too, run by their paths like any other — then the other views by name, then the dashboards. Changing a view's grouping stays in the app.</li>
         <li><b>List a type's views</b> (<code>atlas_list_type_views</code>), in the same tab order the app shows, with each view's name and layout. A type with no views answers its default table, which isn't a file yet, so run it with a query (<code>atlas_run_query</code> with <code>FROM</code> the type) instead. Up to 500 at a time. Adding, renaming, copying, reordering and deleting views stay in the app.</li>
         <li><b>Move a card on a board</b> (<code>atlas_move_card</code>) to another column, another <a href="#views">lane</a>, or both, by the same rules as dragging it: one write, and a task finishes only through its type's status, a repeating one rolling on to its next date once. Only the board's own columns and lanes are accepted; anything else is refused, naming them, so <code>Done</code> for <code>done</code> never makes a column the type doesn't have. A move that would finish a task needs the note's last-modified time, so a retried move can't finish a repeating task twice. Only a board's cards move — a view note can't be moved this way.</li>
         <li><b>Add a note in a group</b> (<code>atlas_add_to_view</code>), as <b>+ New</b> in that group does: it gets the group's value, and the sub-group's, typed as the property stores them, and is numbered past any note of the same name. Only <code>.md</code> notes are made.</li>
-        <li><b>Run a query you'd build</b> (<code>atlas_run_query</code>): the same <a href="#queries">queries</a> as the builder or the text, read-only. It answers with the rows, and with the groups and sub-groups for <code>GROUP BY</code>, as the app groups them. A mistake comes back with its line and column. Archived notes come only when the query's text says <code>INCLUDE ARCHIVED</code>. Up to 5000 rows. Notes in <code>.atlas</code> or a hidden folder are never reached, not even through a relation. Saving a query as a view stays in the app.</li>
+        <li><b>Run a query you'd build</b> (<code>atlas_run_query</code>): the same <a href="#queries">queries</a> as the builder or the text, read-only. It answers with the rows, and with the groups and sub-groups for <code>GROUP BY</code>, as the app groups them. Give it a note as <code>context</code> and <code>this</code> in the query means that note — <i>“Mara Quill's meetings in the last 30 days”</i> is <code>FROM meeting WHERE people = this AND date &gt; @-30d AND date &lt;= @today</code> with her note as context; a note that isn't there is refused. To answer a <a href="#query-blocks">query block</a> a note holds, send the query after its <code>layout:</code> line with that note as context. A mistake comes back with its line and column. Archived notes come only when the query's text says <code>INCLUDE ARCHIVED</code>. Up to 5000 rows. Notes in <code>.atlas</code> or a hidden folder are never reached, not even through a relation. Saving a query as a view stays in the app.</li>
+        <li><b>Take the weekly review</b> (<code>atlas_weekly_review</code>): the same sections as the <a href="#tasks">Weekly review</a> page, read on the app's clock, writing nothing. To act on an item, Claude sets its status or <b>Defer until</b> with <code>atlas_update_properties</code>, or archives a project with <code>atlas_archive</code>. One difference from the page: Claude setting a repeating task to <b>Archive</b> ends its series, where the page's Archive rolls it on.</li>
         <li><b>Read automations</b> (<code>atlas_automations</code>, <code>atlas_automation_log</code>, <code>atlas_automation_dry_run</code>): every <a href="#automations">rule</a> with its schedule or the note that sets it off, last run, next run and why it's paused, rules whose file can't be read listed apart; a rule's log, newest first, up to 100 entries; and exactly what a run would do now, writing nothing — up to 500 notes, with how many more it would pass over. Running, undoing, and making or editing a rule stay in the app.</li>
+        <li><b>List meetings</b> (<code>atlas_meetings</code>), newest first, read-only: each one's date, start, provider and id, with <code>importOutcome</code> (<code>imported</code>, <code>duplicate</code>, <code>error</code>; <code>pending</code> while a file waits in <code>Inbox/Meetings</code> for the Mac that imports; empty for a meeting elsewhere Atlas never imported), <code>importError</code> saying why a file that <a href="#meeting-import">arrived</a> could not be imported, and <code>duplicateOf</code> naming the meeting a second copy duplicates. <code>since</code> keeps those on or after a day; second copies are archived, so they're listed only with <code>includeArchived</code>. Ask Claude <i>“which meetings came in this week, and did any fail?”</i> To fix a failed one, Claude edits the file as any note, and Atlas imports it once it reads.</li>
         <li><b>See archived notes</b>: search, running a view and SQL queries leave them out, as the app does, unless asked with <code>includeArchived</code>.</li>
         <li><b>Read your name</b> (<code>atlas_profile</code>): the full name and preferred name from <a href="#profile">Settings → Profile</a>, and <code>[Your name]</code> to write when there's no full name. Claude is told to use exactly that name for an owner, author, assignee or attendee, and never to guess one from a username, an email address or a path. Read-only: the name is changed only in Settings. If the settings can't be read, it says so rather than answer “no name”.</li>
         <li><b>List and read templates</b> (<code>atlas_list_templates</code>, <code>atlas_read_template</code>): every <a href="#templates">template</a> with what it's used for — new notes of a type, today's note, captured tasks or saved artifacts — and which types have none, so their new notes start empty; and one template's properties and text, exactly what a new note made from it would start as. A template's name can be passed when making a note. Making, editing, renaming, deleting and moving templates to notes stay in the app.</li>
         <li><b>Rename or merge a tag</b> (<code>atlas_rename_tag</code>), by the <a href="#tags">same rules</a> as the Tags page. It only previews unless told <code>dryRun: false</code>, and merges into a tag in use only when told to. Renaming to the same name in other capitals makes every spelling match. A rename that timed out may still finish, so preview again before retrying.</li>
+        <li><b>Export a note for Confluence</b> (<code>atlas_export_note</code>), read-only — see <a href="#confluence">Share a note on Confluence</a> below.</li>
       </ul>
+      <h3 id="confluence">Share a note on Confluence</h3>
+      <p>Ask Claude something like “put my Weekly sync note on Confluence, in the Team space”. Claude asks Atlas for the note as a page (<code>atlas_export_note</code>), then creates the page itself with its <b>Atlassian connector</b>, so that connector has to be connected in Claude too. Atlas never talks to Confluence and writes nothing — not to the note, not anywhere.</p>
+      <ul>
+        <li><b>The page's title</b> is the note's title, as its page in Atlas shows it.</li>
+        <li><b>A link</b> becomes its words: its alias if it has one, otherwise the title of the note it names — <code>[[mara quill]]</code> reads <i>Mara Quill</i>, and a link to a heading reads <i>Summer plans › Packing</i>. A link to a block reads as its note's title, so a citation to a meeting line names the meeting.</li>
+        <li><b>An embed</b> of a block or a heading (<a href="#blocks">Blocks and embeds</a>) is that block or section, quoted, under <i>From Summer plans</i>. One whose note or block is gone reads <i>[Not found: …]</i>.</li>
+        <li><b>A callout</b> becomes a quote that opens with its name in bold — <b>Warning:</b> Mind the gap.</li>
+        <li><b>Tasks, tables, code, headings</b> and links and pictures on the web come across as they are.</li>
+      </ul>
+      <p>Some things can't go on the page, and Atlas lists every one of them — Claude is told to tell you what was left out:</p>
+      <ul>
+        <li>the note's properties (frontmatter);</li>
+        <li>where each link went — its words stay, but the page can't open a note in your vault;</li>
+        <li>pictures in your vault, which read <i>[Image: …]</i> — attach them to the page yourself;</li>
+        <li>files shown in place, like <code>![[diagram.png]]</code>, which read as their name;</li>
+        <li>block ids (<code>^abc123</code>), comments (<code>&lt;!-- … --&gt;</code>) — one you never closed hides the rest of its block, on the page as in the note — and whether a callout was folded.</li>
+      </ul>
+      <p>A footnote in an embed is renamed after the note it came from, like <code>[^Sources-1]</code>, so it can never be mistaken for one of this note's own.</p>
+      <p>Some blocks — one with a footnote, raw HTML or a comment in it — are tidied as written. Atlas then reads the tidied block again, and if it would come out differently on the page (HTML turned into a paragraph, say) or still points into your vault, that block goes across as plain words instead, and is listed under <b>formatting</b> by its first line, so you know which to fix up by hand.</p>
+      <p>Only notes outside <code>.atlas</code> and hidden folders are read for a title or an embed, so nothing from Atlas's own settings ever reaches the page.</p>
       <div class="note"><b>Claude inside Atlas needs none of this.</b> The <a href="#claude">chat pane</a> (<kbd>⌘J</kbd>) uses the same read tools in the app itself, with the Local API off, and proposes changes for you to accept rather than writing them.</div>
       <div class="note"><b>Don't see the new tools?</b> Rebuild the MCP server with <code>pnpm --filter @atlas/mcp build</code>, then restart it — in Claude Code start a new session; in Claude Desktop quit and reopen it.</div>
     </section>
@@ -1238,6 +1601,7 @@ do: archive</pre>
             <tr><td><kbd>⌘,</kbd></td><td>Settings</td></tr>
             <tr><td><kbd>Return</kbd> · <kbd>⇧</kbd> <kbd>Return</kbd></td><td>In the Claude pane: send · new line</td></tr>
             <tr><td><kbd>/</kbd></td><td>Block menu, while writing</td></tr>
+            <tr><td><kbd>⇧⌘↩</kbd></td><td>Make the checklist line the caret is in a task — see <a href="#tasks">Make a line its own task</a></td></tr>
             <tr><td><kbd>[[</kbd></td><td>Link to a note, while writing; in its list <kbd>⇧</kbd> <kbd>Return</kbd> puts it in as a bookmark</td></tr>
             <tr><td><kbd>![[</kbd> · <kbd>[[Note#</kbd></td><td>Embed a note's block or heading · link to one, while writing — see <a href="#blocks">Blocks and embeds</a></td></tr>
             <tr><td><kbd>⇧F10</kbd> or the menu key</td><td>A link's menu (Open note, Show as bookmark or Show as link), with the caret on the link or a card selected</td></tr>
@@ -1270,6 +1634,7 @@ do: archive</pre>
         <li>The search index lives in <code>.atlas-cache/</code>. It's only a copy; if it's ever wrong, Settings → <b>Index</b> → <b>Rebuild</b>.</li>
         <li>Pictures you add go in <code>attachments/</code> (or beside the note, if you chose that in Settings → Images). Thumbnails Atlas makes of pages live in <code>.atlas-cache/thumbnails</code>; an artifact's is kept with its saved copy.</li>
         <li>Each <a href="#claude">chat with Claude</a> is a note in <code>Chats/</code>, written once and then only added to. Claude's proposed changes are written only when you press <b>Accept</b>, never into <code>.atlas</code>, a hidden folder or <code>Chats/</code>.</li>
+        <li><a href="#proposals">Proposals</a> wait as notes in <code>Inbox/Proposals/</code>; answered ones move to <code>Archive/Inbox/Proposals/</code> with their <code>state</code>.</li>
         <li>A synced vault is a git repository; Atlas keeps its own lines in <code>.gitignore</code> (the index, Finder and Obsidian per-Mac files). See <a href="#sync">Sync between Macs</a>.</li>
         <li>Secrets live in the macOS Keychain, never in the vault. The chat's settings (which way to reach Claude, the model) are kept on this Mac; your <a href="#profile">name</a> is in the vault's settings, so it syncs.</li>
         <li>Nothing leaves your Mac unless you turn on the Local API, connect a <a href="#sources">source</a>, turn on <a href="#sync">sync</a> (the vault goes to your GitHub repository), or ask <a href="#claude">Claude</a> in the chat — then what you ask, the page on the chip and what Claude reads go to Anthropic, through Claude Code or your API key.</li>

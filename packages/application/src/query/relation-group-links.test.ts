@@ -20,7 +20,7 @@ describe('relationGroupLinks', () => {
           return NOTES;
         },
       },
-      target: 'project',
+      targets: ['project'],
       names: noteNames([{ path: createVaultPath('Projects/Atlas.md'), title: 'Atlas' }]),
     });
 
@@ -28,11 +28,25 @@ describe('relationGroupLinks', () => {
     expect(links).toEqual(['[[Atlas]]']);
   });
 
+  it('links the notes of every type a relation points at, a type at a time (P30-01)', async () => {
+    const links = await relationGroupLinks({
+      index: {
+        notesOfType: async (type) =>
+          type === 'area'
+            ? [{ path: 'Areas/Garden.md', title: 'Garden' }]
+            : [{ path: 'Projects/Atlas.md', title: 'Atlas' }],
+      },
+      targets: ['project', 'area'],
+      names: noteNames(null),
+    });
+    expect(links).toEqual(['[[Projects/Atlas]]', '[[Areas/Garden]]']);
+  });
+
   it('fails as the index fails, rather than offering no columns as if there were none', async () => {
     await expect(
       relationGroupLinks({
         index: { notesOfType: () => Promise.reject(new Error('index not ready')) },
-        target: 'project',
+        targets: ['project'],
         names: noteNames(null),
       }),
     ).rejects.toThrow('index not ready');

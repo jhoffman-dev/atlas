@@ -5,20 +5,28 @@ import { automationDryRunRoute, automationLogRoute, automationsRoute } from './a
 import { API_ROUTES, type ApiRequest, type ApiRoute } from './contract.ts';
 import { artifactFileRoute, artifactThumbnailRoute, saveArtifactRoute } from './artifacts.ts';
 import { calendarRoute } from './calendar.ts';
+import { promoteLineRoute } from './checklists.ts';
 import { captureRoute, dailyRoute } from './daily.ts';
 import { noteImageRoute } from './images.ts';
+import { meetingsRoute } from './meetings.ts';
+import { inboxRoute, processInboxRoute } from './inbox.ts';
+import { weeklyReviewRoute } from './review.ts';
 import { createNoteRoute } from './notes-create.ts';
+import { exportNoteRoute } from './notes-export.ts';
 import { backlinksRoute, listNotes, readNoteRoute } from './notes-read.ts';
 import { appendRoute, replaceBodyRoute, setPropertiesRoute } from './notes-write.ts';
 import type { ApiRouterDeps } from './ports.ts';
 import { profileRoute } from './profile.ts';
+import { acceptProposalRoute, proposalsRoute, rejectProposalRoute } from './proposals.ts';
 import { queryRoute, sqlRoute } from './query.ts';
 import { quickAddRoute, quickAddTypesRoute } from './quick-add.ts';
 import { searchRoute } from './search.ts';
+import { scheduleTaskRoute } from './schedule-task.ts';
 import { refreshSourceRoute } from './sources.ts';
 import { statusRoute } from './status.ts';
 import { renameTagRoute, taggedNotesRoute, tagsRoute } from './tags.ts';
 import { templateRoute, templatesRoute } from './templates.ts';
+import { termsRoute } from './terms.ts';
 import { typeViewsRoute } from './type-views.ts';
 import { typesRoute } from './types.ts';
 import { addViewNoteRoute, moveCardRoute } from './view-cards.ts';
@@ -74,6 +82,8 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'POST /v1/notes/{path}/append': vaultWrite(appendRoute),
   'PUT /v1/notes/{path}/body': vaultWrite(replaceBodyRoute),
   'GET /v1/notes/{path}/backlinks': vaultRoute(backlinksRoute),
+  'POST /v1/notes/{path}/promote': vaultWrite(promoteLineRoute),
+  'GET /v1/notes/{path}/export': vaultRoute(exportNoteRoute),
   'PUT /v1/notes/{path}/images/{name}': vaultWrite(noteImageRoute, created),
   'GET /v1/search': vaultRoute(searchRoute),
   'GET /v1/types': vaultRoute(typesRoute),
@@ -103,9 +113,18 @@ const HANDLERS: Readonly<Record<RouteKey, RouteHandler>> = {
   'GET /v1/archive': vaultRoute(archiveListRoute),
   'POST /v1/archive': vaultWrite(archiveRoute),
   'POST /v1/unarchive': vaultWrite(unarchiveRoute),
+  'GET /v1/inbox': vaultRoute(inboxRoute),
+  'POST /v1/inbox/process': vaultWrite(processInboxRoute),
+  'POST /v1/tasks/schedule': vaultWrite(scheduleTaskRoute),
+  'GET /v1/review/weekly': vaultRoute(weeklyReviewRoute),
   'GET /v1/automations': vaultRoute(automationsRoute),
   'GET /v1/automations/{id}/log': vaultRoute(automationLogRoute),
   'POST /v1/automations/{id}/dry-run': vaultRoute(automationDryRunRoute),
+  'GET /v1/terms': vaultRoute(termsRoute),
+  'GET /v1/meetings': vaultRoute(meetingsRoute),
+  'GET /v1/proposals': vaultRoute(proposalsRoute),
+  'POST /v1/proposals/{path}/accept': vaultWrite(acceptProposalRoute),
+  'POST /v1/proposals/{path}/reject': vaultWrite(rejectProposalRoute),
 };
 
 /** The segments a route pattern leaves open, and what a request filled them with. */

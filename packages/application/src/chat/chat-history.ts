@@ -12,7 +12,7 @@ import {
   type ChatNoteMessage,
   type VaultPath,
 } from '@atlas/domain';
-import { createNote } from '../notes/create-note.ts';
+import { createNoteFile } from '../notes/create-note.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { noteModified } from '../notes/note-modified.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -62,7 +62,7 @@ export async function recordChatEntries({
     return record;
   }
   await ensureChatsFolder(fs);
-  const path = await createNote({
+  const path = await createNoteFile({
     fs,
     name: chatNoteName(header.firstMessage),
     beside: null,

@@ -43,3 +43,223 @@ incremental (`syncToken`), so a reconcile is one cheap request.
   automations Mac.
 - Google Workspace admin policy may forbid a third-party OAuth client on a
   work account — an open question to check before building.
+
+## As built (P31-01, 2026-10-08)
+
+The block model and its scheduling rules, which sync builds on:
+
+- **The Block type** has `start` and `end` (dates with a time, both
+  required), `tasks` (a relation to tasks, many) and `gcal_event_id` and
+  `gcal_etag`. It is built in — it cannot be deleted — and is written into a
+  vault once its tasks follow GTD (its Task type's status is the eight), as it
+  opens or as soon as the move to GTD lands, never over one that is there,
+  and said in Activity. A vault on statuses of its own is left as it is:
+  writing a type into every vault with tasks changed what small vaults show
+  first (the dashboard sheet's first type) for no use. Undoing the move to GTD
+  leaves the Block type, which the move did not write. A write is never
+  cancelled by the types being read again: what it did is said once, a
+  failure only when every write for the vault has settled and none landed,
+  and a vault is tried once until it is opened again. `gcal_missing` comes
+  with sync (P31-04).
+- **A one-task block gives that task its whole length.** A block of several
+  is a container: when its tasks need at least the whole block it is shared
+  in proportion to what each has left of its estimate; when they need less,
+  each gets what it has left and the rest is shared equally among the tasks
+  with no estimate, or stays free. "What it has left" is its estimate, or
+  nothing once finished — not its estimate less time scheduled elsewhere,
+  which would make one block's shares depend on every other block. Shares are
+  whole minutes that add up to the block, the odd minute to the largest
+  remainder, then the earliest listed — worked in exact integers, a
+  remainder being `length × weight mod sum`, so equal remainders are equal
+  however large the estimates. An estimate longer than a hundred years is
+  read as none.
+- **Blocks count on their own.** A task in two blocks that overlap is given
+  both, and so reads as over-scheduled, rather than merged into less than was
+  set aside. Past blocks count as well as future ones: no rule reads the
+  clock.
+- **A block is its wall-clock length as written**, as the calendar draws it:
+  a block across midnight runs into the next day, and one across a
+  daylight-saving change is as long as the clock says (01:30–03:30 is two
+  hours on the night the clocks go forward). Nothing converts between zones,
+  so the answer is the same on every Mac. A block without a time at both ends,
+  or ending no later than it starts, gives nothing; it is not refused, since
+  sync may pull such an event from Google.
+- **For P31-04: blocks hold local wall-clock times, with no offset.** `start`
+  and `end` are written `2026-10-12T09:00`, read as the time where the person
+  is. A zone or offset written after the time (`…T09:00Z`, `…T09:00+02:00`) is
+  currently ignored, as the calendar ignores it (`readEventTime`), so it is
+  read as the same clock time. Sync must therefore convert Google's RFC 3339
+  times to local wall-clock before writing a block, and convert the block's
+  local times to RFC 3339 with the Mac's zone before pushing — never copy an
+  offset into the note.
+- **A task shows estimate, scheduled and done** under its properties, and
+  how far it is over. Done comes from the status the Task type is ticked with
+  (`archive` for GTD): all of the estimate once finished, none before.
+  **Follow-up:** checklist progress (P30-03, #22, built on a sibling branch)
+  is not read yet. Once it lands, done for an open task should be its
+  estimate × the share of its checklist ticked, and a container's "what it
+  has left" should follow. An estimate is minutes; `2h` and
+  `1h30m` are read too, for a vault that kept a text estimate, but a day or a
+  week is not — a day's working minutes are the person's to say.
+- **No write rule is added.** Scheduling is read from blocks, never stored on
+  a task, so the write chokepoints (ADR-0029) are unchanged.
+- **Read from the index**: the tasks asked about, and every block linking any
+  of them with all its tasks. Blocks are read a page at a time in order of
+  their paths; a page the row cap cut short drops its last, possibly partial,
+  block and the next page starts after the last whole one. Only a single
+  block linking more tasks than the cap returns is refused, never answered
+  short. The API reads the same with `POST /v1/query` and
+  `schedule: true` (ADR-0016's P31-01 amendment).
+
+## As built (P31-02, 2026-10-10)
+
+Planning the day by dragging tasks onto the calendar:
+
+- **The tray stands beside a calendar of blocks** — a view of the Block type
+  drawn as a week, three days or a day — and lists the next actions as the
+  Next actions view reads them (deferred ones stay out until their day), the
+  ones with no time set aside yet first. A new calendar view of blocks spans
+  each from its `start` to its `end`; switching an existing view to Calendar
+  does not, since a view edit cannot set an end.
+- **Let go on empty time, a task becomes a block** from the quarter hour the
+  pointer is in, as long as what the task still needs — its estimate less
+  what blocks give it and what is done — at most a day, and half an hour when
+  it has no estimate or needs nothing more. Dragging the same task again makes
+  another block for what is left: that is splitting. A drop made before the
+  tray has read the last one counts it, so it gets what that one left. The
+  block is a new note made through `createNote`, from the Block type's
+  template when there is one, at the top of the vault, named "<task> block"
+  (numbered when taken, the task's name cut by whole characters to fit a file
+  name's 255 bytes), with `start` and `end` as wall-clock times with no
+  offset. The target is what is under the pointer on this calendar's own
+  clock, the pointer followed from its own moves — a scroll of the tray under
+  a held task is not travel.
+- **Let go on a block, the task joins its `tasks`**, linked after the others,
+  which are written back as they were; a block already linking it, anywhere
+  in an item as the index reads relations, is left alone, and so is a note
+  that is not a block. The write goes through a pane holding the block, else
+  `setNoteProperties` — the task-rule chokepoints — never to the file
+  directly. A block drawn all day takes a task as a timed one does.
+- **The keyboard has the same path**: Enter (or a click) on a task chooses it,
+  focus goes to today's first hour, and Enter on an hour or a block places it;
+  Escape lets it go, and so does the tray no longer listing it. The pointer
+  drag takes no keys, since a held task has no step on the clock to make.
+- **The last drop can be undone.** A block it made goes to the Trash while it
+  holds exactly what the drop wrote and no pane holds typing in it not yet
+  saved; otherwise it is left and the reason said. A task it linked is
+  unlinked, the block's other links kept. The undo is kept for the vault the
+  drop was made in only, is the last-started drop's when drops settle out of
+  order, and runs once at a time.
+- **A drag near the clock's edge does not scroll it**: the tray is not inside
+  the clock's scroller. Scroll to the part of the day first.
+
+## As built (P31-03, 2026-10-10)
+
+The connection is built; syncing blocks (P31-04) is not. The host side is
+`apps/desktop/src-tauri/src/google.rs` and `google/`; the rules are in
+`packages/domain/src/google-calendar`; Settings → Google Calendar is the
+card. Where the build went past or around the text above:
+
+- **The flow.** RFC 8252 with PKCE (RFC 7636): a listener on `127.0.0.1`
+  at a port the system picks, `S256` from a 32-byte verifier, and a 16-byte
+  `state` compared in constant time. Only a redirect to `/` carrying this
+  sign-in's `state` is acted on; any other request is answered with fixed
+  text and ignored, so another program on the Mac can neither end the
+  sign-in nor slip its own code into it. A redirect carrying an error and a
+  code is a refusal. One sign-in waits at a time; it ends after five
+  minutes or on Cancel. `access_type=offline&prompt=consent` is sent, or
+  connecting again after a disconnect would bring back no refresh token.
+- **The scope is `calendar.app.created`, not `calendar.events`.**
+  `calendar.events` reaches every calendar on the account and cannot be
+  narrowed to one. `calendar.app.created` lets Atlas make secondary
+  calendars and change events on those alone — the "on that calendar only"
+  the decision asks for — and Google lists it as non-sensitive. A consent
+  screen lets the person untick a scope and still allow; a token without
+  it is refused, revoked and not kept. Reading meetings for P31-05 will
+  need a read scope added then, by incremental consent.
+- **Where the tokens live, and where they may go.** The refresh token, with
+  the client it was issued to and the scopes granted, is one Keychain item
+  through the `SecretStore` every secret uses, scoped per vault as ADR-0017
+  scopes secrets, at `<vault>:oauth/google`. It is deliberately not a
+  named secret: a named secret can be filled into a source's request and
+  rebound by the person in Settings → Secrets, and this token's
+  destinations are the protocol's, not the person's. So the host pins them,
+  the way `model_http` pins the Messages API: the refresh token goes only
+  to `https://oauth2.googleapis.com` (`/token` to refresh, `/revoke` to
+  revoke) — not `www.googleapis.com` as the decision says, because that is
+  where Google's token endpoint is — and the access token, held in the
+  host's memory only, goes only to `https://www.googleapis.com` under
+  `/calendar/v3/`, checked after the path is parsed so `..` cannot climb
+  out. No redirect is followed. The access token is renewed a minute
+  before it expires, and a 401 renews it once.
+- **The webview never sees a token.** It sees whether a sign-in is kept,
+  its client and scopes, and a Calendar API answer with the access token
+  struck from it. The PKCE verifier, the code, both tokens and any client
+  secret stay in the host. A Rust test serializes every answer and failure
+  the commands can hand back, with the API echoing its `Authorization`
+  header, and finds none of them
+  (`no_answer_or_failure_handed_to_the_webview_carries_a_token`); the IPC
+  contract test pins the five Google commands.
+- **Where the line is (ADR-0005).** The host holds the protocol and where a
+  token may go: the endpoints, PKCE, `state`, the listener, the Keychain,
+  and the token's lifetime. TypeScript decides the client, the scope, which
+  Calendar calls to make and what their answers mean, which calendar holds
+  blocks (one the person owns, never their main one), when to offer to make
+  "Atlas blocks", and what each failure tells the person. The host reports
+  a failure as a kind and Google's OAuth code; `explainGoogleFailure`
+  words it.
+- **The client ID is configuration.** Typed in Settings → Google Calendar
+  and kept in the vault's settings (`google_client_id`), beside the chosen
+  calendar (`google_calendar`), so both Macs use the same calendar; each
+  Mac signs in for itself. No client ID is in this repository: James
+  creates one in his own Google Cloud project (a Desktop app client, with
+  the Calendar API enabled and the scope on its consent screen).
+- **A client secret is optional, and never committed.** The task assumed a
+  Desktop client with PKCE needs none. Google's documentation for installed
+  apps says otherwise for the "Desktop app" client type: its token request
+  lists `client_secret` as required, omitting it only for Android, iOS and
+  Chrome-app clients, and says an installed app's secret is not treated as
+  confidential. This could not be checked against Google here (the build
+  talks only to a local fake), so Settings has a masked field for it, sent
+  only when typed. It is kept in the Keychain item with the refresh token,
+  never in the vault or the repo, and reused when connecting again with the
+  same client. If Google accepts PKCE alone for the client, leave it empty.
+- **Disconnect revokes and forgets.** RFC 7009 revocation of the refresh
+  token, which ends its access tokens too; Google answering `invalid_token`
+  (already revoked) counts as revoked. The Keychain item is removed even
+  when Google cannot be told, and Settings then says to remove Atlas from
+  the Google Account's third-party access.
+- **Each vault's sign-in is serialised by a generation** (after review and
+  an adversarial pass). Connecting and disconnecting move it on; a refresh
+  saves its rotated refresh token and holds its access token only if the
+  generation it started from is still current, checked and written under
+  one lock. So a refresh still out when the person disconnects, or connects
+  again, keeps nothing: the removed sign-in does not come back, a newer one
+  is not overwritten, and no access token outlives a disconnect. A call
+  whose refresh was discarded starts again from what is kept now. An
+  `expires_in` past the clock's range is held for a day at most rather
+  than panicking the command.
+- **The browser's tab hears the truth.** The loopback answers the redirect
+  only once the code is traded, the scope checked and the grant kept, so it
+  says connected only when it is. A failed accept (out of descriptors, a
+  reset) is waited out rather than ending the sign-in, and past 16
+  connections no more are taken until one ends: a newcomer waits in the
+  kernel's queue rather than being closed, since it may be the browser.
+- **A sign-in other vaults may share is not revoked.** Google may revoke a
+  whole grant — every token one person gave one client — rather than the
+  single token it is sent; this is not verified here. Atlas asks for no
+  identity scope, so it cannot tell which account a sign-in is for. When
+  another vault on this Mac keeps a sign-in for the same client ID,
+  disconnecting forgets this vault's and does not revoke it, and Settings
+  says so; disconnecting the last one revokes.
+- **An expired or revoked sign-in** comes back from the token endpoint as
+  `invalid_grant`; Settings says to connect again, and that a sign-in which
+  lapses every week means the Cloud project's consent screen is in Testing,
+  where Google ends refresh tokens after seven days.
+- **The local API and MCP expose status only**: whether Google Calendar is
+  connected, never a token and no calendar call.
+- **Still open — the spike the card asks for.** Whether James's Workspace
+  allows a third-party client; whether this client needs its secret; and
+  that `calendar.app.created` lists the calendars Atlas made through
+  `calendarList`. Each is a configuration change or a one-line scope change
+  if it turns out otherwise.

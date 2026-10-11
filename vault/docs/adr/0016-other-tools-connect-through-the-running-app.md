@@ -245,6 +245,11 @@ bound, read-only path as the query builder. A query's text is refused over
 query as a view is not a route: a query view is a note in `.atlas/views`, which
 the API never writes.
 
+`context` (P30-04, 2026-10-08) names the note `this` in a query means. It is a
+note path in user space, as any path the API takes, spelled as the vault spells
+it, and must exist — `not_found` otherwise. Nothing of the note is read or
+written; its path is bound like any value in the query.
+
 ## Automations are read, not run (Phase 25, 2026-09-27)
 
 Automations get three routes, all read-only: `GET /v1/automations` (every rule,
@@ -438,3 +443,249 @@ views above:
   lands, the API/MCP keeper decides whether it is a route of its own or
   `/v1/quick-add` followed by `PATCH /v1/notes/{path}/properties`, which
   callers can already do.
+
+## Terms: the vocabulary is read, terms are notes (issue #11, 2026-10-08)
+
+Terms now have a page of their own (P28-05): a term is a note of type `term`
+— its title the right spelling, `variants` the ways a notetaker mishears it —
+and a Person's or a Company's `aliases` are other spellings of their name.
+The API follows on the same terms as every route above:
+
+- **Read.** `GET /v1/terms` answers every term, the vocabulary (every
+  spelling Atlas puts right, longest first, with the notes that claim it) and
+  the conflicts (a spelling two notes claim for two right spellings, which is
+  not used). It runs `loadTerms`, the use-case the Terms page runs, and the
+  domain's `vocabulary` decides what is a spelling, what is a conflict and in
+  what order; nothing is decided again in the route. The notes are read from
+  the index by the domain's compiled query, which keeps to user space
+  (`userSpaceNoteSql`) and out of the Archive, so no template, hidden note or
+  retired term is handed out. A note counts when any item of its `type` is
+  a term, person or company — as `@` and a type's page count it — and as
+  the first of them it names. It names its vault, answers `no_vault` if
+  another is opened while it reads, and writes nothing.
+- **Not a route: writing a term.** A term is an ordinary note in user space,
+  so it is written as one: `POST /v1/notes` with `type: term` adds it, and
+  `PATCH /v1/notes/{path}/properties` changes its `variants` or a person's
+  `aliases` — byte-preserving and guarded by `ifModified` as every note write
+  is. A route of its own would be a second way to write the same frontmatter.
+- **MCP.** `atlas_terms` is the route, read-only; its description points a
+  model at `atlas_create_note` and `atlas_update_properties` for writing, and
+  tells it never to correct a spelling in conflict.
+
+## Amendment: processing the Inbox is the second move (P30-01, 2026-10-08)
+
+The Inbox's **Process** files a note under a project or an area: it moves
+into the project's folder and gets `project: "[[…]]"` linking it. An agent
+triaging the Inbox needs it, so `POST /v1/inbox/process` (MCP
+`atlas_process_inbox_item`) is the second route that moves notes. It runs the
+app's own `processInboxItems`, on the same move-and-stamp as the Archive, and
+is held to the Archive's limits above, with one change to where a note goes:
+
+- **Only out of the Inbox.** Every path is a `.md` note under `Inbox/` at the
+  root of the vault; any other is listed in `failed` and left where it is.
+  So is a proposal (a note of type `proposal`, wherever it is): it is
+  answered through the proposals routes, never filed. `GET /v1/inbox` (MCP
+  `atlas_inbox`) reads what waits to be filed, as the Inbox page lists it —
+  proposals aside — and writes nothing.
+- **The destination is fixed by the note's name and the project's own path.**
+  The caller chooses the project, not the place: a note lands in the
+  project's folder — beside the project's note, named as it, or the folder it
+  is already the note of — under its own file name, numbered if that is
+  taken, never over anything. The project must be a note of type `project` or
+  `area` that is in use (not in the Inbox, not archived, not in `.atlas` or a
+  hidden folder), whose folder is not the Inbox, the Archive or a hidden
+  folder (a project at `Archive.md` would file into `Archive/`, archiving
+  what it files), and not so deep that a note filed under it would be past
+  `VAULT_WALK_DEPTH`; anything else refuses the whole request with `invalid`
+  before a note moves.
+- **At most 100 paths**, **typing never saved** (`unsaved_in_app`), links
+  rewritten and counted, and every unfinished note named in `failed` — as for
+  the Archive.
+
+Setting a vault's types up for PARA writes into `.atlas/types` and stays in
+the app, which offers it; `/v1/types` reads the result, including each
+relation's `targets`.
+
+**Narrowed from P30-01's card (2026-10-08).** The card asked that opening a
+vault missing the Area type add it. Atlas does that only for a vault that
+already files by project — one with a Project type: there the Area and
+Resource files it lacks are written on opening, and each one written is a
+line in Activity. A vault with no Project type has not taken PARA up, so the
+types are only offered, on the Inbox page, beside the offer to add `project`
+to the vault's own Task and Meeting types — which is never done without a
+yes, since it rewrites files the vault already has. Writing the types into
+every vault that opened put a Project, an Area and a Resource into vaults
+that never asked for them. Accepting works the change out again from the
+type files as they are then, so an edit made while the offer waited is kept.
+
+## Amendment: tasks follow GTD, and the migration stays in the app (P30-02, 2026-10-08)
+
+ADR-0029 gives tasks eight statuses. What the API does about it:
+
+- **Writes are held to the same rules as the app's**, by the same code: the
+  rules live in the application's write chokepoints — `setNoteProperties`, a
+  pane's `saveNote`, `createNote` — which the app and every API route that
+  changes or makes a note go through. `waiting` without `waiting_on` is
+  refused with `invalid` (mapped once, in `failureOf`) and writes nothing;
+  `archive` sets `completed` to the request's day. A rule kept in one place
+  cannot drift between the app and the API.
+- **Capture starts a task in the Inbox** when the vault's Task type has the
+  `inbox` status; a vault still on statuses of its own keeps its template's.
+- **The migration has no route.** Moving a vault's tasks to the eight statuses
+  rewrites every task, the Task type, and the views and automations that name
+  a status. It is previewed, run and undone in the app, from the Inbox, where
+  the person sees every task old → new before anything is written; a request
+  that rewrote every task at once is the blind bulk write this ADR keeps out.
+  Its record lives in `.atlas/migrations`, which the API never writes.
+- MCP's `atlas_capture_task` and `atlas_update_properties` describe the eight
+  statuses and the two rules, so a model writes them as the app does.
+
+## Proposals: listed, accepted, rejected (P29-02, 2026-10-08)
+
+Proposals are notes of the built-in `proposal` type in `Inbox/Proposals/`
+(ADR-0028), answered in the Inbox page's Proposals section. The API follows on the same terms
+as every route above, through the page's own use-cases (`listProposals`,
+`acceptProposalNote`, `rejectProposalNote`), so no rule is decided twice:
+
+- **Read.** `GET /v1/proposals` lists the open ones with what each would
+  write, and names any it cannot read.
+- **Accept writes a note in user space, and nothing else of the caller's
+  choosing.** What is written is the proposal's own payload, by
+  `applyProposal`: a new note of the kind's type, made with the exclusive
+  create, never over a note (a note already at its path is a refusal, since
+  it may be the very one proposed); or one link added to a relation of an
+  existing note, through the byte-preserving frontmatter write, guarded by
+  the digest the proposal recorded and the note's modified time. A payload's
+  folder, and a link's note, must be user space (`isUserSpaceNote`: not
+  `.atlas`, a hidden folder or one the walk never reads), and neither the
+  Archive nor the proposals folder; a link's note is found as the vault
+  spells it, so the pane asked about typing is the one holding it.
+- **Who answered is kept.** Accept and reject stamp `answered_via: api` on
+  the proposal (the app's buttons stamp `app`), so the Archive records that
+  a proposal was answered from outside the app — by an MCP client James
+  asked.
+- **The proposal moves, by the Archive's rules.** Accepting or rejecting
+  files the proposal in the Archive at its own path, through `archiveNotes`
+  — the amendment above holds: user space only, never over anything, the
+  destination fixed by the note's path. These are the only routes besides
+  `/v1/archive` that move a note, and each moves only the proposal it names,
+  only from `Inbox/Proposals/`.
+- **Typing is never saved for anyone.** A proposal, or a link proposal's
+  note, open in Atlas with unsaved typing is refused (`unsaved_in_app` for
+  the proposal; `conflict` with the reason for the note), and nothing moves.
+- **Every refusal the vault causes is `conflict`**: decided already, a note
+  already there, a note changed since the proposal was made. Two accepts at
+  once make one write; the second is a `conflict`.
+- **Not routes: Edit and Undo.** Editing a payload is the person changing
+  what Claude proposed; a caller that wants something else written has the
+  note routes. Undo takes back an accept only if nothing changed what it
+  made since, and is offered once on the page that reported it, from what
+  the app holds. Making proposals is P29-03's Claude step, inside the app.
+
+MCP: `atlas_proposals` (read-only), `atlas_accept_proposal` and
+`atlas_reject_proposal`. Accepting through MCP is James asking his own Claude
+to accept for him; the step that _makes_ proposals unattended (P29-03) has no
+tools at all (ADR-0028), so it cannot accept its own.
+
+## Amendment: blocks are notes, and a task's schedule is read with a query (P31-01, 2026-10-08)
+
+ADR-0030 makes a timeblock a note of type `block`. What the API does about it:
+
+- **No block routes.** A block is made, read and changed through the notes
+  routes, guarded and byte-preserving as every note write is.
+- **The schedule is read, never written.** `POST /v1/query` with
+  `schedule: true` on a query of tasks adds each task's estimate, scheduled,
+  done and over, worked out by the same application code the task's page
+  uses. A read the index's row cap cut short is `query_failed`, not a short
+  answer.
+- **The Block type is the app's to write**, into a vault whose tasks follow
+  GTD; the API never writes `.atlas/types`.
+- MCP's `atlas_query` takes `schedule`.
+
+## Amendment: a task is scheduled into a new block (P31-02, 2026-10-10)
+
+Planning the day drags a task onto the calendar. What the API does about it:
+
+- **`POST /v1/tasks/schedule`** (MCP `atlas_schedule_task`) makes a block for
+  a task, `minutes` from `start`, by the app's own `createBlockForTask`: a new
+  note through `createNote`, from the Block template when the vault has one,
+  never over a note that is there. It is the only route that writes a block
+  of its own making; a block's other changes, adding a task to one included,
+  stay with the notes routes, guarded and byte-preserving.
+- **The task must be a task**, named by its path; a start that is not exactly
+  local wall-clock time to the minute (`2026-10-12T09:00` — no seconds, `Z`
+  or offset, which would name another moment than its digits), or a length
+  outside 1 to 1440 minutes, is `invalid` before anything is made.
+  Without `minutes`, the block is sized as the app sizes a dropped task, from
+  the schedule `POST /v1/query` reads.
+- **No undo route.** The app's Undo puts a block it made in the Trash; the
+  API deletes no note, so a block made through it is deleted in the app, as
+  any note is.
+
+## Checklists: progress read, a line promoted (P30-03, 2026-10-08)
+
+- **Progress is read wherever rows are**: a `progress` column of
+  `POST /v1/query` and saved-view runs (unless the type declares its own),
+  the `progress` field of an Atlas query, and `files.progress` and the
+  `checks` table for SQL. It is worked out in TypeScript as the index is
+  filled (ADR-0005), so every reader agrees with the bar the app draws.
+- **`POST /v1/notes/{path}/promote`** runs the app's own use-case, so the
+  task is made by `createNote` and the line rewritten by `saveNote`: byte-
+  preserving, refused under unsaved typing, held to the task rules. The line
+  is named by its words, and by its place only when two say the same — what a
+  model reads in the note, not a count it must keep. MCP:
+  `atlas_promote_checklist_line`.
+- **The one take-back.** A promotion whose line could not be written (the
+  note moved on mid-request) trashes the task that same request made, so
+  nothing is left half done. This is not a delete of anything the caller
+  could name before the request; "no delete in v1" still holds, and the
+  app's Undo of a promotion — which trashes the task — has no route.
+- **A retry is safe.** A line that starts with a link to a task note is a
+  task already, and promoting it is refused with `exists`: a request sent
+  twice makes one task, so MCP marks the tool idempotent. The line is named
+  by its words as shown or by its markdown as the note's writer writes it.
+
+## The weekly review is read; its actions are routes that already write (P30-07, 2026-10-08)
+
+`GET /v1/review/weekly` answers the app's Weekly review page: Waiting tasks
+untouched for more than 7 days, active projects with no Next Action or In
+Progress task, overdue tasks, Someday and Longterm untouched for more than 30
+days, and the Inbox's count. It is read from the index on the app's clock, by
+the same use-case the page runs, and writes nothing. MCP's
+`atlas_weekly_review` is that one call.
+
+- **No route of its own for the quick actions.** The page's Move, Defer and
+  Archive are a status or `defer` written through
+  `PATCH /v1/notes/{path}/properties` — held to the task rules at
+  `setNoteProperties` — and a project put in the Archive through
+  `POST /v1/archive`. A second route doing the same writes would be a second
+  place for the rules to drift. The one gap, named rather than hidden: the
+  page's Archive finishes a task as the done tick does, so a repeating task
+  rolls on to its next date, where `PATCH` with `status: archive` ends its
+  series (only a board's move into done rolls one on through the API).
+- **Nothing it lists is outside what the API already reads**: user space only,
+  never `.atlas` or a hidden folder, never what is archived.
+
+## A note exported for Confluence: read, never published (P32-07, 2026-10-10)
+
+`GET /v1/notes/{path}/export?format=confluence` answers a note as markdown
+for a Confluence page, `{ export: { path, format, title, markdown, dropped } }`,
+so Claude can share it through its own Atlassian connector. MCP's
+`atlas_export_note` is that one call.
+
+- **Atlas never publishes.** The route writes nothing, and nothing in Atlas
+  talks to Confluence: no credentials, no site, no second network path. The
+  connector Claude already has does the write, as the user asked it to.
+- **Only user space reaches the page.** The note is named as any note is
+  (`isApiNotePath`), and the titles its links show and the blocks it shows in
+  place are read only from notes the API can name. A link into `.atlas` or a
+  hidden folder is shared as written, and a block shown from there is
+  "not found". The frontmatter never reaches the page at all.
+- **Nothing is left out silently.** The conversion is the domain's
+  (`exportForConfluence`), and every kind of thing it leaves out — property
+  keys, where links went, embeds of files, missing blocks, vault images,
+  block ids, comments, callout folds — is listed in `dropped`, each as the
+  note writes it.
+- **One format, asked for by name.** `format` is required, and `confluence`
+  is the only value, so another target can be added without changing what an
+  existing caller gets.

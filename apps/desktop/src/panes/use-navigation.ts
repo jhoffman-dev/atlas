@@ -21,9 +21,12 @@ export interface PlaceOpeners {
   readonly openQuery: () => void;
   readonly openTags: (tag: string | null) => void;
   readonly openArchive: () => void;
+  readonly openInbox: () => void;
+  readonly openReview: () => void;
   readonly openAutomations: () => void;
   readonly openActivity: () => void;
   readonly openTemplates: () => void;
+  readonly openTerms: () => void;
 }
 
 /** The page over the panes as a place Back can return to; null while the panes show. */
@@ -41,12 +44,18 @@ export function mainViewPlace(view: MainView): NavigationPlace | null {
       return { kind: 'tags', tag: view.tag };
     case 'archive':
       return { kind: 'archive' };
+    case 'inbox':
+      return { kind: 'inbox' };
+    case 'review':
+      return { kind: 'review' };
     case 'automations':
       return { kind: 'automations' };
     case 'activity':
       return { kind: 'activity' };
     case 'templates':
       return { kind: 'templates' };
+    case 'terms':
+      return { kind: 'terms' };
   }
 }
 
@@ -99,9 +108,12 @@ export function useNavigation({
       else if (place.kind === 'graph') open.openGraph(place.scope);
       else if (place.kind === 'tags') open.openTags(place.tag);
       else if (place.kind === 'archive') open.openArchive();
+      else if (place.kind === 'inbox') open.openInbox();
+      else if (place.kind === 'review') open.openReview();
       else if (place.kind === 'automations') open.openAutomations();
       else if (place.kind === 'activity') open.openActivity();
       else if (place.kind === 'templates') open.openTemplates();
+      else if (place.kind === 'terms') open.openTerms();
       else open.openQuery();
     },
     [open, openInPane, focus],

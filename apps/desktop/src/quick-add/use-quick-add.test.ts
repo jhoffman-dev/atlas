@@ -95,7 +95,7 @@ describe('useQuickAdd', () => {
     act(() => hook.result.current.pick('task'));
     await waitFor(() =>
       expect(hook.result.current.choices).toEqual({
-        project: [{ path: 'Garden.md', title: 'Garden' }],
+        project: [{ path: 'Garden.md', title: 'Garden', type: 'project' }],
       }),
     );
     expect(notesOfType).toHaveBeenCalledWith('project');

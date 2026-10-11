@@ -64,11 +64,12 @@ export async function archiveListRoute(request: VaultRequest): Promise<RouteResu
 type Batch = Parameters<typeof unarchiveNotes>[0];
 
 /**
- * Runs one batch over the paths a request named. A path the API cannot reach,
- * or that names no note, is reported beside the batch's own failures rather
- * than refusing the request, as the app reports a selection.
+ * Runs one batch over the paths a request named — archiving, unarchiving,
+ * processing the Inbox. A path the API cannot reach, or that names no note,
+ * is reported beside the batch's own failures rather than refusing the
+ * request, as the app reports a selection.
  */
-async function moveBatch(
+export async function moveBatch(
   request: VaultRequest,
   run: (batch: Batch) => Promise<ArchiveOutcome>,
 ): Promise<RouteResult> {
@@ -136,7 +137,7 @@ function noteAt(raw: string, notePaths: readonly VaultPath[]): VaultPath | { rea
  * belong to whichever vault is open now, so once another is, they are left
  * alone: nothing of this vault is in them.
  */
-function archivePorts(request: VaultRequest): ArchivePorts {
+export function archivePorts(request: VaultRequest): ArchivePorts {
   return {
     fs: request.fs,
     index: request.index,

@@ -5,6 +5,7 @@ import {
   resolveActivityPorts,
   resolveAppInfoPort,
   resolveExternalLinks,
+  resolveGoogleCalendar,
   resolveIndexPorts,
   resolveLocalApiPorts,
   resolveChatPorts,
@@ -37,6 +38,7 @@ createRoot(root).render(
       chat={resolveChatPorts()}
       activity={resolveActivityPorts()}
       sync={resolveSyncPorts()}
+      googleCalendar={resolveGoogleCalendar()}
     />
   </StrictMode>,
 );

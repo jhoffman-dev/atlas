@@ -213,12 +213,26 @@ class Parser {
   }
 
   private condition(): Expression {
+    if (this.atLinksTo()) return this.linksTo();
     const field = this.field('Expected a field to compare, like status.');
     const token = this.peek();
     if (isWord(token, 'IS')) return this.emptiness(field);
     const op = this.comparison();
-    const value = this.value(op);
+    const value = this.value(opText(op));
     return { kind: 'compare', field, op, value, span: spanOf(field, value) };
+  }
+
+  /** `LINKS TO …`; `links = x` still compares a property called `links`. */
+  private atLinksTo(): boolean {
+    const after = this.tokens[this.at + 1];
+    return isWord(this.peek(), 'LINKS') && after !== undefined && isWord(after, 'TO');
+  }
+
+  private linksTo(): Expression {
+    const start = this.next().span.start;
+    this.next();
+    const value = this.value('LINKS TO');
+    return { kind: 'linksTo', value, span: { start, end: value.span.end } };
   }
 
   private emptiness(field: FieldRef): Expression {
@@ -246,7 +260,8 @@ class Parser {
     );
   }
 
-  private value(op: Comparison): QueryValue {
+  /** The value after `written`, the operator or words before it. */
+  private value(written: string): QueryValue {
     const token = this.next();
     const span = token.span;
     switch (token.kind) {
@@ -264,9 +279,10 @@ class Parser {
         if (isWord(token, 'TRUE') || isWord(token, 'FALSE')) {
           return { kind: 'boolean', value: isWord(token, 'TRUE'), span };
         }
+        if (isWord(token, 'THIS')) return { kind: 'this', span };
         return { kind: 'text', text: token.text, span };
       default:
-        throw new QueryTextError(`Expected a value after ${opText(op)}.`, span);
+        throw new QueryTextError(`Expected a value after ${written}.`, span);
     }
   }
 

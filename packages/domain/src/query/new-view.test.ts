@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BLOCK_TYPE_FILE } from '../timeblocks/block-type.ts';
 import type { ObjectType, PropertyDef } from '../types/property-def.ts';
 import {
   layoutLabel,
@@ -119,6 +120,21 @@ describe('the note a new view is written as', () => {
       endKey: 'due',
     });
     expect(parseViewDisplay(made('list'))).toMatchObject({ layout: 'list', groupBy: null });
+  });
+
+  it('draws a new calendar of blocks from each block’s start to its end (P31-02), and no other so', () => {
+    const block = newViewNote(
+      { name: 'Plan', type: 'block', layout: 'calendar' },
+      BLOCK_TYPE_FILE.type,
+    ).frontmatter;
+
+    expect(parseViewDisplay(block)).toMatchObject({
+      layout: 'calendar',
+      dateKey: 'start',
+      startKey: 'start',
+      endKey: 'end',
+    });
+    expect(parseViewDisplay(made('calendar'))).toMatchObject({ startKey: null, endKey: null });
   });
 
   it('calls each layout by its name', () => {

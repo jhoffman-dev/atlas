@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { API_ERROR_STATUS, API_ROUTES } from './contract.ts';
 import type { OpenNotes } from './ports.ts';
-import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT } from '../testing/api-fixture.ts';
+import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT, VAULT } from '../testing/api-fixture.ts';
 import { fakeOpenNotes } from '../testing/fake-ports.ts';
 
 describe('routing', () => {
@@ -80,6 +80,7 @@ describe('with no vault open', () => {
       version: '1.4.0',
       vault: null,
       index: { ready: false, notes: 0 },
+      googleCalendar: null,
     });
   });
 });
@@ -106,6 +107,41 @@ describe('status', () => {
 
     const response = await api.send({ method: 'GET', path: '/v1/status' });
     expect(bodyOf(response)['index']).toEqual({ ready: false, notes: 0 });
+  });
+
+  it('says whether Google Calendar is connected for the open vault, and nothing more of it', async () => {
+    const api = apiFixture();
+    expect(bodyOf(await api.send({ method: 'GET', path: '/v1/status' }))['googleCalendar']).toEqual(
+      { connected: false },
+    );
+
+    api.google.connected.set(VAULT.absolutePath, {
+      connected: true,
+      clientId: '1234-fictional.apps.googleusercontent.com',
+      scopes: ['https://www.googleapis.com/auth/calendar.app.created'],
+    });
+    const response = await api.send({ method: 'GET', path: '/v1/status' });
+
+    // Status only: not the client, the scopes, or anything a token could be.
+    expect(bodyOf(response)['googleCalendar']).toEqual({ connected: true });
+    expect(JSON.stringify(response.body)).not.toMatch(/googleusercontent|scope|token/i);
+  });
+
+  it('says a Google sign-in the Keychain will not give back is not connected, rather than failing', async () => {
+    const api = apiFixture();
+    api.deps = {
+      ...api.deps,
+      googleCalendar: {
+        status: async () => {
+          throw new Error('the Keychain refused: locked');
+        },
+      },
+    };
+
+    const response = await api.send({ method: 'GET', path: '/v1/status' });
+
+    expect(response.status).toBe(200);
+    expect(bodyOf(response)['googleCalendar']).toEqual({ connected: false });
   });
 
   it('reports an index that cannot count as not ready, rather than failing', async () => {

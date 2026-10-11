@@ -125,6 +125,19 @@ describe('useNavigation', () => {
     act(() => result.current.navigation.back());
     expect(layoutOf(result).paths).toEqual([createVaultPath('Notes/alpha.md')]);
   });
+
+  it('goes back to the Terms page, and forward from it, by the way it was opened', () => {
+    const result = render();
+    act(() => result.current.panes.openInFocusedPane(alpha));
+    act(() => result.current.main.openTerms());
+    act(() => result.current.main.showPanes());
+    expect(result.current.navigation.historyFor(0)).toMatchObject({ back: 'Terms' });
+
+    act(() => result.current.navigation.back());
+    expect(result.current.main.termsOpen).toBe(true);
+    act(() => result.current.navigation.forward());
+    expect(result.current.main.termsOpen).toBe(false);
+  });
 });
 
 describe('mainViewPlace', () => {
@@ -137,12 +150,17 @@ describe('mainViewPlace', () => {
     expect(mainViewPlace({ kind: 'query' })).toEqual({ kind: 'query' });
     expect(mainViewPlace({ kind: 'tags', tag: 'idea' })).toEqual({ kind: 'tags', tag: 'idea' });
     expect(mainViewPlace({ kind: 'activity' })).toEqual({ kind: 'activity' });
+    expect(mainViewPlace({ kind: 'terms' })).toEqual({ kind: 'terms' });
+    expect(mainViewPlace({ kind: 'inbox' })).toEqual({ kind: 'inbox' });
+    expect(mainViewPlace({ kind: 'review' })).toEqual({ kind: 'review' });
   });
 });
 
 describe('placeName', () => {
   it('names each kind of place as its own bar does', () => {
     expect(nameOf({ kind: 'note', path: alpha })).toBe('alpha');
+    expect(nameOf({ kind: 'inbox' })).toBe('Inbox');
+    expect(nameOf({ kind: 'review' })).toBe('Weekly review');
     expect(nameOf({ kind: 'type', name: 'task' })).toBe('TASK');
     expect(nameOf({ kind: 'graph', scope: { kind: 'vault' } })).toBe('Graph');
     expect(nameOf({ kind: 'graph', scope: { kind: 'note', path: beta, depth: 1 } })).toBe(
@@ -152,5 +170,6 @@ describe('placeName', () => {
     expect(nameOf({ kind: 'tags', tag: null })).toBe('Tags');
     expect(nameOf({ kind: 'tags', tag: 'idea' })).toBe('#Idea');
     expect(nameOf({ kind: 'tags', tag: 'tag me' })).toBe('#tag me#');
+    expect(nameOf({ kind: 'terms' })).toBe('Terms');
   });
 });

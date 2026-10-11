@@ -4,6 +4,7 @@ import {
   archiveRefusal,
   createVaultPath,
   isArchivedPath,
+  isBlockType,
   isFavorite,
   deleteRefusal,
   isMovable,
@@ -41,6 +42,7 @@ import {
   NotePane,
   WidgetEditor,
   SourcePanel,
+  TaskScheduleSummary,
   useCalendarNav,
   type CalendarNavigation,
   type GroupFolds,
@@ -48,6 +50,7 @@ import {
   type NotePeople,
   type NoteReveal,
   type PaneArrangement,
+  type Planner,
   type TemplateNotice,
   type ViewTabEditing,
 } from '@atlas/ui';
@@ -57,7 +60,10 @@ import { useImages } from '../notes/use-images.ts';
 import { useBookmarks } from '../notes/use-bookmarks.ts';
 import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
+import { useLinePromotion } from '../notes/use-line-promotion.ts';
 import { cryptoRng } from '../random.ts';
+import { usePlanner } from '../timeblocks/use-planner.ts';
+import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
 import { webviewImageProbe } from '../notes/webview-image-probe.ts';
 import { browserImagePlacementStore } from '../notes/browser-image-placement-store.ts';
 import { useNoteProperties } from '../types/use-note-properties.ts';
@@ -77,9 +83,10 @@ import { SqlViewBody, ViewBody, ViewHeadToolbar } from './view-body.tsx';
 import { useSqlView } from '../query/use-sql-view.ts';
 import { useQueryView, type QueryViewState } from '../query/use-query-view.ts';
 import { QueryViewBody } from './query-view-body.tsx';
+import { useQueryBlocks } from '../query/use-query-blocks.ts';
 import { pageHeading } from './page-heading.ts';
 import { localClock, localNow, localToday } from '../today.ts';
-import type { OpenEditors } from './open-editors.ts';
+import type { OpenEditors, PaneEditors } from './open-editors.ts';
 import type { StrandedEdits } from '../notes/stranded-edits.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
@@ -121,7 +128,8 @@ export interface PaneContext {
   readonly people: NotePeople;
   /** Opens the tags page on a tag, by its name as written. */
   readonly openTag: (name: string) => void;
-  readonly editors: OpenEditors;
+  /** The panes' editors, and whether one holds typing in a note not yet saved. */
+  readonly editors: OpenEditors & Pick<PaneEditors, 'stateOf'>;
   /** Work a closed pane could not write, kept until its note is opened again. */
   readonly stranded: StrandedEdits;
   /** Where a save the pane gave up on is said (U-28). */
@@ -208,7 +216,18 @@ export function NotePaneContainer({
 
   const note = usePaneNote({ paneId, path, context });
   const links = useNoteLinks({ context, path });
-  const noteProperties = useNoteProperties({ note: note.open, types, index });
+  const linkCheck = useMemo(
+    () => ({ fs: notes.fs, markdown: notes.markdown, notePaths }),
+    [notes.fs, notes.markdown, notePaths],
+  );
+  const noteProperties = useNoteProperties({ note: note.open, types, index, links: linkCheck });
+  const taskSchedule = useTaskSchedule({
+    index,
+    types,
+    path,
+    typeName: noteProperties.typeName,
+    indexKey,
+  });
   const addProperty = useAddProperty({
     fs: notes.fs,
     markdown: notes.markdown,
@@ -253,6 +272,21 @@ export function NotePaneContainer({
     tickMemory: context.tickMemory,
     drafts: context.viewDrafts,
     viewPaths: context.viewPaths,
+    activity: context.activity,
+  });
+  const planner = usePlanner({
+    active:
+      savedView.display.layout === 'calendar' &&
+      isBlockType(savedView.type?.name ?? savedView.query?.type),
+    vault: context.vault,
+    fs: notes.fs,
+    markdown: notes.markdown,
+    index,
+    editors,
+    types,
+    notePaths,
+    indexKey,
+    onChanged,
     activity: context.activity,
   });
   const sqlView = useSqlView({ note: note.open, index, indexKey });
@@ -333,6 +367,14 @@ export function NotePaneContainer({
     notePaths,
     revision: indexKey,
   });
+  const queries = useQueryBlocks({
+    index,
+    types,
+    notePaths,
+    notePath: path,
+    revision: indexKey,
+    onOpenNote: (target) => onOpenNote(createVaultPath(target)),
+  });
   const picking = useBlockPicking({
     fs: notes.fs,
     markdown: notes.markdown,
@@ -343,6 +385,18 @@ export function NotePaneContainer({
     rng: cryptoRng,
     onChanged,
     onRefused: context.onLinkProblem,
+  });
+  const promotion = useLinePromotion({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    openNotes: context.openNotes,
+    flush: note.flush,
+    path,
+    notePaths,
+    types,
+    onChanged,
+    onOpenNote,
+    activity: context.activity,
   });
   const embedImage = useEmbedImage({
     ports: {
@@ -387,7 +441,10 @@ export function NotePaneContainer({
       people={context.people}
       bookmarks={bookmarks}
       transclusions={transclusions}
+      {...(queries !== undefined && { queries })}
       picking={picking}
+      // A template's lines are what new notes start with, not work to promote.
+      {...(promotion !== undefined && template === null && { promotion })}
       reveal={reveal}
       onOpenTag={context.openTag}
       links={links.links}
@@ -439,7 +496,10 @@ export function NotePaneContainer({
       onToggleFavorite={() => {
         if (path !== null) onToggleFavorite(path);
       }}
-      aside={artifactAside(artifact, path)}
+      aside={
+        artifactAside(artifact, path) ??
+        (taskSchedule === null ? null : <TaskScheduleSummary {...taskSchedule} />)
+      }
       // A template is edited as text, whatever it makes: the Dashboard
       // template's widgets are its frontmatter, not a dashboard to arrange.
       body={
@@ -449,6 +509,7 @@ export function NotePaneContainer({
               source,
               dashboard: { ...dashboard, ...dashboardEditing },
               savedView,
+              planner,
               sqlView,
               queryView,
               calendar,
@@ -674,6 +735,7 @@ function paneBody({
   source,
   dashboard,
   savedView,
+  planner,
   sqlView,
   queryView,
   calendar,
@@ -689,6 +751,8 @@ function paneBody({
   source: ReturnType<typeof useSource>;
   dashboard: ReturnType<typeof useDashboard> & ReturnType<typeof useDashboardEditing>;
   savedView: ReturnType<typeof useSavedView>;
+  /** The tray of tasks to plan, for a calendar of blocks; null for any other view. */
+  planner: Planner | null;
   sqlView: ReturnType<typeof useSqlView>;
   queryView: QueryViewState | null;
   calendar: CalendarNavigation;
@@ -744,6 +808,7 @@ function paneBody({
   return (
     <ViewBody
       view={savedView}
+      planner={planner}
       calendar={calendar}
       onOpenNote={openTarget}
       onFollowLink={followLink}

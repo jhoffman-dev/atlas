@@ -11,6 +11,7 @@ import {
   newNoteFolder,
   nextAvailableNotePath,
   noteTitle,
+  taskRuleChanges,
   type BlockChange,
   type EditorDocument,
   type EditorNode,
@@ -84,6 +85,21 @@ export type AppliedProposal =
     }
   | { readonly kind: 'created'; readonly path: VaultPath; readonly modified: number };
 
+/**
+ * The properties a proposal writes, held to the task rules against the note
+ * as it is (ADR-0029): one the rules refuse is not proposed, and says why;
+ * one that finishes a task is dated.
+ */
+function ruledProperties(
+  before: Readonly<Record<string, unknown>>,
+  asked: Readonly<Record<string, unknown>>,
+  today: string,
+): Record<string, unknown> {
+  const outcome = taskRuleChanges({ before, changes: asked, today });
+  if ('refused' in outcome) throw new ProposalRefused(outcome.refused);
+  return { ...outcome.changes };
+}
+
 /** Why a proposal could not be made, accepted or undone, in words for the person or the model. */
 export class ProposalRefused extends Error {
   constructor(message: string) {
@@ -100,21 +116,25 @@ export async function proposeEdit({
   markdown,
   input,
   id,
+  today,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   input: Input;
   id: string;
+  /** `YYYY-MM-DD`: a task the edit finishes is dated by it (ADR-0029). */
+  today: string;
 }): Promise<EditProposal> {
   const path = writablePath(input['path']);
   const edits = textEdits(input['edits']);
   const append = optionalString(input['append'], 'append');
-  const properties = propertyValues(input['properties']);
-  if (edits.length === 0 && append === null && properties === null) {
+  const asked = propertyValues(input['properties']);
+  if (edits.length === 0 && append === null && asked === null) {
     throw new ProposalRefused('A proposed edit needs "edits", "append" or "properties".');
   }
 
   const note = await readForEdit({ fs, markdown, path });
+  const properties = asked === null ? null : ruledProperties(note.properties, asked, today);
   const edited = applyTextEdits(note.originalBody, edits);
   if (!edited.ok) throw new ProposalRefused(edited.problem);
   const afterBody = append === null ? edited.text : appendToBody(edited.text, append);
@@ -151,17 +171,20 @@ export function proposeNote({
   input,
   id,
   notePaths,
+  today,
 }: {
   markdown: MarkdownPort;
   input: Input;
   id: string;
   notePaths: readonly VaultPath[];
+  /** `YYYY-MM-DD`: a task proposed already finished is dated by it (ADR-0029). */
+  today: string;
 }): NoteProposal {
   const title = cleanEntryName(typeof input['title'] === 'string' ? input['title'] : '');
   if (title === '') throw new ProposalRefused('A new note needs a "title".');
   const named = optionalString(input['folder'], 'folder');
   const body = optionalString(input['body'], 'body') ?? '';
-  const properties = propertyValues(input['properties']) ?? {};
+  const properties = ruledProperties({}, propertyValues(input['properties']) ?? {}, today);
   const folder =
     named === null ? newNoteFolder({ beside: null, properties }) : checkedFolder(named, title);
   const path = nextAvailableNotePath({ folder, name: title, taken: new Set<string>(notePaths) });

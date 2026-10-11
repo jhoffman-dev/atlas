@@ -23,11 +23,21 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/api`          | Writes into your vault on behalf of other programs.                           | 15      |
 | `application/artifacts`    | Writes a folder of files into your vault, from outside it.                    | 17      |
 | `application/types` (edit) | Rewrites a type's file, and can rewrite every note of it.                     | 17      |
+| `application/types` (PARA) | Writes PARA's type files into a vault, and adds to the vault's own.           | 30      |
 | `application/tags`         | Renaming a tag rewrites every note that uses it.                              | 20      |
 | `application/archive`      | Moves notes in and out of the Archive, rewriting frontmatter.                 | 23      |
+| `application/inbox`        | Moves notes out of the Inbox into a project's folder, rewriting frontmatter.  | 30      |
+| `application/gtd`          | Moves every task to GTD's statuses, rewrites views and rules, undoes it all.  | 30      |
+| `application/timeblocks`   | Reads each task's schedule; writes blocks and links tasks into them, undone.  | 31      |
 | `application/automations`  | Runs rules on a clock: archives or rewrites notes, logs it, undoes it.        | 25      |
 | `application/sync`         | Merges other Macs' changes into notes; settles conflicts; never loses a side. | U-29    |
+| `application/meetings`     | Marks and archives meeting files that arrived from outside Atlas, by itself.  | 28      |
 | `tools/n8n/*.ts`           | The n8n meeting mapper: commits files into your vault from outside Atlas.     | 28      |
+| `domain/terms`             | The vocabulary: decides how every name in a transcript is spelt.              | 28      |
+| `application/terms`        | Adds terms as notes and rewrites their variants in the frontmatter.           | 28      |
+| `tools/notion-import/*.ts` | The Notion imports: meetings and a whole workspace into a vault, re-runnable. | 28, #79 |
+| `application/proposals`    | Accepting a proposal writes notes, archives it, and undo takes them back.     | 29      |
+| `*/google-calendar`        | Connects your Google account and reads its answers; tokens stay in Rust.      | 31      |
 
 Rules that apply everywhere:
 

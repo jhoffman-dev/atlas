@@ -1,4 +1,4 @@
-import type { BodyRange, EditorDocument, ParsedBody } from '@atlas/domain';
+import type { BodyRange, EditorDocument, ParsedBody, RawPart } from '@atlas/domain';
 
 /**
  * Turning markdown into an editable document and back. The implementation is a
@@ -36,4 +36,11 @@ export interface MarkdownPort {
    */
   updateFrontmatter(frontmatter: string | null, changes: Readonly<Record<string, unknown>>): string;
   serializeBody(args: { originalBody: string; parsed: ParsedBody; doc: EditorDocument }): string;
+  /**
+   * What markdown the editor does not model holds that an export rewrites
+   * (P32-07): its links, images, definitions, footnotes, HTML, ids and
+   * quotes, by offset, read with `definitions` — the note's own, each as its
+   * markdown — in reach, as the note reads them. Nothing in code.
+   */
+  rawParts(markdown: string, definitions: readonly string[]): RawPart[];
 }

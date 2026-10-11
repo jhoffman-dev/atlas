@@ -13,19 +13,31 @@ export * from './artifacts/index.ts';
 export * from './thumbnails/index.ts';
 export * from './quick-add/index.ts';
 export * from './settings/index.ts';
+export * from './google-calendar/index.ts';
 export * from './profile/index.ts';
 export * from './tags/index.ts';
+export * from './meetings/index.ts';
 export { fakeHostVaultFs, fakeIndexPort, fakeMarkdown, fakeVaultFs } from './testing/fake-ports.ts';
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
+export { apiFixture, bodyOf, codeOf, encoded } from './testing/api-fixture.ts';
+export { fakeGoogleCalendar } from './testing/fake-google-calendar.ts';
 export * from './api/index.ts';
 export * from './archive/index.ts';
+export * from './inbox/index.ts';
+export * from './gtd/index.ts';
+export * from './timeblocks/index.ts';
+export * from './checklists/index.ts';
+export * from './review/index.ts';
 export * from './automations/index.ts';
 export * from './people/index.ts';
+export * from './terms/index.ts';
 export * from './bookmarks/index.ts';
 export * from './chat/index.ts';
+export * from './proposals/index.ts';
 export * from './transclusion/index.ts';
 export * from './activity/index.ts';
 export * from './sync/index.ts';
+export * from './embeddings/index.ts';
 export {
   CONFLICT_BLOBS,
   failed,

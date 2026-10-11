@@ -47,6 +47,8 @@ export {
   dryRunReport,
   indexFailedReport,
   indexRebuiltReport,
+  meetingImportReport,
+  meetingImportStoppedReport,
   noticeReport,
   screenWriteFailedReport,
   sourceRefreshReport,
@@ -55,6 +57,7 @@ export {
 export type {
   ChatFailure,
   ChatHappening,
+  MeetingImportHappening,
   RuleNamed,
   ScreenWrite,
   SourceOutcome,

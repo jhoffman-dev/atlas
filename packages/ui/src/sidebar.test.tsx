@@ -198,6 +198,24 @@ describe('Sidebar', () => {
     expect(onOpenTemplates).toHaveBeenCalledOnce();
   });
 
+  it('opens the Terms page from its row, marked only while it is open (P28-05)', async () => {
+    const onOpenTerms = vi.fn();
+    const { unmount } = show({ onOpenTerms, active: null });
+    expect(screen.getByRole('button', { name: 'Terms' }).getAttribute('aria-current')).toBeNull();
+    unmount();
+    show({ onOpenTerms, active: { kind: 'terms' } });
+    const row = screen.getByRole('button', { name: 'Terms' });
+    expect(row.getAttribute('aria-current')).toBe('page');
+    await userEvent.click(row);
+    expect(onOpenTerms).toHaveBeenCalledOnce();
+  });
+
+  it('has no Terms row when nothing opens the page', () => {
+    show();
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Terms' })).toBeNull();
+  });
+
   it('keeps the browser’s own menu on a type when there is nothing to offer', async () => {
     show();
     await userEvent.pointer({
@@ -271,6 +289,79 @@ describe('Sidebar', () => {
     expect(
       screen.getByRole('button', { name: 'Task, 62 notes' }).getAttribute('aria-current'),
     ).toBe('page');
+  });
+});
+
+describe('the Inbox row (P30-01)', () => {
+  const inboxView: SidebarQuickView = {
+    id: 'inbox',
+    entry: sidebarEntry(createVaultPath('.atlas/views/Inbox.md'), 'list'),
+    count: 11,
+  };
+  const goTo = () => within(screen.getByRole('list', { name: 'Go to' }));
+
+  it('opens the Inbox page, after Today, with how many notes wait there', async () => {
+    const onOpen = vi.fn();
+    const onOpenView = vi.fn();
+    show({ quick: [today, inboxView], onOpen: onOpenView, inbox: { onOpen, count: 3 } });
+
+    const names = goTo()
+      .getAllByRole('button')
+      .map((button) => button.textContent);
+    expect(names.slice(1, 3)).toEqual(['Today4', 'Inbox3']);
+
+    await userEvent.click(goTo().getByRole('button', { name: /^Inbox/ }));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(onOpenView).not.toHaveBeenCalled();
+  });
+
+  it('stands in for an Inbox view: there is one Inbox row, not two', () => {
+    show({ quick: [today, inboxView], inbox: { onOpen: () => {}, count: 3 } });
+    expect(goTo().getAllByRole('button', { name: /^Inbox/ })).toHaveLength(1);
+  });
+
+  it('is there in a vault with no Inbox view, and shows no count while none wait', () => {
+    show({ quick: [], inbox: { onOpen: () => {}, count: 0 } });
+    expect(goTo().getByRole('button', { name: 'Inbox' }).textContent).toBe('Inbox');
+  });
+
+  it('is marked while the Inbox page is open', () => {
+    show({ inbox: { onOpen: () => {}, count: null }, active: { kind: 'inbox' } });
+    expect(goTo().getByRole('button', { name: 'Inbox' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('leaves an Inbox view as its own row when the app has no Inbox page to offer', async () => {
+    const onOpen = vi.fn();
+    show({ quick: [inboxView], onOpen });
+    await userEvent.click(goTo().getByRole('button', { name: /^Inbox/ }));
+    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Inbox.md');
+  });
+});
+
+describe('the weekly review row (P30-07)', () => {
+  const goTo = () => within(screen.getByRole('list', { name: 'Go to' }));
+
+  it('opens the weekly review, under the Inbox', async () => {
+    const onOpenReview = vi.fn();
+    show({ quick: [], inbox: { onOpen: () => {}, count: 2 }, onOpenReview });
+    const names = goTo()
+      .getAllByRole('button')
+      .map((button) => button.textContent);
+    expect(names.slice(1, 3)).toEqual(['Inbox2', 'Weekly review']);
+    await userEvent.click(goTo().getByRole('button', { name: 'Weekly review' }));
+    expect(onOpenReview).toHaveBeenCalledOnce();
+  });
+
+  it('is marked while the review is open', () => {
+    show({ onOpenReview: () => {}, active: { kind: 'review' } });
+    const row = goTo().getByRole('button', { name: 'Weekly review' });
+    expect(row.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('is absent when the app does not offer it', () => {
+    show({});
+    expect(goTo().queryByRole('button', { name: 'Weekly review' })).toBeNull();
+    expect(goTo().getByRole('button', { name: /Search/ })).toBeDefined();
   });
 });
 

@@ -51,7 +51,7 @@ export interface EventWrite {
  * past the last (or first) day a date can hold, rather than the clock
  * wrapping round on the same day.
  */
-function later(time: EventTime, by: number): EventTime | null {
+export function later(time: EventTime, by: number): EventTime | null {
   const total = (time.minutes ?? 0) + by;
   const days = Math.floor(total / MINUTES_PER_DAY);
   const date = addDays(time.date, days);

@@ -20,6 +20,7 @@ export const TYPE_ICONS: readonly SidebarIcon[] = [
   'timeline',
   'chart',
   'artifact',
+  'term',
 ];
 
 /** The icon a type is drawn with: the one it chose, else a guess from its name. */

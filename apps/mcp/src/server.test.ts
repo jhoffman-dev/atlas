@@ -22,6 +22,7 @@ const NOTE = {
 const ROWS = { columns: ['title'], rows: [['Call Sam']], truncated: false, sql: 'SELECT 1' };
 
 const ALL_TOOLS = [
+  'atlas_accept_proposal',
   'atlas_add_image',
   'atlas_add_to_view',
   'atlas_append_to_note',
@@ -35,31 +36,41 @@ const ALL_TOOLS = [
   'atlas_capture_task',
   'atlas_create_note',
   'atlas_daily_note',
+  'atlas_export_note',
+  'atlas_inbox',
   'atlas_list_notes',
   'atlas_list_templates',
   'atlas_list_type_views',
   'atlas_list_types',
   'atlas_list_views',
+  'atlas_meetings',
   'atlas_move_card',
+  'atlas_process_inbox_item',
   'atlas_profile',
+  'atlas_promote_checklist_line',
+  'atlas_proposals',
   'atlas_query',
   'atlas_quick_add',
   'atlas_quick_add_types',
   'atlas_read_note',
   'atlas_read_template',
   'atlas_refresh_source',
+  'atlas_reject_proposal',
   'atlas_rename_tag',
   'atlas_replace_note_body',
   'atlas_run_query',
   'atlas_run_view',
   'atlas_save_artifact',
+  'atlas_schedule_task',
   'atlas_search',
   'atlas_sql',
   'atlas_status',
   'atlas_tagged_notes',
   'atlas_tags',
+  'atlas_terms',
   'atlas_unarchive',
   'atlas_update_properties',
+  'atlas_weekly_review',
 ];
 
 let atlas: FakeAtlas;
@@ -126,25 +137,51 @@ describe('tools/list', () => {
       destructiveHint: false,
     });
     expect(byName.get('atlas_archived')).toMatchObject({ readOnlyHint: true });
-    for (const name of ['atlas_archive', 'atlas_unarchive']) {
+    expect(byName.get('atlas_weekly_review')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('atlas_export_note')).toMatchObject({ readOnlyHint: true });
+    expect(byName.get('atlas_inbox')).toMatchObject({ readOnlyHint: true });
+    for (const name of [
+      'atlas_archive',
+      'atlas_unarchive',
+      'atlas_process_inbox_item',
+      'atlas_schedule_task',
+    ]) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: false, destructiveHint: false });
     }
     // Automations are read here and run in the app: not one of their tools writes.
     for (const name of ['atlas_automations', 'atlas_automation_log', 'atlas_automation_dry_run']) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: true });
     }
+    // Meetings are imported in the app; the tool only reads what the import made of them.
+    expect(byName.get('atlas_meetings')).toMatchObject({ readOnlyHint: true });
     // The name is set in Settings; the API never writes `.atlas`.
     expect(byName.get('atlas_profile')).toMatchObject({ readOnlyHint: true });
+    // Answering a proposal moves it into the Archive; a second answer is refused.
+    expect(byName.get('atlas_proposals')).toMatchObject({ readOnlyHint: true });
+    for (const name of ['atlas_accept_proposal', 'atlas_reject_proposal']) {
+      expect(byName.get(name)).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      });
+    }
     // Templates are edited in the app; the API never writes `.atlas` (ADR-0016).
     for (const name of ['atlas_list_templates', 'atlas_read_template']) {
       expect(byName.get(name)).toMatchObject({ readOnlyHint: true });
     }
+    // The vocabulary is read here; a term is written as any note is.
+    expect(byName.get('atlas_terms')).toMatchObject({ readOnlyHint: true });
   });
 
   it('points template callers at tools that exist', async () => {
     const { tools } = await mcp.listTools();
     const names = new Set(tools.map((t) => t.name));
-    for (const tool of ['atlas_list_templates', 'atlas_read_template', 'atlas_create_note']) {
+    for (const tool of [
+      'atlas_list_templates',
+      'atlas_read_template',
+      'atlas_create_note',
+      'atlas_terms',
+    ]) {
       const description = tools.find((t) => t.name === tool)?.description ?? '';
       const named = description.match(/atlas_[a-z_]+/g) ?? [];
       expect(named.length).toBeGreaterThan(0);
@@ -159,7 +196,7 @@ describe('tools/list', () => {
     for (const table of ['files(', 'props(', 'links(', 'fts', 'v_<type>', 'sqlite_master']) {
       expect(described('atlas_sql')).toContain(table);
     }
-    expect(described('atlas_capture_task')).toContain('at the vault root');
+    expect(described('atlas_capture_task')).toContain('waiting in Inbox/');
   });
 
   it('tells the model a rule can be set off by a note, once per version, and how to read it', async () => {
@@ -174,6 +211,48 @@ describe('tools/list', () => {
       '"went" lists paths a note it had handled left',
     );
     expect(described('atlas_automation_dry_run')).toContain('it has not handled as they are now');
+  });
+
+  it('tells the model how to answer a query block a note holds', async () => {
+    const { tools } = await mcp.listTools();
+    const described = tools.find((t) => t.name === 'atlas_run_query')?.description ?? '';
+    expect(described).toContain('```atlas-query block');
+    expect(described).toMatch(/without that line, with the note as context/);
+  });
+
+  it('tells the model the GTD statuses and their rules wherever it writes a task (P30-02)', async () => {
+    const { tools } = await mcp.listTools();
+    const described = (name: string) => tools.find((t) => t.name === name)?.description ?? '';
+    for (const tool of ['atlas_capture_task', 'atlas_update_properties']) {
+      expect(described(tool)).toContain(
+        'inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive',
+      );
+      expect(described(tool)).toContain('"waiting" needs "waiting_on"');
+      expect(described(tool)).toContain('"completed" to today');
+    }
+    expect(described('atlas_capture_task')).toContain('with status "inbox"');
+  });
+
+  it('tells the model what puts an item in the weekly review, and how to act on one (P30-07)', async () => {
+    const { tools } = await mcp.listTools();
+    const review = tools.find((t) => t.name === 'atlas_weekly_review')?.description ?? '';
+    expect(review).toContain('untouched for more than 7 days');
+    expect(review).toContain('untouched for more than 30 days');
+    expect(review).toContain('next-action or in-progress');
+    expect(review).toContain('atlas_update_properties');
+    expect(review).toContain('atlas_archive');
+    expect(review).toContain('for a repeating one (with "recurrence"), ends its series');
+  });
+
+  it('tells the model that Atlas only exports, and the connector writes the page (P32-07)', async () => {
+    const { tools } = await mcp.listTools();
+    const described = tools.find((t) => t.name === 'atlas_export_note')?.description ?? '';
+    expect(described).toContain('Atlas writes nothing');
+    expect(described).toContain('Atlassian connector');
+    expect(described).toContain('tell the user what "dropped" lists');
+    expect(described).toContain('passed verbatim: add, reword or reformat nothing');
+    const kinds = ['property', 'link', 'embed', 'missing-embed', 'image', 'block-id', 'comment'];
+    for (const kind of [...kinds, 'callout-fold', 'formatting']) expect(described).toContain(kind);
   });
 
   it('requires ifModified for replace_note_body and not for append', async () => {
@@ -242,6 +321,13 @@ describe('tools/call → REST', () => {
       null,
     ],
     ['atlas_backlinks', { path: 'P/Q.md' }, 'GET', '/v1/notes/P%2FQ.md/backlinks', null],
+    [
+      'atlas_export_note',
+      { path: 'P/Q.md' },
+      'GET',
+      '/v1/notes/P%2FQ.md/export?format=confluence',
+      null,
+    ],
     [
       'atlas_create_note',
       { folder: 'Tasks', name: 'Call Sam', template: 'Task', properties: { status: 'todo' } },
@@ -344,6 +430,7 @@ describe('tools/call → REST', () => {
       '/v1/sources/Sources%2FIssues.md/refresh',
       null,
     ],
+    ['atlas_terms', {}, 'GET', '/v1/terms', null],
     ['atlas_tags', {}, 'GET', '/v1/tags', null],
     ['atlas_tags', { sort: 'frequency' }, 'GET', '/v1/tags?sort=frequency', null],
     [
@@ -390,7 +477,53 @@ describe('tools/call → REST', () => {
       { paths: ['Archive/Call.md'] },
     ],
     ['atlas_archived', {}, 'GET', '/v1/archive', null],
+    ['atlas_meetings', {}, 'GET', '/v1/meetings', null],
+    ['atlas_inbox', {}, 'GET', '/v1/inbox', null],
+    [
+      'atlas_meetings',
+      { since: '2026-10-01', limit: 10, offset: 20, includeArchived: true },
+      'GET',
+      '/v1/meetings?since=2026-10-01&limit=10&offset=20&includeArchived=true',
+      null,
+    ],
+    ['atlas_meetings', { includeArchived: false }, 'GET', '/v1/meetings', null],
+    [
+      'atlas_process_inbox_item',
+      { path: 'Inbox/Call Sam.md', project: 'Projects/Atlas.md' },
+      'POST',
+      '/v1/inbox/process',
+      { paths: ['Inbox/Call Sam.md'], project: 'Projects/Atlas.md' },
+    ],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 90 },
+      'POST',
+      '/v1/tasks/schedule',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 90 },
+    ],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T23:30' },
+      'POST',
+      '/v1/tasks/schedule',
+      { task: 'Quarterly report.md', start: '2026-10-12T23:30' },
+    ],
+    [
+      'atlas_promote_checklist_line',
+      { path: 'Tasks/Plan.md', text: 'Order chairs', line: 2 },
+      'POST',
+      '/v1/notes/Tasks%2FPlan.md/promote',
+      { text: 'Order chairs', line: 2 },
+    ],
+    [
+      'atlas_promote_checklist_line',
+      { path: 'Tasks/Plan.md', text: 'Order chairs' },
+      'POST',
+      '/v1/notes/Tasks%2FPlan.md/promote',
+      { text: 'Order chairs' },
+    ],
     ['atlas_automations', {}, 'GET', '/v1/automations', null],
+    ['atlas_weekly_review', {}, 'GET', '/v1/review/weekly', null],
     ['atlas_automation_log', { id: 'tidy' }, 'GET', '/v1/automations/tidy/log', null],
     [
       'atlas_automation_log',
@@ -400,6 +533,21 @@ describe('tools/call → REST', () => {
       null,
     ],
     ['atlas_automation_dry_run', { id: 'tidy' }, 'POST', '/v1/automations/tidy/dry-run', null],
+    ['atlas_proposals', {}, 'GET', '/v1/proposals', null],
+    [
+      'atlas_accept_proposal',
+      { path: 'Inbox/Proposals/Send the file.md' },
+      'POST',
+      '/v1/proposals/Inbox%2FProposals%2FSend%20the%20file.md/accept',
+      null,
+    ],
+    [
+      'atlas_reject_proposal',
+      { path: 'Inbox/Proposals/Send the file.md' },
+      'POST',
+      '/v1/proposals/Inbox%2FProposals%2FSend%20the%20file.md/reject',
+      null,
+    ],
     [
       'atlas_archived',
       { search: 'lease', limit: 10, offset: 20 },
@@ -427,6 +575,13 @@ describe('tools/call → REST', () => {
       'POST',
       '/v1/query',
       { type: 'task', includeArchived: true },
+    ],
+    [
+      'atlas_query',
+      { type: 'task', schedule: true },
+      'POST',
+      '/v1/query',
+      { type: 'task', schedule: true },
     ],
   ])('%s → %s %s', async (tool, args, method, url, body) => {
     const result = await call(tool, args);
@@ -477,6 +632,7 @@ describe('tools/call → REST', () => {
     ['atlas_rename_tag', { tag: 'idea', to: 'x', dryRun: 'yes' }],
     ['atlas_read_note', { path: '..' }],
     ['atlas_backlinks', { path: '.' }],
+    ['atlas_export_note', { path: '..' }],
     ['atlas_update_properties', { path: '..', set: { x: 1 } }],
     ['atlas_append_to_note', { path: '..', markdown: 'x' }],
     ['atlas_replace_note_body', { path: '..', markdown: 'x', ifModified: 1 }],
@@ -487,6 +643,27 @@ describe('tools/call → REST', () => {
     ['atlas_archive', { paths: Array.from({ length: 101 }, (_, at) => `N${at}.md`) }],
     ['atlas_unarchive', { paths: [''] }],
     ['atlas_archived', { offset: -1 }],
+    ['atlas_process_inbox_item', { path: 'Inbox/Call.md' }],
+    ['atlas_process_inbox_item', { path: '', project: 'Projects/Atlas.md' }],
+    ['atlas_process_inbox_item', { path: 'Inbox/Call.md', project: '' }],
+    ['atlas_schedule_task', { start: '2026-10-12T09:00' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00Z' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00:00' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00+02:00' }],
+    ['atlas_schedule_task', { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 0 }],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 1441 },
+    ],
+    [
+      'atlas_schedule_task',
+      { task: 'Quarterly report.md', start: '2026-10-12T09:00', minutes: 2.5 },
+    ],
+    ['atlas_promote_checklist_line', { path: 'Tasks/Plan.md' }],
+    ['atlas_promote_checklist_line', { path: 'Tasks/Plan.md', text: '' }],
+    ['atlas_promote_checklist_line', { path: 'Tasks/Plan.md', text: 'x', line: -1 }],
+    ['atlas_promote_checklist_line', { path: '..', text: 'x' }],
     ['atlas_list_type_views', { type: '' }],
     ['atlas_read_template', {}],
     ['atlas_read_template', { name: '' }],
@@ -494,6 +671,10 @@ describe('tools/call → REST', () => {
     ['atlas_list_type_views', { type: 'task', limit: 501 }],
     ['atlas_list_type_views', { type: 'task', offset: -1 }],
     ['atlas_archived', { limit: 501 }],
+    ['atlas_meetings', { since: 'last week' }],
+    ['atlas_meetings', { limit: 501 }],
+    ['atlas_meetings', { offset: -1 }],
+    ['atlas_meetings', { includeArchived: 'yes' }],
     ['atlas_automation_log', {}],
     ['atlas_automation_log', { id: '' }],
     ['atlas_automation_log', { id: 'tidy', limit: 101 }],
@@ -506,6 +687,7 @@ describe('tools/call → REST', () => {
     ['atlas_run_query', { query: 'FROM task', limit: 0 }],
     ['atlas_run_query', { query: 'FROM task', limit: 5001 }],
     ['atlas_run_query', { query: 'FROM task', limit: 2.5 }],
+    ['atlas_run_query', { query: 'FROM task', context: '' }],
   ])('refuses %s with %j before any request is made', async (tool, args) => {
     const result = await call(tool, args);
     expect(result.isError).toBe(true);
@@ -535,6 +717,23 @@ describe('atlas_run_query', () => {
         body: { query: 'FROM task GROUP BY status' },
       }),
       expect.objectContaining({ body: { query: 'FROM task', limit: 5000 } }),
+    ]);
+  });
+
+  it('posts the note given as context, which this in the query names', async () => {
+    atlas.respondWith(() => ({ status: 200, body: ROWS }));
+    await call('atlas_run_query', {
+      query: 'FROM meeting WHERE people = this AND date > @-30d',
+      context: 'People/Mara Quill.md',
+    });
+    expect(atlas.requests).toEqual([
+      expect.objectContaining({
+        url: '/v1/atlas-query',
+        body: {
+          query: 'FROM meeting WHERE people = this AND date > @-30d',
+          context: 'People/Mara Quill.md',
+        },
+      }),
     ]);
   });
 

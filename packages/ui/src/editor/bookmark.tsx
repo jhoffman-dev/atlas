@@ -6,6 +6,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tip
 import {
   BLOCK_EMBED_NODE,
   BOOKMARK_NODE,
+  QUERY_BLOCK_NODE,
   linkOfNode,
   nestedBlockOf,
   wikiLinkLabel,
@@ -149,12 +150,20 @@ export const Bookmark = Node.create<BookmarkOptions>({
 export const TopLevelDocument = Node.create({
   name: 'doc',
   topNode: true,
-  content: `(block | ${BOOKMARK_NODE} | ${BLOCK_EMBED_NODE})+`,
+  content: `(block | ${BOOKMARK_NODE} | ${BLOCK_EMBED_NODE} | ${QUERY_BLOCK_NODE})+`,
 });
 
+/** The blocks only the document holds, each written another way anywhere else (`nestedBlockOf`). */
+const TOP_LEVEL_ONLY: ReadonlySet<string> = new Set([
+  BOOKMARK_NODE,
+  BLOCK_EMBED_NODE,
+  QUERY_BLOCK_NODE,
+]);
+
 /**
- * A pasted slice with each card in it made its link (`nestedBlockOf`). A card
- * pasted on its own goes in as the link alone, into the line at the caret.
+ * A pasted slice with each card in it made its link, and each query block its
+ * code (`nestedBlockOf`). A card pasted on its own goes in as the link alone,
+ * into the line at the caret.
  */
 function linksForCards(slice: Slice, schema: Schema): Slice {
   const only = slice.content.childCount === 1 ? slice.content.firstChild : null;
@@ -169,7 +178,7 @@ function linksForCards(slice: Slice, schema: Schema): Slice {
 function withLinksForCards(fragment: Fragment, schema: Schema): Fragment {
   const nodes: ProseMirrorNode[] = [];
   fragment.forEach((node) => {
-    if (node.type.name === BOOKMARK_NODE || node.type.name === BLOCK_EMBED_NODE) {
+    if (TOP_LEVEL_ONLY.has(node.type.name)) {
       nodes.push(schema.nodeFromJSON(nestedBlockOf(node.toJSON() as EditorNode)));
     } else {
       nodes.push(node.copy(withLinksForCards(node.content, schema)));

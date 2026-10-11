@@ -42,6 +42,7 @@ export {
   CONFLICTS_FOLDER,
   conflictCopyPath,
   hasConflictMarkers,
+  isConflictCopyPath,
   macLabel,
   planConflictSteps,
 } from './conflict-copy.ts';

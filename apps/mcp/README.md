@@ -82,11 +82,13 @@ Normally none. These environment variables override the connection file:
 | `atlas_append_to_note`     | `POST /v1/notes/{path}/append`                                               | yes     |
 | `atlas_replace_note_body`  | `PUT /v1/notes/{path}/body`                                                  | yes     |
 | `atlas_backlinks`          | `GET /v1/notes/{path}/backlinks`                                             | no      |
+| `atlas_export_note`        | `GET /v1/notes/{path}/export?format=confluence`                              | no      |
 | `atlas_list_types`         | `GET /v1/types`                                                              | no      |
 | `atlas_list_views`         | `GET /v1/views`                                                              | no      |
 | `atlas_list_type_views`    | `GET /v1/types/{name}/views`                                                 | no      |
 | `atlas_list_templates`     | `GET /v1/templates`                                                          | no      |
 | `atlas_read_template`      | `GET /v1/templates/{name}`                                                   | no      |
+| `atlas_terms`              | `GET /v1/terms`                                                              | no      |
 | `atlas_run_view`           | `POST /v1/views/{path}/run`                                                  | no      |
 | `atlas_query`              | `POST /v1/query`                                                             | no      |
 | `atlas_run_query`          | `POST /v1/atlas-query`                                                       | no      |
@@ -107,9 +109,17 @@ Normally none. These environment variables override the connection file:
 | `atlas_archive`            | `POST /v1/archive`                                                           | yes     |
 | `atlas_unarchive`          | `POST /v1/unarchive`                                                         | yes     |
 | `atlas_archived`           | `GET /v1/archive`                                                            | no      |
+| `atlas_inbox`              | `GET /v1/inbox`                                                              | no      |
+| `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
+| `atlas_schedule_task`      | `POST /v1/tasks/schedule`                                                    | yes     |
+| `atlas_weekly_review`      | `GET /v1/review/weekly`                                                      | no      |
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
 | `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
 | `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
+| `atlas_meetings`           | `GET /v1/meetings`                                                           | no      |
+| `atlas_proposals`          | `GET /v1/proposals`                                                          | no      |
+| `atlas_accept_proposal`    | `POST /v1/proposals/{path}/accept`                                           | yes     |
+| `atlas_reject_proposal`    | `POST /v1/proposals/{path}/reject`                                           | yes     |
 
 `atlas_archive` and `atlas_unarchive` take up to 100 note paths and move them
 into or out of `Archive/` as the app's Archive command does, rewriting links to
@@ -117,6 +127,50 @@ them. A path that cannot move is listed in the answer's `failed` with a reason;
 the rest still move, so it is not a tool error. `atlas_archived` lists what is
 archived, a page at a time. `atlas_search`, `atlas_run_view` and `atlas_query`
 leave archived notes out unless `includeArchived` is true.
+
+`atlas_meetings` lists meetings newest first, with what the import made of
+each: `importError` says why a file that arrived broke the meeting import
+contract, and `duplicateOf` links the meeting an archived copy duplicates.
+Meetings are imported in the app as they arrive; fixing a file with
+`atlas_update_properties` or `atlas_replace_note_body` has the app import it.
+
+`atlas_process_inbox_item` files one note from the Inbox under a project or an
+area, as the Inbox's Process does: it moves into the project's folder and gets
+`project: "[[…]]"` linking it. `project` must be a project or an area still in
+use; anything else is refused before the note moves, and a proposal (a note of
+type `proposal`, wherever it sits) is refused — it is answered with
+`atlas_accept_proposal` or `atlas_reject_proposal`. `atlas_capture_task` puts
+what it captures in the Inbox, and `atlas_inbox` lists what waits there to be
+filed, each meeting with what the import made of it; proposals are listed by
+`atlas_proposals`, not by it.
+
+`atlas_proposals` lists what Claude or an automation proposed and is waiting in
+the Inbox (`Inbox/Proposals/`), with what each would write and the line it
+cites. `atlas_accept_proposal` writes that and archives the proposal, as its
+Accept button does; `atlas_reject_proposal` archives it unwritten. Neither is
+idempotent: a second answer to one proposal is refused as `conflict`. Editing a
+proposal first, and undoing an accept, stay in the app.
+
+`atlas_schedule_task` sets time aside for a task as dragging it onto the
+calendar's empty time does: a new block note from `start` (local wall-clock to
+the minute, `2026-10-12T09:00` — a `Z`, offset or seconds is refused) for `minutes`, linking the task — or, without `minutes`,
+as long as the task still needs. Calling it again makes another block, which
+is how a task is split. `atlas_query` with `schedule: true` reads what each
+task now has scheduled.
+
+`atlas_weekly_review` reads the weekly review as the app's page shows it:
+Waiting tasks untouched for more than 7 days, active projects with nothing
+next, overdue tasks, Someday and Longterm untouched for more than 30 days, and
+the Inbox's count. It writes nothing; act on an item with
+`atlas_update_properties` (a status, or `defer`) or `atlas_archive` (a project).
+
+`atlas_export_note` turns a note into markdown for a Confluence page: links as
+their words, shown blocks quoted under their note, callouts as quotes, and a
+`dropped` list of everything left out (properties, block ids, comments, vault
+images, where links went). It writes nothing; Claude creates the page with its
+own Atlassian connector, `title` as the title and `markdown` as the body —
+passed verbatim, so `dropped` stays the whole story — and says what `dropped`
+lists.
 
 `atlas_move_card` moves a card on a board as a drag does, into a group the
 board itself draws (as `atlas_run_view` lists them). It is not idempotent: a

@@ -1,5 +1,8 @@
 import { appendToBody, joinFrontmatter, splitFrontmatter, type VaultPath } from '@atlas/domain';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';
+import { linkedTypeProblems } from '../types/linked-types.ts';
+import { loadObjectTypes, noteTypeName } from '../types/load-types.ts';
+import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError } from './api-error.ts';
 import { bodyObject, optionalModified, requiredString, isRecord, type Fields } from './fields.ts';
 import {
@@ -25,8 +28,9 @@ export async function setPropertiesRoute(request: VaultRequest): Promise<RouteRe
   const set = propertiesToSet(fields);
   const ifModified = optionalModified(fields, 'ifModified');
 
-  const { modified } = await readNote(request, path);
+  const { text, modified } = await readNote(request, path);
   checkIfModified(path, modified, ifModified);
+  await refuseLinksOfTheWrongType(request, { text, set });
 
   await writeProperties(request, { path, expected: modified, values: set });
   return answerWithNote(request, { path });
@@ -35,6 +39,9 @@ export async function setPropertiesRoute(request: VaultRequest): Promise<RouteRe
 /**
  * Writes properties to a note read at `expected`: through the pane holding
  * it when there is one, so its editor never saves an older copy over them.
+ * A task is held to its rules as the app holds it (ADR-0029), by the write
+ * itself — the pane's save or `setNoteProperties`: Waiting with nobody to
+ * wait on is refused as `invalid`, and finishing it dates it.
  */
 export async function writeProperties(
   request: VaultRequest,
@@ -47,6 +54,7 @@ export async function writeProperties(
       markdown: request.markdown,
       path,
       values,
+      today: request.clock.today(),
       ifModified: expected,
     });
   });
@@ -115,6 +123,31 @@ async function writeBody(
     contents: { text: contents, modified: written },
   });
   return { status: 200, body: { note } };
+}
+
+/**
+ * Refuses, with `invalid`, a relation set to link a note of a type it does
+ * not point at — a Project linking a person (P30-01). The note's type is the
+ * one it will have: `set.type` when the request changes it.
+ */
+async function refuseLinksOfTheWrongType(
+  request: VaultRequest,
+  { text, set }: { text: string; set: Fields },
+): Promise<void> {
+  const own = request.markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
+  const typeName = noteTypeName(Object.hasOwn(set, 'type') ? set : own);
+  if (typeName === null) return;
+  const type = (await loadObjectTypes(request)).find((each) => each.name === typeName);
+  if (type === undefined) return;
+  const problems = await linkedTypeProblems({
+    fs: request.fs,
+    markdown: request.markdown,
+    properties: type.properties,
+    values: set,
+    notePaths: await listVaultNotes({ fs: request.fs }),
+  });
+  const [problem] = Object.values(problems);
+  if (problem !== undefined) throw new ApiError('invalid', problem);
 }
 
 function propertiesToSet(fields: Fields): Fields {

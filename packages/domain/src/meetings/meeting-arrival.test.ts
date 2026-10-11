@@ -1,0 +1,234 @@
+import { describe, expect, it } from 'vitest';
+import { arrivedPaths, type NoteChange } from '../index/note-changes.ts';
+import {
+  importErrorText,
+  isMeetingInboxPath,
+  meetingCandidates,
+  meetingCopies,
+  importOutcomeOf,
+} from './meeting-arrival.ts';
+import { bodyError, frontmatterError } from './meeting-import-error.ts';
+
+const change = (kind: NoteChange['kind'], path: string, digest = `d-${path}`): NoteChange => ({
+  kind,
+  path,
+  type: 'meeting',
+  digest,
+});
+
+describe('isMeetingInboxPath', () => {
+  it('is where meeting files land, at any depth and in any case', () => {
+    expect(isMeetingInboxPath('Inbox/Meetings/2026-10-06 Standup.md')).toBe(true);
+    expect(isMeetingInboxPath('inbox/meetings/Deeper/Standup.md')).toBe(true);
+  });
+
+  it('is not the Inbox itself, a lookalike folder, or the Archive', () => {
+    expect(isMeetingInboxPath('Inbox/Standup.md')).toBe(false);
+    expect(isMeetingInboxPath('Inbox/Meetings old/Standup.md')).toBe(false);
+    expect(isMeetingInboxPath('Projects/Inbox/Meetings/Standup.md')).toBe(false);
+    expect(isMeetingInboxPath('Archive/Inbox/Meetings/Standup.md')).toBe(false);
+  });
+});
+
+describe('meetingCandidates', () => {
+  it('takes each note added or changed where meetings land, once, in the order reported', () => {
+    expect(
+      meetingCandidates([
+        change('added', 'Inbox/Meetings/A.md', 'a1'),
+        change('changed', 'Inbox/Meetings/B.md', 'b2'),
+        change('changed', 'Inbox/Meetings/A.md', 'a2'),
+      ]),
+    ).toEqual(['Inbox/Meetings/A.md', 'Inbox/Meetings/B.md']);
+  });
+
+  it('leaves out notes elsewhere, and notes that went', () => {
+    expect(
+      meetingCandidates([
+        change('added', 'Projects/Kickoff.md'),
+        change('changed', 'Archive/Inbox/Meetings/A.md'),
+        change('removed', 'Inbox/Meetings/Gone.md'),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('leaves what a moved, renamed or unarchived note is due to its own stamp', () => {
+    expect(
+      meetingCandidates([
+        change('removed', 'Archive/Inbox/Meetings/Standup.md', 'stamped'),
+        change('added', 'Inbox/Meetings/Standup.md', 'unstamped'),
+        change('removed', 'Inbox/Meetings/Old name.md', 'same'),
+        change('added', 'Inbox/Meetings/New name.md', 'same'),
+      ]),
+    ).toEqual(['Inbox/Meetings/Standup.md', 'Inbox/Meetings/New name.md']);
+  });
+
+  it('takes a note made where another left, and a note edited in place, as arrivals do not', () => {
+    const changes = [
+      { ...change('changed', 'Inbox/Meetings/Standup.md', 'new'), before: 'archived-one' },
+      change('added', 'Archive/Inbox/Meetings/Standup.md', 'archived-one'),
+      { ...change('changed', 'Inbox/Meetings/Fixed.md', 'valid'), before: 'had-an-error' },
+    ];
+
+    expect(meetingCandidates(changes)).toEqual([
+      'Inbox/Meetings/Standup.md',
+      'Inbox/Meetings/Fixed.md',
+    ]);
+    expect([...arrivedPaths(changes)]).toEqual(['Inbox/Meetings/Standup.md']);
+  });
+});
+
+describe('importOutcomeOf', () => {
+  it('reads each outcome the import writes', () => {
+    for (const outcome of ['imported', 'duplicate', 'error'] as const) {
+      expect(importOutcomeOf({ atlas_import_outcome: outcome })).toBe(outcome);
+    }
+  });
+
+  it('is null for a file the import has not settled', () => {
+    expect(importOutcomeOf({ atlas_import: 'meeting/v1' })).toBeNull();
+  });
+
+  it('takes a stamp it does not know, an empty one too, as a file let in and left alone', () => {
+    expect(importOutcomeOf({ atlas_import_outcome: 'done by hand' })).toBe('imported');
+    expect(importOutcomeOf({ atlas_import_outcome: null })).toBe('imported');
+  });
+});
+
+describe('importErrorText', () => {
+  it('names each problem on one line: a key by itself, a body problem by its section and line', () => {
+    expect(
+      importErrorText([
+        frontmatterError('external_id', 'external_id is required'),
+        bodyError('Summary', '## Summary is out of\n  order', 9),
+        bodyError('Transcript', 'Line 15: the turn has no block id', 15),
+      ]),
+    ).toBe(
+      'external_id is required; Summary: line 9: ## Summary is out of order; Transcript: Line 15: the turn has no block id',
+    );
+  });
+
+  it('names the first three and counts the rest', () => {
+    const errors = ['a', 'b', 'c', 'd', 'e'].map((key) => frontmatterError(key, `${key} is wrong`));
+    expect(importErrorText(errors)).toBe('a is wrong; b is wrong; c is wrong; and 2 more');
+  });
+
+  it('still says something when no problem was named', () => {
+    expect(importErrorText([])).toBe('It does not follow meeting/v1.');
+  });
+});
+
+describe('meetingCopies', () => {
+  const PRIMARY = 'Inbox/Meetings/2026-10-06 Standup.md';
+  const COLLISION = 'Inbox/Meetings/2026-10-06 Standup (gemini 1a2b3c4d).md';
+
+  it('keeps the only holder, with no copies', () => {
+    expect(meetingCopies([PRIMARY])).toEqual({ original: PRIMARY, copies: [] });
+  });
+
+  it('keeps the path the mapping writes first over the one it writes when that is taken', () => {
+    expect(meetingCopies([COLLISION, PRIMARY])).toEqual({
+      original: PRIMARY,
+      copies: [COLLISION],
+    });
+  });
+
+  it('decides the same whatever order the holders come in', () => {
+    const holders = [COLLISION, 'Inbox/Meetings/A.md', PRIMARY, 'Inbox/Meetings/B (x 0f0f0f0f).md'];
+    const reordered = [holders[2] ?? '', holders[0] ?? '', holders[3] ?? '', holders[1] ?? ''];
+    const answers = [holders, [...holders].reverse(), reordered].map((each) => meetingCopies(each));
+    expect(answers[0]).toEqual({
+      original: PRIMARY,
+      copies: [COLLISION, 'Inbox/Meetings/A.md', 'Inbox/Meetings/B (x 0f0f0f0f).md'],
+    });
+    expect(answers[1]).toEqual(answers[0]);
+    expect(answers[2]).toEqual(answers[0]);
+  });
+
+  it('keeps one already imported wherever it is, and leaves other imported ones alone', () => {
+    const filed = 'Archive/Projects/Standup.md';
+    expect(meetingCopies([PRIMARY, COLLISION, 'Projects/Standup.md'], [filed])).toEqual({
+      original: filed,
+      copies: [PRIMARY, COLLISION],
+    });
+    expect(meetingCopies([PRIMARY], [COLLISION])).toEqual({
+      original: COLLISION,
+      copies: [PRIMARY],
+    });
+    expect(meetingCopies([], [COLLISION, PRIMARY])).toEqual({ original: PRIMARY, copies: [] });
+  });
+
+  it('keeps a meeting filed elsewhere, then one archived, over any where meetings land', () => {
+    expect(
+      meetingCopies([PRIMARY, 'Archive/Projects/Standup.md', 'Projects/Larkspur/Standup.md']),
+    ).toEqual({ original: 'Projects/Larkspur/Standup.md', copies: [PRIMARY] });
+    expect(meetingCopies([COLLISION, PRIMARY, 'Archive/Inbox/Meetings/Old.md'])).toEqual({
+      original: 'Archive/Inbox/Meetings/Old.md',
+      copies: [PRIMARY, COLLISION],
+    });
+  });
+
+  it('never makes a copy of a holder filed or archived elsewhere', () => {
+    expect(meetingCopies(['Projects/B.md', 'Projects/A.md', 'Archive/Projects/C.md'])).toEqual({
+      original: 'Projects/A.md',
+      copies: [],
+    });
+  });
+
+  it('counts a holder named twice once', () => {
+    expect(meetingCopies([PRIMARY, PRIMARY])).toEqual({ original: PRIMARY, copies: [] });
+  });
+});
+
+describe('meeting arrival: adversarial, round 2', () => {
+  const PRIMARY = 'Inbox/Meetings/2026-10-06 Standup.md';
+
+  /**
+   * A merge that both Macs changed keeps this Mac's version in place and the
+   * other's beside it as `<name> (conflict from <Mac>).md` (U-29). Neither name
+   * is the collision path, so both rank as "the path the mapping writes first",
+   * and the tie goes to the first by path — where ` ` sorts before `.`.
+   */
+  it('keeps the path the mapping writes first over a sync conflict copy of it', () => {
+    const conflict = 'Inbox/Meetings/2026-10-06 Standup (conflict from Tobias’s Mac).md';
+    expect(meetingCopies([PRIMARY, conflict])).toEqual({ original: PRIMARY, copies: [conflict] });
+  });
+
+  it('keeps the path the mapping writes first over a numbered copy of it', () => {
+    const numbered = 'Inbox/Meetings/2026-10-06 Standup 2.md';
+    expect(meetingCopies([PRIMARY, numbered])).toEqual({ original: PRIMARY, copies: [numbered] });
+  });
+
+  /**
+   * APFS ignores Unicode normalization, and git on a Mac records names
+   * precomposed whatever the disk holds, so one Mac can index a name
+   * decomposed (NFD) that the other indexes composed (NFC). The tie between
+   * equal places is broken on raw code units, so the two disagree — and the
+   * merge archives both.
+   */
+  it('decides the same whether a holder is spelled composed or decomposed', () => {
+    const accented = 'Inbox/Meetings/2026-10-06 Équipe.md';
+    const other = 'Inbox/Meetings/2026-10-06 Fall offsite.md';
+    const composed = meetingCopies([accented.normalize('NFC'), other]).original;
+    const decomposed = meetingCopies([accented.normalize('NFD'), other]).original;
+    expect(decomposed.normalize('NFC')).toBe(composed.normalize('NFC'));
+  });
+
+  /**
+   * Two meetings the same day whose titles differ only in a trailing number
+   * fold to one place once ` N` is taken off both sides. Unarchiving one of
+   * them in the sync that brings the other in hides the other's arrival: it
+   * is never validated, marked or deduplicated.
+   */
+  it('takes a new meeting as an arrival when another with a numbered title is unarchived', () => {
+    expect(
+      meetingCandidates([
+        change('removed', 'Archive/Inbox/Meetings/2026-10-06 Onboarding cohort 1.md', 'stamped'),
+        change('added', 'Inbox/Meetings/2026-10-06 Onboarding cohort 1.md', 'unstamped'),
+        change('added', 'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md', 'new'),
+      ]),
+    ).toEqual([
+      'Inbox/Meetings/2026-10-06 Onboarding cohort 1.md',
+      'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md',
+    ]);
+  });
+});

@@ -11,3 +11,6 @@ packages/domain/src/meetings/fixtures
 
 # The Field Guide is a hand-written, self-contained page; keep its bytes.
 docs/guide/
+
+# A Notion export as Notion writes it: formatting it would change what it tests.
+tools/notion-import/fixtures

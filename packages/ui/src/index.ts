@@ -7,6 +7,7 @@ export type { TreeEditing } from './vault-tree.tsx';
 export { Sidebar } from './sidebar.tsx';
 export type {
   ActivityRowLink,
+  InboxRowLink,
   HeaderMenu,
   SidebarQuickView,
   SidebarTree,
@@ -32,9 +33,11 @@ export type {
   NoteBookmarks,
   NoteEditorHandle,
   NotePeople,
+  NoteQueryBlocks,
   NoteReveal,
   NoteTransclusions,
 } from './note-editor.tsx';
+export type { QueryBlockRows, QueryBlockShown } from './editor/query-block.tsx';
 export type { BlockChoices, BlockPicking } from './editor/block-picking.ts';
 export type { BookmarkPreview } from './bookmark-card.tsx';
 export type { EmbedImage, ImageOrigin, SavedImage } from './editor/image-uploads.ts';
@@ -71,6 +74,7 @@ export { LayoutMenu } from './layout-menu.tsx';
 export { CapturePalette } from './capture-palette.tsx';
 export { CalendarView } from './calendar-view.tsx';
 export type { CalendarWrite } from './calendar-view.tsx';
+export type { PlanDrop, Planner } from './schedule-tray.tsx';
 export { CalendarNav, useCalendarNav } from './calendar-nav.tsx';
 export type { CalendarNavigation } from './calendar-nav.tsx';
 export { DashboardView } from './dashboard-view.tsx';
@@ -82,6 +86,14 @@ export { TimelineView } from './timeline-view.tsx';
 export { SourcePanel } from './source-panel.tsx';
 export { SecretsSettings } from './secrets-settings.tsx';
 export type { SecretRow, SecretSave } from './secrets-settings.tsx';
+export { GoogleCalendarSettings } from './google-calendar-settings.tsx';
+export type {
+  GoogleCalendarChoice,
+  GoogleCalendarPhase,
+  GoogleCalendarProblem,
+  GoogleCalendarView,
+  GoogleConnectRequest,
+} from './google-calendar-settings.tsx';
 export { Toggle } from './toggle.tsx';
 export { SegmentedControl } from './segmented-control.tsx';
 export { TagsPage } from './tags-page.tsx';
@@ -132,17 +144,35 @@ export { sidebarGlyph } from './icon.tsx';
 export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts';
 export type { NotePageRendering } from './note-page-renderer.ts';
 export { ArchivePage } from './archive-page.tsx';
+export { InboxPage } from './inbox-page.tsx';
+export { TaskScheduleSummary } from './task-schedule.tsx';
 export { TemplatesPage } from './templates-page.tsx';
+export { TermsPage } from './terms-page.tsx';
+export type { NewTerm, TermsContents, TermsPageProps } from './terms-page.tsx';
 export type { TemplateLessType, TemplateListing, TemplatesPageProps } from './templates-page.tsx';
 export { TemplateBanner } from './template-banner.tsx';
+export { PromotionBanner } from './promotion-notice.tsx';
+export type { LinePromotion, PromotionNotice } from './promotion-notice.tsx';
+export type { PromotedLine, PromoteLine } from './editor/promote-line.ts';
 export { TemplateToNoteDialog } from './template-to-note-dialog.tsx';
 export type { TemplateNotice } from './template-banner.tsx';
 export { lostUsesText, TEMPLATE_EXPLANATION, templateUsesText } from './template-words.ts';
 export type { ArchiveContents, ArchivePageProps } from './archive-page.tsx';
+export type { InboxContents, InboxPageProps, InboxTypesOffer } from './inbox-page.tsx';
+export { WeeklyReviewPage } from './weekly-review-page.tsx';
+export type { WeeklyReviewPageProps } from './weekly-review-page.tsx';
+export { TaskMigration } from './task-migration.tsx';
+export type {
+  TaskMigrationMapping,
+  TaskMigrationPreviewData,
+  TaskMigrationProps,
+  TaskMigrationRow,
+} from './task-migration.tsx';
 export { SelectAllBox, SelectBox, SelectionBar } from './row-selection.tsx';
 export type { BulkAction, RowSelection } from './row-selection.tsx';
 export * from './query-language/index.ts';
 export * from './automations/index.ts';
+export * from './proposals/index.ts';
 export * from './activity/index.ts';
 export type { Choice } from './choice-select.tsx';
 export { ChatPanel } from './chat/chat-panel.tsx';

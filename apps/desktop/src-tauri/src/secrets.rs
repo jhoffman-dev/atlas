@@ -91,6 +91,14 @@ fn account(scope: &str, name: &str) -> Result<String, String> {
     Ok(format!("{scope}/{}", checked_name(name)?))
 }
 
+/// Where the host keeps a sign-in it made itself, such as Google's (ADR-0030):
+/// `<vault>:oauth/<provider>`. Outside the `<vault>/` accounts, so it is never
+/// listed as a name, filled into a source's request, or bound to another site
+/// in Settings; only the host's own code for that provider reads it.
+pub fn oauth_account(scope: &str, provider: &str) -> String {
+    format!("{scope}:oauth/{provider}")
+}
+
 /// One piece of a value that may name secrets, as TypeScript split it.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]

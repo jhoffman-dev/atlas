@@ -15,9 +15,12 @@ export type NavigationPlace =
   | { readonly kind: 'query' }
   | { readonly kind: 'tags'; readonly tag: string | null }
   | { readonly kind: 'archive' }
+  | { readonly kind: 'inbox' }
+  | { readonly kind: 'review' }
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
-  | { readonly kind: 'templates' };
+  | { readonly kind: 'templates' }
+  | { readonly kind: 'terms' };
 
 /**
  * One pane's Back and Forward, as a browser keeps them.
@@ -54,12 +57,18 @@ export function samePlace(left: NavigationPlace, right: NavigationPlace): boolea
       return right.kind === 'tags' && right.tag === left.tag;
     case 'archive':
       return right.kind === 'archive';
+    case 'inbox':
+      return right.kind === 'inbox';
+    case 'review':
+      return right.kind === 'review';
     case 'automations':
       return right.kind === 'automations';
     case 'activity':
       return right.kind === 'activity';
     case 'templates':
       return right.kind === 'templates';
+    case 'terms':
+      return right.kind === 'terms';
   }
 }
 

@@ -10,6 +10,8 @@ export interface ViewColumnSpec {
 export interface ViewTypeSpec {
   readonly name: string;
   readonly columns: readonly ViewColumnSpec[];
+  /** Whether the view carries each note's checklist progress (`carriesChecklistProgress`). */
+  readonly progress: boolean;
 }
 
 export interface QueryResult {
@@ -61,6 +63,16 @@ export interface IndexedNote extends NoteVersion {
   readonly relations: readonly IndexedRelationRow[];
   /** Every block with an id (P26-01), read here so the host only stores it. */
   readonly blocks: readonly IndexedBlockRow[];
+  /** Every checklist box (P30-03), in the order written, read here so the host only stores it. */
+  readonly checks: readonly IndexedCheckRow[];
+  /** How far through its checklist the note is, worked out here (`checklistProgress`); null with no box. */
+  readonly progress: number | null;
+}
+
+/** A box in a note's checklist: ticked or not, and the words on its line. */
+export interface IndexedCheckRow {
+  readonly done: boolean;
+  readonly text: string;
 }
 
 /** A block a `#^id` can name: its id, and a line of what it says. */

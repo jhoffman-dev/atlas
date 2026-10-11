@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   conflictCopyPath,
   hasConflictMarkers,
+  isConflictCopyPath,
   macLabel,
   planConflictSteps,
 } from './conflict-copy.ts';
@@ -106,5 +107,26 @@ describe('planConflictSteps', () => {
       'Ideas (conflict from Laptop) (conflict from Laptop).md',
     ]);
     expect(new Set(copies).size).toBe(2);
+  });
+});
+
+describe('isConflictCopyPath', () => {
+  it('knows every name conflictCopyPath gives', () => {
+    const taken = new Set<string>();
+    for (const path of ['Inbox/Meetings/2026-10-06 Standup.md', 'Notes/Plan.md', 'README']) {
+      const first = conflictCopyPath({ path, mac: 'Tobias’s Mac', taken });
+      taken.add(first);
+      const second = conflictCopyPath({ path, mac: 'Tobias’s Mac', taken });
+      expect([isConflictCopyPath(first), isConflictCopyPath(second)]).toEqual([true, true]);
+    }
+  });
+
+  it('is not a name that only looks a little like one', () => {
+    expect(isConflictCopyPath('Inbox/Meetings/2026-10-06 Standup.md')).toBe(false);
+    expect(isConflictCopyPath('Inbox/Meetings/2026-10-06 Standup (gemini 1a2b3c4d).md')).toBe(
+      false,
+    );
+    expect(isConflictCopyPath('Notes/Conflict from Mara.md')).toBe(false);
+    expect(isConflictCopyPath('Notes (conflict from Mara)/Plan.md')).toBe(false);
   });
 });
