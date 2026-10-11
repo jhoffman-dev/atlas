@@ -1,12 +1,12 @@
 ---
 type: adr
-id: ADR-0032
+id: ADR-0033
 title: The global capture shortcut is registered by the host and only says it was pressed
 status: proposed
 date: 2026-10-10
 ---
 
-# ADR-0032 — The global capture shortcut is registered by the host and only says it was pressed
+# ADR-0033 — The global capture shortcut is registered by the host and only says it was pressed
 
 ## Context
 

@@ -2,7 +2,7 @@
  * The Tauri event the host emits when the global capture shortcut is pressed,
  * after it has brought the window forward. It carries nothing: the webview is
  * the untrusted side (ADR-0017), so the host registers the shortcut and only
- * says it was pressed (ADR-0032).
+ * says it was pressed (ADR-0033).
  */
 export const GLOBAL_CAPTURE_EVENT = 'global-capture';
 

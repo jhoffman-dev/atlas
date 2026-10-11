@@ -1,4 +1,4 @@
-//! The global capture shortcut (#81, ADR-0032): one system-wide key that
+//! The global capture shortcut (#81, ADR-0033): one system-wide key that
 //! brings Atlas forward with quick capture open, whatever app has the keyboard.
 //!
 //! The host registers it and, when it is pressed, raises the window and emits

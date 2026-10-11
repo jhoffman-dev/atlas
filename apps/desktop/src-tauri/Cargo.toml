@@ -24,7 +24,7 @@ log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2.7.3"
-# The global capture shortcut (#81, ADR-0032), registered from Rust only: the
+# The global capture shortcut (#81, ADR-0033), registered from Rust only: the
 # webview gets no permission for it. 2.3, not 2.4: 2.4 needs Tauri 2.12, and
 # this pins the plugin rather than moving Tauri itself.
 tauri-plugin-global-shortcut = "~2.3.1"
