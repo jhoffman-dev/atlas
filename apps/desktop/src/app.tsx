@@ -46,6 +46,7 @@ import {
   type ApiRouterDeps,
   type AppInfoPort,
   type ExternalLinkPort,
+  type GlobalCapturePort,
   type GoogleCalendarPort,
   type PageSnapshotPort,
 } from '@atlas/application';
@@ -55,6 +56,7 @@ import {
   SearchPalette,
   CapturePalette,
   DeleteDialog,
+  GlobalCaptureSettings,
   lostUsesText,
   TemplateToNoteDialog,
   MovePicker,
@@ -141,6 +143,8 @@ import { useMainView } from './main-view.ts';
 import { browserFabStore } from './quick-add/browser-fab-store.ts';
 import { QuickAdd } from './quick-add/quick-add.tsx';
 import { QuickAddSettingsCard } from './quick-add/quick-add-settings-card.tsx';
+import type { GlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
+import { useGlobalCapture } from './global-capture/use-global-capture.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { SecretsSettingsCard } from './settings/secrets-settings-card.tsx';
 import { GoogleCalendarSettingsCard } from './settings/google-calendar-settings-card.tsx';
@@ -229,6 +233,7 @@ export function App({
   activity: activityPorts,
   sync: syncPorts,
   googleCalendar,
+  globalCapture: globalCapturePorts,
 }: {
   appInfo: AppInfoPort;
   vault: OnHost<VaultPorts>;
@@ -249,6 +254,8 @@ export function App({
   sync: SyncHostPorts;
   /** Google Calendar, signed in to by the host, which keeps the tokens (ADR-0030). */
   googleCalendar: GoogleCalendarPort;
+  /** The shortcut that opens quick capture from any app, registered by the host (#81). */
+  globalCapture: { port: GlobalCapturePort; store: GlobalCaptureStore };
 }) {
   const [app, setApp] = useState<AppInfoState>({ kind: 'loading' });
   // The last sync runs before the Activity log's final write, so its line is kept.
@@ -477,6 +484,19 @@ export function App({
     [],
   );
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Pressed from another app with no vault open: capture has no Inbox to land in.
+  const [captureWantedVault, setCaptureWantedVault] = useState(false);
+  const globalCapture = useGlobalCapture({
+    ...globalCapturePorts,
+    pressed: () => {
+      setCaptureWantedVault(location === null);
+      if (location !== null) showOverlay('capture');
+    },
+  });
+  const captureNeedsVault =
+    captureWantedVault && location === null
+      ? 'Quick capture needs a vault: open one, and what you capture lands in its Inbox.'
+      : null;
 
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
 
@@ -1274,6 +1294,7 @@ export function App({
         ...noticeMessages,
         sidebarOrderFailure,
         indexFailure,
+        captureNeedsVault,
         syncConflictNotice(sync.phase),
       ]}
       links={entries.links}
@@ -1663,6 +1684,10 @@ export function App({
                   onRebuild={() => void rebuild()}
                 />
                 <ImageSettingsPanel store={browserImagePlacementStore} />
+                <GlobalCaptureSettings
+                  view={globalCapture.status}
+                  onChange={globalCapture.change}
+                />
                 {location !== null && (
                   <QuickAddSettingsCard setting={quickAddSetting} types={types} />
                 )}

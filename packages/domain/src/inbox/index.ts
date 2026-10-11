@@ -16,3 +16,9 @@ export {
   processRefusal,
 } from './inbox.ts';
 export type { InboxItem } from './inbox.ts';
+export {
+  DEFAULT_GLOBAL_CAPTURE_SHORTCUT,
+  globalShortcutFromKeys,
+  globalShortcutLabel,
+} from './global-capture-shortcut.ts';
+export type { ShortcutKeys, ShortcutReading } from './global-capture-shortcut.ts';

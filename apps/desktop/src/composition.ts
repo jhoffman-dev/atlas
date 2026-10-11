@@ -7,6 +7,7 @@ import {
   tauriModelProcess,
   tauriApiBridge,
   tauriApiSettings,
+  tauriGlobalCapture,
   tauriExternalLinks,
   tauriHttp,
   tauriSecrets,
@@ -33,6 +34,7 @@ import type {
   WindowClosingPort,
   AppInfoPort,
   ExternalLinkPort,
+  GlobalCapturePort,
   GoogleCalendarPort,
   PageSnapshotPort,
 } from '@atlas/application';
@@ -47,6 +49,10 @@ import type { ChatPorts } from './chat/use-chat.ts';
 import { browserMacId } from './sync/browser-mac-id.ts';
 import { browserSyncPause } from './sync/browser-sync-pause.ts';
 import type { SyncHostPorts } from './sync/use-sync.ts';
+import {
+  browserGlobalCaptureStore,
+  type GlobalCaptureStore,
+} from './global-capture/browser-global-capture-store.ts';
 
 /**
  * The composition root: the one place allowed to know about every layer.
@@ -80,6 +86,11 @@ export function resolveSourcePorts(): SourcePorts {
 /** Google Calendar, through the host's sign-in (ADR-0030). */
 export function resolveGoogleCalendar(): GoogleCalendarPort {
   return tauriGoogleCalendar;
+}
+
+/** The global capture shortcut: registered by the host, chosen and kept on this Mac (#81). */
+export function resolveGlobalCapture(): { port: GlobalCapturePort; store: GlobalCaptureStore } {
+  return { port: tauriGlobalCapture, store: browserGlobalCaptureStore };
 }
 
 export function resolveExternalLinks(): ExternalLinkPort {

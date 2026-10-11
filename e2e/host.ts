@@ -402,6 +402,16 @@ export interface FakeHost {
     connected(): boolean;
     calendars(): readonly string[];
   };
+  /**
+   * The global capture shortcut, as `global_capture.rs` holds it: what the app
+   * asked to register, and a press, delivered as the host's `global-capture`
+   * event after it has brought the window forward. Raising the window and the
+   * system's own registration are Rust's, and tested and checked there.
+   */
+  readonly globalCapture: {
+    registered(): string | null;
+    press(): Promise<void>;
+  };
   /** SQLite files a source may read, by the name the note gives, and what the picker offers. */
   readonly sqlite: {
     serve(file: string, rows: { columns: string[]; rows: unknown[][] }): void;
@@ -538,6 +548,8 @@ export async function installHost(
   const databases = new Map<string, { columns: string[]; rows: unknown[][] }>();
   const sqliteQueries: { file: string; sql: string }[] = [];
   let offeredDatabase: string | null = null;
+  /** The global capture shortcut the app asked the host to register, if any. */
+  let globalShortcut: string | null = null;
   const claudeReplies: string[] = [];
   const claudeRuns: { args: readonly string[]; stdin: string }[] = [];
   let claudeLoggedIn = true;
@@ -1287,6 +1299,11 @@ export async function installHost(
         return api.token;
       case 'api_router_ready':
         return null;
+      case 'global_capture_status':
+        return { shortcut: globalShortcut, registered: globalShortcut !== null, problem: null };
+      case 'global_capture_set':
+        globalShortcut = (args as { shortcut: string | null }).shortcut;
+        return { shortcut: globalShortcut, registered: globalShortcut !== null, problem: null };
       case 'model_process_start': {
         const { run, args: argv, stdin } = args as { run: string; args: string[]; stdin: string };
         claudeRuns.push({ args: argv, stdin });
@@ -1479,6 +1496,16 @@ export async function installHost(
       },
       connected: () => googleSignIns.size > 0,
       calendars: () => googleCalendars.map((calendar) => calendar.summary),
+    },
+    globalCapture: {
+      registered: () => globalShortcut,
+      async press() {
+        await page.evaluate(() =>
+          (
+            window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }
+          ).__atlasEmit('global-capture', null),
+        );
+      },
     },
     sqlite: {
       serve: (file, rows) => {

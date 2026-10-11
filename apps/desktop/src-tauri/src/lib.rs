@@ -5,6 +5,7 @@ mod api;
 #[doc(hidden)]
 pub mod embeddings;
 mod git_process;
+mod global_capture;
 mod google;
 mod http;
 mod index;
@@ -33,6 +34,7 @@ fn report_error(message: String) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(global_capture::plugin())
         .plugin(navigation::guard())
         .manage(vault::VaultState::default())
         .manage(index::IndexState::default())
@@ -45,6 +47,7 @@ pub fn run() {
         .manage(git_process::GitHost::default())
         .manage(embeddings::EmbeddingState::default())
         .manage(google::GoogleState::default())
+        .manage(global_capture::GlobalCaptureState::default())
         .invoke_handler(tauri::generate_handler![
             report_error,
             activity::activity_append,
@@ -64,6 +67,8 @@ pub fn run() {
             git_process::git_sync_file_read,
             git_process::git_sync_file_write,
             git_process::gh_repo_list,
+            global_capture::global_capture_status,
+            global_capture::global_capture_set,
             secrets::secret_list,
             secrets::secret_set,
             secrets::secret_bind,
