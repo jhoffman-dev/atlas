@@ -360,6 +360,10 @@ export async function importNotionWorkspace(
     skipped: [
       ...leftOutByOnly(workspace.databases, selected),
       ...plan.skipped,
+      ...workspace.nestedDatabases.map((what) => ({
+        what,
+        reason: 'a database inside a page; not imported',
+      })),
       ...workspace.otherPages.map((what) => ({
         what,
         reason: 'not a row of a database this import brings in',

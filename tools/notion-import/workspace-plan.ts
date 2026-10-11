@@ -24,6 +24,7 @@ import {
   type DatabaseKind,
   type ResolvedLink,
   type WantedNote,
+  mixedOrderColumns,
 } from './workspace-databases.ts';
 import type { ExportDatabase } from './workspace-export.ts';
 
@@ -330,6 +331,7 @@ export function planWorkspace(input: PlanInput): WorkspacePlan {
       today: input.today,
       timeZone: input.timeZone,
       dateOrder: input.dateOrder,
+      mixedOrderColumns: mixedOrderColumns(candidate.database.csv, input.dateOrder),
     };
     const note = wantedNote(context, candidate.page.id);
     const wanted = wantedContent(note, place.path, bodyOf(candidate, linkFor));

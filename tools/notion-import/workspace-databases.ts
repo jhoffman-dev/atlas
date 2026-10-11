@@ -1,5 +1,11 @@
-import type { CsvRow } from './notion-csv.ts';
-import { writtenYearLast, type DateOrder } from './notion-date.ts';
+import type { Csv, CsvRow } from './notion-csv.ts';
+import {
+  otherOrder,
+  provesOtherOrder,
+  writtenAmbiguously,
+  writtenYearLast,
+  type DateOrder,
+} from './notion-date.ts';
 import { readDay } from './notion-day.ts';
 import { readOptions, readRelation, type RelationEntry } from './notion-relations.ts';
 import type { GtdStatus } from '../../packages/domain/src/index.ts';
@@ -198,6 +204,8 @@ export interface RowContext {
   readonly timeZone: string | null;
   /** How a date written `10/06/2026` is read; null reads none. */
   readonly dateOrder: DateOrder | null;
+  /** Columns holding a date only the other order reads (`mixedOrderColumns`): their ambiguous dates are not read. */
+  readonly mixedOrderColumns: ReadonlySet<string>;
 }
 
 /** What a row should come to in the vault. */
@@ -226,11 +234,43 @@ interface Reading {
   readonly ends: Map<string, string>;
 }
 
-/** What to do about a date that cannot be read: one written `10/06/2026` reads once its order is given. */
-const unreadDateHint = (cell: string, order: DateOrder | null) =>
-  order === null && writtenYearLast(cell)
-    ? "run with --date-order mdy (month first) or dmy (day first), or set the column's format to Full date"
-    : "set the column's format to Full date";
+const FULL_DATE = "set the column's format to Full date";
+
+/** What to do about a date that cannot be read: one written `10/06/2026` reads once its order is given, or is checked against it. */
+function unreadDateHint(cell: string, order: DateOrder | null): string {
+  if (!writtenYearLast(cell)) return FULL_DATE;
+  return order === null
+    ? `run with --date-order mdy (month first) or dmy (day first), or ${FULL_DATE}`
+    : `check --date-order (this one is not ${order}), or ${FULL_DATE}`;
+}
+
+/**
+ * The date columns of a database that hold a date only the other order
+ * reads, such as `13/06/2026` under `mdy`: the column proves it is not
+ * written in `order`, so none of its ambiguous dates can be trusted to be.
+ * Notion's date format is the column's, not the cell's.
+ */
+export function mixedOrderColumns(csv: Csv, order: DateOrder | null): Set<string> {
+  if (order === null) return new Set();
+  return new Set(
+    csv.columns.filter((column) =>
+      csv.rows.some((row) => provesOtherOrder(row.get(column) ?? '', order)),
+    ),
+  );
+}
+
+/** Why an ambiguous date in a column that proves the other order is not read; null for any other cell. */
+function mixedOrderWhy(
+  cell: string,
+  column: string,
+  context: Pick<RowContext, 'dateOrder' | 'mixedOrderColumns'>,
+): string | null {
+  const order = context.dateOrder;
+  if (order === null || !context.mixedOrderColumns.has(column) || !writtenAmbiguously(cell)) {
+    return null;
+  }
+  return `the column mixes orders: some of its dates can only be ${otherOrder(order)}, so this one is not read as ${order}`;
+}
 
 /** A date cell's day; a cell that cannot be read is noted, and the property left as the note has it. */
 function readDateCell(
@@ -240,6 +280,14 @@ function readDateCell(
   context: RowContext,
   reading: Reading,
 ) {
+  const mixed = mixedOrderWhy(cell, column, context);
+  if (mixed !== null) {
+    reading.unread.push(rule.key);
+    reading.notes.push(
+      `${column} "${cell}" cannot be read (${mixed}), so the note keeps its ${rule.key}: ${FULL_DATE}, or check --date-order`,
+    );
+    return null;
+  }
   const day = readDay(cell, context.timeZone, context.dateOrder);
   if (day.kind === 'unread') {
     reading.unread.push(rule.key);
@@ -378,16 +426,17 @@ function taskFields(context: RowContext, fields: Record<string, unknown>, notes:
  * (`October 6, 2026`). Null when neither is a day.
  */
 export function rowDay(
-  context: RowCells & Pick<RowContext, 'timeZone' | 'dateOrder'>,
+  context: RowCells & Pick<RowContext, 'timeZone' | 'dateOrder' | 'mixedOrderColumns'>,
 ): string | null {
   const dateColumn = [...propertyColumns(context.kind, context.columns)].find(
     ([, rule]) => rule.key === 'date' && rule.kind === 'date',
   )?.[0];
-  for (const cell of [dateColumn, context.columns[0]].map((column) =>
-    context.row.get(column ?? ''),
-  )) {
+  for (const column of [dateColumn, context.columns[0]]) {
+    const cell = context.row.get(column ?? '');
     const day =
-      cell === undefined || cell.trim() === ''
+      cell === undefined ||
+      cell.trim() === '' ||
+      (column !== undefined && mixedOrderWhy(cell, column, context) !== null)
         ? null
         : readDay(cell.trim(), context.timeZone, context.dateOrder);
     if (day?.kind === 'day') return day.day;

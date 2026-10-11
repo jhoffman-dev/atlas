@@ -115,9 +115,11 @@ describe('pages in a folder named without the id', () => {
     expect(outcome.meetings?.filter((row) => row.kind === 'written')).toHaveLength(4);
     const skipped = outcome.skipped.map((each) => each.what);
     expect(skipped).toContain(`${SHARED}/Wiki aa000000000000000000000000000001.md`);
-    expect(skipped.filter((what) => what.startsWith(`${SHARED}/Meeting Notes/`))).toEqual([]);
-    // The meeting import's own: only the task's chart is counted.
-    expect(outcome.otherFiles).toBe(1);
+    expect(skipped.filter((what) => what.startsWith(`${SHARED}/Meeting Notes/`))).toEqual([
+      `${subpage}/Agenda 7c41e0d2a9b84f6e9d3a1c5b7e2f8a07.md`,
+    ]);
+    // The task's chart and the meeting's whiteboard.
+    expect(outcome.otherFiles).toBe(2);
   });
 
   it('give way to a folder named with the id when both are there', async () => {
@@ -268,5 +270,33 @@ describe('a date written month first', () => {
     expect(outcome.meetings?.find((row) => row.row.title === 'Platform weekly sync')).toMatchObject(
       { kind: 'refused' },
     );
+  });
+});
+
+describe('a database inside a page of another database', () => {
+  const NESTED_CSV = `${SHARED}/Notes/Renewal terms b2000000000000000000000000000001/Tasks e1000000000000000000000000000001_all.csv`;
+  const NESTED_ROWS = 'Name,Status\nCheck the rate card,Ready\n';
+
+  it('is skipped and listed, not a second Tasks database', async () => {
+    await dropFolderIds();
+    const before = await run({ dryRun: true });
+    await writeExport(NESTED_CSV, NESTED_ROWS);
+
+    const outcome = await run({ dryRun: true });
+
+    expect(outcome.skipped).toContainEqual({
+      what: NESTED_CSV,
+      reason: 'a database inside a page; not imported',
+    });
+    expect(outcome.pages.filter((page) => page.kind === 'create')).toHaveLength(
+      before.pages.filter((page) => page.kind === 'create').length,
+    );
+    expect(refusals(outcome)).toEqual([]);
+  });
+
+  it('is still refused as a duplicate when it sits beside the other database', async () => {
+    await writeExport(`${SHARED}/Tasks e1000000000000000000000000000002_all.csv`, NESTED_ROWS);
+
+    await expect(run({ dryRun: true })).rejects.toBeInstanceOf(ImportSetupError);
   });
 });

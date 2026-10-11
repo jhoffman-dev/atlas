@@ -51,14 +51,43 @@ function likeliest(csv: Csv, row: CsvRow, pages: readonly ExportPage[]): ExportP
   return best !== undefined && (next === undefined || next.score < best.score) ? best.page : null;
 }
 
+/** Whether the title is one no other row has either: a title that is not blank and names one row. */
+function titleIsUnique(csv: Csv, title: string): boolean {
+  return title !== '' && csv.rows.filter((row) => rowTitle(csv, row) === title).length === 1;
+}
+
+/** A cell as the page shows it: an email is shown as a `mailto:` link there. */
+const asCell = (text: string | undefined) =>
+  (text ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/^mailto:/i, '');
+
+/**
+ * Whether the page's properties are this row's: it repeats at least one of
+ * the row's cells, and says nothing else about a cell the row has. Labels
+ * only one of them has prove nothing either way. The only proof a title that
+ * is blank, or shared by several rows, can have.
+ */
+function propertiesAgree(csv: Csv, row: CsvRow, page: ExportPage): boolean {
+  const both = csv.columns.slice(1).flatMap((column) => {
+    const ours = asCell(row.get(column));
+    const theirs = asCell(page.page.properties.get(column));
+    return ours === '' || theirs === '' ? [] : [ours === theirs];
+  });
+  return both.includes(true) && !both.includes(false);
+}
+
 /**
  * Each row of a database with its page. A Notion CSV has no page ids, so a
  * row is paired with the page of the same title — Notion writes it as the
  * page's `# heading`, in full, where the file name may be cut short — and,
  * when several pages share it, with the one whose properties agree with the
  * row. A row with an empty title has a page Notion titled `Untitled`, which
- * many rows' pages may share. A row no page can be told apart for is listed,
- * never given a guess.
+ * many rows' pages may share. A title that is blank or shared by several rows
+ * proves nothing alone, so even its one page must repeat the row's properties:
+ * the row's own page may be missing, and another row's must not be taken for
+ * it. A row no page can be told apart for is listed, never given a guess.
  * Pages left over belong to no row.
  */
 export function pairRows(
@@ -72,7 +101,17 @@ export function pairRows(
     if (candidates.length === 0) {
       return { kind: 'unpaired', title, reason: 'no page in the export has its title' };
     }
-    const page = candidates.length === 1 ? candidates[0] : likeliest(csv, row, candidates);
+    const [only] = candidates;
+    if (candidates.length === 1 && only !== undefined && !titleIsUnique(csv, title)) {
+      if (!propertiesAgree(csv, row, only)) {
+        return {
+          kind: 'unpaired',
+          title,
+          reason: 'no page in the export agrees with it: its title does not tell it apart',
+        };
+      }
+    }
+    const page = candidates.length === 1 ? only : likeliest(csv, row, candidates);
     if (page === null || page === undefined) {
       return {
         kind: 'unpaired',

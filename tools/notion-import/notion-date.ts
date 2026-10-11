@@ -157,3 +157,32 @@ export function notionWhen(cell: string, order: DateOrder | null = null): Notion
 /** Whether the cell's date is written `10/06/2026`, which only a date order can read. */
 export const writtenYearLast = (cell: string): boolean =>
   YEAR_LAST.test(unzoned(cell.split('→')[0]?.trim() ?? '').text);
+
+/** The sides of a range, each without its zone label. */
+const sidesOf = (cell: string): string[] =>
+  cell.split('→').map((side) => unzoned(side.trim()).text);
+
+/** The two numbers a side written `10/06/2026` starts with; null for a side written any other way. */
+function yearLastParts(side: string): [number, number] | null {
+  const match = YEAR_LAST.exec(side);
+  return match === null ? null : [Number(match[1]), Number(match[2])];
+}
+
+/** The other way round: the order a date written in `order` would instead have been written in. */
+export const otherOrder = (order: DateOrder): DateOrder => (order === 'mdy' ? 'dmy' : 'mdy');
+
+/** Whether a side of the cell is written `10/06/2026` with both numbers a month, so either order reads it. */
+export const writtenAmbiguously = (cell: string): boolean =>
+  sidesOf(cell).some((side) => {
+    const parts = yearLastParts(side);
+    return parts !== null && parts[0] <= 12 && parts[1] <= 12;
+  });
+
+/** Whether a side of the cell can be read only in the order other than `order`: its month, in `order`, is above 12. */
+export const provesOtherOrder = (cell: string, order: DateOrder): boolean =>
+  sidesOf(cell).some((side) => {
+    const parts = yearLastParts(side);
+    if (parts === null) return false;
+    const [month, day] = order === 'mdy' ? parts : [parts[1], parts[0]];
+    return month > 12 && day <= 12;
+  });

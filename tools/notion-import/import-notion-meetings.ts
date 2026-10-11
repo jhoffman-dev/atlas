@@ -83,7 +83,9 @@ async function meetingPagesFolder(csvPath: string): Promise<string> {
 /** Every page of the export, read from the `.md` files under its folder. */
 async function exportPages(folder: string): Promise<NotionPage[]> {
   const entries = await readdir(folder, { withFileTypes: true, recursive: true });
-  const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md'));
+  const files = entries.filter(
+    (entry) => entry.isFile() && !entry.name.startsWith('.') && entry.name.endsWith('.md'),
+  );
   return Promise.all(
     files.map(async (entry) => {
       const path = join(entry.parentPath, entry.name);

@@ -73,14 +73,20 @@ into `effort`.
 - **Rows with no title.** Notion writes the page of a row whose title is
   empty as `Untitled`. Such a row is paired with an `Untitled` page whose
   properties agree with it (its Date, say); when several agree as much, the
-  row is refused, never given a guess. Its note is named `Untitled`, and
+  row is refused, never given a guess. A title that is blank or shared by
+  several rows proves nothing alone: even its one page must repeat a cell of
+  the row and contradict none, or the row is listed as unpaired (its own page
+  may be missing; another row's is not taken for it). Its note is named `Untitled`, and
   listed; a daily note goes by its Date as any other does.
 - **Dates** are read as the meeting import reads them: a UTC time's day is the
   one it falls on in `--time-zone`. Notion's Full date (`October 6, 2026`)
   and Year/Month/Day (`2026/10/06`) formats are read as they are;
   Month/Day/Year and Day/Month/Year (`10/06/2026`) only with
   `--date-order mdy` or `dmy`, since `10/06/2026` could be either day.
-  Without it, such a date is listed as one that cannot be read. A range
+  Without it, such a date is listed as one that cannot be read. A column
+  holding a date only the other order can read (`13/06/2026` under `mdy`)
+  is not in the order given: its ambiguous dates (both numbers 12 or less)
+  are listed as unreadable, and its unambiguous ones still read. A range
   writes its end where the type has a place for it (PARA's Start date into
   `end`), and is listed otherwise. A date, or a range's end, that cannot be
   read is listed and left as the note has it: it is not taken for Notion
@@ -190,7 +196,10 @@ says which were (exit 1).
    whole-workspace export, `Private & Shared/Databases`), or export only
    those. An export with two databases of one kind is refused (exit 2),
    naming both CSVs, rather than mixing their rows. Databases the import does
-   not know are listed as skipped.
+   not know are listed as skipped. A database inside a page of another
+   (a table on a note) is no database of the workspace: it is listed as
+   skipped, "a database inside a page; not imported", and is not counted
+   toward that rule.
 
 2. **Run the GTD move** in Atlas, if you have not.
 3. **Copy the vault** and run on the copy first, as a dry run, then for real:
