@@ -18,6 +18,7 @@ export { tauriGoogleCalendar } from './google-calendar/tauri-google-calendar.ts'
 export { tauriSqliteSource } from './sources/tauri-sqlite-source.ts';
 export { tauriApiBridge } from './api/tauri-api-bridge.ts';
 export { tauriApiSettings } from './api/tauri-api-settings.ts';
+export { tauriGlobalCapture } from './global-capture/tauri-global-capture.ts';
 export { tauriExternalLinks } from './links/tauri-external-links.ts';
 export { tauriActivityStore } from './activity/tauri-activity-store.ts';
 export { tauriWindowClosing } from './activity/tauri-window-closing.ts';

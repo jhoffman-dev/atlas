@@ -1,6 +1,8 @@
 export { AppShell } from './app-shell.tsx';
 export { IndexSettings, indexStatusText } from './index-status.tsx';
 export { ImageSettings } from './image-settings.tsx';
+export { GlobalCaptureSettings } from './global-capture-settings.tsx';
+export type { GlobalCaptureView } from './global-capture-settings.tsx';
 export type { AppInfoState, IndexSummary } from './index-status.tsx';
 export { VaultTree } from './vault-tree.tsx';
 export type { TreeEditing } from './vault-tree.tsx';

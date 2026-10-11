@@ -12,6 +12,7 @@ import {
   scriptedFolders,
   scriptedGit,
   type AppInfoPort,
+  type GlobalCapturePort,
   type ModelProvider,
   type VaultFsPort,
   type VaultLocation,
@@ -26,6 +27,7 @@ import type { IndexPorts } from './index/use-index.ts';
 import type { ChatPorts } from './chat/use-chat.ts';
 import type { LocalApiPorts } from './api/use-local-api.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
+import { createBrowserGlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
 
 const appInfo: AppInfoPort = { read: async () => ({ name: 'Atlas', version: '0.1.0' }) };
 
@@ -194,9 +196,39 @@ const noSync = {
   thisMac: { name: async () => 'Test Mac', id: async () => 'mac-test' },
 };
 
+/**
+ * The host's global capture shortcut: whatever is asked for is registered,
+ * and `press` delivers a press as the host's event would.
+ */
+function fakeGlobalCapture() {
+  const pressed: (() => void)[] = [];
+  const asked: (string | null)[] = [];
+  const port: GlobalCapturePort = {
+    status: async () => ({ shortcut: null, registered: false, problem: null }),
+    set: async (shortcut) => {
+      asked.push(shortcut);
+      return { shortcut, registered: shortcut !== null, problem: null };
+    },
+    listen: async (handler) => {
+      pressed.push(handler);
+      return () => void pressed.splice(pressed.indexOf(handler), 1);
+    },
+  };
+  return {
+    ports: { port, store: createBrowserGlobalCaptureStore() },
+    asked,
+    // Not inside `act`: the host's event arrives outside React, and what it
+    // does is waited for on the screen.
+    press: () => {
+      for (const handler of pressed) handler();
+    },
+  };
+}
+
 const renderApp = (
   vault: ReturnType<typeof fakeVault>,
   activity: ReturnType<typeof memoryActivityStore> = memoryActivityStore(),
+  globalCapture = fakeGlobalCapture(),
 ) =>
   render(
     <App
@@ -212,6 +244,7 @@ const renderApp = (
       activity={activityIn(activity)}
       sync={noSync}
       googleCalendar={googleCalendar}
+      globalCapture={globalCapture.ports}
     />,
   );
 
@@ -641,6 +674,7 @@ describe('the palettes and the shortcuts around them', () => {
         activity={activityIn()}
         sync={noSync}
         googleCalendar={googleCalendar}
+        globalCapture={fakeGlobalCapture().ports}
       />,
     );
     await screen.findByRole('treeitem', { name: 'recipes' });
@@ -682,6 +716,44 @@ describe('the palettes and the shortcuts around them', () => {
     expect(screen.getByRole('dialog', { name: 'Capture a task' })).toBeDefined();
     await userEvent.keyboard('{Escape}');
     expect(await screen.findByRole('article', { name: 'Buy flour' })).toBeDefined();
+  });
+
+  it('opens quick capture when the global shortcut is pressed in another app, and captures into the Inbox (#81)', async () => {
+    const vault = vaultWith();
+    const createNote = vi.spyOn(vault.fs, 'createNote');
+    const capture = fakeGlobalCapture();
+    renderApp(vault, memoryActivityStore(), capture);
+    await screen.findByRole('treeitem', { name: 'recipes' });
+    // Handed to the host as the app starts: the default, ⌃⌥N, on a Mac that chose nothing.
+    await vi.waitFor(() => expect(capture.asked).toEqual(['Control+Alt+KeyN']));
+    expect(screen.queryByRole('dialog', { name: 'Capture a task' })).toBeNull();
+
+    capture.press();
+
+    const field = await screen.findByLabelText('What needs doing');
+    await vi.waitFor(() => expect(document.activeElement).toBe(field));
+    await userEvent.type(field, 'Call the plumber{Enter}');
+    await vi.waitFor(() =>
+      expect(createNote.mock.calls.map(([args]) => args.path)).toEqual([
+        'Inbox/Call the plumber.md',
+      ]),
+    );
+  });
+
+  it('says a vault is needed when the global shortcut is pressed with none open (#81)', async () => {
+    const capture = fakeGlobalCapture();
+    renderApp(fakeVault(), memoryActivityStore(), capture);
+    await screen.findByRole('heading', { name: 'Open a vault' });
+    await vi.waitFor(() => expect(capture.asked).toHaveLength(1));
+
+    capture.press();
+
+    expect(
+      await screen.findByText(
+        'Quick capture needs a vault: open one, and what you capture lands in its Inbox.',
+      ),
+    ).toBeDefined();
+    expect(screen.queryByRole('dialog', { name: 'Capture a task' })).toBeNull();
   });
 
   it("opens today's note with Shift+Cmd+D", async () => {
@@ -845,6 +917,7 @@ describe('the Activity log, adversarial (U-28)', () => {
         activity={activityIn(activity)}
         sync={noSync}
         googleCalendar={googleCalendar}
+        globalCapture={fakeGlobalCapture().ports}
       />,
     );
     // The window shows the failure as a red notice; both lines are batched into one write.

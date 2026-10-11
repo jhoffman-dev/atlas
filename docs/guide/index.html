@@ -115,7 +115,7 @@ td:first-child { white-space: nowrap; }
     </div>
     <div>
       <h1>Atlas Field Guide</h1>
-      <p>How to use Atlas day to day: notes and pictures, PARA and the Inbox, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings and how names are spelt, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
+      <p>How to use Atlas day to day: notes and pictures, today's note and capture from any app, PARA and the Inbox, the Archive, types, views and the calendar, queries across types, dashboards, the graph and bookmarks, meetings and how names are spelt, Claude artifacts, outside data, and connecting other tools. Everything you make is a markdown file in your vault.</p>
       <div class="facts"><span class="fact">Version 0.1 · updated Oct 10, 2026</span><span class="fact">macOS · Tauri</span><span class="fact">Works alongside Obsidian</span></div>
     </div>
   </header>
@@ -156,6 +156,7 @@ td:first-child { white-space: nowrap; }
     <a href="#sources">Outside data and secrets</a>
     <a href="#connect">Connect other tools</a>
     <a href="#sync">Sync between Macs</a>
+    <a href="#two-macs">Set up a second Mac</a>
     <a href="#keys">Keyboard shortcuts</a>
     <a href="#files">Your files</a>
   </nav>
@@ -354,12 +355,12 @@ pnpm tauri:dev</pre>
         <li><b>A vault that has a Project type</b> gets the <b>Area</b> and <b>Resource</b> types it's missing when it opens, written into <code>.atlas/types</code>, and each one written is a line in <a href="#activity">Activity</a>. A type you already have is never replaced, and a property you added to Project stays exactly as you wrote it.</li>
         <li><b>A vault without a Project type</b> isn't given PARA's types on its own: it hasn't taken PARA up, so they're offered instead (below).</li>
         <li><b>Anything more is offered, not done.</b> On the Inbox page a box lists it — <i>“Adds the Project, Area and Resource types.”</i> for a vault without them, <i>“Task gains Project, linking project or area notes.”</i> for a Task type with no project yet, <i>“Meeting's Project will link project or area notes.”</i> for one that links projects only. <b>Add to the types</b> makes those changes against the type files as they are at that moment — an edit you made while the box waited is kept — and keeps everything else in each file byte for byte; <b>Not now</b> puts the box away until the vault is opened again.</li>
-        <li><b>The Inbox's own types are offered the same way.</b> A vault without them is offered <i>“Adds the Proposal and Decision types.”</i>, which <a href="#proposals">proposals</a> are notes of, and a Meeting type that doesn't declare what the <a href="#meeting-import">meeting import</a> writes is offered it: <i>“Meeting gains Duplicate of, linking meeting notes. Meeting gains Import and Import error.”</i> Nothing is written until you press <b>Add to the types</b>.</li>
+        <li><b>The Inbox's own types are offered the same way.</b> A vault without them is offered <i>“Adds the Proposal, Decision and Daily types.”</i> — <a href="#proposals">proposals</a> are notes of the first two, and <a href="#daily">today's note</a> of Daily — and a Meeting type that doesn't declare what the <a href="#meeting-import">meeting import</a> writes is offered it: <i>“Meeting gains Duplicate of, linking meeting notes. Meeting gains Import and Import error.”</i> Nothing is written until you press <b>Add to the types</b>.</li>
         <li>Area and Resource are <a href="#types">built in</a>, like Project: they can't be deleted, and their properties are yours to change.</li>
       </ul>
       <h3>Capture goes to the Inbox</h3>
       <ul>
-        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd> makes its task in the <code>Inbox</code> folder at the top of the vault — made the first time it's needed — whatever note you're on. Once your tasks follow <a href="#tasks">GTD</a>, it starts with the status <b>Inbox</b>, whatever the Task template says.</li>
+        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd> — or <kbd>⌃⌥N</kbd> <a href="#capture-anywhere">from any app</a> — makes its task in the <code>Inbox</code> folder at the top of the vault — made the first time it's needed — whatever note you're on. Once your tasks follow <a href="#tasks">GTD</a>, it starts with the status <b>Inbox</b>, whatever the Task template says.</li>
         <li><a href="#meetings">Meetings</a> arrive in <code>Inbox/Meetings</code>, and anything you drop into <code>Inbox</code> yourself waits there too, of any type or none.</li>
       </ul>
       <h3>Process the Inbox</h3>
@@ -399,7 +400,7 @@ pnpm tauri:dev</pre>
       <h3>Options for select properties</h3>
       <p>Rename, reorder, colour and remove options — for example a project's statuses <code>planned, active, paused, done</code>. (A task's eight <a href="#tasks">GTD statuses</a> are moved to all at once, from the Inbox.) Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
       <h3>Built-in types</h3>
-      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Area</b>, <b>Resource</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b> and <b>Decision</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
+      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Area</b>, <b>Resource</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b>, <b>Decision</b>, <b>Block</b> and <b>Daily</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
       <p>A type you made has <b>Delete &lt;Type&gt;…</b> at the foot of <b>Edit type</b>; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
       <h3>Projects</h3>
       <p>Atlas ships a <b>Project</b> type (status: planned, active, paused, done; owner; due; summary). Every task has a <code>project</code> relation — to a project or an area, once your types are set up for <a href="#para">PARA</a> — and the <b>Projects</b> view is a board grouped by project.</p>
@@ -412,7 +413,7 @@ pnpm tauri:dev</pre>
       <p>A template's name is what ties it to what it makes:</p>
       <ul>
         <li><b>A type's template</b> is called what the type is called — <b>Person</b> for Person, in any capitals. Every new note of the type starts from it: <b>New person</b> on the type's page and at the foot of its table, the <a href="#add">add button</a>, <a href="#people">Create person “…”</a>.</li>
-        <li><b>Daily</b> is what <b>Today's note</b> starts as, <b>Task</b> what a <a href="#tasks">captured task</a> starts as, and <b>Artifact</b> what a <a href="#artifacts">saved artifact</a> starts as.</li>
+        <li><b>Daily</b> is what <b>Today's note</b> starts as — without one, it starts as a note of the Daily type with <i>What happened</i> and <i>What is next</i> headings — <b>Task</b> what a <a href="#tasks">captured task</a> starts as, and <b>Artifact</b> what a <a href="#artifacts">saved artifact</a> starts as.</li>
         <li><b>Any other template</b> is only offered in the New menu — the <b>+</b> beside the vault's name, under <b>Blank note</b>, <b>Today's note</b> and <b>Claude artifact…</b>.</li>
       </ul>
       <h3>The Templates page</h3>
@@ -844,10 +845,23 @@ ORDER BY phase</pre>
         <li>If the move stops partway — the Mac sleeps, a disk refuses a file — open the Inbox again: the preview lists only what is left, and one undo covers both runs — keeping anything you changed in between. Running it again when nothing is left changes nothing, and once the move is done the Inbox no longer reads your tasks to check — unless a file was left, a GTD view is missing, or a task is Waiting with nobody to wait on.</li>
         <li>The record undo works from is kept in <code>.atlas/migrations</code>, so it syncs and works from either Mac.</li>
       </ul>
-      <h3>Daily notes</h3>
+      <h3 id="daily">Today's note</h3>
       <ul>
-        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd>: type a line and it becomes a task in the <a href="#para">Inbox</a>, without leaving what you're doing.</li>
-        <li><b>Today's note</b> <kbd>⇧⌘D</kbd> opens the daily note, making it if needed.</li>
+        <li><b>Today's note</b> <kbd>⇧⌘D</kbd> — or <b>+</b> beside the vault's name → <b>Today's note</b> — opens the day's note, making it if needed. It is named by the date, <code>2026-10-12.md</code>, at the top of the vault, whichever note you're on.</li>
+        <li>A new one starts from your <a href="#templates">Daily template</a>. With none, it starts as a note of the <b>Daily</b> type with two headings, <i>What happened</i> and <i>What is next</i>. A Daily template that would make a task waiting on nobody is refused, as any new task would be.</li>
+        <li><b>Daily notes you already have</b> — the Notion import writes them as <code>2026-10-12.md</code> at the top, <code>type: daily</code> — are opened as they are: never made again, numbered or rewritten.</li>
+        <li><b>Daily</b> is a <a href="#types">built-in type</a>. A vault without it is offered it on the <a href="#para">Inbox page</a>; until you add it, daily notes still open and say <code>type: daily</code>. Once added, the Daily type's own page lists every day.</li>
+      </ul>
+      <h3 id="capture-anywhere">Quick capture from any app</h3>
+      <ul>
+        <li><b>Quick capture</b> <kbd>⇧⌘N</kbd> inside Atlas: type a line and it becomes a task in the <a href="#para">Inbox</a>, without leaving what you're doing.</li>
+        <li><b>From any app</b>, press <kbd>⌃⌥N</kbd>. Atlas comes forward — out of the Dock if it was minimised, onto the Space you're on if it was on another — with quick capture open and ready to type in. <kbd>Return</kbd> saves it to the Inbox; <kbd>Esc</kbd> puts capture away, and <kbd>⌘Tab</kbd> takes you back.</li>
+        <li><b>No vault open?</b> Nothing is captured, and Atlas says so: <i>“Quick capture needs a vault: open one, and what you capture lands in its Inbox.”</i></li>
+        <li>With Settings or search up, the press brings Atlas forward and opens nothing over them — close them first, as with <kbd>⇧⌘N</kbd>.</li>
+        <li><b>Change it</b> in Settings (<kbd>⌘,</kbd>) → <b>Quick capture from anywhere</b>: <b>Change…</b>, then press the new keys — hold two of <kbd>⌘</kbd>, <kbd>⌥</kbd> and <kbd>⌃</kbd> with a letter, digit, function key (F1–F20) or Space. One alone is refused: a shortcut from any app reaches Atlas first, so <kbd>⌘C</kbd> would stop copying everywhere and <kbd>⌥E</kbd> typing é. So are macOS's own, such as <kbd>⌃⌘Q</kbd> (Lock Screen) and <kbd>⌥⌘Esc</kbd> (Force Quit). <b>Turn off</b> stops it; <b>Use ⌃⌥N</b> puts the default back. It's set for each Mac on its own.</li>
+        <li>If macOS won't give Atlas the keys, Settings says <i>“— not working”</i> beside them, with why, and the shortcut you had before keeps working: choose others. macOS may also let two apps share a shortcut, and Atlas can't always tell — if a press opens another app, or nothing, choose other keys.</li>
+        <li>It works while Atlas is running. Closing Atlas's window quits it, and then nothing is listening.</li>
+        <li>While it's set to <kbd>⌃⌥N</kbd>, those keys open capture inside Atlas too, in place of the add button (which <kbd>⌥⌘N</kbd> still opens).</li>
         <li><b>Today</b> in the sidebar is a view, and <b>Inbox</b> the <a href="#para">Inbox page</a>, which lists everything in the <code>Inbox</code> folder — new <a href="#meetings">meetings</a> among them; their counts update as you work.</li>
       </ul>
     </section>
@@ -1472,6 +1486,7 @@ do: archive</pre>
       <h3>What Claude can do besides reading and writing notes</h3>
       <ul>
         <li><b>Add a picture to a note</b> (<code>atlas_add_image</code>). From a file, it reads only PNG, JPEG, GIF, WebP, SVG or HEIC images up to 20 MB in your Desktop, Downloads or Pictures folder, or the temporary folder — never anything else on the disk. To use other folders, set <code>ATLAS_MCP_IMAGE_DIRS</code> to them, separated by <code>:</code>; it replaces the list. The picture lands where <a href="#images">pictures you add</a> do, and a link to it goes at the end of the note.</li>
+        <li><b>Open today's note</b> (<code>atlas_daily_note</code>, <code>POST /v1/daily</code>): found, or made exactly as <a href="#daily">⇧⌘D</a> makes it. <b>Capture a task</b> (<code>atlas_capture_task</code>, <code>POST /v1/capture</code>) into the Inbox, as quick capture does. The global shortcut itself is a key on one Mac, set in Settings; it isn't reachable through the API.</li>
         <li><b>Quick add a note of a type</b> (<code>atlas_quick_add</code>), the way <a href="#add">the add button</a> does, from the same list of types (<code>atlas_quick_add_types</code>).</li>
         <li><b>Read each task's schedule</b> (<code>atlas_query</code> with <code>schedule</code>): its estimate, the time its <a href="#timeblocking">blocks</a> set aside, what is done and how far it is over — the same numbers as the task's page. Blocks are notes, made and changed like any other.</li>
         <li><b>Schedule a task</b> (<code>atlas_schedule_task</code>): a new block for it from a start, for some minutes, linking it — or, with no minutes, as long as it still needs — the same as dragging it onto the calendar's empty time. Ask again to split it across another block.</li>
@@ -1580,6 +1595,66 @@ do: archive</pre>
       <div class="note"><b>No tokens.</b> Atlas never stores a GitHub token. An address with one in it is refused: <i>“That address has a password or token in it. Use the plain address from GitHub’s Code button: this Mac’s own GitHub login is what signs in.”</i></div>
     </section>
 
+    <section id="two-macs">
+      <h2>Set up a second Mac</h2>
+      <p class="sub">A checklist for running Atlas on two Macs with one vault: install, open the same synced vault, set what each Mac keeps for itself, decide which Mac runs automations and the meeting import, and check it worked. It assumes the first Mac already <a href="#sync">syncs</a> the vault.</p>
+      <h3>On the first Mac, before you start</h3>
+      <ul>
+        <li>Settings (<kbd>⌘,</kbd>) → <b>Sync</b> says <i>“Sync set up: this vault now syncs with its GitHub repository.”</i>, and the light at the bottom of the sidebar says <b>Synced</b>. Press <b>Sync now</b> so the second Mac starts from everything.</li>
+        <li>Note whether <b>Run automations on this Mac</b> is on. The Mac that set up sync first has it.</li>
+      </ul>
+      <h3>1. Install Atlas on the second Mac</h3>
+      <ol class="steps">
+        <li>Install the tools, once: <code>xcode-select --install</code>; <a href="https://brew.sh">Homebrew</a>; <code>brew install node@22 pnpm gh</code>; Rust with the rustup installer (<code>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</code>, accept the default). The README's <b>Prerequisites</b> has the details.</li>
+        <li>Log in to GitHub, which sync uses: <code>gh auth login</code>, then <code>gh auth setup-git</code>.</li>
+        <li>Get Atlas and start it. The first build takes a few minutes.</li>
+      </ol>
+      <pre>git clone https://github.com/jhoffman-dev/atlas.git ~/Projects/atlas
+cd ~/Projects/atlas
+pnpm install
+pnpm tauri:dev</pre>
+      <button type="button" class="copy" data-copy="git clone https://github.com/jhoffman-dev/atlas.git ~/Projects/atlas&#10;cd ~/Projects/atlas&#10;pnpm install&#10;pnpm tauri:dev">Copy</button>
+      <h3>2. Open the same vault</h3>
+      <ol class="steps">
+        <li>On <b>Open a vault</b>, press <b>Open a vault from GitHub…</b> — or, with a vault already open, the vault's name → <b>Open a vault from GitHub…</b>.</li>
+        <li>Paste the vault repository's address from GitHub's <b>Code</b> button (the plain address — one with a token in it is refused).</li>
+        <li><b>Choose folder…</b>: somewhere outside the Atlas folder and outside any other git repository, such as <code>~/Vaults</code>. Atlas copies the vault there and opens it; the search index builds itself.</li>
+      </ol>
+      <div class="note"><b>One way to sync, not two.</b> Don't copy the vault across by hand, or keep it in iCloud Drive or Dropbox as well: two syncs writing the same files make conflicts. GitHub, through Atlas, is the one.</div>
+      <h3>3. Set what each Mac keeps for itself</h3>
+      <p>The vault brings its notes, types, views, templates, automations and the vault's settings (quick add types, your profile, which Google calendar). These stay on each Mac and need doing again:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">What</th><th scope="col">On the second Mac</th></tr></thead>
+          <tbody>
+            <tr><td>GitHub login</td><td><code>gh auth login</code> and <code>gh auth setup-git</code> in Terminal (step 1).</td></tr>
+            <tr><td><a href="#sources">Secrets</a></td><td>Settings → <b>Secrets</b>: <b>Set…</b> each one marked <i>not set on this Mac</i>, with its sites. They live in this Mac's Keychain.</td></tr>
+            <tr><td><a href="#google-calendar">Google Calendar</a></td><td>Settings → <b>Google Calendar</b>: sign in. The client ID and the calendar come with the vault.</td></tr>
+            <tr><td><a href="#claude">Claude</a></td><td>Log in to Claude Code on this Mac, or set the API key in Settings → <b>Claude</b>.</td></tr>
+            <tr><td><a href="#connect">Local API and MCP</a></td><td>Settings → <b>Connections</b>: turn it on if you want it here, then <code>claude mcp add</code> on this Mac. Each Mac has its own token.</td></tr>
+            <tr><td><a href="#capture-anywhere">Quick capture from anywhere</a></td><td><kbd>⌃⌥N</kbd> from the start. If a press doesn't bring Atlas forward — another app on this Mac may use the same keys, which Atlas can't always tell — choose other keys.</td></tr>
+            <tr><td>Sync</td><td><b>Pause sync on this Mac</b> stops this Mac only.</td></tr>
+            <tr><td>Look and place</td><td>The theme, where pictures go, and where the add button rests are each Mac's own.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>4. Choose the Mac that runs automations and the meeting import</h3>
+      <ul>
+        <li><b>One Mac does both.</b> <a href="#automations">Automations</a> and the <a href="#meeting-import">meeting import</a> run only on the Mac with <b>Run automations on this Mac</b> on, so two Macs never run the same rule. Connecting the second Mac leaves them where they are.</li>
+        <li><b>Pick the Mac that is awake most of the day.</b> Meetings reach the vault's repository from n8n whichever Mac is open; the importing Mac files them in the Inbox when it pulls, or, after a night asleep, as soon as it opens the vault and its index is ready.</li>
+        <li><b>To move them</b>, turn on <b>Run automations on this Mac</b> in Settings → Sync on the Mac you want. Until the other Mac next syncs and reads that, both may import a meeting; they come to the same answer for every file, and sync keeps both if they write the same one.</li>
+      </ul>
+      <h3>5. Check it on the second Mac</h3>
+      <ol class="steps">
+        <li>The light says <b>Synced</b>, and the sidebar shows the same notes, types and views as the first Mac.</li>
+        <li>Press <kbd>⇧⌘D</kbd>: <a href="#daily">today's note</a> opens — the same one the first Mac made today, once it has synced; made here otherwise.</li>
+        <li>From another app, press <kbd>⌃⌥N</kbd>, type a line and press <kbd>Return</kbd>: it's in the Inbox here, and on the first Mac within a couple of minutes.</li>
+        <li>Edit a note on the first Mac; it appears here within about a minute, or at once with <b>Sync now</b>.</li>
+        <li>Settings → Sync on each Mac: <b>Run automations on this Mac</b> is on on exactly one of them.</li>
+        <li>The light never says <b>Sync failed</b> or <b>N conflicts</b>; if it does, click it — Settings → Sync says what happened.</li>
+      </ol>
+    </section>
+
     <section id="keys">
       <h2>Keyboard shortcuts</h2>
       <div class="table-wrap">
@@ -1589,6 +1664,7 @@ do: archive</pre>
             <tr><td><kbd>⌘K</kbd></td><td>Search, and commands like New query, Archive this note and Open Archive</td></tr>
             <tr><td><kbd>⌘N</kbd></td><td>New note</td></tr>
             <tr><td><kbd>⇧⌘N</kbd></td><td>Quick capture a task</td></tr>
+            <tr><td><kbd>⌃⌥N</kbd></td><td>Quick capture from any app — Atlas comes forward with capture open (<a href="#capture-anywhere">change it in Settings</a>)</td></tr>
             <tr><td><kbd>⌥⌘N</kbd></td><td>The add button: add a note of your quick-add type, or open its list</td></tr>
             <tr><td><kbd>⌥</kbd> + arrow</td><td>Move the add button to the next place, while it's focused</td></tr>
             <tr><td><kbd>⌥↑</kbd> <kbd>⌥↓</kbd></td><td>Move a sidebar section up or down, while its grip is focused</td></tr>

@@ -2,6 +2,7 @@ import {
   builtInTypePlan,
   combinedExtensions,
   createVaultPath,
+  dailyTypeToOffer,
   extensionKeys,
   extensionWithin,
   inboxTypePlan,
@@ -23,7 +24,8 @@ export type PendingTypeExtension = TypeExtension<DefinedType>;
 export interface TypeSetupOffer {
   /**
    * The types to write: PARA's, in a vault that has not taken PARA up, and
-   * the Inbox's Proposal and Decision, which are always asked about.
+   * the Inbox's Proposal and Decision and today's note's Daily, which are
+   * always asked about.
    */
   readonly types: readonly BuiltInTypeFile[];
   /**
@@ -61,8 +63,8 @@ interface TypePorts {
  * A vault that files by project — it has a Project type — has the Area and
  * Resource types it lacks written in. A vault that has not taken PARA up is
  * only offered them, and so is the change PARA would make to the vault's own
- * types. The Proposal and Decision types, and the meeting import's keys on
- * the vault's Meeting type, are only ever offered: nothing the vault has is
+ * types. The Proposal, Decision and Daily types, and the meeting import's keys
+ * on the vault's Meeting type, are only ever offered: nothing the vault has is
  * changed here, and the host refuses to write over a file that is there,
  * readable or not. See {@link acceptTypeSetup}.
  */
@@ -77,7 +79,7 @@ function setupPlan(types: readonly DefinedType[]) {
   const para = builtInTypePlan(types);
   const inbox = inboxTypePlan(types);
   const offer: TypeSetupOffer = {
-    types: [...(para.filesByProject ? [] : para.missing), ...inbox.missing],
+    types: [...(para.filesByProject ? [] : para.missing), ...inbox.missing, ...daily(types)],
     extensions: combinedExtensions(para.extensions, inbox.extensions),
   };
   return { para, offer };
@@ -144,9 +146,17 @@ async function stillOffered(ports: TypePorts, offer: TypeSetupOffer): Promise<Ty
       return within === null ? [] : [within];
     });
   return {
-    types: [...para.missing, ...inbox.missing].filter((file) => named.has(file.type.name)),
+    types: [...para.missing, ...inbox.missing, ...daily(types)].filter((file) =>
+      named.has(file.type.name),
+    ),
     extensions: combinedExtensions(asShown(para.extensions), asShown(inbox.extensions)),
   };
+}
+
+/** The Daily type, as a list of the files to offer: empty when the vault has it. */
+function daily(types: readonly DefinedType[]): BuiltInTypeFile[] {
+  const file = dailyTypeToOffer(types);
+  return file === null ? [] : [file];
 }
 
 /** Writes each type's file into `.atlas/types`, never over one that is there. */

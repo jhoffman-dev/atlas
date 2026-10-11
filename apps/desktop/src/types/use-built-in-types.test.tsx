@@ -77,11 +77,11 @@ describe('useBuiltInTypes', () => {
     expect(activity.reports).toEqual([]);
   });
 
-  it('offers PARA and the Inbox’s types to a vault without them, and writes them only when accepted', async () => {
+  it('offers PARA, the Inbox’s types and Daily to a vault without them, and writes them only when accepted', async () => {
     const { files, hook, onChanged } = setup({ '.atlas/types/task.md': TASK });
     await waitFor(() =>
       expect(hook.result.current?.lines).toEqual([
-        'Adds the Project, Area, Resource, Proposal and Decision types.',
+        'Adds the Project, Area, Resource, Proposal, Decision and Daily types.',
         'Task gains Project, linking project or area notes.',
       ]),
     );
@@ -92,6 +92,7 @@ describe('useBuiltInTypes', () => {
 
     expect([...files.keys()].sort()).toEqual([
       '.atlas/types/area.md',
+      '.atlas/types/daily.md',
       '.atlas/types/decision.md',
       '.atlas/types/project.md',
       '.atlas/types/proposal.md',

@@ -13,6 +13,7 @@ export async function dailyRoute(request: VaultRequest): Promise<RouteResult> {
   request.assertStillOpen();
   const { path, created } = await ensureDailyNote({
     fs,
+    markdown: request.markdown,
     today: request.clock.today(),
     notePaths,
     templates,
