@@ -14,6 +14,7 @@ import type { GeminiDates } from './gemini-dates.ts';
 import type { RowOutcome } from './import-notion-meetings.ts';
 import { ImportSetupError, importTarget } from './import-target.ts';
 import { NOTHING, type ImportedPage } from './note-merge.ts';
+import type { DateOrder } from './notion-date.ts';
 import {
   checkRecordWritable,
   clearPending,
@@ -56,6 +57,8 @@ export interface WorkspaceImportOptions {
   readonly timeZone: string | null;
   /** How Gemini's meeting Dates are read (issue #44); left out, they are held. */
   readonly geminiDates?: GeminiDates;
+  /** How a date written `10/06/2026` is read, meetings' included; left out, such a date is listed as unreadable. */
+  readonly dateOrder?: DateOrder;
   /** Makes again the notes of pages imported before whose notes were deleted in Atlas. */
   readonly recreateDeleted?: boolean;
   /** Whether a note no run recorded importing (the earlier one-off import's) is filled in where it lacks a property; on unless turned off. */
@@ -326,6 +329,7 @@ export async function importNotionWorkspace(
     timeZone: options.timeZone,
     dryRun: options.dryRun || !meetingsChosen,
     ...(options.geminiDates === undefined ? {} : { geminiDates: options.geminiDates }),
+    ...(options.dateOrder === undefined ? {} : { dateOrder: options.dateOrder }),
   });
   const read = {
     databases: workspace.databases,
@@ -333,6 +337,7 @@ export async function importNotionWorkspace(
     record,
     recreateDeleted: options.recreateDeleted === true,
     timeZone: options.timeZone,
+    dateOrder: options.dateOrder ?? null,
   };
   const plan = planWorkspace({
     ...read,

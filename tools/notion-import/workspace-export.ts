@@ -1,5 +1,6 @@
 import { readdir, stat } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { csvBase, databaseName, pagesFolder } from './database-folder.ts';
 import { exportText } from './import-notion-meetings.ts';
 import { ImportSetupError } from './import-target.ts';
 import { readCsv, type Csv } from './notion-csv.ts';
@@ -30,10 +31,6 @@ export interface WorkspaceExport {
   readonly otherFiles: number;
 }
 
-const ALL = /_all$/;
-/** `Tasks a1000000…` as Notion names a database's files: its name and its id. */
-const NAMED_WITH_ID = /^(.*?)\s+[0-9a-f]{32}$/i;
-
 const shown = (root: string, path: string) => relative(root, path).split(sep).join('/');
 
 /** The folder the export is in; one that is not there cannot be read. */
@@ -55,15 +52,31 @@ function databaseCsvs(files: readonly string[]): string[] {
   const csvs = files.filter((file) => file.toLowerCase().endsWith('.csv'));
   const byBase = new Map<string, string>();
   for (const file of csvs) {
-    const base = join(dirname(file), basename(file, '.csv').replace(ALL, ''));
-    if (!byBase.has(base) || ALL.test(basename(file, '.csv'))) byBase.set(base, file);
+    const base = join(dirname(file), csvBase(file));
+    if (!byBase.has(base) || basename(file, '.csv').endsWith('_all')) byBase.set(base, file);
   }
   return [...byBase.values()].sort();
 }
 
-/** The folder Notion puts a database's pages in: beside its CSV, named as it is. */
-const pagesFolder = (csvPath: string) =>
-  join(dirname(csvPath), basename(csvPath, '.csv').replace(ALL, ''));
+/**
+ * Refuses an export holding two databases of one kind, such as a team
+ * space's Meetings beside the private Meeting Notes: a database is known by
+ * its name alone, so their rows would be mixed into one.
+ */
+function checkOneOfEachKind(root: string, csvs: readonly string[]) {
+  const byKind = new Map<DatabaseKind, string>();
+  for (const csv of csvs) {
+    const kind = databaseKind(databaseName(csv));
+    if (kind === null) continue;
+    const other = byKind.get(kind);
+    if (other !== undefined) {
+      throw new ImportSetupError(
+        `export: ${shown(root, other)} and ${shown(root, csv)} are both ${kind} databases: export only the private databases, or point --export at a folder holding just them`,
+      );
+    }
+    byKind.set(kind, csv);
+  }
+}
 
 async function readPage(root: string, path: string): Promise<ExportPage> {
   const file = shown(root, path);
@@ -77,12 +90,11 @@ async function readDatabase(
   pageFiles: readonly string[],
 ): Promise<ExportDatabase> {
   const csvFile = shown(root, csvPath);
-  const base = basename(csvPath, '.csv').replace(ALL, '');
-  const name = NAMED_WITH_ID.exec(base)?.[1] ?? base;
+  const name = databaseName(csvPath);
   const kind = databaseKind(name);
   const csv = readCsv(await exportText(csvPath, `the CSV ${csvFile}`));
-  const folder = pagesFolder(csvPath);
-  const rows = pageFiles.filter((file) => dirname(file) === folder);
+  const folder = await pagesFolder(csvPath);
+  const rows = folder === null ? [] : pageFiles.filter((file) => dirname(file) === folder);
   const pages = kind === null ? [] : await Promise.all(rows.map((file) => readPage(root, file)));
   return { name, kind, csvPath, csvFile, csv, pages };
 }
@@ -90,10 +102,11 @@ async function readDatabase(
 /**
  * Reads a Notion workspace export: each database's CSV and its rows' pages,
  * every one read as UTF-8 or the run refused, the Meeting Notes pages too. A
- * page is a database's row when it is directly in the folder beside the
- * database's CSV. Every other page is listed and every other file counted,
+ * page is a database's row when it is directly in its pages folder, beside
+ * the database's CSV (`pagesFolder`). An export holding two databases of one
+ * kind is refused. Every other page is listed and every other file counted,
  * not read here: the meeting import, which runs before any other note is
- * written, reads every page under its CSV's folder as UTF-8 itself.
+ * written, reads every page under its pages folder as UTF-8 itself.
  */
 export async function readWorkspaceExport(dir: string): Promise<WorkspaceExport> {
   const root = await exportFolder(dir);
@@ -102,12 +115,16 @@ export async function readWorkspaceExport(dir: string): Promise<WorkspaceExport>
     .filter((entry) => entry.isFile() && !entry.name.startsWith('.'))
     .map((entry) => join(entry.parentPath, entry.name));
   const pageFiles = files.filter((file) => file.toLowerCase().endsWith('.md'));
-  const databases = await Promise.all(
-    databaseCsvs(files).map((csv) => readDatabase(root, csv, pageFiles)),
-  );
-  const meetingFolders = databases
-    .filter((database) => database.kind === 'meetings')
-    .map((database) => `${pagesFolder(database.csvPath)}${sep}`);
+  const csvs = databaseCsvs(files);
+  checkOneOfEachKind(root, csvs);
+  const databases = await Promise.all(csvs.map((csv) => readDatabase(root, csv, pageFiles)));
+  const meetingFolders = (
+    await Promise.all(
+      databases
+        .filter((database) => database.kind === 'meetings')
+        .map((database) => pagesFolder(database.csvPath)),
+    )
+  ).flatMap((folder) => (folder === null ? [] : [`${folder}${sep}`]));
   const rowFiles = new Set(
     databases.flatMap((database) => database.pages.map((page) => page.file)),
   );

@@ -11,6 +11,7 @@ import { remarkMarkdown } from '../../packages/adapters/src/index.ts';
 import type { ImportRecord } from './import-record.ts';
 import { importedAs, mergeNote, type ImportedPage, type WantedContent } from './note-merge.ts';
 import { dailyNotesToRead, notePaths, type Candidate, type NotePlace } from './note-paths.ts';
+import type { DateOrder } from './notion-date.ts';
 import type { RelationEntry } from './notion-relations.ts';
 import { withWikiLinks } from './page-links.ts';
 import { pairRows, propertiesHold, type ExportPage, type PairedRow } from './row-pages.ts';
@@ -89,6 +90,8 @@ export interface PlanInput {
   readonly statuses: ReadonlyMap<string, GtdStatus>;
   readonly today: string;
   readonly timeZone: string | null;
+  /** How a date written `10/06/2026` is read; null reads none. */
+  readonly dateOrder: DateOrder | null;
   /** Makes again the notes of pages imported before whose notes are gone. */
   readonly recreateDeleted: boolean;
   /** The note of each Meeting Notes page, by its page id, as the meeting import placed it in this run. */
@@ -326,6 +329,7 @@ export function planWorkspace(input: PlanInput): WorkspacePlan {
       statuses: input.statuses,
       today: input.today,
       timeZone: input.timeZone,
+      dateOrder: input.dateOrder,
     };
     const note = wantedNote(context, candidate.page.id);
     const wanted = wantedContent(note, place.path, bodyOf(candidate, linkFor));
@@ -347,7 +351,10 @@ export function planWorkspace(input: PlanInput): WorkspacePlan {
 
 /** The notes the export's pages are already in, by `notion_id` or as a day's note, for the run to read before it plans. */
 export function notesToRead(
-  input: Pick<PlanInput, 'databases' | 'vault' | 'record' | 'recreateDeleted' | 'timeZone'>,
+  input: Pick<
+    PlanInput,
+    'databases' | 'vault' | 'record' | 'recreateDeleted' | 'timeZone' | 'dateOrder'
+  >,
 ): VaultPath[] {
   const { candidates } = candidatesOf({ databases: input.databases, selected: new Set() });
   const byId = candidates.flatMap(({ page }) => {

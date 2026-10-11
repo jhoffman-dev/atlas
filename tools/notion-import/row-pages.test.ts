@@ -46,6 +46,48 @@ describe('pairing rows with their pages', () => {
     const { leftOver } = pairRows(CSV, [stray]);
     expect(leftOver).toEqual([stray]);
   });
+
+  it('pairs a row with no title with a page Notion titled Untitled, its Date telling them apart', () => {
+    const csv = readCsv('Name,Date\n,"October 7, 2026"\n,"October 6, 2026"\n');
+    const { rows, leftOver } = pairRows(csv, [
+      page('sixth', '# Untitled\n\nDate: October 6, 2026\n'),
+      page('seventh', '# Untitled\n\nDate: October 7, 2026\n'),
+      page('eighth', '# Untitled\n\nDate: October 8, 2026\n'),
+    ]);
+    expect(rows.map((row) => (row.kind === 'paired' ? row.page.id : row.reason))).toEqual([
+      'seventh',
+      'sixth',
+    ]);
+    expect(rows.map((row) => row.title)).toEqual(['', '']);
+    expect(leftOver.map((each) => each.id)).toEqual(['eighth']);
+  });
+
+  it('refuses to guess between Untitled pages of the same Date for a row with no title', () => {
+    const csv = readCsv('Name,Date\n,"October 7, 2026"\n');
+    const { rows } = pairRows(csv, [
+      page('one', '# Untitled\n\nDate: October 7, 2026\n'),
+      page('two', '# Untitled\n\nDate: October 7, 2026\n'),
+    ]);
+    expect(rows).toEqual([
+      {
+        kind: 'unpaired',
+        title: '',
+        reason: '2 pages share its title and properties: no telling which is this row',
+      },
+    ]);
+  });
+
+  it('never pairs a row that has a title with an Untitled page', () => {
+    const csv = readCsv('Name,Date\nPlan the offsite,"October 7, 2026"\n');
+    const { rows } = pairRows(csv, [page('blank', '# Untitled\n\nDate: October 7, 2026\n')]);
+    expect(rows).toEqual([
+      {
+        kind: 'unpaired',
+        title: 'Plan the offsite',
+        reason: 'no page in the export has its title',
+      },
+    ]);
+  });
 });
 
 describe("whether a page's properties paragraph is its row's", () => {

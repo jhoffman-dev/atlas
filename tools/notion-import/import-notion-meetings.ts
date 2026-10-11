@@ -6,9 +6,11 @@ import {
   mapMeeting,
   type MeetingFile,
 } from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
+import { pagesFolder } from './database-folder.ts';
 import type { GeminiDates } from './gemini-dates.ts';
 import { importTarget, type ImportTarget } from './import-target.ts';
 import { readCsv } from './notion-csv.ts';
+import type { DateOrder } from './notion-date.ts';
 import { NotionExportError, planRows, type RowName, type RowPlan } from './notion-meetings.ts';
 import { readNotionPage, type NotionPage } from './notion-page.ts';
 import { stageFile } from './staged-file.ts';
@@ -17,7 +19,7 @@ import { holdsMeeting, meetingKey, meetingsInVault, readFrontmatter } from './va
 export { ImportSetupError } from './import-target.ts';
 
 export interface ImportOptions {
-  /** The Meeting Notes CSV of a Notion "Markdown & CSV" export; its pages are the `.md` files beside it. */
+  /** The Meeting Notes CSV of a Notion "Markdown & CSV" export; its pages are the `.md` files in its pages folder beside it. */
   readonly csv: string;
   /** The vault to write into. There is no default: it is always named. */
   readonly vault: string;
@@ -30,6 +32,8 @@ export interface ImportOptions {
   readonly providers?: readonly string[];
   /** How Gemini's Dates are read (issue #44); left out, Gemini's rows are held. */
   readonly geminiDates?: GeminiDates;
+  /** How a Date written `06/14/2026` is read; left out, it is not read. */
+  readonly dateOrder?: DateOrder;
   /** Says what each row would come to, writing nothing (the workspace import's `--dry-run`). */
   readonly dryRun?: boolean;
 }
@@ -68,7 +72,15 @@ export async function exportText(path: string, name: string): Promise<string> {
   }
 }
 
-/** Every page of the export, read from the `.md` files under the CSV's folder. */
+/**
+ * The folder the meeting pages are read from: the database's pages folder
+ * (`pagesFolder`), or, when the export has none, the folder the CSV is in.
+ */
+async function meetingPagesFolder(csvPath: string): Promise<string> {
+  return (await pagesFolder(csvPath)) ?? dirname(csvPath);
+}
+
+/** Every page of the export, read from the `.md` files under its folder. */
 async function exportPages(folder: string): Promise<NotionPage[]> {
   const entries = await readdir(folder, { withFileTypes: true, recursive: true });
   const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md'));
@@ -202,10 +214,11 @@ async function importRow(plan: RowPlan, run: Run): Promise<RowOutcome> {
 export async function importNotionMeetings(options: ImportOptions): Promise<RowOutcome[]> {
   const target = await importTarget(options);
   const csv = readCsv(await exportText(options.csv, 'the CSV'));
-  const pages = await exportPages(dirname(resolve(options.csv)));
+  const pages = await exportPages(await meetingPagesFolder(resolve(options.csv)));
   const plans = planRows(csv, pages, {
     providers: options.providers ?? null,
     geminiDates: options.geminiDates ?? null,
+    dateOrder: options.dateOrder ?? null,
   });
   if (options.dryRun !== true) await mkdir(target.folder, { recursive: true });
   const run: Run = { target, options, held: await meetingsInVault(target.vault) };

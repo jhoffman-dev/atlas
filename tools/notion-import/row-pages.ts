@@ -23,6 +23,15 @@ export type PairedRow =
 export const rowTitle = (csv: Csv, row: CsvRow): string =>
   (row.get(csv.columns[0] ?? '') ?? '').trim();
 
+/** The title Notion gives a page whose title is empty, in its heading and its file's name. */
+const UNTITLED = 'Untitled';
+
+/** Whether the page has the row's title: a row with none has a page Notion titled Untitled. */
+function titledAs(title: string, page: ExportPage): boolean {
+  const heading = page.page.title.trim();
+  return heading === title || (title === '' && heading === UNTITLED);
+}
+
 /** How many of the row's other cells the page's properties repeat exactly. */
 function agreement(csv: Csv, row: CsvRow, page: ExportPage): number {
   return csv.columns
@@ -47,7 +56,9 @@ function likeliest(csv: Csv, row: CsvRow, pages: readonly ExportPage[]): ExportP
  * row is paired with the page of the same title — Notion writes it as the
  * page's `# heading`, in full, where the file name may be cut short — and,
  * when several pages share it, with the one whose properties agree with the
- * row. A row no page can be told apart for is listed, never given a guess.
+ * row. A row with an empty title has a page Notion titled `Untitled`, which
+ * many rows' pages may share. A row no page can be told apart for is listed,
+ * never given a guess.
  * Pages left over belong to no row.
  */
 export function pairRows(
@@ -57,7 +68,7 @@ export function pairRows(
   const unclaimed = new Set(pages);
   const rows = csv.rows.map((row): PairedRow => {
     const title = rowTitle(csv, row);
-    const candidates = [...unclaimed].filter((page) => page.page.title.trim() === title);
+    const candidates = [...unclaimed].filter((page) => titledAs(title, page));
     if (candidates.length === 0) {
       return { kind: 'unpaired', title, reason: 'no page in the export has its title' };
     }

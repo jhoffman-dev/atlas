@@ -1,4 +1,5 @@
 import type { CsvRow } from './notion-csv.ts';
+import { writtenYearLast, type DateOrder } from './notion-date.ts';
 import { readDay } from './notion-day.ts';
 import { readOptions, readRelation, type RelationEntry } from './notion-relations.ts';
 import type { GtdStatus } from '../../packages/domain/src/index.ts';
@@ -92,6 +93,7 @@ const COLUMN_RULES: Readonly<
     status: { special: 'status' },
     priority: property('priority', 'text'),
     effort: property('effort', 'text'),
+    'effort level': property('effort', 'text'),
     'task type': property('task_type', 'text'),
     tags: property('tags', 'options'),
     'due date': property('due', 'date'),
@@ -111,6 +113,7 @@ const COLUMN_RULES: Readonly<
     'back links': BACK_LINK,
   },
   people: {
+    aliases: property('aliases', 'options'),
     email: property('email', 'text'),
     slack: property('slack', 'text'),
     role: property('role', 'text'),
@@ -193,6 +196,8 @@ export interface RowContext {
   readonly today: string;
   /** The zone a UTC time's day is read in; null refuses to read one. */
   readonly timeZone: string | null;
+  /** How a date written `10/06/2026` is read; null reads none. */
+  readonly dateOrder: DateOrder | null;
 }
 
 /** What a row should come to in the vault. */
@@ -221,6 +226,12 @@ interface Reading {
   readonly ends: Map<string, string>;
 }
 
+/** What to do about a date that cannot be read: one written `10/06/2026` reads once its order is given. */
+const unreadDateHint = (cell: string, order: DateOrder | null) =>
+  order === null && writtenYearLast(cell)
+    ? "run with --date-order mdy (month first) or dmy (day first), or set the column's format to Full date"
+    : "set the column's format to Full date";
+
 /** A date cell's day; a cell that cannot be read is noted, and the property left as the note has it. */
 function readDateCell(
   rule: PropertyRule,
@@ -229,11 +240,11 @@ function readDateCell(
   context: RowContext,
   reading: Reading,
 ) {
-  const day = readDay(cell, context.timeZone);
+  const day = readDay(cell, context.timeZone, context.dateOrder);
   if (day.kind === 'unread') {
     reading.unread.push(rule.key);
     reading.notes.push(
-      `${column} "${cell}" cannot be read (${day.why}), so the note keeps its ${rule.key}: set the column's format to Full date`,
+      `${column} "${cell}" cannot be read (${day.why}), so the note keeps its ${rule.key}: ${unreadDateHint(cell, context.dateOrder)}`,
     );
     return null;
   }
@@ -366,7 +377,9 @@ function taskFields(context: RowContext, fields: Record<string, unknown>, notes:
  * The day a daily row is for: its Date, else a title Notion wrote as a date
  * (`October 6, 2026`). Null when neither is a day.
  */
-export function rowDay(context: RowCells & Pick<RowContext, 'timeZone'>): string | null {
+export function rowDay(
+  context: RowCells & Pick<RowContext, 'timeZone' | 'dateOrder'>,
+): string | null {
   const dateColumn = [...propertyColumns(context.kind, context.columns)].find(
     ([, rule]) => rule.key === 'date' && rule.kind === 'date',
   )?.[0];
@@ -374,7 +387,9 @@ export function rowDay(context: RowCells & Pick<RowContext, 'timeZone'>): string
     context.row.get(column ?? ''),
   )) {
     const day =
-      cell === undefined || cell.trim() === '' ? null : readDay(cell.trim(), context.timeZone);
+      cell === undefined || cell.trim() === ''
+        ? null
+        : readDay(cell.trim(), context.timeZone, context.dateOrder);
     if (day?.kind === 'day') return day.day;
   }
   return null;

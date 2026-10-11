@@ -23,9 +23,19 @@ const MONTHS = [
 const monthIndex = (name: string) =>
   MONTHS.findIndex((month) => name.length >= 3 && month.startsWith(name.toLowerCase()));
 
-/** `October 6, 2026` or `Oct 6, 2026`, then an optional `10:00 AM` or `14:00`. */
-const SHOWN =
-  /^([a-z]{3,9})\.?\s+(\d{1,2}),\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})\s*([ap])?\.?m?\.?)?$/i;
+/** How a date written with slashes and the year last (`06/14/2026`) is read: month first, or day first. */
+export const DATE_ORDERS = ['mdy', 'dmy'] as const;
+
+export type DateOrder = (typeof DATE_ORDERS)[number];
+
+/** An optional `10:00 AM` or `14:00` after a date. */
+const AT_TIME = String.raw`(?:\s+(\d{1,2}):(\d{2})\s*([ap])?\.?m?\.?)?`;
+/** `October 6, 2026` or `Oct 6, 2026`, then an optional time. */
+const SHOWN = new RegExp(String.raw`^([a-z]{3,9})\.?\s+(\d{1,2}),\s+(\d{4})${AT_TIME}$`, 'i');
+/** `2026/10/06`, then an optional time: the year first, so it can only be year, month, day. */
+const YEAR_FIRST = new RegExp(String.raw`^(\d{4})/(\d{1,2})/(\d{1,2})${AT_TIME}$`, 'i');
+/** `10/06/2026`, then an optional time: month first or day first, which only the date order says. */
+const YEAR_LAST = new RegExp(String.raw`^(\d{1,2})/(\d{1,2})/(\d{4})${AT_TIME}$`, 'i');
 /** `10:30 AM` alone: the end of a range on the start's day. */
 const CLOCK_ONLY = /^(\d{1,2}):(\d{2})\s*([ap])?\.?m?\.?$/i;
 /** A zone in brackets after a side of the cell: `(PDT)`, `(UTC)`. */
@@ -47,22 +57,60 @@ function clock(hours: string, minutes: string, half: string | undefined): string
   return `${two(hour)}:${minutes}`;
 }
 
-/** One side of the cell as `2026-10-06` or `2026-10-06T10:00`; null when Notion did not write it this way. */
-function shownDate(text: string): string | null {
+/** A side of the cell's year, month and day as numbers, and its time as written. */
+interface WrittenDate {
+  readonly year: string;
+  readonly month: number;
+  readonly day: number;
+  readonly hours: string | undefined;
+  readonly minutes: string;
+  readonly half: string | undefined;
+}
+
+/** `October 6, 2026`: a month that is no month's name is month 0, which no date has. */
+function monthNamed(text: string): WrittenDate | null {
   const match = SHOWN.exec(text);
-  const month = monthIndex(match?.[1] ?? '');
-  if (match === null || month < 0) return null;
-  const [, , day = '', year = '', hours, minutes = '', half] = match;
-  const date = `${year}-${two(month + 1)}-${two(Number(day))}`;
+  if (match === null) return null;
+  const [, name = '', day = '', year = '', hours, minutes = '', half] = match;
+  return { year, month: monthIndex(name) + 1, day: Number(day), hours, minutes, half };
+}
+
+function yearFirst(text: string): WrittenDate | null {
+  const match = YEAR_FIRST.exec(text);
+  if (match === null) return null;
+  const [, year = '', month = '', day = '', hours, minutes = '', half] = match;
+  return { year, month: Number(month), day: Number(day), hours, minutes, half };
+}
+
+/** `10/06/2026` in the order given; with none, it is not read: it could be either day. */
+function yearLast(text: string, order: DateOrder | null): WrittenDate | null {
+  const match = order === null ? null : YEAR_LAST.exec(text);
+  if (match === null) return null;
+  const [, first = '', second = '', year = '', hours, minutes = '', half] = match;
+  const [month, day] = order === 'mdy' ? [first, second] : [second, first];
+  return { year, month: Number(month), day: Number(day), hours, minutes, half };
+}
+
+/**
+ * One side of the cell as `2026-10-06` or `2026-10-06T10:00`; null when
+ * Notion did not write it in a form read here, or wrote no month 1 to 12 or
+ * day 1 to 31 in it. The mapper checks the rest of what makes a day.
+ */
+function shownDate(text: string, order: DateOrder | null): string | null {
+  const written = monthNamed(text) ?? yearFirst(text) ?? yearLast(text, order);
+  if (written === null) return null;
+  const { year, month, day, hours, minutes, half } = written;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = `${year}-${two(month)}-${two(day)}`;
   if (hours === undefined) return date;
   const time = clock(hours, minutes, half);
   return time === null ? null : `${date}T${time}`;
 }
 
 /** The end side: a time alone is on the start's day. */
-function shownEnd(text: string, startDay: string): string | null {
+function shownEnd(text: string, startDay: string, order: DateOrder | null): string | null {
   const match = CLOCK_ONLY.exec(text);
-  if (match === null) return shownDate(text);
+  if (match === null) return shownDate(text, order);
   const [, hours = '', minutes = '', half] = match;
   const time = clock(hours, minutes, half);
   return time === null ? null : `${startDay}T${time}`;
@@ -85,21 +133,27 @@ const onClock = (value: string, zone: string | null) =>
  * date and an end the meeting mapper reads. A time with no zone, or with a
  * zone other than UTC, is that clock's time and is kept as written; a UTC
  * time is an instant the mapper puts on the clock of its time zone. A range
- * is on one clock: a zone written on either side is both sides' zone. Text
- * in any other form (an ISO date-time, or a format Notion was set to that is
- * not read here) is passed on as it is, for the mapper to read or refuse:
- * `10/06/2026` could be either day, so it is never guessed at.
+ * is on one clock: a zone written on either side is both sides' zone. A
+ * date Notion was set to write with slashes is read too: `2026/10/06`
+ * always, and `10/06/2026` only in the `order` given, since it could be
+ * either day and is never guessed at. Text in any other form (an ISO
+ * date-time, or a format that is not read here) is passed on as it is, for
+ * the mapper to read or refuse.
  */
-export function notionWhen(cell: string): NotionWhen {
+export function notionWhen(cell: string, order: DateOrder | null = null): NotionWhen {
   const [rawStart = '', rawEnd] = cell.split('→').map((side) => side.trim());
   const start = unzoned(rawStart);
   const end = rawEnd === undefined || rawEnd === '' ? null : unzoned(rawEnd);
   const zone = start.zone ?? end?.zone ?? null;
-  const date = shownDate(start.text);
+  const date = shownDate(start.text, order);
   if (date === null) return { date: rawStart, end: end === null ? null : (rawEnd ?? null) };
-  const endValue = end === null ? null : shownEnd(end.text, date.slice(0, 10));
+  const endValue = end === null ? null : shownEnd(end.text, date.slice(0, 10), order);
   return {
     date: onClock(date, zone),
     end: end === null ? null : endValue === null ? (rawEnd ?? null) : onClock(endValue, zone),
   };
 }
+
+/** Whether the cell's date is written `10/06/2026`, which only a date order can read. */
+export const writtenYearLast = (cell: string): boolean =>
+  YEAR_LAST.test(unzoned(cell.split('→')[0]?.trim() ?? '').text);

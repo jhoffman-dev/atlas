@@ -20,7 +20,7 @@ The Meeting Notes database goes through the meeting import
 | Tasks (`Tasks`, `Tasks Tracker`)     | `task`                    | `Tasks/`                      | `status` (GTD, below), `notion_status`, `priority`, `effort`, `task_type`, `tags`, `due`, `project`, `people`, `notes` |
 | Notes                                | `notes`                   | `Notes/`                      | `tags`, `date`, `project`, `people`, `tasks`, `related`                                                                |
 | Meeting Notes                        | `meeting` (meeting/v1)    | `Inbox/Meetings/`             | as the meeting import writes them                                                                                      |
-| People                               | `person`                  | `People/`                     | `email`, `slack`, `role`, `team`                                                                                       |
+| People                               | `person`                  | `People/`                     | `aliases`, `email`, `slack`, `role`, `team`                                                                            |
 | PARA, Type Project                   | `project`                 | `Projects/`                   | `priority`, `start`, `end`                                                                                             |
 | PARA, Type Area                      | `area`                    | `Areas/`                      | `priority`, `start`, `end`                                                                                             |
 | PARA, Type Resource                  | `resource`                | `Resources/`                  | `priority`, `start`, `end`                                                                                             |
@@ -32,6 +32,10 @@ Every note also gets `source: notion` and `notion_id`, and its page's content
 as its body. A database is known by its name, without emoji or case. A note
 already in the vault stays where it is, under its own name: the import finds
 it by `notion_id` wherever you moved, renamed or archived it.
+
+People's Aliases column becomes `aliases`, a list: the person's **Also
+spelt**. A Tasks database's `Effort level` column is read as `Effort` is,
+into `effort`.
 
 - **Daily notes** go where Atlas keeps them: `<YYYY-MM-DD>.md` at the root,
   the day read from the page's Date (else its title). A day that already has
@@ -66,11 +70,21 @@ it by `notion_id` wherever you moved, renamed or archived it.
   numbered when a note of that name is already in the folder — or when the
   name would take over `[[links]]` that open another note now (the rule Atlas
   follows when it adds a person). A renamed note is listed.
+- **Rows with no title.** Notion writes the page of a row whose title is
+  empty as `Untitled`. Such a row is paired with an `Untitled` page whose
+  properties agree with it (its Date, say); when several agree as much, the
+  row is refused, never given a guess. Its note is named `Untitled`, and
+  listed; a daily note goes by its Date as any other does.
 - **Dates** are read as the meeting import reads them: a UTC time's day is the
-  one it falls on in `--time-zone`. A range writes its end where the type has
-  a place for it (PARA's Start date into `end`), and is listed otherwise. A
-  date, or a range's end, that cannot be read is listed and left as the note
-  has it: it is not taken for Notion having cleared it.
+  one it falls on in `--time-zone`. Notion's Full date (`October 6, 2026`)
+  and Year/Month/Day (`2026/10/06`) formats are read as they are;
+  Month/Day/Year and Day/Month/Year (`10/06/2026`) only with
+  `--date-order mdy` or `dmy`, since `10/06/2026` could be either day.
+  Without it, such a date is listed as one that cannot be read. A range
+  writes its end where the type has a place for it (PARA's Start date into
+  `end`), and is listed otherwise. A date, or a range's end, that cannot be
+  read is listed and left as the note has it: it is not taken for Notion
+  having cleared it.
 - **Properties paragraph.** A page's first `Label: value` lines are read as
   its properties only when every label is one of its database's columns, the
   row has a value under at least one of them, and the page says what the row
@@ -162,8 +176,22 @@ says which were (exit 1).
 
 1. **Export.** In Notion: **Settings → Export all workspace content →
    Markdown & CSV**, with **Include subpages** on (or export each database
-   that way). Unzip it into a folder of its own, and any zip inside it. Set
-   every Date property's format to **Full date** first (`October 6, 2026`).
+   that way). Unzip it into a folder of its own, and any zip inside it. Each
+   database is a `<Name> <id>_all.csv`, with its pages in the folder beside
+   it: `<Name>/` in current exports, `<Name> <id>/` in older ones (both are
+   read; where both are there, the one with the id). Set every Date
+   property's format to **Full date** first (`October 6, 2026`), or give
+   `--date-order` for dates written `10/06/2026`.
+
+   **Export only the databases to bring in.** The import knows a database by
+   its name, and a whole-workspace export can hold other databases of the
+   same names — a team space's `Notes` or `Meetings`, a second `People`.
+   Point `--export` at the folder holding just the private databases (in a
+   whole-workspace export, `Private & Shared/Databases`), or export only
+   those. An export with two databases of one kind is refused (exit 2),
+   naming both CSVs, rather than mixing their rows. Databases the import does
+   not know are listed as skipped.
+
 2. **Run the GTD move** in Atlas, if you have not.
 3. **Copy the vault** and run on the copy first, as a dry run, then for real:
 
@@ -174,6 +202,10 @@ says which were (exit 1).
    pnpm import:notion-workspace --export ~/Downloads/<export folder> \
      --vault /tmp/atlas-vault-copy --gemini-dates arrival-local
    ```
+
+   Add `--date-order mdy` when the dry run lists dates written `10/06/2026`
+   that cannot be read, and your Notion writes the month first (`dmy` for
+   day first).
 
    Use absolute paths: pnpm runs the script from the repository's folder. Do
    not open the copy in Atlas: it carries the vault's sync settings. Read the
@@ -212,7 +244,8 @@ It exits 0 when everything came in, 1 when a page was refused, an edit was
 kept over Notion's, the record stopped partway, or a meeting was held or
 refused, and 2 when it could not run at all, having written nothing (no such
 vault or export, a folder linked out of the vault, a page that is not UTF-8,
-a record it cannot read or write, a Task type that is not GTD).
+a record it cannot read or write, a Task type that is not GTD, two databases
+of one kind in the export).
 
 | Option                 | Default               | What it does                                                                                                                  |
 | ---------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -224,6 +257,7 @@ a record it cannot read or write, a Task type that is not GTD).
 | `--only <list>`        | every database        | `tasks,notes,meetings,people,para,teams,daily`, comma-separated                                                               |
 | `--task-status <a=b>`  | the table above       | A Notion status and the GTD status it becomes; repeat it                                                                      |
 | `--gemini-dates <how>` | none: Gemini held     | Passed to the meeting import (issue #44)                                                                                      |
+| `--date-order <order>` | none: listed          | How a date written `10/06/2026` is read, meetings' too: `mdy` (month first) or `dmy` (day first)                              |
 | `--time-zone <zone>`   | `America/Los_Angeles` | The clock UTC times are read on, for meetings and every date                                                                  |
 
 ## Safety
