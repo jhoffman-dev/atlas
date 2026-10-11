@@ -6,6 +6,8 @@ function line(outcome: RowOutcome): string {
   switch (outcome.kind) {
     case 'written':
       return `wrote     ${outcome.path}`;
+    case 'would-write':
+      return `would write ${outcome.path}`;
     case 'in-vault':
       return `in vault  ${outcome.path}, ${named(outcome)}`;
     case 'no-source-id':
@@ -24,8 +26,10 @@ const count = (outcomes: readonly RowOutcome[], kind: RowOutcome['kind']) =>
 
 /** One line per row, then the totals. */
 export function reportLines(outcomes: readonly RowOutcome[]): string[] {
+  const dryRun = count(outcomes, 'would-write');
   const totals = [
     `${count(outcomes, 'written')} written`,
+    ...(dryRun === 0 ? [] : [`${dryRun} would be written`]),
     `${count(outcomes, 'in-vault')} already in the vault`,
     `${count(outcomes, 'no-source-id')} without a Source ID`,
     `${count(outcomes, 'left-out')} left out`,

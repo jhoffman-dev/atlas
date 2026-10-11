@@ -1,6 +1,7 @@
 import { readAttendees, type Attendee } from './meeting-attendees.ts';
 import { meetingPaths } from './meeting-file-name.ts';
 import { MeetingMappingError, oneLine } from './meeting-mapping-error.ts';
+import { splitSections } from './meeting-sections.ts';
 import { nextStepsText, sectionText } from './meeting-text.ts';
 import {
   firstSpoken,
@@ -12,7 +13,7 @@ import { readStated } from './meeting-stated.ts';
 import { meetingWhen, type MeetingWhen } from './meeting-when.ts';
 
 /**
- * What James's n8n parse step hands over, by the mapper's names (the
+ * What James's n8n workflow hands over, by the mapper's names (the
  * "Meeting fields for Atlas" node renames his fields to these). Untyped: it
  * comes from n8n as JSON.
  */
@@ -30,6 +31,12 @@ export interface MeetingFields {
   readonly decisions?: unknown;
   readonly nextSteps?: unknown;
   readonly details?: unknown;
+  /**
+   * The notes as one markdown text with `## Summary`, `## Decisions`,
+   * `## Next steps` and `## Details` headings, for a workflow that keeps them
+   * together. Each part fills its field when that field is not given.
+   */
+  readonly sections?: unknown;
   readonly transcript?: unknown;
   readonly category?: unknown;
   readonly source?: unknown;
@@ -127,6 +134,27 @@ function notesText(fields: MeetingFields): string {
   return [details, `### Decisions\n\n${decisions}`].filter(Boolean).join('\n\n');
 }
 
+/** Nothing given: n8n hands an unset row over as '' (a list as []). */
+const isEmpty = (value: unknown) =>
+  value === null ||
+  value === undefined ||
+  (typeof value === 'string' && value.trim() === '') ||
+  (Array.isArray(value) && value.length === 0);
+
+/** The fields with each of the four prose parts taken from `sections` where it was not given. */
+function withSections(fields: MeetingFields): MeetingFields {
+  if (isEmpty(fields.sections)) return fields;
+  const parts = splitSections(fields.sections);
+  const or = (value: unknown, part: string) => (isEmpty(value) ? part : value);
+  return {
+    ...fields,
+    summary: or(fields.summary, parts.summary),
+    decisions: or(fields.decisions, parts.decisions),
+    nextSteps: or(fields.nextSteps, parts.nextSteps),
+    details: or(fields.details, parts.details),
+  };
+}
+
 function body(fields: MeetingFields, transcript: Transcript): string {
   const sections: [string, string][] = [
     ['Summary', sectionText(fields.summary, 'summary')],
@@ -146,7 +174,8 @@ function body(fields: MeetingFields, transcript: Transcript): string {
  * {@link MeetingMappingError} when a required field is missing, rather than
  * writing a file Atlas would refuse.
  */
-export function mapMeeting(fields: MeetingFields, options: MappingOptions = {}): MeetingFile {
+export function mapMeeting(given: MeetingFields, options: MappingOptions = {}): MeetingFile {
+  const fields = withSections(given);
   const title = required(fields.title, 'title');
   const provider = providerOf(fields.source);
   const externalId = required(fields.sourceId, 'sourceId');

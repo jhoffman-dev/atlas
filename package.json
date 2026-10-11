@@ -29,7 +29,8 @@
     "design:compare": "node tools/design/compare.ts",
     "n8n:build": "node tools/n8n/build-workflow.mjs",
     "validate:meeting": "node tools/n8n/validate-meeting.mjs",
-    "import:notion-meetings": "node tools/import-notion-meetings.mjs"
+    "import:notion-meetings": "node tools/import-notion-meetings.mjs",
+    "import:notion-workspace": "node tools/import-notion-workspace.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

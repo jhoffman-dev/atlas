@@ -35,7 +35,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `tools/n8n/*.ts`           | The n8n meeting mapper: commits files into your vault from outside Atlas.     | 28      |
 | `domain/terms`             | The vocabulary: decides how every name in a transcript is spelt.              | 28      |
 | `application/terms`        | Adds terms as notes and rewrites their variants in the frontmatter.           | 28      |
-| `tools/notion-import/*.ts` | The Notion meeting import: writes your meeting history into a vault at once.  | 28      |
+| `tools/notion-import/*.ts` | The Notion imports: meetings and a whole workspace into a vault, re-runnable. | 28, #79 |
 | `application/proposals`    | Accepting a proposal writes notes, archives it, and undo takes them back.     | 29      |
 | `*/google-calendar`        | Connects your Google account and reads its answers; tokens stay in Rust.      | 31      |
 

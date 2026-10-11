@@ -1,5 +1,5 @@
 import { oneLine } from './meeting-mapping-error.ts';
-import { isBoilerplate, textLines } from './meeting-text.ts';
+import { fencedLines, isBoilerplate, textLines } from './meeting-text.ts';
 
 /** One speaker turn, before it is written. */
 export interface Turn {
@@ -31,6 +31,12 @@ const DROPPED = [
   /^((mon|tues|wednes|thurs|fri|satur|sun)day,?\s+)?[a-z]{3,9}\.?\s+\d{1,2},\s+\d{4}$/i,
   /^\d{4}-\d{2}-\d{2}$/,
 ];
+/**
+ * The transcript's title line, as a doc writes it above the first stamp:
+ * `## Transcript`, `Title - Transcript`, `# Q4: planning – Transcript`. Only
+ * there is it a wrapper; further down, the same words are someone's.
+ */
+const TITLE_LINE = /^(?:#{1,6}\s*)?(?:.*\s[-–—]\s*)?transcript$/i;
 /** Gemini's end mark, `### Transcription ended after 00:51:49`: how long the recording ran. */
 const ENDED = /^(?:#{1,6}\s*)?transcription ended after\s+(\d{1,2}:\d{2}:\d{2})\b/i;
 /** Gemini's section stamp: `### 00:09:44` (or the bare time). */
@@ -112,10 +118,12 @@ class TurnReader {
     this.roster = roster;
   }
 
-  read(line: string): void {
+  /** `code`: the line is in a code fence, so it is never a wrapper line. */
+  read(line: string, code: boolean): void {
     const ended = padded(ENDED.exec(line)?.[1] ?? '');
     if (ELAPSED_TIME.test(ended)) this.lastElapsed = ended;
     if (line === '' || isBoilerplate(line) || DROPPED.some((each) => each.test(line))) return;
+    if (!code && this.beforeFirst() && TITLE_LINE.test(line)) return;
     const section = SECTION.exec(line);
     if (section !== null) {
       const time = padded(section[1] ?? '');
@@ -123,6 +131,11 @@ class TurnReader {
       this.lastElapsed = this.section ?? this.lastElapsed;
       this.afterSection = true;
     } else if (!this.stampedTurn(line) && !this.spokenTurn(line)) this.continueTurn(line);
+  }
+
+  /** Nothing read yet: no section stamp, no turn. */
+  private beforeFirst(): boolean {
+    return this.turns.length === 0 && this.lastElapsed === null && this.section === null;
   }
 
   private stampedTurn(line: string): boolean {
@@ -178,7 +191,9 @@ class TurnReader {
  */
 export function readTranscript(value: unknown, attendeeNames: readonly string[] = []): Transcript {
   const reader = new TurnReader(new Set(attendeeNames.map((each) => each.toLowerCase())));
-  for (const line of textLines(value, 'transcript')) reader.read(plain(line));
+  for (const { text, code } of fencedLines(textLines(value, 'transcript')).lines) {
+    reader.read(plain(text), code);
+  }
   const clock: TranscriptClock = reader.stamped ? 'wall' : 'elapsed';
   const turns = reader.turns
     .map(({ parts, ...turn }) => ({
