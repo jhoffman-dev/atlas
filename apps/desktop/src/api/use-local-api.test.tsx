@@ -60,6 +60,7 @@ function emptyVault(): ApiRouterDeps {
     automationClock: { forVault: () => null },
     activity: recordingActivity(),
     googleCalendar: fakeGoogleCalendar().port,
+    timeZone: () => 'America/Los_Angeles',
   };
 }
 
