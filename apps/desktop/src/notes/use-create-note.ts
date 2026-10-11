@@ -105,7 +105,13 @@ export function useCreateNote({
   const openDailyNote = useCallback(
     async (today: string): Promise<VaultPath | null> => {
       try {
-        const { path, created } = await ensureDailyNote({ fs, today, notePaths, templates });
+        const { path, created } = await ensureDailyNote({
+          fs,
+          markdown,
+          today,
+          notePaths,
+          templates,
+        });
         setError(null);
         if (created) onCreated(path);
         return path;
@@ -114,7 +120,7 @@ export function useCreateNote({
         return null;
       }
     },
-    [fs, notePaths, templates, onCreated],
+    [fs, markdown, notePaths, templates, onCreated],
   );
 
   const createFromTemplate = useCallback(

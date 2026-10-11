@@ -1,6 +1,7 @@
 import { ARTIFACT_TYPE } from '../artifacts/artifact.ts';
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { COMPANY_TYPE } from '../people/company.ts';
+import { DAILY_TYPE } from '../daily/daily-note.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { TERM_TYPE } from '../terms/term.ts';
 import { DECISION_TYPE, PROPOSAL_TYPE } from '../proposals/proposal.ts';
@@ -27,6 +28,7 @@ const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   [PROPOSAL_TYPE, 'what Claude proposes waits in the Inbox as notes of it'],
   [DECISION_TYPE, 'accepted decision proposals are notes of it'],
   [BLOCK_TYPE, 'timeblocks on the calendar are notes of it'],
+  [DAILY_TYPE, "today's note is a note of it"],
 ]);
 
 /** Whether a type is one Atlas's own features depend on. */

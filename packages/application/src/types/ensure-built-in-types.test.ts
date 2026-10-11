@@ -1,8 +1,8 @@
 /**
  * Opening a vault that files by project writes the PARA types it has no file
  * for; anything else — PARA for a vault that has not taken it up, a change to
- * the vault's own types, the Inbox's Proposal and Decision types and the
- * meeting import's keys — is offered, and made only when accepted. Over a vault in
+ * the vault's own types, the Inbox's Proposal and Decision types, the Daily
+ * type and the meeting import's keys — is offered, and made only when accepted. Over a vault in
  * memory whose frontmatter is JSON, so what each file ends up saying can be
  * read back whole; how the real writer keeps every byte is the adapters'.
  */
@@ -59,8 +59,8 @@ const JAMES_PROJECT = note({
   properties: { status: 'select', budget: { kind: 'number', label: 'Budget' } },
 });
 
-/** The types the one Inbox always asks about in a vault that lacks them. */
-const INBOX_TYPES = ['proposal', 'decision'];
+/** The types always asked about in a vault that lacks them: the Inbox's, and today's note's. */
+const INBOX_TYPES = ['proposal', 'decision', 'daily'];
 const offeredNames = (offer: { types: readonly { type: { name: string } }[] }) =>
   offer.types.map((file) => file.type.name);
 
@@ -125,6 +125,7 @@ describe('ensureBuiltInTypes', () => {
       }),
       '.atlas/types/proposal.md': note({ name: 'proposal' }),
       '.atlas/types/decision.md': note({ name: 'Decision' }),
+      '.atlas/types/daily.md': note({ name: 'daily' }),
     });
     const ensured = await ensureBuiltInTypes(v);
     expect(ensured).toEqual({ created: [], offer: { types: [], extensions: [] }, failed: [] });
@@ -196,6 +197,7 @@ describe('acceptTypeSetup', () => {
         '.atlas/types/resource.md',
         '.atlas/types/proposal.md',
         '.atlas/types/decision.md',
+        '.atlas/types/daily.md',
       ],
       extended: ['.atlas/types/task.md'],
       failed: [],
