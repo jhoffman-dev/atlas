@@ -6,7 +6,7 @@ import {
   lastRunOf,
   logEntryHeading,
   logEntrySummary,
-  MAX_ACTIONS_PER_RUN,
+  capFor,
   MAX_LOG_ENTRIES,
   nextRunOf,
   noteTitle,
@@ -31,6 +31,7 @@ import type {
   ApiAutomationLogEntry,
   ApiAutomationPlan,
   ApiAutomationRef,
+  ApiClaudeStep,
   ApiNoteTrigger,
 } from './contract.ts';
 import { countOf } from './fields.ts';
@@ -154,12 +155,27 @@ const refOf = (rule: { id: string; name: string }): ApiAutomationRef => ({
   name: rule.name,
 });
 
-/** The action as the rule's file writes it: `do`, and `set` for a set rule. */
+/** The action as the rule's file writes it: `do`, `set` for a set rule, and a Claude step's keys. */
 function actionFields(action: AutomationAction): {
   do: AutomationAction['kind'];
   set: Readonly<Record<string, SetValue>> | null;
+  claude: ApiClaudeStep | null;
 } {
-  return { do: action.kind, set: action.kind === 'set' ? { ...action.values } : null };
+  return {
+    do: action.kind,
+    set: action.kind === 'set' ? { ...action.values } : null,
+    claude: action.kind === 'claude' ? claudeStepOf(action) : null,
+  };
+}
+
+function claudeStepOf(action: Extract<AutomationAction, { kind: 'claude' }>): ApiClaudeStep {
+  const { output } = action;
+  return {
+    prompt: action.prompt,
+    tools: [...action.tools],
+    output: output.kind === 'note' ? 'note' : output.schema,
+    folder: output.kind === 'note' ? output.folder : null,
+  };
 }
 
 /**
@@ -240,6 +256,7 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         left: entry.left,
         ...(entry.versions !== undefined && { versions: entry.versions }),
         ...(entry.went !== undefined && { went: entry.went }),
+        ...(entry.claude !== undefined && { claude: entry.claude }),
       };
     case 'undo':
       return { kind: 'undo', ...words, of: entry.of, done: entry.done, left: entry.left };
@@ -249,6 +266,7 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         ...words,
         trigger: entry.trigger,
         problem: entry.problem,
+        ...(entry.claude !== undefined && { claude: entry.claude }),
         done: [],
         left: [],
       };
@@ -268,6 +286,6 @@ function planOf(plan: AutomationPlan): ApiAutomationPlan {
       .map(({ path, reason }) => ({ path, reason })),
     passedOverMore: Math.max(0, plan.passedOver.length - PASSED_OVER_LISTED),
     capped: plan.capped,
-    cap: MAX_ACTIONS_PER_RUN,
+    cap: capFor(plan.action),
   };
 }

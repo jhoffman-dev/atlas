@@ -24,6 +24,7 @@ import type { Clock } from '../ports.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { changeProperties, type PropertyOutcome } from './apply-changes.ts';
+import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
 import { reported } from './automation-activity.ts';
 import { appendToRuleLog, readRuleLog } from './automation-log.ts';
 import {
@@ -38,11 +39,12 @@ import type { RuleQueryPorts } from './plan-run.ts';
 import { guardedFs, stillInVault, type VaultGuard } from './vault-guard.ts';
 
 /**
- * Everything a run reaches: the archive's ports, and the vault's types. The
- * vault's notes are read afresh by each run — a scheduled run can come long
- * after the list on screen was.
+ * Everything a run reaches: the archive's ports, the vault's types, and what
+ * a Claude step asks (P29-03). The vault's notes are read afresh by each run
+ * — a scheduled run can come long after the list on screen was.
  */
-export type AutomationPorts = ArchivePorts & Pick<RuleQueryPorts, 'types'>;
+export type AutomationPorts = ArchivePorts &
+  Pick<RuleQueryPorts, 'types'> & { readonly claude: ClaudeStepPorts };
 
 export interface AutomationRun {
   readonly ports: AutomationPorts;
@@ -197,6 +199,10 @@ async function runOnce({
     await recordGone(run, went);
     return null;
   }
+  if (plan.action.kind === 'claude' && plan.paths.length > 0) {
+    const asked = { run, ports, target, action: plan.action, at, trigger, went, log };
+    return askClaude(asked);
+  }
   let applied: PropertyOutcome = { done: [], left: [] };
   let versions: LoggedVersion[] = [];
   const entry = (): LogEntry => ({
@@ -220,6 +226,82 @@ async function runOnce({
   // Cut off by a switch: said so to the caller, once what it did is on record.
   stillInVault(guard);
   return entry();
+}
+
+/**
+ * Carries out a Claude step over the plan's notes (P29-03) and logs it: what
+ * it made, or — when it failed, having written nothing — why, as a run that
+ * could not. Either way the model it asked and how long it took are on record.
+ *
+ * Every note it was asked about is handled, whatever it proposed: asking
+ * again about the same version costs a model's time and says the same. A
+ * failed run handles none, so a run by hand asks again.
+ */
+async function askClaude({
+  run,
+  ports,
+  target,
+  action,
+  at,
+  trigger,
+  went,
+  log,
+}: {
+  run: AutomationRun;
+  ports: AutomationPorts & { notePaths: readonly VaultPath[] };
+  target: RuleTarget;
+  action: Extract<AutomationRule['action'], { kind: 'claude' }>;
+  at: string;
+  trigger: RunTrigger;
+  went: readonly VaultPath[];
+  log: (entry: LogEntry) => Promise<void>;
+}): Promise<LogEntry> {
+  const { plan } = target;
+  try {
+    const { done, claude } = await runClaudeStep({
+      ports: ports.claude,
+      action,
+      paths: plan.paths,
+      fs: ports.fs,
+      markdown: ports.markdown,
+      notePaths: ports.notePaths,
+      madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
+    });
+    const entry: LogEntry = {
+      kind: 'run',
+      at,
+      trigger,
+      done,
+      left: plan.passedOver,
+      capped: plan.capped,
+      ...(target.versions !== null && { versions: askedAbout(target) }),
+      ...(went.length > 0 && { went }),
+      claude,
+    };
+    await log(entry);
+    return entry;
+  } catch (cause) {
+    if (!(cause instanceof ClaudeStepFailed)) throw cause;
+    const failed: LogEntry = {
+      kind: 'failed',
+      at,
+      trigger,
+      // Already without this machine's paths; stripped again, a fix's URL would be taken for one.
+      problem: cause.message,
+      claude: cause.claude,
+    };
+    await recordGone(run, went);
+    await log(failed);
+    return failed;
+  }
+}
+
+/** The versions of the notes a Claude step was asked about: each handled, as it was read. */
+function askedAbout({ plan, versions }: RuleTarget): LoggedVersion[] {
+  const asked = new Set<string>(plan.paths);
+  return (versions ?? [])
+    .filter((version) => asked.has(version.path))
+    .map((version) => ({ ...version, wrote: false }));
 }
 
 /**
@@ -250,8 +332,9 @@ async function applyPlan({
   plan: AutomationPlan;
   today: string;
 }): Promise<PropertyOutcome> {
-  if (plan.paths.length === 0) return { done: [], left: [] };
   const { action } = plan;
+  // A Claude step with notes to read is asked before this; with none, it does nothing.
+  if (plan.paths.length === 0 || action.kind === 'claude') return { done: [], left: [] };
   if (action.kind === 'set') {
     const changes = plan.paths.flatMap((path) =>
       Object.entries(action.values).map(([key, value]) => ({

@@ -31,6 +31,15 @@
  * - went `"Inbox/Meetings/Standup.md"`
  * ```
  *
+ * A rule's Claude step (P29-03) writes what it made — never an edit — and
+ * which model answered, and how long it took:
+ *
+ * ```markdown
+ * - proposed `"Inbox/Proposals/Send the payroll file.md"`
+ * - created `"Briefs/Morning brief.md"`
+ * - claude `"claude-opus-5-5"` in `4210` ms
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
@@ -50,6 +59,10 @@ export type PriorValue = { readonly absent: true } | { readonly value: unknown }
 /** One thing a run, or an undo, did to one note. */
 export type DoneAction =
   | { readonly kind: 'archived'; readonly from: VaultPath; readonly to: VaultPath }
+  /** A Claude step made a proposal. */
+  | { readonly kind: 'proposed'; readonly path: VaultPath }
+  /** A Claude step made the one new note its rule asks for. */
+  | { readonly kind: 'created'; readonly path: VaultPath }
   | { readonly kind: 'unarchived'; readonly from: VaultPath; readonly to: VaultPath }
   | {
       readonly kind: 'set' | 'restored';
@@ -68,6 +81,12 @@ export interface LoggedVersion extends NoteVersionRef {
   readonly wrote: boolean;
 }
 
+/** Which model a Claude step asked, and how long it took to answer — or to fail. */
+export interface ClaudeRunInfo {
+  readonly model: string;
+  readonly ms: number;
+}
+
 export type LogEntry =
   | {
       readonly kind: 'run';
@@ -80,6 +99,8 @@ export type LogEntry =
       readonly versions?: readonly LoggedVersion[];
       /** For a rule a note sets off: notes it had handled that were deleted, ending their history. */
       readonly went?: readonly VaultPath[];
+      /** For a Claude step: the model it asked. */
+      readonly claude?: ClaudeRunInfo;
     }
   | {
       readonly kind: 'undo';
@@ -89,12 +110,14 @@ export type LogEntry =
       readonly done: readonly DoneAction[];
       readonly left: readonly PassedOver[];
     }
-  /** A run that could not start — its query did not read — and why. */
+  /** A run that could not start — its query did not read — or whose Claude step failed, and why. */
   | {
       readonly kind: 'failed';
       readonly at: LocalTime;
       readonly trigger: RunTrigger;
       readonly problem: string;
+      /** For a Claude step that was asked: the model, and how long until it failed. */
+      readonly claude?: ClaudeRunInfo;
     }
   | { readonly kind: 'turnedOn'; readonly at: LocalTime }
   /** A rule Atlas found that had never run nor been turned on here: its schedule counts from then. */
@@ -146,6 +169,9 @@ function actionLine(action: DoneAction): string {
   if (action.kind === 'archived' || action.kind === 'unarchived') {
     return `- ${action.kind} ${code(action.from)} → ${code(action.to)}`;
   }
+  if (action.kind === 'proposed' || action.kind === 'created') {
+    return `- ${action.kind} ${code(action.path)}`;
+  }
   const change = `${prior(action.before)} → ${prior(action.after)}`;
   return `- ${action.kind} ${code(action.path)} ${code(action.key)}: ${change}`;
 }
@@ -156,7 +182,9 @@ export function logEntrySummary(entry: LogEntry): string {
     return 'It runs on its schedule from here on.';
   }
   if (entry.kind === 'failed') return oneLine(entry.problem);
-  const counts = countDone(entry.done);
+  const askedForNothing =
+    entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
+  const counts = askedForNothing ? 'Claude proposed nothing.' : countDone(entry.done);
   const left = entry.left.length === 0 ? '' : ` Left ${entry.left.length} alone.`;
   // The cap counts notes: a rule setting two properties makes two lines per note.
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
@@ -175,13 +203,20 @@ function countDone(done: readonly DoneAction[]): string {
   const restored = new Set(
     done.flatMap((action) => (action.kind === 'restored' ? [action.path] : [])),
   ).size;
+  const proposals = (count: number) => `${count} ${count === 1 ? 'proposal' : 'proposals'}`;
   const parts = [
     tally('archived') > 0 ? `Archived ${notes(tally('archived'))}.` : '',
     tally('unarchived') > 0 ? `Put back ${notes(tally('unarchived'))}.` : '',
     changed > 0 ? `Changed ${notes(changed)}.` : '',
     restored > 0 ? `Restored ${notes(restored)}.` : '',
+    tally('proposed') > 0 ? `Made ${proposals(tally('proposed'))}.` : '',
+    tally('created') > 0 ? `Made ${notes(tally('created'))}.` : '',
   ].filter((part) => part !== '');
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
+}
+
+function claudeLine({ model, ms }: ClaudeRunInfo): string {
+  return `- claude ${code(model)} in ${code(ms)} ms`;
 }
 
 function versionLine({ path, digest, wrote }: LoggedVersion): string {
@@ -198,8 +233,9 @@ export function formatLogEntry(entry: LogEntry): string {
       : [];
   const versions = entry.kind === 'run' ? (entry.versions ?? []).map(versionLine) : [];
   const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
-  if (done.length + left.length + versions.length + went.length > 0) {
-    lines.push('', ...done, ...left, ...versions, ...went);
+  const claude = 'claude' in entry && entry.claude !== undefined ? [claudeLine(entry.claude)] : [];
+  if (done.length + left.length + versions.length + went.length + claude.length > 0) {
+    lines.push('', ...done, ...left, ...versions, ...went, ...claude);
   }
   return `${lines.join('\n')}\n`;
 }
@@ -273,6 +309,8 @@ const HEADING = /^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) · (.+)$/;
 const JSON_SPAN = '`((?:[^`])*)`';
 const PRIOR_SPAN = `(nothing|${JSON_SPAN})`;
 const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_SPAN}$`);
+const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
+const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
 const SET_LINE = new RegExp(
   `^- (set|restored) ${JSON_SPAN} ${JSON_SPAN}: ${PRIOR_SPAN} → ${PRIOR_SPAN}$`,
 );
@@ -307,8 +345,15 @@ function parseSection(section: string): LogEntry | null {
   }
   const trigger = triggerOf(title.replace(/, and could not$/, ''));
   if (trigger === null) return null;
+  const claude = claudeOf(body);
   if (title.endsWith(', and could not')) {
-    return { kind: 'failed', at, trigger, problem: body.find((line) => line !== '') ?? '' };
+    return {
+      kind: 'failed',
+      at,
+      trigger,
+      problem: body.find((line) => line !== '') ?? '',
+      ...(claude !== null && { claude }),
+    };
   }
   const capped = body.some((line) => line.includes('the most one run may do'));
   const versions = body.flatMap((line) => {
@@ -327,7 +372,25 @@ function parseSection(section: string): LogEntry | null {
     ...linesOf(body),
     ...(versions.length > 0 && { versions }),
     ...(went.length > 0 && { went }),
+    ...(claude !== null && { claude }),
   };
+}
+
+/** The model a Claude step asked, from its line; null when there is none, or it does not read. */
+function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
+  for (const line of body) {
+    const match = CLAUDE_LINE.exec(line);
+    if (match === null) continue;
+    try {
+      const model = JSON.parse(match[1]!) as unknown;
+      const ms = JSON.parse(match[2]!) as unknown;
+      if (typeof model === 'string' && typeof ms === 'number') return { model, ms };
+    } catch {
+      // A line edited into JSON that does not read is left out, as any other line is.
+    }
+    return null;
+  }
+  return null;
 }
 
 function readWent(line: string): VaultPath | null {
@@ -378,6 +441,11 @@ function readLine(line: string): DoneAction | PassedOver | null {
       const kind = move[1] as 'archived' | 'unarchived';
       return { kind, from: pathOf(move[2]!), to: pathOf(move[3]!) };
     }
+    const made = MADE_LINE.exec(line);
+    if (made !== null) {
+      const path = pathOf(made[2]!);
+      return made[1] === 'proposed' ? { kind: 'proposed', path } : { kind: 'created', path };
+    }
     const set = SET_LINE.exec(line);
     if (set !== null) {
       const key = JSON.parse(set[3]!) as unknown;
@@ -416,15 +484,19 @@ export function stillAsLeft(current: PriorValue, left: PriorValue): boolean {
   return JSON.stringify(current.value) === JSON.stringify(left.value);
 }
 
+/** What undo can put back: a move or a set. What a Claude step made is answered in the Inbox. */
+const isUndoable = (action: DoneAction): boolean =>
+  action.kind === 'archived' || action.kind === 'set';
+
 /**
- * The run that "Undo last run" undoes: the newest run that did something,
- * unless it has been undone already. Only the last one — undoing further back
- * would put back notes that later runs have acted on since.
+ * The run that "Undo last run" undoes: the newest run that did something
+ * undo can put back, unless it has been undone already. Only the last one —
+ * undoing further back would put back notes that later runs have acted on since.
  */
 export function lastUndoableRun(
   entries: readonly LogEntry[],
 ): Extract<LogEntry, { kind: 'run' }> | null {
-  const at = entries.findLastIndex((entry) => entry.kind === 'run' && entry.done.length > 0);
+  const at = entries.findLastIndex((entry) => entry.kind === 'run' && entry.done.some(isUndoable));
   if (at === -1) return null;
   const last = entries[at] as Extract<LogEntry, { kind: 'run' }>;
   // Only an undo written after it undid it: an earlier run in the same second is another run.

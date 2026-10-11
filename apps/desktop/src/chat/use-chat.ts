@@ -3,7 +3,6 @@ import {
   acceptProposal,
   captureWindowContext,
   createChatSession,
-  createChatToolbox,
   listChats,
   undoProposal,
   type ActivityLog,
@@ -15,6 +14,7 @@ import {
   type ModelProvider,
   type OpenNotes,
   type ProviderStatus,
+  type Toolboxes,
   type VaultFsPort,
 } from '@atlas/application';
 import {
@@ -27,6 +27,7 @@ import type { ChatProblemView } from '@atlas/ui';
 import { localClock } from '../today.ts';
 import type { ClipboardWriter } from '../settings/clipboard.ts';
 import type { ChatSettings, ChatSettingsStore } from './chat-settings-store.ts';
+import { chosenProvider } from './claude-step-ports.ts';
 import { profileWhenKnown } from './profile-when-known.ts';
 
 /** How long the first question waits for the settings note to be read before going without a name. */
@@ -46,6 +47,8 @@ export interface ChatVault {
   readonly fs: VaultFsPort | null;
   readonly markdown: MarkdownPort;
   readonly openNotes: Pick<OpenNotes, 'state' | 'reload'>;
+  /** Built once at the composition root, so the chat and automations share one toolbox (P29-03). */
+  readonly toolboxes: Pick<Toolboxes, 'chat'>;
   readonly notePaths: readonly VaultPath[];
   /** The open vault's absolute path, or null. */
   readonly vaultKey: string | null;
@@ -107,10 +110,12 @@ export function useChat({
   useEffect(() => profiles.set(profile), [profiles, profile]);
 
   const provider = useCallback((): ModelProvider => {
-    const now = latest.current;
-    return now.settings.provider === 'anthropic-api'
-      ? now.ports.anthropicApi(() => latest.current.vault.vaultKey)
-      : now.ports.claudeCode;
+    const { settings: chosen, ports: reached } = latest.current;
+    return chosenProvider({
+      settings: chosen,
+      ports: reached,
+      vault: () => latest.current.vault.vaultKey,
+    });
   }, []);
 
   const session = useMemo(
@@ -120,10 +125,8 @@ export function useChat({
         model: () => chatModelOrDefault(latest.current.settings.model),
         profile: profiles.get,
         toolbox: () => {
-          const { fs, api, markdown } = latest.current.vault;
-          return fs === null
-            ? null
-            : createChatToolbox({ api, fs, markdown, newId: () => crypto.randomUUID() });
+          const { fs, toolboxes } = latest.current.vault;
+          return fs === null ? null : toolboxes.chat(fs);
         },
         clock: localClock,
         vault: () => {

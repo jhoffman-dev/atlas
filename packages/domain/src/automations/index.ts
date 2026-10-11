@@ -25,7 +25,7 @@ export type {
   SetValue,
 } from './automation-rule.ts';
 export { automationQuery, MAX_ACTIONS_PER_RUN, movingDate } from './automation-query.ts';
-export { cappedLine, describePlan, planAutomation } from './automation-plan.ts';
+export { capFor, cappedLine, describePlan, planAutomation, planVerb } from './automation-plan.ts';
 export type { AutomationPlan, PassedOver } from './automation-plan.ts';
 export {
   describeSchedule,
@@ -55,7 +55,47 @@ export {
   logEntryHeading,
   logEntrySummary,
 } from './run-log.ts';
-export type { DoneAction, LogEntry, LoggedVersion, PriorValue, RunTrigger } from './run-log.ts';
+export type {
+  ClaudeRunInfo,
+  DoneAction,
+  LogEntry,
+  LoggedVersion,
+  PriorValue,
+  RunTrigger,
+} from './run-log.ts';
+export {
+  CLAUDE_NOTES_PER_RUN,
+  claudeActionFields,
+  describeClaudeAction,
+  PROMPTS_DIRECTORY,
+  readClaudeAction,
+} from './claude-step.ts';
+export type { ClaudeAction, ClaudeOutput } from './claude-step.ts';
+export {
+  answerJson,
+  checkDraft,
+  citedBlockProblem,
+  MAX_PROPOSALS_PER_ANSWER,
+  proposalNoteProperties,
+  registerProposalSchema,
+} from './proposal-schema.ts';
+export type {
+  AnswerContext,
+  AnsweredNote,
+  CheckedProposal,
+  ProposalDraft,
+  ProposalSchema,
+  Reading,
+  RegisteredProposalSchema,
+} from './proposal-schema.ts';
+export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
+export { NOTE_ANSWER_INSTRUCTIONS, readNoteAnswer } from './note-answer.ts';
+export {
+  CLAUDE_NOTE_CHARACTERS,
+  claudeStepQuestion,
+  claudeStepSystem,
+} from './claude-step-prompt.ts';
+export type { NoteAnswer, NoteAnswerValue } from './note-answer.ts';
 export {
   backoffMinutes,
   dueTrigger,

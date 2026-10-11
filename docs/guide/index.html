@@ -1143,7 +1143,7 @@ ORDER BY phase</pre>
         <li><b>Proposal</b> and <b>Decision</b> are <a href="#types">built-in types</a>, and every task gains a <b>Meeting</b> link.</li>
         <li>Claude can list and answer them for you through <a href="#connect"><code>atlas_proposals</code></a> — only when you ask it to.</li>
       </ul>
-      <div class="note"><b>What's coming.</b> Proposals arrive by themselves once automations can run a Claude step on a new meeting (phase 29).</div>
+      <div class="note"><b>Proposals that arrive by themselves.</b> An automation can <a href="#automation-claude">ask Claude</a> about each new meeting, or any note, and what it answers lands here as proposals. A ready-made rule for a meeting's action items is coming later in phase 29.</div>
     </section>
 
     <section id="tags">
@@ -1199,7 +1199,7 @@ ORDER BY phase</pre>
 
     <section id="automations">
       <h2>Automations</h2>
-      <p class="sub">A rule that tidies the vault while you work: when it runs — on a clock, or when a note of a type appears or changes — which notes it takes — an <a href="#queries">Atlas query</a> — and what it does to them, archive them or set a property. Every run is logged, can be tried first as a dry run, and the last one can be undone.</p>
+      <p class="sub">A rule that tidies the vault while you work: when it runs — on a clock, or when a note of a type appears or changes — which notes it takes — an <a href="#queries">Atlas query</a> — and what it does to them: archive them, set a property, or <a href="#automation-claude">ask Claude</a> to propose things. Every run is logged and can be tried first as a dry run. The last run that archived or set something can be undone.</p>
       <h3>Where they are</h3>
       <ul>
         <li><b>Automations</b> is in the sidebar, under <b>Tags</b>. It opens a page listing every rule.</li>
@@ -1221,7 +1221,7 @@ ORDER BY phase</pre>
             <tr><td>When</td><td><b>Daily</b> at a time, <b>Every few hours</b> (every 1 to 168 hours), <b>When Atlas opens</b>, <b>By hand</b>, or <b>When a note appears</b>: a type, then <b>is created</b>, <b>is changed</b> or both — one stays ticked. See <a href="#automation-note">When a note appears</a>.</td></tr>
             <tr><td>Which notes</td><td>An Atlas query, in the builder or as text, as on the Query page. Dates like <code>@today</code> mean the day the rule runs. For a rule a note sets off, it must take that type's notes — <code>FROM meeting …</code> — or it says so in red.</td></tr>
             <tr><td>Only notes not changed in the last … days</td><td>Tick it to leave out notes changed recently, by their <code>modified</code> date: 1 to 3650 days. Not offered for a rule a note sets off: that note has just changed.</td></tr>
-            <tr><td>Do</td><td><b>Archive</b>, or <b>Set a property</b> to a value: <b>Property</b> <i>to</i> <b>Value</b>.</td></tr>
+            <tr><td>Do</td><td><b>Archive</b>, <b>Set a property</b> to a value (<b>Property</b> <i>to</i> <b>Value</b>), or <b>Ask Claude</b>: a <b>Prompt</b>, what it <b>Writes</b> (<b>Proposals in the Inbox</b>, or <b>One new note</b> <i>in</i> a <b>Folder</b>), and the <b>Tools Claude may use</b>. See <a href="#automation-claude">Ask Claude</a>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1251,11 +1251,26 @@ ORDER BY phase</pre>
         <li><b>Dry run</b> lists the notes that would set it off now: those <b>Which notes</b> matches whose current version it hasn't handled. <b>Run now</b> takes the same notes — a way to catch up on ones it skipped while paused, or that were there before the rule.</li>
         <li>In Activity its line names the notes: <i>“File standups: Ran when a note appeared or changed (Standup). Archived 1 note.”</i></li>
       </ul>
+      <h3 id="automation-claude">Ask Claude</h3>
+      <p>A rule can ask Claude to read its notes and propose things. Claude never edits a note this way: it only writes <a href="#proposals">proposals</a> for you to accept, or one new note. Example: <i>Meeting actions</i> — when a meeting is created, ask Claude to find the action items, and propose each one as a task.</p>
+      <ul>
+        <li><b>The prompt</b> is a note in <code>.atlas/prompts/</code>, like <code>.atlas/prompts/meeting-actions.md</code>. Its body is what you ask; write it like a note to a colleague. In the editor you can type just its name, <code>meeting-actions</code>.</li>
+        <li><b>What it writes:</b> <b>Proposals in the Inbox</b> — each one a task, decision, follow-up, person, term or project for you to accept, edit or reject, citing the line of the note it came from, like <code>[[2026-10-01 Standup#^t0003]]</code>, with a confidence. Or <b>One new note</b> in a folder you name, like a morning brief: a new note every run, numbered past one already there (<i>Morning brief 2</i>), never written over.</li>
+        <li><b>Tools Claude may use</b> are some of the chat's read tools, like <code>atlas_read_note</code> and <code>atlas_search</code>. It's handed the notes the run is about either way. With none ticked, it reads only those.</li>
+        <li>It reaches Claude the way the <a href="#claude">chat</a> does: your own Claude Code, or the API key, and the model chosen in Settings → Claude.</li>
+        <li><b>All or nothing.</b> If Claude's answer isn't what the rule asks for, nothing is written and the run fails. That covers an answer that isn't JSON, a proposal that cites a line the note doesn't have, a tool the rule didn't tick, or no answer within 5 minutes. Activity says why: <i>“Meeting actions: Ran by hand, and could not. Claude called atlas_search, which this rule does not let it use.”</i></li>
+        <li><b>Claude Code not installed or not signed in?</b> The run fails with the same fix the chat shows: <i>“Claude Code is installed but not logged in. Fix: claude auth login.”</i></li>
+        <li>Activity names the model and how long it took: <i>“Meeting actions: Ran when a note appeared or changed (Standup). Made 2 proposals. Asked claude-opus-5-5, 4.2 s.”</i></li>
+        <li><b>10 notes a run</b> at most, because Claude reads each one. A note it was asked about counts as handled, even if it proposed nothing, so the same version isn't sent again. A failed run handles nothing: <b>Run now</b> asks again.</li>
+        <li>It never reads a proposal, since it would only be answering itself. Atlas's own files are skipped too.</li>
+        <li>A rule can't say a Claude step edits a note. <code>output: edit</code>, or a note named by <code>path:</code>, is refused: <i>“A Claude step never edits a note: it writes proposals for you to accept, or one new note.”</i></li>
+        <li><b>Dry run</b> lists the notes it would ask about, without asking Claude. Its run can't be undone; answer its proposals in the Inbox instead, and keep or delete a note it made.</li>
+      </ul>
       <h3>Dry run, run, undo</h3>
       <ul>
         <li><b>Dry run</b> says exactly what the rule would do now — <i>“Would archive 12 notes.”</i> or <i>“Nothing to do right now.”</i> — then lists each note it would take (click to open) and each it would leave, with why. It changes nothing, and works before a new rule is saved.</li>
         <li><b>Run now</b> runs it at once, on or off, whatever its schedule. Afterwards <b>Last run</b> says what it did: <i>“Archived 12 notes. Left 1 alone.”</i></li>
-        <li><b>Undo last run</b> undoes the newest run that did something, once. It can't reach further back: that would put back notes later runs have acted on since.</li>
+        <li><b>Undo last run</b> undoes the newest run that archived or set something, once. It can't reach further back: that would put back notes later runs have acted on since.</li>
         <li>It reverses only what that rule did: notes it archived go back where they were, and properties it set go back to what they held.</li>
         <li>What has changed since is left as it is and listed: a property changed again, a note moved out of where the run put it, or an archived note whose archive stamp isn't the run's.</li>
         <li>The log is a note anyone could edit, so a line the rule couldn't have made — an archive in a rule that sets, a key it doesn't set, a value no property holds — is skipped and listed, never carried out.</li>
@@ -1273,7 +1288,7 @@ ORDER BY phase</pre>
       </ul>
       <h3>Safe by design</h3>
       <ul>
-        <li>At most 500 notes are changed in one run. Past that it says <i>“Stopped at 500, the most one run may do; the rest wait for the next run.”</i> Notes already as the rule would leave them don't count.</li>
+        <li>At most 500 notes are changed in one run (10 for <a href="#automation-claude">Ask Claude</a>). Past that it says <i>“Stopped at 500, the most one run may do; the rest wait for the next run.”</i> Notes already as the rule would leave them don't count.</li>
         <li>A note open with unsaved typing is left as it is and logged: <i>“It is open in Atlas with unsaved typing, so it was left as it is.”</i></li>
         <li>A rule only acts on its own vault. Open another and the run stops: <i>“Another vault was opened, so the automation stopped.”</i> What it did up to then is logged.</li>
         <li>An archive rule never touches notes already archived, even with <code>INCLUDE ARCHIVED</code>. It archives by the <a href="#archive">same rules</a> as the app, updating links as it goes.</li>
@@ -1302,7 +1317,10 @@ do: archive</pre>
             <tr><td><code>when</code></td><td><code>daily at HH:MM</code>, <code>every N hours</code> (1 to 168), <code>on app open</code>, <code>manually</code>, or a note: <code>a meeting is created</code>, <code>a meeting is changed</code>, <code>a meeting is created or changed</code> (<code>an</code> before a vowel).</td></tr>
             <tr><td><code>which</code></td><td>An Atlas query: <code>FROM task WHERE …</code></td></tr>
             <tr><td><code>olderThanDays</code></td><td>Optional: only notes not changed in this many days, 1 to 3650.</td></tr>
-            <tr><td><code>do</code></td><td><code>archive</code>, or <code>set</code> with the values under <code>set:</code>, like <code>set: {status: done}</code>.</td></tr>
+            <tr><td><code>do</code></td><td><code>archive</code>, <code>set</code> with the values under <code>set:</code>, like <code>set: {status: done}</code>, or <code>claude</code>.</td></tr>
+            <tr><td><code>prompt</code></td><td>For <code>do: claude</code>: the prompt note, <code>.atlas/prompts/&lt;name&gt;.md</code>.</td></tr>
+            <tr><td><code>tools</code></td><td>For <code>do: claude</code>: a list of read tools, like <code>[atlas_read_note, atlas_search]</code>. Optional.</td></tr>
+            <tr><td><code>output</code></td><td>For <code>do: claude</code>: <code>proposals</code>, or <code>note</code> with the folder under <code>folder:</code>, like <code>folder: Briefs</code>. Not <code>.atlas</code>, the Archive, <code>Inbox/Proposals</code> or <code>Inbox/Meetings</code>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1314,6 +1332,7 @@ do: archive</pre>
       <ul>
         <li>One file per rule, <code>.atlas/automations/log/&lt;id&gt;.md</code>, headed <i>&lt;name&gt; — run log</i>. Each run, undo, <b>Turned on</b> and <b>First seen</b> is a <code>##</code> section, newest last: when, what happened, then one line per note changed or left and why.</li>
         <li>A run a note set off also lists <code>- triggered by "…" at "…"</code> for each note version it handled, <code>- wrote "…" at "…"</code> for the version its own change left, and <code>- went "…"</code> for a path a note it had handled left. That is the rule's memory of what it has done: delete those lines and it may act on those versions again.</li>
+        <li>A Claude step's run lists <code>- proposed "…"</code> for each proposal, <code>- created "…"</code> for its note, and <code>- claude "&lt;model&gt;" in "…" ms</code>.</li>
         <li>It's meant to be read. You can add your own sections, like <code>## Notes</code>; Atlas keeps them.</li>
         <li>It keeps the latest 100 entries, and no more than 256 KB; the oldest entries go first, never your own sections.</li>
       </ul>
@@ -1507,7 +1526,7 @@ do: archive</pre>
         <li><b>Add a note in a group</b> (<code>atlas_add_to_view</code>), as <b>+ New</b> in that group does: it gets the group's value, and the sub-group's, typed as the property stores them, and is numbered past any note of the same name. Only <code>.md</code> notes are made.</li>
         <li><b>Run a query you'd build</b> (<code>atlas_run_query</code>): the same <a href="#queries">queries</a> as the builder or the text, read-only. It answers with the rows, and with the groups and sub-groups for <code>GROUP BY</code>, as the app groups them. Give it a note as <code>context</code> and <code>this</code> in the query means that note — <i>“Mara Quill's meetings in the last 30 days”</i> is <code>FROM meeting WHERE people = this AND date &gt; @-30d AND date &lt;= @today</code> with her note as context; a note that isn't there is refused. To answer a <a href="#query-blocks">query block</a> a note holds, send the query after its <code>layout:</code> line with that note as context. A mistake comes back with its line and column. Archived notes come only when the query's text says <code>INCLUDE ARCHIVED</code>. Up to 5000 rows. Notes in <code>.atlas</code> or a hidden folder are never reached, not even through a relation. Saving a query as a view stays in the app.</li>
         <li><b>Take the weekly review</b> (<code>atlas_weekly_review</code>): the same sections as the <a href="#tasks">Weekly review</a> page, read on the app's clock, writing nothing. To act on an item, Claude sets its status or <b>Defer until</b> with <code>atlas_update_properties</code>, or archives a project with <code>atlas_archive</code>. One difference from the page: Claude setting a repeating task to <b>Archive</b> ends its series, where the page's Archive rolls it on.</li>
-        <li><b>Read automations</b> (<code>atlas_automations</code>, <code>atlas_automation_log</code>, <code>atlas_automation_dry_run</code>): every <a href="#automations">rule</a> with its schedule or the note that sets it off, last run, next run and why it's paused, rules whose file can't be read listed apart; a rule's log, newest first, up to 100 entries; and exactly what a run would do now, writing nothing — up to 500 notes, with how many more it would pass over. Running, undoing, and making or editing a rule stay in the app.</li>
+        <li><b>Read automations</b> (<code>atlas_automations</code>, <code>atlas_automation_log</code>, <code>atlas_automation_dry_run</code>): every <a href="#automations">rule</a> with its schedule or the note that sets it off, last run, next run and why it's paused, rules whose file can't be read listed apart; a rule's log, newest first, up to 100 entries; and exactly what a run would do now, writing nothing — up to 500 notes, with how many more it would pass over; for a rule that <a href="#automation-claude">asks Claude</a>, the prompt and tools it would use, without asking Claude. Running, undoing, and making or editing a rule stay in the app.</li>
         <li><b>List meetings</b> (<code>atlas_meetings</code>), newest first, read-only: each one's date, start, provider and id, with <code>importOutcome</code> (<code>imported</code>, <code>duplicate</code>, <code>error</code>; <code>pending</code> while a file waits in <code>Inbox/Meetings</code> for the Mac that imports; empty for a meeting elsewhere Atlas never imported), <code>importError</code> saying why a file that <a href="#meeting-import">arrived</a> could not be imported, and <code>duplicateOf</code> naming the meeting a second copy duplicates. <code>since</code> keeps those on or after a day; second copies are archived, so they're listed only with <code>includeArchived</code>. Ask Claude <i>“which meetings came in this week, and did any fail?”</i> To fix a failed one, Claude edits the file as any note, and Atlas imports it once it reads.</li>
         <li><b>Receive a meeting</b> (<code>POST /v1/meetings</code>): how n8n sends a meeting in — see <a href="#meetings">Meetings</a>. Atlas writes it into <code>Inbox/Meetings</code> once per provider and id: <code>201</code> when it's written, <code>200</code> when the vault already has it. There's no MCP tool for it; Claude records a meeting by making a note.</li>
         <li><b>See archived notes</b>: search, running a view and SQL queries leave them out, as the app does, unless asked with <code>includeArchived</code>.</li>

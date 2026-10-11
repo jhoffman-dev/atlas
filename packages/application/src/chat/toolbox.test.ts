@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { CHAT_READ_TOOLS } from '@atlas/domain';
 import { apiFixture, VAULT } from '../testing/api-fixture.ts';
 import { blockMarkdown } from '../testing/block-markdown.ts';
-import { TOOL_RESULT_CHARACTERS } from './read-tools.ts';
-import { createChatToolbox } from './toolbox.ts';
+import { READ_TOOL_SPECS, TOOL_RESULT_CHARACTERS } from './read-tools.ts';
+import { createChatToolbox, createToolboxes } from './toolbox.ts';
 
 function toolbox(files: Record<string, string>, index = {}) {
   const fixture = apiFixture({ files, markdown: blockMarkdown(), index });
@@ -156,5 +157,54 @@ describe('the chat toolbox', () => {
     expect(refused).toMatchObject({ proposal: null, result: { isError: true } });
     const unknown = await box.run({ id: 'd', name: 'rm_rf', input: {} });
     expect(unknown.result).toMatchObject({ isError: true, content: 'There is no tool "rm_rf".' });
+  });
+});
+
+describe('the toolboxes built once for the chat and a rule’s Claude step (P29-03)', () => {
+  function toolboxes(files: Record<string, string>) {
+    const fixture = apiFixture({ files, markdown: blockMarkdown() });
+    let ids = 0;
+    const boxes = createToolboxes({
+      api: fixture.deps,
+      markdown: blockMarkdown(),
+      newId: () => `id-${(ids += 1)}`,
+    });
+    return { fixture, boxes };
+  }
+
+  it('names the same read tools the rule validator knows', () => {
+    expect(READ_TOOL_SPECS.map((spec) => spec.name)).toEqual([...CHAT_READ_TOOLS]);
+  });
+
+  it('gives the chat every read tool and the proposals', () => {
+    const { fixture, boxes } = toolboxes({});
+    const names = boxes.chat(fixture.fs).specs.map((spec) => spec.name);
+    expect(names).toEqual([...CHAT_READ_TOOLS, 'propose_edit', 'propose_note']);
+  });
+
+  it('gives a rule only the read tools it names, and runs them as the chat does', async () => {
+    const { boxes } = toolboxes({ 'Projects/Q3.md': 'Ship it.\n' });
+    const box = boxes.reading(['atlas_read_note', 'propose_edit', 'not_a_tool']);
+    expect(box.specs.map((spec) => spec.name)).toEqual(['atlas_read_note']);
+    const read = await box.run({
+      id: 'c1',
+      name: 'atlas_read_note',
+      input: { path: 'Projects/Q3.md' },
+    });
+    expect(read.result.isError).toBe(false);
+    expect(JSON.parse(read.result.content)).toMatchObject({ note: { body: 'Ship it.\n' } });
+  });
+
+  it('answers a call to a tool it was not given as no such tool, and writes nothing', async () => {
+    const { fixture, boxes } = toolboxes({ 'Projects/Q3.md': 'Ship it.\n' });
+    const box = boxes.reading(['atlas_read_note']);
+    for (const name of ['atlas_search', 'propose_note']) {
+      const outcome = await box.run({ id: 'c1', name, input: { title: 'x', q: 'x' } });
+      expect(outcome).toEqual({
+        result: { callId: 'c1', name, content: `There is no tool "${name}".`, isError: true },
+        proposal: null,
+      });
+    }
+    expect(await fixture.fs.readNotes(['x.md'])).toEqual([]);
   });
 });

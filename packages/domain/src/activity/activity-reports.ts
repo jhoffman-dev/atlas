@@ -9,8 +9,13 @@
 
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
-import { logEntryHeading, logEntrySummary, type LogEntry } from '../automations/run-log.ts';
-import type { AutomationPlan } from '../automations/automation-plan.ts';
+import {
+  logEntryHeading,
+  logEntrySummary,
+  type ClaudeRunInfo,
+  type LogEntry,
+} from '../automations/run-log.ts';
+import { planVerb, type AutomationPlan } from '../automations/automation-plan.ts';
 import type { ActivityLevel, ActivityReport, ActivitySubject } from './activity-event.ts';
 
 /** An automation's rule, as a line names it and links to it; a draft not yet saved has no path. */
@@ -34,12 +39,22 @@ export function automationEntryReport(rule: RuleNamed, entry: LogEntry): Activit
     entry.kind === 'failed' ? 'error' : entry.left.length > 0 ? 'warning' : 'info';
   const heading = entry.kind === 'undo' ? 'Undid its last run' : logEntryHeading(entry);
   const notes = entry.kind === 'run' ? triggeringNotes(entry) : '';
+  const asked = entry.kind === 'undo' ? '' : claudeAsked(entry.claude);
+  const summary = logEntrySummary(entry);
+  // A failure can end on a command to copy, which ends no sentence: the model's words follow.
+  const said = asked === '' || /[.!?]$/.test(summary) ? summary : `${summary}.`;
   return {
     level,
     kind: 'automation',
-    message: `${rule.name}: ${heading}${notes}. ${logEntrySummary(entry)}`,
+    message: `${rule.name}: ${heading}${notes}. ${said}${asked}`,
     subject: ruleSubject(rule),
   };
+}
+
+/** Which model a Claude step asked, and for how long: ` Asked claude-opus-5-5, 4.2 s.`; empty for none. */
+function claudeAsked(claude: ClaudeRunInfo | undefined): string {
+  if (claude === undefined) return '';
+  return ` Asked ${claude.model}, ${(claude.ms / 1000).toFixed(1)} s.`;
 }
 
 /** How many notes set off by a run a line names before it counts the rest. */
@@ -90,8 +105,7 @@ export function dryRunReport(
   }
   const { plan } = outcome;
   const count = plan.paths.length;
-  const verb = plan.action.kind === 'archive' ? 'archive' : 'change';
-  const would = count === 0 ? 'Nothing to do' : `Would ${verb} ${notes(count)}`;
+  const would = count === 0 ? 'Nothing to do' : `Would ${planVerb(plan.action)} ${notes(count)}`;
   const left = plan.passedOver.length === 0 ? '' : `, and leave ${plan.passedOver.length} alone`;
   return {
     level: 'info',

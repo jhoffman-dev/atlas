@@ -963,9 +963,11 @@ export interface ApiAutomation {
   readonly which: string;
   /** Only notes not modified in this many days; null for any. */
   readonly olderThanDays: number | null;
-  readonly do: 'archive' | 'set';
-  /** What a `set` rule sets; null for `archive`. */
+  readonly do: 'archive' | 'set' | 'claude';
+  /** What a `set` rule sets; null for any other. */
   readonly set: Readonly<Record<string, SetValue>> | null;
+  /** What a `claude` rule asks Claude (P29-03); null for any other. */
+  readonly claude: ApiClaudeStep | null;
   /** Its schedule in words, as the app shows it: "Every day at 03:00". */
   readonly schedule: string;
   /** Its action in words: "Archive", "Set status to done". */
@@ -1004,6 +1006,21 @@ export interface ApiBrokenAutomation {
   readonly problem: string;
 }
 
+/**
+ * A rule's Claude step, as its file writes it (P29-03): the prompt note, the
+ * read tools it may call, and what it writes — proposals of a schema, or one
+ * new note in `folder`. It never edits a note.
+ */
+export interface ApiClaudeStep {
+  /** The prompt note, in `.atlas/prompts/`. */
+  readonly prompt: string;
+  readonly tools: readonly string[];
+  /** `note`, or the name of a proposal schema: `proposals`. */
+  readonly output: string;
+  /** Where its one new note goes, for `output: note`; null otherwise. */
+  readonly folder: string | null;
+}
+
 /** One entry in a rule's log, as its file records it. */
 export interface ApiAutomationLogEntry {
   readonly kind: 'run' | 'undo' | 'failed' | 'turnedOn' | 'seen';
@@ -1036,13 +1053,17 @@ export interface ApiAutomationLogEntry {
   }[];
   /** On a run of a rule a note sets off: paths a note it had handled left, ending their history. */
   readonly went?: readonly string[];
+  /** On a `run` or `failed` entry of a Claude step: the model asked, and how long it took. */
+  readonly claude?: { readonly model: string; readonly ms: number };
 }
 
 /** What a rule would do if it ran now. Nothing is written to find out. */
 export interface ApiAutomationPlan {
-  readonly do: 'archive' | 'set';
-  /** What a `set` rule would set on each note; null for `archive`. */
+  readonly do: 'archive' | 'set' | 'claude';
+  /** What a `set` rule would set on each note; null for any other. */
   readonly set: Readonly<Record<string, SetValue>> | null;
+  /** The prompt and tools a `claude` rule's run would use; null for any other. Claude is not asked. */
+  readonly claude: ApiClaudeStep | null;
   /** "Would archive 12 notes." */
   readonly summary: string;
   /** The notes it would act on, at most `cap`, in the order it would. */

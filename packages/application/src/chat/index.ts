@@ -8,8 +8,8 @@ export type {
   ProviderStatus,
 } from './ports.ts';
 export { READ_TOOL_SPECS, TOOL_RESULT_CHARACTERS } from './read-tools.ts';
-export { createChatToolbox } from './toolbox.ts';
-export type { ChatToolbox, ToolOutcome } from './toolbox.ts';
+export { createChatToolbox, createReadToolbox, createToolboxes } from './toolbox.ts';
+export type { ChatToolbox, Toolboxes, ToolOutcome } from './toolbox.ts';
 export { MAX_TOOL_ROUNDS, runChatTurn } from './run-chat-turn.ts';
 export type { ChatTurnEvent, ChatTurnOutcome } from './run-chat-turn.ts';
 export {

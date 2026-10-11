@@ -106,6 +106,29 @@ describe('logViews', () => {
   });
 });
 
+describe('logViews of a Claude step (P29-03)', () => {
+  it('names each proposal and note it made, and offers no undo', () => {
+    const asked: LogEntry = {
+      kind: 'run',
+      at: '2026-10-11T09:00:00',
+      trigger: 'hand',
+      done: [
+        { kind: 'proposed', path: createVaultPath('Inbox/Proposals/Send the file.md') },
+        { kind: 'created', path: createVaultPath('Briefs/Brief.md') },
+      ],
+      left: [],
+      capped: false,
+      claude: { model: 'claude-opus-5-5', ms: 1200 },
+    };
+    const [view] = logViews([asked]);
+    expect(view?.summary).toBe('Made 1 proposal. Made 1 note.');
+    expect(view?.lines).toEqual([
+      { kind: 'done', text: 'Proposed Send the file (Inbox/Proposals/Send the file.md)' },
+      { kind: 'done', text: 'Made Brief (Briefs/Brief.md)' },
+    ]);
+  });
+});
+
 describe('dryRunView', () => {
   it('names each note the plan would take, and each it would leave', () => {
     const plan = planAutomation({

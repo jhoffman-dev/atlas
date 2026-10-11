@@ -14,6 +14,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import {
+  fakeClaudeStepPorts,
   fakeIndexPort,
   fakeVaultFs,
   type AutomationPorts,
@@ -110,6 +111,7 @@ function memoryVault(files: Record<string, string>) {
       } as unknown as AutomationPorts['types'][number],
     ],
     notePaths: Object.keys(files).map(createVaultPath),
+    claude: fakeClaudeStepPorts(),
   };
   return { files, ports };
 }

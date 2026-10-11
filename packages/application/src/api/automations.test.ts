@@ -96,6 +96,7 @@ describe('GET /v1/automations', () => {
       olderThanDays: null,
       do: 'archive',
       set: null,
+      claude: null,
       schedule: 'Every day at 03:00',
       action: 'Archive',
       lastRun: {
@@ -382,6 +383,7 @@ describe('POST /v1/automations/{id}/dry-run', () => {
       plan: {
         do: 'archive',
         set: null,
+        claude: null,
         summary: 'Would archive 2 notes.',
         notes: [
           { path: 'tasks/B.md', title: 'B' },
@@ -639,5 +641,88 @@ describe('a rule a note sets off, through the API (P29-01)', () => {
     };
 
     expect(plan.notes.map((note) => note.path)).toEqual(['tasks/C.md']);
+  });
+});
+
+describe('a rule with a Claude step, through the API (P29-03)', () => {
+  const ASK = rule({
+    id: 'ask',
+    name: 'Ask about tasks',
+    when: 'manually',
+    which: 'FROM task WHERE status = done',
+    do: 'claude',
+    prompt: '.atlas/prompts/tasks.md',
+    tools: ['atlas_read_note', 'atlas_search'],
+    output: 'note',
+    folder: 'Briefs',
+  });
+  const files = { ...FILES, '.atlas/automations/Ask about tasks.md': ASK };
+  const step = {
+    prompt: '.atlas/prompts/tasks.md',
+    tools: ['atlas_read_note', 'atlas_search'],
+    output: 'note',
+    folder: 'Briefs',
+  };
+
+  it('lists it with its prompt, its tools and what it writes', async () => {
+    const { automations } = bodyOf(await list(vault(files))) as {
+      automations: Record<string, unknown>[];
+    };
+    expect(automations.find((automation) => automation['id'] === 'ask')).toMatchObject({
+      do: 'claude',
+      set: null,
+      claude: step,
+      action: 'Ask Claude (tasks) for a note in Briefs',
+    });
+    expect(automations.find((automation) => automation['id'] === 'tidy')).toMatchObject({
+      claude: null,
+    });
+  });
+
+  it('dry-runs it as the prompt and tools a run would use, over at most ten notes, asking no one', async () => {
+    const api = vault(files);
+    const before = new Map([...api.files].map(([path, note]) => [path, note.text]));
+
+    const response = await dryRun(api, 'ask');
+
+    expect(response.status).toBe(200);
+    expect(bodyOf(response)).toMatchObject({
+      automation: { id: 'ask', name: 'Ask about tasks' },
+      plan: {
+        do: 'claude',
+        set: null,
+        claude: step,
+        summary: 'Would ask Claude about 2 notes.',
+        notes: [{ path: 'tasks/B.md' }, { path: 'tasks/C.md' }],
+        cap: 10,
+      },
+    });
+    expect(new Map([...api.files].map(([path, note]) => [path, note.text]))).toEqual(before);
+  });
+
+  it('reads the model a Claude step asked from its log', async () => {
+    const asked: LogEntry = {
+      kind: 'run',
+      at: '2026-09-21T03:00:04',
+      trigger: 'hand',
+      done: [{ kind: 'created', path: 'Briefs/Brief.md' as never }],
+      left: [],
+      capped: false,
+      claude: { model: 'claude-opus-5-5', ms: 900 },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [asked]),
+    });
+    expect(bodyOf(await logOf(api, 'ask'))).toMatchObject({
+      entries: [
+        {
+          kind: 'run',
+          summary: 'Made 1 note.',
+          done: [{ kind: 'created', path: 'Briefs/Brief.md' }],
+          claude: { model: 'claude-opus-5-5', ms: 900 },
+        },
+      ],
+    });
   });
 });
