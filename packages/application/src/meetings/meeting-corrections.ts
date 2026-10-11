@@ -1,0 +1,130 @@
+import {
+  correctionProperties,
+  correctMeetingBody,
+  MEETING_TYPE,
+  noteTitle,
+  recordedCorrections,
+  splitFrontmatter,
+  UNDONE_CORRECTION_PROPERTIES,
+  undoMeetingCorrections,
+  wasCorrected,
+  type CorrectionRecord,
+  type VaultPath,
+  type Vocabulary,
+} from '@atlas/domain';
+import type { IndexPort } from '../index/ports.ts';
+import type { MarkdownPort } from '../notes/ports.ts';
+import { loadTerms } from '../terms/terms.ts';
+import { UnsavedTypingError } from '../vault/update-links.ts';
+import { readFrontmatter } from './meeting-reading.ts';
+import { writeStamp, type StampPorts } from './meeting-stamp-writer.ts';
+
+/** A meeting's words not corrected, or its corrections not undone, for a reason the person is told. */
+export class CorrectionRefusedError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'CorrectionRefusedError';
+  }
+}
+
+/** What correcting a meeting's words reaches: the note, its panes, and the index the vocabulary is read from. */
+export type MeetingCorrectionPorts = StampPorts & { readonly index: Pick<IndexPort, 'query'> };
+
+/** What a meeting is written with once its words are corrected: its frontmatter's change list, and its body. */
+export interface CorrectedMeeting {
+  readonly values: Readonly<Record<string, unknown>>;
+  readonly body: string;
+  readonly records: readonly CorrectionRecord[];
+  readonly count: number;
+}
+
+/**
+ * A meeting's words corrected by the vocabulary (P28-06), as the note is to
+ * be written; null when there is nothing to correct, or it was corrected —
+ * or its corrections undone — before, so it is never written for nothing.
+ */
+export function correctedMeeting({
+  markdown,
+  text,
+  vocabulary,
+}: {
+  markdown: MarkdownPort;
+  text: string;
+  vocabulary: Pick<Vocabulary, 'entries'>;
+}): CorrectedMeeting | null {
+  const document = splitFrontmatter(text);
+  if (wasCorrected(readFrontmatter(markdown, document.frontmatter).properties)) return null;
+  const correction = correctMeetingBody(document.body, vocabulary);
+  if (correction.count === 0) return null;
+  return {
+    values: correctionProperties(correction),
+    body: correction.body,
+    records: correction.records,
+    count: correction.count,
+  };
+}
+
+/** What correcting one meeting did: the change list it holds, and whether this call wrote it. */
+export interface MeetingTermsCorrection {
+  readonly records: readonly CorrectionRecord[];
+  readonly written: boolean;
+}
+
+/**
+ * Corrects one meeting's words by the vault's vocabulary: the declared,
+ * deterministic step the "after a meeting" pipeline (P29-06) runs, as the
+ * import does when a meeting arrives. A meeting corrected before — or whose
+ * corrections were undone — is not corrected again, and the change list it
+ * holds is returned; one with nothing to correct is not written.
+ */
+export async function correctMeetingTerms({
+  ports,
+  path,
+}: {
+  ports: MeetingCorrectionPorts;
+  path: VaultPath;
+}): Promise<MeetingTermsCorrection> {
+  const { text, modified } = await ports.fs.readTextFile(path);
+  const { properties } = readFrontmatter(ports.markdown, splitFrontmatter(text).frontmatter);
+  if (properties['type'] !== MEETING_TYPE) {
+    throw new CorrectionRefusedError(
+      `${noteTitle(path)} is not a meeting, so nothing was corrected.`,
+    );
+  }
+  if (wasCorrected(properties))
+    return { records: recordedCorrections(properties) ?? [], written: false };
+  const { vocabulary } = await loadTerms({ index: ports.index });
+  const corrected = correctedMeeting({ markdown: ports.markdown, text, vocabulary });
+  if (corrected === null) return { records: [], written: false };
+  const { values, body } = corrected;
+  const unsaved = await writeStamp(ports, { path, modified, values, body });
+  if (unsaved !== null) throw new UnsavedTypingError(path);
+  return { records: corrected.records, written: true };
+}
+
+/**
+ * Puts back the words a meeting's correction changed, every byte as it was,
+ * and marks the corrections undone so they are never made again. Refused —
+ * nothing written — when the meeting's body changed since it was corrected,
+ * or it is open with unsaved typing.
+ */
+export async function undoMeetingTermCorrections({
+  ports,
+  path,
+}: {
+  ports: StampPorts;
+  path: VaultPath;
+}): Promise<void> {
+  const { text, modified } = await ports.fs.readTextFile(path);
+  const document = splitFrontmatter(text);
+  const { properties } = readFrontmatter(ports.markdown, document.frontmatter);
+  const undone = undoMeetingCorrections({ body: document.body, properties });
+  if (!undone.ok) throw new CorrectionRefusedError(undone.reason);
+  const unsaved = await writeStamp(ports, {
+    path,
+    modified,
+    values: UNDONE_CORRECTION_PROPERTIES,
+    body: undone.body,
+  });
+  if (unsaved !== null) throw new UnsavedTypingError(path);
+}

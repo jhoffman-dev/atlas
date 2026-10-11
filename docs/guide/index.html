@@ -1032,6 +1032,22 @@ ORDER BY phase</pre>
         <li>Only files in <code>Inbox/Meetings</code> are checked. A meeting you make yourself, anywhere else, is just a note.</li>
       </ul>
       <div class="note"><b>Your own vault's Inbox.</b> Meetings are imported in any vault. Whether the <b>Inbox</b> lists them depends on the vault's Inbox view and Meeting type, which Atlas doesn't change for you yet. The vault in the Atlas repository has both. In yours, copy its <code>.atlas/views/Inbox.md</code> over your Inbox view. Then, in <a href="#edit-type">Edit type</a>, add three properties to your Meeting type: <code>atlas_import_outcome</code> (select: imported, duplicate, error; “Import”), <code>atlas_import_error</code> (text, “Import error”) and <code>atlas_duplicate_of</code> (relation to Meeting, “Duplicate of”). Until then, the files are in <code>Inbox/Meetings</code>, and Activity lists every one.</div>
+      <h3 id="meeting-corrections">Misheard names, put right</h3>
+      <p>As a meeting is let in, Atlas puts right the names your <a href="#terms">Terms</a> say it mishears — a term's misheard spellings, and a person's or company's <b>Also spelt</b> — in the same write as its <code>imported</code> line. Say your vocabulary has the product <b>Larkspur Pay</b>, misheard as <i>Lark Spur Pay</i>, and Mara Quill, also spelt <i>Mara Quil</i>: a turn reading <i>“**Mara Quil** … Lark Spur Pay is ready.”</i> arrives as <i>“**Mara Quill** … Larkspur Pay is ready.”</i></p>
+      <ul>
+        <li><b>Only the Summary, Notes, Provider next steps and Transcript</b> are corrected; the title and anything above the first section are left as they came.</li>
+        <li><b>Whole words, however they're cased or spaced.</b> <i>lark spur pay</i> and <i>Lark&nbsp;&nbsp;Spur Pay</i> are corrected, and <i>Lark Spur Pay's</i> keeps its <i>'s</i>; <i>Lark Spur Payroll</i> is not touched. Shouted text stays shouted: <i>LARK SPUR PAY</i> becomes <i>LARKSPUR PAY</i>. A name already spelt right is left exactly as written, and a spelling two notes disagree about (a conflict on the Terms page) is never corrected.</li>
+        <li><b>Never inside</b> a <code>[[link]]</code>, a markdown link or URL, a <code>#tag</code>, <code>code</code> or a fenced code block, a comment, or a <code>^block-id</code>.</li>
+        <li><b>Recorded on the meeting.</b> Its frontmatter gets <code>atlas_corrections:</code> — each change, with <code>from</code>, <code>to</code>, <code>count</code>, the <code>blocks</code> (turn and paragraph ids) it was made in, and <code>at</code>, where each one stands — and <code>atlas_corrections_digest:</code>, a check of the body as corrected. Activity's line for the meeting says how many: <i>“2026-09-29 Platform weekly sync: arrived in the Inbox. 2 misheard spellings corrected; Undo corrections on the meeting puts them back.”</i></li>
+        <li><b>A meeting with nothing misheard is not corrected at all</b>: no <code>atlas_corrections</code>, and the <code>imported</code> line is the only thing written.</li>
+      </ul>
+      <h4>Undo corrections</h4>
+      <p>A corrected meeting's page has a band under its bar: <b>Corrected · 2 spellings put right on import</b>, then each change, the old spelling struck through — <s>Lark Spur Pay</s> → Larkspur Pay ×2. <b>Undo corrections</b> puts every original word back, byte for byte, and sets <code>atlas_corrections: undone</code>, so the band goes and the meeting is never corrected again.</p>
+      <ul>
+        <li><b>Refused if the meeting's text changed since</b>, as an automation's Undo is: <i>“The meeting changed since its words were corrected, so they were left as they are.”</i> Putting the old words back into text you've since edited could undo your edit. Changing its properties — a tag, a project — doesn't count. Anything you've typed is saved first, so it counts.</li>
+        <li>An <code>atlas_corrections</code> list edited by hand into something Atlas didn't write is refused too, and nothing is changed.</li>
+        <li>Corrections are read through the <a href="#connect">Local API</a> as the meeting's properties (<code>GET /v1/notes/{path}</code>). Undo stays in the app: it rewrites a note you're reading.</li>
+      </ul>
       <h3>What's in a meeting file</h3>
       <div class="grid2">
         <div class="card"><h4>At the top (frontmatter)</h4><p><code>title</code>, <code>date</code>, <code>start</code> (and <code>end</code> when known), <code>kind</code> (Notion's Category: Standup, Retro, 1:1…), <code>provider</code> (<code>gemini</code>, earlier <code>granola</code>), the provider's own id, and <code>attendees</code> — each a name and email. A list address like <code>platform-team@…</code> is kept as an attendee marked <code>group: true</code>, and never becomes a Person.</p></div>
@@ -1065,7 +1081,7 @@ ORDER BY phase</pre>
       <p><code>ok</code> (with the number of turns) means Atlas will accept it. <code>FAIL</code> lists each problem with where it is — for example <i>attendees[0] must be a { name, email, group } entry, not a line of text</i>.</p>
       <h3>Built in</h3>
       <p><b>Meeting</b> is a <a href="#edit-type">built-in type</a>: <b>Delete</b> is turned off for it — <i>“Meeting is built in — imported meetings are notes of it — so it cannot be deleted. Its properties are yours to change.”</i></p>
-      <div class="note"><b>What's coming.</b> A meeting file waits in <code>Inbox/Meetings</code> and shows on the <a href="#para">Inbox page</a>, where it can be filed under a project or an area. Next (phases 28–29): correcting misheard names by your <a href="#terms">Terms</a>; linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+      <div class="note"><b>What's coming.</b> A meeting file waits in <code>Inbox/Meetings</code> and shows on the <a href="#para">Inbox page</a>, where it can be filed under a project or an area. Misheard names are already <a href="#meeting-corrections">put right</a> as it arrives. Next (phase 29): linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
     </section>
 
     <section id="terms">
@@ -1099,7 +1115,7 @@ ORDER BY phase</pre>
       <p>If two notes claim one spelling for two different right spellings — <i>lark spur</i> as a variant of both <i>Larkspur</i> and <i>Larkspur Payroll</i> — Atlas can't know which you meant, so it leaves that spelling alone. The page shows a <b>Conflicts</b> box above the list with each such spelling and the notes that claim it (click one to open it), and under the term: <i>“In conflict, so not used: “lark spur””</i>. Take the spelling off one of them and the conflict goes.</p>
       <h3>Built in</h3>
       <p><b>Term</b> and <b>Company</b> are <a href="#edit-type">built-in types</a>: <b>Delete</b> is turned off for both — <i>“Term is built in — the Terms page lists its notes, and Atlas spells names by them — so it cannot be deleted.”</i> Their properties are yours to change.</p>
-      <div class="note"><b>What's next.</b> For now Atlas keeps the list; nothing is corrected yet. Next (P28-06): when a meeting arrives, its transcript is corrected by this list — every change recorded on the note, and undoable.</div>
+      <div class="note"><b>Where it's used.</b> When a meeting arrives, its misheard names are <a href="#meeting-corrections">corrected by this list</a> — every change recorded on the meeting, and undoable from its page.</div>
     </section>
 
     <section id="proposals">

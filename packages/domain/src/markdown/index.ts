@@ -20,7 +20,7 @@ export {
 } from './wikilink.ts';
 export type { WikiLink, WikiLinkOrEmbed, WikiLinkPiece } from './wikilink.ts';
 export { readWikiLink, scanMarkdown, wikiLinkSpans } from './wikilink-spans.ts';
-export type { CommentSpan, WikiLinkSpan } from './wikilink-spans.ts';
+export type { CodeSpan, CommentSpan, WikiLinkSpan } from './wikilink-spans.ts';
 export { WikiLinkReader } from './wikilink-reader.ts';
 export type { ReadStep } from './wikilink-reader.ts';
 export {

@@ -27,3 +27,5 @@ export {
   vocabularySourcesOf,
 } from './vocabulary-query.ts';
 export type { VocabularyRow } from './vocabulary-query.ts';
+export { correctTerms } from './correct-terms.ts';
+export type { CorrectedText, TermChange } from './correct-terms.ts';

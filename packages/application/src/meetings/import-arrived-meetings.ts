@@ -97,7 +97,13 @@ async function importMeetings(
   run: MeetingImportRun,
   paths: readonly string[],
 ): Promise<MeetingImportOutcome> {
-  const context: ImportContext = { ...run, settled: new Set(), notePaths: null, wrote: false };
+  const context: ImportContext = {
+    ...run,
+    settled: new Set(),
+    notePaths: null,
+    wrote: false,
+    vocabulary: null,
+  };
   const happenings: MeetingImportHappening[] = [];
   for (const path of paths) {
     if (context.settled.has(path)) continue;

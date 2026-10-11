@@ -346,3 +346,28 @@ the way in while the Mac is asleep or Atlas is closed.
 - **The route writes what n8n would commit**, at the same paths, and leaves
   the stamp to the import, as for a commit. "Already in the vault" is the
   import's holder rule, plus a read of the two paths, since the index lags.
+
+## As built (P28-06, 2026-10-11)
+
+Terminology correction is the first declared deterministic step (PLAN.md §11,
+principle 6). It runs as the import lets a meeting in, in the same write as
+the `imported` stamp, so a meeting is never synced half-settled.
+
+- **What is corrected.** Domain `correctTerms(text, vocabulary)` over the
+  Summary, Notes, Provider next steps and Transcript only: whole words, any
+  case and run of spaces (never across a line break); the earliest match wins,
+  then the longer; a right spelling matches too and is left as written. Wiki
+  and markdown links, URLs, tags, code spans and fences, comments and `^ids`
+  are masked out before matching, so no match can reach into them.
+- **The record.** `atlas_corrections: [{ from, to, count, blocks, at }]` and
+  `atlas_corrections_digest` (FNV-1a of the corrected body), written after
+  `atlas_import:` like the stamp. `at` holds each change's offset in the
+  corrected body, so undo is exact without keeping the original text.
+- **Undo** (`undoMeetingTermCorrections`) restores the original body byte for
+  byte, refused when the body's digest is not the one recorded (frontmatter
+  edits do not count) or when any recorded spot does not read `to`. It leaves
+  `atlas_corrections: undone`; a meeting holding the key in any form is never
+  corrected again, by the import or by `correctMeetingTerms({ path })`, the
+  use-case the "after a meeting" pipeline (P29-06) calls as its step.
+- A meeting with nothing to correct gets no correction keys; its stamp is the
+  only line written.

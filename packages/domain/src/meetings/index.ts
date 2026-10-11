@@ -39,3 +39,15 @@ export { MEETING_IMPORT_PROPERTIES } from './meeting-import-properties.ts';
 export { mapMeeting } from './mapping/meeting-to-atlas.ts';
 export type { MappingOptions, MeetingFields, MeetingFile } from './mapping/meeting-to-atlas.ts';
 export { MeetingMappingError } from './mapping/meeting-mapping-error.ts';
+export {
+  correctionProperties,
+  correctMeetingBody,
+  CORRECTIONS_DIGEST_KEY,
+  CORRECTIONS_KEY,
+  CORRECTIONS_UNDONE,
+  recordedCorrections,
+  UNDONE_CORRECTION_PROPERTIES,
+  undoMeetingCorrections,
+  wasCorrected,
+} from './meeting-corrections.ts';
+export type { CorrectionRecord, CorrectionUndo, MeetingCorrection } from './meeting-corrections.ts';
