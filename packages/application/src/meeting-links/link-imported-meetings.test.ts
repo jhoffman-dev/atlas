@@ -1,48 +1,117 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath } from '@atlas/domain';
-import type { MeetingImporter } from '../meetings/meeting-importer.ts';
-import type { MeetingImportOutcome } from '../meetings/import-arrived-meetings.ts';
+import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createMeetingImporter } from '../meetings/meeting-importer.ts';
+import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
+import { meetingFile } from '../testing/meeting-files.ts';
 import { jsonLinesMarkdown, jsonLinesNote, proposalVault } from '../testing/proposal-vault.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
-import { createMeetingLinker, linkImportedMeetings } from './link-imported-meetings.ts';
+import { createMeetingLinker } from './link-imported-meetings.ts';
 
 const VAULT = '/Users/someone/Vault';
 const p = (path: string) => createVaultPath(path);
 
-function importerSaying(outcome: MeetingImportOutcome | null): MeetingImporter {
-  return { hear: async () => outcome, catchUp: async () => outcome };
-}
-
-describe('linkImportedMeetings', () => {
-  it('links each meeting the import let in — arrived, or fixed — and nothing else', async () => {
-    const outcome: MeetingImportOutcome = {
-      wrote: true,
-      happenings: [
-        { kind: 'arrived', path: p('Inbox/Meetings/A.md') },
-        { kind: 'fixed', path: p('Inbox/Meetings/B.md') },
-        { kind: 'invalid', path: p('Inbox/Meetings/C.md'), problem: 'x', unmarked: null },
-        { kind: 'conflict', path: p('Inbox/Meetings/D.md') },
-      ],
-    };
-    const linker = vi.fn(async () => []);
-    const importer = linkImportedMeetings({ importer: importerSaying(outcome), linker });
-    expect(await importer.hear({ vault: VAULT, changes: [] })).toBe(outcome);
-    expect(await importer.catchUp(VAULT)).toBe(outcome);
-    expect(linker.mock.calls).toEqual([
-      [VAULT, ['Inbox/Meetings/A.md', 'Inbox/Meetings/B.md']],
-      [VAULT, ['Inbox/Meetings/A.md', 'Inbox/Meetings/B.md']],
-    ]);
+describe('linking as the import lets a meeting in', () => {
+  const MEETING = 'Inbox/Meetings/2026-10-06 Standup.md';
+  const notes = () => ({
+    [MEETING]: meetingFile(),
+    'People/Mara Quill.md': jsonNote({ type: 'person', email: 'mara.quill@example.com' }),
   });
 
-  it('links nothing when the import let nothing in, or did not run', async () => {
-    const linker = vi.fn(async () => []);
-    await linkImportedMeetings({ importer: importerSaying(null), linker }).catchUp(VAULT);
-    await linkImportedMeetings({
-      importer: importerSaying({ wrote: false, happenings: [] }),
-      linker,
-    }).catchUp(VAULT);
-    expect(linker).not.toHaveBeenCalled();
+  function importerLinking(vault: ReturnType<typeof automationVault>, { link = true } = {}) {
+    const activity = recordingActivity();
+    const linker = createMeetingLinker({
+      ports: () => vault.ports,
+      clock: { today: () => '2026-10-06' },
+      activity,
+      openVault: () => VAULT,
+      selfName: () => null,
+      onWritten: () => undefined,
+    });
+    const importer = createMeetingImporter({
+      ports: () => vault.ports,
+      clock: { today: () => '2026-10-06' },
+      activity,
+      openVault: () => VAULT,
+      active: () => true,
+      onWritten: () => undefined,
+      ...(link && {
+        beforeLetIn: async (vaultKey: string, path: VaultPath) =>
+          void (await linker(vaultKey, [path])),
+      }),
+    });
+    return { importer, activity };
+  }
+
+  /** Every text written to the meeting, in order: what a rule watching the vault can ever see of it. */
+  function versionsWritten(vault: ReturnType<typeof automationVault>): string[] {
+    const versions: string[] = [];
+    const write = vault.ports.fs.writeTextFile;
+    vault.ports.fs.writeTextFile = async (args) => {
+      if (args.path === MEETING) versions.push(args.contents);
+      return write(args);
+    };
+    return versions;
+  }
+
+  it('links the meeting before it stamps it imported, so no write follows the stamp', async () => {
+    const vault = automationVault({ notes: notes(), today: '2026-10-06' });
+    const versions = versionsWritten(vault);
+    const { importer } = importerLinking(vault);
+
+    await importer.catchUp(VAULT);
+
+    const stamped = versions.findIndex((text) =>
+      text.includes('"atlas_import_outcome":"imported"'),
+    );
+    expect(versions).toHaveLength(2);
+    // The version that arrives as `imported` already has its people; the links were before it.
+    expect(stamped).toBe(1);
+    expect(versions[0]).not.toContain('atlas_import_outcome');
+    expect(versions[0]).toContain('[[Mara Quill]]');
+    expect(versions[1]).toContain('[[Mara Quill]]');
+    expect(vault.properties(MEETING)['people']).toEqual(['[[Mara Quill]]']);
+  });
+
+  it('still lets the meeting in when linking wrote nothing, stamping it alone', async () => {
+    const vault = automationVault({
+      notes: { [MEETING]: meetingFile() },
+      today: '2026-10-06',
+    });
+    const versions = versionsWritten(vault);
+    const { importer } = importerLinking(vault);
+
+    await importer.catchUp(VAULT);
+
+    expect(versions).toHaveLength(1);
+    expect(vault.properties(MEETING)['atlas_import_outcome']).toBe('imported');
+  });
+
+  it('does not link a meeting the import refused', async () => {
+    const vault = automationVault({
+      notes: { ...notes(), [MEETING]: jsonNote({ type: 'meeting', atlas_import: 'meeting/v1' }) },
+      today: '2026-10-06',
+    });
+    const { importer } = importerLinking(vault);
+
+    await importer.catchUp(VAULT);
+
+    expect(vault.properties(MEETING)['atlas_import_outcome']).toBe('error');
+    expect(vault.properties(MEETING)['people']).toBeUndefined();
+  });
+
+  it('does not link a copy it archives, only the original it lets in', async () => {
+    const copy = 'Inbox/Meetings/2026-10-06 Standup (gemini 1a2b3c4d).md';
+    const vault = automationVault({
+      notes: { ...notes(), [copy]: meetingFile() },
+      today: '2026-10-06',
+    });
+    const { importer } = importerLinking(vault);
+
+    await importer.catchUp(VAULT);
+
+    expect(vault.properties(MEETING)['people']).toEqual(['[[Mara Quill]]']);
+    expect(vault.files.has(copy)).toBe(false);
   });
 });
 

@@ -1,6 +1,5 @@
 import { meetingLinkReport, messageWithoutPaths, type VaultPath } from '@atlas/domain';
 import type { ActivityLog } from '../activity/ports.ts';
-import type { MeetingImporter } from '../meetings/meeting-importer.ts';
 import type { Clock } from '../ports.ts';
 import { linkMeeting, type MeetingLinkPorts, type MeetingLinkRun } from './link-meeting.ts';
 
@@ -11,36 +10,16 @@ export type MeetingLinker = (
 ) => Promise<readonly MeetingLinkRun[]>;
 
 /**
- * The importer, linking each meeting it lets in — one that arrived following
- * the contract, or whose import error was fixed — once, as it is let in: a
- * meeting stamped `imported` is never judged again, so it is never linked
- * again, and a person taken out of its `people` stays out.
- */
-export function linkImportedMeetings({
-  importer,
-  linker,
-}: {
-  importer: MeetingImporter;
-  linker: MeetingLinker;
-}): MeetingImporter {
-  const thenLink =
-    (vault: string) => async (outcome: Awaited<ReturnType<MeetingImporter['hear']>>) => {
-      const letIn = (outcome?.happenings ?? []).flatMap((happening) =>
-        happening.kind === 'arrived' || happening.kind === 'fixed' ? [happening.path] : [],
-      );
-      if (letIn.length > 0) await linker(vault, letIn);
-      return outcome;
-    };
-  return {
-    hear: (news) => importer.hear(news).then(thenLink(news.vault)),
-    catchUp: (vault) => importer.catchUp(vault).then(thenLink(vault)),
-  };
-}
-
-/**
  * Links meetings one at a time, each said in Activity: who it linked, what it
  * proposed, what it could not write. One meeting's failure is its own line,
  * and the rest are linked. Nothing is linked once another vault is open.
+ *
+ * The importer runs it as each meeting is about to be let in (`beforeLetIn`):
+ * once per meeting, before the stamp, so the links are part of the meeting
+ * that arrives and no write to it follows. A meeting stamped `imported` is
+ * never judged again, so never linked again, and a person taken out of its
+ * `people` stays out. A meeting whose linking failed is not retried until the
+ * "after a meeting" pipeline (#19) runs the step; Activity says so.
  */
 export function createMeetingLinker({
   ports,

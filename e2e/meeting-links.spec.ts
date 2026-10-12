@@ -78,6 +78,8 @@ test('an arriving meeting links its people and company, and an unknown attendee 
   await arrive(page, vault);
 
   await expectFile(vault, MEETING).toMatch(/\npeople:\n {2}- "\[\[Mara Quill\]\]"\n/);
+  // Linked before it was let in, so the arrival is the linked meeting: wait for the stamp that follows.
+  await expectFile(vault, MEETING).toContain('atlas_import_outcome: imported');
   const linked = await vault.read(MEETING);
   expect(linked).toMatch(/\ncompanies:\n {2}- "\[\[Larkspur Payroll\]\]"\n/);
   expect(linked).not.toContain('Ada Venn]]');

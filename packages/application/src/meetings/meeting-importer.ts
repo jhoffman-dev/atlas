@@ -1,4 +1,4 @@
-import { meetingImportStoppedReport, messageWithoutPaths } from '@atlas/domain';
+import { meetingImportStoppedReport, messageWithoutPaths, type VaultPath } from '@atlas/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChangeNews, NoteChanges } from '../index/note-changes.ts';
 import type { Clock } from '../ports.ts';
@@ -40,6 +40,7 @@ export function createMeetingImporter({
   openVault,
   active,
   onWritten,
+  beforeLetIn,
 }: {
   /** The ports as they are now, asked for at the start of each run. */
   ports: () => MeetingImportPorts;
@@ -51,6 +52,11 @@ export function createMeetingImporter({
   active: () => boolean;
   /** Told when the import wrote or moved a note, so the tree and the index read it again. */
   onWritten: () => void;
+  /**
+   * Done to each meeting about to be let in, before it is stamped (see
+   * `MeetingImportRun.beforeLetIn`); settles when done, and never rejects.
+   */
+  beforeLetIn?: (vault: string, path: VaultPath) => Promise<void>;
 }): MeetingImporter {
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -66,6 +72,7 @@ export function createMeetingImporter({
           ports: ports(),
           today: clock.today(),
           activity: recorder,
+          ...(beforeLetIn !== undefined && { beforeLetIn: (path) => beforeLetIn(vault, path) }),
         });
         if (outcome.wrote) onWritten();
         return outcome;

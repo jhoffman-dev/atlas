@@ -30,6 +30,8 @@ export interface ImportContext {
   notePaths: readonly VaultPath[] | null;
   /** Whether a note was written or moved. */
   wrote: boolean;
+  /** Done to a meeting before it is let in: see `MeetingImportRun.beforeLetIn`. */
+  readonly beforeLetIn?: (path: VaultPath) => Promise<void>;
 }
 
 /** The notes holding a meeting now, and which of them the import has already let in. */
@@ -107,7 +109,8 @@ export async function holdingAt(
 
 /**
  * Lets a meeting in: stamped `imported`, and any import error it carried
- * from before it was fixed taken out. A file being typed in is left as it
+ * from before it was fixed taken out — after the run's `beforeLetIn`, so what
+ * that writes is part of the meeting that arrives. A file being typed in is left as it
  * is, and said so; it is let in when it next changes, or when the import
  * next looks over every arrival.
  */
@@ -115,6 +118,8 @@ export async function letIn(
   context: ImportContext,
   path: VaultPath,
 ): Promise<MeetingImportHappening> {
+  // First, so the file is read as it will be stamped: the follow-up may have written to it.
+  await context.beforeLetIn?.(path);
   const { text, modified } = await context.ports.fs.readTextFile(path);
   const { properties } = readFrontmatter(
     context.ports.markdown,

@@ -3,7 +3,6 @@ import {
   createMeetingImporter,
   createMeetingLinker,
   importMeetingsOnArrival,
-  linkImportedMeetings,
   type ActivityLog,
   type Clock,
   type MeetingImporter,
@@ -68,16 +67,17 @@ export function useMeetingImport({
       selfName: () => latest.current.selfName,
       onWritten: () => latest.current.onWritten(),
     });
-    const made = linkImportedMeetings({
-      importer: createMeetingImporter({
-        ports: () => latest.current.ports,
-        clock,
-        activity,
-        openVault: () => latest.current.vaultKey,
-        active: () => latest.current.active,
-        onWritten: () => latest.current.onWritten(),
-      }),
-      linker,
+    const made = createMeetingImporter({
+      ports: () => latest.current.ports,
+      clock,
+      activity,
+      openVault: () => latest.current.vaultKey,
+      active: () => latest.current.active,
+      onWritten: () => latest.current.onWritten(),
+      // Linked before the stamp: see `createMeetingLinker`.
+      beforeLetIn: async (vault, path) => {
+        await linker(vault, [path]);
+      },
     });
     setImporter(made);
     return importMeetingsOnArrival({ changes, importer: made });
