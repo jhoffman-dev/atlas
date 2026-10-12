@@ -88,6 +88,14 @@ describe('builderFromQuery and queryFromBuilder', () => {
     }
   });
 
+  it('says a query with CONNECTED TO stays text', () => {
+    expect(builderFromQuery(parseAtlasQuery('FROM task WHERE NOT CONNECTED TO this'))).toEqual({
+      ok: false,
+      reason:
+        'This query says CONNECTED TO, which the builder has no control for. Edit it as text.',
+    });
+  });
+
   it('says a query with LINKS TO stays text, wherever in it LINKS TO is', () => {
     for (const text of [
       'FROM task WHERE LINKS TO this',

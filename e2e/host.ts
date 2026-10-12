@@ -229,7 +229,7 @@ function runArchiveQuery(
 /**
  * An Atlas query the app compiled (`/* atlas-query *\/`), run for real by
  * SQLite over the tables `src-tauri/src/index.rs` makes — files, props,
- * relations and tags — filled from what the app indexed.
+ * relations, links and tags — filled from what the app indexed.
  */
 function runAtlasQuery(
   statement: string,
@@ -241,14 +241,17 @@ function runAtlasQuery(
   database.exec(`
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                             target TEXT NOT NULL, name TEXT NOT NULL, dst TEXT);
+    CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL,
                        name TEXT NOT NULL);`);
   const relation = database.prepare('INSERT INTO relations VALUES (?, ?, ?, ?, ?, ?)');
+  const link = database.prepare("INSERT INTO links VALUES (?, ?, ?, 'wikilink')");
   const tag = database.prepare('INSERT INTO tags VALUES (?, ?, ?, ?)');
   for (const note of stored) {
     for (const row of note.relations ?? []) {
       relation.run(note.path, row.key, row.index, row.target, row.name, row.path);
     }
+    for (const row of note.links ?? []) link.run(note.path, row.path, row.target);
     (note.tags ?? []).forEach((use, at) => tag.run(note.path, at, use.key, use.name));
   }
   const prepared = database.prepare(statement);
