@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, installHost, sidebarSection } from './host.ts';
+import { createVault, expectParaTypeRows, installHost, sidebarSection } from './host.ts';
 
 const TASK_TYPE = ['---', 'name: task', 'label: Task', 'properties:', '  status: text', '---', ''];
 
@@ -14,6 +14,7 @@ async function openVault(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await expectParaTypeRows(page, vault);
   return vault;
 }
 
