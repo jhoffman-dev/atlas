@@ -145,6 +145,7 @@ td:first-child { white-space: nowrap; }
     <a href="#bookmarks">Bookmarks</a>
     <a href="#blocks">Blocks and embeds</a>
     <a href="#people">People and mentions</a>
+    <a href="#linked-pages">Linked pages</a>
     <a href="#meetings">Meetings</a>
     <a href="#terms">Terms</a>
     <a href="#proposals">Proposals in the Inbox</a>
@@ -651,7 +652,7 @@ pnpm tauri:dev</pre>
         <li>Text you type is kept as you typed it; the builder's own spelling replaces it only when you change something in the builder.</li>
         <li>The builder shows conditions that are all joined by AND, or all by OR, each plain or NOT. A query that brackets AND with OR, or puts NOT over a group, stays text, and says why: <i>“This query brackets conditions together — AND with OR, or NOT over a group — which the builder cannot show as one list. Edit it as text.”</i> A query with a mistake in it stays text too, with <i>“Fix the query to open it in the builder: …”</i></li>
         <li><code>SHOW</code> has no dropdown; a SHOW you wrote in text is kept when you go back to the builder.</li>
-        <li><code>LINKS TO this</code> has no dropdown either, so a query with it stays text: <i>“This query says LINKS TO, which the builder has no control for. Edit it as text.”</i> A condition like <code>people = this</code> goes through the builder unchanged.</li>
+        <li><code>LINKS TO this</code> has no dropdown either, so a query with it stays text: <i>“This query says LINKS TO, which the builder has no control for. Edit it as text.”</i> <code>CONNECTED TO this</code> is the same. A condition like <code>people = this</code> goes through the builder unchanged.</li>
       </ul>
       <h3>Writing it as text</h3>
       <pre>FROM task, project
@@ -681,7 +682,7 @@ GROUP BY project THEN status</pre>
             <tr><td>Empty or not</td><td><code>due IS EMPTY</code> · <code>due IS NOT EMPTY</code></td></tr>
             <tr><td>Values</td><td>A word (<code>done</code>), <code>'quoted text'</code>, a number, <code>true</code> / <code>false</code>, a link <code>[[Atlas]]</code>, a tag <code>#q3</code>, a day <code>2026-09-30</code>, or a date that moves: <code>@today</code>, <code>@yesterday</code>, <code>@tomorrow</code>, <code>@weekAgo</code>, <code>@weekAhead</code>, <code>@monthAhead</code>, <code>@startOfWeek</code></td></tr>
             <tr><td>Count from today</td><td><code>@-30d</code> · <code>@+2w</code> · <code>@+1m</code> · <code>@-1y</code> — a sign, a number, then <code>d</code>ays, <code>w</code>eeks, <code>m</code>onths or <code>y</code>ears</td></tr>
-            <tr><td>The note it's on</td><td><code>people = this</code> · <code>company.owner = this</code> · <code>LINKS TO this</code></td></tr>
+            <tr><td>The note it's on</td><td><code>people = this</code> · <code>company.owner = this</code> · <code>LINKS TO this</code> · <code>CONNECTED TO this</code></td></tr>
             <tr><td>Fields</td><td>A property of a listed type, or <code>title</code>, <code>type</code>, <code>tag</code>, <code>modified</code>, <code>path</code>, <code>progress</code> (see <a href="#tasks">Checklists and progress</a>). One step through a relation: <code>project.status</code></td></tr>
           </tbody>
         </table>
@@ -694,6 +695,7 @@ GROUP BY project THEN status</pre>
         <li>Dates compare by the day as written: <code>2026-09-30T22:00-05:00</code> is the 30th.</li>
         <li><b>Counting from today.</b> <code>date &gt; @-30d AND date &lt;= @today</code> is the last 30 days, not counting the 30th day back; <code>due &gt;= @today AND due &lt;= @+2w</code> is the next two weeks. Each end needs saying: <code>date &gt; @-30d</code> alone takes everything after that day, next month's too, and <code>due &lt;= @+2w</code> alone takes everything overdue. A count reaches 1000 years at most. <code>@startOfWeek</code> is this week's Monday, as the calendar's weeks start. Months count the way the index counts them: a month on from 31 January is 3 March. The sign is needed — <code>@30d</code> is pointed at.</li>
         <li><b><code>this</code> is the note the query is on.</b> <code>FROM meeting WHERE people = this AND date &gt; @-30d AND date &lt;= @today</code>, asked about Mara Quill's note, lists her meetings in the last 30 days. <code>this</code> compares with a relation, with <code>=</code> or <code>!=</code>, also one step through one. <code>LINKS TO this</code> lists the notes whose text links to it; a note linking to itself doesn't count, as it isn't its own backlink. <code>this</code> is a word of the query now, so a query that used it to mean the word — <code>status = this</code> — is pointed at, with <i>“… To mean the word, quote it: 'this'.”</i> Write <code>'this'</code> in quotes and it works as before.</li>
+        <li><b><code>CONNECTED TO this</code></b> lists the notes joined to it by any link, either way round: a link in either note's text, or in any property of either — a task whose <code>source</code> cites a line of the meeting, or a meeting that lists the task. After a relation it asks about the notes that relation points at: <code>waiting_on CONNECTED TO this</code>, on a company's page, is what you're waiting on from anyone linked with the company. It is what <a href="#linked-pages">linked pages</a> use for "the tasks that came from this meeting". <code>LINKS TO this</code> is narrower: links in the other note's text only.</li>
         <li>A query is on a note when it is a <a href="#query-blocks">query block</a> in that note, or when Claude or another tool asks it about one (<code>atlas_run_query</code> with a <code>context</code>, below). On the Query page, in a saved view, on a dashboard or in an automation, <code>this</code> is pointed at: <i>“this is the note a query is shown on, and this query is not shown on one.”</i></li>
         <li>A relation to several types reaches every field any of them has: with a task's <code>project</code> linking a project or an area, <code>project.steward</code> works even if only areas have a steward, and is empty for a task filed under a project.</li>
         <li>Only one step through a relation: <code>project.owner.team</code> is refused. A step through a relation never reaches a note in <code>.atlas</code> or a hidden folder: a field read through a link to a template is empty. Notes can't be sorted or grouped by a field that holds several values, such as <code>tag</code>.</li>
@@ -1015,10 +1017,67 @@ ORDER BY phase</pre>
         <li>Atlas won't make a person whose note would change what an existing <code>[[link]]</code> opens, or whose name holds <code>#</code> <code>[</code> <code>]</code> <code>|</code> or <code>^</code>, since a link stops there. People who already have such a name are listed greyed out with the reason, like <i>“A|B” cannot be linked: a link stops at |</i>.</li>
       </ul>
       <h3>Mentioned in</h3>
-      <p>On a person's page the <a href="#graph">Links</a> panel heads the notes linking to them <b>Mentioned in</b>. Only a note whose <code>type</code> is exactly <code>person</code> counts as a person — for <code>@</code> and for this heading.</p>
+      <p>A person's page shows their meetings, what you're waiting on them for, and their open tasks and decisions — see <a href="#linked-pages">Linked pages</a>. On a person's page the <a href="#graph">Links</a> panel heads the notes linking to them <b>Mentioned in</b>. Only a note whose <code>type</code> is exactly <code>person</code> counts as a person — for <code>@</code> and for this heading.</p>
       <h3>Other spellings of a name</h3>
       <p>A Person — and a Company — has an <b>Also spelt</b> property (<code>aliases</code> in the file): a nickname or a short form, commas between them in the properties panel. They are for matching a meeting's attendees to the person; Atlas never uses them to correct text — to correct a mishearing of a name, give it a <a href="#terms">Term</a>.</p>
       <p class="muted">A vault whose Person or Company type was made before this has no such property yet: add one called <code>aliases</code> on <a href="#edit-type">Edit type</a> as a <b>Multi-select</b>, or give the note an <code>aliases</code> list by hand. Atlas reads <code>aliases</code> either way.</p>
+    </section>
+
+    <section id="linked-pages">
+      <h2>Linked pages</h2>
+      <p class="sub">Open a person, a company, a project, an area or a meeting and the page shows what hangs off it — between its properties and its text. Nothing is written into the note: the sections come from its type, so every page you already have has them.</p>
+      <h3>What each page shows</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Page</th><th>Sections</th></tr></thead>
+          <tbody>
+            <tr><td><b>Person</b></td><td><b>Meetings</b> they were in · <b>Waiting for</b> — tasks at Waiting whose <i>Waiting on</i> is them · <b>Open tasks</b> linked with them · <b>Decisions</b> · <b>Linked notes</b> — everything else linked with them</td></tr>
+            <tr><td><b>Company</b></td><td><b>People</b> linked with it — by their <i>Company</i>, or by the company's own <i>Employees</i> or <i>CEO</i> · <b>Meetings</b> held with it · <b>Waiting for</b> — what you wait on from those people · <b>Open tasks</b> linked with it or about those people · <b>Projects</b> · <b>Decisions</b> · <b>Linked notes</b></td></tr>
+            <tr><td><b>Project</b>, <b>Area</b></td><td><b>Waiting for</b> · <b>Open tasks</b> filed under it · an area's <b>Projects</b> · <b>Meetings</b> · <b>Decisions</b> · <b>Linked notes</b></td></tr>
+            <tr><td><b>Meeting</b></td><td><b>People</b> with their company · <b>Companies</b> · <b>Tasks</b> and <b>Decisions</b> linked with it — the ones that came from it among them</td></tr>
+            <tr><td><b>Task</b>, <b>Decision</b></td><td><b>Meetings</b> linked with it — the one it came from among them</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>Every row opens its note. A heading shows how many it holds; a section with nothing is one quiet line, <i>none</i>.</li>
+        <li>A section opens with its first 8 rows; <b>Show <i>n</i> more</b> brings the rest, <b>Show fewer</b> puts them away. A section holds 200 at most — past that the count reads <b>200+</b>, and under the rows: <i>These are the first 200; there are more.</i></li>
+        <li>The sections are live: a meeting that arrives or a task ticked off anywhere shows up as soon as the index has it.</li>
+        <li>Archived notes are left out, as everywhere. A page never lists itself.</li>
+        <li><b>Nothing linked is dropped.</b> Meetings, and a project's Open tasks, Meetings and Decisions, hold only what names the page in the property made for it — a meeting's <b>People</b>, a task's <b>Project</b>. A meeting that only mentions the person in its text, or a task that links the project somewhere other than <b>Project</b>, is under <b>Linked notes</b> instead.</li>
+        <li>If the sections can't be read at all, the page says so in one line — <i>“What is linked with this page could not be read just now.”</i> — rather than looking as if nothing were linked.</li>
+      </ul>
+      <h3>30 days, or all</h3>
+      <ul>
+        <li><b>Meetings</b>, <b>Decisions</b> and <b>Linked notes</b> start on the last <b>30 days</b>; <b>All</b> beside the heading shows everything. An empty one says <i>none in the last 30 days</i>, with All still there.</li>
+        <li>Your choice is remembered for that kind of page on this Mac: turn Meetings to All on one person and every person's Meetings open on All.</li>
+        <li>Meetings and decisions are dated by their <code>date</code>; linked notes by when they last changed. A meeting or decision with no date shows under 30 days too, after the dated ones. Tasks and waiting-fors have no such switch — open work doesn't expire.</li>
+      </ul>
+      <h3>Waiting for, and how long</h3>
+      <ul>
+        <li>Each waiting-for says how long it has waited — <i>waiting 12 days</i> — longest first.</li>
+        <li>The count runs from when the task last changed, the same measure the <a href="#tasks">weekly review</a> uses: Atlas keeps no "waiting since" date, so editing the task starts the count again.</li>
+        <li>A waiting-for is listed once. On a person's page it is under Waiting for, not again under Open tasks.</li>
+      </ul>
+      <h3>Open tasks</h3>
+      <ul>
+        <li>Grouped by status with what to do first on top: <b>Next Action</b>, <b>In Progress</b>, <b>Inbox</b>, <b>Backlog</b>, then Someday and Longterm. Finished tasks are left out. Click a status to fold it.</li>
+        <li>An <b>active</b> project with open tasks and none at Next Action or In Progress says so over the list: <i>“No next action: none of its 3 open tasks is Next Action or In Progress.”</i> It is the <a href="#tasks">weekly review's</a> rule, so a paused or finished project, one with no status, and an area never say it. Nor does a project with more than 200 open tasks, where the list was cut.</li>
+      </ul>
+      <h3>Meetings and tasks, both ways</h3>
+      <ul>
+        <li>A meeting lists the tasks and decisions linked with it, and each of those shows the meeting under <b>Meetings</b>. Any link between the two counts, whichever note holds it: the task's <code>source</code> citing a line of the meeting, a <code>meeting</code> property, the meeting listing the task, or a link in either one's text.</li>
+        <li>So the tasks that came from a meeting are there, and so is a task that merely mentions it — and a task you make by hand joins a meeting the moment either links the other.</li>
+      </ul>
+      <h3>What decides the sections</h3>
+      <ul>
+        <li>The page's <code>type</code>, and what your types declare. A person's meetings are the ones whose <b>People</b> relation holds them; if your Meeting type has no relation to Person, any link from the meeting counts instead.</li>
+        <li><b>Waiting for</b> needs a Task type with a <b>Waiting</b> status and a <b>Waiting on</b> relation — see <a href="#tasks">Move your tasks to GTD</a>. Without them the page shows open tasks only.</li>
+        <li><b>Linked notes</b> lists notes of your other types, and what a section's own type links outside its property. A note with no type isn't there — it is under <b>Links</b> at the foot of the page, as before.</li>
+        <li>A company's Meetings are the ones whose <b>Companies</b> holds it. A meeting only its people were in isn't there.</li>
+        <li>A <a href="#templates">template</a> shows no sections: it isn't a page of its type.</li>
+        <li>To list something else on one page, add a <a href="#query-blocks">query block</a>; it sits in the note's text beside these.</li>
+      </ul>
     </section>
 
     <section id="meetings">
