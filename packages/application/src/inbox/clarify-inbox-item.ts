@@ -239,6 +239,9 @@ function assertWritable(
   try {
     ports.markdown.updateFrontmatter(splitFrontmatter(text).frontmatter, changes);
   } catch {
+    // Everything caught, on purpose: the writer is pure — it reads no file and no
+    // clock — so whatever it throws is about this note's block, which it can only
+    // refuse for not being a map of keys. Its own words are a YAML library's.
     throw new ClarifyRefusedError(
       'Its frontmatter is not a list of properties, so nothing was written.',
     );

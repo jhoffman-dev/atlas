@@ -109,3 +109,33 @@ describe('readWeeklyReview', () => {
     expect(review.inbox).toEqual({ count: 3, toFile: 2, toAnswer: 1, more: false });
   });
 });
+
+/** #112: the review counts the Inbox as its page lists it, told which rule the vault is on. */
+describe('readWeeklyReview — the Inbox count and the vault’s Task type', () => {
+  const files = {
+    'Inbox/Captured.md': note(['type: task', 'status: inbox']),
+    'Inbox/Decided.md': note(['type: task', 'status: next-action']),
+  };
+  const counted = async (tasksStartInInbox?: boolean) => {
+    const query = atlasQueryIndex({ markdown: fakeMarkdown(), files });
+    const review = await readWeeklyReview({
+      index: fakeIndexPort({ query }),
+      ...NO_PROPOSALS,
+      clock: CLOCK,
+      ...(tasksStartInInbox !== undefined && { tasksStartInInbox }),
+    });
+    return review.inbox.toFile;
+  };
+
+  it('leaves a task already given a status out once told the vault’s tasks start in the Inbox', async () => {
+    expect(await counted(true)).toBe(1);
+  });
+
+  it('counts the whole folder when told they do not', async () => {
+    expect(await counted(false)).toBe(2);
+  });
+
+  it('reads the vault’s types itself when not told: none here, so the whole folder', async () => {
+    expect(await counted()).toBe(2);
+  });
+});
