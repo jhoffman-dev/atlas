@@ -1,33 +1,34 @@
 import {
-  claudeStepQuestion,
+  CLAUDE_STEP_QUESTION,
   claudeStepSystem,
+  claudeWriteRefusal,
   createVaultPath,
-  joinFrontmatter,
+  isPromptPath,
   messageWithoutPaths,
   NOTE_ANSWER_INSTRUCTIONS,
-  nextAvailableNotePath,
-  PROPOSALS_FOLDER,
-  proposalNoteProperties,
   proposalSchemaNamed,
   readNoteAnswer,
   splitFrontmatter,
+  truncated,
   type AnsweredNote,
-  type CheckedProposal,
   type ClaudeAction,
   type ClaudeRunInfo,
   type DoneAction,
   type ModelMessage,
-  type NoteAnswer,
   type RegisteredProposalSchema,
   type VaultPath,
 } from '@atlas/domain';
 import { ModelProviderError, type ModelProvider, type ProviderStatus } from '../chat/ports.ts';
 import { runChatTurn } from '../chat/run-chat-turn.ts';
 import type { ChatToolbox, Toolboxes } from '../chat/toolbox.ts';
-import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
-import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
+import {
+  planNote,
+  planProposals,
+  type ClaudeWritePorts,
+  type PlannedNote,
+} from './claude-writes.ts';
 
 /** How long a step may take before it is stopped and failed. */
 export const CLAUDE_STEP_TIMEOUT_MS = 5 * 60_000;
@@ -46,17 +47,33 @@ export interface ClaudeStepPorts {
   readonly deadline: (ms: number) => AbortSignal;
 }
 
+/** What a step that failed had done by then, and what stopped it when that was not the model's answer. */
+export interface ClaudeStepAftermath {
+  /** What it had made before it stopped: it stays, and the log must say so. */
+  readonly made?: readonly DoneAction[];
+  /** The error that stopped it, to be raised once the run is on record. */
+  readonly cause?: unknown;
+}
+
 /**
  * A step that failed, with why — in words the person can act on, with no
- * path of this machine's in them — and the model it had asked.
+ * path of this machine's in them, and bounded: a model's words can be long —
+ * and the model it had asked.
  */
 export class ClaudeStepFailed extends Error {
+  readonly made: readonly DoneAction[];
+  /** Set when an error other than the model's answer stopped it: raised after the log is written. */
+  readonly interruption: unknown;
+
   constructor(
     message: string,
     readonly claude: ClaudeRunInfo,
+    { made = [], cause }: ClaudeStepAftermath = {},
   ) {
-    super(message);
+    super(truncated(message));
     this.name = 'ClaudeStepFailed';
+    this.made = made;
+    this.interruption = cause;
   }
 }
 
@@ -69,16 +86,15 @@ export interface ClaudeStepOutcome {
   readonly claude: ClaudeRunInfo;
 }
 
-interface StepArgs {
+interface StepArgs extends ClaudeWritePorts {
   readonly ports: ClaudeStepPorts;
   readonly action: ClaudeAction;
   /** The notes the run is about. */
   readonly paths: readonly VaultPath[];
-  /** The rule's vault, guarded: a write after another vault opened is refused. */
-  readonly fs: VaultFsPort;
-  readonly markdown: Pick<MarkdownPort, 'updateFrontmatter'>;
   /** Every note in the vault: what a new note's name is numbered past. */
   readonly notePaths: readonly VaultPath[];
+  /** The rule's id: what its proposals are for, so a retry makes none twice. */
+  readonly rule: string;
   /** The rule and run, as each proposal's `made_by` says it. */
   readonly madeBy: string;
 }
@@ -89,31 +105,49 @@ interface StepArgs {
  * read tools the rule names, and writes what its answer describes —
  * proposals, or one new note — never an edit.
  *
- * Fails with `ClaudeStepFailed`, writing nothing, when the provider cannot
- * be used (with the chat's fix-it words), the prompt cannot be read, the
- * model calls a tool the rule does not list, it is stopped or runs out of
- * time, or its answer does not read as the rule's output.
+ * Fails with `ClaudeStepFailed` when the provider cannot be used (with the
+ * chat's fix-it words), the action is not one a rule's file could have said,
+ * the prompt cannot be read, the model calls a tool the rule does not list,
+ * it is stopped or runs out of time, or its answer does not read as the
+ * rule's output — in each, having written nothing. The answer is read whole,
+ * and every note planned, before the first is written. A write that then
+ * fails part-way fails the run too, with what it had made in `made` (it
+ * stays, and the log says so) and the error in `interruption`; run again, the
+ * proposals already made are not made twice.
  */
 export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> {
   const { ports, action } = args;
   const model = ports.model();
   const started = ports.clock.now();
-  const info = (): ClaudeRunInfo => ({ model, ms: Math.max(0, ports.clock.now() - started) });
+  const claudeRun = (): ClaudeRunInfo => ({
+    model,
+    ms: Math.max(0, ports.clock.now() - started),
+  });
   const fail = (message: string): never => {
-    throw new ClaudeStepFailed(message, info());
+    throw new ClaudeStepFailed(message, claudeRun());
   };
+  // Defence in depth: the action a run is handed is checked as the file that wrote it was.
   const output = outputOf(action);
-  if (output === null) return fail(`There is no output called ${outputName(action)}.`);
+  if (typeof output === 'string') return fail(output);
+  if (!isPromptPath(action.prompt)) {
+    return fail(`Its prompt ${JSON.stringify(action.prompt)} is not a note in .atlas/prompts.`);
+  }
   const provider = ports.provider();
   const status = await provider.status();
   if (!status.ready) return fail(fixIt(status));
   const prompt = await readPrompt(args.fs, createVaultPath(action.prompt));
   if (typeof prompt !== 'string') return fail(prompt.problem);
   const notes = await readAnswered(args.fs, args.paths);
-  const { instructions } = output;
-  const answer = await askModel({ ...args, provider, model, prompt, instructions, notes, fail });
-  const done = await writeAnswer({ ...args, output, answer, notes, fail });
-  return { done, claude: info() };
+  try {
+    const answer = await askModel({ ...args, provider, model, prompt, output, notes, fail });
+    const planned = await planAnswer({ ...args, output, answer, notes, fail });
+    const done = await writePlanned({ fs: args.fs, planned, claudeRun });
+    return { done, claude: claudeRun() };
+  } catch (error) {
+    if (error instanceof ClaudeStepFailed) throw error;
+    // Anything else after the model was asked (the index, the disk) still cost an ask: on record, then raised.
+    throw new ClaudeStepFailed(messageWithoutPaths(error), claudeRun(), { cause: error });
+  }
 }
 
 /**
@@ -156,26 +190,30 @@ async function askModel({
   provider,
   model,
   prompt,
-  instructions,
+  output,
   notes,
   fail,
 }: StepArgs & {
   provider: ModelProvider;
   model: string;
   prompt: string;
-  /** What the rule's output needs the answer to be. */
-  instructions: string;
+  output: StepOutput;
   notes: readonly AnsweredNote[];
   fail: (message: string) => never;
 }): Promise<string> {
   const signal = ports.deadline(CLAUDE_STEP_TIMEOUT_MS);
-  const question: ModelMessage = { role: 'user', text: claudeStepQuestion(notes) };
+  const question: ModelMessage = { role: 'user', text: CLAUDE_STEP_QUESTION };
   try {
     const outcome = await runChatTurn({
       provider,
       toolbox: onlyRuleTools(ports.toolboxes.reading(action.tools), action.tools),
       model,
-      system: claudeStepSystem({ today: ports.clock.today(), prompt, answer: instructions }),
+      system: claudeStepSystem({
+        today: ports.clock.today(),
+        prompt,
+        answer: output.instructions,
+        notes,
+      }),
       history: [question],
       signal,
       onEvent: () => {
@@ -227,22 +265,25 @@ type StepOutput =
       readonly schema: RegisteredProposalSchema;
     };
 
-/** The rule's output as a run reads it; null for a schema no longer registered. */
-function outputOf({ output }: ClaudeAction): StepOutput | null {
+/** The rule's output as a run reads it, or why it cannot be run: a schema no longer registered, a folder no step writes in. */
+function outputOf({ output }: ClaudeAction): StepOutput | string {
   if (output.kind === 'note') {
-    const folder = createVaultPath(output.folder);
-    return { kind: 'note', instructions: NOTE_ANSWER_INSTRUCTIONS, folder };
+    const refusal = claudeWriteRefusal(output.folder);
+    if (refusal !== null) return refusal;
+    return {
+      kind: 'note',
+      instructions: NOTE_ANSWER_INSTRUCTIONS,
+      folder: createVaultPath(output.folder),
+    };
   }
   const schema = proposalSchemaNamed(output.schema);
-  return schema === null ? null : { kind: 'proposals', instructions: schema.instructions, schema };
+  return schema === null
+    ? `There is no output called ${output.schema}.`
+    : { kind: 'proposals', instructions: schema.instructions, schema };
 }
 
-function outputName(action: ClaudeAction): string {
-  return action.output.kind === 'note' ? 'note' : action.output.schema;
-}
-
-/** Reads the answer as the rule's output, then writes it: nothing at all when it does not read. */
-async function writeAnswer({
+/** Reads the answer as the rule's output and plans every note it makes: nothing is written yet. */
+async function planAnswer({
   output,
   answer,
   notes,
@@ -253,58 +294,55 @@ async function writeAnswer({
   answer: string;
   notes: readonly AnsweredNote[];
   fail: (message: string) => never;
-}): Promise<DoneAction[]> {
+}): Promise<PlannedNote[]> {
   const unread = (problem: string) =>
     fail(`Claude’s answer is not what the rule asks for. ${problem}`);
   if (output.kind === 'note') {
     const note = readNoteAnswer(answer);
     if (!note.ok) return unread(note.problem);
-    return [await writeNote({ ...args, folder: output.folder, note: note.value })];
+    return [
+      await planNote({
+        ports: args,
+        notePaths: args.notePaths,
+        folder: output.folder,
+        note: note.value,
+      }),
+    ];
   }
   const proposals = output.schema.read(answer, { notes });
   if (!proposals.ok) return unread(proposals.problem);
-  return writeProposals({ ...args, proposals: proposals.value });
+  return planProposals({
+    ports: args,
+    notePaths: args.notePaths,
+    proposals: proposals.value,
+    rule: args.rule,
+    madeBy: args.madeBy,
+  });
 }
 
-type WriteArgs = Pick<StepArgs, 'fs' | 'markdown' | 'notePaths' | 'madeBy'>;
-
-/** Each proposal as a note in `Inbox/Proposals/`, numbered past every name taken. */
-async function writeProposals({
+/**
+ * Writes each planned note in turn. One the disk refuses stops the run, with
+ * those already made reported — they stay — so the log names every note the
+ * step left behind.
+ */
+async function writePlanned({
   fs,
-  markdown,
-  notePaths,
-  madeBy,
-  proposals,
-}: WriteArgs & { proposals: readonly CheckedProposal[] }): Promise<DoneAction[]> {
-  if (proposals.length === 0) return [];
-  const folder = await ensureFolder({ fs, folder: createVaultPath(PROPOSALS_FOLDER) });
-  const taken = new Set<string>(notePaths);
-  const done: DoneAction[] = [];
-  for (const proposal of proposals) {
-    const path = nextAvailableNotePath({ folder, name: proposal.payload.title, taken });
-    taken.add(path);
-    const frontmatter = markdown.updateFrontmatter(null, proposalNoteProperties(proposal, madeBy));
-    const body = proposal.why === '' ? '' : `${proposal.why}\n`;
-    await fs.createNote({ path, contents: joinFrontmatter(frontmatter, body) });
-    done.push({ kind: 'proposed', path });
+  planned,
+  claudeRun,
+}: {
+  fs: Pick<VaultFsPort, 'createNote'>;
+  planned: readonly PlannedNote[];
+  claudeRun: () => ClaudeRunInfo;
+}): Promise<DoneAction[]> {
+  const made: DoneAction[] = [];
+  for (const note of planned) {
+    try {
+      await fs.createNote({ path: note.path, contents: note.contents });
+    } catch (cause) {
+      const said = `Made ${made.length} of ${planned.length} notes, then the write failed: ${messageWithoutPaths(cause)}`;
+      throw new ClaudeStepFailed(said, claudeRun(), { made, cause });
+    }
+    made.push(note.made);
   }
-  return done;
-}
-
-/** The one new note, in the rule's folder; a name already taken is numbered past, never written over. */
-async function writeNote({
-  fs,
-  markdown,
-  notePaths,
-  folder,
-  note,
-}: WriteArgs & { folder: VaultPath; note: NoteAnswer }): Promise<DoneAction> {
-  const at = await ensureFolder({ fs, folder });
-  const path = nextAvailableNotePath({ folder: at, name: note.title, taken: new Set(notePaths) });
-  const frontmatter =
-    Object.keys(note.properties).length === 0
-      ? null
-      : markdown.updateFrontmatter(null, note.properties);
-  await fs.createNote({ path, contents: joinFrontmatter(frontmatter, note.body) });
-  return { kind: 'created', path };
+  return made;
 }

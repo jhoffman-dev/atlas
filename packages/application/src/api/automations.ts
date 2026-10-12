@@ -17,6 +17,7 @@ import {
   type Schedule,
   type PassedOver,
   type SetValue,
+  truncated,
 } from '@atlas/domain';
 import { loadAutomations, planRuleNow, type LoadedAutomation } from '../automations/index.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
@@ -265,9 +266,10 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         kind: 'failed',
         ...words,
         trigger: entry.trigger,
-        problem: entry.problem,
+        problem: truncated(entry.problem),
         ...(entry.claude !== undefined && { claude: entry.claude }),
-        done: [],
+        // A Claude step cut off part-way left what it had made.
+        done: entry.done ?? [],
         left: [],
       };
     case 'turnedOn':

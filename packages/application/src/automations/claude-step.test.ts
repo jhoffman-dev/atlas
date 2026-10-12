@@ -166,7 +166,7 @@ describe('a Claude step that answers as its rule asks', () => {
     expect(logOf()).toEqual([entry]);
     expect(entry).toMatchObject({ claude: { model: 'claude-opus-5-5', ms: 1500 } });
     expect(messages()).toEqual([
-      'Meeting actions: Ran by hand. Made 1 proposal. Asked claude-opus-5-5, 1.5 s.',
+      'Meeting actions: Ran by hand (2026-10-01 Standup). Made 1 proposal. Asked claude-opus-5-5, 1.5 s.',
     ]);
   });
 
@@ -180,8 +180,10 @@ describe('a Claude step that answers as its rule asks', () => {
     expect(request?.system).toContain('Find every action item and propose it as a task.');
     expect(request?.system).toContain('{ "proposals": [ … ] }');
     expect(request?.tools.map((tool) => tool.name)).toEqual(['atlas_read_note']);
+    // The notes ride in the system prompt, where both providers keep a tag as written.
+    expect(request?.system).toContain(`<vault_data note="${STANDUP}">`);
     const question = request?.messages[0];
-    expect(question?.role === 'user' && question.text).toContain(`<vault_data note="${STANDUP}">`);
+    expect(question?.role === 'user' && question.text).not.toContain('vault_data');
   });
 
   it('runs the rule’s tools for the model, then reads its last word', async () => {
@@ -207,7 +209,8 @@ describe('a Claude step that answers as its rule asks', () => {
   it('numbers a proposal past a note already there, never writing over it', async () => {
     const taken = 'Inbox/Proposals/Send Mara the payroll file.md';
     const { vault, run } = setUp({
-      rounds: [says({ proposals: [proposal(), proposal()] })],
+      // Two proposals of one name: told apart by kind, since the same one twice is made once.
+      rounds: [says({ proposals: [proposal(), proposal({ kind: 'follow-up' })] })],
       notes: { ...NOTES, [taken]: 'Mine.\n' },
     });
 
@@ -218,13 +221,28 @@ describe('a Claude step that answers as its rule asks', () => {
     expect(vault.files.has('Inbox/Proposals/Send Mara the payroll file 3.md')).toBe(true);
   });
 
+  it('makes the same proposal once, however often the answer repeats it', async () => {
+    const { written, run } = setUp({
+      rounds: [
+        says({
+          proposals: [proposal(), proposal(), proposal({ title: ' send mara  the payroll FILE' })],
+        }),
+      ],
+    });
+
+    const entry = await run();
+
+    expect(entry).toMatchObject({ kind: 'run', done: [{ kind: 'proposed' }] });
+    expect(written()).toHaveLength(1);
+  });
+
   it('logs a run that proposed nothing, and writes nothing', async () => {
     const { run, written, messages } = setUp({ rounds: [says('```json\n{"proposals": []}\n```')] });
 
     expect(await run()).toMatchObject({ kind: 'run', done: [] });
     expect(written()).toEqual([]);
     expect(messages()).toEqual([
-      'Meeting actions: Ran by hand. Claude proposed nothing. Asked claude-opus-5-5, 1.5 s.',
+      'Meeting actions: Ran by hand (2026-10-01 Standup). Claude proposed nothing. Asked claude-opus-5-5, 1.5 s.',
     ]);
   });
 

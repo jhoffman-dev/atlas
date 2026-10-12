@@ -246,7 +246,7 @@ function indexOf(
     const title = path.replace(/^.*\//, '').replace(/\.md$/i, '');
     database
       .prepare('INSERT INTO files VALUES (?, ?, ?, ?, 1)')
-      .run(path, title, '', modified.get(path)!);
+      .run(path, title, '', modified.get(path) ?? 0);
     const frontmatter = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
     for (const row of indexablePropertiesOf(frontmatter)) {
       database

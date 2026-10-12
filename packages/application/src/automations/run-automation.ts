@@ -78,8 +78,10 @@ export async function runAutomation(
 ): Promise<LogEntry> {
   const { activity, rule, trigger } = run;
   const aim: Aim = async (ports, today) => {
-    // Run by hand, a rule notes set off does what it would have for each note not yet handled.
-    const log = rule.when.kind === 'note' ? (await readRuleLog(run.ports.fs, rule)).entries : [];
+    // Run by hand, a rule notes set off does what it would have for each note not yet handled;
+    // a Claude step, on any trigger, is never asked again about a version it has answered.
+    const remembers = rule.when.kind === 'note' || rule.action.kind === 'claude';
+    const log = remembers ? (await readRuleLog(run.ports.fs, rule)).entries : [];
     return planRuleNow({ ports, rule, log, today });
   };
   // Not quiet, it always settles with its entry.
@@ -233,9 +235,12 @@ async function runOnce({
  * it made, or — when it failed, having written nothing — why, as a run that
  * could not. Either way the model it asked and how long it took are on record.
  *
- * Every note it was asked about is handled, whatever it proposed: asking
- * again about the same version costs a model's time and says the same. A
- * failed run handles none, so a run by hand asks again.
+ * Every note it was asked about is handled, whatever it proposed — nothing
+ * included: asking again about the same version costs a model's time and says
+ * the same. A failed run handles none, so a run by hand asks again; what a
+ * half-written run made is on record, and the proposals it made are not made
+ * twice. Past the notes one Claude run reads, the log says so and the rest
+ * wait for a run by hand.
  */
 async function askClaude({
   run,
@@ -263,8 +268,10 @@ async function askClaude({
       action,
       paths: plan.paths,
       fs: ports.fs,
+      index: ports.index,
       markdown: ports.markdown,
       notePaths: ports.notePaths,
+      rule: run.rule.id,
       madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
     });
     const entry: LogEntry = {
@@ -289,9 +296,12 @@ async function askClaude({
       // Already without this machine's paths; stripped again, a fix's URL would be taken for one.
       problem: cause.message,
       claude: cause.claude,
+      ...(cause.made.length > 0 && { done: cause.made }),
     };
     await recordGone(run, went);
     await log(failed);
+    // Stopped by something other than the answer — a disk that refused — is raised once it is on record.
+    if (cause.interruption !== undefined) throw cause.interruption;
     return failed;
   }
 }

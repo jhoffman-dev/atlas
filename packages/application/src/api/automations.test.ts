@@ -680,7 +680,23 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
   });
 
   it('dry-runs it as the prompt and tools a run would use, over at most ten notes, asking no one', async () => {
-    const api = vault(files);
+    // A Claude step plans over note versions, which the index's manifest holds.
+    const markdown = jsonMarkdown();
+    const api = apiFixture({
+      files,
+      markdown,
+      index: {
+        query: atlasQueryIndex({ files, markdown }),
+        manifest: async () =>
+          Object.entries(files).map(([path, text]) => ({
+            path,
+            modified: 0,
+            size: text.length,
+            type: null,
+            digest: digestOf(text),
+          })),
+      },
+    });
     const before = new Map([...api.files].map(([path, note]) => [path, note.text]));
 
     const response = await dryRun(api, 'ask');
@@ -724,5 +740,25 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
         },
       ],
     });
+  });
+
+  it('lists what a Claude step cut off part-way had made, and cuts a long reason', async () => {
+    const cut: LogEntry = {
+      kind: 'failed',
+      at: '2026-09-21T03:00:04',
+      trigger: 'hand',
+      problem: `Made 1 of 2 notes, then the write failed: ${'x'.repeat(2_000)}`,
+      done: [{ kind: 'proposed', path: 'Inbox/Proposals/One.md' as never }],
+      claude: { model: 'claude-opus-5-5', ms: 900 },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [cut]),
+    });
+    const { entries } = bodyOf(await logOf(api, 'ask')) as {
+      entries: { problem: string; done: unknown[] }[];
+    };
+    expect(entries[0]!.done).toEqual([{ kind: 'proposed', path: 'Inbox/Proposals/One.md' }]);
+    expect(entries[0]!.problem.length).toBeLessThanOrEqual(600);
   });
 });

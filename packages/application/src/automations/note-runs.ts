@@ -30,9 +30,11 @@ type PlanRule = Pick<AutomationRule, 'when' | 'which' | 'olderThanDays' | 'actio
  * What a rule would do now: what its dry run shows, and a run by hand does.
  *
  * A rule on a clock plans over every note its query matches. A rule notes set
- * off (P29-01) plans over the notes its query matches whose version now — as
- * the index last read it — its log has not handled: run by hand, it does what
- * it would have done had each of them just appeared. Rejects as `planRun` does.
+ * off (P29-01), or one that asks Claude (P29-03) on whatever trigger — a model
+ * is not asked twice for the same words — plans over the notes its query
+ * matches whose version now, as the index last read it, its log has not
+ * handled: run by hand, a note-triggered rule does what it would have done had
+ * each of them just appeared. Rejects as `planRun` does.
  */
 export async function planRuleNow({
   ports,
@@ -46,8 +48,9 @@ export async function planRuleNow({
   log: readonly LogEntry[];
   today: string;
 }): Promise<RuleTarget> {
-  if (rule.when.kind !== 'note')
+  if (rule.when.kind !== 'note' && rule.action.kind !== 'claude') {
     return { plan: await planRun({ ports, rule, today }), versions: null };
+  }
   const matched = await matchedPaths({ ports, rule, today });
   const versions = unhandledVersions(await versionsNow(ports, matched), handledVersions(log));
   const plan = await planMatched({

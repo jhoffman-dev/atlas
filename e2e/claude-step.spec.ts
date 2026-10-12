@@ -86,8 +86,12 @@ test('a rule with a Claude step on a meeting proposes its action items in the In
   const turns = host.claude.runs().filter((run) => run.args[0] === '-p');
   expect(turns).toHaveLength(1);
   expect(turns[0]!.args).toContain('--tools');
-  expect(turns[0]!.args.join('\n')).toContain('Find every action item in the meeting');
-  expect(turns[0]!.stdin).toContain('^t0003');
+  const told = turns[0]!.args.join('\n');
+  expect(told).toContain('Find every action item in the meeting');
+  // The meeting rides in the system prompt, fenced as data; the question carries none of it.
+  expect(told).toContain('<vault_data note="Meetings/2026-10-01 Standup.md">');
+  expect(told).toContain('^t0003');
+  expect(turns[0]!.stdin).not.toContain('vault_data');
 
   const log = '.atlas/automations/log/Meeting actions.md';
   await expectFile(vault, log).toContain(`- proposed \`"${proposal}"\``);
