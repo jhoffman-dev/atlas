@@ -4,7 +4,10 @@
  * kind of answer — a meeting's action items (P29-05) — is a schema of its own
  * (`ProposalSchema`: its item keys, its `readItem`, its `draftsOf` — any number
  * per item — and, if it cites differently, its own `citation` words), added to
- * {@link PROPOSAL_SCHEMAS} under its name.
+ * {@link PROPOSAL_SCHEMAS} under its name. One whose proposals should be linked
+ * from the meeting they came from lists the meeting's relations in
+ * `meetingRelations` and sets `joinsMeeting` on a draft: the shared check adds
+ * the link, for the meeting the draft cites, by the identity the run read.
  */
 
 import { PROPOSAL_KINDS, type NoteProposalKind } from '../proposals/proposal.ts';

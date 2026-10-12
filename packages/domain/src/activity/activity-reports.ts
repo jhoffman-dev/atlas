@@ -248,10 +248,13 @@ function chatLine(level: ActivityLevel, message: string, path: VaultPath | null)
 
 /** What the meeting import did with one meeting file (ADR-0027). */
 export type MeetingImportHappening =
-  /** It follows the contract and is the first copy: it waits in the Inbox, its bytes as they came. */
-  | { readonly kind: 'arrived'; readonly path: VaultPath }
+  /**
+   * It follows the contract and is the first copy: it waits in the Inbox, its
+   * bytes as they came but for the misheard spellings `corrected` counts.
+   */
+  | { readonly kind: 'arrived'; readonly path: VaultPath; readonly corrected?: number }
   /** It carried an import error and now follows the contract, so the error was taken out. */
-  | { readonly kind: 'fixed'; readonly path: VaultPath }
+  | { readonly kind: 'fixed'; readonly path: VaultPath; readonly corrected?: number }
   /**
    * It breaks the contract. `unmarked` says why the problem could not be
    * written into it, or is null when it was — or was there already.
@@ -280,11 +283,15 @@ export function meetingImportReport(happening: MeetingImportHappening): Activity
   const title = noteTitle(happening.path);
   switch (happening.kind) {
     case 'arrived':
-      return meetingLine('info', `${title}: arrived in the Inbox.`, happening.path);
+      return meetingLine(
+        'info',
+        `${title}: arrived in the Inbox.${correctedClause(happening.corrected)}`,
+        happening.path,
+      );
     case 'fixed':
       return meetingLine(
         'info',
-        `${title}: now follows the import contract, so its import error was taken out.`,
+        `${title}: now follows the import contract, so its import error was taken out.${correctedClause(happening.corrected)}`,
         happening.path,
       );
     case 'invalid': {
@@ -313,6 +320,13 @@ export function meetingImportReport(happening: MeetingImportHappening): Activity
         happening.path,
       );
   }
+}
+
+/** How many misheard spellings a meeting let in had put right, and where to take them back; nothing when none. */
+function correctedClause(corrected: number | undefined): string {
+  if (corrected === undefined || corrected === 0) return '';
+  const spellings = corrected === 1 ? '1 misheard spelling' : `${corrected} misheard spellings`;
+  return ` ${spellings} corrected; Undo corrections on the meeting puts them back.`;
 }
 
 /** The import could not look at one sync's meetings at all — the files are as they were. */
@@ -422,7 +436,8 @@ export type ScreenWrite =
   | 'filing'
   | 'task'
   | 'term'
-  | 'block';
+  | 'block'
+  | 'corrections';
 
 const SCREEN_WRITE_WORDS: Readonly<Record<ScreenWrite, string>> = {
   edit: 'Could not save an edit',
@@ -438,6 +453,7 @@ const SCREEN_WRITE_WORDS: Readonly<Record<ScreenWrite, string>> = {
   task: 'Could not make the task',
   term: 'Could not save the term',
   block: 'Could not plan the task',
+  corrections: 'Could not undo the corrections',
 };
 
 /**

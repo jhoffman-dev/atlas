@@ -7,6 +7,7 @@ export type { PaletteCommand } from './palette-commands.ts';
 export {
   compileRelationHoldersQuery,
   linkedName,
+  linkTargets,
   relationsOf,
   RELATION_NAMES_PER_QUERY,
 } from './relation-rows.ts';

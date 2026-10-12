@@ -1,24 +1,16 @@
 /**
- * What a Claude step's proposal is for (P29-03): the same for the same
- * proposal however often its step runs, so a retry after a half-written run,
- * or a note heard twice, makes it once — even after it was answered and
- * archived, since a rejection is an answer too.
+ * A Claude step's proposal (P29-03) as the proposals writer takes it
+ * (`NewProposal`, P29-04): one writer makes every proposal Atlas proposes,
+ * and its `proposal_id` is what keeps a proposal from being made twice.
  *
- * The key and the query are the proposals-writer's shared idea: P29-04 (#100)
- * keeps `proposal_id` on a proposal the same way. When both are on `main`,
- * this file's key and query are replaced by that one's (`PROPOSAL_ID_KEY`,
- * `compileProposalIdsQuery`) and the writer by its `writeProposals`: a
- * {@link CheckedProposal} maps to its `NewProposal` field for field
- * (`kind`, `payload`, `confidence`, `source`, `madeBy`, `id`, `name` is the
- * payload's title, `reason` is `why`). Ids written by this step already carry
- * the same key, so nothing already in a vault needs to move.
+ * The id is the same for the same proposal however often its step runs, so a
+ * retry after a half-written run, or a note heard twice, makes it once — even
+ * after it was answered and archived, since a rejection is an answer too.
  */
 
+import type { NewProposal } from '../proposals/new-proposal.ts';
 import { digestOf } from '../sources/merge.ts';
 import type { CheckedProposal } from './proposal-schema.ts';
-
-/** The frontmatter key naming what a proposal is for. */
-export const CLAUDE_PROPOSAL_ID_KEY = 'proposal_id';
 
 /**
  * The id of a proposal one rule's step makes: its rule, what it proposes and
@@ -38,16 +30,29 @@ export function claudeProposalId({
 }
 
 /**
- * The proposals, anywhere in the vault — the Archive too, where answered ones
- * go — that are for any of these ids. Columns: path, id. Every id is bound.
+ * A checked proposal as the writer takes it: named for the note it would
+ * make, saying why in its body, and carrying what made it so the Inbox can
+ * say where it came from.
  */
-export function compileClaudeProposalIdsQuery(ids: readonly string[]): {
-  sql: string;
-  parameters: string[];
-} {
+export function claudeNewProposal({
+  rule,
+  madeBy,
+  proposal,
+}: {
+  /** The rule's id: what its proposals are for. */
+  rule: string;
+  /** The rule and run, as the proposal's `made_by` says it. */
+  madeBy: string;
+  proposal: CheckedProposal;
+}): NewProposal {
   return {
-    sql: `/* proposals: ids */ SELECT path AS "path", value_text AS "id" FROM props
- WHERE key = ? AND value_text IN (${ids.map(() => '?').join(', ')}) ORDER BY path`,
-    parameters: [CLAUDE_PROPOSAL_ID_KEY, ...ids],
+    kind: proposal.kind,
+    payload: proposal.payload,
+    confidence: proposal.confidence,
+    source: proposal.source,
+    madeBy,
+    id: claudeProposalId({ rule, proposal }),
+    name: proposal.payload.title,
+    reason: proposal.why,
   };
 }

@@ -41,6 +41,14 @@ export interface MeetingImportRun {
   readonly today: string;
   /** Where each outcome is said: one line per meeting file. */
   readonly activity: ActivityRecorder;
+  /**
+   * Done to a meeting just before it is let in (stamped `imported`), with the
+   * meeting still unstamped: the import's own follow-up writes, such as linking
+   * its people. Done before the stamp, they are not edits to a meeting that is
+   * in — a rule watching meetings sees it once, as it will stay. It settles
+   * when done and never rejects: what goes wrong is its to say.
+   */
+  readonly beforeLetIn?: (path: VaultPath) => Promise<void>;
 }
 
 export interface MeetingImportOutcome {
@@ -97,7 +105,13 @@ async function importMeetings(
   run: MeetingImportRun,
   paths: readonly string[],
 ): Promise<MeetingImportOutcome> {
-  const context: ImportContext = { ...run, settled: new Set(), notePaths: null, wrote: false };
+  const context: ImportContext = {
+    ...run,
+    settled: new Set(),
+    notePaths: null,
+    wrote: false,
+    vocabulary: null,
+  };
   const happenings: MeetingImportHappening[] = [];
   for (const path of paths) {
     if (context.settled.has(path)) continue;

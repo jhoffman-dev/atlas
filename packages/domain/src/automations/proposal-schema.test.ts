@@ -5,11 +5,12 @@ import {
   answerJson,
   citedBlockProblem,
   MAX_PROPOSALS_PER_ANSWER,
-  proposalNoteProperties,
   registerProposalSchema,
   type AnswerContext,
   type ProposalSchema,
 } from './proposal-schema.ts';
+import { proposalFileFor } from '../proposals/new-proposal.ts';
+import { claudeNewProposal, claudeProposalId } from './claude-proposal-id.ts';
 import { proposalSchemaNamed, PROPOSAL_SCHEMAS } from './proposal-schemas.ts';
 
 /**
@@ -74,6 +75,8 @@ describe('the general proposals schema', () => {
             folder: null,
             properties: { status: 'next' },
             body: '',
+            // A general proposal makes a note and joins nothing: no note is edited by accepting it.
+            linkFrom: null,
           },
           source: '[[2026-10-01 Standup#^t0003]]',
           confidence: 'high',
@@ -284,23 +287,28 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
   });
 });
 
-describe('proposalNoteProperties', () => {
-  it('writes a checked proposal as an open proposal note, saying what made it', () => {
+describe('claudeNewProposal', () => {
+  it('hands a checked proposal to the proposals writer: an open proposal note, saying what made it and what it is for', () => {
     const read = general.read(answer(item()), CONTEXT);
     if (!read.ok) throw new Error(read.problem);
-    const properties = proposalNoteProperties({
-      proposal: read.value[0]!,
-      madeBy: 'Meeting actions · 2026-10-11 09:00:00',
-      id: 'claude-abc',
-    });
-    expect(properties).toEqual({
+    const proposal = read.value[0]!;
+    const file = proposalFileFor(
+      claudeNewProposal({
+        rule: 'Meeting actions',
+        madeBy: 'Meeting actions · 2026-10-11 09:00:00',
+        proposal,
+      }),
+    );
+    expect(file.path).toBe('Inbox/Proposals/Send Mara the payroll file.md');
+    expect(file.body).toBe(`${proposal.why}\n`);
+    expect(file.properties).toEqual({
       type: 'proposal',
       kind: 'task',
       state: 'open',
       confidence: 'high',
       source: '[[2026-10-01 Standup#^t0003]]',
       made_by: 'Meeting actions · 2026-10-11 09:00:00',
-      proposal_id: 'claude-abc',
+      proposal_id: claudeProposalId({ rule: 'Meeting actions', proposal }),
       payload: { title: 'Send Mara the payroll file', properties: { status: 'next' } },
     });
   });

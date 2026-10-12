@@ -40,6 +40,13 @@ export function cleanEntryName(name: string): string {
 }
 
 /**
+ * The room a numbered name needs after a title: ` 9999.md`. A title that
+ * names a file is cut (`fitFileNameStem`) until its name, numbered past the
+ * names taken, still fits what a disk takes.
+ */
+export const NUMBERED_NOTE_ENDING = ' 9999.md';
+
+/**
  * A path for a new note in `folder`, adding a number if that name is taken.
  * `Untitled.md`, then `Untitled 2.md`, and so on, the way Finder numbers copies.
  *

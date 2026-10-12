@@ -932,6 +932,7 @@ export function App({
     // Only the Mac that runs the automations writes into meeting files (U-29).
     active: sync.automationsHere,
     indexReady: indexStatus.kind === 'ready',
+    selfName: profileSetting.profile === 'unknown' ? null : profileSetting.profile.name,
     onWritten: settleArchive,
   });
   const archive = useArchive({

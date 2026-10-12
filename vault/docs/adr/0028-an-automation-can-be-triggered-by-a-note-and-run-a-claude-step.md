@@ -48,7 +48,9 @@ digest, the same name first. When a note leaves a path and a new one is made
 there in the same sync, the feed reports that path `changed`; so a changed
 note carries the digest it had (`before`, an addition to the P28-03 feed),
 and one whose old bytes, or archived copy, turn up elsewhere is a new note.
-A note in the Archive never sets a rule off.
+A note in the Archive never sets a rule off. _(Amended 2026-10-11, #92:
+in `Inbox/Meetings` a changed note that carries the import's stamp is never
+the far end of a move — see the addendum.)_
 
 **It is idempotent per note version:** the run log records `(rule, path,
 digest)`, and a version already handled is never handled again — a restart,
@@ -108,7 +110,9 @@ adversarial pass of P29-03, #16.)_
   remote picture are #101.
 - **Strict and small.** An unknown key at either level refuses the answer; a
   proposal's payload carries `title`, `folder`, `properties`, `body` and
-  nothing that would edit a note (`link`, `link_from`, a digest). Title, body
+  nothing that would edit a note (`link`, `link_from`, `meeting`, a digest) —
+  see "One writer, and the meeting a proposal came from" below for the one
+  link a schema may add itself. Title, body
   and "why" have sizes, properties are few, flat and plain, and none is one
   Atlas keeps. What the model authored is cut before it reaches a log line or
   Activity.
@@ -117,14 +121,16 @@ adversarial pass of P29-03, #16.)_
   depth the vault is read to and the length a disk takes; the run checks the
   action again, and its prompt path, as the file that wrote it was checked.
 - **A citation names a block the model was shown**, outside a code fence, in
-  the text it was given before the cut.
+  the text it was given before the cut. A meeting is cut between turns (a
+  turn is a paragraph ending in its id), never inside one, and a run that cut
+  a note says so in its log.
 - **A half-written run is on record.** Every note is planned (name cut to what a
   disk takes, contents built) before the first is written. A write that then
   fails is logged as a failed run listing what it made, and the disk's error is
   raised. Each proposal carries a `proposal_id` (its rule, kind, title and cited
   block), so a run again makes none twice — whether the first is still open or
-  was answered and archived. The key is P29-04's (#100); once both are on `main`
-  the writer is replaced by its `writeProposals`.
+  was answered and archived. The key and the writer are P29-04's (#100): see
+  the addendum below.
 - **Asking costs, and the log says so.** A run that asked Claude counts toward the
   hourly cap whatever it came back with, a failure included. A Claude step on
   any trigger, not only a note's, skips a note version it has answered. A run
@@ -133,6 +139,115 @@ adversarial pass of P29-03, #16.)_
 
 **Every run is in Activity:** trigger, note, digest, step, outcome, model,
 duration, proposals made. Each rule has a run cap per hour.
+
+### Addendum (2026-10-11, #92): note triggers and the meeting import
+
+The meeting import (ADR-0027) writes `atlas_import_outcome` into every file
+that lands in `Inbox/Meetings`, so a meeting's arrival and the import's stamp
+reach the change feed close together, in one sync or two. A rule a meeting
+set off could run on the unstamped version and then miss the stamped one,
+run on a meeting the import went on to refuse, or — when two meetings had the
+same bytes — take an old meeting the import stamped for the new one.
+
+- **The feed says how the import settled each version.** A note's version
+  carries its `atlas_import_outcome` when it has one, and a changed note the
+  one it had before. The index already holds the stamp as a property; the
+  refresh asks for it beside the manifest, so a relaunch knows it too.
+- **Where meeting files land, a note is the import's until it lets it in.**
+  A rule hears no note in `Inbox/Meetings` that is not stamped `imported`.
+  The version that first carries `imported` is its arrival: a `created` rule
+  runs once, on the version the import accepted, and a refused (`error`) or
+  duplicate meeting never sets it off. The import's own stamp write is not a
+  change to the note; an edit to a meeting it let in is. A note filed
+  anywhere else is unchanged by this.
+- **The general pairing stands, with one exception where meetings land.** A
+  `changed` note whose old bytes, or archived copy, turn up elsewhere is
+  still a new note made where the old one went. In `Inbox/Meetings` a
+  `changed` note that carries a stamp now is never that: a new file lands
+  unstamped, so a stamp is the import's own write (its first one changes the
+  bytes a copy beside it may still have) or an edit of a meeting it let in.
+  A path there that lost a stamp it had (`imported` to none) is a new file
+  where the old one moved, and is paired as any other.
+- **A meeting's arrival is heard once.** Only a `changed` note whose stamp
+  went to `imported` from something else is an arrival; a file _added_
+  already stamped (a sync's conflict copy, a meeting moved or restored) is
+  not the import's work. The feed's baseline remembers, in memory, that a
+  path's arrival was heard (`arrivalHeard`): it is set when the import lets a
+  note in, kept if its stamp is lost (so the restored stamp is not a second
+  arrival), set on a note that arrived as one end of a move (a meeting made
+  elsewhere, then filed in), and cleared for a new file made where another
+  went. A relaunch has only the stamps to go by.
+- **The stamps are asked for narrowly, and not knowing is safe.** The refresh
+  reads stamps only for paths under `Inbox/Meetings`, a page of 1,000 at a
+  time (the host cuts a result at 5,000 rows). If they cannot be had — the
+  query fails, or a result is still cut short — every note there is taken as
+  already arrived: a sync, a rebuild included, goes on from its manifest and
+  no meeting arrives twice; the cost is a missed edit of a let-in meeting.
+- **Run now follows the feed.** A rule run by hand, or dry-run, plans over
+  the same notes the feed would let it hear: in `Inbox/Meetings`, meetings
+  stamped `imported` only.
+- **One reader of a stamp.** The file's frontmatter and the index's rows are
+  read the same way: a list by its first item, a name without the spaces
+  round it, an empty list as no stamp, an unknown one as `imported`.
+- News heard while the index opens is held and run once each, in the order
+  it was heard (already so; now tested).
+
+### Addendum (2026-10-11): one writer, and the meeting a proposal came from
+
+_As built when the four post-processing changes were stacked: #97 (#92), #98
+(P28-06), #100 (P29-04), then #99 (P29-03)._
+
+- **One writer makes every proposal.** `planProposals` / `writeProposals`
+  (`application/proposals`) take a `NewProposal` and are the only code that
+  writes into `Inbox/Proposals/`; meeting linking and a rule's Claude step
+  both go through them, and the step's own writer is gone. A checked proposal
+  maps to a `NewProposal` field for field (`claudeNewProposal`). What the
+  step's writer did that was general moved in, so linking has it too:
+  everything is decided before the first write (names, numbered past the
+  folder's and each other's, and contents); an id given twice in one batch is
+  made once; the folder's own files are read for ids the index has not caught
+  up with; and a long name leaves room for the number a taken name gets.
+  What differs is what each does with a write that fails: linking writes the
+  rest and says which were left; a Claude step stops, fails the run, logs what
+  it had made, and raises the disk's error.
+- **The limits stay the step's.** Sizes, flat plain properties, no remote
+  resource, where it may write and the citation check are rules about a
+  model's answer, and are applied before the writer is reached. Linking's
+  proposals are built by Atlas from a meeting the import validated.
+- **No answer names a note to edit.** P29-04 gave a payload `link_from` and
+  `meeting` (provider, id), which Accept writes into a note already there. A
+  draft's payload with either — or a link's `note`, `link`, `digest` — is
+  refused, as is the kind `link`.
+- **A schema may link a proposal back to its source meeting** — the extension
+  point for P29-05 (#18). A schema declares `meetingRelations` (relations of a
+  meeting, fixed in code and checked when it is registered: not a key Atlas
+  keeps), and a draft says `joinsMeeting: '<one of them>'`. The shared check
+  then adds `link_from` itself: the note is the one the draft **cites** — a
+  note the run read — the property is the schema's, and the meeting's identity
+  is what the **run** read from that note's own frontmatter (`AnsweredNote
+.meeting`), and only for a meeting stamped `imported`. A draft naming a
+  relation its schema does not list, or citing a note that is not such a
+  meeting, is refused. Nothing in the answer can choose the note, the
+  property or the identity. Accept then does what it does for a person
+  proposed from a meeting: makes the note (a task also records its `source`
+  block), finds the meeting by its identity wherever it has been filed, and
+  adds the link — refusing a meeting that is archived, or another meeting now
+  at the old path. The meeting type must have the relation, or Accept refuses
+  the link; `proposals`, the general schema, declares none.
+- **A Claude step on "a meeting is created" needs nothing new.** The import
+  links a meeting, then corrects and stamps it in one write (ADR-0027), and a
+  note where meetings land is heard only from the version that first carries
+  `imported` (the addendum above). So the step is asked once, about the
+  linked and corrected meeting; a duplicate or refused file never asks; the
+  import's writes are not a `changed` to any rule; and the step's proposals
+  are not meetings, are never handed to a Claude step, and are made once by
+  their ids even when the rule's log is lost.
+- **The log says when a note was cut.** A note longer than its share (20,000
+  characters, or an equal share of 120,000 across the run's notes) is shown
+  from its start. The run's `claude` line is followed by
+  `- cut "<path>": read <shown> of <total> characters` for each, the summary
+  says so, and the log API carries it as `claude.cut`. Chunking a long
+  transcript is left to P29-05, which now has the fact to decide on.
 
 ## Consequences
 

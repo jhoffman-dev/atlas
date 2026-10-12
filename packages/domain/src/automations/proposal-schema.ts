@@ -9,6 +9,13 @@
  * block of a note the run was about. No schema can skip them, so a new one —
  * a meeting's action items (P29-05) — adds its own reading and nothing less.
  *
+ * A proposal makes a new note and edits none, with one exception a schema
+ * has to ask for by name: the note it makes may join a relation of the
+ * meeting it cites ({@link ProposalSchema.meetingRelations}), so a task taken
+ * from a meeting is linked from that meeting once accepted. Which meeting is
+ * never the model's to say: it is the note the draft cites, and only when the
+ * run itself read it as a meeting the import let in.
+ *
  * An answer that does not read is refused whole: one bad item and nothing is
  * written.
  */
@@ -17,9 +24,9 @@ import { blockIdAtEnd, standaloneBlockAnchor } from '../markdown/block-anchor.ts
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import {
   PROPOSAL_CONFIDENCES,
-  PROPOSAL_TYPE,
-  payloadRecord,
+  proposedChangeRefusal,
   readProposalPayload,
+  type LinkFrom,
   type NotePayload,
   type NoteProposalKind,
   type ProposalConfidence,
@@ -35,8 +42,8 @@ import {
   truncated,
   unknownKeyProblem,
 } from './answer-limits.ts';
-import { CLAUDE_PROPOSAL_ID_KEY } from './claude-proposal-id.ts';
 import { claudeWriteRefusal } from './claude-write-folder.ts';
+import { setKeyProblem } from './property-key.ts';
 import { remoteResourceProblem } from './remote-resources.ts';
 
 export type { AnsweredNote };
@@ -59,6 +66,12 @@ export interface ProposalDraft {
   readonly confidence: string;
   /** Why it is proposed, in a sentence: the proposal note's body. */
   readonly why: string;
+  /**
+   * The relation of the meeting it cites that the note it makes joins once
+   * accepted: one of its schema's {@link ProposalSchema.meetingRelations},
+   * written by the schema's own code. The meeting is the note `source` cites.
+   */
+  readonly joinsMeeting?: string;
 }
 
 /** A proposal that has passed every rule, ready to be written as a note. */
@@ -95,6 +108,14 @@ export interface ProposalSchema<Item> {
    * It must still end in a link the shared check can read: `[[Note#^id]]`.
    */
   readonly citation?: string;
+  /**
+   * The relations of a meeting that this schema's drafts may join
+   * (`joinsMeeting`): `[]`, or left out, and none of its proposals touches a
+   * note. They are the schema's own words, fixed when it is registered — a
+   * draft naming any other is refused, so no answer can pick a property — and
+   * each must be a relation the meeting type has, or Accept refuses the link.
+   */
+  readonly meetingRelations?: readonly string[];
   /** One item of the list, or why it is not one. */
   readonly readItem: (value: unknown) => Reading<Item>;
   /**
@@ -123,6 +144,11 @@ export interface RegisteredProposalSchema {
 export function registerProposalSchema<Item>(
   schema: ProposalSchema<Item>,
 ): RegisteredProposalSchema {
+  for (const relation of schema.meetingRelations ?? []) {
+    const problem = setKeyProblem(relation);
+    // A schema is code: one that names a key Atlas keeps is a bug, found when the app starts.
+    if (problem !== null) throw new Error(`The ${schema.name} output cannot link: ${problem}`);
+  }
   return {
     name: schema.name,
     instructions: [
@@ -163,7 +189,7 @@ function readAnswer<Item>({
     const drafts = draftsOf({ schema, value, context });
     if (!drafts.ok) return refused(`Item ${at + 1}: ${drafts.problem}`);
     for (const draft of drafts.value) {
-      const proposal = checkDraft(draft, context);
+      const proposal = checkDraft(draft, context, schema.meetingRelations);
       if (!proposal.ok) return refused(`Item ${at + 1}: ${proposal.problem}`);
       checked.push(proposal.value);
     }
@@ -195,11 +221,17 @@ const PAYLOAD_KEYS = ['title', 'folder', 'properties', 'body'];
 
 /**
  * The rules every proposal passes, whichever schema made it: new notes only
- * (never a link, which edits a note), a payload Accept could write, held to the
+ * (never a link, which edits a note), a payload Accept could write — with no
+ * `link_from` of its own, which would name a note to edit — held to the
  * sizes and properties a note answer is, loading nothing remote, and citing a
- * block the model was shown.
+ * block the model was shown. A draft that joins the meeting it cites does so
+ * through one of `meetingRelations`, its schema's, and no other.
  */
-export function checkDraft(draft: ProposalDraft, context: AnswerContext): Reading<CheckedProposal> {
+export function checkDraft(
+  draft: ProposalDraft,
+  context: AnswerContext,
+  meetingRelations: readonly string[] = [],
+): Reading<CheckedProposal> {
   // Stated, not left to the payload's shape: "new notes only" is the line between propose and edit.
   if ((draft.kind as string) === 'link') return refused('A Claude step proposes new notes only.');
   const extra = unknownKeyProblem(draft.payload, PAYLOAD_KEYS, 'Its payload');
@@ -222,16 +254,59 @@ export function checkDraft(draft: ProposalDraft, context: AnswerContext): Readin
   }
   const cited = citedBlockProblem(draft.source, context.notes);
   if (cited !== null) return refused(cited);
+  const linkFrom = sourceMeetingLink({ draft, context, meetingRelations });
+  if (!linkFrom.ok) return linkFrom;
   return {
     ok: true,
     value: {
       kind: draft.kind,
-      payload: note,
+      payload: { ...note, linkFrom: linkFrom.value },
       source: draft.source.trim(),
       confidence,
       why: draft.why.trim(),
     },
   };
+}
+
+/**
+ * The relation of its source meeting a draft's note joins, as Accept reads it
+ * (`link_from`, P29-04) — null when the draft joins none. The meeting is the
+ * note the draft cites, named by the identity the run read from its file, so
+ * Accept finds it wherever it has been filed since and writes to no other.
+ * Refused: a relation its schema does not list, and a cited note the run did
+ * not read as a meeting the import let in.
+ */
+function sourceMeetingLink({
+  draft,
+  context,
+  meetingRelations,
+}: {
+  draft: ProposalDraft;
+  context: AnswerContext;
+  meetingRelations: readonly string[];
+}): Reading<LinkFrom | null> {
+  const property = draft.joinsMeeting;
+  if (property === undefined) return { ok: true, value: null };
+  if (!meetingRelations.includes(property)) {
+    return refused(
+      `It would join “${truncated(property, 40)}” of a meeting, which this output does not link through.`,
+    );
+  }
+  const cited = citedNote(draft.source, context.notes);
+  const meeting = cited?.meeting?.identity ?? null;
+  if (cited === null || meeting === null) {
+    return refused('It links back to the meeting it cites, and the note it cites is not one.');
+  }
+  const refusal = proposedChangeRefusal(cited.path);
+  if (refusal !== null) return refused(refusal);
+  return { ok: true, value: { note: cited.path, property, meeting } };
+}
+
+/** The note a `source` link names, among those the run read; null when it names none of them. */
+function citedNote(source: string, notes: readonly AnsweredNote[]): AnsweredNote | null {
+  const link = readWikiLink(source.trim());
+  if (link === null) return null;
+  return notes.find((each) => namesNote(link.target, each.path)) ?? null;
 }
 
 /**
@@ -289,32 +364,6 @@ function holdsBlock(text: string, id: string): boolean {
     if (blockIdAtEnd(line)?.id === id || standaloneBlockAnchor(line.trim()) === id) return true;
   }
   return false;
-}
-
-/**
- * A checked proposal as its note's frontmatter (P29-02's format): open, with
- * what made it, so the Inbox can say where it came from.
- */
-export function proposalNoteProperties({
-  proposal,
-  madeBy,
-  id,
-}: {
-  proposal: CheckedProposal;
-  madeBy: string;
-  /** What it is for: see {@link claudeProposalId}. */
-  id: string;
-}): Record<string, unknown> {
-  return {
-    type: PROPOSAL_TYPE,
-    kind: proposal.kind,
-    state: 'open',
-    confidence: proposal.confidence,
-    source: proposal.source,
-    made_by: madeBy,
-    [CLAUDE_PROPOSAL_ID_KEY]: id,
-    payload: payloadRecord(proposal.payload),
-  };
 }
 
 /**

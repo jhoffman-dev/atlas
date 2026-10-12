@@ -47,6 +47,34 @@ const FAILED: LogEntry = {
 };
 
 describe('a Claude step in its rule’s log', () => {
+  it('says a note it read only the start of, in its lines and its summary, and reads it back', () => {
+    const cut = [{ path: createVaultPath('Meetings/Standup.md'), shown: 19874, of: 48211 }];
+    const partly: LogEntry = { ...RAN, claude: { ...RAN.claude!, cut } };
+    const text = formatLogEntry(partly);
+
+    expect(text).toContain('- cut `"Meetings/Standup.md"`: read `19874` of `48211` characters');
+    expect(logEntrySummary(partly)).toBe(
+      'Made 1 proposal. 1 note was too long to read whole: Claude saw only the start.',
+    );
+    expect(logEntrySummary(RAN)).toBe('Made 1 proposal.');
+    const failed: LogEntry = { ...FAILED, claude: { ...FAILED.claude!, cut: [...cut, ...cut] } };
+    expect(parseRunLog(newLogText('Meeting actions', [partly, RAN, failed]))).toEqual([
+      partly,
+      RAN,
+      failed,
+    ]);
+    const two: LogEntry = { ...RAN, claude: { ...RAN.claude!, cut: [...cut, ...cut] } };
+    expect(logEntrySummary(two)).toContain('2 notes were too long to read whole');
+  });
+
+  it('leaves out a cut line a person edited into something that does not read', () => {
+    const text = newLogText('Meeting actions', [RAN]).replace(
+      /(- claude .*)\n/,
+      '$1\n- cut `"Meetings/Standup.md"`: read `"some"` of `48211` characters\n- cut `"../x.md"`: read `1` of `2` characters\n',
+    );
+    expect(parseRunLog(text)).toEqual([RAN]);
+  });
+
   it('writes what it made and the model it asked, and reads them back', () => {
     const text = formatLogEntry(RAN);
     expect(text).toContain('- proposed `"Inbox/Proposals/Send the payroll file.md"`');

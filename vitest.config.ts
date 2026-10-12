@@ -83,6 +83,8 @@ export default defineConfig({
         'packages/application/src/sync/**': { lines: 90, functions: 90, branches: 85 },
         // Meeting import marks, and archives, files that arrived from outside Atlas (P28-04).
         'packages/application/src/meetings/**': { lines: 90, functions: 90, branches: 85 },
+        // Linking a meeting writes its people and companies, and proposals, by itself (P29-04).
+        'packages/application/src/meeting-links/**': { lines: 90, functions: 90, branches: 85 },
         // Kept work is the only copy of typing the vault never got.
         'apps/desktop/src/notes/*stranded*.ts': { lines: 90, functions: 90, branches: 85 },
         // Carries the API token, and turns every failure into what the model is told.

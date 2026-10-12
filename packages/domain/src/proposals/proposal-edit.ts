@@ -40,14 +40,16 @@ export function editedPayload(proposal: ProposalNote, fields: PayloadFields): un
   if (proposal.kind === 'link' || fields.kind === 'link') {
     return { ...proposal.payload, link: fields.kind === 'link' ? fields.link : '' };
   }
-  const before = proposal.payload.properties;
+  const { properties: before, folder, linkFrom } = proposal.payload;
   return {
     title: fields.title,
-    folder: proposal.payload.folder,
+    folder,
     body: fields.body,
     properties: Object.fromEntries(
       fields.properties.map(([key, shown]) => [key, editedValue(shown, before[key])]),
     ),
+    // The relation the note joins is what was proposed, as a link proposal's note is.
+    ...(linkFrom !== null && { link_from: linkFrom }),
   };
 }
 

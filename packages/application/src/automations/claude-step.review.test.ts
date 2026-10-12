@@ -252,6 +252,27 @@ describe('a Claude step whose disk fails part-way', () => {
     ).toEqual(made('Inbox/Proposals/'));
   });
 
+  it('writes none of them when one cannot be made a note of: every proposal is planned first', async () => {
+    const { vault, run, logOf, made } = setUp({
+      rounds: [proposing(proposal(), proposal({ title: 'Pay on Friday' }))],
+    });
+    const { updateFrontmatter } = vault.ports.markdown;
+    vault.ports.markdown.updateFrontmatter = (frontmatter, changes) => {
+      const payload = changes['payload'] as { title?: string } | undefined;
+      if (payload?.title === 'Pay on Friday') throw new Error('It does not serialize.');
+      return updateFrontmatter(frontmatter, changes);
+    };
+
+    const entry = await run();
+
+    expect(entry).toMatchObject({
+      kind: 'failed',
+      problem: 'A proposal could not be written: It does not serialize.',
+    });
+    expect(made('Inbox/Proposals/')).toEqual([]);
+    expect(logOf()).toHaveLength(1);
+  });
+
   it('finishes the proposals on a second run by hand without making the first again', async () => {
     const { run, made } = setUp({ rounds: [THREE, THREE], failCreate: (nth) => nth === 2 });
 

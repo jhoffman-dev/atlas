@@ -1053,8 +1053,20 @@ export interface ApiAutomationLogEntry {
   }[];
   /** On a run of a rule a note sets off: paths a note it had handled left, ending their history. */
   readonly went?: readonly string[];
-  /** On a `run` or `failed` entry of a Claude step: the model asked, and how long it took. */
-  readonly claude?: { readonly model: string; readonly ms: number };
+  /**
+   * On a `run` or `failed` entry of a Claude step: the model asked, how long
+   * it took, and (`cut`) each note it was shown only the start of — how many
+   * characters of how many.
+   */
+  readonly claude?: {
+    readonly model: string;
+    readonly ms: number;
+    readonly cut?: readonly {
+      readonly path: string;
+      readonly shown: number;
+      readonly of: number;
+    }[];
+  };
 }
 
 /** What a rule would do if it ran now. Nothing is written to find out. */

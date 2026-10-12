@@ -742,6 +742,35 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     });
   });
 
+  it('says which notes a Claude step read only the start of', async () => {
+    const partly: LogEntry = {
+      kind: 'run',
+      at: '2026-09-21T03:00:04',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      claude: {
+        model: 'claude-opus-5-5',
+        ms: 900,
+        cut: [{ path: 'Meetings/Standup.md' as never, shown: 19874, of: 48211 }],
+      },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [partly]),
+    });
+    expect(bodyOf(await logOf(api, 'ask'))).toMatchObject({
+      entries: [
+        {
+          summary:
+            'Claude proposed nothing. 1 note was too long to read whole: Claude saw only the start.',
+          claude: { cut: [{ path: 'Meetings/Standup.md', shown: 19874, of: 48211 }] },
+        },
+      ],
+    });
+  });
+
   it('lists what a Claude step cut off part-way had made, and cuts a long reason', async () => {
     const cut: LogEntry = {
       kind: 'failed',

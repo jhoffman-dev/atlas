@@ -19,6 +19,7 @@ export {
   importStanding,
   IMPORT_ERROR_KEY,
   importErrorText,
+  isInPlay,
   isMeetingInboxPath,
   MEETING_INBOX,
   meetingCandidates,
@@ -26,7 +27,10 @@ export {
 } from './meeting-arrival.ts';
 export type { ImportOutcome, MeetingCopies } from './meeting-arrival.ts';
 export {
+  compileImportOutcomesQuery,
+  IMPORT_OUTCOMES_PAGE,
   compileMeetingHoldersQuery,
+  importOutcomesOf,
   compileMeetingListQuery,
   MEETING_LIST_COLUMNS,
   MEETING_LIST_LIMIT,
@@ -39,3 +43,19 @@ export { MEETING_IMPORT_PROPERTIES } from './meeting-import-properties.ts';
 export { mapMeeting } from './mapping/meeting-to-atlas.ts';
 export type { MappingOptions, MeetingFields, MeetingFile } from './mapping/meeting-to-atlas.ts';
 export { MeetingMappingError } from './mapping/meeting-mapping-error.ts';
+export { correctionDigestOf } from './correction-digest.ts';
+export {
+  correctionProperties,
+  correctMeetingBody,
+  CORRECTIONS_DIGEST_KEY,
+  CORRECTIONS_KEY,
+  CORRECTIONS_NONE,
+  CORRECTIONS_ORIGINAL_DIGEST_KEY,
+  CORRECTIONS_UNDONE,
+  NOTHING_CORRECTED_PROPERTIES,
+  recordedCorrections,
+  UNDONE_CORRECTION_PROPERTIES,
+  undoMeetingCorrections,
+  wasCorrected,
+} from './meeting-corrections.ts';
+export type { CorrectionRecord, CorrectionUndo, MeetingCorrection } from './meeting-corrections.ts';

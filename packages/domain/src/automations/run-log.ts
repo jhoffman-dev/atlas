@@ -40,6 +40,13 @@
  * - claude `"claude-opus-5-5"` in `4210` ms
  * ```
  *
+ * A note too long to show the model whole is said, with how much it saw, so
+ * a transcript read in part is never taken for one read whole:
+ *
+ * ```markdown
+ * - cut `"Meetings/2026-10-01 Standup.md"`: read `19874` of `48211` characters
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
@@ -48,6 +55,7 @@ import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { truncated } from './answer-limits.ts';
 import type { PassedOver } from './automation-plan.ts';
+import type { NoteCut } from './answered-note.ts';
 import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
 import type { NoteVersionRef } from './note-trigger.ts';
 import type { LocalTime } from './schedule.ts';
@@ -87,6 +95,12 @@ export interface LoggedVersion extends NoteVersionRef {
 export interface ClaudeRunInfo {
   readonly model: string;
   readonly ms: number;
+  /**
+   * The notes it was shown only the start of — a long transcript, say — so
+   * whoever reads the log knows what the model never saw; left out when it
+   * read every note whole.
+   */
+  readonly cut?: readonly NoteCut[];
 }
 
 export type LogEntry =
@@ -194,7 +208,14 @@ export function logEntrySummary(entry: LogEntry): string {
   // The cap counts notes: a rule setting two properties makes two lines per note.
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
   const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
-  return `${counts}${left}${capped}`;
+  return `${counts}${left}${capped}${cutWords(('claude' in entry && entry.claude?.cut) || [])}`;
+}
+
+/** What a run says when a note was too long to show the model whole. */
+function cutWords(cut: readonly NoteCut[]): string {
+  if (cut.length === 0) return '';
+  const notes = cut.length === 1 ? '1 note was' : `${cut.length} notes were`;
+  return ` ${notes} too long to read whole: Claude saw only the start.`;
 }
 
 /** What a run that stopped short says; a Claude step is held to fewer notes, and the rest wait for a run by hand. */
@@ -224,8 +245,13 @@ function countDone(done: readonly DoneAction[]): string {
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
 }
 
-function claudeLine({ model, ms }: ClaudeRunInfo): string {
-  return `- claude ${code(model)} in ${code(ms)} ms`;
+function claudeLines({ model, ms, cut = [] }: ClaudeRunInfo): string[] {
+  return [
+    `- claude ${code(model)} in ${code(ms)} ms`,
+    ...cut.map(
+      ({ path, shown, of }) => `- cut ${code(path)}: read ${code(shown)} of ${code(of)} characters`,
+    ),
+  ];
 }
 
 function versionLine({ path, digest, wrote }: LoggedVersion): string {
@@ -242,7 +268,7 @@ export function formatLogEntry(entry: LogEntry): string {
       : [];
   const versions = entry.kind === 'run' ? (entry.versions ?? []).map(versionLine) : [];
   const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
-  const claude = 'claude' in entry && entry.claude !== undefined ? [claudeLine(entry.claude)] : [];
+  const claude = 'claude' in entry && entry.claude !== undefined ? claudeLines(entry.claude) : [];
   if (done.length + left.length + versions.length + went.length + claude.length > 0) {
     lines.push('', ...done, ...left, ...versions, ...went, ...claude);
   }
@@ -323,6 +349,7 @@ const PRIOR_SPAN = `(nothing|${JSON_SPAN})`;
 const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_SPAN}$`);
 const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
 const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
+const CUT_LINE = new RegExp(`^- cut ${JSON_SPAN}: read ${JSON_SPAN} of ${JSON_SPAN} characters$`);
 const SET_LINE = new RegExp(
   `^- (set|restored) ${JSON_SPAN} ${JSON_SPAN}: ${PRIOR_SPAN} → ${PRIOR_SPAN}$`,
 );
@@ -400,13 +427,32 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
     try {
       const model = JSON.parse(match[1]!) as unknown;
       const ms = JSON.parse(match[2]!) as unknown;
-      if (typeof model === 'string' && typeof ms === 'number') return { model, ms };
+      if (typeof model === 'string' && typeof ms === 'number') {
+        const cut = cutOf(body);
+        return { model, ms, ...(cut.length > 0 && { cut }) };
+      }
     } catch {
       // A line edited into JSON that does not read is left out, as any other line is.
     }
     return null;
   }
   return null;
+}
+
+/** The notes a Claude step read only the start of, from its lines; one that does not read is left out. */
+function cutOf(body: readonly string[]): NoteCut[] {
+  return body.flatMap((line) => {
+    const match = CUT_LINE.exec(line);
+    if (match === null) return [];
+    try {
+      const [shown, of] = [JSON.parse(match[2]!) as unknown, JSON.parse(match[3]!) as unknown];
+      if (typeof shown !== 'number' || typeof of !== 'number') return [];
+      return [{ path: pathOf(match[1]!), shown, of }];
+    } catch {
+      // A line edited into JSON that does not read, or a path that is no path, is left out.
+      return [];
+    }
+  });
 }
 
 function readWent(line: string): VaultPath | null {

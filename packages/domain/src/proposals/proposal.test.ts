@@ -5,6 +5,7 @@ import {
   isProposalPath,
   payloadRecord,
   proposalHeadline,
+  proposedChangeRefusal,
   proposedWriteRefusal,
   readProposal,
   readProposalPayload,
@@ -63,6 +64,7 @@ describe('readProposal', () => {
         folder: null,
         body: '',
         properties: { status: 'next', meeting: '[[2026-10-01 Standup]]' },
+        linkFrom: null,
       },
     });
   });
@@ -107,7 +109,11 @@ describe('readProposal', () => {
     [{ ...TASK, payload: { title: 'X', properties: { ' ': 1 } } }, /has no name/],
     [{ ...TASK, payload: { title: 'X', body: 3 } }, /body must be text/],
     [{ ...TASK, payload: { title: 'X', folder: '../Elsewhere' } }, /not a path inside the vault/],
-    [{ ...LINK, payload: { ...LINK.payload, digest: '' } }, /needs the note, the property/],
+    [
+      { ...LINK, payload: { ...LINK.payload, digest: '' } },
+      /digest, when it has one, must be text/,
+    ],
+    [{ ...LINK, payload: { ...LINK.payload, link: undefined } }, /needs the note, the property/],
     [{ ...LINK, payload: { ...LINK.payload, link: 'Larkspur Payroll' } }, /not a link to a note/],
     [{ ...LINK, payload: { ...LINK.payload, link: '![[Logo.png]]' } }, /not a link to a note/],
     [{ ...LINK, payload: { ...LINK.payload, note: 'People/Mara.pdf' } }, /is not a note/],
@@ -170,6 +176,18 @@ describe('proposedWriteRefusal', () => {
       expect(proposedWriteRefusal(createVaultPath(where))).toMatch(/where meeting files land/);
     }
     expect(proposedWriteRefusal(createVaultPath('Inbox/Meetings old'))).toBeNull();
+  });
+
+  it('lets a link go on a meeting waiting where meeting files land, but no note be made there', () => {
+    const meeting = createVaultPath('Inbox/Meetings/2026-10-06 Standup.md');
+    expect(proposedChangeRefusal(meeting)).toBeNull();
+    expect(proposedWriteRefusal(meeting)).toMatch(/where meeting files land/);
+    expect(proposedChangeRefusal(createVaultPath('Archive/2026/Standup.md'))).toMatch(/Archive/);
+    const link = read({
+      ...LINK,
+      payload: { note: meeting, property: 'people', link: '[[Mara Quill]]' },
+    });
+    expect(link.payload).toMatchObject({ note: meeting, digest: null });
   });
 
   it('refuses a dot-folder at any depth', () => {

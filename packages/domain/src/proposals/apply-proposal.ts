@@ -1,3 +1,5 @@
+import { linkTargets } from '../index/relation-rows.ts';
+import { resolveWikiLinkTarget, wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import { withLink, linkedNotes } from '../types/relation-links.ts';
 import { fitFileNameStem } from '../vault/file-name-bytes.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
@@ -7,6 +9,7 @@ import { foldedVaultPath } from '../vault/vault-spelling.ts';
 import {
   PROPOSAL_NOTE_TYPES,
   proposedWriteRefusal,
+  type LinkFrom,
   type LinkPayload,
   type NotePayload,
   type NoteProposalKind,
@@ -41,8 +44,18 @@ export interface LinkTarget {
 export interface ProposalVault {
   /** Every note in the vault now: a new note never takes a path one of them has. */
   readonly notePaths: readonly VaultPath[];
-  /** The note a link proposal changes, as it is now; null when it is not there (or the proposal makes a note). */
+  /**
+   * The note a link proposal changes — or a note proposal's `linkFrom` note —
+   * as it is now; null when it is not there, or the proposal names none.
+   */
   readonly target: LinkTarget | null;
+  /**
+   * The `type` of the note already at the path a new note would take, as it
+   * is written, when there is one: a proposal that joins a relation links
+   * that note instead of making it, but only if it is the kind of note
+   * proposed.
+   */
+  readonly heldTypes?: readonly string[] | undefined;
 }
 
 export type ProposalApplication =
@@ -57,30 +70,35 @@ const CITING_KINDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up'
  *
  * A task, a follow-up or a decision makes a note of its type citing the block
  * the proposal came from; a person, a term or a project makes a note of its
- * type. A link adds one link to a relation of an existing note. Nothing is
- * written over: a note already at the path a new one would take is a refusal
- * (it may be the very note this proposes), and a note changed since the
- * proposal was made is too — the proposal was made against what it held then.
+ * type, and with `linkFrom` is added to that note's relation too. A link adds
+ * one link to a relation of an existing note. Nothing is written over: a note
+ * already at the path a new one would take is a refusal (it may be the very
+ * note this proposes), and a note changed since a proposal with a digest was
+ * made is too — the proposal was made against what it held then.
  */
 export function applyProposal(proposal: ProposalNote, vault: ProposalVault): ProposalApplication {
   if (proposal.state !== 'open') return refused(`It was already ${proposal.state}.`);
-  return proposal.kind === 'link'
-    ? applyLink(proposal.payload, vault.target)
-    : applyNote(proposal, vault.notePaths);
+  return proposal.kind === 'link' ? applyLink(proposal.payload, vault) : applyNote(proposal, vault);
 }
 
 function applyNote(
   proposal: ProposalNote & { readonly kind: NoteProposalKind },
-  notePaths: readonly VaultPath[],
+  { notePaths, target, heldTypes }: ProposalVault,
 ): ProposalApplication {
   const { payload, kind, source } = proposal;
   const refusal = payload.folder === null ? null : proposedWriteRefusal(payload.folder);
   if (refusal !== null) return refused(refusal);
   const path = newNotePath(payload);
   const folded = foldedVaultPath(path);
-  if (notePaths.some((note) => foldedVaultPath(note) === folded)) {
+  const held = notePaths.find((note) => foldedVaultPath(note) === folded);
+  if (held !== undefined && payload.linkFrom === null) {
     return refused(
       `There is already a note at ${path}, which may be this one. Edit the title to make another.`,
+    );
+  }
+  if (held !== undefined && !isKindOfNote(kind, heldTypes)) {
+    return refused(
+      `There is already a note at ${held} that is not a ${PROPOSAL_NOTE_TYPES[kind]}, so this was left as it is. Edit the title to make another.`,
     );
   }
   const cites = CITING_KINDS.has(kind) && source !== null;
@@ -89,26 +107,89 @@ function applyNote(
     ...withoutType(payload.properties),
     ...(cites && { source }),
   };
-  return { ok: true, writes: [{ kind: 'create', path, properties, body: payload.body }] };
+  // A note already there with a proposal that joins a relation is the one proposed — made
+  // since by another proposal for it, from another meeting: it is linked, not made again.
+  const creates: ProposalWrite[] =
+    held === undefined ? [{ kind: 'create', path, properties, body: payload.body }] : [];
+  if (payload.linkFrom === null) return { ok: true, writes: creates };
+  const joined = joinedRelation({
+    linkFrom: payload.linkFrom,
+    note: held ?? path,
+    notePaths: held === undefined ? [...notePaths, path] : notePaths,
+    target,
+  });
+  return joined.ok ? { ok: true, writes: [...creates, ...joined.writes] } : joined;
 }
 
-function applyLink(payload: LinkPayload, target: LinkTarget | null): ProposalApplication {
+/** Whether a note of these types is what a proposal of `kind` makes. */
+function isKindOfNote(kind: NoteProposalKind, types: readonly string[] | undefined): boolean {
+  return (types ?? []).some((type) => type.trim().toLowerCase() === PROPOSAL_NOTE_TYPES[kind]);
+}
+
+/**
+ * The write adding the new note to its `linkFrom` relation — none when the
+ * relation already links it, however the link is spelt, or when that note is
+ * gone: the note is still made, since what it records is still true.
+ */
+function joinedRelation({
+  linkFrom,
+  note,
+  notePaths,
+  target,
+}: {
+  linkFrom: LinkFrom;
+  note: VaultPath;
+  notePaths: readonly VaultPath[];
+  target: LinkTarget | null;
+}): ProposalApplication {
+  if (target === null) return { ok: true, writes: [] };
+  if (relationLinks(target.value, notePaths).has(note)) return { ok: true, writes: [] };
+  const link = `[[${wikiLinkTargetFor(note, notePaths)}]]`;
+  return applyLink({ ...linkFrom, link, digest: null }, { notePaths, target });
+}
+
+/** The notes a relation's value links, each resolved as the vault resolves a link. */
+function relationLinks(value: unknown, notePaths: readonly VaultPath[]): Set<VaultPath> {
+  const resolved = linkedNotes(value)
+    .flatMap((item) => linkTargets(item))
+    .flatMap((written) => resolveWikiLinkTarget(written, notePaths) ?? []);
+  return new Set(resolved);
+}
+
+function applyLink(
+  payload: LinkPayload,
+  { notePaths, target }: Pick<ProposalVault, 'notePaths' | 'target'>,
+): ProposalApplication {
   const title = noteTitle(payload.note);
   if (target === null) return refused(`${title} is not there any more.`);
-  if (target.digest !== payload.digest) {
+  if (payload.digest !== null && target.digest !== payload.digest) {
     return refused(`${title} changed since this was proposed, so it was left as it is.`);
   }
   if (target.relation === null) {
     return refused(`${title} has no relation called ${payload.property} to link through.`);
   }
-  if (linkedNotes(target.value).includes(payload.link)) {
+  const held = linkedNotes(target.value);
+  if (held.includes(payload.link) || linksSameNote(payload.link, target.value, notePaths)) {
     return refused(`${title} already links ${payload.link} in ${payload.property}.`);
+  }
+  // Without a digest the note may have moved on since; a link set since is a choice, kept.
+  if (payload.digest === null && !target.relation.many && held.length > 0) {
+    return refused(
+      `${title} already links ${held[0]} in ${payload.property}; this would replace it.`,
+    );
   }
   const value = withLink({ value: target.value, link: payload.link, many: target.relation.many });
   return {
     ok: true,
     writes: [{ kind: 'set', path: payload.note, changes: { [payload.property]: value } }],
   };
+}
+
+/** Whether a relation already links the note `link` means, however either is spelt. */
+function linksSameNote(link: string, value: unknown, notePaths: readonly VaultPath[]): boolean {
+  const [written] = linkTargets(link);
+  const wanted = written === undefined ? null : resolveWikiLinkTarget(written, notePaths);
+  return wanted !== null && relationLinks(value, notePaths).has(wanted);
 }
 
 /**

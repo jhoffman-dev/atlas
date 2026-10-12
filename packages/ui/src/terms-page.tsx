@@ -6,6 +6,7 @@ import {
   termKindOf,
   type TermKind,
   type TermNote,
+  type SpellingWarning,
   type VaultPath,
   type VocabularyClaim,
   type VocabularyConflict,
@@ -20,7 +21,9 @@ export interface TermsContents {
   /** In the order of their right spellings. */
   readonly terms: readonly TermNote[];
   readonly conflicts: readonly VocabularyConflict[];
-  /** How many spellings Atlas puts right, people's and companies' included. */
+  /** Misheard spellings that may not do what their author meant. */
+  readonly warnings: readonly SpellingWarning[];
+  /** How many misheard spellings Atlas puts right. */
   readonly spellings: number;
 }
 
@@ -100,7 +103,7 @@ function describe(contents: TermsContents | null): string | null {
   if (contents === null) return null;
   const terms = contents.terms.length;
   const spellings = contents.spellings;
-  return `${terms} ${terms === 1 ? 'term' : 'terms'} · ${spellings} ${spellings === 1 ? 'spelling' : 'spellings'} Atlas puts right, people and companies included`;
+  return `${terms} ${terms === 1 ? 'term' : 'terms'} · ${spellings} misheard ${spellings === 1 ? 'spelling' : 'spellings'} Atlas puts right — exactly as written, capitals included. A person's or company's aliases link people and are never used to correct text.`;
 }
 
 function NewTermForm({
@@ -172,7 +175,8 @@ function NewTermForm({
       </div>
       <p className="terms__hint">
         Commas between the misheard spellings; one that holds a comma goes in double quotes, as in{' '}
-        <code>&quot;Quill, Mara&quot;</code>.
+        <code>&quot;Quill, Mara&quot;</code>. A spelling is matched exactly as written, capitals
+        included: list <code>lark spur</code> and <code>Lark Spur</code> if both turn up.
       </p>
       {tried && problem !== null && (
         <p className="terms__problem" role="alert">
@@ -283,6 +287,9 @@ function TermList({ contents, error, onOpen, onEditVariants }: TermsPageProps) {
                     onCommit={(variants) => onEditVariants({ path: term.path, variants })}
                   />
                   <ConflictNote term={term} conflicts={contents.conflicts} />
+                  <WarningNotes
+                    warnings={contents.warnings.filter((warning) => warning.path === term.path)}
+                  />
                 </td>
               </tr>
             ))}
@@ -309,5 +316,20 @@ function ConflictNote({
     <p className="terms__in-conflict">
       In conflict, so not used: {its.map((conflict) => `“${conflict.form}”`).join(', ')}
     </p>
+  );
+}
+
+/** Under a term's variants: a spelling that is not used, or is also found alone inside another note's name. */
+function WarningNotes({ warnings }: { warnings: readonly SpellingWarning[] }) {
+  return (
+    <>
+      {warnings.map((warning) => (
+        <p key={`${warning.kind}:${warning.variant}`} className="terms__in-conflict">
+          {warning.kind === 'unusable'
+            ? `“${warning.variant}” is not used: a spelling needs a letter or a digit.`
+            : `“${warning.variant}” is also corrected on its own wherever it stands, though it is part of “${warning.name}”, which is left as written.`}
+        </p>
+      ))}
+    </>
   );
 }

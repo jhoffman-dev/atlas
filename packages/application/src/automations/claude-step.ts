@@ -1,8 +1,11 @@
 import {
+  answeredMeetingOf,
   CLAUDE_STEP_QUESTION,
+  claudeNewProposal,
   claudeStepSystem,
   claudeWriteRefusal,
   createVaultPath,
+  cutNotes,
   isPromptPath,
   messageWithoutPaths,
   NOTE_ANSWER_INSTRUCTIONS,
@@ -15,6 +18,7 @@ import {
   type ClaudeRunInfo,
   type DoneAction,
   type ModelMessage,
+  type NoteCut,
   type RegisteredProposalSchema,
   type VaultPath,
 } from '@atlas/domain';
@@ -22,13 +26,9 @@ import { ModelProviderError, type ModelProvider, type ProviderStatus } from '../
 import { runChatTurn } from '../chat/run-chat-turn.ts';
 import type { ChatToolbox, Toolboxes } from '../chat/toolbox.ts';
 import type { Clock } from '../ports.ts';
+import { planProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
-import {
-  planNote,
-  planProposals,
-  type ClaudeWritePorts,
-  type PlannedNote,
-} from './claude-writes.ts';
+import { planNote, type PlannedNote } from './claude-writes.ts';
 
 /** How long a step may take before it is stopped and failed. */
 export const CLAUDE_STEP_TIMEOUT_MS = 5 * 60_000;
@@ -86,7 +86,7 @@ export interface ClaudeStepOutcome {
   readonly claude: ClaudeRunInfo;
 }
 
-interface StepArgs extends ClaudeWritePorts {
+interface StepArgs extends ProposalWritePorts {
   readonly ports: ClaudeStepPorts;
   readonly action: ClaudeAction;
   /** The notes the run is about. */
@@ -110,7 +110,11 @@ interface StepArgs extends ClaudeWritePorts {
  * the prompt cannot be read, the model calls a tool the rule does not list,
  * it is stopped or runs out of time, or its answer does not read as the
  * rule's output — in each, having written nothing. The answer is read whole,
- * and every note planned, before the first is written. A write that then
+ * and every note planned, before the first is written; its proposals are
+ * planned by the writer every proposal goes through (`planProposals`), which
+ * makes none twice. A meeting among the notes is shown by whole turns, and
+ * named to the answer's check as the meeting it is, so a proposal may link
+ * back to it; a note cut to fit is said in the run's record. A write that then
  * fails part-way fails the run too, with what it had made in `made` (it
  * stays, and the log says so) and the error in `interruption`; run again, the
  * proposals already made are not made twice.
@@ -119,9 +123,11 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   const { ports, action } = args;
   const model = ports.model();
   const started = ports.clock.now();
+  let cut: readonly NoteCut[] = [];
   const claudeRun = (): ClaudeRunInfo => ({
     model,
     ms: Math.max(0, ports.clock.now() - started),
+    ...(cut.length > 0 && { cut }),
   });
   const fail = (message: string): never => {
     throw new ClaudeStepFailed(message, claudeRun());
@@ -137,7 +143,8 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   if (!status.ready) return fail(fixIt(status));
   const prompt = await readPrompt(args.fs, createVaultPath(action.prompt));
   if (typeof prompt !== 'string') return fail(prompt.problem);
-  const notes = await readAnswered(args.fs, args.paths);
+  const notes = await readAnswered(args, args.paths);
+  cut = cutNotes(notes);
   try {
     const answer = await askModel({ ...args, provider, model, prompt, output, notes, fail });
     const planned = await planAnswer({ ...args, output, answer, notes, fail });
@@ -175,12 +182,24 @@ async function readPrompt(
   return body === '' ? { problem: `Its prompt ${path} is empty.` } : body;
 }
 
+/**
+ * The notes as they are on disk, each said to be a meeting — and which —
+ * when its own frontmatter says so: the run's word, which no answer changes.
+ */
 async function readAnswered(
-  fs: Pick<VaultFsPort, 'readNotes'>,
+  { fs, markdown }: Pick<ProposalWritePorts, 'fs' | 'markdown'>,
   paths: readonly VaultPath[],
 ): Promise<AnsweredNote[]> {
   const files = await fs.readNotes(paths);
-  return files.map((file) => ({ path: createVaultPath(file.path), text: file.text }));
+  return files.map((file) => {
+    const properties = markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter);
+    const meeting = answeredMeetingOf(properties);
+    return {
+      path: createVaultPath(file.path),
+      text: file.text,
+      ...(meeting !== undefined && { meeting }),
+    };
+  });
 }
 
 /** The model's last word, after any tools it called. */
@@ -311,13 +330,17 @@ async function planAnswer({
   }
   const proposals = output.schema.read(answer, { notes });
   if (!proposals.ok) return unread(proposals.problem);
-  return planProposals({
-    ports: args,
-    notePaths: args.notePaths,
-    proposals: proposals.value,
-    rule: args.rule,
-    madeBy: args.madeBy,
+  const { planned, left } = await planProposals({
+    fs: args.fs,
+    index: args.index,
+    markdown: args.markdown,
+    proposals: proposals.value.map((proposal) =>
+      claudeNewProposal({ rule: args.rule, madeBy: args.madeBy, proposal }),
+    ),
   });
+  // One that cannot be made a note of fails the run before anything is written.
+  if (left.length > 0) return fail(`A proposal could not be written: ${left[0]!.reason}`);
+  return planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } }));
 }
 
 /**

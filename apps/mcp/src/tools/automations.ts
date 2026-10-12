@@ -57,7 +57,9 @@ export const automationLog = defineTool({
     '"seen". "done" lists each note it moved ({ kind: "archived", from, to }), each property it ' +
     'set, with its value before and after, or each note a Claude step made ({ kind: "proposed" ' +
     'or "created", path }); "left" lists notes it matched and left alone, with why. "claude" is ' +
-    '{ model, ms }: the model a Claude step asked and how long it took. ' +
+    '{ model, ms }: the model a Claude step asked and how long it took — with "cut", ' +
+    '[{ path, shown, of }], when a note was too long to show it whole: the characters it read, ' +
+    'of how many. ' +
     'An unknown id is "not_found"; a rule that cannot be read is "invalid".',
   inputSchema: z.object({
     id,

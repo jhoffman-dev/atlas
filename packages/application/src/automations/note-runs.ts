@@ -2,6 +2,7 @@ import {
   createVaultPath,
   digestOf,
   handledVersions,
+  isInPlay,
   MAX_ACTIONS_PER_RUN,
   noteRunsCappedProblem,
   unhandledVersions,
@@ -14,6 +15,7 @@ import {
   type NoteVersionRef,
   type VaultPath,
 } from '@atlas/domain';
+import { heldEntries } from '../index/refresh-index.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { matchedPaths, planMatched, planRun, type RuleQueryPorts } from './plan-run.ts';
 
@@ -34,7 +36,9 @@ type PlanRule = Pick<AutomationRule, 'when' | 'which' | 'olderThanDays' | 'actio
  * is not asked twice for the same words — plans over the notes its query
  * matches whose version now, as the index last read it, its log has not
  * handled: run by hand, a note-triggered rule does what it would have done had
- * each of them just appeared. Rejects as `planRun` does.
+ * each of them just appeared — and so, where meeting files land, on a meeting
+ * the import has let in and no other (#92), as the feed has it. Rejects as
+ * `planRun` does.
  */
 export async function planRuleNow({
   ports,
@@ -86,17 +90,20 @@ export async function planForVersions({
   };
 }
 
-/** The version of each note the index holds now; a note it does not hold is left out. */
+/**
+ * The version of each note the index holds now, that a rule may hear: a note
+ * it does not hold is left out, and so is one not let in where meeting files land.
+ */
 async function versionsNow(
   ports: Pick<RuleQueryPorts, 'index'>,
   paths: readonly VaultPath[],
 ): Promise<NoteVersionRef[]> {
-  const digests = new Map(
-    (await ports.index.manifest()).map((entry) => [entry.path, entry.digest] as const),
-  );
+  const held = await heldEntries(ports.index);
   return paths.flatMap((path) => {
-    const digest = digests.get(path);
-    return digest === undefined ? [] : [{ path, digest }];
+    const entry = held.get(path);
+    return entry === undefined || !isInPlay({ path, importOutcome: entry.importOutcome })
+      ? []
+      : [{ path, digest: entry.digest }];
   });
 }
 

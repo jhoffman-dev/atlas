@@ -12,11 +12,13 @@ export {
   PROPOSALS_FOLDER,
   payloadRecord,
   proposalHeadline,
+  proposedChangeRefusal,
   proposedWriteRefusal,
   readProposal,
   readProposalPayload,
 } from './proposal.ts';
 export type {
+  LinkFrom,
   LinkPayload,
   NotePayload,
   NoteProposalKind,
@@ -39,3 +41,5 @@ export type {
 } from './apply-proposal.ts';
 export { editedPayload, payloadFields, propertyFromText, propertyText } from './proposal-edit.ts';
 export type { PayloadFields } from './proposal-edit.ts';
+export { compileProposalIdsQuery, PROPOSAL_ID_KEY, proposalFileFor } from './new-proposal.ts';
+export type { NewProposal, NewProposalFile } from './new-proposal.ts';

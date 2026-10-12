@@ -62,6 +62,7 @@ describe('editedPayload', () => {
         title: 'Call Tobias Fenn',
         folder: 'Work',
         body: 'About Q4 and Q1.',
+        linkFrom: null,
         properties: {
           status: 'doing',
           estimate: 3,

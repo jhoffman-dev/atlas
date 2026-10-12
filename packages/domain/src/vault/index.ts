@@ -43,6 +43,7 @@ export {
   isUnnamed,
   NEW_NOTE_CONTENTS,
   nextAvailableNotePath,
+  NUMBERED_NOTE_ENDING,
   noteFileName,
 } from './new-note.ts';
 export {

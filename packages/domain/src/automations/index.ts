@@ -77,7 +77,6 @@ export {
   checkDraft,
   citedBlockProblem,
   MAX_PROPOSALS_PER_ANSWER,
-  proposalNoteProperties,
   registerProposalSchema,
 } from './proposal-schema.ts';
 export type {
@@ -98,13 +97,10 @@ export {
   claudeStepSystem,
 } from './claude-step-prompt.ts';
 export { claudeWriteRefusal } from './claude-write-folder.ts';
-export {
-  CLAUDE_PROPOSAL_ID_KEY,
-  claudeProposalId,
-  compileClaudeProposalIdsQuery,
-} from './claude-proposal-id.ts';
+export { claudeNewProposal, claudeProposalId } from './claude-proposal-id.ts';
 export { MAX_LOGGED_CHARACTERS, truncated } from './answer-limits.ts';
-export { shownNotes } from './answered-note.ts';
+export { answeredMeetingOf, cutNotes, shownNotes } from './answered-note.ts';
+export type { AnsweredMeeting, NoteCut } from './answered-note.ts';
 export type { NoteAnswer, NoteAnswerValue } from './note-answer.ts';
 export {
   backoffMinutes,

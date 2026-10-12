@@ -17,7 +17,7 @@ import {
   truncated,
 } from './answer-limits.ts';
 import { shownNotes, CLAUDE_NOTE_CHARACTERS } from './answered-note.ts';
-import { claudeProposalId, compileClaudeProposalIdsQuery } from './claude-proposal-id.ts';
+import { claudeProposalId } from './claude-proposal-id.ts';
 import { claudeWriteRefusal } from './claude-write-folder.ts';
 import { readNoteAnswer } from './note-answer.ts';
 import { checkDraft, type ProposalDraft } from './proposal-schema.ts';
@@ -314,11 +314,5 @@ describe('what a proposal is for', () => {
       base,
     );
     expect(claudeProposalId({ rule: 'r', proposal: checked({ title: 'Other' }) })).not.toBe(base);
-  });
-
-  it('asks the index for proposals anywhere, binding every id', () => {
-    const { sql, parameters } = compileClaudeProposalIdsQuery(['a', 'b']);
-    expect(sql).toContain('IN (?, ?)');
-    expect(parameters).toEqual(['proposal_id', 'a', 'b']);
   });
 });

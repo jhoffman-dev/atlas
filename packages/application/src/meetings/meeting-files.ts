@@ -12,9 +12,12 @@ import {
   type MeetingIdentity,
   type MeetingImportHappening,
   type VaultPath,
+  type Vocabulary,
 } from '@atlas/domain';
 import { archiveNotes, type ArchivePorts } from '../archive/archive-notes.ts';
 import type { ActivityRecorder } from '../activity/ports.ts';
+import { loadTerms } from '../terms/terms.ts';
+import { correctedMeeting } from './meeting-corrections.ts';
 import { readFrontmatter } from './meeting-reading.ts';
 import { UNSAVED, writeStamp } from './meeting-stamp-writer.ts';
 
@@ -30,6 +33,10 @@ export interface ImportContext {
   notePaths: readonly VaultPath[] | null;
   /** Whether a note was written or moved. */
   wrote: boolean;
+  /** Done to a meeting before it is let in: see `MeetingImportRun.beforeLetIn`. */
+  readonly beforeLetIn?: (path: VaultPath) => Promise<void>;
+  /** The spellings a meeting let in is corrected by, read from the index once a run. */
+  vocabulary: Vocabulary | null;
 }
 
 /** The notes holding a meeting now, and which of them the import has already let in. */
@@ -106,8 +113,13 @@ export async function holdingAt(
 }
 
 /**
- * Lets a meeting in: stamped `imported`, and any import error it carried
- * from before it was fixed taken out. A file being typed in is left as it
+ * Lets a meeting in, as one sequence that ends at the stamp: the run's
+ * `beforeLetIn` first (its people linked, P29-04), then one write that stamps
+ * it `imported`, takes out any import error it carried from before it was
+ * fixed, and corrects its words by the vocabulary (P28-06). Nothing is
+ * written after, so the version that carries the stamp — the one a rule
+ * hears as the meeting's arrival (#92) — is the meeting as it stays: linked
+ * and corrected. A file being typed in is left as it
  * is, and said so; it is let in when it next changes, or when the import
  * next looks over every arrival.
  */
@@ -115,20 +127,40 @@ export async function letIn(
   context: ImportContext,
   path: VaultPath,
 ): Promise<MeetingImportHappening> {
+  // First, so the file is read as it will be stamped: the follow-up may have written to it.
+  await context.beforeLetIn?.(path);
   const { text, modified } = await context.ports.fs.readTextFile(path);
   const { properties } = readFrontmatter(
     context.ports.markdown,
     splitFrontmatter(text).frontmatter,
   );
   const fixed = Object.hasOwn(properties, IMPORT_ERROR_KEY);
+  const corrected = correctedMeeting({
+    markdown: context.ports.markdown,
+    text,
+    vocabulary: await importVocabulary(context),
+  });
   const unsaved = await writeInto(context, {
     path,
     modified,
-    values: { [IMPORT_OUTCOME_KEY]: 'imported', ...(fixed && { [IMPORT_ERROR_KEY]: null }) },
+    values: {
+      [IMPORT_OUTCOME_KEY]: 'imported',
+      ...(fixed && { [IMPORT_ERROR_KEY]: null }),
+      ...corrected?.values,
+    },
+    ...(corrected !== null && corrected.count > 0 && { body: corrected.body }),
   });
   context.settled.add(path);
   if (unsaved !== null) return { kind: 'failed', path, problem: unsaved };
-  return fixed ? { kind: 'fixed', path } : { kind: 'arrived', path };
+  const corrections =
+    corrected === null || corrected.count === 0 ? {} : { corrected: corrected.count };
+  return { kind: fixed ? 'fixed' : 'arrived', path, ...corrections };
+}
+
+/** The vocabulary a run corrects meetings by, read from the index the first time a meeting is let in. */
+async function importVocabulary(context: ImportContext): Promise<Vocabulary> {
+  context.vocabulary ??= (await loadTerms({ index: context.ports.index })).vocabulary;
+  return context.vocabulary;
 }
 
 /**

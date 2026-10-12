@@ -144,6 +144,7 @@ describe('a Claude step that answers as its rule asks', () => {
           folder: null,
           properties: { status: 'next' },
           body: '',
+          linkFrom: null,
         },
       },
     });
