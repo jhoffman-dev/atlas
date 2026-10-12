@@ -483,8 +483,8 @@ describe('useAutomations: rules a note sets off (P29-01)', () => {
     // Held for the hour, not failing: one pause, no failure counted however much it hears.
     expect(hook.result.current.pauses.get('Sweep')).toEqual({
       reason:
-        'Held back: It has run 20 times in the last hour, the most a rule may. ' +
-        'It runs on what changed meanwhile at 09:10.',
+        'Held back: It has used its 20 runs, or questions put to Claude, for the last hour, ' +
+        'the most a rule may. It runs on what changed meanwhile at 09:10.',
       failures: 0,
       retryAt: '2026-09-27T09:10:00',
     });

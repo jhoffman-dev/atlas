@@ -37,6 +37,12 @@ payload:
 ---
 `;
 
+/** A task waiting on a person whose note is not in the vault: Accept refuses it. */
+const GONE_TEXT = PROPOSAL_TEXT.replace(
+  '    meeting: "[[2026-10-01 Standup]]"\n',
+  '    meeting: "[[2026-10-01 Standup]]"\n    status: waiting\n    waiting_on: "[[Tobias Fenn]]"\n',
+);
+
 /** A vault in memory: a note's modified time moves on with every write, and the Trash takes notes away. */
 function vault(notes: Record<string, string>) {
   let clock = 10;
@@ -188,19 +194,21 @@ describe('useProposals', () => {
   });
 
   it('says on the proposal why an accept was refused, and writes nothing', async () => {
-    const { hook, files } = render({ [PROPOSAL]: PROPOSAL_TEXT, [TASK]: 'Made by hand.\n' });
+    const { hook, files } = render({ [PROPOSAL]: GONE_TEXT });
     await waitFor(() => expect(hook.result.current.count).toBe(1));
 
     act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
     await waitFor(() => expect(hook.result.current.section.problems.size).toBe(1));
 
-    expect(hook.result.current.section.problems.get(path(PROPOSAL))).toMatch(/already a note at/);
+    expect(hook.result.current.section.problems.get(path(PROPOSAL))).toMatch(
+      /which is not a note any more/,
+    );
     expect(hook.result.current.section.busy).toBeNull();
-    expect(files.get(TASK)?.text).toBe('Made by hand.\n');
+    expect(files.has(TASK)).toBe(false);
   });
 
   it('records a refused accept nowhere, and an accept it gave up on once', async () => {
-    const refused = render({ [PROPOSAL]: PROPOSAL_TEXT, [TASK]: 'Made by hand.\n' });
+    const refused = render({ [PROPOSAL]: GONE_TEXT });
     await waitFor(() => expect(refused.hook.result.current.count).toBe(1));
     act(() => refused.hook.result.current.section.onAccept(path(PROPOSAL)));
     await waitFor(() => expect(refused.hook.result.current.section.problems.size).toBe(1));
