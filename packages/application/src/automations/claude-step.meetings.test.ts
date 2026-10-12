@@ -308,6 +308,10 @@ describe('a Claude step on a meeting longer than it is shown', () => {
     await hear(ON_CREATED);
 
     const [entry] = logOf(ON_CREATED);
-    expect(entry?.kind === 'run' && entry.claude).toEqual({ model: 'claude-opus-5-5', ms: 250 });
+    expect(entry?.kind === 'run' && entry.claude).toEqual({
+      model: 'claude-opus-5-5',
+      ms: 250,
+      asks: 1,
+    });
   });
 });

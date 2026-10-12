@@ -62,9 +62,10 @@ export const automationLog = defineTool({
     'or "created", path }); "left" lists notes it matched and left alone, with why. "claude" is ' +
     '{ model, ms }: the model a Claude step asked and how long it took — with "cut", ' +
     '[{ path, shown, of }], when a note was too long to show it whole: the characters it read, ' +
-    'of how many; "asks" when a long meeting was read in several asks; "alreadyMade", how many ' +
-    'proposals it answered with were made before and so not made again; and "dropped", ' +
-    '[{ title, reason }], for each item of an answer it left out for citing no turn. ' +
+    'of how many; "asks", how many times the model was asked (what the hourly cap counts); ' +
+    '"alreadyMade", how many proposals it answered with were made before and so not made again; ' +
+    '"dropped" and "adjusted", [{ title, reason }], for each item of an answer it left out, or ' +
+    'kept with a fault put right (a due date that was no date); and "warnings", what to know of the run. ' +
     'An unknown id is "not_found"; a rule that cannot be read is "invalid".',
   inputSchema: z.object({
     id,

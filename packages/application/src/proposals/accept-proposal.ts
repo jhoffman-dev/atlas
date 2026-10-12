@@ -25,7 +25,12 @@ import {
   type ProposalWrite,
   type VaultPath,
 } from '@atlas/domain';
-import { ProposalRefused, undoProposal, type AppliedProposal } from '../chat/proposals.ts';
+import {
+  checkUndo,
+  ProposalRefused,
+  undoProposal,
+  type AppliedProposal,
+} from '../chat/proposals.ts';
 import { newNoteTaskRules, withTaskRules } from '../gtd/task-rules.ts';
 import { archiveTaskChange } from '../review/review-actions.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
@@ -60,7 +65,8 @@ async function typesHeldAtNewNote(
   ports: ProposalPorts,
   { proposal, notePaths }: { proposal: ProposalNote; notePaths: readonly VaultPath[] },
 ): Promise<readonly string[] | undefined> {
-  if (proposal.kind === 'link' || proposal.payload.linkFrom === null) return undefined;
+  // Only a person is linked when already there: any other note of that name is not this one.
+  if (proposal.kind !== 'person' || proposal.payload.linkFrom === null) return undefined;
   const folded = foldedVaultPath(newNotePath(proposal.payload));
   const held = notePaths.find((note) => foldedVaultPath(note) === folded);
   if (held === undefined) return undefined;
@@ -152,7 +158,13 @@ export async function undoAcceptedProposal({
   ports: ProposalPorts;
   accepted: AcceptedProposal;
 }): Promise<VaultPath> {
+  // All of it or none: every write is checked before the first is taken back, so a meeting
+  // never lists a task that was trashed, nor a task stays after the meeting kept its link.
   for (const applied of accepted.wrote) {
+    await checkUndo({ fs: ports.fs, openNotes: ports.editors, applied });
+  }
+  // Last made, first taken back: the link goes before the note it points at.
+  for (const applied of [...accepted.wrote].reverse()) {
     await undoProposal({ fs: ports.fs, openNotes: ports.editors, applied });
   }
   const back = await backFromArchive(ports, accepted);

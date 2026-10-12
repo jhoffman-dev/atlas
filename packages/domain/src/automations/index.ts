@@ -106,6 +106,8 @@ export { NOTE_ANSWER_INSTRUCTIONS, readNoteAnswer } from './note-answer.ts';
 export {
   CLAUDE_NOTE_CHARACTERS,
   CLAUDE_STEP_QUESTION,
+  CLAUDE_SYSTEM_MAX_BYTES,
+  claudeSystemProblem,
   CLAUDE_TOTAL_NOTE_CHARACTERS,
   claudeStepSystem,
 } from './claude-step-prompt.ts';
@@ -119,7 +121,7 @@ export {
   cutNotes,
   shownNotes,
 } from './answered-note.ts';
-export type { AnsweredMeeting, ClaudeAsks, NoteCut } from './answered-note.ts';
+export type { AnsweredMeeting, ClaudeAsks, NoteCut, NoteSkipped } from './answered-note.ts';
 export type { NoteAnswer, NoteAnswerValue } from './note-answer.ts';
 export {
   backoffMinutes,

@@ -181,6 +181,36 @@ describe('a ready-made rule whose prompt Atlas ships (P29-05)', () => {
     expect(vault.files.get(MEETING_EXTRACTION_PROMPT)).toBe(mine);
   });
 
+  it('keeps a prompt written in the moment between the check and the write, and fails on any other error', async () => {
+    const raced = emptyVault();
+    const { fs, markdown } = raced.ports;
+    const draft = { ...EXTRACTION, name: 'Raced' };
+    const racing = {
+      ...fs,
+      createNote: async (note: { path: string; contents: string }) => {
+        if (note.path === MEETING_EXTRACTION_PROMPT) {
+          raced.files.set(note.path, 'Written by a sync.\n');
+          throw new Error('that file already exists');
+        }
+        return fs.createNote(note as Parameters<typeof fs.createNote>[0]);
+      },
+    } as typeof fs;
+
+    await createAutomation({ fs: racing, markdown, clock: CLOCK, draft, takenPaths: [] });
+
+    expect(raced.files.get(MEETING_EXTRACTION_PROMPT)).toBe('Written by a sync.\n');
+    const broken = emptyVault();
+    const failing = {
+      ...broken.ports.fs,
+      createNote: async () => {
+        throw new Error('disk full');
+      },
+    } as typeof fs;
+    await expect(
+      createAutomation({ fs: failing, markdown, clock: CLOCK, draft, takenPaths: [] }),
+    ).rejects.toThrow('disk full');
+  });
+
   it('writes it when a rule is edited to name it, and nothing for a prompt Atlas does not ship', async () => {
     const vault = emptyVault();
     const own = {

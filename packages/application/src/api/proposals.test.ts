@@ -189,13 +189,13 @@ describe('POST /v1/proposals/{path}/accept', () => {
     expect(api.activity.reports[0]?.message).toMatch(/^POST v1\/proposals\/\{path\}\/accept/);
   });
 
-  it('answers conflict, writing nothing, when a note is already where the task would go', async () => {
+  it('makes the task under a numbered name when a note is already where it would go', async () => {
     const api = vault({ [TASK]: 'By hand.\n' });
     const response = await api.send(answer(PROPOSAL, 'accept'));
 
-    expect(codeOf(response)).toBe('conflict');
-    expect(JSON.stringify(response.body)).toContain('There is already a note at');
-    expect(api.writes).toEqual([]);
+    expect(codeOf(response)).toBeNull();
+    expect(JSON.stringify(response.body)).toContain('2.md');
+    expect(api.writes.length).toBeGreaterThan(0);
   });
 
   it('answers conflict for a proposal already decided', async () => {

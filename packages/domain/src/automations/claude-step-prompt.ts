@@ -16,6 +16,22 @@ import type { PromptData } from './proposal-schema.ts';
 
 export { CLAUDE_NOTE_CHARACTERS, CLAUDE_TOTAL_NOTE_CHARACTERS } from './answered-note.ts';
 
+/**
+ * The most a system prompt may weigh, in bytes. The host passes it as one
+ * command-line argument, and a Mac allows about a megabyte for all of a
+ * command's arguments and environment: this stays well under, with the
+ * note budget (120,000 characters) and a prompt note (20,000) inside it.
+ */
+export const CLAUDE_SYSTEM_MAX_BYTES = 450_000;
+
+/** Why the system prompt is too large to hand over, or null when it fits. */
+export function claudeSystemProblem(system: string): string | null {
+  const bytes = new TextEncoder().encode(system).length;
+  return bytes > CLAUDE_SYSTEM_MAX_BYTES
+    ? `What Claude would be given is ${bytes.toLocaleString('en-US')} bytes, more than the ${CLAUDE_SYSTEM_MAX_BYTES.toLocaleString('en-US')} it can be handed at once: shorten the rule's prompt, or the notes it reads. Claude was not asked.`
+    : null;
+}
+
 export function claudeStepSystem({
   today,
   prompt,
@@ -49,8 +65,11 @@ export function claudeStepSystem({
     '',
     answer,
     '',
-    notesSection(notes),
+    // What is the same for every part of one meeting comes before the part: a provider that
+    // caches a prompt's start can reuse it.
     ...dataSection(data),
+    '',
+    notesSection(notes),
   ].join('\n');
 }
 

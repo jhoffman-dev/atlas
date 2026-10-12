@@ -249,6 +249,8 @@ export interface RegisteredProposalSchema {
   readonly read: (answer: string, context: AnswerContext) => AnswerReading;
   readonly readsVault: boolean;
   readonly readsInParts: boolean;
+  /** The relations of a meeting its proposals join on Accept. */
+  readonly meetingRelations: readonly string[];
   readonly dataFor: (context: AnswerContext) => readonly PromptData[];
 }
 
@@ -284,6 +286,7 @@ export function registerProposalSchema<Item>(
     read: (answer, context) => readAnswer({ schema, answer, context }),
     readsVault: schema.readsVault === true,
     readsInParts: schema.readsInParts === true,
+    meetingRelations: schema.meetingRelations ?? [],
     dataFor: (context) => schema.dataFor?.(context) ?? [],
   };
 }

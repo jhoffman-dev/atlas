@@ -56,8 +56,8 @@ export async function createAutomation({
     ...withoutEmpty(automationFrontmatter(draft)),
     id,
   });
-  // A heading, so the file reads as what it is anywhere else; below it is the person's own.
   await ensureBuiltInPrompt(write.fs, draft);
+  // A heading, so the file reads as what it is anywhere else; below it is the person's own.
   await write.fs.createNote({ path, contents: `${head}\n# ${draft.name.trim()}\n` });
   if (draft.enabled) await logTurnedOn({ ...write, rule: { id, name: draft.name.trim() } });
   return path;
@@ -117,7 +117,14 @@ async function ensureBuiltInPrompt(fs: VaultFsPort, { action }: AutomationDraft)
   const [held] = await fs.readNotes([prompt.path]);
   if (held !== undefined) return;
   await ensureFolder({ fs, folder: parentVaultPath(prompt.path) });
-  await fs.createNote({ path: prompt.path, contents: prompt.contents });
+  try {
+    await fs.createNote({ path: prompt.path, contents: prompt.contents });
+  } catch (cause) {
+    // A note written meanwhile (a sync, another save) is the person's: kept, and the rule runs as saved.
+    // Any other failure is real, and the rule is not saved without its prompt.
+    const [written] = await fs.readNotes([prompt.path]);
+    if (written === undefined) throw cause;
+  }
 }
 
 async function logTurnedOn({

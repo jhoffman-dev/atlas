@@ -417,7 +417,7 @@ describe('a Claude step that fails writes nothing, and says why', () => {
     const entry = await step.run();
     expect(entry).toMatchObject({
       kind: 'failed',
-      problem: 'Claude did not answer within 5 minutes.',
+      problem: 'Claude did not finish within 10 minutes.',
     });
     expect(step.written()).toEqual([]);
   });

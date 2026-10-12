@@ -788,7 +788,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
       entries: [
         {
           kind: 'run',
-          summary: 'Claude proposed nothing. Left out 1 item that cited no turn of the meeting.',
+          summary: 'Claude proposed nothing. Left out 1 item of the answer that did not read.',
           claude: {
             asks: 3,
             dropped: [

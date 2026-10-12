@@ -21,5 +21,5 @@ export { undoLastRun } from './undo-last-run.ts';
 export { AutomationRefusedError, createAutomation, updateAutomation } from './save-automation.ts';
 export { guardedFs, stillInVault, VaultChangedError } from './vault-guard.ts';
 export type { VaultGuard } from './vault-guard.ts';
-export { CLAUDE_STEP_TIMEOUT_MS, ClaudeStepFailed, runClaudeStep } from './claude-step.ts';
+export { CLAUDE_RUN_TIMEOUT_MS, ClaudeStepFailed, runClaudeStep } from './claude-step.ts';
 export type { ClaudeStepOutcome, ClaudeStepPorts } from './claude-step.ts';

@@ -1064,9 +1064,11 @@ export interface ApiAutomationLogEntry {
    * On a `run` or `failed` entry of a Claude step: the model asked, how long
    * it took, and (`cut`) each note it was shown only the start of — how many
    * characters of how many. An output that reads a long meeting in parts
-   * (`meeting-items`) also says how many times it asked (`asks`, when more
-   * than once) and each item it left out of an answer it kept, with why
-   * (`dropped`).
+   * (`meeting-items`) also says each item it left out of an answer it kept,
+   * with why (`dropped`), and each it kept with a fault put right
+   * (`adjusted`). `asks` is how many times the model was asked, once it was
+   * (what the hourly cap counts); `alreadyMade` how many proposals were made
+   * before; `warnings` what the person should know of the run.
    */
   readonly claude?: {
     readonly model: string;
@@ -1077,7 +1079,10 @@ export interface ApiAutomationLogEntry {
       readonly of: number;
     }[];
     readonly asks?: number;
+    readonly alreadyMade?: number;
     readonly dropped?: readonly { readonly title: string; readonly reason: string }[];
+    readonly adjusted?: readonly { readonly title: string; readonly reason: string }[];
+    readonly warnings?: readonly string[];
   };
 }
 

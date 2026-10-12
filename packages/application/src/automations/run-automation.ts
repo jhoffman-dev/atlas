@@ -326,7 +326,7 @@ async function askClaude({
 }): Promise<LogEntry> {
   const { plan } = target;
   try {
-    const { done, claude } = await runClaudeStep({
+    const { done, left, claude } = await runClaudeStep({
       ports: ports.claude,
       action,
       paths: plan.paths,
@@ -342,7 +342,7 @@ async function askClaude({
       at,
       trigger,
       done,
-      left: plan.passedOver,
+      left: [...plan.passedOver, ...left],
       capped: plan.capped,
       ...(target.versions !== null && { versions: askedAbout(target) }),
       ...(went.length > 0 && { went }),

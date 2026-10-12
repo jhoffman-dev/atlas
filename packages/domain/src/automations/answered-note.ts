@@ -292,7 +292,7 @@ function headOf(text: string, budget: number): { text: string; end: number } | n
 const NOTES_CUT_ROOM = 100;
 
 /** Room kept in each later part for the turns before it, quoted. */
-const CONTEXT_ROOM = 2_000;
+const CONTEXT_ROOM = 1_000;
 
 /** How many of the part before's last turns a part quotes. */
 const CONTEXT_TURNS = 2;

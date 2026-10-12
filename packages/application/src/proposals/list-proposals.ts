@@ -3,6 +3,7 @@ import {
   foldedVaultPath,
   isMarkdownFile,
   isProposalNote,
+  leading,
   PROPOSALS_FOLDER,
   readProposal,
   splitFrontmatter,
@@ -82,7 +83,7 @@ export async function listProposals({
     const reading = readProposal({ path, properties });
     if (!reading.ok) unreadable.push({ path, problem: reading.problem });
     else {
-      const reason = body.trim().slice(0, MAX_REASON_CHARACTERS);
+      const reason = leading(body.trim(), MAX_REASON_CHARACTERS);
       const listed = { proposal: reading.proposal, modified: file.modified, reason };
       (reading.proposal.state === 'open' ? open : stranded).push(listed);
     }

@@ -4,10 +4,13 @@ import {
   claudeAsks,
   claudeNewProposal,
   claudeStepSystem,
+  claudeSystemProblem,
   claudeWriteRefusal,
   createVaultPath,
   isPromptPath,
+  MAX_PROPOSALS_PER_ANSWER,
   messageWithoutPaths,
+  MEETING_TYPE,
   NOTE_ANSWER_INSTRUCTIONS,
   proposalSchemaNamed,
   readNoteAnswer,
@@ -21,7 +24,9 @@ import {
   type DoneAction,
   type DroppedItem,
   type ModelMessage,
+  type NewProposal,
   type NoteCut,
+  type NoteSkipped,
   type PromptData,
   type RegisteredProposalSchema,
   type VaultPath,
@@ -32,12 +37,27 @@ import type { ChatToolbox, Toolboxes } from '../chat/toolbox.ts';
 import { loadLinkDirectory } from '../meeting-links/link-directory.ts';
 import type { Clock } from '../ports.ts';
 import { loadTerms } from '../terms/terms.ts';
+import { loadObjectTypes } from '../types/load-types.ts';
 import { planProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
 
-/** How long a step may take before it is stopped and failed. */
-export const CLAUDE_STEP_TIMEOUT_MS = 5 * 60_000;
+/**
+ * How long a whole run may take, every ask of it together, before it is
+ * stopped and failed: one deadline, so a long meeting read in ten parts
+ * cannot take ten times as long.
+ */
+export const CLAUDE_RUN_TIMEOUT_MS = 10 * 60_000;
+
+/** The longest a prompt note may be: a rule's instructions, not a document. */
+export const MAX_PROMPT_CHARACTERS = 20_000;
+
+/**
+ * The most proposals one run makes however many parts it read. Taken in the
+ * order of the transcript; those past it are left out and the log says how
+ * many.
+ */
+export const MAX_PROPOSALS_PER_RUN = MAX_PROPOSALS_PER_ANSWER;
 
 /**
  * What a rule's Claude step reaches (P29-03): the provider and model chosen
@@ -95,6 +115,8 @@ class ToolOutsideRule extends Error {}
 export interface ClaudeStepOutcome {
   /** What it made: a proposal per line, or the one note. */
   readonly done: readonly DoneAction[];
+  /** The notes it did not ask about, and why: a meeting with nothing in it to cite. */
+  readonly left: readonly NoteSkipped[];
   readonly claude: ClaudeRunInfo;
 }
 
@@ -145,13 +167,17 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   let cut: readonly NoteCut[] = [];
   let asked = 0;
   const dropped: DroppedItem[] = [];
+  const adjusted: DroppedItem[] = [];
+  const warnings: string[] = [];
   let alreadyMade = 0;
   const claudeRun = (): ClaudeRunInfo => ({
     model,
     ms: Math.max(0, ports.clock.now() - started),
     ...(cut.length > 0 && { cut }),
-    ...(asked > 1 && { asks: asked }),
+    ...(asked > 0 && { asks: asked }),
     ...(dropped.length > 0 && { dropped: [...dropped] }),
+    ...(adjusted.length > 0 && { adjusted: [...adjusted] }),
+    ...(warnings.length > 0 && { warnings: [...warnings] }),
     ...(alreadyMade > 0 && { alreadyMade }),
   });
   const fail = (message: string): never => {
@@ -172,7 +198,10 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   const inParts = output.kind === 'proposals' && output.schema.readsInParts;
   const plan = claudeAsks(notes, { inParts });
   cut = plan.cut;
-  const asking = { ...args, provider, model, prompt, output, fail };
+  const signal = ports.deadline(CLAUDE_RUN_TIMEOUT_MS);
+  const asking = { ...args, provider, model, prompt, output, fail, signal };
+  if (output.kind === 'proposals')
+    warnings.push(...(await missingRelations(args, notes, output.schema)));
   try {
     const { planned, proposed } =
       output.kind === 'note'
@@ -183,11 +212,12 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
             asks: plan.asks,
             counted: () => (asked += 1),
             dropped,
+            adjusted,
           });
     // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
     alreadyMade = Math.max(0, proposed - planned.length);
     const done = await writePlanned({ fs: args.fs, planned, claudeRun });
-    return { done, claude: claudeRun() };
+    return { done, left: plan.skipped, claude: claudeRun() };
   } catch (error) {
     if (error instanceof ClaudeStepFailed) throw error;
     // Anything else after the model was asked (the index, the disk) still cost an ask: on record, then raised.
@@ -217,7 +247,12 @@ async function readPrompt(
     return { problem: `Its prompt ${path} could not be read.` };
   }
   const body = splitFrontmatter(text).body.trim();
-  return body === '' ? { problem: `Its prompt ${path} is empty.` } : body;
+  if (body === '') return { problem: `Its prompt ${path} is empty.` };
+  return body.length > MAX_PROMPT_CHARACTERS
+    ? {
+        problem: `Its prompt ${path} is ${body.length} characters; a prompt may be at most ${MAX_PROMPT_CHARACTERS}.`,
+      }
+    : body;
 }
 
 /**
@@ -247,6 +282,8 @@ type Asking = StepArgs & {
   prompt: string;
   output: StepOutput;
   fail: (message: string) => never;
+  /** Aborts when the run's one deadline passes. */
+  signal: AbortSignal;
 };
 
 /** The model's last word, after any tools it called. */
@@ -260,25 +297,32 @@ async function askModel({
   notes,
   data = [],
   fail,
+  signal,
+  counted,
 }: Asking & {
   notes: readonly AnsweredNote[];
   /** What the output has Atlas say beside the notes. */
   data?: readonly PromptData[];
+  /** Told as the model is asked: not before the system prompt was found to fit. */
+  counted: () => void;
 }): Promise<string> {
-  const signal = ports.deadline(CLAUDE_STEP_TIMEOUT_MS);
   const question: ModelMessage = { role: 'user', text: CLAUDE_STEP_QUESTION };
+  const system = claudeStepSystem({
+    today: ports.clock.today(),
+    prompt,
+    answer: output.instructions,
+    notes,
+    data,
+  });
+  const tooLong = claudeSystemProblem(system);
+  if (tooLong !== null) return fail(tooLong);
+  counted();
   try {
     const outcome = await runChatTurn({
       provider,
       toolbox: onlyRuleTools(ports.toolboxes.reading(action.tools), action.tools),
       model,
-      system: claudeStepSystem({
-        today: ports.clock.today(),
-        prompt,
-        answer: output.instructions,
-        notes,
-        data,
-      }),
+      system,
       history: [question],
       signal,
       onEvent: () => {
@@ -298,7 +342,7 @@ async function askModel({
 
 function stoppedWords(signal: AbortSignal): string {
   return signal.aborted
-    ? `Claude did not answer within ${CLAUDE_STEP_TIMEOUT_MS / 60_000} minutes.`
+    ? `Claude did not finish within ${CLAUDE_RUN_TIMEOUT_MS / 60_000} minutes.`
     : 'Claude’s run was stopped before it answered.';
 }
 
@@ -366,8 +410,7 @@ async function planNoteAnswer({
   notes: readonly AnsweredNote[];
   counted: () => void;
 }): Promise<AnswerPlanned> {
-  counted();
-  const note = readNoteAnswer(await askModel({ ...asking, notes }));
+  const note = readNoteAnswer(await askModel({ ...asking, notes, counted }));
   if (!note.ok) return asking.fail(unreadWords(note.problem));
   const planned = await planNote({
     ports: asking,
@@ -388,6 +431,7 @@ async function planProposalAnswers({
   asks,
   counted,
   dropped,
+  adjusted,
   ...asking
 }: Asking & {
   schema: RegisteredProposalSchema;
@@ -396,13 +440,14 @@ async function planProposalAnswers({
   counted: () => void;
   /** Gains the items each answer left out. */
   dropped: DroppedItem[];
+  /** Gains the items each answer kept with a fault put right. */
+  adjusted: DroppedItem[];
 }): Promise<AnswerPlanned> {
   const vault = schema.readsVault ? await readVault(asking) : undefined;
   const proposals: CheckedProposal[] = [];
   for (const [at, notes] of asks.entries()) {
     const context = { notes, ...(vault !== undefined && { vault }) };
-    counted();
-    const answer = await askModel({ ...asking, notes, data: schema.dataFor(context) });
+    const answer = await askModel({ ...asking, notes, data: schema.dataFor(context), counted });
     const read = schema.read(answer, context);
     if (!read.ok) {
       const part = asks.length > 1 ? `Ask ${at + 1} of ${asks.length}: ` : '';
@@ -410,9 +455,13 @@ async function planProposalAnswers({
     }
     proposals.push(...read.value);
     dropped.push(...read.dropped);
+    adjusted.push(...read.adjusted);
   }
-  const drafted = proposals.map((proposal) =>
-    claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal }),
+  const drafted = cappedForRun(
+    proposals.map((proposal) =>
+      claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal }),
+    ),
+    dropped,
   );
   const { planned, left } = await planProposals({
     fs: asking.fs,
@@ -428,6 +477,50 @@ async function planProposalAnswers({
     planned: planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } })),
     proposed,
   };
+}
+
+/**
+ * The first {@link MAX_PROPOSALS_PER_RUN} different proposals, in the order
+ * they were read (the transcript's, part by part); the count left out is
+ * added to `dropped`, so the log says it.
+ */
+function cappedForRun(proposals: readonly NewProposal[], dropped: DroppedItem[]): NewProposal[] {
+  const unique = [...new Map(proposals.map((proposal) => [proposal.id, proposal])).values()];
+  if (unique.length <= MAX_PROPOSALS_PER_RUN) return proposals as NewProposal[];
+  const left = unique.length - MAX_PROPOSALS_PER_RUN;
+  dropped.push({
+    title: `${left} more ${left === 1 ? 'proposal' : 'proposals'}`,
+    reason: `one run makes at most ${MAX_PROPOSALS_PER_RUN}, across all the parts it read; run again for the rest.`,
+  });
+  const kept = new Set(unique.slice(0, MAX_PROPOSALS_PER_RUN).map(({ id }) => id));
+  return proposals.filter(({ id }) => kept.has(id));
+}
+
+/**
+ * What the run says to the person when proposals could not be joined to
+ * their meetings on Accept: the vault's Meeting type lacks a relation the
+ * output links through. Said once for the run; the proposals are still made.
+ */
+async function missingRelations(
+  { fs, markdown }: Pick<ProposalWritePorts, 'fs' | 'markdown'>,
+  notes: readonly AnsweredNote[],
+  schema: RegisteredProposalSchema,
+): Promise<string[]> {
+  if (schema.meetingRelations.length === 0 || !notes.some((note) => note.meeting?.identity)) {
+    return [];
+  }
+  const types = await loadObjectTypes({ fs, markdown });
+  const meetingType = types.find((type) => type.name.trim().toLowerCase() === MEETING_TYPE);
+  const have = new Set(
+    (meetingType?.properties ?? [])
+      .filter((property) => property.kind === 'relation')
+      .map((property) => property.key),
+  );
+  const missing = schema.meetingRelations.filter((relation) => !have.has(relation));
+  if (missing.length === 0) return [];
+  return [
+    `The Meeting type has no ${missing.map((key) => `“${key}”`).join(' or ')} relation, so Accept cannot add what these proposals make to their meeting (and refuses them until it does).`,
+  ];
 }
 
 /**

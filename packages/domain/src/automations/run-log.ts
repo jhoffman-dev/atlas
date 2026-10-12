@@ -121,6 +121,8 @@ export interface ClaudeRunInfo {
   readonly dropped?: readonly DroppedItem[];
   /** The items it kept with a fault put right (a due date that was no date), each with what. */
   readonly adjusted?: readonly DroppedItem[];
+  /** Things the person should know about how the run went, said once each (a relation the Meeting type lacks). */
+  readonly warnings?: readonly string[];
   /**
    * How many of the proposals it answered with were made before — by an
    * earlier run, open or answered since — and so were not made again; left
@@ -249,7 +251,12 @@ export function logEntrySummary(entry: LogEntry): string {
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
   const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
   const claude = 'claude' in entry ? entry.claude : undefined;
-  return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}${adjustedWords(claude?.adjusted ?? [])}`;
+  return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}${adjustedWords(claude?.adjusted ?? [])}${warningWords(claude?.warnings ?? [])}`;
+}
+
+/** What a run says of what the person should know. */
+function warningWords(warnings: readonly string[]): string {
+  return warnings.map((warning) => ` ${oneLine(truncated(warning))}`).join('');
 }
 
 /** What a run says when it kept items with a fault put right. */
@@ -324,6 +331,7 @@ function claudeLines({
   alreadyMade = 0,
   dropped = [],
   adjusted = [],
+  warnings = [],
 }: ClaudeRunInfo): string[] {
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
@@ -336,6 +344,7 @@ function claudeLines({
       ({ title, reason }) =>
         `- dropped ${code(truncated(oneLine(title), MAX_DROPPED_TITLE))}: ${oneLine(truncated(reason))}`,
     ),
+    ...warnings.map((warning) => `- warned: ${oneLine(truncated(warning))}`),
     ...adjusted.map(
       ({ title, reason }) =>
         `- adjusted ${code(truncated(oneLine(title), MAX_DROPPED_TITLE))}: ${oneLine(truncated(reason))}`,
@@ -442,6 +451,7 @@ const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
 const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
 const CUT_LINE = new RegExp(`^- cut ${JSON_SPAN}: read ${JSON_SPAN} of ${JSON_SPAN} characters$`);
 const ASKED_LINE = new RegExp(`^- asked ${JSON_SPAN} times?$`);
+const WARNED_LINE = /^- warned: (.*)$/;
 const ADJUSTED_LINE = new RegExp(`^- adjusted ${JSON_SPAN}: (.*)$`);
 const DROPPED_LINE = new RegExp(`^- dropped ${JSON_SPAN}: (.*)$`);
 const SET_LINE = new RegExp(
@@ -532,6 +542,7 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
         const asks = asksOf(body);
         const dropped = droppedOf(body, DROPPED_LINE);
         const adjusted = droppedOf(body, ADJUSTED_LINE);
+        const warnings = body.flatMap((line) => WARNED_LINE.exec(line)?.[1] ?? []);
         const alreadyMade = countOn(body, ALREADY_MADE_LINE);
         return {
           model,
@@ -540,6 +551,7 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
           ...(asks !== null && { asks }),
           ...(dropped.length > 0 && { dropped }),
           ...(adjusted.length > 0 && { adjusted }),
+          ...(warnings.length > 0 && { warnings }),
           ...(alreadyMade !== null && { alreadyMade }),
         };
       }

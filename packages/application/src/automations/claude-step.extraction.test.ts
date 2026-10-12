@@ -390,12 +390,12 @@ describe('an item that cites a turn the meeting does not have', () => {
     );
     expect(parseRunLog(log()).at(-1)).toMatchObject({ claude: { dropped } });
     expect(activity.reports.at(-1)?.message).toContain(
-      'Made 1 proposal. Left out 1 item that cited no turn of the meeting.',
+      'Made 1 proposal. Left out 1 item of the answer that did not read.',
     );
   });
 
-  it('fails the run with nothing written when an item is wrong some other way', async () => {
-    const { run, proposals } = setUp([
+  it('keeps the rest when one item has a bad kind, and says it was left out', async () => {
+    const { run, proposals, log } = setUp([
       says(
         item({
           kind: 'task',
@@ -409,10 +409,29 @@ describe('an item that cites a turn the meeting does not have', () => {
 
     const entry = await run(SYNC_ONLY);
 
+    expect(entry.kind).toBe('run');
+    expect([...(await proposals()).keys()]).toEqual(['Flag the new cache']);
+    expect(log()).toContain('- dropped `"Tidy"`: Its kind is not one of');
+  });
+
+  it('fails the run with nothing written when an item carries a key it was not asked for', async () => {
+    const { run, proposals } = setUp([
+      says(
+        item({
+          kind: 'task',
+          title: 'Flag the new cache',
+          owner: 'Tobias Fenn',
+          source_block: 't0002',
+        }),
+        item({ kind: 'task', title: 'Tidy', source_block: 't0001', why: 'because' }),
+      ),
+    ]);
+
+    const entry = await run(SYNC_ONLY);
+
     expect(entry).toMatchObject({
       kind: 'failed',
-      problem:
-        'Claude’s answer is not what the rule asks for. Item 2: Its kind is not one of task, waiting, decision, follow-up.',
+      problem: expect.stringContaining('Item 2: It has “why”'),
     });
     expect((await proposals()).size).toBe(0);
   });

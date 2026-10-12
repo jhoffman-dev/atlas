@@ -311,7 +311,7 @@ describe('a meeting let in just before Atlas was quit, its rule not yet run', ()
       done: [],
       left: [],
       capped: false,
-      claude: { model: 'claude-opus-5-5', ms: 10 },
+      claude: { model: 'claude-opus-5-5', ms: 10, asks: 1 },
     }));
     vault.files.set(logPathFor(ON_CREATED.id), newLogText(ON_CREATED.name, asking));
 

@@ -88,11 +88,67 @@ describe('applyProposal — a task', () => {
     expect(write?.path).toBe(`${'é'.repeat(126)}.md`); // 252 bytes, and the .md makes 255
   });
 
-  it('refuses when a note is already where it would go, in any case, since it may be that task', () => {
+  it('numbers its name past a note already there, in any case: that is another record, not this task', () => {
     const task = proposal('task', { title: 'Call Tobias' });
-    expect(problemOf(task, { notePaths: notes('call tobias.md'), target: null })).toBe(
-      'There is already a note at Call Tobias.md, which may be this one. Edit the title to make another.',
+
+    const [write] = writesOf(task, { notePaths: notes('call tobias.md'), target: null });
+
+    expect(write).toMatchObject({ kind: 'create', path: 'Call Tobias 2.md' });
+  });
+
+  it.each(['follow-up', 'decision'] as const)(
+    'numbers a %s past a note of its name too, and links the new one, never the old',
+    (kind) => {
+      const meeting = createVaultPath('Meetings/Standup.md');
+      const made = proposal(kind, {
+        title: 'Send the notes',
+        link_from: { note: meeting, property: 'tasks', meeting: null },
+      });
+      const target: LinkTarget = { digest: 'd', value: [], relation: { many: true } };
+
+      const writes = writesOf(made, {
+        notePaths: notes('Send the notes.md', meeting),
+        target,
+      });
+
+      expect(writes).toMatchObject([
+        { kind: 'create', path: 'Send the notes 2.md' },
+        { kind: 'set', path: meeting, changes: { tasks: ['[[Send the notes 2]]'] } },
+      ]);
+    },
+  );
+
+  it('still links a person already there, and refuses a term or project of a name taken', () => {
+    const person = proposal('person', {
+      title: 'Tobias Fenn',
+      link_from: { note: 'Meetings/Standup.md', property: 'attendees', meeting: null },
+    });
+    const term = proposal('term', { title: 'Larkspur Pay' });
+
+    expect(
+      writesOf(person, {
+        notePaths: notes('Tobias Fenn.md', 'Meetings/Standup.md'),
+        target: { digest: 'd', value: [], relation: { many: true } },
+        heldTypes: ['person'],
+      }).map((write) => write.kind),
+    ).toEqual(['set']);
+    expect(problemOf(term, { notePaths: notes('Larkspur Pay.md'), target: null })).toMatch(
+      'There is already a note at Larkspur Pay.md',
     );
+  });
+
+  it('is refused, with nothing written, when the person it waits on is no longer a note', () => {
+    const waiting = proposal('task', {
+      title: 'Flag the cache',
+      properties: { status: 'waiting', waiting_on: '[[Tobias Fenn]]' },
+    });
+
+    expect(
+      problemOf(waiting, { notePaths: notes('People/Tobias Fenn-Reed.md'), target: null }),
+    ).toMatch('waits on [[Tobias Fenn]], which is not a note any more');
+    expect(
+      writesOf(waiting, { notePaths: notes('People/Tobias Fenn.md'), target: null }),
+    ).toHaveLength(1);
   });
 });
 
