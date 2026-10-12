@@ -45,7 +45,7 @@ export async function adoptAutomations({
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
-  clock: Pick<Clock, 'localNow'>;
+  clock: Pick<Clock, 'now' | 'localNow'>;
   listing: AutomationListing;
 }): Promise<void> {
   const now = clock.localNow();
@@ -61,6 +61,6 @@ export async function adoptAutomations({
     });
   }
   for (const { rule } of unmarked) {
-    await appendToRuleLog({ fs, rule, entry: { kind: 'seen', at: now } });
+    await appendToRuleLog({ fs, rule, entry: { kind: 'seen', at: now }, now: clock.now() });
   }
 }

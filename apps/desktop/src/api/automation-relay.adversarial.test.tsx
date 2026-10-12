@@ -99,7 +99,11 @@ function refusingVault(): AutomationPorts & { notePaths: readonly VaultPath[] } 
   };
 }
 
-const clock = { today: () => '2026-09-27', localNow: () => '2026-09-27T09:00:00' };
+const clock = {
+  today: () => '2026-09-27',
+  localNow: () => '2026-09-27T09:00:00',
+  now: () => Date.parse('2026-09-27T09:00:00Z'),
+};
 
 async function settle() {
   for (let round = 0; round < 8; round += 1) {

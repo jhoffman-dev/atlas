@@ -11,8 +11,8 @@ import {
 } from '@atlas/domain';
 import { unarchiveNotes } from '../archive/archive-notes.ts';
 import { changeProperties, type PropertyChange, type PropertyOutcome } from './apply-changes.ts';
-import { reported } from './automation-activity.ts';
-import { appendToRuleLog, readRuleLog } from './automation-log.ts';
+import { appendForRun, reported } from './automation-activity.ts';
+import { readRuleLog } from './automation-log.ts';
 import { archiveRecord, type AutomationPorts, type AutomationRun } from './run-automation.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { guardedFs, stillInVault } from './vault-guard.ts';
@@ -75,7 +75,7 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
     });
   } finally {
     // As a run does: what the undo changed is logged however it ends, in the rule's own vault.
-    await appendToRuleLog({ fs: run.ports.fs, rule, entry: entry() });
+    await appendForRun({ fs: run.ports.fs, run, entry: entry() });
   }
   stillInVault(guard);
   return entry();

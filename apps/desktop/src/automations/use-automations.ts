@@ -58,7 +58,7 @@ type HeldNews = NoteChangeNews | { readonly vault: string; readonly missedArriva
 export interface AutomationsOptions {
   /** The runner's ports, and the notes on screen, which the page's list and dry run read. */
   readonly ports: AutomationPorts & Pick<RuleQueryPorts, 'notePaths'>;
-  readonly clock: Pick<Clock, 'today' | 'localNow'>;
+  readonly clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   /** The open vault's root; null with none open. */
   readonly vaultKey: string | null;
   /** Changes when the index does: while the page is open, a rule edited by hand is read again. */
