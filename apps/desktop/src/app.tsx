@@ -88,6 +88,7 @@ import { useTypeRoute } from './types/use-type-route.ts';
 import { useSidebarCatalog } from './sidebar/use-sidebar-catalog.ts';
 import { browserSectionStore } from './sidebar/browser-section-store.ts';
 import { createBrowserGroupFoldStore } from './query/browser-group-fold-store.ts';
+import { createBrowserLinkedRangeStore } from './linked-pages/browser-linked-range-store.ts';
 import { useTemplates } from './types/use-templates.ts';
 import { useOpenEditors } from './panes/open-editors.ts';
 import { useStrandedEdits } from './notes/stranded-edits.ts';
@@ -291,6 +292,7 @@ export function App({
   const vaultKey = location?.absolutePath ?? null;
   const tickMemory = useTickMemory(vaultKey);
   const [groupFolds] = useState(createBrowserGroupFoldStore);
+  const [linkedRanges] = useState(createBrowserLinkedRangeStore);
   // One Activity log for the window; each use case records where it gives up (A28-01).
   const activityLog = useActivityLog({
     store: activityPorts.store,
@@ -1204,6 +1206,7 @@ export function App({
       dashboards: catalog.dashboards,
       tickMemory,
       groupFolds,
+      linkedRanges,
       graph: vaultGraph.kind === 'ready' ? vaultGraph.graph : null,
       openNotes: paneOpenNotes,
       viewPaths,
@@ -1239,6 +1242,7 @@ export function App({
       catalog.dashboards,
       tickMemory,
       groupFolds,
+      linkedRanges,
       vaultGraph,
       paneOpenNotes,
       viewPaths,
