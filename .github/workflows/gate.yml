@@ -261,6 +261,10 @@ jobs:
       # `pnpm e2e` builds first, here on the shard: the build takes seconds, and
       # handing `dist` over from another job would hold every shard back until
       # that job had installed and built.
+      #
+      # No `--trace=retain-on-failure`: tracing every test took the four shards
+      # from 1114 s to 1479 s between them when it was measured (#113). A failed
+      # shard uploads the HTML report and each failure's error context instead.
       - name: End-to-end, a quarter of the suite
         run: pnpm e2e --shard=${{ matrix.shard }}/4 --reporter=list,html
 
