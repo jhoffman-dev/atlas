@@ -24,7 +24,9 @@ function task(title: string, fields: Partial<ReviewTask> & { daysAgo?: number } 
     due: null,
     defer: null,
     waitingOn: '',
+    contexts: [],
     project: null,
+    projectTitle: null,
     modified: NOW - daysAgo * DAY,
     ...rest,
   };

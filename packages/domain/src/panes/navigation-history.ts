@@ -17,6 +17,7 @@ export type NavigationPlace =
   | { readonly kind: 'archive' }
   | { readonly kind: 'inbox' }
   | { readonly kind: 'review' }
+  | { readonly kind: 'today' }
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
@@ -61,6 +62,8 @@ export function samePlace(left: NavigationPlace, right: NavigationPlace): boolea
       return right.kind === 'inbox';
     case 'review':
       return right.kind === 'review';
+    case 'today':
+      return right.kind === 'today';
     case 'automations':
       return right.kind === 'automations';
     case 'activity':

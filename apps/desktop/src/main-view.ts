@@ -5,7 +5,7 @@ import type { TypePageMode } from './types/type-page.tsx';
 /**
  * What fills the main area: the panes, or one page in their place — a type's
  * table or editor, the graph, the query page, the tags (with the key of the
- * tag whose notes are listed, if one is), the Archive, the Inbox, the weekly review, the Automations page, the Activity page,
+ * tag whose notes are listed, if one is), the Archive, the Inbox, the weekly review, the Today page, the Automations page, the Activity page,
  * the Templates page or the Terms page.
  * Only one at a time; the panes
  * keep what they hold underneath, and leaving the page puts them back.
@@ -19,6 +19,7 @@ export type MainView =
   | { readonly kind: 'archive' }
   | { readonly kind: 'inbox' }
   | { readonly kind: 'review' }
+  | { readonly kind: 'today' }
   | { readonly kind: 'automations' }
   | { readonly kind: 'activity' }
   | { readonly kind: 'templates' }
@@ -45,6 +46,7 @@ export function useMainView() {
   const openArchive = useCallback(() => setView({ kind: 'archive' }), []);
   const openInbox = useCallback(() => setView({ kind: 'inbox' }), []);
   const openReview = useCallback(() => setView({ kind: 'review' }), []);
+  const openToday = useCallback(() => setView({ kind: 'today' }), []);
   const openAutomations = useCallback(() => setView({ kind: 'automations' }), []);
   const openActivity = useCallback(() => setView({ kind: 'activity' }), []);
   const openTemplates = useCallback(() => setView({ kind: 'templates' }), []);
@@ -63,6 +65,7 @@ export function useMainView() {
       archiveOpen: view.kind === 'archive',
       inboxOpen: view.kind === 'inbox',
       reviewOpen: view.kind === 'review',
+      todayOpen: view.kind === 'today',
       automationsOpen: view.kind === 'automations',
       activityOpen: view.kind === 'activity',
       templatesOpen: view.kind === 'templates',
@@ -76,6 +79,7 @@ export function useMainView() {
       openArchive,
       openInbox,
       openReview,
+      openToday,
       openAutomations,
       openActivity,
       openTemplates,
@@ -92,6 +96,7 @@ export function useMainView() {
       openArchive,
       openInbox,
       openReview,
+      openToday,
       openAutomations,
       openActivity,
       openTemplates,

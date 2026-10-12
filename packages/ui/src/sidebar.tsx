@@ -102,6 +102,7 @@ export function Sidebar({
   onOpenTerms,
   inbox,
   onOpenReview,
+  onOpenToday,
   onOpen,
   onOpenType,
   onEditType,
@@ -141,6 +142,11 @@ export function Sidebar({
   inbox?: InboxRowLink;
   /** Opens the weekly review; its row sits under the Inbox's when given (P30-07). */
   onOpenReview?: () => void;
+  /**
+   * Opens the Today page; its row comes first when given, and stands in for a
+   * saved view titled Today, which the page then links to (#111) — never two rows.
+   */
+  onOpenToday?: () => void;
   onOpen: (path: VaultPath) => void;
   onOpenType: (name: string) => void;
   /** Opens a type's definition; a type's menu offers it when given. */
@@ -242,6 +248,7 @@ export function Sidebar({
         termsOn={active?.kind === 'terms'}
         inboxOn={active?.kind === 'inbox'}
         reviewOn={active?.kind === 'review'}
+        todayOn={active?.kind === 'today'}
         onSearch={onSearch}
         onOpen={onOpen}
         {...(onOpenGraph !== undefined && { onOpenGraph })}
@@ -252,6 +259,7 @@ export function Sidebar({
         {...(onOpenTerms !== undefined && { onOpenTerms })}
         {...(inbox !== undefined && { inbox })}
         {...(onOpenReview !== undefined && { onOpenReview })}
+        {...(onOpenToday !== undefined && { onOpenToday })}
       />
 
       <div className="sidebar__scroll" ref={setScroller}>
@@ -283,8 +291,9 @@ export function Sidebar({
 }
 
 /**
- * Search, then whichever of Today and Inbox the vault has — the Inbox page's
- * row in place of an Inbox view's, when it is given — then the graph and the tags.
+ * Search, then whichever of Today and Inbox the vault has — the Today and
+ * Inbox pages' rows in place of the views of those names, when they are
+ * given — then the graph and the tags.
  */
 function QuickRows({
   quick,
@@ -297,6 +306,7 @@ function QuickRows({
   termsOn,
   inboxOn,
   reviewOn,
+  todayOn,
   onSearch,
   onOpenGraph,
   onOpenTags,
@@ -306,6 +316,7 @@ function QuickRows({
   onOpenTerms,
   inbox,
   onOpenReview,
+  onOpenToday,
   onOpen,
 }: {
   quick: readonly SidebarQuickView[];
@@ -318,6 +329,7 @@ function QuickRows({
   termsOn: boolean;
   inboxOn: boolean;
   reviewOn: boolean;
+  todayOn: boolean;
   onSearch: () => void;
   onOpenGraph?: () => void;
   onOpenTags?: () => void;
@@ -327,9 +339,15 @@ function QuickRows({
   onOpenTerms?: () => void;
   inbox?: InboxRowLink;
   onOpenReview?: () => void;
+  onOpenToday?: () => void;
   onOpen: (path: VaultPath) => void;
 }) {
-  const views = inbox === undefined ? quick : quick.filter((view) => view.id !== 'inbox');
+  // A page's row stands in for the saved view of its name: one Today, one Inbox.
+  const views = quick.filter(
+    (view) =>
+      !(view.id === 'inbox' && inbox !== undefined) &&
+      !(view.id === 'today' && onOpenToday !== undefined),
+  );
   return (
     <ul className="sidebar__list sidebar__quick" aria-label="Go to">
       <li className="sidebar__item">
@@ -341,6 +359,19 @@ function QuickRows({
           </kbd>
         </button>
       </li>
+      {onOpenToday !== undefined && (
+        <li className={todayOn ? 'sidebar__item sidebar__item--on' : 'sidebar__item'}>
+          <button
+            type="button"
+            className="sidebar__row"
+            aria-current={todayOn ? 'page' : undefined}
+            onClick={onOpenToday}
+          >
+            <Icon name="sun" className="sidebar__icon" />
+            <span className="sidebar__name">Today</span>
+          </button>
+        </li>
+      )}
       {views.map(({ id, entry, count }) => {
         const on = open.has(entry.path);
         return (
