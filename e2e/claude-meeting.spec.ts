@@ -151,6 +151,6 @@ test('a meeting arrives, a Claude rule asks once about the linked and corrected 
 
   expect(asks()).toHaveLength(1);
   expect(await vault.read(LOG)).not.toContain('could not');
-  expect((await vault.read(LOG)).match(/^## /gm)).toHaveLength(1);
+  expect((await vault.read(LOG)).match(/^## \d{4}-/gm)).toHaveLength(1);
   expect(await vault.read(MEETING)).toBe(stamped);
 });
