@@ -5,9 +5,24 @@ on:
     branches: [main]
   pull_request:
 
+# Nothing here writes to the repository, so the token is read-only, and no
+# checkout leaves it behind in .git/config.
+permissions:
+  contents: read
+
+# A new push to a pull request replaces the run before it. A run on `main` is
+# never replaced: it is the one full run a docs-only pull request skipped. Each
+# gets a group of its own, because a shared group also drops a run that is still
+# waiting when a third arrives.
 concurrency:
-  group: gate-${{ github.ref }}
-  cancel-in-progress: true
+  group: gate-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# How many machines each suite is split over, and the only place it is said: the
+# `changes` job turns each into the list its matrix runs and the N in `--shard=i/N`.
+env:
+  UNIT_SHARDS: 3
+  E2E_SHARDS: 4
 
 defaults:
   run:
@@ -16,22 +31,33 @@ defaults:
 
 # The slow work is split across machines: the unit tests over three, the
 # end-to-end suite over four. `gate`, at the bottom, is the one check to require.
+# Nothing requires it until it is added as a required status check to the
+# "Protect main" ruleset, which is a repository setting and not this file.
+#
+# Actions from outside GitHub are pinned to a commit, with the version it was
+# beside it: a tag can be moved to other code, a commit cannot.
 #
 # macOS: the account runs only five macOS jobs at once, and a full run uses
 # exactly five (four end-to-end shards and `rust`). Add a sixth and it queues.
 
 jobs:
   changes:
-    # Decides whether the slow jobs are needed. A job rather than a workflow-level
-    # `paths:` filter, because a workflow that never starts never reports `gate`,
-    # and a required check that never reports blocks the merge for good.
+    # Decides whether the slow jobs are needed, and how they are split. A job
+    # rather than a workflow-level `paths:` filter, because a workflow that never
+    # starts never reports `gate`, and a required check that never reports blocks
+    # the merge for good.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       code: ${{ steps.scope.outputs.code }}
+      unit-shards: ${{ steps.shards.outputs.unit }}
+      unit-shard-total: ${{ steps.shards.outputs.unit-total }}
+      e2e-shards: ${{ steps.shards.outputs.e2e }}
+      e2e-shard-total: ${{ steps.shards.outputs.e2e-total }}
     steps:
       - uses: actions/checkout@v5
         with:
+          persist-credentials: false
           # A pull request is checked out as its merge into the base, so the
           # first parent is the base and the diff between them is the change.
           fetch-depth: 2
@@ -52,6 +78,17 @@ jobs:
             echo code=true | tee -a "$GITHUB_OUTPUT"
           fi
 
+      # A matrix cannot read `env`, so the counts reach it as this job's outputs.
+      - name: Number the shards
+        id: shards
+        run: |
+          {
+            echo "unit=$(jq -nc --argjson total "$UNIT_SHARDS" '[range(1; $total + 1)]')"
+            echo "unit-total=$UNIT_SHARDS"
+            echo "e2e=$(jq -nc --argjson total "$E2E_SHARDS" '[range(1; $total + 1)]')"
+            echo "e2e-total=$E2E_SHARDS"
+          } | tee -a "$GITHUB_OUTPUT"
+
   static:
     # Everything that fails fast, and the only job a docs-only change still
     # runs: the formatter checks Markdown too.
@@ -59,8 +96,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11
 
@@ -92,12 +131,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
-    name: unit (${{ matrix.shard }}/3)
+        shard: ${{ fromJSON(needs.changes.outputs.unit-shards) }}
+    name: unit (${{ matrix.shard }}/${{ needs.changes.outputs.unit-shard-total }})
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11
 
@@ -123,7 +164,8 @@ jobs:
         run: >
           pnpm exec vitest run --config tools/ci/vitest.shard.config.ts
           --coverage --coverage.reporter=text-summary
-          --shard=${{ matrix.shard }}/3 --reporter=default --reporter=blob
+          --shard=${{ matrix.shard }}/${{ needs.changes.outputs.unit-shard-total }}
+          --reporter=default --reporter=blob
 
       - uses: actions/upload-artifact@v4
         with:
@@ -142,8 +184,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11
 
@@ -159,6 +203,18 @@ jobs:
           pattern: unit-blob-*
           path: .vitest/blob
           merge-multiple: true
+
+      # Merging two blobs of three succeeds, and reports whatever those two
+      # covered. Every file in the folder is one shard's blob, so count them.
+      - name: Require a blob from every unit shard
+        run: |
+          found=$(find .vitest/blob -type f | wc -l | tr -d ' ')
+          echo "blobs: $found of $UNIT_SHARDS"
+          ls -l .vitest/blob
+          if [ "$found" -ne "$UNIT_SHARDS" ]; then
+            echo "::error::Expected $UNIT_SHARDS unit-shard blobs, found $found."
+            exit 1
+          fi
 
       - name: Merge coverage and enforce the thresholds
         run: pnpm exec vitest --merge-reports --coverage
@@ -178,8 +234,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11
 
@@ -188,9 +246,13 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - uses: dtolnay/rust-toolchain@stable
+      # This action has no releases: its `master` branch is the action and its
+      # other branches only name a toolchain, so the toolchain is named here.
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
+        with:
+          toolchain: stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: apps/desktop/src-tauri
 
@@ -228,12 +290,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
-    name: e2e (${{ matrix.shard }}/4)
+        shard: ${{ fromJSON(needs.changes.outputs.e2e-shards) }}
+    name: e2e (${{ matrix.shard }}/${{ needs.changes.outputs.e2e-shard-total }})
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11
 
@@ -266,7 +330,9 @@ jobs:
       # from 1114 s to 1479 s between them when it was measured (#113). A failed
       # shard uploads the HTML report and each failure's error context instead.
       - name: End-to-end, a quarter of the suite
-        run: pnpm e2e --shard=${{ matrix.shard }}/4 --reporter=list,html
+        run: >
+          pnpm e2e --shard=${{ matrix.shard }}/${{ needs.changes.outputs.e2e-shard-total }}
+          --reporter=list,html
 
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -278,7 +344,7 @@ jobs:
           retention-days: 7
 
   gate:
-    # The one check to require. `always()` because a job skipped after a failed
+    # The one check to require (a ruleset setting; see the top). `always()` because a job skipped after a failed
     # dependency counts as passing, which would let a red run through. So a skip
     # is accepted only where `changes` asked for it: a docs-only change.
     needs: [changes, static, unit, coverage, rust, e2e]

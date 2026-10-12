@@ -5,6 +5,7 @@ pnpm-lock.yaml
 **/src-tauri/gen/**
 test-results
 playwright-report
+.vitest
 design/out
 # Byte-exact samples of what a mapping writes: formatting them would change what they test.
 packages/domain/src/meetings/fixtures
