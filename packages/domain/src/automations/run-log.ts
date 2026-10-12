@@ -63,12 +63,22 @@
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { truncated } from './answer-limits.ts';
+import {
+  formatLedger,
+  isLedgerSection,
+  ledgerFromEntries,
+  parseLedger,
+  pruneLedger,
+  recordRun,
+  type HandledLedger,
+} from './handled-ledger.ts';
+import { code, JSON_SPAN } from './log-spans.ts';
 import type { PassedOver } from './automation-plan.ts';
 import type { NoteCut } from './answered-note.ts';
 import type { DroppedItem } from './proposal-schema.ts';
 import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
 import type { NoteVersionRef } from './note-trigger.ts';
-import type { LocalTime } from './schedule.ts';
+import { localTimeMs, type LocalTime } from './schedule.ts';
 
 export const MAX_LOG_ENTRIES = 100;
 export const LOG_MARKER_VALUE = 'automation-log';
@@ -200,8 +210,6 @@ const TRIGGER_WORDS: Readonly<Record<RunTrigger, string>> = {
 /** A wall-clock time as a heading shows it: a space where ISO has the `T`. */
 const shown = (time: LocalTime): string => time.replace('T', ' ');
 
-/** JSON in a code span; a backtick escaped so the span cannot end early. */
-const code = (value: unknown): string => `\`${JSON.stringify(value).replace(/`/g, '\\u0060')}\``;
 const prior = (value: PriorValue): string => ('absent' in value ? 'nothing' : code(value.value));
 
 const LET_GO_HEADING = 'Let news go';
@@ -352,8 +360,9 @@ function claudeLines({
   ];
 }
 
-function versionLine({ path, digest, wrote }: LoggedVersion): string {
-  return `- ${wrote ? 'wrote' : 'triggered by'} ${code(path)} at ${code(digest)}`;
+function versionLine({ path, digest, wrote, keys = [] }: LoggedVersion): string {
+  const also = keys.length === 0 ? '' : ` also ${code(keys)}`;
+  return `- ${wrote ? 'wrote' : 'triggered by'} ${code(path)} at ${code(digest)}${also}`;
 }
 
 /** One entry, as the markdown the log holds. */
@@ -388,6 +397,13 @@ export function newLogText(ruleName: string, entries: readonly LogEntry[]): stri
  * was, the oldest entries dropped past the most a log keeps — by count and by
  * bytes. A section that is no entry — a person's own `## Notes` — is theirs,
  * and is never what makes room.
+ *
+ * What the rule has handled is not the entries' to hold (they are dropped):
+ * the handled ledger, a section of its own at the top, is brought up to date
+ * in this same write, and is built from the entries the first time a log
+ * without one is added to. A notice that news was let go, written right
+ * after another, joins it, their counts summed: a burst is one entry and
+ * pushes no run out.
  */
 export function appendLogEntry({
   text,
@@ -395,6 +411,7 @@ export function appendLogEntry({
   entry,
   keep = MAX_LOG_ENTRIES,
   maxBytes = MAX_LOG_BYTES,
+  maxLedgerRecords,
 }: {
   /** The log as it is; null when there is none yet. */
   text: string | null;
@@ -402,10 +419,21 @@ export function appendLogEntry({
   entry: LogEntry;
   keep?: number;
   maxBytes?: number;
+  maxLedgerRecords?: number;
 }): string {
-  const { head, sections } =
+  const { head, sections: existing } =
     text === null ? { head: newLogText(ruleName, []), sections: [] } : splitSections(text);
-  const all = [...sections, formatLogEntry(entry)].map((section) => section.replace(/\n*$/, '\n'));
+  const ledgerAt = existing.findIndex(isLedgerSection);
+  const sections = existing.filter((_, at) => at !== ledgerAt);
+  const before =
+    ledgerAt === -1
+      ? ledgerFromEntries(entriesOf(sections), keep)
+      : parseLedger(existing[ledgerAt]!);
+  const ledger = ledgerAfter({ before, entry, maxLedgerRecords });
+  const folded = foldLetGo(sections, entry);
+  const all = [...folded.sections, formatLogEntry(folded.entry)].map((section) =>
+    section.replace(/\n*$/, '\n'),
+  );
   const isEntry = all.map((section) => parseSection(section) !== null);
   const bytes = all.map((section) => utf8Length(section) + 1);
   let entries = isEntry.filter(Boolean).length;
@@ -418,7 +446,45 @@ export function appendLogEntry({
     entries -= 1;
     total -= bytes[at]!;
   }
-  return `${head}${all.filter((_, at) => !dropped.has(at)).join('\n')}`;
+  const kept = all.filter((_, at) => !dropped.has(at));
+  const ledgerText = formatLedger(ledger);
+  return `${head}${ledgerText === '' ? '' : `${ledgerText}\n`}${kept.join('\n')}`;
+}
+
+function entriesOf(sections: readonly string[]): LogEntry[] {
+  return sections.flatMap((section) => {
+    const entry = parseSection(section);
+    return entry === null ? [] : [entry];
+  });
+}
+
+/** The ledger once this entry is in: a run recorded, and what has aged out or overflowed let go. */
+function ledgerAfter({
+  before,
+  entry,
+  maxLedgerRecords,
+}: {
+  before: HandledLedger;
+  entry: LogEntry;
+  maxLedgerRecords: number | undefined;
+}): HandledLedger {
+  const now = localTimeMs(entry.at) ?? 0;
+  const recorded = entry.kind === 'run' ? recordRun(before, entry, now) : before;
+  const limits = maxLedgerRecords === undefined ? {} : { maxRecords: maxLedgerRecords };
+  return pruneLedger(recorded, now, limits);
+}
+
+/** A let-go notice joins the one right before it, summing the counts; any other entry is added as it is. */
+function foldLetGo(
+  sections: readonly string[],
+  entry: LogEntry,
+): { sections: readonly string[]; entry: LogEntry } {
+  const last = sections.length === 0 ? null : parseSection(sections[sections.length - 1]!);
+  if (entry.kind !== 'letGo' || last?.kind !== 'letGo') return { sections, entry };
+  return {
+    sections: sections.slice(0, -1),
+    entry: { kind: 'letGo', at: entry.at, count: last.count + entry.count },
+  };
 }
 
 /** Bytes of UTF-8 text, as the file on disk holds it. */
@@ -444,7 +510,6 @@ function splitSections(text: string): { head: string; sections: string[] } {
 const CLAUDE_CAPPED = `Read the first ${CLAUDE_NOTES_PER_RUN} notes, the most one Claude run takes; run it by hand for the rest.`;
 
 const HEADING = /^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) · (.+)$/;
-const JSON_SPAN = '`((?:[^`])*)`';
 const PRIOR_SPAN = `(nothing|${JSON_SPAN})`;
 const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_SPAN}$`);
 const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
@@ -458,7 +523,9 @@ const SET_LINE = new RegExp(
   `^- (set|restored) ${JSON_SPAN} ${JSON_SPAN}: ${PRIOR_SPAN} → ${PRIOR_SPAN}$`,
 );
 const LEFT_LINE = new RegExp(`^- left ${JSON_SPAN}: (.*)$`);
-const VERSION_LINE = new RegExp(`^- (triggered by|wrote) ${JSON_SPAN} at ${JSON_SPAN}$`);
+const VERSION_LINE = new RegExp(
+  `^- (triggered by|wrote) ${JSON_SPAN} at ${JSON_SPAN}(?: also ${JSON_SPAN})?$`,
+);
 const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
 const ALREADY_MADE_LINE = new RegExp(`^- already made ${JSON_SPAN}$`);
 const LET_GO_LINE = new RegExp(`^- let go ${JSON_SPAN}$`);
@@ -642,7 +709,10 @@ function readVersion(line: string): LoggedVersion | null {
   try {
     const digest = JSON.parse(match[3]!) as unknown;
     if (typeof digest !== 'string') return null;
-    return { path: pathOf(match[2]!), digest, wrote: match[1] === 'wrote' };
+    const keys = match[4] === undefined ? [] : (JSON.parse(match[4]) as unknown);
+    if (!Array.isArray(keys) || !keys.every((key) => typeof key === 'string')) return null;
+    const also = keys.length === 0 ? {} : { keys: keys as string[] };
+    return { path: pathOf(match[2]!), digest, wrote: match[1] === 'wrote', ...also };
   } catch {
     // A line edited into JSON that does not read is left out, as any other line is.
     return null;

@@ -126,15 +126,17 @@ export function useAutomationEditor({
       path: editing.kind === 'rule' ? editing.rule.path : null,
     };
     // What the rule has handled, for one notes set off: its log as last read.
-    const log =
+    const loaded =
       editing.kind === 'rule'
-        ? (listing?.automations.find((loaded) => loaded.rule.path === editing.rule.path)?.log ?? [])
-        : [];
+        ? listing?.automations.find((each) => each.rule.path === editing.rule.path)
+        : undefined;
+    const log = loaded?.log ?? [];
     try {
       const plan = await dryRunAutomation({
         ports,
         rule: draft,
         log,
+        ledger: loaded?.ledger ?? null,
         named,
         today: clock.today(),
         activity,

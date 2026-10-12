@@ -2,8 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
+  appendLogEntry,
   createVaultPath,
   digestOf,
+  logPathFor,
   movedPath,
   type EntryMove,
   type VaultEntry,
@@ -17,7 +19,12 @@ import {
   type AutomationPorts,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
-import { useAutomations, type AutomationsOptions } from './use-automations.ts';
+import {
+  HELD_NEWS,
+  queueByRule,
+  useAutomations,
+  type AutomationsOptions,
+} from './use-automations.ts';
 
 /**
  * A rule a note sets off, and a meeting the import let in just before Atlas
@@ -198,5 +205,81 @@ describe('useAutomations: opening a vault whose rule missed a meeting’s arriva
     await settle();
 
     expect(vault.files[MEETING]).toBe(LET_IN);
+  });
+});
+
+describe('useAutomations: opening a vault whose rule handled more meetings than its log keeps', () => {
+  it('asks about none of the 150 it handled, though the log holds the last 100 entries', async () => {
+    const handled = Array.from({ length: 150 }, (_, at) => `Inbox/Meetings/Standup ${at}.md`);
+    const log = handled.reduce<string | null>(
+      (text, path, at) =>
+        appendLogEntry({
+          text,
+          ruleName: 'Sweep',
+          entry: {
+            kind: 'run',
+            at: `2026-10-0${1 + (at % 7)}T09:00:00`,
+            trigger: 'note',
+            done: [],
+            left: [],
+            capped: false,
+            versions: [{ path: createVaultPath(path), digest: digestOf(LET_IN), wrote: false }],
+          },
+        }),
+      null,
+    )!;
+    const vault = memoryVault(
+      {
+        [RULE]: RULE_TEXT,
+        [logPathFor('Sweep')]: log,
+        ...Object.fromEntries(handled.map((path) => [path, LET_IN])),
+      },
+      { [RULE]: 100, ...Object.fromEntries(handled.map((path) => [path, 200])) },
+    );
+    const activity = recordingActivity();
+    renderHook((props: AutomationsOptions) => useAutomations(props), {
+      initialProps: {
+        ports: vault.ports,
+        clock,
+        vaultKey: VAULT,
+        indexKey: '1',
+        indexReady: true,
+        activity,
+        onSettled: vi.fn(),
+      },
+    });
+    await settle();
+
+    expect(Object.keys(vault.files).filter((path) => path.startsWith('Archive/'))).toEqual([]);
+    expect(activity.reports).toEqual([]);
+  });
+});
+
+describe('queueByRule: the look for missed arrivals', () => {
+  const rule = {
+    id: 'Sweep',
+    enabled: true,
+    when: { kind: 'note', type: 'meeting', on: ['created'] },
+  } as never;
+  const listing = { automations: [{ rule }], broken: [] } as never;
+  const news = (at: number) => ({
+    vault: VAULT,
+    changes: [
+      { kind: 'added' as const, path: `Meetings/${at}.md`, type: 'meeting', digest: `d${at}` },
+    ],
+  });
+
+  it('survives more news than a queue holds, and the oldest news is what goes', () => {
+    const marker = { vault: VAULT, missedArrivals: true as const };
+    const queues = new Map([['Sweep', [marker]]]);
+    const all = Array.from({ length: HELD_NEWS + 5 }, (_, at) => news(at));
+
+    const letGo = queueByRule(queues, listing, all);
+
+    const held = queues.get('Sweep')!;
+    expect(held[0]).toBe(marker);
+    expect(held).toHaveLength(HELD_NEWS + 1);
+    expect(held.slice(1)).toEqual(all.slice(-HELD_NEWS));
+    expect(letGo.get('Sweep')).toBe(5);
   });
 });

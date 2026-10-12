@@ -86,7 +86,7 @@ export async function automationLogRoute(request: VaultRequest): Promise<RouteRe
  * A rule whose query does not read is `query_failed`, with why.
  */
 export async function automationDryRunRoute(request: VaultRequest): Promise<RouteResult> {
-  const { rule, log } = await namedAutomation(request);
+  const { rule, log, ledger } = await namedAutomation(request);
   const [types, notePaths] = await Promise.all([
     loadObjectTypes({ fs: request.fs, markdown: request.markdown }),
     listVaultNotes({ fs: request.fs }),
@@ -98,15 +98,19 @@ export async function automationDryRunRoute(request: VaultRequest): Promise<Rout
     fs: request.fs,
     markdown: request.markdown,
   };
-  const { plan } = await planRuleNow({ ports, rule, log, today: request.clock.today() }).catch(
-    (error: unknown) => {
-      if (!(error instanceof AtlasQueryError)) throw error;
-      throw new ApiError(
-        'query_failed',
-        `This automation’s query could not run: ${messageWithoutPaths(error)}`,
-      );
-    },
-  );
+  const { plan } = await planRuleNow({
+    ports,
+    rule,
+    log,
+    ledger,
+    today: request.clock.today(),
+  }).catch((error: unknown) => {
+    if (!(error instanceof AtlasQueryError)) throw error;
+    throw new ApiError(
+      'query_failed',
+      `This automation’s query could not run: ${messageWithoutPaths(error)}`,
+    );
+  });
   // The index answers for the vault open now: a plan read after a switch would be the other vault's notes.
   request.assertStillOpen();
   return { status: 200, body: { automation: refOf(rule), plan: planOf(plan) } };

@@ -22,7 +22,8 @@ import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { QueryTextError } from '../query-language/query-text-error.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
-import type { LogEntry } from './run-log.ts';
+import { ledgerNow, type HandledLedger } from './handled-ledger.ts';
+import { MAX_LOG_ENTRIES, type LogEntry } from './run-log.ts';
 
 /** What happening to a note sets the rule off. */
 export type NoteEvent = 'created' | 'changed';
@@ -39,6 +40,12 @@ export interface NoteTrigger {
 export interface NoteVersionRef {
   readonly path: VaultPath;
   readonly digest: string;
+  /**
+   * Further keys a rule's schema knows this version by — the meeting's body
+   * digest, its identity — beside the whole-file digest. A handled version
+   * is recognised by any of them, wherever it is and whatever else changed.
+   */
+  readonly keys?: readonly string[];
 }
 
 const TYPE_NAME = '[A-Za-z_][A-Za-z0-9_]*';
@@ -140,38 +147,72 @@ export function noteTriggerHears(trigger: NoteTrigger, changes: readonly NoteCha
 export interface HandledVersions {
   /** Whether it handled this version of this note, or its own write left it. */
   readonly has: (version: NoteVersionRef) => boolean;
+  /** Whether it handled this very version at this very path (not words answered, nor another note's). */
+  readonly hasHere: (version: NoteVersionRef) => boolean;
   /** Whether it handled any version of the note at this path. */
   readonly hasPath: (path: string) => boolean;
+  /**
+   * Milliseconds before which this memory is incomplete (the ledger had to
+   * forget); a note last written then cannot be vouched for. Null when it
+   * forgot nothing.
+   */
+  readonly vouchesFrom: number | null;
+}
+
+/** What a rule is asked to know about the notes as they are now, to tell one note from another with the same bytes. */
+export interface HandledContext {
+  /** The ledger the rule's log holds; null for a log from before it, which the entries then build. */
+  readonly ledger?: HandledLedger | null;
+  /**
+   * The digest the note at a path holds now, or undefined when none does.
+   * Words answered at a path that still holds them are that note's alone;
+   * without this view every path is taken to have left.
+   */
+  readonly holds?: (path: string) => string | undefined;
 }
 
 /**
  * Every version a rule's log says it handled, or left by its own write —
- * read oldest first, so a path a note has left since has no history: a new
- * note there is new to the rule. A note left a path when the log says it
- * `went` — deleted, moved, renamed or archived by someone else, or replaced
- * — or when the run itself archived it.
+ * read from the handled ledger (which outlives the log's entries) with the
+ * entries laid over it, oldest first, so a path a note has left since has no
+ * history: a new note there is new to the rule. A note left a path when the
+ * log says it `went` — deleted, moved, renamed or archived by someone else,
+ * or replaced — or when the run itself archived it.
  *
- * What a Claude step answered is remembered by its words alone (P29-03: "a
- * model is not asked twice for the same words"): the digest of a version a
- * run asked Claude about is handled at whatever path those bytes are now, so
- * a meeting filed or renamed out of the Inbox, unchanged, is not asked about
- * again — by the feed or by a run by hand. A failed step answered nothing.
+ * What a Claude step answered is remembered by its words (P29-03: "a model
+ * is not asked twice for the same words"): the digest of a version a run
+ * asked Claude about is handled at whatever path those bytes are now, so a
+ * meeting filed or renamed out of the Inbox, unchanged, is not asked about
+ * again. Only if the path it was answered at no longer holds them, though:
+ * another note that happens to hold the same bytes — two tasks from one
+ * template — is another question. A version carrying a key the answered one
+ * did (its meeting's identity) is the same note wherever it is. A failed
+ * step answered nothing.
  */
-export function handledVersions(entries: readonly LogEntry[]): HandledVersions {
-  const byPath = new Map<string, Set<string>>();
-  const answered = new Set<string>();
-  for (const entry of entries) {
-    if (entry.kind !== 'run') continue;
-    for (const path of entry.went ?? []) byPath.delete(path);
-    for (const { path, digest, wrote } of entry.versions ?? []) {
-      byPath.set(path, (byPath.get(path) ?? new Set()).add(digest));
-      if (entry.claude !== undefined && !wrote) answered.add(digest);
-    }
-    for (const action of entry.done) if (action.kind === 'archived') byPath.delete(action.from);
+export function handledVersions(
+  entries: readonly LogEntry[],
+  { ledger = null, holds = () => undefined }: HandledContext = {},
+): HandledVersions {
+  const now = ledgerNow(ledger, entries, MAX_LOG_ENTRIES);
+  const answeredByDigest = new Map<string, { path: string }[]>();
+  const answeredKeys = new Set<string>();
+  for (const { path, keys } of now.answered) {
+    const [digest = '', ...schemaKeys] = keys;
+    answeredByDigest.set(digest, [...(answeredByDigest.get(digest) ?? []), { path }]);
+    for (const key of schemaKeys) answeredKeys.add(key);
   }
+  const hasHere = ({ path, digest }: NoteVersionRef): boolean =>
+    now.paths.get(path)?.digests.includes(digest) === true;
+  const isAnswered = ({ path, digest, keys = [] }: NoteVersionRef): boolean =>
+    keys.some((key) => answeredKeys.has(key)) ||
+    (answeredByDigest.get(digest) ?? []).some(
+      (answered) => answered.path === path || holds(answered.path) !== digest,
+    );
   return {
-    has: ({ path, digest }) => byPath.get(path)?.has(digest) === true || answered.has(digest),
-    hasPath: (path) => byPath.has(path),
+    has: (version) => hasHere(version) || isAnswered(version),
+    hasHere,
+    hasPath: (path) => now.paths.has(path),
+    vouchesFrom: now.vouchesFrom,
   };
 }
 
@@ -237,7 +278,7 @@ export function missedArrivals({
         isMeetingInboxPath(note.path) &&
         note.importOutcome === 'imported' &&
         note.type === trigger.type &&
-        note.modified > since &&
+        note.modified > Math.max(since, handled.vouchesFrom ?? since) &&
         !handled.hasPath(note.path) &&
         !handled.has(note),
     )

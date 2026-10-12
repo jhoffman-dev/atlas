@@ -6,12 +6,14 @@ import { parseAutomationRule } from './automation-rule.ts';
 import {
   handledVersions,
   leftHandledNotes,
+  missedArrivals,
   noteTriggerHears,
   noteTriggerQueryProblem,
   parseNoteTrigger,
   printNoteTrigger,
   triggeringVersions,
   unhandledVersions,
+  type HeldNote,
   type NoteTrigger,
 } from './note-trigger.ts';
 import type { LogEntry } from './run-log.ts';
@@ -363,5 +365,142 @@ describe('a note deleted, and what the rule remembers of it', () => {
     expect(noteTriggerHears(MEETING_CREATED, [change('removed', STANDUP, { type: 'task' })])).toBe(
       false,
     );
+  });
+});
+
+describe('handledVersions: an answered digest at another path', () => {
+  const TASK_A = p('Tasks/Send the file.md');
+  const TASK_B = p('Tasks/Send the file (copy).md');
+  const answered: LogEntry = {
+    kind: 'run',
+    at: '2026-10-08T09:00:00',
+    trigger: 'note',
+    done: [],
+    left: [],
+    capped: false,
+    versions: [{ path: TASK_A, digest: 'words', wrote: false }],
+    claude: { model: 'claude-opus-5-5', ms: 10 },
+  };
+  const holding = (held: Record<string, string>) => (path: string) => held[path];
+
+  it('counts the words as answered when the answered path no longer holds them: the note moved', () => {
+    const handled = handledVersions([answered], { holds: holding({}) });
+
+    expect(handled.has({ path: p('Filed/Send the file.md'), digest: 'words' })).toBe(true);
+  });
+
+  it('counts them when the answered path holds other bytes now: the note was edited then moved', () => {
+    const handled = handledVersions([answered], { holds: holding({ [TASK_A]: 'edited' }) });
+
+    expect(handled.has({ path: p('Filed/Send the file.md'), digest: 'words' })).toBe(true);
+  });
+
+  it('asks about a different note with identical bytes while the answered one still holds them', () => {
+    const handled = handledVersions([answered], { holds: holding({ [TASK_A]: 'words' }) });
+
+    expect(handled.has({ path: TASK_B, digest: 'words' })).toBe(false);
+    // The note answered is still answered at its own path.
+    expect(handled.has({ path: TASK_A, digest: 'words' })).toBe(true);
+  });
+
+  it('counts a note with the same meeting identity as answered, whatever its path holds', () => {
+    const withKey: LogEntry = {
+      ...answered,
+      versions: [{ path: TASK_A, digest: 'words', wrote: false, keys: ['meeting:larkspur:42'] }],
+    };
+    const handled = handledVersions([withKey], { holds: holding({ [TASK_A]: 'words' }) });
+
+    expect(handled.has({ path: TASK_B, digest: 'words', keys: ['meeting:larkspur:42'] })).toBe(
+      true,
+    );
+    expect(handled.has({ path: TASK_B, digest: 'words', keys: ['meeting:larkspur:43'] })).toBe(
+      false,
+    );
+  });
+});
+
+describe('missedArrivals', () => {
+  const INBOX = 'Inbox/Meetings/Standup.md';
+  const held = (over: Partial<HeldNote> = {}): HeldNote => ({
+    path: p(INBOX),
+    digest: 'words',
+    type: 'meeting',
+    importOutcome: 'imported',
+    modified: 2_000,
+    ...over,
+  });
+  const nothingHandled = handledVersions([]);
+  const missed = (note: HeldNote, over: Partial<Parameters<typeof missedArrivals>[0]> = {}) =>
+    missedArrivals({
+      trigger: MEETING_CREATED,
+      notes: [note],
+      handled: nothingHandled,
+      since: 1_000,
+      ...over,
+    });
+
+  it('takes a let-in meeting of the type, written after the rule was', () => {
+    expect(missed(held())).toEqual([{ path: p(INBOX), digest: 'words' }]);
+  });
+
+  it.each([
+    ['a note outside where meetings land', held({ path: p('Meetings/Standup.md') })],
+    ['a meeting the import has not let in', held({ importOutcome: 'refused' })],
+    ['a meeting with no import outcome', held({ importOutcome: undefined })],
+    ['a note of another type', held({ type: 'task' })],
+    ['a note of no type', held({ type: null })],
+  ])('leaves out %s', (_name, note) => expect(missed(note)).toEqual([]));
+
+  it('leaves out a trigger that does not run on created', () => {
+    expect(missed(held(), { trigger: MEETING_CHANGED })).toEqual([]);
+  });
+
+  it('counts a meeting written after the rule: the boundary is exclusive', () => {
+    expect(missed(held({ modified: 1_001 }))).toHaveLength(1);
+    expect(missed(held({ modified: 1_000 }))).toEqual([]);
+    expect(missed(held({ modified: 999 }))).toEqual([]);
+  });
+
+  it('leaves out a meeting the log holds a version at, even for other bytes', () => {
+    const handled = handledVersions([
+      {
+        kind: 'run',
+        at: '2026-10-08T09:00:00',
+        trigger: 'note',
+        done: [],
+        left: [],
+        capped: false,
+        versions: [{ path: p(INBOX), digest: 'earlier', wrote: false }],
+      },
+    ]);
+
+    expect(missed(held(), { handled })).toEqual([]);
+  });
+
+  it('leaves out a meeting whose words a Claude step answered at another path', () => {
+    const handled = handledVersions([
+      {
+        kind: 'run',
+        at: '2026-10-08T09:00:00',
+        trigger: 'note',
+        done: [],
+        left: [],
+        capped: false,
+        versions: [{ path: p('Meetings/Filed.md'), digest: 'words', wrote: false }],
+        claude: { model: 'claude-opus-5-5', ms: 10 },
+      },
+    ]);
+
+    expect(missed(held(), { handled })).toEqual([]);
+    expect(missed(held({ digest: 'other' }), { handled })).toHaveLength(1);
+  });
+
+  it('returns what it takes in path order', () => {
+    const notes = [held({ path: p('Inbox/Meetings/B.md') }), held({ path: p('Inbox/Meetings/A.md') })];
+
+    expect(missed(held(), { notes }).map((each) => each.path)).toEqual([
+      'Inbox/Meetings/A.md',
+      'Inbox/Meetings/B.md',
+    ]);
   });
 });

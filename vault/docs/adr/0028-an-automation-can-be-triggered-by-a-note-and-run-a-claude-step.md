@@ -339,6 +339,15 @@ hand for ever.
   as an arrival once. A pull that rewrites the rule's file moves its time
   forward. A rule that only sets a property and found nothing to change logs
   nothing, so it looks again each opening, and again changes nothing.
+- **A fresh clone or a restore.** The rule's file is written when the vault
+  is cloned or restored, which can be before `Inbox/Meetings` is: every
+  meeting there then looks written after the rule, and the log of a clone has
+  no entries to say it was handled (the log is a file too, but a restore from
+  an older copy may bring an older one). Those meetings count as arrivals the
+  first time Atlas opens. It is bounded by the per-run cap (10 for a Claude
+  step, the rest taken by later openings — each of which is then in the log —
+  or ignored by Run now), by the hourly cap, and by the ledger's floor when
+  its log is intact; it is not prevented.
 - **Only the meeting case.** Elsewhere a note's arrival is the feed's `added`,
   and what was added while Atlas was closed is reported by the first sync
   after opening (the index's manifest is the baseline), so nothing is lost
@@ -346,6 +355,59 @@ hand for ever.
   takes. A general catch-up ("notes matching the rule, appeared since its
   last run, with no handled version") would need an arrival time the files
   do not hold; it is left out.
+
+#### The handled ledger
+
+The rule's log keeps its last 100 entries, so it cannot also be what a rule
+remembers having handled: a meeting whose run aged out would be asked about
+again at every opening, and sixty "news let go" notices were enough to push
+sixty runs out. What a rule has handled lives in a **ledger**, a section at
+the top of the same log note, `## Handled so far`, written in the same write
+as the entry that changed it and never counted among the entries a log drops:
+
+```markdown
+## Handled so far
+
+- vouches from `"2026-07-01T00:00:00.000Z"`
+- handled `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d"]`
+- answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d","body:9f8e"]`
+```
+
+- **`handled` lines** are the versions handled (or left by the rule's own
+  write) at a path, newest last, at most 20 per note, with when the path was
+  last recorded. A path the log says went, or that the run archived, is
+  removed, exactly as the entries' reading did.
+- **`answered` lines** are the words a Claude step was asked about: the path it
+  was answered at, when, and **a list of keys** — the whole-file digest
+  first, then any key the rule's schema supplies (the meeting's body digest,
+  its identity). A log entry's version line carries those as
+  `… at `"digest"`also`["body:9f8e"]``; the ledger carries them forward.
+  A version is answered if any of its keys is one an answered line holds.
+  The meeting-items schema plugs in by putting its key on the versions it
+  logs; nothing else changes.
+- **Pruned by age and by count**: records older than 90 days, then the oldest
+  past 2000. Pruning sets `vouches from` to the newest time it forgot. Catch-up
+  (`missedArrivals`) never reaches behind it: it considers a meeting only if
+  written after both the rule's file and that floor, since a meeting last
+  written before what the ledger forgot cannot be vouched for. Times are the
+  entry's own wall-clock time read as UTC, so the floor can be a time-zone's
+  offset off the disk's; that is a day at most, on a horizon of 90.
+- **A log without a ledger** (written before this) behaves as it did: the
+  ledger is built from its entries the first time it is added to, and read
+  from them until then. If it already held 100 entries it may have dropped
+  some, so it vouches only from its oldest. A ledger a person deleted is
+  built again from whatever entries remain; a line that does not read is left
+  out, as every log line is.
+- **Let-go notices fold**: a `letGo` entry written right after another joins
+  it, the counts summed, so a burst is one entry and costs the log no run.
+- **A different note with the same bytes is not answered.** Words answered at
+  a path are the note's alone while that path still holds them: another note
+  (two tasks from one template) is asked about. Once the answered path holds
+  other bytes or none — the note was filed, renamed or edited — those words
+  at any path are taken as answered. A note carrying one of the answered
+  version's schema keys (the same meeting identity) is the same note wherever
+  it is. The path's current digest is read from the index when a run decides,
+  and only when a version is handled but not at its own path.
 
 #### Known behaviour, left as designed
 
