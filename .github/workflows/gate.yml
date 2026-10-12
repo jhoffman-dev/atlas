@@ -262,7 +262,7 @@ jobs:
       # handing `dist` over from another job would hold every shard back until
       # that job had installed and built.
       - name: End-to-end, a quarter of the suite
-        run: pnpm e2e --shard=${{ matrix.shard }}/4 --reporter=list,html --trace=retain-on-failure
+        run: pnpm e2e --shard=${{ matrix.shard }}/4 --reporter=list,html
 
       - uses: actions/upload-artifact@v4
         if: failure()
