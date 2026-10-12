@@ -656,7 +656,7 @@ function countLetGo(letGo: LetGo, id: string, count: number): void {
  * Adds each sync's news to the queue of every rule a note sets off that hears
  * it; answers with how much each queue let go to stay within {@link HELD_NEWS}.
  */
-function queueByRule(
+export function queueByRule(
   queues: Map<string, HeldNews[]>,
   listing: AutomationListing,
   news: readonly NoteChangeNews[],
