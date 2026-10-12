@@ -74,9 +74,12 @@ export const clarifyInboxItem = defineTool({
     'status other than inbox leaves the Inbox even with no project. Only a task takes a status, ' +
     'a wait or a date; asTask: true first makes a plain note (no type) a task. A proposal is ' +
     'refused: answer it with atlas_accept_proposal or atlas_reject_proposal. Anything refused ' +
-    'writes nothing. Returns { path, movedFrom, failed: [{ path, reason, code? }], linksUpdated }: ' +
+    'writes nothing. It works on any task in use, not only one atlas_inbox lists, but never ' +
+    "an archived one; a status the vault's Task type does not declare is refused; waitingOn " +
+    'is written only when the task is, or is being made, waiting. Returns { path, movedFrom, failed: [{ path, reason, code? }], linksUpdated }: ' +
     'path is where the note is now, movedFrom where it was if it was filed. A note open in ' +
-    'Atlas with unsaved typing is refused ("unsaved_in_app"); it is never saved for you.',
+    'Atlas with unsaved typing is refused ("unsaved_in_app"); it is never saved for you. One ' +
+    'that changed on disk while being clarified is "conflict": read it again and retry.',
   inputSchema: z.object({
     path: notePath.describe(
       'The note to clarify, as atlas_inbox lists it, e.g. "Inbox/Call Sam.md".',

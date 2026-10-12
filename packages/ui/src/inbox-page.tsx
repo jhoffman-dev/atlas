@@ -1,4 +1,4 @@
-import type { InboxItem, VaultPath } from '@atlas/domain';
+import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { Icon } from './icon.tsx';
 import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
@@ -34,6 +34,8 @@ export interface InboxPageProps {
   filing: readonly RelationChoice[];
   /** The people a task can wait on. */
   people?: readonly RelationChoice[];
+  /** The statuses a row may give a task: the ones the vault's Task type declares. GTD's eight unless said. */
+  statuses?: readonly GtdStatus[];
   onOpen: (path: VaultPath) => void;
   /** Clarifies a note — a task's status, project, wait and dates, or a note's filing (#112). */
   onClarify: ClarifyInboxItem;
@@ -167,6 +169,7 @@ function InboxList({
   error,
   filing,
   people = [],
+  statuses,
   onOpen,
   onClarify,
   busy,
@@ -204,6 +207,7 @@ function InboxList({
             items={contents.items}
             filing={filing}
             people={people}
+            {...(statuses !== undefined && { statuses })}
             onOpen={onOpen}
             onClarify={onClarify}
             busy={busy}

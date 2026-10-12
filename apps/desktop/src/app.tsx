@@ -1539,6 +1539,7 @@ export function App({
                     error: inbox.error,
                     filing: inbox.filing,
                     people: inbox.people,
+                    statuses: inbox.statuses,
                     onOpen: openNote,
                     onClarify: inbox.clarify,
                     busy: inbox.busy,

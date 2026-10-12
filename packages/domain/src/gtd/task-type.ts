@@ -180,3 +180,28 @@ export function capturedTaskStatus(type: ObjectType | null): GtdStatus | null {
 /** Whether the vault's tasks start in the Inbox: its Task type has that status (ADR-0029). */
 export const tasksStartInInbox = (types: readonly ObjectType[]): boolean =>
   capturedTaskStatus(taskTypeOf(types)) !== null;
+
+/** The statuses a row may give a task, and where a note made a task starts. */
+export interface ClarifyVocabulary {
+  /** The GTD statuses the vault's Task type declares, in GTD's order. */
+  readonly statuses: readonly GtdStatus[];
+  /** The status a note made a task starts in, or null to leave it unset. */
+  readonly startsAt: GtdStatus | null;
+}
+
+/**
+ * What clarifying may write in this vault (#112): only a status its Task type
+ * declares, so a vault on statuses of its own is never given one its boards
+ * and views do not know. A vault with no Task type yet is taken to follow
+ * GTD, as the built-in type it would be given does.
+ */
+export function clarifyVocabulary(types: readonly ObjectType[]): ClarifyVocabulary {
+  const type = taskTypeOf(types);
+  const status = statusOf(type);
+  if (type === null) return { statuses: GTD_STATUSES, startsAt: NEW_TASK_STATUS };
+  const declared =
+    status?.key === TASK_KEYS.status
+      ? GTD_STATUSES.filter((each) => status.options.includes(each))
+      : [];
+  return { statuses: declared, startsAt: capturedTaskStatus(type) };
+}

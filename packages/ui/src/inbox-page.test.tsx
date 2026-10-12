@@ -255,6 +255,29 @@ describe('InboxPage — clarifying a task on its row', () => {
     expect(status.value).toBe('inbox');
   });
 
+  it('offers only the statuses the vault’s Task type declares, and the one the task holds', () => {
+    page({ statuses: ['backlog', 'someday'] });
+    const status = control('Status of Call the bank') as HTMLSelectElement;
+    expect([...status.options].map((option) => option.textContent)).toEqual([
+      'Inbox',
+      'Backlog',
+      'Someday',
+    ]);
+  });
+
+  it('does not write a person picked while the row said Waiting once the status was changed again', async () => {
+    const props = page();
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Waiting');
+    await userEvent.selectOptions(control('Who Call the bank waits on'), 'Mara Quill');
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Next Action');
+    expect(screen.queryByRole('combobox', { name: 'Who Call the bank waits on' })).toBeNull();
+    await userEvent.click(done());
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: TASK,
+      clarification: { status: 'next-action' },
+    });
+  });
+
   it('offers no status, wait or date on a note that is not a task', () => {
     page();
     expect(screen.queryByRole('combobox', { name: 'Status of Standup' })).toBeNull();

@@ -36,7 +36,9 @@ export function clarificationOf(task: InboxTask, draft: InboxDraft): Clarificati
     ...(draft.status !== undefined && draft.status !== task.status && { status: draft.status }),
     ...(draft.project !== undefined &&
       draft.project !== task.project && { project: draft.project }),
-    ...(draft.waitingOn !== undefined &&
+    // A person picked while the row said Waiting is not written once it no longer asks who.
+    ...(asksWhoItWaitsOn(task, draft) &&
+      draft.waitingOn !== undefined &&
       draft.waitingOn !== task.waitingOn && { waitingOn: draft.waitingOn }),
     ...(defer !== undefined && { defer }),
     ...(due !== undefined && { due }),

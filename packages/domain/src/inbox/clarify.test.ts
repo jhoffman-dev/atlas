@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { WAITING_NEEDS_SOMEONE } from '../gtd/task-rules.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
+import { clarifyVocabulary, TASK_TYPE_FILE } from '../gtd/task-type.ts';
+import { parseObjectType } from '../types/property-def.ts';
 import { clarifyPlan, waitingOnRefusal, type Clarification } from './clarify.ts';
 
 /** #112: what clarifying an Inbox row writes, judged whole before anything is. */
@@ -192,5 +194,97 @@ describe('waitingOnRefusal', () => {
     expect(waitingOnRefusal({ path: path('.atlas/types/person.md'), type: 'person' })).toMatch(
       /Atlas’s own files/,
     );
+  });
+});
+
+/** Review round on #112. */
+describe('clarifyPlan — who a task waits on, and a change of mind', () => {
+  const MARA = path('People/Mara Quill.md');
+
+  it('does not write a person on a task that is not, and is not being made, Waiting', () => {
+    expect(plan({ status: 'next-action', waitingOn: MARA })).toEqual({
+      changes: { status: 'next-action' },
+      fileUnder: null,
+    });
+    expect(plan({ waitingOn: MARA })).toEqual({
+      refused: expect.stringMatching(/^Nothing was chosen/),
+    });
+  });
+
+  it('writes a person on a task that is already Waiting', () => {
+    const waiting = { type: 'task', status: 'waiting', waiting_on: '[[Tobias Fenn]]' };
+    expect(plan({ waitingOn: MARA }, { properties: waiting })).toEqual({
+      changes: { waiting_on: '[[Mara Quill]]' },
+      fileUnder: null,
+    });
+  });
+
+  it('keeps who a task waited on when it leaves Waiting, as every other write of a task does', () => {
+    const waiting = { type: 'task', status: 'waiting', waiting_on: '[[Mara Quill]]' };
+    expect(plan({ status: 'next-action' }, { properties: waiting })).toEqual({
+      changes: { status: 'next-action' },
+      fileUnder: null,
+    });
+  });
+});
+
+describe('clarifyPlan — what the vault’s Task type lets a task be', () => {
+  const OWN = parseObjectType({
+    name: 'task',
+    properties: { status: { kind: 'select', options: ['todo', 'backlog', 'done'], done: 'done' } },
+  });
+  const inOwnVault = (clarification: Clarification, properties: Record<string, unknown> = TASK) =>
+    clarifyPlan({
+      path: path('Inbox/Call the bank.md'),
+      properties,
+      clarification,
+      notePaths: NOTES,
+      today: TODAY,
+      vocabulary: clarifyVocabulary([OWN]),
+    });
+
+  it('offers only the GTD statuses that type declares, and all eight with GTD’s own or none', () => {
+    expect(clarifyVocabulary([OWN])).toEqual({ statuses: ['backlog'], startsAt: null });
+    expect(clarifyVocabulary([TASK_TYPE_FILE.type]).statuses).toHaveLength(8);
+    expect(clarifyVocabulary([])).toMatchObject({ startsAt: 'inbox' });
+    expect(clarifyVocabulary([]).statuses).toHaveLength(8);
+  });
+
+  it('refuses a status that type does not declare, and writes one it does', () => {
+    expect(inOwnVault({ status: 'next-action' })).toEqual({
+      refused: expect.stringMatching(/Task type has no “Next Action” status/),
+    });
+    expect(inOwnVault({ status: 'backlog' })).toEqual({
+      changes: { status: 'backlog' },
+      fileUnder: null,
+    });
+  });
+
+  it('makes a note a task without a status there, rather than one the type does not have', () => {
+    expect(inOwnVault({ asTask: true }, {})).toEqual({
+      changes: { type: 'task' },
+      fileUnder: null,
+    });
+  });
+
+  it('says back only the start of a status nobody knows', () => {
+    const answer = plan({ status: 'x'.repeat(5000) });
+    expect('refused' in answer && answer.refused.length).toBeLessThan(200);
+  });
+});
+
+describe('clarifyPlan — notes it leaves alone', () => {
+  it('refuses an archived task', () => {
+    expect(plan({ status: 'next-action' }, { at: 'Archive/Tasks/Old.md' })).toEqual({
+      refused: 'It is archived: unarchive it to decide on it.',
+    });
+  });
+
+  it('never makes a task of a note whose type is written as a list or a number', () => {
+    for (const type of [['meeting'], 5]) {
+      expect(plan({ asTask: true }, { properties: { type } })).toEqual({
+        refused: 'It already says what type it is: only a plain note is made a task.',
+      });
+    }
   });
 });

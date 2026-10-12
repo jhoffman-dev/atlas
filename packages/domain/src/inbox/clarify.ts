@@ -2,13 +2,16 @@ import { isArchivedPath } from '../archive/archive.ts';
 import {
   GTD_STATUSES,
   GTD_STATUS_LABELS,
+  gtdStatusOf,
+  isBlankValue,
   isGtdStatus,
   NEW_TASK_STATUS,
   TASK_KEYS,
   TASK_TYPE,
+  WAITING_STATUS,
 } from '../gtd/gtd-status.ts';
 import { isTaskNote, taskRuleChanges } from '../gtd/task-rules.ts';
-import { TASK_TYPE_FILE } from '../gtd/task-type.ts';
+import { TASK_TYPE_FILE, type ClarifyVocabulary } from '../gtd/task-type.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import { PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import { addDays } from '../timeline/timeline.ts';
@@ -61,17 +64,40 @@ const typeOf = (properties: Properties) => {
   return typeof type === 'string' && type.trim() !== '' ? type.trim() : null;
 };
 
+/** A vault that has not said otherwise follows GTD: all eight, and a new task starts in the Inbox. */
+const GTD_VOCABULARY: ClarifyVocabulary = { statuses: GTD_STATUSES, startsAt: NEW_TASK_STATUS };
+
+/** How much of a status nobody knows is said back: what was sent may be any length. */
+const SHOWN_STATUS_LENGTH = 40;
+
+/** Why a task in this vault cannot have the status asked for, or null when it can. */
+function statusRefusal(status: string, { statuses }: ClarifyVocabulary): string | null {
+  if (isGtdStatus(status) && statuses.includes(status)) return null;
+  if (isGtdStatus(status)) {
+    return `This vault’s Task type has no “${GTD_STATUS_LABELS[status]}” status: move its tasks to GTD’s statuses first.`;
+  }
+  const shown =
+    status.length > SHOWN_STATUS_LENGTH ? `${status.slice(0, SHOWN_STATUS_LENGTH)}…` : status;
+  const offered = statuses.map((each) => GTD_STATUS_LABELS[each]).join(', ');
+  return `“${shown}” is not a status a task can have: ${offered}.`;
+}
+
 /** The properties a clarification names for a task, before the task rules: a null takes a key out. */
-function taskChanges(
-  { status, waitingOn, defer, due, contexts }: Clarification,
-  notePaths: readonly VaultPath[],
-): { changes: Record<string, unknown> } | { refused: string } {
+function taskChanges({
+  properties,
+  clarification: { status, waitingOn, defer, due, contexts },
+  notePaths,
+  vocabulary,
+}: {
+  properties: Properties;
+  clarification: Clarification;
+  notePaths: readonly VaultPath[];
+  vocabulary: ClarifyVocabulary;
+}): { changes: Record<string, unknown> } | { refused: string } {
   const changes: Record<string, unknown> = {};
   if (status !== undefined) {
-    if (!isGtdStatus(status)) {
-      const eight = GTD_STATUSES.map((each) => GTD_STATUS_LABELS[each]).join(', ');
-      return { refused: `“${status}” is not a status a task can have: ${eight}.` };
-    }
+    const refusal = statusRefusal(status, vocabulary);
+    if (refusal !== null) return { refused: refusal };
     changes[TASK_KEYS.status] = status;
   }
   for (const [key, day] of [
@@ -82,9 +108,14 @@ function taskChanges(
     if (day !== null && !isDay(day)) return { refused: `“${day}” is not a day (YYYY-MM-DD).` };
     changes[key] = day;
   }
-  if (waitingOn !== undefined) {
-    changes[TASK_KEYS.waitingOn] =
-      waitingOn === null ? null : `[[${wikiLinkTargetFor(waitingOn, notePaths)}]]`;
+  // Who it waits on is written only on a task that is, or is being made, Waiting: a
+  // person picked and then a change of mind about Waiting leaves nobody behind. Taking
+  // the person away (null) is always asked of the rules. Leaving Waiting does not take
+  // them away, deliberately: the task rules keep who a task waited on, as a board drag does.
+  const waiting = (status ?? gtdStatusOf(properties[TASK_KEYS.status])) === WAITING_STATUS;
+  if (waitingOn === null) changes[TASK_KEYS.waitingOn] = null;
+  else if (waitingOn !== undefined && waiting) {
+    changes[TASK_KEYS.waitingOn] = `[[${wikiLinkTargetFor(waitingOn, notePaths)}]]`;
   }
   if (contexts !== undefined) {
     const named = contexts.map((context) => context.trim()).filter((context) => context !== '');
@@ -94,18 +125,25 @@ function taskChanges(
 }
 
 /** A plain note made a task, or why it may not be; no change for one that already is. */
-function asTaskChanges(
-  properties: Properties,
-  status: string | undefined,
-): { changes: Record<string, unknown> } | { refused: string } {
+function asTaskChanges({
+  properties,
+  status,
+  vocabulary,
+}: {
+  properties: Properties;
+  status: string | undefined;
+  vocabulary: ClarifyVocabulary;
+}): { changes: Record<string, unknown> } | { refused: string } {
   if (isTaskNote(properties)) return { changes: {} };
   const type = typeOf(properties);
   if (type !== null) return { refused: `It is a ${type}: only a plain note is made a task.` };
+  // A type written some other way — a list, a number — is still the note's own, and is kept.
+  if (!isBlankValue(properties['type'])) {
+    return { refused: 'It already says what type it is: only a plain note is made a task.' };
+  }
+  const startsAt = status === undefined ? vocabulary.startsAt : null;
   return {
-    changes: {
-      type: TASK_TYPE,
-      ...(status === undefined && { [TASK_KEYS.status]: NEW_TASK_STATUS }),
-    },
+    changes: { type: TASK_TYPE, ...(startsAt !== null && { [TASK_KEYS.status]: startsAt }) },
   };
 }
 
@@ -119,6 +157,9 @@ function asTaskChanges(
  * - Everything the row decided is one change, held to the task rules as any
  *   change is: Waiting with nobody to wait on is refused, Waiting chosen
  *   with its person passes as one save.
+ * - A status is one the vault's Task type declares; who a task waits on is
+ *   written only when it is, or is being made, Waiting; an archived note is
+ *   not decided on at all.
  * - A project files a note that is in the `Inbox` folder — moved into the
  *   project's folder and linked. A task waiting anywhere else already has
  *   its place: it is linked to the project and stays where it is.
@@ -129,6 +170,7 @@ export function clarifyPlan({
   clarification,
   notePaths,
   today,
+  vocabulary = GTD_VOCABULARY,
 }: {
   path: VaultPath;
   /** The note's properties as its file has them. */
@@ -138,17 +180,24 @@ export function clarifyPlan({
   notePaths: readonly VaultPath[];
   /** `YYYY-MM-DD`, from the injected clock. */
   today: string;
+  /** What the vault's Task type lets a task be (`clarifyVocabulary`); GTD's eight unless said. */
+  vocabulary?: ClarifyVocabulary;
 }): ClarifyPlan {
+  if (isArchivedPath(path)) return { refused: 'It is archived: unarchive it to decide on it.' };
   if (typeOf(properties)?.toLowerCase() === PROPOSAL_TYPE) {
     return { refused: 'A proposal is answered, not clarified: accept or reject it.' };
   }
   const made =
-    clarification.asTask === true ? asTaskChanges(properties, clarification.status) : null;
+    clarification.asTask === true
+      ? asTaskChanges({ properties, status: clarification.status, vocabulary })
+      : null;
   if (made !== null && 'refused' in made) return made;
-  const named = taskChanges(clarification, notePaths);
+  const named = taskChanges({ properties, clarification, notePaths, vocabulary });
   if ('refused' in named) return named;
   const task = isTaskNote({ ...properties, ...made?.changes });
-  if (!task && Object.keys(named.changes).length > 0) return { refused: TASK_ONLY };
+  const asksOfATask =
+    Object.keys(named.changes).length > 0 || clarification.waitingOn !== undefined;
+  if (!task && asksOfATask) return { refused: TASK_ONLY };
 
   const project = clarification.project ?? null;
   const fileUnder = project !== null && isInInbox(path) ? project : null;

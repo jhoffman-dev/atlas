@@ -132,6 +132,48 @@ describe('POST /v1/inbox/clarify', () => {
     expect(api.files.get('Inbox/Call Sam.md')?.text).toBe(CAPTURED);
   });
 
+  it('answers conflict, keeping the edit, when the note changed on disk while it was being clarified', async () => {
+    const api = apiFixture({ files: FILES });
+    const edited = `${CAPTURED}Typed in another editor.\n`;
+    const held = api.files.get.bind(api.files);
+    let read = false;
+    // Another editor saves the note right after the route first reads it.
+    api.files.get = (at) => {
+      const note = held(at);
+      if (at === 'Inbox/Call Sam.md' && !read && note !== undefined) {
+        read = true;
+        api.files.set(at, { text: edited, modified: note.modified + 100 });
+      }
+      return note;
+    };
+
+    const response = await api.send(clarify({ path: 'Inbox/Call Sam.md', status: 'backlog' }));
+
+    expect(codeOf(response)).toBe('conflict');
+    expect(api.files.get('Inbox/Call Sam.md')?.text).toBe(edited);
+    expect(api.writes).toEqual([]);
+  });
+
+  it('decides on a task the Inbox does not list, and refuses an archived one', async () => {
+    const files = {
+      ...FILES,
+      'Tasks/Doing.md': '---\ntype: task\nstatus: in-progress\n---\n',
+      'Archive/Tasks/Old.md': '---\ntype: task\nstatus: archive\n---\n',
+    };
+    const api = apiFixture({ files });
+    expect(
+      (
+        await api.send(
+          clarify({ path: 'Tasks/Doing.md', status: 'waiting', waitingOn: 'People/Mara Quill.md' }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(api.files.get('Tasks/Doing.md')?.text).toContain('status: waiting');
+    const archived = await api.send(clarify({ path: 'Archive/Tasks/Old.md', status: 'backlog' }));
+    expect(codeOf(archived)).toBe('invalid');
+    expect(api.files.get('Archive/Tasks/Old.md')?.text).toBe(files['Archive/Tasks/Old.md']);
+  });
+
   it('answers no_vault when no vault is open', async () => {
     const api = apiFixture({ files: FILES });
     api.open = null;

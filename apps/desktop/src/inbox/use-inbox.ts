@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  clarifyVocabulary,
   createVaultPath,
   FILED_UNDER_TYPES,
   filingRefusal,
@@ -77,6 +78,7 @@ export function useInbox(options: InboxOptions) {
   const [busy, setBusy] = useState(false);
   // `busy` reaches the page a render late; two picks in one tick would both see it false.
   const running = useRef(false);
+  const unmadeMeanwhile = useRef<Pick<Result, 'problem' | 'refusal'> | null>(null);
   const startInInbox = tasksStartInInbox(types);
 
   useEffect(() => {
@@ -115,14 +117,15 @@ export function useInbox(options: InboxOptions) {
   const offered = settled && choices?.vaultKey === vaultKey ? choices : null;
   const told = said?.vaultKey === vaultKey ? said : null;
 
-  /** Runs one write at a time, against the vault that was open when it was asked for. */
+  /**
+   * Runs one write at a time, against the vault that was open when it was asked
+   * for. One asked for while another is still being written is not made, and
+   * says so where `unmade` puts it, rather than being dropped unsaid.
+   */
   const act = useCallback(
-    async (action: () => Promise<Result>): Promise<boolean> => {
-      if (running.current || !settled) return false;
-      running.current = true;
-      setBusy(true);
-      try {
-        const result = await action();
+    async (action: () => Promise<Result>, unmade: Pick<Result, 'problem' | 'refusal'>) => {
+      if (!settled) return false;
+      const say = (result: Result) =>
         // A refused pick leaves the last action as it was: it can still be taken back.
         setSaid((before) => ({
           vaultKey,
@@ -134,7 +137,22 @@ export function useInbox(options: InboxOptions) {
                 : null
               : result.last,
         }));
-        return result.refusal === null && result.problem === null;
+      if (running.current) {
+        unmadeMeanwhile.current = unmade;
+        say({ ...unmade, last: 'kept' });
+        return false;
+      }
+      running.current = true;
+      unmadeMeanwhile.current = null;
+      const unmadeSince = () => unmadeMeanwhile.current;
+      setBusy(true);
+      try {
+        const result = await action();
+        const done = result.refusal === null && result.problem === null;
+        // What was not made while this one was being written is still to be said once it lands.
+        const meanwhile = unmadeSince();
+        say(done && meanwhile !== null ? { ...result, ...meanwhile } : result);
+        return done;
       } finally {
         running.current = false;
         setBusy(false);
@@ -145,49 +163,58 @@ export function useInbox(options: InboxOptions) {
 
   const clarify = useCallback(
     ({ path, clarification }: { path: VaultPath; clarification: Clarification }) =>
-      act(async () => {
-        const write = clarification.project === undefined ? 'edit' : 'filing';
-        const named = { activity, write, path, refusal: ClarifyRefusedError } as const;
-        try {
-          const outcome = await withGiveUpRecorded(named, () =>
-            clarifyInboxItem({ ports, path, clarification, notePaths, today: clock.today() }),
-          );
-          onSettled();
-          const reason = outcomeProblem(outcome);
-          return {
-            problem: null,
-            refusal: reason === null ? null : { path, reason },
-            last: { title: noteTitle(path), undo: outcome.undo },
-          };
-        } catch (cause) {
-          return { problem: null, refusal: { path, reason: errorMessage(cause) }, last: 'kept' };
-        }
-      }),
+      act(
+        async () => {
+          const write = clarification.project === undefined ? 'edit' : 'filing';
+          const named = { activity, write, path, refusal: ClarifyRefusedError } as const;
+          try {
+            const outcome = await withGiveUpRecorded(named, () =>
+              clarifyInboxItem({ ports, path, clarification, notePaths, today: clock.today() }),
+            );
+            onSettled();
+            const reason = outcomeProblem(outcome);
+            return {
+              problem: null,
+              refusal: reason === null ? null : { path, reason },
+              last: { title: noteTitle(path), undo: outcome.undo },
+            };
+          } catch (cause) {
+            return { problem: null, refusal: { path, reason: errorMessage(cause) }, last: 'kept' };
+          }
+        },
+        { problem: null, refusal: { path, reason: STILL_WRITING } },
+      ),
     [act, activity, clock, notePaths, onSettled, ports],
   );
 
   const last = told?.last ?? null;
   const undo = useCallback(
     () =>
-      act(async () => {
-        if (last === null) return { problem: null, refusal: null, last: null };
-        const path = last.undo.to;
-        const named = { activity, write: 'edit', path, refusal: ClarifyRefusedError } as const;
-        try {
-          await withGiveUpRecorded(named, () =>
-            undoClarifyInboxItem({ ports, undo: last.undo, notePaths }),
-          );
-          onSettled();
-          return { problem: null, refusal: null, last: null };
-        } catch (cause) {
-          return { problem: errorMessage(cause), refusal: null, last: 'kept' };
-        }
-      }),
+      act(
+        async () => {
+          if (last === null) return { problem: null, refusal: null, last: null };
+          const path = last.undo.to;
+          const named = { activity, write: 'edit', path, refusal: ClarifyRefusedError } as const;
+          try {
+            await withGiveUpRecorded(named, () =>
+              undoClarifyInboxItem({ ports, undo: last.undo, notePaths }),
+            );
+            onSettled();
+            return { problem: null, refusal: null, last: null };
+          } catch (cause) {
+            return { problem: errorMessage(cause), refusal: null, last: 'kept' };
+          }
+        },
+        { problem: STILL_WRITING, refusal: null },
+      ),
     [act, activity, last, notePaths, onSettled, ports],
   );
 
+  const statuses = useMemo(() => clarifyVocabulary(types).statuses, [types]);
   return {
     contents: shown?.contents ?? null,
+    /** The statuses a row may give a task: the ones the vault's Task type declares. */
+    statuses,
     error: shown?.error ?? offered?.error ?? null,
     filing: offered?.filing ?? NONE,
     people: offered?.people ?? NONE,
@@ -204,6 +231,9 @@ export function useInbox(options: InboxOptions) {
 }
 
 const NONE: readonly RelationChoice[] = [];
+
+const STILL_WRITING =
+  'Another change was still being written, so this one was not made. Try it again.';
 
 /** A read of the Inbox, and the vault it was read from. */
 interface Listing {

@@ -1,5 +1,6 @@
 import {
   clarifyPlan,
+  clarifyVocabulary,
   splitFrontmatter,
   vaultSpellingOf,
   waitingOnRefusal,
@@ -14,7 +15,7 @@ import {
 } from '../archive/archive-notes.ts';
 import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 import { setNoteProperties } from '../query/set-property.ts';
-import { noteTypeName } from '../types/load-types.ts';
+import { loadObjectTypes, noteTypeName } from '../types/load-types.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';
 import { FilingRefusedError, filingTarget, processInboxItems } from './process-inbox.ts';
 
@@ -82,16 +83,19 @@ export async function clarifyInboxItem(request: ClarifyRequest): Promise<Clarify
 
   const { text, modified } = await ports.fs.readTextFile(path);
   const clarification = await asTheVaultSpells(request);
+  const types = await loadObjectTypes({ fs: ports.fs, markdown: ports.markdown });
   const plan = clarifyPlan({
     path,
     properties: propertiesOf(ports, text),
     clarification,
     notePaths,
     today,
+    vocabulary: clarifyVocabulary(types),
   });
   if ('refused' in plan) throw new ClarifyRefusedError(plan.refused);
 
   if (Object.keys(plan.changes).length > 0) {
+    assertWritable(ports, { text, changes: plan.changes });
     const write = { fs: ports.fs, markdown: ports.markdown, path, values: plan.changes, today };
     await setNoteProperties({ ...write, ifModified: modified }).catch(refusedByTheRules);
     if (ports.editors.state(path) !== 'dirty') ports.editors.reload(path);
@@ -133,21 +137,44 @@ export async function undoClarifyInboxItem({
   undo: ClarifyUndo;
   notePaths: readonly VaultPath[];
 }): Promise<void> {
-  await settleTyping({ ports, path: undo.to, unsavedTyping: 'save' });
-  const held = await ports.fs.readTextFile(undo.to).catch(() => null);
-  if (held === null)
-    throw new ClarifyRefusedError('It is not there any more, so nothing was undone.');
-  if (held.text !== undo.after) {
-    throw new ClarifyRefusedError('It was changed since, so it was left as it is.');
-  }
-  if (undo.to !== undo.from) await moveBack({ ports, undo, notePaths });
-  const { modified } = await ports.fs.readTextFile(undo.from);
+  const held = await whereItIs(ports, undo);
+  await settleTyping({ ports, path: held.path, unsavedTyping: 'save' });
+  if ((await ports.fs.readTextFile(held.path)).text !== undo.after) throw new ChangedSince();
+  const moved = held.path !== undo.from;
+  if (moved) await moveBack({ ports, undo, notePaths });
+  // Read again where it is written: an edit that landed since the check is kept, not
+  // written over. A note just moved back is not compared — the move respells the links
+  // it holds to itself — so there the host's own check of `modified` is what stands.
+  const { text, modified } = await ports.fs.readTextFile(undo.from);
+  if (!moved && text !== undo.after) throw new ChangedSince();
   await ports.fs.writeTextFile({
     path: undo.from,
     contents: undo.before,
     expectedModified: modified,
   });
   if (ports.editors.state(undo.from) !== 'dirty') ports.editors.reload(undo.from);
+}
+
+class ChangedSince extends ClarifyRefusedError {
+  constructor() {
+    super('It was changed since, so it was left as it is.');
+  }
+}
+
+/**
+ * Where the clarified note is: where clarifying left it, or — when an undo
+ * moved it back and then could not write it — already where it was, still
+ * saying what clarifying wrote, so the undo can be tried again.
+ */
+async function whereItIs(ports: ArchivePorts, undo: ClarifyUndo): Promise<{ path: VaultPath }> {
+  const readable = (path: VaultPath) =>
+    ports.fs.readTextFile(path).then(
+      ({ text }) => text,
+      () => null,
+    );
+  if ((await readable(undo.to)) !== null) return { path: undo.to };
+  if ((await readable(undo.from)) === undo.after) return { path: undo.from };
+  throw new ClarifyRefusedError('It is not there any more, so nothing was undone.');
 }
 
 /** Moves a filed note back to exactly where it was, rewriting the links the move back leaves. */
@@ -198,6 +225,24 @@ async function settleTyping({
   if (ports.editors.state(path) !== 'dirty') return;
   if (unsavedTyping === 'leave') throw new UnsavedTypingError(path);
   await ports.editors.flush([path]);
+}
+
+/**
+ * Refuses a change the note's frontmatter cannot take — a block that is a
+ * list or a bare string, say — in the row's words rather than the writer's,
+ * and before anything is written.
+ */
+function assertWritable(
+  ports: ArchivePorts,
+  { text, changes }: { text: string; changes: Readonly<Record<string, unknown>> },
+): void {
+  try {
+    ports.markdown.updateFrontmatter(splitFrontmatter(text).frontmatter, changes);
+  } catch {
+    throw new ClarifyRefusedError(
+      'Its frontmatter is not a list of properties, so nothing was written.',
+    );
+  }
 }
 
 function propertiesOf(ports: ArchivePorts, text: string): Readonly<Record<string, unknown>> {

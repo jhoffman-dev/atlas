@@ -11231,6 +11231,17 @@ form.inbox__clarify {
   min-width: 540px;
 }
 
+/* A title with nowhere to break wraps inside its cell, rather than push the
+   row's controls off the page. */
+.inbox__grid .table__link {
+  white-space: normal;
+}
+
+.inbox__grid .table__title {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 /* Room to scroll the last row clear of the quick-add button, which floats
    over the page's bottom-right corner — where Done is. */
 .inbox {

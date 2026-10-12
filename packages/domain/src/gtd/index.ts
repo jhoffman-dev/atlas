@@ -46,6 +46,7 @@ export { isTaskNote, taskRuleChanges, WAITING_NEEDS_SOMEONE } from './task-rules
 export type { TaskRuleOutcome } from './task-rules.ts';
 export {
   capturedTaskStatus,
+  clarifyVocabulary,
   followsGtd,
   GTD_STATUS_PROPERTY,
   tasksStartInInbox,
@@ -54,4 +55,4 @@ export {
   taskTypeChange,
   taskTypeLines,
 } from './task-type.ts';
-export type { TaskTypeChange } from './task-type.ts';
+export type { ClarifyVocabulary, TaskTypeChange } from './task-type.ts';

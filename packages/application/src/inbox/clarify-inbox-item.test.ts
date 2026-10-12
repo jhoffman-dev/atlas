@@ -13,6 +13,7 @@ import {
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
+import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';
 import {
   clarifyInboxItem,
@@ -34,13 +35,21 @@ function vault(
   {
     pane = 'closed',
     failingMove,
-  }: { pane?: 'closed' | 'clean' | 'dirty'; failingMove?: string } = {},
+    editedAfterRead,
+  }: {
+    pane?: 'closed' | 'clean' | 'dirty';
+    failingMove?: string;
+    /** A note another editor saves right after it is first read: its path. */
+    editedAfterRead?: string;
+  } = {},
 ) {
   const memory = memoryVault(files);
   const writes: string[] = [];
+  let edited = false;
   const reloaded: string[] = [];
   const flushed: string[] = [];
   let typing = pane;
+  let failingWrite: string | null = null;
   const ports: ArchivePorts = {
     fs: fakeVaultFs({
       ...memory.fs,
@@ -49,7 +58,17 @@ function vault(
           throw new Error(failingMove);
         },
       }),
+      readTextFile: async (at) => {
+        const read = await memory.fs.readTextFile(at);
+        if (at !== editedAfterRead) return read;
+        // Once edited, the disk's time has moved on: every later read says so.
+        if (edited) return { ...read, modified: 2 };
+        edited = true;
+        memory.files.set(at, `${read.text}Typed in another editor.\n`);
+        return read;
+      },
       writeTextFile: async (write) => {
+        if (failingWrite !== null) throw new Error(failingWrite);
         writes.push(write.path);
         return memory.fs.writeTextFile(write);
       },
@@ -79,7 +98,15 @@ function vault(
     });
   const undo = (record: Parameters<typeof undoClarifyInboxItem>[0]['undo']) =>
     undoClarifyInboxItem({ ports, undo: record, notePaths: notePaths() });
-  return { files: memory.files, writes, reloaded, flushed, clarify, undo };
+  return {
+    files: memory.files,
+    failWrites: (reason: string | null) => void (failingWrite = reason),
+    writes,
+    reloaded,
+    flushed,
+    clarify,
+    undo,
+  };
 }
 
 const BASE = { 'Projects/Atlas.md': PROJECT, 'People/Mara Quill.md': PERSON, [CALL]: CAPTURED };
@@ -315,5 +342,32 @@ describe('undoClarifyInboxItem', () => {
     const { undo } = await v.clarify(CALL, { status: 'backlog' });
     v.files.delete(CALL);
     await expect(v.undo(undo)).rejects.toThrow(/not there any more/);
+  });
+});
+
+/** Review round on #112. */
+describe('clarifyInboxItem — a note that changes underneath it', () => {
+  it('fails as changed, keeping the edit, when another editor saved it after it was read', async () => {
+    const v = vault(BASE, { editedAfterRead: CALL });
+    await expect(v.clarify(CALL, { status: 'next-action' })).rejects.toBeInstanceOf(
+      NoteChangedError,
+    );
+    expect(v.files.get(CALL)).toBe(`${CAPTURED}Typed in another editor.\n`);
+    expect(v.writes).toEqual([]);
+  });
+});
+
+describe('undoClarifyInboxItem — tried again', () => {
+  it('finishes an undo that moved the note back and then could not write it', async () => {
+    const v = vault(BASE);
+    const { undo } = await v.clarify(CALL, { project: path('Projects/Atlas.md') });
+    v.failWrites('the disk is full');
+    await expect(v.undo(undo)).rejects.toThrow('the disk is full');
+    // Moved back, still saying what clarifying wrote.
+    expect(v.files.get(CALL)).toBe(undo.after);
+
+    v.failWrites(null);
+    await v.undo(undo);
+    expect(v.files.get(CALL)).toBe(CAPTURED);
   });
 });

@@ -4,6 +4,7 @@ import {
   GTD_STATUS_LABELS,
   humanizeKey,
   isGtdStatus,
+  type GtdStatus,
   type InboxItem,
   type InboxTask,
   type VaultPath,
@@ -27,6 +28,8 @@ export interface InboxRowsProps {
   filing: readonly RelationChoice[];
   /** The people a task can wait on. */
   people: readonly RelationChoice[];
+  /** The statuses a task may be given; GTD's eight unless said. */
+  statuses?: readonly GtdStatus[];
   onOpen: (path: VaultPath) => void;
   onClarify: ClarifyInboxItem;
   /** While a note is being written, so it is not asked for twice. */
@@ -43,6 +46,7 @@ export function InboxRows({
   items,
   filing,
   people,
+  statuses = GTD_STATUSES,
   onOpen,
   onClarify,
   busy,
@@ -76,7 +80,7 @@ export function InboxRows({
               <ClarifyTask
                 item={item}
                 task={item.task}
-                choices={{ filing, people }}
+                choices={{ filing, people, statuses }}
                 busy={busy}
                 triage={triage}
               />
@@ -158,13 +162,21 @@ function ClarifyTask({
 }: {
   item: InboxItem;
   task: InboxTask;
-  choices: { filing: readonly RelationChoice[]; people: readonly RelationChoice[] };
+  choices: {
+    filing: readonly RelationChoice[];
+    people: readonly RelationChoice[];
+    statuses: readonly GtdStatus[];
+  };
   busy: boolean;
   triage: InboxTriage;
 }) {
   const draft = triage.draftOf(item.path);
   const pick = (picked: InboxDraft) => triage.pick(item.path, picked);
   const status = draft.status ?? task.status ?? '';
+  // What the vault's Task type declares, and what the task says now so the row can show it.
+  const offered = GTD_STATUSES.filter(
+    (each) => choices.statuses.includes(each) || each === task.status,
+  );
   return (
     <form
       className="inbox__clarify"
@@ -184,7 +196,7 @@ function ClarifyTask({
         }}
       >
         {status === '' && <option value="">Status…</option>}
-        {GTD_STATUSES.map((each) => (
+        {offered.map((each) => (
           <option key={each} value={each}>
             {GTD_STATUS_LABELS[each]}
           </option>

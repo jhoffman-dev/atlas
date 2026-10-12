@@ -150,9 +150,27 @@ export async function writeFrontmatterChanges({
   // Nothing to change writes nothing, rather than re-writing the note as it was.
   if (Object.keys(changes).length === 0) return;
 
+  const frontmatter = markdown.updateFrontmatter(document.frontmatter, changes);
   await fs.writeTextFile({
     path: target,
-    contents: markdown.updateFrontmatter(document.frontmatter, changes) + document.body,
+    contents:
+      document.frontmatter === null
+        ? underNewFrontmatter(frontmatter, document.body)
+        : frontmatter + document.body,
     expectedModified: modified,
   });
+}
+
+const BYTE_ORDER_MARK = '\uFEFF';
+
+/**
+ * A note that had no frontmatter, under the block it is given: the block goes
+ * after a byte-order mark, which only means anything first in the file, and
+ * is written with the note's line endings when those are CRLF throughout.
+ */
+function underNewFrontmatter(frontmatter: string, body: string): string {
+  const mark = body.startsWith(BYTE_ORDER_MARK) ? BYTE_ORDER_MARK : '';
+  const text = body.slice(mark.length);
+  const crlf = text.includes('\r\n') && !/(^|[^\r])\n/.test(text);
+  return mark + (crlf ? frontmatter.replaceAll('\n', '\r\n') : frontmatter) + text;
 }

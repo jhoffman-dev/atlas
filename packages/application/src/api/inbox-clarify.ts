@@ -5,6 +5,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import { clarifyInboxItem, ClarifyRefusedError } from '../inbox/clarify-inbox-item.ts';
+import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { UnsavedTypingError } from '../vault/update-links.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
@@ -23,7 +24,10 @@ type Fields = ReturnType<typeof bodyObject>;
  * folder given a project is then filed under it. Anything the rules refuse —
  * Waiting with nobody to wait on, a project that is not one — is `invalid`
  * and nothing is written. Never saves someone's typing (ADR-0016): a note
- * open in Atlas with unsaved edits is `unsaved_in_app`.
+ * open in Atlas with unsaved edits is `unsaved_in_app`, and one that changed
+ * on disk between being read and written is `conflict`. The route decides on
+ * any task the API reaches, not only one the Inbox lists — an agent may move a
+ * task on from anywhere — but never an archived one.
  */
 export async function clarifyInboxRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
@@ -53,6 +57,12 @@ export async function clarifyInboxRoute(request: VaultRequest): Promise<RouteRes
     return { status: 200, body };
   } catch (error) {
     if (error instanceof ClarifyRefusedError) throw new ApiError('invalid', error.message);
+    if (error instanceof NoteChangedError) {
+      throw new ApiError(
+        'conflict',
+        `${path} changed while it was being clarified; nothing was written`,
+      );
+    }
     if (error instanceof UnsavedTypingError) {
       throw new ApiError('unsaved_in_app', `${path} is open in Atlas with unsaved edits`);
     }

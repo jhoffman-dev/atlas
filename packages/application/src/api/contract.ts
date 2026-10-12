@@ -504,10 +504,13 @@ export interface ApiInboxItem {
 /**
  * `POST /v1/inbox/clarify` (#112): one note waiting in the Inbox, and what is
  * decided about it. A key left out is left as the note has it; `null` takes
- * away what it held. Everything is written in one save.
+ * away what it held. Everything is written in one save. The note may be any
+ * task the API reaches, not only one `GET /v1/inbox` lists, but never an
+ * archived one; a status must be one the vault's Task type declares, and
+ * `waitingOn` is written only when the task is, or is being made, `waiting`.
  */
 export interface ApiClarifyInboxBody {
-  /** The note to clarify: one `GET /v1/inbox` lists. */
+  /** The note to clarify: one `GET /v1/inbox` lists, or any other task in use. */
   readonly path: string;
   /** One of inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive. */
   readonly status?: string;
