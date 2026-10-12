@@ -285,6 +285,16 @@ describe('POST /v1/atlas-query: this, and the note given as context', () => {
     expect(titlesOf(answer)).toEqual(['Kickoff']);
   });
 
+  it('lists the notes any link joins to the context note, either way round', async () => {
+    const answer = await answerTo(
+      { query: 'FROM task WHERE CONNECTED TO this SORT BY title', context: 'projects/Atlas.md' },
+      linkedVault(),
+    );
+    // Two name the project in a property, one in its body.
+    expect(titlesOf(answer)).toEqual(['A', 'B', 'Kickoff']);
+    expect(answer.sql).not.toContain('projects/Atlas.md');
+  });
+
   it('reads the context however it is cased, as the vault spells it', async () => {
     const answer = await answerTo({
       query: 'FROM task WHERE project = this SORT BY title',

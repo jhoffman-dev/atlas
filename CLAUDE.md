@@ -93,6 +93,14 @@ machine:
   (`gh issue edit <n> --add-assignee @me`) and skip issues already assigned or
   with an open PR. Changes reach `main` through a pull request (a ruleset
   requires it; the admin bypass is for the coordinator's merges, not a habit).
+- **A pull request that is not ready to merge is a draft.** Open every PR with
+  `gh pr create --draft`. Mark it ready (`gh pr ready <n>`) only when it has
+  passed its `code-reviewer` and `adversarial-tester` passes, the fixes are in,
+  the gate and e2e are verified, and everything it is stacked on has merged or
+  is ready too. If a ready PR turns out not to be, put it back
+  (`gh pr ready <n> --undo`). James merges every PR himself and reads "open, not
+  draft" as "safe to merge" — the draft flag is the signal he acts on, not a
+  message in a chat.
 
 - **Never guess his first name** from "jhoffman". It is James; if a name is
   needed and unknown, write `[Your name]`. (Claude has invented "Jordan" before.)
@@ -153,6 +161,15 @@ pnpm design:compare  # mockup beside app, per surface, at design/out/compare/ind
 builds first for exactly this reason. If you ever run `playwright test` directly,
 build first or you are testing the previous bundle — which can fail code that
 works, and pass code that does not.
+
+**CI splits the slow work across machines** (`.github/workflows/gate.yml`): the
+unit tests over three Linux shards whose coverage the `coverage` job merges and
+holds to the thresholds, the e2e suite over four macOS shards, Rust on a fifth
+Mac. `gate` is still the one required check. A pull request that touches only
+documentation, as `tools/ci/docs-only.ts` defines it, runs `static` alone. A
+failed e2e shard uploads its HTML report as `playwright-report-<n>` (no traces:
+tracing every test cost a third more time). To run one shard here:
+`pnpm e2e --shard=2/4`.
 
 **Check CI by commit, never by "the latest run".** A run is not registered the
 instant a push returns, so `gh run list --limit 1` will happily hand back the
