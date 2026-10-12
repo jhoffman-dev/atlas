@@ -91,7 +91,8 @@ test("Back leaves a type's page for the note it replaced, and Forward returns to
   await showing(page, 'Task');
 });
 
-test('a deleted note drops out of Forward', async ({ page }) => {
+// Temporarily skipped: fails most runs on the macOS CI runner (30 s click timeout on the Delete… menu item), tracked in #52.
+test.fixme('a deleted note drops out of Forward', async ({ page }) => {
   const vault = await openVault(page);
   await row(page, 'alpha').click();
   await showing(page, 'alpha');
