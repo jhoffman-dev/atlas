@@ -93,6 +93,14 @@ machine:
   (`gh issue edit <n> --add-assignee @me`) and skip issues already assigned or
   with an open PR. Changes reach `main` through a pull request (a ruleset
   requires it; the admin bypass is for the coordinator's merges, not a habit).
+- **A pull request that is not ready to merge is a draft.** Open every PR with
+  `gh pr create --draft`. Mark it ready (`gh pr ready <n>`) only when it has
+  passed its `code-reviewer` and `adversarial-tester` passes, the fixes are in,
+  the gate and e2e are verified, and everything it is stacked on has merged or
+  is ready too. If a ready PR turns out not to be, put it back
+  (`gh pr ready <n> --undo`). James merges every PR himself and reads "open, not
+  draft" as "safe to merge" — the draft flag is the signal he acts on, not a
+  message in a chat.
 
 - **Never guess his first name** from "jhoffman". It is James; if a name is
   needed and unknown, write `[Your name]`. (Claude has invented "Jordan" before.)
