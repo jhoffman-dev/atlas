@@ -6,6 +6,8 @@ import { ProposalCard } from './proposal-card.tsx';
 export interface ProposalsContents {
   /** Newest first. */
   readonly open: readonly ProposalNote[];
+  /** Why each open proposal was made, by its path, as its maker wrote it; none for one that says nothing. */
+  readonly reasons?: ReadonlyMap<VaultPath, string>;
   /** Answered, yet still in the Inbox: the Archive refused them. */
   readonly stranded: readonly ProposalNote[];
   /** Notes that say they are proposals and cannot be read, with why. */
@@ -128,6 +130,7 @@ function ProposalList(props: ProposalsSectionProps) {
         <li key={proposal.path}>
           <ProposalCard
             proposal={proposal}
+            reason={contents.reasons?.get(proposal.path) ?? null}
             busy={props.busy !== null}
             problem={props.problems.get(proposal.path) ?? null}
             onAccept={(payload) => props.onAccept(proposal.path, payload)}

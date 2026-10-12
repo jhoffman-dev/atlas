@@ -249,6 +249,81 @@ _As built when the four post-processing changes were stacked: #97 (#92), #98
   says so, and the log API carries it as `claude.cut`. Chunking a long
   transcript is left to P29-05, which now has the fact to decide on.
 
+### Addendum (2026-10-11, P29-05, #18): meeting extraction
+
+_As built on the stack above: the `meeting-items` output._
+
+- **A second output, through the extension point.** `output: meeting-items`
+  asks for `{ "items": [ … ] }`, each `{ kind: task | waiting | decision |
+follow-up, title, owner, due?, source_block, confidence }`. The model says
+  what and who in words; what a proposal then does is decided in the domain
+  (`automations/meeting-items.ts`, `meeting-item-owner.ts`).
+- **Mine, or waiting for.** The owner an item names is read against the
+  meeting's attendees, the vault's people and the profile (`vault-owner.ts`,
+  `matchAttendees` — the linking code's own). `You`, the profile's name, or a
+  name or address the owner's Person note holds: a task at `inbox`. Anyone
+  else: a task at `waiting` with `waiting_on` a link to their Person note —
+  or, when the vault has none, or several it could be, their name as text,
+  which the card says. A `decision` is a note of the built-in Decision type,
+  naming its meeting. A `follow-up` is an `inbox` task tagged `follow-up`,
+  whoever was named. The model's `task` / `waiting` is a hint; the owner
+  decides.
+- **Attribution that rests on a guess is low confidence, whatever the model
+  claimed.** Nobody named (blank, or what a provider calls a speaker it could
+  not name): an Inbox task with an empty `waiting_on` to fill in on the card's
+  Edit. A cited turn whose speaker is unnamed: whoever was named is a guess.
+  Called a waiting-for but owned by the owner: the two disagree. Each says so
+  in the proposal's body, which the Inbox card now shows under its headline
+  (`reason` in `GET /v1/proposals`); a low-confidence card is marked down its
+  edge.
+- **Every item cites one transcript turn, and a missing one drops the item,
+  not the answer.** `source_block` is a turn's id (`t0004`); Atlas writes the
+  link. Only a turn of the Transcript the model was shown counts — not the
+  summary, not the provider's next steps, not a turn in another part. This is
+  the one exception to "one bad item refuses the answer", and a schema has to
+  ask for it (`ProposalSchema.dropped`): the item is left out, the rest are
+  kept, and the run's log names each (`- dropped "<title>": <why>`,
+  `claude.dropped` in the log API, and the summary Activity repeats). Anything
+  else wrong with an item still refuses the whole answer.
+- **One meeting per ask.** Which meeting an accepted task joins follows from
+  the turn it cites, so an answer about two meetings could file one's task
+  under the other, and two meetings of one title could not be told apart. A
+  `meeting-items` run asks about each note alone, and the schema leaves out
+  every item of an answer checked against more than one note.
+- **A long meeting is read in parts, not cut.** Chosen over "say only the
+  start was read": at 20,000 characters a note, most real meetings would have
+  lost most of their transcript. Each part is the meeting's head (frontmatter
+  and every section before the transcript, so the hints ride along) and as
+  many whole turns as fit in 20,000 characters, with a line saying which part
+  it is; parts do not overlap. A run makes at most ten asks
+  (`CLAUDE_ASKS_PER_RUN`, the number of notes one run may read): every note
+  gets one, and the rest go to long meetings in order. Past that the rest of a
+  meeting is not read, and the log says so with the existing `- cut` line and
+  summary. The log says how many times it asked (`- asked 3 times`,
+  `claude.asks`). Every answer is read before anything is written: one that
+  does not read fails the run with nothing made, naming the ask. The run still
+  counts once toward the hourly cap; ten asks is its bound. Not done: no
+  overlap between parts, so a commitment made across a part's edge may be
+  missed; and a hint whose turn is in another part can only be dropped there.
+- **What the model is told beside the meeting is data.** The schema gives
+  (`dataFor`) who the vault's owner and the attendees are, the provider's own
+  next steps as hints, and the Terms vocabulary's right spellings; the prompt
+  builder fences each as `<vault_data about=…>`, neutralised as the notes are.
+  The run reads the people, the terms and the profile's name itself
+  (`readsVault`) — never from the answer.
+- **The prompt ships with the rule.** `.atlas/prompts/meeting-extraction.md`
+  is a prompt Atlas has the text of (`built-in-prompts.ts`). It is written
+  when a rule that names it is saved — the Automations page offers the rule
+  ready-made, "Pull actions and decisions out of a new meeting" — and only
+  where there is no note: nothing is written into a vault without that yes,
+  and a prompt that is there is the person's.
+- **The Meeting type gains `tasks` and `decisions`** (relations, many), which
+  `joinsMeeting` links through. A vault's Meeting type is offered them beside
+  the import's keys; without them Accept is refused, saying the meeting has no
+  such relation, and nothing is written. A Decision also carries `meeting`, its own link forward.
+- **A meeting is one however its `type:` is written.** The step and linking
+  read it with one reader (`isMeetingType`): a list, or another case.
+
 ## Consequences
 
 - A Mac that is not the automations Mac never runs Claude on a meeting; the

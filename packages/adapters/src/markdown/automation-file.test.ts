@@ -34,7 +34,7 @@ const SETTING: AutomationDraft = {
 };
 
 describe('an automation file, through the real markdown port', () => {
-  it.each([AUTOMATION_PRESETS[0]!, SETTING])('reads back as the rule written: %j', (draft) => {
+  it.each([...AUTOMATION_PRESETS, SETTING])('reads back as the rule written: %j', (draft) => {
     const written = automationFrontmatter(draft);
     const kept = Object.fromEntries(Object.entries(written).filter(([, value]) => value !== null));
     const text = `${remarkMarkdown.updateFrontmatter(null, kept)}\n# ${draft.name}\n`;

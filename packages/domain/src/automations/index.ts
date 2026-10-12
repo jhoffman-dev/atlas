@@ -82,13 +82,26 @@ export {
 export type {
   AnswerContext,
   AnsweredNote,
+  AnswerReading,
+  AnswerVault,
   CheckedProposal,
+  DroppedItem,
+  PromptData,
   ProposalDraft,
   ProposalSchema,
   Reading,
   RegisteredProposalSchema,
 } from './proposal-schema.ts';
 export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
+export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
+export { itemOwner } from './meeting-item-owner.ts';
+export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
+export {
+  BUILT_IN_PROMPTS,
+  builtInPromptAt,
+  MEETING_EXTRACTION_PROMPT,
+} from './built-in-prompts.ts';
+export type { BuiltInPrompt } from './built-in-prompts.ts';
 export { NOTE_ANSWER_INSTRUCTIONS, readNoteAnswer } from './note-answer.ts';
 export {
   CLAUDE_NOTE_CHARACTERS,
@@ -99,8 +112,14 @@ export {
 export { claudeWriteRefusal } from './claude-write-folder.ts';
 export { claudeNewProposal, claudeProposalId } from './claude-proposal-id.ts';
 export { MAX_LOGGED_CHARACTERS, truncated } from './answer-limits.ts';
-export { answeredMeetingOf, cutNotes, shownNotes } from './answered-note.ts';
-export type { AnsweredMeeting, NoteCut } from './answered-note.ts';
+export {
+  answeredMeetingOf,
+  CLAUDE_ASKS_PER_RUN,
+  claudeAsks,
+  cutNotes,
+  shownNotes,
+} from './answered-note.ts';
+export type { AnsweredMeeting, ClaudeAsks, NoteCut } from './answered-note.ts';
 export type { NoteAnswer, NoteAnswerValue } from './note-answer.ts';
 export {
   backoffMinutes,

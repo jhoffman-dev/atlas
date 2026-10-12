@@ -28,16 +28,20 @@ export function claudeStepPorts({
   store,
   toolboxes,
   vault,
+  selfName,
 }: {
   ports: ChatPorts;
   store: ChatSettingsStore;
   toolboxes: Pick<Toolboxes, 'reading'>;
   vault: () => string | null;
+  /** The vault owner's name from their profile, read as each run starts; null when it holds none. */
+  selfName: () => string | null;
 }): ClaudeStepPorts {
   return {
     provider: () => chosenProvider({ settings: store.read(), ports, vault }),
     model: () => chatModelOrDefault(store.read().model),
     toolboxes,
+    selfName,
     clock: localClock,
     deadline: (ms) => AbortSignal.timeout(ms),
   };

@@ -88,6 +88,7 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
         if (cancelled) return;
         setContents({
           open: listing.open.map((listed) => listed.proposal),
+          reasons: new Map(listing.open.map((listed) => [listed.proposal.path, listed.reason])),
           stranded: listing.stranded.map((listed) => listed.proposal),
           unreadable: listing.unreadable,
         });

@@ -12,6 +12,7 @@
 
 import { neutralizeFraming } from '../chat/tool-call-text.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
+import type { PromptData } from './proposal-schema.ts';
 
 export { CLAUDE_NOTE_CHARACTERS, CLAUDE_TOTAL_NOTE_CHARACTERS } from './answered-note.ts';
 
@@ -20,6 +21,7 @@ export function claudeStepSystem({
   prompt,
   answer,
   notes,
+  data = [],
 }: {
   today: string;
   /** The prompt note's body: what the rule asks. */
@@ -28,6 +30,8 @@ export function claudeStepSystem({
   answer: string;
   /** The notes the run is about. */
   notes: readonly AnsweredNote[];
+  /** What the output has Atlas say beside them — who was there, the vocabulary — as data. */
+  data?: readonly PromptData[];
 }): string {
   return [
     'You are Claude, run by an automation inside Atlas, a local-first notes app. Nobody is',
@@ -46,6 +50,7 @@ export function claudeStepSystem({
     answer,
     '',
     notesSection(notes),
+    ...dataSection(data),
   ].join('\n');
 }
 
@@ -61,6 +66,19 @@ function notesSection(notes: readonly AnsweredNote[]): string {
       `<vault_data note=${defused(JSON.stringify(path))}>\n${defused(text)}\n</vault_data>`,
   );
   return ['## The notes this run is about', '', ...sections].join('\n');
+}
+
+/**
+ * What Atlas knows beside the notes, fenced as they are: its words are the
+ * vault's (a name, a term, a provider's line), so none can close its fence.
+ */
+function dataSection(data: readonly PromptData[]): string[] {
+  if (data.length === 0) return [];
+  const sections = data.map(
+    ({ about, text }) =>
+      `<vault_data about=${defused(JSON.stringify(about))}>\n${defused(text)}\n</vault_data>`,
+  );
+  return ['', '## What the vault says about them', '', ...sections];
 }
 
 /** What a step is asked: the notes it is about are in the system prompt. */

@@ -13041,6 +13041,18 @@ select.type-editor__field,
 
 .proposal-card__confidence--low {
   color: var(--warning);
+  font-weight: 600;
+}
+
+/* A proposal its maker was unsure of: marked down its edge, so it is checked before it is accepted. */
+.proposal-card--low {
+  border-left: 3px solid var(--warning);
+}
+
+.proposal-card__why {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 0;
 }
 
 .proposal-card__provenance {

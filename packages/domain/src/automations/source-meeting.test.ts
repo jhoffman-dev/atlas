@@ -213,26 +213,37 @@ describe('what the run knows of a note as a meeting', () => {
   };
 
   it('names a meeting the import let in by its provider and id', () => {
-    expect(answeredMeetingOf(header)).toEqual({ identity: IDENTITY });
+    expect(answeredMeetingOf(header)).toEqual({ identity: IDENTITY, attendees: [] });
   });
 
   it('vouches for no identity before the stamp, on a copy or a refusal, or without both keys', () => {
     const unstamped = Object.fromEntries(
       Object.entries(header).filter(([key]) => key !== 'atlas_import_outcome'),
     );
-    expect(answeredMeetingOf(unstamped)).toEqual({ identity: null });
-    expect(answeredMeetingOf({ ...header, atlas_import_outcome: 'duplicate' })).toEqual({
+    expect(answeredMeetingOf(unstamped)).toMatchObject({ identity: null });
+    expect(answeredMeetingOf({ ...header, atlas_import_outcome: 'duplicate' })).toMatchObject({
       identity: null,
     });
-    expect(answeredMeetingOf({ ...header, atlas_import_outcome: 'error' })).toEqual({
+    expect(answeredMeetingOf({ ...header, atlas_import_outcome: 'error' })).toMatchObject({
       identity: null,
     });
-    expect(answeredMeetingOf({ ...header, external_id: '  ' })).toEqual({ identity: null });
-    expect(answeredMeetingOf({ ...header, provider: 7 })).toEqual({ identity: null });
+    expect(answeredMeetingOf({ ...header, external_id: '  ' })).toMatchObject({ identity: null });
+    expect(answeredMeetingOf({ ...header, provider: 7 })).toMatchObject({ identity: null });
   });
 
   it('says a note of another type is no meeting', () => {
     expect(answeredMeetingOf({ ...header, type: 'task' })).toBeUndefined();
     expect(answeredMeetingOf({})).toBeUndefined();
+  });
+
+  it('reads a type written as a list or in another case as linking does, and lists who was there', () => {
+    const attendees = [{ name: 'Mara Quill', email: 'mara.quill@example.com' }, { name: ' ' }];
+    for (const type of ['Meeting', ['note', ' meeting ']]) {
+      expect(answeredMeetingOf({ ...header, type, attendees })).toEqual({
+        identity: IDENTITY,
+        attendees: [{ name: 'Mara Quill', email: 'mara.quill@example.com', group: false }],
+      });
+    }
+    expect(answeredMeetingOf({ ...header, type: 'meetings' })).toBeUndefined();
   });
 });

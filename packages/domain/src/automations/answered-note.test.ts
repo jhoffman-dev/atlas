@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
   CLAUDE_NOTE_CHARACTERS,
+  CLAUDE_ASKS_PER_RUN,
   CLAUDE_TOTAL_NOTE_CHARACTERS,
+  claudeAsks,
   cutNotes,
   shownNotes,
   type AnsweredNote,
@@ -112,5 +114,143 @@ describe('which notes a run was shown only the start of', () => {
       shown: CLAUDE_TOTAL_NOTE_CHARACTERS / 10,
       of: CLAUDE_NOTE_CHARACTERS - 1,
     });
+  });
+});
+
+describe('a meeting read in parts (P29-05)', () => {
+  const SECTIONS = '---\ntype: meeting\n---\n\n## Summary\n\nWe ship on Friday.\n\n## Transcript\n';
+  /** A meeting of `turns` turns, each about 400 characters. */
+  const meetingOf = (turns: number, path = MEETING): AnsweredNote => {
+    let text = SECTIONS;
+    for (let id = 1; id <= turns; id += 1) text += turn(id, `Turn ${id}. ${'word '.repeat(70)}`);
+    return { path, text, meeting: { identity: null } };
+  };
+  const idsIn = (text: string) =>
+    [...text.matchAll(/\^t(\d{4})$/gm)].map((match) => Number(match[1]));
+
+  it('asks once about all the notes, each cut to its share, when the output does not read in parts', () => {
+    const notes = [meetingOf(120), meetingOf(3, createVaultPath('Meetings/Short.md'))];
+
+    const plan = claudeAsks(notes, { inParts: false });
+
+    expect(plan.asks).toEqual([notes]);
+    expect(plan.cut).toEqual(cutNotes(notes));
+    expect(plan.cut).toHaveLength(1);
+  });
+
+  it('asks about each note alone, a short one whole', () => {
+    const notes = [meetingOf(3), meetingOf(4, createVaultPath('Meetings/Other.md'))];
+
+    const plan = claudeAsks(notes, { inParts: true });
+
+    expect(plan.asks).toEqual([[notes[0]], [notes[1]]]);
+    expect(plan.cut).toEqual([]);
+  });
+
+  it('reads a long meeting in parts: every turn in exactly one, in order, each part under the head and within the room', () => {
+    const long = meetingOf(120);
+    expect(long.text.length).toBeGreaterThan(2 * CLAUDE_NOTE_CHARACTERS);
+
+    const plan = claudeAsks([long], { inParts: true });
+
+    expect(plan.asks.length).toBeGreaterThan(2);
+    expect(plan.cut).toEqual([]);
+    const parts = plan.asks.map(([part]) => part!);
+    expect(parts.flatMap((part) => idsIn(part.text))).toEqual(
+      Array.from({ length: 120 }, (_, at) => at + 1),
+    );
+    for (const [at, part] of parts.entries()) {
+      expect(part.text.length).toBeLessThanOrEqual(CLAUDE_NOTE_CHARACTERS);
+      expect(part.text.startsWith(SECTIONS)).toBe(true);
+      expect(part.text).toContain(`(Part ${at + 1} of ${parts.length} of this transcript.`);
+      expect(part.path).toBe(MEETING);
+      expect(part.meeting).toEqual(long.meeting);
+      // Shown as it is: the prompt's own cut has nothing left to take.
+      expect(shownNotes([part])[0]!.text).toBe(part.text);
+    }
+    // A turn of one part cannot be cited from another.
+    const last = idsIn(parts[0]!.text).at(-1)!;
+    expect(cites(parts[0]!, `t${String(last).padStart(4, '0')}`)).toBe(true);
+    expect(cites(parts[1]!, `t${String(last).padStart(4, '0')}`)).toBe(false);
+  });
+
+  it('stops at the most asks one run makes, and says how much of the meeting no ask showed', () => {
+    const endless = meetingOf(700);
+
+    const plan = claudeAsks([endless], { inParts: true });
+
+    expect(plan.asks).toHaveLength(CLAUDE_ASKS_PER_RUN);
+    expect(plan.cut).toHaveLength(1);
+    const [cut] = plan.cut;
+    expect(cut).toMatchObject({ path: MEETING, of: endless.text.length });
+    const shown = plan.asks.flatMap(([part]) => idsIn(part!.text));
+    expect(shown).toEqual(Array.from({ length: shown.length }, (_, at) => at + 1));
+    expect(shown.length).toBeLessThan(700);
+    // What it says was read is what the asks held: the head once, and each shown turn.
+    expect(cut!.shown).toBeGreaterThan(shown.length * 250);
+    expect(cut!.shown).toBeLessThan(CLAUDE_ASKS_PER_RUN * CLAUDE_NOTE_CHARACTERS);
+  });
+
+  it('gives every note its ask before a long meeting takes the rest', () => {
+    const others = Array.from({ length: 4 }, (_, at) =>
+      meetingOf(2, createVaultPath(`Meetings/Short ${at}.md`)),
+    );
+    const endless = meetingOf(700);
+
+    const plan = claudeAsks([endless, ...others], { inParts: true });
+
+    expect(plan.asks).toHaveLength(CLAUDE_ASKS_PER_RUN);
+    expect(plan.asks.filter(([part]) => part!.path === MEETING)).toHaveLength(
+      CLAUDE_ASKS_PER_RUN - 4,
+    );
+    expect(plan.asks.slice(-4).map(([part]) => part)).toEqual(others);
+    expect(plan.cut.map((cut) => cut.path)).toEqual([MEETING]);
+  });
+
+  it('leaves a turn too long for any part out of them all, and says the meeting was not read whole', () => {
+    const text = `${SECTIONS}${turn(1, 'First.')}${turn(2, 'x'.repeat(CLAUDE_NOTE_CHARACTERS))}${turn(3, 'Last.')}`;
+
+    const plan = claudeAsks([asMeeting(text)], { inParts: true });
+
+    expect(plan.asks.flatMap(([part]) => idsIn(part!.text))).toEqual([1, 3]);
+    expect(plan.cut).toHaveLength(1);
+    expect(plan.cut[0]!.shown).toBeLessThan(1_000);
+  });
+
+  it('falls back to the start of a note it cannot read in parts: no transcript heading, or no meeting', () => {
+    const unheaded = asMeeting(meetingOf(120).text.replace('## Transcript', '## Words'));
+    const plain: AnsweredNote = { path: MEETING, text: 'line\n'.repeat(10_000) };
+
+    for (const note of [unheaded, plain]) {
+      const plan = claudeAsks([note], { inParts: true });
+
+      expect(plan.asks).toEqual([[note]]);
+      expect(plan.cut).toEqual(cutNotes([note]));
+      expect(plan.cut).toHaveLength(1);
+    }
+  });
+
+  it('reads a long meeting saved with Windows line endings in parts too', () => {
+    const long = meetingOf(120);
+    const crlf = { ...long, text: long.text.replace(/\n/g, '\r\n') };
+
+    const plan = claudeAsks([crlf], { inParts: true });
+
+    expect(plan.asks.length).toBeGreaterThan(2);
+    expect(plan.cut).toEqual([]);
+    const parts = plan.asks.map(([part]) => part!);
+    expect(parts.flatMap((part) => idsIn(part.text.replace(/\r/g, '')))).toEqual(
+      Array.from({ length: 120 }, (_, at) => at + 1),
+    );
+    for (const part of parts) {
+      expect(shownNotes([part])[0]!.text).toBe(part.text);
+      expect(
+        cites(part, `t${String(idsIn(part.text.replace(/\r/g, ''))[0]).padStart(4, '0')}`),
+      ).toBe(true);
+    }
+  });
+
+  it('asks nothing about no notes', () => {
+    expect(claudeAsks([], { inParts: true })).toEqual({ asks: [], cut: [] });
   });
 });

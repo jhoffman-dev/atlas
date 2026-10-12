@@ -259,3 +259,70 @@ describe('what a Claude step is told', () => {
     expect(told).toContain('Today is 2026-10-11.');
   });
 });
+
+describe('a Claude step that read a meeting in parts, and left items out', () => {
+  const dropped = [
+    {
+      title: 'Send the `contract`\nnow',
+      reason: 'Vendor call has no transcript turn ^t0099 that Claude was shown.',
+    },
+    { title: 'x'.repeat(300), reason: 'This output reads one meeting at a time.' },
+  ];
+  const parts: LogEntry = { ...RAN, claude: { ...RAN.claude!, asks: 3, dropped } };
+
+  it('says how many times it asked and names each item it left out, and reads both back', () => {
+    const text = formatLogEntry(parts);
+
+    expect(text).toContain('- asked `3` times');
+    expect(text).toContain(
+      '- dropped `"Send the \\u0060contract\\u0060 now"`: Vendor call has no transcript turn ^t0099 that Claude was shown.',
+    );
+    expect(logEntrySummary(parts)).toBe(
+      'Made 1 proposal. Left out 2 items that cited no turn of the meeting.',
+    );
+    const [back] = parseRunLog(text);
+    expect(back).toMatchObject({ claude: { asks: 3 } });
+    const read = back?.kind === 'run' ? (back.claude?.dropped ?? []) : [];
+    expect(read.map((each) => each.reason)).toEqual(dropped.map((each) => each.reason));
+    expect(read[0]?.title).toBe('Send the `contract` now');
+    // A model's title is cut to what a log line holds.
+    expect(read[1]?.title).toHaveLength(120);
+  });
+
+  it('says one item as one, and neither line for a run that asked once and kept everything', () => {
+    const one: LogEntry = { ...RAN, claude: { ...RAN.claude!, dropped: dropped.slice(0, 1) } };
+
+    expect(logEntrySummary(one)).toBe(
+      'Made 1 proposal. Left out 1 item that cited no turn of the meeting.',
+    );
+    expect(formatLogEntry(RAN)).not.toMatch(/- asked|- dropped/);
+    expect(parseRunLog(formatLogEntry(RAN))[0]).toMatchObject({
+      claude: { model: 'claude-opus-5-5', ms: 4210 },
+    });
+    expect(parseRunLog(formatLogEntry(RAN))[0]).not.toHaveProperty('claude.asks');
+    expect(parseRunLog(formatLogEntry(RAN))[0]).not.toHaveProperty('claude.dropped');
+  });
+
+  it('leaves out an asked or dropped line a person edited into something that does not read', () => {
+    const edited = formatLogEntry(parts)
+      .replace('- asked `3` times', '- asked `"often"` times')
+      .replace(/- dropped `"Send[^\n]*/, '- dropped `7`: no title');
+
+    const [back] = parseRunLog(edited);
+
+    expect(back).not.toHaveProperty('claude.asks');
+    expect(back?.kind === 'run' && back.claude?.dropped).toHaveLength(1);
+  });
+
+  it('keeps both on a run that failed after asking', () => {
+    const failed: LogEntry = {
+      ...FAILED,
+      claude: { ...FAILED.claude!, asks: 2, dropped: dropped.slice(0, 1) },
+    };
+
+    expect(parseRunLog(formatLogEntry(failed))[0]).toMatchObject({
+      kind: 'failed',
+      claude: { asks: 2, dropped: [{ reason: dropped[0]!.reason }] },
+    });
+  });
+});

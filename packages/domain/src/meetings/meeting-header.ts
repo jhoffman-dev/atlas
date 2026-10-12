@@ -3,6 +3,17 @@ import { frontmatterError, type MeetingImportError } from './meeting-import-erro
 /** The `type:` a meeting's note declares. */
 export const MEETING_TYPE = 'meeting';
 
+/**
+ * Whether a note's `type:` says it is a meeting: any item of it, in any case,
+ * as the index counts it. The one reader, for linking and for a Claude step.
+ */
+export function isMeetingType(type: unknown): boolean {
+  const items = Array.isArray(type) ? type : [type];
+  return items.some(
+    (item) => typeof item === 'string' && item.trim().toLowerCase() === MEETING_TYPE,
+  );
+}
+
 /** The contract a meeting file says it follows, in its `atlas_import:` key. */
 export const MEETING_IMPORT_V1 = 'meeting/v1';
 

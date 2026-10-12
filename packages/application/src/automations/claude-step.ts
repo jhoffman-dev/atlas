@@ -1,11 +1,11 @@
 import {
   answeredMeetingOf,
   CLAUDE_STEP_QUESTION,
+  claudeAsks,
   claudeNewProposal,
   claudeStepSystem,
   claudeWriteRefusal,
   createVaultPath,
-  cutNotes,
   isPromptPath,
   messageWithoutPaths,
   NOTE_ANSWER_INSTRUCTIONS,
@@ -14,18 +14,24 @@ import {
   splitFrontmatter,
   truncated,
   type AnsweredNote,
+  type AnswerVault,
+  type CheckedProposal,
   type ClaudeAction,
   type ClaudeRunInfo,
   type DoneAction,
+  type DroppedItem,
   type ModelMessage,
   type NoteCut,
+  type PromptData,
   type RegisteredProposalSchema,
   type VaultPath,
 } from '@atlas/domain';
 import { ModelProviderError, type ModelProvider, type ProviderStatus } from '../chat/ports.ts';
 import { runChatTurn } from '../chat/run-chat-turn.ts';
 import type { ChatToolbox, Toolboxes } from '../chat/toolbox.ts';
+import { loadLinkDirectory } from '../meeting-links/link-directory.ts';
 import type { Clock } from '../ports.ts';
+import { loadTerms } from '../terms/terms.ts';
 import { planProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
@@ -42,6 +48,12 @@ export interface ClaudeStepPorts {
   readonly provider: () => ModelProvider;
   readonly model: () => string;
   readonly toolboxes: Pick<Toolboxes, 'reading'>;
+  /**
+   * The vault owner's name, from their profile, as it is when the step runs;
+   * null when the profile holds none. What an output that tells "mine" from
+   * "someone else's" (P29-05) reads; never guessed (ADR-0024).
+   */
+  readonly selfName: () => string | null;
   readonly clock: Pick<Clock, 'now' | 'today'>;
   /** A signal that aborts once `ms` have passed: the step's time limit. */
   readonly deadline: (ms: number) => AbortSignal;
@@ -118,16 +130,27 @@ interface StepArgs extends ProposalWritePorts {
  * fails part-way fails the run too, with what it had made in `made` (it
  * stays, and the log says so) and the error in `interruption`; run again, the
  * proposals already made are not made twice.
+ *
+ * An output that reads meetings turn by turn (`meeting-items`, P29-05) is
+ * asked about each note alone, and about a long meeting in parts
+ * (`claudeAsks`): several asks, one run. Every answer is read before anything
+ * is written, so one that does not read fails the run with nothing made. An
+ * item such an output leaves out of an answer it keeps is in the run's record,
+ * as is how many times it asked.
  */
 export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> {
   const { ports, action } = args;
   const model = ports.model();
   const started = ports.clock.now();
   let cut: readonly NoteCut[] = [];
+  let asked = 0;
+  const dropped: DroppedItem[] = [];
   const claudeRun = (): ClaudeRunInfo => ({
     model,
     ms: Math.max(0, ports.clock.now() - started),
     ...(cut.length > 0 && { cut }),
+    ...(asked > 1 && { asks: asked }),
+    ...(dropped.length > 0 && { dropped: [...dropped] }),
   });
   const fail = (message: string): never => {
     throw new ClaudeStepFailed(message, claudeRun());
@@ -144,10 +167,21 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   const prompt = await readPrompt(args.fs, createVaultPath(action.prompt));
   if (typeof prompt !== 'string') return fail(prompt.problem);
   const notes = await readAnswered(args, args.paths);
-  cut = cutNotes(notes);
+  const inParts = output.kind === 'proposals' && output.schema.readsInParts;
+  const plan = claudeAsks(notes, { inParts });
+  cut = plan.cut;
+  const asking = { ...args, provider, model, prompt, output, fail };
   try {
-    const answer = await askModel({ ...args, provider, model, prompt, output, notes, fail });
-    const planned = await planAnswer({ ...args, output, answer, notes, fail });
+    const planned =
+      output.kind === 'note'
+        ? await planNoteAnswer({ ...asking, output, notes, counted: () => (asked += 1) })
+        : await planProposalAnswers({
+            ...asking,
+            schema: output.schema,
+            asks: plan.asks,
+            counted: () => (asked += 1),
+            dropped,
+          });
     const done = await writePlanned({ fs: args.fs, planned, claudeRun });
     return { done, claude: claudeRun() };
   } catch (error) {
@@ -202,6 +236,15 @@ async function readAnswered(
   });
 }
 
+/** What every ask of one run shares: the step's arguments, and what it read before asking. */
+type Asking = StepArgs & {
+  provider: ModelProvider;
+  model: string;
+  prompt: string;
+  output: StepOutput;
+  fail: (message: string) => never;
+};
+
 /** The model's last word, after any tools it called. */
 async function askModel({
   ports,
@@ -211,14 +254,12 @@ async function askModel({
   prompt,
   output,
   notes,
+  data = [],
   fail,
-}: StepArgs & {
-  provider: ModelProvider;
-  model: string;
-  prompt: string;
-  output: StepOutput;
+}: Asking & {
   notes: readonly AnsweredNote[];
-  fail: (message: string) => never;
+  /** What the output has Atlas say beside the notes. */
+  data?: readonly PromptData[];
 }): Promise<string> {
   const signal = ports.deadline(CLAUDE_STEP_TIMEOUT_MS);
   const question: ModelMessage = { role: 'user', text: CLAUDE_STEP_QUESTION };
@@ -232,6 +273,7 @@ async function askModel({
         prompt,
         answer: output.instructions,
         notes,
+        data,
       }),
       history: [question],
       signal,
@@ -301,46 +343,95 @@ function outputOf({ output }: ClaudeAction): StepOutput | string {
     : { kind: 'proposals', instructions: schema.instructions, schema };
 }
 
-/** Reads the answer as the rule's output and plans every note it makes: nothing is written yet. */
-async function planAnswer({
-  output,
-  answer,
+const unreadWords = (problem: string): string =>
+  `Claude’s answer is not what the rule asks for. ${problem}`;
+
+/** Asks once for the rule's one new note, and plans it: nothing is written yet. */
+async function planNoteAnswer({
   notes,
-  fail,
-  ...args
-}: StepArgs & {
-  output: StepOutput;
-  answer: string;
+  counted,
+  ...asking
+}: Asking & {
+  output: Extract<StepOutput, { kind: 'note' }>;
   notes: readonly AnsweredNote[];
-  fail: (message: string) => never;
+  counted: () => void;
 }): Promise<PlannedNote[]> {
-  const unread = (problem: string) =>
-    fail(`Claude’s answer is not what the rule asks for. ${problem}`);
-  if (output.kind === 'note') {
-    const note = readNoteAnswer(answer);
-    if (!note.ok) return unread(note.problem);
-    return [
-      await planNote({
-        ports: args,
-        notePaths: args.notePaths,
-        folder: output.folder,
-        note: note.value,
-      }),
-    ];
+  counted();
+  const note = readNoteAnswer(await askModel({ ...asking, notes }));
+  if (!note.ok) return asking.fail(unreadWords(note.problem));
+  return [
+    await planNote({
+      ports: asking,
+      notePaths: asking.notePaths,
+      folder: asking.output.folder,
+      note: note.value,
+    }),
+  ];
+}
+
+/**
+ * Asks each of the run's asks in turn, reads every answer as the schema's
+ * proposals, and plans them all: nothing is written until every answer has
+ * read. An answer that does not read fails the run, saying which part it was.
+ */
+async function planProposalAnswers({
+  schema,
+  asks,
+  counted,
+  dropped,
+  ...asking
+}: Asking & {
+  schema: RegisteredProposalSchema;
+  asks: readonly (readonly AnsweredNote[])[];
+  /** Told each time the model is asked. */
+  counted: () => void;
+  /** Gains the items each answer left out. */
+  dropped: DroppedItem[];
+}): Promise<PlannedNote[]> {
+  const vault = schema.readsVault ? await readVault(asking) : undefined;
+  const proposals: CheckedProposal[] = [];
+  for (const [at, notes] of asks.entries()) {
+    const context = { notes, ...(vault !== undefined && { vault }) };
+    counted();
+    const answer = await askModel({ ...asking, notes, data: schema.dataFor(context) });
+    const read = schema.read(answer, context);
+    if (!read.ok) {
+      const part = asks.length > 1 ? `Ask ${at + 1} of ${asks.length}: ` : '';
+      return asking.fail(unreadWords(`${part}${read.problem}`));
+    }
+    proposals.push(...read.value);
+    dropped.push(...read.dropped);
   }
-  const proposals = output.schema.read(answer, { notes });
-  if (!proposals.ok) return unread(proposals.problem);
   const { planned, left } = await planProposals({
-    fs: args.fs,
-    index: args.index,
-    markdown: args.markdown,
-    proposals: proposals.value.map((proposal) =>
-      claudeNewProposal({ rule: args.rule, madeBy: args.madeBy, proposal }),
+    fs: asking.fs,
+    index: asking.index,
+    markdown: asking.markdown,
+    proposals: proposals.map((proposal) =>
+      claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal }),
     ),
   });
   // One that cannot be made a note of fails the run before anything is written.
-  if (left.length > 0) return fail(`A proposal could not be written: ${left[0]!.reason}`);
+  if (left.length > 0) return asking.fail(`A proposal could not be written: ${left[0]!.reason}`);
   return planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } }));
+}
+
+/**
+ * What the run knows of the vault for an output that reads it: its people and
+ * terms from the index, its notes, and its owner's name from their profile.
+ */
+async function readVault({
+  ports,
+  index,
+  notePaths,
+}: Pick<StepArgs, 'ports' | 'index' | 'notePaths'>): Promise<AnswerVault> {
+  const { people } = await loadLinkDirectory({ index });
+  const { terms } = await loadTerms({ index });
+  return {
+    selfName: ports.selfName(),
+    people,
+    notePaths,
+    terms: terms.map((term) => term.canonical),
+  };
 }
 
 /**

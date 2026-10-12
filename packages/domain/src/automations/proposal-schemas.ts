@@ -1,7 +1,8 @@
 /**
  * The proposal schemas a rule's `output:` can name (P29-03). `proposals` is
- * the general one: any note a proposal can make, said field by field. A new
- * kind of answer — a meeting's action items (P29-05) — is a schema of its own
+ * the general one: any note a proposal can make, said field by field;
+ * `meeting-items` (P29-05, `meeting-items.ts`) is what Claude pulls out of a
+ * meeting. A new kind of answer is a schema of its own
  * (`ProposalSchema`: its item keys, its `readItem`, its `draftsOf` — any number
  * per item — and, if it cites differently, its own `citation` words), added to
  * {@link PROPOSAL_SCHEMAS} under its name. One whose proposals should be linked
@@ -11,6 +12,7 @@
  */
 
 import { PROPOSAL_KINDS, type NoteProposalKind } from '../proposals/proposal.ts';
+import { MEETING_ITEMS } from './meeting-items.ts';
 import {
   isRecord,
   refused,
@@ -85,6 +87,7 @@ function readGeneralItem(value: unknown): Reading<GeneralItem> {
 /** Every schema a rule can name, by the name its `output:` writes. */
 export const PROPOSAL_SCHEMAS: Readonly<Record<string, RegisteredProposalSchema>> = {
   [GENERAL.name]: registerProposalSchema(GENERAL),
+  [MEETING_ITEMS.name]: registerProposalSchema(MEETING_ITEMS),
 };
 
 /** The schema a rule's `output:` names, or null when there is none by that name. */

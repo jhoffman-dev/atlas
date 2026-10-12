@@ -33,8 +33,9 @@ export const automations = defineTool({
     'once per version of each note of that type its query matches, or null. "which" is the ' +
     'Atlas query naming its notes; "do" is "archive", "set" or "claude", with "set" the values ' +
     'it writes, and "claude" { prompt, tools, output, folder }: the prompt note, the read tools ' +
-    'Claude may call, and what it writes — "proposals" waiting in the Inbox, or "note", one new ' +
-    'note in "folder". A Claude step never edits a note. ' +
+    'Claude may call, and what it writes — "proposals" or "meeting-items" (a meeting\'s action ' +
+    'items, decisions and follow-ups, each citing a transcript turn) waiting in the Inbox, or ' +
+    '"note", one new note in "folder". A Claude step never edits a note. ' +
     '"lastRun" is { at, kind, trigger, summary } or null, "trigger" "note" for a run a note set ' +
     'off; "nextRun" is a local time or null; "paused" says why the app is holding it back. A ' +
     `rule under "broken" cannot be read and never runs. ${IN_THE_APP}`,
@@ -59,7 +60,8 @@ export const automationLog = defineTool({
     'or "created", path }); "left" lists notes it matched and left alone, with why. "claude" is ' +
     '{ model, ms }: the model a Claude step asked and how long it took — with "cut", ' +
     '[{ path, shown, of }], when a note was too long to show it whole: the characters it read, ' +
-    'of how many. ' +
+    'of how many; "asks" when a long meeting was read in several asks; and "dropped", ' +
+    '[{ title, reason }], for each item of an answer it left out for citing no turn. ' +
     'An unknown id is "not_found"; a rule that cannot be read is "invalid".',
   inputSchema: z.object({
     id,

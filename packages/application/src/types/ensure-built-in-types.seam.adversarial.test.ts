@@ -77,7 +77,7 @@ describe('acceptTypeSetup, with PARA and the Inbox both changing the Meeting typ
     });
     const { offer } = await ensureBuiltInTypes(v);
     expect(offer.extensions.map((e) => e.added.map((p) => p.key))).toEqual([
-      ['atlas_import_outcome', 'atlas_import_error', 'atlas_duplicate_of'],
+      ['atlas_import_outcome', 'atlas_import_error', 'atlas_duplicate_of', 'tasks', 'decisions'],
     ]);
     // While the offer waits, Tobias Fenn takes `project` off Meeting on purpose.
     v.files.set('.atlas/types/meeting.md', note({ name: 'meeting', label: 'Meeting' }));
@@ -100,7 +100,10 @@ describe('acceptTypeSetup, with PARA and the Inbox both changing the Meeting typ
       }),
     });
     const { offer } = await ensureBuiltInTypes(v);
-    expect(offer.extensions.map((e) => e.added.map((p) => p.key))).toEqual([['project']]);
+    // And the two relations meeting extraction links through (P29-05), which it lacks too.
+    expect(offer.extensions.map((e) => e.added.map((p) => p.key))).toEqual([
+      ['project', 'tasks', 'decisions'],
+    ]);
     // While the offer waits, the duplicate key is removed from Meeting on purpose.
     const kept = {
       atlas_import_outcome: IMPORT_KEYS.atlas_import_outcome,

@@ -4,8 +4,9 @@
  * check of an answer both cut a note here, the same way.
  */
 
+import { attendeesOf } from '../meeting-links/meeting-link-plan.ts';
 import { importOutcomeOf } from '../meetings/meeting-arrival.ts';
-import { MEETING_TYPE } from '../meetings/meeting-header.ts';
+import { isMeetingType, type MeetingAttendee } from '../meetings/meeting-header.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 
@@ -22,6 +23,8 @@ export interface AnsweredMeeting {
    * hand, or not yet stamped.
    */
   readonly identity: MeetingIdentity | null;
+  /** Who its frontmatter lists as there: who an item taken from it may be owned by (P29-05). */
+  readonly attendees?: readonly MeetingAttendee[];
 }
 
 /** A note the run was about, as it was read: what a proposal may cite. */
@@ -65,14 +68,14 @@ const PARTIAL_LINE_REACH = 1_000;
 export function answeredMeetingOf(
   properties: Readonly<Record<string, unknown>>,
 ): AnsweredMeeting | undefined {
-  if (properties['type'] !== MEETING_TYPE) return undefined;
+  if (!isMeetingType(properties['type'])) return undefined;
   const text = (key: string) => {
     const value = properties[key];
     return typeof value === 'string' ? value.trim() : '';
   };
   const [provider, externalId] = [text('provider'), text('external_id')];
   const letIn = importOutcomeOf(properties) === 'imported' && provider !== '' && externalId !== '';
-  return { identity: letIn ? { provider, externalId } : null };
+  return { identity: letIn ? { provider, externalId } : null, attendees: attendeesOf(properties) };
 }
 
 /**
@@ -132,4 +135,127 @@ function wholeBlocks(text: string, room: number): string {
     end = gap.index;
   }
   return text.slice(0, end);
+}
+
+/**
+ * The most asks one run makes when its output reads a long meeting in parts
+ * (P29-05): as many as the notes one Claude run may read, so a run costs no
+ * more asks than it could already have notes. Every note gets one; the rest
+ * go to the parts of long meetings, in the order the notes came.
+ */
+export const CLAUDE_ASKS_PER_RUN = 10;
+
+/** What a run asks the model: each ask's notes as it is shown them, and what no ask shows. */
+export interface ClaudeAsks {
+  readonly asks: readonly (readonly AnsweredNote[])[];
+  /** The notes some of which no ask shows. */
+  readonly cut: readonly NoteCut[];
+}
+
+/**
+ * The asks a run makes about `notes`. Ordinarily one, about all of them, each
+ * cut to its share. With `inParts` (an output that reads meetings turn by
+ * turn, P29-05) every note is asked about alone, and a meeting too long for
+ * one ask is read in parts — each its frontmatter and the sections before its
+ * transcript, then as many whole turns as fit — up to
+ * {@link CLAUDE_ASKS_PER_RUN} asks a run. Past that the rest of a meeting is
+ * not read, and is reported as cut.
+ */
+export function claudeAsks(
+  notes: readonly AnsweredNote[],
+  { inParts }: { inParts: boolean },
+): ClaudeAsks {
+  if (!inParts) return { asks: [notes], cut: cutNotes(notes) };
+  let spare = Math.max(0, CLAUDE_ASKS_PER_RUN - notes.length);
+  const asks: AnsweredNote[][] = [];
+  const cut: NoteCut[] = [];
+  for (const note of notes) {
+    const { parts, head, unfit } = meetingParts(note, CLAUDE_NOTE_CHARACTERS);
+    const taken = parts.slice(0, 1 + spare);
+    spare -= taken.length - 1;
+    asks.push(...taken.map((part) => [{ ...note, text: part.text }]));
+    const read = head + taken.reduce((sum, part) => sum + part.read, 0);
+    if (taken.length < parts.length || unfit) {
+      cut.push({ path: note.path, shown: read, of: note.text.length });
+    }
+  }
+  return { asks, cut };
+}
+
+/** One part of a note as an ask shows it, and how many of the note's own characters it holds past the head. */
+interface NotePart {
+  readonly text: string;
+  readonly read: number;
+}
+
+/** A turn's heading, at the start of a line: where a meeting's head ends. */
+const TRANSCRIPT_HEADING = /^##[ \t]+Transcript\b[^\n]*$/im;
+
+/**
+ * A note as the parts it is read in. A note that fits, or is no meeting, or
+ * whose transcript cannot be found, is one part — cut, when too long, as
+ * {@link shownNotes} cuts it. A long meeting is its head (everything up to
+ * and including its `## Transcript` heading) before each run of whole
+ * turns that fits; a turn too long to fit with the head is in no part.
+ */
+function meetingParts(
+  note: AnsweredNote,
+  room: number,
+): { parts: NotePart[]; head: number; unfit: boolean } {
+  const whole = (): { parts: NotePart[]; head: number; unfit: boolean } => {
+    const fits = note.text.length <= room;
+    const read = fits ? note.text.length : shownStart(note, room).length;
+    return { parts: [{ text: note.text, read }], head: 0, unfit: !fits };
+  };
+  if (note.meeting === undefined || note.text.length <= room) return whole();
+  const heading = TRANSCRIPT_HEADING.exec(note.text);
+  const headEnd = heading === null ? -1 : heading.index + heading[0].length;
+  // A head that leaves little room for turns is a note to cut, not one to read in parts.
+  if (headEnd === -1 || headEnd > room / 2) return whole();
+  const head = note.text.slice(0, headEnd);
+  const turns = note.text
+    .slice(headEnd)
+    .split(TURN_GAP)
+    .map((turn) => turn.replace(/^[\r\n]+|[\r\n]+$/g, ''))
+    .filter((turn) => turn.trim() !== '');
+  const runs = runsThatFit(turns, room - head.length - PART_MARK_ROOM);
+  if (runs.runs.length === 0) return whole();
+  const parts = runs.runs.map((run, at) => ({
+    text: `${head}\n\n${partMark(at, runs.runs.length)}\n\n${run.join('\n\n')}\n`,
+    read: run.reduce((sum, turn) => sum + turn.length, 0),
+  }));
+  return { parts, head: head.length, unfit: runs.unfit };
+}
+
+/** The blank line between two turns, as either kind of line ending writes it. */
+const TURN_GAP = /\r?\n[ \t]*\r?\n/;
+
+/** Room kept in each part for the line saying which part it is. */
+const PART_MARK_ROOM = 200;
+
+/** Said between a part's head and its turns, so no part is taken for the whole meeting. */
+function partMark(at: number, of: number): string {
+  return `(Part ${at + 1} of ${of} of this transcript. The turns before and after it are not shown in this ask.)`;
+}
+
+/** `turns` in order, as runs each no longer than `room`; `unfit` when a turn alone is longer and so is in none. */
+function runsThatFit(turns: readonly string[], room: number): { runs: string[][]; unfit: boolean } {
+  const runs: string[][] = [];
+  let run: string[] = [];
+  let size = 0;
+  let unfit = false;
+  for (const turn of turns) {
+    if (turn.length > room) {
+      unfit = true;
+      continue;
+    }
+    if (run.length > 0 && size + turn.length + 2 > room) {
+      runs.push(run);
+      [run, size] = [[], 0];
+    }
+    run.push(turn);
+    size += turn.length + 2;
+  }
+  if (run.length > 0) runs.push(run);
+  return { runs, unfit };
 }

@@ -228,6 +228,59 @@ describe('ProposalsSection', () => {
     expect(handlers.onOpen).toHaveBeenCalledWith(TASK.path);
   });
 
+  it('marks a low-confidence proposal as one to check, and says why it was proposed', () => {
+    const unsure = proposal('Send the contract', {
+      kind: 'task',
+      confidence: 'low',
+      source: '[[Vendor contract call#^t0004]]',
+      payload: {
+        title: 'Send the contract',
+        properties: { status: 'waiting', waiting_on: 'Lena Hart' },
+      },
+    });
+    const why = 'There is no Person note for Lena Hart yet, so waiting_on holds the name as text.';
+    page({
+      contents: {
+        open: [unsure, TASK],
+        reasons: new Map([[unsure.path, why]]),
+        stranded: [],
+        unreadable: [],
+      },
+    });
+
+    const low = screen.getByRole('region', { name: 'Task: Send the contract' });
+    expect(within(low).getByText('low confidence')).toBeTruthy();
+    expect(low.classList.contains('proposal-card--low')).toBe(true);
+    expect(within(low).getByText(why)).toBeTruthy();
+    expect(within(low).getByText('Lena Hart')).toBeTruthy();
+    // A sure one is not marked, and a proposal with no reason shows none.
+    const sure = screen.getByRole('region', { name: 'Task: Send Mara the payroll file' });
+    expect(sure.classList.contains('proposal-card--low')).toBe(false);
+    expect(sure.querySelector('.proposal-card__why')).toBeNull();
+    expect(low.querySelector('.proposal-card__why')).not.toBeNull();
+  });
+
+  it('lets the owner be set before accepting: an empty waiting_on is a field to fill in', async () => {
+    const unowned = proposal('Go through the renewal', {
+      kind: 'task',
+      confidence: 'low',
+      payload: { title: 'Go through the renewal', properties: { status: 'inbox', waiting_on: '' } },
+    });
+    const handlers = page({ contents: { open: [unowned], stranded: [], unreadable: [] } });
+    const card = screen.getByRole('region', { name: 'Task: Go through the renewal' });
+
+    await userEvent.click(within(card).getByRole('button', { name: 'Edit' }));
+    await userEvent.clear(within(card).getByLabelText('status'));
+    await userEvent.type(within(card).getByLabelText('status'), 'waiting');
+    await userEvent.type(within(card).getByLabelText('waiting_on'), 'Lena Hart');
+    await userEvent.click(within(card).getByRole('button', { name: 'Accept as edited' }));
+
+    expect(handlers.onAccept).toHaveBeenCalledWith(
+      unowned.path,
+      expect.objectContaining({ properties: { status: 'waiting', waiting_on: 'Lena Hart' } }),
+    );
+  });
+
   it('says why the folder could not be read', () => {
     page({ error: 'The vault could not be read.' });
     expect(screen.getByRole('alert').textContent).toBe('The vault could not be read.');

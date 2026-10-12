@@ -101,7 +101,7 @@ test('an arriving meeting links its people and company, and an unknown attendee 
   await page.getByRole('button', { name: /^Inbox/ }).click();
   const card = page.getByRole('region', { name: 'Person: Ada Venn' });
   await expect(card).toBeVisible();
-  await expect(card.getByText('ada@larkspur.example')).toBeVisible();
+  await expect(card.getByText('ada@larkspur.example', { exact: true })).toBeVisible();
   await expect(card.getByText('[[Larkspur Payroll]]')).toBeVisible();
   await expect(card.getByText(/And adds it to/)).toHaveText(
     'And adds it to people of 2026-10-06 Payroll sync.',

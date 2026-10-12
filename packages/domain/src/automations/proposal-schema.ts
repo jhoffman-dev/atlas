@@ -17,11 +17,13 @@
  * run itself read it as a meeting the import let in.
  *
  * An answer that does not read is refused whole: one bad item and nothing is
- * written.
+ * written. A schema may name the one kind of item it drops instead
+ * ({@link ProposalSchema.dropped}); what it drops is reported, never silent.
  */
 
 import { blockIdAtEnd, standaloneBlockAnchor } from '../markdown/block-anchor.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
+import type { DirectoryPerson } from '../meeting-links/attendee-matching.ts';
 import {
   PROPOSAL_CONFIDENCES,
   proposedChangeRefusal,
@@ -51,9 +53,42 @@ export type { AnsweredNote };
 /** The most proposals one answer may make: more is a model run away, not a meeting. */
 export const MAX_PROPOSALS_PER_ANSWER = 25;
 
+/**
+ * What a run knows of the vault beyond the notes it is about, for a schema
+ * that asks for it ({@link ProposalSchema.readsVault}): read by the run from
+ * the index and the profile, never from the model's answer.
+ */
+export interface AnswerVault {
+  /** The vault owner's name, from their profile; null when it holds none. */
+  readonly selfName: string | null;
+  /** The vault's people, as attendees are matched against them. */
+  readonly people: readonly DirectoryPerson[];
+  /** Every note in the vault: what a link to one of them is spelt against. */
+  readonly notePaths: readonly VaultPath[];
+  /** The right spellings the Terms page keeps. */
+  readonly terms: readonly string[];
+}
+
 /** What an answer is checked against. */
 export interface AnswerContext {
   readonly notes: readonly AnsweredNote[];
+  /** Set for a schema that reads the vault; a schema that needs it and finds none reads as an empty vault. */
+  readonly vault?: AnswerVault;
+}
+
+/** Something Atlas tells the model beside the notes: data, fenced as the notes are. */
+export interface PromptData {
+  /** What it is, in Atlas's own words: the fence's label. */
+  readonly about: string;
+  /** The vault's text: neutralised before it is shown. */
+  readonly text: string;
+}
+
+/** An item of an answer left out while the rest was kept, and why: what the run's log says. */
+export interface DroppedItem {
+  /** What the item called itself. */
+  readonly title: string;
+  readonly reason: string;
 }
 
 /** What a schema's item proposes, before the shared rules have checked it. */
@@ -124,6 +159,22 @@ export interface ProposalSchema<Item> {
    * Each is held to the shared rules; the answer's total is capped.
    */
   readonly draftsOf: (item: Item, context: AnswerContext) => readonly ProposalDraft[];
+  /**
+   * Why an item is left out while the rest of the answer is kept, or null
+   * when it is not: the one exception to "one bad item refuses the answer",
+   * for a schema whose every item must cite a line and whose model will, now
+   * and then, cite one that is not there (P29-05). The run's log names each.
+   */
+  readonly dropped?: (item: Item, context: AnswerContext) => DroppedItem | null;
+  /** Whether its drafts read the vault's owner, people and terms ({@link AnswerVault}). */
+  readonly readsVault?: boolean;
+  /**
+   * Whether a run asks about each note alone, a long meeting in parts
+   * (`claudeAsks`): for a schema that reads a transcript turn by turn.
+   */
+  readonly readsInParts?: boolean;
+  /** What the model is told beside the notes of one ask, as data. */
+  readonly dataFor?: (context: AnswerContext) => readonly PromptData[];
 }
 
 /** Told to the model so a refusal is rare; the checks hold either way. */
@@ -137,8 +188,20 @@ export interface RegisteredProposalSchema {
   readonly name: string;
   /** What the model is told its answer must be. */
   readonly instructions: string;
-  readonly read: (answer: string, context: AnswerContext) => Reading<CheckedProposal[]>;
+  readonly read: (answer: string, context: AnswerContext) => AnswerReading;
+  readonly readsVault: boolean;
+  readonly readsInParts: boolean;
+  readonly dataFor: (context: AnswerContext) => readonly PromptData[];
 }
+
+/** An answer read: its proposals, and the items left out of it. */
+export type AnswerReading =
+  | {
+      readonly ok: true;
+      readonly value: CheckedProposal[];
+      readonly dropped: readonly DroppedItem[];
+    }
+  | { readonly ok: false; readonly problem: string };
 
 /** Closes a schema over its item type, adding the checks every schema's proposals pass. */
 export function registerProposalSchema<Item>(
@@ -159,6 +222,9 @@ export function registerProposalSchema<Item>(
       `If there is nothing to propose, answer { "${schema.key}": [] }.`,
     ].join('\n'),
     read: (answer, context) => readAnswer({ schema, answer, context }),
+    readsVault: schema.readsVault === true,
+    readsInParts: schema.readsInParts === true,
+    dataFor: (context) => schema.dataFor?.(context) ?? [],
   };
 }
 
@@ -170,7 +236,7 @@ function readAnswer<Item>({
   schema: ProposalSchema<Item>;
   answer: string;
   context: AnswerContext;
-}): Reading<CheckedProposal[]> {
+}): AnswerReading {
   const parsed = answerJson(answer);
   if (!parsed.ok) return parsed;
   const list = isRecord(parsed.value) ? parsed.value[schema.key] : undefined;
@@ -185,10 +251,15 @@ function readAnswer<Item>({
     );
   }
   const checked: CheckedProposal[] = [];
+  const dropped: DroppedItem[] = [];
   for (const [at, value] of list.entries()) {
-    const drafts = draftsOf({ schema, value, context });
-    if (!drafts.ok) return refused(`Item ${at + 1}: ${drafts.problem}`);
-    for (const draft of drafts.value) {
+    const item = itemDrafts({ schema, value, context });
+    if (!item.ok) return refused(`Item ${at + 1}: ${item.problem}`);
+    if ('dropped' in item) {
+      dropped.push(item.dropped);
+      continue;
+    }
+    for (const draft of item.drafts) {
       const proposal = checkDraft(draft, context, schema.meetingRelations);
       if (!proposal.ok) return refused(`Item ${at + 1}: ${proposal.problem}`);
       checked.push(proposal.value);
@@ -197,10 +268,11 @@ function readAnswer<Item>({
       return refused(`It made more than ${MAX_PROPOSALS_PER_ANSWER} proposals in one run.`);
     }
   }
-  return { ok: true, value: checked };
+  return { ok: true, value: checked, dropped };
 }
 
-function draftsOf<Item>({
+/** An item's drafts, or the item as dropped; refused when it does not read. */
+function itemDrafts<Item>({
   schema,
   value,
   context,
@@ -208,12 +280,18 @@ function draftsOf<Item>({
   schema: ProposalSchema<Item>;
   value: unknown;
   context: AnswerContext;
-}): Reading<readonly ProposalDraft[]> {
+}):
+  | { readonly ok: true; readonly drafts: readonly ProposalDraft[] }
+  | { readonly ok: true; readonly dropped: DroppedItem }
+  | { readonly ok: false; readonly problem: string } {
   if (!isRecord(value)) return refused('It is not an object.');
   const extra = unknownKeyProblem(value, schema.itemKeys, 'It');
   if (extra !== null) return refused(extra);
   const item = schema.readItem(value);
-  return item.ok ? { ok: true, value: schema.draftsOf(item.value, context) } : item;
+  if (!item.ok) return item;
+  const dropped = schema.dropped?.(item.value, context) ?? null;
+  if (dropped !== null) return { ok: true, dropped };
+  return { ok: true, drafts: schema.draftsOf(item.value, context) };
 }
 
 /** What a payload may hold: a note, and nothing that would edit one. */
@@ -332,7 +410,8 @@ export function citedBlockProblem(source: string, notes: readonly AnsweredNote[]
     : `${noteTitle(note.path)} has no block ^${truncated(id, 100)}.`;
 }
 
-function namesNote(target: string, path: VaultPath): boolean {
+/** Whether a link target names the note at `path`: by its path, or by its title alone. */
+export function namesNote(target: string, path: VaultPath): boolean {
   const wanted = target.trim().replace(/\.md$/i, '').toLowerCase();
   const stem = path.replace(/\.md$/i, '').toLowerCase();
   return wanted === stem || wanted === noteTitle(path).toLowerCase();

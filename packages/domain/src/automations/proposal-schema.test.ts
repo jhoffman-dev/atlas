@@ -84,11 +84,12 @@ describe('the general proposals schema', () => {
         },
         expect.objectContaining({ kind: 'decision' }),
       ],
+      dropped: [],
     });
   });
 
   it('reads an answer with nothing to propose as none', () => {
-    expect(general.read(answer(), CONTEXT)).toEqual({ ok: true, value: [] });
+    expect(general.read(answer(), CONTEXT)).toEqual({ ok: true, value: [], dropped: [] });
   });
 
   it('reads JSON a model fenced, and refuses anything else around it', () => {
@@ -262,6 +263,7 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
     expect(registered.read(JSON.stringify({ items: [item] }), CONTEXT)).toEqual({
       ok: true,
       value: [],
+      dropped: [],
     });
     const extra = registered.read(
       JSON.stringify({ items: [{ ...item, link_from: 'x' }] }),
@@ -280,9 +282,43 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
     expect(read).toEqual({ ok: false, problem: 'Item 1: 2026-10-01 Standup has no block ^nope.' });
   });
 
+  it('drops only what its schema says to drop, naming it, and keeps the rest', () => {
+    const dropping = registerProposalSchema({
+      ...meetingItems,
+      dropped: (each) =>
+        each.title === 'Invented' ? { title: each.title, reason: 'It was made up.' } : null,
+    });
+    const item = (title: string, source = 't0003') => ({
+      kind: 'task',
+      title,
+      source_block: source,
+      confidence: 'high',
+    });
+
+    const read = dropping.read(
+      JSON.stringify({ items: [item('Invented'), item('Send')] }),
+      CONTEXT,
+    );
+
+    expect(read).toMatchObject({
+      ok: true,
+      value: [{ payload: { title: 'Send' } }],
+      dropped: [{ title: 'Invented', reason: 'It was made up.' }],
+    });
+    // Anything else wrong still refuses the answer whole, dropped items and all.
+    expect(
+      dropping.read(JSON.stringify({ items: [item('Invented'), item('Send', 'nope')] }), CONTEXT),
+    ).toEqual({ ok: false, problem: 'Item 2: 2026-10-01 Standup has no block ^nope.' });
+  });
+
+  it('reads no vault, asks once and gives no data unless its schema says so', () => {
+    expect(registered).toMatchObject({ readsVault: false, readsInParts: false });
+    expect(registered.dataFor(CONTEXT)).toEqual([]);
+  });
+
   it('is named among the schemas only once added to the registry', () => {
-    expect(Object.keys(PROPOSAL_SCHEMAS)).toEqual(['proposals']);
-    expect(proposalSchemaNamed('meeting-items')).toBeNull();
+    expect(Object.keys(PROPOSAL_SCHEMAS)).toEqual(['proposals', 'meeting-items']);
+    expect(proposalSchemaNamed('meeting-notes')).toBeNull();
     expect(proposalSchemaNamed('constructor')).toBeNull();
   });
 });

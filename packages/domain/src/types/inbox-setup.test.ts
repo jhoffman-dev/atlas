@@ -25,12 +25,19 @@ describe('inboxTypePlan', () => {
       properties: { atlas_import_error: { kind: 'text', label: 'Why' }, date: 'date' },
     });
     const [extension] = inboxTypePlan([meeting]).extensions;
-    expect(keys(extension?.added)).toEqual(['atlas_import_outcome', 'atlas_duplicate_of']);
+    expect(keys(extension?.added)).toEqual([
+      'atlas_import_outcome',
+      'atlas_duplicate_of',
+      'tasks',
+      'decisions',
+    ]);
     expect(keys(extension?.after.properties)).toEqual([
       'atlas_import_error',
       'date',
       'atlas_import_outcome',
       'atlas_duplicate_of',
+      'tasks',
+      'decisions',
     ]);
     expect(extension?.after.properties[0]?.label).toBe('Why');
   });
@@ -42,10 +49,39 @@ describe('inboxTypePlan', () => {
         atlas_import_outcome: 'select',
         atlas_import_error: 'text',
         atlas_duplicate_of: 'text',
+        tasks: 'text',
+        decisions: 'text',
       },
     });
     expect(inboxTypePlan([whole]).extensions).toEqual([]);
     expect(inboxTypePlan([type({ name: 'task' })]).extensions).toEqual([]);
+  });
+
+  it('gives a Meeting type the relations a task and a decision taken from it are linked back through', () => {
+    const imported = type({
+      name: 'meeting',
+      properties: {
+        atlas_import_outcome: 'select',
+        atlas_import_error: 'text',
+        atlas_duplicate_of: 'text',
+        tasks: { kind: 'text', label: 'Mine' },
+      },
+    });
+
+    const [extension] = inboxTypePlan([imported]).extensions;
+
+    // `tasks` is the vault's own already: left as it is, never made a relation.
+    expect(extension?.added).toEqual([
+      {
+        key: 'decisions',
+        kind: 'relation',
+        label: 'Decisions',
+        required: false,
+        options: [],
+        target: 'decision',
+        many: true,
+      },
+    ]);
   });
 
   it('writes each type so it reads back as itself', () => {
@@ -68,9 +104,11 @@ describe('combinedExtensions', () => {
       'atlas_import_outcome',
       'atlas_import_error',
       'atlas_duplicate_of',
+      'tasks',
+      'decisions',
     ]);
     expect(typeSetupLines({ types: [], extensions: combined })).toEqual([
-      'Meeting gains Project, linking project or area notes. Meeting gains Duplicate of, linking meeting notes. Meeting gains Import and Import error.',
+      'Meeting gains Project, linking project or area notes. Meeting gains Duplicate of, linking meeting notes. Meeting gains Tasks, linking task notes. Meeting gains Decisions, linking decision notes. Meeting gains Import and Import error.',
     ]);
   });
 
@@ -98,7 +136,14 @@ describe('extensionWithin', () => {
     expect(keys(onlyImport?.after.properties)).toEqual(['date', 'atlas_import_error']);
     expect(extensionWithin(both, new Set(['somewhere else']))).toBeNull();
     expect(extensionKeys(both)).toEqual(
-      new Set(['project', 'atlas_import_outcome', 'atlas_import_error', 'atlas_duplicate_of']),
+      new Set([
+        'project',
+        'atlas_import_outcome',
+        'atlas_import_error',
+        'atlas_duplicate_of',
+        'tasks',
+        'decisions',
+      ]),
     );
   });
 });

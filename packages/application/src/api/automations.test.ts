@@ -716,6 +716,90 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     expect(new Map([...api.files].map(([path, note]) => [path, note.text]))).toEqual(before);
   });
 
+  it('lists and dry-runs a meeting extraction rule as output: meeting-items (P29-05)', async () => {
+    const extraction = {
+      ...files,
+      '.atlas/automations/Extract.md': rule({
+        id: 'extract',
+        name: 'Extract',
+        when: 'manually',
+        which: 'FROM task WHERE status = done',
+        do: 'claude',
+        prompt: '.atlas/prompts/meeting-extraction.md',
+        output: 'meeting-items',
+      }),
+    };
+    const markdown = jsonMarkdown();
+    const api = apiFixture({
+      files: extraction,
+      markdown,
+      index: {
+        query: atlasQueryIndex({ files: extraction, markdown }),
+        manifest: async () =>
+          Object.entries(extraction).map(([path, text]) => ({
+            path,
+            modified: 0,
+            size: text.length,
+            type: null,
+            digest: digestOf(text),
+          })),
+      },
+    });
+    const claude = {
+      prompt: '.atlas/prompts/meeting-extraction.md',
+      tools: [],
+      output: 'meeting-items',
+      folder: null,
+    };
+
+    const { automations } = bodyOf(await list(api)) as { automations: Record<string, unknown>[] };
+    const { plan } = bodyOf(await dryRun(api, 'extract')) as { plan: Record<string, unknown> };
+
+    expect(automations.find((each) => each['id'] === 'extract')).toMatchObject({
+      do: 'claude',
+      claude,
+    });
+    expect(plan).toMatchObject({ do: 'claude', claude });
+  });
+
+  it('carries how often a Claude step asked and what it left out, from its log', async () => {
+    const parts: LogEntry = {
+      kind: 'run',
+      at: '2026-09-21T03:00:04',
+      trigger: 'hand',
+      done: [],
+      left: [],
+      capped: false,
+      claude: {
+        model: 'claude-opus-5-5',
+        ms: 900,
+        asks: 3,
+        dropped: [{ title: 'Order the cake', reason: 'Standup has no transcript turn ^t0099.' }],
+      },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [parts]),
+    });
+
+    const response = await api.send({ method: 'GET', path: '/v1/automations/ask/log' });
+
+    expect(bodyOf(response)).toMatchObject({
+      entries: [
+        {
+          kind: 'run',
+          summary: 'Claude proposed nothing. Left out 1 item that cited no turn of the meeting.',
+          claude: {
+            asks: 3,
+            dropped: [
+              { title: 'Order the cake', reason: 'Standup has no transcript turn ^t0099.' },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
   it('reads the model a Claude step asked from its log', async () => {
     const asked: LogEntry = {
       kind: 'run',

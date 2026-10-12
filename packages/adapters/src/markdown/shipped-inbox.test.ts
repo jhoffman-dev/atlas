@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createVaultPath,
   findQuickViews,
+  MEETING_EXTRACTION_PROPERTIES,
   MEETING_IMPORT_PROPERTIES,
   parseObjectType,
   parseQueryView,
@@ -114,7 +115,7 @@ describe('the Inbox this vault ships', () => {
       expect(parseObjectType(frontmatterOf(shipped(`.atlas/types/${type.name}.md`)))).toEqual(type);
     }
     const meeting = TYPES.find((each) => each.name === 'meeting');
-    for (const property of MEETING_IMPORT_PROPERTIES) {
+    for (const property of [...MEETING_IMPORT_PROPERTIES, ...MEETING_EXTRACTION_PROPERTIES]) {
       expect(meeting?.properties.find((each) => each.key === property.key)).toEqual(property);
     }
   });

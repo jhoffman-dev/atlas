@@ -463,16 +463,6 @@ export function App({
       }),
     [apiDeps, notePorts.markdown],
   );
-  const claudeStep = useMemo(
-    () =>
-      claudeStepPorts({
-        ports: chatPorts,
-        store: browserChatSettingsStore,
-        toolboxes,
-        vault: () => vaultKey,
-      }),
-    [chatPorts, toolboxes, vaultKey],
-  );
 
   // The SQL view behind each type is rebuilt whenever the definitions change, so
   // adding a property to a type makes a column appear.
@@ -706,6 +696,19 @@ export function App({
     changeKey: indexKey,
     activity: activityLog,
   });
+  // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05).
+  const ownerName = profileSetting.profile === 'unknown' ? null : profileSetting.profile.name;
+  const claudeStep = useMemo(
+    () =>
+      claudeStepPorts({
+        ports: chatPorts,
+        store: browserChatSettingsStore,
+        toolboxes,
+        vault: () => vaultKey,
+        selfName: () => ownerName,
+      }),
+    [chatPorts, toolboxes, vaultKey, ownerName],
+  );
   const chat = useChat({
     ports: chatPorts,
     store: browserChatSettingsStore,

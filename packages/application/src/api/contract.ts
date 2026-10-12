@@ -627,6 +627,11 @@ export interface ApiProposal {
   readonly source: string | null;
   /** The rule and run that made it. */
   readonly madeBy: string | null;
+  /**
+   * Why it was proposed, as the proposal's body says it — for a meeting's
+   * item, whose it is and how sure that is. Empty when the body is.
+   */
+  readonly reason: string;
   /** What Accept writes, as the note holds it. */
   readonly payload: Readonly<Record<string, unknown>>;
   readonly modified: number;
@@ -1015,7 +1020,7 @@ export interface ApiClaudeStep {
   /** The prompt note, in `.atlas/prompts/`. */
   readonly prompt: string;
   readonly tools: readonly string[];
-  /** `note`, or the name of a proposal schema: `proposals`. */
+  /** `note`, or the name of a proposal schema: `proposals`, or `meeting-items` (what Claude pulls out of a meeting). */
   readonly output: string;
   /** Where its one new note goes, for `output: note`; null otherwise. */
   readonly folder: string | null;
@@ -1056,7 +1061,10 @@ export interface ApiAutomationLogEntry {
   /**
    * On a `run` or `failed` entry of a Claude step: the model asked, how long
    * it took, and (`cut`) each note it was shown only the start of — how many
-   * characters of how many.
+   * characters of how many. An output that reads a long meeting in parts
+   * (`meeting-items`) also says how many times it asked (`asks`, when more
+   * than once) and each item it left out of an answer it kept, with why
+   * (`dropped`).
    */
   readonly claude?: {
     readonly model: string;
@@ -1066,6 +1074,8 @@ export interface ApiAutomationLogEntry {
       readonly shown: number;
       readonly of: number;
     }[];
+    readonly asks?: number;
+    readonly dropped?: readonly { readonly title: string; readonly reason: string }[];
   };
 }
 

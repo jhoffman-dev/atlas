@@ -47,6 +47,14 @@
  * - cut `"Meetings/2026-10-01 Standup.md"`: read `19874` of `48211` characters
  * ```
  *
+ * An output that reads a long meeting in parts (P29-05) says how many times it
+ * asked, and names each item it left out of an answer it otherwise kept:
+ *
+ * ```markdown
+ * - asked `3` times
+ * - dropped `"Send the contract"`: Vendor call has no transcript turn ^t0099 that Claude was shown.
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
@@ -56,6 +64,7 @@ import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { truncated } from './answer-limits.ts';
 import type { PassedOver } from './automation-plan.ts';
 import type { NoteCut } from './answered-note.ts';
+import type { DroppedItem } from './proposal-schema.ts';
 import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
 import type { NoteVersionRef } from './note-trigger.ts';
 import type { LocalTime } from './schedule.ts';
@@ -101,7 +110,14 @@ export interface ClaudeRunInfo {
    * read every note whole.
    */
   readonly cut?: readonly NoteCut[];
+  /** How many times it asked, when more than once: a long meeting read in parts. */
+  readonly asks?: number;
+  /** The items of its answers it left out while keeping the rest, each with why. */
+  readonly dropped?: readonly DroppedItem[];
 }
+
+/** The longest an item's title runs in a log line: it is a model's, and a line is not a note. */
+const MAX_DROPPED_TITLE = 120;
 
 export type LogEntry =
   | {
@@ -208,7 +224,15 @@ export function logEntrySummary(entry: LogEntry): string {
   // The cap counts notes: a rule setting two properties makes two lines per note.
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
   const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
-  return `${counts}${left}${capped}${cutWords(('claude' in entry && entry.claude?.cut) || [])}`;
+  const claude = 'claude' in entry ? entry.claude : undefined;
+  return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}`;
+}
+
+/** What a run says when it left items out of an answer it kept. */
+function droppedWords(dropped: readonly DroppedItem[]): string {
+  if (dropped.length === 0) return '';
+  const items = dropped.length === 1 ? '1 item' : `${dropped.length} items`;
+  return ` Left out ${items} that cited no turn of the meeting.`;
 }
 
 /** What a run says when a note was too long to show the model whole. */
@@ -245,11 +269,16 @@ function countDone(done: readonly DoneAction[]): string {
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
 }
 
-function claudeLines({ model, ms, cut = [] }: ClaudeRunInfo): string[] {
+function claudeLines({ model, ms, cut = [], asks, dropped = [] }: ClaudeRunInfo): string[] {
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
+    ...(asks === undefined ? [] : [`- asked ${code(asks)} times`]),
     ...cut.map(
       ({ path, shown, of }) => `- cut ${code(path)}: read ${code(shown)} of ${code(of)} characters`,
+    ),
+    ...dropped.map(
+      ({ title, reason }) =>
+        `- dropped ${code(truncated(oneLine(title), MAX_DROPPED_TITLE))}: ${oneLine(truncated(reason))}`,
     ),
   ];
 }
@@ -350,6 +379,8 @@ const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_S
 const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
 const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
 const CUT_LINE = new RegExp(`^- cut ${JSON_SPAN}: read ${JSON_SPAN} of ${JSON_SPAN} characters$`);
+const ASKED_LINE = new RegExp(`^- asked ${JSON_SPAN} times$`);
+const DROPPED_LINE = new RegExp(`^- dropped ${JSON_SPAN}: (.*)$`);
 const SET_LINE = new RegExp(
   `^- (set|restored) ${JSON_SPAN} ${JSON_SPAN}: ${PRIOR_SPAN} → ${PRIOR_SPAN}$`,
 );
@@ -429,7 +460,15 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
       const ms = JSON.parse(match[2]!) as unknown;
       if (typeof model === 'string' && typeof ms === 'number') {
         const cut = cutOf(body);
-        return { model, ms, ...(cut.length > 0 && { cut }) };
+        const asks = asksOf(body);
+        const dropped = droppedOf(body);
+        return {
+          model,
+          ms,
+          ...(cut.length > 0 && { cut }),
+          ...(asks !== null && { asks }),
+          ...(dropped.length > 0 && { dropped }),
+        };
       }
     } catch {
       // A line edited into JSON that does not read is left out, as any other line is.
@@ -450,6 +489,37 @@ function cutOf(body: readonly string[]): NoteCut[] {
       return [{ path: pathOf(match[1]!), shown, of }];
     } catch {
       // A line edited into JSON that does not read, or a path that is no path, is left out.
+      return [];
+    }
+  });
+}
+
+/** How many times a Claude step asked, from its line; null when it says nothing, or does not read. */
+function asksOf(body: readonly string[]): number | null {
+  for (const line of body) {
+    const match = ASKED_LINE.exec(line);
+    if (match === null) continue;
+    try {
+      const asks = JSON.parse(match[1]!) as unknown;
+      return typeof asks === 'number' && Number.isInteger(asks) && asks > 1 ? asks : null;
+    } catch {
+      // A line edited into JSON that does not read is left out, as any other line is.
+      return null;
+    }
+  }
+  return null;
+}
+
+/** The items a Claude step left out of its answers, from its lines; one that does not read is left out. */
+function droppedOf(body: readonly string[]): DroppedItem[] {
+  return body.flatMap((line) => {
+    const match = DROPPED_LINE.exec(line);
+    if (match === null) return [];
+    try {
+      const title = JSON.parse(match[1]!) as unknown;
+      return typeof title === 'string' ? [{ title, reason: match[2]! }] : [];
+    } catch {
+      // A line edited into JSON that does not read is left out, as any other line is.
       return [];
     }
   });

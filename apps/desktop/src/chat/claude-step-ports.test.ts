@@ -33,6 +33,7 @@ function setUp(start: ChatSettings) {
     store,
     toolboxes: { reading: () => ({ specs: [], run: async () => ({}) as never }) },
     vault: () => '/vaults/home',
+    selfName: () => 'Mara Quill',
   });
   return { step, store, vaults };
 }

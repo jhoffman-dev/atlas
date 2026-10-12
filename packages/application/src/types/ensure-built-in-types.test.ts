@@ -149,6 +149,8 @@ describe('ensureBuiltInTypes', () => {
       'project',
       'atlas_import_outcome',
       'atlas_duplicate_of',
+      'tasks',
+      'decisions',
     ]);
   });
 
@@ -307,6 +309,8 @@ describe('acceptTypeSetup', () => {
       'atlas_import_outcome',
       'atlas_import_error',
       'atlas_duplicate_of',
+      'tasks',
+      'decisions',
     ]);
     expect(relationTypes(widened?.properties[0] ?? { target: null })).toEqual(['project', 'area']);
   });

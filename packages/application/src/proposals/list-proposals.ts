@@ -20,7 +20,16 @@ import { listVaultDirectory } from '../vault/read-vault.ts';
 export interface ListedProposal {
   readonly proposal: ProposalNote;
   readonly modified: number;
+  /**
+   * Why it was proposed, as its maker wrote in the note's body: what the card
+   * says under the headline. Cut to {@link MAX_REASON_CHARACTERS}; empty when
+   * the body is.
+   */
+  readonly reason: string;
 }
+
+/** The most of a proposal's body a listing carries: a sentence or two, not a document. */
+export const MAX_REASON_CHARACTERS = 1_000;
 
 /** A proposal note that could not be read, and why — shown, never dropped. */
 export interface UnreadableProposal {
@@ -61,7 +70,7 @@ export async function listProposals({
   const stranded: ListedProposal[] = [];
   const unreadable: UnreadableProposal[] = [];
   for (const file of await fs.readNotes(paths)) {
-    const { frontmatter } = splitFrontmatter(file.text);
+    const { frontmatter, body } = splitFrontmatter(file.text);
     const problem = markdown.frontmatterProblem(frontmatter);
     const path = file.path as VaultPath;
     if (problem !== null) {
@@ -73,7 +82,8 @@ export async function listProposals({
     const reading = readProposal({ path, properties });
     if (!reading.ok) unreadable.push({ path, problem: reading.problem });
     else {
-      const listed = { proposal: reading.proposal, modified: file.modified };
+      const reason = body.trim().slice(0, MAX_REASON_CHARACTERS);
+      const listed = { proposal: reading.proposal, modified: file.modified, reason };
       (reading.proposal.state === 'open' ? open : stranded).push(listed);
     }
   }
