@@ -16,6 +16,8 @@
  * whole answer, as for every output.
  */
 
+import { splitFrontmatter } from '../markdown/markdown-document.ts';
+import { digestOf } from '../sources/merge.ts';
 import { NEW_TASK_STATUS, TASK_KEYS, WAITING_STATUS } from '../gtd/gtd-status.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
@@ -535,6 +537,7 @@ export const MEETING_ITEMS: ProposalSchema<MeetingItem> = {
   meetingRelations: [MEETING_TASKS_KEY, MEETING_DECISIONS_KEY],
   readItem: readMeetingItem,
   sharedAcrossRules: true,
+  handledKeyOf: bodyDigestOf,
   dropsUnreadable: true,
   positionOf: turnPosition,
   dropped: droppedItem,
@@ -549,4 +552,14 @@ function turnPosition(cites: ProposalCitation, { notes }: AnswerContext): number
   const note = notes.find((each) => each.path === cites.note);
   const at = meetingTurnsOf(note?.text ?? '').findIndex((turn) => turn.blockId === cites.block);
   return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+}
+
+/**
+ * What a meeting is, to a rule that has answered it: the words, not the
+ * frontmatter. Accepting a proposal writes the meeting's `tasks` or
+ * `decisions`; that is Atlas's change, not something said in the meeting, and
+ * must not make the meeting new.
+ */
+function bodyDigestOf(text: string): string {
+  return digestOf(splitFrontmatter(text).body);
 }

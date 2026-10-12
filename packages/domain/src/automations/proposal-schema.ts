@@ -206,6 +206,13 @@ export interface ProposalSchema<Item> {
   /** Whether an item that is no object is dropped, as one {@link ItemReading} drops, instead of refusing the answer. */
   readonly dropsUnreadable?: boolean;
   /**
+   * The key by which a note counts as already answered, besides its whole-file
+   * digest: for a schema whose answer depends on only part of a note. Two
+   * versions with one key are one to the rule, so a change to the rest — the
+   * frontmatter Accept writes — asks nothing again. Default: only the whole file.
+   */
+  readonly handledKeyOf?: (text: string) => string;
+  /**
    * Where in its note the block a proposal cites falls, to take an answer's
    * proposals in the order of the note whatever order the model listed them.
    */
@@ -249,6 +256,7 @@ export interface RegisteredProposalSchema {
   readonly read: (answer: string, context: AnswerContext) => AnswerReading;
   readonly readsVault: boolean;
   readonly readsInParts: boolean;
+  readonly handledKeyOf: ((text: string) => string) | null;
   /** The relations of a meeting its proposals join on Accept. */
   readonly meetingRelations: readonly string[];
   readonly dataFor: (context: AnswerContext) => readonly PromptData[];
@@ -286,6 +294,7 @@ export function registerProposalSchema<Item>(
     read: (answer, context) => readAnswer({ schema, answer, context }),
     readsVault: schema.readsVault === true,
     readsInParts: schema.readsInParts === true,
+    handledKeyOf: schema.handledKeyOf ?? null,
     meetingRelations: schema.meetingRelations ?? [],
     dataFor: (context) => schema.dataFor?.(context) ?? [],
   };

@@ -65,11 +65,8 @@ export function claudeStepSystem({
     '',
     answer,
     '',
-    // What is the same for every part of one meeting comes before the part: a provider that
-    // caches a prompt's start can reuse it.
-    ...dataSection(data),
-    '',
     notesSection(notes),
+    ...dataSection(data),
   ].join('\n');
 }
 

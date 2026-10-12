@@ -483,9 +483,9 @@ bullets above, this wins._
   the same section reader as the import's contract (`splitMeetingSections`), so
   a `## Transcript` inside a fence is no heading. Each later part opens with the
   last two turns of the part before, quoted (`>`) with their ids removed, so
-  they give context and cannot be cited. The data block (who was there, hints,
-  vocabulary) precedes the notes in the system prompt, so the parts of one
-  meeting share a prefix.
+  they give context and cannot be cited. The data block stays after the notes (a deliberate
+  order, tested: the meeting is read first); putting it first for caching was
+  considered and left, since it would move the vault's text nearer the question.
 - **A proposal is known by the meeting, not by the rule.** The id of a
   `meeting-items` proposal is the meeting (provider and id), the turn, the kind,
   the normalised title and the normalised owner (`self`, a person's name, `?`

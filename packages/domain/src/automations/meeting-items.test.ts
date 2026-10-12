@@ -610,3 +610,18 @@ describe('what a proposal is known by', () => {
     expect(reading.value.map((each) => each.payload.title)).toEqual(['Early', 'Late']);
   });
 });
+
+describe('what makes a meeting new to a rule that has answered it', () => {
+  const key = (text: string) => schema.handledKeyOf!(text);
+
+  it('is its words: a change to its frontmatter, such as Accept’s own, is none', () => {
+    const body = '\n## Transcript\n\n**You** [00:00:01] Hello. ^t0001\n';
+
+    expect(key(`---\ntype: meeting\n---${body}`)).toBe(
+      key(`---\ntype: meeting\ntasks:\n  - "[[A task]]"\n---${body}`),
+    );
+    expect(key(`---\ntype: meeting\n---${body}`)).not.toBe(
+      key(`---\ntype: meeting\n---${body}\n**You** [00:00:02] More. ^t0002\n`),
+    );
+  });
+});
