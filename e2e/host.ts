@@ -555,22 +555,19 @@ export async function installHost(
   let claudeLoggedIn = true;
   /** git and gh (`git_process.rs`), as a real git against bare repositories on disk. */
   const gitStub = await createGitStub();
-  /** Emits a run's output after its start has been answered, as the host's reader thread does. */
-  const emitModel = (payloads: readonly unknown[]) => {
-    setTimeout(() => {
-      void (async () => {
-        for (const payload of payloads) {
-          await page.evaluate(
-            ([item]) =>
-              (
-                window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }
-              ).__atlasEmit('model-process', item),
-            [payload],
-          );
-        }
-      })();
-    }, 0);
-  };
+  /**
+   * A run's output, emitted after its start has been answered, as the host's
+   * reader thread does.
+   *
+   * The page emits it to itself, a line per task, once it has the answer. It
+   * used to be pushed from here with a `page.evaluate` per line, detached from
+   * the command that started it: a test that finished while a run was still
+   * printing (the chat asks `claude auth status` the moment it opens) had that
+   * call rejected with "Test ended" and failed after passing, and a long
+   * answer cost hundreds of round trips. A window that closes mid-run now
+   * takes the rest of the output with it, as a real one does.
+   */
+  const thenEmitModel = (payloads: readonly unknown[]) => ({ __atlasThenEmit: payloads });
   /**
    * A scripted reply as Claude Code 2.x prints it with `--include-partial-messages`
    * (captured from a real run): the init and status lines, a thinking block
@@ -1308,19 +1305,16 @@ export async function installHost(
         const { run, args: argv, stdin } = args as { run: string; args: string[]; stdin: string };
         claudeRuns.push({ args: argv, stdin });
         if (argv[0] === 'auth') {
-          emitModel([
+          return thenEmitModel([
             { run, kind: 'line', text: JSON.stringify({ loggedIn: claudeLoggedIn }) },
             { run, kind: 'exit', code: claudeLoggedIn ? 0 : 1, stderr: '' },
           ]);
-          return null;
         }
-        emitModel(streamed(run, claudeReplies.shift() ?? 'Nothing more was scripted.'));
-        return null;
+        return thenEmitModel(streamed(run, claudeReplies.shift() ?? 'Nothing more was scripted.'));
       }
       case 'model_process_cancel': {
         const { run } = args as { run: string };
-        emitModel([{ run, kind: 'exit', code: null, stderr: '' }]);
-        return null;
+        return thenEmitModel([{ run, kind: 'exit', code: null, stderr: '' }]);
       }
       case 'activity_append': {
         const { vault: root, text } = args as { vault: string; text: string };
@@ -1369,6 +1363,19 @@ export async function installHost(
     const callbacks = new Map<number, (payload: unknown) => void>();
     const listeners = new Map<string, number[]>();
     let nextId = 1;
+    const emit = (event: string, payload: unknown) => {
+      for (const id of listeners.get(event) ?? []) {
+        callbacks.get(id)?.({ event, id, payload });
+      }
+    };
+    /** A model run's output, a line per task, so the app draws between lines as it does live. */
+    const emitEachInItsOwnTask = (payloads: readonly unknown[], at = 0) => {
+      if (at >= payloads.length) return;
+      setTimeout(() => {
+        emit('model-process', payloads[at]);
+        emitEachInItsOwnTask(payloads, at + 1);
+      }, 0);
+    };
 
     (window as unknown as { __TAURI_INTERNALS__: unknown }).__TAURI_INTERNALS__ = {
       // Which window this is, as Tauri tells its pages: the close button is watched through it.
@@ -1401,11 +1408,17 @@ export async function installHost(
           .__atlasInvoke(command, args)
           // A command that rejects with a value rather than a message, as
           // Tauri hands the webview whatever a command's `Err` serializes to.
-          .then((value) =>
-            typeof value === 'object' && value !== null && '__atlasReject' in value
-              ? Promise.reject((value as { __atlasReject: unknown }).__atlasReject)
-              : value,
-          );
+          .then((value) => {
+            if (typeof value !== 'object' || value === null) return value;
+            if ('__atlasReject' in value) {
+              return Promise.reject((value as { __atlasReject: unknown }).__atlasReject);
+            }
+            if ('__atlasThenEmit' in value) {
+              emitEachInItsOwnTask((value as { __atlasThenEmit: unknown[] }).__atlasThenEmit);
+              return null;
+            }
+            return value;
+          });
         return command === 'read_binary_file'
           ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
           : answer;
@@ -1423,11 +1436,7 @@ export async function installHost(
 
     // What the tests call to pretend the vault changed underneath the app.
     (window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }).__atlasEmit =
-      (event, payload) => {
-        for (const id of listeners.get(event) ?? []) {
-          callbacks.get(id)?.({ event, id, payload });
-        }
-      };
+      emit;
   });
 
   return {
