@@ -1,4 +1,11 @@
-import { proposalSchemaNamed, type AutomationRule, type NoteVersionRef } from '@atlas/domain';
+import {
+  answeredMeetingOf,
+  proposalSchemaNamed,
+  splitFrontmatter,
+  type AutomationRule,
+  type NoteVersionRef,
+} from '@atlas/domain';
+import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 
 /**
@@ -15,10 +22,12 @@ import type { VaultFsPort } from '../vault/ports.ts';
  */
 export async function withHandledKeys({
   fs,
+  markdown,
   rule,
   versions,
 }: {
   fs: Pick<VaultFsPort, 'readNotes'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
   rule: Pick<AutomationRule, 'action'>;
   versions: readonly NoteVersionRef[];
 }): Promise<NoteVersionRef[]> {
@@ -33,8 +42,11 @@ export async function withHandledKeys({
   );
   return versions.map((version) => {
     const text = texts.get(version.path);
-    return text === undefined
-      ? version
-      : { ...version, keys: [...(version.keys ?? []), `body:${keyOf(text)}`] };
+    if (text === undefined) return version;
+    const meeting = answeredMeetingOf(
+      markdown.frontmatterProperties(splitFrontmatter(text).frontmatter),
+    );
+    const key = keyOf({ text, ...(meeting !== undefined && { meeting }) });
+    return key === null ? version : { ...version, keys: [...(version.keys ?? []), key] };
   });
 }

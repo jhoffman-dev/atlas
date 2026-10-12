@@ -137,6 +137,7 @@ async function runOnHeard(
   const { entries } = log;
   const triggering = await withHandledKeys({
     fs: run.ports.fs,
+    markdown: run.ports.markdown,
     rule: run.rule,
     versions: triggeringVersions(run.when, run.changes),
   });
@@ -179,7 +180,14 @@ export async function runOnMissedArrivals(run: AutomationRun): Promise<LogEntry 
     const { entries } = log;
     const { fs, index } = run.ports;
     const handled = await handledNow({ index, log });
-    const versions = await arrivalsMissed({ fs, index, rule, trigger: when, handled });
+    const versions = await arrivalsMissed({
+      fs,
+      markdown: run.ports.markdown,
+      index,
+      rule,
+      trigger: when,
+      handled,
+    });
     if (versions.length === 0) return null;
     const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
     if (heldUntil !== null) throw new NoteRunsCappedError(heldUntil);

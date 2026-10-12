@@ -612,7 +612,9 @@ describe('what a proposal is known by', () => {
 });
 
 describe('what makes a meeting new to a rule that has answered it', () => {
-  const key = (text: string) => schema.handledKeyOf!(text);
+  const meeting = { identity: { provider: 'gemini', externalId: 'g1' } };
+  const key = (text: string, held: typeof meeting | undefined = meeting) =>
+    schema.handledKeyOf!({ text, ...(held !== undefined && { meeting: held }) });
 
   it('is its words: a change to its frontmatter, such as Accept’s own, is none', () => {
     const body = '\n## Transcript\n\n**You** [00:00:01] Hello. ^t0001\n';
@@ -623,5 +625,14 @@ describe('what makes a meeting new to a rule that has answered it', () => {
     expect(key(`---\ntype: meeting\n---${body}`)).not.toBe(
       key(`---\ntype: meeting\n---${body}\n**You** [00:00:02] More. ^t0002\n`),
     );
+  });
+
+  it('is unique to the meeting: two with the same words are two, and one not let in has none', () => {
+    const text = '---\ntype: meeting\n---\n\n**You** [00:00:01] Hello. ^t0001\n';
+
+    expect(key(text)).toMatch(/^meeting:gemini:g1:body:/);
+    expect(key(text)).not.toBe(key(text, { identity: { provider: 'gemini', externalId: 'g2' } }));
+    expect(key(text, { identity: null as never })).toBeNull();
+    expect(key(text, undefined)).toBeNull();
   });
 });

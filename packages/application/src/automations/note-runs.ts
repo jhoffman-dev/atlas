@@ -21,6 +21,7 @@ import {
 } from '@atlas/domain';
 import { heldEntries } from '../index/refresh-index.ts';
 import type { IndexEntry, IndexPort } from '../index/ports.ts';
+import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { RuleLog } from './automation-log.ts';
 import { withHandledKeys } from './handled-keys.ts';
@@ -68,7 +69,12 @@ export async function planRuleNow({
   const matched = await matchedPaths({ ports, rule, today });
   const held = await heldEntries(ports.index);
   const handled = handledVersions(log, { ledger, holds: digestsHeld(held) });
-  const keyed = await withHandledKeys({ fs: ports.fs, rule, versions: versionsNow(held, matched) });
+  const keyed = await withHandledKeys({
+    fs: ports.fs,
+    markdown: ports.markdown,
+    rule,
+    versions: versionsNow(held, matched),
+  });
   const versions = unhandledVersions(keyed, handled);
   const plan = await planMatched({
     ports,
@@ -171,12 +177,14 @@ export async function handledAmong({
  */
 export async function arrivalsMissed({
   fs,
+  markdown,
   index,
   rule,
   trigger,
   handled,
 }: {
   fs: Pick<VaultFsPort, 'readTextFile' | 'readNotes'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
   index: IndexPort;
   rule: Pick<AutomationRule, 'path' | 'action'>;
   trigger: NoteTrigger;
@@ -196,7 +204,7 @@ export async function arrivalsMissed({
   }));
   const missed = missedArrivals({ trigger, notes, handled, since });
   // A note whose words were answered at another version (Accept wrote its tasks) was not missed.
-  const keyed = await withHandledKeys({ fs, rule, versions: missed });
+  const keyed = await withHandledKeys({ fs, markdown, rule, versions: missed });
   return unhandledVersions(keyed, handled);
 }
 

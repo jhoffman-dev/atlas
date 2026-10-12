@@ -560,6 +560,9 @@ function turnPosition(cites: ProposalCitation, { notes }: AnswerContext): number
  * `decisions`; that is Atlas's change, not something said in the meeting, and
  * must not make the meeting new.
  */
-function bodyDigestOf(text: string): string {
-  return digestOf(splitFrontmatter(text).body);
+function bodyDigestOf({ text, meeting }: Pick<AnsweredNote, 'text' | 'meeting'>): string | null {
+  const identity = meeting?.identity;
+  // Keys match across paths: only a meeting the import vouches for is unique enough to name.
+  if (identity === null || identity === undefined) return null;
+  return `meeting:${identity.provider}:${identity.externalId}:body:${digestOf(splitFrontmatter(text).body)}`;
 }

@@ -567,7 +567,7 @@ bullets above, this wins._
   first, then the task.
 - **Accepting does not make a meeting new.** A schema may name what a note is
   answered by besides its whole-file digest (`ProposalSchema.handledKeyOf`);
-  `meeting-items` names its **body** digest. The key rides on the version as one
+  `meeting-items` names its **body** digest, as `meeting:<provider>:<id>:body:<digest>` — keys match across paths, so a bare digest would make two meetings with the same words one; a meeting the import did not vouch for has none. The key rides on the version as one
   of the ledger's extra keys (`withHandledKeys`: when planning a run, hearing
   the feed and catching up at open; no other persistence), so Accept writing
   the meeting's `tasks`/`decisions` — frontmatter only — is not new words and
