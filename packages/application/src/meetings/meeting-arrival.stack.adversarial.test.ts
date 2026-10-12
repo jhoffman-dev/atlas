@@ -65,7 +65,7 @@ const ARRIVING = jsonNote(
   BODY,
 );
 
-async function setUp() {
+async function setUp({ openVault = () => VAULT }: { openVault?: () => string | null } = {}) {
   const vault = automationVault({ notes: { ...DIRECTORY }, today: TODAY, types: TYPES });
   // The fake vault knows only the folders its first notes sat in: where meetings land is made as a pull makes it.
   for (const folder of ['Inbox', 'Inbox/Meetings']) {
@@ -76,7 +76,7 @@ async function setUp() {
     ports: () => vault.ports,
     clock: CLOCK,
     activity,
-    openVault: () => VAULT,
+    openVault,
     onWritten: () => undefined,
   };
   const linker = createMeetingLinker({ ...wiring, selfName: () => null });
@@ -146,5 +146,82 @@ describe('a meeting whose proposals cannot be written', () => {
     expect(vault.properties(MEETING)['people']).toContain('[[Mara Quill]]');
     expect(messages().some((message) => message.includes('linked Mara Quill'))).toBe(true);
     expect(messages()).not.toContain('Could not link the meeting: permission denied');
+  });
+});
+
+describe('a speaker label that is exactly a person’s alias', () => {
+  it('is not rewritten by a Term that lists the same spelling as misheard', async () => {
+    const { vault, arrive } = await setUp();
+
+    await arrive();
+
+    expect(vault.properties(MEETING)).toMatchObject({ atlas_import_outcome: 'imported' });
+    expect(vault.files.get(MEETING)).toContain('**Toby** [~00:00:00]');
+  });
+});
+
+describe('a meeting whose links were written and whose stamp write then failed', () => {
+  it('is stamped the next time the import looks, with no one linked or proposed twice', async () => {
+    const { vault, importer, arrive, messages } = await setUp();
+    const write = vault.ports.fs.writeTextFile;
+    let writes = 0;
+    vault.ports.fs.writeTextFile = async (args) => {
+      // The first write to the meeting is its links; the second, its stamp, is refused once.
+      if (args.path === MEETING && (writes += 1) === 2) throw new Error('disk full');
+      return write(args);
+    };
+
+    await arrive();
+
+    expect(vault.properties(MEETING)['people']).toEqual(['[[Mara Quill]]', '[[Tobias Fenn]]']);
+    expect(importOutcomeOf(vault.properties(MEETING))).toBeNull();
+    const proposed = () =>
+      [...vault.files.keys()].filter((at) => at.startsWith('Inbox/Proposals/'));
+    const proposedFirst = proposed();
+    expect(proposedFirst).toHaveLength(1);
+    expect(messages().some((message) => message.includes('disk full'))).toBe(true);
+
+    await importer.catchUp(VAULT);
+
+    expect(importOutcomeOf(vault.properties(MEETING))).toBe('imported');
+    expect(vault.properties(MEETING)['people']).toEqual(['[[Mara Quill]]', '[[Tobias Fenn]]']);
+    expect(proposed()).toEqual(proposedFirst);
+  });
+});
+
+describe('another vault opened while a meeting was being linked', () => {
+  it('leaves the meeting unstamped and says so in Activity', async () => {
+    let open: string | null = VAULT;
+    const { vault, arrive, messages } = await setUp({ openVault: () => open });
+    const read = vault.ports.fs.readTextFile;
+    let reads = 0;
+    vault.ports.fs.readTextFile = async (path) => {
+      // The import reads the meeting to judge it; the vault changes before it is linked or let in.
+      if (path === MEETING && (reads += 1) === 2) open = '/vaults/other';
+      return read(path);
+    };
+
+    await arrive();
+
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(importOutcomeOf(vault.properties(MEETING))).toBeNull();
+    expect(messages().some((message) => /another vault was opened/i.test(message))).toBe(true);
+  });
+});
+
+describe('the vocabulary a meeting’s speakers are read by', () => {
+  it('is the import run’s own: read once for a meeting, not again to link it', async () => {
+    const { vault, arrive } = await setUp();
+    const query = vault.ports.index.query;
+    let vocabularyReads = 0;
+    vault.ports.index.query = async (sql, parameters) => {
+      if (sql.includes('terms:notes')) vocabularyReads += 1;
+      return query(sql, parameters);
+    };
+
+    await arrive();
+
+    expect(vault.properties(MEETING)).toMatchObject({ atlas_import_outcome: 'imported' });
+    expect(vocabularyReads).toBe(1);
   });
 });

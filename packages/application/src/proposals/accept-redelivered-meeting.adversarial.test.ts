@@ -90,4 +90,18 @@ describe('accepting a proposal after its meeting was filed and delivered again',
 
     expect(vault.properties(MEETING)['people']).toBeUndefined();
   });
+
+  it('refuses, in words, when the only note holding the meeting is one the import has not let in', async () => {
+    const { vault, land, proposal } = await setUp();
+    // The meeting the import let in is gone; the same meeting is delivered again and waits unstamped.
+    vault.files.delete(MEETING);
+    await land();
+    expect(importOutcomeOf(vault.properties(MEETING))).toBeNull();
+
+    await expect(
+      acceptProposalNote({ ports: vault.ports, path: proposal, today: TODAY }),
+    ).rejects.toThrow(/has not been let in by the import yet/);
+
+    expect(vault.properties(MEETING)['people']).toBeUndefined();
+  });
 });
