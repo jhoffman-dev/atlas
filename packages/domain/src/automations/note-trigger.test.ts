@@ -206,11 +206,10 @@ describe('triggeringVersions where meeting files land (#92)', () => {
     expect(triggeringVersions(MEETING_CHANGED, stamp)).toEqual([]);
   });
 
-  it('takes a file that comes already let in as arrived, as the import left it', () => {
+  it('takes a file that comes already let in as no arrival: the import did not let it in here', () => {
+    // A copy sync made, a meeting moved in or put back: the stamp is another's work.
     const arrived = [{ ...plain, digest: 'stamped', importOutcome: 'imported' as const }];
-    expect(triggeringVersions(MEETING_CREATED, arrived)).toEqual([
-      { path: ARRIVING, digest: 'stamped' },
-    ]);
+    expect(triggeringVersions(MEETING_CREATED, arrived)).toEqual([]);
   });
 
   it('hears nothing of a file the import refused or archived as a copy, nor of its stamp', () => {

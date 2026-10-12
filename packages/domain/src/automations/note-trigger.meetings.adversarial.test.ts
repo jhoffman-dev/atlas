@@ -19,6 +19,7 @@ const note = (
     importOutcome?: ImportOutcome;
     before?: string;
     beforeImportOutcome?: ImportOutcome;
+    beforeArrivalHeard?: true;
   } = {},
 ): NoteChange => ({ kind, path, type: 'meeting', digest, ...extra });
 
@@ -65,8 +66,14 @@ describe('note triggers where meeting files land: what is not a meeting arriving
       [note('added', filed, 'plain')],
       // Moved, unchanged, to where meeting files land: not an arrival.
       [note('removed', filed, 'plain'), note('added', landed, 'plain')],
-      // The import stamps it.
-      [note('changed', landed, 'stamped', { importOutcome: 'imported', before: 'plain' })],
+      // The import stamps it. The feed remembers it was moved in, having been heard.
+      [
+        note('changed', landed, 'stamped', {
+          importOutcome: 'imported',
+          before: 'plain',
+          beforeArrivalHeard: true,
+        }),
+      ],
     ];
 
     expect(createdAcross(syncs)).toHaveLength(1);
@@ -82,9 +89,16 @@ describe('note triggers where meeting files land: what is not a meeting arriving
         note('changed', landed, 'unstamped', {
           before: 'stamped',
           beforeImportOutcome: 'imported',
+          beforeArrivalHeard: true,
         }),
       ],
-      [note('changed', landed, 'restamped', { importOutcome: 'imported', before: 'unstamped' })],
+      [
+        note('changed', landed, 'restamped', {
+          importOutcome: 'imported',
+          before: 'unstamped',
+          beforeArrivalHeard: true,
+        }),
+      ],
     ];
 
     expect(createdAcross(syncs)).toEqual([]);

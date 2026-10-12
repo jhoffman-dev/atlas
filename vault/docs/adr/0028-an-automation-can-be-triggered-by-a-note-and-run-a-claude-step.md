@@ -49,8 +49,8 @@ there in the same sync, the feed reports that path `changed`; so a changed
 note carries the digest it had (`before`, an addition to the P28-03 feed),
 and one whose old bytes, or archived copy, turn up elsewhere is a new note.
 A note in the Archive never sets a rule off. _(Amended 2026-10-11, #92:
-a path that still holds a note pairs only by its two paths — see the
-addendum.)_
+in `Inbox/Meetings` a changed note that carries the import's stamp is never
+the far end of a move — see the addendum.)_
 
 **It is idempotent per note version:** the run log records `(rule, path,
 digest)`, and a version already handled is never handled again — a restart,
@@ -113,12 +113,35 @@ same bytes — take an old meeting the import stamped for the new one.
   duplicate meeting never sets it off. The import's own stamp write is not a
   change to the note; an edit to a meeting it let in is. A note filed
   anywhere else is unchanged by this.
-- **The feed pairs nothing by bytes with a path that still holds a note.**
-  This replaces "one whose old bytes … turn up elsewhere is a new note"
-  above: a `changed` note is the far end of a move only by its two paths
-  (archived or filed out of the Inbox). A new note that reads as a changed
-  note did before its edit is a copy that arrived, never the old note moved
-  — two meetings from one template are two meetings.
+- **The general pairing stands, with one exception where meetings land.** A
+  `changed` note whose old bytes, or archived copy, turn up elsewhere is
+  still a new note made where the old one went. In `Inbox/Meetings` a
+  `changed` note that carries a stamp now is never that: a new file lands
+  unstamped, so a stamp is the import's own write (its first one changes the
+  bytes a copy beside it may still have) or an edit of a meeting it let in.
+  A path there that lost a stamp it had (`imported` to none) is a new file
+  where the old one moved, and is paired as any other.
+- **A meeting's arrival is heard once.** Only a `changed` note whose stamp
+  went to `imported` from something else is an arrival; a file _added_
+  already stamped (a sync's conflict copy, a meeting moved or restored) is
+  not the import's work. The feed's baseline remembers, in memory, that a
+  path's arrival was heard (`arrivalHeard`): it is set when the import lets a
+  note in, kept if its stamp is lost (so the restored stamp is not a second
+  arrival), set on a note that arrived as one end of a move (a meeting made
+  elsewhere, then filed in), and cleared for a new file made where another
+  went. A relaunch has only the stamps to go by.
+- **The stamps are asked for narrowly, and not knowing is safe.** The refresh
+  reads stamps only for paths under `Inbox/Meetings`, a page of 1,000 at a
+  time (the host cuts a result at 5,000 rows). If they cannot be had — the
+  query fails, or a result is still cut short — every note there is taken as
+  already arrived: a sync, a rebuild included, goes on from its manifest and
+  no meeting arrives twice; the cost is a missed edit of a let-in meeting.
+- **Run now follows the feed.** A rule run by hand, or dry-run, plans over
+  the same notes the feed would let it hear: in `Inbox/Meetings`, meetings
+  stamped `imported` only.
+- **One reader of a stamp.** The file's frontmatter and the index's rows are
+  read the same way: a list by its first item, a name without the spaces
+  round it, an empty list as no stamp, an unknown one as `imported`.
 - News heard while the index opens is held and run once each, in the order
   it was heard (already so; now tested).
 

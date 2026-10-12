@@ -63,4 +63,27 @@ describe('rebuilding the index, where meetings have landed (#92 attack)', () => 
       [],
     );
   });
+
+  it('does not fail an ordinary sync because the stamps cannot be asked for, and hears no edit as an arrival', async () => {
+    const edited = `${TEXT}More.\n`;
+    const fs = fakeVaultFs({
+      listNotes: async () => [
+        { name: 'Standup.md', path: createVaultPath(STANDUP), modified: 2, size: edited.length },
+      ],
+      readNotes: async () => [{ path: STANDUP, text: edited, modified: 2, size: edited.length }],
+    });
+
+    const { changes } = await syncIndex({
+      fs,
+      index: indexWithUnreadableStamps(),
+      markdown: fakeMarkdown(),
+      fromScratch: false,
+      activity: recordingActivity(),
+    });
+
+    expect(changes).toHaveLength(1);
+    expect(triggeringVersions({ kind: 'note', type: 'meeting', on: ['created'] }, changes)).toEqual(
+      [],
+    );
+  });
 });

@@ -105,7 +105,7 @@ export function triggeringVersions(
 /** What a change is to a rule a note sets off, given the paths new notes arrived at; null when nothing. */
 function noteEventOf(change: NoteChange, arrived: ReadonlySet<string>): NoteEvent | null {
   if (change.kind === 'removed') return null;
-  if (isMeetingInboxPath(change.path)) return eventWhereMeetingsLand(change, arrived);
+  if (isMeetingInboxPath(change.path)) return eventWhereMeetingsLand(change);
   if (arrived.has(change.path)) return 'created';
   return change.kind === 'changed' ? 'changed' : null;
 }
@@ -113,19 +113,17 @@ function noteEventOf(change: NoteChange, arrived: ReadonlySet<string>): NoteEven
 /**
  * Where meeting files land, a note is not yet a note to a rule: the import
  * has still to let it in, or has refused it, or archives it as a copy. Its
- * arrival is the version the import let in — stamped `imported` — so a rule
- * runs once a meeting is in, and never on one refused; and the import's own
- * stamp is not a change to the note, nor is any write before it.
+ * arrival is the version the import let in — the one that first carries
+ * `imported` — so a rule runs once a meeting is in, and never on one refused;
+ * the import's own stamp is not a change to the note, nor is any write before
+ * it. A file added already stamped is not the import's work (a copy sync
+ * made, a meeting moved or put back), and one whose arrival was heard already
+ * — it is moved in, or its lost stamp restored — is not heard twice.
  */
-function eventWhereMeetingsLand(
-  change: NoteChange,
-  arrived: ReadonlySet<string>,
-): NoteEvent | null {
-  if (change.importOutcome !== 'imported') return null;
-  if (arrived.has(change.path)) return 'created';
-  // Added, but one end of a move: a note let in before, moved or put back here.
-  if (change.kind === 'added') return null;
-  return change.beforeImportOutcome === 'imported' ? 'changed' : 'created';
+function eventWhereMeetingsLand(change: NoteChange): NoteEvent | null {
+  if (change.importOutcome !== 'imported' || change.kind !== 'changed') return null;
+  if (change.beforeImportOutcome === 'imported') return 'changed';
+  return change.beforeArrivalHeard === true ? null : 'created';
 }
 
 /**

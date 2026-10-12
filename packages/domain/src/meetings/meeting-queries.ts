@@ -47,15 +47,26 @@ export function compileMeetingHoldersQuery({
   };
 }
 
+/** The most stamp rows one page of {@link compileImportOutcomesQuery} asks for: under the host's own cap on a result. */
+export const IMPORT_OUTCOMES_PAGE = 1000;
+
 /**
- * Every note the index holds an import stamp for, and the stamp as text: what
- * the index knows of how the import settled each note, which its manifest
- * does not say (#92). Read with {@link importOutcomesOf}.
+ * One page of the import stamps the index holds for notes where meeting files
+ * land, and the stamp as text: what the index knows of how the import settled
+ * each note, which its manifest does not say (#92). Stamps are the import's
+ * only where meetings land, so no other note is asked about — a vault with
+ * thousands of stamped notes elsewhere costs nothing. Pages are numbered from
+ * 0; one with fewer rows than {@link IMPORT_OUTCOMES_PAGE} is the last. Read
+ * with {@link importOutcomesOf}.
  */
-export function compileImportOutcomesQuery(): CompiledQuery {
+export function compileImportOutcomesQuery(page = 0): CompiledQuery {
   return {
-    sql: `${MEETING_QUERY_MARK} SELECT path, value_text FROM props WHERE key = ? ORDER BY path, idx`,
-    parameters: [IMPORT_OUTCOME_KEY],
+    sql: [
+      `${MEETING_QUERY_MARK} SELECT path, value_text FROM props`,
+      `WHERE key = ? AND lower(path) LIKE 'inbox/meetings/%'`,
+      `ORDER BY path, idx LIMIT ? OFFSET ?`,
+    ].join('\n'),
+    parameters: [IMPORT_OUTCOME_KEY, IMPORT_OUTCOMES_PAGE, page * IMPORT_OUTCOMES_PAGE],
   };
 }
 

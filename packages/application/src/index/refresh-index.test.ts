@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, digestOf } from '@atlas/domain';
-import { refreshIndex, toIndexedNote } from './refresh-index.ts';
+import { createVaultPath, digestOf, IMPORT_OUTCOMES_PAGE } from '@atlas/domain';
+import { heldEntries, refreshIndex, toIndexedNote } from './refresh-index.ts';
 import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -583,5 +583,70 @@ describe('toIndexedNote', () => {
       importOutcome: 'error',
     });
     expect(build('Agenda')).not.toHaveProperty('importOutcome');
+  });
+});
+
+describe('heldEntries: the import stamps of the notes the index holds (#92 review)', () => {
+  const entries: HeldEntry[] = [
+    { path: 'Inbox/Meetings/Standup.md', modified: 1, size: 5, digest: 'aa', type: 'meeting' },
+    { path: 'Projects/Notes.md', modified: 1, size: 5, digest: 'bb', type: null },
+  ];
+
+  it('asks only about notes where meeting files land', async () => {
+    const { index } = fakeIndex(entries);
+    const asked: string[] = [];
+    index.query = async (sql) => {
+      asked.push(sql);
+      return { columns: [], rows: [], truncated: false };
+    };
+
+    await heldEntries(index);
+
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain(`lower(path) LIKE 'inbox/meetings/%'`);
+  });
+
+  it('reads every page of stamps, not only the first', async () => {
+    const { index } = fakeIndex(entries);
+    const page = Array.from({ length: IMPORT_OUTCOMES_PAGE }, (_, n) => [
+      `Inbox/Meetings/${n}.md`,
+      'imported',
+    ]);
+    let pages = 0;
+    index.query = async () => {
+      pages++;
+      return {
+        columns: [],
+        rows: pages === 1 ? page : [['Inbox/Meetings/Standup.md', 'error']],
+        truncated: false,
+      };
+    };
+
+    const held = await heldEntries(index);
+
+    expect(pages).toBe(2);
+    expect(held.get('Inbox/Meetings/Standup.md')?.importOutcome).toBe('error');
+  });
+
+  it('takes the notes where meetings land as already arrived when the host cut the stamps short', async () => {
+    const { index } = fakeIndex(entries);
+    index.query = async () => ({ columns: [], rows: [], truncated: true });
+
+    const held = await heldEntries(index);
+
+    expect(held.get('Inbox/Meetings/Standup.md')).toMatchObject({ arrivalHeard: true });
+    expect(held.get('Projects/Notes.md')).not.toHaveProperty('arrivalHeard');
+  });
+
+  it('takes them as already arrived when the stamps cannot be asked for, and still answers', async () => {
+    const { index } = fakeIndex(entries);
+    index.query = async () => {
+      throw new Error('no such column');
+    };
+
+    const held = await heldEntries(index);
+
+    expect(held.size).toBe(2);
+    expect(held.get('Inbox/Meetings/Standup.md')).toMatchObject({ arrivalHeard: true });
   });
 });

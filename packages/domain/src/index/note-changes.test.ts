@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { triggeringVersions } from '../automations/note-trigger.ts';
 import {
   arrivedPaths,
   noteChangesBetween,
@@ -211,28 +212,60 @@ describe('arrivedPaths', () => {
     expect([...left]).toEqual(['Inbox/Standup.md']);
   });
 
-  // #92: this once read as the old note moving away and a new one made at its path. Two
-  // notes with the same bytes are not one note moved, while the old path still holds one.
-  it('takes a new note with the bytes a path held before its edit as arrived, and the edit as an edit', () => {
+  it('takes a path changed while its old bytes moved away as a new note there, and the move as no arrival', () => {
     const changes: NoteChange[] = [
-      { ...change('changed', 'Notes/Standup.md', 'next'), before: 'old' },
+      { ...change('changed', 'Inbox/Standup.md', 'next'), before: 'old' },
       change('added', 'Meetings/Standup.md', 'old'),
     ];
-    const { arrived, left } = unpairedChanges(changes);
-    expect([...arrived]).toEqual(['Meetings/Standup.md']);
-    expect([...left]).toEqual([]);
+    expect([...arrivedPaths(changes)]).toEqual(['Inbox/Standup.md']);
   });
 
-  it('never reads a new note as a renamed old one whose path still holds it, though their bytes match (#92)', () => {
+  it('never reads a new meeting as a renamed old one when the import has only stamped the old one (#92)', () => {
     // The import stamps a meeting that waited in its folder in the same sync as a new meeting,
-    // with the bytes the old one had, lands beside it.
+    // with the bytes the old one had, lands beside it: the first stamp is not a file made anew.
     const changes: NoteChange[] = [
-      { ...change('changed', 'Inbox/Meetings/Last week standup.md', 'stamped'), before: 'same' },
+      {
+        ...change('changed', 'Inbox/Meetings/Last week standup.md', 'stamped'),
+        importOutcome: 'imported',
+        before: 'same',
+      },
       change('added', 'Inbox/Meetings/Standup.md', 'same'),
     ];
     const { arrived, left } = unpairedChanges(changes);
     expect([...arrived]).toEqual(['Inbox/Meetings/Standup.md']);
     expect([...left]).toEqual([]);
+  });
+
+  it('never reads an edit of a let-in meeting as the meeting filed away, though a note of its name is made elsewhere (#92)', () => {
+    const changes: NoteChange[] = [
+      {
+        ...change('changed', 'Inbox/Meetings/Weekly sync.md', 'edited'),
+        importOutcome: 'imported',
+        before: 'stamped',
+        beforeImportOutcome: 'imported',
+      },
+      change('added', 'Projects/Weekly sync.md', 'made'),
+    ];
+    const { arrived, left } = unpairedChanges(changes);
+    expect([...arrived]).toEqual(['Projects/Weekly sync.md']);
+    expect([...left]).toEqual([]);
+  });
+
+  it('takes a let-in meeting renamed, with a new file landing at its old name, as a rename and a new file (#92)', () => {
+    const changes: NoteChange[] = [
+      {
+        ...change('changed', 'Inbox/Meetings/Weekly sync.md', 'this-week'),
+        before: 'last-week',
+        beforeImportOutcome: 'imported',
+      },
+      {
+        ...change('added', 'Inbox/Meetings/Weekly sync 2026-10-05.md', 'last-week'),
+        importOutcome: 'imported',
+      },
+    ];
+    const { arrived, left } = unpairedChanges(changes);
+    expect([...arrived]).toEqual(['Inbox/Meetings/Weekly sync.md']);
+    expect([...left]).toEqual(['Inbox/Meetings/Weekly sync.md']);
   });
 
   it('leaves a plain edit an edit: nothing went from its path', () => {
@@ -243,5 +276,54 @@ describe('arrivedPaths', () => {
     const { arrived, left } = unpairedChanges(changes);
     expect([...arrived]).toEqual(['Meetings/Other.md']);
     expect([...left]).toEqual([]);
+  });
+});
+
+describe("the feed remembers a meeting's arrival was heard (#92)", () => {
+  const landed = 'Inbox/Meetings/Retro.md';
+  const stamped = (digest: string): NoteVersion => ({
+    type: 'meeting',
+    digest,
+    importOutcome: 'imported',
+  });
+
+  /** Syncs a path from one state of the vault to the next, as the feed does, and answers what each heard. */
+  function heardAcross(states: readonly Record<string, NoteVersion>[]) {
+    let held: ReadonlyMap<string, NoteVersion> = new Map();
+    return states.map((state) => {
+      const next = versions(state);
+      const changes = noteChangesBetween(held, next);
+      held = versionsAfter(held, changes);
+      return triggeringVersions({ kind: 'note', type: 'meeting', on: ['created'] }, changes);
+    });
+  }
+
+  it('hears a meeting made outside, moved in and stamped, once', () => {
+    const heard = heardAcross([
+      { 'Meetings/Retro.md': meeting('plain') },
+      { [landed]: meeting('plain') },
+      { [landed]: stamped('stamped') },
+    ]);
+    expect(heard.flat()).toHaveLength(1);
+  });
+
+  it('hears a meeting whose stamp was lost and restored once', () => {
+    const heard = heardAcross([
+      { [landed]: meeting('plain') },
+      { [landed]: stamped('stamped') },
+      { [landed]: meeting('unstamped') },
+      { [landed]: stamped('restamped') },
+    ]);
+    expect(heard.flat()).toEqual([{ path: landed, digest: 'stamped' }]);
+  });
+
+  it('hears a new file made where a let-in meeting was renamed away, when the import lets it in', () => {
+    const renamed = 'Inbox/Meetings/Retro 2026-10-05.md';
+    const heard = heardAcross([
+      { [landed]: stamped('last-week') },
+      { [landed]: meeting('this-week'), [renamed]: stamped('last-week') },
+      { [landed]: stamped('this-week-stamped'), [renamed]: stamped('last-week') },
+    ]);
+    expect(heard.flat()).toEqual([{ path: landed, digest: 'this-week-stamped' }]);
   });
 });

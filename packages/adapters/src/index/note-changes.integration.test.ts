@@ -331,6 +331,7 @@ describe('the index change feed over a real folder and a real SQLite index', () 
         before: digestOf(stamped),
         importOutcome: 'imported',
         beforeImportOutcome: 'imported',
+        beforeArrivalHeard: true,
       },
     ]);
   });

@@ -9,8 +9,10 @@ import {
   createVaultPath,
   createWikiLinkResolver,
   digestOf,
+  IMPORT_OUTCOMES_PAGE,
   importOutcomeOf,
   importOutcomesOf,
+  isMeetingInboxPath,
   linkedName,
   noteChangesBetween,
   RELATION_NAMES_PER_QUERY,
@@ -23,6 +25,7 @@ import {
   splitFrontmatter,
   splitWikiLinks,
   TAGS_KEY,
+  type ImportOutcome,
   type NoteChange,
   type NoteVersion,
   type VaultPath,
@@ -124,20 +127,53 @@ export async function refreshIndex({
 
 /**
  * What the index holds of each note, by path, with how the meeting import
- * settled it: the manifest does not say, and a note's stamp is what tells the
- * import's own write from an edit (#92). An empty index is not asked.
+ * settled it where meeting files land: the manifest does not say, and a
+ * note's stamp is what tells the import's own write from an edit (#92). An
+ * empty index is not asked.
+ *
+ * Stamps are read a page at a time, since the host cuts a result short. A
+ * result it still cut short is no answer, for a stamp missed would read as a
+ * meeting that is new; nor is a query that fails. The manifest still stands
+ * then, and notes where meetings land are taken as already arrived, which at
+ * worst misses one edit of a let-in meeting and never runs a rule on one
+ * again — the safe side of not knowing. That holds for a rebuild too: it
+ * must not start from nothing, or every let-in meeting arrives again.
  */
 export async function heldEntries(index: IndexPort): Promise<Map<string, IndexEntry>> {
   const entries = await index.manifest();
   if (entries.length === 0) return new Map();
-  const { sql, parameters } = compileImportOutcomesQuery();
-  const outcomes = importOutcomesOf((await index.query(sql, parameters)).rows);
+  const outcomes = await importOutcomesHeld(index);
   return new Map(
     entries.map((entry) => {
+      if (outcomes === null) {
+        return [
+          entry.path,
+          isMeetingInboxPath(entry.path) ? { ...entry, arrivalHeard: true } : entry,
+        ];
+      }
       const importOutcome = outcomes.get(entry.path);
       return [entry.path, importOutcome === undefined ? entry : { ...entry, importOutcome }];
     }),
   );
+}
+
+/** The stamps the index holds, by path; null when it cannot be asked. */
+async function importOutcomesHeld(index: IndexPort): Promise<Map<string, ImportOutcome> | null> {
+  const outcomes = new Map<string, ImportOutcome>();
+  for (let page = 0; ; page++) {
+    const { sql, parameters } = compileImportOutcomesQuery(page);
+    let result;
+    try {
+      result = await index.query(sql, parameters);
+    } catch {
+      // Safe to go without: the caller takes every note where meetings land as already arrived.
+      return null;
+    }
+    // A list cut short is as unknown as one that failed: what is missing cannot be told from not stamped.
+    if (result.truncated) return null;
+    for (const [path, outcome] of importOutcomesOf(result.rows)) outcomes.set(path, outcome);
+    if (result.rows.length < IMPORT_OUTCOMES_PAGE) return outcomes;
+  }
 }
 
 /** Reads and indexes the stale notes in batches; answers with what was read, by path. */

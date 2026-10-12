@@ -4,6 +4,7 @@ import {
   compileImportOutcomesQuery,
   compileMeetingHoldersQuery,
   compileMeetingListQuery,
+  IMPORT_OUTCOMES_PAGE,
   importOutcomesOf,
 } from './meeting-queries.ts';
 
@@ -34,6 +35,7 @@ function meetingIndex(notes: readonly { path: string; props: Record<string, stri
   return {
     outcomes: () =>
       importOutcomesOf(run(compileImportOutcomesQuery()).map((row) => Object.values(row))),
+    outcomePage: (page: number) => run(compileImportOutcomesQuery(page)).map((row) => row['path']),
     holders: (provider: string, externalId: string) =>
       run(compileMeetingHoldersQuery({ provider, externalId })).map((row) => row['path']),
     list: (
@@ -212,5 +214,32 @@ describe('compileMeetingListQuery', () => {
     const rest = vault.list({ limit: 50, offset: 3 }).map((row) => row['path']);
     expect([...first, ...rest]).toEqual(all);
     expect(first).toHaveLength(3);
+  });
+});
+
+describe('compileImportOutcomesQuery: where it looks, and how much at a time (#92 review)', () => {
+  const stamp = { atlas_import_outcome: 'imported' };
+
+  it('asks only of notes where meeting files land, so stamps kept elsewhere cost nothing', () => {
+    const index = meetingIndex([
+      { path: 'Inbox/Meetings/In.md', props: stamp },
+      { path: 'inbox/meetings/Lower.md', props: stamp },
+      { path: 'Projects/Elsewhere.md', props: stamp },
+      { path: 'Archive/Inbox/Meetings/Old.md', props: stamp },
+    ]);
+    expect([...index.outcomes().keys()]).toEqual([
+      'Inbox/Meetings/In.md',
+      'inbox/meetings/Lower.md',
+    ]);
+  });
+
+  it('pages: a page holds at most the page size, and the next picks up after it', () => {
+    const notes = Array.from({ length: IMPORT_OUTCOMES_PAGE + 3 }, (_, n) => ({
+      path: `Inbox/Meetings/${String(n).padStart(5, '0')}.md`,
+      props: stamp,
+    }));
+    const index = meetingIndex(notes);
+    expect(index.outcomePage(0)).toHaveLength(IMPORT_OUTCOMES_PAGE);
+    expect(index.outcomePage(1)).toEqual(notes.slice(IMPORT_OUTCOMES_PAGE).map((n) => n.path));
   });
 });

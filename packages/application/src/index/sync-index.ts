@@ -92,9 +92,14 @@ async function versionsHeld(
   try {
     const entries = await heldEntries(index);
     return new Map(
-      [...entries.values()].map(({ path, type, digest, importOutcome }) => [
+      [...entries.values()].map(({ path, type, digest, importOutcome, arrivalHeard }) => [
         path,
-        { type, digest, ...(importOutcome !== undefined && { importOutcome }) },
+        {
+          type,
+          digest,
+          ...(importOutcome !== undefined && { importOutcome }),
+          ...(arrivalHeard !== undefined && { arrivalHeard }),
+        },
       ]),
     );
   } catch (cause) {

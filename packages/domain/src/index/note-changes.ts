@@ -1,6 +1,6 @@
 import { isArchiveMove } from '../archive/archive.ts';
 import { isProcessMove } from '../inbox/inbox.ts';
-import type { ImportOutcome } from '../meetings/meeting-arrival.ts';
+import { isMeetingInboxPath, type ImportOutcome } from '../meetings/meeting-arrival.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
 /**
@@ -18,6 +18,15 @@ export interface NoteVersion {
    * not in play until the import has let it in.
    */
   readonly importOutcome?: ImportOutcome;
+  /**
+   * Where meeting files land only: this note's arrival has been heard, or is
+   * not to be (#92). Set once the import has let it in; kept when its stamp is
+   * lost, so the stamp restored is not an arrival; set on a note moved or
+   * renamed in, which arrived where it was made; and taken for a note whose
+   * stamps the index could not be asked for. Held by the feed in memory, so a
+   * relaunch knows only what the stamps say.
+   */
+  readonly arrivalHeard?: true;
 }
 
 export type NoteChangeKind = 'added' | 'changed' | 'removed';
@@ -35,6 +44,8 @@ export interface NoteChange extends NoteVersion {
   readonly before?: string;
   /** On a `changed` note only: how the import had settled it before, when it had (#92). */
   readonly beforeImportOutcome?: ImportOutcome;
+  /** On a `changed` note only: whether the note it was had its arrival heard (#92). */
+  readonly beforeArrivalHeard?: true;
 }
 
 /**
@@ -60,6 +71,8 @@ export function noteChangesBetween(
         ...noteChange('changed', path, version),
         before: earlier.digest,
         ...(earlier.importOutcome !== undefined && { beforeImportOutcome: earlier.importOutcome }),
+        ...(isMeetingInboxPath(path) &&
+          arrivalHeardOf(earlier) && { beforeArrivalHeard: true as const }),
       });
     }
   }
@@ -75,11 +88,34 @@ export function versionsAfter(
   changes: readonly NoteChange[],
 ): Map<string, NoteVersion> {
   const after = new Map(before);
+  const { arrived } = unpairedChanges(changes);
   for (const change of changes) {
     if (change.kind === 'removed') after.delete(change.path);
-    else after.set(change.path, versionOf(change));
+    else {
+      const heard = arrivalHeardAfter(change, arrived);
+      after.set(change.path, {
+        ...versionOf(change),
+        ...(heard && { arrivalHeard: true as const }),
+      });
+    }
   }
   return after;
+}
+
+/** Whether a note's arrival has been heard once it is as the change says: see {@link NoteVersion.arrivalHeard}. */
+const arrivalHeardOf = (version: NoteVersion): boolean =>
+  version.arrivalHeard === true || version.importOutcome === 'imported';
+
+function arrivalHeardAfter(change: NoteChange, arrived: ReadonlySet<string>): boolean {
+  if (!isMeetingInboxPath(change.path)) return false;
+  // A new file made where another was is a new note: it is heard when the import lets it in.
+  if (change.kind === 'changed') {
+    const heardBefore =
+      change.beforeArrivalHeard === true || change.beforeImportOutcome === 'imported';
+    return !arrived.has(change.path) && (heardBefore || arrivalHeardOf(change));
+  }
+  // An added note that is not an arrival is one end of a move: it was heard where it was made.
+  return arrivalHeardOf(change) || !arrived.has(change.path);
 }
 
 /** What one sync's added, removed and changed notes say once the two ends of each move are paired. */
@@ -100,13 +136,15 @@ export interface UnpairedChanges {
  * - a move to another folder: the same bytes under the same name;
  * - a rename: the same bytes under another name.
  *
- * Each pass pairs a note added with one removed. The two passes by path
- * may also pair it with a note `changed` whose path it was archived or
- * filed from: that note left, and the one at its path now is new. The
- * passes by bytes never do (#92): a path that still holds a note was edited,
- * and a new note reading as it did before is a copy that arrived — two notes
- * with the same bytes are not one note, as two meetings from one template
- * are not.
+ * Each pass pairs a note added with one removed, or else with a note
+ * `changed` whose old digest (`before`) it carries, or whose path it was
+ * archived from: that note left, and the one at its path now is new.
+ *
+ * Where meeting files land, a `changed` note that carries the import's stamp
+ * is never the one that left (#92): a file made there arrives unstamped, so a
+ * stamp on the path now is the import's write, or an edit of a meeting it let
+ * in — and the old bytes it carried, which the first stamp changed, may be a
+ * copy's. One that lost its stamp is a new file where a let-in one was.
  *
  * So of a note copied and the original moved, one is the move and the copy
  * arrived; filing (by hand or by Process), renaming, archiving or restoring a
@@ -114,14 +152,11 @@ export interface UnpairedChanges {
  */
 export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges {
   const gone = new Set(changes.filter((change) => change.kind === 'removed'));
-  const replaceable = new Set(changes.filter((change) => change.kind === 'changed'));
+  const replaceable = new Set(changes.filter(mayHaveBeenReplaced));
   const arrived = new Set(changes.filter((change) => change.kind === 'added'));
   const left = new Set([...gone].map((change) => change.path));
   const renewed = new Set<string>();
-  const pairOff = (
-    pairs: (went: Departure, came: NoteChange) => boolean,
-    { byPath }: { byPath: boolean },
-  ) => {
+  const pairOff = (pairs: (went: Departure, came: NoteChange) => boolean) => {
     for (const came of arrived) {
       const removed = [...gone].find((each) => pairs(each, came));
       if (removed !== undefined) {
@@ -129,9 +164,6 @@ export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges
         arrived.delete(came);
         continue;
       }
-      // A path still holding a note left it only when a move says so by both paths: by bytes
-      // alone, a new note that reads as the old one did is a copy, not the old one moved (#92).
-      if (!byPath) continue;
       const replaced = [...replaceable].find((each) => pairs(departureOf(each), came));
       if (replaced === undefined) continue;
       replaceable.delete(replaced);
@@ -140,23 +172,17 @@ export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges
       left.add(replaced.path);
     }
   };
-  const byPath = { byPath: true };
-  const byBytes = { byPath: false };
-  pairOff(
-    (went, came) => isArchiveMove(createVaultPath(went.path), createVaultPath(came.path)),
-    byPath,
-  );
-  pairOff(
-    (went, came) => isProcessMove(createVaultPath(went.path), createVaultPath(came.path)),
-    byPath,
-  );
-  pairOff(
-    (went, came) => went.digest === came.digest && nameOf(went.path) === nameOf(came.path),
-    byBytes,
-  );
-  pairOff((went, came) => went.digest === came.digest, byBytes);
+  pairOff((went, came) => isArchiveMove(createVaultPath(went.path), createVaultPath(came.path)));
+  pairOff((went, came) => isProcessMove(createVaultPath(went.path), createVaultPath(came.path)));
+  pairOff((went, came) => went.digest === came.digest && nameOf(went.path) === nameOf(came.path));
+  pairOff((went, came) => went.digest === came.digest);
   return { arrived: new Set([...[...arrived].map((change) => change.path), ...renewed]), left };
 }
+
+/** Whether a changed note may be one a new note took the place of: see {@link unpairedChanges}. */
+const mayHaveBeenReplaced = (change: NoteChange): boolean =>
+  change.kind === 'changed' &&
+  !(isMeetingInboxPath(change.path) && change.importOutcome !== undefined);
 
 /** A note that went from a path: its path, and its bytes as they were when known. */
 interface Departure {
@@ -164,8 +190,11 @@ interface Departure {
   readonly digest: string | undefined;
 }
 
-/** What went from a changed note's path, which only a pass by path pairs: the note that was there. */
-const departureOf = (change: NoteChange): Departure => ({ path: change.path, digest: undefined });
+/** What went from a changed note's path: the note that was there; with no `before`, only its path pairs it. */
+const departureOf = (change: NoteChange): Departure => ({
+  path: change.path,
+  digest: change.before,
+});
 
 /** The paths among one sync's changes that a new note arrived at: see {@link unpairedChanges}. */
 export function arrivedPaths(changes: readonly NoteChange[]): ReadonlySet<string> {
