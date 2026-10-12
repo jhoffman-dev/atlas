@@ -496,7 +496,10 @@ describe('missedArrivals', () => {
   });
 
   it('returns what it takes in path order', () => {
-    const notes = [held({ path: p('Inbox/Meetings/B.md') }), held({ path: p('Inbox/Meetings/A.md') })];
+    const notes = [
+      held({ path: p('Inbox/Meetings/B.md') }),
+      held({ path: p('Inbox/Meetings/A.md') }),
+    ];
 
     expect(missed(held(), { notes }).map((each) => each.path)).toEqual([
       'Inbox/Meetings/A.md',
