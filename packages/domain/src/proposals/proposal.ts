@@ -1,6 +1,7 @@
 import { isArchivedPath } from '../archive/archive.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
+import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
@@ -70,6 +71,12 @@ export const PROPOSAL_NOTE_TYPES: Readonly<Record<NoteProposalKind, string>> = {
 export interface LinkFrom {
   readonly note: VaultPath;
   readonly property: string;
+  /**
+   * Which meeting `note` was when this was proposed (provider and id), when it
+   * is a meeting. A meeting is filed out of the Inbox, so its path is not what
+   * it is: accepting finds it by this, and writes to no note that is not it.
+   */
+  readonly meeting?: MeetingIdentity;
 }
 
 /**
@@ -98,6 +105,8 @@ export interface LinkPayload {
   readonly property: string;
   readonly link: string;
   readonly digest: string | null;
+  /** Which meeting `note` was, as for {@link LinkFrom}. */
+  readonly meeting?: MeetingIdentity;
 }
 
 interface ProposalCommon {
@@ -199,13 +208,35 @@ const LINK_FROM_KEY = 'link_from';
 
 function readLinkFrom(value: unknown): LinkFrom | null | Error {
   if (value === undefined || value === null) return null;
-  const note = isRecord(value) ? text(value['note']) : null;
-  const property = isRecord(value) ? text(value['property']) : null;
+  const record = isRecord(value) ? value : {};
+  const note = text(record['note']);
+  const property = text(record['property']);
   if (note === null || property === null) {
     return new Error('Its payload’s link_from needs the note and the property.');
   }
   const path = notePath(note);
-  return path instanceof Error ? path : { note: path, property };
+  if (path instanceof Error) return path;
+  const meeting = readMeetingIdentity(record['meeting']);
+  if (meeting instanceof Error) return meeting;
+  return { note: path, property, ...(meeting !== null && { meeting }) };
+}
+
+/** The meeting a payload names, as `{ provider, external_id }`; null when it names none. */
+function readMeetingIdentity(value: unknown): MeetingIdentity | null | Error {
+  if (value === undefined || value === null) return null;
+  const provider = isRecord(value) ? text(value['provider']) : null;
+  const externalId = isRecord(value) ? text(value[MEETING_ID_KEY] ?? value['externalId']) : null;
+  if (provider === null || externalId === null) {
+    return new Error('Its payload’s meeting needs the provider and the external_id.');
+  }
+  return { provider, externalId };
+}
+
+/** The key a payload writes a meeting's id under, as the meeting's own frontmatter does. */
+const MEETING_ID_KEY = 'external_id';
+
+function meetingRecord({ provider, externalId }: MeetingIdentity) {
+  return { provider, [MEETING_ID_KEY]: externalId };
 }
 
 function readLinkPayload(value: Readonly<Record<string, unknown>>): PayloadReading {
@@ -223,7 +254,12 @@ function readLinkPayload(value: Readonly<Record<string, unknown>>): PayloadReadi
   if (read === null || read.embed) return refused(`${link} is not a link to a note.`);
   const path = notePath(note);
   if (path instanceof Error) return refused(path.message);
-  return { ok: true, payload: { note: path, property, link, digest } };
+  const meeting = readMeetingIdentity(value['meeting']);
+  if (meeting instanceof Error) return refused(meeting.message);
+  return {
+    ok: true,
+    payload: { note: path, property, link, digest, ...(meeting !== null && { meeting }) },
+  };
 }
 
 /**
@@ -265,6 +301,10 @@ export function proposedChangeRefusal(path: VaultPath): string | null {
   return null;
 }
 
+function linkFromRecord({ meeting, ...from }: LinkFrom) {
+  return { ...from, ...(meeting !== undefined && { meeting: meetingRecord(meeting) }) };
+}
+
 /**
  * A payload as it is written back into its proposal's `payload:` — after an
  * edit, so the Archive keeps what was accepted. Only what it holds is written:
@@ -272,8 +312,12 @@ export function proposedChangeRefusal(path: VaultPath): string | null {
  */
 export function payloadRecord(payload: ProposalPayload): Readonly<Record<string, unknown>> {
   if ('digest' in payload) {
-    const { digest, ...link } = payload;
-    return digest === null ? link : { ...link, digest };
+    const { digest, meeting, ...link } = payload;
+    return {
+      ...link,
+      ...(digest !== null && { digest }),
+      ...(meeting !== undefined && { meeting: meetingRecord(meeting) }),
+    };
   }
   const { title, folder, properties, body, linkFrom } = payload;
   return {
@@ -281,7 +325,7 @@ export function payloadRecord(payload: ProposalPayload): Readonly<Record<string,
     ...(folder !== null && { folder }),
     ...(Object.keys(properties).length > 0 && { properties }),
     ...(body !== '' && { body }),
-    ...(linkFrom !== null && { [LINK_FROM_KEY]: { ...linkFrom } }),
+    ...(linkFrom !== null && { [LINK_FROM_KEY]: linkFromRecord(linkFrom) }),
   };
 }
 

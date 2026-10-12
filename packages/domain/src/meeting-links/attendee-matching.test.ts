@@ -119,6 +119,35 @@ describe('matchAttendees', () => {
     expect(matching.ambiguous[0]?.by).toBe('email');
   });
 
+  it('proposes rather than links when the one person of that name has other addresses on file', () => {
+    const matching = matchAttendees(
+      [attendee('Mara Quill', 'mara.quill@elsewhere.example')],
+      [MARA],
+      [],
+    );
+    expect(matching.linked).toEqual([]);
+    expect(matching.unknown).toEqual([]);
+    expect(matching.ambiguous).toEqual([
+      {
+        attendee: attendee('Mara Quill', 'mara.quill@elsewhere.example'),
+        candidates: [MARA],
+        by: 'name',
+        differentAddress: true,
+      },
+    ]);
+  });
+
+  it('still links by name a person with no address on file, or an attendee with none', () => {
+    const noAddress = person('Odile Ash');
+    const matching = matchAttendees(
+      [attendee('Odile Ash', 'odile@elsewhere.example'), attendee('Mara Quill')],
+      [noAddress, MARA],
+      [],
+    );
+    expect(pathsOf(matching.linked)).toEqual([noAddress.path, MARA.path]);
+    expect(matching.ambiguous).toEqual([]);
+  });
+
   it('never makes a group address a person, even one whose name matches someone', () => {
     const team = attendee('Mara Quill', 'payroll-team@larkspur.example', true);
     const matching = matchAttendees([team], [MARA], [LARKSPUR]);
@@ -158,7 +187,7 @@ describe('matchAttendees', () => {
   });
 
   it('involves a company by a domain it declares, or under it, its site’s host, and a linked person’s note', () => {
-    const quarry = company('Quarry', { domains: ['https://www.qx-mail.example/about'] });
+    const quarry = company('Quarry', { domains: ['https://www.qx-mail.example/'] });
     const matching = matchAttendees(
       [attendee('Ada', 'ada@eu.qx-mail.example'), attendee('Mara Quill')],
       [MARA],
@@ -170,7 +199,7 @@ describe('matchAttendees', () => {
     ]);
   });
 
-  it('involves a company whose name or alias is the domain’s organisation, never a public mail domain', () => {
+  it('only guesses a company from the domain’s name, never involving it: that is for a person to confirm', () => {
     const matching = matchAttendees(
       [
         attendee('Ada', 'ada@fenn.example'),
@@ -180,14 +209,98 @@ describe('matchAttendees', () => {
       [],
       [FENN, company('Gmail'), company('Larkspur UK', { aliases: ['Lark-spur'] })],
     );
-    expect(matching.companies.map(({ company: { name } }) => name)).toEqual([
+    expect(matching.companies).toEqual([]);
+    expect(matching.guessedCompanies.map(({ company: { name } }) => name)).toEqual([
       'Fenn & Co',
       'Larkspur UK',
     ]);
-    expect(matching.unknown.map(({ company: found }) => found?.name ?? null)).toEqual([
-      'Fenn & Co',
-      'Larkspur UK',
-      null,
+    expect(matching.unknown.map(({ company: found }) => found)).toEqual([null, null, null]);
+  });
+
+  it('does not guess by name a company that declares a domain of its own', () => {
+    const declared = company('Quarry', { domains: ['quarry-mail.example'] });
+    const matching = matchAttendees([attendee('Ada', 'ada@quarry.example')], [], [declared]);
+    expect(matching.guessedCompanies).toEqual([]);
+    expect(matching.companies).toEqual([]);
+  });
+
+  it('guesses once per company however many attendees point at it', () => {
+    const matching = matchAttendees(
+      [attendee('Ada', 'ada@fenn.example'), attendee('Bo', 'bo@fenn.example')],
+      [],
+      [FENN],
+    );
+    expect(matching.guessedCompanies).toHaveLength(1);
+  });
+
+  it('does not guess a company already surely involved', () => {
+    const matching = matchAttendees(
+      [attendee('Ada', 'ada@fenn.example'), attendee('Mara Quill')],
+      [person('Mara Quill', { company: FENN.path })],
+      [FENN],
+    );
+    expect(matching.companies.map(({ company: { name } }) => name)).toEqual(['Fenn & Co']);
+    expect(matching.guessedCompanies).toEqual([]);
+  });
+
+  it.each([
+    ['gmail.co.uk', 'Gmail'],
+    ['yahoo.co.uk', 'Yahoo'],
+    ['hotmail.fr', 'Hotmail'],
+    ['outlook.de', 'Outlook'],
+    ['live.co.uk', 'Live'],
+    ['pm.me', 'Pm'],
+  ])('treats %s as a public mail domain, whatever its country', (domain, label) => {
+    const named = company(label);
+    const declaring = company('Declares', { domains: [domain] });
+    const matching = matchAttendees([attendee('Ada', `ada@${domain}`)], [], [named, declaring]);
+    expect(matching.companies).toEqual([]);
+    expect(matching.guessedCompanies).toEqual([]);
+    expect(matching.unknown[0]?.company).toBeNull();
+  });
+
+  it.each([
+    'https://acme.zendesk.com',
+    'https://www.youtube.com/@acme',
+    'acme.github.io',
+    'https://acme.notion.site/home',
+    'https://acme.vercel.app/',
+  ])('never lets a company claim everyone at %s', (site) => {
+    const hosted = company('Acme', { domains: [site] });
+    const matching = matchAttendees(
+      [attendee('Ada', 'ada@acme.zendesk.com'), attendee('Bo', 'bo@youtube.com')],
+      [],
+      [hosted],
+    );
+    expect(matching.companies).toEqual([]);
+  });
+
+  it('never claims a domain from a site that is a page rather than the root', () => {
+    const paged = company('Quarry', { domains: ['https://qx-mail.example/about/team'] });
+    const matching = matchAttendees([attendee('Ada', 'ada@qx-mail.example')], [], [paged]);
+    expect(matching.companies).toEqual([]);
+  });
+
+  it('prefers the most specific declared domain, so a subsidiary is not its parent', () => {
+    const parent = company('Larkspur Holdings', { domains: ['larkspur.example'] });
+    const subsidiary = company('Larkspur Payroll', { domains: ['payroll.larkspur.example'] });
+    const matching = matchAttendees(
+      [
+        attendee('Ada', 'ada@payroll.larkspur.example'),
+        attendee('Bo', 'bo@mail.payroll.larkspur.example'),
+        attendee('Cy', 'cy@larkspur.example'),
+      ],
+      [],
+      [parent, subsidiary],
+    );
+    expect(matching.unknown.map(({ company: found }) => found?.name)).toEqual([
+      'Larkspur Payroll',
+      'Larkspur Payroll',
+      'Larkspur Holdings',
+    ]);
+    expect(matching.companies.map(({ company: { name } }) => name)).toEqual([
+      'Larkspur Payroll',
+      'Larkspur Holdings',
     ]);
   });
 

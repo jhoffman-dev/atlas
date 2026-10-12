@@ -1,17 +1,19 @@
 import { linkTargets } from '../index/relation-rows.ts';
 import type { MeetingAttendee } from '../meetings/meeting-header.ts';
+import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { TranscriptTurn } from '../meetings/transcript.ts';
 import { resolveWikiLinkTarget, wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import { newPersonRefusal, PEOPLE_FOLDER } from '../people/person.ts';
 import type { NewProposal } from '../proposals/new-proposal.ts';
-import { vocabularyKey } from '../terms/spelling.ts';
 import { linkedNotes, withLink } from '../types/relation-links.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import {
   attendeeKey,
+  emailDomain,
   type AmbiguousAttendee,
   type AttendeeMatching,
+  type GuessedCompany,
   type DirectoryPerson,
   type UnknownAttendee,
 } from './attendee-matching.ts';
@@ -22,6 +24,7 @@ import {
   MEETING_PROJECT_KEY,
 } from './meeting-link-keys.ts';
 import { projectConfidence, type RankedProject } from './project-ranking.ts';
+import { isOwnerAttendee } from './vault-owner.ts';
 
 /** What linking a meeting is worked out from. */
 export interface MeetingLinkInput {
@@ -37,6 +40,8 @@ export interface MeetingLinkInput {
   readonly projects: readonly RankedProject[];
   /** The vault owner's name, from their profile: never proposed as someone new. */
   readonly selfName: string | null;
+  /** The addresses their own Person note holds (`ownerAddresses`): an attendee at one is them. */
+  readonly selfEmails?: readonly string[];
 }
 
 /** An unknown attendee who could not be proposed, and why. */
@@ -82,7 +87,13 @@ export function linkedEntities(
  * company they are surely at), who joins the meeting when accepted; an
  * attendee several people could be as a link to each, to accept the right
  * one; and, when the meeting has no project, the likeliest open project. A
- * group address and the vault's owner are never proposed.
+ * group address and the vault's owner are never proposed. A company only a
+ * domain's name points at is proposed too, never written.
+ *
+ * A proposal is known by what it is for, not by where the meeting happens to
+ * be: a person by their address alone (so rejecting them once covers every
+ * later meeting), the rest by the meeting's provider and id — a meeting is
+ * filed out of the Inbox, and its proposals are the same ones.
  */
 export function planMeetingLinks(input: MeetingLinkInput): MeetingLinkPlan {
   const people = [
@@ -163,17 +174,22 @@ function proposalsFor(input: MeetingLinkInput, peopleAfter: ReadonlySet<VaultPat
   for (const ambiguous of input.matching.ambiguous) {
     // One of them is linked already — by a speaker, or by hand: that answers it.
     if (ambiguous.candidates.some(({ path }) => peopleAfter.has(path))) continue;
+    if (isOwner(input, ambiguous.attendee)) continue;
     proposals.push(...ambiguousProposals(input, ambiguous));
   }
+  proposals.push(...input.matching.guessedCompanies.map((guess) => companyProposal(input, guess)));
   const project = projectProposal(input);
   if (project !== null) proposals.push(project);
   return { proposals, passedOver };
 }
 
-/** Whether an attendee is the vault's owner, by their profile's name: never proposed. */
+/** Whether an attendee is the vault's owner, by their profile's name or their own note's addresses: never proposed. */
 function isOwner(input: MeetingLinkInput, attendee: MeetingAttendee): boolean {
-  const self = input.selfName === null ? '' : vocabularyKey(input.selfName);
-  return self !== '' && vocabularyKey(attendee.name) === self;
+  return isOwnerAttendee({
+    attendee,
+    selfName: input.selfName,
+    selfEmails: input.selfEmails ?? [],
+  });
 }
 
 function personProposal(
@@ -191,7 +207,7 @@ function personProposal(
     confidence: attendee.email === null ? 'medium' : 'high',
     source: linkTo(input, input.meeting),
     madeBy: MEETING_LINKS_MAKER,
-    id: proposalId(input, `person:${attendeeKey(attendee)}`),
+    id: personProposalId(attendee),
     name: `${attendee.name} — ${meetingTitle(input)}`,
     reason: `${attendee.name}${address}${at} was at this meeting and is not in People yet. Accepting makes them, and links them to the meeting.`,
     payload: {
@@ -199,16 +215,24 @@ function personProposal(
       folder: PEOPLE_FOLDER,
       properties,
       body: '',
-      linkFrom: { note: input.meeting, property: MEETING_PEOPLE_KEY },
+      linkFrom: {
+        note: input.meeting,
+        property: MEETING_PEOPLE_KEY,
+        ...withIdentity(input),
+      },
     },
   };
 }
 
 function ambiguousProposals(
   input: MeetingLinkInput,
-  { attendee, candidates }: AmbiguousAttendee,
+  { attendee, candidates, differentAddress }: AmbiguousAttendee,
 ): NewProposal[] {
   const names = candidates.map(({ path }) => linkTo(input, path)).join(' or ');
+  const why =
+    differentAddress === true
+      ? `“${attendee.name}” in the attendees has the name of ${names}, with a different address from the one on file. Accept if it was them.`
+      : `“${attendee.name}” in the attendees could be ${names}. Accept the one it was, and reject the rest.`;
   return candidates.map((candidate) => ({
     kind: 'link',
     confidence: 'low',
@@ -216,9 +240,30 @@ function ambiguousProposals(
     madeBy: MEETING_LINKS_MAKER,
     id: proposalId(input, `ambiguous:${attendeeKey(attendee)}:${candidate.path}`),
     name: `${candidate.name} for ${attendee.name} — ${meetingTitle(input)}`,
-    reason: `“${attendee.name}” in the attendees could be ${names}. Accept the one it was, and reject the rest.`,
+    reason: why,
     payload: linkPayload(input, MEETING_PEOPLE_KEY, candidate.path),
   }));
+}
+
+/** A company only an attendee's domain names: proposed as a link, for a person to confirm. */
+function companyProposal(
+  input: MeetingLinkInput,
+  { company, attendee }: GuessedCompany,
+): NewProposal {
+  return {
+    kind: 'link',
+    confidence: 'low',
+    source: linkTo(input, input.meeting),
+    madeBy: MEETING_LINKS_MAKER,
+    id: proposalId(input, `company:${company.path}`),
+    name: `${company.name} for ${meetingTitle(input)}`,
+    reason: `${attendee.name}’s address is at ${emailDomainOf(attendee)}, which looks like ${linkTo(input, company.path)} — which declares no domain of its own, so it is not certain. Accept if it was involved.`,
+    payload: linkPayload(input, MEETING_COMPANIES_KEY, company.path),
+  };
+}
+
+function emailDomainOf({ email }: MeetingAttendee): string {
+  return emailDomain(email) ?? 'a domain';
 }
 
 /** The likeliest open project, proposed once for a meeting that has none. */
@@ -248,7 +293,34 @@ function projectProposal(input: MeetingLinkInput): NewProposal | null {
 }
 
 function linkPayload(input: MeetingLinkInput, property: string, path: VaultPath) {
-  return { note: input.meeting, property, link: linkTo(input, path), digest: null };
+  return {
+    note: input.meeting,
+    property,
+    link: linkTo(input, path),
+    digest: null,
+    ...withIdentity(input),
+  };
+}
+
+/** Which meeting this is by its provider and id, when its frontmatter says: how a proposal finds it once filed. */
+function identityOf(input: MeetingLinkInput): MeetingIdentity | null {
+  const text = (key: string) => {
+    const value = input.properties[key];
+    return typeof value === 'string' ? value.trim() : '';
+  };
+  const provider = text('provider');
+  const externalId = text('external_id');
+  return provider === '' || externalId === '' ? null : { provider, externalId };
+}
+
+function withIdentity(input: MeetingLinkInput): { meeting?: MeetingIdentity } {
+  const meeting = identityOf(input);
+  return meeting === null ? {} : { meeting };
+}
+
+/** A person is proposed once, whichever meeting they were at: known by their address alone. */
+function personProposalId(attendee: MeetingAttendee): string {
+  return `${MEETING_LINKS_MAKER}:person:${attendeeKey(attendee)}`;
 }
 
 /** The notes a relation of the meeting links now, resolved as the vault resolves links. */
@@ -272,8 +344,11 @@ function linkTo(input: MeetingLinkInput, path: VaultPath): string {
   return `[[${wikiLinkTargetFor(path, input.notePaths)}]]`;
 }
 
+/** What a proposal about this meeting is for: by its identity, which filing does not change; by path when it has none. */
 function proposalId(input: MeetingLinkInput, what: string): string {
-  return `${MEETING_LINKS_MAKER}:${input.meeting}:${what}`;
+  const meeting = identityOf(input);
+  const of = meeting === null ? input.meeting : `${meeting.provider}/${meeting.externalId}`;
+  return `${MEETING_LINKS_MAKER}:${of}:${what}`;
 }
 
 function meetingTitle(input: MeetingLinkInput): string {

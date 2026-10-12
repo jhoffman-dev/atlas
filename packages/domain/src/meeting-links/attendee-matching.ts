@@ -37,12 +37,27 @@ export interface AmbiguousAttendee {
   readonly attendee: MeetingAttendee;
   readonly candidates: readonly DirectoryPerson[];
   readonly by: MatchedBy;
+  /**
+   * The one person of that name has addresses on file, and none is this
+   * attendee's: the same name, but perhaps not the same person.
+   */
+  readonly differentAddress?: boolean;
 }
 
 /** An attendee no person matches, with the company their address surely belongs to, if any. */
 export interface UnknownAttendee {
   readonly attendee: MeetingAttendee;
   readonly company: DirectoryCompany | null;
+}
+
+/**
+ * A company only the name of an attendee's domain points at: `fenn.example`
+ * for "Fenn". Likely, not sure: a person confirms it, so it is never written.
+ */
+export interface GuessedCompany {
+  readonly company: DirectoryCompany;
+  /** The first attendee whose address pointed at it. */
+  readonly attendee: MeetingAttendee;
 }
 
 /** A company the meeting surely involves, and why. */
@@ -60,6 +75,8 @@ export interface AttendeeMatching {
   readonly groups: readonly MeetingAttendee[];
   readonly ambiguous: readonly AmbiguousAttendee[];
   readonly companies: readonly MatchedCompany[];
+  /** Companies named only by a domain's name, each once; none that is surely involved already. */
+  readonly guessedCompanies: readonly GuessedCompany[];
 }
 
 /**
@@ -71,10 +88,16 @@ export interface AttendeeMatching {
  * person is a link; two or more are ambiguous, which is proposed rather than
  * guessed; none is unknown. A group address is never a person.
  *
- * A company is involved when an attendee's address — a group's too — is at
- * its domain, or at a domain whose name is the company's name or alias
- * (`larkspur.example` for "Larkspur"); and when a linked person's note names
- * their company. Two companies claiming one domain claim nothing.
+ * An attendee whose name is exactly one person's, but whose address is not
+ * one that person has on file, is ambiguous rather than linked: it may be
+ * someone else of the same name.
+ *
+ * A company is involved when an attendee's address — a group's too — is at a
+ * domain it declares (the most specific one wins, so a subsidiary is not its
+ * parent; two claiming the same one claim nothing), and when a linked
+ * person's note names their company. A domain whose name is the company's
+ * name or alias (`larkspur.example` for "Larkspur") only *guesses* it, and
+ * only for a company that declares no domain of its own.
  */
 export function matchAttendees(
   attendees: readonly MeetingAttendee[],
@@ -82,7 +105,7 @@ export function matchAttendees(
   companies: readonly DirectoryCompany[],
 ): AttendeeMatching {
   const findPerson = personFinder(people);
-  const companyOf = companyFinder(companies);
+  const finder = companyFinder(companies);
   const linked = new Map<VaultPath, LinkedAttendee>();
   const unknown: UnknownAttendee[] = [];
   const ambiguous: AmbiguousAttendee[] = [];
@@ -99,20 +122,34 @@ export function matchAttendees(
     const found = findPerson(attendee);
     const [person, ...others] = found?.candidates ?? [];
     if (found === null || person === undefined) {
-      unknown.push({ attendee, company: companyOf(attendee.email) });
+      unknown.push({ attendee, company: finder.declared(attendee.email) });
     } else if (others.length > 0) {
       ambiguous.push({ attendee, ...found });
+    } else if (hasOtherAddress(attendee, person, found.by)) {
+      ambiguous.push({ attendee, ...found, differentAddress: true });
     } else if (!linked.has(person.path)) {
       linked.set(person.path, { attendee, person, by: found.by });
     }
   }
+  const involved = involvedCompanies({
+    attendees,
+    linked: [...linked.values()],
+    companies,
+    declared: finder.declared,
+  });
   return {
     linked: [...linked.values()],
     unknown,
     groups: attendees.filter((attendee) => attendee.group),
     ambiguous,
-    companies: involvedCompanies({ attendees, linked: [...linked.values()], companies, companyOf }),
+    companies: involved,
+    guessedCompanies: guessedCompanies({ attendees, involved, named: finder.named }),
   };
+}
+
+/** Whether an attendee has an address, and the person has some on file, none the same. */
+function hasOtherAddress(attendee: MeetingAttendee, person: DirectoryPerson, by: MatchedBy) {
+  return by !== 'email' && attendee.email !== null && person.emails.length > 0;
 }
 
 /**
@@ -143,47 +180,137 @@ export function emailDomain(email: string | null): string | null {
 }
 
 /**
- * Addresses anyone can have: being at one says nothing about a company, so a
- * company's name is never guessed from them.
+ * The organisation label (`gmail` in `gmail.co.uk`, `outlook` in `outlook.de`)
+ * of mail providers whose name is theirs alone: their other countries are
+ * caught without listing each.
  */
-const PUBLIC_MAIL_DOMAINS: ReadonlySet<string> = new Set([
-  'aol.com',
-  'fastmail.com',
-  'gmail.com',
-  'gmx.com',
-  'googlemail.com',
-  'hey.com',
-  'hotmail.com',
-  'icloud.com',
-  'live.com',
-  'mac.com',
-  'me.com',
-  'outlook.com',
-  'proton.me',
-  'protonmail.com',
-  'yahoo.com',
+const PUBLIC_MAIL_LABELS: ReadonlySet<string> = new Set([
+  'aol',
+  'btinternet',
+  'fastmail',
+  'gmail',
+  'gmx',
+  'googlemail',
+  'hotmail',
+  'icloud',
+  'msn',
+  'outlook',
+  'proton',
+  'protonmail',
+  'rediffmail',
+  'rocketmail',
+  'tuta',
+  'tutanota',
+  'yahoo',
+  'ymail',
+  'yandex',
 ]);
 
 /**
- * Hosts a company's site may be on that are not its own — a profile page on
- * one is no claim to everyone with an address there.
+ * Providers whose name is also an everyday word (`live`, `web`, `orange`), or
+ * a company's own, matched only as these exact domains so a company at
+ * `web.example` is not taken for a mail host.
  */
-const SHARED_HOSTS: ReadonlySet<string> = new Set([
-  'facebook.com',
-  'github.com',
-  'instagram.com',
-  'linkedin.com',
-  'medium.com',
-  'notion.site',
-  'sites.google.com',
-  'twitter.com',
-  'x.com',
+const PUBLIC_MAIL_DOMAINS: ReadonlySet<string> = new Set([
+  'att.net',
+  'bellsouth.net',
+  'comcast.net',
+  'freenet.de',
+  'hey.com',
+  'laposte.net',
+  'live.ca',
+  'live.co.uk',
+  'live.com',
+  'live.com.au',
+  'live.de',
+  'live.fr',
+  'live.it',
+  'live.nl',
+  'mac.com',
+  'mail.com',
+  'mailbox.org',
+  'me.com',
+  'naver.com',
+  'orange.fr',
+  'pm.me',
+  'qq.com',
+  'sbcglobal.net',
+  'verizon.net',
+  'wanadoo.fr',
+  'web.de',
 ]);
 
-/** Whether a domain or site a company names is its own, rather than anyone's. */
+/**
+ * Hosts a company's site may be on that are not its own — a profile page or a
+ * subdomain on one (`acme.zendesk.com`, `acme.github.io`) is no claim to
+ * everyone with an address there.
+ */
+const SHARED_HOSTS: readonly string[] = [
+  'atlassian.net',
+  'blogspot.com',
+  'bsky.app',
+  'carrd.co',
+  'crunchbase.com',
+  'docs.google.com',
+  'drive.google.com',
+  'facebook.com',
+  'freshdesk.com',
+  'github.com',
+  'github.io',
+  'gitlab.com',
+  'gitlab.io',
+  'glassdoor.com',
+  'herokuapp.com',
+  'instagram.com',
+  'linkedin.com',
+  'linktr.ee',
+  'medium.com',
+  'myshopify.com',
+  'netlify.app',
+  'notion.site',
+  'notion.so',
+  'pages.dev',
+  'pinterest.com',
+  'sites.google.com',
+  'squarespace.com',
+  'substack.com',
+  'tiktok.com',
+  'twitter.com',
+  'vercel.app',
+  'webflow.io',
+  'wixsite.com',
+  'wordpress.com',
+  'workers.dev',
+  'x.com',
+  'youtu.be',
+  'youtube.com',
+  'zendesk.com',
+];
+
+/** Whether a domain is a public mail provider's, in any country. */
+function isPublicMail(domain: string): boolean {
+  return PUBLIC_MAIL_DOMAINS.has(domain) || PUBLIC_MAIL_LABELS.has(organisationLabel(domain));
+}
+
+function isSharedHost(host: string): boolean {
+  return SHARED_HOSTS.some((shared) => host === shared || host.endsWith(`.${shared}`));
+}
+
+/**
+ * Whether a domain or site a company names is its own, rather than anyone's:
+ * not a public mail provider's, not a shared host, and — for a site — not a
+ * page below the root, which says where the company is, not whose domain it is.
+ */
 function ownDomain(written: string): boolean {
   const host = hostKey(written);
-  return !PUBLIC_MAIL_DOMAINS.has(host) && !SHARED_HOSTS.has(host);
+  return host !== '' && isRootSite(written) && !isPublicMail(host) && !isSharedHost(host);
+}
+
+/** Whether a written site has no path past the host (`https://acme.example/` or bare). */
+function isRootSite(written: string): boolean {
+  const afterScheme = written.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+  const path = /^[^/?#]*(\/[^?#]*)?/.exec(afterScheme)?.[1] ?? '';
+  return path.replace(/\//g, '') === '';
 }
 
 /** Second-level labels under a country's domain: `larkspur` in `larkspur.co.uk`, not `co`. */
@@ -235,23 +362,42 @@ function nameIndex(people: readonly DirectoryPerson[]): Map<string, NamedPerson[
   return byName;
 }
 
-/** The company an address is surely at, or null: none, or more than one. */
-function companyFinder(companies: readonly DirectoryCompany[]) {
-  return (email: string | null): DirectoryCompany | null => {
-    const domain = emailDomain(email);
-    if (domain === null) return null;
-    const declared = companies.filter((company) =>
-      company.domains.some(
-        (written) => ownDomain(written) && withinDomain(domain, hostKey(written)),
-      ),
-    );
-    if (declared.length > 0) return onlyOne(declared);
-    if (PUBLIC_MAIL_DOMAINS.has(domain)) return null;
-    const label = compact(organisationLabel(domain));
-    const named = companies.filter((company) =>
-      [company.name, ...company.aliases].some((form) => label !== '' && compact(form) === label),
-    );
-    return onlyOne(named);
+interface CompanyFinder {
+  /** The company whose declared domain an address is at, the most specific one; null for none, or a tie. */
+  readonly declared: (email: string | null) => DirectoryCompany | null;
+  /** The company only the name of an address's domain points at: never one that declares a domain. */
+  readonly named: (email: string | null) => DirectoryCompany | null;
+}
+
+function companyFinder(companies: readonly DirectoryCompany[]): CompanyFinder {
+  const claims = companies.flatMap((company) =>
+    company.domains.filter(ownDomain).map((written) => ({ company, host: hostKey(written) })),
+  );
+  const declares = new Set(claims.map(({ company }) => company.path));
+  const claimsOn = (domain: string) => claims.filter(({ host }) => withinDomain(domain, host));
+  return {
+    declared: (email) => {
+      const domain = emailDomain(email);
+      if (domain === null) return null;
+      const matching = claimsOn(domain);
+      const specificity = Math.max(0, ...matching.map(({ host }) => host.split('.').length));
+      const best = matching.filter(({ host }) => host.split('.').length === specificity);
+      return onlyOne([...new Map(best.map(({ company }) => [company.path, company])).values()]);
+    },
+    named: (email) => {
+      const domain = emailDomain(email);
+      // A domain someone declares is answered by `declared`, even when that is a tie.
+      if (domain === null || isPublicMail(domain) || claimsOn(domain).length > 0) return null;
+      const label = compact(organisationLabel(domain));
+      if (label === '') return null;
+      return onlyOne(
+        companies.filter(
+          (company) =>
+            !declares.has(company.path) &&
+            [company.name, ...company.aliases].some((form) => compact(form) === label),
+        ),
+      );
+    },
   };
 }
 
@@ -263,16 +409,16 @@ function involvedCompanies({
   attendees,
   linked,
   companies,
-  companyOf,
+  declared,
 }: {
   attendees: readonly MeetingAttendee[];
   linked: readonly LinkedAttendee[];
   companies: readonly DirectoryCompany[];
-  companyOf: (email: string | null) => DirectoryCompany | null;
+  declared: CompanyFinder['declared'];
 }): MatchedCompany[] {
   const involved = new Map<VaultPath, MatchedCompany>();
   for (const { email } of attendees) {
-    const company = companyOf(email);
+    const company = declared(email);
     if (company !== null && !involved.has(company.path)) {
       involved.set(company.path, { company, by: 'domain' });
     }
@@ -284,6 +430,26 @@ function involvedCompanies({
     }
   }
   return [...involved.values()];
+}
+
+function guessedCompanies({
+  attendees,
+  involved,
+  named,
+}: {
+  attendees: readonly MeetingAttendee[];
+  involved: readonly MatchedCompany[];
+  named: CompanyFinder['named'];
+}): GuessedCompany[] {
+  const sure = new Set(involved.map(({ company }) => company.path));
+  const guessed = new Map<VaultPath, GuessedCompany>();
+  for (const attendee of attendees) {
+    const company = named(attendee.email);
+    if (company !== null && !sure.has(company.path) && !guessed.has(company.path)) {
+      guessed.set(company.path, { company, attendee });
+    }
+  }
+  return [...guessed.values()];
 }
 
 /**
