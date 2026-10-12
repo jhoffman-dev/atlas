@@ -88,6 +88,49 @@ against the schema is a failed run, logged, with nothing written.
 declares as such (terminology correction is the first). Each records what it
 changed on the note and is undoable like any automation run.
 
+**What the Claude step is held to** _(Amended 2026-10-11, the review and
+adversarial pass of P29-03, #16.)_
+
+- **The notes are data in the system prompt, not the question.** Each is fenced
+  as `<vault_data note=…>`, its text and path neutralized as the chat's open note
+  is, cut to an equal share of a total budget. The Claude Code provider
+  renders the conversation as a transcript that neutralizes every framing tag,
+  so a fence in the question would have been taken down with the note's own
+  and left its words bare; in the system prompt the fence is Atlas's alone. The
+  question is one fixed line.
+- **Text and links only.** An answer's note, proposal body, "why", title and
+  properties may not load from elsewhere: no remote or by-reference picture,
+  no HTML that loads or embeds (`img`, `iframe`, `script`, `link`, a `src`,
+  `style` or `on…` attribute), no web address as a property's value. A picture
+  whose address holds what the model read is a way out of the vault seen by no
+  one; the whole answer is refused, with the reason. This does not cover what a
+  person, a sync or an import wrote: the app's own CSP and a way to allow a
+  remote picture are #101.
+- **Strict and small.** An unknown key at either level refuses the answer; a
+  proposal's payload carries `title`, `folder`, `properties`, `body` and
+  nothing that would edit a note (`link`, `link_from`, a digest). Title, body
+  and "why" have sizes, properties are few, flat and plain, and none is one
+  Atlas keeps. What the model authored is cut before it reaches a log line or
+  Activity.
+- **Where it writes.** A rule's folder, a proposal's folder and the action a
+  run is handed are all held to the proposals' refusals plus `Chats/`, the
+  depth the vault is read to and the length a disk takes; the run checks the
+  action again, and its prompt path, as the file that wrote it was checked.
+- **A citation names a block the model was shown**, outside a code fence, in
+  the text it was given before the cut.
+- **A half-written run is on record.** Every note is planned (name cut to what a
+  disk takes, contents built) before the first is written. A write that then
+  fails is logged as a failed run listing what it made, and the disk's error is
+  raised. Each proposal carries a `proposal_id` (its rule, kind, title and cited
+  block), so a run again makes none twice — whether the first is still open or
+  was answered and archived. The key is P29-04's (#100); once both are on `main`
+  the writer is replaced by its `writeProposals`.
+- **Asking costs, and the log says so.** A run that asked Claude counts toward the
+  hourly cap whatever it came back with, a failure included. A Claude step on
+  any trigger, not only a note's, skips a note version it has answered. A run
+  over more than ten notes says it read the first ten and the rest wait for a
+  run by hand, which takes them.
+
 **Every run is in Activity:** trigger, note, digest, step, outcome, model,
 duration, proposals made. Each rule has a run cap per hour.
 
