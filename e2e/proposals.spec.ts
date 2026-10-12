@@ -54,14 +54,14 @@ const PROPOSAL = [
   '',
 ].join('\n');
 
-async function openProposalsVault(page: Page): Promise<FakeVault> {
+async function openProposalsVault(page: Page, proposal = PROPOSAL): Promise<FakeVault> {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.mkdir('Inbox/Meetings');
   await vault.mkdir('Inbox/Proposals');
   await vault.write('.atlas/types/task.md', TASK_TYPE);
   await vault.write('Inbox/Meetings/2026-10-01 Standup.md', MEETING);
-  await vault.write('Inbox/Proposals/Send the payroll file.md', PROPOSAL);
+  await vault.write('Inbox/Proposals/Send the payroll file.md', proposal);
   await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
@@ -132,7 +132,9 @@ test('a task proposal accepted on the Inbox page makes the task, and the task op
   await expect(page.getByRole('button', { name: /^Proposals/ })).toHaveCount(0);
 });
 
-test('a refused accept says why on the proposal and leaves it waiting', async ({ page }) => {
+test('a task whose name is taken is made under a numbered name, leaving the note there', async ({
+  page,
+}) => {
   const vault = await openProposalsVault(page);
   await vault.write('Send Mara the payroll file.md', 'Made by hand.\n');
 
@@ -141,9 +143,27 @@ test('a refused accept says why on the proposal and leaves it waiting', async ({
   const card = page.getByRole('region', { name: 'Task: Send Mara the payroll file' });
   await card.getByRole('button', { name: 'Accept' }).click();
 
-  await expect(card.getByRole('alert')).toContainText(
-    'There is already a note at Send Mara the payroll file.md',
-  );
+  await expectFile(vault, 'Send Mara the payroll file 2.md').toContain('type: task');
   expect(await vault.read('Send Mara the payroll file.md')).toBe('Made by hand.\n');
+  await expectFile(vault, 'Archive/Inbox/Proposals/Send the payroll file.md').toContain(
+    'state: accepted',
+  );
+});
+
+test('a refused accept says why on the proposal and leaves it waiting', async ({ page }) => {
+  // It waits on someone whose Person note is not in the vault any more.
+  const gone = PROPOSAL.replace(
+    '    status: next\n',
+    '    status: waiting\n    waiting_on: "[[Tobias Fenn]]"\n',
+  );
+  const vault = await openProposalsVault(page, gone);
+
+  await page.getByRole('button', { name: /^Inbox/ }).click();
+  await settledInbox(page);
+  const card = page.getByRole('region', { name: 'Task: Send Mara the payroll file' });
+  await card.getByRole('button', { name: 'Accept' }).click();
+
+  await expect(card.getByRole('alert')).toContainText('which is not a note any more');
+  expect(await vault.exists('Send Mara the payroll file.md')).toBe(false);
   expect(await vault.exists('Inbox/Proposals/Send the payroll file.md')).toBe(true);
 });
