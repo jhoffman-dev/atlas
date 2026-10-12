@@ -108,4 +108,42 @@ describe('IPC contract', () => {
     const tokenCommands = exposed.filter((name) => /token/i.test(name));
     expect(tokenCommands.sort()).toEqual(['api_rotate_token', 'api_token']);
   });
+
+  // #135: a command that is not async runs on the host's main thread, which is
+  // the window's. Building the index walks the vault, reads every note and
+  // writes every row through these, so one of them left on the main thread
+  // freezes the window for as long as it runs, whatever the webview does.
+  it('runs every command that builds or reads the index off the main thread', () => {
+    const exposed = [...commandsExposedByRust()];
+    const indexing = [...exposed.filter((name) => name.startsWith('index_')), ...VAULT_READS];
+    expect(indexing).toContain('index_put');
+    expect(indexing.filter((name) => threadOf(name) !== 'worker')).toEqual([]);
+  });
+
+  it('tells a main-thread command from one that is not', () => {
+    // Saving a note is still the main thread's, where one write follows another.
+    expect(threadOf('write_text_file')).toBe('main');
+    expect(threadOf('activity_read')).toBe('worker');
+  });
 });
+
+/** The commands that walk the vault and read its notes for the index. */
+const VAULT_READS = ['list_notes', 'read_notes'];
+
+/** Where the host runs a command: its main thread, unless the command is declared async. */
+function threadOf(command: string): 'main' | 'worker' {
+  const directory = here('../src-tauri/src');
+  const sources = readdirSync(directory, { recursive: true, encoding: 'utf8' })
+    .filter((file) => file.endsWith('.rs'))
+    .map((file) => readFileSync(join(directory, file), 'utf8'));
+  const declared = new RegExp(
+    String.raw`#\[tauri::command(\(async\))?\]\s*pub (async )?fn ${command}\b`,
+  );
+  for (const source of sources) {
+    const found = declared.exec(source);
+    if (found !== null) {
+      return found[1] !== undefined || found[2] !== undefined ? 'worker' : 'main';
+    }
+  }
+  throw new Error(`no #[tauri::command] named ${command} in src-tauri/src`);
+}

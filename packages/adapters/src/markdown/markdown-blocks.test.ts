@@ -6,67 +6,13 @@ import {
   serializeMarkdownBody,
   RAW_BLOCK,
 } from './markdown-blocks.ts';
+import { ROUND_TRIP_CORPUS as CORPUS } from './round-trip-corpus.ts';
 
 /** Saves the document exactly as it was loaded — the no-op round trip. */
 const roundTrip = (body: string): string => {
   const parsed = parseMarkdownBody(body);
   return serializeMarkdownBody({ originalBody: body, parsed, doc: parsed.doc });
 };
-
-const CORPUS: Array<[label: string, markdown: string]> = [
-  ['empty', ''],
-  ['one paragraph', 'Just some text.\n'],
-  ['two paragraphs', 'One.\n\nTwo.\n'],
-  ['atx headings', '# One\n\n## Two\n\n### Three\n'],
-  ['setext heading', 'Title\n=====\n\nBody.\n'],
-  ['bullet list with *', '* one\n* two\n'],
-  ['bullet list with -', '- one\n- two\n'],
-  ['bullet list with +', '+ one\n+ two\n'],
-  ['ordered list', '1. one\n2. two\n'],
-  ['ordered list starting at 5', '5. five\n6. six\n'],
-  ['task list', '- [ ] todo\n- [x] done\n'],
-  ['nested list', '- one\n  - nested\n- two\n'],
-  ['fenced code', '```ts\nconst a = 1;\n```\n'],
-  ['fenced code without language', '```\nplain\n```\n'],
-  ['indented code', '    indented code\n'],
-  ['blockquote', '> quoted\n'],
-  ['thematic break', 'a\n\n---\n\nb\n'],
-  ['emphasis with underscores', 'some _emphasis_ here\n'],
-  ['emphasis with asterisks', 'some *emphasis* here\n'],
-  ['strong', 'some **strong** here\n'],
-  ['inline code', 'a `code` span\n'],
-  ['strikethrough', '~~gone~~\n'],
-  ['link', 'a [link](https://example.com) here\n'],
-  ['link with title', 'a [link](https://example.com "T") here\n'],
-  ['autolink', '<https://example.com>\n'],
-  ['image', '![alt](image.png)\n'],
-  ['html block', '<div class="x">raw</div>\n'],
-  ['table', '| a | b |\n| - | - |\n| 1 | 2 |\n'],
-  ['footnote', 'text[^1]\n\n[^1]: note\n'],
-  ['wikilink', 'see [[Another Note]] for more\n'],
-  ['tag', 'tagged #project/atlas here\n'],
-  ['hard wrapped paragraph', 'one line\nsecond line\nthird line\n'],
-  ['trailing blank lines', 'text\n\n\n'],
-  ['no trailing newline', 'text'],
-  ['unicode', 'año — 日本語 🎉\n'],
-  ['escaped characters', 'a \\* not a bullet\n'],
-  ['block id on a paragraph', 'The plan. ^f3k9x2\n'],
-  ['block ids on list items', '* Tent  ^i1\n  *  Pegs ^i2\n* Stove\n'],
-  ['block id on a table', '| a | b |\n|---|---|\n| 1 | 2 |\n\n^t1\n'],
-  ['block id on a quote, with CRLF', '> said\r\n\r\n^q1\r\n'],
-  ['caret that is no id', 'x^2 and \\^a1 and ^ alone\n'],
-  ['id alone after a paragraph', 'Text.\n\n^a1\n'],
-  ['shown block', 'Before.\n\n![[Plans#^f3k9x2]]\n\n![[Plans#Packing list|packing]]\n'],
-  ['embed in a sentence', 'See ![[Plans#^f3k9x2]] here.\n'],
-  [
-    'query block',
-    'Meetings.\n\n```atlas-query\nlayout: list\nFROM meeting WHERE people = this\n```\n',
-  ],
-  [
-    'mixed document',
-    '# Title\n\nIntro _text_.\n\n- [ ] one\n- [x] two\n\n```js\nx();\n```\n\n> quote\n',
-  ],
-];
 
 describe('a document saved without being edited is byte-identical', () => {
   it.each(CORPUS)('%s', (_label, markdown) => {

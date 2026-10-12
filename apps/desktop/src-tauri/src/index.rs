@@ -1729,6 +1729,70 @@ mod tests {
         assert_eq!(search(&index, "alpha", 10, None).unwrap().len(), 1);
     }
 
+    /// How many steps SQLite takes to add one note to an index holding this many.
+    fn steps_to_add_a_note_to(held: usize) -> usize {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let mut index = empty_index();
+        let notes: Vec<IndexedNote> = (0..held)
+            .map(|n| note(&format!("Note {n}.md"), "Note", "alpha beta gamma"))
+            .collect();
+        put_notes(&mut index, &notes).unwrap();
+
+        let steps = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&steps);
+        index
+            .progress_handler(
+                1,
+                Some(move || {
+                    counted.fetch_add(1, Ordering::Relaxed);
+                    false
+                }),
+            )
+            .unwrap();
+        put_notes(&mut index, &[note("New.md", "New", "delta")]).unwrap();
+        steps.load(Ordering::Relaxed)
+    }
+
+    /// #135: the search table has no index on `path`, so clearing a note's old
+    /// row from it reads every row. Done for a note the index has never held,
+    /// that made building an index of n notes n * n work: five thousand notes
+    /// took most of a minute, each batch slower than the last.
+    #[test]
+    fn adding_a_note_costs_the_same_however_many_the_index_holds() {
+        let few = steps_to_add_a_note_to(20);
+        let many = steps_to_add_a_note_to(2_000);
+        assert!(
+            many < few * 2,
+            "adding a note to 2,000 took {many} steps, to 20 took {few}"
+        );
+    }
+
+    #[test]
+    fn a_note_put_twice_in_one_batch_is_held_once() {
+        let mut index = empty_index();
+        put_notes(
+            &mut index,
+            &[note("a.md", "A", "alpha"), note("a.md", "A", "alpha twice")],
+        )
+        .unwrap();
+
+        assert_eq!(stats_of(&index).notes, 1);
+        assert_eq!(search(&index, "alpha", 10, None).unwrap().len(), 1);
+        assert_eq!(search(&index, "twice", 10, None).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_note_removed_and_put_again_is_found_once() {
+        let mut index = empty_index();
+        put_notes(&mut index, &[note("a.md", "A", "alpha")]).unwrap();
+        remove_paths(&mut index, &["a.md".to_string()]).unwrap();
+        put_notes(&mut index, &[note("a.md", "A", "alpha")]).unwrap();
+
+        assert_eq!(search(&index, "alpha", 10, None).unwrap().len(), 1);
+    }
+
     fn stats_of(connection: &Connection) -> IndexStats {
         let count = |table: &str| -> i64 {
             connection

@@ -352,6 +352,12 @@ export interface FakeHost {
   /** Puts lines in a vault's Activity log before the app reads it, as an earlier session would have. */
   seedActivity(root: string, text: string): void;
   /**
+   * Lets this many more batches into the index and holds the next in flight
+   * until the returned function is called, so a test can act on a window whose
+   * vault is still being indexed without racing the build (#135).
+   */
+  holdIndexAfter(batches: number): () => void;
+  /**
    * Holds every write to this file in flight until the returned function is
    * called, so an editor's save can be caught mid-way without racing a timer.
    */
@@ -489,6 +495,10 @@ export async function installHost(
   // The real queries are covered by the Rust tests.
   const indexed = new Map<string, StoredNote>();
   const views = new Map<string, ViewSpec>();
+  // A build of the index stopped part-way (`holdIndexAfter`), so a test can act while one is under way.
+  let indexPuts = 0;
+  let indexPutsBeforeHold = Infinity;
+  let indexHeld: Promise<void> = Promise.resolve();
 
   // The local API's switch and token, as src-tauri/src/api keeps them. The
   // server itself — authentication, the Host and Origin checks, the port — is
@@ -794,6 +804,8 @@ export async function installHost(
       case 'index_manifest':
         return [];
       case 'index_put': {
+        indexPuts += 1;
+        if (indexPuts > indexPutsBeforeHold) await indexHeld;
         for (const note of (args as { notes: StoredNote[] }).notes) indexed.set(note.path, note);
         return null;
       }
@@ -1531,6 +1543,15 @@ export async function installHost(
         offeredDatabase = path;
       },
       queries: () => [...sqliteQueries],
+    },
+    holdIndexAfter(batches) {
+      let release: () => void = () => {};
+      indexPutsBeforeHold = indexPuts + batches;
+      indexHeld = new Promise<void>((resolve) => (release = resolve));
+      return () => {
+        indexPutsBeforeHold = Infinity;
+        release();
+      };
     },
     holdWrites(relativePath) {
       let release: () => void = () => {};

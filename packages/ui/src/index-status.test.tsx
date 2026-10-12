@@ -13,7 +13,10 @@ describe('indexStatusText', () => {
   });
 
   it('shows progress while indexing, and a plain word before the total is known', () => {
-    expect(indexStatusText({ kind: 'working', done: 30, total: 90 })).toBe('Indexing 30/90…');
+    expect(indexStatusText({ kind: 'working', done: 30, total: 90 })).toBe('Indexing 30 of 90…');
+    expect(indexStatusText({ kind: 'working', done: 1240, total: 5000 })).toBe(
+      'Indexing 1,240 of 5,000…',
+    );
     expect(indexStatusText({ kind: 'working', done: 0, total: 0 })).toBe('Indexing…');
   });
 
