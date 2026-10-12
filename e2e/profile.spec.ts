@@ -26,6 +26,8 @@ const chat = (page: Page) => page.getByRole('complementary', { name: 'Claude' })
 async function ask(page: Page, question: string, answer: string) {
   const box = chat(page).getByRole('textbox', { name: 'Ask Claude' });
   await box.fill(question);
+  // Send, not Stop: Enter does nothing while a turn is still running.
+  await expect(chat(page).getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   await box.press('Enter');
   await expect(chat(page).getByText(answer)).toBeVisible();
   await expect(chat(page).getByText('Claude is working…')).toHaveCount(0);

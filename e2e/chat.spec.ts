@@ -36,9 +36,19 @@ async function openPlan(
 
 const chat = (page: Page) => page.getByRole('complementary', { name: 'Claude' });
 
+/**
+ * Asks once the chat will take a question: Send is there, and enabled.
+ *
+ * While a turn is running the button is Stop and Enter does nothing, and a
+ * turn is still running for a moment after its last words are drawn — the
+ * run's closing lines and its exit come after them. A second question sent on
+ * seeing the first answer's text was dropped that way, and the proposal it
+ * asked for never came (#52, the block-embed test on CI).
+ */
 async function ask(page: Page, question: string): Promise<void> {
   const box = chat(page).getByRole('textbox', { name: 'Ask Claude' });
   await box.fill(question);
+  await expect(chat(page).getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   await box.press('Enter');
 }
 
