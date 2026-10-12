@@ -8,6 +8,7 @@ import {
   isConflictCopyPath,
   meetingHolding,
   messageWithoutPaths,
+  sameMeetingIdentity,
   splitFrontmatter,
   type MeetingIdentity,
   type MeetingImportHappening,
@@ -29,15 +30,34 @@ export interface ImportContext {
   readonly activity: ActivityRecorder;
   /** Files this run has settled, which are not looked at again when their own turn comes. */
   readonly settled: Set<string>;
+  /** The files this run was handed to look at: a sync's news, or the folder as catching up listed it. */
+  readonly listed: readonly string[];
+  /** The meeting each listed file's own keys name, read once a run; null for a file that names none. */
+  listedMeetings: ReadonlyMap<string, MeetingIdentity | null> | null;
   /** Every note in the vault, read from the index once a run: what an archived copy's name is checked against. */
   notePaths: readonly VaultPath[] | null;
   /** Whether a note was written or moved. */
   wrote: boolean;
   /** Done to a meeting before it is let in: see `MeetingImportRun.beforeLetIn`. */
-  readonly beforeLetIn?: (path: VaultPath) => Promise<void>;
+  readonly beforeLetIn?: BeforeLetIn;
   /** The spellings a meeting let in is corrected by, read from the index once a run. */
   vocabulary: Vocabulary | null;
 }
+
+/**
+ * Done to a meeting just before it is stamped, with what the run has read
+ * for it. `vault-changed` says the vault the run is for is no longer the one
+ * open: the meeting is then left unstamped, to be let in when it is next
+ * looked at.
+ */
+export type BeforeLetIn = (
+  path: VaultPath,
+  reading: { readonly vocabulary: Vocabulary },
+) => Promise<void | 'vault-changed'>;
+
+/** Why a meeting was not let in once its vault was no longer the one open. */
+export const VAULT_CHANGED =
+  'Another vault was opened before it was let in; it is let in when this vault is next open.';
 
 /** The notes holding a meeting now, and which of them the import has already let in. */
 export interface Holders {
@@ -53,14 +73,53 @@ export type HolderPorts = Pick<ArchivePorts, 'fs' | 'markdown' | 'index'>;
  * {@link meetingHoldersIn}), leaving out the file being settled and any this
  * run has settled already.
  */
-export function meetingHolders(
+export async function meetingHolders(
   context: ImportContext,
   { meeting, besides }: { meeting: MeetingIdentity; besides: string },
 ): Promise<Holders> {
   return meetingHoldersIn(context.ports, {
     meeting,
     skip: (holder) => holder === besides || context.settled.has(holder),
+    also: await listedHolding(context, meeting),
   });
+}
+
+/**
+ * The files of this run's own listing whose keys name the meeting. The index
+ * is behind the folder after a pull — it may have read none of them — so two
+ * files of one meeting waiting together are found in the listing itself, or
+ * each would be let in as the only one. Like the index, this only says where
+ * to look: each is read again by {@link holdingAt}.
+ */
+async function listedHolding(context: ImportContext, meeting: MeetingIdentity): Promise<string[]> {
+  context.listedMeetings ??= new Map(
+    await Promise.all(
+      context.listed.map(
+        async (path) => [path, await meetingNamedAt(context.ports, path)] as const,
+      ),
+    ),
+  );
+  return [...context.listedMeetings]
+    .filter(([, named]) => named !== null && sameMeetingIdentity(named, meeting))
+    .map(([path]) => path);
+}
+
+/** The provider and id a file's frontmatter gives, whatever else it holds; null when it cannot be read or gives neither. */
+async function meetingNamedAt(
+  { fs, markdown }: Pick<HolderPorts, 'fs' | 'markdown'>,
+  path: string,
+): Promise<MeetingIdentity | null> {
+  try {
+    const { text } = await fs.readTextFile(createVaultPath(path));
+    const { properties } = readFrontmatter(markdown, splitFrontmatter(text).frontmatter);
+    const { provider, external_id: externalId } = properties;
+    return typeof provider === 'string' && typeof externalId === 'string'
+      ? { provider, externalId }
+      : null;
+  } catch {
+    // Gone since it was listed: it names nothing, and its own turn finds that out.
+    return null;
+  }
 }
 
 /**
@@ -71,11 +130,16 @@ export function meetingHolders(
  * since. One not stamped holds it when it follows the contract. One stamped
  * `duplicate` or `error`, and a sync conflict's copy, holds nothing. Ids are
  * compared without the spaces around them, as the index keeps them. A note
- * `skip` names is not read.
+ * `skip` names is not read. `also` names notes to read beside the index's:
+ * where else the caller knows to look.
  */
 export async function meetingHoldersIn(
   ports: HolderPorts,
-  { meeting, skip }: { meeting: MeetingIdentity; skip: (holder: string) => boolean },
+  {
+    meeting,
+    skip,
+    also = [],
+  }: { meeting: MeetingIdentity; skip: (holder: string) => boolean; also?: readonly string[] },
 ): Promise<Holders> {
   const { sql, parameters } = compileMeetingHoldersQuery({
     provider: meeting.provider,
@@ -84,7 +148,7 @@ export async function meetingHoldersIn(
   const found = await ports.index.query(sql, parameters);
   const unsettled: string[] = [];
   const imported: string[] = [];
-  for (const holder of found.rows.map((row) => String(row[0]))) {
+  for (const holder of new Set([...found.rows.map((row) => String(row[0])), ...also])) {
     if (skip(holder) || isConflictCopyPath(holder)) continue;
     const held = await holdingAt(ports, { holder, meeting });
     if (held === 'imported') imported.push(holder);
@@ -121,14 +185,24 @@ export async function holdingAt(
  * hears as the meeting's arrival (#92) — is the meeting as it stays: linked
  * and corrected. A file being typed in is left as it
  * is, and said so; it is let in when it next changes, or when the import
- * next looks over every arrival.
+ * next looks over every arrival. So is one whose vault stopped being the one
+ * open while `beforeLetIn` ran: what it did, it did nothing or only in part,
+ * and a stamp would say the meeting is as it stays.
+ *
+ * The run's vocabulary is read before `beforeLetIn` and handed to it, so the
+ * speakers are read by the same spellings the stamp write corrects by.
  */
 export async function letIn(
   context: ImportContext,
   path: VaultPath,
 ): Promise<MeetingImportHappening> {
-  // First, so the file is read as it will be stamped: the follow-up may have written to it.
-  await context.beforeLetIn?.(path);
+  const vocabulary = await importVocabulary(context);
+  // Before the read, so the file is read as it will be stamped: the follow-up may have written to it.
+  const went = await context.beforeLetIn?.(path, { vocabulary });
+  if (went === 'vault-changed') {
+    context.settled.add(path);
+    return { kind: 'failed', path, problem: VAULT_CHANGED };
+  }
   const { text, modified } = await context.ports.fs.readTextFile(path);
   const { properties } = readFrontmatter(
     context.ports.markdown,
@@ -138,7 +212,7 @@ export async function letIn(
   const corrected = correctedMeeting({
     markdown: context.ports.markdown,
     text,
-    vocabulary: await importVocabulary(context),
+    vocabulary,
   });
   const unsaved = await writeInto(context, {
     path,
