@@ -56,10 +56,15 @@ export function compileReviewTasksQuery(): CompiledQuery {
       `  ${firstDay(TASK_KEYS.due)} AS "due",`,
       `  ${firstDay(TASK_KEYS.defer)} AS "defer",`,
       `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOn",`,
-      `  (SELECT r.dst FROM relations AS r WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' AND r.dst IS NOT NULL ORDER BY r.idx LIMIT 1) AS "project"`,
+      `  ${allItems(TASK_KEYS.contexts)} AS "contexts",`,
+      `  (SELECT r.dst FROM relations AS r WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' AND r.dst IS NOT NULL ORDER BY r.idx LIMIT 1) AS "project",`,
+      `  (SELECT pf.title FROM relations AS r JOIN files AS pf ON pf.path = r.dst WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' ORDER BY r.idx LIMIT 1) AS "projectTitle"`,
       `FROM files AS f`,
       `WHERE ${inUseOfTypeSql('f.path', '?')}`,
-      `  AND NOT EXISTS (SELECT 1 FROM props AS s WHERE s.path = f.path AND s.key = '${TASK_KEYS.status}' AND s.value_text = ?)`,
+      // `+` keeps the planner off `props_key (key, value_text)`, which would walk
+      // every finished task in the vault for each open one; a note's own rows
+      // are found by `props_path (path, key)`.
+      `  AND NOT EXISTS (SELECT 1 FROM props AS s WHERE s.path = f.path AND s.key = '${TASK_KEYS.status}' AND +s.value_text = ?)`,
       `ORDER BY f.path`,
     ].join('\n'),
     parameters: [TASK_TYPE, FINISHED_TASK_STATUS],
@@ -115,6 +120,15 @@ function shownName(item: string): string {
     .trim();
 }
 
+/** A task's contexts as the statement joined them: each as written, trimmed, blanks left out. */
+function contextsOf(joined: unknown): readonly string[] {
+  if (typeof joined !== 'string') return [];
+  return joined
+    .split(ITEM_SEPARATOR)
+    .map((context) => context.trim())
+    .filter((context) => context !== '');
+}
+
 /** A row of {@link compileReviewTasksQuery}, as the review reads it. */
 export function reviewTask(row: Readonly<Record<string, unknown>>): ReviewTask {
   const project = textOrNull(row['project']);
@@ -125,7 +139,9 @@ export function reviewTask(row: Readonly<Record<string, unknown>>): ReviewTask {
     due: textOrNull(row['due']),
     defer: textOrNull(row['defer']),
     waitingOn: waitingOnNames(row['waitingOn']),
+    contexts: contextsOf(row['contexts']),
     project: project === null ? null : createVaultPath(project),
+    projectTitle: project === null ? null : (textOrNull(row['projectTitle']) ?? project),
     modified: Number(row['modified']) || 0,
   };
 }

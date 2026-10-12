@@ -1,35 +1,17 @@
-import {
-  compileReviewProjectsQuery,
-  compileReviewTasksQuery,
-  inboxWaiting,
-  reviewProject,
-  reviewTask,
-  weeklyReview,
-  type CompiledQuery,
-  type WeeklyReview,
-} from '@atlas/domain';
-import { listInbox, listVaultInbox } from '../inbox/list-inbox.ts';
-import type { IndexPort, QueryResult } from '../index/ports.ts';
-import type { MarkdownPort } from '../notes/ports.ts';
+import { weeklyReview, type WeeklyReview } from '@atlas/domain';
 import type { Clock } from '../ports.ts';
-import { listProposals } from '../proposals/list-proposals.ts';
-import type { VaultFsPort } from '../vault/ports.ts';
+import {
+  readReviewSources,
+  type InboxCount,
+  type InboxRule,
+  type ReviewReadPorts,
+} from './review-reads.ts';
 
 /** The weekly review as it is shown: its sections, and what waits in the Inbox. */
 export interface WeeklyReviewReport extends WeeklyReview {
   /** The day the review was taken, `YYYY-MM-DD`. */
   readonly today: string;
-  /**
-   * What waits in the one Inbox, counted as the sidebar counts it: `count` is
-   * the notes to file (`toFile`) and the proposals to answer (`toAnswer`);
-   * `more` when there are more notes than it counts.
-   */
-  readonly inbox: {
-    readonly count: number;
-    readonly toFile: number;
-    readonly toAnswer: number;
-    readonly more: boolean;
-  };
+  readonly inbox: InboxCount;
   /** The index held rows back, so a section may be missing items. */
   readonly truncated: boolean;
 }
@@ -41,61 +23,13 @@ export interface WeeklyReviewReport extends WeeklyReview {
  * proposals to answer.
  */
 export async function readWeeklyReview({
-  index,
-  fs,
-  markdown,
   clock,
-  tasksStartInInbox: startInInbox,
-}: {
-  index: Pick<IndexPort, 'query'>;
-  /** Where the proposals waiting in the Inbox, and the vault's types, are read from. */
-  fs: VaultFsPort;
-  markdown: MarkdownPort;
-  clock: Pick<Clock, 'today' | 'now'>;
-  /**
-   * Whether the vault's tasks start in the Inbox (`tasksStartInInbox` of its
-   * types), so the Inbox is counted as its page lists it. Left out, the types
-   * are read from the vault.
-   */
-  tasksStartInInbox?: boolean;
-}): Promise<WeeklyReviewReport> {
-  const [tasks, projects, inbox, proposals] = await Promise.all([
-    rowsOf(index, compileReviewTasksQuery()),
-    rowsOf(index, compileReviewProjectsQuery()),
-    // Told by a caller that holds the vault's types; read from the vault otherwise.
-    startInInbox === undefined
-      ? listVaultInbox({ index, fs, markdown })
-      : listInbox({ index, tasksStartInInbox: startInInbox }),
-    listProposals({ fs, markdown }),
-  ]);
-  const toFile = inbox.items.length;
-  const toAnswer = proposals.open.length;
+  ...reads
+}: ReviewReadPorts &
+  InboxRule & {
+    clock: Pick<Clock, 'today' | 'now'>;
+  }): Promise<WeeklyReviewReport> {
+  const { tasks, projects, inbox, truncated } = await readReviewSources(reads);
   const at = { today: clock.today(), now: clock.now() };
-  return {
-    ...weeklyReview({
-      tasks: tasks.rows.map(reviewTask),
-      projects: projects.rows.map(reviewProject),
-      at,
-    }),
-    today: at.today,
-    inbox: {
-      count: inboxWaiting({ toFile, toAnswer }) ?? 0,
-      toFile,
-      toAnswer,
-      more: inbox.truncated,
-    },
-    truncated: tasks.truncated || projects.truncated,
-  };
-}
-
-/** A statement's rows, each keyed by its columns. */
-async function rowsOf(
-  index: Pick<IndexPort, 'query'>,
-  { sql, parameters }: CompiledQuery,
-): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
-  const result: QueryResult = await index.query(sql, parameters);
-  const rows = result.rows.map((row) =>
-    Object.fromEntries(result.columns.map((column, at) => [column, row[at]])),
-  );
-  return { rows, truncated: result.truncated };
+  return { ...weeklyReview({ tasks, projects, at }), today: at.today, inbox, truncated };
 }

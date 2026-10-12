@@ -1147,8 +1147,12 @@ export interface ApiReviewTask {
   readonly defer: string | null;
   /** Who it waits on — a link by what it shows, a plain name as written — joined with ", "; '' for nobody. */
   readonly waitingOn: string;
+  /** Its `contexts`, as written, in order. */
+  readonly contexts: readonly string[];
   /** The note its `project` links, or null. */
   readonly project: string | null;
+  /** That note's title, or null. */
+  readonly projectTitle: string | null;
   /** When its file last changed, in milliseconds since the epoch. */
   readonly modified: number;
 }
@@ -1187,6 +1191,48 @@ export interface ApiWeeklyReview {
     readonly more: boolean;
   };
   /** The index held tasks back, so a task section may be missing items. */
+  readonly truncated: boolean;
+}
+
+/** A task as the Today page lists it: a review task, and how long it has waited. */
+export interface ApiTodayTask extends ApiReviewTask {
+  /**
+   * For a Waiting task, the whole days (24 hours each) since its file last
+   * changed (`modified`) — not a recorded "waiting since". Null otherwise.
+   */
+  readonly waitingDays: number | null;
+}
+
+/** `GET /v1/today`: the Today page, as the app shows it. */
+export interface ApiToday {
+  /** The day it was taken, `YYYY-MM-DD`, where the app is. */
+  readonly today: string;
+  /**
+   * Every section, in order — `overdue`, `dueToday`, `backToday`,
+   * `inProgress`, `nextActions`, `waiting` — empty ones included. A task is
+   * in one section only: the first that claims it.
+   */
+  readonly sections: readonly {
+    readonly id: string;
+    readonly count: number;
+    /**
+     * `nextActions` by project (those under none last) and `waiting` by who
+     * is waited on (nobody last); the other sections hold one unnamed group,
+     * or none when empty.
+     */
+    readonly groups: readonly {
+      readonly key: string;
+      readonly label: string | null;
+      /** The project's note, for a group of a project's tasks. */
+      readonly project: string | null;
+      readonly tasks: readonly ApiTodayTask[];
+    }[];
+  }[];
+  /** Active projects with no Next Action or In Progress task: `projectsWithoutNextAction`, counted. */
+  readonly stalledProjects: number;
+  /** As the weekly review's `inbox`. */
+  readonly inbox: ApiWeeklyReview['inbox'];
+  /** The index held tasks back, so a section may be missing tasks. */
   readonly truncated: boolean;
 }
 
@@ -1269,6 +1315,7 @@ export type ApiSuccessBody =
   | { readonly accepted: ApiAcceptedProposal }
   | { readonly rejected: ApiProposalArchived }
   | { readonly review: ApiWeeklyReview }
+  | { readonly today: ApiToday }
   | { readonly export: ApiNoteExport };
 
 /**
@@ -1473,6 +1520,12 @@ export const API_ROUTES = [
     path: '/v1/review/weekly',
     summary:
       'The weekly review: stale waiting-fors, projects with nothing next, overdue, old ideas.',
+  },
+  {
+    method: 'GET',
+    path: '/v1/today',
+    summary:
+      'The Today page: overdue, due today, back from deferral, in progress, next actions, waiting.',
   },
   {
     method: 'GET',

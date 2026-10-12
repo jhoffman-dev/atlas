@@ -13,7 +13,9 @@ const task = (title: string, fields: Partial<ReviewTask> = {}): ReviewTask => ({
   due: null,
   defer: null,
   waitingOn: '',
+  contexts: [],
   project: null,
+  projectTitle: null,
   modified: 0,
   ...fields,
 });

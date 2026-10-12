@@ -684,6 +684,18 @@ the same use-case the page runs, and writes nothing. MCP's
 - **Nothing it lists is outside what the API already reads**: user space only,
   never `.atlas` or a hidden folder, never what is archived.
 
+## Today is read the same way (#111, 2026-10-12)
+
+`GET /v1/today` answers the app's Today page — overdue, due today, back from
+deferral today, in progress, next actions by project, waiting by person, the
+Inbox's count and the stalled projects — by the use-case the page runs, on
+the app's clock, writing nothing. MCP's `atlas_today` is that one call. As
+with the weekly review, the page's tick, Move and Defer get no route of their
+own: they are `PATCH /v1/notes/{path}/properties`, held to the task rules
+where every write lands. The page's Undo is not offered through the API: it
+is a memory of the session's last write, and a caller that wants a change
+back can write the old value itself.
+
 ## A note exported for Confluence: read, never published (P32-07, 2026-10-10)
 
 `GET /v1/notes/{path}/export?format=confluence` answers a note as markdown

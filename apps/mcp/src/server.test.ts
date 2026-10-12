@@ -69,6 +69,7 @@ const ALL_TOOLS = [
   'atlas_tagged_notes',
   'atlas_tags',
   'atlas_terms',
+  'atlas_today',
   'atlas_unarchive',
   'atlas_update_properties',
   'atlas_weekly_review',
@@ -235,10 +236,25 @@ describe('tools/list', () => {
     expect(described('atlas_capture_task')).toContain('with status "inbox"');
   });
 
+  it('tells the model what the Today page holds, what its days are counted from, and how to act (#111)', async () => {
+    const { tools } = await mcp.listTools();
+    const today = tools.find((t) => t.name === 'atlas_today');
+    expect(today?.annotations).toMatchObject({ readOnlyHint: true });
+    const described = today?.description ?? '';
+    for (const id of ['overdue', 'dueToday', 'backToday', 'inProgress', 'nextActions', 'waiting']) {
+      expect(described).toContain(id);
+    }
+    expect(described).toContain("days since the file's last change");
+    expect(described).toContain('whose "defer" day has passed');
+    expect(described).toContain('atlas_update_properties');
+    expect(described).toContain('refused unless "waiting_on" names someone');
+  });
+
   it('tells the model what puts an item in the weekly review, and how to act on one (P30-07)', async () => {
     const { tools } = await mcp.listTools();
     const review = tools.find((t) => t.name === 'atlas_weekly_review')?.description ?? '';
     expect(review).toContain('untouched for more than 7 days');
+    expect(review).toContain('waitingOn, contexts, project, projectTitle, modified');
     expect(review).toContain('untouched for more than 30 days');
     expect(review).toContain('next-action or in-progress');
     expect(review).toContain('atlas_update_properties');
@@ -552,6 +568,7 @@ describe('tools/call → REST', () => {
     ],
     ['atlas_automations', {}, 'GET', '/v1/automations', null],
     ['atlas_weekly_review', {}, 'GET', '/v1/review/weekly', null],
+    ['atlas_today', {}, 'GET', '/v1/today', null],
     ['atlas_automation_log', { id: 'tidy' }, 'GET', '/v1/automations/tidy/log', null],
     [
       'atlas_automation_log',

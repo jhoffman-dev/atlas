@@ -36,8 +36,12 @@ export function atlasQueryIndex({
                         modified INTEGER NOT NULL, size INTEGER NOT NULL);
     CREATE TABLE props (path TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL DEFAULT 0,
                         value_text TEXT, value_num REAL, value_date TEXT, value_json TEXT);
+    CREATE INDEX props_path ON props(path, key);
+    CREATE INDEX props_key ON props(key, value_text);
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                             target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
+    CREATE INDEX relations_src ON relations(src, key);
+    CREATE INDEX relations_dst ON relations(dst);
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
     CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);`);
   const paths = Object.keys(files).map(createVaultPath);

@@ -153,6 +153,7 @@ describe('mainViewPlace', () => {
     expect(mainViewPlace({ kind: 'terms' })).toEqual({ kind: 'terms' });
     expect(mainViewPlace({ kind: 'inbox' })).toEqual({ kind: 'inbox' });
     expect(mainViewPlace({ kind: 'review' })).toEqual({ kind: 'review' });
+    expect(mainViewPlace({ kind: 'today' })).toEqual({ kind: 'today' });
   });
 });
 
@@ -161,6 +162,7 @@ describe('placeName', () => {
     expect(nameOf({ kind: 'note', path: alpha })).toBe('alpha');
     expect(nameOf({ kind: 'inbox' })).toBe('Inbox');
     expect(nameOf({ kind: 'review' })).toBe('Weekly review');
+    expect(nameOf({ kind: 'today' })).toBe('Today');
     expect(nameOf({ kind: 'type', name: 'task' })).toBe('TASK');
     expect(nameOf({ kind: 'graph', scope: { kind: 'vault' } })).toBe('Graph');
     expect(nameOf({ kind: 'graph', scope: { kind: 'note', path: beta, depth: 1 } })).toBe(

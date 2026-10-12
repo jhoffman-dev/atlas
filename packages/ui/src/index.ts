@@ -167,6 +167,8 @@ export type { InboxRefusal } from './inbox/inbox-rows.tsx';
 export type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
 export { WeeklyReviewPage } from './weekly-review-page.tsx';
 export type { WeeklyReviewPageProps } from './weekly-review-page.tsx';
+export { TodayPage } from './today-page.tsx';
+export type { TodayAction, TodayNotice, TodayPageProps } from './today-page.tsx';
 export { TaskMigration } from './task-migration.tsx';
 export type {
   TaskMigrationMapping,
