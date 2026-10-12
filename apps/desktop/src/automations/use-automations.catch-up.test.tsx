@@ -98,9 +98,15 @@ function memoryVault(files: Record<string, string>, modified: Record<string, num
   const meetings = () => Object.keys(files).filter((path) => path.startsWith('Inbox/Meetings/'));
   const index = fakeIndexPort({
     manifest: async () =>
-      meetings().map((path) => ({ path, type: 'meeting', digest: digestOf(files[path] ?? '') })),
+      meetings().map((path) => ({
+        path,
+        type: 'meeting',
+        digest: digestOf(files[path] ?? ''),
+        modified: modified[path] ?? 1,
+        size: 1,
+      })),
     query: async (sql, parameters) =>
-      sql.includes('value_text FROM props')
+      sql.startsWith('/* meetings */')
         ? // The import's stamps, as the index holds them.
           {
             columns: ['path', 'value_text'],
@@ -183,7 +189,7 @@ describe('useAutomations: opening a vault whose rule missed a meeting’s arriva
     expect(Object.keys(vault.files)).toContain(`Archive/${MEETING}`);
     expect(vault.files[OLDER]).toBe(LET_IN);
     expect(activity.reports.map((report) => report.message)).toEqual([
-      'Sweep: Ran when a note appeared or changed — 2026-10-06 Standup. Archived 1 note.',
+      'Sweep: Ran when a note appeared or changed (2026-10-06 Standup). Archived 1 note.',
     ]);
   });
 

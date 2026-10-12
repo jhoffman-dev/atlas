@@ -48,18 +48,21 @@ export const automationLog = defineTool({
   title: "Read an automation's log",
   description:
     "An automation's log, newest first: { automation: { id, name }, entries: [{ kind, at, " +
-    'heading, summary, trigger?, of?, problem?, capped?, done, left, versions?, went?, claude? }], ' +
+    'heading, summary, trigger?, of?, problem?, capped?, count?, done, left, versions?, went?, ' +
+    'claude? }], ' +
     'truncated }. "versions" lists, on a run of a rule a note sets off, each note version ' +
     '{ path, digest, wrote } it handled, or its own write left; none of them sets it off again. ' +
     '"went" lists paths a note it had handled left — deleted, moved, renamed, archived or ' +
     'replaced: a new note there is new to it. "kind" is ' +
-    '"run", "undo", "failed" (its query did not read, or its Claude step failed), "turnedOn" or ' +
-    '"seen". "done" lists each note it moved ({ kind: "archived", from, to }), each property it ' +
+    '"run", "undo", "failed" (its query did not read, or its Claude step failed), "turnedOn", ' +
+    '"seen" or "letGo" (held back, it heard more syncs\' news than it keeps and let "count" of ' +
+    'them go; a run by hand takes the notes they named). "done" lists each note it moved ({ kind: "archived", from, to }), each property it ' +
     'set, with its value before and after, or each note a Claude step made ({ kind: "proposed" ' +
     'or "created", path }); "left" lists notes it matched and left alone, with why. "claude" is ' +
     '{ model, ms }: the model a Claude step asked and how long it took — with "cut", ' +
     '[{ path, shown, of }], when a note was too long to show it whole: the characters it read, ' +
-    'of how many. ' +
+    'of how many; and "alreadyMade", how many proposals it answered with were made before and ' +
+    'so not made again. ' +
     'An unknown id is "not_found"; a rule that cannot be read is "invalid".',
   inputSchema: z.object({
     id,

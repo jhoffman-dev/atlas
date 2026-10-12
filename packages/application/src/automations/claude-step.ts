@@ -124,10 +124,12 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   const model = ports.model();
   const started = ports.clock.now();
   let cut: readonly NoteCut[] = [];
+  let alreadyMade = 0;
   const claudeRun = (): ClaudeRunInfo => ({
     model,
     ms: Math.max(0, ports.clock.now() - started),
     ...(cut.length > 0 && { cut }),
+    ...(alreadyMade > 0 && { alreadyMade }),
   });
   const fail = (message: string): never => {
     throw new ClaudeStepFailed(message, claudeRun());
@@ -147,7 +149,9 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   cut = cutNotes(notes);
   try {
     const answer = await askModel({ ...args, provider, model, prompt, output, notes, fail });
-    const planned = await planAnswer({ ...args, output, answer, notes, fail });
+    const { planned, proposed } = await planAnswer({ ...args, output, answer, notes, fail });
+    // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
+    alreadyMade = Math.max(0, proposed - planned.length);
     const done = await writePlanned({ fs: args.fs, planned, claudeRun });
     return { done, claude: claudeRun() };
   } catch (error) {
@@ -301,6 +305,12 @@ function outputOf({ output }: ClaudeAction): StepOutput | string {
     : { kind: 'proposals', instructions: schema.instructions, schema };
 }
 
+/** The notes an answer makes, and how many proposals it held — more than are planned when some were made before. */
+interface AnswerPlanned {
+  readonly planned: readonly PlannedNote[];
+  readonly proposed: number;
+}
+
 /** Reads the answer as the rule's output and plans every note it makes: nothing is written yet. */
 async function planAnswer({
   output,
@@ -313,34 +323,39 @@ async function planAnswer({
   answer: string;
   notes: readonly AnsweredNote[];
   fail: (message: string) => never;
-}): Promise<PlannedNote[]> {
+}): Promise<AnswerPlanned> {
   const unread = (problem: string) =>
     fail(`Claude’s answer is not what the rule asks for. ${problem}`);
   if (output.kind === 'note') {
     const note = readNoteAnswer(answer);
     if (!note.ok) return unread(note.problem);
-    return [
-      await planNote({
-        ports: args,
-        notePaths: args.notePaths,
-        folder: output.folder,
-        note: note.value,
-      }),
-    ];
+    const planned = await planNote({
+      ports: args,
+      notePaths: args.notePaths,
+      folder: output.folder,
+      note: note.value,
+    });
+    return { planned: [planned], proposed: 0 };
   }
   const proposals = output.schema.read(answer, { notes });
   if (!proposals.ok) return unread(proposals.problem);
+  const drafted = proposals.value.map((proposal) =>
+    claudeNewProposal({ rule: args.rule, madeBy: args.madeBy, proposal }),
+  );
   const { planned, left } = await planProposals({
     fs: args.fs,
     index: args.index,
     markdown: args.markdown,
-    proposals: proposals.value.map((proposal) =>
-      claudeNewProposal({ rule: args.rule, madeBy: args.madeBy, proposal }),
-    ),
+    proposals: drafted,
   });
   // One that cannot be made a note of fails the run before anything is written.
   if (left.length > 0) return fail(`A proposal could not be written: ${left[0]!.reason}`);
-  return planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } }));
+  // An id given twice in one answer is one proposal: only those made before this run are "already made".
+  const proposed = new Set(drafted.map(({ id }) => id)).size;
+  return {
+    planned: planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } })),
+    proposed,
+  };
 }
 
 /**

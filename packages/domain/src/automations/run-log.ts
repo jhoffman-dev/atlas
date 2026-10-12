@@ -101,6 +101,12 @@ export interface ClaudeRunInfo {
    * read every note whole.
    */
   readonly cut?: readonly NoteCut[];
+  /**
+   * How many of the proposals it answered with were made before — by an
+   * earlier run, open or answered since — and so were not made again; left
+   * out when none were.
+   */
+  readonly alreadyMade?: number;
 }
 
 export type LogEntry =
@@ -139,7 +145,13 @@ export type LogEntry =
     }
   | { readonly kind: 'turnedOn'; readonly at: LocalTime }
   /** A rule Atlas found that had never run nor been turned on here: its schedule counts from then. */
-  | { readonly kind: 'seen'; readonly at: LocalTime };
+  | { readonly kind: 'seen'; readonly at: LocalTime }
+  /**
+   * A rule a note sets off that, while it could not run — held back by the
+   * hour's cap, failing, or waiting for the index — heard more syncs' news
+   * than it holds, and let the oldest go. Not a run: it counts toward nothing.
+   */
+  | { readonly kind: 'letGo'; readonly at: LocalTime; readonly count: number };
 
 /**
  * The most a log holds, in bytes, whatever its entries' count: a run that
@@ -167,6 +179,8 @@ const shown = (time: LocalTime): string => time.replace('T', ' ');
 const code = (value: unknown): string => `\`${JSON.stringify(value).replace(/`/g, '\\u0060')}\``;
 const prior = (value: PriorValue): string => ('absent' in value ? 'nothing' : code(value.value));
 
+const LET_GO_HEADING = 'Let news go';
+
 /** What an entry was, as its heading says after the time: "Ran on schedule". */
 export function logEntryHeading(entry: LogEntry): string {
   switch (entry.kind) {
@@ -180,6 +194,8 @@ export function logEntryHeading(entry: LogEntry): string {
       return 'Turned on';
     case 'seen':
       return 'First seen';
+    case 'letGo':
+      return LET_GO_HEADING;
   }
 }
 
@@ -201,14 +217,32 @@ export function logEntrySummary(entry: LogEntry): string {
   }
   // A failure's words can be a model's (a tool it named, a title it chose): bounded, as the log is.
   if (entry.kind === 'failed') return oneLine(truncated(entry.problem));
+  if (entry.kind === 'letGo') return letGoWords(entry.count);
   const askedForNothing =
     entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
-  const counts = askedForNothing ? 'Claude proposed nothing.' : countDone(entry.done);
+  const counts = askedForNothing ? nothingProposedWords(entry.claude) : countDone(entry.done);
   const left = entry.left.length === 0 ? '' : ` Left ${entry.left.length} alone.`;
   // The cap counts notes: a rule setting two properties makes two lines per note.
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
   const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
   return `${counts}${left}${capped}${cutWords(('claude' in entry && entry.claude?.cut) || [])}`;
+}
+
+/**
+ * What a Claude step that made nothing says: that it proposed nothing — or,
+ * when what it proposed was all made before, that there was nothing new.
+ */
+function nothingProposedWords(claude: ClaudeRunInfo | undefined): string {
+  const already = claude?.alreadyMade ?? 0;
+  return already > 0
+    ? `Nothing new to propose (${already} already made).`
+    : 'Claude proposed nothing.';
+}
+
+/** What a rule that let news go says: how much, and that a run by hand takes the notes it named. */
+function letGoWords(count: number): string {
+  const syncs = count === 1 ? '1 sync' : `${count} syncs`;
+  return `Let go of the news of ${syncs}: more arrived than it holds while it cannot run. Run it by hand to take the notes they named.`;
 }
 
 /** What a run says when a note was too long to show the model whole. */
@@ -245,9 +279,10 @@ function countDone(done: readonly DoneAction[]): string {
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
 }
 
-function claudeLines({ model, ms, cut = [] }: ClaudeRunInfo): string[] {
+function claudeLines({ model, ms, cut = [], alreadyMade = 0 }: ClaudeRunInfo): string[] {
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
+    ...(alreadyMade > 0 ? [`- already made ${code(alreadyMade)}`] : []),
     ...cut.map(
       ({ path, shown, of }) => `- cut ${code(path)}: read ${code(shown)} of ${code(of)} characters`,
     ),
@@ -269,9 +304,11 @@ export function formatLogEntry(entry: LogEntry): string {
   const versions = entry.kind === 'run' ? (entry.versions ?? []).map(versionLine) : [];
   const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
   const claude = 'claude' in entry && entry.claude !== undefined ? claudeLines(entry.claude) : [];
+  const letGo = entry.kind === 'letGo' ? [`- let go ${code(entry.count)}`] : [];
   if (done.length + left.length + versions.length + went.length + claude.length > 0) {
     lines.push('', ...done, ...left, ...versions, ...went, ...claude);
   }
+  if (letGo.length > 0) lines.push('', ...letGo);
   return `${lines.join('\n')}\n`;
 }
 
@@ -356,6 +393,8 @@ const SET_LINE = new RegExp(
 const LEFT_LINE = new RegExp(`^- left ${JSON_SPAN}: (.*)$`);
 const VERSION_LINE = new RegExp(`^- (triggered by|wrote) ${JSON_SPAN} at ${JSON_SPAN}$`);
 const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
+const ALREADY_MADE_LINE = new RegExp(`^- already made ${JSON_SPAN}$`);
+const LET_GO_LINE = new RegExp(`^- let go ${JSON_SPAN}$`);
 
 /**
  * Reads a log back into its entries, oldest first. A section or line that does
@@ -378,6 +417,10 @@ function parseSection(section: string): LogEntry | null {
   const body = rest.map((line) => line.trim());
   if (title === 'Turned on') return { kind: 'turnedOn', at };
   if (title === 'First seen') return { kind: 'seen', at };
+  if (title === LET_GO_HEADING) {
+    const count = countOn(body, LET_GO_LINE);
+    return count === null ? null : { kind: 'letGo', at, count };
+  }
   const undid = /^Undid the run of (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/.exec(title);
   if (undid !== null) {
     return { kind: 'undo', at, of: `${undid[1]}T${undid[2]}`, ...linesOf(body) };
@@ -429,12 +472,33 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
       const ms = JSON.parse(match[2]!) as unknown;
       if (typeof model === 'string' && typeof ms === 'number') {
         const cut = cutOf(body);
-        return { model, ms, ...(cut.length > 0 && { cut }) };
+        const alreadyMade = countOn(body, ALREADY_MADE_LINE);
+        return {
+          model,
+          ms,
+          ...(cut.length > 0 && { cut }),
+          ...(alreadyMade !== null && { alreadyMade }),
+        };
       }
     } catch {
       // A line edited into JSON that does not read is left out, as any other line is.
     }
     return null;
+  }
+  return null;
+}
+
+/** The count the first line of this shape holds: a whole number above none; null when no line reads as one. */
+function countOn(body: readonly string[], shape: RegExp): number | null {
+  for (const line of body) {
+    const match = shape.exec(line);
+    if (match === null) continue;
+    try {
+      const count = JSON.parse(match[1]!) as unknown;
+      if (typeof count === 'number' && Number.isInteger(count) && count > 0) return count;
+    } catch {
+      // A line edited into JSON that does not read is left out, as any other line is.
+    }
   }
   return null;
 }

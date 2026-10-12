@@ -14,8 +14,13 @@ import type { CheckedProposal } from './proposal-schema.ts';
 
 /**
  * The id of a proposal one rule's step makes: its rule, what it proposes and
- * the block it cites. Two hashes of the same text, so a collision (a 32-bit
- * hash alone would meet one in a large vault) needs both to meet.
+ * the block it cites — the block as the run resolved it (`cites`), never the
+ * link as the model worded it, so `[[Standup#^t1]]`, `[[Inbox/Meetings/
+ * Standup.md#^t1]]` and the same turn of the same meeting once it is renamed
+ * and filed are one proposal. A meeting the import let in is known by its
+ * provider and id, which filing does not change; any other note by its path.
+ * Two hashes of the same text, so a collision (a 32-bit hash alone would meet
+ * one in a large vault) needs both to meet.
  */
 export function claudeProposalId({
   rule,
@@ -25,7 +30,13 @@ export function claudeProposalId({
   proposal: CheckedProposal;
 }): string {
   const title = proposal.payload.title.replace(/\s+/g, ' ').trim().toLowerCase();
-  const what = [rule, proposal.kind, title, proposal.source].join('\n');
+  const { note, meeting, block } = proposal.cites;
+  // JSON, so no spelling of one part can be taken for another's.
+  const cited =
+    meeting === null
+      ? JSON.stringify(['note', note])
+      : JSON.stringify(['meeting', meeting.provider, meeting.externalId.trim()]);
+  const what = [rule, proposal.kind, title, cited, block].join('\n');
   return `claude-${digestOf(`a${what}`)}${digestOf(`b${what}`)}`;
 }
 

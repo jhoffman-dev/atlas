@@ -249,6 +249,113 @@ _As built when the four post-processing changes were stacked: #97 (#92), #98
   says so, and the log API carries it as `claude.cut`. Chunking a long
   transcript is left to P29-05, which now has the fact to decide on.
 
+### Addendum (2026-10-11): after the adversarial pass on the stack
+
+_As built on #99 after an adversarial pass over the four stacked changes
+(`claude-step.stack.adversarial.test.ts`, `claude-step.stack.test.ts`,
+`source-meeting.adversarial.test.ts`, `use-automations.held-news.adversarial
+.test.tsx`, `use-automations.catch-up.test.tsx`). The import's side of the same
+pass is in ADR-0027._
+
+- **"Not asked twice for the same words" holds wherever the note goes.** A
+  rule's history is by path, and a path a note left has none — right for a
+  rule that sets or archives (a new note there is new), wrong for a Claude
+  step: a meeting filed out of the Inbox, not a byte changed, was asked about
+  again by Run now. The digest of a version a run **asked Claude about** is
+  now handled at whatever path those bytes are (`handledVersions`); the log
+  needed no new line, since a Claude run's entry already holds the digests. A
+  failed step answered nothing. A meeting edited after it was answered is
+  another version, as it is in place: Run now asks about it. Keying by the
+  meeting's provider and id as well was considered and left out — it would
+  make a filed, edited meeting behave differently from one edited where it
+  landed.
+- **A proposal's id comes from what it cites, not how the citation was
+  written.** The id was a hash of the rule, kind, title and the `source` text,
+  so `[[Standup#^t1]]` and `[[Inbox/Meetings/Standup#^t1]]`, or the same turn
+  once the meeting was renamed, were two proposals. A checked proposal now
+  carries `cites` — the note the link resolved to among those the run read,
+  that note's meeting identity when the import vouches for it, and the block
+  id — and the id is the rule, kind, normalised title and that: a let-in
+  meeting by provider and id (filing and renaming do not change it), any
+  other note by its path (renaming such a note does change it). `source`
+  still shows the link as the model wrote it. **Every id a Claude step made
+  before this changes**; nothing was released, so nothing is migrated — an
+  open proposal from an earlier build could be made once more.
+- **A title two notes share is not a citation.** A link by bare title that
+  matches more than one of the notes the run read is refused, with words
+  telling the model to cite by path (`[[Folder/Note#^id]]`), which the step's
+  instructions now also say. It was first-wins by the order the notes were
+  read in, which for `joinsMeeting` chose the meeting Accept writes to. A
+  target that is a note's whole path names that note alone.
+- **A meeting is cut by turns whatever its line endings.** The blank line
+  between turns is now found in a CRLF file too; before, such a meeting past
+  the limit was shown as nothing at all.
+- **One reader of "is a meeting".** `isMeetingType` (a list, any case, as the
+  index counts it) is what linking, correcting a meeting's terms and a Claude
+  step's `AnsweredNote.meeting` all read. The identity keeps the provider as
+  written and trims the id, as `sameMeetingIdentity` and the holders query
+  compare them — a trimmed provider would name a meeting Accept cannot find.
+- **A re-ask that finds everything made says so.** The run's `claude` record
+  carries `alreadyMade` (an `- already made` line with the count, in the log) and its summary
+  reads "Nothing new to propose (2 already made)." instead of "Claude proposed
+  nothing."
+- **News let go is said.** A rule held back keeps 20 syncs' news, and news
+  heard before the rules can run is kept to 20 as well; past that the oldest
+  went silently. Each one let go is now counted and, within the minute, said
+  once per rule: in Activity (a warning) and as a `letGo` entry in the rule's
+  log, with how many and that Run now takes the notes they named. It is not a
+  run: it counts toward no cap and no schedule. News dropped before any rule
+  could hear it is counted against every enabled note-triggered rule, since
+  it may have been any of theirs.
+
+#### Catching up when Atlas opens
+
+An arrival is heard in memory. Quit between the import's stamp reaching the
+feed and the rule's run — or while the rule was held back, or mid-run — and
+on relaunch the feed has nothing to say: the meeting is already `imported` in
+the index, so `created` is never heard, and the meeting waited for a run by
+hand for ever.
+
+- **What is caught up with.** Once per vault opened, on the Mac that runs its
+  automations, with the index ready: for each enabled rule whose trigger
+  includes `created`, the notes in `Inbox/Meetings` that are of the rule's
+  type, stamped `imported`, **last written after the rule's own file was**,
+  and of which the rule's log holds nothing — no version at that path, and
+  not those words (`missedArrivals`, domain; `runOnMissedArrivals`,
+  application). They are run on as the feed's news would have been: the
+  rule's query among them, the per-run cap (10 for a Claude step; the log
+  says when it stopped short, and the next opening takes the rest), and the
+  hourly cap — held by it, the look is kept in the rule's queue like news and
+  runs when the pause ends.
+- **Why "since the rule's file was last written".** Nothing in a meeting says
+  when it was let in, and a `created` rule must not act on what was there
+  before it existed or was turned on. The import's stamp is the last write to
+  a meeting until someone edits it, and turning a rule on or saving it writes
+  its file; both times come from the same disk, so no clock is converted. It
+  is read from the index's manifest and one read of the rule's file.
+- **What it gets wrong, knowingly.** A meeting let in, then the rule edited,
+  then Atlas quit before the run: left out (Run now takes it). An old meeting
+  still in the Inbox, never handled, edited after the rule was saved: taken
+  as an arrival once. A pull that rewrites the rule's file moves its time
+  forward. A rule that only sets a property and found nothing to change logs
+  nothing, so it looks again each opening, and again changes nothing.
+- **Only the meeting case.** Elsewhere a note's arrival is the feed's `added`,
+  and what was added while Atlas was closed is reported by the first sync
+  after opening (the index's manifest is the baseline), so nothing is lost
+  across a relaunch except what was already heard and held — which Run now
+  takes. A general catch-up ("notes matching the rule, appeared since its
+  last run, with no handled version") would need an arrival time the files
+  do not hold; it is left out.
+
+#### Known behaviour, left as designed
+
+- **One bad item refuses the whole `proposals` answer.** The general schema is
+  all or nothing: a single item that cites nothing real, or carries a key it
+  was not asked for, fails the run with nothing written.
+- **Two rules that propose the same item each make their own proposal.** An id
+  includes its rule, so two rules reading one meeting can both propose "Send
+  Mara the file"; they are answered separately.
+
 ## Consequences
 
 - A Mac that is not the automations Mac never runs Claude on a meeting; the

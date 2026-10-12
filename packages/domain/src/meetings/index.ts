@@ -1,4 +1,4 @@
-export { MEETING_IMPORT_V1, MEETING_TYPE } from './meeting-header.ts';
+export { isMeetingType, MEETING_IMPORT_V1, MEETING_TYPE } from './meeting-header.ts';
 export type { MeetingAttendee, MeetingHeader, TranscriptClock } from './meeting-header.ts';
 export { validateMeetingImport } from './meeting-import.ts';
 export type {

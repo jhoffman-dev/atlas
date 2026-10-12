@@ -1,9 +1,9 @@
 import {
   attendeesOf,
+  isMeetingType,
   linkedEntities,
   matchAttendees,
   matchSpeakers,
-  MEETING_TYPE,
   messageWithoutPaths,
   namedSpeakers,
   ownerAddresses,
@@ -166,17 +166,9 @@ async function readMeeting(ports: MeetingLinkPorts, path: VaultPath): Promise<Me
     throw error;
   });
   const properties = ports.markdown.frontmatterProperties(splitFrontmatter(read.text).frontmatter);
-  if (!isMeeting(properties['type']))
+  if (!isMeetingType(properties['type']))
     throw new MeetingLinkRefusedError(`${path} is not a meeting.`);
   return { text: read.text, properties };
-}
-
-/** A note is a meeting when any item of its `type` is, as the index counts it. */
-function isMeeting(type: unknown): boolean {
-  const items = Array.isArray(type) ? type : [type];
-  return items.some(
-    (item) => typeof item === 'string' && item.trim().toLowerCase() === MEETING_TYPE,
-  );
 }
 
 /**

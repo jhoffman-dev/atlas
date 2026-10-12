@@ -1023,7 +1023,7 @@ export interface ApiClaudeStep {
 
 /** One entry in a rule's log, as its file records it. */
 export interface ApiAutomationLogEntry {
-  readonly kind: 'run' | 'undo' | 'failed' | 'turnedOn' | 'seen';
+  readonly kind: 'run' | 'undo' | 'failed' | 'turnedOn' | 'seen' | 'letGo';
   /** Local time, `YYYY-MM-DDTHH:MM:SS`. */
   readonly at: string;
   /** "Ran on schedule", "Undid the run of …". */
@@ -1038,6 +1038,8 @@ export interface ApiAutomationLogEntry {
   readonly problem?: string;
   /** Whether a `run` stopped at the most one run may do. */
   readonly capped?: boolean;
+  /** On `letGo`: how many syncs' news a held-back rule let go; a run by hand takes the notes they named. */
+  readonly count?: number;
   /** Each thing it did to a note: a move, or a property's value before and after. */
   readonly done: readonly DoneAction[];
   /** Notes it matched and left alone, with why. */

@@ -11,11 +11,14 @@ import { describe, expect, it } from 'vitest';
 import {
   createVaultPath,
   logPathFor,
+  newLogText,
+  NOTE_RUNS_PER_HOUR,
   noteChangesBetween,
   parseRunLog,
   parseObjectType,
   versionsAfter,
   type AutomationRule,
+  type LogEntry,
   type NoteChange,
   type NoteVersion,
   type VaultPath,
@@ -30,6 +33,7 @@ import { fakeClaudeStepPorts } from '../testing/fake-claude-step.ts';
 import type { ScriptedRound } from '../testing/fake-model.ts';
 import { MEETING_HEADER } from '../testing/meeting-files.ts';
 import { correctMeetingTerms } from '../meetings/meeting-corrections.ts';
+import { NoteRunsCappedError } from './note-runs.ts';
 import { runAutomation, runOnMissedArrivals, runOnNoteChanges } from './run-automation.ts';
 import type { VaultGuard } from './vault-guard.ts';
 
@@ -293,6 +297,26 @@ describe('a meeting let in just before Atlas was quit, its rule not yet run', ()
 
     expect(await catchUp()).toBeNull();
     expect(asked()).toHaveLength(1);
+  });
+
+  it('is held by the hour’s cap as news is: nothing is asked, and the caller is told until when', async () => {
+    const { vault, arrive, relaunch, catchUp, asked } = await setUp([BY_TITLE]);
+    await arrive();
+    await relaunch();
+    // As many runs that asked Claude this hour as a rule may have.
+    const asking = Array.from({ length: NOTE_RUNS_PER_HOUR }, (_, at): LogEntry => ({
+      kind: 'run',
+      at: `${TODAY}T08:${String(10 + at).padStart(2, '0')}:00`,
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      claude: { model: 'claude-opus-5-5', ms: 10 },
+    }));
+    vault.files.set(logPathFor(ON_CREATED.id), newLogText(ON_CREATED.name, asking));
+
+    await expect(catchUp()).rejects.toBeInstanceOf(NoteRunsCappedError);
+    expect(asked()).toHaveLength(0);
   });
 
   it('is nothing to a rule that is off, or that runs only when a meeting is changed', async () => {

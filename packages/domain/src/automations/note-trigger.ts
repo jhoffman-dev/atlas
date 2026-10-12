@@ -150,19 +150,27 @@ export interface HandledVersions {
  * note there is new to the rule. A note left a path when the log says it
  * `went` — deleted, moved, renamed or archived by someone else, or replaced
  * — or when the run itself archived it.
+ *
+ * What a Claude step answered is remembered by its words alone (P29-03: "a
+ * model is not asked twice for the same words"): the digest of a version a
+ * run asked Claude about is handled at whatever path those bytes are now, so
+ * a meeting filed or renamed out of the Inbox, unchanged, is not asked about
+ * again — by the feed or by a run by hand. A failed step answered nothing.
  */
 export function handledVersions(entries: readonly LogEntry[]): HandledVersions {
   const byPath = new Map<string, Set<string>>();
+  const answered = new Set<string>();
   for (const entry of entries) {
     if (entry.kind !== 'run') continue;
     for (const path of entry.went ?? []) byPath.delete(path);
-    for (const { path, digest } of entry.versions ?? []) {
+    for (const { path, digest, wrote } of entry.versions ?? []) {
       byPath.set(path, (byPath.get(path) ?? new Set()).add(digest));
+      if (entry.claude !== undefined && !wrote) answered.add(digest);
     }
     for (const action of entry.done) if (action.kind === 'archived') byPath.delete(action.from);
   }
   return {
-    has: ({ path, digest }) => byPath.get(path)?.has(digest) === true,
+    has: ({ path, digest }) => byPath.get(path)?.has(digest) === true || answered.has(digest),
     hasPath: (path) => byPath.has(path),
   };
 }
@@ -186,4 +194,53 @@ export function unhandledVersions(
   handled: HandledVersions,
 ): NoteVersionRef[] {
   return versions.filter((version) => !handled.has(version));
+}
+
+/** A note as the index holds it now, with when its file was last written. */
+export interface HeldNote extends NoteVersionRef {
+  readonly type: string | null;
+  readonly importOutcome?: string | undefined;
+  /** When the file was last written, as the disk says: milliseconds, on the clock the rule's file is dated by. */
+  readonly modified: number;
+}
+
+/**
+ * The meetings whose arrival a `created` rule never ran on (ADR-0028,
+ * "Catching up when Atlas opens"), from what the files and the rule's log
+ * say — the feed cannot: an arrival heard and not yet run on is held in
+ * memory, and is gone once Atlas is quit.
+ *
+ * A meeting counts when it sits where meeting files land and the import let
+ * it in, is of the trigger's type, was last written after the rule's own file
+ * was (`since`: a rule does nothing about what was there before it was saved
+ * or turned on, and the import's stamp is a meeting's last write until
+ * someone edits it), and the rule's log holds nothing of it — no version at
+ * its path, and not its words. In path order. A trigger that does not run on
+ * `created` has none.
+ */
+export function missedArrivals({
+  trigger,
+  notes,
+  handled,
+  since,
+}: {
+  trigger: NoteTrigger;
+  notes: Iterable<HeldNote>;
+  handled: HandledVersions;
+  /** When the rule's file was last written. */
+  since: number;
+}): NoteVersionRef[] {
+  if (!trigger.on.includes('created')) return [];
+  return [...notes]
+    .filter(
+      (note) =>
+        isMeetingInboxPath(note.path) &&
+        note.importOutcome === 'imported' &&
+        note.type === trigger.type &&
+        note.modified > since &&
+        !handled.hasPath(note.path) &&
+        !handled.has(note),
+    )
+    .map(({ path, digest }) => ({ path, digest }))
+    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }

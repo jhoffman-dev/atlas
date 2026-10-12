@@ -19,7 +19,13 @@ import {
 import { claudeProposalId } from './claude-proposal-id.ts';
 import { handledVersions } from './note-trigger.ts';
 import { checkDraft, type ProposalDraft } from './proposal-schema.ts';
-import { formatLogEntry, logEntrySummary, parseRunLog, type LogEntry } from './run-log.ts';
+import {
+  formatLogEntry,
+  logEntrySummary,
+  parseRunLog,
+  type ClaudeRunInfo,
+  type LogEntry,
+} from './run-log.ts';
 
 const p = createVaultPath;
 
@@ -187,7 +193,7 @@ describe('a citation by a title two of the run’s notes share', () => {
 
 describe('a Claude step that was asked again and found its proposals already made', () => {
   const RULE = { name: 'Meeting actions', path: p('.atlas/automations/M.md') };
-  const asked = (claude: Extract<LogEntry, { kind: 'run' }>['claude']): LogEntry => ({
+  const asked = (claude: ClaudeRunInfo): LogEntry => ({
     kind: 'run',
     at: '2026-10-11T09:00:00',
     trigger: 'hand',

@@ -79,6 +79,8 @@ describe('the general proposals schema', () => {
             linkFrom: null,
           },
           source: '[[2026-10-01 Standup#^t0003]]',
+          // The citation as the run resolved it: what the proposal's id is made from.
+          cites: { note: STANDUP, meeting: null, block: 't0003' },
           confidence: 'high',
           why: 'Mara asked for it on the call.',
         },

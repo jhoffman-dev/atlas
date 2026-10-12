@@ -35,11 +35,12 @@ const noteSubject = (path: VaultPath): ActivitySubject => ({ kind: 'note', path 
  */
 export function automationEntryReport(rule: RuleNamed, entry: LogEntry): ActivityReport | null {
   if (entry.kind === 'turnedOn' || entry.kind === 'seen') return null;
-  const level: ActivityLevel =
-    entry.kind === 'failed' ? 'error' : entry.left.length > 0 ? 'warning' : 'info';
+  // News let go is said as a warning: notes the rule was to run on now wait for a run by hand.
+  const left = entry.kind === 'letGo' ? 1 : entry.kind === 'failed' ? 0 : entry.left.length;
+  const level: ActivityLevel = entry.kind === 'failed' ? 'error' : left > 0 ? 'warning' : 'info';
   const heading = entry.kind === 'undo' ? 'Undid its last run' : logEntryHeading(entry);
   const notes = entry.kind === 'run' ? triggeringNotes(entry) : '';
-  const asked = entry.kind === 'undo' ? '' : claudeAsked(entry.claude);
+  const asked = entry.kind === 'undo' || entry.kind === 'letGo' ? '' : claudeAsked(entry.claude);
   const summary = logEntrySummary(entry);
   // A failure can end on a command to copy, which ends no sentence: the model's words follow.
   const said = asked === '' || /[.!?]$/.test(summary) ? summary : `${summary}.`;
