@@ -23,6 +23,14 @@ properties:
   project:
     kind: relation
     target: project
+  tasks:
+    kind: relation
+    target: task
+    many: true
+  decisions:
+    kind: relation
+    target: decision
+    many: true
   atlas_import_outcome:
     kind: select
     options: [imported, duplicate, error]
@@ -69,6 +77,13 @@ meeting never brings the import back to it.
 `people`, `companies` and `project` are links, filled in when the meeting is
 linked to the vault — attendees to People, and the likely project — or by
 hand.
+
+`tasks` and `decisions` link what was taken from the meeting. When a rule's
+Claude step with `output: meeting-items` reads a meeting, each action item and
+decision it finds waits in the Inbox as a proposal citing the turn it came
+from; accepting one makes the task or the decision and adds it here, so the
+meeting lists what came out of it. A Meeting type without these two relations
+is offered them: without them Accept is refused, and says why.
 
 ## The body
 

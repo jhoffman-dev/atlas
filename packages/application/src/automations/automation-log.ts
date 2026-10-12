@@ -1,9 +1,11 @@
 import {
-  appendLogEntry,
+  appendEntryToLog,
   logPathFor,
   parentVaultPath,
   parseRunLog,
+  readHandledLedger,
   type AutomationRule,
+  type HandledLedger,
   type LogEntry,
 } from '@atlas/domain';
 import { ensureFolder } from '../vault/create-folder.ts';
@@ -14,6 +16,8 @@ export interface RuleLog {
   readonly text: string | null;
   readonly modified: number | null;
   readonly entries: readonly LogEntry[];
+  /** What it has handled, which outlives the entries; null for a log from before the ledger. */
+  readonly ledger: HandledLedger | null;
 }
 
 /**
@@ -40,35 +44,53 @@ export async function readRuleLog(
   rule: Pick<AutomationRule, 'id'>,
 ): Promise<RuleLog> {
   const [file] = await fs.readNotes([logPathFor(rule.id)]);
-  if (file === undefined) return { text: null, modified: null, entries: [] };
-  return { text: file.text, modified: file.modified, entries: parseRunLog(file.text) };
+  if (file === undefined) return { text: null, modified: null, entries: [], ledger: null };
+  return {
+    text: file.text,
+    modified: file.modified,
+    entries: parseRunLog(file.text),
+    ledger: readHandledLedger(file.text),
+  };
 }
 
 /**
  * Adds an entry to a rule's log, making the log — and its folder — the first
- * time. The write is refused if the log changed since it was read, rather than
- * losing whatever was added in between. Rejects with {@link AutomationLogError}
- * when it cannot be written.
+ * time. `now` is the clock's instant, which dates what the rule's handled
+ * ledger records (the entry's own time is the person's wall clock). The write
+ * is refused if the log changed since it was read, rather than losing
+ * whatever was added in between. When the ledger did not add up and was
+ * rebuilt, `onLedgerRepaired` is told, once the log is written. Rejects with
+ * {@link AutomationLogError} when it cannot be written.
  */
 export async function appendToRuleLog({
   fs,
   rule,
   entry,
+  now,
+  onLedgerRepaired,
 }: {
   fs: VaultFsPort;
   rule: Pick<AutomationRule, 'id' | 'name'>;
   entry: LogEntry;
+  now: number;
+  onLedgerRepaired?: () => void;
 }): Promise<void> {
   try {
     const path = logPathFor(rule.id);
     const log = await readRuleLog(fs, rule);
-    const contents = appendLogEntry({ text: log.text, ruleName: rule.name, entry });
+    const { text: contents, ledgerRepaired } = appendEntryToLog({
+      text: log.text,
+      ruleName: rule.name,
+      entry,
+      now,
+    });
     if (log.text === null) {
       await ensureFolder({ fs, folder: parentVaultPath(path) });
       await fs.createNote({ path, contents });
-      return;
+    } else {
+      await fs.writeTextFile({ path, contents, expectedModified: log.modified });
     }
-    await fs.writeTextFile({ path, contents, expectedModified: log.modified });
+    if (ledgerRepaired) onLedgerRepaired?.();
   } catch (cause) {
     throw new AutomationLogError(entry, cause);
   }

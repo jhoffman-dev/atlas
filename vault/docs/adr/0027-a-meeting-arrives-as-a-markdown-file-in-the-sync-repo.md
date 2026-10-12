@@ -613,3 +613,17 @@ import and in accepting a proposal. Each has a test that failed first
   says so, and it is let in when its vault is next open. The run's vocabulary
   is read before `beforeLetIn` and handed to it, so the speakers are read by
   the very spellings the stamp write corrects by, and the index is asked once.
+
+## As built, with a rule's Claude step behind it (P29-03 stacked on the three, 2026-10-11)
+
+A rule that asks Claude "when a meeting is created" is the fourth step, and
+the import does nothing new for it: the step runs on the stamp write's
+version, so it reads the meeting linked and corrected, once; a duplicate is
+archived unheard; and nothing the import writes is a `changed`. A proposal
+the step makes can link back to the meeting by the same `link_from` and
+`meeting` identity a person proposal carries — added by Atlas for the meeting
+the proposal cites, never taken from the model's answer. See ADR-0028, "One
+writer, and the meeting a proposal came from".
+
+- **Tests.** `claude-step.meetings.test.ts` (application, the same fake vault
+  and feed) and `e2e/claude-meeting.spec.ts`.

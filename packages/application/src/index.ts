@@ -21,6 +21,7 @@ export { fakeHostVaultFs, fakeIndexPort, fakeMarkdown, fakeVaultFs } from './tes
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
 export { apiFixture, bodyOf, codeOf, encoded } from './testing/api-fixture.ts';
 export { fakeGoogleCalendar } from './testing/fake-google-calendar.ts';
+export { fakeClaudeStepPorts } from './testing/fake-claude-step.ts';
 export * from './api/index.ts';
 export * from './archive/index.ts';
 export * from './inbox/index.ts';

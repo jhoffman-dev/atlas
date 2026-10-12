@@ -1,4 +1,10 @@
-import { AUTOMATION_PRESETS, createVaultPath, type VaultPath } from '@atlas/domain';
+import {
+  AUTOMATION_PRESETS,
+  CHAT_READ_TOOLS,
+  createVaultPath,
+  PROPOSAL_SCHEMAS,
+  type VaultPath,
+} from '@atlas/domain';
 import type { ActivityLog, AutomationPorts, Clock, RuleQueryPorts } from '@atlas/application';
 import { AutomationEditor, AutomationsPage, QueryComposer, type PageHistory } from '@atlas/ui';
 import { automationRows, logViews } from './automation-rows.ts';
@@ -6,6 +12,7 @@ import { useAutomationEditor } from './use-automation-editor.ts';
 import type { useAutomations } from './use-automations.ts';
 
 const PRESET_NAMES = AUTOMATION_PRESETS.map((preset) => preset.name);
+const CLAUDE_OUTPUTS = Object.keys(PROPOSAL_SCHEMAS);
 
 /**
  * The Automations page as a page (P25-03): the list of rules and, above it,
@@ -24,7 +31,7 @@ export function AutomationsScreen({
 }: {
   automations: ReturnType<typeof useAutomations>;
   ports: AutomationPorts & Pick<RuleQueryPorts, 'notePaths'>;
-  clock: Pick<Clock, 'today' | 'localNow'>;
+  clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   indexKey: string;
   activity: ActivityLog;
   onOpenNote: (path: VaultPath) => void;
@@ -73,6 +80,8 @@ export function AutomationsScreen({
             problem={editor.problem}
             which={<QueryComposer {...editor.composer} />}
             typeNames={ports.types.map((type) => type.name)}
+            claudeTools={CHAT_READ_TOOLS}
+            claudeOutputs={CLAUDE_OUTPUTS}
             busy={automations.busy}
             onSave={editor.save}
             onCancel={editor.close}

@@ -66,6 +66,53 @@ const PROPOSAL_SPECS: readonly ModelToolSpec[] = [
 ];
 
 /**
+ * The two toolboxes Atlas hands a model (P29-03), built once at the
+ * composition root from the same API: the chat's, and a rule's Claude step's.
+ */
+export interface Toolboxes {
+  /** Every read tool and the two proposals, bound to the vault the chat is in. */
+  chat(fs: VaultFsPort): ChatToolbox;
+  /** Only the read tools named: what a rule's Claude step may call. */
+  reading(tools: readonly string[]): ChatToolbox;
+}
+
+export function createToolboxes({
+  api,
+  markdown,
+  newId,
+}: {
+  api: ApiRouterDeps;
+  markdown: MarkdownPort;
+  newId: () => string;
+}): Toolboxes {
+  return {
+    chat: (fs) => createChatToolbox({ api, fs, markdown, newId }),
+    reading: (tools) => createReadToolbox({ api, tools, newId }),
+  };
+}
+
+/** The read tools named, and no others: a call to any other is answered as no such tool. */
+export function createReadToolbox({
+  api,
+  tools,
+  newId,
+}: {
+  api: ApiRouterDeps;
+  tools: readonly string[];
+  newId: () => string;
+}): ChatToolbox {
+  const named = new Set(tools.filter(isReadTool));
+  return {
+    specs: READ_TOOL_SPECS.filter((spec) => named.has(spec.name)),
+    async run(call) {
+      if (!named.has(call.name)) return failed(call, `There is no tool "${call.name}".`);
+      const result = await runReadTool({ call, api, requestId: `automation-${newId()}` });
+      return { result, proposal: null };
+    },
+  };
+}
+
+/**
  * The chat's tools: the read routes of the local API, answered in-process,
  * and the two proposals, which only ever describe a change.
  */

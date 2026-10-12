@@ -17,7 +17,9 @@ import {
   loadAutomations,
   needsAdoption,
   NoteRunsCappedError,
+  recordNewsLetGo,
   runAutomation,
+  runOnMissedArrivals,
   runOnNoteChanges,
   undoLastRun,
   updateAutomation,
@@ -40,14 +42,23 @@ export const SCHEDULE_TICK_MS = 60_000;
  * The most syncs' news held while rules cannot yet run on them — the index or
  * the rules still being read, this Mac not yet known to be the one that runs
  * them, or a rule paused — the oldest let go first. A run by hand then takes
- * what was let go.
+ * what was let go, and what was let go is said: in Activity and in the log of
+ * each rule it was held for, with how much, within the minute.
  */
 export const HELD_NEWS = 20;
+
+/**
+ * What a rule a note sets off is holding to run on: one sync's news, or —
+ * once, when its vault opens — the look for arrivals it never ran on
+ * (`runOnMissedArrivals`), which waits its turn and is kept through a pause
+ * as news is.
+ */
+type HeldNews = NoteChangeNews | { readonly vault: string; readonly missedArrivals: true };
 
 export interface AutomationsOptions {
   /** The runner's ports, and the notes on screen, which the page's list and dry run read. */
   readonly ports: AutomationPorts & Pick<RuleQueryPorts, 'notePaths'>;
-  readonly clock: Pick<Clock, 'today' | 'localNow'>;
+  readonly clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   /** The open vault's root; null with none open. */
   readonly vaultKey: string | null;
   /** Changes when the index does: while the page is open, a rule edited by hand is read again. */
@@ -209,21 +220,16 @@ export function useAutomations(options: AutomationsOptions) {
    * its turn comes: another vault opened meanwhile stops it, and the news goes.
    */
   const runOnNotes = useCallback(
-    async (rule: AutomationRule, news: NoteChangeNews): Promise<boolean> => {
+    async (rule: AutomationRule, news: HeldNews): Promise<boolean> => {
       let failed = false;
       const carryOut = async () => {
         // Its turn may come after this Mac is found not to run the vault's automations.
         if (runsHere.current !== true) return null;
+        const run = { ports, rule, clock, activity, guard: guardOf(news.vault) };
         try {
-          const { changes } = news;
-          return await runOnNoteChanges({
-            ports,
-            rule,
-            clock,
-            activity,
-            changes,
-            guard: guardOf(news.vault),
-          });
+          return 'missedArrivals' in news
+            ? await runOnMissedArrivals(run)
+            : await runOnNoteChanges({ ...run, changes: news.changes });
         } catch (cause) {
           failed = !(cause instanceof VaultChangedError);
           throw cause;
@@ -233,6 +239,16 @@ export function useAutomations(options: AutomationsOptions) {
       return !failed;
     },
     [forRule, guardOf, ports, clock, activity, runsHere],
+  );
+
+  /** Says, in Activity and the rule's log, that the rule let go of news it was holding. */
+  const sayLetGo = useCallback(
+    (rule: AutomationRule, count: number) =>
+      void exclusive(
+        (vault) => recordNewsLetGo({ ports, rule, clock, activity, count, guard: guardOf(vault) }),
+        { wait: true },
+      ),
+    [exclusive, guardOf, ports, clock, activity],
   );
 
   const undo = useCallback(
@@ -281,6 +297,7 @@ export function useAutomations(options: AutomationsOptions) {
     listing: current,
     tick,
     runOnNotes,
+    sayLetGo,
     isPaused: pauses.isPaused,
   });
 
@@ -514,6 +531,15 @@ function useSchedule({
  * and the rule's pause stands; each minute, a rule whose pause has ended runs
  * on what it was holding. Whether it already handled a version, and what it
  * does, is the use-case's to say.
+ *
+ * News is heard in memory, so what a rule was holding when Atlas was quit is
+ * gone. Once per vault opened, each rule a note being created sets off is
+ * queued a look for the arrivals it never ran on (ADR-0028, "Catching up
+ * when Atlas opens"), ahead of this session's news.
+ *
+ * A queue holds {@link HELD_NEWS}; past that the oldest is let go, and that
+ * is said — counted as it happens, and told each minute, so a burst is one
+ * line and not one per sync.
  */
 function useNoteRuns({
   changes,
@@ -523,16 +549,20 @@ function useNoteRuns({
   listing,
   tick,
   runOnNotes,
+  sayLetGo,
   isPaused,
   scheduled = true,
 }: AutomationsOptions & {
   listing: AutomationListing | null;
   tick: number;
-  runOnNotes: (rule: AutomationRule, news: NoteChangeNews) => Promise<boolean>;
+  runOnNotes: (rule: AutomationRule, news: HeldNews) => Promise<boolean>;
+  sayLetGo: (rule: AutomationRule, count: number) => void;
   isPaused: (id: string, now: LocalTime) => boolean;
 }) {
   const incoming = useRef<NoteChangeNews[]>([]);
-  const queues = useRef(new Map<string, NoteChangeNews[]>());
+  const queues = useRef(new Map<string, HeldNews[]>());
+  const letGo = useRef<LetGo>({ unheard: 0, byRule: new Map(), saidAt: tick });
+  const caughtUp = useRef<string | null>(null);
   const running = useRef(new Set<string>());
   const rules = useRef(listing);
   rules.current = listing;
@@ -541,7 +571,9 @@ function useNoteRuns({
   useEffect(() => {
     if (changes === undefined) return;
     return changes.subscribe((news) => {
-      incoming.current = [...incoming.current, news].slice(-HELD_NEWS);
+      const held = [...incoming.current, news];
+      incoming.current = held.slice(-HELD_NEWS);
+      letGo.current.unheard += held.length - incoming.current.length;
       setHeard((count) => count + 1);
     });
   }, [changes]);
@@ -549,6 +581,7 @@ function useNoteRuns({
   // What waited for one vault is not the next one's.
   useEffect(() => {
     queues.current = new Map();
+    letGo.current = { unheard: 0, byRule: new Map(), saidAt: letGo.current.saidAt };
   }, [vaultKey]);
 
   const runQueue = useCallback(
@@ -574,29 +607,85 @@ function useNoteRuns({
     if (scheduled === false) {
       incoming.current = [];
       queues.current = new Map();
+      letGo.current = { unheard: 0, byRule: new Map(), saidAt: tick };
       return;
     }
     if (scheduled !== true || vaultKey === null || !indexReady || listing === null) return;
     const news = incoming.current.filter((each) => each.vault === vaultKey);
     incoming.current = [];
-    queueByRule(queues.current, listing, news);
+    const noteRules = listing.automations
+      .map(({ rule }) => rule)
+      .filter((rule) => rule.enabled && rule.when.kind === 'note');
+    // News let go before any rule could hear it may have been any of theirs.
+    for (const rule of noteRules) countLetGo(letGo.current, rule.id, letGo.current.unheard);
+    letGo.current.unheard = 0;
+    if (caughtUp.current !== vaultKey) {
+      caughtUp.current = vaultKey;
+      for (const rule of noteRules) {
+        if (rule.when.kind !== 'note' || !rule.when.on.includes('created')) continue;
+        queues.current.set(rule.id, [{ vault: vaultKey, missedArrivals: true }]);
+      }
+    }
+    for (const [id, count] of queueByRule(queues.current, listing, news)) {
+      countLetGo(letGo.current, id, count);
+    }
+    if (letGo.current.saidAt !== tick) {
+      letGo.current.saidAt = tick;
+      for (const [id, count] of letGo.current.byRule) {
+        const rule = noteRules.find((each) => each.id === id);
+        if (rule !== undefined) sayLetGo(rule, count);
+      }
+      letGo.current.byRule = new Map();
+    }
     for (const id of queues.current.keys()) void runQueue(id);
-  }, [heard, tick, scheduled, vaultKey, indexReady, listing, runQueue]);
+  }, [heard, tick, scheduled, vaultKey, indexReady, listing, runQueue, sayLetGo]);
 }
 
-/** Adds each sync's news to the queue of every rule a note sets off that hears it. */
-function queueByRule(
-  queues: Map<string, NoteChangeNews[]>,
+/** News let go and not yet said: before any rule could hear it, and from each rule's queue; and the minute it was last said in. */
+interface LetGo {
+  unheard: number;
+  byRule: Map<string, number>;
+  saidAt: number;
+}
+
+function countLetGo(letGo: LetGo, id: string, count: number): void {
+  if (count > 0) letGo.byRule.set(id, (letGo.byRule.get(id) ?? 0) + count);
+}
+
+/**
+ * Adds each sync's news to the queue of every rule a note sets off that hears
+ * it; answers with how much each queue let go to stay within {@link HELD_NEWS}.
+ */
+export function queueByRule(
+  queues: Map<string, HeldNews[]>,
   listing: AutomationListing,
   news: readonly NoteChangeNews[],
-): void {
+): Map<string, number> {
+  const letGo = new Map<string, number>();
   for (const each of news) {
     for (const { rule } of listing.automations) {
       if (!rule.enabled || rule.when.kind !== 'note') continue;
       if (!noteTriggerHears(rule.when, each.changes)) continue;
-      queues.set(rule.id, [...(queues.get(rule.id) ?? []), each].slice(-HELD_NEWS));
+      const { marker, news: waiting } = withoutMarker([...(queues.get(rule.id) ?? []), each]);
+      const kept = waiting.slice(-HELD_NEWS);
+      queues.set(rule.id, [...marker, ...kept]);
+      if (waiting.length > kept.length) {
+        letGo.set(rule.id, (letGo.get(rule.id) ?? 0) + waiting.length - kept.length);
+      }
     }
   }
+  return letGo;
+}
+
+/** A queue split into its look for missed arrivals — which is no news and is never let go — and its news. */
+function withoutMarker(queue: readonly HeldNews[]): {
+  marker: readonly HeldNews[];
+  news: readonly HeldNews[];
+} {
+  return {
+    marker: queue.filter((held) => 'missedArrivals' in held),
+    news: queue.filter((held) => !('missedArrivals' in held)),
+  };
 }
 
 /**
@@ -616,9 +705,9 @@ async function runHeldNews({
   mayRun,
 }: {
   id: string;
-  queues: () => Map<string, NoteChangeNews[]>;
+  queues: () => Map<string, HeldNews[]>;
   rules: () => AutomationListing | null;
-  runOnNotes: (rule: AutomationRule, news: NoteChangeNews) => Promise<boolean>;
+  runOnNotes: (rule: AutomationRule, news: HeldNews) => Promise<boolean>;
   mayRun: () => boolean;
 }): Promise<void> {
   for (let news = queues().get(id)?.[0]; news !== undefined; news = queues().get(id)?.[0]) {

@@ -3,6 +3,7 @@ import {
   messageWithoutPaths,
   type AutomationPlan,
   type AutomationRule,
+  type HandledLedger,
   type LogEntry,
   type RuleNamed,
 } from '@atlas/domain';
@@ -21,6 +22,7 @@ export async function dryRunAutomation({
   ports,
   rule,
   log,
+  ledger = null,
   named,
   today,
   activity,
@@ -29,6 +31,8 @@ export async function dryRunAutomation({
   rule: Pick<AutomationRule, 'when' | 'which' | 'olderThanDays' | 'action'>;
   /** The rule's log, for what it has handled; empty for a rule not yet saved. */
   log: readonly LogEntry[];
+  /** What the rule has handled beyond its log's entries; null for a log from before the ledger. */
+  ledger?: HandledLedger | null | undefined;
   /** The rule's name, and its file once it has one. */
   named: RuleNamed;
   /** `YYYY-MM-DD`, from the injected clock. */
@@ -38,7 +42,7 @@ export async function dryRunAutomation({
   // Taken before the plan waits, so its line lands in its own vault's log.
   const recorder = activity.inOpenVault();
   try {
-    const { plan } = await planRuleNow({ ports, rule, log, today });
+    const { plan } = await planRuleNow({ ports, rule, log, ledger, today });
     recorder.record(dryRunReport(named, { plan }));
     return plan;
   } catch (cause) {

@@ -14,6 +14,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import {
+  fakeClaudeStepPorts,
   fakeIndexPort,
   fakeVaultFs,
   type AutomationPorts,
@@ -110,12 +111,17 @@ function memoryVault(files: Record<string, string>) {
       } as unknown as AutomationPorts['types'][number],
     ],
     notePaths: Object.keys(files).map(createVaultPath),
+    claude: fakeClaudeStepPorts(),
   };
   return { files, ports };
 }
 
 let now = '2026-09-27T09:00:00';
-const clock = { today: () => now.slice(0, 10), localNow: () => now };
+const clock = {
+  today: () => now.slice(0, 10),
+  localNow: () => now,
+  now: () => Date.parse(`${now}Z`),
+};
 
 function mount(vault: ReturnType<typeof memoryVault>) {
   const options: AutomationsOptions = {

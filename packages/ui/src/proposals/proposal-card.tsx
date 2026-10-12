@@ -23,6 +23,8 @@ const KIND_LABEL: Readonly<Record<ProposalKind, string>> = {
 
 export interface ProposalCardProps {
   readonly proposal: ProposalNote;
+  /** Why it was proposed, in its maker's words: whose it is, and what to check. Null or empty for none. */
+  readonly reason?: string | null;
   /** While any proposal is being answered. */
   readonly busy: boolean;
   /** Why the last answer to this one was refused. */
@@ -35,16 +37,20 @@ export interface ProposalCardProps {
 }
 
 /**
- * One proposal: what it would write, the line it cites, how sure its maker
- * was, and the answers — Accept, Edit (change what it writes, then accept)
+ * One proposal: what it would write, why, the line it cites, how sure its
+ * maker was — a low confidence marks the whole card — and the answers — Accept, Edit (change what it writes, then accept)
  * and Reject.
  */
 export function ProposalCard(props: ProposalCardProps) {
-  const { proposal, busy, problem } = props;
+  const { proposal, busy, problem, reason = null } = props;
+  const unsure = proposal.confidence === 'low';
   const [fields, setFields] = useState<PayloadFields | null>(null);
   const headline = proposalHeadline(proposal);
   return (
-    <section className="proposal-card" aria-label={`${KIND_LABEL[proposal.kind]}: ${headline}`}>
+    <section
+      className={unsure ? 'proposal-card proposal-card--low' : 'proposal-card'}
+      aria-label={`${KIND_LABEL[proposal.kind]}: ${headline}`}
+    >
       <header className="proposal-card__head">
         <span className="proposal-card__kind">{KIND_LABEL[proposal.kind]}</span>
         <span className="proposal-card__title">{headline}</span>
@@ -57,6 +63,7 @@ export function ProposalCard(props: ProposalCardProps) {
         )}
       </header>
       <Provenance {...props} />
+      {reason !== null && reason !== '' && <p className="proposal-card__why">{reason}</p>}
       {fields === null ? (
         <Payload proposal={proposal} />
       ) : (

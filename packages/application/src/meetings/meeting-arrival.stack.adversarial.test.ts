@@ -26,7 +26,11 @@ import { MEETING_HEADER } from '../testing/meeting-files.ts';
 import { createMeetingImporter } from './meeting-importer.ts';
 
 const TODAY = '2026-10-08';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T09:00:00`,
+  now: () => Date.parse(`${TODAY}T09:00:00Z`),
+};
 const VAULT = '/vaults/home';
 const MEETING = 'Inbox/Meetings/2026-10-06 Standup.md';
 /** The same meeting under the name its second delivery takes (ADR-0027, "the collision path"). */

@@ -27,7 +27,11 @@ import type { VaultGuard } from './vault-guard.ts';
 
 const p = createVaultPath;
 const TODAY = '2026-10-08';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T09:00:00`,
+  now: () => Date.parse(`${TODAY}T09:00:00Z`),
+};
 const VAULT = '/vaults/home';
 const GUARD: VaultGuard = { vault: VAULT, currentVault: () => VAULT };
 const STANDUP = 'Meetings/2026-10-06 Standup.md';
@@ -282,7 +286,7 @@ describe('runOnNoteChanges: what holds it back', () => {
         left: [],
         capped: false,
       };
-      await appendToRuleLog({ fs: vault.ports.fs, rule: MARK, entry });
+      await appendToRuleLog({ fs: vault.ports.fs, rule: MARK, entry, now: CLOCK.now() });
     }
     const logged = vault.files.get(logPathFor(MARK.id));
 
@@ -295,8 +299,8 @@ describe('runOnNoteChanges: what holds it back', () => {
     expect(activity.reports.map((report) => [report.level, report.message])).toEqual([
       [
         'error',
-        `Mark new meetings: Could not run. It has run ${NOTE_RUNS_PER_HOUR} times in the last hour, ` +
-          'the most a rule may. It runs on what changed meanwhile at 09:10.',
+        `Mark new meetings: Could not run. It has used its ${NOTE_RUNS_PER_HOUR} runs, or questions put to Claude, ` +
+          'for the last hour, the most a rule may. It runs on what changed meanwhile at 09:10.',
       ],
     ]);
   });

@@ -59,7 +59,7 @@ export function useAutomationEditor({
 }: {
   automations: ReturnType<typeof useAutomations>;
   ports: AutomationPorts & Pick<RuleQueryPorts, 'notePaths'>;
-  clock: Pick<Clock, 'today' | 'localNow'>;
+  clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   indexKey: string;
   /** Where a dry run is said (U-28). */
   activity: ActivityLog;
@@ -126,15 +126,17 @@ export function useAutomationEditor({
       path: editing.kind === 'rule' ? editing.rule.path : null,
     };
     // What the rule has handled, for one notes set off: its log as last read.
-    const log =
+    const loaded =
       editing.kind === 'rule'
-        ? (listing?.automations.find((loaded) => loaded.rule.path === editing.rule.path)?.log ?? [])
-        : [];
+        ? listing?.automations.find((each) => each.rule.path === editing.rule.path)
+        : undefined;
+    const log = loaded?.log ?? [];
     try {
       const plan = await dryRunAutomation({
         ports,
         rule: draft,
         log,
+        ledger: loaded?.ledger ?? null,
         named,
         today: clock.today(),
         activity,

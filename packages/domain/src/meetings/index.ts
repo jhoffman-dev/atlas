@@ -1,4 +1,4 @@
-export { MEETING_IMPORT_V1, MEETING_TYPE } from './meeting-header.ts';
+export { isMeetingType, MEETING_IMPORT_V1, MEETING_TYPE } from './meeting-header.ts';
 export type { MeetingAttendee, MeetingHeader, TranscriptClock } from './meeting-header.ts';
 export { validateMeetingImport } from './meeting-import.ts';
 export type {
@@ -9,7 +9,8 @@ export type {
 } from './meeting-import.ts';
 export type { MeetingImportError } from './meeting-import-error.ts';
 export type { ProviderNextStep, StepConfidence } from './next-steps.ts';
-export { parseTranscript } from './transcript.ts';
+export { isSelfSpeaker, isUnnamedSpeaker, parseTranscript } from './transcript.ts';
+export { meetingTurnsOf, providerNextStepsOf } from './meeting-turns.ts';
 export type { ParsedTranscript, TranscriptTurn, TurnSpeaker, TurnTime } from './transcript.ts';
 export {
   DUPLICATE_OF_KEY,
@@ -59,3 +60,8 @@ export {
   wasCorrected,
 } from './meeting-corrections.ts';
 export type { CorrectionRecord, CorrectionUndo, MeetingCorrection } from './meeting-corrections.ts';
+export {
+  MEETING_DECISIONS_KEY,
+  MEETING_EXTRACTION_PROPERTIES,
+  MEETING_TASKS_KEY,
+} from './meeting-extraction-properties.ts';

@@ -88,3 +88,9 @@ export function readFences(lines: readonly NumberedLine[]): FenceReading {
   }
   return { fenced, unclosed: open?.line ?? null };
 }
+
+/** The fence `text` leaves open at its end (its `` ``` `` or `~~~` run), or null when every fence closes. */
+export function unclosedFence(text: string): string | null {
+  const { unclosed } = readFences(numberedLines(text, 1));
+  return unclosed === null ? null : (FENCE_OPEN.exec(unclosed.text)?.[1] ?? null);
+}

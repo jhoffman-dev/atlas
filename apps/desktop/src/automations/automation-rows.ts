@@ -120,6 +120,10 @@ function doneLine(action: DoneAction): LogLineView {
         text: `${verb} ${action.key} on ${noteTitle(action.path)}: ${change}`,
       };
     }
+    case 'proposed':
+      return { kind: 'done', text: `Proposed ${noteTitle(action.path)} (${action.path})` };
+    case 'created':
+      return { kind: 'done', text: `Made ${noteTitle(action.path)} (${action.path})` };
   }
 }
 

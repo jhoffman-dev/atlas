@@ -11,19 +11,22 @@ import { jsonLinesMarkdown, jsonLinesNote } from '../testing/proposal-vault.ts';
 const PROPOSAL = 'Inbox/Proposals/Send the payroll file.md';
 const TASK = 'Send Mara the payroll file.md';
 
-const proposal = (more: Record<string, unknown> = {}) =>
-  jsonLinesNote({
-    type: 'proposal',
-    kind: 'task',
-    confidence: 'high',
-    source: '[[2026-10-01 Standup#^t0003]]',
-    made_by: 'after-meeting · run 1',
-    payload: {
-      title: 'Send Mara the payroll file',
-      properties: { meeting: '[[2026-10-01 Standup]]' },
+const proposal = (more: Record<string, unknown> = {}, body = '') =>
+  jsonLinesNote(
+    {
+      type: 'proposal',
+      kind: 'task',
+      confidence: 'high',
+      source: '[[2026-10-01 Standup#^t0003]]',
+      made_by: 'after-meeting · run 1',
+      payload: {
+        title: 'Send Mara the payroll file',
+        properties: { meeting: '[[2026-10-01 Standup]]' },
+      },
+      ...more,
     },
-    ...more,
-  });
+    body,
+  );
 
 function vault(files: Record<string, string> = {}) {
   return apiFixture({ files: { [PROPOSAL]: proposal(), ...files }, markdown: jsonLinesMarkdown() });
@@ -40,6 +43,26 @@ const propertiesOf = (api: ReturnType<typeof vault>, path: string) => {
 };
 
 describe('GET /v1/proposals', () => {
+  it('says why each was proposed, as its body does, cut to a sentence or two', async () => {
+    const api = vault({
+      [PROPOSAL]: proposal({}, '\nMara Quill took this on, so it waits on them.\n'),
+      'Inbox/Proposals/Long.md': proposal({}, 'x'.repeat(5_000)),
+    });
+
+    const listed = (
+      bodyOf(await api.send({ method: 'GET', path: '/v1/proposals' })) as {
+        proposals: { path: string; reason: string }[];
+      }
+    ).proposals;
+
+    expect(listed.find((each) => each.path === PROPOSAL)?.reason).toBe(
+      'Mara Quill took this on, so it waits on them.',
+    );
+    expect(listed.find((each) => each.path === 'Inbox/Proposals/Long.md')?.reason).toHaveLength(
+      1_000,
+    );
+  });
+
   it('lists the open proposals with what each would write, and the ones it cannot read', async () => {
     const api = vault({
       'Inbox/Proposals/Odd.md': proposal({ kind: 'meeting' }),
@@ -57,6 +80,7 @@ describe('GET /v1/proposals', () => {
           confidence: 'high',
           source: '[[2026-10-01 Standup#^t0003]]',
           madeBy: 'after-meeting · run 1',
+          reason: '',
           payload: {
             title: 'Send Mara the payroll file',
             properties: { meeting: '[[2026-10-01 Standup]]' },
@@ -165,13 +189,13 @@ describe('POST /v1/proposals/{path}/accept', () => {
     expect(api.activity.reports[0]?.message).toMatch(/^POST v1\/proposals\/\{path\}\/accept/);
   });
 
-  it('answers conflict, writing nothing, when a note is already where the task would go', async () => {
+  it('makes the task under a numbered name when a note is already where it would go', async () => {
     const api = vault({ [TASK]: 'By hand.\n' });
     const response = await api.send(answer(PROPOSAL, 'accept'));
 
-    expect(codeOf(response)).toBe('conflict');
-    expect(JSON.stringify(response.body)).toContain('There is already a note at');
-    expect(api.writes).toEqual([]);
+    expect(codeOf(response)).toBeNull();
+    expect(JSON.stringify(response.body)).toContain('2.md');
+    expect(api.writes.length).toBeGreaterThan(0);
   });
 
   it('answers conflict for a proposal already decided', async () => {

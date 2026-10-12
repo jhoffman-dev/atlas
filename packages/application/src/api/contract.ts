@@ -627,6 +627,11 @@ export interface ApiProposal {
   readonly source: string | null;
   /** The rule and run that made it. */
   readonly madeBy: string | null;
+  /**
+   * Why it was proposed, as the proposal's body says it — for a meeting's
+   * item, whose it is and how sure that is. Empty when the body is.
+   */
+  readonly reason: string;
   /** What Accept writes, as the note holds it. */
   readonly payload: Readonly<Record<string, unknown>>;
   readonly modified: number;
@@ -963,9 +968,11 @@ export interface ApiAutomation {
   readonly which: string;
   /** Only notes not modified in this many days; null for any. */
   readonly olderThanDays: number | null;
-  readonly do: 'archive' | 'set';
-  /** What a `set` rule sets; null for `archive`. */
+  readonly do: 'archive' | 'set' | 'claude';
+  /** What a `set` rule sets; null for any other. */
   readonly set: Readonly<Record<string, SetValue>> | null;
+  /** What a `claude` rule asks Claude (P29-03); null for any other. */
+  readonly claude: ApiClaudeStep | null;
   /** Its schedule in words, as the app shows it: "Every day at 03:00". */
   readonly schedule: string;
   /** Its action in words: "Archive", "Set status to done". */
@@ -1004,9 +1011,24 @@ export interface ApiBrokenAutomation {
   readonly problem: string;
 }
 
+/**
+ * A rule's Claude step, as its file writes it (P29-03): the prompt note, the
+ * read tools it may call, and what it writes — proposals of a schema, or one
+ * new note in `folder`. It never edits a note.
+ */
+export interface ApiClaudeStep {
+  /** The prompt note, in `.atlas/prompts/`. */
+  readonly prompt: string;
+  readonly tools: readonly string[];
+  /** `note`, or the name of a proposal schema: `proposals`, or `meeting-items` (what Claude pulls out of a meeting). */
+  readonly output: string;
+  /** Where its one new note goes, for `output: note`; null otherwise. */
+  readonly folder: string | null;
+}
+
 /** One entry in a rule's log, as its file records it. */
 export interface ApiAutomationLogEntry {
-  readonly kind: 'run' | 'undo' | 'failed' | 'turnedOn' | 'seen';
+  readonly kind: 'run' | 'undo' | 'failed' | 'turnedOn' | 'seen' | 'letGo';
   /** Local time, `YYYY-MM-DDTHH:MM:SS`. */
   readonly at: string;
   /** "Ran on schedule", "Undid the run of …". */
@@ -1021,6 +1043,8 @@ export interface ApiAutomationLogEntry {
   readonly problem?: string;
   /** Whether a `run` stopped at the most one run may do. */
   readonly capped?: boolean;
+  /** On `letGo`: how many syncs' news a held-back rule let go; a run by hand takes the notes they named. */
+  readonly count?: number;
   /** Each thing it did to a note: a move, or a property's value before and after. */
   readonly done: readonly DoneAction[];
   /** Notes it matched and left alone, with why. */
@@ -1036,13 +1060,39 @@ export interface ApiAutomationLogEntry {
   }[];
   /** On a run of a rule a note sets off: paths a note it had handled left, ending their history. */
   readonly went?: readonly string[];
+  /**
+   * On a `run` or `failed` entry of a Claude step: the model asked, how long
+   * it took, and (`cut`) each note it was shown only the start of — how many
+   * characters of how many. An output that reads a long meeting in parts
+   * (`meeting-items`) also says each item it left out of an answer it kept,
+   * with why (`dropped`), and each it kept with a fault put right
+   * (`adjusted`). `asks` is how many times the model was asked, once it was
+   * (what the hourly cap counts); `alreadyMade` how many proposals were made
+   * before; `warnings` what the person should know of the run.
+   */
+  readonly claude?: {
+    readonly model: string;
+    readonly ms: number;
+    readonly cut?: readonly {
+      readonly path: string;
+      readonly shown: number;
+      readonly of: number;
+    }[];
+    readonly asks?: number;
+    readonly alreadyMade?: number;
+    readonly dropped?: readonly { readonly title: string; readonly reason: string }[];
+    readonly adjusted?: readonly { readonly title: string; readonly reason: string }[];
+    readonly warnings?: readonly string[];
+  };
 }
 
 /** What a rule would do if it ran now. Nothing is written to find out. */
 export interface ApiAutomationPlan {
-  readonly do: 'archive' | 'set';
-  /** What a `set` rule would set on each note; null for `archive`. */
+  readonly do: 'archive' | 'set' | 'claude';
+  /** What a `set` rule would set on each note; null for any other. */
   readonly set: Readonly<Record<string, SetValue>> | null;
+  /** The prompt and tools a `claude` rule's run would use; null for any other. Claude is not asked. */
+  readonly claude: ApiClaudeStep | null;
   /** "Would archive 12 notes." */
   readonly summary: string;
   /** The notes it would act on, at most `cap`, in the order it would. */

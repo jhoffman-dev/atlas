@@ -128,11 +128,16 @@ describe('acceptProposalNote — a task', () => {
 });
 
 describe('acceptProposalNote — refusals', () => {
-  it('refuses when a note is already where the task would go, writing nothing', async () => {
+  it('makes the task under a numbered name when a note is already where it would go, leaving that note as it is', async () => {
     const setup = vault({ [TASK]: 'Already made by hand.\n' });
-    await expect(accept(setup)).rejects.toThrow(/already a note at Send Mara the payroll file.md/);
-    expect(setup.fixture.writes).toEqual([]);
-    expect(setup.paths()).toContain(PROPOSAL);
+
+    const accepted = await accept(setup);
+
+    expect(accepted.wrote).toMatchObject([
+      { kind: 'created', path: 'Send Mara the payroll file 2.md' },
+    ]);
+    expect(setup.paths()).toContain('Send Mara the payroll file 2.md');
+    expect(setup.fixture.files.get(TASK)?.text).toBe('Already made by hand.\n');
   });
 
   it('refuses a proposal already decided', async () => {

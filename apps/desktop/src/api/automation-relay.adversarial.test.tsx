@@ -9,6 +9,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useEffect } from 'react';
 import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
 import {
+  fakeClaudeStepPorts,
   fakeIndexPort,
   fakeVaultFs,
   type AutomationPorts,
@@ -94,10 +95,15 @@ function refusingVault(): AutomationPorts & { notePaths: readonly VaultPath[] } 
     },
     types: [{ name: 'task', label: 'Task', properties: [] } as never],
     notePaths: Object.keys(files).map(createVaultPath),
+    claude: fakeClaudeStepPorts(),
   };
 }
 
-const clock = { today: () => '2026-09-27', localNow: () => '2026-09-27T09:00:00' };
+const clock = {
+  today: () => '2026-09-27',
+  localNow: () => '2026-09-27T09:00:00',
+  now: () => Date.parse('2026-09-27T09:00:00Z'),
+};
 
 async function settle() {
   for (let round = 0; round < 8; round += 1) {

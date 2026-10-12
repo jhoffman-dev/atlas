@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { NewProposal, VaultPath } from '@atlas/domain';
 import { jsonLinesMarkdown, jsonLinesNote, proposalVault } from '../testing/proposal-vault.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
-import { writeProposals } from './write-proposals.ts';
+import { planProposals, writeProposals } from './write-proposals.ts';
 
 const proposal = (id: string, name: string): NewProposal => ({
   kind: 'task',
@@ -101,5 +101,70 @@ describe('writeProposals', () => {
       written: [],
       left: [],
     });
+  });
+});
+
+describe('planProposals', () => {
+  it('decides every proposal — name, contents — and writes none of them', async () => {
+    const { setup, ports } = vault({
+      'Inbox/Proposals/Call Ada.md': jsonLinesNote({ type: 'task' }),
+    });
+    const before = setup.paths();
+
+    const { planned, left } = await planProposals({
+      ...ports,
+      proposals: [proposal('a', 'Call Ada'), proposal('b', 'Call Ada'), proposal('c', 'Pay Bo')],
+    });
+
+    expect(left).toEqual([]);
+    expect(planned.map(({ path }) => path)).toEqual([
+      'Inbox/Proposals/Call Ada 2.md',
+      'Inbox/Proposals/Call Ada 3.md',
+      'Inbox/Proposals/Pay Bo.md',
+    ]);
+    expect(planned[0]!.contents).toContain('proposal_id: "a"');
+    expect(planned[0]!.contents).toContain('Because.');
+    expect(setup.paths()).toEqual(before);
+  });
+
+  it('plans one proposal for an id given twice in the same batch', async () => {
+    const { ports } = vault({});
+    const { planned } = await planProposals({
+      ...ports,
+      proposals: [proposal('a', 'Call Ada'), proposal('a', 'Call Ada again')],
+    });
+    expect(planned.map(({ path }) => path)).toEqual(['Inbox/Proposals/Call Ada.md']);
+  });
+
+  it('leaves room in a long name for the number a taken name is given', async () => {
+    const long = 'é'.repeat(200);
+    const { ports } = vault({});
+    const { planned } = await planProposals({
+      ...ports,
+      proposals: [proposal('a', long), proposal('b', long)],
+    });
+    const names = planned.map(({ path }) => path.slice('Inbox/Proposals/'.length));
+    expect(names[1]).toMatch(/ 2\.md$/);
+    for (const name of names)
+      expect(new TextEncoder().encode(name).length).toBeLessThanOrEqual(255);
+    expect(names[0]!.length).toBeGreaterThan(100);
+  });
+
+  it('says a proposal that cannot be made a note of, and plans the rest', async () => {
+    const { ports } = vault({});
+    const markdown = {
+      ...ports.markdown,
+      updateFrontmatter: (frontmatter: string | null, changes: Record<string, unknown>) => {
+        if (changes['proposal_id'] === 'a') throw new Error('It does not serialize.');
+        return ports.markdown.updateFrontmatter(frontmatter, changes);
+      },
+    };
+    const { planned, left } = await planProposals({
+      ...ports,
+      markdown,
+      proposals: [proposal('a', 'Bad'), proposal('b', 'Fine')],
+    });
+    expect(planned.map(({ path }) => path)).toEqual(['Inbox/Proposals/Fine.md']);
+    expect(left).toEqual([{ path: 'Inbox/Proposals/Bad.md', reason: 'It does not serialize.' }]);
   });
 });

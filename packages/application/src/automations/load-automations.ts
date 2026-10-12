@@ -7,6 +7,7 @@ import {
   splitFrontmatter,
   type AutomationRule,
   type BrokenAutomation,
+  type HandledLedger,
   type LogEntry,
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -17,6 +18,8 @@ import { readRuleLog } from './automation-log.ts';
 export interface LoadedAutomation {
   readonly rule: AutomationRule;
   readonly log: readonly LogEntry[];
+  /** What it has handled; null for a log from before the ledger. */
+  readonly ledger?: HandledLedger | null;
   /** Whether its file says its id; a rule from before ids has one written for it. */
   readonly idWritten: boolean;
 }
@@ -63,7 +66,7 @@ export async function loadAutomations({
     }
     ids.add(id);
     const log = await readRuleLog(fs, rule);
-    automations.push({ rule, log: log.entries, idWritten });
+    automations.push({ rule, log: log.entries, ledger: log.ledger, idWritten });
   }
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
   return {

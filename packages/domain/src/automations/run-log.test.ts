@@ -208,9 +208,12 @@ describe('parseRunLog', () => {
   });
 });
 
+/** The instant the clock gives when a test appends. */
+const CLOCK_NOW = Date.UTC(2026, 8, 27, 3);
+
 describe('appendLogEntry', () => {
   it('starts a log with its heading', () => {
-    const text = appendLogEntry({ text: null, ruleName: 'Tidy', entry: RUN });
+    const text = appendLogEntry({ text: null, ruleName: 'Tidy', entry: RUN, now: CLOCK_NOW });
     expect(text.startsWith('---\natlas: automation-log\n---\n\n# Tidy — run log\n\n## ')).toBe(
       true,
     );
@@ -218,8 +221,8 @@ describe('appendLogEntry', () => {
 
   it('adds at the end, keeping what came before the first entry as it was', () => {
     const start = '---\natlas: automation-log\n---\n\n# Tidy\n\nMy own words.\n';
-    const once = appendLogEntry({ text: start, ruleName: 'Tidy', entry: RUN });
-    const twice = appendLogEntry({ text: once, ruleName: 'Tidy', entry: UNDO });
+    const once = appendLogEntry({ text: start, ruleName: 'Tidy', entry: RUN, now: CLOCK_NOW });
+    const twice = appendLogEntry({ text: once, ruleName: 'Tidy', entry: UNDO, now: CLOCK_NOW });
     expect(twice.startsWith(`${start}\n## 2026-09-27 03:00:12`)).toBe(true);
     expect(parseRunLog(twice)).toEqual([RUN, UNDO]);
   });
@@ -228,7 +231,7 @@ describe('appendLogEntry', () => {
     let text: string | null = null;
     for (let hour = 10; hour < 15; hour += 1) {
       const entry: LogEntry = { kind: 'turnedOn', at: `2026-09-27T${hour}:00:00` };
-      text = appendLogEntry({ text, ruleName: 'Tidy', entry, keep: 3 });
+      text = appendLogEntry({ text, ruleName: 'Tidy', entry, now: CLOCK_NOW, keep: 3 });
     }
     expect(parseRunLog(text!).map((entry) => entry.at)).toEqual([
       '2026-09-27T12:00:00',

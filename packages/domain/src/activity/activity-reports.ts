@@ -9,8 +9,13 @@
 
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
-import { logEntryHeading, logEntrySummary, type LogEntry } from '../automations/run-log.ts';
-import type { AutomationPlan } from '../automations/automation-plan.ts';
+import {
+  logEntryHeading,
+  logEntrySummary,
+  type ClaudeRunInfo,
+  type LogEntry,
+} from '../automations/run-log.ts';
+import { planVerb, type AutomationPlan } from '../automations/automation-plan.ts';
 import type { ActivityLevel, ActivityReport, ActivitySubject } from './activity-event.ts';
 
 /** An automation's rule, as a line names it and links to it; a draft not yet saved has no path. */
@@ -30,16 +35,27 @@ const noteSubject = (path: VaultPath): ActivitySubject => ({ kind: 'note', path 
  */
 export function automationEntryReport(rule: RuleNamed, entry: LogEntry): ActivityReport | null {
   if (entry.kind === 'turnedOn' || entry.kind === 'seen') return null;
-  const level: ActivityLevel =
-    entry.kind === 'failed' ? 'error' : entry.left.length > 0 ? 'warning' : 'info';
+  // News let go is said as a warning: notes the rule was to run on now wait for a run by hand.
+  const left = entry.kind === 'letGo' ? 1 : entry.kind === 'failed' ? 0 : entry.left.length;
+  const level: ActivityLevel = entry.kind === 'failed' ? 'error' : left > 0 ? 'warning' : 'info';
   const heading = entry.kind === 'undo' ? 'Undid its last run' : logEntryHeading(entry);
   const notes = entry.kind === 'run' ? triggeringNotes(entry) : '';
+  const asked = entry.kind === 'undo' || entry.kind === 'letGo' ? '' : claudeAsked(entry.claude);
+  const summary = logEntrySummary(entry);
+  // A failure can end on a command to copy, which ends no sentence: the model's words follow.
+  const said = asked === '' || /[.!?]$/.test(summary) ? summary : `${summary}.`;
   return {
     level,
     kind: 'automation',
-    message: `${rule.name}: ${heading}${notes}. ${logEntrySummary(entry)}`,
+    message: `${rule.name}: ${heading}${notes}. ${said}${asked}`,
     subject: ruleSubject(rule),
   };
+}
+
+/** Which model a Claude step asked, and for how long: ` Asked claude-opus-5-5, 4.2 s.`; empty for none. */
+function claudeAsked(claude: ClaudeRunInfo | undefined): string {
+  if (claude === undefined) return '';
+  return ` Asked ${claude.model}, ${(claude.ms / 1000).toFixed(1)} s.`;
 }
 
 /** How many notes set off by a run a line names before it counts the rest. */
@@ -75,6 +91,20 @@ export function automationFailedReport({
   };
 }
 
+/**
+ * A rule's list of what it has handled did not add up — a line lost or
+ * unreadable, two lists, a format this Atlas does not know — and was rebuilt
+ * from the entries its log still holds. Said once, when it is rebuilt.
+ */
+export function ledgerRepairedReport(rule: RuleNamed): ActivityReport {
+  return {
+    level: 'warning',
+    kind: 'automation',
+    message: `${rule.name}: Its list of handled notes was damaged and was rebuilt from its log. Meetings written before now that the log does not show are not asked about; run it by hand to take them.`,
+    subject: ruleSubject(rule),
+  };
+}
+
 /** A dry run from the rule's editor: what it would do, or why its query did not read. */
 export function dryRunReport(
   rule: RuleNamed,
@@ -90,8 +120,7 @@ export function dryRunReport(
   }
   const { plan } = outcome;
   const count = plan.paths.length;
-  const verb = plan.action.kind === 'archive' ? 'archive' : 'change';
-  const would = count === 0 ? 'Nothing to do' : `Would ${verb} ${notes(count)}`;
+  const would = count === 0 ? 'Nothing to do' : `Would ${planVerb(plan.action)} ${notes(count)}`;
   const left = plan.passedOver.length === 0 ? '' : `, and leave ${plan.passedOver.length} alone`;
   return {
     level: 'info',

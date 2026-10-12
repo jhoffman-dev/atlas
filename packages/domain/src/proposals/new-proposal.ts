@@ -1,6 +1,6 @@
 import type { CompiledQuery } from '../query/view-query.ts';
 import { fitFileNameStem } from '../vault/file-name-bytes.ts';
-import { cleanEntryName } from '../vault/new-note.ts';
+import { cleanEntryName, NUMBERED_NOTE_ENDING } from '../vault/new-note.ts';
 import { joinVaultPath, createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import {
   payloadRecord,
@@ -38,9 +38,13 @@ export interface NewProposalFile {
   readonly body: string;
 }
 
-/** The note a new proposal is written as, open and waiting in the Inbox (ADR-0028). */
+/**
+ * The note a new proposal is written as, open and waiting in the Inbox
+ * (ADR-0028). Its name leaves room for the number a name already taken is
+ * given, so the numbered name fits a disk too.
+ */
 export function proposalFileFor(proposal: NewProposal): NewProposalFile {
-  const stem = fitFileNameStem(cleanEntryName(proposal.name) || 'Proposal', '.md');
+  const stem = fitFileNameStem(cleanEntryName(proposal.name) || 'Proposal', NUMBERED_NOTE_ENDING);
   return {
     path: joinVaultPath(createVaultPath(PROPOSALS_FOLDER), `${stem}.md`),
     properties: {

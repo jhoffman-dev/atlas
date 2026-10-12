@@ -4,5 +4,11 @@ export { rejectProposalNote } from './reject-proposal.ts';
 export { listProposals } from './list-proposals.ts';
 export type { ListedProposal, ProposalListing, UnreadableProposal } from './list-proposals.ts';
 export type { ProposalArchived, ProposalPorts } from './proposal-file.ts';
-export { writeProposals } from './write-proposals.ts';
-export type { ProposalsWritten } from './write-proposals.ts';
+export { planProposals, writeProposals } from './write-proposals.ts';
+export type {
+  PlannedProposal,
+  ProposalLeft,
+  ProposalsPlanned,
+  ProposalsWritten,
+  ProposalWritePorts,
+} from './write-proposals.ts';

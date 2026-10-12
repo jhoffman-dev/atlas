@@ -153,6 +153,8 @@ function Editor({
       problem={null}
       which={<p>query builder here</p>}
       typeNames={['task', 'meeting']}
+      claudeTools={['atlas_search', 'atlas_read_note', 'atlas_backlinks']}
+      claudeOutputs={['proposals']}
       busy={false}
       onSave={() => {}}
       onCancel={() => {}}
@@ -259,6 +261,56 @@ describe('AutomationEditor', () => {
     );
     await userEvent.click(screen.getByRole('radio', { name: 'Archive' }));
     expect(screen.queryByLabelText('Value')).toBeNull();
+  });
+
+  it('asks Claude instead: a prompt, what it writes and the read tools it may use (P29-03)', async () => {
+    const onChange = vi.fn();
+    render(<Editor onChange={onChange} />);
+    expect(screen.queryByLabelText('Prompt')).toBeNull();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Ask Claude' }));
+    await userEvent.type(screen.getByLabelText('Prompt'), 'meeting-actions');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'atlas_search' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        action: {
+          kind: 'claude',
+          prompt: 'meeting-actions',
+          tools: ['atlas_read_note', 'atlas_search'],
+          output: { kind: 'proposals', schema: 'proposals' },
+        },
+      }),
+    );
+    const tools = screen.getByRole('group', { name: 'Tools Claude may use' });
+    expect(within(tools).getAllByRole('checkbox')).toHaveLength(3);
+    await userEvent.click(within(tools).getByRole('checkbox', { name: 'atlas_read_note' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: expect.objectContaining({ tools: ['atlas_search'] }) }),
+    );
+  });
+
+  it('offers proposals or one new note, and asks for the note’s folder', async () => {
+    const onChange = vi.fn();
+    render(<Editor onChange={onChange} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Ask Claude' }));
+    const writes = screen.getByLabelText('What Claude writes') as HTMLSelectElement;
+    expect([...writes.options].map((option) => option.textContent)).toEqual([
+      'Proposals in the Inbox',
+      'One new note',
+    ]);
+    expect(screen.queryByLabelText('Folder')).toBeNull();
+
+    await userEvent.selectOptions(writes, 'note');
+    await userEvent.type(screen.getByLabelText('Folder'), 'Briefs');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({ output: { kind: 'note', folder: 'Briefs' } }),
+      }),
+    );
+    await userEvent.selectOptions(writes, 'proposals');
+    expect(screen.queryByLabelText('Folder')).toBeNull();
+    await userEvent.click(screen.getByRole('radio', { name: 'Archive' }));
+    expect(screen.queryByLabelText('Prompt')).toBeNull();
   });
 
   it('will not save while the draft has a problem, and says it', () => {

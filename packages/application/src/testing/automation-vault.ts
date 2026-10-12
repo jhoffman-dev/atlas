@@ -16,10 +16,12 @@ import {
 } from '@atlas/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import type { RuleQueryPorts } from '../automations/plan-run.ts';
+import type { ClaudeStepPorts } from '../automations/claude-step.ts';
 import type { AutomationPorts } from '../automations/run-automation.ts';
 import type { IndexEntry, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { VaultAccessError } from '../vault/ports.ts';
+import { fakeClaudeStepPorts } from './fake-claude-step.ts';
 import { fakeIndexPort, fakeVaultFs } from './fake-ports.ts';
 import { jsonMarkdown } from './settings-vault.ts';
 
@@ -56,6 +58,7 @@ export function automationVault({
   ageDays = {},
   dirty = [],
   types = TASK_TYPES,
+  claude = fakeClaudeStepPorts(),
 }: {
   notes: Record<string, string>;
   today: string;
@@ -63,6 +66,8 @@ export function automationVault({
   dirty?: string[];
   /** The vault's types; the task type alone unless given. */
   types?: readonly ObjectType[];
+  /** What a Claude step asks; a model with nothing scripted unless given. */
+  claude?: ClaudeStepPorts;
 }) {
   const files = new Map(Object.entries(notes));
   const dirs = new Set<string>();
@@ -148,6 +153,7 @@ export function automationVault({
     }),
     editors: editorsFor(unsaved, log),
     types,
+    claude,
     get notePaths() {
       return [...files.keys()];
     },
@@ -240,7 +246,7 @@ function indexOf(
     const title = path.replace(/^.*\//, '').replace(/\.md$/i, '');
     database
       .prepare('INSERT INTO files VALUES (?, ?, ?, ?, 1)')
-      .run(path, title, '', modified.get(path)!);
+      .run(path, title, '', modified.get(path) ?? 0);
     const frontmatter = markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
     for (const row of indexablePropertiesOf(frontmatter)) {
       database

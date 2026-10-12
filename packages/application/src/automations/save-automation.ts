@@ -4,7 +4,9 @@ import {
   automationIdFor,
   automationNameProblem,
   automationPathFor,
+  builtInPromptAt,
   createVaultPath,
+  parentVaultPath,
   draftProblem,
   logPathFor,
   splitFrontmatter,
@@ -28,7 +30,7 @@ export class AutomationRefusedError extends Error {
 interface RuleWrite {
   readonly fs: VaultFsPort;
   readonly markdown: MarkdownPort;
-  readonly clock: Pick<Clock, 'localNow'>;
+  readonly clock: Pick<Clock, 'now' | 'localNow'>;
 }
 
 /**
@@ -54,6 +56,7 @@ export async function createAutomation({
     ...withoutEmpty(automationFrontmatter(draft)),
     id,
   });
+  await ensureBuiltInPrompt(write.fs, draft);
   // A heading, so the file reads as what it is anywhere else; below it is the person's own.
   await write.fs.createNote({ path, contents: `${head}\n# ${draft.name.trim()}\n` });
   if (draft.enabled) await logTurnedOn({ ...write, rule: { id, name: draft.name.trim() } });
@@ -86,6 +89,7 @@ export async function updateAutomation({
 }: RuleWrite & { rule: AutomationRule; draft: AutomationDraft }): Promise<void> {
   const problem = draft.name.trim() === '' ? 'Name the automation.' : draftProblem(draft);
   if (problem !== null) throw new AutomationRefusedError(problem);
+  await ensureBuiltInPrompt(write.fs, draft);
   const { text, modified } = await write.fs.readTextFile(rule.path);
   const document = splitFrontmatter(text);
   const frontmatter = write.markdown.updateFrontmatter(document.frontmatter, {
@@ -102,12 +106,38 @@ export async function updateAutomation({
   }
 }
 
+/**
+ * Writes the prompt a rule's Claude step names when it is one Atlas ships and
+ * the vault has no note there (P29-05) — so a ready-made rule runs as saved.
+ * A prompt that is there is the person's, edited or not, and is left as it is.
+ */
+async function ensureBuiltInPrompt(fs: VaultFsPort, { action }: AutomationDraft): Promise<void> {
+  const prompt = action.kind === 'claude' ? builtInPromptAt(action.prompt) : null;
+  if (prompt === null) return;
+  const [held] = await fs.readNotes([prompt.path]);
+  if (held !== undefined) return;
+  await ensureFolder({ fs, folder: parentVaultPath(prompt.path) });
+  try {
+    await fs.createNote({ path: prompt.path, contents: prompt.contents });
+  } catch (cause) {
+    // A note written meanwhile (a sync, another save) is the person's: kept, and the rule runs as saved.
+    // Any other failure is real, and the rule is not saved without its prompt.
+    const [written] = await fs.readNotes([prompt.path]);
+    if (written === undefined) throw cause;
+  }
+}
+
 async function logTurnedOn({
   fs,
   clock,
   rule,
 }: Pick<RuleWrite, 'fs' | 'clock'> & { rule: Pick<AutomationRule, 'id' | 'name'> }) {
-  await appendToRuleLog({ fs, rule, entry: { kind: 'turnedOn', at: clock.localNow() } });
+  await appendToRuleLog({
+    fs,
+    rule,
+    entry: { kind: 'turnedOn', at: clock.localNow() },
+    now: clock.now(),
+  });
 }
 
 /** A new file has nothing to take out: keys with no value are simply not written. */

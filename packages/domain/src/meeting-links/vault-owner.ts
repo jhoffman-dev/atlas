@@ -17,7 +17,8 @@ function nameForms(name: string): string[] {
   return forms.filter((form) => form !== '');
 }
 
-function sameName(left: string, right: string): boolean {
+/** Whether two names are one, in the spellings a profile and an attendee list differ by. */
+export function sameName(left: string, right: string): boolean {
   const wanted = new Set(nameForms(right));
   return nameForms(left).some((form) => wanted.has(form));
 }

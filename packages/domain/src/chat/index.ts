@@ -37,3 +37,5 @@ export type { ChatContext, ChatContextKind } from './window-context.ts';
 export { chatWriteRefusal } from './writable.ts';
 export { FULL_TOOL_RESULTS, SUMMARY_CHARACTERS, trimTranscript } from './trim-transcript.ts';
 export { ownerSection } from './owner-section.ts';
+export { CHAT_READ_TOOLS, isChatReadTool } from './read-tool-names.ts';
+export type { ChatReadTool } from './read-tool-names.ts';

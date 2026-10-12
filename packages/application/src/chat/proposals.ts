@@ -273,6 +273,25 @@ function checkedFolder(folder: string, title: string): VaultPath {
   return createVaultPath(folder);
 }
 
+/**
+ * Whether `applied` can be put back now, without putting anything back:
+ * throws what {@link undoProposal} would. For an undo of several writes that
+ * must all happen or none.
+ */
+export async function checkUndo({
+  fs,
+  openNotes,
+  applied,
+}: {
+  fs: VaultFsPort;
+  openNotes: Pick<OpenNotes, 'state'>;
+  applied: AppliedProposal;
+}): Promise<void> {
+  const { path } = applied;
+  refuseUnsaved(openNotes, path);
+  if ((await noteModified({ fs, path })) !== applied.modified) throw changedSince(path);
+}
+
 /** Puts back what an accepted proposal replaced, if nothing has written the note since. */
 export async function undoProposal({
   fs,

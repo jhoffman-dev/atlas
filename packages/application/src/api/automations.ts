@@ -6,7 +6,7 @@ import {
   lastRunOf,
   logEntryHeading,
   logEntrySummary,
-  MAX_ACTIONS_PER_RUN,
+  capFor,
   MAX_LOG_ENTRIES,
   nextRunOf,
   noteTitle,
@@ -17,6 +17,7 @@ import {
   type Schedule,
   type PassedOver,
   type SetValue,
+  truncated,
 } from '@atlas/domain';
 import { loadAutomations, planRuleNow, type LoadedAutomation } from '../automations/index.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
@@ -31,6 +32,7 @@ import type {
   ApiAutomationLogEntry,
   ApiAutomationPlan,
   ApiAutomationRef,
+  ApiClaudeStep,
   ApiNoteTrigger,
 } from './contract.ts';
 import { countOf } from './fields.ts';
@@ -84,7 +86,7 @@ export async function automationLogRoute(request: VaultRequest): Promise<RouteRe
  * A rule whose query does not read is `query_failed`, with why.
  */
 export async function automationDryRunRoute(request: VaultRequest): Promise<RouteResult> {
-  const { rule, log } = await namedAutomation(request);
+  const { rule, log, ledger } = await namedAutomation(request);
   const [types, notePaths] = await Promise.all([
     loadObjectTypes({ fs: request.fs, markdown: request.markdown }),
     listVaultNotes({ fs: request.fs }),
@@ -96,15 +98,19 @@ export async function automationDryRunRoute(request: VaultRequest): Promise<Rout
     fs: request.fs,
     markdown: request.markdown,
   };
-  const { plan } = await planRuleNow({ ports, rule, log, today: request.clock.today() }).catch(
-    (error: unknown) => {
-      if (!(error instanceof AtlasQueryError)) throw error;
-      throw new ApiError(
-        'query_failed',
-        `This automation’s query could not run: ${messageWithoutPaths(error)}`,
-      );
-    },
-  );
+  const { plan } = await planRuleNow({
+    ports,
+    rule,
+    log,
+    ledger,
+    today: request.clock.today(),
+  }).catch((error: unknown) => {
+    if (!(error instanceof AtlasQueryError)) throw error;
+    throw new ApiError(
+      'query_failed',
+      `This automation’s query could not run: ${messageWithoutPaths(error)}`,
+    );
+  });
   // The index answers for the vault open now: a plan read after a switch would be the other vault's notes.
   request.assertStillOpen();
   return { status: 200, body: { automation: refOf(rule), plan: planOf(plan) } };
@@ -154,12 +160,27 @@ const refOf = (rule: { id: string; name: string }): ApiAutomationRef => ({
   name: rule.name,
 });
 
-/** The action as the rule's file writes it: `do`, and `set` for a set rule. */
+/** The action as the rule's file writes it: `do`, `set` for a set rule, and a Claude step's keys. */
 function actionFields(action: AutomationAction): {
   do: AutomationAction['kind'];
   set: Readonly<Record<string, SetValue>> | null;
+  claude: ApiClaudeStep | null;
 } {
-  return { do: action.kind, set: action.kind === 'set' ? { ...action.values } : null };
+  return {
+    do: action.kind,
+    set: action.kind === 'set' ? { ...action.values } : null,
+    claude: action.kind === 'claude' ? claudeStepOf(action) : null,
+  };
+}
+
+function claudeStepOf(action: Extract<AutomationAction, { kind: 'claude' }>): ApiClaudeStep {
+  const { output } = action;
+  return {
+    prompt: action.prompt,
+    tools: [...action.tools],
+    output: output.kind === 'note' ? 'note' : output.schema,
+    folder: output.kind === 'note' ? output.folder : null,
+  };
 }
 
 /**
@@ -218,6 +239,7 @@ function withoutPaths(entry: LogEntry): LogEntry {
       return { ...entry, left: entry.left.map(leftWithoutPaths) };
     case 'turnedOn':
     case 'seen':
+    case 'letGo':
       return entry;
   }
 }
@@ -240,6 +262,7 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         left: entry.left,
         ...(entry.versions !== undefined && { versions: entry.versions }),
         ...(entry.went !== undefined && { went: entry.went }),
+        ...(entry.claude !== undefined && { claude: entry.claude }),
       };
     case 'undo':
       return { kind: 'undo', ...words, of: entry.of, done: entry.done, left: entry.left };
@@ -248,13 +271,17 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         kind: 'failed',
         ...words,
         trigger: entry.trigger,
-        problem: entry.problem,
-        done: [],
+        problem: truncated(entry.problem),
+        ...(entry.claude !== undefined && { claude: entry.claude }),
+        // A Claude step cut off part-way left what it had made.
+        done: entry.done ?? [],
         left: [],
       };
     case 'turnedOn':
     case 'seen':
       return { kind: entry.kind, ...words, done: [], left: [] };
+    case 'letGo':
+      return { kind: 'letGo', ...words, count: entry.count, done: [], left: [] };
   }
 }
 
@@ -268,6 +295,6 @@ function planOf(plan: AutomationPlan): ApiAutomationPlan {
       .map(({ path, reason }) => ({ path, reason })),
     passedOverMore: Math.max(0, plan.passedOver.length - PASSED_OVER_LISTED),
     capped: plan.capped,
-    cap: MAX_ACTIONS_PER_RUN,
+    cap: capFor(plan.action),
   };
 }

@@ -120,6 +120,59 @@ describe('a rule a note sets off', () => {
     expect(noteRunsHeldUntil(failing, NOW)).toBe('2026-10-08T12:30:00');
   });
 
+  it('counts a run that asked Claude whatever it came back with, on any trigger, and a failed ask', () => {
+    const asked = { model: 'claude-test', ms: 900, asks: 1 };
+    const nothing = (trigger: 'note' | 'hand' | 'schedule') =>
+      ({ ...noteRun('2026-10-08T11:30:00'), trigger, done: [], claude: asked }) as LogEntry;
+    const failedAsk = {
+      kind: 'failed',
+      at: '2026-10-08T11:30:00',
+      trigger: 'hand',
+      problem: 'The connection dropped.',
+      claude: asked,
+    } as LogEntry;
+    const counted = (entry: LogEntry) =>
+      noteRunsHeldUntil(
+        Array.from({ length: NOTE_RUNS_PER_HOUR }, () => entry),
+        NOW,
+      );
+    expect(counted(nothing('note'))).toBe('2026-10-08T12:30:00');
+    expect(counted(nothing('hand'))).toBe('2026-10-08T12:30:00');
+    expect(counted(nothing('schedule'))).toBe('2026-10-08T12:30:00');
+    expect(counted(failedAsk)).toBe('2026-10-08T12:30:00');
+    // A failure that never asked is another trigger's, and is not this rule's cost.
+    expect(counted({ ...failedAsk, claude: undefined } as unknown as LogEntry)).toBeNull();
+  });
+
+  it('counts the asks a Claude step made, not its runs: ten asks of one run are ten', () => {
+    const run = (asks: number | undefined) =>
+      ({
+        ...noteRun('2026-10-08T11:30:00'),
+        trigger: 'hand',
+        done: [],
+        claude: { model: 'claude-test', ms: 900, ...(asks !== undefined && { asks }) },
+      }) as LogEntry;
+
+    expect(noteRunsHeldUntil([run(10), run(10)], NOW)).toBe('2026-10-08T12:30:00');
+    expect(noteRunsHeldUntil([run(10), run(9)], NOW)).toBeNull();
+  });
+
+  it('does not count a Claude run that never asked (a prompt that would not read, a provider not ready)', () => {
+    const neverAsked = Array.from(
+      { length: NOTE_RUNS_PER_HOUR * 2 },
+      () =>
+        ({
+          kind: 'failed',
+          at: '2026-10-08T11:30:00',
+          trigger: 'note',
+          problem: 'Its prompt could not be read.',
+          claude: { model: 'claude-test', ms: 3 },
+        }) as LogEntry,
+    );
+
+    expect(noteRunsHeldUntil(neverAsked, NOW)).toBeNull();
+  });
+
   it('does not count a run that changed nothing', () => {
     const idle = minutes(10, NOTE_RUNS_PER_HOUR).map(
       (entry) => ({ ...entry, done: [] }) as LogEntry,
@@ -140,7 +193,7 @@ describe('a rule a note sets off', () => {
 
   it('says why it is held, and when it runs on what it heard meanwhile', () => {
     expect(noteRunsCappedProblem('2026-10-08T12:10:00')).toBe(
-      `It has run ${NOTE_RUNS_PER_HOUR} times in the last hour, the most a rule may. ` +
+      `It has used its ${NOTE_RUNS_PER_HOUR} runs, or questions put to Claude, for the last hour, the most a rule may. ` +
         'It runs on what changed meanwhile at 12:10.',
     );
   });

@@ -16,6 +16,10 @@ export interface AutomationEditorProps {
   readonly which: ReactNode;
   /** The vault's types, by name: what a note trigger can watch for. */
   readonly typeNames: readonly string[];
+  /** The read tools a Claude step may be given (P29-03). */
+  readonly claudeTools: readonly string[];
+  /** The proposal schemas a Claude step can answer with, by name: `proposals` first. */
+  readonly claudeOutputs: readonly string[];
   readonly busy: boolean;
   readonly onSave: () => void;
   readonly onCancel: () => void;
@@ -46,7 +50,16 @@ const NOTE_EVENTS: readonly { value: NoteEvent; label: string }[] = [
 const ACTIONS = [
   { value: 'archive' as const, label: 'Archive' },
   { value: 'set' as const, label: 'Set a property' },
+  { value: 'claude' as const, label: 'Ask Claude' },
 ];
+
+/** What a Claude step writes, as the editor offers it: a schema's proposals, or one new note. */
+const NOTE_OUTPUT = 'note';
+const OUTPUT_LABELS: Readonly<Record<string, string>> = {
+  proposals: 'Proposals in the Inbox',
+  'meeting-items': 'A meeting’s actions and decisions, as proposals',
+  [NOTE_OUTPUT]: 'One new note',
+};
 
 /**
  * What a schedule becomes when its kind is picked: the time or gap it had, or
@@ -102,7 +115,12 @@ export function AutomationEditor(props: AutomationEditorProps) {
           {/* The note that sets a rule off has just changed: an age filter would leave it out. */}
           {draft.when.kind !== 'note' && <AgeField draft={draft} onChange={onChange} />}
         </div>
-        <ActionField draft={draft} onChange={onChange} />
+        <ActionField
+          draft={draft}
+          onChange={onChange}
+          claudeTools={props.claudeTools}
+          claudeOutputs={props.claudeOutputs}
+        />
       </div>
       {props.problem !== null && (
         <p className="automation-editor__problem" role="alert">
@@ -247,7 +265,24 @@ function AgeField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' | 'on
   );
 }
 
-function ActionField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' | 'onChange'>) {
+type ActionProps = Pick<
+  AutomationEditorProps,
+  'draft' | 'onChange' | 'claudeTools' | 'claudeOutputs'
+>;
+
+/** What picking an action starts from: a Claude step reads the note with the first schema. */
+function actionOf(kind: AutomationAction['kind'], outputs: readonly string[]): AutomationAction {
+  if (kind === 'archive') return { kind };
+  if (kind === 'set') return { kind, values: { status: '' } };
+  return {
+    kind,
+    prompt: '',
+    tools: ['atlas_read_note'],
+    output: { kind: 'proposals', schema: outputs[0] ?? 'proposals' },
+  };
+}
+
+function ActionField({ draft, onChange, claudeTools, claudeOutputs }: ActionProps) {
   const { action } = draft;
   const [key = '', value = ''] =
     action.kind === 'set' ? (Object.entries(action.values)[0] ?? []) : [];
@@ -263,9 +298,7 @@ function ActionField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' | 
           label="What it does"
           options={ACTIONS}
           value={action.kind}
-          onChange={(kind) =>
-            onChange({ ...draft, action: kind === 'archive' ? { kind } : setTo('status', '') })
-          }
+          onChange={(kind) => onChange({ ...draft, action: actionOf(kind, claudeOutputs) })}
         />
         {action.kind === 'set' && (
           <>
@@ -289,6 +322,91 @@ function ActionField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' | 
           </>
         )}
       </div>
+      {action.kind === 'claude' && (
+        <ClaudeFields
+          draft={draft}
+          onChange={onChange}
+          claudeTools={claudeTools}
+          claudeOutputs={claudeOutputs}
+        />
+      )}
+    </div>
+  );
+}
+
+/** A Claude step's prompt, what it writes, and the read tools it may call. */
+function ClaudeFields({ draft, onChange, claudeTools, claudeOutputs }: ActionProps) {
+  const { action } = draft;
+  if (action.kind !== 'claude') return null;
+  const change = (next: Partial<typeof action>) =>
+    onChange({ ...draft, action: { ...action, ...next } });
+  const output = action.output.kind === 'note' ? NOTE_OUTPUT : action.output.schema;
+  return (
+    <div className="automation-editor__claude">
+      <label className="automation-editor__inline">
+        Prompt
+        <input
+          className="field"
+          aria-label="Prompt"
+          placeholder=".atlas/prompts/meeting-actions.md"
+          value={action.prompt}
+          onChange={(event) => change({ prompt: event.target.value })}
+        />
+      </label>
+      <label className="automation-editor__inline">
+        Writes
+        <select
+          className="field automation-editor__small"
+          aria-label="What Claude writes"
+          value={output}
+          onChange={(event) =>
+            change({
+              output:
+                event.target.value === NOTE_OUTPUT
+                  ? { kind: 'note', folder: '' }
+                  : { kind: 'proposals', schema: event.target.value },
+            })
+          }
+        >
+          {[...claudeOutputs, NOTE_OUTPUT].map((name) => (
+            <option key={name} value={name}>
+              {OUTPUT_LABELS[name] ?? name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {action.output.kind === 'note' && (
+        <label className="automation-editor__inline">
+          in
+          <input
+            className="field automation-editor__small"
+            aria-label="Folder"
+            placeholder="Briefs"
+            value={action.output.folder}
+            onChange={(event) => change({ output: { kind: 'note', folder: event.target.value } })}
+          />
+        </label>
+      )}
+      <fieldset className="automation-editor__tools">
+        <legend>Tools Claude may use</legend>
+        {claudeTools.map((tool) => (
+          <label key={tool} className="automation-editor__inline">
+            <input
+              type="checkbox"
+              className="select-box"
+              checked={action.tools.includes(tool)}
+              onChange={(event) =>
+                change({
+                  tools: event.target.checked
+                    ? [...action.tools, tool]
+                    : action.tools.filter((each) => each !== tool),
+                })
+              }
+            />
+            {tool}
+          </label>
+        ))}
+      </fieldset>
     </div>
   );
 }

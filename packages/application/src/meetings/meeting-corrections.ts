@@ -2,7 +2,7 @@ import {
   canCorrect,
   correctionProperties,
   correctMeetingBody,
-  MEETING_TYPE,
+  isMeetingType,
   noteTitle,
   NOTHING_CORRECTED_PROPERTIES,
   recordedCorrections,
@@ -128,7 +128,7 @@ export async function correctMeetingTerms({
 }): Promise<MeetingTermsCorrection> {
   const { text, modified } = await ports.fs.readTextFile(path);
   const { properties } = readFrontmatter(ports.markdown, splitFrontmatter(text).frontmatter);
-  if (properties['type'] !== MEETING_TYPE) {
+  if (!isMeetingType(properties['type'])) {
     throw new CorrectionRefusedError(
       `${noteTitle(path)} is not a meeting, so nothing was corrected.`,
     );

@@ -96,6 +96,7 @@ describe('GET /v1/automations', () => {
       olderThanDays: null,
       do: 'archive',
       set: null,
+      claude: null,
       schedule: 'Every day at 03:00',
       action: 'Archive',
       lastRun: {
@@ -382,6 +383,7 @@ describe('POST /v1/automations/{id}/dry-run', () => {
       plan: {
         do: 'archive',
         set: null,
+        claude: null,
         summary: 'Would archive 2 notes.',
         notes: [
           { path: 'tasks/B.md', title: 'B' },
@@ -639,5 +641,237 @@ describe('a rule a note sets off, through the API (P29-01)', () => {
     };
 
     expect(plan.notes.map((note) => note.path)).toEqual(['tasks/C.md']);
+  });
+});
+
+describe('a rule with a Claude step, through the API (P29-03)', () => {
+  const ASK = rule({
+    id: 'ask',
+    name: 'Ask about tasks',
+    when: 'manually',
+    which: 'FROM task WHERE status = done',
+    do: 'claude',
+    prompt: '.atlas/prompts/tasks.md',
+    tools: ['atlas_read_note', 'atlas_search'],
+    output: 'note',
+    folder: 'Briefs',
+  });
+  const files = { ...FILES, '.atlas/automations/Ask about tasks.md': ASK };
+  const step = {
+    prompt: '.atlas/prompts/tasks.md',
+    tools: ['atlas_read_note', 'atlas_search'],
+    output: 'note',
+    folder: 'Briefs',
+  };
+
+  it('lists it with its prompt, its tools and what it writes', async () => {
+    const { automations } = bodyOf(await list(vault(files))) as {
+      automations: Record<string, unknown>[];
+    };
+    expect(automations.find((automation) => automation['id'] === 'ask')).toMatchObject({
+      do: 'claude',
+      set: null,
+      claude: step,
+      action: 'Ask Claude (tasks) for a note in Briefs',
+    });
+    expect(automations.find((automation) => automation['id'] === 'tidy')).toMatchObject({
+      claude: null,
+    });
+  });
+
+  it('dry-runs it as the prompt and tools a run would use, over at most ten notes, asking no one', async () => {
+    // A Claude step plans over note versions, which the index's manifest holds.
+    const markdown = jsonMarkdown();
+    const api = apiFixture({
+      files,
+      markdown,
+      index: {
+        query: atlasQueryIndex({ files, markdown }),
+        manifest: async () =>
+          Object.entries(files).map(([path, text]) => ({
+            path,
+            modified: 0,
+            size: text.length,
+            type: null,
+            digest: digestOf(text),
+          })),
+      },
+    });
+    const before = new Map([...api.files].map(([path, note]) => [path, note.text]));
+
+    const response = await dryRun(api, 'ask');
+
+    expect(response.status).toBe(200);
+    expect(bodyOf(response)).toMatchObject({
+      automation: { id: 'ask', name: 'Ask about tasks' },
+      plan: {
+        do: 'claude',
+        set: null,
+        claude: step,
+        summary: 'Would ask Claude about 2 notes.',
+        notes: [{ path: 'tasks/B.md' }, { path: 'tasks/C.md' }],
+        cap: 10,
+      },
+    });
+    expect(new Map([...api.files].map(([path, note]) => [path, note.text]))).toEqual(before);
+  });
+
+  it('lists and dry-runs a meeting extraction rule as output: meeting-items (P29-05)', async () => {
+    const extraction = {
+      ...files,
+      '.atlas/automations/Extract.md': rule({
+        id: 'extract',
+        name: 'Extract',
+        when: 'manually',
+        which: 'FROM task WHERE status = done',
+        do: 'claude',
+        prompt: '.atlas/prompts/meeting-extraction.md',
+        output: 'meeting-items',
+      }),
+    };
+    const markdown = jsonMarkdown();
+    const api = apiFixture({
+      files: extraction,
+      markdown,
+      index: {
+        query: atlasQueryIndex({ files: extraction, markdown }),
+        manifest: async () =>
+          Object.entries(extraction).map(([path, text]) => ({
+            path,
+            modified: 0,
+            size: text.length,
+            type: null,
+            digest: digestOf(text),
+          })),
+      },
+    });
+    const claude = {
+      prompt: '.atlas/prompts/meeting-extraction.md',
+      tools: [],
+      output: 'meeting-items',
+      folder: null,
+    };
+
+    const { automations } = bodyOf(await list(api)) as { automations: Record<string, unknown>[] };
+    const { plan } = bodyOf(await dryRun(api, 'extract')) as { plan: Record<string, unknown> };
+
+    expect(automations.find((each) => each['id'] === 'extract')).toMatchObject({
+      do: 'claude',
+      claude,
+    });
+    expect(plan).toMatchObject({ do: 'claude', claude });
+  });
+
+  it('carries how often a Claude step asked and what it left out, from its log', async () => {
+    const parts: LogEntry = {
+      kind: 'run',
+      at: '2026-09-21T03:00:04',
+      trigger: 'hand',
+      done: [],
+      left: [],
+      capped: false,
+      claude: {
+        model: 'claude-opus-5-5',
+        ms: 900,
+        asks: 3,
+        dropped: [{ title: 'Order the cake', reason: 'Standup has no transcript turn ^t0099.' }],
+      },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [parts]),
+    });
+
+    const response = await api.send({ method: 'GET', path: '/v1/automations/ask/log' });
+
+    expect(bodyOf(response)).toMatchObject({
+      entries: [
+        {
+          kind: 'run',
+          summary: 'Claude proposed nothing. Left out 1 item of the answer that did not read.',
+          claude: {
+            asks: 3,
+            dropped: [
+              { title: 'Order the cake', reason: 'Standup has no transcript turn ^t0099.' },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
+  it('reads the model a Claude step asked from its log', async () => {
+    const asked: LogEntry = {
+      kind: 'run',
+      at: '2026-09-21T03:00:04',
+      trigger: 'hand',
+      done: [{ kind: 'created', path: 'Briefs/Brief.md' as never }],
+      left: [],
+      capped: false,
+      claude: { model: 'claude-opus-5-5', ms: 900 },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [asked]),
+    });
+    expect(bodyOf(await logOf(api, 'ask'))).toMatchObject({
+      entries: [
+        {
+          kind: 'run',
+          summary: 'Made 1 note.',
+          done: [{ kind: 'created', path: 'Briefs/Brief.md' }],
+          claude: { model: 'claude-opus-5-5', ms: 900 },
+        },
+      ],
+    });
+  });
+
+  it('says which notes a Claude step read only the start of', async () => {
+    const partly: LogEntry = {
+      kind: 'run',
+      at: '2026-09-21T03:00:04',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      claude: {
+        model: 'claude-opus-5-5',
+        ms: 900,
+        cut: [{ path: 'Meetings/Standup.md' as never, shown: 19874, of: 48211 }],
+      },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [partly]),
+    });
+    expect(bodyOf(await logOf(api, 'ask'))).toMatchObject({
+      entries: [
+        {
+          summary:
+            'Claude proposed nothing. 1 note was too long to read whole: Claude saw only the start.',
+          claude: { cut: [{ path: 'Meetings/Standup.md', shown: 19874, of: 48211 }] },
+        },
+      ],
+    });
+  });
+
+  it('lists what a Claude step cut off part-way had made, and cuts a long reason', async () => {
+    const cut: LogEntry = {
+      kind: 'failed',
+      at: '2026-09-21T03:00:04',
+      trigger: 'hand',
+      problem: `Made 1 of 2 notes, then the write failed: ${'x'.repeat(2_000)}`,
+      done: [{ kind: 'proposed', path: 'Inbox/Proposals/One.md' as never }],
+      claude: { model: 'claude-opus-5-5', ms: 900 },
+    };
+    const api = vault({
+      ...files,
+      '.atlas/automations/log/ask.md': newLogText('Ask about tasks', [cut]),
+    });
+    const { entries } = bodyOf(await logOf(api, 'ask')) as {
+      entries: { problem: string; done: unknown[] }[];
+    };
+    expect(entries[0]!.done).toEqual([{ kind: 'proposed', path: 'Inbox/Proposals/One.md' }]);
+    expect(entries[0]!.problem.length).toBeLessThanOrEqual(600);
   });
 });

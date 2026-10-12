@@ -37,6 +37,7 @@ import {
   createRefreshSpacing,
   createSourceRefresher,
   createTagRenames,
+  createToolboxes,
   findTaskTemplate,
   getAppInfo,
   setNoteProperty,
@@ -170,6 +171,7 @@ import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
 import { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 import { useProfileSetting } from './profile/use-profile-setting.ts';
 import { browserChatSettingsStore } from './chat/chat-settings-store.ts';
+import { claudeStepPorts } from './chat/claude-step-ports.ts';
 import { chatWindowOf } from './chat/chat-window.ts';
 import { useChat, type ChatPorts } from './chat/use-chat.ts';
 import { closingInStages } from './activity/closing-stages.ts';
@@ -460,6 +462,16 @@ export function App({
   );
   // A write from another tool shows up the way one made here does.
   useLocalApi({ bridge: api.bridge, deps: apiDeps, onWrote: onChanged });
+  // One toolbox construction for the chat and for a rule's Claude step (P29-03).
+  const toolboxes = useMemo(
+    () =>
+      createToolboxes({
+        api: apiDeps,
+        markdown: notePorts.markdown,
+        newId: () => crypto.randomUUID(),
+      }),
+    [apiDeps, notePorts.markdown],
+  );
 
   // The SQL view behind each type is rebuilt whenever the definitions change, so
   // adding a property to a type makes a column appear.
@@ -694,6 +706,19 @@ export function App({
     changeKey: indexKey,
     activity: activityLog,
   });
+  // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05).
+  const ownerName = profileSetting.profile === 'unknown' ? null : profileSetting.profile.name;
+  const claudeStep = useMemo(
+    () =>
+      claudeStepPorts({
+        ports: chatPorts,
+        store: browserChatSettingsStore,
+        toolboxes,
+        vault: () => vaultKey,
+        selfName: () => ownerName,
+      }),
+    [chatPorts, toolboxes, vaultKey, ownerName],
+  );
   const chat = useChat({
     ports: chatPorts,
     store: browserChatSettingsStore,
@@ -702,6 +727,7 @@ export function App({
       fs: location === null ? null : vault.fs,
       markdown: notes.markdown,
       openNotes: openNotesIn(editors),
+      toolboxes,
       notePaths,
       vaultKey,
       onChanged,
@@ -994,8 +1020,8 @@ export function App({
   // has an Inbox view or something waits in it.
   const inboxRowShown = inboxView !== null || (waiting ?? 0) > 0;
   const automationPorts = useMemo(
-    () => ({ ...archivePorts, types, notePaths }),
-    [archivePorts, types, notePaths],
+    () => ({ ...archivePorts, types, notePaths, claude: claudeStep }),
+    [archivePorts, types, notePaths, claudeStep],
   );
   const automations = useAutomations({
     ports: automationPorts,

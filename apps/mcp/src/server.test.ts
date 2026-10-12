@@ -214,6 +214,17 @@ describe('tools/list', () => {
     expect(described('atlas_automation_dry_run')).toContain('it has not handled as they are now');
   });
 
+  it('tells the model a rule can ask Claude, which only proposes or makes a note (P29-03)', async () => {
+    const { tools } = await mcp.listTools();
+    const described = (name: string) => tools.find((t) => t.name === name)?.description ?? '';
+
+    expect(described('atlas_automations')).toContain('"claude" { prompt, tools, output, folder }');
+    expect(described('atlas_automations')).toContain('A Claude step never edits a note.');
+    expect(described('atlas_automation_log')).toContain('{ kind: "proposed" or "created", path }');
+    expect(described('atlas_automation_log')).toContain('"claude" is { model, ms }');
+    expect(described('atlas_automation_dry_run')).toContain('Claude is not asked.');
+  });
+
   it('tells the model how to answer a query block a note holds', async () => {
     const { tools } = await mcp.listTools();
     const described = tools.find((t) => t.name === 'atlas_run_query')?.description ?? '';

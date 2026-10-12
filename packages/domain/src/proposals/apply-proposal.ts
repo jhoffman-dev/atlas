@@ -2,7 +2,8 @@ import { linkTargets } from '../index/relation-rows.ts';
 import { resolveWikiLinkTarget, wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import { withLink, linkedNotes } from '../types/relation-links.ts';
 import { fitFileNameStem } from '../vault/file-name-bytes.ts';
-import { cleanEntryName } from '../vault/new-note.ts';
+import { TASK_KEYS } from '../gtd/gtd-status.ts';
+import { cleanEntryName, nextAvailableNotePath } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { joinVaultPath, VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
 import { foldedVaultPath } from '../vault/vault-spelling.ts';
@@ -81,6 +82,15 @@ export function applyProposal(proposal: ProposalNote, vault: ProposalVault): Pro
   return proposal.kind === 'link' ? applyLink(proposal.payload, vault) : applyNote(proposal, vault);
 }
 
+/**
+ * The kinds whose note is a record of this proposal's own — a task, a
+ * follow-up, a decision: another note of the same name is some other record
+ * (last year's finished task), never this one, so a clash is numbered past.
+ * A person, a term or a project is a note about a thing in the world, and one
+ * already there may be the very one proposed.
+ */
+const OWN_RECORDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up', 'decision']);
+
 function applyNote(
   proposal: ProposalNote & { readonly kind: NoteProposalKind },
   { notePaths, target, heldTypes }: ProposalVault,
@@ -88,10 +98,22 @@ function applyNote(
   const { payload, kind, source } = proposal;
   const refusal = payload.folder === null ? null : proposedWriteRefusal(payload.folder);
   if (refusal !== null) return refused(refusal);
-  const path = newNotePath(payload);
-  const folded = foldedVaultPath(path);
-  const held = notePaths.find((note) => foldedVaultPath(note) === folded);
-  if (held !== undefined && payload.linkFrom === null) {
+  const gone = waitingOnGone(proposal, notePaths);
+  if (gone !== null) return refused(gone);
+  const wanted = newNotePath(payload);
+  const folded = foldedVaultPath(wanted);
+  const found = notePaths.find((note) => foldedVaultPath(note) === folded);
+  // Its own record is made where the name is free: "Send the notes 2", never last year's "Send the notes".
+  const path =
+    found !== undefined && OWN_RECORDS.has(kind)
+      ? nextAvailableNotePath({
+          folder: payload.folder ?? VAULT_ROOT,
+          name: noteTitle(wanted),
+          taken: new Set(notePaths),
+        })
+      : wanted;
+  const held = path === wanted ? found : undefined;
+  if (held !== undefined && !(kind === 'person' && payload.linkFrom !== null)) {
     return refused(
       `There is already a note at ${path}, which may be this one. Edit the title to make another.`,
     );
@@ -107,8 +129,8 @@ function applyNote(
     ...withoutType(payload.properties),
     ...(cites && { source }),
   };
-  // A note already there with a proposal that joins a relation is the one proposed — made
-  // since by another proposal for it, from another meeting: it is linked, not made again.
+  // A person already there is the one proposed — made since by another proposal for them,
+  // from another meeting: they are linked, not made again.
   const creates: ProposalWrite[] =
     held === undefined ? [{ kind: 'create', path, properties, body: payload.body }] : [];
   if (payload.linkFrom === null) return { ok: true, writes: creates };
@@ -119,6 +141,27 @@ function applyNote(
     target,
   });
   return joined.ok ? { ok: true, writes: [...creates, ...joined.writes] } : joined;
+}
+
+/**
+ * Why a task cannot be accepted because the person it waits on has gone: its
+ * `waiting_on` links a note the vault no longer has (renamed or deleted on
+ * another Mac since the proposal was made). Refused, with nothing written —
+ * a link to nothing would show as waiting on nobody — and the card's Edit can
+ * point it at the right person, or at their name as text.
+ */
+function waitingOnGone(
+  { payload }: ProposalNote & { readonly kind: NoteProposalKind },
+  notePaths: readonly VaultPath[],
+): string | null {
+  const value = payload.properties[TASK_KEYS.waitingOn];
+  if (typeof value !== 'string') return null;
+  const missing = linkTargets(value).find(
+    (written) => resolveWikiLinkTarget(written, notePaths) === null,
+  );
+  return missing === undefined
+    ? null
+    : `It waits on [[${missing}]], which is not a note any more (renamed or deleted since). Edit waiting_on to the right person, or to their name as text; nothing was written.`;
 }
 
 /** Whether a note of these types is what a proposal of `kind` makes. */

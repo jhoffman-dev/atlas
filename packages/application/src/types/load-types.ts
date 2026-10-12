@@ -29,7 +29,7 @@ export async function loadObjectTypes({
   markdown,
 }: {
   fs: VaultFsPort;
-  markdown: MarkdownPort;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
 }): Promise<DefinedType[]> {
   const folder = createVaultPath(TYPES_FOLDER);
 

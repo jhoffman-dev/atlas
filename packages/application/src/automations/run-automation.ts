@@ -1,5 +1,5 @@
 import {
-  handledVersions,
+  automationEntryReport,
   leftHandledNotes,
   messageWithoutPaths,
   noteRunsHeldUntil,
@@ -24,10 +24,16 @@ import type { Clock } from '../ports.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { changeProperties, type PropertyOutcome } from './apply-changes.ts';
-import { reported } from './automation-activity.ts';
-import { appendToRuleLog, readRuleLog } from './automation-log.ts';
+import { withHandledKeys } from './handled-keys.ts';
+import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
+import { heldEntries } from '../index/refresh-index.ts';
+import { appendForRun, reported } from './automation-activity.ts';
+import { readRuleLog } from './automation-log.ts';
 import {
+  arrivalsMissed,
   handledBy,
+  handledAmong,
+  handledNow,
   NoteRunsCappedError,
   planForVersions,
   planRuleNow,
@@ -38,16 +44,17 @@ import type { RuleQueryPorts } from './plan-run.ts';
 import { guardedFs, stillInVault, type VaultGuard } from './vault-guard.ts';
 
 /**
- * Everything a run reaches: the archive's ports, and the vault's types. The
- * vault's notes are read afresh by each run — a scheduled run can come long
- * after the list on screen was.
+ * Everything a run reaches: the archive's ports, the vault's types, and what
+ * a Claude step asks (P29-03). The vault's notes are read afresh by each run
+ * — a scheduled run can come long after the list on screen was.
  */
-export type AutomationPorts = ArchivePorts & Pick<RuleQueryPorts, 'types'>;
+export type AutomationPorts = ArchivePorts &
+  Pick<RuleQueryPorts, 'types'> & { readonly claude: ClaudeStepPorts };
 
 export interface AutomationRun {
   readonly ports: AutomationPorts;
   readonly rule: AutomationRule;
-  readonly clock: Pick<Clock, 'today' | 'localNow'>;
+  readonly clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   readonly guard: VaultGuard;
   /** Where the run's summary, or why it stopped, is said (U-28). */
   readonly activity: ActivityLog;
@@ -76,9 +83,17 @@ export async function runAutomation(
 ): Promise<LogEntry> {
   const { activity, rule, trigger } = run;
   const aim: Aim = async (ports, today) => {
-    // Run by hand, a rule notes set off does what it would have for each note not yet handled.
-    const log = rule.when.kind === 'note' ? (await readRuleLog(run.ports.fs, rule)).entries : [];
-    return planRuleNow({ ports, rule, log, today });
+    // Run by hand, a rule notes set off does what it would have for each note not yet handled;
+    // a Claude step, on any trigger, is never asked again about a version it has answered.
+    const remembers = rule.when.kind === 'note' || rule.action.kind === 'claude';
+    const log = remembers ? await readRuleLog(run.ports.fs, rule) : null;
+    return planRuleNow({
+      ports,
+      rule,
+      log: log?.entries ?? [],
+      ledger: log?.ledger ?? null,
+      today,
+    });
   };
   // Not quiet, it always settles with its entry.
   const carryOut = async () => (await runOnce({ run, trigger, aim, quiet: false }))!;
@@ -119,10 +134,17 @@ async function runOnHeard(
   run: AutomationRun & { changes: readonly NoteChange[]; when: NoteTrigger },
 ): Promise<LogEntry | null> {
   stillInVault(run.guard);
-  const { entries } = await readRuleLog(run.ports.fs, run.rule);
-  const handled = handledVersions(entries);
+  const log = await readRuleLog(run.ports.fs, run.rule);
+  const { entries } = log;
+  const triggering = await withHandledKeys({
+    fs: run.ports.fs,
+    markdown: run.ports.markdown,
+    rule: run.rule,
+    versions: triggeringVersions(run.when, run.changes),
+  });
+  const handled = await handledAmong({ index: run.ports.index, log, versions: triggering });
   const went = leftHandledNotes(run.changes, handled);
-  const versions = unhandledVersions(triggeringVersions(run.when, run.changes), handled);
+  const versions = unhandledVersions(triggering, handled);
   const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
   if (versions.length === 0 || heldUntil !== null) {
     await recordGone(run, went);
@@ -131,6 +153,76 @@ async function runOnHeard(
   }
   const aim: Aim = (ports, today) => planForVersions({ ports, rule: run.rule, versions, today });
   return runOnce({ run, trigger: 'note', aim, quiet: true, went });
+}
+
+/**
+ * Runs a rule set off by a note being created on the arrivals it never ran
+ * on (ADR-0028, "Catching up when Atlas opens"): asked once when a vault
+ * opens, on the Mac that runs its automations. An arrival is heard in memory,
+ * so one let in just before Atlas was quit — or held back by the hour's cap,
+ * or let go — would otherwise wait for a run by hand for ever.
+ *
+ * It looks only where meeting files land, at meetings the import let in
+ * since the rule's file was last saved and of which its log holds nothing
+ * (`missedArrivals`), and runs as the feed's news would have: the same query
+ * among those notes, the same most per run, the same hourly cap — rejecting
+ * with `NoteRunsCappedError` when that holds it back, so the caller keeps it
+ * for later as it keeps news. Settles with the log entry; null when the rule
+ * is off or is not set off by `created`, nothing was missed, or there was
+ * nothing to do.
+ */
+export async function runOnMissedArrivals(run: AutomationRun): Promise<LogEntry | null> {
+  const { activity, rule } = run;
+  if (!rule.enabled || rule.when.kind !== 'note' || !rule.when.on.includes('created')) return null;
+  const { when } = rule;
+  const carryOut = async (): Promise<LogEntry | null> => {
+    stillInVault(run.guard);
+    const log = await readRuleLog(run.ports.fs, rule);
+    const { entries } = log;
+    const { fs, index } = run.ports;
+    const held = await heldEntries(index);
+    const handled = await handledNow({ index, log, held });
+    const versions = await arrivalsMissed({
+      fs,
+      markdown: run.ports.markdown,
+      held,
+      rule,
+      trigger: when,
+      handled,
+    });
+    if (versions.length === 0) return null;
+    const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
+    if (heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
+    const aim: Aim = (ports, today) => planForVersions({ ports, rule, versions, today });
+    return runOnce({ run, trigger: 'note', aim, quiet: true });
+  };
+  return reported({ activity, rule, doing: 'run', carryOut });
+}
+
+/**
+ * Says that a rule held back let news go (`count` syncs' worth): in Activity
+ * first, so it is said even if the log cannot be written, then in the rule's
+ * log. What was let go is not lost for good: a run by hand takes every note
+ * the rule has not handled.
+ */
+export async function recordNewsLetGo({
+  ports,
+  rule,
+  clock,
+  guard,
+  activity,
+  count,
+}: Pick<AutomationRun, 'rule' | 'guard' | 'activity'> & {
+  ports: Pick<AutomationPorts, 'fs'>;
+  clock: Pick<Clock, 'now' | 'localNow'>;
+  count: number;
+}): Promise<LogEntry> {
+  stillInVault(guard);
+  const entry: LogEntry = { kind: 'letGo', at: clock.localNow(), count };
+  const report = automationEntryReport(rule, entry);
+  if (report !== null) activity.inOpenVault().record(report);
+  await appendForRun({ fs: guardedFs(ports.fs, guard), run: { rule, clock, activity }, entry });
+  return entry;
 }
 
 /** Writes down notes a rule had handled that were deleted, in an entry of their own; none, nothing. */
@@ -145,7 +237,7 @@ async function recordGone(run: AutomationRun, went: readonly VaultPath[]): Promi
     capped: false,
     went,
   };
-  await appendToRuleLog({ fs: guardedFs(run.ports.fs, run.guard), rule: run.rule, entry });
+  await appendForRun({ fs: guardedFs(run.ports.fs, run.guard), run, entry });
 }
 
 /** What a run plans over, once the vault's notes are listed. Rejects as `planRun` does. */
@@ -172,13 +264,13 @@ async function runOnce({
   /** Notes the rule had handled that were deleted, for its log to say. */
   went?: readonly VaultPath[];
 }): Promise<LogEntry | null> {
-  const { rule, clock, guard } = run;
+  const { clock, guard } = run;
   const at = clock.localNow();
   const today = clock.today();
   stillInVault(guard);
   const fs = guardedFs(run.ports.fs, guard);
   const ports = { ...run.ports, fs, notePaths: await listVaultNotes({ fs }) };
-  const log = (entry: LogEntry) => appendToRuleLog({ fs: run.ports.fs, rule, entry });
+  const log = (entry: LogEntry) => appendForRun({ fs: run.ports.fs, run, entry });
   let target: RuleTarget;
   try {
     target = await aim(ports, today);
@@ -196,6 +288,10 @@ async function runOnce({
   if (quiet && plan.paths.length === 0 && plan.passedOver.length === 0) {
     await recordGone(run, went);
     return null;
+  }
+  if (plan.action.kind === 'claude' && plan.paths.length > 0) {
+    const asked = { run, ports, target, action: plan.action, at, trigger, went, log };
+    return askClaude(asked);
   }
   let applied: PropertyOutcome = { done: [], left: [] };
   let versions: LoggedVersion[] = [];
@@ -220,6 +316,90 @@ async function runOnce({
   // Cut off by a switch: said so to the caller, once what it did is on record.
   stillInVault(guard);
   return entry();
+}
+
+/**
+ * Carries out a Claude step over the plan's notes (P29-03) and logs it: what
+ * it made, or — when it failed, having written nothing — why, as a run that
+ * could not. Either way the model it asked and how long it took are on record.
+ *
+ * Every note it was asked about is handled, whatever it proposed — nothing
+ * included: asking again about the same version costs a model's time and says
+ * the same. A failed run handles none, so a run by hand asks again; what a
+ * half-written run made is on record, and the proposals it made are not made
+ * twice. Past the notes one Claude run reads, the log says so and the rest
+ * wait for a run by hand.
+ */
+async function askClaude({
+  run,
+  ports,
+  target,
+  action,
+  at,
+  trigger,
+  went,
+  log,
+}: {
+  run: AutomationRun;
+  ports: AutomationPorts & { notePaths: readonly VaultPath[] };
+  target: RuleTarget;
+  action: Extract<AutomationRule['action'], { kind: 'claude' }>;
+  at: string;
+  trigger: RunTrigger;
+  went: readonly VaultPath[];
+  log: (entry: LogEntry) => Promise<void>;
+}): Promise<LogEntry> {
+  const { plan } = target;
+  try {
+    const { done, left, claude } = await runClaudeStep({
+      ports: ports.claude,
+      action,
+      paths: plan.paths,
+      fs: ports.fs,
+      index: ports.index,
+      markdown: ports.markdown,
+      notePaths: ports.notePaths,
+      rule: run.rule.id,
+      madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
+    });
+    const entry: LogEntry = {
+      kind: 'run',
+      at,
+      trigger,
+      done,
+      left: [...plan.passedOver, ...left],
+      capped: plan.capped,
+      ...(target.versions !== null && { versions: askedAbout(target) }),
+      ...(went.length > 0 && { went }),
+      claude,
+    };
+    await log(entry);
+    return entry;
+  } catch (cause) {
+    if (!(cause instanceof ClaudeStepFailed)) throw cause;
+    const failed: LogEntry = {
+      kind: 'failed',
+      at,
+      trigger,
+      // Already without this machine's paths; stripped again, a fix's URL would be taken for one.
+      problem: cause.message,
+      claude: cause.claude,
+      ...(cause.made.length > 0 && { done: cause.made }),
+    };
+    await recordGone(run, went);
+    await log(failed);
+    // Stopped by something other than the answer — a disk that refused — is raised once it is on record.
+    if (cause.interruption !== undefined) throw cause.interruption;
+    return failed;
+  }
+}
+
+/** The versions of the notes a Claude step was asked about: each handled, as it was read. */
+function askedAbout({ plan, versions }: RuleTarget): LoggedVersion[] {
+  const asked = new Set<string>(plan.paths);
+  return (versions ?? [])
+    .filter((version) => asked.has(version.path))
+    .map((version) => ({ ...version, wrote: false }));
 }
 
 /**
@@ -250,8 +430,9 @@ async function applyPlan({
   plan: AutomationPlan;
   today: string;
 }): Promise<PropertyOutcome> {
-  if (plan.paths.length === 0) return { done: [], left: [] };
   const { action } = plan;
+  // A Claude step with notes to read is asked before this; with none, it does nothing.
+  if (plan.paths.length === 0 || action.kind === 'claude') return { done: [], left: [] };
   if (action.kind === 'set') {
     const changes = plan.paths.flatMap((path) =>
       Object.entries(action.values).map(([key, value]) => ({

@@ -14,15 +14,22 @@
  * do: archive
  * ```
  *
- * What a rule may do is a short list: archive, or set properties to fixed
- * values. Anything else is refused rather than guessed at.
+ * What a rule may do is a short list: archive, set properties to fixed
+ * values, or ask Claude for proposals or one new note (P29-03). Anything else
+ * is refused rather than guessed at.
  */
 
-import { ARCHIVED_FROM_KEY, ARCHIVED_KEY, ARCHIVED_PRIOR_KEY } from '../archive/archive.ts';
 import { isRecord } from '../query/frontmatter-query.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
+import {
+  claudeActionFields,
+  describeClaudeAction,
+  readClaudeAction,
+  type ClaudeAction,
+} from './claude-step.ts';
 import { noteTriggerQueryProblem } from './note-trigger.ts';
+import { setKeyProblem } from './property-key.ts';
 import { parseSchedule, printSchedule, type Schedule } from './schedule.ts';
 
 export const AUTOMATION_MARKER = 'atlas';
@@ -36,7 +43,8 @@ export type SetValue = string | number | boolean;
 
 export type AutomationAction =
   | { readonly kind: 'archive' }
-  | { readonly kind: 'set'; readonly values: Readonly<Record<string, SetValue>> };
+  | { readonly kind: 'set'; readonly values: Readonly<Record<string, SetValue>> }
+  | ClaudeAction;
 
 /** What the person writes, or the editor holds: a rule without a home yet. */
 export interface AutomationDraft {
@@ -67,24 +75,12 @@ export interface BrokenAutomation {
   readonly problem: string;
 }
 
-/**
- * Keys a rule may not set: the archive's own stamp, Atlas's markers, and a
- * note's type — changing what a note is is not a property edit.
- */
-const RESERVED_KEYS = new Set(
-  ['atlas', 'id', 'type', ARCHIVED_KEY, ARCHIVED_FROM_KEY, ARCHIVED_PRIOR_KEY].map((key) =>
-    key.toLowerCase(),
-  ),
-);
-
-/** Names that, as a key of a plain object, reach its prototype rather than a property. */
-const PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
 /** The longest id a rule may have: it names a file. */
 const MAX_ID_LENGTH = 120;
 
-const KEY = /^[\p{L}_][\p{L}\p{N}_ -]*$/u;
 const UNUSABLE_IN_NAME = /[/\\:*?"<>|]|\p{Cc}/u;
+
+export { setKeyProblem };
 
 export function isAutomationNote(frontmatter: Readonly<Record<string, unknown>>): boolean {
   return String(frontmatter[AUTOMATION_MARKER] ?? '').trim() === AUTOMATION_MARKER_VALUE;
@@ -188,7 +184,7 @@ function readDraft(
         'A rule a note sets off acts on that note as it has just become: take olderThanDays out.',
     };
   }
-  const action = readAction(frontmatter['do'], frontmatter['set']);
+  const action = readAction(frontmatter);
   if (typeof action === 'string') return { problem: action };
   const enabled = frontmatter['enabled'] ?? false;
   // Anything but a checkbox's own value would be a guess at on or off, and a wrong "off" is silent.
@@ -212,13 +208,16 @@ function readAge(value: unknown): number | null | undefined {
 }
 
 /** The action, or why it cannot be one. */
-function readAction(verb: unknown, values: unknown): AutomationAction | string {
-  const word = String(verb ?? '')
+function readAction(frontmatter: Readonly<Record<string, unknown>>): AutomationAction | string {
+  const word = String(frontmatter['do'] ?? '')
     .trim()
     .toLowerCase();
   if (word === 'archive') return { kind: 'archive' };
-  if (word !== 'set')
-    return 'Say what it does: do: archive, or do: set with the values under set:.';
+  if (word === 'claude') return readClaudeAction(frontmatter);
+  if (word !== 'set') {
+    return 'Say what it does: do: archive, do: set with the values under set:, or do: claude.';
+  }
+  const values = frontmatter['set'];
   if (!isRecord(values) || Object.keys(values).length === 0) {
     return 'A rule that sets properties names them under set:, like set: {status: done}.';
   }
@@ -227,16 +226,6 @@ function readAction(verb: unknown, values: unknown): AutomationAction | string {
     if (problem !== null) return problem;
   }
   return { kind: 'set', values: { ...(values as Record<string, SetValue>) } };
-}
-
-/** Why a rule may not set this key, or null when it may. */
-export function setKeyProblem(key: string): string | null {
-  if (!KEY.test(key) || PROTOTYPE_KEYS.has(key))
-    return `“${key}” is not a property a rule can set.`;
-  if (RESERVED_KEYS.has(key.toLowerCase()) || key.toLowerCase().startsWith('atlas')) {
-    return `A rule cannot set “${key}”: Atlas keeps that one itself.`;
-  }
-  return null;
 }
 
 function setValueProblem(key: string, value: unknown): string | null {
@@ -270,7 +259,8 @@ export function draftProblem(draft: AutomationDraft): string | null {
 
 /**
  * A rule as its file's frontmatter, every key written so the file reads as
- * the rule; `set` is null for an archiving rule, which takes it out.
+ * the rule; `set`, and a Claude step's keys, are null for a rule without
+ * them, which takes them out.
  */
 export function automationFrontmatter(draft: AutomationDraft): Record<string, unknown> {
   return {
@@ -282,12 +272,13 @@ export function automationFrontmatter(draft: AutomationDraft): Record<string, un
     olderThanDays: draft.olderThanDays,
     do: draft.action.kind,
     set: draft.action.kind === 'set' ? { ...draft.action.values } : null,
+    ...claudeActionFields(draft.action.kind === 'claude' ? draft.action : null),
   };
 }
 
 /**
  * Whether carrying the action out would change a note holding these
- * properties. A note a set rule has already done is left out before the cap
+ * properties — always, for an action that does not set them. A note a set rule has already done is left out before the cap
  * is counted, so it cannot take the place of one still to do. Which notes an
  * archive rule cannot take is the plan's to say, and it says why.
  */
@@ -295,7 +286,7 @@ export function wouldChange(
   action: AutomationAction,
   properties: Readonly<Record<string, unknown>>,
 ): boolean {
-  if (action.kind === 'archive') return true;
+  if (action.kind !== 'set') return true;
   return Object.entries(action.values).some(
     ([key, value]) =>
       !Object.hasOwn(properties, key) || JSON.stringify(properties[key]) !== JSON.stringify(value),
@@ -305,6 +296,7 @@ export function wouldChange(
 /** The action in a few words, for the list: "Archive", "Set status to done". */
 export function describeAction(action: AutomationAction): string {
   if (action.kind === 'archive') return 'Archive';
+  if (action.kind === 'claude') return describeClaudeAction(action);
   const parts = Object.entries(action.values).map(([key, value]) => `${key} to ${String(value)}`);
   return `Set ${parts.join(', ')}`;
 }

@@ -4,19 +4,27 @@ import {
   handledVersions,
   isInPlay,
   MAX_ACTIONS_PER_RUN,
+  missedArrivals,
   noteRunsCappedProblem,
   unhandledVersions,
   type AutomationPlan,
   type AutomationRule,
   type DoneAction,
+  type HandledLedger,
   type LogEntry,
   type LocalTime,
+  type HandledVersions,
   type LoggedVersion,
+  type NoteTrigger,
   type NoteVersionRef,
   type VaultPath,
 } from '@atlas/domain';
 import { heldEntries } from '../index/refresh-index.ts';
+import type { IndexEntry, IndexPort } from '../index/ports.ts';
+import type { MarkdownPort } from '../notes/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
+import type { RuleLog } from './automation-log.ts';
+import { withHandledKeys } from './handled-keys.ts';
 import { matchedPaths, planMatched, planRun, type RuleQueryPorts } from './plan-run.ts';
 
 /** What a run acts on: the plan, and — for a rule notes set off — the versions it was made for. */
@@ -32,28 +40,42 @@ type PlanRule = Pick<AutomationRule, 'when' | 'which' | 'olderThanDays' | 'actio
  * What a rule would do now: what its dry run shows, and a run by hand does.
  *
  * A rule on a clock plans over every note its query matches. A rule notes set
- * off (P29-01) plans over the notes its query matches whose version now — as
- * the index last read it — its log has not handled: run by hand, it does what
- * it would have done had each of them just appeared — and so, where meeting
- * files land, on a meeting the import has let in and no other (#92), as the
- * feed has it. Rejects as `planRun` does.
+ * off (P29-01), or one that asks Claude (P29-03) on whatever trigger — a model
+ * is not asked twice for the same words — plans over the notes its query
+ * matches whose version now, as the index last read it, its log has not
+ * handled: run by hand, a note-triggered rule does what it would have done had
+ * each of them just appeared — and so, where meeting files land, on a meeting
+ * the import has let in and no other (#92), as the feed has it. Rejects as
+ * `planRun` does.
  */
 export async function planRuleNow({
   ports,
   rule,
   log,
+  ledger = null,
   today,
 }: {
   ports: RuleQueryPorts;
   rule: PlanRule;
   /** The rule's log; empty for a rule not yet saved. */
   log: readonly LogEntry[];
+  /** What the rule has handled beyond its entries; null for a log from before the ledger. */
+  ledger?: HandledLedger | null | undefined;
   today: string;
 }): Promise<RuleTarget> {
-  if (rule.when.kind !== 'note')
+  if (rule.when.kind !== 'note' && rule.action.kind !== 'claude') {
     return { plan: await planRun({ ports, rule, today }), versions: null };
+  }
   const matched = await matchedPaths({ ports, rule, today });
-  const versions = unhandledVersions(await versionsNow(ports, matched), handledVersions(log));
+  const held = await heldEntries(ports.index);
+  const handled = handledVersions(log, { ledger, holds: digestsHeld(held) });
+  const keyed = await withHandledKeys({
+    fs: ports.fs,
+    markdown: ports.markdown,
+    rule,
+    versions: versionsNow(held, matched),
+  });
+  const versions = unhandledVersions(keyed, handled);
   const plan = await planMatched({
     ports,
     action: rule.action,
@@ -91,17 +113,101 @@ export async function planForVersions({
  * The version of each note the index holds now, that a rule may hear: a note
  * it does not hold is left out, and so is one not let in where meeting files land.
  */
-async function versionsNow(
-  ports: Pick<RuleQueryPorts, 'index'>,
+function versionsNow(
+  held: ReadonlyMap<string, IndexEntry>,
   paths: readonly VaultPath[],
-): Promise<NoteVersionRef[]> {
-  const held = await heldEntries(ports.index);
+): NoteVersionRef[] {
   return paths.flatMap((path) => {
     const entry = held.get(path);
     return entry === undefined || !isInPlay({ path, importOutcome: entry.importOutcome })
       ? []
       : [{ path, digest: entry.digest }];
   });
+}
+
+/** What a path holds in the index now, for telling one note from another with the same bytes. */
+export const digestsHeld =
+  (held: ReadonlyMap<string, IndexEntry>) =>
+  (path: string): string | undefined =>
+    held.get(path)?.digest;
+
+/**
+ * What a rule has handled, as its log and ledger say and the index shows the
+ * notes now: read at the moment a run decides, so a note that moved is told
+ * from a different note with the same bytes.
+ */
+export async function handledNow({
+  index,
+  log,
+  held,
+}: {
+  index: IndexPort;
+  log: Pick<RuleLog, 'entries' | 'ledger'>;
+  /** The index's notes, when the caller has already read them. */
+  held?: ReadonlyMap<string, IndexEntry>;
+}): Promise<HandledVersions> {
+  const notes = held ?? (await heldEntries(index));
+  return handledVersions(log.entries, { ledger: log.ledger, holds: digestsHeld(notes) });
+}
+
+/**
+ * {@link handledNow} for the versions one sync reported, asking the index only
+ * when one of them might be handled: a feed with nothing the rule has seen
+ * costs it no query.
+ */
+export async function handledAmong({
+  index,
+  log,
+  versions,
+}: {
+  index: IndexPort;
+  log: Pick<RuleLog, 'entries' | 'ledger'>;
+  versions: readonly NoteVersionRef[];
+}): Promise<HandledVersions> {
+  const anywhere = handledVersions(log.entries, { ledger: log.ledger });
+  // Only words answered elsewhere need to know what the notes hold now.
+  const needsIndex = versions.some(
+    (version) => anywhere.has(version) && !anywhere.hasHere(version),
+  );
+  return needsIndex ? handledNow({ index, log }) : anywhere;
+}
+
+/**
+ * The meetings a `created` rule never ran on, though the import let them in
+ * since the rule was last saved (`missedArrivals` says which): read from the
+ * index as it is now and the rule's own file. A rule whose file cannot be
+ * read has none — there is no saying since when it has been listening.
+ */
+export async function arrivalsMissed({
+  fs,
+  markdown,
+  held,
+  rule,
+  trigger,
+  handled,
+}: {
+  fs: Pick<VaultFsPort, 'readTextFile' | 'readNotes'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+  held: ReadonlyMap<string, IndexEntry>;
+  rule: Pick<AutomationRule, 'path' | 'action'>;
+  trigger: NoteTrigger;
+  handled: HandledVersions;
+}): Promise<NoteVersionRef[]> {
+  let since: number;
+  try {
+    since = (await fs.readTextFile(rule.path)).modified;
+  } catch {
+    // Safe to go without: nothing is caught up with, and a run by hand takes what was missed.
+    return [];
+  }
+  const notes = [...held.values()].map((entry) => ({
+    ...entry,
+    path: createVaultPath(entry.path),
+  }));
+  const missed = missedArrivals({ trigger, notes, handled, since });
+  // A note whose words were answered at another version (Accept wrote its tasks) was not missed.
+  const keyed = await withHandledKeys({ fs, markdown, rule, versions: missed });
+  return unhandledVersions(keyed, handled);
 }
 
 /**

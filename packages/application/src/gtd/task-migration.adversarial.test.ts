@@ -182,7 +182,11 @@ describe('the migration under the task rules', () => {
 
 describe('an automation that sets a task’s status', () => {
   const TODAY = '2026-10-08';
-  const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T03:00:00` };
+  const CLOCK = {
+    today: () => TODAY,
+    localNow: () => `${TODAY}T03:00:00`,
+    now: () => Date.parse(`${TODAY}T03:00:00Z`),
+  };
   const GUARD: VaultGuard = { vault: '/vaults/home', currentVault: () => '/vaults/home' };
   const rule = (values: Record<string, SetValue>): AutomationRule => ({
     id: 'Close',

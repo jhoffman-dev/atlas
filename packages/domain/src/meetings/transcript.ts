@@ -57,6 +57,16 @@ const SELF = /^you$/i;
 const UNNAMED =
   /^(?:(?:unknown|remote)(?: speaker)?|speaker|guest|participant)(?: (?:\d+|[a-z]))?$/i;
 
+/** Whether a name is what a provider calls someone it could not name: `Unknown`, `Remote Speaker 2`. */
+export function isUnnamedSpeaker(written: string): boolean {
+  return UNNAMED.test(written.trim());
+}
+
+/** Whether a name is how a transcript writes the vault's owner: `You`. */
+export function isSelfSpeaker(written: string): boolean {
+  return SELF.test(written.trim());
+}
+
 function speakerOf(written: string, selfName: string | null): TurnSpeaker {
   if (SELF.test(written)) return { kind: 'self', name: selfName };
   if (UNNAMED.test(written)) return { kind: 'unknown' };

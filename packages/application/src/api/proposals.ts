@@ -119,7 +119,7 @@ function archived(path: VaultPath, outcome: ProposalArchived): ApiProposalArchiv
   };
 }
 
-function apiProposal({ proposal, modified }: ListedProposal): ApiProposal {
+function apiProposal({ proposal, modified, reason }: ListedProposal): ApiProposal {
   return {
     path: proposal.path,
     kind: proposal.kind,
@@ -127,6 +127,7 @@ function apiProposal({ proposal, modified }: ListedProposal): ApiProposal {
     confidence: proposal.confidence,
     source: proposal.source,
     madeBy: proposal.madeBy,
+    reason,
     payload: payloadRecord(proposal.payload),
     modified,
   };

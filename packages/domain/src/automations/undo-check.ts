@@ -39,6 +39,11 @@ const isSetValue = (prior: PriorValue): boolean =>
  * null when the rule could have done it.
  */
 export function loggedActionProblem(action: AutomationAction, line: DoneAction): string | null {
+  if (line.kind === 'proposed' || line.kind === 'created') {
+    return 'What a Claude step made is answered in the Inbox, or kept or deleted by you; undo leaves it.';
+  }
+  if (action.kind === 'claude')
+    return 'This rule asks Claude; it never archived a note or set a property.';
   if (line.kind === 'archived') {
     if (action.kind !== 'archive') return 'This rule sets properties; it never archived a note.';
     if (archiveRefusal(line.from) !== null || unarchiveRefusal(line.to) !== null) {

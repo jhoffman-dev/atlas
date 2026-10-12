@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { AUTOMATION_PRESETS, logPathFor, parseRunLog, type AutomationDraft } from '@atlas/domain';
+import {
+  AUTOMATION_PRESETS,
+  builtInPromptAt,
+  logPathFor,
+  MEETING_EXTRACTION_PROMPT,
+  parseRunLog,
+  type AutomationDraft,
+} from '@atlas/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { loadAutomations } from './load-automations.ts';
 import { runAutomation } from './run-automation.ts';
@@ -10,7 +17,11 @@ import { recordingActivity } from '../testing/fake-activity.ts';
 const ACTIVITY = recordingActivity();
 
 const TODAY = '2026-09-27';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T14:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T14:00:00`,
+  now: () => Date.parse(`${TODAY}T14:00:00Z`),
+};
 const PRESET = AUTOMATION_PRESETS[0]!;
 const PRESET_PATH = '.atlas/automations/Archive done tasks after 30 days.md';
 
@@ -148,5 +159,90 @@ describe('loadAutomations', () => {
     const [loaded] = (await load(vault)).automations;
     expect(loaded?.log.map((entry) => entry.kind)).toEqual(['turnedOn', 'run']);
     expect(parseRunLog(vault.files.get(logPathFor(rule!.id))!)).toEqual(loaded?.log);
+  });
+});
+
+describe('a ready-made rule whose prompt Atlas ships (P29-05)', () => {
+  const EXTRACTION = AUTOMATION_PRESETS.find((preset) => preset.action.kind === 'claude')!;
+  const SHIPPED = builtInPromptAt(MEETING_EXTRACTION_PROMPT)!.contents;
+
+  it('writes the prompt with the rule, so the rule runs as saved', async () => {
+    const vault = emptyVault();
+
+    const path = await create(vault, EXTRACTION);
+
+    expect(vault.files.get(MEETING_EXTRACTION_PROMPT)).toBe(SHIPPED);
+    const [loaded] = (await load(vault)).automations;
+    expect(loaded?.rule).toEqual({ ...EXTRACTION, id: EXTRACTION.name, path });
+  });
+
+  it('never writes over a prompt that is there: it is the person’s, edited or not', async () => {
+    const mine = 'Only what I promised.\n';
+    const vault = emptyVault({ [MEETING_EXTRACTION_PROMPT]: mine });
+
+    await create(vault, EXTRACTION);
+
+    expect(vault.files.get(MEETING_EXTRACTION_PROMPT)).toBe(mine);
+  });
+
+  it('keeps a prompt written in the moment between the check and the write, and fails on any other error', async () => {
+    const raced = emptyVault();
+    const { fs, markdown } = raced.ports;
+    const draft = { ...EXTRACTION, name: 'Raced' };
+    const racing = {
+      ...fs,
+      createNote: async (note: { path: string; contents: string }) => {
+        if (note.path === MEETING_EXTRACTION_PROMPT) {
+          raced.files.set(note.path, 'Written by a sync.\n');
+          throw new Error('that file already exists');
+        }
+        return fs.createNote(note as Parameters<typeof fs.createNote>[0]);
+      },
+    } as typeof fs;
+
+    await createAutomation({ fs: racing, markdown, clock: CLOCK, draft, takenPaths: [] });
+
+    expect(raced.files.get(MEETING_EXTRACTION_PROMPT)).toBe('Written by a sync.\n');
+    const broken = emptyVault();
+    const failing = {
+      ...broken.ports.fs,
+      createNote: async () => {
+        throw new Error('disk full');
+      },
+    } as typeof fs;
+    await expect(
+      createAutomation({ fs: failing, markdown, clock: CLOCK, draft, takenPaths: [] }),
+    ).rejects.toThrow('disk full');
+  });
+
+  it('writes it when a rule is edited to name it, and nothing for a prompt Atlas does not ship', async () => {
+    const vault = emptyVault();
+    const own = {
+      ...EXTRACTION,
+      name: 'Mine',
+      action: { ...EXTRACTION.action, prompt: '.atlas/prompts/mine.md' },
+    } as AutomationDraft;
+    await create(vault, own);
+    expect([...vault.files.keys()].filter((at) => at.startsWith('.atlas/prompts/'))).toEqual([]);
+    const [loaded] = (await load(vault)).automations;
+    const { fs, markdown } = vault.ports;
+
+    await updateAutomation({
+      fs,
+      markdown,
+      clock: CLOCK,
+      rule: loaded!.rule,
+      draft: { ...EXTRACTION, name: 'Mine' },
+    });
+
+    expect(vault.files.get(MEETING_EXTRACTION_PROMPT)).toBe(SHIPPED);
+  });
+
+  it('writes no prompt for a rule that asks Claude nothing', async () => {
+    const vault = emptyVault();
+
+    await create(vault);
+
+    expect([...vault.files.keys()].some((at) => at.startsWith('.atlas/prompts/'))).toBe(false);
   });
 });

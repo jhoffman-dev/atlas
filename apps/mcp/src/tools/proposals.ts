@@ -26,8 +26,9 @@ export const proposals = defineTool({
   title: 'List open proposals',
   description:
     "List the proposals waiting in Atlas's Inbox (Inbox/Proposals/), newest first: { proposals: " +
-    '[{ path, kind, headline, confidence, source, madeBy, payload, modified }], stranded, ' +
-    'unreadable }; "stranded" are answered but still in the Inbox. ' +
+    '[{ path, kind, headline, confidence, source, madeBy, reason, payload, modified }], stranded, ' +
+    'unreadable }; "stranded" are answered but still in the Inbox. "reason" is why it was ' +
+    'proposed — for an item taken from a meeting, whose it is and what to check first. ' +
     '"kind" is task, decision, follow-up, person, link, term or project; "payload" is what ' +
     'accepting writes; "source" is the block it cites, as [[Note#^id]], or null when it cites ' +
     'none. Show James what each would do and what it cites before accepting anything for him.',

@@ -1,4 +1,5 @@
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
+import { MEETING_EXTRACTION_PROPERTIES } from '../meetings/meeting-extraction-properties.ts';
 import { MEETING_IMPORT_PROPERTIES } from '../meetings/meeting-import-properties.ts';
 import { PROPOSAL_TYPE_FILES } from '../proposals/proposal-types.ts';
 import type { BuiltInTypeFile, TypeExtension } from './para.ts';
@@ -8,7 +9,7 @@ import type { ObjectType } from './property-def.ts';
 export interface InboxTypePlan<Type extends ObjectType = ObjectType> {
   /** The Proposal and Decision types the vault has no file for. */
   readonly missing: readonly BuiltInTypeFile[];
-  /** The vault's Meeting type, gaining the import's keys it does not declare. */
+  /** The vault's Meeting type, gaining the import's and the extraction's keys it does not declare. */
   readonly extensions: readonly TypeExtension<Type>[];
 }
 
@@ -17,7 +18,9 @@ const folded = (name: string) => name.trim().toLowerCase();
 
 /**
  * What a vault's types lack for the one Inbox (P29-02, P28-04): the Proposal
- * and Decision types, and the meeting import's keys on its Meeting type.
+ * and Decision types, and on its Meeting type the meeting import's keys and
+ * the relations a task or a decision taken from a meeting is linked back
+ * through (`tasks`, `decisions`, P29-05).
  * Additive only — a key the Meeting type already has is left as it is — and
  * never written without a yes: it is offered beside PARA's setup.
  */
@@ -33,7 +36,9 @@ export function inboxTypePlan<Type extends ObjectType>(
 
 function withImportKeys<Type extends ObjectType>(type: Type): TypeExtension<Type> | null {
   const has = new Set(type.properties.map((property) => property.key));
-  const added = MEETING_IMPORT_PROPERTIES.filter((property) => !has.has(property.key));
+  const added = [...MEETING_IMPORT_PROPERTIES, ...MEETING_EXTRACTION_PROPERTIES].filter(
+    (property) => !has.has(property.key),
+  );
   if (added.length === 0) return null;
   return {
     before: type,

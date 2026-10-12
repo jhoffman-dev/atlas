@@ -90,6 +90,53 @@ against the schema is a failed run, logged, with nothing written.
 declares as such (terminology correction is the first). Each records what it
 changed on the note and is undoable like any automation run.
 
+**What the Claude step is held to** _(Amended 2026-10-11, the review and
+adversarial pass of P29-03, #16.)_
+
+- **The notes are data in the system prompt, not the question.** Each is fenced
+  as `<vault_data note=…>`, its text and path neutralized as the chat's open note
+  is, cut to an equal share of a total budget. The Claude Code provider
+  renders the conversation as a transcript that neutralizes every framing tag,
+  so a fence in the question would have been taken down with the note's own
+  and left its words bare; in the system prompt the fence is Atlas's alone. The
+  question is one fixed line.
+- **Text and links only.** An answer's note, proposal body, "why", title and
+  properties may not load from elsewhere: no remote or by-reference picture,
+  no HTML that loads or embeds (`img`, `iframe`, `script`, `link`, a `src`,
+  `style` or `on…` attribute), no web address as a property's value. A picture
+  whose address holds what the model read is a way out of the vault seen by no
+  one; the whole answer is refused, with the reason. This does not cover what a
+  person, a sync or an import wrote: the app's own CSP and a way to allow a
+  remote picture are #101.
+- **Strict and small.** An unknown key at either level refuses the answer; a
+  proposal's payload carries `title`, `folder`, `properties`, `body` and
+  nothing that would edit a note (`link`, `link_from`, `meeting`, a digest) —
+  see "One writer, and the meeting a proposal came from" below for the one
+  link a schema may add itself. Title, body
+  and "why" have sizes, properties are few, flat and plain, and none is one
+  Atlas keeps. What the model authored is cut before it reaches a log line or
+  Activity.
+- **Where it writes.** A rule's folder, a proposal's folder and the action a
+  run is handed are all held to the proposals' refusals plus `Chats/`, the
+  depth the vault is read to and the length a disk takes; the run checks the
+  action again, and its prompt path, as the file that wrote it was checked.
+- **A citation names a block the model was shown**, outside a code fence, in
+  the text it was given before the cut. A meeting is cut between turns (a
+  turn is a paragraph ending in its id), never inside one, and a run that cut
+  a note says so in its log.
+- **A half-written run is on record.** Every note is planned (name cut to what a
+  disk takes, contents built) before the first is written. A write that then
+  fails is logged as a failed run listing what it made, and the disk's error is
+  raised. Each proposal carries a `proposal_id` (its rule, kind, title and cited
+  block), so a run again makes none twice — whether the first is still open or
+  was answered and archived. The key and the writer are P29-04's (#100): see
+  the addendum below.
+- **Asking costs, and the log says so.** A run that asked Claude counts toward the
+  hourly cap whatever it came back with, a failure included. A Claude step on
+  any trigger, not only a note's, skips a note version it has answered. A run
+  over more than ten notes says it read the first ten and the rest wait for a
+  run by hand, which takes them.
+
 **Every run is in Activity:** trigger, note, digest, step, outcome, model,
 duration, proposals made. Each rule has a run cap per hour.
 
@@ -144,6 +191,445 @@ same bytes — take an old meeting the import stamped for the new one.
   round it, an empty list as no stamp, an unknown one as `imported`.
 - News heard while the index opens is held and run once each, in the order
   it was heard (already so; now tested).
+
+### Addendum (2026-10-11): one writer, and the meeting a proposal came from
+
+_As built when the four post-processing changes were stacked: #97 (#92), #98
+(P28-06), #100 (P29-04), then #99 (P29-03)._
+
+- **One writer makes every proposal.** `planProposals` / `writeProposals`
+  (`application/proposals`) take a `NewProposal` and are the only code that
+  writes into `Inbox/Proposals/`; meeting linking and a rule's Claude step
+  both go through them, and the step's own writer is gone. A checked proposal
+  maps to a `NewProposal` field for field (`claudeNewProposal`). What the
+  step's writer did that was general moved in, so linking has it too:
+  everything is decided before the first write (names, numbered past the
+  folder's and each other's, and contents); an id given twice in one batch is
+  made once; the folder's own files are read for ids the index has not caught
+  up with; and a long name leaves room for the number a taken name gets.
+  What differs is what each does with a write that fails: linking writes the
+  rest and says which were left; a Claude step stops, fails the run, logs what
+  it had made, and raises the disk's error.
+- **The limits stay the step's.** Sizes, flat plain properties, no remote
+  resource, where it may write and the citation check are rules about a
+  model's answer, and are applied before the writer is reached. Linking's
+  proposals are built by Atlas from a meeting the import validated.
+- **No answer names a note to edit.** P29-04 gave a payload `link_from` and
+  `meeting` (provider, id), which Accept writes into a note already there. A
+  draft's payload with either — or a link's `note`, `link`, `digest` — is
+  refused, as is the kind `link`.
+- **A schema may link a proposal back to its source meeting** — the extension
+  point for P29-05 (#18). A schema declares `meetingRelations` (relations of a
+  meeting, fixed in code and checked when it is registered: not a key Atlas
+  keeps), and a draft says `joinsMeeting: '<one of them>'`. The shared check
+  then adds `link_from` itself: the note is the one the draft **cites** — a
+  note the run read — the property is the schema's, and the meeting's identity
+  is what the **run** read from that note's own frontmatter (`AnsweredNote
+.meeting`), and only for a meeting stamped `imported`. A draft naming a
+  relation its schema does not list, or citing a note that is not such a
+  meeting, is refused. Nothing in the answer can choose the note, the
+  property or the identity. Accept then does what it does for a person
+  proposed from a meeting: makes the note (a task also records its `source`
+  block), finds the meeting by its identity wherever it has been filed, and
+  adds the link — refusing a meeting that is archived, or another meeting now
+  at the old path. The meeting type must have the relation, or Accept refuses
+  the link; `proposals`, the general schema, declares none.
+- **A Claude step on "a meeting is created" needs nothing new.** The import
+  links a meeting, then corrects and stamps it in one write (ADR-0027), and a
+  note where meetings land is heard only from the version that first carries
+  `imported` (the addendum above). So the step is asked once, about the
+  linked and corrected meeting; a duplicate or refused file never asks; the
+  import's writes are not a `changed` to any rule; and the step's proposals
+  are not meetings, are never handed to a Claude step, and are made once by
+  their ids even when the rule's log is lost.
+- **The log says when a note was cut.** A note longer than its share (20,000
+  characters, or an equal share of 120,000 across the run's notes) is shown
+  from its start. The run's `claude` line is followed by
+  `- cut "<path>": read <shown> of <total> characters` for each, the summary
+  says so, and the log API carries it as `claude.cut`. Chunking a long
+  transcript is left to P29-05, which now has the fact to decide on.
+
+### Addendum (2026-10-11): after the adversarial pass on the stack
+
+_As built on #99 after an adversarial pass over the four stacked changes
+(`claude-step.stack.adversarial.test.ts`, `claude-step.stack.test.ts`,
+`source-meeting.adversarial.test.ts`, `use-automations.held-news.adversarial
+.test.tsx`, `use-automations.catch-up.test.tsx`). The import's side of the same
+pass is in ADR-0027._
+
+- **"Not asked twice for the same words" holds wherever the note goes.** A
+  rule's history is by path, and a path a note left has none — right for a
+  rule that sets or archives (a new note there is new), wrong for a Claude
+  step: a meeting filed out of the Inbox, not a byte changed, was asked about
+  again by Run now. The digest of a version a run **asked Claude about** is
+  now handled at whatever path those bytes are (`handledVersions`); the log
+  needed no new line, since a Claude run's entry already holds the digests. A
+  failed step answered nothing. A meeting edited after it was answered is
+  another version, as it is in place: Run now asks about it. Keying by the
+  meeting's provider and id as well was considered and left out — it would
+  make a filed, edited meeting behave differently from one edited where it
+  landed.
+- **A proposal's id comes from what it cites, not how the citation was
+  written.** The id was a hash of the rule, kind, title and the `source` text,
+  so `[[Standup#^t1]]` and `[[Inbox/Meetings/Standup#^t1]]`, or the same turn
+  once the meeting was renamed, were two proposals. A checked proposal now
+  carries `cites` — the note the link resolved to among those the run read,
+  that note's meeting identity when the import vouches for it, and the block
+  id — and the id is the rule, kind, normalised title and that: a let-in
+  meeting by provider and id (filing and renaming do not change it), any
+  other note by its path (renaming such a note does change it). `source`
+  still shows the link as the model wrote it. **Every id a Claude step made
+  before this changes**; nothing was released, so nothing is migrated — an
+  open proposal from an earlier build could be made once more.
+- **A title two notes share is not a citation.** A link by bare title that
+  matches more than one of the notes the run read is refused, with words
+  telling the model to cite by path (`[[Folder/Note#^id]]`), which the step's
+  instructions now also say. It was first-wins by the order the notes were
+  read in, which for `joinsMeeting` chose the meeting Accept writes to. A
+  target that is a note's whole path names that note alone.
+- **A meeting is cut by turns whatever its line endings.** The blank line
+  between turns is now found in a CRLF file too; before, such a meeting past
+  the limit was shown as nothing at all.
+- **One reader of "is a meeting".** `isMeetingType` (a list, any case, as the
+  index counts it) is what linking, correcting a meeting's terms and a Claude
+  step's `AnsweredNote.meeting` all read. The identity keeps the provider as
+  written and trims the id, as `sameMeetingIdentity` and the holders query
+  compare them — a trimmed provider would name a meeting Accept cannot find.
+- **A re-ask that finds everything made says so.** The run's `claude` record
+  carries `alreadyMade` (an `- already made` line with the count, in the log) and its summary
+  reads "Nothing new to propose (2 already made)." instead of "Claude proposed
+  nothing."
+- **News let go is said.** A rule held back keeps 20 syncs' news, and news
+  heard before the rules can run is kept to 20 as well; past that the oldest
+  went silently. Each one let go is now counted and, within the minute, said
+  once per rule: in Activity (a warning) and as a `letGo` entry in the rule's
+  log, with how many and that Run now takes the notes they named. It is not a
+  run: it counts toward no cap and no schedule. News dropped before any rule
+  could hear it is counted against every enabled note-triggered rule, since
+  it may have been any of theirs.
+
+#### Catching up when Atlas opens
+
+An arrival is heard in memory. Quit between the import's stamp reaching the
+feed and the rule's run — or while the rule was held back, or mid-run — and
+on relaunch the feed has nothing to say: the meeting is already `imported` in
+the index, so `created` is never heard, and the meeting waited for a run by
+hand for ever.
+
+- **What is caught up with.** Once per vault opened, on the Mac that runs its
+  automations, with the index ready: for each enabled rule whose trigger
+  includes `created`, the notes in `Inbox/Meetings` that are of the rule's
+  type, stamped `imported`, **last written after the rule's own file was**,
+  and of which the rule's log holds nothing — no version at that path, and
+  not those words (`missedArrivals`, domain; `runOnMissedArrivals`,
+  application). They are run on as the feed's news would have been: the
+  rule's query among them, the per-run cap (10 for a Claude step; the log
+  says when it stopped short, and the next opening takes the rest), and the
+  hourly cap — held by it, the look is kept in the rule's queue like news and
+  runs when the pause ends.
+- **Why "since the rule's file was last written".** Nothing in a meeting says
+  when it was let in, and a `created` rule must not act on what was there
+  before it existed or was turned on. The import's stamp is the last write to
+  a meeting until someone edits it, and turning a rule on or saving it writes
+  its file; both times come from the same disk, so no clock is converted. It
+  is read from the index's manifest and one read of the rule's file.
+- **What it gets wrong, knowingly.** A meeting let in, then the rule edited,
+  then Atlas quit before the run: left out (Run now takes it). An old meeting
+  still in the Inbox, never handled, edited after the rule was saved: taken
+  as an arrival once. A pull that rewrites the rule's file moves its time
+  forward. A rule that only sets a property and found nothing to change logs
+  nothing, so it looks again each opening, and again changes nothing.
+- **A fresh clone or a restore.** The rule's file is written when the vault
+  is cloned or restored, which can be before `Inbox/Meetings` is: every
+  meeting there then looks written after the rule, and the log of a clone has
+  no entries to say it was handled (the log is a file too, but a restore from
+  an older copy may bring an older one). Those meetings count as arrivals the
+  first time Atlas opens. It is bounded by the per-run cap (10 for a Claude
+  step, the rest taken by later openings — each of which is then in the log —
+  or ignored by Run now), by the hourly cap, and by the ledger's floor when
+  its log is intact; it is not prevented.
+- **Only the meeting case.** Elsewhere a note's arrival is the feed's `added`,
+  and what was added while Atlas was closed is reported by the first sync
+  after opening (the index's manifest is the baseline), so nothing is lost
+  across a relaunch except what was already heard and held — which Run now
+  takes. A general catch-up ("notes matching the rule, appeared since its
+  last run, with no handled version") would need an arrival time the files
+  do not hold; it is left out.
+
+#### The handled ledger
+
+The rule's log keeps its last 100 entries, so it cannot also be what a rule
+remembers having handled: a meeting whose run aged out would be asked about
+again at every opening, and sixty "news let go" notices were enough to push
+sixty runs out. What a rule has handled lives in a **ledger**, a section at
+the top of the same log note, written in the same write as the entry that
+changed it and never counted among the entries a log drops:
+
+```markdown
+## Handled so far
+
+<!-- atlas:handled-ledger v1 -->
+
+Atlas keeps this list so the rule remembers what it has handled after old entries leave this log. Leave it as it is.
+
+- through `"2026-10-08T09:00:00"` `"5e6f7a8b"`
+- records `2`
+- vouches from `"2026-07-01T00:00:00.000Z"`
+- handled `"Inbox/Meetings/Standup.md"` `"2026-10-08T16:00:00.000Z"`: `["1a2b3c4d"]`
+- answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T16:00:00.000Z"`: `["1a2b3c4d","meeting:larkspur:m-1042:body:9f8e"]`
+```
+
+- **How it is found.** One locator serves the reader and the writer: a
+  section whose `## Handled so far` heading starts its line and whose very
+  next line is the marker `<!-- atlas:handled-ledger v1 -->`. The marker is
+  what makes it Atlas's; a section a person titled the same is theirs, is
+  never read or replaced, and stays in the file beside the ledger. The `v1`
+  names the format: a marker of another version is a ledger this Atlas
+  cannot read, which counts as damaged (below) and is replaced by a `v1`
+  one. Two ledger sections are merged into one (and also count as damaged).
+- **`handled` lines** are the versions handled (or left by the rule's own
+  write) at a path, newest last, **at most 5 per note**, with when the path
+  was last recorded. A path the log says went, or that the run archived, is
+  removed, exactly as the entries' reading did.
+- **`answered` lines** are the words a Claude step was asked about: the path it
+  was answered at, when, and **a list of keys** — the whole-file digest
+  first, then any key the rule's schema supplies (at most 8, none over 256
+  characters). A log entry's version line carries those as
+  `… at `"digest"`also`["meeting:larkspur:m-1042:body:9f8e"]``; the ledger
+  carries them forward. A version is answered if any of its keys is one an
+  answered line holds, wherever the note is now, whatever else changed.
+  **A schema key must be unique to the thing answered**: it MUST include the
+  note's identity, as `meeting:<provider>:<external_id>:body:<digest>` does,
+  and never be a bare body digest, which two notes can share. Atlas enforces
+  only the minimal shape (non-empty, a `:` with something on each side) and
+  drops a key without it, both when it records and when it matches; the
+  producer of the meeting key lands with the meeting-items schema (#102).
+  Catch-up (`missedArrivals`) honours keys as the feed's path does and hands
+  them on with the versions it returns.
+- **Times are real instants.** Every time the ledger holds — a record's, and
+  the `vouches from` floor — is UTC, from the clock the use-case was handed
+  (`appendToRuleLog` takes `now`), and is compared with a file's modified
+  time, which is an instant too. An entry's heading is the person's wall
+  clock (`2026-10-08 09:00:12`), kept for reading; nothing compared with a
+  file's time is derived from it. (A wall-clock read as UTC is off by the
+  zone's offset, which hid a meeting never asked east of UTC, and asked one
+  again west of it.) An entry from before this, with no zone to read it by,
+  is taken at the earliest instant it could be (14 hours before it read as
+  UTC), so a floor made from it is never later than the truth.
+- **Pruned by age, count and bytes**, oldest first: records older than 90
+  days by the clock's `now`, then past 2000, then past 96 KB for the whole
+  section (well under the log's 256 KB, whose budget counts it). Pruning
+  sets `vouches from` to the newest time it forgot, never later than `now`.
+  Catch-up (`missedArrivals`) never reaches behind it: it considers a meeting
+  only if written after both the rule's file and that floor, since a meeting
+  last written before what the ledger forgot cannot be vouched for. Age is
+  measured only against the injected clock: an entry that claims a time long
+  after it (a clock that jumped) cannot age the ledger or floor catch-up.
+- **What it has folded in: `through`.** The line names the last log entry the
+  ledger had absorbed (its heading time and a digest of its text). An Atlas
+  that does not know the ledger — a second Mac not yet updated, a rollback —
+  still appends runs to the log. On read and on append, the entries after
+  `through` are laid over the ledger, oldest first, so they are never
+  forgotten. If the named entry is gone (that Atlas dropped it), the entries
+  written after its time are laid over. Entries at or before `through` are
+  not replayed, so what the ledger let go or pruned stays gone.
+- **A damaged ledger.** `records` says how many `handled` and `answered`
+  lines were written, so a line lost is told from one never there. A line
+  that does not read, a count that does not match, a missing `through`, two
+  ledgers or an unknown version make the ledger _damaged_: it is not
+  trusted to have folded anything in, so every entry still in the log is laid
+  over it (recovering what the log still says), and it vouches for nothing
+  until it is written again — a reader treats the floor as ahead of every
+  note, so no catch-up runs. The next write mends it: the floor is set to
+  that moment (`vouches from` now), the section is rewritten clean, and
+  Activity says once that the list was damaged and rebuilt. Meetings written
+  before then that the log does not show are not asked about; a run by hand
+  takes them.
+- **A log without a ledger** (written before this) behaves as it did: the
+  ledger is built from its entries the first time it is added to, and read
+  from them until then. If it already held 100 entries it may have dropped
+  some, so it vouches only from its oldest. A ledger a person deleted is
+  built again from whatever entries remain.
+- **Let-go notices fold**: a `letGo` entry written right after another joins
+  it, the counts summed, so a burst is one entry and costs the log no run.
+- **A different note with the same bytes is not answered.** Words answered at
+  a path are the note's alone while that path still holds them: another note
+  (two tasks from one template) is asked about. Once the answered path holds
+  other bytes or none — the note was filed, renamed or edited — those words
+  at any path are taken as answered. A note carrying one of the answered
+  version's schema keys (the same meeting identity) is the same note wherever
+  it is. The path's current digest is read from the index when a run decides,
+  and only when a version is handled but not at its own path.
+
+#### Known behaviour, left as designed
+
+- **One bad item refuses the whole `proposals` answer.** The general schema is
+  all or nothing: a single item that cites nothing real, or carries a key it
+  was not asked for, fails the run with nothing written.
+- **Two rules that propose the same item each make their own proposal.** An id
+  includes its rule, so two rules reading one meeting can both propose "Send
+  Mara the file"; they are answered separately.
+
+### Addendum (2026-10-11, P29-05, #18): meeting extraction
+
+_As built on the stack above: the `meeting-items` output._
+
+- **A second output, through the extension point.** `output: meeting-items`
+  asks for `{ "items": [ … ] }`, each `{ kind: task | waiting | decision |
+follow-up, title, owner, due?, source_block, confidence }`. The model says
+  what and who in words; what a proposal then does is decided in the domain
+  (`automations/meeting-items.ts`, `meeting-item-owner.ts`).
+- **Mine, or waiting for.** The owner an item names is read against the
+  meeting's attendees, the vault's people and the profile (`vault-owner.ts`,
+  `matchAttendees` — the linking code's own). `You`, the profile's name, or a
+  name or address the owner's Person note holds: a task at `inbox`. Anyone
+  else: a task at `waiting` with `waiting_on` a link to their Person note —
+  or, when the vault has none, or several it could be, their name as text,
+  which the card says. A `decision` is a note of the built-in Decision type,
+  naming its meeting. A `follow-up` is an `inbox` task tagged `follow-up`,
+  whoever was named. The model's `task` / `waiting` is a hint; the owner
+  decides.
+- **Attribution that rests on a guess is low confidence, whatever the model
+  claimed.** Nobody named (blank, or what a provider calls a speaker it could
+  not name): an Inbox task with an empty `waiting_on` to fill in on the card's
+  Edit. A cited turn whose speaker is unnamed: whoever was named is a guess.
+  Called a waiting-for but owned by the owner: the two disagree. Each says so
+  in the proposal's body, which the Inbox card now shows under its headline
+  (`reason` in `GET /v1/proposals`); a low-confidence card is marked down its
+  edge.
+- **Every item cites one transcript turn, and a missing one drops the item,
+  not the answer.** `source_block` is a turn's id (`t0004`); Atlas writes the
+  link. Only a turn of the Transcript the model was shown counts — not the
+  summary, not the provider's next steps, not a turn in another part. This is
+  the one exception to "one bad item refuses the answer", and a schema has to
+  ask for it (`ProposalSchema.dropped`): the item is left out, the rest are
+  kept, and the run's log names each (`- dropped "<title>": <why>`,
+  `claude.dropped` in the log API, and the summary Activity repeats). Anything
+  else wrong with an item still refuses the whole answer.
+- **One meeting per ask.** Which meeting an accepted task joins follows from
+  the turn it cites, so an answer about two meetings could file one's task
+  under the other, and two meetings of one title could not be told apart. A
+  `meeting-items` run asks about each note alone, and the schema leaves out
+  every item of an answer checked against more than one note.
+- **A long meeting is read in parts, not cut.** Chosen over "say only the
+  start was read": at 20,000 characters a note, most real meetings would have
+  lost most of their transcript. Each part is the meeting's head (frontmatter
+  and every section before the transcript, so the hints ride along) and as
+  many whole turns as fit in 20,000 characters, with a line saying which part
+  it is; parts do not overlap. A run makes at most ten asks
+  (`CLAUDE_ASKS_PER_RUN`, the number of notes one run may read): every note
+  gets one, and the rest go to long meetings in order. Past that the rest of a
+  meeting is not read, and the log says so with the existing `- cut` line and
+  summary. The log says how many times it asked (`- asked 3 times`,
+  `claude.asks`). Every answer is read before anything is written: one that
+  does not read fails the run with nothing made, naming the ask. Superseded
+  below: the hourly cap counts asks. Not done: no
+  overlap between parts, so a commitment made across a part's edge may be
+  missed; and a hint whose turn is in another part can only be dropped there.
+- **What the model is told beside the meeting is data.** The schema gives
+  (`dataFor`) who the vault's owner and the attendees are, the provider's own
+  next steps as hints, and the Terms vocabulary's right spellings; the prompt
+  builder fences each as `<vault_data about=…>`, neutralised as the notes are.
+  The run reads the people, the terms and the profile's name itself
+  (`readsVault`) — never from the answer.
+- **The prompt ships with the rule.** `.atlas/prompts/meeting-extraction.md`
+  is a prompt Atlas has the text of (`built-in-prompts.ts`). It is written
+  when a rule that names it is saved — the Automations page offers the rule
+  ready-made, "Pull actions and decisions out of a new meeting" — and only
+  where there is no note: nothing is written into a vault without that yes,
+  and a prompt that is there is the person's.
+- **The Meeting type gains `tasks` and `decisions`** (relations, many), which
+  `joinsMeeting` links through. A vault's Meeting type is offered them beside
+  the import's keys; without them Accept is refused, saying the meeting has no
+  such relation, and nothing is written. A Decision also carries `meeting`, its own link forward.
+- **A meeting is one however its `type:` is written.** The step and linking
+  read it with one reader (`isMeetingType`): a list, or another case.
+
+#### Review pass on meeting extraction (PR #102)
+
+_As built after review and an adversarial pass. Where it differs from the
+bullets above, this wins._
+
+- **Who owns an item is read, not guessed.** `You` (with a full stop, or a gloss
+  such as `(Mara Quill)`), the profile name in its spellings (`Last, First`,
+  case), its first name when no other attendee has it, and any address on the
+  owner's Person note (`a@b`, `Name <a@b>`) are the owner. `We`/`us` is the
+  owner's, at low confidence. `Everyone`, `The team`, `All`, `Not sure`, `TBD`
+  are nobody. `[[People/X|Y]]` reads as X. An address matches an attendee or a
+  Person. Two owners (`You and Tobias`) are not split into two items: it is the
+  owner's one task, low, naming the other in the reason (no owner among them: a
+  task with an empty `waiting_on`, saying who it could be). A first name two
+  attendees share, or a name several Person notes could be, is ambiguous: an
+  Inbox task with an empty `waiting_on`, low, and the card lists who it could be
+  (never "no Person note yet"). A group attendee or address is never a
+  waiting-for owner. A name in no attendee list and no Person note is low.
+- **Who spoke the turn caps the card.** A cited turn with no named speaker makes
+  the owner a guess (low) and a decision or follow-up low. A turn spoken by a
+  named person who is neither the task's owner nor the vault's owner makes it
+  medium at most: they may be asking you, or speaking of a third person. A turn
+  the owner spoke, or the vault's owner handing a task out, raises no doubt. The
+  rule is deliberately simple; "someone addressing the owner" is not detected.
+- **An item's own fault is the item's, not the answer's.** A kind, owner,
+  confidence, title or `source_block` that does not read, an owner over 120
+  characters, an item that is no object: the item is dropped and logged
+  (`- dropped`). A `due` that is no date, an impossible day, or more than five
+  years from the meeting's date (a year 2000–2100 when the meeting has none):
+  the item is kept with `due` removed and one step less confidence, and logged
+  (`- adjusted`, `claude.adjusted`). Unparseable JSON, an unknown key and more
+  than 25 items in one answer still refuse the whole answer.
+- **At most 25 proposals a run**, across parts, in transcript order (the answer's
+  items are put in the order of the turns they cite); the rest are left out and
+  the log says how many (a `dropped` entry).
+- **The hourly cap counts asks.** A run spends one for each time the model was
+  asked (`claude.asks`, now recorded from the first ask), and nothing when it
+  never asked (a prompt that could not be read, a provider not ready, a prompt
+  note over 20,000 characters, a system prompt over 450,000 bytes). A run may
+  take the rule past the cap by its own asks (at most ten); the next is held.
+- **One deadline for the run: ten minutes**, for all its asks (not five minutes
+  each), since a long meeting asks up to ten times.
+- **A meeting with no transcript turn is not asked about**; its note is in the
+  entry's `left` with why, and it is handled like any asked note. A meeting the
+  import did not let in is read, and its proposals are made without
+  `link_from`, saying so in the reason (the run does not fail).
+- **Chunking.** A part's head is fence-safe and bounded to half the room: if the
+  Summary, Notes and next steps exceed it the Notes are cut at a line, any open
+  code fence is closed, and a line says so; the Transcript heading is found by
+  the same section reader as the import's contract (`splitMeetingSections`), so
+  a `## Transcript` inside a fence is no heading. Each later part opens with the
+  last two turns of the part before, quoted (`>`) with their ids removed, so
+  they give context and cannot be cited. The data block stays after the notes (a deliberate
+  order, tested: the meeting is read first); putting it first for caching was
+  considered and left, since it would move the vault's text nearer the question.
+- **A proposal is known by the meeting, not by the rule.** The id of a
+  `meeting-items` proposal is the meeting (provider and id), the turn, the kind,
+  the normalised title and the normalised owner (`self`, a person's name, `?`
+  for an ambiguous name, empty for nobody): two rules, or a rerun, make each
+  once, and two owners of one title on one turn are two proposals. Other
+  schemas keep the rule in the id.
+- **Accept makes its own record.** "A note is already there, so link it" now
+  applies only to a person. A task, follow-up or decision takes the next free
+  name (`Send the notes 2`) and links that note; it never links an existing
+  note in its place, and Accept never answers "accepted" having written nothing.
+  A task waiting on a Person note that has since been renamed or deleted is
+  **refused** (a `conflict`), not accepted with the name as text: a link to
+  nothing would read as waiting on nobody, and Edit fixes it in one step.
+- **Undo is all or nothing.** Every write of the accept is checked before any is
+  taken back; if the meeting changed since (a second accept wrote its `tasks`),
+  the undo is refused with nothing changed. Otherwise the meeting's link goes
+  first, then the task.
+- **Accepting does not make a meeting new.** A schema may name what a note is
+  answered by besides its whole-file digest (`ProposalSchema.handledKeyOf`);
+  `meeting-items` names its **body** digest, as `meeting:<provider>:<external_id>:body:<digest>` — keys match across paths, so a bare digest would make two meetings with the same words one; a meeting the import did not vouch for has none. The key rides on the version as one
+  of the ledger's extra keys (`withHandledKeys`: when planning a run, hearing
+  the feed and catching up at open; no other persistence), so Accept writing
+  the meeting's `tasks`/`decisions` — frontmatter only — is not new words and
+  Run now after an accept asks nothing. An edit to the words is new.
+- **The run warns, once**, when the Meeting type lacks the `tasks` or `decisions`
+  relation (`claude.warnings`, a `- warned` log line, Activity): the proposals
+  are made, and Accept refuses them until the type has the relations.
+- **Not done:** no overlap beyond the two quoted turns; "addressing the owner"
+  is not detected; a compound owner among others (`Tobias and Lena`) is not
+  split into two tasks.
 
 ## Consequences
 
