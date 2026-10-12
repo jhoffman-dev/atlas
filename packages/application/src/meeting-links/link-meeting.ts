@@ -19,6 +19,7 @@ import {
 } from '@atlas/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { changeProperties, type PropertyChange } from '../automations/apply-changes.ts';
+import { meetingTextAsCorrected } from '../meetings/meeting-corrections.ts';
 import { validateMeetingFile } from '../meetings/meeting-reading.ts';
 import { writeProposals } from '../proposals/write-proposals.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
@@ -58,7 +59,9 @@ export class MeetingLinkRefusedError extends Error {
  *
  * Its attendees are matched against the vault's people and companies, and
  * its transcript's named speakers against its people (`planMeetingLinks`
- * says how). What is sure is added to the meeting's `people` and `companies`
+ * says how) — the speakers as the vocabulary corrects them (P28-06), whether
+ * or not the meeting's words have been corrected yet, so the order of the two
+ * steps does not change who is linked. What is sure is added to the meeting's `people` and `companies`
  * — the only keys it writes — recording what each held before, so
  * {@link undoMeetingLink} can put it back. A meeting with unsaved typing, or
  * changed since it was read, is left as it is, and said. What is unsure is
@@ -111,7 +114,9 @@ async function planFor({
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const { people, companies } = await loadLinkDirectory({ index: ports.index });
   const matching = matchAttendees(attendeesOf(read.properties), people, companies);
-  const speakers = speakersOf(ports, read.text, people);
+  // As corrected (P28-06): the import corrects in its stamp write, after this, so a misheard speaker is read as it will arrive.
+  const spoken = await meetingTextAsCorrected({ ports, text: read.text });
+  const speakers = speakersOf(ports, spoken, people);
   const entities = linkedEntities(matching, speakers);
   const ties = await loadProjectTies({ index: ports.index, meeting: path, entities });
   const projects = rankProjects(ties);

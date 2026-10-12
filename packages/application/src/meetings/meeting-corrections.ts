@@ -76,6 +76,28 @@ export function correctedMeeting({
   };
 }
 
+/**
+ * A meeting's text as it reads once its words are corrected: what a step that
+ * runs before the import's stamp write reads, so it sees the names the
+ * meeting arrives with — a misheard speaker as the person the vocabulary says
+ * it is. A meeting read before (corrected, undone or found clean) is as it
+ * is, and the vocabulary is not asked for. Nothing is written.
+ */
+export async function meetingTextAsCorrected({
+  ports,
+  text,
+}: {
+  ports: Pick<MeetingCorrectionPorts, 'markdown' | 'index'>;
+  text: string;
+}): Promise<string> {
+  const { frontmatter } = splitFrontmatter(text);
+  if (wasCorrected(readFrontmatter(ports.markdown, frontmatter).properties)) return text;
+  const { vocabulary } = await loadTerms({ index: ports.index });
+  const corrected = correctedMeeting({ markdown: ports.markdown, text, vocabulary });
+  if (corrected === null || corrected.count === 0) return text;
+  return (frontmatter ?? '') + corrected.body;
+}
+
 /** What correcting one meeting did: the change list it holds, and whether this call wrote it. */
 export interface MeetingTermsCorrection {
   readonly records: readonly CorrectionRecord[];

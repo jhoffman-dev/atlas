@@ -13,9 +13,10 @@ import {
 /**
  * Imports meetings (P28-04): every refresh of the index says which notes it
  * found, and the meeting files among them are settled; and once the index is
- * ready, every meeting file not settled yet is. Each meeting let in is then
- * linked to its people, companies and likely project (P29-04) — once, as it
- * is let in. The rules are the use-cases'; this connects them to the window.
+ * ready, every meeting file not settled yet is. Each meeting let in is
+ * linked to its people, companies and likely project (P29-04) — once, just
+ * before the write that corrects and stamps it. The rules are the
+ * use-cases'; this connects them to the window.
  *
  * Only on the Mac that runs the vault's automations (`active`), so two Macs
  * never write the same file. It catches up when the vault opens there, and
