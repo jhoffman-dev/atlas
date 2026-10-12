@@ -47,10 +47,11 @@ describe('a term’s variants as one line of text', () => {
     expect(variantsFromInput('the "QD", x')).toEqual(['the "QD"', 'x']);
   });
 
-  it('drop blanks, and keep a repeat in any case once, as first typed', () => {
-    expect(variantsFromInput(' lark spur ,Larks  Burr,, ,"",LARK SPUR')).toEqual([
+  it('drop blanks and keep a repeat once, but a spelling in another case is another', () => {
+    expect(variantsFromInput(' lark spur ,Larks  Burr,, ,"",LARK SPUR, lark  spur')).toEqual([
       'lark spur',
       'Larks Burr',
+      'LARK SPUR',
     ]);
     expect(variantsFromInput('')).toEqual([]);
   });

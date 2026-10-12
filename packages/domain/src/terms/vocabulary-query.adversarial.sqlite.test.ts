@@ -43,8 +43,8 @@ describe('a person whose note declares a second type first', () => {
   // `@` mentions (index.rs `notes_of_type`) and the Person type page (the query
   // language's EXISTS over every `type` item) both count `type: [contact, person]`
   // as a person. The vocabulary reads only the first item, so this person's
-  // name and aliases are never put right.
-  it('is still a person in the vocabulary, name and aliases', () => {
+  // name is never left out.
+  it('is still a person in the vocabulary, by name', () => {
     const { note, run } = index();
     note('People/Mara Quill.md', 'Mara Quill', {
       type: ['contact', 'person'],
@@ -56,6 +56,6 @@ describe('a person whose note declares a second type first', () => {
     expect(sources.people.map((person) => person.name)).toEqual(['Mara Quill', 'Tobias Fenn']);
     expect(
       vocabulary(sources).entries.map((entry) => `${entry.form} → ${entry.canonical}`),
-    ).toContain('Mara Quil → Mara Quill');
+    ).toContain('Mara Quill → Mara Quill');
   });
 });

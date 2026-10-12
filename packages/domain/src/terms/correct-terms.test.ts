@@ -17,17 +17,41 @@ const person = (name: string, aliases: readonly string[]): NamedEntity => ({
   aliases,
 });
 
-/** Larkspur Pay is misheard two ways; Mara Quill once; Tobias Fenn has no aliases at all. */
+/**
+ * Larkspur Pay is misheard two ways; Mara Quill once, by a term; Tobias Fenn is
+ * a person with a nickname that is only an alias, which is never corrected.
+ */
 const VOCABULARY = vocabulary({
   terms: [
     term('Larkspur Pay', ['Lark Spur Pay', 'Larks Burr']),
     term('Q3', ['queue three', 'kyu3']),
+    term('Mara Quill', ['Mara Quil']),
   ],
-  people: [person('Mara Quill', ['Mara Quil']), person('Tobias Fenn', [])],
+  people: [person('Mara Quill', ['Mara Quil', 'Quill']), person('Tobias Fenn', ['Toby'])],
   companies: [],
 });
 
 const corrected = (text: string) => correctTerms(text, VOCABULARY).text;
+
+describe('correctTerms, at scale', () => {
+  it('reads a long text against thousands of spellings in time that does not grow with them', () => {
+    const terms = Array.from({ length: 5000 }, (_, at) =>
+      term(`Termo${at} Alpha`, [`Ter Mo${at}`]),
+    );
+    const large = vocabulary({ terms, people: [], companies: [] });
+    const line = 'We went over Ter Mo41 and Ter Mo4999 and the rest of the plan for the quarter.\n';
+    const text = line.repeat(4000);
+
+    const started = performance.now();
+    const result = correctTerms(text, large);
+    const elapsed = performance.now() - started;
+
+    expect(result.changes).toHaveLength(8000);
+    // Measured at about 100 ms including the tables; a generous bound, since the
+    // old per-spelling pattern needed tens of seconds and nothing here is timing-tight.
+    expect(elapsed).toBeLessThan(3000);
+  });
+});
 
 describe('correctTerms', () => {
   it('puts a misheard product name right, and says what it changed and where', () => {
@@ -39,15 +63,26 @@ describe('correctTerms', () => {
     ]);
   });
 
-  it('corrects a colleague only where the vocabulary names the mishearing', () => {
+  it('corrects a colleague only where a term names the mishearing', () => {
     expect(corrected('Mara Quil agreed; Mara Quill wrote it; Tobias Fen did not.')).toBe(
       'Mara Quill agreed; Mara Quill wrote it; Tobias Fen did not.',
     );
   });
 
+  it('never rewrites with a person’s or a company’s alias, only with a term’s variant', () => {
+    const aliasesOnly = vocabulary({
+      terms: [],
+      people: [person('Tobias Fenn', ['Toby', 'Tobias Fen'])],
+      companies: [person('Larkspur Payroll', ['LP'])],
+    });
+    const text = 'Toby and Tobias Fen met LP about Larkspur Payroll.';
+
+    expect(correctTerms(text, aliasesOnly)).toEqual({ text, changes: [] });
+  });
+
   it('matches whole words only, never inside a longer word', () => {
-    expect(corrected('Lark Spur Payroll and Larks Burrow and xLarks Burr')).toBe(
-      'Lark Spur Payroll and Larks Burrow and xLarks Burr',
+    expect(corrected('Lark Spur Payroll and Larks Burrow and xLarks Burr and Larks Burr2')).toBe(
+      'Lark Spur Payroll and Larks Burrow and xLarks Burr and Larks Burr2',
     );
   });
 
@@ -57,22 +92,40 @@ describe('correctTerms', () => {
     ).toBe('Larkspur Pay’s rollout, (Larkspur Pay). "Mara Quill\'s" note: Larkspur Pay!');
   });
 
-  it('matches however the text cases or spaces a spelling, but never across a line break', () => {
-    expect(corrected('lark spur pay, LARKS  BURR, Lark\tSpur Pay, Lark\nSpur Pay')).toBe(
-      'Larkspur Pay, LARKSPUR PAY, Larkspur Pay, Lark\nSpur Pay',
+  it('matches however the text spaces a spelling, but never across a line break', () => {
+    expect(corrected('Lark  Spur Pay, Larks \t Burr, Lark\tSpur Pay, Lark\nSpur Pay')).toBe(
+      'Larkspur Pay, Larkspur Pay, Larkspur Pay, Lark\nSpur Pay',
     );
   });
 
-  it('keeps capitals the text shouted, but not a spelling the vocabulary writes in capitals', () => {
-    const shouting = vocabulary({
-      terms: [term('Larkspur Pay', ['LSP'])],
+  it('matches a spelling as written, capitals included, so a word that differs in case is not touched', () => {
+    expect(corrected('lark spur pay, LARKS BURR, queue THREE, Kyu3')).toBe(
+      'lark spur pay, LARKS BURR, queue THREE, Kyu3',
+    );
+  });
+
+  it('leaves a common word alone when only its case differs from a variant', () => {
+    const common = vocabulary({
+      terms: [term('Mark Ledger', ['Mark']), term('Larkspur Pay', ['Pay'])],
       people: [],
       companies: [],
     });
-    expect(correctTerms('LSP and lsp and Lsp', shouting).text).toBe(
-      'Larkspur Pay and Larkspur Pay and Larkspur Pay',
+    const text = 'Please mark the pay run; mark it. Attend to Mark and Pay.';
+
+    expect(correctTerms(text, common).text).toBe(
+      'Please mark the pay run; mark it. Attend to Mark Ledger and Larkspur Pay.',
     );
-    expect(corrected('QUEUE THREE')).toBe('Q3');
+  });
+
+  it('lets a variant be written in two cases when the term lists both', () => {
+    const both = vocabulary({
+      terms: [term('Larkspur', ['lark spur', 'Lark Spur'])],
+      people: [],
+      companies: [],
+    });
+    expect(correctTerms('lark spur and Lark Spur and LARK SPUR', both).text).toBe(
+      'Larkspur and Larkspur and LARK SPUR',
+    );
   });
 
   it('leaves a right spelling as written, however it is cased', () => {
@@ -141,6 +194,17 @@ describe('correctTerms', () => {
     });
     expect(correctTerms('the C+ Guild met; s.4 not s,4 or sx4', symbols).text).toBe(
       'the C++ Guild met; S/4 not s,4 or sx4',
+    );
+  });
+
+  it('needs a non-word neighbour on both sides of a spelling that has a symbol at one end', () => {
+    const sharp = vocabulary({
+      terms: [term('C Sharp', ['C#']), term('Dot Net', ['.NET'])],
+      people: [],
+      companies: [],
+    });
+    expect(correctTerms('C# and (C#), C#sharp, xC#, a.NET, .NET, x.NET', sharp).text).toBe(
+      'C Sharp and (C Sharp), C#sharp, xC#, a.NET, Dot Net, x.NET',
     );
   });
 });

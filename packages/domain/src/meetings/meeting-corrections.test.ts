@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { digestOf } from '../sources/merge.ts';
+import { correctionDigestOf } from './correction-digest.ts';
 import { vocabulary } from '../terms/vocabulary.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
@@ -7,6 +7,8 @@ import {
   correctMeetingBody,
   CORRECTIONS_DIGEST_KEY,
   CORRECTIONS_KEY,
+  CORRECTIONS_ORIGINAL_DIGEST_KEY,
+  NOTHING_CORRECTED_PROPERTIES,
   recordedCorrections,
   UNDONE_CORRECTION_PROPERTIES,
   undoMeetingCorrections,
@@ -20,6 +22,12 @@ const VOCABULARY = vocabulary({
       canonical: 'Larkspur Pay',
       variants: ['Lark Spur Pay'],
       kind: 'product',
+    },
+    {
+      path: createVaultPath('Terms/Mara Quill.md'),
+      canonical: 'Mara Quill',
+      variants: ['Mara Quil'],
+      kind: 'person',
     },
   ],
   people: [
@@ -83,17 +91,53 @@ describe('correctMeetingBody', () => {
 
   it('changes nothing in a meeting with no misheard spelling', () => {
     const body = '## Summary\n\nLarkspur Pay ships. ^s1\n';
-    expect(correctMeetingBody(body, VOCABULARY)).toEqual({ body, records: [], count: 0 });
+    expect(correctMeetingBody(body, VOCABULARY)).toMatchObject({ body, records: [], count: 0 });
   });
 
   it('writes the change list and the digest of the corrected body as frontmatter', () => {
     const correction = correctMeetingBody(BODY, VOCABULARY);
     const properties = correctionProperties(correction);
 
-    expect(properties[CORRECTIONS_DIGEST_KEY]).toBe(digestOf(correction.body));
+    expect(properties[CORRECTIONS_DIGEST_KEY]).toBe(correctionDigestOf(correction.body));
+    expect(properties[CORRECTIONS_ORIGINAL_DIGEST_KEY]).toBe(correctionDigestOf(BODY));
     expect(recordedCorrections(properties)).toEqual(correction.records);
     expect(wasCorrected(properties)).toBe(true);
     expect(wasCorrected({ type: 'meeting' })).toBe(false);
+  });
+});
+
+describe('correctMeetingBody, at scale', () => {
+  it('finds the block of each change in a section of many blocks in time that is not quadratic', () => {
+    const paragraphs = Array.from({ length: 20000 }, (_, at) => `Lark Spur Pay item. ^p${at}`);
+    const body = ['## Summary', '', ...paragraphs.flatMap((each) => [each, ''])].join('\n');
+
+    const started = performance.now();
+    const correction = correctMeetingBody(body, VOCABULARY);
+    const elapsed = performance.now() - started;
+
+    expect(correction.count).toBe(20000);
+    expect(correction.records[0]?.blocks.slice(0, 2)).toEqual(['p0', 'p1']);
+    // Measured in tens of milliseconds; the quadratic scan took over a minute.
+    expect(elapsed).toBeLessThan(5000);
+  }, 60_000);
+});
+
+describe('a meeting read with nothing to correct', () => {
+  it('is marked, so it is never read again, and has nothing to undo', () => {
+    expect(wasCorrected(NOTHING_CORRECTED_PROPERTIES)).toBe(true);
+    expect(recordedCorrections(NOTHING_CORRECTED_PROPERTIES)).toBeNull();
+    expect(
+      undoMeetingCorrections({ body: BODY, properties: NOTHING_CORRECTED_PROPERTIES }).ok,
+    ).toBe(false);
+  });
+});
+
+describe('the digest of a correction', () => {
+  it('tells apart two bodies one character or one transposition apart, and is the same every time', () => {
+    const digests = ['abc', 'abd', 'acb', 'abc ', 'ABC', ''].map(correctionDigestOf);
+    expect(new Set(digests).size).toBe(digests.length);
+    expect(correctionDigestOf('abc')).toBe(correctionDigestOf('abc'));
+    expect(correctionDigestOf('abc')).toMatch(/^[0-9a-f]{8}-[0-9a-f]{14}-3$/);
   });
 });
 
@@ -114,6 +158,19 @@ describe('undoMeetingCorrections', () => {
       ok: false,
       reason: 'The meeting changed since its words were corrected, so they were left as they are.',
     });
+  });
+
+  it('is refused when the record has no digest of the original, as one from an earlier build has not', () => {
+    const legacy = { ...properties, [CORRECTIONS_ORIGINAL_DIGEST_KEY]: undefined };
+    expect(undoMeetingCorrections({ body: correction.body, properties: legacy })).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/do not match its words/),
+    });
+  });
+
+  it('is refused when the original digest is not the body it rebuilds', () => {
+    const edited = { ...properties, [CORRECTIONS_ORIGINAL_DIGEST_KEY]: correctionDigestOf('x') };
+    expect(undoMeetingCorrections({ body: correction.body, properties: edited }).ok).toBe(false);
   });
 
   it('is refused when there is nothing recorded to undo, or it was undone', () => {

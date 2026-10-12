@@ -11,6 +11,8 @@ export {
 export { variantsFromInput } from './variants-input.ts';
 export type { TermKind, TermNote } from './term.ts';
 export { tidySpelling, vocabularyKey } from './spelling.ts';
+export { spellingWarnings } from './spelling-warnings.ts';
+export type { SpellingWarning } from './spelling-warnings.ts';
 export { vocabulary } from './vocabulary.ts';
 export type {
   NamedEntity,
@@ -27,5 +29,5 @@ export {
   vocabularySourcesOf,
 } from './vocabulary-query.ts';
 export type { VocabularyRow } from './vocabulary-query.ts';
-export { correctTerms } from './correct-terms.ts';
+export { canCorrect, correctTerms } from './correct-terms.ts';
 export type { CorrectedText, TermChange } from './correct-terms.ts';

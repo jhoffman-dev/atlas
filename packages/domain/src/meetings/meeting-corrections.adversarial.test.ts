@@ -20,6 +20,12 @@ const VOCABULARY = vocabulary({
       variants: ['Lark Spur Pay', 'Larks Burr'],
       kind: 'product',
     },
+    {
+      path: createVaultPath('Terms/Mara Quill.md'),
+      canonical: 'Mara Quill',
+      variants: ['Mara Quil'],
+      kind: 'person',
+    },
   ],
   people: [
     {
@@ -179,8 +185,8 @@ describe('correctMeetingBody, at scale', () => {
     const elapsed = performance.now() - started;
 
     expect(correction.count).toBe(800);
-    // Measured at 18-23 s on an M-series Mac: the first match compiles one
-    // case-insensitive Unicode pattern of 3000 alternatives, each with lookarounds.
+    // Measured at 30-160 ms on an M-series Mac. The first build took 18-23 s: one
+    // case-insensitive pattern of 3000 alternatives, each with lookarounds.
     expect(elapsed).toBeLessThan(2000);
   }, 120_000);
 });

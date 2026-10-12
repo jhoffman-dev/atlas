@@ -45,29 +45,32 @@ describe('the vocabulary', () => {
     expect(built.conflicts).toEqual([]);
   });
 
-  it('holds a person’s name as its own right spelling, and their aliases', () => {
+  it('holds a person’s name as its own right spelling, and never their aliases', () => {
     const built = vocabulary({
       ...NOBODY,
       people: [named('People/Mara Quill.md', 'Mara Quill', ['Mara Quil', 'Mara'])],
     });
-    expect(corrections(built)).toEqual([
-      'Mara Quill → Mara Quill',
-      'Mara Quil → Mara Quill',
-      'Mara → Mara Quill',
-    ]);
+    expect(corrections(built)).toEqual(['Mara Quill → Mara Quill']);
     expect(built.entries.every((entry) => entry.claims[0]?.source === 'person')).toBe(true);
   });
 
-  it('holds a company’s name and aliases, said to come from the company', () => {
+  it('holds a company’s name, said to come from the company, and never its aliases', () => {
     const built = vocabulary({
       ...NOBODY,
       companies: [named('Companies/Larkspur Payroll.md', 'Larkspur Payroll', ['LP'])],
     });
-    expect(corrections(built)).toEqual([
-      'Larkspur Payroll → Larkspur Payroll',
-      'LP → Larkspur Payroll',
-    ]);
-    expect(built.entries.map((entry) => entry.claims[0]?.source)).toEqual(['company', 'company']);
+    expect(corrections(built)).toEqual(['Larkspur Payroll → Larkspur Payroll']);
+    expect(built.entries.map((entry) => entry.claims[0]?.source)).toEqual(['company']);
+  });
+
+  it('does not let a person’s alias clash with a term’s variant', () => {
+    const built = vocabulary({
+      terms: [term('Terms/Quill Desk.md', 'Quill Desk', ['Quill'])],
+      people: [named('People/Mara Quill.md', 'Mara Quill', ['Quill'])],
+      companies: [],
+    });
+    expect(built.conflicts).toEqual([]);
+    expect(corrections(built)).toContain('Quill → Quill Desk');
   });
 
   it('puts terms and people together, longest spelling first so a longer name is matched first', () => {
@@ -80,7 +83,6 @@ describe('the vocabulary', () => {
       'Fenn Ledger',
       'Tobias Fenn',
       'fen ledger',
-      'Toby',
     ]);
   });
 
@@ -92,15 +94,27 @@ describe('the vocabulary', () => {
     expect(built.entries.map((entry) => entry.form)).toEqual(['Aaaa', 'Alfa', 'beta']);
   });
 
-  it('matches spellings however they are cased, spaced or composed, keeping the first as written', () => {
+  it('matches spellings as written, case included, composed and spaced alike', () => {
     expect(vocabularyKey('  Lark \t Spur ')).toBe('lark spur');
-    expect(vocabularyKey('René')).toBe(vocabularyKey('René'));
+    expect(vocabularyKey('René')).toBe(vocabularyKey('René'));
     expect(vocabularyKey('Lark\u200Bspur\u2060')).toBe('larkspur');
     const built = vocabulary({
       ...NOBODY,
-      terms: [term('Terms/Larkspur.md', 'Larkspur', ['Lark  Spur', 'lark spur', 'LARKSPUR'])],
+      terms: [term('Terms/Larkspur.md', 'Larkspur', ['Lark  Spur', 'lark spur', 'Lark Spur'])],
     });
-    expect(corrections(built)).toEqual(['Lark Spur → Larkspur', 'Larkspur → Larkspur']);
+    expect(corrections(built)).toEqual([
+      'Lark Spur → Larkspur',
+      'lark spur → Larkspur',
+      'Larkspur → Larkspur',
+    ]);
+  });
+
+  it('leaves out a misheard spelling with no letter or digit, which every timestamp would hold', () => {
+    const built = vocabulary({
+      ...NOBODY,
+      terms: [term('Terms/Nolan.md', 'Nolan', ['~', '--', '[]', '~00', 'a\u0000b'])],
+    });
+    expect(corrections(built)).toEqual(['Nolan → Nolan', '~00 → Nolan']);
   });
 
   it('keeps a multi-word variant whole rather than as its words', () => {
@@ -122,13 +136,12 @@ describe('the vocabulary', () => {
   it('agrees with itself when two notes give one spelling the same right spelling', () => {
     const built = vocabulary({
       terms: [term('Terms/Mara Quill.md', 'Mara Quill', ['Mara Quil'], 'person')],
-      people: [named('People/Mara Quill.md', 'Mara Quill', ['mara quil'])],
+      people: [named('People/Mara Quill.md', 'Mara Quill')],
       companies: [],
     });
     expect(built.conflicts).toEqual([]);
-    const misheard = built.entries.find((entry) => entry.form === 'Mara Quil');
-    expect(misheard?.canonical).toBe('Mara Quill');
-    expect(misheard?.claims.map((claim) => [claim.source, claim.path])).toEqual([
+    const right = built.entries.find((entry) => entry.form === 'Mara Quill');
+    expect(right?.claims.map((claim) => [claim.source, claim.path])).toEqual([
       ['term', 'Terms/Mara Quill.md'],
       ['person', 'People/Mara Quill.md'],
     ]);
@@ -140,7 +153,7 @@ describe('a spelling two notes disagree about', () => {
     ...NOBODY,
     terms: [
       term('Terms/Larkspur.md', 'Larkspur', ['lark spur', 'larks']),
-      term('Terms/Larkspur Payroll.md', 'Larkspur Payroll', ['Lark Spur']),
+      term('Terms/Larkspur Payroll.md', 'Larkspur Payroll', ['lark spur']),
     ],
   });
 
@@ -151,7 +164,7 @@ describe('a spelling two notes disagree about', () => {
         claims: [
           { form: 'lark spur', canonical: 'Larkspur', path: 'Terms/Larkspur.md', source: 'term' },
           {
-            form: 'Lark Spur',
+            form: 'lark spur',
             canonical: 'Larkspur Payroll',
             path: 'Terms/Larkspur Payroll.md',
             source: 'term',
@@ -162,7 +175,7 @@ describe('a spelling two notes disagree about', () => {
   });
 
   it('is not used until resolved, while each term’s other spellings still are', () => {
-    expect(built.entries.map((entry) => vocabularyKey(entry.form))).not.toContain('lark spur');
+    expect(built.entries.map((entry) => entry.form)).not.toContain('lark spur');
     expect(corrections(built)).toEqual([
       'Larkspur Payroll → Larkspur Payroll',
       'Larkspur → Larkspur',
@@ -182,20 +195,29 @@ describe('a spelling two notes disagree about', () => {
     expect(corrections(resolved)).toContain('lark spur → Larkspur');
   });
 
-  it('includes a term’s spelling another note uses as a variant, and one spelt in another case', () => {
+  it('includes a term’s right spelling another term uses as a variant, but not one spelt in another case', () => {
     const clash = vocabulary({
-      terms: [term('Terms/ACME.md', 'ACME'), term('Terms/Fenn.md', 'Fenn')],
-      people: [named('People/Tobias Fenn.md', 'Tobias Fenn', ['Fenn'])],
+      terms: [
+        term('Terms/Fenn.md', 'Fenn'),
+        term('Terms/Fenn Ledger.md', 'Fenn Ledger', ['Fenn', 'fenn']),
+        term('Terms/ACME.md', 'ACME'),
+      ],
+      people: [],
       companies: [named('Companies/Acme.md', 'Acme')],
     });
-    expect(clash.conflicts.map((conflict) => conflict.form)).toEqual(['ACME', 'Fenn']);
-    expect(clash.entries.map((entry) => entry.form)).toEqual(['Tobias Fenn']);
+    expect(clash.conflicts.map((conflict) => conflict.form)).toEqual(['Fenn']);
+    expect(clash.entries.map((entry) => entry.form)).toEqual([
+      'Fenn Ledger',
+      'ACME',
+      'Acme',
+      'fenn',
+    ]);
   });
 
   it('lists conflicts in the order of their spellings', () => {
     const many = vocabulary({
       ...NOBODY,
-      terms: [term('a.md', 'A', ['zed', 'Bee']), term('b.md', 'B', ['Zed', 'bee'])],
+      terms: [term('a.md', 'A', ['zed', 'Bee']), term('b.md', 'B', ['zed', 'Bee'])],
     });
     expect(many.conflicts.map((conflict) => conflict.form)).toEqual(['Bee', 'zed']);
   });

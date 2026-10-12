@@ -1,15 +1,19 @@
 import { blockIdAtEnd } from '../markdown/block-anchor.ts';
-import { digestOf } from '../sources/merge.ts';
 import { correctTerms, type TermChange } from '../terms/correct-terms.ts';
 import type { Vocabulary } from '../terms/vocabulary.ts';
+import { correctionDigestOf } from './correction-digest.ts';
 import { splitMeetingSections } from './meeting-sections.ts';
 
 /** The frontmatter list of what the correction changed, or `undone` once it was taken back. */
 export const CORRECTIONS_KEY = 'atlas_corrections';
 /** The digest of the body as the correction wrote it: what undo checks the body is still. */
 export const CORRECTIONS_DIGEST_KEY = 'atlas_corrections_digest';
+/** The digest of the body as it was before: what undo checks the body it rebuilds is. */
+export const CORRECTIONS_ORIGINAL_DIGEST_KEY = 'atlas_corrections_original_digest';
 /** What `atlas_corrections` says once the corrections were undone, so they are never made again. */
 export const CORRECTIONS_UNDONE = 'undone';
+/** What `atlas_corrections` says when the meeting was read and held nothing to correct. */
+export const CORRECTIONS_NONE = 'none';
 
 /** One spelling put right, every time it was, as the meeting's frontmatter records it. */
 export interface CorrectionRecord {
@@ -30,6 +34,8 @@ export interface MeetingCorrection {
   readonly records: readonly CorrectionRecord[];
   /** How many spellings were put right. */
   readonly count: number;
+  /** The digest of the body before it was corrected. */
+  readonly originalDigest: string;
 }
 
 /**
@@ -48,41 +54,58 @@ export function correctMeetingBody(
     // The section's text starts on the line after its heading.
     const start = lineStarts[section.headingLine + 1] ?? body.length;
     const corrected = correctTerms(section.text, vocabulary);
+    const blockIdAt = blockIdFinder(section.text);
     for (const change of corrected.changes) {
       changes.push({
         ...change,
         start: start + change.start,
         end: start + change.end,
-        blockId: blockIdAround(section.text, change.start),
+        blockId: blockIdAt(change.start),
       });
     }
   }
   return correctionOf(body, changes);
 }
 
+/** A record while its changes are gathered: the blocks a set, so each is added once in constant time. */
+interface WorkingRecord {
+  readonly from: string;
+  readonly to: string;
+  readonly blocks: Set<string>;
+  readonly at: number[];
+}
+
 function correctionOf(
   body: string,
   changes: readonly (TermChange & { readonly blockId: string | null })[],
 ): MeetingCorrection {
-  const records = new Map<string, { from: string; to: string; blocks: string[]; at: number[] }>();
+  const records = new Map<string, WorkingRecord>();
   let corrected = '';
   let read = 0;
   for (const change of changes) {
     corrected += body.slice(read, change.start);
     const key = JSON.stringify([change.from, change.to]);
-    const record = records.get(key) ?? { from: change.from, to: change.to, blocks: [], at: [] };
+    const record = records.get(key) ?? {
+      from: change.from,
+      to: change.to,
+      blocks: new Set<string>(),
+      at: [],
+    };
     records.set(key, record);
     record.at.push(corrected.length);
-    if (change.blockId !== null && !record.blocks.includes(change.blockId)) {
-      record.blocks.push(change.blockId);
-    }
+    if (change.blockId !== null) record.blocks.add(change.blockId);
     corrected += change.to;
     read = change.end;
   }
   return {
     body: corrected + body.slice(read),
-    records: [...records.values()].map((record) => ({ ...record, count: record.at.length })),
+    records: [...records.values()].map((record) => ({
+      ...record,
+      blocks: [...record.blocks],
+      count: record.at.length,
+    })),
     count: changes.length,
+    originalDigest: correctionDigestOf(body),
   };
 }
 
@@ -97,19 +120,36 @@ function lineStartsOf(text: string): number[] {
 
 const BLANK_LINE = /\n[ \t\r]*\n/g;
 
-/** The id of the block — the run of lines between blank ones — holding `at`, or null when it has none. */
-function blockIdAround(text: string, at: number): string | null {
-  let start = 0;
-  let end = text.length;
-  for (const blank of text.matchAll(BLANK_LINE)) {
-    const blankEnd = blank.index + blank[0].length;
-    if (blankEnd <= at) start = blankEnd;
-    else if (blank.index >= at) {
-      end = blank.index;
-      break;
+/**
+ * Finds the id of the block — the run of lines between blank ones — holding
+ * an offset, or null when it has none. The blank lines are found once for the
+ * section, and each lookup is a binary search, so a section of any size is
+ * read in time that grows with its length and not with changes times blocks.
+ */
+function blockIdFinder(text: string): (at: number) => string | null {
+  const blanks = [...text.matchAll(BLANK_LINE)].map((blank) => ({
+    start: blank.index,
+    end: blank.index + blank[0].length,
+  }));
+  const ids = new Map<number, string | null>();
+  return (at) => {
+    // The first blank line ending after `at` closes the block; the one before it opened it.
+    let low = 0;
+    let high = blanks.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if ((blanks[middle] as { end: number }).end <= at) low = middle + 1;
+      else high = middle;
     }
-  }
-  return blockIdAtEnd(text.slice(start, end).trimEnd())?.id ?? null;
+    const opening = blanks[low - 1];
+    const start = opening === undefined ? 0 : opening.end;
+    if (!ids.has(start)) {
+      const closing = blanks[low];
+      const end = closing === undefined ? text.length : closing.start;
+      ids.set(start, blockIdAtEnd(text.slice(start, end).trimEnd())?.id ?? null);
+    }
+    return ids.get(start) ?? null;
+  };
 }
 
 /** What the frontmatter is changed by when a meeting's words were corrected. */
@@ -122,14 +162,21 @@ export function correctionProperties(correction: MeetingCorrection): Record<stri
       blocks: [...blocks],
       at: [...at],
     })),
-    [CORRECTIONS_DIGEST_KEY]: digestOf(correction.body),
+    [CORRECTIONS_DIGEST_KEY]: correctionDigestOf(correction.body),
+    [CORRECTIONS_ORIGINAL_DIGEST_KEY]: correction.originalDigest,
   };
 }
+
+/** What the frontmatter is changed by when a meeting was read and held nothing to correct. */
+export const NOTHING_CORRECTED_PROPERTIES: Readonly<Record<string, unknown>> = {
+  [CORRECTIONS_KEY]: CORRECTIONS_NONE,
+};
 
 /** What the frontmatter is changed by once the corrections are undone. */
 export const UNDONE_CORRECTION_PROPERTIES: Readonly<Record<string, unknown>> = {
   [CORRECTIONS_KEY]: CORRECTIONS_UNDONE,
   [CORRECTIONS_DIGEST_KEY]: null,
+  [CORRECTIONS_ORIGINAL_DIGEST_KEY]: null,
 };
 
 /** Whether a meeting was corrected already — or its corrections undone — so it is never corrected again. */
@@ -183,7 +230,7 @@ export function undoMeetingCorrections({
 }): CorrectionUndo {
   const records = recordedCorrections(properties);
   if (records === null) return refused('This meeting has no corrections to undo.');
-  if (properties[CORRECTIONS_DIGEST_KEY] !== digestOf(body)) {
+  if (properties[CORRECTIONS_DIGEST_KEY] !== correctionDigestOf(body)) {
     return refused(
       'The meeting changed since its words were corrected, so they were left as they are.',
     );
@@ -202,7 +249,14 @@ export function undoMeetingCorrections({
     original += body.slice(read, start) + from;
     read = start + to.length;
   }
-  return { ok: true, body: original + body.slice(read) };
+  const restored = original + body.slice(read);
+  // The change list is as editable as the frontmatter it is in: only the original's own digest vouches for it.
+  if (properties[CORRECTIONS_ORIGINAL_DIGEST_KEY] !== correctionDigestOf(restored)) {
+    return refused(
+      'The corrections recorded on this meeting do not match its words, so nothing was undone.',
+    );
+  }
+  return { ok: true, body: restored };
 }
 
 const refused = (reason: string): CorrectionUndo => ({ ok: false, reason });
