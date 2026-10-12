@@ -165,6 +165,8 @@ export type { ArchiveContents, ArchivePageProps } from './archive-page.tsx';
 export type { InboxContents, InboxPageProps, InboxTypesOffer } from './inbox-page.tsx';
 export { WeeklyReviewPage } from './weekly-review-page.tsx';
 export type { WeeklyReviewPageProps } from './weekly-review-page.tsx';
+export { TodayPage } from './today-page.tsx';
+export type { TodayAction, TodayNotice, TodayPageProps } from './today-page.tsx';
 export { TaskMigration } from './task-migration.tsx';
 export type {
   TaskMigrationMapping,

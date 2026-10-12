@@ -338,6 +338,49 @@ describe('the Inbox row (P30-01)', () => {
   });
 });
 
+describe('the Today row (#111)', () => {
+  const goTo = () => within(screen.getByRole('list', { name: 'Go to' }));
+  const todayView: SidebarQuickView = {
+    id: 'today',
+    entry: sidebarEntry(createVaultPath('.atlas/views/Today.md'), 'list'),
+    count: 4,
+  };
+
+  it('opens the Today page, first after Search, with no view of that name', async () => {
+    const onOpenToday = vi.fn();
+    show({ quick: [], inbox: { onOpen: () => {}, count: 2 }, onOpenToday });
+    const names = goTo()
+      .getAllByRole('button')
+      .map((button) => button.textContent);
+    expect(names.slice(1, 3)).toEqual(['Today', 'Inbox2']);
+    await userEvent.click(goTo().getByRole('button', { name: 'Today' }));
+    expect(onOpenToday).toHaveBeenCalledOnce();
+  });
+
+  it('stands in for a saved view titled Today: one row, and it opens the page', async () => {
+    const onOpenToday = vi.fn();
+    const onOpen = vi.fn();
+    show({ quick: [todayView], onOpenToday, onOpen });
+    const rows = goTo().getAllByRole('button', { name: /^Today/ });
+    expect(rows).toHaveLength(1);
+    await userEvent.click(rows[0] as HTMLElement);
+    expect(onOpenToday).toHaveBeenCalledOnce();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('leaves a Today view its own row while the page is not offered', async () => {
+    const onOpen = vi.fn();
+    show({ quick: [todayView], onOpen });
+    await userEvent.click(goTo().getByRole('button', { name: /^Today/ }));
+    expect(onOpen).toHaveBeenCalledWith('.atlas/views/Today.md');
+  });
+
+  it('is marked while the page is open', () => {
+    show({ onOpenToday: () => {}, active: { kind: 'today' } });
+    expect(goTo().getByRole('button', { name: 'Today' }).getAttribute('aria-current')).toBe('page');
+  });
+});
+
 describe('the weekly review row (P30-07)', () => {
   const goTo = () => within(screen.getByRole('list', { name: 'Go to' }));
 

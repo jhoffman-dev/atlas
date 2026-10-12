@@ -1,4 +1,4 @@
-/** The weekly review, read-only: `GET /v1/review/weekly` (P30-07). */
+/** The weekly review and the Today page, read-only: `GET /v1/review/weekly` (P30-07), `GET /v1/today` (#111). */
 
 import { defineTool } from './define.ts';
 import { noInput } from './inputs.ts';
@@ -30,4 +30,29 @@ export const weeklyReview = defineTool({
   call: (client) => client.weeklyReview(),
 });
 
-export const reviewTools = [weeklyReview];
+export const today = defineTool({
+  name: 'atlas_today',
+  title: 'Today',
+  description:
+    "What needs the person today, as Atlas's Today page shows it, read on the app's clock: " +
+    '{ today: { today, sections, stalledProjects, inbox: { count, toFile, toAnswer, more }, ' +
+    'truncated } }. sections are always these six, in order, each { id, count, groups }: ' +
+    'overdue (open tasks due before today), dueToday, backToday (tasks whose "defer" is ' +
+    'today, any status), inProgress, nextActions (grouped by project, those under none ' +
+    'last), waiting (grouped by who is waited on). A task is in one section only, the first ' +
+    'that claims it, and a task deferred past today is in none. A group is { key, label, ' +
+    'project, tasks }; a task is { path, title, status, due, defer, waitingOn, contexts, ' +
+    'project, projectTitle, modified, waitingDays }. waitingDays, for a waiting task, is whole ' +
+    "days since the file's last change, not since it began waiting: any edit restarts it. " +
+    'stalledProjects counts active projects with no next-action or in-progress task (listed ' +
+    'by atlas_weekly_review). To act on a task as the page does, use atlas_update_properties: ' +
+    'set "status", or set "defer" to a later day (YYYY-MM-DD) to take it off the page until ' +
+    'then. Status waiting is refused unless "waiting_on" names someone. Setting status ' +
+    'archive finishes a task and, for a repeating one (with "recurrence"), ends its series; ' +
+    "the page's tick instead rolls a repeating task on to its next due date.",
+  inputSchema: noInput,
+  annotations: { readOnlyHint: true },
+  call: (client) => client.today(),
+});
+
+export const reviewTools = [weeklyReview, today];

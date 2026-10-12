@@ -113,6 +113,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
 | `atlas_schedule_task`      | `POST /v1/tasks/schedule`                                                    | yes     |
 | `atlas_weekly_review`      | `GET /v1/review/weekly`                                                      | no      |
+| `atlas_today`              | `GET /v1/today`                                                              | no      |
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
 | `atlas_automation_log`     | `GET /v1/automations/{id}/log`                                               | no      |
 | `atlas_automation_dry_run` | `POST /v1/automations/{id}/dry-run`                                          | no      |
@@ -163,6 +164,12 @@ Waiting tasks untouched for more than 7 days, active projects with nothing
 next, overdue tasks, Someday and Longterm untouched for more than 30 days, and
 the Inbox's count. It writes nothing; act on an item with
 `atlas_update_properties` (a status, or `defer`) or `atlas_archive` (a project).
+
+`atlas_today` reads the Today page as the app shows it: overdue, due today,
+back from deferral today, in progress, next actions by project and waiting by
+person — each Waiting task with the whole days since its file last changed —
+plus the Inbox's count and how many projects are stalled. It writes nothing;
+act on a task with `atlas_update_properties` (a status, or `defer`).
 
 `atlas_export_note` turns a note into markdown for a Confluence page: links as
 their words, shown blocks quoted under their note, callouts as quotes, and a

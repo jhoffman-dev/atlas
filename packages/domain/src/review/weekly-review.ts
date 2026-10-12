@@ -19,8 +19,12 @@ export interface ReviewTask {
   readonly defer: string | null;
   /** Who it waits on, as its `waiting_on` names them; '' for nobody. */
   readonly waitingOn: string;
+  /** Its `contexts`, as written, in order; none when it has none. */
+  readonly contexts: readonly string[];
   /** The note its `project` links, or null when it links none that exists. */
   readonly project: VaultPath | null;
+  /** That note's title, or null when it links none. */
+  readonly projectTitle: string | null;
   /** When its file last changed, in milliseconds since the epoch. */
   readonly modified: number;
 }
@@ -59,7 +63,8 @@ export const ACTIVE_PROJECT_STATUS = 'active';
 /** How far the review's Defer puts a task off. */
 export const REVIEW_DEFER_DAYS = 7;
 
-const DAY_MS = 86_400_000;
+/** A day, in milliseconds: what "N days untouched" counts in. */
+export const DAY_MS = 86_400_000;
 
 /** Work still open: an overdue task in one of these is late. Someday and Longterm promise no day. */
 const COMMITTED: ReadonlySet<GtdStatus> = new Set([
@@ -131,9 +136,7 @@ export function weeklyReview({
         (task) => task.status === 'waiting' && untouchedFor(task, STALE_WAITING_DAYS, at),
       ),
     ),
-    projectsWithoutNextAction: projects
-      .filter((project) => project.status === ACTIVE_PROJECT_STATUS && !project.moving)
-      .sort(byTitle),
+    projectsWithoutNextAction: stalledProjects(projects),
     overdue: inPlay.filter((task) => isOverdue(task, at.today)).sort(byDueThenTitle),
     untouchedSomeday: oldestFirst(
       inPlay.filter(
@@ -146,8 +149,21 @@ export function weeklyReview({
   };
 }
 
-function isDeferred(task: ReviewTask, today: string): boolean {
+/** Active projects with no task in use filed under them that is moving, by title. */
+export function stalledProjects(projects: readonly ReviewProject[]): ReviewProject[] {
+  return projects
+    .filter((project) => project.status === ACTIVE_PROJECT_STATUS && !project.moving)
+    .sort(byTitle);
+}
+
+/** Put off to a later day than today: out of play until that day. */
+export function isDeferred(task: ReviewTask, today: string): boolean {
   return task.defer !== null && task.defer > today;
+}
+
+/** Whether a task's status promises its day: open work, not Someday, Longterm or finished. */
+export function promisesItsDay(task: ReviewTask): boolean {
+  return task.status !== null && COMMITTED.has(task.status);
 }
 
 /** More than `days` whole days since the file last changed. */
@@ -155,10 +171,9 @@ function untouchedFor(task: ReviewTask, days: number, at: ReviewMoment): boolean
   return at.now - task.modified > days * DAY_MS;
 }
 
-function isOverdue(task: ReviewTask, today: string): boolean {
-  return (
-    task.due !== null && task.due < today && task.status !== null && COMMITTED.has(task.status)
-  );
+/** Due before today, on a status that promises its day. */
+export function isOverdue(task: ReviewTask, today: string): boolean {
+  return task.due !== null && task.due < today && promisesItsDay(task);
 }
 
 /** Longest untouched first: what has waited longest is asked about first. */
@@ -170,12 +185,30 @@ function byDueThenTitle(left: ReviewTask, right: ReviewTask): number {
   return (left.due ?? '').localeCompare(right.due ?? '') || byTitle(left, right);
 }
 
-function byTitle(left: { title: string; path: string }, right: { title: string; path: string }) {
+export function byTitle(
+  left: { title: string; path: string },
+  right: { title: string; path: string },
+) {
   return left.title.localeCompare(right.title) || left.path.localeCompare(right.path);
 }
 
 /** What the review's Defer writes into a task: back in play {@link REVIEW_DEFER_DAYS} days from today. */
 export function reviewDeferral(today: string): Readonly<Record<string, string>> | null {
-  const day = addDays(today, REVIEW_DEFER_DAYS);
+  return taskDeferral({ today, days: REVIEW_DEFER_DAYS });
+}
+
+/**
+ * What putting a task off writes into it: back in play `days` days from
+ * today, counted on the calendar, so a clock change in between moves nothing.
+ * Null when today cannot be read as a day.
+ */
+export function taskDeferral({
+  today,
+  days,
+}: {
+  today: string;
+  days: number;
+}): Readonly<Record<string, string>> | null {
+  const day = addDays(today, days);
   return day === null ? null : { [TASK_KEYS.defer]: day };
 }

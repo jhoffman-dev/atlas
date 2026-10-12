@@ -157,6 +157,7 @@ import { useVaultTags } from './tags/use-vault-tags.ts';
 import { useArchive } from './archive/use-archive.ts';
 import { useInbox } from './inbox/use-inbox.ts';
 import { useWeeklyReview } from './review/use-weekly-review.ts';
+import { useToday } from './today/use-today.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
@@ -181,6 +182,7 @@ const OPEN_TEMPLATES = 'open-templates';
 const OPEN_TERMS = 'open-terms';
 const OPEN_INBOX = 'open-inbox';
 const OPEN_REVIEW = 'open-review';
+const OPEN_TODAY = 'open-today';
 
 /** What the search palette can do besides find notes. */
 const PALETTE_COMMANDS = [
@@ -195,6 +197,11 @@ const PALETTE_COMMANDS = [
     keywords: ['process', 'file', 'proposals', 'accept', 'reject', 'suggestions', 'claude'],
   },
   { id: OPEN_REVIEW, label: 'Weekly review', keywords: ['review', 'gtd', 'week'] },
+  {
+    id: OPEN_TODAY,
+    label: 'Today',
+    keywords: ['overdue', 'due', 'next actions', 'waiting', 'plan', 'day', 'gtd'],
+  },
 ] as const;
 
 /** The kinds an artifact can be, as the New artifact dialog offers them. */
@@ -522,6 +529,7 @@ export function App({
     archiveOpen,
     inboxOpen,
     reviewOpen,
+    todayOpen,
     automationsOpen,
     activityOpen,
     templatesOpen,
@@ -704,7 +712,8 @@ export function App({
         tagsTag !== undefined ||
         archiveOpen ||
         inboxOpen ||
-        reviewOpen,
+        reviewOpen ||
+        todayOpen,
       focused: focusedPath,
     }),
     clipboard: browserClipboard,
@@ -952,6 +961,20 @@ export function App({
     archiveNote: (path) => archiveCommands.archive([path]),
     activity: activityLog,
   });
+  // The Today page (#111): the review's daily sibling, read on the same clock.
+  const today = useToday({
+    ports: archivePorts,
+    editors,
+    clock: localClock,
+    types,
+    vaultKey,
+    indexKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: todayOpen,
+    onSettled: settleArchive,
+    activity: activityLog,
+  });
+  const todayView = quick.find((view) => view.id === 'today')?.entry ?? null;
   const proposals = useProposals({
     ports: archivePorts,
     clock: localClock,
@@ -1382,6 +1405,7 @@ export function App({
                       archiveOpen,
                       inboxOpen,
                       reviewOpen,
+                      todayOpen,
                       automationsOpen,
                       activityOpen,
                       templatesOpen,
@@ -1405,6 +1429,7 @@ export function App({
                       inbox: { onOpen: main.openInbox, count: waiting },
                     })}
                     {...(review.shown && { onOpenReview: main.openReview })}
+                    {...(today.shown && { onOpenToday: main.openToday })}
                     onOpenType={openTypePage}
                     onEditType={(name) => openType(name, 'edit')}
                     onEditTemplate={editTypeTemplate}
@@ -1564,6 +1589,20 @@ export function App({
                     ...review.page,
                     onOpen: openNote,
                     onOpenInbox: main.openInbox,
+                  },
+                },
+                today: {
+                  open: todayOpen,
+                  page: {
+                    ...today.page,
+                    view:
+                      todayView === null
+                        ? null
+                        : { title: todayView.title, onOpen: () => openNote(todayView.path) },
+                    onOpen: openNote,
+                    onOpenInbox: main.openInbox,
+                    onOpenReview: main.openReview,
+                    onOpenDailyNote: () => void openDailyNote(),
                   },
                 },
                 automations: {
@@ -1819,6 +1858,7 @@ export function App({
                   else if (id === OPEN_TERMS) main.openTerms();
                   else if (id === OPEN_INBOX) main.openInbox();
                   else if (id === OPEN_REVIEW) main.openReview();
+                  else if (id === OPEN_TODAY) main.openToday();
                   else if (id === 'new-query') openQuery();
                   else if (id === 'new-artifact') startNewArtifact();
                   else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);

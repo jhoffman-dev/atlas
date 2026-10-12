@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   PROJECT_STATUS_KEY,
   PROJECT_TYPE,
@@ -11,19 +11,16 @@ import {
 import {
   archiveTaskChange,
   readWeeklyReview,
-  TaskRuleRefusedError,
   type ActivityLog,
   type Clock,
   type IndexPort,
   type MarkdownPort,
-  type PropertyChanges,
   type VaultFsPort,
   type WeeklyReviewReport,
 } from '@atlas/application';
-import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { errorMessage } from '../query/error-message.ts';
-import { writeNoteProperties } from '../query/use-view-writes.ts';
+import { useReviewWrites } from './use-review-writes.ts';
 
 export interface WeeklyReviewOptions {
   readonly ports: {
@@ -61,11 +58,6 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
     options;
   const indexReady = options.indexReady ?? true;
   const [read, setRead] = useState<ReadFrom | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  // `busy` reaches the page a render late; two presses in one tick would both see it false.
-  const running = useRef(false);
-
   useEffect(() => {
     if (!open || !indexReady) return;
     let cancelled = false;
@@ -87,39 +79,13 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
   // so it is not shown — nor are its actions offered — until the read is in.
   const current = indexReady && read !== null && read.index === ports.index ? read : null;
 
-  const act = useCallback(
-    async (action: () => Promise<unknown>) => {
-      if (running.current) return;
-      running.current = true;
-      setBusy(true);
-      setProblem(null);
-      try {
-        await action();
-        onSettled();
-      } catch (cause) {
-        setProblem(errorMessage(cause));
-      } finally {
-        running.current = false;
-        setBusy(false);
-      }
-    },
-    [onSettled],
-  );
-
-  const write = useCallback(
-    (path: VaultPath, values: PropertyChanges) => {
-      const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
-      const { fs, markdown } = ports;
-      // Dated by the review's own clock, the one its sections were read on.
-      const today = clock.today();
-      return act(() =>
-        withGiveUpRecorded(edit, () =>
-          writeNoteProperties({ editors, fs, markdown, path, values, today }),
-        ),
-      );
-    },
-    [act, activity, clock, editors, ports],
-  );
+  const { busy, problem, setProblem, act, write } = useReviewWrites({
+    ports,
+    editors,
+    clock,
+    onSettled,
+    activity,
+  });
 
   const setStatus = useCallback(
     ({ path, status }: { path: VaultPath; status: string }) =>
@@ -137,7 +103,7 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
       if (deferral === null) setProblem('Today’s date could not be read, so nothing was deferred.');
       else void write(path, deferral);
     },
-    [write, clock],
+    [write, clock, setProblem],
   );
   const archiveTask = useCallback(
     (path: VaultPath) => void write(path, archiveTaskChange()),

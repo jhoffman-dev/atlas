@@ -31,7 +31,8 @@ export type SidebarIcon =
   | 'activity'
   | 'template'
   | 'term'
-  | 'inbox';
+  | 'inbox'
+  | 'today';
 
 /**
  * Words a type's name is recognised by, singular and plural. A vault defines

@@ -87,6 +87,13 @@ describe('activeSidebarPage', () => {
     ).toEqual({ kind: 'review' });
   });
 
+  it('is the Today page while it is open, over the graph, the type and the note', () => {
+    const layout = openInFocused(SINGLE_PANE, acme);
+    expect(
+      activeSidebarPage({ layout, openTypeName: 'task', graphOpen: true, todayOpen: true }),
+    ).toEqual({ kind: 'today' });
+  });
+
   it('is the Automations page while it is open, over the graph, the type and the note', () => {
     const layout = openInFocused(SINGLE_PANE, acme);
     expect(

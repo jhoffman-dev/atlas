@@ -55,6 +55,7 @@ import type {
   ApiStatus,
   ApiTag,
   ApiTaggedNote,
+  ApiToday,
   ApiWeeklyReview,
   ApiTagRenamePreview,
   ApiTagRenameReport,
@@ -378,6 +379,8 @@ export class AtlasClient {
     this.json<{ note: ApiNote }>({ method: 'POST', path: '/v1/tasks/schedule', body });
   weeklyReview = () =>
     this.json<{ review: ApiWeeklyReview }>({ method: 'GET', path: '/v1/review/weekly' });
+
+  today = () => this.json<{ today: ApiToday }>({ method: 'GET', path: '/v1/today' });
 
   automations = () => this.json<ApiAutomationList>({ method: 'GET', path: '/v1/automations' });
 
