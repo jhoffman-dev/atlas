@@ -41,9 +41,16 @@ function vaultWith(text: string) {
   const properties = () =>
     markdown.frontmatterProperties(splitFrontmatter(contents()).frontmatter ?? '');
   /** Makes a change as the page does, answering with its undo. */
-  const change = async (values: PropertyChanges) =>
-    (await changeUndoably({ fs, markdown, path: PATH, write: (readAt) => write(values, readAt) }))
-      .undo;
+  const change = async (values: PropertyChanges) => {
+    const made = await changeUndoably({
+      fs,
+      markdown,
+      path: PATH,
+      write: (readAt) => write(values, readAt),
+    });
+    if (made.undo === null) throw new Error('no undo was offered');
+    return made.undo;
+  };
   return { memory, fs, markdown, write, change, text: contents, properties };
 }
 
@@ -65,6 +72,28 @@ describe('changeUndoably', () => {
     expect(vault.properties()).toMatchObject({ defer: '2026-10-20' });
     await vault.write(undo);
     expect(vault.properties()).toMatchObject({ defer: '2026-10-13' });
+  });
+
+  it('counts a change as made, with no undo, when the task cannot be read back afterwards', async () => {
+    const vault = vaultWith(NEXT);
+    let reads = 0;
+    const fs = {
+      readTextFile: (path: Parameters<typeof vault.fs.readTextFile>[0]) => {
+        reads += 1;
+        return reads === 2
+          ? Promise.reject(new Error('The disk is busy.'))
+          : vault.fs.readTextFile(path);
+      },
+    };
+    const made = await changeUndoably({
+      fs,
+      markdown: vault.markdown,
+      path: PATH,
+      write: () => vault.write(defer(1)),
+    });
+    expect(made.undo).toBeNull();
+    expect(made.was).toEqual({ status: 'next-action', due: null, defer: null });
+    expect(vault.properties()).toMatchObject({ defer: '2026-10-14' });
   });
 
   it('says what the task was before the change', async () => {

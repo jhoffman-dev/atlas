@@ -112,10 +112,14 @@ export async function changeUndoably({
 }): Promise<UndoableChange> {
   const before = await frontmatterOf({ fs, markdown, path });
   await write(before.modified);
-  const after = await frontmatterOf({ fs, markdown, path });
+  const was = taskAsRead(before.properties);
+  // The change is written by now. If the task cannot be read back, what it
+  // changed is not known, so no undo is offered — it is not a failed write.
+  const after = await frontmatterOf({ fs, markdown, path }).catch(() => null);
+  if (after === null) return { was, undo: null };
   const keys = keysChanged(before, after);
   return {
-    was: taskAsRead(before.properties),
+    was,
     undo: (properties) => {
       const asLeft = keys.every((key) => sameValue(properties[key], after.properties[key]));
       if (!asLeft) throw new ChangedSinceError(STALE_UNDO);
@@ -126,8 +130,12 @@ export async function changeUndoably({
 
 /** A change that was made, and the way back from it. */
 export interface UndoableChange {
-  /** The change that takes it back, refused once the task says something else. */
-  readonly undo: PropertyChanges;
+  /**
+   * The change that takes it back, refused once the task says something
+   * else. Null when the task could not be read back after the write: the
+   * change was made, and there is no knowing what to restore.
+   */
+  readonly undo: PropertyChanges | null;
   /** What the task was before the change — and is again once it is undone. */
   readonly was: TaskAsRead;
 }

@@ -220,7 +220,7 @@ function namedFirstByLabel(left: TodayGroup, right: TodayGroup): number {
   return left.label.localeCompare(right.label) || left.key.localeCompare(right.key);
 }
 
-/** Today's first, then the longest overlooked. */
+/** Today's first, then the most recently passed. */
 function byDeferThenTitle(left: TodayTask, right: TodayTask): number {
   return (right.defer ?? '').localeCompare(left.defer ?? '') || byTitle(left, right);
 }

@@ -103,12 +103,15 @@ export function useToday(options: TodayOptions) {
     () => new Set(sameVault(settling, { index: indexOpen, vaultKey }) ? settling.rows.keys() : []),
     [settling, indexOpen, vaultKey],
   );
+  const knownHere = sameVault(settling, { index: indexOpen, vaultKey })
+    ? settling.known
+    : NONE_KNOWN;
 
   const change = useCallback(
     async ({ path, title, action, values }: Change) => {
       if (settlingHere.has(path)) return;
       const { fs, markdown, index } = ports;
-      const row = settling.known.get(path) ?? rows.get(path);
+      const row = knownHere.get(path) ?? rows.get(path);
       const guarded = row === undefined ? values : whileAsRead({ values, row });
       let made: UndoableChange | null = null;
       await actOn(path, async (put) => {
@@ -121,7 +124,13 @@ export function useToday(options: TodayOptions) {
       });
       // Only now: an action that was refused or failed leaves the earlier undo on offer.
       if (made === null) return;
-      setLast({ index, vaultKey, path, title, action, change: made });
+      // A change that could not be read back was still made: nothing to offer, and the row settles.
+      const { undo: takeBack, was: before } = made as UndoableChange;
+      setLast(
+        takeBack === null
+          ? null
+          : { index, vaultKey, path, title, action, undo: takeBack, was: before },
+      );
       const since = readsBegun.current;
       setSettling((was) => ({
         index,
@@ -130,7 +139,7 @@ export function useToday(options: TodayOptions) {
         known: sameVault(was, { index, vaultKey }) ? was.known : new Map(),
       }));
     },
-    [actOn, ports, vaultKey, rows, settling, settlingHere],
+    [actOn, ports, vaultKey, rows, knownHere, settlingHere],
   );
 
   const done = useCallback(
@@ -157,7 +166,7 @@ export function useToday(options: TodayOptions) {
   const undo = useCallback(async () => {
     if (undoable === null) return;
     const { path } = undoable;
-    const undone = await actOn(path, (put) => put(undoable.change.undo));
+    const undone = await actOn(path, (put) => put(undoable.undo));
     // An undo that could not be written stays on offer, to be tried again.
     if (!undone) return;
     setLast((was) => (was === undoable ? null : was));
@@ -166,7 +175,7 @@ export function useToday(options: TodayOptions) {
     setSettling((was) => ({
       ...was,
       rows: new Map([...was.rows].filter(([row]) => row !== path)),
-      known: new Map([...was.known, [path, undoable.change.was]]),
+      known: new Map([...was.known, [path, undoable.was]]),
     }));
   }, [undoable, actOn]);
   const dismiss = useCallback(() => setLast(null), []);
@@ -251,6 +260,8 @@ interface OfAVault {
 const sameVault = (left: OfAVault, right: OfAVault) =>
   left.index === right.index && left.vaultKey === right.vaultKey;
 
+const NONE_KNOWN: ReadonlyMap<VaultPath, TaskAsRead> = new Map();
+
 const NOTHING_SETTLING: Settling = {
   index: null,
   vaultKey: null,
@@ -279,7 +290,10 @@ interface Change extends Row {
 /** The last change the page wrote, the vault it was written in, and the change that takes it back. */
 interface LastChange extends Row, OfAVault {
   readonly action: TodayAction;
-  readonly change: UndoableChange;
+  /** The change that takes it back. */
+  readonly undo: PropertyChanges;
+  /** What the task was before, and is again once undone. */
+  readonly was: TaskAsRead;
 }
 
 /** A read of the page, and the index it was read from. */

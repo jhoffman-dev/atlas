@@ -276,6 +276,86 @@ describe('useToday', () => {
       await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(false));
     });
 
+    it('stops being held when the next read fails: the page shows the failure, not a frozen row', async () => {
+      const memory = memoryVault({ [PATH]: TASK_TEXT });
+      const index = { failing: false };
+      const ports = {
+        index: fakeIndexPort({
+          query: async (sql: string) => {
+            if (index.failing) throw new Error('the index is closed');
+            return answer(sql);
+          },
+        }),
+        fs: fakeVaultFs(memory.fs),
+        markdown: remarkMarkdown,
+      };
+      const activity = recordingActivity();
+      const onSettled = () => {};
+      const { result, rerender } = renderHook(
+        ({ indexKey }: { indexKey: string }) =>
+          useToday({
+            ports,
+            editors: noPane,
+            activity,
+            clock: CLOCK,
+            types: TYPES,
+            vaultKey: 'vault-a',
+            open: true,
+            onSettled,
+            indexKey,
+          }),
+        { initialProps: { indexKey: '1' } },
+      );
+      await waitFor(() => expect(result.current.page.today).not.toBeNull());
+      await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
+      await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(true));
+
+      index.failing = true;
+      rerender({ indexKey: '2' });
+      await waitFor(() => expect(result.current.page.error).toBe('the index is closed'));
+      expect(result.current.page.settling.has(PATH)).toBe(false);
+    });
+
+    it('holds the row, with no undo on offer, when its change was written but could not be read back', async () => {
+      const memory = memoryVault({ [PATH]: TASK_TEXT });
+      let reads = 0;
+      const ports = {
+        index: fakeIndexPort({ query: async (sql: string) => answer(sql) }),
+        fs: fakeVaultFs({
+          ...memory.fs,
+          // The look before the write, the write's own read, then the look after it.
+          readTextFile: async (path) => {
+            reads += 1;
+            if (reads === 3) throw new Error('The disk is busy.');
+            return memory.fs.readTextFile(path);
+          },
+        }),
+        markdown: remarkMarkdown,
+      };
+      const activity = recordingActivity();
+      const onSettled = vi.fn();
+      const { result } = renderHook(() =>
+        useToday({
+          ports,
+          editors: noPane,
+          activity,
+          clock: CLOCK,
+          types: TYPES,
+          vaultKey: 'vault-a',
+          indexKey: '1',
+          open: true,
+          onSettled,
+        }),
+      );
+      await waitFor(() => expect(result.current.page.today).not.toBeNull());
+      await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
+      await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(true));
+      expect(memory.files.get(PATH)).toContain('defer: 2026-10-14');
+      expect(result.current.page.notice).toBeNull();
+      expect(result.current.page.problem).toBeNull();
+      expect(onSettled).toHaveBeenCalledTimes(1);
+    });
+
     it('is free again once its change is undone', async () => {
       const { result } = mounted();
       await waitFor(() => expect(result.current.page.today).not.toBeNull());
