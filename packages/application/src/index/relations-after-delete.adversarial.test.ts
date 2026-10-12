@@ -75,6 +75,10 @@ function sqliteIndex(): IndexPort & { relationOf: (src: string) => string | null
   database.exec(
     'CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL, target TEXT NOT NULL, name TEXT NOT NULL, dst TEXT)',
   );
+  // Asked how the meeting import settled each note held (#92); these notes hold no stamp.
+  database.exec(
+    'CREATE TABLE props (path TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL, value_text TEXT)',
+  );
   const manifest = new Map<string, number>();
   return {
     ...fakeIndexPort(),

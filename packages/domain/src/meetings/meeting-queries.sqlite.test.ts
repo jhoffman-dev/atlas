@@ -1,6 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { compileMeetingHoldersQuery, compileMeetingListQuery } from './meeting-queries.ts';
+import {
+  compileImportOutcomesQuery,
+  compileMeetingHoldersQuery,
+  compileMeetingListQuery,
+  IMPORT_OUTCOMES_PAGE,
+  importOutcomesOf,
+} from './meeting-queries.ts';
 
 /**
  * The meeting statements run for real against SQLite, over the index's own
@@ -27,6 +33,9 @@ function meetingIndex(notes: readonly { path: string; props: Record<string, stri
   const run = ({ sql, parameters }: { sql: string; parameters: readonly (string | number)[] }) =>
     database.prepare(sql).all(...parameters);
   return {
+    outcomes: () =>
+      importOutcomesOf(run(compileImportOutcomesQuery()).map((row) => Object.values(row))),
+    outcomePage: (page: number) => run(compileImportOutcomesQuery(page)).map((row) => row['path']),
     holders: (provider: string, externalId: string) =>
       run(compileMeetingHoldersQuery({ provider, externalId })).map((row) => row['path']),
     list: (
@@ -87,6 +96,25 @@ const vault = meetingIndex([
     }),
   },
 ]);
+
+describe('compileImportOutcomesQuery (#92)', () => {
+  it('says how the import settled each note that holds a stamp, and of no other', () => {
+    const stamped = meetingIndex([
+      { path: 'Inbox/Meetings/In.md', props: meeting('g-1', { atlas_import_outcome: 'imported' }) },
+      { path: 'Inbox/Meetings/Bad.md', props: meeting('g-2', { atlas_import_outcome: 'error' }) },
+      { path: 'Inbox/Meetings/Odd.md', props: meeting('g-3', { atlas_import_outcome: 'maybe' }) },
+      { path: 'Inbox/Meetings/Waiting.md', props: meeting('g-4') },
+    ]);
+    expect(stamped.outcomes()).toEqual(
+      new Map([
+        ['Inbox/Meetings/Bad.md', 'error'],
+        ['Inbox/Meetings/In.md', 'imported'],
+        // A stamp the import does not know is a stamp all the same, read as it reads one.
+        ['Inbox/Meetings/Odd.md', 'imported'],
+      ]),
+    );
+  });
+});
 
 describe('compileMeetingHoldersQuery', () => {
   it('finds the meetings holding a provider and external id, archived and marked ones too', () => {
@@ -186,5 +214,32 @@ describe('compileMeetingListQuery', () => {
     const rest = vault.list({ limit: 50, offset: 3 }).map((row) => row['path']);
     expect([...first, ...rest]).toEqual(all);
     expect(first).toHaveLength(3);
+  });
+});
+
+describe('compileImportOutcomesQuery: where it looks, and how much at a time (#92 review)', () => {
+  const stamp = { atlas_import_outcome: 'imported' };
+
+  it('asks only of notes where meeting files land, so stamps kept elsewhere cost nothing', () => {
+    const index = meetingIndex([
+      { path: 'Inbox/Meetings/In.md', props: stamp },
+      { path: 'inbox/meetings/Lower.md', props: stamp },
+      { path: 'Projects/Elsewhere.md', props: stamp },
+      { path: 'Archive/Inbox/Meetings/Old.md', props: stamp },
+    ]);
+    expect([...index.outcomes().keys()]).toEqual([
+      'Inbox/Meetings/In.md',
+      'inbox/meetings/Lower.md',
+    ]);
+  });
+
+  it('pages: a page holds at most the page size, and the next picks up after it', () => {
+    const notes = Array.from({ length: IMPORT_OUTCOMES_PAGE + 3 }, (_, n) => ({
+      path: `Inbox/Meetings/${String(n).padStart(5, '0')}.md`,
+      props: stamp,
+    }));
+    const index = meetingIndex(notes);
+    expect(index.outcomePage(0)).toHaveLength(IMPORT_OUTCOMES_PAGE);
+    expect(index.outcomePage(1)).toEqual(notes.slice(IMPORT_OUTCOMES_PAGE).map((n) => n.path));
   });
 });

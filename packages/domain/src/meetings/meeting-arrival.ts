@@ -35,15 +35,36 @@ export function isMeetingInboxPath(path: string): boolean {
 
 /**
  * How the import settled a file, from its frontmatter: null when it has not
- * — an arrival not finished yet. A stamp it does not know is a stamp all the
- * same, kept as `imported`: the file is someone's, and is left alone.
+ * — an arrival not finished yet, or a stamp holding no value at all (`[]`). A
+ * list is read by its first item and a name without the spaces round it; a
+ * stamp it does not know is a stamp all the same, kept as `imported`: the file
+ * is someone's, and is left alone. This is the one reader of a stamp: the
+ * index's rows and the file's frontmatter both go through it, so they never
+ * disagree on what a stamp says.
  */
 export function importOutcomeOf(
   properties: Readonly<Record<string, unknown>>,
 ): ImportOutcome | null {
   if (!Object.hasOwn(properties, IMPORT_OUTCOME_KEY)) return null;
-  const said = properties[IMPORT_OUTCOME_KEY];
-  return IMPORT_OUTCOMES.includes(said as ImportOutcome) ? (said as ImportOutcome) : 'imported';
+  const stamp = properties[IMPORT_OUTCOME_KEY];
+  const said = Array.isArray(stamp) ? (stamp[0] as unknown) : stamp;
+  if (Array.isArray(stamp) && stamp.length === 0) return null;
+  const name = typeof said === 'string' ? said.trim() : said;
+  return IMPORT_OUTCOMES.includes(name as ImportOutcome) ? (name as ImportOutcome) : 'imported';
+}
+
+/**
+ * Whether a note is in play to what reacts to notes: anywhere but where meeting
+ * files land, always; there, once the import has let it in (#92).
+ */
+export function isInPlay({
+  path,
+  importOutcome,
+}: {
+  path: string;
+  importOutcome: ImportOutcome | null | undefined;
+}): boolean {
+  return !isMeetingInboxPath(path) || importOutcome === 'imported';
 }
 
 /**
