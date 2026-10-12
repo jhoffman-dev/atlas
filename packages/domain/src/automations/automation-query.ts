@@ -96,6 +96,7 @@ function pinExpression(expression: Expression, today: string): Expression {
       return { ...expression, value: pinValue(expression.value, today) };
     case 'empty':
     case 'linksTo':
+    case 'connectedTo':
       return expression;
   }
 }

@@ -380,7 +380,8 @@ function holds(world: World, path: string, expression: Expression): boolean {
     case 'not':
       return !holds(world, path, expression.operand);
     case 'linksTo':
-      throw new Error('the fuzzed queries say no LINKS TO');
+    case 'connectedTo':
+      throw new Error('the fuzzed queries say no LINKS TO or CONNECTED TO');
     case 'empty': {
       const present = holders(world, path, expression.field).some(
         (holder) => rowsOf(world, holder, expression.field.name.text).present,

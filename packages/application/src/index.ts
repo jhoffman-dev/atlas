@@ -28,6 +28,7 @@ export * from './gtd/index.ts';
 export * from './timeblocks/index.ts';
 export * from './checklists/index.ts';
 export * from './review/index.ts';
+export * from './linked-pages/index.ts';
 export * from './automations/index.ts';
 export * from './people/index.ts';
 export * from './terms/index.ts';
