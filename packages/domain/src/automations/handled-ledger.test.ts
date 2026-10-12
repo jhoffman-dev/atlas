@@ -199,16 +199,22 @@ describe('the handled ledger: what a rule remembers once its entries age out', (
 
   it('records more than one key for a handled version, and matches a note on any of them', () => {
     const entry = answeredRun(0, {
-      versions: [{ path: meetingPath(0), digest: 'd0', wrote: false, keys: ['body:abc'] }],
+      versions: [
+        { path: meetingPath(0), digest: 'd0', wrote: false, keys: ['meeting:fathom:abc:body:abc'] },
+      ],
     });
     const text = appendAll([entry]);
 
     expect(text).toContain('also');
     expect(parseRunLog(text)[0]).toEqual(entry);
     const handled = memoryOf(text);
-    const elsewhere = { path: p('Filed/Renamed.md'), digest: 'edited', keys: ['body:abc'] };
+    const elsewhere = {
+      path: p('Filed/Renamed.md'),
+      digest: 'edited',
+      keys: ['meeting:fathom:abc:body:abc'],
+    };
     expect(handled.has(elsewhere)).toBe(true);
-    expect(handled.has({ ...elsewhere, keys: ['body:other'] })).toBe(false);
+    expect(handled.has({ ...elsewhere, keys: ['meeting:fathom:abc:body:other'] })).toBe(false);
   });
 
   it('keeps a reader’s own section and the entries, and writes a ledger a person can read', () => {
