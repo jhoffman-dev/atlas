@@ -35,7 +35,7 @@ const view = (title: string, layout: string, extra: readonly string[] = []) =>
     '',
   ].join('\n');
 
-async function openVault(page: Page): Promise<FakeVault> {
+async function openVaultWithHost(page: Page): Promise<FakeVault> {
   await page.setViewportSize({ width: 1440, height: 900 });
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
@@ -54,15 +54,38 @@ async function openVault(page: Page): Promise<FakeVault> {
     ['---', 'type: task', 'status: doing', '---', '', '# Ship it', ''].join('\n'),
   );
 
-  await installHost(page, vault);
+  const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  return vault;
+  // PARA's own types are written once the vault is open, after the count
+  // above, and their rows arrive in Types above Task's and Project's. A row
+  // clicked as they came in was pressed where it had been: the click did
+  // nothing and the type never opened (#52). Resource is the last of them.
+  await expect(
+    sidebarSection(page, 'types').getByRole('button', { name: /^Resource, / }),
+  ).toBeVisible();
+  return { vault, host };
 }
+
+const openVault = async (page: Page) => (await openVaultWithHost(page)).vault;
 
 const tabStrip = (page: Page) => page.getByRole('navigation', { name: 'Views' });
 const tabTitles = (page: Page) => tabStrip(page).locator('.view-tabs__tab');
+/**
+ * The view named is the one open: its tab is the pressed one.
+ *
+ * A view just added is opened in the pane, which draws its page — tabs and
+ * toolbar with it — afresh. That happens some time after the view's file is
+ * written, so the file is not the thing to wait for before using the page:
+ * a Filter pressed on the page being replaced opened a popover that went with
+ * it, and a tab focused there lost its focus (#52).
+ */
+const expectOpen = (page: Page, name: string) =>
+  expect(tabStrip(page).getByRole('button', { name, exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 const openType = (page: Page, label: string) =>
   sidebarSection(page, 'types')
     .getByRole('button', { name: new RegExp(`^${label}, `) })
@@ -213,6 +236,7 @@ test('Alt+arrow twice on a view just added moves it two places, not one', async 
   await tabStrip(page).getByRole('button', { name: 'Add a view' }).click();
   await page.getByRole('menuitem', { name: /List/ }).click();
   await expect(tabTitles(page)).toHaveText(['Board', 'Everything', 'Task list']);
+  await expectOpen(page, 'Task list');
 
   await tabStrip(page).getByRole('button', { name: 'Task list' }).focus();
   await page.keyboard.press('Alt+ArrowLeft');
@@ -228,14 +252,22 @@ test('Alt+arrow twice on a view just added moves it two places, not one', async 
 test('“+” chosen twice in quick succession adds two views, and nothing goes wrong', async ({
   page,
 }) => {
-  const vault = await openVault(page);
+  const { vault, host } = await openVaultWithHost(page);
   await openType(page, 'Task');
   const add = async () => {
     await tabStrip(page).getByRole('button', { name: 'Add a view' }).click();
     await page.getByRole('menuitem', { name: /List/ }).click();
   };
+  // The first view's write is held in flight, so the second is asked for
+  // before the first exists: that is the succession this is about, and it
+  // no longer depends on how fast the test clicks. Once the first is written
+  // the pane opens it and draws its tabs afresh, and a "+" pressed on the old
+  // ones as they went was lost — which is how this failed under load (#52).
+  const writeTheFirst = host.holdWrites('.atlas/views/Task list.md');
   await add();
   await add();
+  expect(await vault.exists('.atlas/views/Task list.md')).toBe(false);
+  writeTheFirst();
 
   await expectFile(vault, '.atlas/views/Task list 2.md').toContain('layout: list');
   expect(await vault.exists('.atlas/views/Task list.md')).toBe(true);
@@ -251,6 +283,7 @@ test('a view deleted and made again under its name starts without the old one’
   await tabStrip(page).getByRole('button', { name: 'Add a view' }).click();
   await page.getByRole('menuitem', { name: /List/ }).click();
   await expectFile(vault, '.atlas/views/Task list.md').toContain('layout: list');
+  await expectOpen(page, 'Task list');
 
   await page.getByRole('button', { name: 'Filter' }).click();
   await page.getByRole('combobox', { name: 'Property' }).selectOption('status');

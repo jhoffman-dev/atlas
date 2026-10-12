@@ -711,6 +711,8 @@ export async function installHost(
         const { writeFile } = await import('node:fs/promises');
         const { contents } = args as { contents: string };
         const file = containedPath(writeRoot(args), path);
+        // Making a file is a write to it, and is held as one (`holdWrites`).
+        await held.get(path);
         try {
           await writeFile(file, contents, { encoding: 'utf8', flag: 'wx' });
         } catch {
@@ -1623,9 +1625,32 @@ export async function pageCommand(
   );
 }
 
-/** Saves the note now, as the Save button used to. */
-export const saveNow = (page: Page, scope: Page | Locator = page) =>
-  pageCommand(page, /^Save now/, scope);
+/**
+ * Saves the note now, as the Save button used to — or finds it saved already.
+ *
+ * The note saves itself 1.2 s after the last edit, and from then on Save now
+ * is disabled: there is nothing to save. A test that reached the menu later
+ * than that waited the whole 30 s for the item to come back (#52,
+ * images.spec.ts:166 on a slow runner). So the item is pressed as a person
+ * presses it, enabled or not — the pointer goes to it once it has stopped
+ * moving, then clicks — and a menu left open by a press that did nothing is
+ * closed. Whether the note is saved is for `expectSaved` to say, after.
+ */
+export async function saveNow(page: Page, scope: Page | Locator = page): Promise<void> {
+  await test.step(
+    'page menu: Save now',
+    async () => {
+      await scope.getByRole('button', { name: 'More' }).click();
+      const item = page.getByRole('menuitem', { name: /^Save now/ });
+      await item.hover();
+      await page.mouse.down();
+      await page.mouse.up();
+      if (await item.isVisible()) await page.keyboard.press('Escape');
+      await expect(item).toBeHidden();
+    },
+    { box: true },
+  );
+}
 
 /** Splits the window from a pane's menu, as the split button used to. */
 export const splitWindow = (page: Page, scope: Page | Locator = page) =>
