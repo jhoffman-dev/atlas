@@ -387,6 +387,47 @@ describe('useAutomations: rules a note sets off (P29-01)', () => {
     expect(vault.files[`Archive/${TASK}`]).toBeDefined();
   });
 
+  it('runs news held while the index opens once each, in the order it was heard (#92)', async () => {
+    const [first, second] = ['Tasks/A.md', 'Tasks/B.md'];
+    const vault = memoryVault({
+      [RULE]: onNewTask(),
+      [first]: '---\ntype: task\n---\n',
+      [second]: '---\ntype: task\n---\n',
+    });
+    // The query asked among the notes a run heard of answers for those alone, as SQL does.
+    const held = vault.ports();
+    const ports = {
+      ...held,
+      types: [TASK_TYPE],
+      index: {
+        ...held.index,
+        query: async (sql: string, parameters: readonly (string | number | null)[]) => {
+          const result = await held.index.query(sql, parameters);
+          const named = parameters.filter((each) => typeof each === 'string');
+          return { ...result, rows: result.rows.filter((row) => named.includes(String(row[0]))) };
+        },
+      },
+    };
+    const changes = createNoteChanges({ onError: (cause) => void cause });
+    const { hook, initial } = mount(vault, { changes, ports, indexReady: false });
+    act(() => changes.publish(added(vault, first)));
+    act(() => changes.publish(added(vault, second)));
+    await settle();
+    expect(vault.files[LOG]).toBeUndefined();
+
+    // The index opens, and is busy and ready again with each sync after.
+    for (const indexReady of [true, false, true]) {
+      hook.rerender({ ...initial, changes, indexReady });
+      await settle();
+    }
+    const triggeredBy = runsIn(vault.files[LOG]).map((entry) =>
+      entry.kind === 'run'
+        ? entry.done.map((action) => action.kind === 'archived' && action.from)
+        : [],
+    );
+    expect(triggeredBy).toEqual([[first], [second]]);
+  });
+
   it('runs nothing on a Mac that does not run the vault’s automations', async () => {
     const vault = memoryVault({ [RULE]: onNewTask(), [TASK]: '---\ntype: task\n---\n' });
     const changes = createNoteChanges({ onError: (cause) => void cause });

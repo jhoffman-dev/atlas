@@ -46,7 +46,10 @@ const FILES_TABLE = `
     summary TEXT NOT NULL DEFAULT '', modified INTEGER NOT NULL, size INTEGER NOT NULL,
     digest TEXT NOT NULL DEFAULT '', note_type TEXT);
   CREATE TABLE IF NOT EXISTS relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
-    target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);`;
+    target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
+  CREATE TABLE IF NOT EXISTS props (path TEXT NOT NULL, key TEXT NOT NULL,
+    idx INTEGER NOT NULL DEFAULT 0, value_text TEXT, value_num REAL, value_date TEXT,
+    value_json TEXT);`;
 
 interface SentNote {
   path: string;
@@ -57,6 +60,14 @@ interface SentNote {
   digest: string;
   type: string | null;
   relations: { key: string; index: number; target: string; name: string; path: string | null }[];
+  properties: {
+    key: string;
+    index: number;
+    text: string | null;
+    number: number | null;
+    date: string | null;
+    json: string | null;
+  }[];
 }
 
 /** The host's commands for one vault folder, its index in the folder's cache as the app keeps it. */
@@ -81,7 +92,7 @@ function hostFor(root: string) {
       return { fresh };
     },
     index_clear: () => {
-      opened().exec('DROP TABLE files; DROP TABLE relations;');
+      opened().exec('DROP TABLE files; DROP TABLE relations; DROP TABLE props;');
       opened().exec(FILES_TABLE);
       return null;
     },
@@ -98,6 +109,7 @@ function hostFor(root: string) {
       for (const path of paths as string[]) {
         opened().prepare('DELETE FROM files WHERE path = ?').run(path);
         opened().prepare('DELETE FROM relations WHERE src = ?').run(path);
+        opened().prepare('DELETE FROM props WHERE path = ?').run(path);
       }
       return null;
     },
@@ -145,6 +157,12 @@ function putNote(database: DatabaseSync, note: SentNote) {
     database
       .prepare('INSERT INTO relations VALUES (?, ?, ?, ?, ?, ?)')
       .run(note.path, row.key, row.index, row.target, row.name, row.path);
+  }
+  database.prepare('DELETE FROM props WHERE path = ?').run(note.path);
+  for (const row of note.properties) {
+    database
+      .prepare('INSERT INTO props VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(note.path, row.key, row.index, row.text, row.number, row.date, row.json);
   }
 }
 
@@ -275,6 +293,46 @@ describe('the index change feed over a real folder and a real SQLite index', () 
 
     expect(reopened.news()).toEqual([
       { kind: 'added', path: KICKOFF, type: 'meeting', digest: digestOf(KICKOFF_TEXT) },
+    ]);
+  });
+
+  it('says how the meeting import settled a note, before and after, across a relaunch (#92)', async () => {
+    const STANDUP = 'Inbox/Meetings/Standup.md';
+    const plain = '---\ntype: meeting\n---\n\nAgenda.\n';
+    const stamped = '---\ntype: meeting\natlas_import_outcome: imported\n---\n\nAgenda.\n';
+    const edited = `${stamped}Decided: ship on Friday.\n`;
+    await writeNote(STANDUP, plain);
+    const app = launch();
+    await app.sync();
+    app.news();
+
+    await writeNote(STANDUP, stamped);
+    await app.sync();
+    expect(app.news()).toEqual([
+      {
+        kind: 'changed',
+        path: STANDUP,
+        type: 'meeting',
+        digest: digestOf(stamped),
+        before: digestOf(plain),
+        importOutcome: 'imported',
+      },
+    ]);
+
+    await writeNote(STANDUP, edited);
+    const reopened = launch();
+    await reopened.sync();
+    expect(reopened.news()).toEqual([
+      {
+        kind: 'changed',
+        path: STANDUP,
+        type: 'meeting',
+        digest: digestOf(edited),
+        before: digestOf(stamped),
+        importOutcome: 'imported',
+        beforeImportOutcome: 'imported',
+        beforeArrivalHeard: true,
+      },
     ]);
   });
 

@@ -25,8 +25,8 @@ const TODAY = '2026-10-08';
 const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
 const VAULT = '/vaults/home';
 const GUARD: VaultGuard = { vault: VAULT, currentVault: () => VAULT };
-const STANDUP = 'Inbox/Meetings/2026-10-06 Standup.md';
-const KICKOFF = 'Inbox/Meetings/2026-10-07 Kickoff.md';
+const STANDUP = 'Meetings/2026-10-06 Standup.md';
+const KICKOFF = 'Meetings/2026-10-07 Kickoff.md';
 
 const TYPES = [
   ...TASK_TYPES,
@@ -193,7 +193,7 @@ describe('runOnNoteChanges, attacked again (round 2): a path a handled note left
     await run(MARK, noteChangesBetween(new Map(), versions()));
     expect(vault.properties(STANDUP)['status']).toBe('new');
     // Tobias renames it to say who it was with; the next one is made from the template at the old name.
-    const renamed = 'Inbox/Meetings/2026-10-06 Standup with Mara Quill.md';
+    const renamed = 'Meetings/2026-10-06 Standup with Mara Quill.md';
     const beforeRename = versions();
     await vault.ports.fs.moveEntry({
       from: createVaultPath(STANDUP),
@@ -276,7 +276,7 @@ describe('runOnNoteChanges, attacked again (round 2): a note an archive relinks'
       which: 'FROM meeting WHERE status = done',
       action: { kind: 'archive' },
     };
-    const link = 'Follows [[Inbox/Meetings/2026-10-06 Standup]].\n';
+    const link = 'Follows [[Meetings/2026-10-06 Standup]].\n';
     const { vault, run, versions } = setUp({
       [STANDUP]: meeting({ kind: 'standup', status: 'done' }),
       [KICKOFF]: meeting({ kind: 'kickoff' }, link),
@@ -292,7 +292,7 @@ describe('runOnNoteChanges, attacked again (round 2): a note an archive relinks'
     };
     await run(fileDone, [standupDone]);
     expect(vault.files.has(STANDUP)).toBe(false);
-    expect(vault.files.get(KICKOFF)).not.toContain('[[Inbox/Meetings/2026-10-06 Standup]]');
+    expect(vault.files.get(KICKOFF)).not.toContain('[[Meetings/2026-10-06 Standup]]');
 
     // The index looks again: the kickoff changed — by Mara, and by the rule's relink.
     await run(fileDone, noteChangesBetween(before, versions()));
