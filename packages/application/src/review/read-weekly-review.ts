@@ -8,7 +8,7 @@ import {
   type CompiledQuery,
   type WeeklyReview,
 } from '@atlas/domain';
-import { listVaultInbox } from '../inbox/list-inbox.ts';
+import { listInbox, listVaultInbox } from '../inbox/list-inbox.ts';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
@@ -45,17 +45,27 @@ export async function readWeeklyReview({
   fs,
   markdown,
   clock,
+  tasksStartInInbox: startInInbox,
 }: {
   index: Pick<IndexPort, 'query'>;
   /** Where the proposals waiting in the Inbox, and the vault's types, are read from. */
   fs: VaultFsPort;
   markdown: MarkdownPort;
   clock: Pick<Clock, 'today' | 'now'>;
+  /**
+   * Whether the vault's tasks start in the Inbox (`tasksStartInInbox` of its
+   * types), so the Inbox is counted as its page lists it. Left out, the types
+   * are read from the vault.
+   */
+  tasksStartInInbox?: boolean;
 }): Promise<WeeklyReviewReport> {
   const [tasks, projects, inbox, proposals] = await Promise.all([
     rowsOf(index, compileReviewTasksQuery()),
     rowsOf(index, compileReviewProjectsQuery()),
-    listVaultInbox({ index, fs, markdown }),
+    // Told by a caller that holds the vault's types; read from the vault otherwise.
+    startInInbox === undefined
+      ? listVaultInbox({ index, fs, markdown })
+      : listInbox({ index, tasksStartInInbox: startInInbox }),
     listProposals({ fs, markdown }),
   ]);
   const toFile = inbox.items.length;

@@ -4,6 +4,7 @@ import {
   PROJECT_TYPE,
   reviewDeferral,
   TASK_KEYS,
+  tasksStartInInbox,
   taskTypeOf,
   type ObjectType,
   type VaultPath,
@@ -65,12 +66,14 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
   const [problem, setProblem] = useState<string | null>(null);
   // `busy` reaches the page a render late; two presses in one tick would both see it false.
   const running = useRef(false);
+  // The types the sidebar's Inbox count is read with, so the review counts the same.
+  const startInInbox = tasksStartInInbox(types);
 
   useEffect(() => {
     if (!open || !indexReady) return;
     let cancelled = false;
     const { index, fs, markdown } = ports;
-    readWeeklyReview({ index, fs, markdown, clock })
+    readWeeklyReview({ index, fs, markdown, clock, tasksStartInInbox: startInInbox })
       .then((report) => {
         if (!cancelled) setRead({ index, report, error: null });
       })
@@ -80,7 +83,7 @@ export function useWeeklyReview(options: WeeklyReviewOptions) {
     return () => {
       cancelled = true;
     };
-  }, [ports, clock, indexKey, indexReady, open]);
+  }, [ports, clock, indexKey, indexReady, open, startInInbox]);
 
   // Only what this index answered, and only while it is ready: after a vault
   // switch or during a rebuild the last review's paths are not this vault's,
