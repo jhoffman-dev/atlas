@@ -76,8 +76,8 @@ export function useMeetingImport({
       active: () => latest.current.active,
       onWritten: () => latest.current.onWritten(),
       // Linked before the stamp: see `createMeetingLinker`.
-      beforeLetIn: async (vault, path) => {
-        await linker(vault, [path]);
+      beforeLetIn: async (vault, path, reading) => {
+        await linker(vault, [path], reading);
       },
     });
     setImporter(made);

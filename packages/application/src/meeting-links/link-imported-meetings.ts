@@ -1,4 +1,9 @@
-import { meetingLinkReport, messageWithoutPaths, type VaultPath } from '@atlas/domain';
+import {
+  meetingLinkReport,
+  messageWithoutPaths,
+  type VaultPath,
+  type Vocabulary,
+} from '@atlas/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { Clock } from '../ports.ts';
 import { linkMeeting, type MeetingLinkPorts, type MeetingLinkRun } from './link-meeting.ts';
@@ -7,6 +12,8 @@ import { linkMeeting, type MeetingLinkPorts, type MeetingLinkRun } from './link-
 export type MeetingLinker = (
   vault: string,
   paths: readonly VaultPath[],
+  /** What the caller's run has already read: the vocabulary it corrects by, for the speakers to be read by too. */
+  reading?: { readonly vocabulary?: Vocabulary | undefined },
 ) => Promise<readonly MeetingLinkRun[]>;
 
 /**
@@ -19,7 +26,9 @@ export type MeetingLinker = (
  * that arrives and no write to it follows. A meeting stamped `imported` is
  * never judged again, so never linked again, and a person taken out of its
  * `people` stays out. A meeting whose linking failed is not retried until the
- * "after a meeting" pipeline (#19) runs the step; Activity says so.
+ * "after a meeting" pipeline (#19) runs the step; Activity says so. A
+ * meeting whose links were written and whose proposals then could not be is
+ * said as linked, with why nothing was proposed, and its run is kept.
  */
 export function createMeetingLinker({
   ports,
@@ -38,7 +47,7 @@ export function createMeetingLinker({
   /** Told when linking wrote a note, so the tree and the index read it again. */
   onWritten: () => void;
 }): MeetingLinker {
-  return async (vault, paths) => {
+  return async (vault, paths, reading = {}) => {
     const recorder = activity.inVault(vault);
     const runs: MeetingLinkRun[] = [];
     for (const path of paths) {
@@ -49,10 +58,11 @@ export function createMeetingLinker({
           path,
           today: clock.today(),
           selfName: selfName(),
+          vocabulary: reading.vocabulary,
         });
-        const { linked, proposed, left } = run;
+        const { linked, proposed, left, unproposed } = run;
         recorder.record(
-          meetingLinkReport({ meeting: path, linked, proposed: proposed.length, left }),
+          meetingLinkReport({ meeting: path, linked, proposed: proposed.length, left, unproposed }),
         );
         runs.push(run);
       } catch (cause) {

@@ -1,5 +1,6 @@
 import { blockIdAtEnd } from '../markdown/block-anchor.ts';
 import { correctTerms, type TermChange } from '../terms/correct-terms.ts';
+import { vocabularyKey } from '../terms/spelling.ts';
 import type { Vocabulary } from '../terms/vocabulary.ts';
 import { correctionDigestOf } from './correction-digest.ts';
 import { splitMeetingSections } from './meeting-sections.ts';
@@ -43,10 +44,17 @@ export interface MeetingCorrection {
  * Notes, Provider next steps and Transcript (P28-06) — never in the title or
  * anything before the first section — and what changed, as its frontmatter
  * records it. Every byte outside a corrected spelling is as it was.
+ *
+ * A turn's speaker label that is exactly what a person goes by (their name
+ * or an alias, `vocabulary.speakers`) names that person, and is what links
+ * the turn to them. It is left as heard where a term would make it a
+ * spelling that is not theirs (`Toby`, Tobias Fenn's alias, into the product
+ * `Tobi`); it is still put right into one that is (`Mara Quil` into `Mara
+ * Quill`).
  */
 export function correctMeetingBody(
   body: string,
-  vocabulary: Pick<Vocabulary, 'entries'>,
+  vocabulary: Pick<Vocabulary, 'entries'> & Partial<Pick<Vocabulary, 'speakers'>>,
 ): MeetingCorrection {
   const lineStarts = lineStartsOf(body);
   const changes: (TermChange & { readonly blockId: string | null })[] = [];
@@ -55,7 +63,12 @@ export function correctMeetingBody(
     const start = lineStarts[section.headingLine + 1] ?? body.length;
     const corrected = correctTerms(section.text, vocabulary);
     const blockIdAt = blockIdFinder(section.text);
+    const kept =
+      section.name === 'transcript'
+        ? labelsKept(section.text, corrected.changes, vocabulary.speakers)
+        : [];
     for (const change of corrected.changes) {
+      if (kept.some(({ start, end }) => change.start >= start && change.end <= end)) continue;
       changes.push({
         ...change,
         start: start + change.start,
@@ -65,6 +78,49 @@ export function correctMeetingBody(
     }
   }
   return correctionOf(body, changes);
+}
+
+/** `**Speaker**` at the start of a line, as the transcript's turns are read. */
+const SPEAKER_LABEL = /^\*\*([^*\n]+)\*\*/gm;
+
+/**
+ * Where the transcript's speaker labels to leave as heard sit in its text:
+ * those someone goes by, which the changes would turn into a spelling not
+ * every one of those people goes by.
+ */
+function labelsKept(
+  text: string,
+  changes: readonly TermChange[],
+  speakers: Vocabulary['speakers'] | undefined,
+): { start: number; end: number }[] {
+  if (speakers === undefined || speakers.size === 0 || changes.length === 0) return [];
+  const kept: { start: number; end: number }[] = [];
+  for (const label of text.matchAll(SPEAKER_LABEL)) {
+    const heard = speakers.get(vocabularyKey(label[1] ?? ''));
+    if (heard === undefined) continue;
+    const start = label.index + 2;
+    const end = start + (label[1] ?? '').length;
+    const within = changes.filter((change) => change.start >= start && change.end <= end);
+    if (within.length === 0) continue;
+    const theirs = speakers.get(vocabularyKey(rewritten(text, { start, end }, within))) ?? [];
+    if (!heard.every((person) => theirs.includes(person))) kept.push({ start, end });
+  }
+  return kept;
+}
+
+/** A stretch of the text as the changes inside it would leave it. */
+function rewritten(
+  text: string,
+  { start, end }: { start: number; end: number },
+  changes: readonly TermChange[],
+): string {
+  let written = '';
+  let read = start;
+  for (const change of changes) {
+    written += text.slice(read, change.start) + change.to;
+    read = change.end;
+  }
+  return written + text.slice(read, end);
 }
 
 /** A record while its changes are gathered: the blocks a set, so each is added once in constant time. */

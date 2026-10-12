@@ -358,6 +358,7 @@ describe('undoMeetingLink', () => {
       proposed: [],
       left: [],
       passedOver: [],
+      unproposed: null,
     };
     const undone = await undoMeetingLink({ ports, run: forged, today: TODAY });
     expect(undone.restored).toEqual([]);
