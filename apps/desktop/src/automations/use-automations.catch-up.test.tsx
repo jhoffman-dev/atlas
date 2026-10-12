@@ -148,7 +148,11 @@ function memoryVault(files: Record<string, string>, modified: Record<string, num
   return { files, ports };
 }
 
-const clock = { today: () => '2026-10-08', localNow: () => '2026-10-08T09:00:00' };
+const clock = {
+  today: () => '2026-10-08',
+  localNow: () => '2026-10-08T09:00:00',
+  now: () => Date.parse('2026-10-08T09:00:00Z'),
+};
 
 async function settle() {
   for (let round = 0; round < 8; round += 1) {
@@ -216,6 +220,7 @@ describe('useAutomations: opening a vault whose rule handled more meetings than 
         appendLogEntry({
           text,
           ruleName: 'Sweep',
+          now: Date.parse('2026-10-08T09:00:00Z'),
           entry: {
             kind: 'run',
             at: `2026-10-0${1 + (at % 7)}T09:00:00`,

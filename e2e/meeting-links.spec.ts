@@ -87,6 +87,9 @@ test('an arriving meeting links its people and company, and an unknown attendee 
 
   // The meeting shows who it is linked to.
   await page.getByRole('button', { name: /^Inbox/ }).click();
+  // The Inbox reads its GTD offer once it is open, and the offer lands above the
+  // list: a click aimed at the meeting before it lands falls on the gap it leaves.
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   await page.getByRole('main').getByText('Payroll sync', { exact: true }).click();
   const people = properties(page)
     .getByRole('list', { name: /people/i })

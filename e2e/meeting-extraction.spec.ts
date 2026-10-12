@@ -160,6 +160,9 @@ test('a meeting arrives, the extraction rule proposes mine, a waiting-for and a 
 
   // In the Inbox: each card says why, and the unsure one is marked.
   await page.getByRole('button', { name: /^Inbox/ }).click();
+  // The Inbox reads its GTD offer once it is open, and the offer lands above the
+  // proposals: a click aimed at a card before it lands falls where the card was (#130).
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   const task = page.getByRole('region', { name: 'Task: Write the rollout note' });
   await expect(task).toBeVisible();
   await expect(task.getByText(`Yours, from ${TITLE}.`)).toBeVisible();
@@ -195,6 +198,7 @@ test('screenshots: the Inbox with extraction proposals and a low-confidence card
   await arrive(page, vault);
   await expectFile(vault, proposalFor('Tell the platform channel')).toContain('confidence: low');
   await page.getByRole('button', { name: /^Inbox/ }).click();
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   const unsure = page.getByRole('region', { name: 'Task: Tell the platform channel' });
   await expect(unsure).toBeVisible();
   await mkdir('design/out/shots', { recursive: true });

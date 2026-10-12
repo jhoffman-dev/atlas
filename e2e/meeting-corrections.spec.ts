@@ -74,6 +74,9 @@ test('a misheard meeting arrives corrected, shows what changed, and Undo correct
     .getByRole('list', { name: 'Go to' })
     .getByRole('button', { name: /^Inbox/ })
     .click();
+  // The Inbox reads its GTD offer once it is open, and the offer lands above the
+  // list: a click aimed at the meeting before it lands falls on the gap it leaves.
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   await page.getByRole('main').getByText('Platform weekly sync', { exact: true }).click();
   const band = page.getByRole('complementary', { name: 'Corrections' });
   await expect(band).toBeVisible();
@@ -106,6 +109,9 @@ test('Undo corrections is refused, and the meeting left as it is, once its words
     .getByRole('list', { name: 'Go to' })
     .getByRole('button', { name: /^Inbox/ })
     .click();
+  // The Inbox reads its GTD offer once it is open, and the offer lands above the
+  // list: a click aimed at the meeting before it lands falls on the gap it leaves.
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   await page.getByRole('main').getByText('Platform weekly sync', { exact: true }).click();
   const band = page.getByRole('complementary', { name: 'Corrections' });
   await expect(band).toBeVisible();
@@ -136,6 +142,9 @@ test('screenshots: a corrected meeting with its band', async ({ page }) => {
     .getByRole('list', { name: 'Go to' })
     .getByRole('button', { name: /^Inbox/ })
     .click();
+  // The Inbox reads its GTD offer once it is open, and the offer lands above the
+  // list: a click aimed at the meeting before it lands falls on the gap it leaves.
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
   await page.getByRole('main').getByText('Platform weekly sync', { exact: true }).click();
   const band = page.getByRole('complementary', { name: 'Corrections' });
   await expect(band).toBeVisible();

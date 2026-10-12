@@ -41,6 +41,7 @@ export {
 } from './schedule.ts';
 export type { LocalTime, Schedule } from './schedule.ts';
 export {
+  appendEntryToLog,
   appendLogEntry,
   futureMarkOf,
   formatLogEntry,
@@ -167,11 +168,14 @@ export {
 } from './automation-due.ts';
 export {
   emptyLedger,
+  isSchemaKey,
   LEDGER_MAX_AGE_DAYS,
+  LEDGER_MAX_BYTES,
+  MAX_DIGESTS_PER_PATH,
   MAX_LEDGER_RECORDS,
   readHandledLedger,
 } from './handled-ledger.ts';
-export type { AnsweredRecord, HandledLedger, PathRecord } from './handled-ledger.ts';
+export type { AnsweredRecord, HandledLedger, LedgerMark, PathRecord } from './handled-ledger.ts';
 export {
   handledVersions,
   leftHandledNotes,

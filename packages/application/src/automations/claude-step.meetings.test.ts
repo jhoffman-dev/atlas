@@ -32,7 +32,11 @@ import { runAutomation, runOnNoteChanges } from './run-automation.ts';
 import type { VaultGuard } from './vault-guard.ts';
 
 const TODAY = '2026-10-08';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T09:00:00`,
+  now: () => Date.parse(`${TODAY}T09:00:00Z`),
+};
 const VAULT = '/vaults/home';
 const GUARD: VaultGuard = { vault: VAULT, currentVault: () => VAULT };
 const MEETING = 'Inbox/Meetings/2026-10-06 Standup.md';

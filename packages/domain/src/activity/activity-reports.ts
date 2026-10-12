@@ -124,6 +124,20 @@ export function automationFailedReport({
   };
 }
 
+/**
+ * A rule's list of what it has handled did not add up — a line lost or
+ * unreadable, two lists, a format this Atlas does not know — and was rebuilt
+ * from the entries its log still holds. Said once, when it is rebuilt.
+ */
+export function ledgerRepairedReport(rule: RuleNamed): ActivityReport {
+  return {
+    level: 'warning',
+    kind: 'automation',
+    message: `${rule.name}: Its list of handled notes was damaged and was rebuilt from its log. Meetings written before now that the log does not show are not asked about; run it by hand to take them.`,
+    subject: ruleSubject(rule),
+  };
+}
+
 /** A dry run from the rule's editor: what it would do, or why its query did not read. */
 export function dryRunReport(
   rule: RuleNamed,

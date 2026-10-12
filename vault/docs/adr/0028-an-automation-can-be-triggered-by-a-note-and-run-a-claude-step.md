@@ -362,42 +362,94 @@ The rule's log keeps its last 100 entries, so it cannot also be what a rule
 remembers having handled: a meeting whose run aged out would be asked about
 again at every opening, and sixty "news let go" notices were enough to push
 sixty runs out. What a rule has handled lives in a **ledger**, a section at
-the top of the same log note, `## Handled so far`, written in the same write
-as the entry that changed it and never counted among the entries a log drops:
+the top of the same log note, written in the same write as the entry that
+changed it and never counted among the entries a log drops:
 
 ```markdown
 ## Handled so far
 
+<!-- atlas:handled-ledger v1 -->
+
+Atlas keeps this list so the rule remembers what it has handled after old entries leave this log. Leave it as it is.
+
+- through `"2026-10-08T09:00:00"` `"5e6f7a8b"`
+- records `2`
 - vouches from `"2026-07-01T00:00:00.000Z"`
-- handled `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d"]`
-- answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d","body:9f8e"]`
+- handled `"Inbox/Meetings/Standup.md"` `"2026-10-08T16:00:00.000Z"`: `["1a2b3c4d"]`
+- answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T16:00:00.000Z"`: `["1a2b3c4d","meeting:larkspur:m-1042:body:9f8e"]`
 ```
 
+- **How it is found.** One locator serves the reader and the writer: a
+  section whose `## Handled so far` heading starts its line and whose very
+  next line is the marker `<!-- atlas:handled-ledger v1 -->`. The marker is
+  what makes it Atlas's; a section a person titled the same is theirs, is
+  never read or replaced, and stays in the file beside the ledger. The `v1`
+  names the format: a marker of another version is a ledger this Atlas
+  cannot read, which counts as damaged (below) and is replaced by a `v1`
+  one. Two ledger sections are merged into one (and also count as damaged).
 - **`handled` lines** are the versions handled (or left by the rule's own
-  write) at a path, newest last, at most 20 per note, with when the path was
-  last recorded. A path the log says went, or that the run archived, is
+  write) at a path, newest last, **at most 5 per note**, with when the path
+  was last recorded. A path the log says went, or that the run archived, is
   removed, exactly as the entries' reading did.
 - **`answered` lines** are the words a Claude step was asked about: the path it
   was answered at, when, and **a list of keys** — the whole-file digest
-  first, then any key the rule's schema supplies (the meeting's body digest,
-  its identity). A log entry's version line carries those as
-  `… at `"digest"`also`["body:9f8e"]``; the ledger carries them forward.
-  A version is answered if any of its keys is one an answered line holds.
-  The meeting-items schema plugs in by putting its key on the versions it
-  logs; nothing else changes.
-- **Pruned by age and by count**: records older than 90 days, then the oldest
-  past 2000. Pruning sets `vouches from` to the newest time it forgot. Catch-up
-  (`missedArrivals`) never reaches behind it: it considers a meeting only if
-  written after both the rule's file and that floor, since a meeting last
-  written before what the ledger forgot cannot be vouched for. Times are the
-  entry's own wall-clock time read as UTC, so the floor can be a time-zone's
-  offset off the disk's; that is a day at most, on a horizon of 90.
+  first, then any key the rule's schema supplies (at most 8, none over 256
+  characters). A log entry's version line carries those as
+  `… at `"digest"`also`["meeting:larkspur:m-1042:body:9f8e"]``; the ledger
+  carries them forward. A version is answered if any of its keys is one an
+  answered line holds, wherever the note is now, whatever else changed.
+  **A schema key must be unique to the thing answered**: it MUST include the
+  note's identity, as `meeting:<provider>:<external_id>:body:<digest>` does,
+  and never be a bare body digest, which two notes can share. Atlas enforces
+  only the minimal shape (non-empty, a `:` with something on each side) and
+  drops a key without it, both when it records and when it matches; the
+  producer of the meeting key lands with the meeting-items schema (#102).
+  Catch-up (`missedArrivals`) honours keys as the feed's path does and hands
+  them on with the versions it returns.
+- **Times are real instants.** Every time the ledger holds — a record's, and
+  the `vouches from` floor — is UTC, from the clock the use-case was handed
+  (`appendToRuleLog` takes `now`), and is compared with a file's modified
+  time, which is an instant too. An entry's heading is the person's wall
+  clock (`2026-10-08 09:00:12`), kept for reading; nothing compared with a
+  file's time is derived from it. (A wall-clock read as UTC is off by the
+  zone's offset, which hid a meeting never asked east of UTC, and asked one
+  again west of it.) An entry from before this, with no zone to read it by,
+  is taken at the earliest instant it could be (14 hours before it read as
+  UTC), so a floor made from it is never later than the truth.
+- **Pruned by age, count and bytes**, oldest first: records older than 90
+  days by the clock's `now`, then past 2000, then past 96 KB for the whole
+  section (well under the log's 256 KB, whose budget counts it). Pruning
+  sets `vouches from` to the newest time it forgot, never later than `now`.
+  Catch-up (`missedArrivals`) never reaches behind it: it considers a meeting
+  only if written after both the rule's file and that floor, since a meeting
+  last written before what the ledger forgot cannot be vouched for. Age is
+  measured only against the injected clock: an entry that claims a time long
+  after it (a clock that jumped) cannot age the ledger or floor catch-up.
+- **What it has folded in: `through`.** The line names the last log entry the
+  ledger had absorbed (its heading time and a digest of its text). An Atlas
+  that does not know the ledger — a second Mac not yet updated, a rollback —
+  still appends runs to the log. On read and on append, the entries after
+  `through` are laid over the ledger, oldest first, so they are never
+  forgotten. If the named entry is gone (that Atlas dropped it), the entries
+  written after its time are laid over. Entries at or before `through` are
+  not replayed, so what the ledger let go or pruned stays gone.
+- **A damaged ledger.** `records` says how many `handled` and `answered`
+  lines were written, so a line lost is told from one never there. A line
+  that does not read, a count that does not match, a missing `through`, two
+  ledgers or an unknown version make the ledger _damaged_: it is not
+  trusted to have folded anything in, so every entry still in the log is laid
+  over it (recovering what the log still says), and it vouches for nothing
+  until it is written again — a reader treats the floor as ahead of every
+  note, so no catch-up runs. The next write mends it: the floor is set to
+  that moment (`vouches from` now), the section is rewritten clean, and
+  Activity says once that the list was damaged and rebuilt. Meetings written
+  before then that the log does not show are not asked about; a run by hand
+  takes them.
 - **A log without a ledger** (written before this) behaves as it did: the
   ledger is built from its entries the first time it is added to, and read
   from them until then. If it already held 100 entries it may have dropped
   some, so it vouches only from its oldest. A ledger a person deleted is
-  built again from whatever entries remain; a line that does not read is left
-  out, as every log line is.
+  built again from whatever entries remain.
 - **Let-go notices fold**: a `letGo` entry written right after another joins
   it, the counts summed, so a burst is one entry and costs the log no run.
 - **A different note with the same bytes is not answered.** Words answered at
@@ -567,7 +619,7 @@ bullets above, this wins._
   first, then the task.
 - **Accepting does not make a meeting new.** A schema may name what a note is
   answered by besides its whole-file digest (`ProposalSchema.handledKeyOf`);
-  `meeting-items` names its **body** digest, as `meeting:<provider>:<id>:body:<digest>` — keys match across paths, so a bare digest would make two meetings with the same words one; a meeting the import did not vouch for has none. The key rides on the version as one
+  `meeting-items` names its **body** digest, as `meeting:<provider>:<external_id>:body:<digest>` — keys match across paths, so a bare digest would make two meetings with the same words one; a meeting the import did not vouch for has none. The key rides on the version as one
   of the ledger's extra keys (`withHandledKeys`: when planning a run, hearing
   the feed and catching up at open; no other persistence), so Accept writing
   the meeting's `tasks`/`decisions` — frontmatter only — is not new words and

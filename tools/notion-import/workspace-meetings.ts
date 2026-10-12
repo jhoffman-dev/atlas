@@ -1,6 +1,7 @@
 import { createVaultPath, type VaultPath } from '../../packages/domain/src/index.ts';
 import type { GeminiDates } from './gemini-dates.ts';
 import { importNotionMeetings, type RowOutcome } from './import-notion-meetings.ts';
+import type { DateOrder } from './notion-date.ts';
 import { COLUMNS } from './notion-meetings.ts';
 import type { ExportDatabase } from './workspace-export.ts';
 
@@ -12,6 +13,7 @@ export interface MeetingRun {
   readonly vault: string;
   readonly timeZone: string | null;
   readonly geminiDates?: GeminiDates;
+  readonly dateOrder?: DateOrder;
   /** Plans the meetings without writing them: on a dry run, or when meetings are not chosen. */
   readonly dryRun: boolean;
 }
@@ -40,6 +42,7 @@ async function meetingsOf(database: ExportDatabase, run: MeetingRun) {
     groupAddresses: [],
     dryRun: run.dryRun,
     ...(run.geminiDates === undefined ? {} : { geminiDates: run.geminiDates }),
+    ...(run.dateOrder === undefined ? {} : { dateOrder: run.dateOrder }),
   });
   const pathBySource = new Map<string, string>();
   database.csv.rows.forEach((row, at) => {

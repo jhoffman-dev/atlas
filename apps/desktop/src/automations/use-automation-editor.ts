@@ -59,7 +59,7 @@ export function useAutomationEditor({
 }: {
   automations: ReturnType<typeof useAutomations>;
   ports: AutomationPorts & Pick<RuleQueryPorts, 'notePaths'>;
-  clock: Pick<Clock, 'today' | 'localNow'>;
+  clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   indexKey: string;
   /** Where a dry run is said (U-28). */
   activity: ActivityLog;

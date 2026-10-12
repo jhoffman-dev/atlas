@@ -25,7 +25,11 @@ import { recordingActivity } from '../testing/fake-activity.ts';
 const ACTIVITY = recordingActivity();
 
 const TODAY = '2026-09-27';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T03:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T03:00:00`,
+  now: () => Date.parse(`${TODAY}T03:00:00Z`),
+};
 const VAULT = '/vaults/home';
 const GUARD: VaultGuard = { vault: VAULT, currentVault: () => VAULT };
 
