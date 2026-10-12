@@ -131,6 +131,8 @@ describe('applyProposal — every other kind that makes a note', () => {
   });
 });
 
+const linkPayloadOf = (made: ProposalNote) => made.payload as unknown as Record<string, unknown>;
+
 describe('applyProposal — a link', () => {
   const link = proposal('link', {
     note: 'People/Mara Quill.md',
@@ -176,10 +178,149 @@ describe('applyProposal — a link', () => {
   it('refuses when the note already links it, as there is nothing to do', () => {
     expect(problemOf(link, target({ value: '[[Larkspur Payroll]]' }))).toMatch(/already links/);
   });
+
+  it('refuses when the note already links the same note spelt another way', () => {
+    const vault = {
+      ...target({ value: ['[[Companies/Larkspur Payroll|Larkspur]]'] }),
+      notePaths: notes('Companies/Larkspur Payroll.md'),
+    };
+    expect(problemOf(link, vault)).toMatch(/already links/);
+  });
+
+  it('still adds a link to a different note that reads alike', () => {
+    const vault = {
+      ...target({ value: ['[[Companies/Larkspur Payroll|Larkspur]]'] }),
+      notePaths: notes('Companies/Larkspur Payroll.md', 'Clients/Larkspur Payroll.md'),
+    };
+    const other = proposal('link', {
+      ...linkPayloadOf(link),
+      link: '[[Clients/Larkspur Payroll]]',
+    });
+    expect(writesOf(other, vault)).toMatchObject([{ kind: 'set' }]);
+  });
 });
 
 describe('applyProposal — a proposal that is not open', () => {
   it.each(['accepted', 'rejected'])('refuses one already %s', (state) => {
     expect(problemOf(proposal('task', { title: 'X' }, { state }))).toBe(`It was already ${state}.`);
+  });
+});
+
+describe('applyProposal — a person who joins a meeting (P29-04)', () => {
+  const STANDUP = 'Inbox/Meetings/2026-10-06 Standup.md';
+  const person = proposal('person', {
+    title: 'Ada Venn',
+    folder: 'People',
+    properties: { email: 'ada@larkspur.example' },
+    link_from: { note: STANDUP, property: 'people' },
+  });
+  const meeting = (value: unknown, many = true): LinkTarget => ({
+    digest: 'whatever it holds now',
+    value,
+    relation: { many },
+  });
+
+  it('makes the person, then adds them to the meeting’s people, keeping who is there', () => {
+    const vault = { notePaths: notes(STANDUP), target: meeting(['[[Mara Quill]]']) };
+    expect(writesOf(person, vault)).toEqual([
+      {
+        kind: 'create',
+        path: 'People/Ada Venn.md',
+        properties: { type: 'person', email: 'ada@larkspur.example' },
+        body: '',
+      },
+      { kind: 'set', path: STANDUP, changes: { people: ['[[Mara Quill]]', '[[Ada Venn]]'] } },
+    ]);
+  });
+
+  it('links them by path when another note has their name', () => {
+    const vault = { notePaths: notes(STANDUP, 'Clients/Ada Venn.md'), target: meeting(undefined) };
+    expect(writesOf(person, vault)[1]).toEqual({
+      kind: 'set',
+      path: STANDUP,
+      changes: { people: ['[[People/Ada Venn]]'] },
+    });
+  });
+
+  it('only makes the person when the meeting already links their name', () => {
+    const vault = { notePaths: notes(STANDUP), target: meeting(['[[Ada Venn]]']) };
+    expect(writesOf(person, vault).map(({ kind }) => kind)).toEqual(['create']);
+  });
+
+  it('still makes the person when the meeting is gone, and refuses a meeting with no such relation', () => {
+    expect(writesOf(person, { notePaths: [], target: null }).map(({ kind }) => kind)).toEqual([
+      'create',
+    ]);
+    const unrelated = { notePaths: notes(STANDUP), target: { ...meeting([]), relation: null } };
+    expect(problemOf(person, unrelated)).toMatch(/no relation called people/);
+  });
+
+  it('links the person already made — from another meeting’s proposal — rather than refusing', () => {
+    const vault = {
+      notePaths: notes(STANDUP, 'people/ada venn.md'),
+      target: meeting([]),
+      heldTypes: ['Person'],
+    };
+    expect(writesOf(person, vault)).toEqual([
+      { kind: 'set', path: STANDUP, changes: { people: ['[[ada venn]]'] } },
+    ]);
+  });
+
+  it.each([[['project']], [[]], [undefined]])(
+    'refuses a note at their path that is not a person (%j), rather than linking it as one',
+    (heldTypes) => {
+      const vault = {
+        notePaths: notes(STANDUP, 'People/Ada Venn.md'),
+        target: meeting([]),
+        ...(heldTypes !== undefined && { heldTypes }),
+      };
+      expect(problemOf(person, vault)).toMatch(/not a person/);
+    },
+  );
+
+  it('adds no second link when the meeting links them in another spelling', () => {
+    const vault = { notePaths: notes(STANDUP), target: meeting(['[[ada venn]]']) };
+    expect(writesOf(person, vault).map(({ kind }) => kind)).toEqual(['create']);
+  });
+
+  it('refuses a person already made when nothing joins a relation', () => {
+    const plain = proposal('person', { title: 'Ada Venn', folder: 'People' });
+    expect(problemOf(plain, { notePaths: notes('People/Ada Venn.md'), target: null })).toMatch(
+      /already a note/,
+    );
+  });
+});
+
+describe('applyProposal — a link with no digest', () => {
+  const STANDUP = 'Inbox/Meetings/2026-10-06 Standup.md';
+  const link = (property: string, to: string) =>
+    proposal('link', { note: STANDUP, property, link: to });
+  const target = (value: unknown, many: boolean): LinkTarget => ({
+    digest: 'changed by other steps since',
+    value,
+    relation: { many },
+  });
+
+  it('adds to a list whatever else the note now holds', () => {
+    expect(
+      writesOf(link('people', '[[Tobias Fenn]]'), {
+        notePaths: [],
+        target: target(['[[Mara Quill]]'], true),
+      }),
+    ).toEqual([
+      { kind: 'set', path: STANDUP, changes: { people: ['[[Mara Quill]]', '[[Tobias Fenn]]'] } },
+    ]);
+  });
+
+  it('fills an empty single link, and never replaces one set since', () => {
+    expect(
+      writesOf(link('project', '[[Ledger]]'), { notePaths: [], target: target(null, false) }),
+    ).toEqual([{ kind: 'set', path: STANDUP, changes: { project: '[[Ledger]]' } }]);
+    expect(
+      problemOf(link('project', '[[Ledger]]'), {
+        notePaths: [],
+        target: target('[[Payrun]]', false),
+      }),
+    ).toBe('2026-10-06 Standup already links [[Payrun]] in project; this would replace it.');
   });
 });

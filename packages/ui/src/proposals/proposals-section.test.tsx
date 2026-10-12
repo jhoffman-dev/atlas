@@ -72,6 +72,29 @@ describe('ProposalsSection', () => {
     expect(screen.getByText(/^2 open proposals/)).toBeTruthy();
   });
 
+  it('says a person proposed from a meeting joins it, and keeps that through an edit', async () => {
+    const person = proposal('Mara Quill — Standup', {
+      kind: 'person',
+      source: '[[2026-10-06 Standup]]',
+      payload: {
+        title: 'Mara Quill',
+        folder: 'People',
+        properties: { email: 'mara@larkspur.example' },
+        link_from: { note: 'Inbox/Meetings/2026-10-06 Standup.md', property: 'people' },
+      },
+    });
+    const { onAccept } = page({ contents: { open: [person], stranded: [], unreadable: [] } });
+    const shown = card(/^Person: Mara Quill/);
+    expect(within(shown).getByText(/And adds it to/).textContent).toBe(
+      'And adds it to people of 2026-10-06 Standup.',
+    );
+    await userEvent.click(within(shown).getByRole('button', { name: 'Edit' }));
+    await userEvent.click(within(shown).getByRole('button', { name: 'Accept as edited' }));
+    expect(onAccept.mock.calls[0]?.[1]).toMatchObject({
+      link_from: { note: 'Inbox/Meetings/2026-10-06 Standup.md', property: 'people' },
+    });
+  });
+
   it('flags a proposal that cites no source', () => {
     page();
     expect(within(card(/^Link: /)).getByText('Cites no source')).toBeTruthy();

@@ -14,6 +14,7 @@ import { importArrivedMeetings } from './import-arrived-meetings.ts';
 import {
   correctMeetingTerms,
   CorrectionRefusedError,
+  meetingTextAsCorrected,
   undoMeetingTermCorrections,
 } from './meeting-corrections.ts';
 
@@ -272,5 +273,45 @@ describe('correctMeetingTerms, the pipeline’s step', () => {
     await expect(
       correctMeetingTerms({ ports: vault.ports, path: createVaultPath('Notes/Plan.md') }),
     ).rejects.toBeInstanceOf(CorrectionRefusedError);
+  });
+});
+
+describe('meetingTextAsCorrected, what a step before the stamp reads', () => {
+  it('reads a meeting not corrected yet with its spellings put right, its frontmatter as it is, and writes nothing', async () => {
+    const { vault } = setUp({ [STANDUP]: meeting() });
+    const text = vault.files.get(STANDUP)!;
+
+    const read = await meetingTextAsCorrected({ ports: vault.ports, text });
+
+    expect(read).toBe(splitFrontmatter(text).frontmatter + CLEAN_BODY);
+    expect(vault.files.get(STANDUP)).toBe(text);
+    expect(vault.log).toEqual([]);
+  });
+
+  it('reads a meeting with nothing misheard as it is', async () => {
+    const { vault } = setUp({ [STANDUP]: meeting(CLEAN_BODY) });
+    const text = vault.files.get(STANDUP)!;
+
+    expect(await meetingTextAsCorrected({ ports: vault.ports, text })).toBe(text);
+  });
+
+  it('reads a meeting whose corrections were undone as it is, without asking for the vocabulary', async () => {
+    const undone = meeting(MISHEARD_BODY, { ...MEETING_HEADER, atlas_corrections: 'undone' });
+    const { vault } = setUp({ [STANDUP]: undone });
+    const asked: string[] = [];
+    const index: Pick<typeof vault.ports.index, 'query'> = {
+      query: (sql, parameters) => {
+        asked.push(sql);
+        return vault.ports.index.query(sql, parameters);
+      },
+    };
+
+    const read = await meetingTextAsCorrected({
+      ports: { markdown: vault.ports.markdown, index },
+      text: undone,
+    });
+
+    expect(read).toBe(undone);
+    expect(asked).toEqual([]);
   });
 });

@@ -41,8 +41,9 @@ export const acceptProposal = defineTool({
   title: 'Accept a proposal',
   description:
     'Accept a proposal as its Accept button in Atlas does: write what its payload says — a new ' +
-    "note of its kind's type (a task, follow-up or decision citing its source block), or one link " +
-    'added to a relation of a note — then mark it accepted and move it into the Archive. Returns ' +
+    "note of its kind's type (a task, follow-up or decision citing its source block; a person " +
+    "proposed from a meeting is added to that meeting's people too), or one link added to a " +
+    'relation of a note — then mark it accepted and move it into the Archive. Returns ' +
     '{ accepted: { proposal, headline, archivedAt, archiveProblem, wrote: [{ kind, path }] } }. ' +
     `Only accept what James asked you to. ${REFUSED} Editing a proposal first, and undoing an ` +
     'accept, are done in Atlas.',

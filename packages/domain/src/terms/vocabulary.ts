@@ -51,6 +51,13 @@ export interface Vocabulary {
   readonly entries: readonly VocabularyEntry[];
   /** In the order of their spellings. */
   readonly conflicts: readonly VocabularyConflict[];
+  /**
+   * What each person goes by — name and aliases, as spellings are compared
+   * (`vocabularyKey`) — and who goes by it. An alias rewrites nothing; but a
+   * transcript's speaker label that is exactly one of these names that
+   * person, and is not corrected into a spelling that is not theirs.
+   */
+  readonly speakers: ReadonlyMap<string, readonly VaultPath[]>;
 }
 
 /**
@@ -58,7 +65,9 @@ export interface Vocabulary {
  * spelling and the ways it is misheard, and every person's and company's
  * name as its own right spelling — so `Mara Quill` is left alone and a
  * misheard spelling inside it is not corrected. A person's or a company's
- * aliases are not in it: they link people, they never rewrite text.
+ * aliases are not in it: they link people, they never rewrite text. What a
+ * person goes by is kept beside the entries (`speakers`), only so a speaker
+ * label that is their alias is left for linking to read.
  *
  * Spellings are matched exactly as written, case included: `mark` and `Mark`
  * are two spellings. Where two notes claim one spelling for two different
@@ -89,7 +98,19 @@ export function vocabulary({ terms, people, companies }: VocabularySources): Voc
   return {
     entries: entries.sort(longestFirst),
     conflicts: conflicts.sort((left, right) => compareKeys(left.form, right.form)),
+    speakers: goingBy(people),
   };
+}
+
+/** Who goes by each spelling: every person's name and aliases, as spellings are compared. */
+function goingBy(people: readonly NamedEntity[]): Map<string, VaultPath[]> {
+  const speakers = new Map<string, VaultPath[]>();
+  for (const { path, name, aliases } of people) {
+    for (const key of new Set([name, ...aliases].map(vocabularyKey))) {
+      if (key !== '') speakers.set(key, [...(speakers.get(key) ?? []), path]);
+    }
+  }
+  return speakers;
 }
 
 /** A name is only its own right spelling: its aliases are left out on purpose. */

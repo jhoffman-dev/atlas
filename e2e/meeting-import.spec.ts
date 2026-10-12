@@ -76,7 +76,9 @@ test('a meeting that arrives shows in the Inbox, stamped and otherwise untouched
   const vault = await openVault(page);
 
   await arrive(page, vault, FIRST, VALID);
-  await expect(inboxRow(page)).toHaveText(/Inbox\s*2$/);
+  // The meeting, the captured task, and its two attendees the vault has no person for,
+  // proposed as people once it is let in (P29-04). It links no one, so only its stamp is written.
+  await expect(inboxRow(page)).toHaveText(/Inbox\s*4$/);
   await inboxRow(page).click();
   const inbox = page.getByRole('main');
   await expect(inbox.getByText('Platform weekly sync', { exact: true })).toBeVisible();
@@ -87,7 +89,8 @@ test('a meeting that arrives shows in the Inbox, stamped and otherwise untouched
   await expectFile(vault, `Archive/${COPY}`).toContain('atlas_duplicate_of:');
   expect(await vault.exists(COPY)).toBe(false);
   expect(await vault.read(FIRST)).toBe(STAMPED);
-  await expect(inboxRow(page)).toHaveText(/Inbox\s*2$/);
+  // A copy is never let in, so it proposes no one again.
+  await expect(inboxRow(page)).toHaveText(/Inbox\s*4$/);
   await expect(inbox.getByText('Platform weekly sync', { exact: true })).toHaveCount(1);
 });
 

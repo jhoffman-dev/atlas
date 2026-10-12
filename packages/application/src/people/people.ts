@@ -3,6 +3,7 @@ import {
   linkTakeover,
   nextAvailableNotePath,
   noteTitle,
+  PEOPLE_FOLDER,
   PERSON_TYPE,
   newPersonRefusal,
   VAULT_ROOT,
@@ -48,9 +49,6 @@ export class PersonRefusedError extends Error {
     this.name = 'PersonRefusedError';
   }
 }
-
-/** Where people made from `@` are filed, made when the vault has no such folder. */
-export const PEOPLE_FOLDER = createVaultPath('People');
 
 /**
  * Makes a person from what was typed after `@`, as the add button makes one:
