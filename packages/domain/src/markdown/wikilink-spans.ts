@@ -17,6 +17,12 @@ export interface CommentSpan {
   readonly end: number;
 }
 
+/** Code in the markdown: a fenced block, fences included, or a code span, backticks included. */
+export interface CodeSpan {
+  readonly start: number;
+  readonly end: number;
+}
+
 /**
  * Every wiki link in a note's markdown, read as the editor reads it
  * (ADR-0004, A21-04), and every comment. A link is text, not a link, where
@@ -38,6 +44,8 @@ export interface CommentSpan {
 export function scanMarkdown(markdown: string): {
   links: WikiLinkSpan[];
   comments: CommentSpan[];
+  /** In the order they start. */
+  code: CodeSpan[];
 } {
   return new Scan(markdown).run();
 }
@@ -99,6 +107,7 @@ class Scan {
   private readonly runs = new Map<number, number[]>();
   private readonly links: WikiLinkSpan[] = [];
   private readonly comments: CommentSpan[] = [];
+  private readonly code: CodeSpan[] = [];
   /** The last `-->` searched for, and where the search began: -2 before any. */
   private close = -2;
   private closeSearchedFrom = 0;
@@ -108,20 +117,21 @@ class Scan {
     this.readRuns();
   }
 
-  run(): { links: WikiLinkSpan[]; comments: CommentSpan[] } {
+  run(): { links: WikiLinkSpan[]; comments: CommentSpan[]; code: CodeSpan[] } {
     const { text } = this;
     let fence = 0;
     let at = 0;
     while (at < text.length) {
       const inFence = this.fences[fence];
       if (inFence !== undefined && at >= inFence.start) {
+        this.code.push(inFence);
         at = Math.max(at, inFence.end);
         fence += 1;
         continue;
       }
       at = this.step(at);
     }
-    return { links: this.links, comments: this.comments };
+    return { links: this.links, comments: this.comments, code: this.code };
   }
 
   /** Reads what starts at `at`, and returns where to read next. */
@@ -140,7 +150,9 @@ class Scan {
     let end = at;
     while (this.text[end] === '`') end += 1;
     const closer = this.closer(end, end - at, this.scopeEnd(at));
-    return closer === null ? end : closer + (end - at);
+    if (closer === null) return end;
+    this.code.push({ start: at, end: closer + (end - at) });
+    return closer + (end - at);
   }
 
   /** The first run of exactly `length` backticks from `from`, before `limit`. */

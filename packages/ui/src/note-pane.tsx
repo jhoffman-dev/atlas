@@ -29,6 +29,7 @@ import { LinkPicker } from './link-picker.tsx';
 import { EditableTitle, PageHead } from './page-head.tsx';
 import { PageBar, type PageHistory, type PageMenuItem } from './page-bar.tsx';
 import { TemplateBanner, type TemplateNotice } from './template-banner.tsx';
+import { MeetingCorrectionsBand, type CorrectionsNotice } from './meeting-corrections-band.tsx';
 import { PromotionBanner, type LinePromotion } from './promotion-notice.tsx';
 import {
   PropertiesPanel,
@@ -179,6 +180,8 @@ export interface NotePaneProps {
   onShowInGraph?: () => void;
   /** Given for a template: the band over it, saying what it is and what uses it. */
   template?: TemplateNotice;
+  /** Given for a meeting whose spellings were corrected: the band over it, with its Undo. */
+  corrections?: CorrectionsNotice;
 }
 
 /** A page: its bar across the top, then the note — or why there is no note yet. */
@@ -276,6 +279,7 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
       />
       <SaveConflict state={state} onOverwrite={props.onOverwrite} onDiscard={props.onDiscard} />
       {props.template !== undefined && <TemplateBanner {...props.template} />}
+      {props.corrections !== undefined && <MeetingCorrectionsBand {...props.corrections} />}
       <PromotionBanner notice={props.promotion?.notice ?? null} />
       <div className="panel__body">
         {/* A view is a table or a board, not prose, so it is not held to a

@@ -49,7 +49,9 @@ test('a term is added from the Terms page, listed there, and its variants edited
   await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Terms' }).click();
   await expect(termsPage(page).getByText(/^No terms yet/)).toBeVisible();
   // The person's name and alias are in the vocabulary before any term is.
-  await expect(termsPage(page).getByText(/^0 terms · 2 spellings Atlas puts right/)).toBeVisible();
+  await expect(
+    termsPage(page).getByText(/^0 terms · 0 misheard spellings Atlas puts right/),
+  ).toBeVisible();
 
   await addTerm(page, {
     canonical: 'Larkspur',
@@ -65,7 +67,9 @@ test('a term is added from the Terms page, listed there, and its variants edited
   await expect(
     termsPage(page).getByRole('button', { name: 'Larkspur', exact: true }),
   ).toBeVisible();
-  await expect(termsPage(page).getByText(/^1 term · 5 spellings Atlas puts right/)).toBeVisible();
+  await expect(
+    termsPage(page).getByText(/^1 term · 2 misheard spellings Atlas puts right/),
+  ).toBeVisible();
 
   // Editing the variants writes the frontmatter and nothing else.
   await vault.write(
@@ -97,7 +101,7 @@ test('a variant two terms claim is shown as a conflict, and the page opens from 
   ).toBeVisible();
   await expect(page.getByRole('region', { name: 'Conflicts' })).toHaveCount(0);
 
-  await addTerm(page, { canonical: 'Larkspur Payroll', variants: 'Lark Spur', kind: 'company' });
+  await addTerm(page, { canonical: 'Larkspur Payroll', variants: 'lark spur', kind: 'company' });
   const conflicts = page.getByRole('region', { name: 'Conflicts' });
   await expect(conflicts.getByRole('heading', { name: '1 conflict' })).toBeVisible();
   await expect(conflicts.getByText('“lark spur”')).toBeVisible();

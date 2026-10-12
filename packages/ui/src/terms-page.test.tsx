@@ -24,7 +24,12 @@ const CONFLICT: VocabularyConflict = {
   ],
 };
 
-const CONTENTS: TermsContents = { terms: [LARKSPUR, QUILL], conflicts: [], spellings: 6 };
+const CONTENTS: TermsContents = {
+  terms: [LARKSPUR, QUILL],
+  conflicts: [],
+  warnings: [],
+  spellings: 6,
+};
 
 function renderPage(
   overrides: Partial<Parameters<typeof TermsPage>[0]> = {},
@@ -52,7 +57,7 @@ describe('the Terms page', () => {
     renderPage();
     expect(screen.getByRole('article', { name: 'Terms' })).toBeTruthy();
     expect(
-      screen.getByText('2 terms · 6 spellings Atlas puts right, people and companies included'),
+      screen.getByText(/^2 terms · 6 misheard spellings Atlas puts right — exactly as written/),
     ).toBeTruthy();
     expect(rowOf('Larkspur').getByText('company')).toBeTruthy();
     const variants = rowOf('Larkspur').getByRole('textbox', {
@@ -152,6 +157,27 @@ describe('the Terms page', () => {
     expect(rowOf('Quill Desk').queryByText(/In conflict/)).toBeNull();
   });
 
+  it('warns under a term when a spelling is not used, or is also found alone inside a name', () => {
+    renderPage({
+      contents: {
+        ...CONTENTS,
+        warnings: [
+          { kind: 'unusable', path: LARKSPUR.path, variant: '~' },
+          { kind: 'inside-name', path: QUILL.path, variant: 'Quill', name: 'Mara Quill' },
+        ],
+      },
+    });
+
+    expect(
+      rowOf('Larkspur').getByText('“~” is not used: a spelling needs a letter or a digit.'),
+    ).toBeTruthy();
+    expect(
+      rowOf('Quill Desk').getByText(
+        '“Quill” is also corrected on its own wherever it stands, though it is part of “Mara Quill”, which is left as written.',
+      ),
+    ).toBeTruthy();
+  });
+
   it('shows no conflicts section while there are none', () => {
     renderPage();
     expect(screen.getByRole('article', { name: 'Terms' })).toBeTruthy();
@@ -162,11 +188,11 @@ describe('the Terms page', () => {
     const { rerender } = renderPage({ contents: null });
     expect(screen.getByText('Reading the terms…')).toBeTruthy();
     const props = { error: null, onAdd: () => {}, onEditVariants: () => {}, onOpen: () => {} };
-    rerender(<TermsPage {...props} contents={{ terms: [], conflicts: [], spellings: 1 }} />);
+    rerender(
+      <TermsPage {...props} contents={{ terms: [], conflicts: [], warnings: [], spellings: 1 }} />,
+    );
     expect(screen.getByText(/^No terms yet/)).toBeTruthy();
-    expect(
-      screen.getByText('0 terms · 1 spelling Atlas puts right, people and companies included'),
-    ).toBeTruthy();
+    expect(screen.getByText(/^0 terms · 1 misheard spelling Atlas puts right/)).toBeTruthy();
     rerender(<TermsPage {...props} contents={null} error="index closed" />);
     expect(screen.getByRole('alert').textContent).toBe('index closed');
   });

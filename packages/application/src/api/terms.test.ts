@@ -51,7 +51,7 @@ const NOTES = {
   },
   'Terms/Larkspur Payroll.md': {
     title: 'Larkspur Payroll',
-    props: { type: 'term', kind: 'vendor', variants: ['Lark Spur'] },
+    props: { type: 'term', kind: 'vendor', variants: ['lark spur'] },
   },
   'People/Mara Quill.md': { title: 'Mara Quill', props: { type: 'person', aliases: 'Mara Quil' } },
   '.atlas/templates/Term.md': { title: 'Term', props: { type: 'term', variants: 'template' } },
@@ -79,7 +79,7 @@ describe('GET /v1/terms', () => {
         {
           path: 'Terms/Larkspur Payroll.md',
           canonical: 'Larkspur Payroll',
-          variants: ['Lark Spur'],
+          variants: ['lark spur'],
           kind: null,
         },
       ],
@@ -113,18 +113,6 @@ describe('GET /v1/terms', () => {
           ],
         },
         {
-          form: 'Mara Quil',
-          canonical: 'Mara Quill',
-          claims: [
-            {
-              form: 'Mara Quil',
-              canonical: 'Mara Quill',
-              path: 'People/Mara Quill.md',
-              source: 'person',
-            },
-          ],
-        },
-        {
           form: 'Larkspur',
           canonical: 'Larkspur',
           claims: [{ form: 'Larkspur', canonical: 'Larkspur', ...term('Terms/Larkspur.md') }],
@@ -136,7 +124,7 @@ describe('GET /v1/terms', () => {
           claims: [
             { form: 'lark spur', canonical: 'Larkspur', ...term('Terms/Larkspur.md') },
             {
-              form: 'Lark Spur',
+              form: 'lark spur',
               canonical: 'Larkspur Payroll',
               ...term('Terms/Larkspur Payroll.md'),
             },
@@ -144,6 +132,13 @@ describe('GET /v1/terms', () => {
         },
       ],
     });
+  });
+
+  it('hands out a person’s name as a right spelling and never their aliases', async () => {
+    const api = apiFixture({ index: sqliteIndex(NOTES) });
+    const body = JSON.stringify(bodyOf(await get(api)));
+    expect(body).toContain('"form":"Mara Quill"');
+    expect(body).not.toContain('Mara Quil"');
   });
 
   it('hands out no template, no note in a hidden folder and nothing archived', async () => {
