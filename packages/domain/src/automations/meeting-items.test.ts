@@ -633,6 +633,6 @@ describe('what makes a meeting new to a rule that has answered it', () => {
     expect(key(text)).toMatch(/^meeting:gemini:g1:body:/);
     expect(key(text)).not.toBe(key(text, { identity: { provider: 'gemini', externalId: 'g2' } }));
     expect(key(text, { identity: null as never })).toBeNull();
-    expect(key(text, undefined)).toBeNull();
+    expect(schema.handledKeyOf!({ text })).toBeNull();
   });
 });
