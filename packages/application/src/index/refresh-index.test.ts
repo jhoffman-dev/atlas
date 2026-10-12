@@ -5,8 +5,8 @@ import {
   INDEX_BATCH_SIZE,
   IndexSyncAbandoned,
   refreshIndex,
-  toIndexedNote,
 } from './refresh-index.ts';
+import { toIndexedNote } from './to-indexed-note.ts';
 import { inThreadNoteDeriver, type NoteDeriver } from './note-deriver.ts';
 import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';

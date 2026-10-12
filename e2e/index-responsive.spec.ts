@@ -1,7 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, expectFile, installHost, saveNow, type FakeVault } from './host.ts';
+import {
+  createVault,
+  emitVaultChanged,
+  expectFile,
+  installHost,
+  saveNow,
+  type FakeVault,
+} from './host.ts';
 
 /**
  * #135: indexing a vault must never take the window away. These build a vault
@@ -39,13 +46,21 @@ function noteText(n: number, count: number): string {
   ].join('\n');
 }
 
-/** A vault of this many generated notes in fifty folders, with one plain note at its root. */
-async function largeVault(count: number): Promise<FakeVault> {
+/** A vault of this many generated notes spread over folders, with one plain note at its root. */
+async function largeVault({
+  count,
+  folders,
+}: {
+  count: number;
+  folders: number;
+}): Promise<FakeVault> {
   const vault = await createVault();
-  for (let folder = 0; folder < 50; folder++) await mkdir(join(vault.root, `Folder ${folder}`));
+  for (let folder = 0; folder < folders; folder++) {
+    await mkdir(join(vault.root, `Folder ${folder}`));
+  }
   await Promise.all(
     Array.from({ length: count }, (_, n) =>
-      writeFile(join(vault.root, `Folder ${n % 50}`, `Note ${n}.md`), noteText(n, count)),
+      writeFile(join(vault.root, `Folder ${n % folders}`, `Note ${n}.md`), noteText(n, count)),
     ),
   );
   await vault.write('Camping.md', 'Pack the tent.\n');
@@ -55,6 +70,8 @@ async function largeVault(count: number): Promise<FakeVault> {
 interface Watch {
   /** Every stretch the main thread could not run a timer for, longer than 50 ms. */
   stalls: number[];
+  /** The longest the main thread went between two firings of the timer, during the build. */
+  longestGap: number;
   /** Notes handed to a worker to be read for the index. */
   derivedInWorker: number;
   /** When the first notes were read for the index, and when the last row was written. */
@@ -70,14 +87,21 @@ interface Watch {
 async function watchMainThread(page: Page): Promise<void> {
   await page.addInitScript(() => {
     if (window !== window.top) return;
-    const watch: Watch = { stalls: [], derivedInWorker: 0, began: null, ended: null };
+    const watch: Watch = {
+      stalls: [],
+      longestGap: 0,
+      derivedInWorker: 0,
+      began: null,
+      ended: null,
+    };
     (window as unknown as { __indexWatch: Watch }).__indexWatch = watch;
 
     let last = performance.now();
     setInterval(() => {
       const now = performance.now();
-      if (now - last > 50 && watch.began !== null && watch.ended === null) {
-        watch.stalls.push(now - last);
+      if (watch.began !== null && watch.ended === null) {
+        watch.longestGap = Math.max(watch.longestGap, now - last);
+        if (now - last > 50) watch.stalls.push(now - last);
       }
       last = now;
     }, 4);
@@ -114,7 +138,8 @@ test('the sidebar, Settings and an open note all answer while the vault is being
 }) => {
   test.setTimeout(120_000);
   const count = 300;
-  const vault = await largeVault(count);
+  // Few folders, so the note at the root is a row on screen without scrolling.
+  const vault = await largeVault({ count, folders: 3 });
   const host = await installHost(page, vault);
   const release = host.holdIndexAfter(2);
 
@@ -138,6 +163,12 @@ test('the sidebar, Settings and an open note all answer while the vault is being
   await expect(note.getByText('Pack the tent. And the stove.')).toBeVisible();
   await saveNow(page);
   await expectFile(vault, 'Camping.md').toBe('Pack the tent. And the stove.\n');
+  // The host's watcher sees the save, as it sees any write, while the build is still running.
+  await emitVaultChanged(page, ['Camping.md']);
+
+  // A page that needs the index says it is waiting for it, rather than being empty or stuck.
+  await page.getByRole('button', { name: 'Tags', exact: true }).click();
+  await expect(page.getByText('Reading the tags…')).toBeVisible();
 
   // Settings opens, and says what the index is doing rather than waiting for it.
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -153,17 +184,24 @@ test('the sidebar, Settings and an open note all answer while the vault is being
 
   release();
   await expect(page.getByText(`${total} notes indexed`)).toBeVisible({ timeout: 60_000 });
-  // The edit made during the build is in the index it leaves: a search finds it.
+  // And fills in once the index is there.
+  await expect(page.getByText('Reading the tags…')).toBeHidden();
+  await expect(page.getByRole('main').getByText('alpha', { exact: true })).toBeVisible();
+  // The edit made during the build is not lost to it: the refresh the save
+  // asked for runs once the build is done, and a search then finds the words.
   await page.keyboard.press('Meta+k');
-  await page.getByRole('searchbox', { name: 'Search the vault' }).fill('stove');
-  await expect(
-    page.getByRole('dialog', { name: 'Search notes' }).getByRole('option', { name: /Camping/ }),
-  ).toBeVisible();
+  const palette = page.getByRole('dialog', { name: 'Search notes' });
+  const search = page.getByRole('searchbox', { name: 'Search the vault' });
+  await expect(async () => {
+    await search.fill('');
+    await search.fill('stove');
+    await expect(palette.getByRole('option', { name: /Camping/ })).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 30_000 });
 });
 
 test('indexing a large vault leaves the main thread free', async ({ page }) => {
   test.setTimeout(600_000);
-  const vault = await largeVault(LARGE);
+  const vault = await largeVault({ count: LARGE, folders: 50 });
   await installHost(page, vault);
   await watchMainThread(page);
 
@@ -174,11 +212,11 @@ test('indexing a large vault leaves the main thread free', async ({ page }) => {
   const watch = await watched(page);
   const took = (watch.ended ?? 0) - (watch.began ?? 0);
   const stalled = watch.stalls.reduce((sum, stall) => sum + stall, 0);
-  const longest = Math.max(0, ...watch.stalls);
-  console.log(
+  // Printed for a run by hand at any size; the assertions below are what a test run holds to.
+  process.stdout.write(
     `[index-responsive] ${LARGE + 1} notes: built in ${Math.round(took)} ms; main thread ` +
-      `stalled ${Math.round(stalled)} ms in ${watch.stalls.length} stretches over 50 ms, ` +
-      `the longest ${Math.round(longest)} ms`,
+      `stalled ${Math.round(stalled)} ms in ${watch.stalls.length} stretches over 50 ms; ` +
+      `its longest task was ${Math.round(watch.longestGap)} ms\n`,
   );
 
   // Every note was read for the index somewhere other than the main thread.

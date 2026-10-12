@@ -8,7 +8,7 @@
  */
 
 import { noteTitle } from '../vault/vault-entry.ts';
-import type { VaultPath } from '../vault/vault-path.ts';
+import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import {
   logEntryHeading,
   logEntrySummary,
@@ -400,6 +400,30 @@ export function indexFailedReport({
 }): ActivityReport {
   const what = rebuilding ? 'could not be rebuilt' : 'could not be brought up to date';
   return { level: 'error', kind: 'index', message: `The index ${what}. ${problem}`, subject: null };
+}
+
+/** A note the index could not take, and why. */
+export interface NoteNotIndexed {
+  readonly path: string;
+  readonly problem: string;
+}
+
+/**
+ * Notes a build of the index could not read as notes, so it holds nothing of
+ * them: one line for however many, linked to the first so it can be opened
+ * and looked at (#135).
+ */
+export function notesNotIndexedReport(
+  failed: readonly [NoteNotIndexed, ...NoteNotIndexed[]],
+): ActivityReport {
+  const [first] = failed;
+  const count = `${failed.length} ${failed.length === 1 ? 'note' : 'notes'}`;
+  return {
+    level: 'warning',
+    kind: 'index',
+    message: `${count} could not be indexed. The first is ${first.path}: ${first.problem}`,
+    subject: noteSubject(createVaultPath(first.path)),
+  };
 }
 
 /** The writes a failed one can be, as its line says what was being done. */

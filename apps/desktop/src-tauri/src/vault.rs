@@ -517,7 +517,10 @@ impl NoteWalk<'_> {
 /// Every markdown note on disk, for link resolution, autocomplete, the index and
 /// backlinks — minus the folders `skip_directories` named, and no more than
 /// `max_depth` folders down.
-#[tauri::command]
+///
+/// Off the main thread, as `read_notes` is: walking a large vault, and reading
+/// it for the index, would otherwise freeze the window while they ran (#135).
+#[tauri::command(async)]
 pub fn list_notes(
     state: State<'_, VaultState>,
     skip_directories: Vec<String>,
@@ -587,7 +590,7 @@ fn read_notes_at(root: &Path, paths: &[String]) -> Vec<NoteFile> {
 }
 
 /// Reads many notes in one call, so indexing a vault is not thousands of round trips.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_notes(
     state: State<'_, VaultState>,
     paths: Vec<String>,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createVaultPath } from '@atlas/domain';
 import {
   createNoteChanges,
@@ -80,11 +80,38 @@ describe('useIndex while a vault is being indexed (#135)', () => {
   });
 });
 
-describe('IndexStatusLine', () => {
-  const progress = (done: number, total: number) => ({
-    subscribe: () => () => {},
-    current: () => ({ done, total }),
+describe('useIndex, asked to refresh while a build is running (#135)', () => {
+  it('keeps saying how far the build has got', async () => {
+    const ports = vaultOf(INDEX_BATCH_SIZE * 2);
+    let letSecondBatchIn = () => {};
+    const held = new Promise<void>((resolve) => (letSecondBatchIn = resolve));
+    let puts = 0;
+    ports.index = { ...ports.index, put: async () => void (++puts === 2 && (await held)) };
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const { result } = renderHook(() => useIndex({ ports, vaultKey: VAULT, activity, changes }));
+    const halfway = { done: INDEX_BATCH_SIZE, total: INDEX_BATCH_SIZE * 2 };
+    await waitFor(() => expect(result.current.progress.current()).toEqual(halfway));
+
+    // What a save does, through the watcher, while the build is still going.
+    let refreshed = Promise.resolve();
+    act(() => {
+      refreshed = result.current.refresh();
+    });
+
+    expect(result.current.progress.current()).toEqual(halfway);
+    expect(result.current.status.kind).toBe('working');
+    letSecondBatchIn();
+    await act(() => refreshed);
+    expect(result.current.status).toMatchObject({ kind: 'ready', revision: 2 });
   });
+});
+
+describe('IndexStatusLine', () => {
+  const progress = (done: number, total: number) => {
+    const reached = { done, total };
+    return { subscribe: () => () => {}, current: () => reached };
+  };
 
   it('shows how far a build has got, from the progress rather than the status', () => {
     render(

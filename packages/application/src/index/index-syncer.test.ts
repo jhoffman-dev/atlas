@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createVaultPath,
-  digestOf,
-  notesNotIndexedReport,
-  type NoteChange,
-} from '@atlas/domain';
+import { createVaultPath, digestOf, notesNotIndexedReport, type NoteChange } from '@atlas/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { deleteEntry } from '../vault/delete-entry.ts';
@@ -501,9 +496,7 @@ describe('the index syncer reports what changed (P28-03)', () => {
 
     expect(puts).toEqual([['Idea.md', 'Plan.md'], ['Idea.md']]);
     expect(vault.held.get('Idea.md')?.digest).toBe(digestOf('a spark, kindled'));
-    expect(news()).toContainEqual(
-      expect.objectContaining({ kind: 'changed', path: 'Idea.md' }),
-    );
+    expect(news()).toContainEqual(expect.objectContaining({ kind: 'changed', path: 'Idea.md' }));
   });
 
   it('says once which notes could not be indexed, and again only when they change (#135)', async () => {

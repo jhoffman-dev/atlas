@@ -64,7 +64,6 @@ import {
   PaneFrame,
   Sidebar,
   IndexSettings,
-  indexStatusText,
   SidebarFooter,
   SyncIndicator,
   OpenFromGitHubDialog,
@@ -80,6 +79,7 @@ import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
+import { IndexStatusLine, LiveIndexSettings } from './index/index-progress.tsx';
 import { useVaultWatch } from './vault/use-vault-watch.ts';
 import { useSearch } from './index/use-search.ts';
 import { useCreateNote } from './notes/use-create-note.ts';
@@ -324,6 +324,7 @@ export function App({
   const focusedPath = panes.layout.paths[panes.layout.focused] ?? null;
   const {
     status: indexStatus,
+    progress: indexProgress,
     rebuild,
     refresh,
   } = useIndex({
@@ -1739,7 +1740,11 @@ export function App({
               />
             ) : null
           }
-          status={location === null ? null : indexStatusText(indexStatus)}
+          status={
+            location === null ? null : (
+              <IndexStatusLine status={indexStatus} progress={indexProgress} />
+            )
+          }
           floating={
             location === null ? null : (
               <QuickAdd
@@ -1758,11 +1763,16 @@ export function App({
                 fallbackFocus={focusFallback}
               >
                 {location !== null && <ProfileSettingsCard setting={profileSetting} />}
-                <IndexSettings
-                  index={location === null ? null : indexStatus}
-                  app={app}
-                  onRebuild={() => void rebuild()}
-                />
+                {location === null ? (
+                  <IndexSettings index={null} app={app} onRebuild={() => void rebuild()} />
+                ) : (
+                  <LiveIndexSettings
+                    index={indexStatus}
+                    progress={indexProgress}
+                    app={app}
+                    onRebuild={() => void rebuild()}
+                  />
+                )}
                 <ImageSettingsPanel store={browserImagePlacementStore} />
                 <GlobalCaptureSettings
                   view={globalCapture.status}

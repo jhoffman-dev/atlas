@@ -72,7 +72,11 @@ const pathsOf = (files: readonly NoteFile[]) => files.map((file) => createVaultP
 describe('workerNoteDeriver', () => {
   it('derives the same rows as this thread does, for the whole round-trip corpus', async () => {
     const files = corpusFiles();
-    const paths = [...pathsOf(files), createVaultPath('People/Mara Quill.md')];
+    // With the notes the corpus links to, so some links and relations resolve and some do not.
+    const paths = [
+      ...pathsOf(files),
+      ...['People/Mara Quill.md', 'Another Note.md', 'Plans.md'].map(createVaultPath),
+    ];
     const { worker } = inProcessWorker();
 
     const here = await inThreadNoteDeriver(remarkMarkdown).begin(paths).derive(files);
@@ -158,14 +162,16 @@ describe('workerNoteDeriver', () => {
 
     const waiting = deriver.begin([]).derive([]);
     first.crash('out of memory');
-    await expect(waiting).rejects.toThrow('The notes could not be read for the index: out of memory');
+    await expect(waiting).rejects.toThrow(
+      'The notes could not be read for the index: out of memory',
+    );
 
     const again = await deriver.begin([]).derive([]);
     expect(again).toEqual({ notes: [], failed: [] });
     expect(spawn).toHaveBeenCalledTimes(2);
   });
 
-  it('fails a batch asked of a worker that cannot be started', async () => {
+  it('fails a build whose worker cannot be started', () => {
     const deriver = workerNoteDeriver(() => {
       throw new Error('workers are not allowed here');
     });

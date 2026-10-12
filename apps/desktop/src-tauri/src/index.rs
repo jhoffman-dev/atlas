@@ -177,6 +177,13 @@ pub struct IndexStats {
     pub links: i64,
 }
 
+/// The index's one writing connection.
+///
+/// Every command on the index is `#[tauri::command(async)]`: a plain command
+/// runs on the main thread, which is the window's, and building an index is
+/// thousands of rows written a batch at a time — the window froze for each
+/// batch (#135). Off it, commands can overlap, so the lock here is what puts
+/// one after another; the main thread no longer does.
 #[derive(Default)]
 pub struct IndexState(Mutex<Option<Connection>>);
 
@@ -411,32 +418,38 @@ fn with_connection<T>(
     action(connection)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_open(
     vault: State<'_, VaultState>,
     index: State<'_, IndexState>,
 ) -> Result<IndexOpened, String> {
     let root = vault.root().ok_or("no vault is open")?;
+    // Held from before the file is looked at: off the main thread, another
+    // command could otherwise write to an index this is about to throw away.
+    let mut held = index.0.lock().map_err(|_| "index state poisoned")?;
     let (connection, opened) = open_database(&root)?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
+    *held = Some(connection);
     log::info!("index opened (fresh: {})", opened.fresh);
     Ok(opened)
 }
 
 /// Throws the cache away and starts again. The point of having it.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_clear(
     vault: State<'_, VaultState>,
     index: State<'_, IndexState>,
 ) -> Result<(), String> {
     let root = vault.root().ok_or("no vault is open")?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = None;
+    // One hold for the whole of it, so nothing is written between the old
+    // index going and the new one being there.
+    let mut held = index.0.lock().map_err(|_| "index state poisoned")?;
+    *held = None;
     let path = database_path(&root)?;
     for suffix in ["", "-wal", "-shm"] {
         let _ = fs::remove_file(format!("{}{suffix}", path.display()));
     }
     let (connection, _) = open_database(&root)?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
+    *held = Some(connection);
     log::info!("index cleared");
     Ok(())
 }
@@ -463,7 +476,7 @@ fn manifest(connection: &Connection) -> Result<Vec<IndexEntry>, String> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_manifest(index: State<'_, IndexState>) -> Result<Vec<IndexEntry>, String> {
     with_connection(&index, |connection| manifest(connection))
 }
@@ -489,9 +502,22 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
     transaction
         .execute("DELETE FROM checks WHERE path = ?1", params![note.path])
         .map_err(stringly)?;
-    transaction
-        .execute("DELETE FROM fts WHERE path = ?1", params![note.path])
+    // The search table cannot be asked for a path without reading every row
+    // of it, so it is only asked for a note the index already holds: a row
+    // there is written, and removed, with the note's row in `files`. Asked
+    // for every note, building an index was n * n work (#135).
+    let held: bool = transaction
+        .query_row(
+            "SELECT EXISTS (SELECT 1 FROM files WHERE path = ?1)",
+            params![note.path],
+            |row| row.get(0),
+        )
         .map_err(stringly)?;
+    if held {
+        transaction
+            .execute("DELETE FROM fts WHERE path = ?1", params![note.path])
+            .map_err(stringly)?;
+    }
 
     transaction
         .execute(
@@ -604,7 +630,7 @@ fn put_notes(connection: &mut Connection, notes: &[IndexedNote]) -> Result<(), S
     transaction.commit().map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_put(index: State<'_, IndexState>, notes: Vec<IndexedNote>) -> Result<(), String> {
     with_connection(&index, |connection| {
         put_notes(connection, &notes)?;
@@ -639,7 +665,7 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_remove(index: State<'_, IndexState>, paths: Vec<String>) -> Result<(), String> {
     with_connection(&index, |connection| remove_paths(connection, &paths))
 }
@@ -677,7 +703,7 @@ fn search(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_search(
     index: State<'_, IndexState>,
     query: String,
@@ -721,7 +747,7 @@ fn notes_of_type(connection: &Connection, type_name: &str) -> Result<Vec<TypedNo
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_notes_of_type(
     index: State<'_, IndexState>,
     r#type: String,
@@ -742,7 +768,7 @@ fn backlinks(connection: &Connection, path: &str) -> Result<Vec<String>, String>
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_backlinks(index: State<'_, IndexState>, path: String) -> Result<Vec<String>, String> {
     with_connection(&index, |connection| backlinks(connection, &path))
 }
@@ -830,7 +856,7 @@ fn rebuild_views(connection: &Connection, types: &[TypeSpec]) -> Result<(), Stri
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_rebuild_views(
     index: State<'_, IndexState>,
     types: Vec<TypeSpec>,
@@ -981,7 +1007,7 @@ pub(crate) fn run_query(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_query(
     vault: State<'_, VaultState>,
     query: State<'_, QueryState>,
@@ -1011,7 +1037,7 @@ pub fn index_query(
     run_query(connection, &sql, &parameters)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn index_stats(index: State<'_, IndexState>) -> Result<IndexStats, String> {
     with_connection(&index, |connection| {
         let count = |table: &str| -> Result<i64, String> {
