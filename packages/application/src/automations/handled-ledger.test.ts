@@ -72,7 +72,10 @@ const says = (title: string, note: string): ModelEvent[] => [
 describe('two notes that hold the same bytes', () => {
   it('asks Claude about both: one answered is not the other', async () => {
     const claude = fakeClaudeStepPorts({
-      rounds: [says('Send the file (A)', 'Tasks/Weekly A'), says('Send the file (B)', 'Tasks/Weekly B')],
+      rounds: [
+        says('Send the file (A)', 'Tasks/Weekly A'),
+        says('Send the file (B)', 'Tasks/Weekly B'),
+      ],
       model: 'claude-opus-5-5',
       today: TODAY,
     });
@@ -105,7 +108,10 @@ describe('two notes that hold the same bytes', () => {
 });
 
 describe('news a rule let go', () => {
-  const letGoOnce = (vault: ReturnType<typeof automationVault>, activity: ReturnType<typeof recordingActivity>) =>
+  const letGoOnce = (
+    vault: ReturnType<typeof automationVault>,
+    activity: ReturnType<typeof recordingActivity>,
+  ) =>
     recordNewsLetGo({
       ports: vault.ports,
       rule: RULE,

@@ -666,15 +666,26 @@ export function queueByRule(
     for (const { rule } of listing.automations) {
       if (!rule.enabled || rule.when.kind !== 'note') continue;
       if (!noteTriggerHears(rule.when, each.changes)) continue;
-      const held = [...(queues.get(rule.id) ?? []), each];
-      const kept = held.slice(-HELD_NEWS);
-      queues.set(rule.id, kept);
-      if (held.length > kept.length) {
-        letGo.set(rule.id, (letGo.get(rule.id) ?? 0) + held.length - kept.length);
+      const { marker, news: waiting } = withoutMarker([...(queues.get(rule.id) ?? []), each]);
+      const kept = waiting.slice(-HELD_NEWS);
+      queues.set(rule.id, [...marker, ...kept]);
+      if (waiting.length > kept.length) {
+        letGo.set(rule.id, (letGo.get(rule.id) ?? 0) + waiting.length - kept.length);
       }
     }
   }
   return letGo;
+}
+
+/** A queue split into its look for missed arrivals — which is no news and is never let go — and its news. */
+function withoutMarker(queue: readonly HeldNews[]): {
+  marker: readonly HeldNews[];
+  news: readonly HeldNews[];
+} {
+  return {
+    marker: queue.filter((held) => 'missedArrivals' in held),
+    news: queue.filter((held) => !('missedArrivals' in held)),
+  };
 }
 
 /**

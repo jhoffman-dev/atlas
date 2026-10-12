@@ -10,6 +10,7 @@ import {
   type AutomationPlan,
   type AutomationRule,
   type DoneAction,
+  type HandledLedger,
   type LogEntry,
   type LocalTime,
   type HandledVersions,
@@ -19,8 +20,9 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import { heldEntries } from '../index/refresh-index.ts';
-import type { IndexPort } from '../index/ports.ts';
+import type { IndexEntry, IndexPort } from '../index/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
+import type { RuleLog } from './automation-log.ts';
 import { matchedPaths, planMatched, planRun, type RuleQueryPorts } from './plan-run.ts';
 
 /** What a run acts on: the plan, and — for a rule notes set off — the versions it was made for. */
@@ -48,19 +50,24 @@ export async function planRuleNow({
   ports,
   rule,
   log,
+  ledger = null,
   today,
 }: {
   ports: RuleQueryPorts;
   rule: PlanRule;
   /** The rule's log; empty for a rule not yet saved. */
   log: readonly LogEntry[];
+  /** What the rule has handled beyond its entries; null for a log from before the ledger. */
+  ledger?: HandledLedger | null | undefined;
   today: string;
 }): Promise<RuleTarget> {
   if (rule.when.kind !== 'note' && rule.action.kind !== 'claude') {
     return { plan: await planRun({ ports, rule, today }), versions: null };
   }
   const matched = await matchedPaths({ ports, rule, today });
-  const versions = unhandledVersions(await versionsNow(ports, matched), handledVersions(log));
+  const held = await heldEntries(ports.index);
+  const handled = handledVersions(log, { ledger, holds: digestsHeld(held) });
+  const versions = unhandledVersions(versionsNow(held, matched), handled);
   const plan = await planMatched({
     ports,
     action: rule.action,
@@ -98,17 +105,60 @@ export async function planForVersions({
  * The version of each note the index holds now, that a rule may hear: a note
  * it does not hold is left out, and so is one not let in where meeting files land.
  */
-async function versionsNow(
-  ports: Pick<RuleQueryPorts, 'index'>,
+function versionsNow(
+  held: ReadonlyMap<string, IndexEntry>,
   paths: readonly VaultPath[],
-): Promise<NoteVersionRef[]> {
-  const held = await heldEntries(ports.index);
+): NoteVersionRef[] {
   return paths.flatMap((path) => {
     const entry = held.get(path);
     return entry === undefined || !isInPlay({ path, importOutcome: entry.importOutcome })
       ? []
       : [{ path, digest: entry.digest }];
   });
+}
+
+/** What a path holds in the index now, for telling one note from another with the same bytes. */
+export const digestsHeld =
+  (held: ReadonlyMap<string, IndexEntry>) =>
+  (path: string): string | undefined =>
+    held.get(path)?.digest;
+
+/**
+ * What a rule has handled, as its log and ledger say and the index shows the
+ * notes now: read at the moment a run decides, so a note that moved is told
+ * from a different note with the same bytes.
+ */
+export async function handledNow({
+  index,
+  log,
+}: {
+  index: IndexPort;
+  log: Pick<RuleLog, 'entries' | 'ledger'>;
+}): Promise<HandledVersions> {
+  const held = await heldEntries(index);
+  return handledVersions(log.entries, { ledger: log.ledger, holds: digestsHeld(held) });
+}
+
+/**
+ * {@link handledNow} for the versions one sync reported, asking the index only
+ * when one of them might be handled: a feed with nothing the rule has seen
+ * costs it no query.
+ */
+export async function handledAmong({
+  index,
+  log,
+  versions,
+}: {
+  index: IndexPort;
+  log: Pick<RuleLog, 'entries' | 'ledger'>;
+  versions: readonly NoteVersionRef[];
+}): Promise<HandledVersions> {
+  const anywhere = handledVersions(log.entries, { ledger: log.ledger });
+  // Only words answered elsewhere need to know what the notes hold now.
+  const needsIndex = versions.some(
+    (version) => anywhere.has(version) && !anywhere.hasHere(version),
+  );
+  return needsIndex ? handledNow({ index, log }) : anywhere;
 }
 
 /**

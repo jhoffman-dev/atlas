@@ -111,6 +111,13 @@ export {
   noteRunsHeldUntil,
 } from './automation-due.ts';
 export {
+  emptyLedger,
+  LEDGER_MAX_AGE_DAYS,
+  MAX_LEDGER_RECORDS,
+  readHandledLedger,
+} from './handled-ledger.ts';
+export type { AnsweredRecord, HandledLedger, PathRecord } from './handled-ledger.ts';
+export {
   handledVersions,
   leftHandledNotes,
   missedArrivals,
@@ -122,6 +129,7 @@ export {
   unhandledVersions,
 } from './note-trigger.ts';
 export type {
+  HandledContext,
   HandledVersions,
   HeldNote,
   NoteEvent,

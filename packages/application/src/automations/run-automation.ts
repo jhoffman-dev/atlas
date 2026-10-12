@@ -1,6 +1,5 @@
 import {
   automationEntryReport,
-  handledVersions,
   leftHandledNotes,
   messageWithoutPaths,
   noteRunsHeldUntil,
@@ -31,6 +30,8 @@ import { appendToRuleLog, readRuleLog } from './automation-log.ts';
 import {
   arrivalsMissed,
   handledBy,
+  handledAmong,
+  handledNow,
   NoteRunsCappedError,
   planForVersions,
   planRuleNow,
@@ -83,8 +84,14 @@ export async function runAutomation(
     // Run by hand, a rule notes set off does what it would have for each note not yet handled;
     // a Claude step, on any trigger, is never asked again about a version it has answered.
     const remembers = rule.when.kind === 'note' || rule.action.kind === 'claude';
-    const log = remembers ? (await readRuleLog(run.ports.fs, rule)).entries : [];
-    return planRuleNow({ ports, rule, log, today });
+    const log = remembers ? await readRuleLog(run.ports.fs, rule) : null;
+    return planRuleNow({
+      ports,
+      rule,
+      log: log?.entries ?? [],
+      ledger: log?.ledger ?? null,
+      today,
+    });
   };
   // Not quiet, it always settles with its entry.
   const carryOut = async () => (await runOnce({ run, trigger, aim, quiet: false }))!;
@@ -125,10 +132,12 @@ async function runOnHeard(
   run: AutomationRun & { changes: readonly NoteChange[]; when: NoteTrigger },
 ): Promise<LogEntry | null> {
   stillInVault(run.guard);
-  const { entries } = await readRuleLog(run.ports.fs, run.rule);
-  const handled = handledVersions(entries);
+  const log = await readRuleLog(run.ports.fs, run.rule);
+  const { entries } = log;
+  const triggering = triggeringVersions(run.when, run.changes);
+  const handled = await handledAmong({ index: run.ports.index, log, versions: triggering });
   const went = leftHandledNotes(run.changes, handled);
-  const versions = unhandledVersions(triggeringVersions(run.when, run.changes), handled);
+  const versions = unhandledVersions(triggering, handled);
   const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
   if (versions.length === 0 || heldUntil !== null) {
     await recordGone(run, went);
@@ -161,9 +170,10 @@ export async function runOnMissedArrivals(run: AutomationRun): Promise<LogEntry 
   const { when } = rule;
   const carryOut = async (): Promise<LogEntry | null> => {
     stillInVault(run.guard);
-    const { entries } = await readRuleLog(run.ports.fs, rule);
+    const log = await readRuleLog(run.ports.fs, rule);
+    const { entries } = log;
     const { fs, index } = run.ports;
-    const handled = handledVersions(entries);
+    const handled = await handledNow({ index, log });
     const versions = await arrivalsMissed({ fs, index, rule, trigger: when, handled });
     if (versions.length === 0) return null;
     const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());

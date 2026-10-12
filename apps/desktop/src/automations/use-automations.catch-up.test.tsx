@@ -264,7 +264,9 @@ describe('queueByRule: the look for missed arrivals', () => {
   const listing = { automations: [{ rule }], broken: [] } as never;
   const news = (at: number) => ({
     vault: VAULT,
-    changes: [{ kind: 'added' as const, path: `Meetings/${at}.md`, type: 'meeting', digest: `d${at}` }],
+    changes: [
+      { kind: 'added' as const, path: `Meetings/${at}.md`, type: 'meeting', digest: `d${at}` },
+    ],
   });
 
   it('survives more news than a queue holds, and the oldest news is what goes', () => {

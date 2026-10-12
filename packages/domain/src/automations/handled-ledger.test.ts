@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { readHandledLedger } from './handled-ledger.ts';
 import { handledVersions, missedArrivals, type NoteTrigger } from './note-trigger.ts';
-import { appendLogEntry, MAX_LOG_ENTRIES, newLogText, parseRunLog, type LogEntry } from './run-log.ts';
+import {
+  appendLogEntry,
+  MAX_LOG_ENTRIES,
+  newLogText,
+  parseRunLog,
+  type LogEntry,
+} from './run-log.ts';
 
 const p = createVaultPath;
 const ON_CREATED: NoteTrigger = { kind: 'note', type: 'meeting', on: ['created'] };
@@ -24,7 +30,11 @@ const answeredRun = (n: number, extra: Partial<Run> = {}): Run => ({
   claude: { model: 'claude-opus-5-5', ms: 10 },
   ...extra,
 });
-const letGo = (n: number): LogEntry => ({ kind: 'letGo', at: minute(n), count: 1 });
+const letGo = (n: number): Extract<LogEntry, { kind: 'letGo' }> => ({
+  kind: 'letGo',
+  at: minute(n),
+  count: 1,
+});
 
 const append = (text: string | null, entry: LogEntry, extra = {}): string =>
   appendLogEntry({ text, ruleName: 'Brief', entry, ...extra });
@@ -114,7 +124,9 @@ describe('the handled ledger: what a rule remembers once its entries age out', (
     const stale = meetingsHeld(1, floor - 1);
     expect(missedArrivals({ trigger: ON_CREATED, notes: stale, handled, since: 0 })).toEqual([]);
     const fresh = meetingsHeld(1, floor + 60_000).map((note) => ({ ...note, digest: 'new' }));
-    expect(missedArrivals({ trigger: ON_CREATED, notes: fresh, handled, since: 0 })).toHaveLength(1);
+    expect(missedArrivals({ trigger: ON_CREATED, notes: fresh, handled, since: 0 })).toHaveLength(
+      1,
+    );
   });
 
   it('never floors catch-up when nothing was pruned', () => {
@@ -149,10 +161,19 @@ describe('the handled ledger: what a rule remembers once its entries age out', (
   });
 
   it('forgets a path the log says went, and a path the rule archived, as the entries do', () => {
-    const text = appendAll([
-      answeredRun(0, { claude: undefined }),
-      { ...answeredRun(1, { claude: undefined }), versions: undefined, went: [meetingPath(0)] },
-    ]);
+    const base: Run = {
+      kind: 'run',
+      at: minute(0),
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+    };
+    const handledOnly: Run = {
+      ...base,
+      versions: [{ path: meetingPath(0), digest: 'd0', wrote: false }],
+    };
+    const text = appendAll([handledOnly, { ...base, at: minute(1), went: [meetingPath(0)] }]);
 
     expect(memoryOf(text).hasPath(meetingPath(0))).toBe(false);
   });
@@ -183,7 +204,7 @@ describe('the handled ledger: what a rule remembers once its entries age out', (
 
   it('leaves a ledger line that does not read out, and reads the rest', () => {
     const text = append(null, answeredRun(0));
-    const damaged = text.replace(/^- at .*$/m, '- at not json');
+    const damaged = text.replace(/^- handled .*$/m, '- handled not json');
 
     const handled = memoryOf(damaged);
     expect(handled.has({ path: meetingPath(0), digest: 'd0' })).toBe(true);

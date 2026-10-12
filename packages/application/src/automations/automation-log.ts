@@ -3,7 +3,9 @@ import {
   logPathFor,
   parentVaultPath,
   parseRunLog,
+  readHandledLedger,
   type AutomationRule,
+  type HandledLedger,
   type LogEntry,
 } from '@atlas/domain';
 import { ensureFolder } from '../vault/create-folder.ts';
@@ -14,6 +16,8 @@ export interface RuleLog {
   readonly text: string | null;
   readonly modified: number | null;
   readonly entries: readonly LogEntry[];
+  /** What it has handled, which outlives the entries; null for a log from before the ledger. */
+  readonly ledger: HandledLedger | null;
 }
 
 /**
@@ -40,8 +44,13 @@ export async function readRuleLog(
   rule: Pick<AutomationRule, 'id'>,
 ): Promise<RuleLog> {
   const [file] = await fs.readNotes([logPathFor(rule.id)]);
-  if (file === undefined) return { text: null, modified: null, entries: [] };
-  return { text: file.text, modified: file.modified, entries: parseRunLog(file.text) };
+  if (file === undefined) return { text: null, modified: null, entries: [], ledger: null };
+  return {
+    text: file.text,
+    modified: file.modified,
+    entries: parseRunLog(file.text),
+    ledger: readHandledLedger(file.text),
+  };
 }
 
 /**
