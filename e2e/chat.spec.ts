@@ -112,6 +112,19 @@ test('a rejected edit leaves the note exactly as it was', async ({ page }) => {
   await expect(chat(page)).toHaveCount(0);
 });
 
+// The stub's Claude prints to the page that asked (`thenEmitModel` in host.ts).
+// Printed from the test's side instead, a run still going when a test ended
+// failed that test after it had passed: #52, on a different test every run.
+test('a test that ends while Claude is still answering is not failed by the answer', async ({
+  page,
+}) => {
+  const { host } = await openPlan(page);
+  host.claude.reply(LONG_ANSWER);
+  await page.keyboard.press('Meta+j');
+  await ask(page, 'What does the note say?');
+  await expect(chat(page).getByText('Paragraph 1 of a long answer')).toBeAttached();
+});
+
 test('a refused proposal says so, and why, in the pane and in the chat note', async ({ page }) => {
   const { host, vault } = await openPlan(page);
   host.claude.reply(
