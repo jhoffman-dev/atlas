@@ -23,6 +23,7 @@ import { heldEntries } from '../index/refresh-index.ts';
 import type { IndexEntry, IndexPort } from '../index/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { RuleLog } from './automation-log.ts';
+import { withHandledKeys } from './handled-keys.ts';
 import { matchedPaths, planMatched, planRun, type RuleQueryPorts } from './plan-run.ts';
 
 /** What a run acts on: the plan, and — for a rule notes set off — the versions it was made for. */
@@ -67,7 +68,8 @@ export async function planRuleNow({
   const matched = await matchedPaths({ ports, rule, today });
   const held = await heldEntries(ports.index);
   const handled = handledVersions(log, { ledger, holds: digestsHeld(held) });
-  const versions = unhandledVersions(versionsNow(held, matched), handled);
+  const keyed = await withHandledKeys({ fs: ports.fs, rule, versions: versionsNow(held, matched) });
+  const versions = unhandledVersions(keyed, handled);
   const plan = await planMatched({
     ports,
     action: rule.action,
@@ -174,9 +176,9 @@ export async function arrivalsMissed({
   trigger,
   handled,
 }: {
-  fs: Pick<VaultFsPort, 'readTextFile'>;
+  fs: Pick<VaultFsPort, 'readTextFile' | 'readNotes'>;
   index: IndexPort;
-  rule: Pick<AutomationRule, 'path'>;
+  rule: Pick<AutomationRule, 'path' | 'action'>;
   trigger: NoteTrigger;
   handled: HandledVersions;
 }): Promise<NoteVersionRef[]> {
@@ -192,7 +194,10 @@ export async function arrivalsMissed({
     ...entry,
     path: createVaultPath(entry.path),
   }));
-  return missedArrivals({ trigger, notes, handled, since });
+  const missed = missedArrivals({ trigger, notes, handled, since });
+  // A note whose words were answered at another version (Accept wrote its tasks) was not missed.
+  const keyed = await withHandledKeys({ fs, rule, versions: missed });
+  return unhandledVersions(keyed, handled);
 }
 
 /**

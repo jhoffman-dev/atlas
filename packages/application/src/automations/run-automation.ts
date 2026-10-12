@@ -24,6 +24,7 @@ import type { Clock } from '../ports.ts';
 import { AtlasQueryError } from '../query/run-atlas-query.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { changeProperties, type PropertyOutcome } from './apply-changes.ts';
+import { withHandledKeys } from './handled-keys.ts';
 import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
 import { reported } from './automation-activity.ts';
 import { appendToRuleLog, readRuleLog } from './automation-log.ts';
@@ -134,7 +135,11 @@ async function runOnHeard(
   stillInVault(run.guard);
   const log = await readRuleLog(run.ports.fs, run.rule);
   const { entries } = log;
-  const triggering = triggeringVersions(run.when, run.changes);
+  const triggering = await withHandledKeys({
+    fs: run.ports.fs,
+    rule: run.rule,
+    versions: triggeringVersions(run.when, run.changes),
+  });
   const handled = await handledAmong({ index: run.ports.index, log, versions: triggering });
   const went = leftHandledNotes(run.changes, handled);
   const versions = unhandledVersions(triggering, handled);

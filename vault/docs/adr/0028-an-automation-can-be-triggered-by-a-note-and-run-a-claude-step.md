@@ -565,6 +565,13 @@ bullets above, this wins._
   taken back; if the meeting changed since (a second accept wrote its `tasks`),
   the undo is refused with nothing changed. Otherwise the meeting's link goes
   first, then the task.
+- **Accepting does not make a meeting new.** A schema may name what a note is
+  answered by besides its whole-file digest (`ProposalSchema.handledKeyOf`);
+  `meeting-items` names its **body** digest. The key rides on the version as one
+  of the ledger's extra keys (`withHandledKeys`: when planning a run, hearing
+  the feed and catching up at open; no other persistence), so Accept writing
+  the meeting's `tasks`/`decisions` — frontmatter only — is not new words and
+  Run now after an accept asks nothing. An edit to the words is new.
 - **The run warns, once**, when the Meeting type lacks the `tasks` or `decisions`
   relation (`claude.warnings`, a `- warned` log line, Activity): the proposals
   are made, and Accept refuses them until the type has the relations.
