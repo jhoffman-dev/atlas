@@ -1,6 +1,7 @@
-import { createVaultPath, humanizeKey, type InboxItem, type VaultPath } from '@atlas/domain';
+import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { Icon } from './icon.tsx';
-import { useNoteNames } from './note-names.tsx';
+import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
+import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
 import { PageBar, type PageHistory } from './page-bar.tsx';
 import { PageHead } from './page-head.tsx';
 import {
@@ -9,7 +10,6 @@ import {
   type ProposalsSectionProps,
 } from './proposals/proposals-section.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
-import { RelationOptions } from './relation-options.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 
 /** What the Inbox lists, once it has been read. */
@@ -32,12 +32,22 @@ export interface InboxPageProps {
   error: string | null;
   /** The projects and areas a note can be filed under. */
   filing: readonly RelationChoice[];
+  /** The people a task can wait on. */
+  people?: readonly RelationChoice[];
+  /** The statuses a row may give a task: the ones the vault's Task type declares. GTD's eight unless said. */
+  statuses?: readonly GtdStatus[];
   onOpen: (path: VaultPath) => void;
-  onProcess: (args: { path: VaultPath; project: VaultPath }) => void;
-  /** While a note is being filed, so it is not asked for twice. */
+  /** Clarifies a note — a task's status, project, wait and dates, or a note's filing (#112). */
+  onClarify: ClarifyInboxItem;
+  /** While a note is being written, so it is not asked for twice. */
   busy: boolean;
-  /** Why the last note could not be filed, or null. */
+  /** Why the last undo could not be done, or null. */
   problem: string | null;
+  /** Why a row's clarification was refused, shown on that row. */
+  refusal?: InboxRefusal | null;
+  /** The last clarification, while it can be taken back. */
+  lastAction?: { readonly title: string } | null;
+  onUndo?: () => void;
   typesOffer?: InboxTypesOffer | null;
   /** Moving the vault's tasks to GTD's eight statuses, previewed first (P30-02). */
   taskMigration?: TaskMigrationProps | null;
@@ -51,9 +61,10 @@ export interface InboxPageProps {
 
 /**
  * The Inbox: every note waiting in the `Inbox` folder — captured, imported or
- * dropped there — each a click from opening, and one choice from being filed
- * under a project or an area, which moves it into that project's folder and
- * links it (P30-01). Proposals wait there too, and are answered in their own
+ * dropped there — and every task still at the Inbox status wherever it lives,
+ * each a click from opening. A task is clarified on its row (#112); any other
+ * note is one choice from being filed under a project or an area, which moves
+ * it into that project's folder and links it (P30-01). Proposals wait there too, and are answered in their own
  * section rather than filed (P29-02). A meeting the import is waiting on, or
  * could not import, says so on its row (P28-04).
  */
@@ -62,6 +73,7 @@ export function InboxPage(props: InboxPageProps) {
   const offer = props.typesOffer ?? null;
   const migration = props.taskMigration ?? null;
   const proposals = props.proposals ?? null;
+  const problem = props.problem ?? leftRefusal(props);
   return (
     <>
       <PageBar
@@ -86,11 +98,12 @@ export function InboxPage(props: InboxPageProps) {
           />
           {offer !== null && <TypesOffer {...offer} />}
           {migration !== null && <TaskMigration {...migration} />}
-          {props.problem !== null && (
+          {problem !== null && (
             <p className="table__error" role="alert">
-              {props.problem}
+              {problem}
             </p>
           )}
+          <LastAction {...props} />
           {proposals !== null && proposalsToShow(proposals) && <ProposalsSection {...proposals} />}
           <InboxList {...props} />
         </article>
@@ -104,7 +117,7 @@ function describe(contents: InboxContents | null, proposals: number): string | n
   const count = contents.items.length;
   const toAnswer = proposals === 0 ? '' : ` · ${proposals} to answer`;
   if (count === 0) return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
-  return `${count}${contents.truncated ? '+' : ''} to process · file each under a project or an area${toAnswer}`;
+  return `${count}${contents.truncated ? '+' : ''} to process · clarify each task, file each note${toAnswer}`;
 }
 
 function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
@@ -132,7 +145,36 @@ function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
   );
 }
 
-function InboxList({ contents, error, filing, onOpen, onProcess, busy }: InboxPageProps) {
+/** A refusal whose row has left the list — clarified, but not filed — which the page says instead. */
+function leftRefusal({ contents, refusal }: InboxPageProps): string | null {
+  if (refusal === null || refusal === undefined) return null;
+  const listed = contents?.items.some((item: InboxItem) => item.path === refusal.path) ?? false;
+  return listed ? null : refusal.reason;
+}
+
+function LastAction({ lastAction, onUndo, busy }: InboxPageProps) {
+  if (lastAction === null || lastAction === undefined || onUndo === undefined) return null;
+  return (
+    <p className="inbox__done" role="status">
+      Clarified “{lastAction.title}”.
+      <button type="button" className="btn btn--ghost btn--sm" disabled={busy} onClick={onUndo}>
+        Undo
+      </button>
+    </p>
+  );
+}
+
+function InboxList({
+  contents,
+  error,
+  filing,
+  people = [],
+  statuses,
+  onOpen,
+  onClarify,
+  busy,
+  refusal = null,
+}: InboxPageProps) {
   if (error !== null) {
     return (
       <p className="table__error" role="alert">
@@ -157,29 +199,20 @@ function InboxList({ contents, error, filing, onOpen, onProcess, busy }: InboxPa
               <th>Name</th>
               <th>Kind</th>
               <th>
-                <span className="visually-hidden">File under</span>
+                <span className="visually-hidden">Clarify</span>
               </th>
             </tr>
           </thead>
-          <tbody>
-            {contents.items.map((item) => (
-              <tr key={item.path} className="table__row">
-                <td className="table__name">
-                  <button type="button" className="table__link" onClick={() => onOpen(item.path)}>
-                    <Icon name="doc" size={16} />
-                    <span className="table__title">{item.title}</span>
-                  </button>
-                </td>
-                <td className="inbox__kind">
-                  {kindOf(item)}
-                  <ImportStanding item={item} />
-                </td>
-                <td className="inbox__actions">
-                  <FileUnder item={item} filing={filing} busy={busy} onProcess={onProcess} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
+          <InboxRows
+            items={contents.items}
+            filing={filing}
+            people={people}
+            {...(statuses !== undefined && { statuses })}
+            onOpen={onOpen}
+            onClarify={onClarify}
+            busy={busy}
+            refusal={refusal}
+          />
         </table>
         {contents.truncated && (
           <footer className="table__footer">
@@ -188,53 +221,5 @@ function InboxList({ contents, error, filing, onOpen, onProcess, busy }: InboxPa
         )}
       </div>
     </div>
-  );
-}
-
-/** "Meeting · Meetings": its type, and the folder of the Inbox it arrived in. */
-function kindOf(item: InboxItem): string {
-  const type = item.type === null ? 'Note' : humanizeKey(item.type);
-  return item.arrivedIn === '' ? type : `${type} · ${item.arrivedIn}`;
-}
-
-/** What the meeting import made of a file, where it is still the Inbox's business. */
-function ImportStanding({ item }: { item: InboxItem }) {
-  if (item.importOutcome === 'pending') {
-    return <span className="inbox__import">Waiting to be imported</span>;
-  }
-  if (item.importOutcome !== 'error') return null;
-  return (
-    <span className="inbox__import inbox__import--error">
-      Not imported: {item.importError ?? 'it does not follow the meeting contract'}
-    </span>
-  );
-}
-
-function FileUnder({
-  item,
-  filing,
-  busy,
-  onProcess,
-}: {
-  item: InboxItem;
-  filing: readonly RelationChoice[];
-  busy: boolean;
-  onProcess: InboxPageProps['onProcess'];
-}) {
-  const names = useNoteNames();
-  return (
-    <select
-      className="inbox__file"
-      aria-label={`File ${item.title} under`}
-      value=""
-      disabled={busy || filing.length === 0}
-      onChange={(event) => {
-        const project = event.target.value;
-        if (project !== '') onProcess({ path: item.path, project: createVaultPath(project) });
-      }}
-    >
-      <option value="">{filing.length === 0 ? 'No project or area yet' : 'File under…'}</option>
-      <RelationOptions choices={filing} names={names} optionValue={(choice) => choice.path} />
-    </select>
   );
 }

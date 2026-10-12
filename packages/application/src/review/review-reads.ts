@@ -8,7 +8,7 @@ import {
   type ReviewProject,
   type ReviewTask,
 } from '@atlas/domain';
-import { listInbox } from '../inbox/list-inbox.ts';
+import { listInbox, listVaultInbox } from '../inbox/list-inbox.ts';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { listProposals } from '../proposals/list-proposals.ts';
@@ -17,9 +17,19 @@ import type { VaultFsPort } from '../vault/ports.ts';
 /** What the weekly review and the Today page read with: the index, and the vault for proposals. */
 export interface ReviewReadPorts {
   index: Pick<IndexPort, 'query'>;
-  /** Where the proposals waiting in the Inbox are read from. */
+  /** Where the proposals waiting in the Inbox, and the vault's types, are read from. */
   fs: VaultFsPort;
   markdown: MarkdownPort;
+}
+
+/** Which rule the Inbox is counted by (#112), for a caller that already holds the vault's types. */
+export interface InboxRule {
+  /**
+   * Whether the vault's tasks start in the Inbox (`tasksStartInInbox` of its
+   * types), so the Inbox is counted as its page lists it. Left out, the types
+   * are read from the vault.
+   */
+  tasksStartInInbox?: boolean;
 }
 
 /**
@@ -39,7 +49,12 @@ export interface InboxCount {
  * together: every open task (one statement, whatever the sections), every
  * project, and the Inbox's count.
  */
-export async function readReviewSources({ index, fs, markdown }: ReviewReadPorts): Promise<{
+export async function readReviewSources({
+  index,
+  fs,
+  markdown,
+  tasksStartInInbox: startInInbox,
+}: ReviewReadPorts & InboxRule): Promise<{
   tasks: ReviewTask[];
   projects: ReviewProject[];
   inbox: InboxCount;
@@ -49,7 +64,10 @@ export async function readReviewSources({ index, fs, markdown }: ReviewReadPorts
   const [tasks, projects, inbox, proposals] = await Promise.all([
     rowsOf(index, compileReviewTasksQuery()),
     rowsOf(index, compileReviewProjectsQuery()),
-    listInbox({ index }),
+    // Told by a caller that holds the vault's types; read from the vault otherwise.
+    startInInbox === undefined
+      ? listVaultInbox({ index, fs, markdown })
+      : listInbox({ index, tasksStartInInbox: startInInbox }),
     listProposals({ fs, markdown }),
   ]);
   const toFile = inbox.items.length;

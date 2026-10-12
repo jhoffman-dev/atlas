@@ -3,6 +3,7 @@ import type { Clock } from '../ports.ts';
 import {
   readReviewSources,
   type InboxCount,
+  type InboxRule,
   type ReviewReadPorts,
 } from '../review/review-reads.ts';
 
@@ -22,11 +23,12 @@ export interface TodayReport extends TodayLists {
  */
 export async function readToday({
   clock,
-  ...ports
-}: ReviewReadPorts & {
-  clock: Pick<Clock, 'today' | 'now'>;
-}): Promise<TodayReport> {
-  const { tasks, projects, inbox, truncated } = await readReviewSources(ports);
+  ...reads
+}: ReviewReadPorts &
+  InboxRule & {
+    clock: Pick<Clock, 'today' | 'now'>;
+  }): Promise<TodayReport> {
+  const { tasks, projects, inbox, truncated } = await readReviewSources(reads);
   const at = { today: clock.today(), now: clock.now() };
   return { ...todayLists({ tasks, projects, at }), today: at.today, inbox, truncated };
 }

@@ -74,7 +74,7 @@ async function typesOf(
 }
 
 /** The project or area the batch files under, as the vault spells it, or a refusal. */
-async function filingTarget({
+export async function filingTarget({
   ports,
   notePaths,
   project,

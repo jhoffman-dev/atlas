@@ -3,6 +3,8 @@ import type { TodaySectionId } from '@atlas/domain';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { jsonLinesNote, proposalVault } from '../testing/proposal-vault.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
+import { listInbox } from '../inbox/list-inbox.ts';
+import { readWeeklyReview } from '../review/read-weekly-review.ts';
 import { readToday, type TodayReport } from './read-today.ts';
 
 /** A vault with nothing proposed: no Inbox/Proposals folder to read. */
@@ -153,5 +155,54 @@ describe('readToday', () => {
     await expect(readToday({ index: failing, ...NO_PROPOSALS, clock: CLOCK })).rejects.toThrow(
       'the index is closed',
     );
+  });
+});
+
+/** #112: one Inbox — the Today page's Inbox link counts what the Inbox page lists. */
+describe('readToday — the Inbox count is the Inbox page’s', () => {
+  const files = {
+    'Inbox/Captured.md': task('status: inbox'),
+    'Inbox/Decided.md': task('status: next-action'),
+    'Inbox/Idea.md': 'A thought.\n',
+    'Tasks/Imported.md': task('status: inbox'),
+    'Tasks/No status.md': task(),
+    'Tasks/Nor this one.md': task(),
+    'Tasks/Moving.md': task('status: in-progress'),
+  };
+  const index = () =>
+    fakeIndexPort({ query: atlasQueryIndex({ markdown: fakeMarkdown(), files }) });
+
+  it.each([
+    ['tasks start in the Inbox', true, 5],
+    ['the vault is on statuses of its own', false, 4],
+  ])('counts what the page lists, as the weekly review does: %s', async (_name, rule, listed) => {
+    const page = await listInbox({ index: index(), tasksStartInInbox: rule });
+    const reads = { index: index(), ...NO_PROPOSALS, clock: CLOCK, tasksStartInInbox: rule };
+    const today = await readToday(reads);
+    const review = await readWeeklyReview(reads);
+
+    expect(page.items).toHaveLength(listed);
+    expect(today.inbox.toFile).toBe(page.items.length);
+    expect(review.inbox.toFile).toBe(page.items.length);
+  });
+
+  it('lists different notes, and a different number of them, under the two rules', async () => {
+    const paths = async (rule: boolean) =>
+      (await listInbox({ index: index(), tasksStartInInbox: rule })).items
+        .map((item) => item.path as string)
+        .sort();
+    expect(await paths(true)).toEqual([
+      'Inbox/Captured.md',
+      'Inbox/Idea.md',
+      'Tasks/Imported.md',
+      'Tasks/No status.md',
+      'Tasks/Nor this one.md',
+    ]);
+    expect(await paths(false)).toEqual([
+      'Inbox/Captured.md',
+      'Inbox/Decided.md',
+      'Inbox/Idea.md',
+      'Tasks/Imported.md',
+    ]);
   });
 });

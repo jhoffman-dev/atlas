@@ -2,9 +2,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createVaultPath, readProposal, type InboxItem } from '@atlas/domain';
+import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
+
+/** A captured task, as the Inbox reads one that says nothing yet but its status. */
+const CAPTURED: InboxTask = {
+  status: 'inbox',
+  project: null,
+  waitingOn: null,
+  waitingOnNames: '',
+  defer: null,
+  due: null,
+};
 
 const item = (
   path: string,
@@ -19,6 +29,7 @@ const item = (
   arrivedIn,
   importOutcome: null,
   importError: null,
+  task: type === 'task' ? CAPTURED : null,
   ...more,
 });
 
@@ -58,13 +69,19 @@ const FILING: readonly RelationChoice[] = [
   { path: 'Areas/Garden.md', title: 'Garden', type: 'area' },
 ];
 
+const PEOPLE: readonly RelationChoice[] = [
+  { path: 'People/Mara Quill.md', title: 'Mara Quill', type: 'person' },
+  { path: 'People/Tobias Fenn.md', title: 'Tobias Fenn', type: 'person' },
+];
+
 function page(overrides: Partial<InboxPageProps> = {}) {
   const props: InboxPageProps = {
     contents: CONTENTS,
     error: null,
     filing: FILING,
+    people: PEOPLE,
     onOpen: vi.fn(),
-    onProcess: vi.fn(),
+    onClarify: vi.fn(async () => true),
     busy: false,
     problem: null,
     ...overrides,
@@ -103,15 +120,15 @@ describe('InboxPage', () => {
     ).toEqual(['File under…', 'Atlas', 'Garden']);
   });
 
-  it('processes a note into the project picked', async () => {
+  it('files a note that is not a task into the project picked, at once', async () => {
     const props = page();
     await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'File Call the bank under' }),
+      screen.getByRole('combobox', { name: 'File Standup under' }),
       'Garden',
     );
-    expect(props.onProcess).toHaveBeenCalledWith({
-      path: 'Inbox/Call the bank.md',
-      project: 'Areas/Garden.md',
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: 'Inbox/Meetings/Standup.md',
+      clarification: { project: 'Areas/Garden.md' },
     });
   });
 
@@ -129,9 +146,11 @@ describe('InboxPage', () => {
     expect(picker.options[0]?.textContent).toBe('No project or area yet');
   });
 
-  it('says why a note could not be filed', () => {
-    page({ problem: 'Call the bank: the disk is full' });
-    expect(screen.getByRole('alert').textContent).toBe('Call the bank: the disk is full');
+  it('says why the last undo could not be done', () => {
+    page({ problem: 'It was changed since, so it was left as it is.' });
+    expect(screen.getByRole('alert').textContent).toBe(
+      'It was changed since, so it was left as it is.',
+    );
   });
 
   it('says when nothing is waiting', () => {
@@ -211,5 +230,225 @@ describe('InboxPage', () => {
     page({ proposals: { ...PROPOSALS, contents: { open: [], stranded: [], unreadable: [] } } });
     expect(screen.getByRole('table')).toBeDefined();
     expect(screen.queryByRole('region', { name: 'Proposals' })).toBeNull();
+  });
+});
+
+/** #112: a task is clarified where it is, and Done writes the row in one save. */
+describe('InboxPage — clarifying a task on its row', () => {
+  const TASK = 'Inbox/Call the bank.md';
+  const control = (name: string) => screen.getByRole('combobox', { name });
+  const done = () => within(rowOf('Call the bank')).getByRole('button', { name: 'Done' });
+
+  it('offers the eight statuses, with the task’s own picked', () => {
+    page();
+    const status = control('Status of Call the bank') as HTMLSelectElement;
+    expect([...status.options].map((option) => option.textContent)).toEqual([
+      'Inbox',
+      'Backlog',
+      'Next Action',
+      'In Progress',
+      'Waiting',
+      'Someday',
+      'Longterm',
+      'Archive',
+    ]);
+    expect(status.value).toBe('inbox');
+  });
+
+  it('offers only the statuses the vault’s Task type declares, and the one the task holds', () => {
+    page({ statuses: ['backlog', 'someday'] });
+    const status = control('Status of Call the bank') as HTMLSelectElement;
+    expect([...status.options].map((option) => option.textContent)).toEqual([
+      'Inbox',
+      'Backlog',
+      'Someday',
+    ]);
+  });
+
+  it('does not write a person picked while the row said Waiting once the status was changed again', async () => {
+    const props = page();
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Waiting');
+    await userEvent.selectOptions(control('Who Call the bank waits on'), 'Mara Quill');
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Next Action');
+    expect(screen.queryByRole('combobox', { name: 'Who Call the bank waits on' })).toBeNull();
+    await userEvent.click(done());
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: TASK,
+      clarification: { status: 'next-action' },
+    });
+  });
+
+  it('offers no status, wait or date on a note that is not a task', () => {
+    page();
+    expect(screen.queryByRole('combobox', { name: 'Status of Standup' })).toBeNull();
+    expect(screen.queryByLabelText('Standup is due')).toBeNull();
+  });
+
+  it('writes nothing until Done, which has nothing to write until something is picked', async () => {
+    const props = page();
+    expect((done() as HTMLButtonElement).disabled).toBe(true);
+
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Next Action');
+    await userEvent.selectOptions(control('File Call the bank under'), 'Atlas');
+
+    expect(props.onClarify).not.toHaveBeenCalled();
+    expect((done() as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('writes the status and the project together on Done', async () => {
+    const props = page();
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Next Action');
+    await userEvent.selectOptions(control('File Call the bank under'), 'Atlas');
+    await userEvent.click(done());
+
+    expect(props.onClarify).toHaveBeenCalledTimes(1);
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: TASK,
+      clarification: { status: 'next-action', project: 'Projects/Atlas.md' },
+    });
+  });
+
+  it('asks who it waits on once Waiting is picked, and writes both in one clarification', async () => {
+    const props = page();
+    expect(screen.queryByRole('combobox', { name: 'Who Call the bank waits on' })).toBeNull();
+
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Waiting');
+    const who = control('Who Call the bank waits on');
+    expect(
+      within(who)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Waiting on…', 'Mara Quill', 'Tobias Fenn']);
+    await userEvent.selectOptions(who, 'Mara Quill');
+    await userEvent.click(done());
+
+    expect(props.onClarify).toHaveBeenCalledTimes(1);
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: TASK,
+      clarification: { status: 'waiting', waitingOn: 'People/Mara Quill.md' },
+    });
+  });
+
+  it('writes a status alone: a single action needs no project', async () => {
+    const props = page();
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Someday');
+    await userEvent.click(done());
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: TASK,
+      clarification: { status: 'someday' },
+    });
+  });
+
+  it('writes defer and due as days, and Return in a date is Done', async () => {
+    const props = page();
+    await userEvent.type(screen.getByLabelText('Defer Call the bank until'), '2026-10-20');
+    await userEvent.type(screen.getByLabelText('Call the bank is due'), '2026-11-02{Enter}');
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: TASK,
+      clarification: { defer: '2026-10-20', due: '2026-11-02' },
+    });
+  });
+
+  it('shows what the task already says, and clears a date that is emptied', async () => {
+    const held: InboxTask = {
+      status: 'waiting',
+      project: createVaultPath('Areas/Garden.md'),
+      waitingOn: createVaultPath('People/Tobias Fenn.md'),
+      waitingOnNames: 'Tobias Fenn',
+      defer: null,
+      due: '2026-11-02',
+    };
+    const props = page({
+      contents: {
+        items: [item('Tasks/Chase.md', 'Chase', 'task', '', { task: held })],
+        truncated: false,
+      },
+    });
+    expect((control('Status of Chase') as HTMLSelectElement).value).toBe('waiting');
+    expect((control('File Chase under') as HTMLSelectElement).value).toBe('Areas/Garden.md');
+    expect((control('Who Chase waits on') as HTMLSelectElement).value).toBe(
+      'People/Tobias Fenn.md',
+    );
+
+    await userEvent.clear(screen.getByLabelText('Chase is due'));
+    await userEvent.click(within(rowOf('Chase')).getByRole('button', { name: 'Done' }));
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: 'Tasks/Chase.md',
+      clarification: { due: null },
+    });
+  });
+
+  it('shows a refusal on the row it was for, and keeps what was picked', async () => {
+    const refusal = { path: createVaultPath(TASK), reason: 'A waiting task needs someone.' };
+    page({ onClarify: vi.fn(async () => false), refusal });
+    const alert = within(rowOf('Call the bank')).getByRole('alert');
+    expect(alert.textContent).toBe('A waiting task needs someone.');
+    expect(within(rowOf('Standup')).queryByRole('alert')).toBeNull();
+
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Waiting');
+    await userEvent.click(done());
+    expect((control('Status of Call the bank') as HTMLSelectElement).value).toBe('waiting');
+  });
+
+  it('says a refusal above the list once its row has left it', () => {
+    page({
+      refusal: { path: createVaultPath('Inbox/Gone.md'), reason: 'Gone: the disk is full' },
+    });
+    expect(screen.getByRole('alert').textContent).toBe('Gone: the disk is full');
+  });
+
+  it('puts the focus on the next row once a row is done, and leaves it when refused', async () => {
+    page();
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Backlog');
+    await userEvent.click(done());
+    expect(document.activeElement).toBe(rowOf('Standup'));
+    expect(rowOf('Standup').className).toContain('inbox__row--focused');
+  });
+
+  it('leaves the focus where it is when the row was refused', async () => {
+    page({ onClarify: vi.fn(async () => false) });
+    await userEvent.selectOptions(control('Status of Call the bank'), 'Backlog');
+    await userEvent.click(done());
+    expect(document.activeElement).toBe(done());
+  });
+
+  it('reaches every control of a row with Tab, in the order it is read', async () => {
+    page();
+    screen.getByRole('button', { name: 'Call the bank' }).focus();
+    const reached: (string | null)[] = [];
+    for (let stop = 0; stop < 4; stop += 1) {
+      await userEvent.tab();
+      reached.push(document.activeElement?.getAttribute('aria-label') ?? null);
+    }
+    expect(reached).toEqual([
+      'Status of Call the bank',
+      'File Call the bank under',
+      'Defer Call the bank until',
+      'Call the bank is due',
+    ]);
+  });
+
+  it('makes a plain note a task from its row, and offers that on no other', async () => {
+    const props = page();
+    expect(within(rowOf('Standup')).queryByRole('button', { name: 'Make task' })).toBeNull();
+    await userEvent.click(within(rowOf('Idea')).getByRole('button', { name: 'Make task' }));
+    expect(props.onClarify).toHaveBeenCalledWith({
+      path: 'Inbox/Idea.md',
+      clarification: { asTask: true },
+    });
+  });
+
+  it('offers to take the last clarification back', async () => {
+    const onUndo = vi.fn();
+    page({ lastAction: { title: 'Call the bank' }, onUndo });
+    const said = screen.getByRole('status');
+    expect(said.textContent).toContain('Clarified “Call the bank”.');
+    await userEvent.click(within(said).getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledOnce();
+  });
+
+  it('offers no undo when nothing was clarified', () => {
+    page({ onUndo: vi.fn() });
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 });

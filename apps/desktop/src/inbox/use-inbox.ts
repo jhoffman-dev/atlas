@@ -1,116 +1,298 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  clarifyVocabulary,
   createVaultPath,
   FILED_UNDER_TYPES,
   filingRefusal,
   noteTitle,
+  PERSON_TYPE,
+  tasksStartInInbox,
+  waitingOnRefusal,
+  type Clarification,
+  type ObjectType,
   type VaultPath,
 } from '@atlas/domain';
 import {
-  FilingRefusedError,
+  clarifyInboxItem,
+  ClarifyRefusedError,
   listInbox,
   notesInUseOfTypes,
-  processInboxItems,
+  undoClarifyInboxItem,
   type ActivityLog,
-  type ArchiveOutcome,
   type ArchivePorts,
+  type ClarifyOutcome,
+  type ClarifyUndo,
+  type Clock,
 } from '@atlas/application';
 import type { InboxContents, RelationChoice } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
+import { errorMessage } from '../query/error-message.ts';
 
 export interface InboxOptions {
   readonly ports: ArchivePorts;
   readonly notePaths: readonly VaultPath[];
+  /** The vault that is open, which everything the page shows is read from; null with none. */
+  readonly vaultKey: string | null;
+  /** The vault's types: once its tasks start in the Inbox, a status is what clarifies one. */
+  readonly types: readonly ObjectType[];
+  readonly clock: Pick<Clock, 'today'>;
   /** Changes when the index does, so the Inbox lists what it now holds. */
   readonly indexKey: string;
+  /** Whether the index is ready to be asked; while it builds, nothing is read or shown. Ready unless said. */
+  readonly indexReady?: boolean;
   /** Whether the Inbox page is showing, which is when what to file under is read. */
   readonly open: boolean;
-  /** Re-reads the tree and the index once a note has been filed. */
+  /** Re-reads the tree and the index once a note has been clarified. */
   readonly onSettled: () => void;
-  /** Where a filing the page gives up on is recorded; a refused project is not. */
+  /** Where a write the page gives up on is recorded; a refusal is not. */
   readonly activity: Pick<ActivityLog, 'inOpenVault'>;
 }
 
-/** What the window says once a note is filed: only what could not be done. */
-function outcomeProblem(outcome: ArchiveOutcome): string | null {
+/** What the row says once a note is clarified: only what could not be done. */
+function outcomeProblem(outcome: ClarifyOutcome): string | null {
   if (outcome.failed.length === 0) return null;
   return outcome.failed.map(({ path, reason }) => `${noteTitle(path)}: ${reason}`).join(' ');
 }
 
 /**
- * The Inbox page: what waits in the `Inbox` folder, what it can be filed
- * under, and filing a note there (P30-01). The rules are the use-cases'; this
- * holds what is on screen.
+ * The Inbox page (P30-01, #112): what waits — the `Inbox` folder's notes and
+ * every task still at Inbox — what a note can be filed under and who a task
+ * can wait on, clarifying a row, and taking the last one back. The rules are
+ * the use-cases'; this holds what is on screen.
  *
  * The list is read whatever page is open, so the sidebar's count is right;
- * the projects and areas only while the page shows.
+ * the projects, areas and people only while the page shows. Everything shown
+ * is what the open vault's index answered (#55): after a vault switch the
+ * last read's paths are another vault's, so neither they nor their actions
+ * are offered until this one's read is in. While the same vault's index
+ * re-reads, what it last answered stays up, and so does what a row holds.
  */
-export function useInbox({ ports, notePaths, indexKey, open, onSettled, activity }: InboxOptions) {
-  const [contents, setContents] = useState<InboxContents | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [filing, setFiling] = useState<readonly RelationChoice[]>([]);
+export function useInbox(options: InboxOptions) {
+  const { ports, notePaths, vaultKey, types, clock, indexKey, open, onSettled, activity } = options;
+  const settled = useIndexMovedOn({ vaultKey, indexKey });
+  // Asked only while it is ready; what it last answered for this vault stays up while it re-reads.
+  const fresh = settled && (options.indexReady ?? true);
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [choices, setChoices] = useState<Choices | null>(null);
+  const [said, setSaid] = useState<Said | null>(null);
   const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
   // `busy` reaches the page a render late; two picks in one tick would both see it false.
   const running = useRef(false);
+  const unmadeMeanwhile = useRef<Pick<Result, 'problem' | 'refusal'> | null>(null);
+  const startInInbox = tasksStartInInbox(types);
 
   useEffect(() => {
+    if (!fresh) return;
     let cancelled = false;
-    listInbox({ index: ports.index })
-      .then((listing) => {
-        if (cancelled) return;
-        setContents(listing);
-        setError(null);
+    listInbox({ index: ports.index, tasksStartInInbox: startInInbox })
+      .then((contents) => {
+        if (!cancelled) setListing({ vaultKey, contents, error: null });
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+        if (!cancelled) setListing({ vaultKey, contents: null, error: errorMessage(cause) });
       });
     return () => {
       cancelled = true;
     };
-  }, [ports.index, indexKey]);
+  }, [ports.index, indexKey, fresh, vaultKey, startInInbox]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !fresh) return;
     let cancelled = false;
-    notesInUseOfTypes({ index: ports.index, types: FILED_UNDER_TYPES })
+    readChoices(ports.index)
       .then((found) => {
-        // Only what Process would accept: never a project still in the Inbox, or one filed too deep.
-        const offered = found.filter(
-          (note) => filingRefusal({ path: createVaultPath(note.path), type: note.type }) === null,
-        );
-        if (!cancelled) setFiling(offered);
+        if (!cancelled) setChoices({ vaultKey, ...found, error: null });
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+        if (!cancelled) {
+          setChoices({ vaultKey, filing: [], people: [], error: errorMessage(cause) });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [ports.index, indexKey, open]);
+  }, [ports.index, indexKey, fresh, vaultKey, open]);
 
-  const process = useCallback(
-    async ({ path, project }: { path: VaultPath; project: VaultPath }) => {
-      if (running.current) return;
+  const shown = settled && listing?.vaultKey === vaultKey ? listing : null;
+  const offered = settled && choices?.vaultKey === vaultKey ? choices : null;
+  const told = said?.vaultKey === vaultKey ? said : null;
+
+  /**
+   * Runs one write at a time, against the vault that was open when it was asked
+   * for. One asked for while another is still being written is not made, and
+   * says so where `unmade` puts it, rather than being dropped unsaid.
+   */
+  const act = useCallback(
+    async (action: () => Promise<Result>, unmade: Pick<Result, 'problem' | 'refusal'>) => {
+      if (!settled) return false;
+      const say = (result: Result) =>
+        // A refused pick leaves the last action as it was: it can still be taken back.
+        setSaid((before) => ({
+          vaultKey,
+          ...result,
+          last:
+            result.last === 'kept'
+              ? before?.vaultKey === vaultKey
+                ? before.last
+                : null
+              : result.last,
+        }));
+      if (running.current) {
+        unmadeMeanwhile.current = unmade;
+        say({ ...unmade, last: 'kept' });
+        return false;
+      }
       running.current = true;
+      unmadeMeanwhile.current = null;
+      const unmadeSince = () => unmadeMeanwhile.current;
       setBusy(true);
-      setProblem(null);
-      const filing = { activity, write: 'filing', path, refusal: FilingRefusedError } as const;
       try {
-        const outcome = await withGiveUpRecorded(filing, () =>
-          processInboxItems({ ports, paths: [path], notePaths, project, updateLinks: true }),
-        );
-        setProblem(outcomeProblem(outcome));
-        onSettled();
-      } catch (cause) {
-        setProblem(cause instanceof Error ? cause.message : String(cause));
+        const result = await action();
+        const done = result.refusal === null && result.problem === null;
+        // What was not made while this one was being written is still to be said once it lands.
+        const meanwhile = unmadeSince();
+        say(done && meanwhile !== null ? { ...result, ...meanwhile } : result);
+        return done;
       } finally {
         running.current = false;
         setBusy(false);
       }
     },
-    [ports, notePaths, onSettled, activity],
+    [settled, vaultKey],
   );
 
-  return { contents, error, filing, busy, problem, process };
+  const clarify = useCallback(
+    ({ path, clarification }: { path: VaultPath; clarification: Clarification }) =>
+      act(
+        async () => {
+          const write = clarification.project === undefined ? 'edit' : 'filing';
+          const named = { activity, write, path, refusal: ClarifyRefusedError } as const;
+          try {
+            const outcome = await withGiveUpRecorded(named, () =>
+              clarifyInboxItem({ ports, path, clarification, notePaths, today: clock.today() }),
+            );
+            onSettled();
+            const reason = outcomeProblem(outcome);
+            return {
+              problem: null,
+              refusal: reason === null ? null : { path, reason },
+              last: { title: noteTitle(path), undo: outcome.undo },
+            };
+          } catch (cause) {
+            return { problem: null, refusal: { path, reason: errorMessage(cause) }, last: 'kept' };
+          }
+        },
+        { problem: null, refusal: { path, reason: STILL_WRITING } },
+      ),
+    [act, activity, clock, notePaths, onSettled, ports],
+  );
+
+  const last = told?.last ?? null;
+  const undo = useCallback(
+    () =>
+      act(
+        async () => {
+          if (last === null) return { problem: null, refusal: null, last: null };
+          const path = last.undo.to;
+          const named = { activity, write: 'edit', path, refusal: ClarifyRefusedError } as const;
+          try {
+            await withGiveUpRecorded(named, () =>
+              undoClarifyInboxItem({ ports, undo: last.undo, notePaths }),
+            );
+            onSettled();
+            return { problem: null, refusal: null, last: null };
+          } catch (cause) {
+            return { problem: errorMessage(cause), refusal: null, last: 'kept' };
+          }
+        },
+        { problem: STILL_WRITING, refusal: null },
+      ),
+    [act, activity, last, notePaths, onSettled, ports],
+  );
+
+  const statuses = useMemo(() => clarifyVocabulary(types).statuses, [types]);
+  return {
+    contents: shown?.contents ?? null,
+    /** The statuses a row may give a task: the ones the vault's Task type declares. */
+    statuses,
+    error: shown?.error ?? offered?.error ?? null,
+    filing: offered?.filing ?? NONE,
+    people: offered?.people ?? NONE,
+    busy,
+    /** Why the last undo could not be done, or null. */
+    problem: told?.problem ?? null,
+    /** Why the last clarification was refused or left unfinished, and the row it was for. */
+    refusal: told?.refusal ?? null,
+    /** The last clarification, while it can be taken back. */
+    lastAction: last === null ? null : { title: last.title },
+    clarify,
+    undo,
+  };
+}
+
+const NONE: readonly RelationChoice[] = [];
+
+const STILL_WRITING =
+  'Another change was still being written, so this one was not made. Try it again.';
+
+/** A read of the Inbox, and the vault it was read from. */
+interface Listing {
+  readonly vaultKey: string | null;
+  readonly contents: InboxContents | null;
+  readonly error: string | null;
+}
+
+/** What a row can be filed under and who it can wait on, and the vault they are in. */
+interface Choices {
+  readonly vaultKey: string | null;
+  readonly filing: readonly RelationChoice[];
+  readonly people: readonly RelationChoice[];
+  readonly error: string | null;
+}
+
+/** What the last action left to say, and the vault it was said of. */
+interface Said {
+  readonly vaultKey: string | null;
+  readonly problem: string | null;
+  readonly refusal: { readonly path: VaultPath; readonly reason: string } | null;
+  readonly last: { readonly title: string; readonly undo: ClarifyUndo } | null;
+}
+
+/** What an action leaves to say; `kept` leaves the last clarification to take back as it was. */
+type Result = Omit<Said, 'vaultKey' | 'last'> & { readonly last: Said['last'] | 'kept' };
+
+/** Only what clarifying would accept: never a project still in the Inbox, or an archived person. */
+async function readChoices(
+  index: ArchivePorts['index'],
+): Promise<Pick<Choices, 'filing' | 'people'>> {
+  const [projects, people] = await Promise.all([
+    notesInUseOfTypes({ index, types: FILED_UNDER_TYPES }),
+    notesInUseOfTypes({ index, types: [PERSON_TYPE] }),
+  ]);
+  const at = (note: { path: string }) => createVaultPath(note.path);
+  return {
+    filing: projects.filter((note) => filingRefusal({ path: at(note), type: note.type }) === null),
+    people: people.filter((note) => waitingOnRefusal({ path: at(note), type: note.type }) === null),
+  };
+}
+
+/**
+ * Whether the index has moved on to the vault that is open. It starts on a
+ * vault a render after that vault opens, so for that render it still says
+ * `ready` with the last vault's rows: the key it had then is remembered, and
+ * nothing is read, shown or written until it has changed.
+ */
+function useIndexMovedOn({
+  vaultKey,
+  indexKey,
+}: {
+  vaultKey: string | null;
+  indexKey: string;
+}): boolean {
+  const [opened, setOpened] = useState({ vaultKey, staleIndexKey: null as string | null });
+  if (opened.vaultKey !== vaultKey) {
+    setOpened({ vaultKey, staleIndexKey: indexKey });
+    return false;
+  }
+  return indexKey !== opened.staleIndexKey;
 }

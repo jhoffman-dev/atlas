@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * Filing a note from the Inbox and the Activity log: a project the rules
- * refuse is shown and not recorded; a filing the page gave up on is recorded
- * once, naming the note.
+ * refuse is shown on its row and not recorded; a filing the page gave up on
+ * is recorded once, naming the note.
  */
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -36,11 +36,24 @@ function filing(readProject: () => Promise<{ text: string; modified: number }>) 
   const activity = recordingActivity();
   const notePaths = [NOTE, createVaultPath('Projects/Atlas.md')];
   const hook = renderHook(() =>
-    useInbox({ ports, notePaths, indexKey: '1', open: false, onSettled: () => {}, activity }),
+    useInbox({
+      ports,
+      notePaths,
+      vaultKey: '/vaults/a',
+      types: [],
+      clock: { today: () => '2026-10-11' },
+      indexKey: '1',
+      open: false,
+      onSettled: () => {},
+      activity,
+    }),
   );
   const file = () =>
     act(() =>
-      hook.result.current.process({ path: NOTE, project: createVaultPath('Projects/Atlas.md') }),
+      hook.result.current.clarify({
+        path: NOTE,
+        clarification: { project: createVaultPath('Projects/Atlas.md') },
+      }),
     );
   return { hook, activity, file };
 }
@@ -52,7 +65,10 @@ describe('filing from the Inbox, and the Activity log', () => {
       modified: 1,
     }));
     await file();
-    await waitFor(() => expect(hook.result.current.problem).toMatch(/links to a project or area/));
+    await waitFor(() =>
+      expect(hook.result.current.refusal?.reason).toMatch(/links to a project or area/),
+    );
+    expect(hook.result.current.refusal?.path).toBe(NOTE);
     expect(activity.reports).toEqual([]);
   });
 
@@ -61,7 +77,12 @@ describe('filing from the Inbox, and the Activity log', () => {
       throw new Error('The disk is not answering.');
     });
     await file();
-    await waitFor(() => expect(hook.result.current.problem).toBe('The disk is not answering.'));
+    await waitFor(() =>
+      expect(hook.result.current.refusal).toEqual({
+        path: NOTE,
+        reason: 'The disk is not answering.',
+      }),
+    );
     expect(activity.reports).toEqual([
       expect.objectContaining({
         level: 'error',

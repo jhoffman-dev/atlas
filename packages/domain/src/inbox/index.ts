@@ -15,7 +15,9 @@ export {
   processDestination,
   processRefusal,
 } from './inbox.ts';
-export type { InboxItem } from './inbox.ts';
+export type { InboxItem, InboxTask } from './inbox.ts';
+export { clarifyPlan, waitingOnRefusal } from './clarify.ts';
+export type { Clarification, ClarifyPlan } from './clarify.ts';
 export {
   DEFAULT_GLOBAL_CAPTURE_SHORTCUT,
   globalShortcutFromKeys,

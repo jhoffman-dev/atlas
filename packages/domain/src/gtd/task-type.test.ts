@@ -10,6 +10,7 @@ import {
   taskTypeChange,
   taskTypeLines,
   taskTypeOf,
+  tasksStartInInbox,
 } from './task-type.ts';
 
 /** P30-02: the built-in Task type, and what a vault's own becomes. */
@@ -146,6 +147,14 @@ describe('capturedTaskStatus', () => {
       properties: { stage: { kind: 'select', options: ['inbox', 'done'], done: 'done' } },
     });
     expect(capturedTaskStatus(elsewhere)).toBeNull();
+  });
+});
+
+describe('tasksStartInInbox', () => {
+  it('is whether the vault’s Task type has the Inbox status', () => {
+    expect(tasksStartInInbox([TASK_TYPE_FILE.type])).toBe(true);
+    expect(tasksStartInInbox([OLD_TASK])).toBe(false);
+    expect(tasksStartInInbox([])).toBe(false);
   });
 });
 

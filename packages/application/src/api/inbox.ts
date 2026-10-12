@@ -1,5 +1,5 @@
 import { createVaultPath, InvalidVaultPathError, type VaultPath } from '@atlas/domain';
-import { listInbox } from '../inbox/list-inbox.ts';
+import { listVaultInbox } from '../inbox/list-inbox.ts';
 import { FilingRefusedError, processInboxItems } from '../inbox/process-inbox.ts';
 import { ApiError } from './api-error.ts';
 import { moveBatch } from './archive.ts';
@@ -14,7 +14,7 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
  * routes, never filed. Reads the index and writes nothing.
  */
 export async function inboxRoute(request: VaultRequest): Promise<RouteResult> {
-  const { items, truncated } = await listInbox({ index: request.index });
+  const { items, truncated } = await listVaultInbox(request);
   return { status: 200, body: { items, truncated } };
 }
 

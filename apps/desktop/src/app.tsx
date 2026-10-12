@@ -962,7 +962,11 @@ export function App({
   const inbox = useInbox({
     ports: archivePorts,
     notePaths,
+    vaultKey,
+    types,
+    clock: localClock,
     indexKey,
+    indexReady: indexStatus.kind === 'ready',
     open: inboxOpen,
     onSettled: settleArchive,
     activity: activityLog,
@@ -1589,10 +1593,15 @@ export function App({
                     contents: inbox.contents,
                     error: inbox.error,
                     filing: inbox.filing,
+                    people: inbox.people,
+                    statuses: inbox.statuses,
                     onOpen: openNote,
-                    onProcess: (args) => void inbox.process(args),
+                    onClarify: inbox.clarify,
                     busy: inbox.busy,
                     problem: inbox.problem,
+                    refusal: inbox.refusal,
+                    lastAction: inbox.lastAction,
+                    onUndo: () => void inbox.undo(),
                     typesOffer:
                       typesOffer === null
                         ? null

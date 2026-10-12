@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   TASK_KEYS,
   taskDeferral,
+  tasksStartInInbox,
   taskTypeOf,
   type ObjectType,
   type TaskAsRead,
@@ -65,6 +66,8 @@ export function useToday(options: TodayOptions) {
   // Counts the reads begun, so a row can tell one made after its write from one already under way.
   const readsBegun = useRef(0);
   const day = useDayOf(clock, open);
+  // The types the sidebar's Inbox count is read with, so the page's Inbox link counts the same.
+  const startInInbox = tasksStartInInbox(types);
   const { busy, problem, setProblem, actOn } = useReviewWrites({
     ports,
     editors,
@@ -84,14 +87,14 @@ export function useToday(options: TodayOptions) {
       setRead({ index, vaultKey, ...landed });
       setSettling((rows) => withoutSettledBy(rows, begun));
     };
-    readToday({ index, fs, markdown, clock })
+    readToday({ index, fs, markdown, clock, tasksStartInInbox: startInInbox })
       .then((report) => land({ report, error: null }))
       .catch((cause: unknown) => land({ report: null, error: errorMessage(cause) }));
     return () => {
       cancelled = true;
     };
     // `day` is here to read again when it turns; the read takes the day from the clock itself.
-  }, [ports, clock, vaultKey, indexKey, indexReady, open, day]);
+  }, [ports, clock, vaultKey, indexKey, indexReady, open, day, startInInbox]);
 
   // Only what was read of the vault now open: another vault's paths are not this one's.
   const ofThisVault = (from: OfAVault) => sameVault(from, { index: ports.index, vaultKey });

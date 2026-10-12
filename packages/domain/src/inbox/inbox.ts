@@ -1,4 +1,17 @@
-import { freeNotePath, isArchivedPath, isPlaceOrNumbered } from '../archive/archive.ts';
+import {
+  freeNotePath,
+  isArchivedPath,
+  isPlaceOrNumbered,
+  outsideArchiveSql,
+} from '../archive/archive.ts';
+import {
+  GTD_STATUSES,
+  gtdStatusOf,
+  NEW_TASK_STATUS,
+  TASK_KEYS,
+  TASK_TYPE,
+  type GtdStatus,
+} from '../gtd/gtd-status.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import {
   IMPORT_ERROR_KEY,
@@ -8,9 +21,11 @@ import {
 } from '../meetings/meeting-arrival.ts';
 import { PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
+import { waitingOnNames } from '../review/review-query.ts';
 import { FILED_UNDER, FILED_UNDER_KEY } from '../types/para.ts';
 import { relationTypeRefusal } from '../types/property-value.ts';
 import {
+  createVaultPath,
   joinVaultPath,
   parentVaultPath,
   vaultPathName,
@@ -42,6 +57,22 @@ export function isInInbox(path: string): boolean {
   return path.toLowerCase().startsWith(INBOX_PREFIX);
 }
 
+/** What a task waiting in the Inbox already says, which its row is clarified from (#112). */
+export interface InboxTask {
+  /** Its GTD status, or null when it has none or holds something else. */
+  readonly status: GtdStatus | null;
+  /** The project or area it is filed under, when its `project` links a note. */
+  readonly project: VaultPath | null;
+  /** The person its `waiting_on` links, when it links a note. */
+  readonly waitingOn: VaultPath | null;
+  /** Who it waits on as written — a linked name, or plain words; '' for nobody. */
+  readonly waitingOnNames: string;
+  /** `YYYY-MM-DD`, or null. */
+  readonly defer: string | null;
+  /** `YYYY-MM-DD`, or null. */
+  readonly due: string | null;
+}
+
 /** A note waiting in the Inbox, as the Inbox lists it. */
 export interface InboxItem {
   readonly path: VaultPath;
@@ -58,6 +89,8 @@ export interface InboxItem {
   readonly importOutcome: ImportOutcome | 'pending' | null;
   /** Why the file failed the import, as written into it, or null. */
   readonly importError: string | null;
+  /** What it holds as a task, or null for a note that is not one. */
+  readonly task: InboxTask | null;
 }
 
 /**
@@ -90,11 +123,94 @@ export const INBOX_QUERY_COLUMNS = [
   'importStamped',
   'importOutcome',
   'importError',
+  'status',
+  'project',
+  'waitingOn',
+  'waitingOnNames',
+  'defer',
+  'due',
 ] as const;
+
+/*
+ * Every subquery below finds a note's own rows by its path. `+p.key` keeps
+ * the planner off the index on `key`: without statistics, which the index
+ * never gathers, it would walk every note holding that key once per note
+ * asked about — the whole vault, squared.
+ */
 
 /** A note's first value under `key`, as a column of the Inbox's statement. */
 const firstValue = (key: string) =>
-  `(SELECT p.value_text FROM props AS p WHERE p.path = files.path AND p.key = '${key}' ORDER BY p.idx LIMIT 1)`;
+  `(SELECT p.value_text FROM props AS p WHERE p.path = files.path AND +p.key = '${key}' ORDER BY p.idx LIMIT 1)`;
+
+/** The one value the note at `column` holds under `key`: null when it has none, or a list of several. */
+const singleValue = (key: string, column = 'files.path') =>
+  `(SELECT CASE WHEN count(*) = 1 THEN max(p.value_text) END FROM props AS p WHERE p.path = ${column} AND +p.key = '${key}')`;
+
+/** A date property's first day, `YYYY-MM-DD`; null when it holds no date. */
+const firstDay = (key: string) =>
+  `(SELECT substr(p.value_date, 1, 10) FROM props AS p WHERE p.path = files.path AND +p.key = '${key}' AND p.value_date IS NOT NULL ORDER BY p.idx LIMIT 1)`;
+
+/** The first note a relation under `key` links, by its path. */
+const firstLinked = (key: string) =>
+  `(SELECT r.dst FROM relations AS r WHERE r.src = files.path AND r.key = '${key}' AND r.dst IS NOT NULL ORDER BY r.idx LIMIT 1)`;
+
+/** Every item under `key`, in order, joined as {@link waitingOnNames} splits them. */
+const allItems = (key: string) =>
+  `(SELECT group_concat(v, char(31)) FROM (SELECT coalesce(p.value_text, p.value_json) AS v FROM props AS p WHERE p.path = files.path AND +p.key = '${key}' ORDER BY p.idx))`;
+
+/** Whether the note at `column` is of `type`, in any case and spacing. */
+const isOfType = (column: string, type: string) =>
+  `EXISTS (SELECT 1 FROM props AS p WHERE p.path = ${column} AND +p.key = 'type' AND lower(trim(p.value_text)) = '${type}')`;
+
+const inInboxFolder = (column: string) =>
+  `lower(substr(${column}, 1, ${INBOX_PREFIX.length})) = '${INBOX_PREFIX}'`;
+
+/** The statuses a task has been clarified to: every GTD status but the Inbox's own. */
+const CLARIFIED = GTD_STATUSES.filter((status) => status !== NEW_TASK_STATUS)
+  .map((status) => `'${status}'`)
+  .join(', ');
+
+/** The note at `column` says no status at all: no item under `status` with anything in it. */
+const noStatus = (column: string) =>
+  `NOT EXISTS (SELECT 1 FROM props AS p WHERE p.path = ${column} AND +p.key = '${TASK_KEYS.status}' AND trim(coalesce(p.value_text, p.value_json, '')) <> '')`;
+
+/** In use, and not already counted by the folder: outside `Inbox/` and the Archive. */
+const elsewhere = (column: string) =>
+  `NOT ${inInboxFolder(column)} AND ${outsideArchiveSql(column)}`;
+
+/**
+ * The paths that wait, as the arms of a UNION (#112), each starting from the
+ * rows that can qualify so the statement costs what it lists, not what the
+ * vault holds. Always: every note in the `Inbox` folder, and every task in
+ * use whose status is Inbox wherever it lives — imported into `Tasks/`, say
+ * — found from the `status` rows that say so. Once the vault's tasks start
+ * in the Inbox (`tasksStartInInbox`), status is what says a task was
+ * clarified: one in the folder that was given another GTD status has left,
+ * with or without a project, and one outside it with no status at all — an
+ * accepted proposal that named none — waits like any new task (ADR-0029:
+ * none is Inbox). A vault still on statuses of its own keeps the folder
+ * alone, since its captured tasks start at `backlog`, which is not a
+ * decision there.
+ */
+function waitingArms(tasksStartInInbox: boolean): string[] {
+  const clarified = `(${isOfType('f.path', TASK_TYPE)} AND coalesce(${singleValue(TASK_KEYS.status, 'f.path')}, '') IN (${CLARIFIED}))`;
+  const inFolder = [
+    `SELECT f.path FROM files AS f WHERE ${inInboxFolder('f.path')}`,
+    ...(tasksStartInInbox ? [`  AND NOT ${clarified}`] : []),
+  ].join('\n');
+  const atInbox = [
+    `SELECT s.path FROM props AS s WHERE s.key = '${TASK_KEYS.status}' AND s.value_text = '${NEW_TASK_STATUS}'`,
+    `  AND ${elsewhere('s.path')}`,
+    `  AND ${singleValue(TASK_KEYS.status, 's.path')} = '${NEW_TASK_STATUS}'`,
+    `  AND ${isOfType('s.path', TASK_TYPE)}`,
+  ].join('\n');
+  const withNoStatus = [
+    `SELECT ty.path FROM props AS ty WHERE ty.key = 'type' AND lower(trim(ty.value_text)) = '${TASK_TYPE}'`,
+    `  AND ${elsewhere('ty.path')}`,
+    `  AND ${noStatus('ty.path')}`,
+  ].join('\n');
+  return tasksStartInInbox ? [inFolder, atInbox, withNoStatus] : [inFolder, atInbox];
+}
 
 /**
  * The Inbox's notes, asked of the index: newest first, so what just arrived
@@ -102,22 +218,36 @@ const firstValue = (key: string) =>
  * proposal type are left out, wherever in the Inbox they are — they are
  * answered in its Proposals section, never filed — and any other note is
  * listed, one dropped into `Inbox/Proposals` included. Each note carries
- * what the meeting import wrote into it.
+ * what the meeting import wrote into it, and what it says as a task. Which
+ * notes wait is {@link waitingArms}' rule.
  */
 export function compileInboxQuery({
   limit = INBOX_LIST_LIMIT,
-}: { limit?: number } = {}): CompiledQuery {
+  tasksStartInInbox = false,
+}: {
+  limit?: number;
+  /** Whether the vault's Task type has the Inbox status (`tasksStartInInbox`). */
+  tasksStartInInbox?: boolean;
+} = {}): CompiledQuery {
   return {
     sql: [
-      `${INBOX_QUERY_MARK} SELECT files.path AS "path", files.title AS "title",`,
+      `${INBOX_QUERY_MARK} WITH waiting(path) AS (`,
+      waitingArms(tasksStartInInbox).join('\nUNION\n'),
+      `)`,
+      `SELECT files.path AS "path", files.title AS "title",`,
       `  ${firstValue('type')} AS "type",`,
       // A stamp with its value cleared is a stamp still, as the import reads it.
-      `  EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND p.key = '${IMPORT_OUTCOME_KEY}') AS "importStamped",`,
+      `  EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND +p.key = '${IMPORT_OUTCOME_KEY}') AS "importStamped",`,
       `  ${firstValue(IMPORT_OUTCOME_KEY)} AS "importOutcome",`,
-      `  ${firstValue(IMPORT_ERROR_KEY)} AS "importError"`,
-      `FROM files`,
-      `WHERE lower(substr(files.path, 1, ${INBOX_PREFIX.length})) = '${INBOX_PREFIX}'`,
-      `  AND NOT EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND p.key = 'type' AND lower(trim(p.value_text)) = '${PROPOSAL_TYPE}')`,
+      `  ${firstValue(IMPORT_ERROR_KEY)} AS "importError",`,
+      `  ${singleValue(TASK_KEYS.status)} AS "status",`,
+      `  ${firstLinked(FILED_UNDER_KEY)} AS "project",`,
+      `  ${firstLinked(TASK_KEYS.waitingOn)} AS "waitingOn",`,
+      `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOnNames",`,
+      `  ${firstDay(TASK_KEYS.defer)} AS "defer",`,
+      `  ${firstDay(TASK_KEYS.due)} AS "due"`,
+      `FROM waiting JOIN files ON files.path = waiting.path`,
+      `WHERE NOT ${isOfType('files.path', PROPOSAL_TYPE)}`,
       `  AND ${userSpaceNoteSql('files.path')}`,
       `ORDER BY files.modified DESC, lower(files.title), files.path`,
       `LIMIT ?`,
@@ -127,14 +257,7 @@ export function compileInboxQuery({
 }
 
 /** A row of {@link compileInboxQuery}, as the Inbox lists it. */
-export function inboxItem({
-  path,
-  title,
-  type,
-  importStamped = false,
-  importOutcome = null,
-  importError = null,
-}: {
+export function inboxItem(row: {
   path: VaultPath;
   title: string;
   type: unknown;
@@ -142,17 +265,50 @@ export function inboxItem({
   importStamped?: boolean;
   importOutcome?: unknown;
   importError?: unknown;
+  status?: unknown;
+  project?: unknown;
+  waitingOn?: unknown;
+  waitingOnNames?: unknown;
+  defer?: unknown;
+  due?: unknown;
 }): InboxItem {
-  const within = parentVaultPath(path).split('/').slice(1).join('/');
+  const { path, importStamped = false, importOutcome = null } = row;
+  const type = textOrNull(row.type);
+  // In the Inbox folder, the folder it arrived in; a task living elsewhere arrived in none.
+  const within = isInInbox(path) ? parentVaultPath(path).split('/').slice(1).join('/') : '';
   return {
     path,
-    title,
-    type: textOrNull(type),
+    title: row.title,
+    type,
     arrivedIn: within,
     importOutcome: importStanding({ path, stamped: importStamped, stamp: importOutcome }),
-    importError: textOrNull(importError),
+    importError: textOrNull(row.importError),
+    task: type?.toLowerCase() === TASK_TYPE ? inboxTask(row) : null,
   };
 }
+
+function inboxTask(row: {
+  status?: unknown;
+  project?: unknown;
+  waitingOn?: unknown;
+  waitingOnNames?: unknown;
+  defer?: unknown;
+  due?: unknown;
+}): InboxTask {
+  return {
+    status: gtdStatusOf(row.status),
+    project: pathOrNull(row.project),
+    waitingOn: pathOrNull(row.waitingOn),
+    waitingOnNames: waitingOnNames(row.waitingOnNames),
+    defer: textOrNull(row.defer),
+    due: textOrNull(row.due),
+  };
+}
+
+const pathOrNull = (value: unknown): VaultPath | null => {
+  const text = textOrNull(value);
+  return text === null ? null : createVaultPath(text);
+};
 
 const textOrNull = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : null;

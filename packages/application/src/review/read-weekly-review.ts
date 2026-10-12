@@ -1,6 +1,11 @@
 import { weeklyReview, type WeeklyReview } from '@atlas/domain';
 import type { Clock } from '../ports.ts';
-import { readReviewSources, type InboxCount, type ReviewReadPorts } from './review-reads.ts';
+import {
+  readReviewSources,
+  type InboxCount,
+  type InboxRule,
+  type ReviewReadPorts,
+} from './review-reads.ts';
 
 /** The weekly review as it is shown: its sections, and what waits in the Inbox. */
 export interface WeeklyReviewReport extends WeeklyReview {
@@ -19,11 +24,12 @@ export interface WeeklyReviewReport extends WeeklyReview {
  */
 export async function readWeeklyReview({
   clock,
-  ...ports
-}: ReviewReadPorts & {
-  clock: Pick<Clock, 'today' | 'now'>;
-}): Promise<WeeklyReviewReport> {
-  const { tasks, projects, inbox, truncated } = await readReviewSources(ports);
+  ...reads
+}: ReviewReadPorts &
+  InboxRule & {
+    clock: Pick<Clock, 'today' | 'now'>;
+  }): Promise<WeeklyReviewReport> {
+  const { tasks, projects, inbox, truncated } = await readReviewSources(reads);
   const at = { today: clock.today(), now: clock.now() };
   return { ...weeklyReview({ tasks, projects, at }), today: at.today, inbox, truncated };
 }

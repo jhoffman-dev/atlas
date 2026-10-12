@@ -13,6 +13,10 @@ interface IndexedNote {
   readonly type?: string;
   /** More properties, as `[key, value]`; a null value is a key with nothing in it. */
   readonly props?: readonly (readonly [string, string | null])[];
+  /** Date properties, as `[key, day]`, indexed as the index holds a date. */
+  readonly dates?: readonly (readonly [string, string])[];
+  /** Relations, as `[key, the path linked]`. */
+  readonly links?: readonly (readonly [string, string])[];
 }
 
 function inboxIndex(notes: readonly IndexedNote[]) {
@@ -21,16 +25,27 @@ function inboxIndex(notes: readonly IndexedNote[]) {
     CREATE TABLE files (path TEXT PRIMARY KEY, title TEXT NOT NULL, modified INTEGER NOT NULL);
     CREATE TABLE props (path TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL DEFAULT 0,
       value_text TEXT, value_num REAL, value_date TEXT, value_json TEXT);
+    CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL DEFAULT 0,
+      target TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '', dst TEXT);
   `);
   const file = database.prepare('INSERT INTO files VALUES (?, ?, ?)');
   const prop = database.prepare('INSERT INTO props (path, key, value_text) VALUES (?, ?, ?)');
+  const date = database.prepare(
+    'INSERT INTO props (path, key, value_text, value_date) VALUES (?, ?, ?, ?)',
+  );
+  const link = database.prepare('INSERT INTO relations (src, key, dst) VALUES (?, ?, ?)');
   for (const note of notes) {
     file.run(note.path, note.title, note.modified);
     if (note.type !== undefined) prop.run(note.path, 'type', note.type);
     for (const [key, value] of note.props ?? []) prop.run(note.path, key, value);
+    for (const [key, day] of note.dates ?? []) date.run(note.path, key, day, day);
+    for (const [key, dst] of note.links ?? []) link.run(note.path, key, dst);
   }
-  return (limit?: number) => {
-    const { sql, parameters } = compileInboxQuery(limit === undefined ? {} : { limit });
+  return (limit?: number, tasksStartInInbox = false) => {
+    const { sql, parameters } = compileInboxQuery({
+      ...(limit !== undefined && { limit }),
+      tasksStartInInbox,
+    });
     return database.prepare(sql).all(...parameters);
   };
 }
@@ -102,5 +117,89 @@ describe('compileInboxQuery', () => {
 
   it('stops at the limit', () => {
     expect(inbox(1)).toHaveLength(1);
+  });
+});
+
+/** #112: one Inbox — the folder, and every task still at Inbox wherever it lives. */
+describe('compileInboxQuery — tasks, wherever they live', () => {
+  const task = (path: string, modified: number, status?: string | null): IndexedNote => ({
+    path,
+    title: path.split('/').at(-1)?.replace('.md', '') ?? path,
+    modified,
+    type: 'task',
+    ...(status !== undefined && { props: [['status', status]] }),
+  });
+  const vault = inboxIndex([
+    task('Inbox/Captured.md', 9, 'inbox'),
+    task('Inbox/Decided.md', 8, 'next-action'),
+    task('Inbox/Old style.md', 7, 'doing'),
+    task('Tasks/Imported.md', 6, 'inbox'),
+    task('Tasks/No status.md', 5),
+    task('Tasks/Cleared status.md', 4, null),
+    task('Tasks/Moving.md', 3, 'in-progress'),
+    task('Archive/Tasks/Finished late.md', 2, 'inbox'),
+    task('.atlas/templates/Task.md', 2, 'inbox'),
+    { path: 'Notes/Says inbox.md', title: 'Says inbox', modified: 1, props: [['status', 'inbox']] },
+    { path: 'Inbox/Idea.md', title: 'Idea', modified: 1, props: [['status', 'next-action']] },
+  ]);
+  const paths = (rows: readonly Record<string, unknown>[]) => rows.map((row) => row['path']);
+
+  it('lists a task at Inbox outside the folder, in use: not archived, not Atlas’s own, not a note that only says inbox', () => {
+    expect(paths(vault())).toContain('Tasks/Imported.md');
+    expect(paths(vault())).not.toContain('Archive/Tasks/Finished late.md');
+    expect(paths(vault())).not.toContain('.atlas/templates/Task.md');
+    expect(paths(vault())).not.toContain('Notes/Says inbox.md');
+    expect(paths(vault())).not.toContain('Tasks/Moving.md');
+  });
+
+  it('keeps the whole folder, whatever a task in it says, in a vault on statuses of its own', () => {
+    expect(paths(vault())).toEqual([
+      'Inbox/Captured.md',
+      'Inbox/Decided.md',
+      'Inbox/Old style.md',
+      'Tasks/Imported.md',
+      'Inbox/Idea.md',
+    ]);
+  });
+
+  it('once tasks start in the Inbox, lets a task given another GTD status leave, and lists one with no status', () => {
+    expect(paths(vault(undefined, true))).toEqual([
+      'Inbox/Captured.md',
+      // Not one of the eight: nobody decided it, so it still waits.
+      'Inbox/Old style.md',
+      'Tasks/Imported.md',
+      'Tasks/No status.md',
+      'Tasks/Cleared status.md',
+      // A note that is not a task waits in the folder whatever its status says.
+      'Inbox/Idea.md',
+    ]);
+  });
+
+  it('carries what a task already says: its status, its project, who it waits on, defer and due', () => {
+    const one = inboxIndex([
+      {
+        ...task('Tasks/Chase.md', 1, 'inbox'),
+        props: [
+          ['status', 'inbox'],
+          ['waiting_on', '[[Mara Quill]]'],
+        ],
+        dates: [
+          ['defer', '2026-10-20'],
+          ['due', '2026-11-02'],
+        ],
+        links: [
+          ['project', 'Projects/Atlas.md'],
+          ['waiting_on', 'People/Mara Quill.md'],
+        ],
+      },
+    ]);
+    expect(one()[0]).toMatchObject({
+      status: 'inbox',
+      project: 'Projects/Atlas.md',
+      waitingOn: 'People/Mara Quill.md',
+      waitingOnNames: '[[Mara Quill]]',
+      defer: '2026-10-20',
+      due: '2026-11-02',
+    });
   });
 });
