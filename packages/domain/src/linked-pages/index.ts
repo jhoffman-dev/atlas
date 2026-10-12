@@ -1,9 +1,11 @@
 export {
   DEFAULT_LINKED_RANGE,
   isLinkedPageType,
+  LINKED_FETCH_LIMIT,
   LINKED_RANGES,
   LINKED_ROWS_SHOWN,
   LINKED_SECTION_LIMIT,
+  linkedPageType,
   linkedSectionPlans,
   RECENT_DAYS,
 } from './linked-sections.ts';
@@ -13,6 +15,7 @@ export {
   firstRows,
   inWorkOrder,
   nextActionHint,
+  sectionRows,
   waitedText,
   WAITED_FIELD,
   withDaysWaited,

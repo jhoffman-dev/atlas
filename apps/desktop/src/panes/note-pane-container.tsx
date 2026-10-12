@@ -10,6 +10,7 @@ import {
   isMovable,
   isTemplateNote,
   messageWithoutPaths,
+  PROJECT_STATUS_KEY,
   templateNameOf,
   templateUses,
   noteLinks,
@@ -389,7 +390,10 @@ export function NotePaneContainer({
     notePaths,
     // A template of a type is what its notes start as, not a page of the type.
     notePath: path !== null && isTemplateNote(path) ? null : path,
+    // The type is the loaded note's, which lags the pane's path while a note opens.
+    loadedPath: note.open?.path ?? null,
     typeName: noteProperties.typeName,
+    projectStatus: textOrNull(note.open?.properties[PROJECT_STATUS_KEY]),
     revision: indexKey,
   });
   const picking = useBlockPicking({
@@ -533,6 +537,7 @@ export function NotePaneContainer({
                 // A page's own "show more" and folds, never the last page's.
                 key={path}
                 sections={linked.sections}
+                problem={linked.problem}
                 onChangeRange={linked.setRange}
                 onOpenNote={(target) => onOpenNote(createVaultPath(target))}
               />
@@ -859,6 +864,11 @@ function paneBody({
       folds={folds}
     />
   );
+}
+
+/** A property's value when it is one piece of text, as a status is written. */
+function textOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
 
 /**

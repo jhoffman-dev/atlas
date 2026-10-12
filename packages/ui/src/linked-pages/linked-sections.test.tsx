@@ -179,6 +179,32 @@ describe('LinkedSections', () => {
     expect(tasks.getByRole('button', { name: 'Draft the plan' })).toBeDefined();
   });
 
+  it('says in one line when the sections could not be read, over any read before', () => {
+    const problem = 'What is linked with this page could not be read just now.';
+    render(
+      <LinkedSections
+        sections={null}
+        problem={problem}
+        onChangeRange={() => {}}
+        onOpenNote={() => {}}
+      />,
+    );
+    expect(within(region('Linked')).getByRole('alert').textContent).toBe(problem);
+  });
+
+  it('keeps the sections it had under that line', () => {
+    render(
+      <LinkedSections
+        sections={[MEETINGS]}
+        problem="Could not be read."
+        onChangeRange={() => {}}
+        onOpenNote={() => {}}
+      />,
+    );
+    expect(within(region('Linked')).getAllByRole('alert')).toHaveLength(1);
+    expect(within(region('Meetings')).getAllByRole('listitem')).toHaveLength(2);
+  });
+
   it('says why a section could not be answered, in place of its rows', () => {
     show([section({ id: 'waiting', title: 'Waiting for', problem: 'database is locked' })]);
     expect(within(region('Waiting for')).getByRole('alert').textContent).toBe('database is locked');

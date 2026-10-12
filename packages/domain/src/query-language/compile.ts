@@ -202,7 +202,9 @@ function expressionSql(
     case 'linksTo':
       return linksToSql(context);
     case 'connectedTo':
-      return connectedToSql(context);
+      return expression.field === null
+        ? connectedToSql(context, 'n.path')
+        : reachesConnectedSql(field(expression.field), context);
     default:
       return conditionSql(expression, field(expression.field), context);
   }
@@ -311,15 +313,25 @@ function linksToSql(context: AtlasQueryContext): Fragment {
  * whatever the property's kind: a task's `source` citing a meeting's line
  * counts). A note is not connected to itself.
  */
-function connectedToSql(context: AtlasQueryContext): Fragment {
+function connectedToSql(context: AtlasQueryContext, note: 'n.path' | 'h.dst'): Fragment {
   const page = () => bound(thisNoteOf(context));
+  const path = fixed(note);
   const joins = [
-    sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ${page()})`,
-    sql`EXISTS (SELECT 1 FROM relations AS r WHERE r.src = n.path AND r.dst = ${page()})`,
-    sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = ${page()} AND l.dst = n.path)`,
-    sql`EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ${page()} AND r.dst = n.path)`,
+    sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = ${path} AND l.dst = ${page()})`,
+    sql`EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ${path} AND r.dst = ${page()})`,
+    sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = ${page()} AND l.dst = ${path})`,
+    sql`EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ${page()} AND r.dst = ${path})`,
   ];
-  return sql`(n.path <> ${page()} AND (${joined(joins, ' OR ')}))`;
+  return sql`(${path} <> ${page()} AND (${joined(joins, ' OR ')}))`;
+}
+
+/**
+ * `waiting_on CONNECTED TO this`: a note the relation points at is connected
+ * to the page — a task waiting on someone the company names as an employee,
+ * or who names the company as theirs.
+ */
+function reachesConnectedSql(field: QueryField, context: AtlasQueryContext): Fragment {
+  return sql`EXISTS (SELECT 1 FROM relations AS h WHERE h.src = n.path AND h.key = ${bound(field.key)} AND h.dst IS NOT NULL AND ${connectedToSql(context, 'h.dst')})`;
 }
 
 /** `tag = #q3` is true of a note tagged #q3 or anything nested under it, like #q3/okr. */

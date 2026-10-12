@@ -6,6 +6,7 @@ import {
   firstRows,
   inWorkOrder,
   nextActionHint,
+  sectionRows,
   waitedText,
   withDaysWaited,
 } from './linked-rows.ts';
@@ -99,23 +100,89 @@ describe('inWorkOrder', () => {
 
 describe('nextActionHint', () => {
   it('says so when open tasks hold nothing moving', () => {
-    expect(nextActionHint({ statuses: ['inbox', 'backlog'], waiting: 1, complete: true })).toBe(
-      'No next action: none of its 3 open tasks is Next Action or In Progress.',
-    );
-    expect(nextActionHint({ statuses: [], waiting: 1, complete: true })).toBe(
-      'No next action: its one open task is not Next Action or In Progress.',
-    );
+    expect(
+      nextActionHint({
+        projectStatus: 'active',
+        statuses: ['inbox', 'backlog'],
+        waiting: 1,
+        complete: true,
+      }),
+    ).toBe('No next action: none of its 3 open tasks is Next Action or In Progress.');
+    expect(
+      nextActionHint({ projectStatus: 'active', statuses: [], waiting: 1, complete: true }),
+    ).toBe('No next action: its one open task is not Next Action or In Progress.');
   });
 
   it.each(['next-action', 'in-progress'])('says nothing when a task is %s', (status) => {
-    expect(nextActionHint({ statuses: ['inbox', status], waiting: 0, complete: true })).toBeNull();
+    expect(
+      nextActionHint({
+        projectStatus: 'active',
+        statuses: ['inbox', status],
+        waiting: 0,
+        complete: true,
+      }),
+    ).toBeNull();
+  });
+
+  it.each(['paused', 'done', 'planned', null])(
+    'says nothing of a project that is %s: only an active one should be moving',
+    (projectStatus) => {
+      expect(
+        nextActionHint({ projectStatus, statuses: ['inbox'], waiting: 0, complete: true }),
+      ).toBeNull();
+    },
+  );
+
+  it('reads the project’s status trimmed, as the index does', () => {
+    expect(
+      nextActionHint({
+        projectStatus: ' active ',
+        statuses: ['inbox'],
+        waiting: 0,
+        complete: true,
+      }),
+    ).not.toBeNull();
   });
 
   it('says nothing with no open work, with tasks that are not GTD’s, or on a cut-off list', () => {
-    expect(nextActionHint({ statuses: [], waiting: 0, complete: true })).toBeNull();
-    expect(nextActionHint({ statuses: ['todo'], waiting: 0, complete: true })).toBeNull();
-    expect(nextActionHint({ statuses: ['inbox', null], waiting: 0, complete: true })).toBeNull();
-    expect(nextActionHint({ statuses: ['inbox'], waiting: 0, complete: false })).toBeNull();
+    expect(
+      nextActionHint({ projectStatus: 'active', statuses: [], waiting: 0, complete: true }),
+    ).toBeNull();
+    expect(
+      nextActionHint({ projectStatus: 'active', statuses: ['todo'], waiting: 0, complete: true }),
+    ).toBeNull();
+    expect(
+      nextActionHint({
+        projectStatus: 'active',
+        statuses: ['inbox', null],
+        waiting: 0,
+        complete: true,
+      }),
+    ).toBeNull();
+    expect(
+      nextActionHint({ projectStatus: 'active', statuses: ['inbox'], waiting: 0, complete: false }),
+    ).toBeNull();
+  });
+});
+
+describe('sectionRows', () => {
+  const found = ['a', 'b', 'c'].map((title) => row(title));
+
+  it('holds the first rows and says when more were found', () => {
+    expect(sectionRows({ rows: found, page: 'p.md', limit: 2 })).toEqual({
+      rows: found.slice(0, 2),
+      truncated: true,
+    });
+    expect(sectionRows({ rows: found, page: 'p.md', limit: 3 })).toEqual({
+      rows: found,
+      truncated: false,
+    });
+  });
+
+  it('leaves the page itself out before it counts', () => {
+    const held = sectionRows({ rows: found, page: 'tasks/a.md', limit: 2 });
+    expect(held.rows.map((one) => one.title)).toEqual(['b', 'c']);
+    expect(held.truncated).toBe(false);
   });
 });
 

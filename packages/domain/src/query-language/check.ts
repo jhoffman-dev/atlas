@@ -167,11 +167,23 @@ function checkExpression(expression: Expression, scope: Scope): void {
       checkTakesThis('LINKS TO', expression.value, scope);
       return;
     case 'connectedTo':
+      if (expression.field !== null) checkReaches(expression.field, scope);
       checkTakesThis('CONNECTED TO', expression.value, scope);
       return;
     case 'compare':
       checkComparison(expression, scope.field(expression.field));
       if (expression.value.kind === 'this') checkOnPage(expression.value, scope);
+  }
+}
+
+/** `waiting_on CONNECTED TO this` asks about the notes a relation of the note's own points at. */
+function checkReaches(ref: FieldRef, scope: Scope): void {
+  const field = scope.field(ref);
+  if (field.kind !== 'relation' || field.via !== null) {
+    throw new QueryTextError(
+      `CONNECTED TO follows a relation of the note's own, like waiting_on CONNECTED TO this; ${field.text} is not one.`,
+      ref.span,
+    );
   }
 }
 

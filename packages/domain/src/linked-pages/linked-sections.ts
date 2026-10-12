@@ -35,10 +35,18 @@ export const DEFAULT_LINKED_RANGE: LinkedRange = 'recent';
 export const RECENT_DAYS = 30;
 
 /**
- * The most notes one section asks the index for: a person in hundreds of
- * meetings costs one bounded query, and the heading says there are more.
+ * The most notes one section holds: a person in hundreds of meetings costs
+ * one bounded query, and the heading says there are more.
  */
 export const LINKED_SECTION_LIMIT = 200;
+
+/**
+ * How many rows a section's query asks for: two past what it holds. One may
+ * be the page itself, which a relation can name and no section lists; the
+ * other says whether there are more, since the index only says so past its
+ * own, far larger, cap.
+ */
+export const LINKED_FETCH_LIMIT = LINKED_SECTION_LIMIT + 2;
 
 /** How many rows a section draws before **Show more**. */
 export const LINKED_ROWS_SHOWN = 8;
@@ -56,7 +64,7 @@ export interface LinkedSectionPlan {
   readonly recentQuery: string | null;
   /** Its rows are waiting-fors: each says how long it has waited, read from `modified`. */
   readonly waited: boolean;
-  /** Its rows are a project's or an area's open tasks, which should hold a next action. */
+  /** Its rows are a project's open tasks, which should hold a next action while it is active. */
   readonly wantsNextAction: boolean;
   /** Whether a row says what type of note it is: only where the section mixes types. */
   readonly showsType: boolean;
@@ -89,30 +97,26 @@ function relationKeys(type: ObjectType, target: string): string[] {
     .map((own) => own.key);
 }
 
-/**
- * The relations of `type` a query can hop through to a `target` note's own
- * fields — `waiting_on.company` — which takes a relation to that type alone.
- */
-function hopKeys(type: ObjectType, target: string): string[] {
-  return type.properties
-    .filter((own) => {
-      const targets = relationTypes(own);
-      return own.kind === 'relation' && IDENTIFIER.test(own.key) && targets.length === 1;
-    })
-    .filter((own) => relationTypes(own)[0] === target)
-    .map((own) => own.key);
-}
-
 const anyOf = (conditions: readonly string[]): string =>
   conditions.length === 1 ? (conditions[0] ?? '') : `(${conditions.join(' OR ')})`;
+
+/** How a type's notes belong to the page: the condition, and the relations it compares. */
+interface Joined {
+  readonly where: string;
+  /** The type's own relations the condition names; none when any link joins them. */
+  readonly keys: readonly string[];
+}
+
+const ANY_LINK: Joined = { where: THIS_PAGE, keys: [] };
 
 /**
  * `type`'s notes that point at the page through a relation made for it —
  * `people = this` — or, when the type declares none, through any link at all.
  */
-function pointsAtPage(type: ObjectType, page: ObjectType): string {
+function pointsAtPage(type: ObjectType, page: ObjectType): Joined {
   const keys = relationKeys(type, page.name);
-  return keys.length === 0 ? THIS_PAGE : anyOf(keys.map((key) => `${key} = this`));
+  if (keys.length === 0) return ANY_LINK;
+  return { where: anyOf(keys.map((key) => `${key} = this`)), keys };
 }
 
 const present = (words: readonly (string | null)[]): string[] =>
@@ -141,7 +145,7 @@ interface Section {
   readonly title: string;
   readonly from: readonly string[];
   readonly where: readonly string[];
-  /** The field recency is judged by; null where the section has no recent. */
+  /** The field recency is judged by; left out where the section has no recent. */
   readonly recentBy?: string;
   readonly rest: string;
   readonly waited?: boolean;
@@ -149,27 +153,36 @@ interface Section {
   readonly showsType?: boolean;
 }
 
+/**
+ * Recent: dated within {@link RECENT_DAYS} days — or, for a note's own
+ * `date`, not dated at all. A meeting nobody dated is not an old one, and
+ * hidden until All is pressed it would look as if it were not there.
+ */
+function recently(field: string): string {
+  const within = `${field} >= @-${RECENT_DAYS}d`;
+  return field === 'modified' ? within : `(${within} OR ${field} IS EMPTY)`;
+}
+
 function plan(section: Section): LinkedSectionPlan {
   const text = (where: readonly string[]) =>
-    `FROM ${section.from.join(', ')} WHERE ${where.join(' AND ')} ${section.rest} LIMIT ${LINKED_SECTION_LIMIT}`;
+    `FROM ${section.from.join(', ')} WHERE ${where.join(' AND ')} ${section.rest} LIMIT ${LINKED_FETCH_LIMIT}`;
   const { recentBy } = section;
   return {
     id: section.id,
     title: section.title,
     query: text(section.where),
-    recentQuery:
-      recentBy === undefined ? null : text([...section.where, `${recentBy} >= @-${RECENT_DAYS}d`]),
+    recentQuery: recentBy === undefined ? null : text([...section.where, recently(recentBy)]),
     waited: section.waited ?? false,
     wantsNextAction: section.wantsNextAction ?? false,
     showsType: section.showsType ?? false,
   };
 }
 
-/** The dated notes of `type` joined to the page by `where`, newest first. */
+/** The dated notes of `type` joined to the page, newest first, the undated last. */
 function dated(
   section: Pick<Section, 'id' | 'title'>,
   type: ObjectType | null,
-  where: (type: ObjectType) => string,
+  joined: Joined,
 ): LinkedSectionPlan[] {
   if (type === null) return [];
   const date = dateField(type);
@@ -177,7 +190,7 @@ function dated(
     plan({
       ...section,
       from: [type.name],
-      where: [where(type)],
+      where: [joined.where],
       recentBy: date,
       rest: `SORT BY ${date} DESC ${date === 'date' ? 'SHOW date' : 'SHOW title'}`,
     }),
@@ -275,22 +288,59 @@ function taskSections({
   return [...waiting, tasks];
 }
 
-/** Every other kind of note linked with the page, most recently changed first. */
-function noteSection(types: Types, listed: readonly (ObjectType | null)[]): LinkedSectionPlan[] {
-  const taken = new Set(listed.map((type) => type?.name));
+/** A type with a section of its own on the page, and how its notes belong there. */
+interface Listed {
+  readonly type: ObjectType | null;
+  readonly joined: Joined;
+}
+
+/**
+ * The listed types whose notes can also be linked with the page some other
+ * way than the relation their section asks — a meeting that names a person
+ * only in its text — so those are not dropped: they go under Linked notes.
+ *
+ * A key two types declare is one field in a query, as the first declares it
+ * (ADR-0019), so a type is taken only when each relation its section
+ * compares is a relation to the first type here that declares the key.
+ * Otherwise it is left out, as a type joined by any link already is: every
+ * linked note of it is in its own section.
+ */
+function alsoLinked(listed: readonly Listed[]): { type: ObjectType; where: string }[] {
+  const taken: { type: ObjectType; where: string }[] = [];
+  for (const { type, joined } of listed) {
+    if (type === null || joined.keys.length === 0) continue;
+    const before = taken.map((one) => one.type);
+    const asDeclared = joined.keys.every((key) => {
+      const first = [...before, type].find((one) => one.properties.some((own) => own.key === key));
+      return first?.properties.find((own) => own.key === key)?.kind === 'relation';
+    });
+    if (asDeclared) taken.push({ type, where: joined.where });
+  }
+  return taken;
+}
+
+/**
+ * Every note linked with the page that no section above lists, most recently
+ * changed first: the types with no section of their own, and the notes of a
+ * listed type that link the page outside its section's relation.
+ */
+function noteSection(types: Types, listed: readonly Listed[]): LinkedSectionPlan[] {
+  const sectioned = new Set(listed.map((one) => one.type?.name));
   const others = types.filter(
     (type) =>
       IDENTIFIER.test(type.name) &&
-      !taken.has(type.name) &&
+      !sectioned.has(type.name) &&
       type.name.trim().toLowerCase() !== PROPOSAL_TYPE,
   );
-  if (others.length === 0) return [];
+  const also = alsoLinked(listed);
+  if (others.length === 0 && also.length === 0) return [];
+  const elsewhere = also.map(({ type, where }) => `NOT (type = ${word(type.name)} AND ${where})`);
   return [
     plan({
       id: 'notes',
       title: 'Linked notes',
-      from: others.map((type) => type.name),
-      where: [THIS_PAGE],
+      from: [...also.map((one) => one.type.name), ...others.map((type) => type.name)],
+      where: [THIS_PAGE, ...elsewhere],
       recentBy: 'modified',
       rest: 'SORT BY modified DESC SHOW title',
       showsType: true,
@@ -307,7 +357,7 @@ function named({
 }: {
   section: Pick<Section, 'id' | 'title'>;
   type: ObjectType | null;
-  where: (type: ObjectType) => string;
+  where: string;
   shows: readonly string[];
 }): LinkedSectionPlan[] {
   if (type === null) return [];
@@ -315,7 +365,7 @@ function named({
     plan({
       ...section,
       from: [type.name],
-      where: [where(type)],
+      where: [where],
       rest: `SORT BY title ${show(type, shows)}`,
     }),
   ];
@@ -337,81 +387,106 @@ const DECISIONS = { id: 'decisions', title: 'Decisions' } as const;
 const PEOPLE = { id: 'people', title: 'People' } as const;
 const PROJECTS = { id: 'projects', title: 'Projects' } as const;
 
+const anyLink = (type: ObjectType | null): Listed => ({ type, joined: ANY_LINK });
+
 function personSections(vault: Vault): LinkedSectionPlan[] {
-  const { page, task } = vault;
+  const { page, task, meeting } = vault;
+  const attended = meeting === null ? ANY_LINK : pointsAtPage(meeting, page);
   return [
-    ...dated(MEETINGS, vault.meeting, (meeting) => pointsAtPage(meeting, page)),
+    ...dated(MEETINGS, meeting, attended),
     ...taskSections({
       task,
       joined: THIS_PAGE,
       waitingFors: { kind: 'on', who: `${TASK_KEYS.waitingOn} = this` },
     }),
-    ...dated(DECISIONS, vault.decision, () => THIS_PAGE),
-    ...noteSection(vault.types, [vault.meeting, task?.type ?? null, vault.decision]),
+    ...dated(DECISIONS, vault.decision, ANY_LINK),
+    ...noteSection(vault.types, [
+      { type: meeting, joined: attended },
+      anyLink(task?.type ?? null),
+      anyLink(vault.decision),
+    ]),
   ];
 }
 
+/**
+ * A company's page. Its people are the people linked with it whichever note
+ * holds the link — a person's `company`, or the company's own `employees` —
+ * and what is waited on from any of them is the company's.
+ */
 function companySections(vault: Vault): LinkedSectionPlan[] {
-  const { page, task, person } = vault;
-  const employers = person === null ? [] : relationKeys(person, page.name);
-  // A task about one of its people: any relation of the task to a person at the company.
-  const theirs = (keys: readonly string[]) =>
-    keys.flatMap((key) => employers.map((employer) => `${key}.${employer} = this`));
-  const onPeople = task === null || person === null ? [] : hopKeys(task.type, person.name);
-  const waitingOn = theirs(onPeople.filter((key) => key === TASK_KEYS.waitingOn));
+  const { page, task, person, meeting } = vault;
+  const onPeople = task === null || person === null ? [] : relationKeys(task.type, person.name);
+  const theirs = onPeople.map((key) => `${key} ${THIS_PAGE}`);
+  const waitedOn = onPeople.includes(TASK_KEYS.waitingOn)
+    ? `${TASK_KEYS.waitingOn} ${THIS_PAGE}`
+    : null;
+  const held = meeting === null ? ANY_LINK : pointsAtPage(meeting, page);
   return [
-    ...named({
-      section: PEOPLE,
-      type: person,
-      where: (people) => pointsAtPage(people, page),
-      shows: ['role'],
-    }),
-    ...dated(MEETINGS, vault.meeting, (meeting) => pointsAtPage(meeting, page)),
+    ...named({ section: PEOPLE, type: person, where: THIS_PAGE, shows: ['role'] }),
+    ...dated(MEETINGS, meeting, held),
     ...taskSections({
       task,
-      joined: anyOf([THIS_PAGE, ...theirs(onPeople)]),
-      waitingFors:
-        waitingOn.length === 0 ? { kind: 'none' } : { kind: 'on', who: anyOf(waitingOn) },
+      joined: anyOf([THIS_PAGE, ...theirs]),
+      waitingFors: waitedOn === null ? { kind: 'none' } : { kind: 'on', who: waitedOn },
     }),
-    ...named({ section: PROJECTS, type: vault.project, where: () => THIS_PAGE, shows: ['status'] }),
-    ...dated(DECISIONS, vault.decision, () => THIS_PAGE),
+    ...named({ section: PROJECTS, type: vault.project, where: THIS_PAGE, shows: ['status'] }),
+    ...dated(DECISIONS, vault.decision, ANY_LINK),
     ...noteSection(vault.types, [
-      person,
-      vault.meeting,
-      task?.type ?? null,
-      vault.project,
-      vault.decision,
+      { type: meeting, joined: held },
+      anyLink(person),
+      anyLink(task?.type ?? null),
+      anyLink(vault.project),
+      anyLink(vault.decision),
     ]),
   ];
 }
 
 /** A project's or an area's page: what is filed under it. */
 function filedSections(vault: Vault): LinkedSectionPlan[] {
-  const { page, task } = vault;
+  const { page, task, meeting, decision, project } = vault;
   const isArea = page.name.trim().toLowerCase() === AREA_TYPE;
-  const filed = (type: ObjectType) => pointsAtPage(type, page);
+  const filed = (type: ObjectType | null): Listed => ({
+    type,
+    joined: type === null ? ANY_LINK : pointsAtPage(type, page),
+  });
+  const listed = {
+    task: filed(task?.type ?? null),
+    meeting: filed(meeting),
+    decision: filed(decision),
+    project: filed(project),
+  };
   return [
     ...taskSections({
       task,
-      joined: task === null ? THIS_PAGE : filed(task.type),
+      joined: listed.task.joined.where,
       waitingFors: { kind: 'filed' },
-      wantsNextAction: true,
+      // An area is never finished, so nothing says it should be moving (P30-07).
+      wantsNextAction: !isArea,
     }),
     ...(isArea
-      ? named({ section: PROJECTS, type: vault.project, where: filed, shows: ['status'] })
+      ? named({
+          section: PROJECTS,
+          type: project,
+          where: listed.project.joined.where,
+          shows: ['status'],
+        })
       : []),
-    ...dated(MEETINGS, vault.meeting, filed),
-    ...dated(DECISIONS, vault.decision, filed),
+    ...dated(MEETINGS, meeting, listed.meeting.joined),
+    ...dated(DECISIONS, decision, listed.decision.joined),
     ...noteSection(vault.types, [
-      vault.meeting,
-      task?.type ?? null,
-      vault.decision,
-      ...(isArea ? [vault.project] : []),
+      listed.task,
+      listed.meeting,
+      listed.decision,
+      ...(isArea ? [listed.project] : []),
     ]),
   ];
 }
 
-/** A meeting's page: who was in it, and what came out of it — whichever of the two holds the link. */
+/**
+ * A meeting's page: who was in it, and the tasks and decisions linked with
+ * it — by any link, whichever of the two holds it, so one made from the
+ * meeting and one that merely mentions it are both here.
+ */
 function meetingSections(vault: Vault): LinkedSectionPlan[] {
   const { task, person, company } = vault;
   const employer = person === null || company === null ? [] : relationKeys(person, company.name);
@@ -419,13 +494,13 @@ function meetingSections(vault: Vault): LinkedSectionPlan[] {
     ...named({
       section: PEOPLE,
       type: person,
-      where: () => THIS_PAGE,
+      where: THIS_PAGE,
       shows: [...employer.slice(0, 1), 'role'],
     }),
     ...named({
       section: { id: 'companies', title: 'Companies' },
       type: company,
-      where: () => THIS_PAGE,
+      where: THIS_PAGE,
       shows: [],
     }),
     ...(task === null
@@ -433,29 +508,23 @@ function meetingSections(vault: Vault): LinkedSectionPlan[] {
       : [
           plan({
             id: 'tasks',
-            title: 'Tasks from this meeting',
+            title: 'Tasks',
             from: [task.type.name],
             where: [THIS_PAGE],
             rest: `${taskOrder(task.type)} ${show(task.type, [task.status, TASK_KEYS.waitingOn, TASK_KEYS.due])}`,
           }),
         ]),
-    ...named({
-      section: { id: 'decisions', title: 'Decisions from this meeting' },
-      type: vault.decision,
-      where: () => THIS_PAGE,
-      shows: [],
-    }),
+    ...named({ section: DECISIONS, type: vault.decision, where: THIS_PAGE, shows: [] }),
   ];
 }
 
-/** A task's or a decision's page: the meeting it came from, or that lists it. */
+/** A task's or a decision's page: the meetings linked with it, the one it came from among them. */
 function sourceSections(vault: Vault): LinkedSectionPlan[] {
   if (vault.meeting === null) return [];
   const date = dateField(vault.meeting);
   return [
     plan({
-      id: 'meetings',
-      title: 'From meeting',
+      ...MEETINGS,
       from: [vault.meeting.name],
       where: [THIS_PAGE],
       rest: `SORT BY ${date} DESC ${date === 'date' ? 'SHOW date' : 'SHOW title'}`,
@@ -473,9 +542,14 @@ const SECTIONS: Readonly<Record<string, (vault: Vault) => LinkedSectionPlan[]>> 
   [DECISION_TYPE]: sourceSections,
 };
 
+/** A type's name as linked pages know it: `Person ` is `person`. */
+export function linkedPageType(typeName: string): string {
+  return typeName.trim().toLowerCase();
+}
+
 /** Whether notes of this type show linked sections: the page types P30-06 names. */
 export function isLinkedPageType(typeName: string | null): boolean {
-  return typeName !== null && Object.hasOwn(SECTIONS, typeName.trim().toLowerCase());
+  return typeName !== null && Object.hasOwn(SECTIONS, linkedPageType(typeName));
 }
 
 /**
@@ -485,11 +559,10 @@ export function isLinkedPageType(typeName: string | null): boolean {
  */
 export function linkedSectionPlans(typeName: string | null, types: Types): LinkedSectionPlan[] {
   if (typeName === null) return [];
-  const name = typeName.trim().toLowerCase();
+  const name = linkedPageType(typeName);
   const page = typeNamed(types, name);
-  if (page === null || !Object.hasOwn(SECTIONS, name)) return [];
-  const sections = SECTIONS[name];
-  if (sections === undefined) return [];
+  const sections = Object.hasOwn(SECTIONS, name) ? SECTIONS[name] : undefined;
+  if (page === null || sections === undefined) return [];
   return sections({
     types,
     page,

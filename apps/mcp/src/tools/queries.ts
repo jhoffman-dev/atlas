@@ -134,7 +134,8 @@ export const runQuery = defineTool({
     "to come too). this compares with a relation (= or !=); quote it, 'this', to mean the word. " +
     'LINKS TO this lists notes whose body links to it; CONNECTED TO this lists notes joined to ' +
     'it by any link, either way round, in a body or a property (the tasks that came from a ' +
-    "meeting, with the meeting as context: FROM task WHERE CONNECTED TO this). A note's fenced ```atlas-query block " +
+    'meeting, with the meeting as context: FROM task WHERE CONNECTED TO this); after a relation, ' +
+    "waiting_on CONNECTED TO this, it asks about the notes that relation points at. A note's fenced ```atlas-query block " +
     'holds such a query after an optional "layout:" line; to answer it as the app shows it, ' +
     'send the query without that line, with the note as context. Archived notes are ' +
     'left out unless the query says INCLUDE ARCHIVED. Returns { columns, rows, truncated, sql }, ' +

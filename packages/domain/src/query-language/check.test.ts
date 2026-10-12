@@ -269,6 +269,7 @@ describe('checkAtlasQuery: this, and LINKS TO', () => {
     'FROM task WHERE owner != this AND project.owner = this',
     'FROM task WHERE LINKS TO this OR NOT LINKS TO this',
     'FROM task WHERE CONNECTED TO this AND status != done',
+    'FROM task WHERE owner CONNECTED TO this',
   ])('passes on a note: %s', (text) => {
     expect(problemOn(text, NOTE)).toBeNull();
   });
@@ -308,6 +309,16 @@ describe('checkAtlasQuery: this, and LINKS TO', () => {
   ])('takes nothing but this after LINKS TO: %s', (text, at) => {
     expect(problemOn(text, NOTE)).toEqual({
       message: 'LINKS TO takes this: the note the query is shown on.',
+      at,
+    });
+  });
+
+  it.each([
+    ['FROM task WHERE status CONNECTED TO this', 'status'],
+    ['FROM task WHERE project.owner CONNECTED TO this', 'project.owner'],
+  ])('follows only a relation of the note’s own with CONNECTED TO: %s', (text, at) => {
+    expect(problemOn(text, NOTE)).toEqual({
+      message: `CONNECTED TO follows a relation of the note's own, like waiting_on CONNECTED TO this; ${at} is not one.`,
       at,
     });
   });

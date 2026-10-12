@@ -26,7 +26,9 @@ function shape(expression: Expression | null): unknown {
     case 'linksTo':
       return ['LINKS TO', expression.value];
     case 'connectedTo':
-      return ['CONNECTED TO', expression.value];
+      return expression.field === null
+        ? ['CONNECTED TO', expression.value]
+        : [fieldText(expression.field), 'CONNECTED TO', expression.value];
     case 'not':
       return ['NOT', shape(expression.operand)];
     default:
@@ -379,6 +381,19 @@ describe('parseAtlasQuery: this, and LINKS TO', () => {
       message: 'Expected a value after CONNECTED TO.',
       at: '',
     });
+  });
+
+  it('reads CONNECTED TO after a field as asked of the notes that relation points at', () => {
+    expect(where('owner CONNECTED TO this')).toEqual([
+      'owner',
+      'CONNECTED TO',
+      expect.objectContaining({ kind: 'this' }),
+    ]);
+    const text = 'FROM task WHERE status = done AND owner CONNECTED TO this';
+    const query = parseAtlasQuery(text);
+    const reached = query.where?.kind === 'and' ? query.where.operands[1] : null;
+    expect(text.slice(reached?.span.start, reached?.span.end)).toBe('owner CONNECTED TO this');
+    expect(printAtlasQuery(query)).toBe(text);
   });
 
   it('wants a value after LINKS TO', () => {

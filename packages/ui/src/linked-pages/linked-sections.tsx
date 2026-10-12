@@ -13,6 +13,8 @@ import { SegmentedControl } from '../segmented-control.tsx';
 export interface LinkedSectionsProps {
   /** The page's sections; null until they have been read. */
   readonly sections: readonly LinkedSection[] | null;
+  /** Why the sections could not be read at all, said over whatever was read before; null when they were. */
+  readonly problem?: string | null;
   readonly onChangeRange: (section: LinkedSectionId, range: LinkedRange) => void;
   readonly onOpenNote: (path: string) => void;
 }
@@ -28,11 +30,22 @@ const RANGES = [
  * decisions and linked notes, every row a way to the note it names. Read from
  * the index, never from the note — nothing here is in the file.
  */
-export function LinkedSections({ sections, onChangeRange, onOpenNote }: LinkedSectionsProps) {
-  if (sections === null || sections.length === 0) return null;
+export function LinkedSections({
+  sections,
+  problem = null,
+  onChangeRange,
+  onOpenNote,
+}: LinkedSectionsProps) {
+  const read = sections ?? [];
+  if (read.length === 0 && problem === null) return null;
   return (
     <section className="linked" aria-label="Linked">
-      {sections.map((section) => (
+      {problem !== null && (
+        <p className="linked__problem" role="alert">
+          {problem}
+        </p>
+      )}
+      {read.map((section) => (
         <Section
           key={section.id}
           section={section}

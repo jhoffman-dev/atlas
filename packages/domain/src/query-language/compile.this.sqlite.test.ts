@@ -242,3 +242,30 @@ describe('compileAtlasQuery, run against SQLite: CONNECTED TO this', () => {
     expect(parameters.filter((value) => value === MARA)).toHaveLength(5);
   });
 });
+
+describe('compileAtlasQuery, run against SQLite: a relation CONNECTED TO this', () => {
+  it('lists the notes whose relation points at a note connected to the page', () => {
+    // The company's owner is Mara; Mara's body links Tobias, and three meetings name him.
+    expect(titles('FROM company WHERE owner CONNECTED TO this', TOBIAS)).toEqual([
+      'Larkspur Payroll',
+    ]);
+    // A meeting whose people include someone the company names as its owner.
+    expect(
+      titles('FROM meeting WHERE people CONNECTED TO this', 'companies/Larkspur Payroll.md'),
+    ).toEqual(['Mara next week', 'Mara old', 'Mara recent', 'Mara thirty days ago']);
+  });
+
+  it('follows the relation it names, not the note’s other relations', () => {
+    // The meeting's company is owned by Mara; its people, not its company, are linked with Tobias.
+    expect(titles('FROM meeting WHERE company CONNECTED TO this', MARA)).toEqual(['Mara recent']);
+    expect(titles('FROM meeting WHERE company CONNECTED TO this', TOBIAS)).toEqual([]);
+  });
+
+  it('does not count the relation pointing at the page itself', () => {
+    // These meetings name Mara, who is the page: she is not connected to herself.
+    expect(titles('FROM meeting WHERE people CONNECTED TO this', MARA)).toEqual([
+      'Mara recent',
+      'Tobias recent',
+    ]);
+  });
+});

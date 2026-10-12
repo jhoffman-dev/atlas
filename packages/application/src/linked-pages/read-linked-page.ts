@@ -2,9 +2,12 @@ import {
   DEFAULT_LINKED_RANGE,
   groupResultRows,
   inWorkOrder,
+  LINKED_SECTION_LIMIT,
   linkedSectionPlans,
   nextActionHint,
+  optionLabel,
   resultFields,
+  sectionRows,
   toBoardRows,
   WAITED_FIELD,
   withDaysWaited,
@@ -37,7 +40,7 @@ export interface LinkedSection {
   readonly rows: readonly BoardRow[];
   /** The rows under their statuses, what to do next first; empty when it does not group. */
   readonly groups: readonly RowGroup[];
-  /** Whether more notes matched than the section asked for. */
+  /** Whether more notes matched than the section holds. */
   readonly truncated: boolean;
   /** Said over the rows: a project with open work and nothing moving. */
   readonly hint: string | null;
@@ -70,6 +73,7 @@ export async function readLinkedPage({
   notePaths,
   notePath,
   typeName,
+  projectStatus = null,
   ranges = {},
 }: {
   index: IndexPort;
@@ -80,6 +84,8 @@ export async function readLinkedPage({
   notePath: string;
   /** The page's type, as its frontmatter says it. */
   typeName: string | null;
+  /** A project page's own `status`, as written, which says whether it should be moving. */
+  projectStatus?: string | null;
   /** Recent or all, for the sections last left on one; the rest are recent. */
   ranges?: Readonly<Partial<Record<LinkedSectionId, LinkedRange>>>;
 }): Promise<LinkedSection[]> {
@@ -93,7 +99,7 @@ export async function readLinkedPage({
   const waiting = sections.find(({ section }) => section.id === 'waiting')?.section;
   return sections.map(({ section, groupedBy }, at) =>
     plans[at]?.wantsNextAction === true && groupedBy !== null
-      ? withHint({ tasks: section, statusField: groupedBy, waiting })
+      ? withHint({ tasks: section, statusField: groupedBy, waiting, projectStatus })
       : section,
   );
 }
@@ -129,7 +135,7 @@ async function readSection({
   const text = range === 'recent' && plan.recentQuery !== null ? plan.recentQuery : plan.query;
   try {
     const answer = await runAtlasQuery({ ...asked, text, thisNote: asked.notePath });
-    const drawn = shaped({ plan, answer, today, types: asked.types });
+    const drawn = shaped({ plan, answer, today, types: asked.types, page: asked.notePath });
     return {
       section: { ...head, ...drawn, problem: null },
       groupedBy: answer.compiled.groups[0]?.text ?? null,
@@ -148,16 +154,28 @@ function shaped({
   answer,
   today,
   types,
+  page,
 }: {
   plan: LinkedSectionPlan;
   answer: AtlasQueryAnswer;
   today: string;
   types: readonly ObjectType[];
+  page: string;
 }): Pick<LinkedSection, 'fields' | 'rows' | 'groups' | 'truncated'> {
-  const read = toBoardRows(answer.result).map((row) => withTypeLabel(row, types));
-  const rows = plan.waited ? withDaysWaited(read, today) : read;
+  const held = sectionRows({
+    rows: toBoardRows(answer.result),
+    page,
+    limit: LINKED_SECTION_LIMIT,
+  });
   const grouped = new Set(answer.compiled.groups.map((group) => group.text));
-  const fields = resultFields(answer.compiled)
+  const shown = resultFields(answer.compiled);
+  // A choice reads as its pill does — "Next Action" — except where the rows are grouped by it.
+  const choices = shown
+    .filter((field) => field.kind === 'select' && !grouped.has(field.key))
+    .map((field) => field.key);
+  const read = held.rows.map((row) => withLabels(withTypeLabel(row, types), choices));
+  const rows = plan.waited ? withDaysWaited(read, today) : read;
+  const fields = shown
     // A group's field is its heading; a waiting-for's `modified` is drawn as its age.
     .filter((field) => !grouped.has(field.key) && field.key !== MODIFIED_KEY)
     .filter((field) => field.key !== TYPE_KEY || plan.showsType);
@@ -165,8 +183,19 @@ function shaped({
     fields: plan.waited ? [...fields, WAITED_FIELD] : fields,
     rows,
     groups: inWorkOrder(groupResultRows({ rows, groups: answer.compiled.groups })),
-    truncated: answer.result.truncated,
+    truncated: held.truncated || answer.result.truncated,
   };
+}
+
+/** A row with each of its `choices` — select fields — said as the option's label. */
+function withLabels(row: BoardRow, choices: readonly string[]): BoardRow {
+  const labelled = choices.flatMap((key) => {
+    const value = row.values[key];
+    return typeof value === 'string' && value !== '' ? [[key, optionLabel(value)] as const] : [];
+  });
+  return labelled.length === 0
+    ? row
+    : { ...row, values: { ...row.values, ...Object.fromEntries(labelled) } };
 }
 
 /** A row saying its type as the vault labels it — "Resource" — not as files spell it. */
@@ -180,15 +209,18 @@ function withHint({
   tasks,
   statusField,
   waiting,
+  projectStatus,
 }: {
   tasks: LinkedSection;
   /** The field the tasks are grouped by: their status. */
   statusField: string;
   /** The page's waiting-fors, when it has such a section. */
   waiting: LinkedSection | undefined;
+  projectStatus: string | null;
 }): LinkedSection {
   const waitingRead = waiting === undefined || (waiting.problem === null && !waiting.truncated);
   const hint = nextActionHint({
+    projectStatus,
     statuses: tasks.rows.map((row) => row.values[statusField]),
     waiting: waiting?.rows.length ?? 0,
     complete: tasks.problem === null && !tasks.truncated && waitingRead,

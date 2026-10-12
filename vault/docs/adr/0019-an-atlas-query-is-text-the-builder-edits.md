@@ -259,23 +259,45 @@ Task or a Decision shows the meeting it came from. Issue #25.
   `linkedSectionPlans` (domain, `linked-pages`) writes them from the vault's
   own types, naming only fields the types declare: a meeting is found by
   `people = this` where Meeting has a relation to Person and by any link where
-  it has none, a waiting section exists only where Task has a `waiting` status
-  and a `waiting_on`, and a one-hop field (`waiting_on.company`) is used only
-  through a relation to that type alone. A vault whose types are its own gets
-  the sections its types can answer, never a query that fails its check.
-  `readLinkedPage` (application) runs a page's sections at once — one bounded
-  query each, `LIMIT 200`, never one per row — and a section that cannot be
-  answered says why while the rest stand.
+  it has none, and a waiting section exists only where Task has a `waiting`
+  status and a `waiting_on`. A vault whose types are its own gets the sections
+  its types can answer, never a query that fails its check. `readLinkedPage`
+  (application) runs a page's sections at once — one bounded query each,
+  never one per row — and a section that cannot be answered says why while the
+  rest stand. A fault that is no unanswerable query is thrown, and the page
+  says in one line that it could not be read.
+- **A section holds 200 notes and asks for 202.** The index runs a query's
+  own `LIMIT` and says `truncated` only past its own cap of 5,000, so a
+  section that asked for exactly 200 could never know there was a 201st —
+  and would tell a project its next action was missing when it was row 201.
+  One extra row says there are more; the other covers the page itself, which
+  a relation can name (`people: [[Mara]]` on Mara's own note) and which no
+  page lists. Both are worked out in the domain (`sectionRows`).
+- **A section made for a relation holds only that relation; what links the
+  page some other way goes under Linked notes.** A person's Meetings are
+  `people = this`, a project's Open tasks `project = this`. A meeting that
+  names the person only in its text, or a task that links the project outside
+  `project`, is not dropped: Linked notes lists those types too, with
+  `NOT (type = meeting AND people = this)` so nothing is listed twice. A key
+  two listed types declare is one field, as the first declares it, so a type
+  is taken into Linked notes only when that reading keeps its relation a
+  relation; otherwise it is left out, as before. Decided by the coordinator
+  as the default, 2026-10-12; James may overrule.
+- **A company's people are the people linked with it, whichever note holds the
+  link** — a person's `company`, or the company's own `employees` or `ceo` —
+  so People is `FROM person WHERE CONNECTED TO this`, and what is waited on
+  from them is `waiting_on CONNECTED TO this` (below). A person who only
+  mentions the company in their text counts too.
 - **`CONNECTED TO this` is the one addition to the grammar.**
 
   ```
-  condition = … | CONNECTED TO value                   -- value must be this
+  condition = … | [field] CONNECTED TO value           -- value must be this
   ```
 
   A link joins the note and the page: from either to the other, written in a
   body (`links`) or held by a property (`relations`, which keeps every link a
   frontmatter value holds, whatever the property's kind). It is what "the
-  tasks that came from this meeting" needs to mean today and after the meeting
+  tasks linked with this meeting" needs to mean today and after the meeting
   extraction lands (PR #102): today a task cites the meeting's turn in its
   `source`, a text property; after it, the meeting also lists the task in
   `tasks`. `LINKS TO this` reads bodies only and one way, as backlinks do, and
@@ -283,25 +305,37 @@ Task or a Decision shows the meeting it came from. Issue #25.
   does not "link to" them, and a query in someone's note may rely on that.
   Like `LINKS TO` it takes only `this`, the builder has no control for it, a
   note is never connected to itself, and `connected = x` still compares a
-  property called `connected`.
+  property called `connected`. After a relation of the note's own —
+  `waiting_on CONNECTED TO this` — it is asked of the notes that relation
+  points at: a task waiting on someone connected to the company. Only a
+  relation, and not one reached through another.
 
 - **Recent is 30 days, per section, remembered per page type on this Mac**
-  (`localStorage`, as a view's folded groups are): the section's query gains
-  `date >= @-30d` — or `modified`, for a type with no `date` and for linked
-  notes. Sections of open work have no such switch: an open loop does not
-  expire.
+  (`localStorage`, as a view's folded groups are, under the type's name in
+  lower case): the section's query gains `(date >= @-30d OR date IS EMPTY)`
+  — a meeting nobody dated is not an old one, and is listed after the dated —
+  or `modified >= @-30d`, for a type with no `date` and for linked notes.
+  Sections of open work have no such switch: an open loop does not expire.
 - **A waiting-for's age is the days since its file last changed**, the weekly
   review's measure (ADR-0029): Atlas keeps no "waiting since" key, so any edit
   to the task restarts the count. The query shows `modified`; the age is
   worked out in the domain from the clock the app is given.
 - **Open tasks are grouped by status in work order** — Next Action, In
   Progress, Inbox, Backlog, then what is parked — not the type's order, which
-  runs Inbox first. A project or an area with open tasks and none at Next
-  Action or In Progress says so, by the weekly review's rule for a project
-  without a next action; the hint is held back when the list was cut off.
+  runs Inbox first. An **active** project with open tasks and none at Next
+  Action or In Progress says so: the weekly review's rule for a project
+  without a next action, so not a paused or finished project, not one with no
+  status, and never an area. The hint is held back when the list was cut off.
+- **The sections wait for the note.** A pane knows its path before its note is
+  read, and until then the type it holds is the last note's; nothing is asked
+  until the loaded note is the pane's, and what was read is kept by path and
+  type, so a meeting's sections are never drawn on a person's page.
+- **A meeting's Tasks and Decisions, and a task's Meetings, are any link
+  either way**, so they are named for what they are rather than "Tasks from
+  this meeting": a task that merely mentions the meeting is there beside the
+  ones made from it.
 - **Not done.** Notes with no type are not in "Linked notes": a query lists
   types, and a note without one still shows under Links at the page's foot. A
-  section's query cannot be edited from the page, and nothing copies one out
-  as a query block. Where Meeting declares a relation for people, a meeting
-  that names a person only in its text is not under their Meetings; it shows
-  under Links at the page's foot.
+  company's Meetings are those whose `companies` holds it, not those only its
+  people were in. A section's query cannot be edited from the page, and
+  nothing copies one out as a query block.

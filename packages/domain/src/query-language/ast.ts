@@ -88,9 +88,12 @@ export type Condition =
   | {
       /**
        * `CONNECTED TO this`: a link joins the note and the note the query is
-       * shown on — either way round, in a body or in a property.
+       * shown on — either way round, in a body or in a property. With a
+       * `field` — `waiting_on CONNECTED TO this` — it is asked of the notes
+       * that relation points at instead of the note itself.
        */
       readonly kind: 'connectedTo';
+      readonly field: FieldRef | null;
       readonly value: QueryValue;
       readonly span: Span;
     };

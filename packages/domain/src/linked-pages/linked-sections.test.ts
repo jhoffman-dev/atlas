@@ -92,10 +92,10 @@ describe('linkedSectionPlans', () => {
   it("lists a person's meetings by the relation made for people, newest first", () => {
     const meetings = section(linkedSectionPlans('person', TYPES), 'meetings');
     expect(meetings.query).toBe(
-      'FROM meeting WHERE people = this SORT BY date DESC SHOW date LIMIT 200',
+      'FROM meeting WHERE people = this SORT BY date DESC SHOW date LIMIT 202',
     );
     expect(meetings.recentQuery).toBe(
-      'FROM meeting WHERE people = this AND date >= @-30d SORT BY date DESC SHOW date LIMIT 200',
+      'FROM meeting WHERE people = this AND (date >= @-30d OR date IS EMPTY) SORT BY date DESC SHOW date LIMIT 202',
     );
   });
 
@@ -103,26 +103,26 @@ describe('linkedSectionPlans', () => {
     const plans = linkedSectionPlans('person', TYPES);
     const waiting = section(plans, 'waiting');
     expect(waiting.query).toBe(
-      'FROM task WHERE status = waiting AND waiting_on = this SORT BY modified ASC SHOW project, modified LIMIT 200',
+      'FROM task WHERE status = waiting AND waiting_on = this SORT BY modified ASC SHOW project, modified LIMIT 202',
     );
     expect(waiting).toMatchObject({ waited: true, recentQuery: null });
     expect(section(plans, 'tasks').query).toBe(
       'FROM task WHERE CONNECTED TO this AND status != archive AND NOT (status = waiting AND waiting_on = this) ' +
-        'SORT BY due, title GROUP BY status SHOW due LIMIT 200',
+        'SORT BY due, title GROUP BY status SHOW due LIMIT 202',
     );
     expect(section(plans, 'tasks')).toMatchObject({ waited: false, wantsNextAction: false });
   });
 
-  it("reaches a company's waiting-fors and tasks through its people", () => {
+  it("reaches a company's people by any link, and its waiting-fors and tasks through them", () => {
     const plans = linkedSectionPlans('company', TYPES);
     expect(section(plans, 'people').query).toBe(
-      'FROM person WHERE company = this SORT BY title SHOW role LIMIT 200',
+      'FROM person WHERE CONNECTED TO this SORT BY title SHOW role LIMIT 202',
     );
     expect(section(plans, 'waiting').query).toBe(
-      'FROM task WHERE status = waiting AND waiting_on.company = this SORT BY modified ASC SHOW project, modified LIMIT 200',
+      'FROM task WHERE status = waiting AND waiting_on CONNECTED TO this SORT BY modified ASC SHOW project, modified LIMIT 202',
     );
     expect(section(plans, 'tasks').query).toContain(
-      'WHERE (CONNECTED TO this OR waiting_on.company = this) AND status != archive AND NOT (status = waiting AND waiting_on.company = this)',
+      'WHERE (CONNECTED TO this OR waiting_on CONNECTED TO this) AND status != archive AND NOT (status = waiting AND waiting_on CONNECTED TO this)',
     );
     expect(section(plans, 'meetings').query).toContain('WHERE companies = this');
   });
@@ -131,11 +131,11 @@ describe('linkedSectionPlans', () => {
     const plans = linkedSectionPlans('project', TYPES);
     expect(section(plans, 'tasks').query).toBe(
       'FROM task WHERE project = this AND status != archive AND NOT (status = waiting) ' +
-        'SORT BY due, title GROUP BY status SHOW due LIMIT 200',
+        'SORT BY due, title GROUP BY status SHOW due LIMIT 202',
     );
     expect(section(plans, 'tasks').wantsNextAction).toBe(true);
     expect(section(plans, 'waiting').query).toBe(
-      'FROM task WHERE project = this AND status = waiting SORT BY modified ASC SHOW waiting_on, modified LIMIT 200',
+      'FROM task WHERE project = this AND status = waiting SORT BY modified ASC SHOW waiting_on, modified LIMIT 202',
     );
     expect(section(plans, 'meetings').query).toContain('FROM meeting WHERE project = this ');
     expect(section(plans, 'decisions').query).toContain('FROM decision WHERE project = this ');
@@ -144,9 +144,11 @@ describe('linkedSectionPlans', () => {
   it("lists an area's projects, and its meetings where a meeting can be filed under one", () => {
     const plans = linkedSectionPlans('area', TYPES);
     expect(section(plans, 'projects').query).toBe(
-      'FROM project WHERE area = this SORT BY title SHOW status LIMIT 200',
+      'FROM project WHERE area = this SORT BY title SHOW status LIMIT 202',
     );
     expect(section(plans, 'meetings').query).toContain('WHERE project = this');
+    // An area is never finished, so nothing says it should be moving.
+    expect(section(plans, 'tasks').wantsNextAction).toBe(false);
     // A decision's `project` points at projects alone, so an area's are found by any link.
     expect(section(plans, 'decisions').query).toContain('WHERE CONNECTED TO this');
   });
@@ -154,19 +156,19 @@ describe('linkedSectionPlans', () => {
   it('joins a meeting with its tasks and decisions by any link, either way, and back', () => {
     const meeting = linkedSectionPlans('meeting', TYPES);
     expect(section(meeting, 'tasks').query).toBe(
-      'FROM task WHERE CONNECTED TO this SORT BY due, title SHOW status, waiting_on, due LIMIT 200',
+      'FROM task WHERE CONNECTED TO this SORT BY due, title SHOW status, waiting_on, due LIMIT 202',
     );
     expect(section(meeting, 'decisions').query).toBe(
-      'FROM decision WHERE CONNECTED TO this SORT BY title SHOW title LIMIT 200',
+      'FROM decision WHERE CONNECTED TO this SORT BY title SHOW title LIMIT 202',
     );
     expect(section(meeting, 'people').query).toBe(
-      'FROM person WHERE CONNECTED TO this SORT BY title SHOW company, role LIMIT 200',
+      'FROM person WHERE CONNECTED TO this SORT BY title SHOW company, role LIMIT 202',
     );
     for (const typeName of ['task', 'decision']) {
       const [source] = linkedSectionPlans(typeName, TYPES);
       expect(source).toMatchObject({
-        title: 'From meeting',
-        query: 'FROM meeting WHERE CONNECTED TO this SORT BY date DESC SHOW date LIMIT 200',
+        title: 'Meetings',
+        query: 'FROM meeting WHERE CONNECTED TO this SORT BY date DESC SHOW date LIMIT 202',
         recentQuery: null,
       });
     }
@@ -182,15 +184,22 @@ describe('linkedSectionPlans', () => {
     expect(recent('meeting')).toEqual([]);
   });
 
-  it('lists every other type under Linked notes, saying which, and never a proposal', () => {
+  it('lists under Linked notes every other type, and what a listed type links outside its relation', () => {
     const notes = section(linkedSectionPlans('person', TYPES), 'notes');
+    // A meeting she was in is under Meetings; one that only mentions her is here. Never a proposal.
     expect(notes.query).toBe(
-      'FROM person, company, project, area, resource WHERE CONNECTED TO this SORT BY modified DESC SHOW title LIMIT 200',
+      'FROM meeting, person, company, project, area, resource WHERE CONNECTED TO this ' +
+        'AND NOT (type = meeting AND people = this) SORT BY modified DESC SHOW title LIMIT 202',
     );
     expect(notes.recentQuery).toContain('AND modified >= @-30d');
     expect(notes.showsType).toBe(true);
     expect(section(linkedSectionPlans('company', TYPES), 'notes').query).toContain(
-      'FROM company, area, resource WHERE',
+      'FROM meeting, company, area, resource WHERE CONNECTED TO this AND NOT (type = meeting AND companies = this) ',
+    );
+    expect(section(linkedSectionPlans('project', TYPES), 'notes').query).toContain(
+      'FROM task, meeting, decision, person, company, project, area, resource WHERE CONNECTED TO this ' +
+        'AND NOT (type = task AND project = this) AND NOT (type = meeting AND project = this) ' +
+        'AND NOT (type = decision AND project = this) ',
     );
   });
 });
@@ -200,9 +209,9 @@ describe('linkedSectionPlans, in a vault whose types are its own', () => {
     const bare = parseObjectType({ name: 'meeting', properties: {} });
     const [meetings] = linkedSectionPlans('person', [PERSON, bare]);
     expect(meetings).toMatchObject({
-      query: 'FROM meeting WHERE CONNECTED TO this SORT BY modified DESC SHOW title LIMIT 200',
+      query: 'FROM meeting WHERE CONNECTED TO this SORT BY modified DESC SHOW title LIMIT 202',
       recentQuery:
-        'FROM meeting WHERE CONNECTED TO this AND modified >= @-30d SORT BY modified DESC SHOW title LIMIT 200',
+        'FROM meeting WHERE CONNECTED TO this AND modified >= @-30d SORT BY modified DESC SHOW title LIMIT 202',
     });
   });
 
@@ -216,7 +225,7 @@ describe('linkedSectionPlans, in a vault whose types are its own', () => {
     const plans = linkedSectionPlans('person', [PERSON, own]);
     expect(plans.map((plan) => plan.id)).toEqual(['tasks', 'notes']);
     expect(plans[0]?.query).toBe(
-      "FROM task WHERE CONNECTED TO this AND status != 'won''t do' SORT BY title GROUP BY status SHOW title LIMIT 200",
+      "FROM task WHERE CONNECTED TO this AND status != 'won''t do' SORT BY title GROUP BY status SHOW title LIMIT 202",
     );
     expect(() =>
       checkAtlasQuery(parseAtlasQuery(plans[0]?.query ?? ''), [PERSON, own], 'p.md'),
@@ -224,7 +233,7 @@ describe('linkedSectionPlans, in a vault whose types are its own', () => {
 
     const plain = parseObjectType({ name: 'task', properties: { notes: 'text' } });
     expect(linkedSectionPlans('person', [PERSON, plain])[0]?.query).toBe(
-      'FROM task WHERE CONNECTED TO this SORT BY title SHOW title LIMIT 200',
+      'FROM task WHERE CONNECTED TO this SORT BY title SHOW title LIMIT 202',
     );
   });
 
@@ -239,7 +248,7 @@ describe('linkedSectionPlans, in a vault whose types are its own', () => {
     expect(section(plans, 'notes').query).toContain('FROM person WHERE');
   });
 
-  it('hops only through a relation to people alone, so a mixed one cannot break the query', () => {
+  it('follows any relation of a task to people, one that may point at a company too', () => {
     const task = parseObjectType({
       name: 'task',
       properties: {
@@ -250,13 +259,32 @@ describe('linkedSectionPlans, in a vault whose types are its own', () => {
     });
     const types = [PERSON, COMPANY, task];
     const plans = linkedSectionPlans('company', types);
-    expect(plans.map((plan) => plan.id)).toEqual(['people', 'tasks', 'notes']);
+    expect(plans.map((plan) => plan.id)).toEqual(['people', 'waiting', 'tasks', 'notes']);
     expect(section(plans, 'tasks').query).toContain(
-      'WHERE (CONNECTED TO this OR owner.company = this) AND status != archive',
+      'WHERE (CONNECTED TO this OR waiting_on CONNECTED TO this OR owner CONNECTED TO this) AND status != archive',
     );
     for (const plan of plans) {
       expect(() => checkAtlasQuery(parseAtlasQuery(plan.query), types, 'c.md')).not.toThrow();
     }
+  });
+
+  it('leaves a listed type out of Linked notes when a query would read its relation as another kind', () => {
+    // Task is listed first and declares `initiative` as text: one field, as the first declares it,
+    // so a decision's `initiative = this` could not be checked beside it.
+    const task = parseObjectType({
+      name: 'task',
+      properties: { project: { kind: 'relation', target: 'project' }, initiative: 'text' },
+    });
+    const decision = parseObjectType({
+      name: 'decision',
+      properties: { initiative: { kind: 'relation', target: 'project' } },
+    });
+    const types = [task, decision, ...PARA_TYPE_FILES.map((file) => file.type)];
+    const notes = section(linkedSectionPlans('project', types), 'notes');
+    expect(notes.query).toContain(
+      'FROM task, project, area, resource WHERE CONNECTED TO this AND NOT (type = task AND project = this) SORT',
+    );
+    expect(() => checkAtlasQuery(parseAtlasQuery(notes.query), types, 'p.md')).not.toThrow();
   });
 
   it('knows a built-in type whatever case the vault names it in', () => {

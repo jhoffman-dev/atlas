@@ -1,8 +1,8 @@
 import { isGtdStatus, type GtdStatus } from '../gtd/gtd-status.ts';
 import type { BoardRow } from '../query/group-rows.ts';
 import type { RowGroup } from '../query-language/result-groups.ts';
-import { MOVING_STATUSES } from '../review/weekly-review.ts';
-import { daysBetween } from '../timeline/timeline.ts';
+import { ACTIVE_PROJECT_STATUS, MOVING_STATUSES } from '../review/weekly-review.ts';
+import { addDays, daysBetween } from '../timeline/timeline.ts';
 
 /*
  * What a linked page's sections (P30-06) make of the rows their queries
@@ -19,12 +19,20 @@ const MODIFIED_KEY = 'modified';
 /**
  * How many days a waiting-for has waited: since its file last changed, the
  * same measure the weekly review's "waiting for more than 7 days" uses
- * (ADR-0029) — Atlas keeps no "waiting since" key. Null when the day cannot
- * be read; never less than none, when a file is dated ahead of the clock.
+ * (ADR-0029) — Atlas keeps no "waiting since" key. Null when either day
+ * cannot be read, or is one the calendar does not have; never less than
+ * none, when a file is dated ahead of the clock.
  */
 export function daysWaited(modifiedDay: unknown, today: string): number | null {
-  if (typeof modifiedDay !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(modifiedDay)) return null;
-  return Math.max(0, daysBetween(modifiedDay.slice(0, 10), today));
+  if (typeof modifiedDay !== 'string') return null;
+  const day = modifiedDay.slice(0, 10);
+  if (!isDay(day) || !isDay(today)) return null;
+  return Math.max(0, daysBetween(day, today));
+}
+
+/** Whether `value` is a day the calendar has, as `YYYY-MM-DD`. */
+function isDay(value: string): boolean {
+  return addDays(value, 0) === value;
 }
 
 /** A waiting-for's age as a row says it. */
@@ -72,17 +80,21 @@ export function inWorkOrder(groups: readonly RowGroup[]): RowGroup[] {
 }
 
 /**
- * What a project's or an area's page says when it has open work and nothing
+ * What an active project's page says when it has open work and nothing
  * moving: no open task filed under it is Next Action or In Progress — the
  * weekly review's "project without a next action" (P30-07), said where the
- * project is read. Null when something is moving, when it has no open work,
- * when its tasks are not GTD's, or when not every open task was read.
+ * project is read. Null for a project that is not active (paused, done, or
+ * with no status), when something is moving, when it has no open work, when
+ * its tasks are not GTD's, or when not every open task was read.
  */
 export function nextActionHint({
+  projectStatus,
   statuses,
   waiting,
   complete,
 }: {
+  /** The project's own `status`, as written; null when it has none. */
+  projectStatus: string | null;
   /** The status of each open task that is not a waiting-for. */
   statuses: readonly unknown[];
   /** How many waiting-fors it has besides. */
@@ -91,12 +103,34 @@ export function nextActionHint({
   complete: boolean;
 }): string | null {
   const open = statuses.length + waiting;
+  if (projectStatus?.trim() !== ACTIVE_PROJECT_STATUS) return null;
   if (!complete || open === 0) return null;
   if (!statuses.every(isGtdStatus)) return null;
   if (statuses.some((status) => MOVING_STATUSES.includes(status))) return null;
   return open === 1
     ? 'No next action: its one open task is not Next Action or In Progress.'
     : `No next action: none of its ${open} open tasks is Next Action or In Progress.`;
+}
+
+/**
+ * A section's rows as the index answered them, cut to what a section holds:
+ * the page itself left out — a relation can name its own note, and no page
+ * lists itself — then the first `limit`, saying whether more were found. The
+ * query asks for more rows than `limit` for exactly this (the index says
+ * "truncated" only past its own cap, which a section's LIMIT never reaches).
+ */
+export function sectionRows({
+  rows,
+  page,
+  limit,
+}: {
+  rows: readonly BoardRow[];
+  /** The page's own path. */
+  page: string;
+  limit: number;
+}): { rows: BoardRow[]; truncated: boolean } {
+  const others = rows.filter((row) => row.path !== page);
+  return { rows: others.slice(0, limit), truncated: others.length > limit };
 }
 
 /** What of a section is drawn: the first rows, in their groups, and how many are held back. */
@@ -121,9 +155,11 @@ export function firstRows({
   groups: readonly RowGroup[];
   shown: number;
 }): DrawnRows {
-  if (rows.length <= shown) return { rows, groups, more: 0 };
-  if (groups.length === 0) return { rows: rows.slice(0, shown), groups, more: rows.length - shown };
-  let left = shown;
+  // A count that is no count draws nothing rather than a slice nobody asked for.
+  const limit = Number.isFinite(shown) ? Math.max(0, Math.floor(shown)) : 0;
+  if (rows.length <= limit) return { rows, groups, more: 0 };
+  if (groups.length === 0) return { rows: rows.slice(0, limit), groups, more: rows.length - limit };
+  let left = limit;
   const kept: RowGroup[] = [];
   for (const group of groups) {
     if (left === 0) break;

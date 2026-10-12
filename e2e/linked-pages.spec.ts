@@ -276,17 +276,17 @@ test('a person shows their meetings and waiting-fors; a meeting and its tasks sh
   await expect(page.getByRole('article', { name: 'Kickoff' })).toBeVisible();
   await expect(titles(section(page, 'People'))).toHaveText(['Mara Quill', 'Tobias Fenn']);
   await expect(rows(section(page, 'People')).first()).toContainText('Larkspur Payroll');
-  const fromIt = section(page, 'Tasks from this meeting');
+  const fromIt = section(page, 'Tasks');
   await expect(titles(fromIt)).toHaveText(['Book the room', 'Send the contract']);
-  await expect(titles(section(page, 'Decisions from this meeting'))).toHaveText([
-    'Two-step approval',
-  ]);
+  // A status reads as its label, not as the file spells it.
+  await expect(rows(fromIt).first()).toContainText('Inbox');
+  await expect(titles(section(page, 'Decisions'))).toHaveText(['Two-step approval']);
 
   // And back: the task shows the meeting it came from.
   await titles(fromIt).filter({ hasText: 'Send the contract' }).click();
   await expect(page.getByRole('article', { name: 'Send the contract' })).toBeVisible();
-  await expect(titles(section(page, 'From meeting'))).toHaveText(['Kickoff']);
-  await titles(section(page, 'From meeting')).click();
+  await expect(titles(section(page, 'Meetings'))).toHaveText(['Kickoff']);
+  await titles(section(page, 'Meetings')).click();
   await expect(page.getByRole('article', { name: 'Kickoff' })).toBeVisible();
 
   // None of it was written anywhere: her note is byte for byte what it was.
@@ -349,7 +349,7 @@ test('screenshots: a person, a company, a project and a meeting, light and dark'
     ['person', 'People', 'Mara Quill', 'Waiting for'],
     ['company', 'Companies', 'Larkspur Payroll', 'People'],
     ['project', 'Projects', 'Payroll Migration', 'Open tasks'],
-    ['meeting', 'Meetings', 'Kickoff', 'Tasks from this meeting'],
+    ['meeting', 'Meetings', 'Kickoff', 'Tasks'],
   ] as const;
   for (const [kind, folder, name, shows] of pages) {
     await openNote(page, folder, name);

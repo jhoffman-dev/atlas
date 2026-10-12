@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LINKED_SECTION_LIMIT,
   PARA_TYPE_FILES,
   parseObjectType,
   TASK_TYPE_FILE,
@@ -157,8 +158,11 @@ const MODIFIED: Readonly<Record<string, number>> = {
   [LARKSPUR]: changed(90),
 };
 
-function pinnedIndex(): { index: IndexPort; asked: string[] } {
-  const run = atlasQueryIndex({ files: FILES, markdown: jsonMarkdown(), modified: MODIFIED });
+function pinnedIndex(files: Readonly<Record<string, string>> = FILES): {
+  index: IndexPort;
+  asked: string[];
+} {
+  const run = atlasQueryIndex({ files, markdown: jsonMarkdown(), modified: MODIFIED });
   const asked: string[] = [];
   const index = fakeIndexPort({
     query: (sql, parameters) => {
@@ -175,16 +179,19 @@ async function page(
   notePath: string,
   typeName: string,
   ranges: Partial<Record<LinkedSectionId, 'recent' | 'all'>> = {},
+  given: { projectStatus?: string; files?: Readonly<Record<string, string>> } = {},
 ) {
-  const { index, asked } = pinnedIndex();
+  const files = given.files ?? FILES;
+  const { index, asked } = pinnedIndex(files);
   const sections = await readLinkedPage({
     index,
     clock,
     types: TYPES,
-    notePaths: Object.keys(FILES),
+    notePaths: Object.keys(files),
     notePath,
     typeName,
     ranges,
+    ...(given.projectStatus !== undefined && { projectStatus: given.projectStatus }),
   });
   const section = (id: LinkedSectionId): LinkedSection => {
     const found = sections.find((one) => one.id === id);
@@ -276,7 +283,7 @@ describe('readLinkedPage: a company', () => {
     const larkspur = await page(LARKSPUR, 'company');
     expect(larkspur.titles('tasks')).toEqual(['Renew the licence']);
     expect(larkspur.titles('projects')).toEqual(['Payroll Migration']);
-    expect(larkspur.section('projects').rows[0]?.values['status']).toBe('active');
+    expect(larkspur.section('projects').rows[0]?.values['status']).toBe('Active');
   });
 });
 
@@ -306,12 +313,36 @@ describe('readLinkedPage: a project and an area', () => {
   });
 
   it('says a project with open tasks and nothing moving has no next action', async () => {
-    const idle = await page('Projects/Idle.md', 'project');
+    const idle = await page('Projects/Idle.md', 'project', {}, { projectStatus: 'active' });
     expect(idle.titles('tasks')).toEqual(['Tidy the backlog']);
     expect(idle.section('tasks').hint).toBe(
       'No next action: its one open task is not Next Action or In Progress.',
     );
     expect(idle.section('waiting').hint).toBeNull();
+  });
+
+  it.each(['paused', 'done', undefined])(
+    'says nothing of the kind of a project whose status is %s',
+    async (projectStatus) => {
+      const given = projectStatus === undefined ? {} : { projectStatus };
+      const idle = await page('Projects/Idle.md', 'project', {}, given);
+      expect(idle.titles('tasks')).toEqual(['Tidy the backlog']);
+      expect(idle.section('tasks').hint).toBeNull();
+    },
+  );
+
+  it('never says it of an area, which is not something to finish', async () => {
+    const files = {
+      ...FILES,
+      'Tasks/Review the rota.md': note({
+        type: 'task',
+        status: 'backlog',
+        project: '[[Operations]]',
+      }),
+    };
+    const area = await page(OPERATIONS, 'area', {}, { projectStatus: 'active', files });
+    expect(area.titles('tasks')).toEqual(['Review the rota']);
+    expect(area.section('tasks').hint).toBeNull();
   });
 
   it('lists an area’s projects', async () => {
@@ -355,7 +386,7 @@ describe('readLinkedPage: a meeting, and what came from it', () => {
     ['Decisions/Two-step approval.md', 'decision'],
   ])('shows the meeting on what came from it: %s', async (path, typeName) => {
     const made = await page(path, typeName);
-    expect(made.sections.map((section) => section.title)).toEqual(['From meeting']);
+    expect(made.sections.map((section) => section.title)).toEqual(['Meetings']);
     expect(made.titles('meetings')).toEqual(['Kickoff']);
     expect(made.section('meetings').range).toBeNull();
   });
@@ -365,12 +396,106 @@ describe('readLinkedPage: a meeting, and what came from it', () => {
   });
 });
 
+describe('readLinkedPage: linked outside the relation, undated, and labelled', () => {
+  it('lists under Linked notes a meeting that names the person only in its text', async () => {
+    const files = {
+      ...FILES,
+      'Meetings/Budget round.md': note(
+        { type: 'meeting', date: daysAgo(4) },
+        'Raised by [[Mara Quill]].',
+      ),
+    };
+    const mara = await page(MARA, 'person', { notes: 'all' }, { files });
+    // Meetings stays the relation; the mention is not dropped.
+    expect(mara.titles('meetings')).not.toContain('Budget round');
+    expect(mara.titles('notes')).toContain('Budget round');
+    const row = mara.section('notes').rows.find((one) => one.title === 'Budget round');
+    expect(row?.values['type']).toBe('Meeting');
+    // A meeting she was in is under Meetings alone.
+    expect(mara.titles('notes')).not.toContain('Kickoff');
+  });
+
+  it('lists under Linked notes a task that links the project outside its project property', async () => {
+    const files = {
+      ...FILES,
+      'Tasks/Ask about the cut-over.md': note(
+        { type: 'task', status: 'next-action' },
+        'For [[Payroll Migration]].',
+      ),
+    };
+    const project = await page(MIGRATION, 'project', { notes: 'all' }, { files });
+    expect(project.titles('tasks')).not.toContain('Ask about the cut-over');
+    // Beside the resource filed under it, and the company and area its own note links.
+    expect([...project.titles('notes')].sort()).toEqual([
+      'Ask about the cut-over',
+      'Larkspur Payroll',
+      'Operations',
+      'Payroll runbook',
+    ]);
+    expect(project.titles('notes')).not.toContain('Draft the plan');
+  });
+
+  it('shows a meeting and a decision with no date under the 30 days too, after the dated ones', async () => {
+    const files = {
+      ...FILES,
+      'Meetings/Undated chat.md': note({ type: 'meeting', people: ['[[Mara Quill]]'] }),
+      'Decisions/Keep the old run.md': note({ type: 'decision', people: ['[[Mara Quill]]'] }),
+    };
+    const mara = await page(MARA, 'person', {}, { files });
+    expect(mara.titles('meetings')).toEqual(['Kickoff', 'Thirty days ago', 'Undated chat']);
+    expect(mara.titles('decisions')).toEqual(['Two-step approval', 'Keep the old run']);
+  });
+
+  it('says a status in a row as its label, not as the file spells it', async () => {
+    const kickoff = await page(KICKOFF, 'meeting');
+    expect(kickoff.section('tasks').rows.map((row) => [row.title, row.values['status']])).toEqual([
+      ['Book a room', 'Inbox'],
+      ['Call the vendor', 'Backlog'],
+      ['Send the contract', 'Waiting'],
+    ]);
+    // Grouped rows keep the stored value: it is what they are grouped by.
+    const project = await page(MIGRATION, 'project');
+    expect(project.section('tasks').rows[0]?.values['status']).toBe('next-action');
+  });
+
+  it('counts a company’s people by either note’s link, and what is waited on from them', async () => {
+    const files = {
+      ...FILES,
+      [LARKSPUR]: note({ type: 'company', employees: ['[[Ines Okafor]]'] }),
+    };
+    const larkspur = await page(LARKSPUR, 'company', {}, { files });
+    expect(larkspur.titles('people')).toEqual(['Ines Okafor', 'Mara Quill', 'Tobias Fenn']);
+    expect(larkspur.titles('waiting')).toEqual([
+      'Send the contract',
+      'Chase the invoice',
+      'Waiting on Ines',
+    ]);
+  });
+});
+
 describe('readLinkedPage: what it does not do', () => {
   it('gives a page of another type no sections, and asks nothing', async () => {
     const runbook = await page('Resources/Payroll runbook.md', 'resource');
     expect(runbook.sections).toEqual([]);
     expect(runbook.asked).toEqual([]);
     expect((await page('Notes/Loose.md', 'person')).sections).toHaveLength(5);
+  });
+
+  it('lets a fault that is no unanswerable query through, for the page to say', async () => {
+    const { index } = pinnedIndex();
+    const read = readLinkedPage({
+      index,
+      clock: {
+        today: () => {
+          throw new Error('no clock');
+        },
+      },
+      types: TYPES,
+      notePaths: Object.keys(FILES),
+      notePath: MARA,
+      typeName: 'person',
+    });
+    await expect(read).rejects.toThrow('no clock');
   });
 
   it('says a section the index could not answer, and still answers the rest', async () => {
@@ -394,21 +519,19 @@ describe('readLinkedPage: what it does not do', () => {
     expect(sections.find((section) => section.id === 'meetings')?.problem).toBeNull();
   });
 
-  it('holds its hint back when the list was cut off, since a next action may be past the cut', async () => {
-    const run = atlasQueryIndex({ files: FILES, markdown: jsonMarkdown() });
-    const index = fakeIndexPort({
-      query: async (sql, parameters) => ({ ...(await run(sql, parameters)), truncated: true }),
-    });
-    const sections = await readLinkedPage({
-      index,
-      clock,
-      types: TYPES,
-      notePaths: Object.keys(FILES),
-      notePath: 'Projects/Idle.md',
-      typeName: 'project',
-    });
-    const tasks = sections.find((section) => section.id === 'tasks');
-    expect(tasks).toMatchObject({ truncated: true, hint: null });
-    expect(tasks?.rows).toHaveLength(1);
+  it('holds 200 rows of a section and says there are more, with the hint held back', async () => {
+    // The index runs the section's own LIMIT and says nothing of a cut, as the real one does.
+    const files: Record<string, string> = { ...FILES };
+    for (let at = 0; at < LINKED_SECTION_LIMIT; at += 1) {
+      files[`Tasks/Backlog ${String(at).padStart(3, '0')}.md`] = note({
+        type: 'task',
+        status: 'backlog',
+        project: '[[Idle]]',
+      });
+    }
+    const idle = await page('Projects/Idle.md', 'project', {}, { projectStatus: 'active', files });
+    // 201 backlog tasks are filed under it.
+    expect(idle.section('tasks').rows).toHaveLength(LINKED_SECTION_LIMIT);
+    expect(idle.section('tasks')).toMatchObject({ truncated: true, hint: null });
   });
 });
