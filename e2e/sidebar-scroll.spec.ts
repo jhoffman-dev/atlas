@@ -114,6 +114,39 @@ for (const size of [
   });
 }
 
+// WebKit's own scrollbar is drawn over the edge of what it scrolls, 17px wide,
+// for as long as it shows, and takes every click there. A row's "…" and its
+// star sit in those pixels: "Options for beta" was clicked on the scrollbar
+// instead whenever the sidebar had just scrolled (#52, navigation.spec.ts:94).
+test('a row’s Options button is clear of the sidebar’s scrollbar while it shows', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1180, height: 800 });
+  await openVault(page);
+  const row = treeRow(page, 'Note 30');
+  await wheelTo(page, row, 400);
+  await expect(row).toBeInViewport({ ratio: 1 });
+
+  const missed = await row
+    .getByRole('button', { name: 'Options for Note 30', exact: true })
+    .evaluate(async (button) => {
+      // A scroll is what shows the scrollbar; the next frame has drawn it.
+      const area = button.closest('.sidebar__scroll');
+      if (area === null) throw new Error('the row is not in the sidebar scroller');
+      area.scrollTop -= 1;
+      await new Promise((drawn) => requestAnimationFrame(drawn));
+      const box = button.getBoundingClientRect();
+      const across: number[] = [];
+      for (let x = Math.ceil(box.left); x < box.right; x += 1) {
+        const under = document.elementFromPoint(x, box.top + box.height / 2);
+        if (!button.contains(under)) across.push(Math.round(x - box.left));
+      }
+      return { width: box.width, across };
+    });
+  expect(missed.width, 'the button has a width to click').toBeGreaterThan(0);
+  expect(missed.across, 'pixels across the button where a click lands elsewhere').toEqual([]);
+});
+
 test('the keyboard brings a tree row into view through the shared scroller', async ({ page }) => {
   await page.setViewportSize({ width: 1180, height: 800 });
   await openVault(page);
