@@ -408,8 +408,8 @@ follow-up, title, owner, due?, source_block, confidence }`. The model says
   meeting is not read, and the log says so with the existing `- cut` line and
   summary. The log says how many times it asked (`- asked 3 times`,
   `claude.asks`). Every answer is read before anything is written: one that
-  does not read fails the run with nothing made, naming the ask. The run still
-  counts once toward the hourly cap; ten asks is its bound. Not done: no
+  does not read fails the run with nothing made, naming the ask. Superseded
+  below: the hourly cap counts asks. Not done: no
   overlap between parts, so a commitment made across a part's edge may be
   missed; and a hint whose turn is in another part can only be dropped there.
 - **What the model is told beside the meeting is data.** The schema gives
@@ -430,6 +430,85 @@ follow-up, title, owner, due?, source_block, confidence }`. The model says
   such relation, and nothing is written. A Decision also carries `meeting`, its own link forward.
 - **A meeting is one however its `type:` is written.** The step and linking
   read it with one reader (`isMeetingType`): a list, or another case.
+
+#### Review pass on meeting extraction (PR #102)
+
+_As built after review and an adversarial pass. Where it differs from the
+bullets above, this wins._
+
+- **Who owns an item is read, not guessed.** `You` (with a full stop, or a gloss
+  such as `(Mara Quill)`), the profile name in its spellings (`Last, First`,
+  case), its first name when no other attendee has it, and any address on the
+  owner's Person note (`a@b`, `Name <a@b>`) are the owner. `We`/`us` is the
+  owner's, at low confidence. `Everyone`, `The team`, `All`, `Not sure`, `TBD`
+  are nobody. `[[People/X|Y]]` reads as X. An address matches an attendee or a
+  Person. Two owners (`You and Tobias`) are not split into two items: it is the
+  owner's one task, low, naming the other in the reason (no owner among them: a
+  task with an empty `waiting_on`, saying who it could be). A first name two
+  attendees share, or a name several Person notes could be, is ambiguous: an
+  Inbox task with an empty `waiting_on`, low, and the card lists who it could be
+  (never "no Person note yet"). A group attendee or address is never a
+  waiting-for owner. A name in no attendee list and no Person note is low.
+- **Who spoke the turn caps the card.** A cited turn with no named speaker makes
+  the owner a guess (low) and a decision or follow-up low. A turn spoken by a
+  named person who is neither the task's owner nor the vault's owner makes it
+  medium at most: they may be asking you, or speaking of a third person. A turn
+  the owner spoke, or the vault's owner handing a task out, raises no doubt. The
+  rule is deliberately simple; "someone addressing the owner" is not detected.
+- **An item's own fault is the item's, not the answer's.** A kind, owner,
+  confidence, title or `source_block` that does not read, an owner over 120
+  characters, an item that is no object: the item is dropped and logged
+  (`- dropped`). A `due` that is no date, an impossible day, or more than five
+  years from the meeting's date (a year 2000–2100 when the meeting has none):
+  the item is kept with `due` removed and one step less confidence, and logged
+  (`- adjusted`, `claude.adjusted`). Unparseable JSON, an unknown key and more
+  than 25 items in one answer still refuse the whole answer.
+- **At most 25 proposals a run**, across parts, in transcript order (the answer's
+  items are put in the order of the turns they cite); the rest are left out and
+  the log says how many (a `dropped` entry).
+- **The hourly cap counts asks.** A run spends one for each time the model was
+  asked (`claude.asks`, now recorded from the first ask), and nothing when it
+  never asked (a prompt that could not be read, a provider not ready, a prompt
+  note over 20,000 characters, a system prompt over 450,000 bytes). A run may
+  take the rule past the cap by its own asks (at most ten); the next is held.
+- **One deadline for the run: ten minutes**, for all its asks (not five minutes
+  each), since a long meeting asks up to ten times.
+- **A meeting with no transcript turn is not asked about**; its note is in the
+  entry's `left` with why, and it is handled like any asked note. A meeting the
+  import did not let in is read, and its proposals are made without
+  `link_from`, saying so in the reason (the run does not fail).
+- **Chunking.** A part's head is fence-safe and bounded to half the room: if the
+  Summary, Notes and next steps exceed it the Notes are cut at a line, any open
+  code fence is closed, and a line says so; the Transcript heading is found by
+  the same section reader as the import's contract (`splitMeetingSections`), so
+  a `## Transcript` inside a fence is no heading. Each later part opens with the
+  last two turns of the part before, quoted (`>`) with their ids removed, so
+  they give context and cannot be cited. The data block (who was there, hints,
+  vocabulary) precedes the notes in the system prompt, so the parts of one
+  meeting share a prefix.
+- **A proposal is known by the meeting, not by the rule.** The id of a
+  `meeting-items` proposal is the meeting (provider and id), the turn, the kind,
+  the normalised title and the normalised owner (`self`, a person's name, `?`
+  for an ambiguous name, empty for nobody): two rules, or a rerun, make each
+  once, and two owners of one title on one turn are two proposals. Other
+  schemas keep the rule in the id.
+- **Accept makes its own record.** "A note is already there, so link it" now
+  applies only to a person. A task, follow-up or decision takes the next free
+  name (`Send the notes 2`) and links that note; it never links an existing
+  note in its place, and Accept never answers "accepted" having written nothing.
+  A task waiting on a Person note that has since been renamed or deleted is
+  **refused** (a `conflict`), not accepted with the name as text: a link to
+  nothing would read as waiting on nobody, and Edit fixes it in one step.
+- **Undo is all or nothing.** Every write of the accept is checked before any is
+  taken back; if the meeting changed since (a second accept wrote its `tasks`),
+  the undo is refused with nothing changed. Otherwise the meeting's link goes
+  first, then the task.
+- **The run warns, once**, when the Meeting type lacks the `tasks` or `decisions`
+  relation (`claude.warnings`, a `- warned` log line, Activity): the proposals
+  are made, and Accept refuses them until the type has the relations.
+- **Not done:** no overlap beyond the two quoted turns; "addressing the owner"
+  is not detected; a compound owner among others (`Tobias and Lena`) is not
+  split into two tasks.
 
 ## Consequences
 
