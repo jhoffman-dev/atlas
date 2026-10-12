@@ -943,12 +943,15 @@ body {
   flex: 1;
   min-height: 0;
   overflow-x: hidden;
-  overflow-y: auto;
+  /* Always, not auto: the scrollbar's 6px (below) is part of the layout, and
+     the rows must not change width as the sections first outgrow the window. */
+  overflow-y: scroll;
   overscroll-behavior: contain;
   /* Out into the sidebar's own padding, so a section's grip (left of its
-     heading) and a focus ring are not clipped at the scroller's edges. */
-  margin: 0 -6px 0 -12px;
-  padding: 0 6px 0 12px;
+     heading) and a focus ring are not clipped at the scroller's edges; and on
+     the right as far as the sidebar goes, which is where the scrollbar sits. */
+  margin: 0 -10px 0 -12px;
+  padding: 0 4px 0 12px;
   /* Positioned, so the tree can measure where it starts inside it; and a
      row brought into view by focus stops below the sticky heading. The tree
      reads this padding as the sticky heading's height (stickyOffsetOf in
@@ -958,6 +961,23 @@ body {
   /* The sticky headings' z-index stays inside the sidebar, so the work
      panel's shadow still falls over them as it does over the rest. */
   isolation: isolate;
+}
+
+/* A scrollbar of the sidebar's own, in the gutter beside the rows. WebKit's
+   is drawn over the last 17px of what it scrolls while it shows, and takes
+   the clicks there: a row's "…" and star could not be clicked just after
+   scrolling. Shown while the pointer is in the sidebar, as the system's is. */
+.sidebar__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar__scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.sidebar__scroll:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink-3) 45%, transparent);
 }
 
 .sidebar__sections {
