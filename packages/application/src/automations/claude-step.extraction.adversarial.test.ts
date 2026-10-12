@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   createVaultPath,
+  digestOf,
   logPathFor,
   MAX_PROPOSALS_PER_ANSWER,
   MEETING_EXTRACTION_PROMPT,
@@ -51,7 +52,7 @@ function fixtureMeeting(name: string, header: Record<string, unknown>): string {
 
 const SYNC = 'Meetings/Platform weekly sync.md';
 const CALL = 'Meetings/Vendor contract call.md';
-const GEMINI = fixtureMeeting('gemini-platform-sync.md', {
+const GEMINI_HEADER = {
   title: 'Platform weekly sync',
   date: '2026-09-29',
   start: '10:00',
@@ -62,7 +63,8 @@ const GEMINI = fixtureMeeting('gemini-platform-sync.md', {
     { name: 'Tobias Fenn', email: 'tobias.fenn@example.com' },
     { name: 'platform-team', email: 'platform-team@example.com', group: true },
   ],
-});
+};
+const GEMINI = fixtureMeeting('gemini-platform-sync.md', GEMINI_HEADER);
 const GRANOLA = fixtureMeeting('granola-vendor-call.md', {
   title: 'Vendor contract call',
   date: '2026-10-01',
@@ -105,6 +107,13 @@ const NOTES = {
   ),
 };
 
+const CLAUDE_ACTION = {
+  kind: 'claude',
+  prompt: MEETING_EXTRACTION_PROMPT,
+  tools: [],
+  output: { kind: 'proposals', schema: 'meeting-items' },
+} as const;
+
 const rule = (which: string): AutomationRule => ({
   id: 'Meeting extraction',
   path: createVaultPath('.atlas/automations/Meeting extraction.md'),
@@ -113,20 +122,21 @@ const rule = (which: string): AutomationRule => ({
   when: { kind: 'manual' },
   which,
   olderThanDays: null,
-  action: {
-    kind: 'claude',
-    prompt: MEETING_EXTRACTION_PROMPT,
-    tools: [],
-    output: { kind: 'proposals', schema: 'meeting-items' },
-  },
+  action: CLAUDE_ACTION,
 });
 const SYNC_ONLY = rule('FROM meeting WHERE provider = gemini');
 const BOTH = rule('FROM meeting');
+
+/** What extraction knows the Gemini meeting by, whatever its frontmatter: its identity and its words. */
+const SYNC_KEY = `meeting:gemini:gemini-7f3a9c21:body:${digestOf(splitFrontmatter(GEMINI).body)}`;
 
 const item = (fields: Record<string, unknown>) => ({ confidence: 'high', owner: '', ...fields });
 const says = (...items: unknown[]): ModelEvent[] => [
   { type: 'text', text: JSON.stringify({ items }) },
 ];
+
+/** What a rule with the general `proposals` output answers when it has nothing to propose. */
+const NOTHING_PROPOSED: ModelEvent[] = [{ type: 'text', text: JSON.stringify({ proposals: [] }) }];
 
 const FROM_SYNC = says(
   item({
@@ -393,6 +403,56 @@ describe('DESIGN: the same meeting reaching Claude more than once', () => {
 
     // Accept's own write of `tasks` is the only change: Atlas's, not what was said in the meeting.
     expect(asked()).toHaveLength(1);
+  });
+
+  it('the same words delivered again under other frontmatter are not asked about again; other words are', async () => {
+    const { run, vault, log, asked } = setUp([FROM_SYNC, says(), says()]);
+    await run(SYNC_ONLY);
+    // The ledger p29-03 keeps is the only memory: the meeting's key is in it, under its marker.
+    const ledger = log().slice(log().indexOf('<!-- atlas:handled-ledger v1 -->'));
+    expect(ledger).toContain(SYNC_KEY);
+
+    const redelivered = fixtureMeeting('gemini-platform-sync.md', {
+      ...GEMINI_HEADER,
+      summary_model: 'gemini-2.5',
+    });
+    expect(redelivered).not.toBe(vault.files.get(SYNC));
+    vault.files.set(SYNC, redelivered);
+    await run(SYNC_ONLY);
+
+    expect(asked()).toHaveLength(1);
+
+    vault.files.set(SYNC, `${redelivered}\n**Tobias Fenn** [~00:20:00] One more thing. ^t0005\n`);
+    await run(SYNC_ONLY);
+
+    expect(asked()).toHaveLength(2);
+  });
+
+  it('a meeting another rule has answered is still new to extraction, and each log holds its own', async () => {
+    const { run, vault, asked } = setUp([NOTHING_PROPOSED, FROM_SYNC, says(), says()]);
+    const general: AutomationRule = {
+      ...SYNC_ONLY,
+      id: 'Meeting notes',
+      name: 'Meeting notes',
+      path: createVaultPath('.atlas/automations/Meeting notes.md'),
+      action: { ...CLAUDE_ACTION, output: { kind: 'proposals', schema: 'proposals' } },
+    };
+
+    await run(general);
+    await run(SYNC_ONLY);
+
+    // Handled by the general rule is not handled by extraction: it is asked, and proposes.
+    expect(asked()).toHaveLength(2);
+    expect(waiting(vault.files)).toHaveLength(4);
+    // Only extraction knows the meeting by its words; the general rule by its bytes alone.
+    expect(vault.files.get(logPathFor(general.id))).toContain('- answered');
+    expect(vault.files.get(logPathFor(general.id))).not.toContain(SYNC_KEY);
+    expect(vault.files.get(logPathFor(SYNC_ONLY.id))).toContain(SYNC_KEY);
+
+    await run(general);
+    await run(SYNC_ONLY);
+
+    expect(asked()).toHaveLength(2);
   });
 
   it('accepting a waiting-for whose Person note has gone does not make a task waiting on a link to nothing', async () => {
