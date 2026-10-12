@@ -25,9 +25,10 @@ describe('variants typed into one box', () => {
     expect(variantsFromInput(' lark spur ,Larks  Burr,, ,')).toEqual(['lark spur', 'Larks Burr']);
   });
 
-  it('keep a repeat once, as first typed, whatever its case', () => {
-    expect(variantsFromInput('Lark Spur, lark spur, LARK  SPUR, larks')).toEqual([
+  it('keep a repeat once, but a spelling in another case is another (matching is case-sensitive)', () => {
+    expect(variantsFromInput('Lark Spur, lark spur, Lark  Spur, larks')).toEqual([
       'Lark Spur',
+      'lark spur',
       'larks',
     ]);
   });

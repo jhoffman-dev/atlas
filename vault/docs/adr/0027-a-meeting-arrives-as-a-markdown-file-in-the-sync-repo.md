@@ -346,3 +346,270 @@ the way in while the Mac is asleep or Atlas is closed.
 - **The route writes what n8n would commit**, at the same paths, and leaves
   the stamp to the import, as for a commit. "Already in the vault" is the
   import's holder rule, plus a read of the two paths, since the index lags.
+
+## As built (P28-06, 2026-10-11)
+
+Terminology correction is the first declared deterministic step (PLAN.md §11,
+principle 6). It runs as the import lets a meeting in, in the same write as
+the `imported` stamp, so a meeting is never synced half-settled.
+
+- **Decision (James, 2026-10-11): only a Term's "misheard as" spellings
+  rewrite text.** A Person's or a Company's `aliases` link attendees to them
+  and are never used to correct; the vocabulary holds a person's or company's
+  _name_ only, as a right spelling that protects itself. Matching is
+  **case-sensitive, as the variant is written** (`mark` is not `Mark`; list
+  both when both turn up): a Term holds a plain list of strings, so an
+  "any case" flag was not cheap and is not offered. A common word that differs
+  in case from a variant is therefore never touched, and shouted text is no
+  longer shouted back.
+- **What is corrected.** Domain `correctTerms(text, vocabulary)` over the
+  Summary, Notes, Provider next steps and Transcript only. The text is read as
+  words, runs of spaces and single other characters, and every 1..n-gram that
+  starts at a word some variant starts with is looked up in a map keyed by the
+  variant, so a text is read in time linear in its length however many terms
+  there are (a 400-turn transcript by a 1000-term vocabulary: tens of
+  milliseconds; the first build compiled one pattern of every spelling and
+  took 18-23 s). The table is cached per vocabulary. The earliest match wins,
+  then the longer; a right spelling matches too and is left as written. Two
+  variants that run into each other (`Lark Spur` and `Spur Pay` in `Lark Spur
+Pay`) correct only the first, and the second is not read: list the longer
+  spelling as well to get both words right.
+- **What a match may not touch.** A match needs a non-word neighbour on both
+  sides, so `C#` is not found in `C#sharp`; a word joined to its neighbour by
+  `-`, `.`, `/`, `@` or `\` (emails, domains, paths, `quill-based`) is left
+  alone. A name of more than one word (a person's or company's, or a term's
+  right spelling) is also found through a soft line break, `**emphasis**`,
+  `*` or `~~`, so the variant `Quill` is not put inside `**Mara** Quill` or
+  `Mara⏎Quill`. A variant with no letter or digit in it is refused when the
+  vocabulary is built and shown as a warning on the Terms page, as is one that
+  is a word of another note's right spelling (a lone `Quill` is corrected
+  although `Mara Quill` is not). Wiki and markdown links (a target may hold
+  balanced parentheses), URLs, tags, code spans and fences, comments and `^ids`
+  are masked out before matching.
+- **The record.** `atlas_corrections: [{ from, to, count, blocks, at }]`,
+  `atlas_corrections_digest` and `atlas_corrections_original_digest`, written
+  after `atlas_import:` like the stamp. `at` holds each change's offset in the
+  corrected body, so undo is exact without keeping the original text. The
+  digests are `correctionDigestOf`: the domain's FNV-1a (`digestOf`), a 53-bit
+  mix of the same text and the length, about 90 bits in all, with no new
+  dependency (a defence against hand edits, not against a crafted collision).
+- **Undo** (`undoMeetingTermCorrections`) restores the original body byte for
+  byte, refused when the body's digest is not the one recorded (frontmatter
+  edits do not count), when any recorded spot does not read `to`, or when the
+  body it rebuilds does not match the digest of the original (so a `from` or
+  `at` edited by hand cannot write words the meeting never had; a record from
+  the first build, which had no original digest, is refused too). It leaves
+  `atlas_corrections: undone`; a meeting holding the key in any form is never
+  corrected again, by the import or by `correctMeetingTerms({ path })`, the
+  use-case the "after a meeting" pipeline (P29-06) calls as its step. The
+  band over the meeting turns Undo off and offers Dismiss when the refusal
+  cannot pass (the body no longer matches); unsaved typing or a note changed a
+  moment ago leave it on.
+- **Nothing to correct.** The import writes `atlas_corrections: none` in the
+  same stamp write when the vocabulary holds a misheard spelling and the
+  meeting held none, so the pipeline step never reads it again. It is not
+  written while the vocabulary has no misheard spelling at all, so terms added
+  later still apply. The pipeline step itself does not write that mark (an
+  extra write per meeting for nothing): a meeting that did not pass through
+  the import is read again each run, which is a linear scan.
+- **Speaker labels** are corrected like the words: the label is what links a
+  turn to a person, and a misheard speaker is the same mishearing. One
+  exception came later: a label that is exactly what a person goes by is not
+  turned into a spelling that is not theirs (see "As built, after the
+  adversarial pass on the stack").
+
+## As built (P29-04, 2026-10-11)
+
+A meeting the import lets in is linked to its people, companies and likely
+project: `matchAttendees` and `planMeetingLinks` in
+`packages/domain/src/meeting-links`, run by the use-case `linkMeeting` in
+`packages/application/src/meeting-links`, which the "after a meeting"
+pipeline (#19) is to run as a deterministic step.
+
+- **Sure links are written; the rest is proposed.** An attendee is matched
+  by `email` or `other_emails` first, then by name or alias (spelt as the
+  vocabulary compares spellings, P28-05). Exactly one person is a link; two or
+  more are a `link` proposal for each, never a guess; none is a `person`
+  proposal with their name, address and the company their domain surely
+  names. One person of that name whose address is not among those on file is
+  a `link` proposal too, not a sure link: it may be someone else of the same
+  name. A group address is never a person and never proposed; nor is the
+  vault's owner, by their profile's name (as written, `Last, First`, any case
+  or spacing) or by the addresses of their own Person note (the one whose name
+  is the profile's). The profile holds no address, and the meeting contract
+  marks no attendee as the organiser or the owner, so with no profile name
+  set nobody is known to be the owner.
+- **A company is sure only from a domain it declares.** From an attendee's
+  domain: a company's `domains`, or its `site` when that is a root (a page
+  below the root says where the company is, not whose domain it is); the most
+  specific declared domain wins, so a subsidiary is not its parent, and two
+  companies at the same depth claim nothing. Public mail providers (by their
+  label, in any country: `gmail.co.uk`, `outlook.de`) and shared hosts
+  (LinkedIn, YouTube, `*.zendesk.com`, `*.github.io`…) claim no one. A domain
+  named like a company ("Fenn" for `fenn.example`) only _guesses_ it, and
+  only for a company that declares no domain: that is a `link` proposal on
+  `companies`, never a write. Companies also come from a linked person's
+  `company`.
+- **Speakers are linked too**, when a named speaker is exactly one person.
+  It was cheap: the transcript is already parsed by the validator. The labels
+  are read as heard first, then as the vocabulary corrects them (see "As built, the three
+  together" below). An
+  unmatched speaker is not proposed: a speaker has no address to tell two
+  people apart, and the attendees are what proposals come from.
+- **The project is only ever proposed**, for a meeting that has none: the
+  open project (outside the Archive, not done, cancelled or dropped) tied to
+  the most of its people and companies — by either note linking the other, or
+  by another note naming both in `project` and `people`/`companies`.
+- **It only adds, and records what it changed.** It writes `people` and
+  `companies` of the meeting and nothing else, with each key's value before
+  and after as an automation's log does (`DoneAction`), so `undoMeetingLink`
+  puts back what is unchanged since and takes away its still-open proposals.
+  Nothing in the app offers that undo yet — the run lives only as long as the
+  import that made it, and a button needs it kept per meeting: it is said in
+  Activity, and #19's pipeline is to log it in its rule's log, where "Undo
+  last run" will call it. A relation holding something other than links is
+  left as it is, and said.
+- **It runs once per meeting, before the stamp.** The importer calls it
+  (`beforeLetIn`) just before it stamps a file `imported` (an arrival, or a
+  fixed error), never on later changes, so a person taken out of `people`
+  stays out. Linking first means the links are in the version that arrives:
+  a note-triggered rule (#92) hears a meeting at the stamp, so a `created`
+  rule sees it linked, and no write follows the stamp to be heard as a user
+  edit of a meeting that is in. A meeting whose linking failed is stamped all
+  the same and not retried until #19's pipeline runs the step; Activity says
+  it could not be linked.
+- **Proposals are known by what they are for.** Each carries a `proposal_id`,
+  looked up across the vault and the Archive, so running again proposes
+  nothing twice and a rejection stays an answer. A person is known by their
+  address alone, so rejecting "add X" once covers every later meeting (and
+  accepting it links X to the meeting it came from only: a pending proposal
+  is not made again for the next meeting). The others are known by the
+  meeting's provider and id, which filing does not change, not by its path.
+- **A proposal is input, and the meeting it names is found by what it is.**
+  A proposal's payload names its meeting by path and records its provider and
+  id (`meeting`). Filing moves the file and a newer meeting can take the
+  old path, so accepting finds the note that holds that meeting — the
+  index names where to look, the proposal's path and `source` are hints, and
+  each candidate is read — and writes only there, never to the Archive, nor
+  to a note a hand-edited `source` merely names. It refuses, in words, a
+  meeting that is now only in the Archive, one that is several notes, and a
+  path that holds another meeting; a meeting gone altogether still lets a
+  person be made, and says a link is not there. The card names the meeting
+  by its title, which filing does not change.
+- **Proposals grew two things** (ADR-0028's proposals): a note proposal's
+  `link_from: { note, property }`, so accepting a person makes them and adds
+  them to the meeting; and a link proposal with no `digest`, judged on the
+  relation alone — added to a list, or filling an empty single link, never
+  replacing one — since the steps after linking change the meeting. A link
+  proposal may name a meeting in `Inbox/Meetings/`: changing a note there
+  makes no new file for the import to judge; only making a note there is
+  refused.
+- **Accepting a person is all or nothing, and never stuck.** If adding them
+  to the meeting fails after the note was made, the note is taken back. A
+  person already made, by another meeting's proposal for them, is linked
+  rather than refused — but only if the note at their path is a person. A
+  link that the meeting already holds in another spelling
+  (`[[People/Sam Okoro|Sam]]` for `[[Sam Okoro]]`) is not added twice, for a
+  link proposal as for a person. An attendee listed with and without an
+  address is one person; an address written `Name <address>` on a person is
+  read as the address.
+- **Person and Company gained `other_emails` and `domains`** in this
+  repository's vault. Matching reads them whether or not a vault's types
+  declare them.
+
+## As built, the three together (#92, P28-06, P29-04, 2026-10-11)
+
+The race fix, the correction and the linking were built on separate branches
+and meet in `letIn` (`packages/application/src/meetings/meeting-files.ts`).
+For one meeting the import does this, in this order, and nothing else:
+
+1. **Link** (`beforeLetIn`): one write of `people` and `companies` when
+   something is sure, and the proposals, each a new note in the Inbox.
+2. **Correct and stamp**: one write that puts the misheard spellings right,
+   records them (`atlas_corrections…`) and stamps `atlas_import_outcome:
+imported`.
+
+- **No write follows the stamp.** Where meeting files land a note is not in
+  play until it carries `imported` (#92, `eventWhereMeetingsLand`), so the
+  link write sets no rule off, the stamp write is the meeting's one `created`,
+  and neither is ever a `changed`. A rule set off by a meeting being created
+  therefore sees it corrected and linked, once. A sync between the two writes
+  reports an unstamped file, which is nothing to a rule.
+- **Linking reads the speakers as corrected.** The link write comes before
+  the corrections are on disk, so `linkMeeting` reads the transcript through
+  `meetingTextAsCorrected`: the text as the vocabulary would correct it, in
+  memory, nothing written. A turn labelled `Tobias Fen` that a Term puts right
+  links Tobias Fenn. A meeting already corrected, found clean or undone is
+  read as it is, so linking gives the same people whichever of the two steps
+  runs first, which the "after a meeting" pipeline (#19) may rely on.
+  Attendees are frontmatter, which the correction never touches.
+- **Aliases link, Terms correct.** P28-06 took a person's and a company's
+  `aliases` out of the vocabulary. Linking never read them from there: its
+  directory (`compileLinkDirectoryQuery`) reads `aliases` from the Person and
+  Company notes, so an attendee named by an alias is still linked, and the
+  alias still rewrites nothing.
+- **Undo corrections is not stopped by the links.** Its digests are of the
+  body alone; linking, a proposal accepted later, or a rule setting a property
+  change only the frontmatter.
+- **Why two writes and not one.** Linking records each relation's value
+  before and after so it can be undone, through the same writer automations
+  use; folding it into the stamp write would have meant a second way to set
+  a relation. Two writes before the stamp cost nothing a rule or the person
+  can see. If the stamp write is refused (unsaved typing, a change since),
+  the meeting stays unstamped with its links, and the next look links
+  nothing twice and stamps it.
+- **Tests.** `meeting-arrival-sequence.test.ts` (application, over the fake
+  vault, the feed measured after every write) and `e2e/meeting-arrival.spec.ts`.
+
+## As built, after the adversarial pass on the stack (2026-10-11)
+
+An adversarial pass over the four stacked changes found five things in the
+import and in accepting a proposal. Each has a test that failed first
+(`meeting-arrival.stack.adversarial.test.ts`,
+`accept-redelivered-meeting.adversarial.test.ts`,
+`meeting-corrections.speakers.test.ts`).
+
+- **Accept writes only to the meeting the import let in.** A proposal's
+  meeting is found by its provider and id, and more than one note can hold
+  those: the meeting, filed, and the same meeting delivered again at the path
+  it first landed at — which is the path the proposal still names. Only a
+  holder stamped `imported` is the meeting; an unstamped one is an arrival
+  not finished, and may be about to be archived as a copy. So accepting
+  chooses among the holders stamped `imported` (the proposal's path and
+  `source` only break a tie between them), and when the only note holding the
+  meeting is unstamped it refuses in words: the meeting "has not been let in
+  by the import yet". A holder stamped `duplicate` or `error` holds nothing,
+  as before.
+- **Catching up compares the files it listed with each other.** Holders were
+  named by the index alone, which is behind the folder after a pull: with two
+  files of one meeting waiting and neither read yet, each was let in as the
+  only one. A run now also reads which meeting each file it was handed names
+  (once a run, from the frontmatter) and counts those as places to look —
+  each still read and judged by `holdingAt`, as the index's are. The ordering
+  rule is unchanged, so `<date> <title>` is let in and its `(<provider>
+<hash>)` twin is archived as its copy.
+- **Decision: in a speaker label, what a person goes by wins over a Term.**
+  A turn's label that is exactly a person's name or alias names that person.
+  Linking tries each label as heard first, and only one that is nobody's as
+  the vocabulary corrects it. The correction leaves such a label as heard
+  where a Term would turn it into a spelling that is not that person's —
+  `Toby`, Tobias Fenn's alias, is not made the product `Tobi` in a label,
+  though it still is in the words — and still puts it right into one that is
+  theirs (`Mara Quil` into `Mara Quill`). This is the one place an alias
+  bears on correction, and it only ever stops a rewrite: aliases still
+  rewrite nothing (P28-06's decision stands). The vocabulary carries who goes
+  by what (`speakers`) for this; it is read by the same index query.
+  Companies are not speakers and are not counted.
+- **Activity is truthful when the proposals cannot be written.** The links
+  are written first. If the Inbox then cannot be listed or written, the line
+  says who was linked and "its proposals could not be written: …" (a
+  warning), not "Could not link the meeting"; the run is kept with what it
+  set (`unproposed` holds the reason), so an undo still has its record.
+- **A half-written arrival, a changed vault, one vocabulary.** If the link
+  write lands and the stamp write fails, the meeting stays unstamped with its
+  links, and the next look stamps it and links or proposes nothing twice
+  (now tested). If another vault is opened while a meeting is being linked,
+  the meeting is not stamped: `beforeLetIn` reports `vault-changed`, Activity
+  says so, and it is let in when its vault is next open. The run's vocabulary
+  is read before `beforeLetIn` and handed to it, so the speakers are read by
+  the very spellings the stamp write corrects by, and the index is asked once.

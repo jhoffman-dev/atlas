@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -22,6 +23,9 @@ const TASK_TYPE = [
 
 const task = (status: string) =>
   ['---', 'type: task', `status: ${status}`, '---', '', ''].join('\n');
+
+const shipped = (path: string) =>
+  readFileSync(new URL(`../vault/${path}`, import.meta.url), 'utf8');
 
 const RULE = '.atlas/automations/Archive done tasks after 30 days.md';
 const LOG = '.atlas/automations/log/Archive done tasks after 30 days.md';
@@ -153,12 +157,25 @@ test('a rule that runs when Atlas opens runs once, on opening, and logs it', asy
   );
 });
 
-test('a rule a note sets off archives a new standup when it appears, and only that one (P29-01)', async ({
+test('a rule a note sets off archives a new standup once the meeting import lets it in, and only that one (P29-01, #92)', async ({
   page,
 }) => {
-  const meetingType = ['---', 'name: meeting', 'properties:', '  kind: text', '---', ''].join('\n');
-  const meeting = (kind: string) =>
-    ['---', 'type: meeting', `kind: ${kind}`, '---', '', ''].join('\n');
+  const VALID = readFileSync(
+    new URL(
+      '../packages/domain/src/meetings/fixtures/valid/gemini-platform-sync.md',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  /** A meeting that follows the contract (ADR-0027), its own by its id. */
+  const meeting = (kind: string, id: string) =>
+    VALID.replace(/^kind: .*$/m, `kind: ${kind}`).replace(
+      /^external_id: .*$/m,
+      `external_id: 'gemini-${id}'`,
+    );
+  /** As the import leaves a meeting it let in. */
+  const imported = (text: string) =>
+    text.replace(/^(atlas_import: .*\n)/m, '$1atlas_import_outcome: imported\n');
   const fileStandups = [
     '---',
     'atlas: automation',
@@ -166,38 +183,46 @@ test('a rule a note sets off archives a new standup when it appears, and only th
     'id: File standups',
     'enabled: true',
     'when: a meeting is created',
-    'which: FROM meeting WHERE kind = standup',
+    'which: FROM meeting WHERE kind = Standup',
     'do: archive',
     '---',
     '',
   ].join('\n');
-  // Kept out of Inbox/Meetings, where the meeting import (P28-04) writes into every file
-  // that lands: how its stamp and a rule a meeting sets off meet is #92.
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.mkdir('.atlas/automations');
-  await vault.mkdir('Meetings');
-  await vault.write('.atlas/types/meeting.md', meetingType);
+  await vault.mkdir('Inbox/Meetings');
+  await vault.write('.atlas/types/meeting.md', shipped('.atlas/types/meeting.md'));
   await vault.write('.atlas/automations/File standups.md', fileStandups);
-  await vault.write('Meetings/Last week standup.md', meeting('standup'));
+  // Let in by the import before: it arrived then, not now.
+  const LAST_WEEK = 'Inbox/Meetings/Last week standup.md';
+  await vault.write(LAST_WEEK, imported(meeting('Standup', 'aaaa0001')));
   await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
 
-  // Two meetings arrive, as a pull or another app would bring them: the standup is filed.
-  await vault.write('Meetings/Standup.md', meeting('standup'));
-  await vault.write('Meetings/Kickoff.md', meeting('kickoff'));
-  await emitVaultChanged(page, ['Meetings/Standup.md', 'Meetings/Kickoff.md']);
+  // Three meetings land where the import looks, as a pull brings them: the import stamps
+  // each, and the rule hears a standup only once the import has let it in.
+  const [STANDUP, KICKOFF, BROKEN] = ['Standup', 'Kickoff', 'Broken standup'].map(
+    (name) => `Inbox/Meetings/${name}.md`,
+  ) as [string, string, string];
+  await vault.write(STANDUP, meeting('Standup', 'bbbb0002'));
+  await vault.write(KICKOFF, meeting('Kickoff', 'cccc0003'));
+  await vault.write(BROKEN, meeting('Standup', 'dddd0004').replace(/^date: .*\n/m, ''));
+  await emitVaultChanged(page, [STANDUP, KICKOFF, BROKEN]);
 
-  await expect.poll(() => vault.exists('Archive/Meetings/Standup.md')).toBe(true);
-  expect(await vault.exists('Meetings/Standup.md')).toBe(false);
-  expect(await vault.exists('Meetings/Kickoff.md')).toBe(true);
-  // One already there when the vault opened did not appear: it is left where it is.
-  expect(await vault.exists('Meetings/Last week standup.md')).toBe(true);
+  const archived = 'Archive/Inbox/Meetings/Standup.md';
+  await expect.poll(() => vault.exists(archived)).toBe(true);
+  await expectFile(vault, archived).toContain('atlas_import_outcome: imported');
+  expect(await vault.exists(STANDUP)).toBe(false);
+  await expectFile(vault, KICKOFF).toContain('atlas_import_outcome: imported');
+  // Refused by the import, it never arrived, so it stays where it landed, saying why.
+  await expectFile(vault, BROKEN).toContain('atlas_import_outcome: error');
+  expect(await vault.exists(LAST_WEEK)).toBe(true);
   const log = '.atlas/automations/log/File standups.md';
   await expectFile(vault, log).toContain('· Ran when a note appeared or changed');
-  await expectFile(vault, log).toContain('- triggered by `"Meetings/Standup.md"` at');
+  await expectFile(vault, log).toContain('- triggered by `"Inbox/Meetings/Standup.md"` at');
 
   // Listed with its trigger, and run once: the archive it made sets nothing off again.
   await page.getByRole('button', { name: 'Automations', exact: true }).click();
@@ -205,4 +230,6 @@ test('a rule a note sets off archives a new standup when it appears, and only th
   await expect(list.getByText('Archive · When a meeting is created')).toBeVisible();
   await expect(list.getByText(/Archived 1 note\./)).toBeVisible();
   expect((await vault.read(log)).match(/· Ran when a note appeared or changed/g)).toHaveLength(1);
+  expect(await vault.exists(KICKOFF)).toBe(true);
+  expect(await vault.exists(BROKEN)).toBe(true);
 });

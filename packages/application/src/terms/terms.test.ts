@@ -69,7 +69,6 @@ describe('loadTerms', () => {
       'Fenn Ledger → Fenn Ledger',
       'Mara Quill → Mara Quill',
       'lark spur → Larkspur',
-      'Mara Quil → Mara Quill',
       'Larkspur → Larkspur',
     ]);
     expect(vocabulary.conflicts).toEqual([]);
@@ -80,7 +79,7 @@ describe('loadTerms', () => {
       'Terms/Larkspur.md': { title: 'Larkspur', props: { type: 'term', variants: 'lark spur' } },
       'Terms/Larkspur Payroll.md': {
         title: 'Larkspur Payroll',
-        props: { type: 'term', variants: ['Lark Spur'] },
+        props: { type: 'term', variants: ['lark spur'] },
       },
     });
     const { vocabulary } = await loadTerms({ index });
@@ -309,7 +308,7 @@ describe('setTermVariants', () => {
       fs: vault.fs,
       markdown: vault.markdown,
       path: path('Terms/Larkspur.md'),
-      variants: 'lark spur,  Lark Spur, Larks Burr',
+      variants: 'lark spur,  lark  spur, Larks Burr',
       today: '2026-10-08',
     });
     expect(vault.changes).toEqual([{ variants: ['lark spur', 'Larks Burr'] }]);

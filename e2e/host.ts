@@ -871,6 +871,14 @@ export async function installHost(
         ) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
+        // Linking a meeting (P29-04): its people, companies and likely projects, and the
+        // proposals already made — over files, props and relations, run for real.
+        if (
+          statement.startsWith('/* meeting links:') ||
+          statement.startsWith('/* proposals: ids */')
+        ) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
         // A task's schedule (P31-01): the tasks and the blocks linking them, run for real.
         if (statement.startsWith('/* task schedule */')) {
           return runAtlasQuery(statement, bound, indexed.values());

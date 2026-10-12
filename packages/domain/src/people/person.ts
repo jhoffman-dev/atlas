@@ -1,8 +1,12 @@
 import { linkBreakingCharacter } from '../markdown/wikilink.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
 
 /** The `type:` a person's note declares. */
 export const PERSON_TYPE = 'person';
+
+/** Where new people are filed — from `@`, or a person proposal — made when the vault has no such folder. */
+export const PEOPLE_FOLDER = createVaultPath('People');
 
 /**
  * Whether a note of this type is a person, whose page lists where they are

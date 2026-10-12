@@ -8,3 +8,14 @@ export { createMeetingImporter, importMeetingsOnArrival } from './meeting-import
 export type { MeetingImporter } from './meeting-importer.ts';
 export { MeetingPathsTakenError, receiveMeeting } from './receive-meeting.ts';
 export type { MeetingReceipt } from './receive-meeting.ts';
+export {
+  correctedMeeting,
+  correctMeetingTerms,
+  CorrectionRefusedError,
+  undoMeetingTermCorrections,
+} from './meeting-corrections.ts';
+export type {
+  CorrectedMeeting,
+  MeetingCorrectionPorts,
+  MeetingTermsCorrection,
+} from './meeting-corrections.ts';

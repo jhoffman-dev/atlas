@@ -26,3 +26,16 @@ export function tidySpelling(form: string): string {
 export function vocabularyKey(form: string): string {
   return tidySpelling(form).toLowerCase();
 }
+
+/** A letter, a digit, a combining mark or `_`: what a word is made of. */
+export const WORD_CHARACTER = /[\p{L}\p{N}\p{M}_]/u;
+
+/**
+ * Whether a misheard spelling can be looked for in prose: it has a letter or
+ * a digit in it, since `~` or `--` would be found in every timestamp and
+ * rule, and it holds no NUL, which correction writes over the text it must
+ * not touch.
+ */
+export function isSearchable(form: string): boolean {
+  return WORD_CHARACTER.test(form) && !form.includes('\u0000');
+}

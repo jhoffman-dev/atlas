@@ -2,6 +2,7 @@ export { COMPANY_TYPE } from './company.ts';
 export {
   isPersonType,
   newPersonRefusal,
+  PEOPLE_FOLDER,
   PERSON_TYPE,
   personInitial,
   unlinkableNameReason,

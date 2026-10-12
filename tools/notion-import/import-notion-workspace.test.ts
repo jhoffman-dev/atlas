@@ -502,8 +502,18 @@ describe('an export it cannot trust', () => {
     expect(await files()).toEqual(before);
   });
 
-  it('refuses a row it cannot pair with a page, and a page the export holds twice', async () => {
+  it('refuses a row it cannot pair with a page', async () => {
     await rm(join(exportDir, `${TASKS}/Fix the sync bug a1000000000000000000000000000006.md`));
+    const outcome = await run();
+    const refusals = byKind(outcome.pages, 'refused').map((page) =>
+      page.kind === 'refused' ? `${page.database} ${page.title}: ${page.reason}` : '',
+    );
+    expect(refusals).toContain(
+      'Tasks Tracker Fix the sync bug: no page in the export has its title',
+    );
+  });
+
+  it('refuses an export holding two databases of one kind, naming both, and writes nothing', async () => {
     await cp(
       join(exportDir, TASKS),
       join(exportDir, 'Copy', 'Tasks a1000000000000000000000000000000'),
@@ -515,16 +525,13 @@ describe('an export it cannot trust', () => {
       join(exportDir, `${TASKS}_all.csv`),
       join(exportDir, 'Copy', 'Tasks a1000000000000000000000000000000_all.csv'),
     );
-    const outcome = await run();
-    const refusals = byKind(outcome.pages, 'refused').map((page) =>
-      page.kind === 'refused' ? `${page.database} ${page.title}: ${page.reason}` : '',
+    const before = await files();
+    const failure = run();
+    await expect(failure).rejects.toBeInstanceOf(ImportSetupError);
+    await expect(failure).rejects.toThrow(
+      `export: Copy/Tasks a1000000000000000000000000000000_all.csv and ${TASKS}_all.csv are both tasks databases: export only the private databases, or point --export at a folder holding just them`,
     );
-    expect(refusals).toContain(
-      'Tasks Tracker Fix the sync bug: no page in the export has its title',
-    );
-    expect(refusals).toContain(
-      'Tasks Tracker Ship the payroll export: the export holds its page twice: Copy/Tasks a1000000000000000000000000000000/Ship the payroll export a1000000000000000000000000000004.md too',
-    );
+    expect(await files()).toEqual(before);
   });
 
   it('refuses an export folder that is not there', async () => {

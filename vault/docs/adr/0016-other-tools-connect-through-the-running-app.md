@@ -448,7 +448,8 @@ views above:
 
 Terms now have a page of their own (P28-05): a term is a note of type `term`
 — its title the right spelling, `variants` the ways a notetaker mishears it —
-and a Person's or a Company's `aliases` are other spellings of their name.
+and a Person's or a Company's `aliases` are other spellings of their name
+(only for linking people; the vocabulary leaves them out, ADR-0027).
 The API follows on the same terms as every route above:
 
 - **Read.** `GET /v1/terms` answers every term, the vocabulary (every

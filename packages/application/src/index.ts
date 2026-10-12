@@ -34,6 +34,7 @@ export * from './terms/index.ts';
 export * from './bookmarks/index.ts';
 export * from './chat/index.ts';
 export * from './proposals/index.ts';
+export * from './meeting-links/index.ts';
 export * from './transclusion/index.ts';
 export * from './activity/index.ts';
 export * from './sync/index.ts';

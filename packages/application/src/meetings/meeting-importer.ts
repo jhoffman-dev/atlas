@@ -1,4 +1,9 @@
-import { meetingImportStoppedReport, messageWithoutPaths } from '@atlas/domain';
+import {
+  meetingImportStoppedReport,
+  messageWithoutPaths,
+  type VaultPath,
+  type Vocabulary,
+} from '@atlas/domain';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChangeNews, NoteChanges } from '../index/note-changes.ts';
 import type { Clock } from '../ports.ts';
@@ -40,6 +45,7 @@ export function createMeetingImporter({
   openVault,
   active,
   onWritten,
+  beforeLetIn,
 }: {
   /** The ports as they are now, asked for at the start of each run. */
   ports: () => MeetingImportPorts;
@@ -51,6 +57,17 @@ export function createMeetingImporter({
   active: () => boolean;
   /** Told when the import wrote or moved a note, so the tree and the index read it again. */
   onWritten: () => void;
+  /**
+   * Done to each meeting about to be let in, before it is stamped (see
+   * `MeetingImportRun.beforeLetIn`); settles when done, and never rejects.
+   * If the vault is no longer the one open once it settles, the meeting is
+   * not stamped.
+   */
+  beforeLetIn?: (
+    vault: string,
+    path: VaultPath,
+    reading: { readonly vocabulary: Vocabulary },
+  ) => Promise<void>;
 }): MeetingImporter {
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -66,6 +83,13 @@ export function createMeetingImporter({
           ports: ports(),
           today: clock.today(),
           activity: recorder,
+          ...(beforeLetIn !== undefined && {
+            beforeLetIn: async (path, reading) => {
+              await beforeLetIn(vault, path, reading);
+              // The hook does nothing once another vault is open; nor may the stamp that follows it.
+              return openVault() === vault ? undefined : 'vault-changed';
+            },
+          }),
         });
         if (outcome.wrote) onWritten();
         return outcome;

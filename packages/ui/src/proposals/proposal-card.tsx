@@ -154,7 +154,7 @@ function Payload({ proposal }: { proposal: ProposalNote }) {
       </p>
     );
   }
-  const { properties, body } = proposal.payload;
+  const { properties, body, linkFrom } = proposal.payload;
   const entries = Object.entries(properties);
   return (
     <>
@@ -169,6 +169,11 @@ function Payload({ proposal }: { proposal: ProposalNote }) {
         </dl>
       )}
       {body !== '' && <p className="proposal-card__body">{body}</p>}
+      {linkFrom !== null && (
+        <p className="proposal-card__change">
+          And adds it to <b>{linkFrom.property}</b> of {noteTitle(linkFrom.note)}.
+        </p>
+      )}
     </>
   );
 }

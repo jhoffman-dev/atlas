@@ -9,7 +9,7 @@ import {
 import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChanges } from './note-changes.ts';
 import type { IndexPort, IndexStats } from './ports.ts';
-import { refreshIndex, type RefreshOptions } from './refresh-index.ts';
+import { heldEntries, refreshIndex, type RefreshOptions } from './refresh-index.ts';
 
 /**
  * What a sync is measured from: every note as it was, or null when nothing is
@@ -90,9 +90,17 @@ async function versionsHeld(
   fromScratch: boolean,
 ): Promise<Map<string, NoteVersion>> {
   try {
-    const entries = await index.manifest();
+    const entries = await heldEntries(index);
     return new Map(
-      entries.map((entry) => [entry.path, { type: entry.type, digest: entry.digest }]),
+      [...entries.values()].map(({ path, type, digest, importOutcome, arrivalHeard }) => [
+        path,
+        {
+          type,
+          digest,
+          ...(importOutcome !== undefined && { importOutcome }),
+          ...(arrivalHeard !== undefined && { arrivalHeard }),
+        },
+      ]),
     );
   } catch (cause) {
     // A rebuild is the remedy for an index that cannot answer, so it must not

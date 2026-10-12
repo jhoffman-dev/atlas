@@ -92,7 +92,8 @@ describe('useTermsPage', () => {
     expect(result.current.page.contents).toEqual({
       terms: [{ path: LARKSPUR, canonical: 'Larkspur', variants: ['lark spur'], kind: null }],
       conflicts: [],
-      spellings: 2,
+      warnings: [],
+      spellings: 1,
     });
   });
 

@@ -153,6 +153,8 @@ export { TermsPage } from './terms-page.tsx';
 export type { NewTerm, TermsContents, TermsPageProps } from './terms-page.tsx';
 export type { TemplateLessType, TemplateListing, TemplatesPageProps } from './templates-page.tsx';
 export { TemplateBanner } from './template-banner.tsx';
+export { MeetingCorrectionsBand } from './meeting-corrections-band.tsx';
+export type { CorrectedSpelling, CorrectionsNotice } from './meeting-corrections-band.tsx';
 export { PromotionBanner } from './promotion-notice.tsx';
 export type { LinePromotion, PromotionNotice } from './promotion-notice.tsx';
 export type { PromotedLine, PromoteLine } from './editor/promote-line.ts';

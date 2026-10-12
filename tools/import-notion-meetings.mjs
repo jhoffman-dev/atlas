@@ -4,7 +4,7 @@
 //   node tools/import-notion-meetings.mjs --csv <export>/<Meeting Notes …_all.csv> \
 //     --vault <vault folder> [--folder Inbox/Meetings] [--time-zone America/Los_Angeles]
 //     [--group-address leads@example.com …] [--providers granola]
-//     [--gemini-dates arrival-local]
+//     [--gemini-dates arrival-local] [--date-order mdy|dmy]
 //
 // Gemini's rows are held until --gemini-dates says how to read their Dates
 // (issue #44). Prints what became of every row; exits 1 when a row with a
@@ -15,9 +15,10 @@ import { parseArgs } from 'node:util';
 const { importNotionMeetings } = await import('./notion-import/import-notion-meetings.ts');
 const { allImported, reportLines } = await import('./notion-import/import-report.ts');
 const { GEMINI_DATES } = await import('./notion-import/gemini-dates.ts');
+const { DATE_ORDERS } = await import('./notion-import/notion-date.ts');
 
 const USAGE =
-  'usage: node tools/import-notion-meetings.mjs --csv <export.csv> --vault <vault> [--folder Inbox/Meetings] [--time-zone <IANA zone>|none] [--group-address <address>]… [--providers gemini,granola] [--gemini-dates arrival-local]';
+  'usage: node tools/import-notion-meetings.mjs --csv <export.csv> --vault <vault> [--folder Inbox/Meetings] [--time-zone <IANA zone>|none] [--group-address <address>]… [--providers gemini,granola] [--gemini-dates arrival-local] [--date-order mdy|dmy]';
 
 /** A value the command was given: an empty one (an unset shell variable) is no value at all. */
 const given = (value) => (value === undefined || value.trim() === '' ? null : value);
@@ -43,6 +44,7 @@ function options() {
       'group-address': { type: 'string', multiple: true, default: [] },
       providers: { type: 'string' },
       'gemini-dates': { type: 'string' },
+      'date-order': { type: 'string' },
     },
   });
   const [csv, vault, folder] = [given(values.csv), given(values.vault), given(values.folder)];
@@ -50,6 +52,10 @@ function options() {
   const geminiDates = values['gemini-dates'];
   if (geminiDates !== undefined && !GEMINI_DATES.includes(geminiDates)) {
     throw new Error(`--gemini-dates: "${geminiDates}" is not one of ${GEMINI_DATES.join(', ')}`);
+  }
+  const dateOrder = values['date-order'];
+  if (dateOrder !== undefined && !DATE_ORDERS.includes(dateOrder)) {
+    throw new Error(`--date-order: "${dateOrder}" is not one of ${DATE_ORDERS.join(', ')}`);
   }
   const zone = values['time-zone'];
   return {
@@ -60,6 +66,7 @@ function options() {
     groupAddresses: values['group-address'],
     ...(values.providers === undefined ? {} : { providers: providers(values.providers) }),
     ...(geminiDates === undefined ? {} : { geminiDates }),
+    ...(dateOrder === undefined ? {} : { dateOrder }),
   };
 }
 

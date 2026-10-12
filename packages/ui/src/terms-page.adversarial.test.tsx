@@ -25,7 +25,7 @@ describe('editing one variant of a term on the Terms page', () => {
     const onEditVariants = vi.fn();
     render(
       <TermsPage
-        contents={{ terms: [QUILL], conflicts: [], spellings: 3 }}
+        contents={{ terms: [QUILL], conflicts: [], warnings: [], spellings: 3 }}
         error={null}
         onAdd={() => {}}
         onEditVariants={onEditVariants}
