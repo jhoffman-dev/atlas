@@ -76,6 +76,10 @@ const NOTES: Record<string, { text: string; daysAgo: number }> = {
     text: task(['status: someday', 'defer: 2026-10-13']),
     daysAgo: 1,
   },
+  'Tasks/Clear the shed.md': {
+    text: task(['status: backlog', 'defer: 2026-10-09']),
+    daysAgo: 6,
+  },
   'Tasks/Draft the plan.md': {
     text: task(['status: in-progress', 'project: "[[Atlas]]"']),
     daysAgo: 1,
@@ -145,7 +149,11 @@ test('Today puts each task in its section, with counts, with no view named Today
 
   await expect(itemsIn(page, 'Overdue')).toHaveText(['Renew the licence']);
   await expect(itemsIn(page, 'Due today')).toHaveText(['Send the figures']);
-  await expect(itemsIn(page, 'Back from deferral today')).toHaveText(['Book the venue']);
+  // Put off until today, and put off until a day that passed unseen.
+  await expect(itemsIn(page, 'Back from deferral')).toHaveText([
+    'Book the venue',
+    'Clear the shed',
+  ]);
   await expect(itemsIn(page, 'In progress')).toHaveText(['Draft the plan']);
   await expect(itemsIn(page, 'Next actions')).toHaveText([
     'Ship the page',
@@ -156,7 +164,7 @@ test('Today puts each task in its section, with counts, with no view named Today
   for (const [name, count] of [
     ['Overdue', '1'],
     ['Due today', '1'],
-    ['Back from deferral today', '1'],
+    ['Back from deferral', '2'],
     ['In progress', '1'],
     ['Next actions', '3'],
     ['Waiting', '1'],

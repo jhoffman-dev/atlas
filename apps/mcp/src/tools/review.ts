@@ -17,7 +17,7 @@ export const weeklyReview = defineTool({
     'next-action or in-progress. overdue: open tasks (inbox, backlog, next-action, ' +
     'in-progress, waiting) due before today. untouchedSomeday: someday and longterm tasks ' +
     'untouched for more than 30 days. A task is { path, title, status, due, defer, waitingOn, ' +
-    'project, modified }, a project { path, title, status, moving }. "Untouched" is the ' +
+    'contexts, project, projectTitle, modified }, a project { path, title, status, moving }. "Untouched" is the ' +
     'file\'s last change; a task deferred past today is in no section until its "defer" day. ' +
     '"truncated" means tasks were held back, so a task section may be missing some. To act on ' +
     'an item as the page does: set its status or "defer" with atlas_update_properties (a late ' +
@@ -38,7 +38,8 @@ export const today = defineTool({
     '{ today: { today, sections, stalledProjects, inbox: { count, toFile, toAnswer, more }, ' +
     'truncated } }. sections are always these six, in order, each { id, count, groups }: ' +
     'overdue (open tasks due before today), dueToday, backToday (tasks whose "defer" is ' +
-    'today, any status), inProgress, nextActions (grouped by project, those under none ' +
+    'today, any open status, and inbox, backlog, someday or longterm tasks whose "defer" ' +
+    'day has passed), inProgress, nextActions (grouped by project, those under none ' +
     'last), waiting (grouped by who is waited on). A task is in one section only, the first ' +
     'that claims it, and a task deferred past today is in none. A group is { key, label, ' +
     'project, tasks }; a task is { path, title, status, due, defer, waitingOn, contexts, ' +

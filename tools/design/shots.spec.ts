@@ -1143,6 +1143,7 @@ async function todayVault(): Promise<FakeVault> {
       'project: "[[Larkspur rollout]]"',
     ],
     'Book the venue': ['status: someday', 'defer: 2026-10-13'],
+    'Clear the shed': ['status: backlog', 'defer: 2026-10-09'],
     'Draft the plan': [
       'status: in-progress',
       'project: "[[Atlas]]"',

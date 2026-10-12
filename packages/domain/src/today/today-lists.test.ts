@@ -5,6 +5,7 @@ import { createVaultPath } from '../vault/vault-path.ts';
 import {
   rowToFocusAfter,
   TODAY_MOVES,
+  todayMovesFor,
   TODAY_SECTIONS,
   todayLists,
   todayRowOrder,
@@ -183,8 +184,43 @@ describe('deferral', () => {
     expect(titlesIn(tasks, 'backToday')).toEqual(['Idea', 'Next']);
   });
 
-  it('lists a task whose defer day has passed where its status puts it', () => {
-    expect(placed([task('Next', { defer: '2026-10-12' })])).toEqual({ Next: 'nextActions' });
+  it('lists a task whose defer day has passed where its status puts it, when a section lists that status', () => {
+    const passed = { defer: '2026-10-12' };
+    const tasks = [
+      task('Next', passed),
+      task('Under way', { ...passed, status: 'in-progress' }),
+      task('Chase', { ...passed, status: 'waiting', waitingOn: 'Mara Quill' }),
+    ];
+    expect(placed(tasks)).toEqual({
+      Next: 'nextActions',
+      'Under way': 'inProgress',
+      Chase: 'waiting',
+    });
+  });
+
+  it('still wakes a task whose defer day passed unseen, when no other section would list it', () => {
+    const tasks = [
+      task('Parked', { defer: '2026-10-09', status: 'backlog' }),
+      task('Idea', { defer: '2026-09-01', status: 'someday' }),
+      task('Far', { defer: '2026-10-12', status: 'longterm' }),
+      task('Unsorted', { defer: '2026-10-12', status: 'inbox' }),
+      task('Fresh', { defer: TODAY, status: 'backlog' }),
+      task('Late', { defer: '2026-10-09', status: 'backlog', due: '2026-10-01' }),
+      task('Never deferred', { status: 'backlog' }),
+    ];
+    // Today's first, then the most recently woken; a late one is under Overdue.
+    expect(titlesIn(tasks, 'backToday')).toEqual(['Fresh', 'Far', 'Unsorted', 'Parked', 'Idea']);
+    expect(placed(tasks)['Late']).toBe('overdue');
+    expect(placed(tasks)['Never deferred']).toBeUndefined();
+  });
+
+  it('lists no finished task, whatever its days say', () => {
+    const tasks = [
+      task('Done back', { status: 'archive', defer: TODAY }),
+      task('Done late', { status: 'archive', due: '2026-10-01' }),
+      task('Done due', { status: 'archive', due: TODAY }),
+    ];
+    expect(placed(tasks)).toEqual({});
   });
 });
 
@@ -295,6 +331,13 @@ describe('moves', () => {
       'someday',
       'longterm',
     ]);
+  });
+});
+
+describe('moves for one task', () => {
+  it('offers every move but the task’s own status', () => {
+    expect(todayMovesFor('waiting')).toEqual(TODAY_MOVES.filter((status) => status !== 'waiting'));
+    expect(todayMovesFor(null)).toEqual(TODAY_MOVES);
   });
 });
 

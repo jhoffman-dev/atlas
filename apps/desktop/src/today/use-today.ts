@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   TASK_KEYS,
   taskDeferral,
   taskTypeOf,
   type ObjectType,
+  type TaskAsRead,
   type VaultPath,
 } from '@atlas/domain';
 import {
   archiveTaskChange,
+  changeUndoably,
   readToday,
-  undoableChange,
+  whileAsRead,
   type IndexPort,
   type PropertyChanges,
   type TodayReport,
@@ -19,16 +21,19 @@ import type { TodayAction } from '@atlas/ui';
 import { errorMessage } from '../query/error-message.ts';
 import { useReviewWrites, type ReviewWritesOptions } from '../review/use-review-writes.ts';
 
+/** How often an open page asks the clock whether the day has turned. */
+const DAY_CHECK_MS = 60_000;
+
 export interface TodayOptions extends Omit<ReviewWritesOptions, 'ports' | 'clock'> {
   readonly ports: ReviewWritesOptions['ports'] & { readonly index: Pick<IndexPort, 'query'> };
   /** Today's date, and now: the day the page turns on comes from here alone. */
   readonly clock: Parameters<typeof readToday>[0]['clock'];
   /** The vault's types: the page is offered once the vault has tasks. */
   readonly types: readonly ObjectType[];
-  /** Changes when the index does, so the page shows what it now holds. */
-  readonly indexKey: string;
   /** The vault that is open: what was read of one vault is never shown, or undone, in another. */
   readonly vaultKey: string | null;
+  /** Changes when the index does, so the page shows what it now holds. */
+  readonly indexKey: string;
   /**
    * Whether the index is ready to be asked; while it is not, nothing is read.
    * What was last read of this vault stays on the page meanwhile: the index
@@ -43,15 +48,24 @@ export interface TodayOptions extends Omit<ReviewWritesOptions, 'ports' | 'clock
 
 /**
  * The Today page (#111): the day as the index has it, and its row actions —
- * the weekly review's writes, each remembered so the last can be taken back.
- * A row moves once the index has the change; nothing is reloaded.
+ * the weekly review's writes, the last of them remembered so it can be taken
+ * back. A row moves once the index has the change; nothing is reloaded.
+ *
+ * A row acts on what it showed. The page is always a little behind the
+ * files, so an action is made only while the task still says what its row
+ * read, and a row that has been acted on takes no other action until a read
+ * made after the write is on the page.
  */
 export function useToday(options: TodayOptions) {
   const { ports, editors, clock, types, vaultKey, indexKey, open, onSettled, activity } = options;
   const indexReady = options.indexReady ?? true;
   const [read, setRead] = useState<ReadFrom | null>(null);
   const [last, setLast] = useState<LastChange | null>(null);
-  const { busy, problem, setProblem, write } = useReviewWrites({
+  const [settling, setSettling] = useState<Settling>(NOTHING_SETTLING);
+  // Counts the reads begun, so a row can tell one made after its write from one already under way.
+  const readsBegun = useRef(0);
+  const day = useDayOf(clock, open);
+  const { busy, problem, setProblem, actOn } = useReviewWrites({
     ports,
     editors,
     clock,
@@ -63,34 +77,60 @@ export function useToday(options: TodayOptions) {
     if (!open || !indexReady) return;
     let cancelled = false;
     const { index, fs, markdown } = ports;
+    readsBegun.current += 1;
+    const begun = readsBegun.current;
+    const land = (landed: Pick<ReadFrom, 'report' | 'error'>) => {
+      if (cancelled) return;
+      setRead({ index, vaultKey, ...landed });
+      setSettling((rows) => withoutSettledBy(rows, begun));
+    };
     readToday({ index, fs, markdown, clock })
-      .then((report) => {
-        if (!cancelled) setRead({ index, vaultKey, report, error: null });
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) setRead({ index, vaultKey, report: null, error: errorMessage(cause) });
-      });
+      .then((report) => land({ report, error: null }))
+      .catch((cause: unknown) => land({ report: null, error: errorMessage(cause) }));
     return () => {
       cancelled = true;
     };
-  }, [ports, clock, vaultKey, indexKey, indexReady, open]);
+    // `day` is here to read again when it turns; the read takes the day from the clock itself.
+  }, [ports, clock, vaultKey, indexKey, indexReady, open, day]);
 
   // Only what was read of the vault now open: another vault's paths are not this one's.
-  const ofThisVault = (from: { index: unknown; vaultKey: string | null }) =>
-    from.index === ports.index && from.vaultKey === vaultKey;
+  const ofThisVault = (from: OfAVault) => sameVault(from, { index: ports.index, vaultKey });
   const current = read !== null && ofThisVault(read) ? read : null;
   const undoable = last !== null && ofThisVault(last) ? last : null;
+  const rows = useMemo(() => rowsAsRead(current?.report ?? null), [current]);
+  const { index: indexOpen } = ports;
+  const settlingHere = useMemo(
+    () => new Set(sameVault(settling, { index: indexOpen, vaultKey }) ? settling.rows.keys() : []),
+    [settling, indexOpen, vaultKey],
+  );
 
   const change = useCallback(
     async ({ path, title, action, values }: Change) => {
-      const remembered = undoableChange(values);
-      setLast(null);
-      const written = await write(path, remembered.values);
-      if (written) {
-        setLast({ index: ports.index, vaultKey, path, title, action, change: remembered });
-      }
+      if (settlingHere.has(path)) return;
+      const { fs, markdown, index } = ports;
+      const row = settling.known.get(path) ?? rows.get(path);
+      const guarded = row === undefined ? values : whileAsRead({ values, row });
+      let made: UndoableChange | null = null;
+      await actOn(path, async (put) => {
+        made = await changeUndoably({
+          fs,
+          markdown,
+          path,
+          write: (readAt) => put(guarded, readAt),
+        });
+      });
+      // Only now: an action that was refused or failed leaves the earlier undo on offer.
+      if (made === null) return;
+      setLast({ index, vaultKey, path, title, action, change: made });
+      const since = readsBegun.current;
+      setSettling((was) => ({
+        index,
+        vaultKey,
+        rows: new Map([...(sameVault(was, { index, vaultKey }) ? was.rows : []), [path, since]]),
+        known: sameVault(was, { index, vaultKey }) ? was.known : new Map(),
+      }));
     },
-    [write, ports, vaultKey],
+    [actOn, ports, vaultKey, rows, settling, settlingHere],
   );
 
   const done = useCallback(
@@ -114,12 +154,21 @@ export function useToday(options: TodayOptions) {
     },
     [change, clock, setProblem],
   );
-  const undo = useCallback(() => {
-    const values = undoable?.change.undo() ?? null;
-    if (undoable === null || values === null) return;
-    setLast(null);
-    void write(undoable.path, values);
-  }, [undoable, write]);
+  const undo = useCallback(async () => {
+    if (undoable === null) return;
+    const { path } = undoable;
+    const undone = await actOn(path, (put) => put(undoable.change.undo));
+    // An undo that could not be written stays on offer, to be tried again.
+    if (!undone) return;
+    setLast((was) => (was === undoable ? null : was));
+    // The task is back as it was, so its row can be acted on again — as what the
+    // file held before the change, which the page's own read may be behind.
+    setSettling((was) => ({
+      ...was,
+      rows: new Map([...was.rows].filter(([row]) => row !== path)),
+      known: new Map([...was.known, [path, undoable.change.was]]),
+    }));
+  }, [undoable, actOn]);
   const dismiss = useCallback(() => setLast(null), []);
 
   return {
@@ -130,15 +179,90 @@ export function useToday(options: TodayOptions) {
       error: current?.error ?? null,
       busy,
       problem,
+      settling: settlingHere,
       notice:
         undoable === null
           ? null
-          : { title: undoable.title, action: undoable.action, onUndo: undo, onDismiss: dismiss },
+          : {
+              title: undoable.title,
+              action: undoable.action,
+              onUndo: () => void undo(),
+              onDismiss: dismiss,
+            },
       onDone: done,
       onSetStatus: setStatus,
       onDefer: defer,
     },
   };
+}
+
+/**
+ * The clock's day, asked again each minute and whenever the window is looked
+ * at again, while the page is open: a page left open overnight — the Mac
+ * asleep, timers and all — turns to the new day when it is next seen.
+ */
+function useDayOf(clock: Pick<TodayOptions['clock'], 'today'>, open: boolean): string {
+  const [day, setDay] = useState(() => clock.today());
+  useEffect(() => {
+    if (!open) return;
+    const ask = () => setDay(clock.today());
+    ask();
+    const timer = setInterval(ask, DAY_CHECK_MS);
+    window.addEventListener('focus', ask);
+    document.addEventListener('visibilitychange', ask);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', ask);
+      document.removeEventListener('visibilitychange', ask);
+    };
+  }, [clock, open]);
+  return day;
+}
+
+/** What each row on the page was read as, by its task's path. */
+function rowsAsRead(report: TodayReport | null): ReadonlyMap<VaultPath, TaskAsRead> {
+  const rows = new Map<VaultPath, TaskAsRead>();
+  for (const section of report?.sections ?? []) {
+    for (const group of section.groups) {
+      for (const { path, status, due, defer } of group.tasks)
+        rows.set(path, { status, due, defer });
+    }
+  }
+  return rows;
+}
+
+/** The rows acted on and not yet read again, each with the count of reads begun when its write landed. */
+interface Settling extends OfAVault {
+  readonly rows: ReadonlyMap<VaultPath, number>;
+  /**
+   * What a row's task is known to be, where the page knows better than its
+   * last read: a change the page made and took back leaves the task as the
+   * file held it before. Forgotten once a read is on the page.
+   */
+  readonly known: ReadonlyMap<VaultPath, TaskAsRead>;
+}
+
+/** Something read or written in one vault, under one index. */
+interface OfAVault {
+  readonly index: unknown;
+  readonly vaultKey: string | null;
+}
+
+const sameVault = (left: OfAVault, right: OfAVault) =>
+  left.index === right.index && left.vaultKey === right.vaultKey;
+
+const NOTHING_SETTLING: Settling = {
+  index: null,
+  vaultKey: null,
+  rows: new Map(),
+  known: new Map(),
+};
+
+/** Without the rows a read begun as the `begun`-th has caught up with: those written before it began. */
+function withoutSettledBy(settling: Settling, begun: number): Settling {
+  const rows = new Map([...settling.rows].filter(([, since]) => since >= begun));
+  const unchanged = rows.size === settling.rows.size && settling.known.size === 0;
+  return unchanged ? settling : { ...settling, rows, known: new Map() };
 }
 
 /** The row acted on: its task, and what the page calls it. */
@@ -152,18 +276,14 @@ interface Change extends Row {
   readonly values: PropertyChanges;
 }
 
-/** The last change the page wrote, the vault it was written in, and how to take it back. */
-interface LastChange extends Row {
-  readonly index: unknown;
-  readonly vaultKey: string | null;
+/** The last change the page wrote, the vault it was written in, and the change that takes it back. */
+interface LastChange extends Row, OfAVault {
   readonly action: TodayAction;
   readonly change: UndoableChange;
 }
 
 /** A read of the page, and the index it was read from. */
-interface ReadFrom {
-  readonly index: unknown;
-  readonly vaultKey: string | null;
+interface ReadFrom extends OfAVault {
   readonly report: TodayReport | null;
   readonly error: string | null;
 }

@@ -5,6 +5,7 @@ export {
   TODAY_SECTION_LABELS,
   TODAY_SECTIONS,
   todayLists,
+  todayMovesFor,
   todayRowOrder,
 } from './today-lists.ts';
 export type {
@@ -14,3 +15,5 @@ export type {
   TodaySectionId,
   TodayTask,
 } from './today-lists.ts';
+export { stillAsRead, taskAsRead } from './row-read.ts';
+export type { TaskAsRead } from './row-read.ts';

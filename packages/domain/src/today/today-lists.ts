@@ -28,7 +28,7 @@ export type TodaySectionId = (typeof TODAY_SECTIONS)[number];
 export const TODAY_SECTION_LABELS: Readonly<Record<TodaySectionId, string>> = {
   overdue: 'Overdue',
   dueToday: 'Due today',
-  backToday: 'Back from deferral today',
+  backToday: 'Back from deferral',
   inProgress: 'In progress',
   nextActions: 'Next actions',
   waiting: 'Waiting',
@@ -45,6 +45,11 @@ export const TODAY_DEFER_DAYS = [1, 7] as const;
 export const TODAY_MOVES: readonly GtdStatus[] = GTD_STATUSES.filter(
   (status) => status !== FINISHED_TASK_STATUS,
 );
+
+/** The statuses Move offers one task: every one of {@link TODAY_MOVES} but its own. */
+export function todayMovesFor(status: GtdStatus | null): readonly GtdStatus[] {
+  return TODAY_MOVES.filter((offered) => offered !== status);
+}
 
 /** A task as the Today page lists it. */
 export interface TodayTask extends ReviewTask {
@@ -91,8 +96,15 @@ export interface TodayLists {
  * that claims it, so the counts add up to the tasks on the page: an In
  * Progress task due yesterday is under Overdue only. A task deferred to a
  * later day is in no section until that day, as it is out of the weekly
- * review and of Next actions; one whose `defer` is today is back. Late and
- * due-today are only said of open work — Someday and Longterm promise no day.
+ * review and of Next actions. Late and due-today are only said of open work —
+ * Someday and Longterm promise no day. A finished task is in no section
+ * (ADR-0029), whatever rows the caller hands over.
+ *
+ * Back from deferral is a task whose `defer` day is today — or has passed,
+ * when no later section would list it: a Backlog or Someday task put off to
+ * a day the app was never opened still wakes up somewhere, and stays until
+ * it is dealt with or put off again. A Next Action whose day has passed is
+ * simply a next action again.
  */
 export function todayLists({
   tasks,
@@ -103,7 +115,9 @@ export function todayLists({
   projects: readonly ReviewProject[];
   at: ReviewMoment;
 }): TodayLists {
-  let unclaimed = tasks.filter((task) => !isDeferred(task, at.today)).map(withWaitingDays(at));
+  let unclaimed = tasks
+    .filter((task) => task.status !== FINISHED_TASK_STATUS && !isDeferred(task, at.today))
+    .map(withWaitingDays(at));
   const sections = TODAY_SECTIONS.map((id) => {
     const claimed = unclaimed.filter((task) => CLAIMS[id](task, at.today));
     const taken = new Set(claimed);
@@ -125,16 +139,22 @@ const withWaitingDays =
 const CLAIMS: Readonly<Record<TodaySectionId, (task: TodayTask, today: string) => boolean>> = {
   overdue: isOverdue,
   dueToday: (task, today) => task.due === today && promisesItsDay(task),
-  backToday: (task, today) => task.defer === today && task.status !== null,
+  backToday: (task, today) =>
+    task.defer !== null &&
+    task.status !== null &&
+    (task.defer === today || (task.defer < today && !LISTED_BY_STATUS.has(task.status))),
   inProgress: (task) => task.status === 'in-progress',
   nextActions: (task) => task.status === 'next-action',
   waiting: (task) => task.status === 'waiting',
 };
 
+/** The statuses a later section lists a task by, deferred once or not. */
+const LISTED_BY_STATUS: ReadonlySet<GtdStatus> = new Set(['in-progress', 'next-action', 'waiting']);
+
 const GROUPS: Readonly<Record<TodaySectionId, (tasks: TodayTask[]) => TodayGroup[]>> = {
   overdue: (tasks) => together(tasks.sort(byDueThenTitle)),
   dueToday: (tasks) => together(tasks.sort(byTitle)),
-  backToday: (tasks) => together(tasks.sort(byTitle)),
+  backToday: (tasks) => together(tasks.sort(byDeferThenTitle)),
   inProgress: (tasks) => together(tasks.sort(byDueThenTitle)),
   nextActions: byProject,
   waiting: byPerson,
@@ -198,6 +218,11 @@ function namedFirstByLabel(left: TodayGroup, right: TodayGroup): number {
     return Number(left.label === null) - Number(right.label === null);
   }
   return left.label.localeCompare(right.label) || left.key.localeCompare(right.key);
+}
+
+/** Today's first, then the longest overlooked. */
+function byDeferThenTitle(left: TodayTask, right: TodayTask): number {
+  return (right.defer ?? '').localeCompare(left.defer ?? '') || byTitle(left, right);
 }
 
 /** The earliest day first; a task with no day after every task with one. */

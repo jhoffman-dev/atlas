@@ -92,7 +92,7 @@ describe('TodayPage', () => {
     const expected: Record<string, string[]> = {
       Overdue: ['Renew the licence'],
       'Due today': ['Send the figures'],
-      'Back from deferral today': ['Book the venue'],
+      'Back from deferral': ['Book the venue'],
       'In progress': ['Draft the plan'],
       'Next actions': ['Ship the page', 'Write the guide', 'Call the bank'],
       Waiting: ['Quote from Larkspur'],
@@ -202,6 +202,42 @@ describe('TodayPage', () => {
     rerender({ view: { title: 'Today', onOpen: onOpenView } });
     await userEvent.click(screen.getByRole('button', { name: 'Open the “Today” view' }));
     expect(onOpenView).toHaveBeenCalledTimes(1);
+  });
+
+  it('still links to the saved view while the page is read, and when the read failed', () => {
+    const view = { title: 'Today', onOpen: vi.fn() };
+    const { rerender } = page({ today: null, view });
+    expect(screen.getByRole('button', { name: 'Open the “Today” view' })).toBeDefined();
+    rerender({ today: null, error: 'the index is closed', view });
+    expect(screen.getByRole('button', { name: 'Open the “Today” view' })).toBeDefined();
+  });
+
+  it('says the day a task back from deferral was put off until', () => {
+    const woken = task('Clear the shed', { status: 'backlog', defer: '2026-10-09' });
+    page({ today: report([woken]) });
+    expect(
+      within(section('Back from deferral')).getByText('Deferred until 2026-10-09'),
+    ).toBeDefined();
+  });
+
+  it('shows a context a task names twice, twice', () => {
+    page({ today: report([task('Call', { contexts: ['@phone', '@phone'] })]) });
+    expect(within(section('Next actions')).getAllByText('@phone')).toHaveLength(2);
+  });
+
+  it('takes no action on a row whose change has not been read back, and leaves the others', () => {
+    page({ settling: new Set([path('Call the bank')]) });
+    const disabledIn = (title: string) => {
+      const row = screen.getByText(title).closest('tr') as HTMLElement;
+      return [
+        within(row).getByRole('checkbox'),
+        within(row).getByRole('button', { name: `Move ${title} to…` }),
+        within(row).getByRole('button', { name: `Defer ${title} 1 day` }),
+        within(row).getByRole('button', { name: `Defer ${title} 7 days` }),
+      ].map((control) => (control as HTMLButtonElement).disabled);
+    };
+    expect(disabledIn('Call the bank')).toEqual([true, true, true, true]);
+    expect(disabledIn('Ship the page')).toEqual([false, false, false, false]);
   });
 
   it('ticks a task done', async () => {

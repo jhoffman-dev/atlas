@@ -4,8 +4,8 @@ import {
   GTD_STATUS_LABELS,
   isGtdStatus,
   TODAY_DEFER_DAYS,
-  TODAY_MOVES,
   TODAY_SECTION_LABELS,
+  todayMovesFor,
   todayRowOrder,
   type TodayGroup,
   type TodaySection,
@@ -49,6 +49,12 @@ export interface TodayPageProps {
   busy: boolean;
   /** Why the last action could not be done, or null. */
   problem: string | null;
+  /**
+   * The rows acted on whose change the page has not read back yet: each
+   * takes no further action until it has, so a second press cannot act on
+   * what the row no longer is. None unless given.
+   */
+  settling?: ReadonlySet<VaultPath>;
   /** The last action, while it can still be taken back. */
   notice: TodayNotice | null;
   /** A saved view titled Today, which this page's sidebar row stands in for; null when the vault has none. */
@@ -92,19 +98,7 @@ export function TodayPage(props: TodayPageProps) {
             icon="today"
             title="Today"
             description={describe(props.today)}
-            actions={
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                title="Open today’s note (⇧⌘D)"
-                onClick={props.onOpenDailyNote}
-              >
-                Open today’s note
-                <kbd className="key today__key" aria-hidden="true">
-                  ⇧⌘D
-                </kbd>
-              </button>
-            }
+            actions={<HeadActions view={props.view} onOpenDailyNote={props.onOpenDailyNote} />}
           />
           {props.problem !== null && (
             <p className="table__error" role="alert">
@@ -115,6 +109,33 @@ export function TodayPage(props: TodayPageProps) {
           <TodayBody {...props} focus={focus} />
         </article>
       </div>
+    </>
+  );
+}
+
+/**
+ * What the page offers whatever its read says — while it loads, or when the
+ * index cannot answer: today's note, and the vault's own Today view.
+ */
+function HeadActions({ view, onOpenDailyNote }: Pick<TodayPageProps, 'view' | 'onOpenDailyNote'>) {
+  return (
+    <>
+      {view !== null && (
+        <button type="button" className="btn btn--ghost btn--sm" onClick={view.onOpen}>
+          Open the “{view.title}” view
+        </button>
+      )}
+      <button
+        type="button"
+        className="btn btn--ghost btn--sm"
+        title="Open today’s note (⇧⌘D)"
+        onClick={onOpenDailyNote}
+      >
+        Open today’s note
+        <kbd className="key today__key" aria-hidden="true">
+          ⇧⌘D
+        </kbd>
+      </button>
     </>
   );
 }
@@ -196,13 +217,12 @@ function TodayBody(props: TodayPageProps & { focus: RowFocus }) {
   );
 }
 
-/** What waits off the page: the Inbox, the projects with nothing next, and a saved Today view. */
+/** What waits off the page: the Inbox, and the projects with nothing next. */
 function Elsewhere({
   today,
-  view,
   onOpenInbox,
   onOpenReview,
-}: Pick<TodayPageProps, 'view' | 'onOpenInbox' | 'onOpenReview'> & { today: TodayReport }) {
+}: Pick<TodayPageProps, 'onOpenInbox' | 'onOpenReview'> & { today: TodayReport }) {
   const inbox = `${today.inbox.count}${today.inbox.more ? '+' : ''}`;
   const stalled = today.stalledProjects;
   return (
@@ -221,12 +241,6 @@ function Elsewhere({
           {stalled === 0 ? 'every active project has a next action' : 'in the weekly review'}
         </span>
       </button>
-      {view !== null && (
-        <button type="button" className="today__link" onClick={view.onOpen}>
-          <Icon name="table" size={16} />
-          Open the “{view.title}” view
-        </button>
-      )}
     </nav>
   );
 }
@@ -235,7 +249,7 @@ function Elsewhere({
 const EMPTY: Readonly<Record<TodaySectionId, string>> = {
   overdue: 'Nothing is late.',
   dueToday: 'Nothing is due today.',
-  backToday: 'Nothing comes back today.',
+  backToday: 'Nothing is back from being put off.',
   inProgress: 'Nothing is under way.',
   nextActions: 'No next actions.',
   waiting: 'Waiting on nobody.',
@@ -247,8 +261,10 @@ function Sections(props: TodayPageProps & { today: TodayReport; focus: RowFocus 
     focus.actedOn(task.path);
     action();
   };
+  const settling = props.settling ?? NONE_SETTLING;
   const row: RowContext = {
-    busy,
+    // A row that is settling is as busy as the page: what it shows is no longer what its task is.
+    busyFor: (path) => busy || settling.has(path),
     rowRef: focus.rowRef,
     onOpen: props.onOpen,
     onDone: (task) => act(task, () => props.onDone(rowOf(task))),
@@ -267,7 +283,7 @@ function Sections(props: TodayPageProps & { today: TodayReport; focus: RowFocus 
 const rowOf = (task: TodayTask): RowTask => ({ path: task.path, title: task.title });
 
 /**
- * A row's Move to… menu: every status the page offers but the task's own.
+ * A row's Move to… menu: the statuses the domain offers this task.
  * Open state, focus, typeahead and Escape are Base UI's (ADR-0015).
  */
 function MoveMenu({
@@ -280,7 +296,7 @@ function MoveMenu({
   onMove: (task: TodayTask, status: string) => void;
 }) {
   const chosen = useRef<MenuCommand | null>(null);
-  const items = TODAY_MOVES.filter((status) => status !== task.status).map((status) => ({
+  const items = todayMovesFor(task.status).map((status) => ({
     label: GTD_STATUS_LABELS[status],
     onSelect: () => onMove(task, status),
   }));
@@ -304,9 +320,12 @@ function MoveMenu({
   );
 }
 
+const NONE_SETTLING: ReadonlySet<VaultPath> = new Set();
+
 /** What every row is handed: how to act, and where it stands. */
 interface RowContext {
-  readonly busy: boolean;
+  /** Whether a row takes no action just now: one is under way, or this row's last has not been read back. */
+  readonly busyFor: (path: VaultPath) => boolean;
   readonly rowRef: (path: VaultPath) => (element: HTMLElement | null) => void;
   readonly onOpen: (path: VaultPath) => void;
   readonly onDone: (task: TodayTask) => void;
@@ -404,8 +423,9 @@ function TaskRow({
   sectionId: TodaySectionId;
   row: RowContext;
 }) {
+  const busy = row.busyFor(task.path);
   return (
-    <tr className="table__row" data-today-row={task.path}>
+    <tr className="table__row" data-today-row={task.path} aria-busy={busy || undefined}>
       <td className="table__done">
         <input
           ref={row.rowRef(task.path)}
@@ -413,7 +433,7 @@ function TaskRow({
           className="done-check"
           aria-label={`Mark ${task.title} done`}
           checked={false}
-          disabled={row.busy}
+          disabled={busy}
           onChange={() => row.onDone(task)}
         />
       </td>
@@ -426,7 +446,7 @@ function TaskRow({
         <Details task={task} sectionId={sectionId} onOpen={row.onOpen} />
       </td>
       <td className="review__actions">
-        <MoveMenu task={task} busy={row.busy} onMove={row.onMove} />
+        <MoveMenu task={task} busy={busy} onMove={row.onMove} />
         {TODAY_DEFER_DAYS.map((days) => (
           <button
             key={days}
@@ -434,7 +454,7 @@ function TaskRow({
             className="btn btn--ghost btn--sm"
             aria-label={`Defer ${task.title} ${days === 1 ? '1 day' : `${days} days`}`}
             title={days === 1 ? 'Defer until tomorrow' : `Defer for ${days} days`}
-            disabled={row.busy}
+            disabled={busy}
             onClick={() => row.onDefer(task, days)}
           >
             +{days}d
@@ -479,17 +499,21 @@ function Details({
       </button>,
     );
   }
-  for (const context of task.contexts) {
+  task.contexts.forEach((context, at) => {
     pieces.push(
-      <span key={`context ${context}`} className="today__context">
+      // By place: a task may name one context twice.
+      <span key={`context ${at}`} className="today__context">
         {context}
       </span>,
     );
-  }
+  });
   if (sectionId !== 'waiting' && task.status === 'waiting' && task.waitingOn !== '') {
     pieces.push(<span key="on">On {task.waitingOn}</span>);
   }
   if (task.due !== null) pieces.push(<DueDay key="due" task={task} sectionId={sectionId} />);
+  if (sectionId === 'backToday' && task.defer !== null) {
+    pieces.push(<span key="back">Deferred until {task.defer}</span>);
+  }
   if (task.waitingDays !== null) {
     pieces.push(<span key="waited">{waitedWords(task.waitingDays)}</span>);
   }

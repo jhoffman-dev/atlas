@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { VaultPath } from '@atlas/domain';
 import {
   ChangedSinceError,
+  NoteChangedError,
   TaskRuleRefusedError,
   type ActivityLog,
   type Clock,
@@ -26,7 +27,7 @@ export interface ReviewWritesOptions {
 }
 
 /** What a write refuses the person, rather than fails at: shown to act on, and no fault. */
-const REFUSALS = [TaskRuleRefusedError, ChangedSinceError] as const;
+const REFUSALS = [TaskRuleRefusedError, ChangedSinceError, NoteChangedError] as const;
 
 /**
  * The quick actions of the weekly review and the Today page: one at a time,
@@ -67,20 +68,38 @@ export function useReviewWrites({
     [onSettled],
   );
 
-  const write = useCallback(
-    (path: VaultPath, values: PropertyChanges) => {
+  /**
+   * One action on a note, made of whatever reads and writes it takes: `put`
+   * writes its properties, dated by the page's own clock, the one its
+   * sections were read on. Giving up on it is recorded once, for the note.
+   */
+  const actOn = useCallback(
+    (path: VaultPath, work: (put: PutProperties) => Promise<unknown>) => {
       const edit = { activity, write: 'edit', path, refusal: REFUSALS } as const;
       const { fs, markdown } = ports;
-      // Dated by the page's own clock, the one its sections were read on.
       const today = clock.today();
-      return act(() =>
-        withGiveUpRecorded(edit, () =>
-          writeNoteProperties({ editors, fs, markdown, path, values, today }),
-        ),
-      );
+      const put: PutProperties = (values, ifModified) =>
+        writeNoteProperties({
+          editors,
+          fs,
+          markdown,
+          path,
+          values,
+          today,
+          ...(ifModified !== undefined && { ifModified }),
+        });
+      return act(() => withGiveUpRecorded(edit, () => work(put)));
     },
     [act, activity, clock, editors, ports],
   );
 
-  return { busy, problem, setProblem, act, write };
+  const write = useCallback(
+    (path: VaultPath, values: PropertyChanges) => actOn(path, (put) => put(values)),
+    [actOn],
+  );
+
+  return { busy, problem, setProblem, act, actOn, write };
 }
+
+/** Writes the properties of the note an action is on; refused when its file has moved on from `ifModified`. */
+export type PutProperties = (values: PropertyChanges, ifModified?: number) => Promise<void>;

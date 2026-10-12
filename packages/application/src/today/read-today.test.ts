@@ -112,7 +112,8 @@ describe('readToday', () => {
     const tomorrow = { today: () => '2026-10-14', now: () => NOW + DAY };
     const report = await read(tomorrow);
     expect(titles(report, 'overdue')).toEqual(['Renew the licence', 'Send the figures']);
-    expect(titles(report, 'backToday')).toEqual(['Not yet']);
+    // Back today, and the Someday task whose day passed with nothing else to list it.
+    expect(titles(report, 'backToday')).toEqual(['Not yet', 'Book the venue']);
     expect(titles(report, 'dueToday')).toEqual([]);
   });
 

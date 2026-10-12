@@ -61,7 +61,10 @@ export function compileReviewTasksQuery(): CompiledQuery {
       `  (SELECT pf.title FROM relations AS r JOIN files AS pf ON pf.path = r.dst WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' ORDER BY r.idx LIMIT 1) AS "projectTitle"`,
       `FROM files AS f`,
       `WHERE ${inUseOfTypeSql('f.path', '?')}`,
-      `  AND NOT EXISTS (SELECT 1 FROM props AS s WHERE s.path = f.path AND s.key = '${TASK_KEYS.status}' AND s.value_text = ?)`,
+      // `+` keeps the planner off `props_key (key, value_text)`, which would walk
+      // every finished task in the vault for each open one; a note's own rows
+      // are found by `props_path (path, key)`.
+      `  AND NOT EXISTS (SELECT 1 FROM props AS s WHERE s.path = f.path AND s.key = '${TASK_KEYS.status}' AND +s.value_text = ?)`,
       `ORDER BY f.path`,
     ].join('\n'),
     parameters: [TASK_TYPE, FINISHED_TASK_STATUS],

@@ -243,6 +243,7 @@ describe('tools/list', () => {
       expect(described).toContain(id);
     }
     expect(described).toContain("days since the file's last change");
+    expect(described).toContain('whose "defer" day has passed');
     expect(described).toContain('atlas_update_properties');
     expect(described).toContain('refused unless "waiting_on" names someone');
   });
@@ -251,6 +252,7 @@ describe('tools/list', () => {
     const { tools } = await mcp.listTools();
     const review = tools.find((t) => t.name === 'atlas_weekly_review')?.description ?? '';
     expect(review).toContain('untouched for more than 7 days');
+    expect(review).toContain('waitingOn, contexts, project, projectTitle, modified');
     expect(review).toContain('untouched for more than 30 days');
     expect(review).toContain('next-action or in-progress');
     expect(review).toContain('atlas_update_properties');

@@ -83,7 +83,7 @@ function setUp({
     }),
   );
   const text = () => memory.files.get(PATH) ?? '';
-  return { ...hook, text, query, onSettled, activity };
+  return { ...hook, text, files: memory.files, query, onSettled, activity };
 }
 
 describe('useToday', () => {
@@ -175,17 +175,28 @@ describe('useToday', () => {
     expect(result.current.page.problem).toBeNull();
   });
 
-  it('will not undo over a later edit, and says so', async () => {
-    const { result, text } = setUp();
+  it('gives a key back as it was written, where its value alone would be written another way', async () => {
+    // A one-item list on one line: written from its value, it comes back as a block list.
+    const taskText = '---\ntype: task\nstatus: next-action\ndefer: [2026-10-01]\n---\n\n# Ship\n';
+    const { result, text } = setUp({ taskText });
+    await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
+    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    expect(text()).toContain('defer: 2026-10-14');
+    await act(async () => result.current.page.notice?.onUndo());
+    await waitFor(() => expect(result.current.page.notice).toBeNull());
+    expect(text()).toBe(taskText);
+  });
+
+  it('will not undo over a later edit, says so, and keeps the edit', async () => {
+    const { result, text, files } = setUp();
     await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'someday' }));
     await waitFor(() => expect(result.current.page.notice).not.toBeNull());
-    const undo = result.current.page.notice?.onUndo;
-    await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'backlog' }));
-    await waitFor(() => expect(text()).toContain('status: backlog'));
+    const edited = text().replace('status: someday', 'status: backlog');
+    files.set(PATH, edited);
 
-    await act(async () => undo?.());
+    await act(async () => result.current.page.notice?.onUndo());
     await waitFor(() => expect(result.current.page.problem).toMatch(/changed since/));
-    expect(text()).toContain('status: backlog');
+    expect(text()).toBe(edited);
   });
 
   it('forgets the last action when it is dismissed', async () => {
@@ -217,6 +228,111 @@ describe('useToday', () => {
     );
     await waitFor(() => expect(result.current.page.error).toBe('the index is closed'));
     expect(result.current.page.today).toBeNull();
+  });
+
+  describe('a row that has been acted on', () => {
+    function mounted() {
+      const memory = memoryVault({ [PATH]: TASK_TEXT });
+      const ports = {
+        index: fakeIndexPort({ query: async (sql: string) => answer(sql) }),
+        fs: fakeVaultFs(memory.fs),
+        markdown: remarkMarkdown,
+      };
+      const activity = recordingActivity();
+      const onSettled = vi.fn();
+      const hook = renderHook(
+        ({ indexKey }: { indexKey: string }) =>
+          useToday({
+            ports,
+            editors: noPane,
+            activity,
+            clock: CLOCK,
+            types: TYPES,
+            vaultKey: 'vault-a',
+            open: true,
+            onSettled,
+            indexKey,
+          }),
+        { initialProps: { indexKey: '1' } },
+      );
+      return { ...hook, onSettled, text: () => memory.files.get(PATH) ?? '' };
+    }
+
+    it('takes no other action until a read made after its write is on the page', async () => {
+      const { result, rerender, onSettled, text } = mounted();
+      await waitFor(() => expect(result.current.page.today).not.toBeNull());
+      await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
+      await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(true));
+      const deferred = text();
+
+      // The row still shows the task as it was; a second press must not act on that.
+      await act(async () => result.current.page.onDefer({ ...ROW, days: 7 }));
+      await act(async () => result.current.page.onDone(ROW));
+      expect(text()).toBe(deferred);
+      expect(onSettled).toHaveBeenCalledTimes(1);
+      expect(result.current.page.problem).toBeNull();
+
+      rerender({ indexKey: '2' });
+      await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(false));
+    });
+
+    it('is free again once its change is undone', async () => {
+      const { result } = mounted();
+      await waitFor(() => expect(result.current.page.today).not.toBeNull());
+      await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
+      await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(true));
+      await act(async () => result.current.page.notice?.onUndo());
+      await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(false));
+    });
+
+    it('is not held when its action was refused', async () => {
+      const { result } = mounted();
+      await waitFor(() => expect(result.current.page.today).not.toBeNull());
+      await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'waiting' }));
+      await waitFor(() => expect(result.current.page.problem).not.toBeNull());
+      expect(result.current.page.settling.size).toBe(0);
+    });
+  });
+
+  describe('the day turning', () => {
+    it('reads again within a minute of the clock’s day changing, with nobody looking', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const day = { today: '2026-10-13' };
+        const clock = { today: () => day.today, now: () => NOW };
+        const ports = {
+          index: fakeIndexPort({ query: async (sql: string) => answer(sql) }),
+          fs: fakeVaultFs(memoryVault({ [PATH]: TASK_TEXT }).fs),
+          markdown: remarkMarkdown,
+        };
+        const activity = recordingActivity();
+        const onSettled = () => {};
+        const { result } = renderHook(() =>
+          useToday({
+            ports,
+            editors: noPane,
+            activity,
+            clock,
+            types: TYPES,
+            vaultKey: 'vault-a',
+            indexKey: '1',
+            open: true,
+            onSettled,
+          }),
+        );
+        await waitFor(() => expect(result.current.page.today?.today).toBe('2026-10-13'));
+
+        day.today = '2026-10-14';
+        await act(async () => vi.advanceTimersByTimeAsync(59_000));
+        expect(result.current.page.today?.today).toBe('2026-10-13');
+        await act(async () => vi.advanceTimersByTimeAsync(2_000));
+        await waitFor(() => expect(result.current.page.today?.today).toBe('2026-10-14'));
+        const overdue = result.current.page.today?.sections.find(({ id }) => id === 'overdue');
+        expect(overdue?.count).toBe(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('while the vault changes under it', () => {
