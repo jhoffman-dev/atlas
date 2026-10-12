@@ -5,6 +5,7 @@ import {
   matchSpeakers,
   MEETING_TYPE,
   namedSpeakers,
+  ownerAddresses,
   planMeetingLinks,
   rankProjects,
   splitFrontmatter,
@@ -115,7 +116,17 @@ async function planFor({
   const ties = await loadProjectTies({ index: ports.index, meeting: path, entities });
   const projects = rankProjects(ties);
   const { properties } = read;
-  const input = { meeting: path, properties, notePaths, matching, speakers, projects, selfName };
+  const selfEmails = ownerAddresses(people, selfName);
+  const input = {
+    meeting: path,
+    properties,
+    notePaths,
+    matching,
+    speakers,
+    projects,
+    selfName,
+    selfEmails,
+  };
   return { ...planMeetingLinks(input), properties };
 }
 

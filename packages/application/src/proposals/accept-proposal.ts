@@ -2,16 +2,16 @@ import {
   ANSWERED_VIA_KEY,
   applyProposal,
   digestOf,
+  foldedVaultPath,
   FINISHED_TASK_STATUS,
   joinFrontmatter,
   joinVaultPath,
-  linkTargets,
   messageOf,
+  newNotePath,
   parentVaultPath,
   payloadRecord,
   proposalHeadline,
   readProposalPayload,
-  resolveWikiLinkTarget,
   splitFrontmatter,
   isTaskNote,
   TASK_KEYS,
@@ -35,6 +35,7 @@ import { unarchiveNotes } from '../archive/index.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
+import { pointedAtItsMeeting, relationChanged } from './proposal-meeting.ts';
 import {
   archiveProposal,
   readOpenProposal,
@@ -52,6 +53,20 @@ export interface AcceptedProposal extends ProposalArchived {
   readonly headline: string;
   /** What Accept wrote, each with what undoing it needs. */
   readonly wrote: readonly AppliedProposal[];
+}
+
+/** The types of the note already at the path a joining note proposal would make; none when nothing is there. */
+async function typesHeldAtNewNote(
+  ports: ProposalPorts,
+  { proposal, notePaths }: { proposal: ProposalNote; notePaths: readonly VaultPath[] },
+): Promise<readonly string[] | undefined> {
+  if (proposal.kind === 'link' || proposal.payload.linkFrom === null) return undefined;
+  const folded = foldedVaultPath(newNotePath(proposal.payload));
+  const held = notePaths.find((note) => foldedVaultPath(note) === folded);
+  if (held === undefined) return undefined;
+  const { text } = await ports.fs.readTextFile(held);
+  const type = ports.markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)['type'];
+  return (Array.isArray(type) ? type : [type]).filter((item) => typeof item === 'string');
 }
 
 /** A link proposal's note, as read to check it and write it. */
@@ -99,10 +114,12 @@ export async function acceptProposalNote({
   refuseUnsaved(ports.editors, path);
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const asked = payload === undefined ? file.proposal : edited(file.proposal, payload);
-  const proposal = spelledAsVault(asked, notePaths);
+  const meeting = await pointedAtItsMeeting({ ports, proposal: asked, notePaths });
+  const proposal = spelledAsVault(meeting, notePaths);
   const joins = relationChanged(proposal);
   const link = joins === null ? null : await readLinkNote(ports, joins);
-  const applied = applyProposal(proposal, { notePaths, target: link?.target ?? null });
+  const heldTypes = await typesHeldAtNewNote(ports, { proposal, notePaths });
+  const applied = applyProposal(proposal, { notePaths, target: link?.target ?? null, heldTypes });
   if (!applied.ok) throw new ProposalRefused(applied.problem);
 
   const ruled = applied.writes.map((write) => heldToTaskRules(ports, { write, link, today }));
@@ -178,26 +195,8 @@ function spelledAsVault(proposal: ProposalNote, notePaths: readonly VaultPath[])
   }
   const { linkFrom } = proposal.payload;
   if (linkFrom === null) return proposal;
-  const joined = {
-    ...linkFrom,
-    note: spelled(linkFrom.note) ?? movedTo(proposal, notePaths) ?? linkFrom.note,
-  };
+  const joined = { ...linkFrom, note: spelled(linkFrom.note) ?? linkFrom.note };
   return { ...proposal, payload: { ...proposal.payload, linkFrom: joined } };
-}
-
-/**
- * Where the note a proposal joins went, when it is no longer at its path —
- * a meeting filed out of the Inbox: the note its `source` links now, as the
- * move rewrote that link. Null when nothing answers.
- */
-function movedTo(proposal: ProposalNote, notePaths: readonly VaultPath[]): VaultPath | null {
-  const [target] = proposal.source === null ? [] : linkTargets(proposal.source);
-  return target === undefined ? null : resolveWikiLinkTarget(target.replace(/#.*$/, ''), notePaths);
-}
-
-/** The note whose relation accepting changes, and which relation; null when it changes none. */
-function relationChanged(proposal: ProposalNote): LinkFrom | null {
-  return proposal.kind === 'link' ? proposal.payload : proposal.payload.linkFrom;
 }
 
 /** The note a proposal links through, as it is now; null when it is not there. */

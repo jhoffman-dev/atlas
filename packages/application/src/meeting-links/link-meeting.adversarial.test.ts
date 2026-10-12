@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VaultPath } from '@atlas/domain';
+import { archiveNotes } from '../archive/archive-notes.ts';
 import { processInboxItems } from '../inbox/process-inbox.ts';
 import { acceptProposalNote } from '../proposals/accept-proposal.ts';
 import { MEETING_BODY } from '../testing/meeting-files.ts';
@@ -65,6 +66,24 @@ function vault(files: Record<string, string>): { setup: ProposalVault; ports: Me
 
 const link = (ports: MeetingLinkPorts, path = MEETING) =>
   linkMeeting({ ports, path: vaultPath(path), today: TODAY });
+
+/** The ports with an index that has read every note as it is now: what it is a moment after a sync. */
+function freshIndex(setup: ProposalVault): ProposalVault['ports'] {
+  const files = Object.fromEntries(
+    [...setup.fixture.files].map(([path, note]) => [path, note.text]),
+  );
+  const query = atlasQueryIndex({ files, markdown: jsonLinesMarkdown() });
+  return { ...setup.ports, index: { ...setup.ports.index, query } };
+}
+
+const fileUnderProject = (setup: ProposalVault) =>
+  processInboxItems({
+    ports: setup.ports,
+    paths: [vaultPath(MEETING)],
+    notePaths: setup.paths().map(vaultPath),
+    project: vaultPath(PROJECT),
+    updateLinks: true,
+  });
 
 const personProposal = (proposed: readonly VaultPath[]) =>
   proposed.find((path) => path.includes('Ada Venn')) as VaultPath;
@@ -162,5 +181,159 @@ describe('linking a meeting, adversarially', () => {
 
     expect(again.proposed).toEqual([]);
     expect(setup.paths().filter((path) => path.startsWith('Inbox/Proposals/'))).toEqual(before);
+  });
+
+  describe('a proposal is input: it never redirects a write', () => {
+    const OTHER = 'Notes/Other note.md';
+    const other = jsonLinesNote({ type: 'note', title: 'Other note' });
+
+    it('refuses a person proposal whose meeting was archived since, writing nothing in the Archive', async () => {
+      const { setup, ports } = vault({ [MEETING]: meeting([ADA]) });
+      const person = personProposal((await link(ports)).proposed);
+      const archived = await archiveNotes({
+        ports: setup.ports,
+        paths: [vaultPath(MEETING)],
+        notePaths: setup.paths().map(vaultPath),
+        today: TODAY,
+      });
+      const there = archived.moves[0]?.move.to as string;
+      expect(there).toMatch(/^Archive\//);
+      const before = setup.fixture.files.get(there)?.text;
+
+      await expect(
+        acceptProposalNote({ ports: freshIndex(setup), path: person, today: TODAY }),
+      ).rejects.toThrow(/archived/);
+
+      expect(setup.fixture.files.get(there)?.text).toBe(before);
+      expect(setup.paths()).not.toContain('People/Ada Venn.md');
+      expect(setup.paths()).toContain(person);
+    });
+
+    it('does not write the note a hand-edited source names when the meeting is gone', async () => {
+      const { setup, ports } = vault({ [MEETING]: meeting([ADA]), [OTHER]: other });
+      const person = personProposal((await link(ports)).proposed);
+      const edited = setup.fixture.files
+        .get(person)
+        ?.text.replace(/\[\[2026-10-06 Standup\]\]/, '[[Other note]]') as string;
+      setup.fixture.files.set(person, {
+        ...(setup.fixture.files.get(person) as object),
+        text: edited,
+      } as never);
+      setup.fixture.files.delete(MEETING);
+
+      await acceptProposalNote({ ports: freshIndex(setup), path: person, today: TODAY });
+
+      expect(setup.fixture.files.get(OTHER)?.text).toBe(other);
+      expect(setup.propertiesOf(OTHER)?.['people']).toBeUndefined();
+    });
+
+    it('does not take a hand-edited source for the meeting unless it is that meeting', async () => {
+      const { setup, ports } = vault({ [MEETING]: meeting([ADA]), [OTHER]: other });
+      const person = personProposal((await link(ports)).proposed);
+      const filed = (await fileUnderProject(setup)).moves[0]?.move.to as string;
+      const edited = setup.fixture.files
+        .get(person)
+        ?.text.replace(/\[\[2026-10-06 Standup\]\]/, '[[Other note]]') as string;
+      setup.fixture.files.set(person, {
+        ...(setup.fixture.files.get(person) as object),
+        text: edited,
+      } as never);
+
+      await acceptProposalNote({ ports: freshIndex(setup), path: person, today: TODAY });
+
+      expect(setup.fixture.files.get(OTHER)?.text).toBe(other);
+      // The index knows the filed meeting by its id, whatever the source says.
+      expect(setup.propertiesOf(filed)?.['people']).toContain('[[Ada Venn]]');
+    });
+
+    it('writes to the filed meeting, not to a newer meeting now at the Inbox path', async () => {
+      const { setup, ports } = vault({ [MEETING]: meeting([ADA]) });
+      const person = personProposal((await link(ports)).proposed);
+      const filed = (await fileUnderProject(setup)).moves[0]?.move.to as string;
+      const newer = meeting([], { external_id: 'gemini-other-meeting' });
+      setup.fixture.files.set(MEETING, {
+        ...(setup.fixture.files.get(filed) as object),
+        text: newer,
+      } as never);
+
+      await acceptProposalNote({ ports: freshIndex(setup), path: person, today: TODAY });
+
+      expect(setup.fixture.files.get(MEETING)?.text).toBe(newer);
+      expect(setup.propertiesOf(filed)?.['people']).toContain('[[Ada Venn]]');
+    });
+
+    it('refuses when the only note at the path is another meeting and the meeting is nowhere', async () => {
+      const { setup, ports } = vault({ [MEETING]: meeting([ADA]) });
+      const person = personProposal((await link(ports)).proposed);
+      const newer = meeting([], { external_id: 'gemini-other-meeting' });
+      setup.fixture.files.set(MEETING, {
+        ...(setup.fixture.files.get(MEETING) as object),
+        text: newer,
+      } as never);
+
+      await expect(
+        acceptProposalNote({ ports: freshIndex(setup), path: person, today: TODAY }),
+      ).rejects.toThrow(/no longer the meeting/);
+
+      expect(setup.fixture.files.get(MEETING)?.text).toBe(newer);
+      expect(setup.paths()).not.toContain('People/Ada Venn.md');
+    });
+  });
+
+  describe('a link proposal outlives the filing of its meeting', () => {
+    const SAM = { name: 'Sam Okoro' };
+    const TWO_SAMS = {
+      'People/Sam Okoro.md': jsonLinesNote({ type: 'person' }),
+      'Clients/Sam Okoro.md': jsonLinesNote({ type: 'person' }),
+    };
+
+    it('accepts one of the people an attendee could be after the meeting is filed', async () => {
+      const { setup, ports } = vault({ ...TWO_SAMS, [MEETING]: meeting([SAM]) });
+      const proposals = (await link(ports)).proposed;
+      expect(proposals).toHaveLength(2);
+      const filed = (await fileUnderProject(setup)).moves[0]?.move.to as string;
+
+      const wanted = proposals.find(
+        (path) =>
+          setup.propertiesOf(path)?.['payload'] &&
+          JSON.stringify(setup.propertiesOf(path)).includes('People/Sam Okoro'),
+      ) as VaultPath;
+      await acceptProposalNote({ ports: freshIndex(setup), path: wanted, today: TODAY });
+
+      expect(setup.propertiesOf(filed)?.['people']).toContain('[[People/Sam Okoro]]');
+    });
+
+    it('refuses once the meeting is archived, and leaves the Archive as it is', async () => {
+      const { setup, ports } = vault({ ...TWO_SAMS, [MEETING]: meeting([SAM]) });
+      const [first] = (await link(ports)).proposed as [VaultPath];
+      const archived = await archiveNotes({
+        ports: setup.ports,
+        paths: [vaultPath(MEETING)],
+        notePaths: setup.paths().map(vaultPath),
+        today: TODAY,
+      });
+      const there = archived.moves[0]?.move.to as string;
+      const before = setup.fixture.files.get(there)?.text;
+
+      await expect(
+        acceptProposalNote({ ports: freshIndex(setup), path: first, today: TODAY }),
+      ).rejects.toThrow(/archived/);
+      expect(setup.fixture.files.get(there)?.text).toBe(before);
+    });
+  });
+
+  it('refuses to link a person onto a note at their path that is not a person', async () => {
+    const { setup, ports } = vault({
+      [MEETING]: meeting([ADA]),
+      'People/Ada Venn.md': jsonLinesNote({ type: 'project', status: 'active' }),
+    });
+    const person = personProposal((await link(ports)).proposed);
+    const before = setup.fixture.files.get(MEETING)?.text;
+
+    await expect(
+      acceptProposalNote({ ports: freshIndex(setup), path: person, today: TODAY }),
+    ).rejects.toThrow(/not a person/);
+
+    expect(setup.fixture.files.get(MEETING)?.text).toBe(before);
   });
 });

@@ -184,7 +184,13 @@ describe('linkMeeting', () => {
       [
         'link',
         'medium',
-        { note: MEETING, property: 'project', link: '[[Ledger migration]]', digest: null },
+        {
+          note: MEETING,
+          property: 'project',
+          link: '[[Ledger migration]]',
+          digest: null,
+          meeting: { provider: 'gemini', externalId: 'gemini-7f3a9c21' },
+        },
       ],
     ]);
   });
@@ -199,12 +205,13 @@ describe('linkMeeting', () => {
     expect(proposalsIn(setup)).toEqual(first);
   });
 
-  it('does not propose again what was answered and archived', async () => {
+  it('does not propose again what was answered and archived — for another meeting too', async () => {
     const answered = jsonLinesNote({
       type: 'proposal',
       kind: 'person',
       state: 'rejected',
-      proposal_id: `meeting links:${MEETING}:person:email:ada@larkspur.example`,
+      // Rejected from some earlier meeting: it is the person who was answered, not that meeting's card.
+      proposal_id: 'meeting links:person:email:ada@larkspur.example',
       payload: { title: 'Ada Venn' },
     });
     const { setup, ports } = vault({
@@ -225,6 +232,19 @@ describe('linkMeeting', () => {
     await link(ports, 'James Hoffman');
     expect(proposalsIn(setup)).toEqual([]);
   });
+
+  it.each(['Hoffman, James', '  james   hoffman '])(
+    'never proposes the vault’s owner however the attendee list spells them (%j)',
+    async (spelling) => {
+      const { setup, ports } = vault({
+        [MEETING]: meeting([{ name: spelling, email: 'jh@elsewhere.example' }], {
+          project: '[[Ledger migration]]',
+        }),
+      });
+      await link(ports, 'James Hoffman');
+      expect(proposalsIn(setup)).toEqual([]);
+    },
+  );
 
   it('leaves a meeting with unsaved typing as it is, and says so', async () => {
     const { setup, ports } = vault({ [MEETING]: meeting([MARA]) });
