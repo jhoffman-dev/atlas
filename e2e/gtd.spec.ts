@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
-import { dragCardTo } from './drag.ts';
+import { cardInColumn, dragCardTo } from './drag.ts';
 
 /**
  * P30-02: tasks follow GTD's eight statuses (ADR-0029). A vault on the old
@@ -166,9 +166,11 @@ test('a board drags a task between the new statuses, and Waiting needs someone',
 
   await dragCardTo(page, 'tasks/Call the bank.md', 'in-progress');
   await expectFile(vault, 'tasks/Call the bank.md').toContain('status: in-progress');
+  await expect(cardInColumn(page, 'tasks/Call the bank.md', 'in-progress')).toBeVisible();
 
   await dragCardTo(page, 'tasks/Hear from Mara.md', 'waiting');
   await expectFile(vault, 'tasks/Hear from Mara.md').toContain('status: waiting');
+  await expect(cardInColumn(page, 'tasks/Hear from Mara.md', 'waiting')).toBeVisible();
 
   await dragCardTo(page, 'tasks/Call the bank.md', 'waiting');
   await expect(page.getByRole('alert')).toContainText('needs someone to wait on');
