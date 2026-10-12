@@ -239,6 +239,26 @@ mod tests {
         Ok(response)
     }
 
+    /// Set in the process `run_alone` starts, so the test runs there rather
+    /// than starting another.
+    const ALONE: &str = "ATLAS_TEST_ALONE";
+
+    /// Runs one test of this binary, by its full name, in a process that runs
+    /// nothing else, and fails with what it printed if it failed there.
+    fn run_alone(test: &str) {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", test, "--nocapture", "--test-threads=1"])
+            .env(ALONE, "1")
+            .output()
+            .unwrap();
+        let said = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && said.contains("1 passed"),
+            "{said}{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
     fn loaded() -> (tempfile::TempDir, Arc<ApiControl>) {
         let dir = tempfile::tempdir().unwrap();
         let control = Arc::new(ApiControl::load(dir.path().join("app")).unwrap());
@@ -297,8 +317,20 @@ mod tests {
 
     /// Off then straight back on must not find Atlas's own old listener still
     /// holding the port, take it for a squatter, move and replace the token.
+    ///
+    /// Run in a process of its own. A program started anywhere in this one —
+    /// the git and model tests start dozens — holds a copy of every open
+    /// descriptor from its fork to its exec, the listener's among them, and
+    /// for those few milliseconds the port is still taken after Atlas closed
+    /// it. No wait in this test could tell that from Atlas's own listener
+    /// being left open, which is the thing it is here to catch.
     #[test]
     fn turning_it_off_and_straight_back_on_keeps_the_port_and_the_token() {
+        if std::env::var_os(ALONE).is_none() {
+            return run_alone(
+                "api::control::tests::turning_it_off_and_straight_back_on_keeps_the_port_and_the_token",
+            );
+        }
         let (_dir, control) = loaded();
         let port = control.set_enabled(true, echo(&control)).unwrap().port;
         let token = control.token();

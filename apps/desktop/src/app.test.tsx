@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { configure, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
 import {
@@ -28,6 +28,21 @@ import type { ChatPorts } from './chat/use-chat.ts';
 import type { LocalApiPorts } from './api/use-local-api.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { createBrowserGlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
+
+/**
+ * Every test here renders the whole app in jsdom and drives it: 0.6–1.3 s of
+ * CPU each, measured, with wall time tracking CPU when the machine is free.
+ * The default 5 s is a wall-clock budget, so a gate run beside other
+ * worktrees' (five or more runs to a core) spent it on waiting for a core —
+ * and at fifteen to a core (load 148 on ten, 2026-10-11) one test spent 30 s.
+ * The work is fixed; this is a budget for CPU, not a wait on a moment.
+ */
+vi.setConfig({ testTimeout: 60_000 });
+// The same for each wait on what the app shows: `findBy…` and `waitFor` give
+// up after 1 s by default, which a starved render overran ("Unable to find
+// role=button name Move Favorites", two runs in six beside four busy loops).
+// A wait that is met never spends its budget.
+configure({ asyncUtilTimeout: 20_000 });
 
 const appInfo: AppInfoPort = { read: async () => ({ name: 'Atlas', version: '0.1.0' }) };
 
@@ -710,7 +725,7 @@ describe('the palettes and the shortcuts around them', () => {
     await userEvent.type(await screen.findByLabelText('What needs doing'), 'Buy flour{Enter}');
 
     // Capture stays up for the next line; the note opens behind it.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(createNote.mock.calls.map(([args]) => args.path)).toEqual(['Inbox/Buy flour.md']),
     );
     expect(screen.getByRole('dialog', { name: 'Capture a task' })).toBeDefined();
@@ -725,15 +740,15 @@ describe('the palettes and the shortcuts around them', () => {
     renderApp(vault, memoryActivityStore(), capture);
     await screen.findByRole('treeitem', { name: 'recipes' });
     // Handed to the host as the app starts: the default, ⌃⌥N, on a Mac that chose nothing.
-    await vi.waitFor(() => expect(capture.asked).toEqual(['Control+Alt+KeyN']));
+    await waitFor(() => expect(capture.asked).toEqual(['Control+Alt+KeyN']));
     expect(screen.queryByRole('dialog', { name: 'Capture a task' })).toBeNull();
 
     capture.press();
 
     const field = await screen.findByLabelText('What needs doing');
-    await vi.waitFor(() => expect(document.activeElement).toBe(field));
+    await waitFor(() => expect(document.activeElement).toBe(field));
     await userEvent.type(field, 'Call the plumber{Enter}');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(createNote.mock.calls.map(([args]) => args.path)).toEqual([
         'Inbox/Call the plumber.md',
       ]),
@@ -744,7 +759,7 @@ describe('the palettes and the shortcuts around them', () => {
     const capture = fakeGlobalCapture();
     renderApp(fakeVault(), memoryActivityStore(), capture);
     await screen.findByRole('heading', { name: 'Open a vault' });
-    await vi.waitFor(() => expect(capture.asked).toHaveLength(1));
+    await waitFor(() => expect(capture.asked).toHaveLength(1));
 
     capture.press();
 
@@ -923,7 +938,7 @@ describe('the Activity log, adversarial (U-28)', () => {
     // The window shows the failure as a red notice; both lines are batched into one write.
     expect((await screen.findAllByText(/disk I\/O error/)).length).toBeGreaterThan(0);
     const kept = () => activity.files.get(location.absolutePath) ?? '';
-    await vi.waitFor(() => expect(kept()).toContain('disk I/O error'));
+    await waitFor(() => expect(kept()).toContain('disk I/O error'));
     const errors = kept()
       .split('\n')
       .filter((line) => line.includes('"level":"error"'));
@@ -956,7 +971,7 @@ describe('the Activity log, adversarial (U-28)', () => {
     expect(await screen.findByText(/The sidebar's order could not be saved/)).toBeDefined();
 
     const kept = () => activity.files.get(location.absolutePath) ?? '';
-    await vi.waitFor(() => expect(kept()).toContain('the settings note is locked'));
+    await waitFor(() => expect(kept()).toContain('the settings note is locked'));
     const errors = kept()
       .split('\n')
       .filter((line) => line.includes('"level":"error"'));

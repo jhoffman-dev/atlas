@@ -18,6 +18,11 @@ import type { MarkdownPort } from '../notes/ports.ts';
  * refreshing the index fills them, so a
  * compiled query runs for real. Titles are the note's name without its folder
  * and `.md`; a note's frontmatter `title:` renames it, as the index's does.
+ *
+ * The indexes are the host's own (`src-tauri/src/index.rs`). Without them every
+ * correlated subquery scans its whole table, and a query the app answers in
+ * milliseconds takes seconds here — a test's time then measures this stand-in,
+ * not the query.
  * Test support only.
  */
 export function atlasQueryIndex({
@@ -39,7 +44,15 @@ export function atlasQueryIndex({
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                             target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
-    CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);`);
+    CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);
+    CREATE INDEX props_path ON props(path);
+    CREATE INDEX props_key ON props(key, value_text);
+    CREATE INDEX links_src ON links(src);
+    CREATE INDEX links_dst ON links(dst);
+    CREATE INDEX tags_path ON tags(path);
+    CREATE INDEX tags_tag ON tags(tag);
+    CREATE INDEX relations_src ON relations(src, key);
+    CREATE INDEX relations_dst ON relations(dst);`);
   const paths = Object.keys(files).map(createVaultPath);
   for (const [path, text] of Object.entries(files)) {
     addNote(database, {

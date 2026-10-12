@@ -35,6 +35,11 @@ function cappedIndex(notes: Record<string, unknown>): Pick<IndexPort, 'query'> {
 }
 
 describe('readTaskSchedules at the row cap', () => {
+  // The budget is for CPU, not a wait on a moment: about 6 s alone, nearly all
+  // of it one query. With the host's indexes SQLite looks a note's property up
+  // by key (`props_key`) and walks every note holding it, once per row, for
+  // 5,200 rows; the work is fixed, and under the gate on a loaded machine
+  // several runs share a core.
   it('reads a page of tasks whose blocks together pass the cap, when each task’s alone fits it', async () => {
     // Two years of working mornings: 520 blocks of ten 15-minute tasks, among
     // 200 tasks, so each task is in 26 blocks — 260 rows of its own, far
@@ -69,5 +74,5 @@ describe('readTaskSchedules at the row cap', () => {
       done: 0,
       overBy: 26 * 15 - 15,
     });
-  }, 30_000);
+  }, 120_000);
 });
