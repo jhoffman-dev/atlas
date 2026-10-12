@@ -33,6 +33,7 @@ import {
   type NoteProposalKind,
   type ProposalConfidence,
 } from '../proposals/proposal.ts';
+import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
@@ -109,11 +110,26 @@ export interface ProposalDraft {
   readonly joinsMeeting?: string;
 }
 
+/**
+ * The block a proposal cites, as the run resolved the model's link: the note
+ * among those it read, the meeting that note is when the import vouches for
+ * it, and the block's id. A title or a path, `.md` or not, any case — however
+ * the link was written, one block resolves to one citation.
+ */
+export interface ProposalCitation {
+  readonly note: VaultPath;
+  readonly meeting: MeetingIdentity | null;
+  readonly block: string;
+}
+
 /** A proposal that has passed every rule, ready to be written as a note. */
 export interface CheckedProposal {
   readonly kind: NoteProposalKind;
   readonly payload: NotePayload;
+  /** The citation as the model wrote it: what the proposal's note shows. */
   readonly source: string;
+  /** What the citation names, resolved by the run: what the proposal is known by. */
+  readonly cites: ProposalCitation;
   readonly confidence: ProposalConfidence;
   readonly why: string;
 }
@@ -181,7 +197,8 @@ export interface ProposalSchema<Item> {
 const PLAIN_TEXT = 'Write plain markdown: no images, embeds or HTML. Links are fine.';
 
 const DEFAULT_CITATION =
-  'Cite a block of a note you were given, as [[Note title#^blockid]], using an id that note already has.';
+  'Cite a block of a note you were given, as [[Note title#^blockid]], using an id that note already has. ' +
+  'If two of the notes share a title, cite by the path instead, as [[Folder/Note title#^blockid]].';
 
 /** A schema with its item type closed over: what the registry holds. */
 export interface RegisteredProposalSchema {
@@ -330,9 +347,9 @@ export function checkDraft(
   if (confidence === undefined) {
     return refused(`Its confidence is not one of ${PROPOSAL_CONFIDENCES.join(', ')}.`);
   }
-  const cited = citedBlockProblem(draft.source, context.notes);
-  if (cited !== null) return refused(cited);
-  const linkFrom = sourceMeetingLink({ draft, context, meetingRelations });
+  const cited = citedBlock(draft.source, context.notes);
+  if (!cited.ok) return cited;
+  const linkFrom = sourceMeetingLink({ draft, cited: cited.value, meetingRelations });
   if (!linkFrom.ok) return linkFrom;
   return {
     ok: true,
@@ -340,6 +357,11 @@ export function checkDraft(
       kind: draft.kind,
       payload: { ...note, linkFrom: linkFrom.value },
       source: draft.source.trim(),
+      cites: {
+        note: cited.value.note.path,
+        meeting: cited.value.note.meeting?.identity ?? null,
+        block: cited.value.block,
+      },
       confidence,
       why: draft.why.trim(),
     },
@@ -356,11 +378,11 @@ export function checkDraft(
  */
 function sourceMeetingLink({
   draft,
-  context,
+  cited,
   meetingRelations,
 }: {
   draft: ProposalDraft;
-  context: AnswerContext;
+  cited: CitedBlock;
   meetingRelations: readonly string[];
 }): Reading<LinkFrom | null> {
   const property = draft.joinsMeeting;
@@ -370,51 +392,82 @@ function sourceMeetingLink({
       `It would join “${truncated(property, 40)}” of a meeting, which this output does not link through.`,
     );
   }
-  const cited = citedNote(draft.source, context.notes);
-  const meeting = cited?.meeting?.identity ?? null;
-  if (cited === null || meeting === null) {
+  const meeting = cited.note.meeting?.identity ?? null;
+  if (meeting === null) {
     return refused('It links back to the meeting it cites, and the note it cites is not one.');
   }
-  const refusal = proposedChangeRefusal(cited.path);
+  const refusal = proposedChangeRefusal(cited.note.path);
   if (refusal !== null) return refused(refusal);
-  return { ok: true, value: { note: cited.path, property, meeting } };
+  return { ok: true, value: { note: cited.note.path, property, meeting } };
 }
 
-/** The note a `source` link names, among those the run read; null when it names none of them. */
-function citedNote(source: string, notes: readonly AnsweredNote[]): AnsweredNote | null {
-  const link = readWikiLink(source.trim());
-  if (link === null) return null;
-  return notes.find((each) => namesNote(link.target, each.path)) ?? null;
+/** A block the run found: the note, as it was read, and the id. */
+interface CitedBlock {
+  readonly note: AnsweredNote;
+  readonly block: string;
 }
 
 /**
  * Why `source` does not cite a block of one of `notes`, or null when it
- * does: a link `[[Note#^id]]` to a note the run read, naming an id that note
- * holds in the text the model was shown, outside a code fence. A proposal that cites nothing real cannot be checked against what
- * was said, so it is refused.
+ * does: see {@link citedBlock}.
  */
 export function citedBlockProblem(source: string, notes: readonly AnsweredNote[]): string | null {
+  const cited = citedBlock(source, notes);
+  return cited.ok ? null : cited.problem;
+}
+
+/**
+ * The block `source` cites: a link `[[Note#^id]]` to one note the run read,
+ * naming an id that note holds in the text the model was shown, outside a
+ * code fence. A proposal that cites nothing real cannot be checked against
+ * what was said, so it is refused — as is a link by a title more than one of
+ * the notes has: which note it means would hang on the order they were read
+ * in, so the model is told to cite by path.
+ */
+function citedBlock(source: string, notes: readonly AnsweredNote[]): Reading<CitedBlock> {
   const link = readWikiLink(source.trim());
   // The reader keeps the `#` that starts a link's heading: a block's is `#^id`.
   const id = link?.heading?.startsWith('#^') ? link.heading.slice(2) : null;
   if (link === null || link.embed || id === null || id === '') {
-    return `Its source ${JSON.stringify(truncated(source, 200))} is not a link to a block, like [[Note#^id]].`;
+    return refused(
+      `Its source ${JSON.stringify(truncated(source, 200))} is not a link to a block, like [[Note#^id]].`,
+    );
+  }
+  const named = notesNamed(link.target, notes);
+  if (named.length > 1) {
+    return refused(
+      `Its source cites ${JSON.stringify(truncated(link.target, 200))}, a title ${named.length} of the notes this run read share. Cite the note by its path, like [[Folder/Note#^id]].`,
+    );
+  }
+  const [note] = named;
+  if (note === undefined) {
+    return refused(
+      `Its source cites ${JSON.stringify(truncated(link.target, 200))}, which is not a note this run read.`,
+    );
   }
   // Only what the model was shown: a block past where the note was cut is a guess.
-  const note = shownNotes(notes).find((each) => namesNote(link.target, each.path));
-  if (note === undefined) {
-    return `Its source cites ${JSON.stringify(truncated(link.target, 200))}, which is not a note this run read.`;
-  }
-  return holdsBlock(note.text, id)
-    ? null
-    : `${noteTitle(note.path)} has no block ^${truncated(id, 100)}.`;
+  const shown = shownNotes(notes).find((each) => each.path === note.path);
+  return shown !== undefined && holdsBlock(shown.text, id)
+    ? { ok: true, value: { note, block: id } }
+    : refused(`${noteTitle(note.path)} has no block ^${truncated(id, 100)}.`);
 }
 
 /** Whether a link target names the note at `path`: by its path, or by its title alone. */
 export function namesNote(target: string, path: VaultPath): boolean {
+  return notesNamed(target, [{ path, text: '' }]).length > 0;
+}
+
+/**
+ * The notes a link's target names, among those the run read: the one at that
+ * path when there is one, else every note of that title — more than one when
+ * the title is shared.
+ */
+function notesNamed(target: string, notes: readonly AnsweredNote[]): AnsweredNote[] {
   const wanted = target.trim().replace(/\.md$/i, '').toLowerCase();
-  const stem = path.replace(/\.md$/i, '').toLowerCase();
-  return wanted === stem || wanted === noteTitle(path).toLowerCase();
+  const stem = (path: VaultPath) => path.replace(/\.md$/i, '').toLowerCase();
+  const atPath = notes.filter((each) => stem(each.path) === wanted);
+  if (atPath.length > 0) return atPath.slice(0, 1);
+  return notes.filter((each) => noteTitle(each.path).toLowerCase() === wanted);
 }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;

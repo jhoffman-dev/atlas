@@ -132,6 +132,7 @@ export {
 export {
   handledVersions,
   leftHandledNotes,
+  missedArrivals,
   noteTriggerHears,
   noteTriggerQueryProblem,
   parseNoteTrigger,
@@ -139,6 +140,12 @@ export {
   triggeringVersions,
   unhandledVersions,
 } from './note-trigger.ts';
-export type { HandledVersions, NoteEvent, NoteTrigger, NoteVersionRef } from './note-trigger.ts';
+export type {
+  HandledVersions,
+  HeldNote,
+  NoteEvent,
+  NoteTrigger,
+  NoteVersionRef,
+} from './note-trigger.ts';
 export { loggedActionProblem, unarchiveProblem } from './undo-check.ts';
 export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';

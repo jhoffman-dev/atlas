@@ -413,7 +413,10 @@ Pay`) correct only the first, and the second is not read: list the longer
   extra write per meeting for nothing): a meeting that did not pass through
   the import is read again each run, which is a linear scan.
 - **Speaker labels** are corrected like the words: the label is what links a
-  turn to a person, and a misheard speaker is the same mishearing.
+  turn to a person, and a misheard speaker is the same mishearing. One
+  exception came later: a label that is exactly what a person goes by is not
+  turned into a spelling that is not theirs (see "As built, after the
+  adversarial pass on the stack").
 
 ## As built (P29-04, 2026-10-11)
 
@@ -449,7 +452,7 @@ pipeline (#19) is to run as a deterministic step.
   `company`.
 - **Speakers are linked too**, when a named speaker is exactly one person.
   It was cheap: the transcript is already parsed by the validator. The labels
-  are read as the vocabulary corrects them (see "As built, the three
+  are read as heard first, then as the vocabulary corrects them (see "As built, the three
   together" below). An
   unmatched speaker is not proposed: a speaker has no address to tell two
   people apart, and the attendees are what proposals come from.
@@ -557,6 +560,59 @@ imported`.
   nothing twice and stamps it.
 - **Tests.** `meeting-arrival-sequence.test.ts` (application, over the fake
   vault, the feed measured after every write) and `e2e/meeting-arrival.spec.ts`.
+
+## As built, after the adversarial pass on the stack (2026-10-11)
+
+An adversarial pass over the four stacked changes found five things in the
+import and in accepting a proposal. Each has a test that failed first
+(`meeting-arrival.stack.adversarial.test.ts`,
+`accept-redelivered-meeting.adversarial.test.ts`,
+`meeting-corrections.speakers.test.ts`).
+
+- **Accept writes only to the meeting the import let in.** A proposal's
+  meeting is found by its provider and id, and more than one note can hold
+  those: the meeting, filed, and the same meeting delivered again at the path
+  it first landed at — which is the path the proposal still names. Only a
+  holder stamped `imported` is the meeting; an unstamped one is an arrival
+  not finished, and may be about to be archived as a copy. So accepting
+  chooses among the holders stamped `imported` (the proposal's path and
+  `source` only break a tie between them), and when the only note holding the
+  meeting is unstamped it refuses in words: the meeting "has not been let in
+  by the import yet". A holder stamped `duplicate` or `error` holds nothing,
+  as before.
+- **Catching up compares the files it listed with each other.** Holders were
+  named by the index alone, which is behind the folder after a pull: with two
+  files of one meeting waiting and neither read yet, each was let in as the
+  only one. A run now also reads which meeting each file it was handed names
+  (once a run, from the frontmatter) and counts those as places to look —
+  each still read and judged by `holdingAt`, as the index's are. The ordering
+  rule is unchanged, so `<date> <title>` is let in and its `(<provider>
+<hash>)` twin is archived as its copy.
+- **Decision: in a speaker label, what a person goes by wins over a Term.**
+  A turn's label that is exactly a person's name or alias names that person.
+  Linking tries each label as heard first, and only one that is nobody's as
+  the vocabulary corrects it. The correction leaves such a label as heard
+  where a Term would turn it into a spelling that is not that person's —
+  `Toby`, Tobias Fenn's alias, is not made the product `Tobi` in a label,
+  though it still is in the words — and still puts it right into one that is
+  theirs (`Mara Quil` into `Mara Quill`). This is the one place an alias
+  bears on correction, and it only ever stops a rewrite: aliases still
+  rewrite nothing (P28-06's decision stands). The vocabulary carries who goes
+  by what (`speakers`) for this; it is read by the same index query.
+  Companies are not speakers and are not counted.
+- **Activity is truthful when the proposals cannot be written.** The links
+  are written first. If the Inbox then cannot be listed or written, the line
+  says who was linked and "its proposals could not be written: …" (a
+  warning), not "Could not link the meeting"; the run is kept with what it
+  set (`unproposed` holds the reason), so an undo still has its record.
+- **A half-written arrival, a changed vault, one vocabulary.** If the link
+  write lands and the stamp write fails, the meeting stays unstamped with its
+  links, and the next look stamps it and links or proposes nothing twice
+  (now tested). If another vault is opened while a meeting is being linked,
+  the meeting is not stamped: `beforeLetIn` reports `vault-changed`, Activity
+  says so, and it is let in when its vault is next open. The run's vocabulary
+  is read before `beforeLetIn` and handed to it, so the speakers are read by
+  the very spellings the stamp write corrects by, and the index is asked once.
 
 ## As built, with a rule's Claude step behind it (P29-03 stacked on the three, 2026-10-11)
 

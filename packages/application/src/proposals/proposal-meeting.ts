@@ -31,11 +31,16 @@ export function relationChanged(proposal: ProposalNote): LinkFrom | null {
  * is what the meeting is. Everything on the proposal is input a person or a
  * sync may have edited, so the note written is never one it merely points
  * at: it is a note that holds this very meeting (the file itself is read to
- * know), outside the Archive and the other places a proposal never writes.
+ * know) and that the import has let in (stamped `imported`), outside the
+ * Archive and the other places a proposal never writes. A file of the same
+ * meeting the import has not let in — a second delivery waiting where the
+ * first landed — is not the meeting yet, and may be about to be archived as
+ * a copy: it is never chosen, whatever the proposal's path says.
  * The card names the meeting by its title, which filing does not change.
  *
  * Refused, in words: a meeting now only in the Archive, one that is more than
- * one note, and a path that holds some other meeting. A meeting that is gone
+ * one note, one held only by a note the import has not let in, and a path
+ * that holds some other meeting. A meeting that is gone
  * altogether is left to the proposal's own rules (a link proposal says so; a
  * person is still made). A proposal that names no meeting is left as it is.
  */
@@ -54,18 +59,24 @@ export async function pointedAtItsMeeting({
   const named = vaultSpellingOf(joins.note, notePaths) ?? joins.note;
   const hints = [named, ...pointedAtBySource(proposal.source, notePaths)];
   const holders = await holdersOf(ports, { meeting, hints });
-  const live = holders.filter((holder) => proposedChangeRefusal(holder) === null);
+  const live = holders.filter(({ path }) => proposedChangeRefusal(path) === null);
+  const letIn = live.filter(({ held }) => held === 'imported').map(({ path }) => path);
   const title = noteTitle(joins.note);
-  const chosen = live.find((holder) => hints.includes(holder)) ?? live[0];
-  if (live.length > 1 && !hints.some((hint) => live.includes(hint))) {
+  const chosen = letIn.find((holder) => hints.includes(holder)) ?? letIn[0];
+  if (letIn.length > 1 && !hints.some((hint) => letIn.includes(hint))) {
     throw new ProposalRefused(
       `More than one note holds the meeting “${title}”, so it is not clear which this is for; nothing was written.`,
     );
   }
   if (chosen !== undefined) return withNote(proposal, chosen);
-  if (holders.length > 0) {
+  if (holders.some(({ held }) => held === 'imported')) {
     throw new ProposalRefused(
       `The meeting “${title}” has been archived; a proposal does not write there, so nothing was written.`,
+    );
+  }
+  if (holders.length > 0) {
+    throw new ProposalRefused(
+      `The meeting “${title}” has not been let in by the import yet: the only note holding it is still waiting to be imported, so nothing was written.`,
     );
   }
   if (notePaths.includes(named)) {
@@ -92,14 +103,21 @@ function pointedAtBySource(source: string | null, notePaths: readonly VaultPath[
 async function holdersOf(
   ports: ProposalPorts,
   { meeting, hints }: { meeting: MeetingIdentity; hints: readonly VaultPath[] },
-): Promise<VaultPath[]> {
+): Promise<Holder[]> {
   const indexed = await indexedHolders(ports, meeting);
-  const holders: VaultPath[] = [];
+  const holders: Holder[] = [];
   for (const candidate of new Set([...hints, ...indexed])) {
     if (isConflictCopyPath(candidate)) continue;
-    if ((await holdingAt(ports, { holder: candidate, meeting })) !== null) holders.push(candidate);
+    const held = await holdingAt(ports, { holder: candidate, meeting });
+    if (held !== null) holders.push({ path: candidate, held });
   }
   return holders;
+}
+
+/** A note that holds the meeting, and whether the import has let it in. */
+interface Holder {
+  readonly path: VaultPath;
+  readonly held: 'imported' | 'unsettled';
 }
 
 async function indexedHolders(

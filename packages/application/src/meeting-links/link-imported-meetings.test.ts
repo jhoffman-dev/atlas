@@ -117,13 +117,13 @@ describe('linking as the import lets a meeting in', () => {
 
 describe('createMeetingLinker', () => {
   const MEETING = 'Inbox/Meetings/2026-10-06 Standup.md';
-  const files = {
+  const FILES: Record<string, string> = {
     [MEETING]: jsonLinesNote({ type: 'meeting', attendees: [{ name: 'Mara Quill' }] }),
     'People/Mara Quill.md': jsonLinesNote({ type: 'person' }),
     'Tasks/Not a meeting.md': jsonLinesNote({ type: 'task' }),
   };
 
-  function linkerOver(openVault: () => string | null) {
+  function linkerOver(openVault: () => string | null, files = FILES) {
     const setup = proposalVault(files);
     const query = atlasQueryIndex({ files, markdown: jsonLinesMarkdown() });
     const activity = recordingActivity();
@@ -149,6 +149,37 @@ describe('createMeetingLinker', () => {
       ['error', 'Could not link the meeting: Tasks/Not a meeting.md is not a meeting.'],
     ]);
     expect(onWritten).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the run and says who it linked when its proposals then cannot be written', async () => {
+    // Ines Abara is no one the vault knows, so there is a proposal to write.
+    const attendees = [{ name: 'Mara Quill' }, { name: 'Ines Abara', email: 'ines@example.net' }];
+    const { setup, activity, linker } = linkerOver(() => VAULT, {
+      ...FILES,
+      [MEETING]: jsonLinesNote({ type: 'meeting', attendees }),
+    });
+    const list = setup.ports.fs.listDirectory;
+    setup.ports.fs.listDirectory = async (folder) => {
+      if (folder === 'Inbox/Proposals') throw new Error('permission denied');
+      return list(folder);
+    };
+
+    const runs = await linker(VAULT, [p(MEETING)]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      linked: ['People/Mara Quill.md'],
+      proposed: [],
+      unproposed: 'permission denied',
+    });
+    // What an undo puts back is on the run: the links were written.
+    expect(runs[0]?.done).toHaveLength(1);
+    expect(activity.reports.map(({ level, message }) => [level, message])).toEqual([
+      [
+        'warning',
+        '2026-10-06 Standup: linked Mara Quill; its proposals could not be written: permission denied.',
+      ],
+    ]);
   });
 
   it('links nothing once another vault is open', async () => {

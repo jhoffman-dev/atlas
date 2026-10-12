@@ -62,8 +62,11 @@ const PARTIAL_LINE_REACH = 1_000;
 
 /**
  * What the run knows of a note with these properties as a meeting; undefined
- * when it is not one. The identity is the meeting's own keys, taken only from
- * a note the import stamped `imported`.
+ * when it is not one — read as linking reads it (`isMeetingType`). The
+ * identity is the meeting's own keys, taken only from a note the import
+ * stamped `imported`, and spelt as the meeting is found by them
+ * (`sameMeetingIdentity`): the provider as written, the id without the spaces
+ * round it.
  */
 export function answeredMeetingOf(
   properties: Readonly<Record<string, unknown>>,
@@ -71,7 +74,7 @@ export function answeredMeetingOf(
   if (!isMeetingType(properties['type'])) return undefined;
   const text = (key: string) => {
     const value = properties[key];
-    return typeof value === 'string' ? value.trim() : '';
+    return typeof value === 'string' ? value : '';
   };
   const [provider, externalId] = [text('provider'), text('external_id')];
   const letIn = importOutcomeOf(properties) === 'imported' && provider !== '' && externalId !== '';
@@ -120,7 +123,8 @@ function wholeLines(text: string, room: number): string {
   return midLine && lineEnd >= room - PARTIAL_LINE_REACH ? head.slice(0, lineEnd) : head;
 }
 
-const BLANK_LINE = /\n[ \t]*\n/g;
+/** A blank line, whichever way the file ends its lines: a provider's export may be CRLF. */
+const BLANK_LINE = /\n[ \t\r]*\n/g;
 
 /**
  * The paragraphs of `text` that end within `room`. A transcript's turn is a
@@ -134,7 +138,8 @@ function wholeBlocks(text: string, room: number): string {
     if (gap.index > room) break;
     end = gap.index;
   }
-  return text.slice(0, end);
+  // Up to the blank line, less the CR a CRLF file leaves before it.
+  return text.slice(0, end).replace(/\r$/, '');
 }
 
 /**

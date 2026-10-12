@@ -235,6 +235,7 @@ function withoutPaths(entry: LogEntry): LogEntry {
       return { ...entry, left: entry.left.map(leftWithoutPaths) };
     case 'turnedOn':
     case 'seen':
+    case 'letGo':
       return entry;
   }
 }
@@ -275,6 +276,8 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
     case 'turnedOn':
     case 'seen':
       return { kind: entry.kind, ...words, done: [], left: [] };
+    case 'letGo':
+      return { kind: 'letGo', ...words, count: entry.count, done: [], left: [] };
   }
 }
 

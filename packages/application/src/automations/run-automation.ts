@@ -1,4 +1,5 @@
 import {
+  automationEntryReport,
   handledVersions,
   leftHandledNotes,
   messageWithoutPaths,
@@ -28,6 +29,7 @@ import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-
 import { reported } from './automation-activity.ts';
 import { appendToRuleLog, readRuleLog } from './automation-log.ts';
 import {
+  arrivalsMissed,
   handledBy,
   NoteRunsCappedError,
   planForVersions,
@@ -135,6 +137,67 @@ async function runOnHeard(
   }
   const aim: Aim = (ports, today) => planForVersions({ ports, rule: run.rule, versions, today });
   return runOnce({ run, trigger: 'note', aim, quiet: true, went });
+}
+
+/**
+ * Runs a rule set off by a note being created on the arrivals it never ran
+ * on (ADR-0028, "Catching up when Atlas opens"): asked once when a vault
+ * opens, on the Mac that runs its automations. An arrival is heard in memory,
+ * so one let in just before Atlas was quit — or held back by the hour's cap,
+ * or let go — would otherwise wait for a run by hand for ever.
+ *
+ * It looks only where meeting files land, at meetings the import let in
+ * since the rule's file was last saved and of which its log holds nothing
+ * (`missedArrivals`), and runs as the feed's news would have: the same query
+ * among those notes, the same most per run, the same hourly cap — rejecting
+ * with `NoteRunsCappedError` when that holds it back, so the caller keeps it
+ * for later as it keeps news. Settles with the log entry; null when the rule
+ * is off or is not set off by `created`, nothing was missed, or there was
+ * nothing to do.
+ */
+export async function runOnMissedArrivals(run: AutomationRun): Promise<LogEntry | null> {
+  const { activity, rule } = run;
+  if (!rule.enabled || rule.when.kind !== 'note' || !rule.when.on.includes('created')) return null;
+  const { when } = rule;
+  const carryOut = async (): Promise<LogEntry | null> => {
+    stillInVault(run.guard);
+    const { entries } = await readRuleLog(run.ports.fs, rule);
+    const { fs, index } = run.ports;
+    const handled = handledVersions(entries);
+    const versions = await arrivalsMissed({ fs, index, rule, trigger: when, handled });
+    if (versions.length === 0) return null;
+    const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
+    if (heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
+    const aim: Aim = (ports, today) => planForVersions({ ports, rule, versions, today });
+    return runOnce({ run, trigger: 'note', aim, quiet: true });
+  };
+  return reported({ activity, rule, doing: 'run', carryOut });
+}
+
+/**
+ * Says that a rule held back let news go (`count` syncs' worth): in Activity
+ * first, so it is said even if the log cannot be written, then in the rule's
+ * log. What was let go is not lost for good: a run by hand takes every note
+ * the rule has not handled.
+ */
+export async function recordNewsLetGo({
+  ports,
+  rule,
+  clock,
+  guard,
+  activity,
+  count,
+}: Pick<AutomationRun, 'rule' | 'guard' | 'activity'> & {
+  ports: Pick<AutomationPorts, 'fs'>;
+  clock: Pick<Clock, 'localNow'>;
+  count: number;
+}): Promise<LogEntry> {
+  stillInVault(guard);
+  const entry: LogEntry = { kind: 'letGo', at: clock.localNow(), count };
+  const report = automationEntryReport(rule, entry);
+  if (report !== null) activity.inOpenVault().record(report);
+  await appendToRuleLog({ fs: guardedFs(ports.fs, guard), rule, entry });
+  return entry;
 }
 
 /** Writes down notes a rule had handled that were deleted, in an entry of their own; none, nothing. */

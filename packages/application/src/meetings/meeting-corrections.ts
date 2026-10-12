@@ -2,7 +2,7 @@ import {
   canCorrect,
   correctionProperties,
   correctMeetingBody,
-  MEETING_TYPE,
+  isMeetingType,
   noteTitle,
   NOTHING_CORRECTED_PROPERTIES,
   recordedCorrections,
@@ -59,7 +59,7 @@ export function correctedMeeting({
 }: {
   markdown: MarkdownPort;
   text: string;
-  vocabulary: Pick<Vocabulary, 'entries'>;
+  vocabulary: Pick<Vocabulary, 'entries'> & Partial<Pick<Vocabulary, 'speakers'>>;
 }): CorrectedMeeting | null {
   const document = splitFrontmatter(text);
   if (wasCorrected(readFrontmatter(markdown, document.frontmatter).properties)) return null;
@@ -82,17 +82,23 @@ export function correctedMeeting({
  * meeting arrives with — a misheard speaker as the person the vocabulary says
  * it is. A meeting read before (corrected, undone or found clean) is as it
  * is, and the vocabulary is not asked for. Nothing is written.
+ *
+ * `vocabulary` is the one the caller's run already read, so the text is
+ * corrected here by the very spellings its stamp write will use; without one,
+ * it is read from the index.
  */
 export async function meetingTextAsCorrected({
   ports,
   text,
+  vocabulary: given,
 }: {
   ports: Pick<MeetingCorrectionPorts, 'markdown' | 'index'>;
   text: string;
+  vocabulary?: Vocabulary | undefined;
 }): Promise<string> {
   const { frontmatter } = splitFrontmatter(text);
   if (wasCorrected(readFrontmatter(ports.markdown, frontmatter).properties)) return text;
-  const { vocabulary } = await loadTerms({ index: ports.index });
+  const vocabulary = given ?? (await loadTerms({ index: ports.index })).vocabulary;
   const corrected = correctedMeeting({ markdown: ports.markdown, text, vocabulary });
   if (corrected === null || corrected.count === 0) return text;
   return (frontmatter ?? '') + corrected.body;
@@ -122,7 +128,7 @@ export async function correctMeetingTerms({
 }): Promise<MeetingTermsCorrection> {
   const { text, modified } = await ports.fs.readTextFile(path);
   const { properties } = readFrontmatter(ports.markdown, splitFrontmatter(text).frontmatter);
-  if (properties['type'] !== MEETING_TYPE) {
+  if (!isMeetingType(properties['type'])) {
     throw new CorrectionRefusedError(
       `${noteTitle(path)} is not a meeting, so nothing was corrected.`,
     );

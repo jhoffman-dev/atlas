@@ -1,9 +1,10 @@
 import {
   attendeesOf,
+  isMeetingType,
   linkedEntities,
   matchAttendees,
   matchSpeakers,
-  isMeetingType,
+  messageWithoutPaths,
   namedSpeakers,
   ownerAddresses,
   planMeetingLinks,
@@ -15,7 +16,9 @@ import {
   type PassedOver,
   type PassedOverAttendee,
   type PriorValue,
+  type TranscriptTurn,
   type VaultPath,
+  type Vocabulary,
 } from '@atlas/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { changeProperties, type PropertyChange } from '../automations/apply-changes.ts';
@@ -42,6 +45,8 @@ export interface MeetingLinkRun {
   readonly left: readonly PassedOver[];
   /** Unknown attendees it could not propose, and why. */
   readonly passedOver: readonly PassedOverAttendee[];
+  /** Why none of its proposals were written, when the Inbox could not be read or written; null otherwise. */
+  readonly unproposed: string | null;
 }
 
 /** A meeting that cannot be linked, for a reason said in these words. */
@@ -66,12 +71,18 @@ export class MeetingLinkRefusedError extends Error {
  * {@link undoMeetingLink} can put it back. A meeting with unsaved typing, or
  * changed since it was read, is left as it is, and said. What is unsure is
  * written as proposals in the Inbox, each once, however often this runs.
+ *
+ * The links are written first. If the proposals then cannot be — the Inbox
+ * refuses to be listed or written — the run still says who it linked, with
+ * what it set, and why nothing was proposed (`unproposed`): the links are in
+ * the meeting, and saying it could not be linked would be untrue.
  */
 export async function linkMeeting({
   ports,
   path,
   today,
   selfName = null,
+  vocabulary,
 }: {
   ports: MeetingLinkPorts;
   path: VaultPath;
@@ -79,15 +90,20 @@ export async function linkMeeting({
   today: string;
   /** The vault owner's name from their profile: an attendee of that name is never proposed. */
   selfName?: string | null;
+  /** The vocabulary the caller's run corrects by, so speakers are read by the same one; read from the index when not given. */
+  vocabulary?: Vocabulary | undefined;
 }): Promise<MeetingLinkRun> {
-  const plan = await planFor({ ports, path, selfName });
+  const plan = await planFor({ ports, path, selfName, vocabulary });
   const linked = await changeProperties({
     ports,
     changes: relationChanges(path, plan.properties, plan.changes),
     kind: 'set',
     today,
   });
-  const proposals = await writeProposals({ ...ports, proposals: plan.proposals });
+  const proposals = await writeProposals({ ...ports, proposals: plan.proposals }).then(
+    (made) => ({ ...made, unproposed: null }),
+    (cause: unknown) => ({ written: [], left: [], unproposed: messageWithoutPaths(cause) }),
+  );
   const set = new Set(linked.done.map((line) => ('key' in line ? line.key : null)));
   const unreadable = plan.unreadable.map(({ reason }) => ({ path, reason }));
   return {
@@ -97,6 +113,7 @@ export async function linkMeeting({
     proposed: proposals.written,
     left: [...unreadable, ...linked.left, ...proposals.left],
     passedOver: plan.passedOver,
+    unproposed: proposals.unproposed,
   };
 }
 
@@ -105,18 +122,20 @@ async function planFor({
   ports,
   path,
   selfName,
+  vocabulary,
 }: {
   ports: MeetingLinkPorts;
   path: VaultPath;
   selfName: string | null;
+  vocabulary: Vocabulary | undefined;
 }): Promise<MeetingLinkPlan & { readonly properties: Readonly<Record<string, unknown>> }> {
   const read = await readMeeting(ports, path);
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const { people, companies } = await loadLinkDirectory({ index: ports.index });
   const matching = matchAttendees(attendeesOf(read.properties), people, companies);
   // As corrected (P28-06): the import corrects in its stamp write, after this, so a misheard speaker is read as it will arrive.
-  const spoken = await meetingTextAsCorrected({ ports, text: read.text });
-  const speakers = speakersOf(ports, spoken, people);
+  const corrected = await meetingTextAsCorrected({ ports, text: read.text, vocabulary });
+  const speakers = speakersOf(ports, { heard: read.text, corrected }, people);
   const entities = linkedEntities(matching, speakers);
   const ties = await loadProjectTies({ index: ports.index, meeting: path, entities });
   const projects = rankProjects(ties);
@@ -156,14 +175,40 @@ async function readMeeting(ports: MeetingLinkPorts, path: VaultPath): Promise<Me
  * The people the transcript's named speakers surely are. Only a meeting that
  * follows the import contract has turns to read; one edited out of it is
  * linked by its attendees alone.
+ *
+ * A label is tried as it was heard first — a name or an alias someone goes
+ * by — and only one that is nobody's is tried as the vocabulary corrects it:
+ * an alias links (ADR-0027, "Aliases link, Terms correct"), so a term that
+ * lists the same spelling as misheard does not take the person away.
  */
 function speakersOf(
   ports: MeetingLinkPorts,
-  text: string,
+  { heard, corrected }: { heard: string; corrected: string },
   people: readonly DirectoryPerson[],
 ): DirectoryPerson[] {
+  const asCorrected = turnsOf(ports, corrected);
+  const tried = new Set<string>();
+  const found = new Map<VaultPath, DirectoryPerson>();
+  turnsOf(ports, heard).forEach((turn, at) => {
+    const [name] = namedSpeakers([turn]);
+    if (name === undefined || tried.has(name)) return;
+    tried.add(name);
+    const byHeard = matchSpeakers([name], people);
+    // The correction changes spellings, never the turns: turn for turn, the same speaker.
+    const corrects = asCorrected[at];
+    const matched =
+      byHeard.length > 0 || corrects === undefined
+        ? byHeard
+        : matchSpeakers(namedSpeakers([corrects]), people);
+    for (const person of matched) found.set(person.path, person);
+  });
+  return [...found.values()];
+}
+
+/** A meeting's turns; none when it does not follow the contract, and so has none to read. */
+function turnsOf(ports: MeetingLinkPorts, text: string): readonly TranscriptTurn[] {
   const reading = validateMeetingFile(ports.markdown, text);
-  return reading.ok ? matchSpeakers(namedSpeakers(reading.meeting.transcript), people) : [];
+  return reading.ok ? reading.meeting.transcript : [];
 }
 
 /** Each relation to set, only while it still holds what was read. */

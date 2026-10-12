@@ -145,12 +145,14 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   let cut: readonly NoteCut[] = [];
   let asked = 0;
   const dropped: DroppedItem[] = [];
+  let alreadyMade = 0;
   const claudeRun = (): ClaudeRunInfo => ({
     model,
     ms: Math.max(0, ports.clock.now() - started),
     ...(cut.length > 0 && { cut }),
     ...(asked > 1 && { asks: asked }),
     ...(dropped.length > 0 && { dropped: [...dropped] }),
+    ...(alreadyMade > 0 && { alreadyMade }),
   });
   const fail = (message: string): never => {
     throw new ClaudeStepFailed(message, claudeRun());
@@ -172,7 +174,7 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   cut = plan.cut;
   const asking = { ...args, provider, model, prompt, output, fail };
   try {
-    const planned =
+    const { planned, proposed } =
       output.kind === 'note'
         ? await planNoteAnswer({ ...asking, output, notes, counted: () => (asked += 1) })
         : await planProposalAnswers({
@@ -182,6 +184,8 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
             counted: () => (asked += 1),
             dropped,
           });
+    // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
+    alreadyMade = Math.max(0, proposed - planned.length);
     const done = await writePlanned({ fs: args.fs, planned, claudeRun });
     return { done, claude: claudeRun() };
   } catch (error) {
@@ -346,6 +350,12 @@ function outputOf({ output }: ClaudeAction): StepOutput | string {
 const unreadWords = (problem: string): string =>
   `Claude’s answer is not what the rule asks for. ${problem}`;
 
+/** The notes an answer makes, and how many proposals it held — more than are planned when some were made before. */
+interface AnswerPlanned {
+  readonly planned: readonly PlannedNote[];
+  readonly proposed: number;
+}
+
 /** Asks once for the rule's one new note, and plans it: nothing is written yet. */
 async function planNoteAnswer({
   notes,
@@ -355,18 +365,17 @@ async function planNoteAnswer({
   output: Extract<StepOutput, { kind: 'note' }>;
   notes: readonly AnsweredNote[];
   counted: () => void;
-}): Promise<PlannedNote[]> {
+}): Promise<AnswerPlanned> {
   counted();
   const note = readNoteAnswer(await askModel({ ...asking, notes }));
   if (!note.ok) return asking.fail(unreadWords(note.problem));
-  return [
-    await planNote({
-      ports: asking,
-      notePaths: asking.notePaths,
-      folder: asking.output.folder,
-      note: note.value,
-    }),
-  ];
+  const planned = await planNote({
+    ports: asking,
+    notePaths: asking.notePaths,
+    folder: asking.output.folder,
+    note: note.value,
+  });
+  return { planned: [planned], proposed: 0 };
 }
 
 /**
@@ -387,7 +396,7 @@ async function planProposalAnswers({
   counted: () => void;
   /** Gains the items each answer left out. */
   dropped: DroppedItem[];
-}): Promise<PlannedNote[]> {
+}): Promise<AnswerPlanned> {
   const vault = schema.readsVault ? await readVault(asking) : undefined;
   const proposals: CheckedProposal[] = [];
   for (const [at, notes] of asks.entries()) {
@@ -402,17 +411,23 @@ async function planProposalAnswers({
     proposals.push(...read.value);
     dropped.push(...read.dropped);
   }
+  const drafted = proposals.map((proposal) =>
+    claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal }),
+  );
   const { planned, left } = await planProposals({
     fs: asking.fs,
     index: asking.index,
     markdown: asking.markdown,
-    proposals: proposals.map((proposal) =>
-      claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal }),
-    ),
+    proposals: drafted,
   });
   // One that cannot be made a note of fails the run before anything is written.
   if (left.length > 0) return asking.fail(`A proposal could not be written: ${left[0]!.reason}`);
-  return planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } }));
+  // An id given twice in one answer is one proposal: only those made before this run are "already made".
+  const proposed = new Set(drafted.map(({ id }) => id)).size;
+  return {
+    planned: planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } })),
+    proposed,
+  };
 }
 
 /**

@@ -4,11 +4,13 @@ import { frontmatterError, type MeetingImportError } from './meeting-import-erro
 export const MEETING_TYPE = 'meeting';
 
 /**
- * Whether a note's `type:` says it is a meeting: any item of it, in any case,
- * as the index counts it. The one reader, for linking and for a Claude step.
+ * Whether a note's `type` says it is a meeting, as the index counts it: any
+ * item of a list, whatever its case or the spaces round it. The one reader
+ * for what acts on a meeting after the import (linking, correcting, a rule's
+ * Claude step); the import's own contract is stricter, and checks itself.
  */
 export function isMeetingType(type: unknown): boolean {
-  const items = Array.isArray(type) ? type : [type];
+  const items: readonly unknown[] = Array.isArray(type) ? type : [type];
   return items.some(
     (item) => typeof item === 'string' && item.trim().toLowerCase() === MEETING_TYPE,
   );

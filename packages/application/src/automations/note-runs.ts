@@ -4,6 +4,7 @@ import {
   handledVersions,
   isInPlay,
   MAX_ACTIONS_PER_RUN,
+  missedArrivals,
   noteRunsCappedProblem,
   unhandledVersions,
   type AutomationPlan,
@@ -11,11 +12,14 @@ import {
   type DoneAction,
   type LogEntry,
   type LocalTime,
+  type HandledVersions,
   type LoggedVersion,
+  type NoteTrigger,
   type NoteVersionRef,
   type VaultPath,
 } from '@atlas/domain';
 import { heldEntries } from '../index/refresh-index.ts';
+import type { IndexPort } from '../index/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { matchedPaths, planMatched, planRun, type RuleQueryPorts } from './plan-run.ts';
 
@@ -105,6 +109,40 @@ async function versionsNow(
       ? []
       : [{ path, digest: entry.digest }];
   });
+}
+
+/**
+ * The meetings a `created` rule never ran on, though the import let them in
+ * since the rule was last saved (`missedArrivals` says which): read from the
+ * index as it is now and the rule's own file. A rule whose file cannot be
+ * read has none — there is no saying since when it has been listening.
+ */
+export async function arrivalsMissed({
+  fs,
+  index,
+  rule,
+  trigger,
+  handled,
+}: {
+  fs: Pick<VaultFsPort, 'readTextFile'>;
+  index: IndexPort;
+  rule: Pick<AutomationRule, 'path'>;
+  trigger: NoteTrigger;
+  handled: HandledVersions;
+}): Promise<NoteVersionRef[]> {
+  let since: number;
+  try {
+    since = (await fs.readTextFile(rule.path)).modified;
+  } catch {
+    // Safe to go without: nothing is caught up with, and a run by hand takes what was missed.
+    return [];
+  }
+  const held = await heldEntries(index);
+  const notes = [...held.values()].map((entry) => ({
+    ...entry,
+    path: createVaultPath(entry.path),
+  }));
+  return missedArrivals({ trigger, notes, handled, since });
 }
 
 /**
