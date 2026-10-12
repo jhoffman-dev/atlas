@@ -3,7 +3,13 @@
  * person might type. A refused name is said, not hung on.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
+import {
+  createVault,
+  expectFile,
+  expectParaTypeRows,
+  installHost,
+  sidebarSection,
+} from './host.ts';
 
 const TASK_TYPE = [
   '---',
@@ -49,6 +55,7 @@ async function openVault(page: Page, typeLabel = 'Task') {
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await expectParaTypeRows(page, vault);
   await sidebarSection(page, 'types')
     .getByRole('button', { name: new RegExp(`^${typeLabel}, `) })
     .click();

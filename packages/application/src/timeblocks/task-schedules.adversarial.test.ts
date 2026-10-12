@@ -35,7 +35,7 @@ function cappedIndex(notes: Record<string, unknown>): Pick<IndexPort, 'query'> {
 }
 
 describe('readTaskSchedules at the row cap', () => {
-  // The budget is for CPU, not a wait on a moment: about 6 s alone, nearly all
+  // The budget is for CPU, not a wait on a moment: about 4 s of CPU alone, nearly all
   // of it one query. With the host's indexes SQLite looks a note's property up
   // by key (`props_key`) and walks every note holding it, once per row, for
   // 5,200 rows; the work is fixed, and under the gate on a loaded machine

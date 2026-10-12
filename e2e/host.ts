@@ -302,6 +302,59 @@ export function sidebarSection(
   return page.locator(`#sidebar-${section}`);
 }
 
+/** The vault's type files as they are on disk now: each one's name and label. */
+async function typeFilesOf(vault: FakeVault): Promise<{ name: string; label: string }[]> {
+  const folder = join(vault.root, '.atlas', 'types');
+  // No folder is a vault with no types of its own.
+  const files = await readdir(folder).catch(() => [] as string[]);
+  const types = files
+    .filter((file) => file.endsWith('.md'))
+    .map(async (file) => {
+      const text = await vault.read(`.atlas/types/${file}`);
+      const name = /^name:\s*(.+)$/m.exec(text)?.[1]?.trim() ?? basename(file, '.md');
+      return { name, label: /^label:\s*(.+)$/m.exec(text)?.[1]?.trim() ?? name };
+    });
+  return Promise.all(types);
+}
+
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The Types list has the rows PARA adds to it, when it is going to add any.
+ *
+ * A vault that files by project — it has a Project type — has the Area and
+ * Resource types it lacks written in once it is open, after "notes indexed",
+ * and their rows arrive in Types above the vault's own. A type row clicked as
+ * they came in was pressed where it had been: the click did nothing and the
+ * type never opened (#52: type-views, then type-editor.spec.ts:225 on CI).
+ * So a test that is about to click a type row waits for this first.
+ *
+ * Whether rows are coming is read from the vault's files, not guessed from
+ * the page: without a Project type nothing is written and this returns at
+ * once. Each row is looked for by the label its file gives it, so a vault
+ * with an Area of its own under another label is not waited on forever.
+ */
+export async function expectParaTypeRows(page: Page, vault: FakeVault): Promise<void> {
+  if (!(await typeFilesOf(vault)).some((type) => type.name === 'project')) return;
+  await test.step(
+    'the Types list has PARA’s rows',
+    async () => {
+      for (const name of ['area', 'resource']) {
+        const written = () =>
+          typeFilesOf(vault).then((types) => types.find((type) => type.name === name));
+        await expect.poll(async () => (await written()) !== undefined).toBe(true);
+        const label = (await written())?.label ?? name;
+        await expect(
+          sidebarSection(page, 'types').getByRole('button', {
+            name: new RegExp(`^${escaped(label)}, `, 'i'),
+          }),
+        ).toBeVisible();
+      }
+    },
+    { box: true },
+  );
+}
+
 /** A request as a tool would send it to the local API, before the host gives it an id. */
 export interface ApiCall {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';

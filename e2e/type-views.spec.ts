@@ -5,7 +5,14 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { dragWithPointer } from './drag.ts';
-import { createVault, expectFile, installHost, sidebarSection, type FakeVault } from './host.ts';
+import {
+  createVault,
+  expectFile,
+  expectParaTypeRows,
+  installHost,
+  sidebarSection,
+  type FakeVault,
+} from './host.ts';
 
 const TASK_TYPE = [
   '---',
@@ -58,13 +65,7 @@ async function openVaultWithHost(page: Page): Promise<FakeVault> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  // PARA's own types are written once the vault is open, after the count
-  // above, and their rows arrive in Types above Task's and Project's. A row
-  // clicked as they came in was pressed where it had been: the click did
-  // nothing and the type never opened (#52). Resource is the last of them.
-  await expect(
-    sidebarSection(page, 'types').getByRole('button', { name: /^Resource, / }),
-  ).toBeVisible();
+  await expectParaTypeRows(page, vault);
   return { vault, host };
 }
 
