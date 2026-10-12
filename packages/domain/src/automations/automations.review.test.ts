@@ -52,6 +52,9 @@ const RULE: AutomationRule = {
 const ARCHIVE = { kind: 'archive' } as const;
 const FLAG = { kind: 'set', values: { flagged: true } } as const;
 
+/** The instant the clock gives when a test appends. */
+const NOW = Date.UTC(2026, 8, 27, 3);
+
 describe('enabled, as a sync tool or a hand edit writes it', () => {
   it.each(['yes', 'true', 1, 'on'])(
     'lists enabled: %j as broken, saying what to write',
@@ -185,10 +188,10 @@ describe('the log’s entries', () => {
       left: [],
       capped: false,
     });
-    let text = appendLogEntry({ text: null, ruleName: 'Tidy', entry: run(1) });
+    let text = appendLogEntry({ text: null, ruleName: 'Tidy', entry: run(1), now: NOW });
     text += '\n## My notes\n\nWhy this rule exists.\n';
-    text = appendLogEntry({ text, ruleName: 'Tidy', entry: run(2), keep: 2 });
-    text = appendLogEntry({ text, ruleName: 'Tidy', entry: run(3), keep: 2 });
+    text = appendLogEntry({ text, ruleName: 'Tidy', entry: run(2), now: NOW, keep: 2 });
+    text = appendLogEntry({ text, ruleName: 'Tidy', entry: run(3), now: NOW, keep: 2 });
     expect(text).toContain('## My notes\n\nWhy this rule exists.');
     expect(parseRunLog(text).map((entry) => entry.at)).toEqual([
       '2026-09-27T03:00:02',
@@ -207,7 +210,7 @@ describe('the log’s entries', () => {
     });
     let text: string | null = null;
     for (let minute = 0; minute < 60; minute += 1) {
-      text = appendLogEntry({ text, ruleName: 'Tidy', entry: busy(minute) });
+      text = appendLogEntry({ text, ruleName: 'Tidy', entry: busy(minute), now: NOW });
     }
     expect(new TextEncoder().encode(text!).length).toBeLessThanOrEqual(MAX_LOG_BYTES);
     expect(parseRunLog(text!).at(-1)?.at).toBe('2026-09-27T03:59:00');
@@ -215,7 +218,7 @@ describe('the log’s entries', () => {
 
   it('writes a first-seen mark, which the schedule counts from', () => {
     const seen: LogEntry = { kind: 'seen', at: '2026-09-27T09:00:00' };
-    const text = appendLogEntry({ text: null, ruleName: 'Tidy', entry: seen });
+    const text = appendLogEntry({ text: null, ruleName: 'Tidy', entry: seen, now: NOW });
     expect(parseRunLog(text)).toEqual([seen]);
     expect(lastScheduleMark([seen], '2026-09-28T09:00:00')).toBe('2026-09-27T09:00:00');
   });

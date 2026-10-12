@@ -17,7 +17,11 @@ import { recordingActivity } from '../testing/fake-activity.ts';
 const ACTIVITY = recordingActivity();
 
 const TODAY = '2026-09-27';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T14:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T14:00:00`,
+  now: () => Date.parse(`${TODAY}T14:00:00Z`),
+};
 const PRESET = AUTOMATION_PRESETS[0]!;
 const PRESET_PATH = '.atlas/automations/Archive done tasks after 30 days.md';
 

@@ -65,20 +65,23 @@ import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { truncated } from './answer-limits.ts';
 import {
   formatLedger,
-  isLedgerSection,
+  isEmptyLedger,
+  layOver,
   ledgerFromEntries,
-  parseLedger,
+  locateLedger,
+  markOf,
   pruneLedger,
   recordRun,
   type HandledLedger,
 } from './handled-ledger.ts';
+import { splitSections, utf8Length } from './log-sections.ts';
 import { code, JSON_SPAN } from './log-spans.ts';
 import type { PassedOver } from './automation-plan.ts';
 import type { NoteCut } from './answered-note.ts';
 import type { DroppedItem } from './proposal-schema.ts';
 import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
 import type { NoteVersionRef } from './note-trigger.ts';
-import { localTimeMs, type LocalTime } from './schedule.ts';
+import type { LocalTime } from './schedule.ts';
 
 export const MAX_LOG_ENTRIES = 100;
 export const LOG_MARKER_VALUE = 'automation-log';
@@ -392,23 +395,35 @@ export function newLogText(ruleName: string, entries: readonly LogEntry[]): stri
   return head + entries.map(formatLogEntry).join('\n');
 }
 
+/** The log with one more entry, and whether its handled ledger had to be mended to write it. */
+export interface AppendedLog {
+  readonly text: string;
+  /** True when the ledger did not add up — a line lost, two ledgers, a format unknown — and was rebuilt. */
+  readonly ledgerRepaired: boolean;
+}
+
 /**
  * The log with one more entry: the text before the first entry kept as it
  * was, the oldest entries dropped past the most a log keeps — by count and by
- * bytes. A section that is no entry — a person's own `## Notes` — is theirs,
- * and is never what makes room.
+ * bytes, the ledger's own counted. A section that is no entry — a person's
+ * own `## Notes` — is theirs, and is never what makes room.
  *
  * What the rule has handled is not the entries' to hold (they are dropped):
  * the handled ledger, a section of its own at the top, is brought up to date
- * in this same write, and is built from the entries the first time a log
- * without one is added to. A notice that news was let go, written right
- * after another, joins it, their counts summed: a burst is one entry and
- * pushes no run out.
+ * in this same write, with whatever runs an older Atlas added after it laid
+ * over it first, and is built from the entries the first time a log without
+ * one is added to. `now` is the clock's instant: it dates what the ledger
+ * records and what it prunes, and is never derived from an entry's heading,
+ * which is the person's wall clock. A ledger that did not add up is rebuilt
+ * from the entries still here and vouches only from `now`, which the result
+ * says. A notice that news was let go, written right after another, joins
+ * it, their counts summed: a burst is one entry and pushes no run out.
  */
-export function appendLogEntry({
+export function appendEntryToLog({
   text,
   ruleName,
   entry,
+  now,
   keep = MAX_LOG_ENTRIES,
   maxBytes = MAX_LOG_BYTES,
   maxLedgerRecords,
@@ -417,27 +432,36 @@ export function appendLogEntry({
   text: string | null;
   ruleName: string;
   entry: LogEntry;
+  /** The instant the entry is written, from the clock. */
+  now: number;
   keep?: number;
   maxBytes?: number;
   maxLedgerRecords?: number;
-}): string {
+}): AppendedLog {
   const { head, sections: existing } =
     text === null ? { head: newLogText(ruleName, []), sections: [] } : splitSections(text);
-  const ledgerAt = existing.findIndex(isLedgerSection);
-  const sections = existing.filter((_, at) => at !== ledgerAt);
-  const before =
-    ledgerAt === -1
-      ? ledgerFromEntries(entriesOf(sections), keep)
-      : parseLedger(existing[ledgerAt]!);
-  const ledger = ledgerAfter({ before, entry, maxLedgerRecords });
+  const found = locateLedger(existing);
+  const sections = existing.filter((_, at) => !found.at.includes(at));
   const folded = foldLetGo(sections, entry);
+  const ledger = ledgerAfter({
+    before: found.ledger,
+    entries: entriesOf(sections),
+    entry,
+    written: folded.entry,
+    now,
+    keep,
+    maxLedgerRecords,
+  });
+  const ledgerText =
+    found.ledger === null && isEmptyLedger(ledger) ? '' : `${formatLedger(ledger)}\n`;
   const all = [...folded.sections, formatLogEntry(folded.entry)].map((section) =>
     section.replace(/\n*$/, '\n'),
   );
   const isEntry = all.map((section) => parseSection(section) !== null);
   const bytes = all.map((section) => utf8Length(section) + 1);
   let entries = isEntry.filter(Boolean).length;
-  let total = utf8Length(head) + bytes.reduce((sum, size) => sum + size, 0);
+  let total =
+    utf8Length(head) + utf8Length(ledgerText) + bytes.reduce((sum, size) => sum + size, 0);
   const dropped = new Set<number>();
   // The newest entry, the one being added, always stays.
   for (let at = 0; at < all.length - 1 && (entries > keep || total > maxBytes); at += 1) {
@@ -447,8 +471,15 @@ export function appendLogEntry({
     total -= bytes[at]!;
   }
   const kept = all.filter((_, at) => !dropped.has(at));
-  const ledgerText = formatLedger(ledger);
-  return `${head}${ledgerText === '' ? '' : `${ledgerText}\n`}${kept.join('\n')}`;
+  return {
+    text: `${head}${ledgerText}${kept.join('\n')}`,
+    ledgerRepaired: found.ledger?.damaged === true,
+  };
+}
+
+/** {@link appendEntryToLog}, for whoever wants only the text. */
+export function appendLogEntry(args: Parameters<typeof appendEntryToLog>[0]): string {
+  return appendEntryToLog(args).text;
 }
 
 function entriesOf(sections: readonly string[]): LogEntry[] {
@@ -458,20 +489,35 @@ function entriesOf(sections: readonly string[]): LogEntry[] {
   });
 }
 
-/** The ledger once this entry is in: a run recorded, and what has aged out or overflowed let go. */
+/**
+ * The ledger once this entry is in: what it had not folded in laid over it, a
+ * run recorded at `now`, what has aged out, overflowed or outgrown its bytes
+ * let go, and the entry stamped as the last one folded in. One that did not
+ * add up vouches from `now`.
+ */
 function ledgerAfter({
   before,
+  entries,
   entry,
+  written,
+  now,
+  keep,
   maxLedgerRecords,
 }: {
-  before: HandledLedger;
+  before: HandledLedger | null;
+  entries: readonly LogEntry[];
   entry: LogEntry;
+  written: LogEntry;
+  now: number;
+  keep: number;
   maxLedgerRecords: number | undefined;
 }): HandledLedger {
-  const now = localTimeMs(entry.at) ?? 0;
-  const recorded = entry.kind === 'run' ? recordRun(before, entry, now) : before;
+  const caught = before === null ? ledgerFromEntries(entries, keep) : layOver(before, entries);
+  const mended = before?.damaged === true ? { ...caught, vouchesFrom: now } : caught;
+  const recorded = entry.kind === 'run' ? recordRun(mended, entry, now) : mended;
   const limits = maxLedgerRecords === undefined ? {} : { maxRecords: maxLedgerRecords };
-  return pruneLedger(recorded, now, limits);
+  const pruned = pruneLedger(recorded, now, limits);
+  return { ...pruned, through: markOf(written), damaged: false };
 }
 
 /** A let-go notice joins the one right before it, summing the counts; any other entry is added as it is. */
@@ -485,25 +531,6 @@ function foldLetGo(
     sections: sections.slice(0, -1),
     entry: { kind: 'letGo', at: entry.at, count: last.count + entry.count },
   };
-}
-
-/** Bytes of UTF-8 text, as the file on disk holds it. */
-function utf8Length(text: string): number {
-  let bytes = 0;
-  for (const char of text) {
-    const point = char.codePointAt(0)!;
-    bytes += point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x10000 ? 3 : 4;
-  }
-  return bytes;
-}
-
-function splitSections(text: string): { head: string; sections: string[] } {
-  const starts = [...text.matchAll(/^## /gm)].map((match) => match.index);
-  if (starts.length === 0)
-    return { head: text.endsWith('\n') ? `${text}\n` : `${text}\n\n`, sections: [] };
-  const head = text.slice(0, starts[0]);
-  const sections = starts.map((start, index) => text.slice(start, starts[index + 1]));
-  return { head, sections };
 }
 
 /** How a Claude step's log says it read only the first of the notes; parsed back as `capped`. */

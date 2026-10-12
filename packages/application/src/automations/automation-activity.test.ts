@@ -14,7 +14,11 @@ import { undoLastRun } from './undo-last-run.ts';
 import type { VaultGuard } from './vault-guard.ts';
 
 const TODAY = '2026-09-27';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T03:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T03:00:00`,
+  now: () => Date.parse(`${TODAY}T03:00:00Z`),
+};
 const VAULT = '/Users/james/My Vault';
 const GUARD: VaultGuard = { vault: VAULT, currentVault: () => VAULT };
 const SECRET_TEXT = 'the body nobody should see in a log';

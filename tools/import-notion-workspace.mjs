@@ -3,7 +3,8 @@
 //
 //   node tools/import-notion-workspace.mjs --export <unzipped export folder> --vault <vault folder>
 //     [--dry-run] [--recreate-deleted] [--no-fill-unrecorded] [--only tasks,notes,meetings,people,para,teams,daily]
-//     [--task-status "Later=longterm"]… [--gemini-dates arrival-local] [--time-zone <IANA zone>]
+//     [--task-status "Later=longterm"]… [--gemini-dates arrival-local] [--date-order mdy|dmy]
+//     [--time-zone <IANA zone>]
 //
 // Prints what became of every page; exits 1 when a page was refused, an edit
 // made in Atlas was kept over Notion's, or a meeting was held or refused, and
@@ -16,9 +17,10 @@ const { workspaceImported, workspaceReportLines } =
   await import('./notion-import/workspace-report.ts');
 const { DATABASE_KINDS } = await import('./notion-import/workspace-databases.ts');
 const { GEMINI_DATES } = await import('./notion-import/gemini-dates.ts');
+const { DATE_ORDERS } = await import('./notion-import/notion-date.ts');
 
 const USAGE =
-  'usage: node tools/import-notion-workspace.mjs --export <folder> --vault <vault> [--dry-run] [--recreate-deleted] [--no-fill-unrecorded] [--only tasks,notes,meetings,people,para,teams,daily] [--task-status "<Notion status>=<status>"]… [--gemini-dates arrival-local] [--time-zone <IANA zone>|none]';
+  'usage: node tools/import-notion-workspace.mjs --export <folder> --vault <vault> [--dry-run] [--recreate-deleted] [--no-fill-unrecorded] [--only tasks,notes,meetings,people,para,teams,daily] [--task-status "<Notion status>=<status>"]… [--gemini-dates arrival-local] [--date-order mdy|dmy] [--time-zone <IANA zone>|none]';
 
 /** A value the command was given: an empty one (an unset shell variable) is no value at all. */
 const given = (value) => (value === undefined || value.trim() === '' ? null : value);
@@ -55,6 +57,7 @@ function options() {
       only: { type: 'string' },
       'task-status': { type: 'string', multiple: true, default: [] },
       'gemini-dates': { type: 'string' },
+      'date-order': { type: 'string' },
       'time-zone': { type: 'string', default: 'America/Los_Angeles' },
     },
   });
@@ -63,6 +66,10 @@ function options() {
   const geminiDates = values['gemini-dates'];
   if (geminiDates !== undefined && !GEMINI_DATES.includes(geminiDates)) {
     throw new Error(`--gemini-dates: "${geminiDates}" is not one of ${GEMINI_DATES.join(', ')}`);
+  }
+  const dateOrder = values['date-order'];
+  if (dateOrder !== undefined && !DATE_ORDERS.includes(dateOrder)) {
+    throw new Error(`--date-order: "${dateOrder}" is not one of ${DATE_ORDERS.join(', ')}`);
   }
   return {
     exportDir,
@@ -75,6 +82,7 @@ function options() {
     today: today(),
     timeZone: values['time-zone'] === 'none' ? null : values['time-zone'],
     ...(geminiDates === undefined ? {} : { geminiDates }),
+    ...(dateOrder === undefined ? {} : { dateOrder }),
   };
 }
 

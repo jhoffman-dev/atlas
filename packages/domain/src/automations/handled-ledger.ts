@@ -7,32 +7,60 @@
  * ledger is a compact list in the log's own note — a section a person can
  * read, written in the same write as the entry that changed it — of the
  * versions handled, by path, and the words a Claude step answered, each with
- * the time it was recorded. It is pruned by age and by count, never by what
- * else the log is made to hold.
+ * the instant it was recorded. It is pruned by age, count and bytes, never by
+ * what else the log is made to hold.
  *
  * ```markdown
  * ## Handled so far
+ * <!-- atlas:handled-ledger v1 -->
  *
+ * Atlas keeps this list so the rule remembers ... Leave it as it is.
+ *
+ * - through `"2026-10-08T09:00:00"` `"5e6f7a8b"`
+ * - records `2`
  * - vouches from `"2026-07-01T00:00:00.000Z"`
  * - handled `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d"]`
- * - answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d","body:9f8e"]`
+ * - answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d","meeting:larkspur:m-1042:body:9f8e"]`
  * ```
  *
+ * The comment on the line after the heading is what makes a section the
+ * ledger: a section a person titled "Handled so far" is theirs, and is never
+ * read or replaced. It names the format's version, so a later format is
+ * recognised as one this reader does not read.
+ *
+ * - `through` is the last log entry the ledger had folded in (its wall-clock
+ *   heading time, and a digest of its text). Entries after it were written by
+ *   an Atlas that did not know the ledger, and are laid over it.
+ * - `records` is how many `handled` and `answered` lines were written, so a
+ *   line lost is told from a line never there.
+ * - `vouches from` is set once something was forgotten: the ledger cannot say
+ *   whether a note last written before it was handled. It is a real instant.
+ * - A time in a `handled` or `answered` line is a real UTC instant from the
+ *   clock the use-case was handed, so it is comparable with a file's time.
+ *
  * An answered line holds more than one key for the version: its whole-file
- * digest first, then any a rule's schema names it by (the meeting's body
- * digest or identity), so a note is recognised however the file around it
- * changed. `vouches from` is set once something was forgotten: the ledger
- * cannot say whether a note last written before it was handled.
+ * digest first, then any a rule's schema names it by. A schema key must carry
+ * the note's identity — `meeting:<provider>:<external_id>:body:<digest>` —
+ * never a bare body digest, which two notes can share; {@link isSchemaKey}
+ * is the minimal shape that is kept.
  */
 
+import { digestOf } from '../sources/merge.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { code, JSON_SPAN } from './log-spans.ts';
-import type { LogEntry } from './run-log.ts';
-import { localTimeMs } from './schedule.ts';
+import { splitSections, utf8Length } from './log-sections.ts';
+import { formatLogEntry, type LogEntry } from './run-log.ts';
+import { localTimeMs, type LocalTime } from './schedule.ts';
 
 type Run = Extract<LogEntry, { kind: 'run' }>;
 
-/** The versions a rule handled at one path, newest last, and when it last did. */
+/** The last log entry a ledger has folded in: when its heading says it ran, and a digest of its text. */
+export interface LedgerMark {
+  readonly at: LocalTime;
+  readonly digest: string;
+}
+
+/** The versions handled at one path, newest last, and when it last was. */
 export interface PathRecord {
   readonly at: number;
   readonly digests: readonly string[];
@@ -46,20 +74,33 @@ export interface AnsweredRecord {
 }
 
 export interface HandledLedger {
-  /** Milliseconds; null while nothing was ever forgotten. */
+  /** Milliseconds since the epoch; null while nothing was ever forgotten. */
   readonly vouchesFrom: number | null;
   readonly paths: ReadonlyMap<string, PathRecord>;
   readonly answered: readonly AnsweredRecord[];
+  /** The last entry folded in; null for a ledger not yet written. */
+  readonly through: LedgerMark | null;
+  /** Whether what was read did not add up (a line lost or unreadable, two ledgers, a version unknown). Never written. */
+  readonly damaged: boolean;
 }
 
-/** How long a record is kept, and the most records a ledger holds. */
+/** How long a record is kept, the most records a ledger holds, and the most bytes its section takes. */
 export const LEDGER_MAX_AGE_DAYS = 90;
 export const MAX_LEDGER_RECORDS = 2000;
+export const LEDGER_MAX_BYTES = 96 * 1024;
 /** The versions of one note remembered: older ones come back only by reverting to them. */
-const MAX_DIGESTS_PER_PATH = 20;
+export const MAX_DIGESTS_PER_PATH = 5;
+/** Schema keys kept for one answer, and the longest one. */
+const MAX_KEYS_PER_ANSWER = 8;
+const MAX_KEY_LENGTH = 256;
 const DAY_MS = 86_400_000;
+/** The furthest ahead of UTC a wall clock can be (UTC+14). */
+const MAX_UTC_OFFSET_MS = 14 * 3_600_000;
 
 export const LEDGER_HEADING = '## Handled so far';
+export const LEDGER_VERSION = 1;
+const MARKER = /^<!-- atlas:handled-ledger v(\d+) -->$/;
+const LEDGER_MARKER = `<!-- atlas:handled-ledger v${LEDGER_VERSION} -->`;
 const LEDGER_NOTE =
   'Atlas keeps this list so the rule remembers what it has handled after old entries leave this log. Leave it as it is.';
 
@@ -67,9 +108,31 @@ export const emptyLedger = (): HandledLedger => ({
   vouchesFrom: null,
   paths: new Map(),
   answered: [],
+  through: null,
+  damaged: false,
 });
 
-/** The ledger once a run has happened: its versions handled, notes gone and notes it archived forgotten. */
+/**
+ * Whether a key from a rule's schema may be matched on: non-empty on both
+ * sides of a colon, and not long. It must name the thing answered — the
+ * note's identity, in the form `meeting:<provider>:<external_id>:body:<digest>`
+ * — because a key is taken as the same note wherever its file now is.
+ */
+export function isSchemaKey(key: string): boolean {
+  const colon = key.indexOf(':');
+  return colon > 0 && colon < key.length - 1 && key.length <= MAX_KEY_LENGTH;
+}
+
+/**
+ * The earliest instant a wall-clock time can be, for an entry written before
+ * the ledger kept real ones: with no zone to read it by, it is taken as the
+ * furthest-ahead zone's reading, so a floor derived from it is never later
+ * than the truth (a later one would hide a meeting that was never asked).
+ */
+const earliestInstant = (local: LocalTime): number =>
+  (localTimeMs(local) ?? MAX_UTC_OFFSET_MS) - MAX_UTC_OFFSET_MS;
+
+/** The ledger once a run has happened at `at`: its versions handled, notes gone and notes it archived forgotten. */
 export function recordRun(ledger: HandledLedger, entry: Run, at: number): HandledLedger {
   const paths = new Map(ledger.paths);
   let answered = [...ledger.answered];
@@ -78,13 +141,20 @@ export function recordRun(ledger: HandledLedger, entry: Run, at: number): Handle
     const before = paths.get(path)?.digests.filter((each) => each !== digest) ?? [];
     paths.set(path, { at, digests: [...before, digest].slice(-MAX_DIGESTS_PER_PATH) });
     if (entry.claude !== undefined && !wrote) {
+      const schemaKeys = keys.filter(isSchemaKey).slice(0, MAX_KEYS_PER_ANSWER);
       answered = answered.filter((each) => !(each.path === path && each.keys[0] === digest));
-      answered.push({ at, path, keys: [digest, ...keys] });
+      answered.push({ at, path, keys: [digest, ...schemaKeys] });
     }
   }
   for (const action of entry.done) if (action.kind === 'archived') paths.delete(action.from);
   return { ...ledger, paths, answered };
 }
+
+/** What identifies a log entry as the last one a ledger folded in. */
+export const markOf = (entry: LogEntry): LedgerMark => ({
+  at: entry.at,
+  digest: digestOf(formatLogEntry(entry)),
+});
 
 /**
  * The ledger a log without one implies: its entries, once. A log already full
@@ -93,44 +163,95 @@ export function recordRun(ledger: HandledLedger, entry: Run, at: number): Handle
 export function ledgerFromEntries(entries: readonly LogEntry[], keep: number): HandledLedger {
   let ledger = emptyLedger();
   for (const entry of entries) {
-    if (entry.kind === 'run') ledger = recordRun(ledger, entry, localTimeMs(entry.at) ?? 0);
+    if (entry.kind === 'run') ledger = recordRun(ledger, entry, earliestInstant(entry.at));
   }
   const oldest = entries[0];
   const full = entries.length >= keep && oldest !== undefined;
-  return full ? { ...ledger, vouchesFrom: localTimeMs(oldest.at) ?? 0 } : ledger;
+  return full ? { ...ledger, vouchesFrom: earliestInstant(oldest.at) } : ledger;
 }
 
 /**
- * What a rule remembers now: its ledger, which is brought up to date with
- * every entry written and so is not to be laid over by the entries still in
- * the log (that would bring back what it let go); a log with none implies one.
+ * The entries a ledger has not folded in: those after the one it names. An
+ * Atlas that does not know the ledger appends to the log and drops from its
+ * front, so the named entry may be gone, and then those written after its
+ * time are the newer. A ledger that did not add up folds in nothing it can
+ * trust, and every entry is laid over it.
+ */
+function entriesAfterMark(
+  ledger: HandledLedger,
+  entries: readonly LogEntry[],
+): readonly LogEntry[] {
+  const { through } = ledger;
+  if (ledger.damaged || through === null) return entries;
+  const found = entries.findLastIndex(
+    (entry) => entry.at === through.at && markOf(entry).digest === through.digest,
+  );
+  // Wall-clock times written as `YYYY-MM-DDTHH:MM:SS` sort as text.
+  return found === -1 ? entries.filter((entry) => entry.at > through.at) : entries.slice(found + 1);
+}
+
+/** The ledger with the runs it has not folded in laid over it, oldest first; what it let go stays gone. */
+export function layOver(ledger: HandledLedger, entries: readonly LogEntry[]): HandledLedger {
+  let laid = ledger;
+  for (const entry of entriesAfterMark(ledger, entries)) {
+    if (entry.kind === 'run') laid = recordRun(laid, entry, earliestInstant(entry.at));
+  }
+  return laid;
+}
+
+/**
+ * What a rule remembers now: its ledger with the entries written after it
+ * laid over — a run from an Atlas that did not know the ledger (a second Mac,
+ * a rollback) is not forgotten — or, for a log with none, what its entries
+ * imply. A ledger that did not add up vouches for nothing until Atlas next
+ * writes the log, which sets the floor to that moment.
  */
 export function ledgerNow(
   ledger: HandledLedger | null,
   entries: readonly LogEntry[],
   keep: number,
 ): HandledLedger {
-  return ledger ?? ledgerFromEntries(entries, keep);
+  if (ledger === null) return ledgerFromEntries(entries, keep);
+  const laid = layOver(ledger, entries);
+  return ledger.damaged ? { ...laid, vouchesFrom: Number.POSITIVE_INFINITY } : laid;
 }
 
 type Forgettable =
-  | { readonly at: number; readonly path: string }
-  | { readonly at: number; readonly answered: AnsweredRecord };
+  | { readonly at: number; readonly size: number; readonly path: string }
+  | { readonly at: number; readonly size: number; readonly answered: AnsweredRecord };
 
-/** The ledger without what is older than {@link LEDGER_MAX_AGE_DAYS} or past the count, and the floor that leaves. */
+/**
+ * The ledger without what is older than {@link LEDGER_MAX_AGE_DAYS} by
+ * `now`, or past the count, or past the bytes, oldest first; and the floor
+ * that leaves. `now` is the clock's, never a time an entry says: a stamp
+ * later than the clock cannot age a record, nor floor catch-up past it.
+ */
 export function pruneLedger(
   ledger: HandledLedger,
   now: number,
-  { maxRecords = MAX_LEDGER_RECORDS }: { maxRecords?: number } = {},
+  {
+    maxRecords = MAX_LEDGER_RECORDS,
+    maxBytes = LEDGER_MAX_BYTES,
+  }: { maxRecords?: number; maxBytes?: number } = {},
 ): HandledLedger {
   const records: Forgettable[] = [
-    ...[...ledger.paths].map(([path, { at }]) => ({ at, path })),
-    ...ledger.answered.map((answered) => ({ at: answered.at, answered })),
+    ...[...ledger.paths].map(([path, record]) => ({
+      at: record.at,
+      size: utf8Length(handledLine(path, record)) + 1,
+      path,
+    })),
+    ...ledger.answered.map((answered) => ({
+      at: answered.at,
+      size: utf8Length(answeredLine(answered)) + 1,
+      answered,
+    })),
   ].sort((a, b) => a.at - b.at);
   const cutoff = now - LEDGER_MAX_AGE_DAYS * DAY_MS;
   const tooOld = records.filter((record) => record.at < cutoff).length;
-  const forgotten = records.slice(0, Math.max(tooOld, records.length - maxRecords));
-  if (forgotten.length === 0) return ledger;
+  const base = Math.max(tooOld, records.length - maxRecords);
+  const forgetting = Math.max(base, overBytes(ledger, records, maxBytes, base));
+  if (forgetting === 0) return ledger;
+  const forgotten = records.slice(0, forgetting);
   const paths = new Map(ledger.paths);
   const answered = new Set(ledger.answered);
   for (const record of forgotten) {
@@ -138,82 +259,183 @@ export function pruneLedger(
     else answered.delete(record.answered);
   }
   // Nothing last written before the newest thing forgotten can be vouched for.
-  const floor = Math.max(...forgotten.map((record) => record.at));
+  const floor = Math.min(now, Math.max(...forgotten.map((record) => record.at)));
   return {
+    ...ledger,
     vouchesFrom: Math.max(ledger.vouchesFrom ?? floor, floor),
     paths,
     answered: [...answered],
   };
 }
 
-const instant = (at: number): string => new Date(at).toISOString();
-
-/** The section the log holds, which {@link readHandledLedger} reads back; empty when there is nothing to say. */
-export function formatLedger(ledger: HandledLedger): string {
-  const lines = [
-    ...(ledger.vouchesFrom === null ? [] : [`- vouches from ${code(instant(ledger.vouchesFrom))}`]),
-    ...[...ledger.paths]
-      .sort(([, a], [, b]) => a.at - b.at)
-      .map(
-        ([path, { at, digests }]) =>
-          `- handled ${code(path)} ${code(instant(at))}: ${code(digests)}`,
-      ),
-    ...[...ledger.answered]
-      .sort((a, b) => a.at - b.at)
-      .map(({ path, at, keys }) => `- answered ${code(path)} ${code(instant(at))}: ${code(keys)}`),
-  ];
-  if (lines.length === 0) return '';
-  return `${LEDGER_HEADING}\n\n${LEDGER_NOTE}\n\n${lines.join('\n')}\n`;
+/** How many of the oldest records must go for the section to fit, counting the `vouches from` line it would then hold. */
+function overBytes(
+  ledger: HandledLedger,
+  records: readonly Forgettable[],
+  maxBytes: number,
+  alreadyForgetting: number,
+): number {
+  const fixed = (count: number, vouches: boolean): number =>
+    utf8Length(
+      formatLedger({ ...ledger, paths: new Map(), answered: [], vouchesFrom: vouches ? 0 : null }),
+    ) +
+    String(count).length -
+    1;
+  const room = (vouches: boolean): number => {
+    let left = maxBytes - fixed(records.length, vouches);
+    let keep = records.length;
+    while (keep > 0 && left >= records[keep - 1]!.size) {
+      left -= records[keep - 1]!.size;
+      keep -= 1;
+    }
+    return keep;
+  };
+  const withoutFloor = room(ledger.vouchesFrom !== null);
+  if (withoutFloor === 0 && alreadyForgetting === 0) return 0;
+  return room(true);
 }
 
-export const isLedgerSection = (section: string): boolean =>
-  section.split('\n', 1)[0]!.trim() === LEDGER_HEADING;
+const instant = (at: number): string => new Date(at).toISOString();
+const handledLine = (path: string, { at, digests }: PathRecord): string =>
+  `- handled ${code(path)} ${code(instant(at))}: ${code(digests)}`;
+const answeredLine = ({ path, at, keys }: AnsweredRecord): string =>
+  `- answered ${code(path)} ${code(instant(at))}: ${code(keys)}`;
 
+/** The section the log holds, which {@link readHandledLedger} reads back. */
+export function formatLedger(ledger: HandledLedger): string {
+  const records = ledger.paths.size + ledger.answered.length;
+  const lines = [
+    ...(ledger.through === null
+      ? []
+      : [`- through ${code(ledger.through.at)} ${code(ledger.through.digest)}`]),
+    `- records ${code(records)}`,
+    // Only a finite floor is an instant to write; Atlas sets one before it writes.
+    ...(ledger.vouchesFrom === null || !Number.isFinite(ledger.vouchesFrom)
+      ? []
+      : [`- vouches from ${code(instant(ledger.vouchesFrom))}`]),
+    ...[...ledger.paths]
+      .sort(([, a], [, b]) => a.at - b.at)
+      .map(([path, r]) => handledLine(path, r)),
+    ...[...ledger.answered].sort((a, b) => a.at - b.at).map(answeredLine),
+  ];
+  return `${LEDGER_HEADING}\n${LEDGER_MARKER}\n\n${LEDGER_NOTE}\n\n${lines.join('\n')}\n`;
+}
+
+export const isEmptyLedger = (ledger: HandledLedger): boolean =>
+  ledger.vouchesFrom === null && ledger.paths.size === 0 && ledger.answered.length === 0;
+
+const THROUGH_LINE = new RegExp(`^- through ${JSON_SPAN} ${JSON_SPAN}$`);
+const RECORDS_LINE = new RegExp(`^- records ${JSON_SPAN}$`);
 const VOUCHES_LINE = new RegExp(`^- vouches from ${JSON_SPAN}$`);
 const HANDLED_LINE = new RegExp(`^- handled ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN}$`);
 const ANSWERED_LINE = new RegExp(`^- answered ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN}$`);
 
-/** The ledger a section holds. A line that does not read — a person may have edited it — is left out. */
+/**
+ * The ledger a section holds. A line that does not read — a person may have
+ * edited it — is left out, and the ledger is {@link HandledLedger.damaged},
+ * as it is when the records written do not number what the section says.
+ */
 export function parseLedger(section: string): HandledLedger {
   let vouchesFrom: number | null = null;
+  let through: LedgerMark | null = null;
+  let declared: number | null = null;
+  let read = 0;
+  let damaged = false;
   const paths = new Map<string, PathRecord>();
   const answered: AnsweredRecord[] = [];
   for (const line of section.split('\n').map((each) => each.trim())) {
+    if (!line.startsWith('- ')) continue;
     try {
-      const vouches = VOUCHES_LINE.exec(line);
-      if (vouches !== null) vouchesFrom = timeOf(vouches[1]!);
-      const handled = HANDLED_LINE.exec(line);
-      if (handled !== null) {
-        const path = pathOf(handled[1]!);
-        paths.set(path, { at: timeOf(handled[2]!), digests: stringsOf(handled[3]!) });
-      }
-      const answer = ANSWERED_LINE.exec(line);
-      if (answer !== null) {
-        const keys = stringsOf(answer[3]!);
-        if (keys.length > 0) {
-          answered.push({
-            path: createVaultPath(pathOf(answer[1]!)),
-            at: timeOf(answer[2]!),
-            keys,
-          });
-        }
+      const matched = readLine(line);
+      if (matched.kind === 'through') through = matched.mark;
+      else if (matched.kind === 'records') declared = matched.count;
+      else if (matched.kind === 'vouches') vouchesFrom = matched.at;
+      else if (matched.kind === 'handled') {
+        paths.set(matched.path, matched.record);
+        read += 1;
+      } else {
+        answered.push(matched.record);
+        read += 1;
       }
     } catch {
-      // A line edited into something that does not read is left out, as any other log line is.
+      // A line edited into something that does not read is left out, and the ledger says it is damaged.
+      damaged = true;
     }
   }
-  return { vouchesFrom, paths, answered };
+  return {
+    vouchesFrom,
+    paths,
+    answered,
+    through,
+    damaged: damaged || through === null || declared !== read,
+  };
+}
+
+type ReadLine =
+  | { kind: 'through'; mark: LedgerMark }
+  | { kind: 'records'; count: number }
+  | { kind: 'vouches'; at: number }
+  | { kind: 'handled'; path: string; record: PathRecord }
+  | { kind: 'answered'; record: AnsweredRecord };
+
+function readLine(line: string): ReadLine {
+  const through = THROUGH_LINE.exec(line);
+  if (through !== null) {
+    return { kind: 'through', mark: { at: localTimeOf(through[1]!), digest: textOf(through[2]!) } };
+  }
+  const records = RECORDS_LINE.exec(line);
+  if (records !== null) return { kind: 'records', count: countOf(records[1]!) };
+  const vouches = VOUCHES_LINE.exec(line);
+  if (vouches !== null) return { kind: 'vouches', at: timeOf(vouches[1]!) };
+  const handled = HANDLED_LINE.exec(line);
+  if (handled !== null) {
+    const path = pathOf(handled[1]!);
+    return {
+      kind: 'handled',
+      path,
+      record: { at: timeOf(handled[2]!), digests: stringsOf(handled[3]!) },
+    };
+  }
+  const answer = ANSWERED_LINE.exec(line);
+  if (answer !== null) {
+    const keys = stringsOf(answer[3]!);
+    if (keys.length === 0) throw new Error('no keys');
+    const record = {
+      path: createVaultPath(pathOf(answer[1]!)),
+      at: timeOf(answer[2]!),
+      keys: [keys[0]!, ...keys.slice(1).filter(isSchemaKey)],
+    };
+    return { kind: 'answered', record };
+  }
+  throw new Error('not a ledger line');
+}
+
+function textOf(json: string): string {
+  const value = JSON.parse(json) as unknown;
+  if (typeof value !== 'string') throw new Error('not text');
+  return value;
+}
+
+function localTimeOf(json: string): LocalTime {
+  const value = textOf(json);
+  if (localTimeMs(value) === null) throw new Error('not a wall-clock time');
+  return value;
+}
+
+function countOf(json: string): number {
+  const value = JSON.parse(json) as unknown;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new Error('not a count');
+  }
+  return value;
 }
 
 function pathOf(json: string): string {
-  const value = JSON.parse(json) as unknown;
-  if (typeof value !== 'string') throw new Error('not a path');
-  return createVaultPath(value);
+  return createVaultPath(textOf(json));
 }
 
 function timeOf(json: string): number {
-  const value = JSON.parse(json) as unknown;
-  const at = typeof value === 'string' ? Date.parse(value) : Number.NaN;
+  const at = Date.parse(textOf(json));
   if (Number.isNaN(at)) throw new Error('not a time');
   return at;
 }
@@ -226,12 +448,78 @@ function stringsOf(json: string): string[] {
   return value as string[];
 }
 
+/** The oldest of the marks, or null if any is missing: the entries after it are the ones to lay over. */
+function earliestMark(marks: readonly (LedgerMark | null)[]): LedgerMark | null {
+  if (marks.some((mark) => mark === null)) return null;
+  return (marks as LedgerMark[]).reduce((a, b) => (b.at < a.at ? b : a));
+}
+
+/** Two ledgers that should have been one, as one: it forgets nothing either knew, and is damaged. */
+function mergeLedgers(ledgers: readonly HandledLedger[]): HandledLedger {
+  const floors = ledgers.map((ledger) => ledger.vouchesFrom).filter((at) => at !== null);
+  const paths = new Map<string, PathRecord>();
+  const answered = new Map<string, AnsweredRecord>();
+  for (const ledger of ledgers) {
+    for (const [path, record] of ledger.paths) {
+      const other = paths.get(path);
+      if (other === undefined) paths.set(path, record);
+      else {
+        const [older, newer] = other.at <= record.at ? [other, record] : [record, other];
+        const digests = [
+          ...older.digests.filter((d) => !newer.digests.includes(d)),
+          ...newer.digests,
+        ];
+        paths.set(path, { at: newer.at, digests: digests.slice(-MAX_DIGESTS_PER_PATH) });
+      }
+    }
+    for (const record of ledger.answered) answered.set(`${record.path}\n${record.keys[0]}`, record);
+  }
+  return {
+    vouchesFrom: floors.length === 0 ? null : Math.max(...floors),
+    paths,
+    answered: [...answered.values()],
+    through: earliestMark(ledgers.map((ledger) => ledger.through)),
+    damaged: true,
+  };
+}
+
+/** Where the ledger sections are among a log's sections, and the ledger they hold; null when there is none. */
+export interface LocatedLedger {
+  readonly at: readonly number[];
+  readonly ledger: HandledLedger | null;
+}
+
+/**
+ * The one place a ledger is found: a section whose heading is at the start
+ * of its line and whose next line is the marker Atlas writes. A section
+ * titled the same without it is a person's own, and is not here. A marker of
+ * another version is a ledger this reader cannot read; two ledgers are
+ * merged. Both are damaged, so the next write mends them.
+ */
+export function locateLedger(sections: readonly string[]): LocatedLedger {
+  const found = sections.flatMap((section, at) => {
+    const [heading = '', marker = ''] = section.split('\n');
+    const version = MARKER.exec(marker.trimEnd());
+    return heading.trimEnd() === LEDGER_HEADING && version !== null
+      ? [
+          {
+            at,
+            ledger: Number(version[1]) === LEDGER_VERSION ? parseLedger(section) : unreadable(),
+          },
+        ]
+      : [];
+  });
+  if (found.length === 0) return { at: [], ledger: null };
+  const ledgers = found.map((each) => each.ledger);
+  return {
+    at: found.map((each) => each.at),
+    ledger: ledgers.length === 1 ? ledgers[0]! : mergeLedgers(ledgers),
+  };
+}
+
+const unreadable = (): HandledLedger => ({ ...emptyLedger(), damaged: true });
+
 /** The ledger a log's text holds; null when it holds none (a log from before the ledger). */
 export function readHandledLedger(text: string | null): HandledLedger | null {
-  if (text === null) return null;
-  const start = text.split('\n').findIndex((line) => line.trim() === LEDGER_HEADING);
-  if (start === -1) return null;
-  const rest = text.split('\n').slice(start);
-  const end = rest.findIndex((line, at) => at > 0 && line.startsWith('## '));
-  return parseLedger((end === -1 ? rest : rest.slice(0, end)).join('\n'));
+  return text === null ? null : locateLedger(splitSections(text).sections).ledger;
 }

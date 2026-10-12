@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { readCsv } from './notion-csv.ts';
 import type { RelationEntry } from './notion-relations.ts';
 import { DEFAULT_TASK_STATUSES } from './task-status.ts';
 import {
   columnsLeftOut,
   databaseKind,
+  mixedOrderColumns,
   wantedNote,
   type NoteKind,
   type RowContext,
@@ -33,6 +35,8 @@ function context(kind: NoteKind, cells: Record<string, string>): RowContext {
     statuses: DEFAULT_TASK_STATUSES,
     today: '2026-10-10',
     timeZone: 'America/Los_Angeles',
+    dateOrder: null,
+    mixedOrderColumns: new Set(),
   };
 }
 
@@ -112,8 +116,66 @@ describe('a task row', () => {
     expect(note.fields).not.toHaveProperty('notion_status');
     expect(note.fields['people']).toEqual(['[[Someone Else]]']);
     expect(note.notes).toEqual([
-      'Due date "10/06/2026" cannot be read (cannot read "10/06/2026" as a date or a time), so the note keeps its due: set the column\'s format to Full date',
+      'Due date "10/06/2026" cannot be read (cannot read "10/06/2026" as a date or a time), so the note keeps its due: run with --date-order mdy (month first) or dmy (day first), or set the column\'s format to Full date',
       'People: "Someone Else" is not in the export; linked by its name',
+    ]);
+  });
+
+  it('does not read an ambiguous date in a column that holds one only the other order reads', () => {
+    const csv = readCsv(
+      'Name,Status,Due date\nA,,13/06/2026\nB,,06/07/2026\nC,,"October 20, 2026"\n',
+    );
+    const mixed = mixedOrderColumns(csv, 'mdy');
+    expect([...mixed]).toEqual(['Due date']);
+    const due = (cell: string) =>
+      wantedNote(
+        {
+          ...context('tasks', { Status: '', 'Due date': cell }),
+          dateOrder: 'mdy',
+          mixedOrderColumns: mixed,
+        },
+        ID,
+      );
+    const ambiguous = due('06/07/2026');
+    expect(ambiguous.fields).not.toHaveProperty('due');
+    expect(ambiguous.unread).toEqual(['due']);
+    expect(ambiguous.notes[0]).toContain(
+      'the column mixes orders: some of its dates can only be dmy',
+    );
+    expect(ambiguous.notes[0]).toContain('check --date-order');
+    // A date that is no month under the order is still reported, and one written out in full still reads.
+    expect(due('13/06/2026').unread).toEqual(['due']);
+    expect(due('October 20, 2026').fields['due']).toBe('2026-10-20');
+    expect(mixedOrderColumns(csv, null).size).toBe(0);
+    expect(mixedOrderColumns(csv, 'dmy').size).toBe(0);
+  });
+
+  it('takes a column as written in the order its unambiguous dates can be read in', () => {
+    const csv = readCsv('Name,Status,Due date\nA,,06/07/2026\nB,,25/12/2026\n');
+    expect(mixedOrderColumns(csv, 'dmy').size).toBe(0);
+    expect([...mixedOrderColumns(csv, 'mdy')]).toEqual(['Due date']);
+  });
+
+  it('reads a date written month first in the order given, and says plainly when that is no day', () => {
+    const order = (dateOrder: 'mdy' | 'dmy', due: string) =>
+      wantedNote({ ...context('tasks', { Status: '', 'Due date': due }), dateOrder }, ID);
+    expect(order('mdy', '10/06/2026').fields['due']).toBe('2026-10-06');
+    expect(order('dmy', '10/06/2026').fields['due']).toBe('2026-06-10');
+    const unread = order('mdy', '13/01/2026');
+    expect(unread.unread).toEqual(['due']);
+    expect(unread.notes).toEqual([
+      'Due date "13/01/2026" cannot be read (cannot read "13/01/2026" as a date or a time), so the note keeps its due: check --date-order (this one is not mdy), or set the column\'s format to Full date',
+    ]);
+  });
+
+  it('reads Effort level as effort, and lists it beside an Effort column, which fills effort first', () => {
+    expect(
+      wantedNote(context('tasks', { Status: '', 'Effort level': 'M' }), ID).fields['effort'],
+    ).toBe('M');
+    const both = wantedNote(context('tasks', { Status: '', Effort: 'L', 'Effort level': 'M' }), ID);
+    expect(both.fields['effort']).toBe('L');
+    expect(columnsLeftOut('tasks', ['Name', 'Effort', 'Effort level'])).toEqual([
+      '"Effort level": it maps to effort, which "Effort" fills: not imported',
     ]);
   });
 });
@@ -190,6 +252,27 @@ describe('the other rows', () => {
       slack: '@mara',
       team: '[[Platform]]',
     });
+  });
+
+  it("a person's Aliases are their Also spelt, a list", () => {
+    const note = wantedNote(context('people', { Aliases: 'Mara, M. Quill, Marra' }), ID);
+    expect(note.fields['aliases']).toEqual(['Mara', 'M. Quill', 'Marra']);
+    expect(columnsLeftOut('people', ['Name', 'Aliases'])).toEqual([]);
+  });
+
+  it('a daily note with no title is for the day its Date says, written year first or in the order given', () => {
+    const daily = (cells: Record<string, string>, dateOrder: 'mdy' | null = null) =>
+      wantedNote(
+        {
+          ...context('daily', cells),
+          row: new Map([['Name', ''], ...Object.entries(cells)]),
+          dateOrder,
+        },
+        ID,
+      ).day;
+    expect(daily({ Date: '2026/06/14' })).toBe('2026-06-14');
+    expect(daily({ Date: '06/14/2026' }, 'mdy')).toBe('2026-06-14');
+    expect(daily({ Date: '06/14/2026' })).toBeNull();
   });
 
   it('a note keeps its tags, date and links; a daily note is for its day; a team goes to Teams', () => {

@@ -27,7 +27,11 @@ import type { VaultGuard } from './vault-guard.ts';
 
 const p = createVaultPath;
 const TODAY = '2026-10-08';
-const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
+const CLOCK = {
+  today: () => TODAY,
+  localNow: () => `${TODAY}T09:00:00`,
+  now: () => Date.parse(`${TODAY}T09:00:00Z`),
+};
 const VAULT = '/vaults/home';
 const GUARD: VaultGuard = { vault: VAULT, currentVault: () => VAULT };
 const STANDUP = 'Meetings/2026-10-06 Standup.md';
@@ -282,7 +286,7 @@ describe('runOnNoteChanges: what holds it back', () => {
         left: [],
         capped: false,
       };
-      await appendToRuleLog({ fs: vault.ports.fs, rule: MARK, entry });
+      await appendToRuleLog({ fs: vault.ports.fs, rule: MARK, entry, now: CLOCK.now() });
     }
     const logged = vault.files.get(logPathFor(MARK.id));
 

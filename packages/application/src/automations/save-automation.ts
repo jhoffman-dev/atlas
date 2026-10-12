@@ -30,7 +30,7 @@ export class AutomationRefusedError extends Error {
 interface RuleWrite {
   readonly fs: VaultFsPort;
   readonly markdown: MarkdownPort;
-  readonly clock: Pick<Clock, 'localNow'>;
+  readonly clock: Pick<Clock, 'now' | 'localNow'>;
 }
 
 /**
@@ -132,7 +132,12 @@ async function logTurnedOn({
   clock,
   rule,
 }: Pick<RuleWrite, 'fs' | 'clock'> & { rule: Pick<AutomationRule, 'id' | 'name'> }) {
-  await appendToRuleLog({ fs, rule, entry: { kind: 'turnedOn', at: clock.localNow() } });
+  await appendToRuleLog({
+    fs,
+    rule,
+    entry: { kind: 'turnedOn', at: clock.localNow() },
+    now: clock.now(),
+  });
 }
 
 /** A new file has nothing to take out: keys with no value are simply not written. */

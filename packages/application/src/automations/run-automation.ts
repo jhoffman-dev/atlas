@@ -26,8 +26,9 @@ import { listVaultNotes } from '../vault/read-vault.ts';
 import { changeProperties, type PropertyOutcome } from './apply-changes.ts';
 import { withHandledKeys } from './handled-keys.ts';
 import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
-import { reported } from './automation-activity.ts';
-import { appendToRuleLog, readRuleLog } from './automation-log.ts';
+import { heldEntries } from '../index/refresh-index.ts';
+import { appendForRun, reported } from './automation-activity.ts';
+import { readRuleLog } from './automation-log.ts';
 import {
   arrivalsMissed,
   handledBy,
@@ -53,7 +54,7 @@ export type AutomationPorts = ArchivePorts &
 export interface AutomationRun {
   readonly ports: AutomationPorts;
   readonly rule: AutomationRule;
-  readonly clock: Pick<Clock, 'today' | 'localNow'>;
+  readonly clock: Pick<Clock, 'today' | 'now' | 'localNow'>;
   readonly guard: VaultGuard;
   /** Where the run's summary, or why it stopped, is said (U-28). */
   readonly activity: ActivityLog;
@@ -179,11 +180,12 @@ export async function runOnMissedArrivals(run: AutomationRun): Promise<LogEntry 
     const log = await readRuleLog(run.ports.fs, rule);
     const { entries } = log;
     const { fs, index } = run.ports;
-    const handled = await handledNow({ index, log });
+    const held = await heldEntries(index);
+    const handled = await handledNow({ index, log, held });
     const versions = await arrivalsMissed({
       fs,
       markdown: run.ports.markdown,
-      index,
+      held,
       rule,
       trigger: when,
       handled,
@@ -212,14 +214,14 @@ export async function recordNewsLetGo({
   count,
 }: Pick<AutomationRun, 'rule' | 'guard' | 'activity'> & {
   ports: Pick<AutomationPorts, 'fs'>;
-  clock: Pick<Clock, 'localNow'>;
+  clock: Pick<Clock, 'now' | 'localNow'>;
   count: number;
 }): Promise<LogEntry> {
   stillInVault(guard);
   const entry: LogEntry = { kind: 'letGo', at: clock.localNow(), count };
   const report = automationEntryReport(rule, entry);
   if (report !== null) activity.inOpenVault().record(report);
-  await appendToRuleLog({ fs: guardedFs(ports.fs, guard), rule, entry });
+  await appendForRun({ fs: guardedFs(ports.fs, guard), run: { rule, clock, activity }, entry });
   return entry;
 }
 
@@ -235,7 +237,7 @@ async function recordGone(run: AutomationRun, went: readonly VaultPath[]): Promi
     capped: false,
     went,
   };
-  await appendToRuleLog({ fs: guardedFs(run.ports.fs, run.guard), rule: run.rule, entry });
+  await appendForRun({ fs: guardedFs(run.ports.fs, run.guard), run, entry });
 }
 
 /** What a run plans over, once the vault's notes are listed. Rejects as `planRun` does. */
@@ -262,13 +264,13 @@ async function runOnce({
   /** Notes the rule had handled that were deleted, for its log to say. */
   went?: readonly VaultPath[];
 }): Promise<LogEntry | null> {
-  const { rule, clock, guard } = run;
+  const { clock, guard } = run;
   const at = clock.localNow();
   const today = clock.today();
   stillInVault(guard);
   const fs = guardedFs(run.ports.fs, guard);
   const ports = { ...run.ports, fs, notePaths: await listVaultNotes({ fs }) };
-  const log = (entry: LogEntry) => appendToRuleLog({ fs: run.ports.fs, rule, entry });
+  const log = (entry: LogEntry) => appendForRun({ fs: run.ports.fs, run, entry });
   let target: RuleTarget;
   try {
     target = await aim(ports, today);

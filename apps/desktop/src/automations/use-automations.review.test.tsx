@@ -145,7 +145,11 @@ function memoryVault(files: Record<string, string>) {
 }
 
 let now = '2026-09-27T09:00:00';
-const clock = { today: () => now.slice(0, 10), localNow: () => now };
+const clock = {
+  today: () => now.slice(0, 10),
+  localNow: () => now,
+  now: () => Date.parse(`${now}Z`),
+};
 
 function mount(vault: ReturnType<typeof memoryVault>, options: Partial<AutomationsOptions> = {}) {
   const initial: AutomationsOptions = {

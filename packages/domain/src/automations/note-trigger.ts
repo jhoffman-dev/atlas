@@ -22,7 +22,7 @@ import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { QueryTextError } from '../query-language/query-text-error.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
-import { ledgerNow, type HandledLedger } from './handled-ledger.ts';
+import { isSchemaKey, ledgerNow, type HandledLedger } from './handled-ledger.ts';
 import { MAX_LOG_ENTRIES, type LogEntry } from './run-log.ts';
 
 /** What happening to a note sets the rule off. */
@@ -41,9 +41,13 @@ export interface NoteVersionRef {
   readonly path: VaultPath;
   readonly digest: string;
   /**
-   * Further keys a rule's schema knows this version by — the meeting's body
-   * digest, its identity — beside the whole-file digest. A handled version
-   * is recognised by any of them, wherever it is and whatever else changed.
+   * Further keys a rule's schema knows this version by, beside the whole-file
+   * digest. A handled version is recognised by any of them, wherever it is
+   * and whatever else changed, so a key must be unique to the thing answered:
+   * it MUST include the note's identity, as
+   * `meeting:<provider>:<external_id>:body:<digest>` does, and never be a
+   * bare body digest, which two notes can share. A key that is empty or has
+   * no `:` with something on each side is ignored (`isSchemaKey`).
    */
   readonly keys?: readonly string[];
 }
@@ -174,10 +178,11 @@ export interface HandledContext {
 /**
  * Every version a rule's log says it handled, or left by its own write —
  * read from the handled ledger (which outlives the log's entries) with the
- * entries laid over it, oldest first, so a path a note has left since has no
- * history: a new note there is new to the rule. A note left a path when the
- * log says it `went` — deleted, moved, renamed or archived by someone else,
- * or replaced — or when the run itself archived it.
+ * entries it has not folded in laid over it, oldest first — runs an Atlas
+ * that did not know the ledger appended — so a path a note has left since has
+ * no history: a new note there is new to the rule. A note left a path when
+ * the log says it `went` — deleted, moved, renamed or archived by someone
+ * else, or replaced — or when the run itself archived it.
  *
  * What a Claude step answered is remembered by its words (P29-03: "a model
  * is not asked twice for the same words"): the digest of a version a run
@@ -199,12 +204,12 @@ export function handledVersions(
   for (const { path, keys } of now.answered) {
     const [digest = '', ...schemaKeys] = keys;
     answeredByDigest.set(digest, [...(answeredByDigest.get(digest) ?? []), { path }]);
-    for (const key of schemaKeys) answeredKeys.add(key);
+    for (const key of schemaKeys.filter(isSchemaKey)) answeredKeys.add(key);
   }
   const hasHere = ({ path, digest }: NoteVersionRef): boolean =>
     now.paths.get(path)?.digests.includes(digest) === true;
   const isAnswered = ({ path, digest, keys = [] }: NoteVersionRef): boolean =>
-    keys.some((key) => answeredKeys.has(key)) ||
+    keys.some((key) => isSchemaKey(key) && answeredKeys.has(key)) ||
     (answeredByDigest.get(digest) ?? []).some(
       (answered) => answered.path === path || holds(answered.path) !== digest,
     );
@@ -282,6 +287,8 @@ export function missedArrivals({
         !handled.hasPath(note.path) &&
         !handled.has(note),
     )
-    .map(({ path, digest }) => ({ path, digest }))
+    .map(({ path, digest, keys }) =>
+      keys === undefined ? { path, digest } : { path, digest, keys },
+    )
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }

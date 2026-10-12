@@ -139,12 +139,15 @@ export const digestsHeld =
 export async function handledNow({
   index,
   log,
+  held,
 }: {
   index: IndexPort;
   log: Pick<RuleLog, 'entries' | 'ledger'>;
+  /** The index's notes, when the caller has already read them. */
+  held?: ReadonlyMap<string, IndexEntry>;
 }): Promise<HandledVersions> {
-  const held = await heldEntries(index);
-  return handledVersions(log.entries, { ledger: log.ledger, holds: digestsHeld(held) });
+  const notes = held ?? (await heldEntries(index));
+  return handledVersions(log.entries, { ledger: log.ledger, holds: digestsHeld(notes) });
 }
 
 /**
@@ -178,14 +181,14 @@ export async function handledAmong({
 export async function arrivalsMissed({
   fs,
   markdown,
-  index,
+  held,
   rule,
   trigger,
   handled,
 }: {
   fs: Pick<VaultFsPort, 'readTextFile' | 'readNotes'>;
   markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
-  index: IndexPort;
+  held: ReadonlyMap<string, IndexEntry>;
   rule: Pick<AutomationRule, 'path' | 'action'>;
   trigger: NoteTrigger;
   handled: HandledVersions;
@@ -197,7 +200,6 @@ export async function arrivalsMissed({
     // Safe to go without: nothing is caught up with, and a run by hand takes what was missed.
     return [];
   }
-  const held = await heldEntries(index);
   const notes = [...held.values()].map((entry) => ({
     ...entry,
     path: createVaultPath(entry.path),
