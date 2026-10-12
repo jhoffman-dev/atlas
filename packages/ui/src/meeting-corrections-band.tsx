@@ -13,6 +13,10 @@ export interface CorrectionsNotice {
   readonly onUndo: () => void;
   /** Why the last Undo was refused; null when there is nothing to say. */
   readonly refusal: string | null;
+  /** Whether that refusal will be the same on every try, so Undo is off and the band can be dismissed. */
+  readonly permanent: boolean;
+  /** Hides the band for now; the record stays in the meeting. */
+  readonly onDismiss: () => void;
   /** While an Undo is being written. */
   readonly undoing: boolean;
 }
@@ -22,7 +26,14 @@ export interface CorrectionsNotice {
  * (P28-06): each change, so the corrected words can be trusted, and one
  * Undo that puts every original word back.
  */
-export function MeetingCorrectionsBand({ spellings, onUndo, refusal, undoing }: CorrectionsNotice) {
+export function MeetingCorrectionsBand({
+  spellings,
+  onUndo,
+  refusal,
+  permanent,
+  onDismiss,
+  undoing,
+}: CorrectionsNotice) {
   const total = spellings.reduce((sum, spelling) => sum + spelling.count, 0);
   return (
     <aside className="corrections-band" aria-label="Corrections">
@@ -48,7 +59,17 @@ export function MeetingCorrectionsBand({ spellings, onUndo, refusal, undoing }: 
           </p>
         )}
       </div>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={onUndo} disabled={undoing}>
+      {permanent && (
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onDismiss}>
+          Dismiss
+        </button>
+      )}
+      <button
+        type="button"
+        className="btn btn--ghost btn--sm"
+        onClick={onUndo}
+        disabled={undoing || permanent}
+      >
         Undo corrections
       </button>
     </aside>

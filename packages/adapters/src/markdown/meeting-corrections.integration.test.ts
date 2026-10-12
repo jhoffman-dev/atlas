@@ -62,15 +62,18 @@ const CORRECTED_BODY = [
   '',
   '## Transcript',
   '',
-  '**Mara Quill** [~00:00:00] Morning. `Lark Spur Pay` is the code name; LARKSPUR PAY ships. ^t0001',
+  '**Mara Quill** [~00:00:00] Morning. `Lark Spur Pay` is the code name; Larkspur Pay ships. ^t0001',
   '',
   '**Tobias Fenn** [~00:00:05] See [[Lark Spur Pay]] and Larkspur Pay. ^t0002',
   '',
 ].join('\r\n');
 
 const VOCABULARY_NOTES = {
-  'Terms/Larkspur Pay.md': '---\ntype: term\nkind: product\nvariants:\n  - Lark Spur Pay\n---\n',
-  'People/Mara Quill.md': '---\ntype: person\naliases: [Mara Quil]\n---\n',
+  'Terms/Larkspur Pay.md':
+    '---\ntype: term\nkind: product\nvariants:\n  - Lark Spur Pay\n  - LARK SPUR PAY\n  - lark spur pay\n---\n',
+  'Terms/Mara Quill.md': '---\ntype: term\nkind: person\nvariants: [Mara Quil]\n---\n',
+  // An alias links the person to an attendee; it is never used to correct the text.
+  'People/Mara Quill.md': '---\ntype: person\naliases: [Mara Quil, Quill]\n---\n',
 };
 
 function vault(meeting: string) {
@@ -115,7 +118,7 @@ describe('a meeting corrected on import, through the real YAML writer', () => {
       atlas_corrections: [
         { from: 'Mara Quil', to: 'Mara Quill', count: 2, blocks: ['s1', 't0001'] },
         { from: 'Lark Spur Pay', to: 'Larkspur Pay', count: 1, blocks: ['s1'] },
-        { from: 'LARK SPUR PAY', to: 'LARKSPUR PAY', count: 1, blocks: ['t0001'] },
+        { from: 'LARK SPUR PAY', to: 'Larkspur Pay', count: 1, blocks: ['t0001'] },
         { from: 'lark  spur pay', to: 'Larkspur Pay', count: 1, blocks: ['t0002'] },
       ],
     });
@@ -132,6 +135,22 @@ describe('a meeting corrected on import, through the real YAML writer', () => {
       atlas_corrections: 'undone',
     });
     expect(frontmatter).not.toContain('atlas_corrections_digest');
+    expect(frontmatter).not.toContain('atlas_corrections_original_digest');
+  });
+
+  it('refuses to undo, writing nothing, when a recorded original word was edited by hand', async () => {
+    const { ports, text, api } = await imported();
+    const broken = text().replace(/from: Lark Spur Pay/, 'from: Lark Spur Payroll');
+    expect(broken).not.toBe(text());
+    api.files.set(PATH, {
+      ...(api.files.get(PATH) as { text: string; modified: number }),
+      text: broken,
+    });
+
+    await expect(
+      undoMeetingTermCorrections({ ports, path: createVaultPath(PATH) }),
+    ).rejects.toThrow(CorrectionRefusedError);
+    expect(text()).toBe(broken);
   });
 
   it('refuses to undo, writing nothing, when the change list was edited by hand into nonsense', async () => {
@@ -165,7 +184,7 @@ describe('a meeting corrected on import, through the real YAML writer', () => {
     ]);
   });
 
-  it('leaves a meeting with nothing misheard exactly as it came but for its stamp', async () => {
+  it('leaves a meeting with nothing misheard exactly as it came but for its stamp and the mark that it was read', async () => {
     const clean = FRONTMATTER + CORRECTED_BODY;
     const { text } = await imported(clean);
 
@@ -173,7 +192,7 @@ describe('a meeting corrected on import, through the real YAML writer', () => {
     expect(text()).toBe(
       clean.replace(
         'atlas_import: meeting/v1\n',
-        'atlas_import: meeting/v1\natlas_import_outcome: imported\n',
+        'atlas_import: meeting/v1\natlas_import_outcome: imported\natlas_corrections: none\n',
       ),
     );
   });

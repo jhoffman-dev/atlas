@@ -18,6 +18,8 @@ describe('MeetingCorrectionsBand', () => {
         spellings={SPELLINGS}
         onUndo={onUndo}
         refusal={null}
+        permanent={false}
+        onDismiss={vi.fn()}
         undoing={false}
       />,
     );
@@ -40,6 +42,8 @@ describe('MeetingCorrectionsBand', () => {
         spellings={[{ from: 'Mara Quil', to: 'Mara Quill', count: 1 }]}
         onUndo={vi.fn()}
         refusal="The meeting changed since its words were corrected, so they were left as they are."
+        permanent={false}
+        onDismiss={vi.fn()}
         undoing
       />,
     );
@@ -50,6 +54,46 @@ describe('MeetingCorrectionsBand', () => {
     );
     expect(screen.getByRole('button', { name: 'Undo corrections' }).hasAttribute('disabled')).toBe(
       true,
+    );
+  });
+
+  it('turns Undo off once the refusal is permanent, and lets the band be dismissed', async () => {
+    const onUndo = vi.fn();
+    const onDismiss = vi.fn();
+    render(
+      <MeetingCorrectionsBand
+        spellings={SPELLINGS}
+        onUndo={onUndo}
+        refusal="The meeting changed since its words were corrected, so they were left as they are."
+        permanent
+        onDismiss={onDismiss}
+        undoing={false}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Undo corrections' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onUndo).not.toHaveBeenCalled();
+  });
+
+  it('offers no Dismiss while Undo can still be tried again', () => {
+    render(
+      <MeetingCorrectionsBand
+        spellings={SPELLINGS}
+        onUndo={vi.fn()}
+        refusal="A note is open with unsaved typing."
+        permanent={false}
+        onDismiss={vi.fn()}
+        undoing={false}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Undo corrections' }).hasAttribute('disabled')).toBe(
+      false,
     );
   });
 });

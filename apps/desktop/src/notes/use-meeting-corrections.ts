@@ -46,8 +46,14 @@ export function useMeetingCorrections({
   activity: Pick<ActivityLog, 'inOpenVault'>;
 }): CorrectionsNotice | undefined {
   // Kept with the note it is about, so a refusal is never shown over another.
-  const [refusal, setRefusal] = useState<{ path: VaultPath; reason: string } | null>(null);
+  const [refusal, setRefusal] = useState<{
+    path: VaultPath;
+    reason: string;
+    permanent: boolean;
+  } | null>(null);
   const [undoing, setUndoing] = useState<VaultPath | null>(null);
+  // Meetings whose band was dismissed this session; the record stays in the file.
+  const [dismissed, setDismissed] = useState<ReadonlySet<VaultPath>>(new Set());
 
   const undo = useCallback(
     async (at: VaultPath) => {
@@ -61,7 +67,13 @@ export function useMeetingCorrections({
         setRefusal(null);
         onChanged();
       } catch (error) {
-        setRefusal({ path: at, reason: errorMessage(error) });
+        // Only a body that no longer matches the record stays refused: typing not
+        // yet saved, or a note changed a moment ago, may well be fine on the next try.
+        setRefusal({
+          path: at,
+          reason: errorMessage(error),
+          permanent: error instanceof CorrectionRefusedError,
+        });
       } finally {
         setUndoing(null);
       }
@@ -73,11 +85,14 @@ export function useMeetingCorrections({
     () => (properties === null ? null : recordedCorrections(properties)),
     [properties],
   );
-  if (path === null || records === null) return undefined;
+  if (path === null || records === null || dismissed.has(path)) return undefined;
+  const refused = refusal?.path === path ? refusal : null;
   return {
     spellings: records.map(({ from, to, count }) => ({ from, to, count })),
     onUndo: () => void undo(path),
-    refusal: refusal?.path === path ? refusal.reason : null,
+    refusal: refused?.reason ?? null,
+    permanent: refused?.permanent ?? false,
+    onDismiss: () => setDismissed((was) => new Set(was).add(path)),
     undoing: undoing === path,
   };
 }

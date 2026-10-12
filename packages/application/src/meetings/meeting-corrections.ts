@@ -1,8 +1,10 @@
 import {
+  canCorrect,
   correctionProperties,
   correctMeetingBody,
   MEETING_TYPE,
   noteTitle,
+  NOTHING_CORRECTED_PROPERTIES,
   recordedCorrections,
   splitFrontmatter,
   UNDONE_CORRECTION_PROPERTIES,
@@ -30,7 +32,11 @@ export class CorrectionRefusedError extends Error {
 /** What correcting a meeting's words reaches: the note, its panes, and the index the vocabulary is read from. */
 export type MeetingCorrectionPorts = StampPorts & { readonly index: Pick<IndexPort, 'query'> };
 
-/** What a meeting is written with once its words are corrected: its frontmatter's change list, and its body. */
+/**
+ * What a meeting is written with once its words were read: its frontmatter's
+ * change list, and its body. With nothing corrected (`count` 0) the values
+ * only mark it read, and the body is the one it had.
+ */
 export interface CorrectedMeeting {
   readonly values: Readonly<Record<string, unknown>>;
   readonly body: string;
@@ -40,8 +46,11 @@ export interface CorrectedMeeting {
 
 /**
  * A meeting's words corrected by the vocabulary (P28-06), as the note is to
- * be written; null when there is nothing to correct, or it was corrected —
- * or its corrections undone — before, so it is never written for nothing.
+ * be written; null when it was read before — corrected, undone or found
+ * clean — or the vocabulary has no misheard spelling, so it is never written
+ * for nothing. A meeting with nothing to correct comes back with `count` 0 and
+ * the mark that says so, for the import to write in the same stamp, so the
+ * pipeline step does not read it again on every run.
  */
 export function correctedMeeting({
   markdown,
@@ -54,8 +63,11 @@ export function correctedMeeting({
 }): CorrectedMeeting | null {
   const document = splitFrontmatter(text);
   if (wasCorrected(readFrontmatter(markdown, document.frontmatter).properties)) return null;
+  if (!canCorrect(vocabulary)) return null;
   const correction = correctMeetingBody(document.body, vocabulary);
-  if (correction.count === 0) return null;
+  if (correction.count === 0) {
+    return { values: NOTHING_CORRECTED_PROPERTIES, body: document.body, records: [], count: 0 };
+  }
   return {
     values: correctionProperties(correction),
     body: correction.body,
@@ -75,7 +87,9 @@ export interface MeetingTermsCorrection {
  * deterministic step the "after a meeting" pipeline (P29-06) runs, as the
  * import does when a meeting arrives. A meeting corrected before — or whose
  * corrections were undone — is not corrected again, and the change list it
- * holds is returned; one with nothing to correct is not written.
+ * holds is returned; one with nothing to correct is not written here, since
+ * only the import's own stamp write can carry the "read, nothing to correct"
+ * mark for free — so this step reads such a meeting again on its next run.
  */
 export async function correctMeetingTerms({
   ports,
@@ -95,7 +109,7 @@ export async function correctMeetingTerms({
     return { records: recordedCorrections(properties) ?? [], written: false };
   const { vocabulary } = await loadTerms({ index: ports.index });
   const corrected = correctedMeeting({ markdown: ports.markdown, text, vocabulary });
-  if (corrected === null) return { records: [], written: false };
+  if (corrected === null || corrected.count === 0) return { records: [], written: false };
   const { values, body } = corrected;
   const unsaved = await writeStamp(ports, { path, modified, values, body });
   if (unsaved !== null) throw new UnsavedTypingError(path);

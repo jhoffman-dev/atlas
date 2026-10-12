@@ -140,11 +140,12 @@ export async function letIn(
       ...(fixed && { [IMPORT_ERROR_KEY]: null }),
       ...corrected?.values,
     },
-    ...(corrected !== null && { body: corrected.body }),
+    ...(corrected !== null && corrected.count > 0 && { body: corrected.body }),
   });
   context.settled.add(path);
   if (unsaved !== null) return { kind: 'failed', path, problem: unsaved };
-  const corrections = corrected === null ? {} : { corrected: corrected.count };
+  const corrections =
+    corrected === null || corrected.count === 0 ? {} : { corrected: corrected.count };
   return { kind: fixed ? 'fixed' : 'arrived', path, ...corrections };
 }
 

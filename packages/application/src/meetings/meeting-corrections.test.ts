@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, digestOf, splitFrontmatter, type NoteChange } from '@atlas/domain';
+import {
+  correctionDigestOf,
+  createVaultPath,
+  digestOf,
+  splitFrontmatter,
+  type NoteChange,
+} from '@atlas/domain';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { MEETING_HEADER } from '../testing/meeting-files.ts';
@@ -14,13 +20,18 @@ import {
 const TODAY = '2026-10-08';
 const STANDUP = 'Inbox/Meetings/2026-10-06 Standup.md';
 
-/** Larkspur Pay is misheard as Lark Spur Pay; Mara Quill's name as Mara Quil. */
+/**
+ * Larkspur Pay is misheard as Lark Spur Pay; Mara Quill's name as Mara Quil,
+ * which a term says. Her person note's alias is only for linking: it is never used.
+ */
 const VOCABULARY_NOTES = {
   'Terms/Larkspur Pay.md': jsonNote(
     { type: 'term', kind: 'product', variants: ['Lark Spur Pay'] },
     '',
   ),
-  'People/Mara Quill.md': jsonNote({ type: 'person', aliases: ['Mara Quil'] }, ''),
+  'Terms/Mara Quill.md': jsonNote({ type: 'term', kind: 'person', variants: ['Mara Quil'] }, ''),
+  'People/Mara Quill.md': jsonNote({ type: 'person', aliases: ['Mara Quil', 'Toby'] }, ''),
+  'People/Tobias Fenn.md': jsonNote({ type: 'person', aliases: ['Toby', 'Tobias Fen'] }, ''),
 };
 
 const MISHEARD_BODY = [
@@ -73,7 +84,8 @@ describe('correcting a meeting’s words on import', () => {
         { from: 'Lark Spur Pay', to: 'Larkspur Pay', count: 2, blocks: ['s1', 't0001'] },
         { from: 'Mara Quil', to: 'Mara Quill', count: 1, blocks: ['t0001'] },
       ],
-      atlas_corrections_digest: digestOf(CLEAN_BODY),
+      atlas_corrections_digest: correctionDigestOf(CLEAN_BODY),
+      atlas_corrections_original_digest: correctionDigestOf(MISHEARD_BODY),
     });
     expect(outcome.happenings).toEqual([{ kind: 'arrived', path: STANDUP, corrected: 3 }]);
     expect(activity.reports.map((report) => report.message)).toEqual([
@@ -81,17 +93,41 @@ describe('correcting a meeting’s words on import', () => {
     ]);
   });
 
-  it('writes only the stamp for a meeting with nothing to correct', async () => {
+  it('marks a meeting with nothing to correct in the stamp write, body untouched, so it is not read again', async () => {
     const { vault, activity, importing, body } = setUp({ [STANDUP]: meeting(CLEAN_BODY) });
 
     const outcome = await importing(STANDUP);
 
     expect(body(STANDUP)).toBe(CLEAN_BODY);
-    expect(vault.properties(STANDUP)).not.toHaveProperty('atlas_corrections');
+    expect(vault.properties(STANDUP)).toMatchObject({
+      atlas_import_outcome: 'imported',
+      atlas_corrections: 'none',
+    });
+    expect(vault.properties(STANDUP)).not.toHaveProperty('atlas_corrections_digest');
     expect(outcome.happenings).toEqual([{ kind: 'arrived', path: STANDUP }]);
     expect(activity.reports.map((report) => report.message)).toEqual([
       '2026-10-06 Standup: arrived in the Inbox.',
     ]);
+  });
+
+  it('does not mark a meeting while no term has a misheard spelling, so a term added later still applies', async () => {
+    const { vault, importing } = setUp({ [STANDUP]: meeting(CLEAN_BODY) }, { dirty: [] });
+    for (const path of [...vault.files.keys()]) {
+      if (path.startsWith('Terms/')) vault.files.delete(path);
+    }
+
+    await importing(STANDUP);
+
+    expect(vault.properties(STANDUP)).not.toHaveProperty('atlas_corrections');
+  });
+
+  it('never rewrites a name by a person’s alias: Toby and Tobias Fen stay as heard', async () => {
+    const text = MISHEARD_BODY.replace('See', 'Toby and Tobias Fen said so. See');
+    const { importing, body } = setUp({ [STANDUP]: meeting(text) });
+
+    await importing(STANDUP);
+
+    expect(body(STANDUP)).toBe(CLEAN_BODY.replace('See', 'Toby and Tobias Fen said so. See'));
   });
 
   it('corrects a meeting let in once its import error is fixed, and says both', async () => {
@@ -216,6 +252,18 @@ describe('correctMeetingTerms, the pipeline’s step', () => {
       written: false,
     });
     expect(vault.files.get(STANDUP)).toBe(before);
+  });
+
+  it('leaves a meeting the import marked as read alone', async () => {
+    const { vault, importing } = setUp({ [STANDUP]: meeting(CLEAN_BODY) });
+    await importing(STANDUP);
+    const marked = vault.files.get(STANDUP);
+
+    expect(await correctMeetingTerms({ ports: vault.ports, path })).toEqual({
+      records: [],
+      written: false,
+    });
+    expect(vault.files.get(STANDUP)).toBe(marked);
   });
 
   it('refuses a note that is not a meeting', async () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ObjectType, VaultPath } from '@atlas/domain';
+import { spellingWarnings, type ObjectType, type VaultPath } from '@atlas/domain';
 import {
   addTerm,
   loadTerms,
@@ -135,7 +135,10 @@ export function useTermsPage({
           : {
               terms: catalog.terms,
               conflicts: catalog.vocabulary.conflicts,
-              spellings: catalog.vocabulary.entries.length,
+              warnings: spellingWarnings(catalog),
+              spellings: catalog.vocabulary.entries.filter(
+                (entry) => entry.form !== entry.canonical,
+              ).length,
             },
       error,
       onAdd,

@@ -41,6 +41,11 @@ async function openVault(page: Page): Promise<FakeVault> {
     'Terms/Larkspur Pay.md',
     '---\ntype: term\nkind: product\nvariants:\n  - Lark Spur Pay\n---\n',
   );
+  await vault.write(
+    'Terms/Mara Quill.md',
+    '---\ntype: term\nkind: person\nvariants:\n  - Mara Quil\n---\n',
+  );
+  // An alias links the person; it is never used to correct text.
   await vault.write('People/Mara Quill.md', '---\ntype: person\naliases:\n  - Mara Quil\n---\n');
 
   await installHost(page, vault);
@@ -114,4 +119,9 @@ test('Undo corrections is refused, and the meeting left as it is, once its words
     'The meeting changed since its words were corrected, so they were left as they are.',
   );
   expect(await vault.read(MEETING)).toBe(edited);
+
+  // The refusal cannot pass, so Undo is off and the band can be dismissed.
+  await expect(band.getByRole('button', { name: 'Undo corrections' })).toBeDisabled();
+  await band.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(band).toBeHidden();
 });
