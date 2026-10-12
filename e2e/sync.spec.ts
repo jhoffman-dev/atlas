@@ -45,6 +45,22 @@ async function useTheme(page: Page, theme: 'light' | 'dark') {
   await expect.poll(current).toBe(theme);
 }
 
+/**
+ * How long a wait on a sync's outcome may last, and a test made of several.
+ *
+ * A sync here is a real git a dozen times over — a commit, a fetch, a merge
+ * and a push against a bare repository on disk — so it is the slowest thing
+ * these tests wait for: about a second alone, and past the default five
+ * beside seven other workers (ten runs of ten, #52). The work is fixed, so
+ * this is a budget for it; like `expectFile`'s, a sync that finishes never
+ * spends it.
+ */
+const AFTER_A_SYNC = { timeout: 30_000 };
+test.describe.configure({ timeout: 120_000 });
+
+const expectSynced = (page: Page) =>
+  expect(page.getByTestId('sync-status')).toContainText('Synced at', AFTER_A_SYNC);
+
 test('sets up sync with a private repository, then keeps both versions of a note two Macs changed', async ({
   page,
 }) => {
@@ -54,7 +70,7 @@ test('sets up sync with a private repository, then keeps both versions of a note
   await openSyncSettings(page);
   await expect(page.getByTestId('sync-status')).toHaveText('Not set up');
   await page.getByRole('button', { name: 'Set up sync with GitHub' }).click();
-  await expect(page.getByTestId('sync-status')).toContainText('Synced at');
+  await expectSynced(page);
 
   // What reached "GitHub": the notes and the managed ignore file, named for this Mac.
   const remote = host.git.remote(basename(vault.root));
@@ -77,7 +93,7 @@ test('sets up sync with a private repository, then keeps both versions of a note
 
   await page.getByRole('button', { name: 'Sync now' }).click();
   const warning = syncCard(page).getByRole('status');
-  await expect(warning).toContainText('Both Macs changed a file');
+  await expect(warning).toContainText('Both Macs changed a file', AFTER_A_SYNC);
   await expect(warning).toContainText('Welcome (conflict from Laptop).md');
 
   // This Mac's version stays in place; the laptop's is beside it; no markers anywhere.
@@ -279,7 +295,7 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
     await picker.getByRole('searchbox').fill('vault');
   }
   await picker.getByRole('button', { name: 'Connect james/old-vault' }).click();
-  await expect(page.getByTestId('sync-status')).toContainText('Synced at');
+  await expectSynced(page);
 
   // Connected on the repository's own branch: its notes came in, and this Mac's went up.
   await expectFile(vault, 'Kept for years.md').toBe('# Kept for years\n');
@@ -306,7 +322,10 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   await emitVaultChanged(page, ['Welcome.md']);
   await page.clock.fastForward('00:35');
   await expect
-    .poll(async () => (await gitIn(remote, ['show', 'master:Welcome.md'], host.git.env)).stdout)
+    .poll(
+      async () => (await gitIn(remote, ['show', 'master:Welcome.md'], host.git.env)).stdout,
+      AFTER_A_SYNC,
+    )
     .toBe('# Welcome\n\nEdited on the studio.\n');
 
   // Behind: changes wait on GitHub while this Mac has typing not yet sent.
@@ -319,7 +338,7 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   await vault.write('Welcome.md', '# Welcome\n\nStill typing.\n');
   await emitVaultChanged(page, ['Welcome.md']);
   await page.clock.fastForward('01:05');
-  await expect(syncLight(page)).toHaveAccessibleName('Sync: 1 change to bring in');
+  await expect(syncLight(page)).toHaveAccessibleName('Sync: 1 change to bring in', AFTER_A_SYNC);
   await shootLight(page, 'behind');
 
   // Syncing: a sync under way, held at its fetch.
@@ -330,14 +349,14 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   await expect(syncLight(page)).toHaveAccessibleName('Sync: Syncing…');
   await shootLight(page, 'syncing');
   release();
-  await expect(syncLight(page)).toHaveAccessibleName('Sync: Synced');
+  await expect(syncLight(page)).toHaveAccessibleName('Sync: Synced', AFTER_A_SYNC);
   await expectFile(vault, 'Later.md').toBe('# Later\n');
 
   // Failed: GitHub out of reach.
   await rename(remote, `${remote}.away`);
   await syncLight(page).click();
   await syncCard(page).getByRole('button', { name: 'Sync now' }).click();
-  await expect(page.getByTestId('sync-status')).toContainText('Last sync failed');
+  await expect(page.getByTestId('sync-status')).toContainText('Last sync failed', AFTER_A_SYNC);
   await closeSettings(page);
   await expect(syncLight(page)).toHaveAccessibleName('Sync: Sync failed');
   await shootLight(page, 'failed');
