@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { createVault, emitVaultChanged, expectFile, installHost, type FakeVault } from './host.ts';
 
@@ -124,4 +125,27 @@ test('Undo corrections is refused, and the meeting left as it is, once its words
   await expect(band.getByRole('button', { name: 'Undo corrections' })).toBeDisabled();
   await band.getByRole('button', { name: 'Dismiss' }).click();
   await expect(band).toBeHidden();
+});
+
+test('screenshots: a corrected meeting with its band', async ({ page }) => {
+  const vault = await openVault(page);
+  await vault.write(MEETING, MISHEARD);
+  await emitVaultChanged(page, [MEETING]);
+  await expectFile(vault, MEETING).toContain('start with Larkspur Pay?');
+  await page
+    .getByRole('list', { name: 'Go to' })
+    .getByRole('button', { name: /^Inbox/ })
+    .click();
+  await page.getByRole('main').getByText('Platform weekly sync', { exact: true }).click();
+  const band = page.getByRole('complementary', { name: 'Corrections' });
+  await expect(band).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mkdir('design/out/shots', { recursive: true });
+  for (const theme of ['light', 'dark'] as const) {
+    await page.evaluate((chosen) => {
+      document.documentElement.dataset['theme'] = chosen;
+    }, theme);
+    await page.screenshot({ path: `design/out/shots/term-corrections-${theme}.png` });
+    await band.screenshot({ path: `design/out/shots/term-corrections-band-${theme}.png` });
+  }
 });
