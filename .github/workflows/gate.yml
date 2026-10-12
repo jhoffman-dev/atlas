@@ -20,6 +20,10 @@ concurrency:
 
 # How many machines each suite is split over, and the only place it is said: the
 # `changes` job turns each into the list its matrix runs and the N in `--shard=i/N`.
+#
+# macOS: the account runs only five macOS jobs at once, and a full run uses
+# E2E_SHARDS of them and one more for `rust`. Raise E2E_SHARDS past 4 and the
+# extra jobs queue behind the others instead of running beside them.
 env:
   UNIT_SHARDS: 3
   E2E_SHARDS: 4
@@ -29,16 +33,13 @@ defaults:
     # Named, so a failure on the left of a pipe fails the step (`-o pipefail`).
     shell: bash
 
-# The slow work is split across machines: the unit tests over three, the
-# end-to-end suite over four. `gate`, at the bottom, is the one check to require.
+# The slow work is split across machines, as many as `env` above says for each
+# suite. `gate`, at the bottom, is the one check to require.
 # Nothing requires it until it is added as a required status check to the
 # "Protect main" ruleset, which is a repository setting and not this file.
 #
 # Actions from outside GitHub are pinned to a commit, with the version it was
 # beside it: a tag can be moved to other code, a commit cannot.
-#
-# macOS: the account runs only five macOS jobs at once, and a full run uses
-# exactly five (four end-to-end shards and `rust`). Add a sixth and it queues.
 
 jobs:
   changes:
@@ -82,10 +83,20 @@ jobs:
       - name: Number the shards
         id: shards
         run: |
+          # Each list is assigned on a line of its own: a command that fails
+          # inside `echo "$(...)"` does not fail the step, it writes nothing.
+          for name in UNIT_SHARDS E2E_SHARDS; do
+            if ! [[ "${!name}" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::$name must be a whole number of 1 or more, not '${!name}'."
+              exit 1
+            fi
+          done
+          unit=$(jq -nc --argjson total "$UNIT_SHARDS" '[range(1; $total + 1)]')
+          e2e=$(jq -nc --argjson total "$E2E_SHARDS" '[range(1; $total + 1)]')
           {
-            echo "unit=$(jq -nc --argjson total "$UNIT_SHARDS" '[range(1; $total + 1)]')"
+            echo "unit=$unit"
             echo "unit-total=$UNIT_SHARDS"
-            echo "e2e=$(jq -nc --argjson total "$E2E_SHARDS" '[range(1; $total + 1)]')"
+            echo "e2e=$e2e"
             echo "e2e-total=$E2E_SHARDS"
           } | tee -a "$GITHUB_OUTPUT"
 
@@ -157,14 +168,17 @@ jobs:
           sudo usermod --comment 'Atlas CI' "$(whoami)"
           sudo hostname "$(hostname).local"
 
-      # A third of the tests cannot meet the coverage thresholds, so the shard
-      # config leaves them out. What this shard covered goes into its blob, and
-      # the `coverage` job holds the three together to the thresholds.
-      - name: Test, a third of the suite
+      # One shard's tests cannot meet the coverage thresholds alone, so the shard
+      # config leaves the thresholds out. What this shard covered goes into its
+      # blob, and the `coverage` job holds all of them together to the thresholds.
+      - name: Test, this shard of the suite
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ needs.changes.outputs.unit-shard-total }}
         run: >
           pnpm exec vitest run --config tools/ci/vitest.shard.config.ts
           --coverage --coverage.reporter=text-summary
-          --shard=${{ matrix.shard }}/${{ needs.changes.outputs.unit-shard-total }}
+          --shard="$SHARD/$SHARD_TOTAL"
           --reporter=default --reporter=blob
 
       - uses: actions/upload-artifact@v4
@@ -176,7 +190,7 @@ jobs:
           retention-days: 1
 
   coverage:
-    # Puts the three shards' coverage back together and holds it to the
+    # Puts the unit shards' coverage back together and holds it to the
     # thresholds in vitest.config.ts: the repo floor and each module's own.
     needs: [changes, unit]
     if: needs.changes.outputs.code == 'true'
@@ -204,7 +218,7 @@ jobs:
           path: .vitest/blob
           merge-multiple: true
 
-      # Merging two blobs of three succeeds, and reports whatever those two
+      # Merging with a blob missing succeeds, and reports whatever the rest
       # covered. Every file in the folder is one shard's blob, so count them.
       - name: Require a blob from every unit shard
         run: |
@@ -284,7 +298,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     # macOS because the end-to-end suite drives the same WebKit the Tauri window
-    # uses. One worker per machine, as before; the four machines are the speed-up.
+    # uses. One worker per machine, as before; the machines are the speed-up.
     runs-on: macos-latest
     timeout-minutes: 20
     strategy:
@@ -326,13 +340,14 @@ jobs:
       # handing `dist` over from another job would hold every shard back until
       # that job had installed and built.
       #
-      # No `--trace=retain-on-failure`: tracing every test took the four shards
-      # from 1114 s to 1479 s between them when it was measured (#113). A failed
+      # No `--trace=retain-on-failure`: tracing every test took the shards from
+      # 1114 s to 1479 s between them when it was measured (#113). A failed
       # shard uploads the HTML report and each failure's error context instead.
-      - name: End-to-end, a quarter of the suite
-        run: >
-          pnpm e2e --shard=${{ matrix.shard }}/${{ needs.changes.outputs.e2e-shard-total }}
-          --reporter=list,html
+      - name: End-to-end, this shard of the suite
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ needs.changes.outputs.e2e-shard-total }}
+        run: pnpm e2e --shard="$SHARD/$SHARD_TOTAL" --reporter=list,html
 
       - uses: actions/upload-artifact@v4
         if: failure()

@@ -25,7 +25,9 @@ A pull request runs the workflow as that pull request wrote it, so a change unde
 in for that:
 
 - Whoever merges reads every line of the diff under `.github/` and `tools/ci/` first.
-  `.github/CODEOWNERS` names the owner of both.
+  `.github/CODEOWNERS` names the owner of both, but with one maintainer it is
+  advisory: an owner cannot review their own pull request, so the reading is the
+  control and the file is only a reminder of it.
 - The workflow's token is read-only, no checkout leaves credentials behind, and
   third-party actions are pinned to a commit rather than a tag.
 - Workflows on pull requests from forks should wait for approval. The recommended

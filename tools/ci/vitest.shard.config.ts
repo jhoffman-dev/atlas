@@ -7,7 +7,7 @@ import whole from '../../vitest.config.ts';
  * (.github/workflows/gate.yml, the `unit` jobs): the same tests and the same
  * coverage, without the thresholds.
  *
- * A third of the tests covers a third of the code, so a shard held to the
+ * A share of the tests covers a share of the code, so a shard held to the
  * thresholds always fails them. They are not dropped: the `coverage` job merges
  * the shards' reports under vitest.config.ts itself, thresholds and all.
  */
