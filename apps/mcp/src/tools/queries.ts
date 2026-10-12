@@ -123,7 +123,7 @@ export const runQuery = defineTool({
     "Run an Atlas query, the text the app's query builder writes, across one or more types, e.g. " +
     '"FROM task, project WHERE status != done AND project.owner = [[Julie]] AND tag = #q3 ' +
     'SORT BY due GROUP BY project THEN status". Clauses: FROM type, …; WHERE with AND, OR, NOT, ' +
-    'brackets, = != < <= > >=, CONTAINS, STARTS WITH, IS [NOT] EMPTY, LINKS TO this; SORT BY ' +
+    'brackets, = != < <= > >=, CONTAINS, STARTS WITH, IS [NOT] EMPTY, LINKS TO this, CONNECTED TO this; SORT BY ' +
     'field [ASC|DESC]; GROUP BY field [THEN field]; SHOW field, …; INCLUDE ARCHIVED; LIMIT n. A ' +
     'field is a property of a listed type (atlas_list_types), one hop through a relation ' +
     "(project.owner), or title, type, tag, modified, path. Values: words, 'quoted text', numbers, " +
@@ -132,7 +132,9 @@ export const runQuery = defineTool({
     'a person\'s meetings in the last 30 days, with their note as context: "FROM meeting WHERE ' +
     'people = this AND date > @-30d AND date <= @today" (date > @-30d alone takes the meetings ' +
     "to come too). this compares with a relation (= or !=); quote it, 'this', to mean the word. " +
-    "LINKS TO this lists notes whose body links to it. A note's fenced ```atlas-query block " +
+    'LINKS TO this lists notes whose body links to it; CONNECTED TO this lists notes joined to ' +
+    'it by any link, either way round, in a body or a property (the tasks that came from a ' +
+    "meeting, with the meeting as context: FROM task WHERE CONNECTED TO this). A note's fenced ```atlas-query block " +
     'holds such a query after an optional "layout:" line; to answer it as the app shows it, ' +
     'send the query without that line, with the note as context. Archived notes are ' +
     'left out unless the query says INCLUDE ARCHIVED. Returns { columns, rows, truncated, sql }, ' +

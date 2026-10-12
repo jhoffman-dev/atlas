@@ -55,12 +55,15 @@ export type BuilderReading =
 const MIXED =
   'This query brackets conditions together — AND with OR, or NOT over a group — which the builder cannot show as one list. Edit it as text.';
 
-const LINKS_TO = 'This query says LINKS TO, which the builder has no control for. Edit it as text.';
+const noControlFor = (words: string) =>
+  `This query says ${words}, which the builder has no control for. Edit it as text.`;
 
 export function builderFromQuery(query: AtlasQuery): BuilderReading {
   const said = query.where === null ? [] : conditionsOf(query.where);
   if (said.some((condition) => condition.kind === 'linksTo'))
-    return { ok: false, reason: LINKS_TO };
+    return { ok: false, reason: noControlFor('LINKS TO') };
+  if (said.some((condition) => condition.kind === 'connectedTo'))
+    return { ok: false, reason: noControlFor('CONNECTED TO') };
   const flat = flatten(query.where);
   if (flat === null) return { ok: false, reason: MIXED };
   return {

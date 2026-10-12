@@ -214,6 +214,7 @@ class Parser {
 
   private condition(): Expression {
     if (this.atLinksTo()) return this.linksTo();
+    if (this.atConnectedTo()) return this.connectedTo();
     const field = this.field('Expected a field to compare, like status.');
     const token = this.peek();
     if (isWord(token, 'IS')) return this.emptiness(field);
@@ -233,6 +234,19 @@ class Parser {
     this.next();
     const value = this.value('LINKS TO');
     return { kind: 'linksTo', value, span: { start, end: value.span.end } };
+  }
+
+  /** `CONNECTED TO …`; `connected = x` still compares a property called `connected`. */
+  private atConnectedTo(): boolean {
+    const after = this.tokens[this.at + 1];
+    return isWord(this.peek(), 'CONNECTED') && after !== undefined && isWord(after, 'TO');
+  }
+
+  private connectedTo(): Expression {
+    const start = this.next().span.start;
+    this.next();
+    const value = this.value('CONNECTED TO');
+    return { kind: 'connectedTo', value, span: { start, end: value.span.end } };
   }
 
   private emptiness(field: FieldRef): Expression {

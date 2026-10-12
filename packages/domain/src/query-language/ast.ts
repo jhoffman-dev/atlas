@@ -84,6 +84,15 @@ export type Condition =
       readonly kind: 'linksTo';
       readonly value: QueryValue;
       readonly span: Span;
+    }
+  | {
+      /**
+       * `CONNECTED TO this`: a link joins the note and the note the query is
+       * shown on — either way round, in a body or in a property.
+       */
+      readonly kind: 'connectedTo';
+      readonly value: QueryValue;
+      readonly span: Span;
     };
 
 export type Expression =

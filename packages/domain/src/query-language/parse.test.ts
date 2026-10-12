@@ -25,6 +25,8 @@ function shape(expression: Expression | null): unknown {
       return [fieldText(expression.field), expression.negated ? 'IS NOT EMPTY' : 'IS EMPTY'];
     case 'linksTo':
       return ['LINKS TO', expression.value];
+    case 'connectedTo':
+      return ['CONNECTED TO', expression.value];
     case 'not':
       return ['NOT', shape(expression.operand)];
     default:
@@ -348,6 +350,35 @@ describe('parseAtlasQuery: this, and LINKS TO', () => {
     expect(printAtlasQuery(parseAtlasQuery(text))).toBe(text);
     const quoted = "FROM task WHERE notes = 'this'";
     expect(printAtlasQuery(parseAtlasQuery(quoted))).toBe(quoted);
+  });
+
+  it('reads CONNECTED TO as a condition of its own, and still reads a property called connected', () => {
+    expect(where('connected to this')).toEqual([
+      'CONNECTED TO',
+      expect.objectContaining({ kind: 'this' }),
+    ]);
+    expect(where('NOT CONNECTED TO this OR status = done')).toEqual([
+      'or',
+      ['NOT', ['CONNECTED TO', expect.objectContaining({ kind: 'this' })]],
+      ['status', '=', expect.objectContaining({ kind: 'text', text: 'done' })],
+    ]);
+    expect(where('connected = true')).toEqual([
+      'connected',
+      '=',
+      expect.objectContaining({ kind: 'boolean', value: true }),
+    ]);
+  });
+
+  it('remembers where CONNECTED TO is, prints it back, and wants a value after it', () => {
+    const text = 'FROM task WHERE status = done AND CONNECTED TO this';
+    const query = parseAtlasQuery(text);
+    const connected = query.where?.kind === 'and' ? query.where.operands[1] : null;
+    expect(text.slice(connected?.span.start, connected?.span.end)).toBe('CONNECTED TO this');
+    expect(printAtlasQuery(query)).toBe(text);
+    expect(problem('FROM task WHERE CONNECTED TO')).toEqual({
+      message: 'Expected a value after CONNECTED TO.',
+      at: '',
+    });
   });
 
   it('wants a value after LINKS TO', () => {

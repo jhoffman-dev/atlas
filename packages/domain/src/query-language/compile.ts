@@ -129,7 +129,8 @@ function resultColumns(
 }
 
 function mentioned(expression: Expression | null): FieldRef[] {
-  if (expression === null || expression.kind === 'linksTo') return [];
+  if (expression === null) return [];
+  if (expression.kind === 'linksTo' || expression.kind === 'connectedTo') return [];
   if (expression.kind === 'compare' || expression.kind === 'empty') return [expression.field];
   if (expression.kind === 'not') return mentioned(expression.operand);
   return expression.operands.flatMap(mentioned);
@@ -200,6 +201,8 @@ function expressionSql(
       return sql`NOT (${expressionSql(expression.operand, field, context)})`;
     case 'linksTo':
       return linksToSql(context);
+    case 'connectedTo':
+      return connectedToSql(context);
     default:
       return conditionSql(expression, field(expression.field), context);
   }
@@ -299,6 +302,24 @@ function thisNoteOf(context: AtlasQueryContext): string {
  */
 function linksToSql(context: AtlasQueryContext): Fragment {
   return sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ${bound(thisNoteOf(context))} AND l.src <> l.dst)`;
+}
+
+/**
+ * `CONNECTED TO this`: a link joins the note and the note the query is shown
+ * on — from either to the other, written in a body (`links`) or held by a
+ * property (`relations`, which keeps every link a frontmatter value holds,
+ * whatever the property's kind: a task's `source` citing a meeting's line
+ * counts). A note is not connected to itself.
+ */
+function connectedToSql(context: AtlasQueryContext): Fragment {
+  const page = () => bound(thisNoteOf(context));
+  const joins = [
+    sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ${page()})`,
+    sql`EXISTS (SELECT 1 FROM relations AS r WHERE r.src = n.path AND r.dst = ${page()})`,
+    sql`EXISTS (SELECT 1 FROM links AS l WHERE l.src = ${page()} AND l.dst = n.path)`,
+    sql`EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ${page()} AND r.dst = n.path)`,
+  ];
+  return sql`(n.path <> ${page()} AND (${joined(joins, ' OR ')}))`;
 }
 
 /** `tag = #q3` is true of a note tagged #q3 or anything nested under it, like #q3/okr. */

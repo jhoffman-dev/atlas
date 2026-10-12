@@ -268,6 +268,7 @@ describe('checkAtlasQuery: this, and LINKS TO', () => {
     'FROM task WHERE owner = this',
     'FROM task WHERE owner != this AND project.owner = this',
     'FROM task WHERE LINKS TO this OR NOT LINKS TO this',
+    'FROM task WHERE CONNECTED TO this AND status != done',
   ])('passes on a note: %s', (text) => {
     expect(problemOn(text, NOTE)).toBeNull();
   });
@@ -278,6 +279,7 @@ describe('checkAtlasQuery: this, and LINKS TO', () => {
     ['FROM task WHERE owner = this', 'this'],
     ['FROM task WHERE status = done AND NOT (LINKS TO this)', 'this'],
     ['FROM task WHERE project.owner != THIS', 'THIS'],
+    ['FROM task WHERE CONNECTED TO this', 'this'],
   ])('refuses this on no note, pointing at it: %s', (text, at) => {
     expect(problemOn(text, null)).toEqual({ message: NOT_ON_A_NOTE, at });
   });
@@ -307,6 +309,13 @@ describe('checkAtlasQuery: this, and LINKS TO', () => {
     expect(problemOn(text, NOTE)).toEqual({
       message: 'LINKS TO takes this: the note the query is shown on.',
       at,
+    });
+  });
+
+  it('takes nothing but this after CONNECTED TO', () => {
+    expect(problemOn('FROM task WHERE CONNECTED TO [[Mara Quill]]', NOTE)).toEqual({
+      message: 'CONNECTED TO takes this: the note the query is shown on.',
+      at: '[[Mara Quill]]',
     });
   });
 });

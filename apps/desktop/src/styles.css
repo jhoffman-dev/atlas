@@ -2563,6 +2563,147 @@ ul.sidebar__sections {
   box-shadow: none;
 }
 
+/* A linked page's sections (P30-06): what a person, company, project or
+   meeting page says about itself, between its properties and its text. Each
+   is a quiet card; an empty one is a single line, so a page with little to
+   say stays short. */
+.linked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+.linked__section {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  padding: 8px var(--space-4) 6px;
+}
+
+.linked__section--empty {
+  background: none;
+  box-shadow: none;
+  padding-bottom: 0;
+  padding-top: 0;
+}
+
+.linked__head {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-height: 30px;
+}
+
+.linked__title {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  font-weight: 800;
+  margin: 0;
+}
+
+.linked__section--empty .linked__title {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.linked__count {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--chip-ink);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+
+.linked__none,
+.linked__cut {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+}
+
+.linked__cut {
+  margin: 4px 0;
+}
+
+/* The recent / all switch sits at the end of the heading's line, its options
+   words rather than the quiet control's icons. */
+.linked__head .segmented {
+  margin-left: auto;
+}
+
+.linked__head .segmented--quiet .segmented__option {
+  font-size: var(--text-small);
+  height: 22px;
+  padding: 0 10px;
+  width: auto;
+}
+
+.linked__hint,
+.linked__problem {
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 2px 0 4px;
+}
+
+.linked__hint {
+  color: var(--warning);
+}
+
+.linked__problem {
+  color: var(--danger);
+}
+
+/* The section is the card, so its list is not one inside it. */
+.linked .list-view {
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.linked .list-view__title {
+  margin-left: -8px;
+}
+
+/* A glance, not a view: rows sit closer than a list view's. */
+.linked .list-view__row {
+  min-height: 34px;
+}
+
+.linked .list-view__title {
+  max-width: 62%;
+  padding: 4px 8px;
+}
+
+.linked .qresult {
+  gap: var(--space-2);
+}
+
+.linked__more {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 2px 0;
+  padding: 4px 8px;
+}
+
+.linked__more:hover {
+  background: var(--track);
+}
+
+.linked__more:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
 /* A note's blocks in the `#` list: a line or two of each, as Capacities shows them. */
 .suggestions--blocks {
   max-width: 440px;

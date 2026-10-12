@@ -144,7 +144,9 @@ function checkConditionCount(where: Expression): void {
 /** Every condition in an expression, however deep in brackets and NOTs. */
 export function conditionsOf(expression: Expression): Condition[] {
   const { kind } = expression;
-  if (kind === 'compare' || kind === 'empty' || kind === 'linksTo') return [expression];
+  if (kind === 'compare' || kind === 'empty' || kind === 'linksTo' || kind === 'connectedTo') {
+    return [expression];
+  }
   if (expression.kind === 'not') return conditionsOf(expression.operand);
   return expression.operands.flatMap(conditionsOf);
 }
@@ -162,7 +164,10 @@ function checkExpression(expression: Expression, scope: Scope): void {
       scope.field(expression.field);
       return;
     case 'linksTo':
-      checkLinksTo(expression.value, scope);
+      checkTakesThis('LINKS TO', expression.value, scope);
+      return;
+    case 'connectedTo':
+      checkTakesThis('CONNECTED TO', expression.value, scope);
       return;
     case 'compare':
       checkComparison(expression, scope.field(expression.field));
@@ -170,10 +175,13 @@ function checkExpression(expression: Expression, scope: Scope): void {
   }
 }
 
-/** `LINKS TO this`: the links in a note's body, to the note the query is shown on. */
-function checkLinksTo(value: QueryValue, scope: Scope): void {
+/**
+ * `LINKS TO this` and `CONNECTED TO this` ask about the links of the note the
+ * query is shown on, so `this` is all either takes.
+ */
+function checkTakesThis(words: string, value: QueryValue, scope: Scope): void {
   if (value.kind !== 'this') {
-    throw new QueryTextError('LINKS TO takes this: the note the query is shown on.', value.span);
+    throw new QueryTextError(`${words} takes this: the note the query is shown on.`, value.span);
   }
   checkOnPage(value, scope);
 }

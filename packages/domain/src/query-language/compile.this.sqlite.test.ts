@@ -191,3 +191,54 @@ describe('compileAtlasQuery, run against SQLite: LINKS TO this', () => {
     ]);
   });
 });
+
+describe('compileAtlasQuery, run against SQLite: CONNECTED TO this', () => {
+  it('lists the notes a link joins to the page, in a body or a property, from the note', () => {
+    // Three hold Mara in `people`; one names her in its body alone.
+    expect(titles('FROM meeting WHERE CONNECTED TO this', MARA)).toEqual([
+      'Mara next week',
+      'Mara old',
+      'Mara recent',
+      'Mara thirty days ago',
+      'Tobias recent',
+    ]);
+    expect(titles('FROM company WHERE CONNECTED TO this', MARA)).toEqual(['Larkspur Payroll']);
+  });
+
+  it('lists the notes the page itself links, by its body or by a property', () => {
+    // Mara's body links Tobias; nothing of his links her.
+    expect(titles('FROM person WHERE CONNECTED TO this', MARA)).toEqual(['Tobias Fenn']);
+    // The meeting names its people and its company in properties.
+    expect(titles('FROM person WHERE CONNECTED TO this', 'meetings/Mara recent.md')).toEqual([
+      'Mara Quill',
+      'Tobias Fenn',
+    ]);
+    expect(titles('FROM company WHERE CONNECTED TO this', 'meetings/Mara recent.md')).toEqual([
+      'Larkspur Payroll',
+    ]);
+  });
+
+  it('never counts a note as connected to itself', () => {
+    // Mara's body links herself.
+    expect(titles('FROM person WHERE CONNECTED TO this', TOBIAS)).toEqual(['Mara Quill']);
+    expect(titles('FROM person WHERE CONNECTED TO this', MARA)).not.toContain('Mara Quill');
+  });
+
+  it('negates and joins like any condition, leaves archived notes out, and binds the note', () => {
+    expect(titles('FROM meeting WHERE NOT CONNECTED TO this', TOBIAS)).toEqual([
+      'Mara next week',
+      'Mara old',
+      'Mara thirty days ago',
+    ]);
+    expect(titles('FROM meeting WHERE CONNECTED TO this AND date > @-7d', MARA)).toEqual([
+      'Mara next week',
+      'Tobias recent',
+    ]);
+    expect(titles('FROM meeting WHERE CONNECTED TO this INCLUDE ARCHIVED', MARA)).toContain(
+      'Mara archived',
+    );
+    const { sql, parameters } = compiled('FROM meeting WHERE CONNECTED TO this', MARA);
+    expect(sql).not.toContain('Mara');
+    expect(parameters.filter((value) => value === MARA)).toHaveLength(5);
+  });
+});

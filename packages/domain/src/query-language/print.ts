@@ -71,6 +71,8 @@ function printExpression(expression: Expression, within: 'or' | 'and' | 'not'): 
       return `${fieldText(expression.field)} IS ${expression.negated ? 'NOT ' : ''}EMPTY`;
     case 'linksTo':
       return `LINKS TO ${printValue(expression.value)}`;
+    case 'connectedTo':
+      return `CONNECTED TO ${printValue(expression.value)}`;
     case 'not':
       return `NOT ${printExpression(expression.operand, 'not')}`;
     default: {

@@ -29,6 +29,7 @@ import type {
   DefinedType,
   ExternalLinkPort,
   IndexPort,
+  LinkedRangeStore,
   OpenNotes,
   SourceRefresher,
   ThumbnailQueue,
@@ -39,6 +40,7 @@ import {
   ArtifactViewer,
   CustomizeToggle,
   DashboardView,
+  LinkedSections,
   NotePane,
   WidgetEditor,
   SourcePanel,
@@ -85,6 +87,7 @@ import { useSqlView } from '../query/use-sql-view.ts';
 import { useQueryView, type QueryViewState } from '../query/use-query-view.ts';
 import { QueryViewBody } from './query-view-body.tsx';
 import { useQueryBlocks } from '../query/use-query-blocks.ts';
+import { useLinkedPage } from '../linked-pages/use-linked-page.ts';
 import { pageHeading } from './page-heading.ts';
 import { localClock, localNow, localToday } from '../today.ts';
 import type { OpenEditors, PaneEditors } from './open-editors.ts';
@@ -147,6 +150,8 @@ export interface PaneContext {
   readonly tickMemory: TickMemory;
   /** Which groups of each view are folded shut, remembered on this Mac. */
   readonly groupFolds: GroupFoldStore;
+  /** Which of recent and all a linked page's sections were left on, on this Mac (P30-06). */
+  readonly linkedRanges: LinkedRangeStore;
   /** Every note and connection, which each note's links are read from; null until read. */
   readonly graph: VaultGraph | null;
   /** The panes as a write from outside them reaches them — linking a mention. */
@@ -376,6 +381,17 @@ export function NotePaneContainer({
     revision: indexKey,
     onOpenNote: (target) => onOpenNote(createVaultPath(target)),
   });
+  const linked = useLinkedPage({
+    index,
+    clock: localClock,
+    store: context.linkedRanges,
+    types,
+    notePaths,
+    // A template of a type is what its notes start as, not a page of the type.
+    notePath: path !== null && isTemplateNote(path) ? null : path,
+    typeName: noteProperties.typeName,
+    revision: indexKey,
+  });
   const picking = useBlockPicking({
     fs: notes.fs,
     markdown: notes.markdown,
@@ -509,8 +525,20 @@ export function NotePaneContainer({
         if (path !== null) onToggleFavorite(path);
       }}
       aside={
-        artifactAside(artifact, path) ??
-        (taskSchedule === null ? null : <TaskScheduleSummary {...taskSchedule} />)
+        artifactAside(artifact, path) ?? (
+          <>
+            {taskSchedule !== null && <TaskScheduleSummary {...taskSchedule} />}
+            {linked !== null && (
+              <LinkedSections
+                // A page's own "show more" and folds, never the last page's.
+                key={path}
+                sections={linked.sections}
+                onChangeRange={linked.setRange}
+                onOpenNote={(target) => onOpenNote(createVaultPath(target))}
+              />
+            )}
+          </>
+        )
       }
       // A template is edited as text, whatever it makes: the Dashboard
       // template's widgets are its frontmatter, not a dashboard to arrange.
