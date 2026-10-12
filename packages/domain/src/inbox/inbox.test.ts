@@ -175,6 +175,7 @@ describe('inboxItem', () => {
       arrivedIn: 'Meetings',
       importOutcome: 'pending',
       importError: null,
+      task: null,
     });
   });
 
@@ -184,6 +185,46 @@ describe('inboxItem', () => {
       arrivedIn: '',
     });
     expect(inboxItem({ path: path('Inbox/Call.md'), title: 'Call', type: '  ' }).type).toBeNull();
+  });
+});
+
+describe('inboxItem — a task (#112)', () => {
+  it('carries what the task says, for its row to be clarified from', () => {
+    const item = inboxItem({
+      path: path('Tasks/Chase the invoice.md'),
+      title: 'Chase the invoice',
+      type: 'Task',
+      status: 'inbox',
+      project: 'Projects/Atlas.md',
+      waitingOn: 'People/Mara Quill.md',
+      waitingOnNames: '[[People/Mara Quill|Mara Quill]]',
+      defer: '2026-10-20',
+      due: null,
+    });
+    expect(item.task).toEqual({
+      status: 'inbox',
+      project: 'Projects/Atlas.md',
+      waitingOn: 'People/Mara Quill.md',
+      waitingOnNames: 'Mara Quill',
+      defer: '2026-10-20',
+      due: null,
+    });
+    // It lives outside the Inbox folder, so it arrived in none of its folders.
+    expect(item.arrivedIn).toBe('');
+  });
+
+  it('reads a status that is not one of the eight, or missing, as none', () => {
+    const held = (status: unknown) =>
+      inboxItem({ path: path('Inbox/Call.md'), title: 'Call', type: 'task', status }).task?.status;
+    expect(held('doing')).toBeNull();
+    expect(held(null)).toBeNull();
+    expect(held('next-action')).toBe('next-action');
+  });
+
+  it('has nothing of a task for a note that is not one', () => {
+    const meeting = { path: path('Inbox/Meetings/Standup.md'), title: 'Standup', type: 'meeting' };
+    expect(inboxItem({ ...meeting, status: 'inbox' }).task).toBeNull();
+    expect(inboxItem({ path: path('Inbox/Idea.md'), title: 'Idea', type: null }).task).toBeNull();
   });
 });
 

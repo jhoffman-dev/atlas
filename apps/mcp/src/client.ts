@@ -37,6 +37,8 @@ import type {
   ApiNoteImageBody,
   ApiNoteSummary,
   ApiProcessInboxBody,
+  ApiClarifyInboxBody,
+  ApiClarifyOutcome,
   ApiScheduleTaskBody,
   ApiPromoteLineBody,
   ApiProfile,
@@ -373,6 +375,9 @@ export class AtlasClient {
 
   processInbox = (body: ApiProcessInboxBody) =>
     this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
+
+  clarifyInbox = (body: ApiClarifyInboxBody) =>
+    this.json<ApiClarifyOutcome>({ method: 'POST', path: '/v1/inbox/clarify', body });
 
   scheduleTask = (body: ApiScheduleTaskBody) =>
     this.json<{ note: ApiNote }>({ method: 'POST', path: '/v1/tasks/schedule', body });

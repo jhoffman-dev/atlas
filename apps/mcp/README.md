@@ -111,6 +111,7 @@ Normally none. These environment variables override the connection file:
 | `atlas_archived`           | `GET /v1/archive`                                                            | no      |
 | `atlas_inbox`              | `GET /v1/inbox`                                                              | no      |
 | `atlas_process_inbox_item` | `POST /v1/inbox/process`                                                     | yes     |
+| `atlas_clarify_inbox_item` | `POST /v1/inbox/clarify`                                                     | yes     |
 | `atlas_schedule_task`      | `POST /v1/tasks/schedule`                                                    | yes     |
 | `atlas_weekly_review`      | `GET /v1/review/weekly`                                                      | no      |
 | `atlas_automations`        | `GET /v1/automations`                                                        | no      |
@@ -140,9 +141,17 @@ area, as the Inbox's Process does: it moves into the project's folder and gets
 use; anything else is refused before the note moves, and a proposal (a note of
 type `proposal`, wherever it sits) is refused — it is answered with
 `atlas_accept_proposal` or `atlas_reject_proposal`. `atlas_capture_task` puts
-what it captures in the Inbox, and `atlas_inbox` lists what waits there to be
-filed, each meeting with what the import made of it; proposals are listed by
-`atlas_proposals`, not by it.
+what it captures in the Inbox, and `atlas_inbox` lists what waits there —
+every note in `Inbox/`, and every task still at `status: inbox` wherever it
+lives — each meeting with what the import made of it and each task with what
+it already says; proposals are listed by `atlas_proposals`, not by it.
+
+`atlas_clarify_inbox_item` is GTD's clarify step for one item, as a row of the
+Inbox page does it: status, `waitingOn`, `defer`, `due` and `contexts` are
+written in one save, held to the task rules — `waiting` is refused unless the
+person is given with it or the task already names one — and `project` files a
+note that is in `Inbox/` or links a task that lives elsewhere. A task given a
+status other than `inbox` leaves the Inbox with or without a project.
 
 `atlas_proposals` lists what Claude or an automation proposed and is waiting in
 the Inbox (`Inbox/Proposals/`), with what each would write and the line it

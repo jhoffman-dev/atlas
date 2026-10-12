@@ -48,6 +48,7 @@ export {
   capturedTaskStatus,
   followsGtd,
   GTD_STATUS_PROPERTY,
+  tasksStartInInbox,
   taskTypeOf,
   TASK_TYPE_FILE,
   taskTypeChange,

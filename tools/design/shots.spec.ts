@@ -1103,3 +1103,96 @@ for (const theme of ['light', 'dark'] as const) {
     await shootMeetingLinks(page, vault, theme);
   });
 }
+
+/**
+ * #112: the Inbox with a task being clarified on its row — Waiting picked, so
+ * the row asks who — beside a task that lives outside the Inbox folder, a
+ * meeting and a plain note.
+ */
+async function inboxClarifyVault(): Promise<FakeVault> {
+  const vault = await createVault();
+  for (const folder of ['.atlas/types', 'Inbox/Meetings', 'People', 'Projects', 'Areas', 'Tasks']) {
+    await vault.mkdir(folder);
+  }
+  for (const type of ['meeting', 'person', 'project']) {
+    await cp(
+      join(VAULT, '.atlas/types', `${type}.md`),
+      join(vault.root, '.atlas/types', `${type}.md`),
+    );
+  }
+  await vault.write(
+    '.atlas/types/task.md',
+    [
+      '---',
+      'name: task',
+      'label: Task',
+      'properties:',
+      '  status:',
+      '    kind: select',
+      '    options: [inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive]',
+      '    done: archive',
+      '  waiting_on:',
+      '    kind: relation',
+      '    target: person',
+      '  project:',
+      '    kind: relation',
+      '    targets: [project, area]',
+      '  defer: date',
+      '  due: date',
+      '---',
+      '',
+    ].join('\n'),
+  );
+  await vault.write('.atlas/types/area.md', '---\nname: area\nlabel: Area\n---\n');
+  await vault.write('People/Mara Quill.md', '---\ntype: person\n---\n');
+  await vault.write('People/Tobias Fenn.md', '---\ntype: person\n---\n');
+  await vault.write('Projects/Ledger migration.md', '---\ntype: project\nstatus: active\n---\n');
+  await vault.write('Areas/Household.md', '---\ntype: area\n---\n');
+  const task = (more: string[] = []) => ['---', 'type: task', 'status: inbox', ...more, '---', ''];
+  await vault.write('Inbox/Chase the Larkspur quote.md', task().join('\n'));
+  await vault.write('Inbox/Renew the passport.md', task(['due: 2026-11-02']).join('\n'));
+  await vault.write('Tasks/Book the hall.md', task().join('\n'));
+  await vault.write('Inbox/Meetings/2026-10-09 Payroll sync.md', '---\ntype: meeting\n---\n');
+  await vault.write('Inbox/An idea about seed trays.md', 'Stack them.\n');
+  return vault;
+}
+
+async function shootInboxClarify(page: Page, theme: string): Promise<void> {
+  await page.getByRole('button', { name: /^Inbox/ }).click();
+  const inbox = page.getByRole('article', { name: 'Inbox' });
+  const status = inbox.getByRole('combobox', { name: 'Status of Chase the Larkspur quote' });
+  await status.waitFor();
+  await status.selectOption({ label: 'Waiting' });
+  await inbox
+    .getByRole('combobox', { name: 'Who Chase the Larkspur quote waits on' })
+    .selectOption({ label: 'Mara Quill' });
+  await inbox
+    .getByRole('combobox', { name: 'File Chase the Larkspur quote under' })
+    .selectOption({ label: 'Ledger migration' });
+  await shoot(page, `inbox-clarify-${theme}`);
+  // Waiting with nobody picked, pressed anyway: the refusal on its row.
+  await inbox
+    .getByRole('combobox', { name: 'Status of Renew the passport' })
+    .selectOption({ label: 'Waiting' });
+  await inbox
+    .getByRole('form', { name: 'Clarify Renew the passport' })
+    .getByRole('button', { name: 'Done' })
+    .press('Enter');
+  await inbox.getByRole('alert').waitFor();
+  await shoot(page, `inbox-clarify-refused-${theme}`);
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`inbox clarify shots, ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(({ key, value }) => localStorage.setItem(key, value), {
+      key: THEME_KEY,
+      value: theme,
+    });
+    await installHost(page, await inboxClarifyVault());
+    await page.goto('/');
+    await openVault(page);
+    await useTheme(page, theme);
+    await shootInboxClarify(page, theme);
+  });
+}

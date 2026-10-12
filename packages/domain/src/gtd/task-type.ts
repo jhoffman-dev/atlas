@@ -176,3 +176,7 @@ export function capturedTaskStatus(type: ObjectType | null): GtdStatus | null {
     ? NEW_TASK_STATUS
     : null;
 }
+
+/** Whether the vault's tasks start in the Inbox: its Task type has that status (ADR-0029). */
+export const tasksStartInInbox = (types: readonly ObjectType[]): boolean =>
+  capturedTaskStatus(taskTypeOf(types)) !== null;

@@ -503,6 +503,23 @@ is held to the Archive's limits above, with one change to where a note goes:
   rewritten and counted, and every unfinished note named in `failed` — as for
   the Archive.
 
+### Clarifying is the same move, with one save before it (#112, 2026-10-12)
+
+`POST /v1/inbox/clarify` (MCP `atlas_clarify_inbox_item`) runs the app's own
+`clarifyInboxItem` for **one** note: what was decided — status, who it waits
+on, defer, due, contexts — is one write through `setNoteProperties`, the
+byte-preserving chokepoint where the task rules hold, and a note in `Inbox/`
+given a project is then filed by `processInboxItems`, under every limit
+above. So it adds no new kind of write, only an order: everything is judged
+first and a refusal (`invalid`) writes nothing; the properties are written
+before the move, so a filing that fails leaves a clarified note where it was
+and says so in `failed`. Its note, its project and its person must each be a
+`.md` note outside `.atlas` and hidden folders; the person must be of type
+`person` and in use. A task outside `Inbox/` is linked to its project and
+never moved — the caller still chooses no destination. Typing is never saved
+(`unsaved_in_app`). Undo stays in the app: it holds the note's text as it
+was, which no answer should carry.
+
 Setting a vault's types up for PARA writes into `.atlas/types` and stays in
 the app, which offers it; `/v1/types` reads the result, including each
 relation's `targets`.

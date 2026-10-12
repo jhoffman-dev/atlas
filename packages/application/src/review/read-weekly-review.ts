@@ -8,7 +8,7 @@ import {
   type CompiledQuery,
   type WeeklyReview,
 } from '@atlas/domain';
-import { listInbox } from '../inbox/list-inbox.ts';
+import { listVaultInbox } from '../inbox/list-inbox.ts';
 import type { IndexPort, QueryResult } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
@@ -47,7 +47,7 @@ export async function readWeeklyReview({
   clock,
 }: {
   index: Pick<IndexPort, 'query'>;
-  /** Where the proposals waiting in the Inbox are read from. */
+  /** Where the proposals waiting in the Inbox, and the vault's types, are read from. */
   fs: VaultFsPort;
   markdown: MarkdownPort;
   clock: Pick<Clock, 'today' | 'now'>;
@@ -55,7 +55,7 @@ export async function readWeeklyReview({
   const [tasks, projects, inbox, proposals] = await Promise.all([
     rowsOf(index, compileReviewTasksQuery()),
     rowsOf(index, compileReviewProjectsQuery()),
-    listInbox({ index }),
+    listVaultInbox({ index, fs, markdown }),
     listProposals({ fs, markdown }),
   ]);
   const toFile = inbox.items.length;

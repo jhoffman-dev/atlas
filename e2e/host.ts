@@ -861,10 +861,14 @@ export async function installHost(
         if (statement.startsWith('/* weekly review:')) {
           return runAtlasQuery(statement, bound, indexed.values());
         }
-        // The vocabulary's notes (P28-05) and the Inbox (P30-01) read the same
-        // files and props tables the Archive does, so they run for real by
-        // SQLite the same way.
-        if (statement.startsWith('/* terms:') || statement.startsWith('/* inbox */')) {
+        // The Inbox (P30-01, #112): what waits, each task with its project and who it
+        // waits on — over files, props and relations, run for real.
+        if (statement.startsWith('/* inbox */')) {
+          return runAtlasQuery(statement, bound, indexed.values());
+        }
+        // The vocabulary's notes (P28-05) read the same files and props tables
+        // the Archive does, so they run for real by SQLite the same way.
+        if (statement.startsWith('/* terms:')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
         // The Inbox's quick look before reading every task (P30-02): statuses, and Waiting on nobody, run for real.

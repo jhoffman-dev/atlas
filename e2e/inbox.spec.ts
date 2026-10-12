@@ -112,7 +112,12 @@ test('a captured task waits in the Inbox, and Process files it under its project
   await expect(fileUnder.getByRole('option', { name: 'Garden' })).toHaveCount(1);
   await expect(fileUnder.getByRole('option', { name: 'Mara Quill' })).toHaveCount(0);
 
+  // A task's row holds what is picked until Done (#112).
   await fileUnder.selectOption({ label: 'Atlas' });
+  await inbox
+    .getByRole('form', { name: 'Clarify Renew the passport' })
+    .getByRole('button', { name: 'Done' })
+    .click();
 
   await expectFile(vault, 'Projects/Atlas/Renew the passport.md').toContain('[[Atlas]]');
   const filed = await vault.read('Projects/Atlas/Renew the passport.md');

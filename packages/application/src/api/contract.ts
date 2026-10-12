@@ -484,6 +484,57 @@ export interface ApiInboxItem {
   readonly importOutcome: 'imported' | 'duplicate' | 'error' | 'pending' | null;
   /** Why it failed the meeting import, or null. */
   readonly importError: string | null;
+  /** What it says as a task, which clarifying it starts from; null for a note that is not a task. */
+  readonly task: {
+    /** One of the eight GTD statuses, or null when it has none or holds something else. */
+    readonly status: string | null;
+    /** The path of the project or area it is filed under, or null. */
+    readonly project: string | null;
+    /** The path of the person it waits on, when `waiting_on` links one. */
+    readonly waitingOn: string | null;
+    /** Who it waits on as written; '' for nobody. */
+    readonly waitingOnNames: string;
+    /** `YYYY-MM-DD`, or null. */
+    readonly defer: string | null;
+    /** `YYYY-MM-DD`, or null. */
+    readonly due: string | null;
+  } | null;
+}
+
+/**
+ * `POST /v1/inbox/clarify` (#112): one note waiting in the Inbox, and what is
+ * decided about it. A key left out is left as the note has it; `null` takes
+ * away what it held. Everything is written in one save.
+ */
+export interface ApiClarifyInboxBody {
+  /** The note to clarify: one `GET /v1/inbox` lists. */
+  readonly path: string;
+  /** One of inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive. */
+  readonly status?: string;
+  /** The path of a project or an area to file it under. */
+  readonly project?: string;
+  /** The path of the person it waits on; Waiting is refused without one. */
+  readonly waitingOn?: string | null;
+  /** `YYYY-MM-DD`: the day it comes back into view. */
+  readonly defer?: string | null;
+  /** `YYYY-MM-DD`. */
+  readonly due?: string | null;
+  /** Where it can be done; an empty list takes them away. */
+  readonly contexts?: readonly string[];
+  /** Makes a plain note a task, starting in the Inbox unless `status` is given. */
+  readonly asTask?: boolean;
+}
+
+/** What clarifying a note did. */
+export interface ApiClarifyOutcome {
+  /** Where the note is now. */
+  readonly path: string;
+  /** Where it was, when it was filed under a project; null when it stayed where it is. */
+  readonly movedFrom: string | null;
+  /** What could not be done once its properties were written: the filing, or a link left behind. */
+  readonly failed: ApiArchiveOutcome['failed'];
+  /** Links in other notes rewritten so they still open the note where it went. */
+  readonly linksUpdated: number;
 }
 
 /** `POST /v1/inbox/process`: notes in the Inbox, and the project or area to file them under. */
@@ -1182,6 +1233,7 @@ export type ApiSuccessBody =
     }
   | { readonly rename: ApiTagRenamePreview; readonly report?: ApiTagRenameReport }
   | ApiArchiveOutcome
+  | ApiClarifyOutcome
   | {
       readonly notes: readonly ApiArchivedNote[];
       readonly truncated: boolean;
@@ -1394,12 +1446,18 @@ export const API_ROUTES = [
     method: 'GET',
     path: '/v1/inbox',
     summary:
-      'The notes waiting in the Inbox to be filed, newest first; proposals are not among them.',
+      'What waits in the Inbox, newest first: its folder, and every task still at Inbox; no proposals.',
   },
   {
     method: 'POST',
     path: '/v1/inbox/process',
     summary: "File notes from the Inbox under a project or an area, as the Inbox's Process does.",
+  },
+  {
+    method: 'POST',
+    path: '/v1/inbox/clarify',
+    summary:
+      'Clarify one Inbox note in one save: status, project, waiting on, defer, due, contexts.',
   },
   {
     method: 'POST',

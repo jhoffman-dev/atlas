@@ -1,0 +1,95 @@
+import { useCallback, useRef, useState } from 'react';
+import type { Clarification, InboxItem, VaultPath } from '@atlas/domain';
+import { clarificationOf, rowAfter, type InboxDraft } from './inbox-triage.ts';
+
+/** Clarifies a note; settles true once it is done, false when it was refused. */
+export type ClarifyInboxItem = (args: {
+  path: VaultPath;
+  clarification: Clarification;
+}) => Promise<boolean>;
+
+const NOTHING_PICKED: InboxDraft = {};
+
+/**
+ * Working through the Inbox a row at a time (#112): which row has the focus,
+ * what each task's row holds until Done, and the actions a row offers. The
+ * controls call these today; the triage keys (#109) call the same ones.
+ *
+ * An action that is done moves the focus to the next row, so the list is
+ * worked top to bottom without reaching for it; a refused one leaves the
+ * focus, and what was picked, where it is.
+ */
+export function useInboxTriage({
+  items,
+  onClarify,
+}: {
+  items: readonly InboxItem[];
+  onClarify: ClarifyInboxItem;
+}) {
+  const [drafts, setDrafts] = useState<Readonly<Record<string, InboxDraft>>>({});
+  const [focused, setFocused] = useState<VaultPath | null>(null);
+  const rows = useRef(new Map<VaultPath, HTMLElement>());
+
+  const focusRow = useCallback((path: VaultPath) => {
+    setFocused(path);
+    rows.current.get(path)?.focus();
+  }, []);
+
+  const act = useCallback(
+    async (path: VaultPath, clarification: Clarification) => {
+      const next = rowAfter(items, path);
+      if (!(await onClarify({ path, clarification }))) return;
+      setDrafts((held) => Object.fromEntries(Object.entries(held).filter(([at]) => at !== path)));
+      // Focus that has gone elsewhere since — another note opened, say — is left there.
+      const at = document.activeElement;
+      const stillHere = at === document.body || rows.current.get(path)?.contains(at) === true;
+      if (next !== null && stillHere) focusRow(next);
+    },
+    [items, onClarify, focusRow],
+  );
+
+  return {
+    /** The row the focus is in, or was last in. */
+    focused,
+    onRowFocus: setFocused,
+    /** Registers a row's element, so the focus can be put on it. */
+    rowRef: useCallback(
+      (path: VaultPath) => (element: HTMLElement | null) => {
+        if (element === null) rows.current.delete(path);
+        else rows.current.set(path, element);
+      },
+      [],
+    ),
+    draftOf: (path: VaultPath): InboxDraft => drafts[path] ?? NOTHING_PICKED,
+    /** Holds a pick on a task's row until Done. */
+    pick: useCallback(
+      (path: VaultPath, picked: InboxDraft) =>
+        setDrafts((held) => ({ ...held, [path]: { ...held[path], ...picked } })),
+      [],
+    ),
+    /** Done: writes everything the task's row holds in one save. */
+    commit: useCallback(
+      (item: InboxItem) => {
+        const clarification =
+          item.task === null ? null : clarificationOf(item.task, drafts[item.path] ?? {});
+        if (clarification !== null) void act(item.path, clarification);
+      },
+      [act, drafts],
+    ),
+    /** Files a note that is not a task under a project or an area, at once. */
+    fileUnder: useCallback(
+      (path: VaultPath, project: VaultPath) => void act(path, { project }),
+      [act],
+    ),
+    /** Makes a plain note a task, which then waits on its own row to be clarified as one. */
+    makeTask: useCallback(
+      (path: VaultPath) =>
+        void onClarify({ path, clarification: { asTask: true } }).then((done) => {
+          if (done) focusRow(path);
+        }),
+      [onClarify, focusRow],
+    ),
+  };
+}
+
+export type InboxTriage = ReturnType<typeof useInboxTriage>;

@@ -48,6 +48,9 @@ describe('useInbox — what it offers to file under', () => {
       useInbox({
         ports: stable,
         notePaths: [],
+        vaultKey: '/vaults/a',
+        types: [],
+        clock: { today: () => '2026-10-11' },
         indexKey: '1',
         open: true,
         onSettled: () => {},
