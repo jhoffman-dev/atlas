@@ -120,6 +120,30 @@ describe('a rule a note sets off', () => {
     expect(noteRunsHeldUntil(failing, NOW)).toBe('2026-10-08T12:30:00');
   });
 
+  it('counts a run that asked Claude whatever it came back with, on any trigger, and a failed ask', () => {
+    const asked = { model: 'claude-test', ms: 900 };
+    const nothing = (trigger: 'note' | 'hand' | 'schedule') =>
+      ({ ...noteRun('2026-10-08T11:30:00'), trigger, done: [], claude: asked }) as LogEntry;
+    const failedAsk = {
+      kind: 'failed',
+      at: '2026-10-08T11:30:00',
+      trigger: 'hand',
+      problem: 'The connection dropped.',
+      claude: asked,
+    } as LogEntry;
+    const counted = (entry: LogEntry) =>
+      noteRunsHeldUntil(
+        Array.from({ length: NOTE_RUNS_PER_HOUR }, () => entry),
+        NOW,
+      );
+    expect(counted(nothing('note'))).toBe('2026-10-08T12:30:00');
+    expect(counted(nothing('hand'))).toBe('2026-10-08T12:30:00');
+    expect(counted(nothing('schedule'))).toBe('2026-10-08T12:30:00');
+    expect(counted(failedAsk)).toBe('2026-10-08T12:30:00');
+    // A failure that never asked is another trigger's, and is not this rule's cost.
+    expect(counted({ ...failedAsk, claude: undefined } as unknown as LogEntry)).toBeNull();
+  });
+
   it('does not count a run that changed nothing', () => {
     const idle = minutes(10, NOTE_RUNS_PER_HOUR).map(
       (entry) => ({ ...entry, done: [] }) as LogEntry,

@@ -3,7 +3,8 @@ import { automationEntryReport } from '../activity/activity-reports.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { parseAutomationRule } from './automation-rule.ts';
 import {
-  claudeStepQuestion,
+  CLAUDE_STEP_QUESTION,
+  CLAUDE_TOTAL_NOTE_CHARACTERS,
   claudeStepSystem,
   CLAUDE_NOTE_CHARACTERS,
 } from './claude-step-prompt.ts';
@@ -80,6 +81,48 @@ describe('a Claude step in its rule’s log', () => {
   });
 });
 
+describe('a Claude step cut off, or held to ten notes', () => {
+  it('writes what a half-written run made under its failure, and reads both back', () => {
+    const cut: LogEntry = {
+      ...FAILED,
+      problem: 'Made 1 of 3 notes, then the write failed: the disk is full',
+      done: [{ kind: 'proposed', path: PROPOSAL }],
+    };
+    expect(formatLogEntry(cut)).toContain(
+      '- proposed `"Inbox/Proposals/Send the payroll file.md"`',
+    );
+    expect(parseRunLog(newLogText('M', [cut]))).toEqual([cut]);
+    expect(parseRunLog(newLogText('M', [FAILED]))[0]).not.toHaveProperty('done');
+  });
+
+  it('bounds the model’s words in a failure, in the log and in Activity', () => {
+    const long: LogEntry = { ...FAILED, problem: `It named ${'x'.repeat(10_000)}` };
+    expect(logEntrySummary(long).length).toBeLessThanOrEqual(600);
+    expect(formatLogEntry(long).length).toBeLessThan(900);
+    expect(automationEntryReport(RULE, long)?.message.length).toBeLessThan(900);
+  });
+
+  it('bounds a reason a note was left alone for', () => {
+    const left = { path: createVaultPath('A.md'), reason: 'y'.repeat(10_000) };
+    expect(formatLogEntry({ ...RAN, left: [left] }).length).toBeLessThan(1_500);
+  });
+
+  it('says a Claude run read only its first ten notes and the rest wait for a run by hand', () => {
+    const capped: LogEntry = { ...RAN, capped: true };
+    expect(logEntrySummary(capped)).toBe(
+      'Made 1 proposal. Read the first 10 notes, the most one Claude run takes; run it by hand for the rest.',
+    );
+    expect(parseRunLog(newLogText('M', [capped]))[0]).toMatchObject({ capped: true });
+    expect(parseRunLog(newLogText('M', [RAN]))[0]).toMatchObject({ capped: false });
+  });
+
+  it('keeps saying the rest wait for the next run for a rule that moves or sets', () => {
+    const plain = Object.fromEntries(Object.entries(RAN).filter(([key]) => key !== 'claude'));
+    const capped = { ...(plain as LogEntry), capped: true, done: [] } as LogEntry;
+    expect(logEntrySummary(capped)).toContain('the rest wait for the next run');
+  });
+});
+
 describe('undoing a Claude step', () => {
   const action = (() => {
     const read = parseAutomationRule(RULE.path, {
@@ -146,26 +189,45 @@ describe('a Claude step in Activity', () => {
 });
 
 describe('what a Claude step is told', () => {
-  it('fences each note as data, cutting a long one', () => {
+  const system = (notes: { path: ReturnType<typeof createVaultPath>; text: string }[]) =>
+    claudeStepSystem({ today: '2026-10-11', prompt: 'Find.', answer: 'Answer.', notes });
+
+  it('fences each note as data in the system prompt, cutting a long one', () => {
     const long = 'x'.repeat(CLAUDE_NOTE_CHARACTERS + 5);
-    const question = claudeStepQuestion([
+    const told = system([
       { path: createVaultPath('Meetings/A.md'), text: 'Short. ^b1' },
       { path: createVaultPath('Meetings/B.md'), text: long },
     ]);
-    expect(question).toContain('<vault_data note="Meetings/A.md">\nShort. ^b1\n</vault_data>');
-    expect(question).toContain('… (cut)');
-    expect(question).not.toContain(long);
+    expect(told).toContain('<vault_data note="Meetings/A.md">\nShort. ^b1\n</vault_data>');
+    expect(told).toContain('… (cut)');
+    expect(told).not.toContain(long);
+  });
+
+  it('gives each note an equal share when all of them would not fit whole', () => {
+    const text = 'y'.repeat(CLAUDE_NOTE_CHARACTERS);
+    const notes = Array.from({ length: 10 }, (_, at) => ({
+      path: createVaultPath(`Meetings/${at}.md`),
+      text,
+    }));
+    const told = system(notes);
+    expect(told.length).toBeLessThan(CLAUDE_TOTAL_NOTE_CHARACTERS + 5_000);
+    expect(told.match(/… \(cut\)/g)).toHaveLength(10);
+  });
+
+  it('keeps the notes out of the question, which a provider may rewrite', () => {
+    expect(CLAUDE_STEP_QUESTION).not.toContain('vault_data');
   });
 
   it('says it cannot change a note, and carries the rule’s prompt and the answer it needs', () => {
-    const system = claudeStepSystem({
+    const told = claudeStepSystem({
       today: '2026-10-11',
       prompt: '  Find the action items.  ',
       answer: 'Answer with JSON only.',
+      notes: [],
     });
-    expect(system).toContain('You cannot change any note');
-    expect(system).toContain('<rule_prompt>\nFind the action items.\n</rule_prompt>');
-    expect(system.endsWith('Answer with JSON only.')).toBe(true);
-    expect(system).toContain('Today is 2026-10-11.');
+    expect(told).toContain('You cannot change any note');
+    expect(told).toContain('<rule_prompt>\nFind the action items.\n</rule_prompt>');
+    expect(told).toContain('Answer with JSON only.');
+    expect(told).toContain('Today is 2026-10-11.');
   });
 });

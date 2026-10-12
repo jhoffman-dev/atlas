@@ -170,6 +170,8 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
     name: 'meeting-items',
     key: 'items',
     itemShape: '{ "kind", "title", "owner", "source_block", "confidence" }.',
+    itemKeys: ['kind', 'title', 'owner', 'source_block', 'confidence'],
+    citation: 'Give "source_block": the id of a block of the first note, as it has it.',
     readItem: (value) => {
       const fields = value as Record<string, unknown>;
       if (fields['kind'] !== 'task' && fields['kind'] !== 'decision') {
@@ -186,16 +188,33 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
         },
       };
     },
-    proposalOf: (each, context) => ({
-      kind: each.kind,
-      payload: {
-        title: each.title,
-        properties: each.owner === null ? {} : { owner: `[[${each.owner}]]` },
-      },
-      source: `[[${context.notes[0]!.path.replace(/\.md$/, '')}#^${each.sourceBlock}]]`,
-      confidence: each.confidence,
-      why: '',
-    }),
+    draftsOf: (each, context) =>
+      // An item with no title yields nothing; every other yields its task, and a follow-up when owned.
+      each.title === ''
+        ? []
+        : [
+            {
+              kind: each.kind,
+              payload: {
+                title: each.title,
+                properties: each.owner === null ? {} : { owner: `[[${each.owner}]]` },
+              },
+              source: `[[${context.notes[0]!.path.replace(/\.md$/, '')}#^${each.sourceBlock}]]`,
+              confidence: each.confidence,
+              why: '',
+            },
+            ...(each.owner === null
+              ? []
+              : [
+                  {
+                    kind: 'follow-up' as const,
+                    payload: { title: `Ask ${each.owner} about ${each.title}` },
+                    source: `[[${context.notes[0]!.path.replace(/\.md$/, '')}#^${each.sourceBlock}]]`,
+                    confidence: each.confidence,
+                    why: '',
+                  },
+                ]),
+          ],
   };
   const registered = registerProposalSchema(meetingItems);
 
@@ -223,10 +242,29 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
           source: '[[Meetings/2026-10-01 Standup#^t0003]]',
           confidence: 'medium',
         },
+        {
+          kind: 'follow-up',
+          payload: { title: 'Ask Mara Quill about Send the file' },
+          source: '[[Meetings/2026-10-01 Standup#^t0003]]',
+        },
       ],
     });
     expect(registered.instructions).toContain('{ "items": [ … ] }');
-    expect(registered.instructions).toContain('"source_block"');
+    expect(registered.instructions).toContain('Give "source_block"');
+    expect(registered.instructions).not.toContain('using an id that note already has');
+  });
+
+  it('lets an item yield no proposal, and refuses a key the schema does not name', () => {
+    const item = { kind: 'task', title: '', source_block: 't0003', confidence: 'high' };
+    expect(registered.read(JSON.stringify({ items: [item] }), CONTEXT)).toEqual({
+      ok: true,
+      value: [],
+    });
+    const extra = registered.read(
+      JSON.stringify({ items: [{ ...item, link_from: 'x' }] }),
+      CONTEXT,
+    );
+    expect(extra).toMatchObject({ ok: false, problem: expect.stringContaining('link_from') });
   });
 
   it('is held to the shared rules it cannot skip: a block that is not there is refused', () => {
@@ -250,17 +288,21 @@ describe('proposalNoteProperties', () => {
   it('writes a checked proposal as an open proposal note, saying what made it', () => {
     const read = general.read(answer(item()), CONTEXT);
     if (!read.ok) throw new Error(read.problem);
-    expect(proposalNoteProperties(read.value[0]!, 'Meeting actions · 2026-10-11 09:00:00')).toEqual(
-      {
-        type: 'proposal',
-        kind: 'task',
-        state: 'open',
-        confidence: 'high',
-        source: '[[2026-10-01 Standup#^t0003]]',
-        made_by: 'Meeting actions · 2026-10-11 09:00:00',
-        payload: { title: 'Send Mara the payroll file', properties: { status: 'next' } },
-      },
-    );
+    const properties = proposalNoteProperties({
+      proposal: read.value[0]!,
+      madeBy: 'Meeting actions · 2026-10-11 09:00:00',
+      id: 'claude-abc',
+    });
+    expect(properties).toEqual({
+      type: 'proposal',
+      kind: 'task',
+      state: 'open',
+      confidence: 'high',
+      source: '[[2026-10-01 Standup#^t0003]]',
+      made_by: 'Meeting actions · 2026-10-11 09:00:00',
+      proposal_id: 'claude-abc',
+      payload: { title: 'Send Mara the payroll file', properties: { status: 'next' } },
+    });
   });
 });
 
@@ -294,13 +336,13 @@ describe('readNoteAnswer', () => {
     expect(problem({ body: 'x' })).toBe('Its note has no title.');
     expect(problem({ title: 'A', body: 3 })).toBe('Its note’s body is not text.');
     expect(problem({ title: 'A', properties: 'x' })).toBe(
-      'Its note’s properties are not keys and values.',
+      'Its properties are not keys and values.',
     );
     expect(problem({ title: 'A', properties: { atlas: 'automation' } })).toMatch(
       /Atlas keeps that one/,
     );
     expect(problem({ title: 'A', properties: { due: { at: 1 } } })).toBe(
-      '“due” is not text, a number, true or false, or a list.',
+      '“due” is not text, a number, true or false, or a list of text.',
     );
     expect(problem({ title: 'A', properties: { done: true } })).toBeNull();
   });

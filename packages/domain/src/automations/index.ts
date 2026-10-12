@@ -66,6 +66,7 @@ export type {
 export {
   CLAUDE_NOTES_PER_RUN,
   claudeActionFields,
+  isPromptPath,
   describeClaudeAction,
   PROMPTS_DIRECTORY,
   readClaudeAction,
@@ -92,9 +93,18 @@ export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
 export { NOTE_ANSWER_INSTRUCTIONS, readNoteAnswer } from './note-answer.ts';
 export {
   CLAUDE_NOTE_CHARACTERS,
-  claudeStepQuestion,
+  CLAUDE_STEP_QUESTION,
+  CLAUDE_TOTAL_NOTE_CHARACTERS,
   claudeStepSystem,
 } from './claude-step-prompt.ts';
+export { claudeWriteRefusal } from './claude-write-folder.ts';
+export {
+  CLAUDE_PROPOSAL_ID_KEY,
+  claudeProposalId,
+  compileClaudeProposalIdsQuery,
+} from './claude-proposal-id.ts';
+export { MAX_LOGGED_CHARACTERS, truncated } from './answer-limits.ts';
+export { shownNotes } from './answered-note.ts';
 export type { NoteAnswer, NoteAnswerValue } from './note-answer.ts';
 export {
   backoffMinutes,

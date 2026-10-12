@@ -95,7 +95,7 @@ describe('a rule with a Claude step', () => {
   it('refuses every output that would edit a note, saying a Claude step never does', () => {
     for (const output of ['edit', 'Edits', 'update', 'append', 'replace', 'set', 'patch']) {
       expect(problemOf({ ...RULE, output })).toBe(
-        'A Claude step never edits a note: it writes proposals for you to accept, or one new note.',
+        'Say what Claude writes: output: one of note, proposals. A Claude step never edits a note: it writes proposals for you to accept, or one new note.',
       );
     }
   });
@@ -120,8 +120,8 @@ describe('a rule with a Claude step', () => {
   });
 
   it('refuses an output it does not know, naming those it does', () => {
-    expect(problemOf({ ...RULE, output: 'summary' })).toBe(
-      'Say what Claude writes: output: one of note, proposals.',
+    expect(problemOf({ ...RULE, output: 'summary' })).toMatch(
+      /^Say what Claude writes: output: one of note, proposals\./,
     );
   });
 

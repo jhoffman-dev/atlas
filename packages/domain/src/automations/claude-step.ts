@@ -15,8 +15,8 @@
  */
 
 import { isChatReadTool, CHAT_READ_TOOLS, type ChatReadTool } from '../chat/read-tool-names.ts';
-import { proposedWriteRefusal } from '../proposals/proposal.ts';
 import { createVaultPath, InvalidVaultPathError, type VaultPath } from '../vault/vault-path.ts';
+import { claudeWriteRefusal } from './claude-write-folder.ts';
 import { PROPOSAL_SCHEMAS } from './proposal-schemas.ts';
 
 /** Where a rule's prompts live. */
@@ -46,19 +46,6 @@ export interface ClaudeAction {
   readonly output: ClaudeOutput;
 }
 
-/** Outputs that would change a note already there: refused by name, so the reason is plain. */
-const EDITING_OUTPUTS = new Set([
-  'edit',
-  'edits',
-  'update',
-  'append',
-  'replace',
-  'rewrite',
-  'overwrite',
-  'patch',
-  'set',
-]);
-
 const NEVER_EDITS =
   'A Claude step never edits a note: it writes proposals for you to accept, or one new note.';
 
@@ -81,11 +68,20 @@ function readPrompt(value: unknown): { path: VaultPath } | string {
   if (written === '') return wanted;
   const full = written.includes('/') ? written : `${PROMPTS_DIRECTORY}/${written}`;
   const path = pathOrNull(/\.md$/i.test(full) ? full : `${full}.md`);
-  const inPrompts =
-    path !== null &&
+  return path !== null && isPromptPath(path) ? { path } : wanted;
+}
+
+/**
+ * Whether `path` is a prompt note: a note directly in {@link PROMPTS_DIRECTORY}.
+ * Asked when a rule is read, and again when its step runs: the action that
+ * runs need not be one a file could have written.
+ */
+export function isPromptPath(path: string): boolean {
+  return (
     path.startsWith(`${PROMPTS_DIRECTORY}/`) &&
-    !path.slice(PROMPTS_DIRECTORY.length + 1).includes('/');
-  return inPrompts ? { path } : wanted;
+    !path.slice(PROMPTS_DIRECTORY.length + 1).includes('/') &&
+    /\.md$/i.test(path)
+  );
 }
 
 function readTools(value: unknown): ChatReadTool[] | string {
@@ -102,15 +98,15 @@ function readTools(value: unknown): ChatReadTool[] | string {
   return tools;
 }
 
+/** Only what a step may write is accepted; anything else — `edit`, `append` — is refused for not being one of these. */
 function readOutput(frontmatter: Readonly<Record<string, unknown>>): ClaudeOutput | string {
   const word = String(frontmatter['output'] ?? '')
     .trim()
     .toLowerCase();
-  if (EDITING_OUTPUTS.has(word)) return NEVER_EDITS;
   if (word === 'note') return readNoteOutput(frontmatter);
   if (Object.hasOwn(PROPOSAL_SCHEMAS, word)) return { kind: 'proposals', schema: word };
   const named = ['note', ...Object.keys(PROPOSAL_SCHEMAS)].join(', ');
-  return `Say what Claude writes: output: one of ${named}.`;
+  return `Say what Claude writes: output: one of ${named}. ${NEVER_EDITS}`;
 }
 
 function readNoteOutput(frontmatter: Readonly<Record<string, unknown>>): ClaudeOutput | string {
@@ -119,10 +115,7 @@ function readNoteOutput(frontmatter: Readonly<Record<string, unknown>>): ClaudeO
   const written = typeof frontmatter['folder'] === 'string' ? frontmatter['folder'].trim() : '';
   const folder = written === '' ? null : pathOrNull(written.replace(/\/+$/, ''));
   if (folder === null) return 'Say which folder its note goes in: folder: Briefs.';
-  const refusal = proposedWriteRefusal(folder);
-  return refusal === null
-    ? { kind: 'note', folder }
-    : refusal.replace('a proposal', 'a Claude step');
+  return claudeWriteRefusal(folder) ?? { kind: 'note', folder };
 }
 
 function pathOrNull(raw: string): VaultPath | null {

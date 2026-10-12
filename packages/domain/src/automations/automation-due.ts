@@ -68,8 +68,10 @@ const HOUR_MS = 3_600_000;
 /**
  * When a rule a note sets off may run again, once it has made as many runs in
  * the hour up to `now` as it may; null while it may still run. Counted are
- * runs that changed a note, and runs whose query did not read, so a broken
- * rule is held too. A run that changed nothing — every note it heard already
+ * runs that changed a note, runs whose query did not read, so a broken rule
+ * is held too, and every run that asked Claude, whatever it came back with —
+ * nothing, or a failure: the model was still asked, and that is what the cap
+ * is for (P29-03). A run that changed nothing — every note it heard already
  * as it leaves them, or open with unsaved typing — spends nothing.
  */
 export function noteRunsHeldUntil(entries: readonly LogEntry[], now: LocalTime): LocalTime | null {
@@ -78,8 +80,9 @@ export function noteRunsHeldUntil(entries: readonly LogEntry[], now: LocalTime):
   const counted = entries
     .filter(
       (entry) =>
-        (entry.kind === 'failed' && entry.trigger === 'note') ||
-        (entry.kind === 'run' && entry.trigger === 'note' && entry.done.length > 0),
+        (entry.kind === 'failed' && (entry.trigger === 'note' || entry.claude !== undefined)) ||
+        (entry.kind === 'run' &&
+          ((entry.trigger === 'note' && entry.done.length > 0) || entry.claude !== undefined)),
     )
     .map((entry) => localTimeMs(entry.at))
     .filter((at): at is number => at !== null && at > end - HOUR_MS && at <= end)

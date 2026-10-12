@@ -46,7 +46,9 @@
 
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
+import { truncated } from './answer-limits.ts';
 import type { PassedOver } from './automation-plan.ts';
+import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
 import type { NoteVersionRef } from './note-trigger.ts';
 import type { LocalTime } from './schedule.ts';
 
@@ -118,6 +120,8 @@ export type LogEntry =
       readonly problem: string;
       /** For a Claude step that was asked: the model, and how long until it failed. */
       readonly claude?: ClaudeRunInfo;
+      /** For a Claude step cut off part-way: what it had already made, which stays. */
+      readonly done?: readonly DoneAction[];
     }
   | { readonly kind: 'turnedOn'; readonly at: LocalTime }
   /** A rule Atlas found that had never run nor been turned on here: its schedule counts from then. */
@@ -181,18 +185,23 @@ export function logEntrySummary(entry: LogEntry): string {
   if (entry.kind === 'turnedOn' || entry.kind === 'seen') {
     return 'It runs on its schedule from here on.';
   }
-  if (entry.kind === 'failed') return oneLine(entry.problem);
+  // A failure's words can be a model's (a tool it named, a title it chose): bounded, as the log is.
+  if (entry.kind === 'failed') return oneLine(truncated(entry.problem));
   const askedForNothing =
     entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
   const counts = askedForNothing ? 'Claude proposed nothing.' : countDone(entry.done);
   const left = entry.left.length === 0 ? '' : ` Left ${entry.left.length} alone.`;
   // The cap counts notes: a rule setting two properties makes two lines per note.
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
-  const capped =
-    entry.kind === 'run' && entry.capped
-      ? ` Stopped at ${notes.size}, the most one run may do; the rest wait for the next run.`
-      : '';
+  const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
   return `${counts}${left}${capped}`;
+}
+
+/** What a run that stopped short says; a Claude step is held to fewer notes, and the rest wait for a run by hand. */
+function cappedWords(entry: Extract<LogEntry, { kind: 'run' }>, changed: number): string {
+  return entry.claude === undefined
+    ? ` Stopped at ${changed}, the most one run may do; the rest wait for the next run.`
+    : ` ${CLAUDE_CAPPED}`;
 }
 
 function countDone(done: readonly DoneAction[]): string {
@@ -229,7 +238,7 @@ export function formatLogEntry(entry: LogEntry): string {
   const done = 'done' in entry ? entry.done.map(actionLine) : [];
   const left =
     'left' in entry
-      ? entry.left.map(({ path, reason }) => `- left ${code(path)}: ${oneLine(reason)}`)
+      ? entry.left.map(({ path, reason }) => `- left ${code(path)}: ${oneLine(truncated(reason))}`)
       : [];
   const versions = entry.kind === 'run' ? (entry.versions ?? []).map(versionLine) : [];
   const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
@@ -305,6 +314,9 @@ function splitSections(text: string): { head: string; sections: string[] } {
   return { head, sections };
 }
 
+/** How a Claude step's log says it read only the first of the notes; parsed back as `capped`. */
+const CLAUDE_CAPPED = `Read the first ${CLAUDE_NOTES_PER_RUN} notes, the most one Claude run takes; run it by hand for the rest.`;
+
 const HEADING = /^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) · (.+)$/;
 const JSON_SPAN = '`((?:[^`])*)`';
 const PRIOR_SPAN = `(nothing|${JSON_SPAN})`;
@@ -346,6 +358,7 @@ function parseSection(section: string): LogEntry | null {
   const trigger = triggerOf(title.replace(/, and could not$/, ''));
   if (trigger === null) return null;
   const claude = claudeOf(body);
+  const made = linesOf(body).done;
   if (title.endsWith(', and could not')) {
     return {
       kind: 'failed',
@@ -353,9 +366,12 @@ function parseSection(section: string): LogEntry | null {
       trigger,
       problem: body.find((line) => line !== '') ?? '',
       ...(claude !== null && { claude }),
+      ...(made.length > 0 && { done: made }),
     };
   }
-  const capped = body.some((line) => line.includes('the most one run may do'));
+  const capped = body.some(
+    (line) => line.includes('the most one run may do') || line.includes(CLAUDE_CAPPED),
+  );
   const versions = body.flatMap((line) => {
     const version = readVersion(line);
     return version === null ? [] : [version];

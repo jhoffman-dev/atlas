@@ -6,7 +6,7 @@
  */
 
 import { cleanEntryName } from '../vault/new-note.ts';
-import { setKeyProblem } from './automation-rule.ts';
+import { noteTextProblem, propertiesProblem, unknownKeyProblem } from './answer-limits.ts';
 import { answerJson, isRecord, refused, type Reading } from './proposal-schema.ts';
 
 /** What a note answer says: the new note's name, body and properties. */
@@ -23,6 +23,7 @@ export const NOTE_ANSWER_INSTRUCTIONS = [
   'Answer with JSON only, and nothing around it:',
   '{ "note": { "title": its name, "body": its markdown, "properties": optional { key: value } } }.',
   'It is one new note. You cannot change a note that is already there.',
+  'Write plain markdown: no images, embeds or HTML. Links are fine. Properties are text, numbers, true or false, or lists of text.',
 ].join('\n');
 
 /** The note an answer describes, or why it does not describe one. */
@@ -30,33 +31,21 @@ export function readNoteAnswer(answer: string): Reading<NoteAnswer> {
   const parsed = answerJson(answer);
   if (!parsed.ok) return parsed;
   const note = isRecord(parsed.value) ? parsed.value['note'] : undefined;
-  if (!isRecord(note)) return refused('It is not { "note": { … } }.');
+  if (!isRecord(parsed.value) || !isRecord(note)) return refused('It is not { "note": { … } }.');
+  const extra = unknownKeyProblem(parsed.value, ['note'], 'The answer');
+  if (extra !== null) return refused(extra);
+  const inside = unknownKeyProblem(note, ['title', 'body', 'properties'], 'Its note');
+  if (inside !== null) return refused(inside);
   const title = cleanEntryName(typeof note['title'] === 'string' ? note['title'] : '');
   if (title === '') return refused('Its note has no title.');
   const body = note['body'] ?? '';
   if (typeof body !== 'string') return refused('Its note’s body is not text.');
-  const properties = readProperties(note['properties'] ?? {});
-  if (!properties.ok) return properties;
-  return { ok: true, value: { title, body, properties: properties.value } };
-}
-
-function readProperties(value: unknown): Reading<Record<string, NoteAnswerValue>> {
-  if (!isRecord(value)) return refused('Its note’s properties are not keys and values.');
-  const read: Record<string, NoteAnswerValue> = {};
-  for (const [key, each] of Object.entries(value)) {
-    const problem = setKeyProblem(key);
-    if (problem !== null) return refused(problem);
-    if (!isPlain(each)) return refused(`“${key}” is not text, a number, true or false, or a list.`);
-    read[key] = each;
-  }
-  return { ok: true, value: read };
-}
-
-function isPlain(value: unknown): value is NoteAnswerValue {
-  if (Array.isArray(value)) return value.every((item) => typeof item === 'string');
-  return (
-    typeof value === 'string' ||
-    typeof value === 'boolean' ||
-    (typeof value === 'number' && Number.isFinite(value))
-  );
+  const properties = note['properties'] ?? {};
+  const problem = noteTextProblem({ title, body }) ?? propertiesProblem(properties);
+  if (problem !== null) return refused(problem);
+  return {
+    ok: true,
+    // Plain values only: propertiesProblem has just refused anything else.
+    value: { title, body, properties: properties as Readonly<Record<string, NoteAnswerValue>> },
+  };
 }

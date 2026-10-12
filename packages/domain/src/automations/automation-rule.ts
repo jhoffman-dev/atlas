@@ -19,7 +19,6 @@
  * is refused rather than guessed at.
  */
 
-import { ARCHIVED_FROM_KEY, ARCHIVED_KEY, ARCHIVED_PRIOR_KEY } from '../archive/archive.ts';
 import { isRecord } from '../query/frontmatter-query.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
@@ -30,6 +29,7 @@ import {
   type ClaudeAction,
 } from './claude-step.ts';
 import { noteTriggerQueryProblem } from './note-trigger.ts';
+import { setKeyProblem } from './property-key.ts';
 import { parseSchedule, printSchedule, type Schedule } from './schedule.ts';
 
 export const AUTOMATION_MARKER = 'atlas';
@@ -75,24 +75,12 @@ export interface BrokenAutomation {
   readonly problem: string;
 }
 
-/**
- * Keys a rule may not set: the archive's own stamp, Atlas's markers, and a
- * note's type — changing what a note is is not a property edit.
- */
-const RESERVED_KEYS = new Set(
-  ['atlas', 'id', 'type', ARCHIVED_KEY, ARCHIVED_FROM_KEY, ARCHIVED_PRIOR_KEY].map((key) =>
-    key.toLowerCase(),
-  ),
-);
-
-/** Names that, as a key of a plain object, reach its prototype rather than a property. */
-const PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
 /** The longest id a rule may have: it names a file. */
 const MAX_ID_LENGTH = 120;
 
-const KEY = /^[\p{L}_][\p{L}\p{N}_ -]*$/u;
 const UNUSABLE_IN_NAME = /[/\\:*?"<>|]|\p{Cc}/u;
+
+export { setKeyProblem };
 
 export function isAutomationNote(frontmatter: Readonly<Record<string, unknown>>): boolean {
   return String(frontmatter[AUTOMATION_MARKER] ?? '').trim() === AUTOMATION_MARKER_VALUE;
@@ -238,16 +226,6 @@ function readAction(frontmatter: Readonly<Record<string, unknown>>): AutomationA
     if (problem !== null) return problem;
   }
   return { kind: 'set', values: { ...(values as Record<string, SetValue>) } };
-}
-
-/** Why a rule may not set this key, or null when it may. */
-export function setKeyProblem(key: string): string | null {
-  if (!KEY.test(key) || PROTOTYPE_KEYS.has(key))
-    return `“${key}” is not a property a rule can set.`;
-  if (RESERVED_KEYS.has(key.toLowerCase()) || key.toLowerCase().startsWith('atlas')) {
-    return `A rule cannot set “${key}”: Atlas keeps that one itself.`;
-  }
-  return null;
 }
 
 function setValueProblem(key: string, value: unknown): string | null {
