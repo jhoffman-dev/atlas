@@ -2,7 +2,7 @@ import type { MeetingIdentity } from '../../packages/domain/src/index.ts';
 import { oneLine } from '../../packages/domain/src/meetings/mapping/meeting-mapping-error.ts';
 import type { MeetingFields } from '../../packages/domain/src/meetings/mapping/meeting-to-atlas.ts';
 import type { Csv, CsvRow } from './notion-csv.ts';
-import { notionWhen } from './notion-date.ts';
+import { notionWhen, type DateOrder } from './notion-date.ts';
 import { fromArrival, GEMINI, type GeminiDates } from './gemini-dates.ts';
 import { pageSections, type NotionPage } from './notion-page.ts';
 
@@ -55,6 +55,8 @@ export interface RowChoices {
   readonly providers: readonly string[] | null;
   /** How Gemini's Dates are read; null holds Gemini's rows (issue #44). */
   readonly geminiDates: GeminiDates | null;
+  /** How a Date written `06/14/2026` is read; null reads none. */
+  readonly dateOrder: DateOrder | null;
 }
 
 const cell = (row: CsvRow, column: string) => (row.get(column) ?? '').trim();
@@ -69,8 +71,8 @@ function pagesById(pages: readonly NotionPage[]): Map<string, NotionPage | null>
   return byId;
 }
 
-function fieldsOf(row: CsvRow, page: NotionPage): MeetingFields {
-  const when = notionWhen(cell(row, COLUMNS.date));
+function fieldsOf(row: CsvRow, page: NotionPage, dateOrder: DateOrder | null): MeetingFields {
+  const when = notionWhen(cell(row, COLUMNS.date), dateOrder);
   const sections = pageSections(page.body);
   return {
     title: cell(row, COLUMNS.title),
@@ -126,7 +128,7 @@ function planRow(
         : `no page in the export holds Source ID ${id}`;
     return { kind: 'no-page', row: name, identity, reason };
   }
-  return meetingOf({ row: name, identity }, fieldsOf(row, page), choices);
+  return meetingOf({ row: name, identity }, fieldsOf(row, page, choices.dateOrder), choices);
 }
 
 /**

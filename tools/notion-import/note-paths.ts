@@ -11,16 +11,18 @@ import {
 } from '../../packages/domain/src/index.ts';
 import { dailyNotePath } from '../../packages/application/src/notes/daily-note.ts';
 import type { ImportRecord } from './import-record.ts';
+import type { Csv } from './notion-csv.ts';
+import type { DateOrder } from './notion-date.ts';
 import type { ExportPage } from './row-pages.ts';
 import type { VaultNotes } from './vault-notes.ts';
-import { placeOf, rowDay, type NoteKind } from './workspace-databases.ts';
+import { mixedOrderColumns, placeOf, rowDay, type NoteKind } from './workspace-databases.ts';
 
 /** A row of a database this import writes itself, paired with its page. */
 export interface Candidate {
   readonly database: {
     readonly name: string;
     readonly kind: NoteKind;
-    readonly csv: { readonly columns: readonly string[] };
+    readonly csv: Csv;
   };
   readonly title: string;
   readonly row: ReadonlyMap<string, string>;
@@ -50,6 +52,7 @@ export interface PlaceInput {
   readonly record: ImportRecord;
   readonly recreateDeleted: boolean;
   readonly timeZone: string | null;
+  readonly dateOrder: DateOrder | null;
 }
 
 /**
@@ -72,8 +75,9 @@ function nameFor(title: string): string {
   return fitted === '' ? DEFAULT_NOTE_NAME : fitted;
 }
 
-/** What the report says when a note's name is not its title. */
+/** What the report says when a note's name is not its title, or its row has none. */
 function renamed(title: string, name: string): string[] {
+  if (title.trim() === '') return [`named "${name}": its row has no title`];
   return name === cleanEntryName(title) || cleanEntryName(title) === ''
     ? []
     : [`named "${name}": a file name or a link could not hold its title as it is`];
@@ -111,6 +115,8 @@ export function notePaths(input: PlaceInput): (candidate: Candidate) => NotePlac
       kind: 'daily',
       columns: candidate.database.csv.columns,
       timeZone: input.timeZone,
+      dateOrder: input.dateOrder,
+      mixedOrderColumns: mixedOrderColumns(candidate.database.csv, input.dateOrder),
     });
     if (day === null) return { kind: 'refused', reason: 'neither its Date nor its title is a day' };
     const other = days.get(day);
@@ -187,6 +193,8 @@ export function dailyNotesToRead(candidates: readonly Candidate[], input: PlaceI
         kind: 'daily',
         columns: candidate.database.csv.columns,
         timeZone: input.timeZone,
+        dateOrder: input.dateOrder,
+        mixedOrderColumns: mixedOrderColumns(candidate.database.csv, input.dateOrder),
       });
       if (day === null) return [];
       const path = dailyNotePath(day);

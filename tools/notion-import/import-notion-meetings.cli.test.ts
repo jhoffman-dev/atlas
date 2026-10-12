@@ -99,6 +99,7 @@ describe('import-notion-meetings', { timeout: 120_000 }, () => {
   it.each([
     [['--gemini-dates', 'as-written'], /--gemini-dates: "as-written" is not one of arrival-local/],
     [['--providers', ' , '], /--providers: name at least one provider/],
+    [['--date-order', 'ymd'], /--date-order: "ymd" is not one of mdy, dmy/],
     [['--folder', ''], /usage:/],
   ])('refuses %j and says how to use it', async (args, said) => {
     const result = run('--csv', csv, '--vault', join(home, 'vault copy'), ...args);
@@ -120,6 +121,21 @@ describe('import-notion-meetings', { timeout: 120_000 }, () => {
       /^refused {3}"Retro" \(October 3, 2026 4:00 PM\): no page in the export/m,
     );
     expect(result.status).toBe(1);
+  });
+
+  it('reads a Date written month first only with --date-order', async () => {
+    await writeFile(
+      csv,
+      'Meeting name,Date,Source,Source ID\r\nRetro,"10/03/2026 4:00 PM (PDT)",granola,not_Fx81kQz0aB12cd\r\n',
+    );
+
+    const without = run('--csv', csv, '--vault', join(home, 'vault copy'));
+    const mdy = run('--csv', csv, '--vault', join(home, 'vault copy'), '--date-order', 'mdy');
+
+    expect(without.stdout).toMatch(/^refused {3}"Retro" .*cannot read "10\/03\/2026 4:00 PM/m);
+    expect(without.status).toBe(1);
+    expect(mdy.stdout).toMatch(/^wrote {5}Inbox\/Meetings\/2026-10-03 Retro\.md$/m);
+    expect(mdy.status).toBe(0);
   });
 
   it('exits 2 with the reason when it cannot start, and no stack trace', () => {

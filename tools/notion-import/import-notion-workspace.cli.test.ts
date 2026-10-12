@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +56,7 @@ describe('import-notion-workspace', { timeout: 120_000 }, () => {
   it.each([
     [['--only', 'tasks,calendar'], '--only: name databases from tasks, notes'],
     [['--gemini-dates', 'utc'], '--gemini-dates: "utc" is not one of arrival-local'],
+    [['--date-order', 'ymd'], '--date-order: "ymd" is not one of mdy, dmy'],
   ])('refuses %j before it reads anything', (args, message) => {
     const result = run('--export', exportDir, '--vault', copy, ...args);
     expect(result.status).toBe(2);
@@ -136,6 +137,37 @@ describe('import-notion-workspace', { timeout: 120_000 }, () => {
     expect(result.stdout).toContain(
       'note      mara.md: no record of an earlier import: left as it is (--no-fill-unrecorded)',
     );
+  });
+
+  it('reads a date written month first only with --date-order', async () => {
+    const tasks = join(
+      exportDir,
+      'Private & Shared/Tasks Tracker a1000000000000000000000000000000_all.csv',
+    );
+    await writeFile(
+      tasks,
+      (await readFile(tasks, 'utf8')).replace('"December 1, 2026"', '12/01/2026'),
+    );
+    const unread = 'Due date "12/01/2026" cannot be read';
+
+    const without = run('--export', exportDir, '--vault', copy, '--only', 'tasks', '--dry-run');
+    expect(without.stdout).toContain(unread);
+    expect(without.stdout).toContain('run with --date-order mdy');
+
+    const mdy = run(
+      '--export',
+      exportDir,
+      '--vault',
+      copy,
+      '--only',
+      'tasks',
+      '--dry-run',
+      '--date-order',
+      'mdy',
+    );
+    expect(mdy.status, mdy.stderr).toBe(0);
+    expect(mdy.stdout).toContain('would create Tasks/Plan the offsite.md');
+    expect(mdy.stdout).not.toContain(unread);
   });
 
   it('exits 1 while a meeting is held for its dates, and runs only the databases named', () => {

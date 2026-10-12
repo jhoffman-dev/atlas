@@ -61,6 +61,52 @@ describe('notionWhen', () => {
   });
 });
 
+describe('notionWhen, for a date Notion was set to write with slashes', () => {
+  it.each([
+    ['2026/06/14', '2026-06-14', null],
+    ['2026/6/4 10:00 AM', '2026-06-04T10:00', null],
+    ['2026/06/14 5:00 PM (UTC)', '2026-06-14T17:00Z', null],
+    ['2026/06/14 → 2026/06/16', '2026-06-14', '2026-06-16'],
+  ])('reads %s, year first, with no date order', (cell, date, end) => {
+    expect(notionWhen(cell)).toEqual({ date, end });
+    expect(notionWhen(cell, 'dmy')).toEqual({ date, end });
+  });
+
+  it.each([
+    ['06/14/2026', { date: '06/14/2026', end: null }],
+    [
+      '06/14/2026 10:00 AM (PDT) → 11:00 AM',
+      { date: '06/14/2026 10:00 AM (PDT)', end: '11:00 AM' },
+    ],
+  ])('passes %j on as written with no date order: it could be either day', (cell, when) => {
+    expect(notionWhen(cell)).toEqual(when);
+  });
+
+  it.each([
+    ['03/04/2026', 'mdy', '2026-03-04', null],
+    ['03/04/2026', 'dmy', '2026-04-03', null],
+    ['6/14/2026 2:30 PM', 'mdy', '2026-06-14T14:30', null],
+    ['06/14/2026 10:00 AM (PDT) → 11:00 AM', 'mdy', '2026-06-14T10:00', '2026-06-14T11:00'],
+    ['14/06/2026 10:00 AM (PDT) → 11:00 AM', 'dmy', '2026-06-14T10:00', '2026-06-14T11:00'],
+    ['06/14/2026 5:00 PM (UTC) → 5:30 PM', 'mdy', '2026-06-14T17:00Z', '2026-06-14T17:30Z'],
+    ['06/14/2026 → 06/16/2026', 'mdy', '2026-06-14', '2026-06-16'],
+  ] as const)('reads %s in the order %s', (cell, order, date, end) => {
+    expect(notionWhen(cell, order)).toEqual({ date, end });
+  });
+
+  it.each([
+    ['13/01/2026', 'mdy'],
+    ['06/14/2026', 'dmy'],
+    ['00/10/2026', 'mdy'],
+    ['10/32/2026', 'mdy'],
+    ['2026/13/01', null],
+    ['2026/06/00', null],
+    ['06/14/2026 13:00 PM', 'mdy'],
+  ] as const)('passes %j on as written in the order %s: it is no day', (cell, order) => {
+    expect(notionWhen(cell, order)).toEqual({ date: cell, end: null });
+  });
+});
+
 describe('readNotionPage', () => {
   it('reads the title, the property paragraph and the content after it', () => {
     const page = readNotionPage(
