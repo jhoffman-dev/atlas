@@ -103,22 +103,37 @@ describe('POST /v1/meetings: a transcript the host lets in', () => {
   // and minutes for a run near the host's 1 MiB body limit. Measured as a
   // ratio so the machine's speed does not decide it: eight times the input
   // should take about eight times as long, not sixty-four.
+  //
+  // And measured in CPU time, the least of three runs, so the machine's load
+  // does not decide it either: a wall clock also counts the time this process
+  // spent waiting for a core, which on a busy machine is most of a run this
+  // short, and once made eight times the input look like thirty.
   it('maps in time that grows with the transcript, not with its square', async () => {
-    const timeFor = async (spaces: number) => {
+    const cpuMs = () => {
+      const { user, system } = process.cpuUsage();
+      return (user + system) / 1000;
+    };
+    const cpuFor = async (spaces: number) => {
       const api = vault();
       const transcriptMd = [
         `[00:00:01] Mara Quill${' '.repeat(spaces)}said nothing with a colon`,
         '### Transcription ended after 00:11:49',
       ].join('\n');
-      const started = performance.now();
+      const started = cpuMs();
       const response = await send(api, { ...SENT, transcriptMd });
-      const took = performance.now() - started;
+      const took = cpuMs() - started;
       expect(response.status).toBe(201);
       return took;
     };
-    await timeFor(1_000);
-    const small = await timeFor(10_000);
-    const large = await timeFor(80_000);
-    expect(large / Math.max(small, 1)).toBeLessThan(20);
+    const leastFor = async (spaces: number) =>
+      Math.min(await cpuFor(spaces), await cpuFor(spaces), await cpuFor(spaces));
+    await cpuFor(1_000);
+    const small = await leastFor(10_000);
+    const large = await leastFor(80_000);
+    // Mapped in linear time, both sizes cost a millisecond or two, nearly all
+    // of it the route's fixed work; in quadratic time the small one alone
+    // costs over a hundred. The floor keeps that fixed work from being the
+    // whole denominator.
+    expect(large / Math.max(small, 5)).toBeLessThan(20);
   }, 60_000);
 });

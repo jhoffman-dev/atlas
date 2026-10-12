@@ -302,6 +302,59 @@ export function sidebarSection(
   return page.locator(`#sidebar-${section}`);
 }
 
+/** The vault's type files as they are on disk now: each one's name and label. */
+async function typeFilesOf(vault: FakeVault): Promise<{ name: string; label: string }[]> {
+  const folder = join(vault.root, '.atlas', 'types');
+  // No folder is a vault with no types of its own.
+  const files = await readdir(folder).catch(() => [] as string[]);
+  const types = files
+    .filter((file) => file.endsWith('.md'))
+    .map(async (file) => {
+      const text = await vault.read(`.atlas/types/${file}`);
+      const name = /^name:\s*(.+)$/m.exec(text)?.[1]?.trim() ?? basename(file, '.md');
+      return { name, label: /^label:\s*(.+)$/m.exec(text)?.[1]?.trim() ?? name };
+    });
+  return Promise.all(types);
+}
+
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The Types list has the rows PARA adds to it, when it is going to add any.
+ *
+ * A vault that files by project — it has a Project type — has the Area and
+ * Resource types it lacks written in once it is open, after "notes indexed",
+ * and their rows arrive in Types above the vault's own. A type row clicked as
+ * they came in was pressed where it had been: the click did nothing and the
+ * type never opened (#52: type-views, then type-editor.spec.ts:225 on CI).
+ * So a test that is about to click a type row waits for this first.
+ *
+ * Whether rows are coming is read from the vault's files, not guessed from
+ * the page: without a Project type nothing is written and this returns at
+ * once. Each row is looked for by the label its file gives it, so a vault
+ * with an Area of its own under another label is not waited on forever.
+ */
+export async function expectParaTypeRows(page: Page, vault: FakeVault): Promise<void> {
+  if (!(await typeFilesOf(vault)).some((type) => type.name === 'project')) return;
+  await test.step(
+    'the Types list has PARA’s rows',
+    async () => {
+      for (const name of ['area', 'resource']) {
+        const written = () =>
+          typeFilesOf(vault).then((types) => types.find((type) => type.name === name));
+        await expect.poll(async () => (await written()) !== undefined).toBe(true);
+        const label = (await written())?.label ?? name;
+        await expect(
+          sidebarSection(page, 'types').getByRole('button', {
+            name: new RegExp(`^${escaped(label)}, `, 'i'),
+          }),
+        ).toBeVisible();
+      }
+    },
+    { box: true },
+  );
+}
+
 /** A request as a tool would send it to the local API, before the host gives it an id. */
 export interface ApiCall {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -555,22 +608,19 @@ export async function installHost(
   let claudeLoggedIn = true;
   /** git and gh (`git_process.rs`), as a real git against bare repositories on disk. */
   const gitStub = await createGitStub();
-  /** Emits a run's output after its start has been answered, as the host's reader thread does. */
-  const emitModel = (payloads: readonly unknown[]) => {
-    setTimeout(() => {
-      void (async () => {
-        for (const payload of payloads) {
-          await page.evaluate(
-            ([item]) =>
-              (
-                window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }
-              ).__atlasEmit('model-process', item),
-            [payload],
-          );
-        }
-      })();
-    }, 0);
-  };
+  /**
+   * A run's output, emitted after its start has been answered, as the host's
+   * reader thread does.
+   *
+   * The page emits it to itself, a line per task, once it has the answer. It
+   * used to be pushed from here with a `page.evaluate` per line, detached from
+   * the command that started it: a test that finished while a run was still
+   * printing (the chat asks `claude auth status` the moment it opens) had that
+   * call rejected with "Test ended" and failed after passing, and a long
+   * answer cost hundreds of round trips. A window that closes mid-run now
+   * takes the rest of the output with it, as a real one does.
+   */
+  const thenEmitModel = (payloads: readonly unknown[]) => ({ __atlasThenEmit: payloads });
   /**
    * A scripted reply as Claude Code 2.x prints it with `--include-partial-messages`
    * (captured from a real run): the init and status lines, a thinking block
@@ -714,6 +764,8 @@ export async function installHost(
         const { writeFile } = await import('node:fs/promises');
         const { contents } = args as { contents: string };
         const file = containedPath(writeRoot(args), path);
+        // Making a file is a write to it, and is held as one (`holdWrites`).
+        await held.get(path);
         try {
           await writeFile(file, contents, { encoding: 'utf8', flag: 'wx' });
         } catch {
@@ -1316,19 +1368,16 @@ export async function installHost(
         const { run, args: argv, stdin } = args as { run: string; args: string[]; stdin: string };
         claudeRuns.push({ args: argv, stdin });
         if (argv[0] === 'auth') {
-          emitModel([
+          return thenEmitModel([
             { run, kind: 'line', text: JSON.stringify({ loggedIn: claudeLoggedIn }) },
             { run, kind: 'exit', code: claudeLoggedIn ? 0 : 1, stderr: '' },
           ]);
-          return null;
         }
-        emitModel(streamed(run, claudeReplies.shift() ?? 'Nothing more was scripted.'));
-        return null;
+        return thenEmitModel(streamed(run, claudeReplies.shift() ?? 'Nothing more was scripted.'));
       }
       case 'model_process_cancel': {
         const { run } = args as { run: string };
-        emitModel([{ run, kind: 'exit', code: null, stderr: '' }]);
-        return null;
+        return thenEmitModel([{ run, kind: 'exit', code: null, stderr: '' }]);
       }
       case 'activity_append': {
         const { vault: root, text } = args as { vault: string; text: string };
@@ -1377,6 +1426,19 @@ export async function installHost(
     const callbacks = new Map<number, (payload: unknown) => void>();
     const listeners = new Map<string, number[]>();
     let nextId = 1;
+    const emit = (event: string, payload: unknown) => {
+      for (const id of listeners.get(event) ?? []) {
+        callbacks.get(id)?.({ event, id, payload });
+      }
+    };
+    /** A model run's output, a line per task, so the app draws between lines as it does live. */
+    const emitEachInItsOwnTask = (payloads: readonly unknown[], at = 0) => {
+      if (at >= payloads.length) return;
+      setTimeout(() => {
+        emit('model-process', payloads[at]);
+        emitEachInItsOwnTask(payloads, at + 1);
+      }, 0);
+    };
 
     (window as unknown as { __TAURI_INTERNALS__: unknown }).__TAURI_INTERNALS__ = {
       // Which window this is, as Tauri tells its pages: the close button is watched through it.
@@ -1409,11 +1471,17 @@ export async function installHost(
           .__atlasInvoke(command, args)
           // A command that rejects with a value rather than a message, as
           // Tauri hands the webview whatever a command's `Err` serializes to.
-          .then((value) =>
-            typeof value === 'object' && value !== null && '__atlasReject' in value
-              ? Promise.reject((value as { __atlasReject: unknown }).__atlasReject)
-              : value,
-          );
+          .then((value) => {
+            if (typeof value !== 'object' || value === null) return value;
+            if ('__atlasReject' in value) {
+              return Promise.reject((value as { __atlasReject: unknown }).__atlasReject);
+            }
+            if ('__atlasThenEmit' in value) {
+              emitEachInItsOwnTask((value as { __atlasThenEmit: unknown[] }).__atlasThenEmit);
+              return null;
+            }
+            return value;
+          });
         return command === 'read_binary_file'
           ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
           : answer;
@@ -1431,11 +1499,7 @@ export async function installHost(
 
     // What the tests call to pretend the vault changed underneath the app.
     (window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }).__atlasEmit =
-      (event, payload) => {
-        for (const id of listeners.get(event) ?? []) {
-          callbacks.get(id)?.({ event, id, payload });
-        }
-      };
+      emit;
   });
 
   return {
@@ -1614,9 +1678,32 @@ export async function pageCommand(
   );
 }
 
-/** Saves the note now, as the Save button used to. */
-export const saveNow = (page: Page, scope: Page | Locator = page) =>
-  pageCommand(page, /^Save now/, scope);
+/**
+ * Saves the note now, as the Save button used to — or finds it saved already.
+ *
+ * The note saves itself 1.2 s after the last edit, and from then on Save now
+ * is disabled: there is nothing to save. A test that reached the menu later
+ * than that waited the whole 30 s for the item to come back (#52,
+ * images.spec.ts:166 on a slow runner). So the item is pressed as a person
+ * presses it, enabled or not — the pointer goes to it once it has stopped
+ * moving, then clicks — and a menu left open by a press that did nothing is
+ * closed. Whether the note is saved is for `expectSaved` to say, after.
+ */
+export async function saveNow(page: Page, scope: Page | Locator = page): Promise<void> {
+  await test.step(
+    'page menu: Save now',
+    async () => {
+      await scope.getByRole('button', { name: 'More' }).click();
+      const item = page.getByRole('menuitem', { name: /^Save now/ });
+      await item.hover();
+      await page.mouse.down();
+      await page.mouse.up();
+      if (await item.isVisible()) await page.keyboard.press('Escape');
+      await expect(item).toBeHidden();
+    },
+    { box: true },
+  );
+}
 
 /** Splits the window from a pane's menu, as the split button used to. */
 export const splitWindow = (page: Page, scope: Page | Locator = page) =>

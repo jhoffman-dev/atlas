@@ -5,6 +5,15 @@ import { createVault, installHost, sidebarSection, type FakeVault } from './host
 // Adversarial probes for issue #17: the sidebar's sections share one scroller,
 // and Pages' virtualised tree is placed against it with a scroll margin.
 
+// These vaults hold hundreds of notes, each written by the test and then read
+// back by the app through the stub host, a call apiece — once to open, and
+// again after every change, one read queued behind another. Alone a read is
+// two or three seconds; beside seven other workers one has passed twenty, and
+// a starred note took 2 to 9 s to reach Favorites (24 runs, #52). The work is
+// fixed, so this is a budget for it rather than a wait on a moment.
+const READING_A_LARGE_VAULT = { timeout: 30_000 };
+test.describe.configure({ timeout: 90_000 });
+
 const EACH = 6;
 const pad = (at: number, width = 4) => String(at).padStart(width, '0');
 
@@ -40,7 +49,7 @@ async function openVault(page: Page, notes: number): Promise<FakeVault> {
   await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
-  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await expect(page.getByText(/notes indexed/)).toBeVisible(READING_A_LARGE_VAULT);
   await expect(sidebarSection(page, 'favorites').locator('.sidebar__item')).toHaveCount(EACH);
   return vault;
 }
@@ -50,16 +59,50 @@ const scroller = (page: Page) => nav(page).locator('.sidebar__scroll');
 const treeRow = (page: Page, name: string) =>
   sidebarSection(page, 'userSpace').getByRole('treeitem', { name, exact: true });
 
-/** Scrolls the one sidebar scroller until `name`'s tree row is on screen. */
+/**
+ * Whether the tree has drawn the rows for where the scroller now is: a row
+ * lies across the scroller's middle, or the middle is not over the tree.
+ */
+const rowsDrawnForThisScroll = (page: Page) =>
+  scroller(page).evaluate((area) => {
+    const shown = area.getBoundingClientRect();
+    const middle = shown.top + shown.height / 2;
+    const spans = (element: Element) => {
+      const box = element.getBoundingClientRect();
+      return box.top <= middle && middle < box.bottom;
+    };
+    const tree = area.querySelector('#sidebar-userSpace .tree');
+    if (tree === null || !spans(tree)) return true;
+    return [...tree.querySelectorAll('[role="treeitem"]')].some(spans);
+  });
+
+/**
+ * Scrolls the one sidebar scroller until `name`'s tree row is on screen.
+ *
+ * Half a screen at a time, so no row is ever stepped over — and each step
+ * waits for the tree to draw the rows it scrolled to before looking for the
+ * one wanted. It used to look for 100 ms and step again: on a busy machine the
+ * rows arrived later than that, the step after carried the row out of view
+ * before it had been drawn, and the scroller ran to its end without it (#52).
+ */
 async function scrollTreeTo(page: Page, name: string) {
-  const row = treeRow(page, name);
+  const onScreen = () =>
+    scroller(page).evaluate((area, label) => {
+      const row = area.querySelector(`#sidebar-userSpace [role="treeitem"][aria-label="${label}"]`);
+      if (row === null) return false;
+      const [box, shown] = [row.getBoundingClientRect(), area.getBoundingClientRect()];
+      return box.bottom > shown.top && box.top < shown.bottom;
+    }, name);
   await expect(async () => {
+    await expect.poll(() => rowsDrawnForThisScroll(page)).toBe(true);
+    if (await onScreen()) return;
     await scroller(page).evaluate((area) => {
-      // Half a screen at a time, so no row is ever stepped over.
       area.scrollTop += area.clientHeight / 2;
     });
-    await expect(row).toBeInViewport({ timeout: 100 });
-  }).toPass({ intervals: [0], timeout: 20_000 });
+    throw new Error(`${name} is not on screen yet`);
+  }).toPass({ intervals: [0], ...READING_A_LARGE_VAULT });
+  const row = treeRow(page, name);
+  await expect(row).toBeInViewport();
   return row;
 }
 
@@ -176,7 +219,7 @@ test('a new folder made while scrolled deep in Pages opens its name field', asyn
   const field = sidebarSection(page, 'userSpace').getByRole('textbox', {
     name: 'Name for New folder',
   });
-  await expect(field).toBeFocused();
+  await expect(field).toBeFocused(READING_A_LARGE_VAULT);
   await expect(field).toBeInViewport({ ratio: 1 });
 });
 
@@ -191,7 +234,10 @@ test('starring a tree row while scrolled leaves the row under the pointer', asyn
   if (aim === null || before === null) throw new Error('no star to click');
 
   await page.mouse.click(aim.x + aim.width / 2, aim.y + aim.height / 2);
-  await expect(sidebarSection(page, 'favorites').locator('.sidebar__item')).toHaveCount(EACH + 1);
+  await expect(sidebarSection(page, 'favorites').locator('.sidebar__item')).toHaveCount(
+    EACH + 1,
+    READING_A_LARGE_VAULT,
+  );
 
   // A second click on the same spot must reach the same star, not the row above's.
   await expect.poll(async () => (await row.boundingBox())?.y).toBe(before.y);

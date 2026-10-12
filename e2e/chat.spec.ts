@@ -36,9 +36,19 @@ async function openPlan(
 
 const chat = (page: Page) => page.getByRole('complementary', { name: 'Claude' });
 
+/**
+ * Asks once the chat will take a question: Send is there, and enabled.
+ *
+ * While a turn is running the button is Stop and Enter does nothing, and a
+ * turn is still running for a moment after its last words are drawn — the
+ * run's closing lines and its exit come after them. A second question sent on
+ * seeing the first answer's text was dropped that way, and the proposal it
+ * asked for never came (#52, the block-embed test on CI).
+ */
 async function ask(page: Page, question: string): Promise<void> {
   const box = chat(page).getByRole('textbox', { name: 'Ask Claude' });
   await box.fill(question);
+  await expect(chat(page).getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   await box.press('Enter');
 }
 
@@ -110,6 +120,19 @@ test('a rejected edit leaves the note exactly as it was', async ({ page }) => {
 
   await page.keyboard.press('Meta+j');
   await expect(chat(page)).toHaveCount(0);
+});
+
+// The stub's Claude prints to the page that asked (`thenEmitModel` in host.ts).
+// Printed from the test's side instead, a run still going when a test ended
+// failed that test after it had passed: #52, on a different test every run.
+test('a test that ends while Claude is still answering is not failed by the answer', async ({
+  page,
+}) => {
+  const { host } = await openPlan(page);
+  host.claude.reply(LONG_ANSWER);
+  await page.keyboard.press('Meta+j');
+  await ask(page, 'What does the note say?');
+  await expect(chat(page).getByText('Paragraph 1 of a long answer')).toBeAttached();
 });
 
 test('a refused proposal says so, and why, in the pane and in the chat note', async ({ page }) => {

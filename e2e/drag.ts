@@ -117,6 +117,21 @@ export async function dragCardTo(page: Page, path: string, column: string) {
 }
 
 /**
+ * A board card where it is drawn: in `column`, by its note's path.
+ *
+ * A drop writes the note; the card moves only once the board has read the
+ * vault again, well after the file says so, and every card below it in the
+ * column it left moves up when it does. So a second drag waits for this
+ * first: pressing on a card measured before the board settled lands on the
+ * gap it has just left, and that drag never starts (#52, gtd.spec.ts:153).
+ */
+export const cardInColumn = (page: Page, path: string, column: string) =>
+  page
+    .locator('.board')
+    .getByRole('region', { name: column, exact: true })
+    .locator(`.board__card[data-path="${path}"]`);
+
+/**
  * Press Tab until `handle` has focus, the way a keyboard user reaches it, and
  * fail rather than loop forever if it never does.
  */

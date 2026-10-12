@@ -48,10 +48,10 @@ function outcomeOf(doc: EditorDocument, reread: EditorNode[]): Outcome {
 }
 
 /** Seeds whose documents do not read back as written, with their markdown, for the report. */
-function misread(seeds: number, check: (doc: EditorDocument) => [Outcome, string]) {
+function misread(from: number, check: (doc: EditorDocument) => [Outcome, string]) {
   const different: string[] = [];
   let raw = 0;
-  for (let seed = 1; seed <= seeds; seed += 1) {
+  for (let seed = from; seed < from + BATCH; seed += 1) {
     let outcome: Outcome;
     let markdown: string;
     try {
@@ -67,31 +67,36 @@ function misread(seeds: number, check: (doc: EditorDocument) => [Outcome, string
 
 const SEEDS = 3000;
 /**
- * About 17 s alone; past 120 s under the gate's coverage run beside the
- * rest of the suite on a loaded Mac (2026-10-04, twice). The work is fixed
- * and deterministic, so this is a budget for CPU, not a wait on a moment.
+ * The seeds go a batch to a test. As one test of 3000 they were about 17 s
+ * alone, and past a 300 s budget under the gate's coverage run on a loaded
+ * Mac (375 s, 2026-10-11): one synchronous stretch that long also keeps the
+ * worker from answering the runner. The work is fixed and deterministic, so
+ * the budget is for CPU, not a wait on a moment — and each batch has all of it.
  */
+const BATCH = 500;
 const BUDGET_MS = 300_000;
+/** The first seed of each batch: 1, 501, … */
+const BATCHES = Array.from({ length: SEEDS / BATCH }, (_, at) => at * BATCH + 1);
 
 describe('an edited block reads back as the editor had it', () => {
-  it(
-    `holds for ${SEEDS} seeded documents written afresh`,
-    () => {
-      const { different, raw } = misread(SEEDS, (doc) => {
+  it.each(BATCHES)(
+    `holds for the ${BATCH} seeded documents from seed %i, written afresh`,
+    (from) => {
+      const { different, raw } = misread(from, (doc) => {
         const { markdown, reread } = saveAndReload(doc);
         return [outcomeOf(doc, reread), markdown];
       });
-      expect(different.slice(0, 8), `${different.length} of ${SEEDS} read differently`).toEqual([]);
+      expect(different.slice(0, 8), `${different.length} of ${BATCH} read differently`).toEqual([]);
       // Kept as source is the last resort, not the answer: a handful at most.
-      expect(raw, `${raw} of ${SEEDS} kept as source`).toBeLessThanOrEqual(SEEDS / 100);
+      expect(raw, `${raw} of ${BATCH} kept as source`).toBeLessThanOrEqual(BATCH / 100);
     },
     BUDGET_MS,
   );
 
-  it(
-    `holds for ${SEEDS} seeded documents saved, reopened and edited again`,
-    () => {
-      const { different, raw } = misread(SEEDS, (first) => {
+  it.each(BATCHES)(
+    `holds for the ${BATCH} seeded documents from seed %i, saved, reopened and edited again`,
+    (from) => {
+      const { different, raw } = misread(from, (first) => {
         const { markdown: original } = saveAndReload(first);
         const parsed = parseMarkdownBody(original);
         if (parsed.doc.content.some((node) => node.type === RAW_BLOCK)) return ['same', original];
@@ -100,8 +105,8 @@ describe('an edited block reads back as the editor had it', () => {
         const reread = [...parseMarkdownBody(markdown).doc.content];
         return [outcomeOf(doc, reread), `${original}\n=>\n${markdown}`];
       });
-      expect(different.slice(0, 8), `${different.length} of ${SEEDS} read differently`).toEqual([]);
-      expect(raw, `${raw} of ${SEEDS} kept as source`).toBeLessThanOrEqual(SEEDS / 100);
+      expect(different.slice(0, 8), `${different.length} of ${BATCH} read differently`).toEqual([]);
+      expect(raw, `${raw} of ${BATCH} kept as source`).toBeLessThanOrEqual(BATCH / 100);
     },
     BUDGET_MS,
   );

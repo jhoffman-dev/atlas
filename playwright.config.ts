@@ -41,6 +41,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // How long an assertion waits for the state it names, not how long a test
+  // may take. What a test waits for after a click is usually a write, then the
+  // tree and the index read again, then a query — each a call through the stub
+  // host. Alone that is a third of a second; beside seven other workers it
+  // measured 1.2 to 4.8 s for one property (weekly-review, 15 runs, #52), and
+  // the default 5 s failed a different test each run. `expectFile` waits 15 s
+  // for the same reason: a state that arrives never spends the wait, so its
+  // length only decides how soon a real failure is reported.
+  expect: { timeout: 15_000 },
   reporter: process.env.CI ? 'list' : [['list']],
   use: {
     baseURL: BASE_URL,
