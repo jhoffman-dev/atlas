@@ -125,6 +125,7 @@ async function setUp(rounds: readonly ScriptedRound[] = [ITEMS, TERMS]) {
     today: () => TODAY,
     // Each run starts a second after the last, so entries are told apart by when they ran.
     localNow: () => `${TODAY}T09:00:${String(now++).padStart(2, '0')}`,
+    now: () => Date.parse(`${TODAY}T09:00:00Z`),
   };
   const claude = fakeClaudeStepPorts({ rounds, model: 'claude-opus-5-5', today: TODAY });
   const vault = automationVault({ notes: { ...DIRECTORY }, today: TODAY, types: TYPES, claude });
@@ -189,7 +190,9 @@ async function setUp(rounds: readonly ScriptedRound[] = [ITEMS, TERMS]) {
 const outcomes = (entry: LogEntry | null) =>
   entry !== null && 'steps' in entry ? entry.steps?.records.map((record) => record.outcome) : null;
 const said = (entry: LogEntry | null) =>
-  entry !== null && 'steps' in entry ? (entry.steps?.records.map((record) => record.said) ?? []) : [];
+  entry !== null && 'steps' in entry
+    ? (entry.steps?.records.map((record) => record.said) ?? [])
+    : [];
 
 describe('the "After a meeting" rule on a meeting the import let in', () => {
   it('finds it corrected and linked already, writes nothing to it, and asks Claude twice', async () => {
@@ -334,18 +337,16 @@ describe('a step that fails', () => {
     const [line] = activity.reports.filter((report) => report.kind === 'automation');
 
     expect(line?.level).toBe('error');
-    expect(line?.message).toContain('After a meeting · 2026-10-06 Standup: stopped at step 3 of 4.');
+    expect(line?.message).toContain(
+      'After a meeting · 2026-10-06 Standup: stopped at step 3 of 4.',
+    );
     expect(line?.message).toContain('Claude’s answer is not what the rule asks for.');
     expect(line?.details).toHaveLength(4);
     expect(line?.details?.[3]).toContain('not run, because an earlier step failed');
   });
 
   it('leaves the meeting unhandled, so a run by hand takes it again and finds the first steps done', async () => {
-    const { arrive, runNow, asked, proposals } = await setUp([
-      FELL_OVER,
-      ITEMS,
-      TERMS,
-    ]);
+    const { arrive, runNow, asked, proposals } = await setUp([FELL_OVER, ITEMS, TERMS]);
     await arrive();
 
     const retried = await runNow();
@@ -531,7 +532,10 @@ describe('undoing the rule’s last run', () => {
 
     const undone = await undoLastRun(run);
 
-    expect(undone).toMatchObject({ kind: 'undo', done: [{ kind: 'uncorrected' }, { kind: 'unlinked' }] });
+    expect(undone).toMatchObject({
+      kind: 'undo',
+      done: [{ kind: 'uncorrected' }, { kind: 'unlinked' }],
+    });
     expect(body(BY_HAND)).toBe(BODY);
     expect(vault.properties(BY_HAND)['people']).toBeUndefined();
   });
@@ -593,7 +597,8 @@ describe('what a run of the rule may ask', () => {
       at % 2 === 0 ? NO_ITEMS : NO_TERMS,
     );
     const { byHand, runNow, asked, log, activity } = await setUp(rounds);
-    for (let at = 1; at <= 6; at += 1) await byHand(`Meetings/Planning ${at}.md`, plain(`Topic ${at}`));
+    for (let at = 1; at <= 6; at += 1)
+      await byHand(`Meetings/Planning ${at}.md`, plain(`Topic ${at}`));
 
     const last = await runNow();
 
@@ -624,7 +629,8 @@ describe('what a run of the rule may ask', () => {
       at % 2 === 0 ? NO_ITEMS : NO_TERMS,
     );
     const { byHand, runNow, asked } = await setUp(rounds);
-    for (let at = 1; at <= 6; at += 1) await byHand(`Meetings/Planning ${at}.md`, plain(`Topic ${at}`));
+    for (let at = 1; at <= 6; at += 1)
+      await byHand(`Meetings/Planning ${at}.md`, plain(`Topic ${at}`));
     await runNow();
 
     const next = await runNow();
@@ -636,7 +642,8 @@ describe('what a run of the rule may ask', () => {
   it('counts every ask of both steps toward the hour’s cap', async () => {
     const rounds = Array.from({ length: 20 }, (_, at) => (at % 2 === 0 ? NO_ITEMS : NO_TERMS));
     const { byHand, runNow, log } = await setUp(rounds);
-    for (let at = 1; at <= 10; at += 1) await byHand(`Meetings/Planning ${at}.md`, plain(`Topic ${at}`));
+    for (let at = 1; at <= 10; at += 1)
+      await byHand(`Meetings/Planning ${at}.md`, plain(`Topic ${at}`));
     await runNow();
     expect(noteRunsHeldUntil(log(), `${TODAY}T09:30:00`)).toBeNull();
 
@@ -761,7 +768,10 @@ describe('accepting a suggested term', () => {
     await acceptProposalNote({ ports: vault.ports, path: SUGGESTED, today: TODAY });
     expect(body(ARRIVED)).toContain('Larkspar Pay needs');
 
-    const again = await recorrectMeetingTerms({ ports: vault.ports, path: createVaultPath(ARRIVED) });
+    const again = await recorrectMeetingTerms({
+      ports: vault.ports,
+      path: createVaultPath(ARRIVED),
+    });
 
     expect(again).toEqual({ count: 3 });
     expect(body(ARRIVED)).toContain('Larkspur Pay needs its review booked too.');
@@ -814,7 +824,9 @@ describe('accepting a suggested term', () => {
 
     await expect(
       acceptProposalNote({ ports: vault.ports, path: SUGGESTED, today: TODAY }),
-    ).rejects.toThrow('“Larkspar Pay” is the right spelling of something else. Nothing was written.');
+    ).rejects.toThrow(
+      '“Larkspar Pay” is the right spelling of something else. Nothing was written.',
+    );
 
     expect(vault.files.get('Terms/Larkspur Pay.md')).toBe(term);
     expect(vault.files.has(SUGGESTED)).toBe(true);

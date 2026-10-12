@@ -208,7 +208,7 @@ describe('a rule of several steps', () => {
   it('can be undone when its last run corrected or linked, even one that failed part-way', () => {
     const rule: AutomationRule = { ...RULE, action: AFTER_A_MEETING_PRESET.action };
     const [row] = automationRows(
-      { automations: [{ rule, log: [STEPS], ledger: null }], broken: [] },
+      { automations: [{ rule, log: [STEPS], ledger: null, idWritten: true }], broken: [] },
       CLOCK,
     );
     expect(row?.canUndo).toBe(true);
@@ -242,13 +242,13 @@ describe('meetingAssistantView', () => {
   it('is the rule’s own on and off, its own steps, and when it last ran', () => {
     const steps = { kind: 'steps', steps: [{ kind: 'correct-terms' }] } as const;
     const on = meetingAssistantView({
-      loaded: { rule: { ...rule, action: steps }, log: [RUN], ledger: null },
+      loaded: { rule: { ...rule, action: steps }, log: [RUN], ledger: null, idWritten: true },
       broken: null,
     });
     expect(on).toMatchObject({ on: true, steps: ['Correct its terms'] });
     expect(on.lastRun).toBe('27 Sep 2026, 03:00 · Archived 1 note. Left 1 alone.');
     const off = meetingAssistantView({
-      loaded: { rule: { ...rule, enabled: false }, log: [], ledger: null },
+      loaded: { rule: { ...rule, enabled: false }, log: [], ledger: null, idWritten: true },
       broken: null,
     });
     expect(off).toMatchObject({ on: false, lastRun: null });

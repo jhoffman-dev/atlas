@@ -34,8 +34,16 @@ const RAN: LogEntry = {
     note: MEETING,
     records: [
       { step: 'correct-terms', outcome: 'done', said: 'Corrected 2 misheard spellings.' },
-      { step: 'link-meeting', outcome: 'done', said: 'Linked Mara Quill; proposed 1 in the Inbox.' },
-      { step: 'claude meeting-items', outcome: 'done', said: 'Asked Claude 1 time: made 1 proposal.' },
+      {
+        step: 'link-meeting',
+        outcome: 'done',
+        said: 'Linked Mara Quill; proposed 1 in the Inbox.',
+      },
+      {
+        step: 'claude meeting-items',
+        outcome: 'done',
+        said: 'Asked Claude 1 time: made 1 proposal.',
+      },
       {
         step: 'claude term-suggestions',
         outcome: 'nothing',
@@ -57,7 +65,11 @@ const FAILED: LogEntry = {
     note: MEETING,
     records: [
       { step: 'correct-terms', outcome: 'done', said: 'Corrected 2 misheard spellings.' },
-      { step: 'link-meeting', outcome: 'already', said: 'Already linked when it arrived; not linked again.' },
+      {
+        step: 'link-meeting',
+        outcome: 'already',
+        said: 'Already linked when it arrived; not linked again.',
+      },
       {
         step: 'claude meeting-items',
         outcome: 'failed',
@@ -97,11 +109,9 @@ describe('a log entry of a rule of several steps', () => {
   });
 
   it('reads back exactly as it was written, a run and one that could not finish', () => {
-    const text = appendLogEntry({
-      text: appendLogEntry({ text: null, ruleName: 'After a meeting', entry: RAN }),
-      ruleName: 'After a meeting',
-      entry: FAILED,
-    });
+    const now = Date.parse('2026-10-08T09:00:00Z');
+    const first = appendLogEntry({ text: null, ruleName: 'After a meeting', entry: RAN, now });
+    const text = appendLogEntry({ text: first, ruleName: 'After a meeting', entry: FAILED, now });
     expect(parseRunLog(text)).toEqual([RAN, FAILED]);
   });
 
@@ -110,7 +120,9 @@ describe('a log entry of a rule of several steps', () => {
       ...RAN,
       steps: {
         note: MEETING,
-        records: [{ step: 'correct-terms', outcome: 'done', said: 'Corrected\n2 spellings.\n- step' }],
+        records: [
+          { step: 'correct-terms', outcome: 'done', said: 'Corrected\n2 spellings.\n- step' },
+        ],
       },
     };
     const [read] = parseRunLog(formatLogEntry(multiline));
@@ -235,7 +247,9 @@ describe('what "Undo last run" may undo of a rule of steps', () => {
     const wanted = 'This rule runs steps on a meeting; it never archived a note or set a property.';
     expect(loggedActionProblem(action, archived)).toBe(wanted);
     expect(loggedActionProblem(action, set)).toBe(wanted);
-    expect(loggedActionProblem(action, { kind: 'uncorrected', path: MEETING, count: 2 })).not.toBeNull();
+    expect(
+      loggedActionProblem(action, { kind: 'uncorrected', path: MEETING, count: 2 }),
+    ).not.toBeNull();
     expect(loggedActionProblem(action, { kind: 'proposed', path: PROPOSAL })).toMatch(
       /answered in the Inbox/,
     );
@@ -270,21 +284,22 @@ describe('what a run of steps leaves handled', () => {
     const filed = createVaultPath('Meetings/2026-10-06 Standup.md');
     const handled = handledVersions([WROTE], { ledger: null, holds: () => undefined });
     // The same words, filed out of the Inbox: answered, by the key the wrote version carried.
-    expect(handled.has({ path: filed, digest: 'other', keys: ['meeting:gemini:g-1:body:9f8e'] })).toBe(
-      true,
-    );
-    expect(handled.has({ path: filed, digest: 'other', keys: ['meeting:gemini:g-1:body:0000'] })).toBe(
-      false,
-    );
+    expect(
+      handled.has({ path: filed, digest: 'other', keys: ['meeting:gemini:g-1:body:9f8e'] }),
+    ).toBe(true);
+    expect(
+      handled.has({ path: filed, digest: 'other', keys: ['meeting:gemini:g-1:body:0000'] }),
+    ).toBe(false);
   });
 
   it('does not count a write as answered for a rule with no steps', () => {
-    const plain: LogEntry = { ...WROTE, steps: undefined } as LogEntry;
+    const { steps: _steps, ...plain } = WROTE as Extract<LogEntry, { kind: 'run' }>;
+    void _steps;
     const filed = createVaultPath('Meetings/2026-10-06 Standup.md');
     const handled = handledVersions([plain], { ledger: null, holds: () => undefined });
-    expect(handled.has({ path: filed, digest: 'other', keys: ['meeting:gemini:g-1:body:9f8e'] })).toBe(
-      false,
-    );
+    expect(
+      handled.has({ path: filed, digest: 'other', keys: ['meeting:gemini:g-1:body:9f8e'] }),
+    ).toBe(false);
     expect(emptyLedger().answered).toEqual([]);
   });
 });

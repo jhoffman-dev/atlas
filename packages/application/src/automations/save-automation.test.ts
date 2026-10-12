@@ -251,15 +251,25 @@ describe('a ready-made rule whose prompt Atlas ships (P29-05)', () => {
 describe('the "After a meeting" rule, saved (P29-06)', () => {
   it('writes both of its steps’ prompts with it, and reads back as the rule it is', async () => {
     const vault = automationVault({ notes: {}, today: '2026-10-08' });
-    const write = { fs: vault.ports.fs, markdown: vault.ports.markdown, clock: { localNow: () => '2026-10-08T09:00:00' } };
+    const write = {
+      fs: vault.ports.fs,
+      markdown: vault.ports.markdown,
+      clock: {
+        localNow: () => '2026-10-08T09:00:00',
+        now: () => Date.parse('2026-10-08T09:00:00Z'),
+      },
+    };
 
-    const path = await createAutomation({ ...write, draft: AFTER_A_MEETING_PRESET, takenPaths: [] });
+    const path = await createAutomation({
+      ...write,
+      draft: AFTER_A_MEETING_PRESET,
+      takenPaths: [],
+    });
 
     expect(path).toBe('.atlas/automations/After a meeting.md');
-    expect([...vault.files.keys()].filter((at) => at.startsWith('.atlas/prompts/')).sort()).toEqual([
-      '.atlas/prompts/meeting-extraction.md',
-      '.atlas/prompts/term-suggestions.md',
-    ]);
+    expect([...vault.files.keys()].filter((at) => at.startsWith('.atlas/prompts/')).sort()).toEqual(
+      ['.atlas/prompts/meeting-extraction.md', '.atlas/prompts/term-suggestions.md'],
+    );
     expect(vault.files.get('.atlas/prompts/term-suggestions.md')).toContain('# Term suggestions');
     expect(vault.properties(path)).toMatchObject({
       do: 'steps',
@@ -278,7 +288,14 @@ describe('the "After a meeting" rule, saved (P29-06)', () => {
       notes: { '.atlas/prompts/term-suggestions.md': mine },
       today: '2026-10-08',
     });
-    const write = { fs: vault.ports.fs, markdown: vault.ports.markdown, clock: { localNow: () => '2026-10-08T09:00:00' } };
+    const write = {
+      fs: vault.ports.fs,
+      markdown: vault.ports.markdown,
+      clock: {
+        localNow: () => '2026-10-08T09:00:00',
+        now: () => Date.parse('2026-10-08T09:00:00Z'),
+      },
+    };
 
     await createAutomation({ ...write, draft: AFTER_A_MEETING_PRESET, takenPaths: [] });
 
