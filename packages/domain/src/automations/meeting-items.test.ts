@@ -96,6 +96,7 @@ describe('whose an action item is', () => {
       why: 'Yours, from Platform weekly sync.',
       distinguishedBy: 'self',
       sharedAcrossRules: true,
+      sharedAcrossNotes: false,
     });
   });
 

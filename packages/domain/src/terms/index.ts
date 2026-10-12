@@ -6,6 +6,7 @@ export {
   TERM_KINDS,
   TERM_TYPE,
   termKindOf,
+  TERMS_FOLDER_NAME,
   VARIANTS_KEY,
 } from './term.ts';
 export { variantsFromInput } from './variants-input.ts';
@@ -31,3 +32,11 @@ export {
 export type { VocabularyRow } from './vocabulary-query.ts';
 export { canCorrect, correctTerms } from './correct-terms.ts';
 export type { CorrectedText, TermChange } from './correct-terms.ts';
+export {
+  isKnownSpelling,
+  MAX_HEARD_WORDS,
+  MAX_SUGGESTED_SPELLING_CHARACTERS,
+  suggestedVariantRefusal,
+} from './term-suggestion.ts';
+export type { SuggestedVariant } from './term-suggestion.ts';
+export { isCommonWord } from './common-words.ts';

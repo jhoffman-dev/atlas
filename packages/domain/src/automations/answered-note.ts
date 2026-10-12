@@ -184,24 +184,35 @@ export interface NoteSkipped {
  * a meeting too long for one ask is read in parts: each its frontmatter and
  * the sections before its transcript (the notes trimmed to fit), then as many
  * whole turns as fit, after the last two turns of the part before, quoted for
- * context and not citable — up to {@link CLAUDE_ASKS_PER_RUN} asks a run.
- * Past that the rest of a meeting is not read, and is reported as cut.
+ * context and not citable — up to {@link CLAUDE_ASKS_PER_RUN} asks a run, or
+ * the `maxAsks` a step is left with, and `partsPerNote` parts of any one
+ * note. Past that the rest of a meeting is not read, and is reported as cut.
  */
 export function claudeAsks(
   notes: readonly AnsweredNote[],
-  { inParts }: { inParts: boolean },
+  {
+    inParts,
+    maxAsks = CLAUDE_ASKS_PER_RUN,
+    partsPerNote = Number.POSITIVE_INFINITY,
+  }: {
+    inParts: boolean;
+    /** The asks this step may make: fewer than a run's when steps before it have spent some (P29-06). */
+    maxAsks?: number;
+    /** The most parts of one note an output reads, when it need not read a long meeting through. */
+    partsPerNote?: number;
+  },
 ): ClaudeAsks {
   if (!inParts) return { asks: [notes], cut: cutNotes(notes), skipped: [] };
-  const skipped = notes
-    .filter((note) => meetingTurnsOf(note.text).length === 0)
-    .map(skippedWithout);
-  const read = notes.filter((note) => !skipped.some(({ path }) => path === note.path));
-  let spare = Math.max(0, CLAUDE_ASKS_PER_RUN - read.length);
+  const untaken = notes.filter((note) => meetingTurnsOf(note.text).length === 0);
+  const citable = notes.filter((note) => !untaken.includes(note));
+  const read = citable.slice(0, Math.max(0, maxAsks));
+  const skipped = [...untaken.map(skippedWithout), ...citable.slice(read.length).map(skippedUnasked)];
+  let spare = Math.max(0, maxAsks - read.length);
   const asks: AnsweredNote[][] = [];
   const cut: NoteCut[] = [];
   for (const note of read) {
     const { parts, head, unfit } = meetingParts(note, CLAUDE_NOTE_CHARACTERS);
-    const taken = parts.slice(0, 1 + spare);
+    const taken = parts.slice(0, Math.min(1 + spare, Math.max(1, partsPerNote)));
     spare -= taken.length - 1;
     asks.push(...taken.map((part) => [{ ...note, text: part.text }]));
     const characters = head + taken.reduce((sum, part) => sum + part.read, 0);
@@ -210,6 +221,13 @@ export function claudeAsks(
     }
   }
   return { asks, cut, skipped };
+}
+
+function skippedUnasked(note: AnsweredNote): NoteSkipped {
+  return {
+    path: note.path,
+    reason: 'The run had no questions left to put to Claude, so it was not asked about; run it by hand.',
+  };
 }
 
 function skippedWithout(note: AnsweredNote): NoteSkipped {

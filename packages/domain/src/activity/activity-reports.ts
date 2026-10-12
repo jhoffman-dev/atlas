@@ -14,6 +14,7 @@ import {
   logEntrySummary,
   type ClaudeRunInfo,
   type LogEntry,
+  type StepsRun,
 } from '../automations/run-log.ts';
 import { planVerb, type AutomationPlan } from '../automations/automation-plan.ts';
 import type { ActivityLevel, ActivityReport, ActivitySubject } from './activity-event.ts';
@@ -35,6 +36,7 @@ const noteSubject = (path: VaultPath): ActivitySubject => ({ kind: 'note', path 
  */
 export function automationEntryReport(rule: RuleNamed, entry: LogEntry): ActivityReport | null {
   if (entry.kind === 'turnedOn' || entry.kind === 'seen') return null;
+  if ('steps' in entry && entry.steps !== undefined) return stepsRunReport(rule, entry, entry.steps);
   // News let go is said as a warning: notes the rule was to run on now wait for a run by hand.
   const left = entry.kind === 'letGo' ? 1 : entry.kind === 'failed' ? 0 : entry.left.length;
   const level: ActivityLevel = entry.kind === 'failed' ? 'error' : left > 0 ? 'warning' : 'info';
@@ -49,6 +51,37 @@ export function automationEntryReport(rule: RuleNamed, entry: LogEntry): Activit
     kind: 'automation',
     message: `${rule.name}: ${heading}${notes}. ${said}${asked}`,
     subject: ruleSubject(rule),
+  };
+}
+
+/**
+ * One meeting's run of a rule of several steps (P29-06), as one line that
+ * opens: the meeting and how the run went, then each step in order under it —
+ * what it did, that it had been done already, or where it failed and what
+ * was not run after. A step that failed makes the line an error; the steps
+ * before it are still said, since what they did stayed.
+ */
+function stepsRunReport(
+  rule: RuleNamed,
+  entry: Extract<LogEntry, { kind: 'run' | 'failed' }>,
+  steps: StepsRun,
+): ActivityReport {
+  const failed = steps.records.find((record) => record.outcome === 'failed');
+  const left = entry.kind === 'run' ? entry.left.length : 0;
+  const level: ActivityLevel = failed !== undefined ? 'error' : left > 0 ? 'warning' : 'info';
+  const title = noteTitle(steps.note);
+  const ran = steps.records.filter((record) => record.outcome !== 'skipped').length;
+  const went =
+    failed === undefined
+      ? `ran its ${steps.records.length} steps`
+      : `stopped at step ${ran} of ${steps.records.length}`;
+  const said = failed === undefined ? '' : ` ${failed.said}`;
+  return {
+    level,
+    kind: 'automation',
+    message: `${rule.name} · ${title}: ${went}.${said}${claudeAsked(entry.claude)}`,
+    subject: noteSubject(steps.note),
+    details: steps.records.map((record, at) => `${at + 1}. ${record.said}`),
   };
 }
 
@@ -438,7 +471,9 @@ export type ScreenWrite =
   | 'task'
   | 'term'
   | 'block'
-  | 'corrections';
+  | 'corrections'
+  | 'recorrection'
+  | 'links';
 
 const SCREEN_WRITE_WORDS: Readonly<Record<ScreenWrite, string>> = {
   edit: 'Could not save an edit',
@@ -455,6 +490,8 @@ const SCREEN_WRITE_WORDS: Readonly<Record<ScreenWrite, string>> = {
   term: 'Could not save the term',
   block: 'Could not plan the task',
   corrections: 'Could not undo the corrections',
+  recorrection: 'Could not correct the meeting again',
+  links: 'Could not undo the links',
 };
 
 /**

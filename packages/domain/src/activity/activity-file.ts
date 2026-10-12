@@ -36,8 +36,8 @@ export const ACTIVITY_TRIM_TO_BYTES = 4 * 1024 * 1024;
 
 /** A line of the file, newline included. */
 export function activityLine(event: ActivityEvent): string {
-  const { at, level, kind, message, subject } = event;
-  return `${JSON.stringify({ at, level, kind, message, subject })}\n`;
+  const { at, level, kind, message, subject, details } = event;
+  return `${JSON.stringify({ at, level, kind, message, subject, ...(details !== undefined && { details }) })}\n`;
 }
 
 /**
@@ -63,7 +63,7 @@ function parseLine(line: string): ActivityEvent | null {
     return null;
   }
   if (typeof value !== 'object' || value === null) return null;
-  const { at, level, kind, message, subject } = value as Record<string, unknown>;
+  const { at, level, kind, message, subject, details } = value as Record<string, unknown>;
   if (typeof at !== 'number' || !Number.isFinite(at)) return null;
   if (!isOneOf(ACTIVITY_LEVELS, level) || !isOneOf(ACTIVITY_KINDS, kind)) return null;
   if (typeof message !== 'string') return null;
@@ -73,6 +73,8 @@ function parseLine(line: string): ActivityEvent | null {
     kind: kind as ActivityKind,
     message,
     subject: parseSubject(subject),
+    // Lines that are no text are dropped by the event itself, as a hand-edited file may hold anything.
+    ...(Array.isArray(details) && { details: details as readonly string[] }),
   });
 }
 

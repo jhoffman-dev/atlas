@@ -579,6 +579,235 @@ bullets above, this wins._
   is not detected; a compound owner among others (`Tobias and Lena`) is not
   split into two tasks.
 
+### Addendum (2026-10-11, P29-06, #19): a rule of several steps, and suggested terms
+
+_As built on the stack above: `do: steps`, the "After a meeting" rule and its
+one switch, the `term-suggestions` output, the link record on the meeting, and
+"Correct again"._
+
+#### Several steps in one rule
+
+- **The file.** A rule's action may be a list: `do: steps`, with the steps
+  under `steps:`, each written as a rule of its own writes its action.
+
+  ```yaml
+  when: a meeting is created
+  which: FROM meeting
+  do: steps
+  steps:
+    - do: correct-terms
+    - do: link-meeting
+    - do: claude
+      prompt: .atlas/prompts/meeting-extraction.md
+      output: meeting-items
+    - do: claude
+      prompt: .atlas/prompts/term-suggestions.md
+      output: term-suggestions
+  ```
+
+  A rule with one action is written and read exactly as before; nothing about
+  it changed. `do:` as a list was considered and left: a Claude step needs its
+  own `prompt`, `tools` and `output`, which a list of words cannot carry, and
+  two Claude steps in one rule need two of each.
+- **What may be a step** is a short list (`rule-steps.ts`): `correct-terms`
+  and `link-meeting` — the two declared deterministic steps of a meeting — and
+  `claude`. At most six. `archive` and `set` are refused as steps: a step that
+  moved the note would take it from under the steps after it, and their undo
+  is the rule's own. A rule holding `correct-terms` or `link-meeting` must be
+  one a meeting sets off (`when: a meeting is …`), so those steps are never
+  handed another kind of note.
+- **How it runs** (`run-steps.ts`). Each note the run takes gets every step in
+  the order written, and **one log entry of its own**, naming the note
+  (`- on`) and each step with how it went (`- step "<name>" "<outcome>": …`):
+  `done`, `already`, `nothing`, `failed` or `skipped`. One entry per note, not
+  per run, so "Undo last run" is one meeting's, Activity has one line per
+  meeting, and the versions an entry records are that meeting's.
+- **A failed step stops the steps after it for that note**, which are logged
+  `skipped` ("not run, because an earlier step failed"). The entry is then a
+  run that could not finish (`failed`): its problem says which step of how
+  many and why, `done` lists what the steps before it did — which **stays** —
+  and it records no handled version, so a run by hand (or the next opening's
+  catch-up) takes the meeting again and finds its earlier steps already done.
+  The next note of the same run is still run. Another vault opening, or a disk
+  refusing a Claude step's write, also ends the whole run once its entry is
+  written, as it does a Claude step's.
+- **What a step may refuse.** A meeting open with unsaved typing cannot be
+  corrected or linked: the step fails, saying so, rather than leaving the
+  meeting unlinked for good behind a run that reads as done.
+
+#### One owner for correcting and linking: the import
+
+- **The import still corrects and links a meeting as it lets it in**
+  (ADR-0027): both must be in the version that arrives, which is the one a
+  `created` rule hears. The rule's first two steps therefore find a meeting
+  the import let in already done, **say so and write nothing**:
+  "Already corrected when it arrived (2 misheard spellings); not corrected
+  again", "Already linked when it arrived; not linked again". No meeting is
+  corrected or linked twice, and the log does not claim the step did it.
+- **They do the work only where nothing has**: a meeting made by hand, one
+  that reached the vault another way, and one whose linking failed as it was
+  let in. Which is decided by the record each leaves on the meeting, never by
+  who asks.
+- **Linking now leaves a record, as correcting does.** `atlas_links` holds the
+  links it added to each relation (`[{ key: people, added: ["[[Mara Quill]]"]
+  }]`), `none` when nothing was sure, or `undone`; `atlas_link_proposals`
+  the proposals it wrote, by path. It is written in the same write as the
+  links. A meeting that holds the key in any form has been linked and is
+  never linked again by itself — so a person taken out of `people` stays out
+  whoever runs linking — and `linkMeeting` answers `already` for it without
+  reading the vault.
+- **The retry marker is the absence of the record.** A meeting whose linking
+  failed as it was let in (the index would not answer, the note was being
+  typed in) is stamped without `atlas_links`; the rule's link step links any
+  meeting that lacks it. Nothing extra is written to say "retry", so a crash
+  between the two cannot leave a stale marker.
+- **No extra write for a meeting nobody was linked to.** When linking adds no
+  link, the import carries the record (`none`, and any proposals) in its stamp
+  write (`linkBeforeLetIn`, `LetInStamp`), so such a meeting is still written
+  once. Elsewhere — the rule's own step — the record is one small write.
+- **Meetings imported before this have no record.** A run by hand of the rule
+  on one links it again: only sure links are added, but a person James had
+  taken out would come back once. Not migrated; said here.
+
+#### Undo
+
+- **"Undo links" on the meeting** (`undoMeetingLinks`): each link the record
+  says linking added is taken out of `people` and `companies` **where it
+  still stands as linking wrote it** — one the person added, rewrote, or got
+  by accepting a proposal stays — each proposal it wrote that is still open
+  goes to the Trash, and the meeting is marked `atlas_links: undone`. Refused
+  with nothing written for a meeting with nothing recorded, one being typed
+  in, or a note that is no meeting. Only the two relations linking declares,
+  and only paths where proposals wait, are believed from the record. The
+  before/after undo of P29-04 (which refused a relation changed since, and so
+  refused as soon as one person proposal was accepted) is gone.
+- **"Undo last run" on a rule of several steps** undoes its last entry — one
+  meeting's run — through the meeting's own two undos: its corrections
+  (`undoMeetingTermCorrections`), then its links. Only what **that run** did:
+  a step that said `already` logged nothing to take back, so the import's
+  corrections are not undone from the rule (they are from the meeting's
+  band). The log's new lines are what it reads — `- corrected "<meeting>"
+  2`, `- linked "<meeting>" 3` — and each is believed only for a rule that
+  has that step; what is put back comes from the meeting's record, never the
+  line. A run that failed part-way is as undoable as one that finished.
+- **What undo does not take back, it names.** Every proposal the run made is
+  listed among what was left: "What a Claude step made is answered in the
+  Inbox…". A link proposal the undo did withdraw is not listed twice.
+
+#### Suggested terms
+
+- **A third output, `term-suggestions`** (`term-suggestions.ts`):
+  `{ "terms": [ { heard, canonical, kind: product | person | company |
+  acronym, source_block, confidence } ] }`. The model is told, as fenced data,
+  who was in the meeting, the names of the vault's people and companies, and
+  its terms with the mishearings already listed.
+- **Each kept item is a `term` proposal**; nothing is rewritten by a
+  suggestion. Accepting one **adds the heard spelling to the term's
+  `variants`** when the vault has a term of that right spelling (found by its
+  spelling, wherever it is filed), and otherwise **makes the term** in
+  `Terms/` with that one variant. Undo of the accept takes it back as any
+  accept is undone. A proposal that carries no spelling the term lacks is
+  refused ("it lists every misheard spelling this proposes"), as is a new
+  term that would take a `[[link]]` from another note (A21-02).
+- **What may be a variant is a domain rule** (`suggestedVariantRefusal`,
+  `terms/term-suggestion.ts`), applied when a suggestion is read **and again
+  when it is accepted** (the vocabulary may have grown; the proposal is a
+  note and may have been edited). Never: an everyday word, or words made only
+  of them (`terms/common-words.ts`, a short list); the right spelling itself,
+  or the same in other capitals (a variant matches as written, so `mark` for
+  `Mark` would rewrite the everyday word); the right spelling of something
+  else; what a person goes by (a name or an alias); words out of anyone's
+  name (`Quill` while there is a `Mara Quill`), including the right spelling's
+  own; a spelling already listed as misheard, for this or anything else; or a
+  right spelling that is itself listed as a mishearing. An item the rule
+  refuses is dropped and logged (`- dropped "heard → canonical": why`), the
+  rest of the answer kept.
+- **It must be in the turn it cites.** `source_block` is a transcript turn of
+  the one meeting asked about, and the turn must hold the heard spelling as
+  the correction would find it (whole words, as written, outside a link or
+  code) — in its words or its speaker label. Otherwise the item is dropped.
+- **A right spelling nobody can vouch for is low confidence**, whatever the
+  model claimed: one that is neither in the vocabulary nor an attendee's
+  name. The card says to check the spelling.
+- **Known by what it proposes, not where it was heard.** The proposal's id is
+  the heard spelling and the right one — not the meeting, the turn or the rule
+  (`sharedAcrossNotes`). The same mishearing in the next meeting, before the
+  first was answered, makes nothing new; a rejection answers it for good.
+- **Re-correction is the person's, on the meeting.** Accepting a term does not
+  touch any meeting. Meetings that arrive after are corrected by it (the
+  import reads the vocabulary as it lets each in). A meeting already there is
+  corrected only by **"Correct again"** on its band (`recorrectMeetingTerms`):
+  the last correction is taken back first where the words are still as it
+  left them, and the original is corrected afresh by today's terms — so the
+  band's one Undo still puts every original word back. Where the words were
+  edited since, or its corrections were undone, what is there now is
+  corrected, and Undo goes back to that. A tick box on the proposal's card
+  ("also correct this meeting") was considered and left out: accepting would
+  then rewrite a transcript as a side effect of filing a term, and the
+  vocabulary the write would need is not in the index until the term is.
+  Nothing else corrects a meeting twice.
+
+#### Cost and safety
+
+- **The two Claude steps share one run's asks and the hour's cap.** A run of
+  the rule makes at most `CLAUDE_ASKS_PER_RUN` (10) asks across every meeting
+  and both steps; the entry's `claude.asks` is the sum, which is what the
+  hourly cap counts. A meeting is started only while an ask is left for each
+  Claude step it has; past that the entry says the run stopped short and the
+  rest wait for a run by hand. Within a meeting, a step leaves one ask for
+  each Claude step after it, so extraction of a very long meeting cannot
+  starve the suggestions.
+- **Term suggestions read at most two parts of a meeting**
+  (`TERM_SUGGESTION_PARTS_PER_MEETING`, `ProposalSchema.partsPerNote`), cut as
+  extraction cuts them and one meeting per ask. A name misheard once is
+  misheard throughout, so the start finds most of them, and a long meeting's
+  asks are better spent on what was agreed. The log's `- cut` line says when
+  a meeting was read in part. Skipping long meetings altogether was the other
+  choice; reading their start costs two asks and finds the same names.
+- **Every guarantee of a Claude step holds for both**: nothing edits a note,
+  strict schemas, vault text only as fenced data, every proposal citing a
+  turn the model was shown. The steps go through `runClaudeStep` unchanged.
+- **Handled by the words, once.** Both outputs name the meeting's body as its
+  key (`meetingWordsKey`), recorded once per version. A step of the same run
+  that wrote the note — a hand-made meeting corrected before Claude was asked
+  — leaves a `wrote` version that counts as answered too, since those are the
+  words that were asked about.
+
+#### The switch, Activity and the log
+
+- **One switch, and it is the rule.** The Automations page has a card above
+  the rules, "After a meeting", with one toggle. On, in a vault without the
+  rule, makes the ready-made rule (`.atlas/automations/After a meeting.md`,
+  with both prompts written beside it); after that it is that rule's own
+  `enabled`. It sits on the Automations page rather than in Settings because
+  it _is_ a rule: its log, dry run, "Run now" and "Undo last run" are there,
+  and a second control somewhere else could only disagree with the first. The
+  rule is found by its file's name; renamed, the card offers a new one.
+  The older ready-made rule (extraction alone) stays for vaults that have it;
+  with both on, a meeting is asked about twice, and the proposals — known by
+  the meeting, not the rule — are still made once.
+- **Activity has one line per meeting that opens.** An `ActivityReport` may
+  carry `details`, a line each (held to the same cleaning as the message, at
+  most twelve); the Activity page shows such a line as a group that opens to
+  its steps. The line says the meeting and "ran its 4 steps" or "stopped at
+  step 3 of 4" with the failure; it is an error when a step failed.
+- **Dry run names the steps.** "Would run its 4 steps on 1 note. For each, in
+  order: Correct its terms → Link its people and companies → …" — and the
+  API's plan carries `steps`.
+
+#### Not done
+
+- The steps of a rule are not edited in the app's editor: it lists them, and
+  the rule's file is where one is taken out or its prompt changed.
+- No per-step memory: a meeting whose run stopped at step 3 is asked about
+  again from step 3 by the next run, and the steps before it say `already`.
+- "Correct again" and "Undo links" are in the app only, as "Undo corrections"
+  is: each is a person's decision about one meeting's words, and the API has
+  no undo of its own (ADR-0016).
+- A term whose right spelling holds a character a file name cannot (`S/4`) is
+  made under the cleaned name; the Terms page's `title` handling is not
+  repeated for a proposal.
+
 ## Consequences
 
 - A Mac that is not the automations Mac never runs Claude on a meeting; the

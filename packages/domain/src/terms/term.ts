@@ -7,6 +7,9 @@ export { variantsFromInput } from './variants-input.ts';
 /** The `type:` a term's note declares. */
 export const TERM_TYPE = 'term';
 
+/** The folder terms are filed in, by the Terms page and by an accepted suggestion alike. */
+export const TERMS_FOLDER_NAME = 'Terms';
+
 /** The misheard spellings of a term, as a list in its frontmatter. */
 export const VARIANTS_KEY = 'variants';
 

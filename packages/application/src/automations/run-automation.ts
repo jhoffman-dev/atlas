@@ -4,6 +4,8 @@ import {
   messageWithoutPaths,
   noteRunsHeldUntil,
   noteTriggerHears,
+  remembersNotes,
+  STEPS_ACTION,
   triggeringVersions,
   unhandledVersions,
   type AutomationPlan,
@@ -40,6 +42,7 @@ import {
   type RuleTarget,
 } from './note-runs.ts';
 import type { RuleQueryPorts } from './plan-run.ts';
+import { runSteps } from './run-steps.ts';
 import { guardedFs, stillInVault, type VaultGuard } from './vault-guard.ts';
 
 /**
@@ -84,7 +87,7 @@ export async function runAutomation(
   const aim: Aim = async (ports, today) => {
     // Run by hand, a rule notes set off does what it would have for each note not yet handled;
     // a Claude step, on any trigger, is never asked again about a version it has answered.
-    const remembers = rule.when.kind === 'note' || rule.action.kind === 'claude';
+    const remembers = rule.when.kind === 'note' || remembersNotes(rule.action);
     const log = remembers ? await readRuleLog(run.ports.fs, rule) : null;
     return planRuleNow({
       ports,
@@ -291,6 +294,9 @@ async function runOnce({
     const asked = { run, ports, target, action: plan.action, at, trigger, went, log };
     return askClaude(asked);
   }
+  if (plan.action.kind === STEPS_ACTION && plan.paths.length > 0) {
+    return runSteps({ run, ports, target, action: plan.action, trigger, went, log });
+  }
   let applied: PropertyOutcome = { done: [], left: [] };
   let versions: LoggedVersion[] = [];
   const entry = (): LogEntry => ({
@@ -429,8 +435,10 @@ async function applyPlan({
   today: string;
 }): Promise<PropertyOutcome> {
   const { action } = plan;
-  // A Claude step with notes to read is asked before this; with none, it does nothing.
-  if (plan.paths.length === 0 || action.kind === 'claude') return { done: [], left: [] };
+  // A Claude step, or steps, with notes to read are carried out before this; with none, they do nothing.
+  if (plan.paths.length === 0 || action.kind === 'claude' || action.kind === STEPS_ACTION) {
+    return { done: [], left: [] };
+  }
   if (action.kind === 'set') {
     const changes = plan.paths.flatMap((path) =>
       Object.entries(action.values).map(([key, value]) => ({

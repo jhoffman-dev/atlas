@@ -7,12 +7,14 @@ export {
   automationIdProblem,
   automationNameProblem,
   automationPathFor,
+  claudeStepsOf,
   describeAction,
   draftProblem,
   isAutomationNote,
   isAutomationPath,
   MAX_OLDER_THAN_DAYS,
   parseAutomationRule,
+  remembersNotes,
   setKeyProblem,
   setValueFromInput,
   wouldChange,
@@ -52,6 +54,7 @@ export {
   newLogText,
   parseRunLog,
   stillAsLeft,
+  STEP_OUTCOMES,
   logEntryHeading,
   logEntrySummary,
 } from './run-log.ts';
@@ -62,6 +65,10 @@ export type {
   LoggedVersion,
   PriorValue,
   RunTrigger,
+  StepOutcome,
+  StepRecord,
+  StepsRun,
+  UndoableRun,
 } from './run-log.ts';
 export {
   CLAUDE_NOTES_PER_RUN,
@@ -94,12 +101,39 @@ export type {
 } from './proposal-schema.ts';
 export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
 export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
+export {
+  SUGGESTED_TERM_KINDS,
+  TERM_SUGGESTION_PARTS_PER_MEETING,
+  TERM_SUGGESTIONS,
+  TERM_SUGGESTIONS_OUTPUT,
+} from './term-suggestions.ts';
+export {
+  CORRECT_TERMS_STEP,
+  describeStep,
+  describeSteps,
+  LINK_MEETING_STEP,
+  MAX_RULE_STEPS,
+  stepName,
+  STEPS_ACTION,
+} from './rule-steps.ts';
+export type { RuleStep, StepsAction } from './rule-steps.ts';
+export {
+  claudeStepRecord,
+  correctionStepRecord,
+  failedStepRecord,
+  linkStepRecord,
+  skippedStepRecord,
+  stepsFailedProblem,
+  unaskedStepRecord,
+} from './rule-step-words.ts';
+export type { CorrectionOutcome, LinkOutcome } from './rule-step-words.ts';
 export { itemOwner } from './meeting-item-owner.ts';
 export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
 export {
   BUILT_IN_PROMPTS,
   builtInPromptAt,
   MEETING_EXTRACTION_PROMPT,
+  TERM_SUGGESTIONS_PROMPT,
 } from './built-in-prompts.ts';
 export type { BuiltInPrompt } from './built-in-prompts.ts';
 export { NOTE_ANSWER_INSTRUCTIONS, readNoteAnswer } from './note-answer.ts';
@@ -158,4 +192,9 @@ export type {
   NoteVersionRef,
 } from './note-trigger.ts';
 export { loggedActionProblem, unarchiveProblem } from './undo-check.ts';
-export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';
+export {
+  AFTER_A_MEETING,
+  AFTER_A_MEETING_PRESET,
+  AUTOMATION_PRESETS,
+  BLANK_AUTOMATION,
+} from './presets.ts';

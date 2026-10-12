@@ -16,11 +16,8 @@
  * whole answer, as for every output.
  */
 
-import { splitFrontmatter } from '../markdown/markdown-document.ts';
-import { digestOf } from '../sources/merge.ts';
 import { NEW_TASK_STATUS, TASK_KEYS, WAITING_STATUS } from '../gtd/gtd-status.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
-import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import {
   MEETING_DECISIONS_KEY,
   MEETING_TASKS_KEY,
@@ -32,12 +29,16 @@ import { TAGS_KEY } from '../tags/note-tags.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { truncated } from './answer-limits.ts';
 import { sameName } from '../meeting-links/vault-owner.ts';
-import { shownNotes, type AnsweredNote } from './answered-note.ts';
+import type { AnsweredNote } from './answered-note.ts';
 import { itemOwner, type ItemOwner, type OwnerDirectory } from './meeting-item-owner.ts';
 import {
-  citedBlockProblem,
+  citedMeetingTurn,
+  meetingLinkTarget,
+  meetingWordsKey,
+  type CitedMeetingTurn,
+} from './meeting-citation.ts';
+import {
   isRecord,
-  namesNote,
   type AnswerContext,
   type DroppedItem,
   type ItemReading,
@@ -156,82 +157,14 @@ function nearMeeting(due: number, meetingDate: string | null, year: number): boo
   return Math.abs(due - meeting) <= MAX_DUE_YEARS_FROM_MEETING * 365.25 * DAY_MS;
 }
 
-/** The turn an item cites, in a meeting the model was shown — or why it cites none. */
-type CitedTurn =
-  | {
-      readonly ok: true;
-      readonly meeting: AnsweredNote;
-      readonly turn: TranscriptTurn;
-      /** The citation as a link the shared check reads: `[[Meeting#^t0004]]`. */
-      readonly source: string;
-    }
-  | { readonly ok: false; readonly reason: string };
-
-const BARE_ID = /^\^?([A-Za-z0-9-]+)$/;
-
-/** What a `source_block` names: a turn's id, and the meeting when it was written as a link. */
-function writtenCitation(sourceBlock: string): { id: string; target: string | null } | null {
-  const written = sourceBlock.trim();
-  const bare = BARE_ID.exec(written);
-  if (bare !== null) return { id: bare[1]!, target: null };
-  const link = readWikiLink(written);
-  if (link === null || link.embed || !link.heading?.startsWith('#^')) return null;
-  const id = link.heading.slice(2);
-  return id === '' ? null : { id, target: link.target };
-}
-
-/**
- * The transcript turn an item's `source_block` is: an id (`t0004`) of a turn
- * of the one meeting this answer is about. Only a turn of the Transcript
- * counts: a block of the summary or of the provider's next steps is not what
- * was said.
- *
- * One meeting, never several: which meeting an accepted task is linked back
- * to follows from the turn it cites, so an answer about two meetings could
- * file one's task under the other — and two notes of one title could not be
- * told apart at all. A run asks about each meeting alone (`readsInParts`); an
- * answer checked against more than one note has every item left out.
- */
-function citedTurn(item: MeetingItem, context: AnswerContext): CitedTurn {
-  const cited = writtenCitation(item.sourceBlock);
-  if (cited === null) {
-    return unfound(`Its source_block ${quoted(item.sourceBlock)} is not the id of a turn.`);
-  }
-  const [meeting, ...others] = shownNotes(context.notes);
-  if (others.length > 0) return unfound('This output reads one meeting at a time.');
-  if (meeting?.meeting === undefined) return unfound('This run read no meeting to cite a turn of.');
-  const from = noteTitle(meeting.path);
-  if (cited.target !== null && !namesNote(cited.target, meeting.path)) {
-    return unfound(`It cites ${quoted(cited.target)}, which is not the meeting it was taken from.`);
-  }
-  const turn = meetingTurnsOf(meeting.text).find((each) => each.blockId === cited.id);
-  if (turn === undefined) {
-    return unfound(
-      `${from} has no transcript turn ^${truncated(cited.id, 40)} that Claude was shown.`,
-    );
-  }
-  const source = `[[${linkTarget(meeting, context)}#^${cited.id}]]`;
-  // The shared check reads it again, its own way (outside a code fence): what it would refuse is left out here.
-  const problem = citedBlockProblem(source, context.notes);
-  return problem === null ? { ok: true, meeting, turn, source } : unfound(problem);
-}
-
-const unfound = (reason: string): CitedTurn => ({ ok: false, reason });
 const quoted = (text: string): string => JSON.stringify(truncated(text, 80));
 
-/** What a link to the meeting is written as: spelt against the vault's notes when the run knows them. */
-function linkTarget(meeting: AnsweredNote, { vault }: AnswerContext): string {
-  return vault === undefined
-    ? noteTitle(meeting.path)
-    : wikiLinkTargetFor(meeting.path, vault.notePaths);
-}
-
 function droppedItem(item: MeetingItem, context: AnswerContext): DroppedItem | null {
-  const cited = citedTurn(item, context);
+  const cited = citedMeetingTurn(item.sourceBlock, context);
   return cited.ok ? null : { title: item.title, reason: cited.reason };
 }
 
-type FoundTurn = Extract<CitedTurn, { ok: true }>;
+type FoundTurn = Extract<CitedMeetingTurn, { ok: true }>;
 
 /** What an item concerns, as a proposal's identity holds it: lower-cased, one owner. */
 function ownerKey(owner: ItemOwner): string {
@@ -249,7 +182,7 @@ function ownerKey(owner: ItemOwner): string {
 }
 
 function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[] {
-  const cited = citedTurn(item, context);
+  const cited = citedMeetingTurn(item.sourceBlock, context);
   // An item that cites no turn was left out before this is asked.
   if (!cited.ok) return [];
   const from = noteTitle(cited.meeting.path);
@@ -261,7 +194,7 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
         kind: 'decision',
         payload: {
           title: item.title,
-          properties: { meeting: `[[${linkTarget(cited.meeting, context)}]]` },
+          properties: { meeting: `[[${meetingLinkTarget(cited.meeting, context)}]]` },
         },
         source: cited.source,
         confidence: unnamed ? 'low' : item.confidence,
@@ -537,7 +470,7 @@ export const MEETING_ITEMS: ProposalSchema<MeetingItem> = {
   meetingRelations: [MEETING_TASKS_KEY, MEETING_DECISIONS_KEY],
   readItem: readMeetingItem,
   sharedAcrossRules: true,
-  handledKeyOf: bodyDigestOf,
+  handledKeyOf: meetingWordsKey,
   dropsUnreadable: true,
   positionOf: turnPosition,
   dropped: droppedItem,
@@ -552,17 +485,4 @@ function turnPosition(cites: ProposalCitation, { notes }: AnswerContext): number
   const note = notes.find((each) => each.path === cites.note);
   const at = meetingTurnsOf(note?.text ?? '').findIndex((turn) => turn.blockId === cites.block);
   return at === -1 ? Number.MAX_SAFE_INTEGER : at;
-}
-
-/**
- * What a meeting is, to a rule that has answered it: the words, not the
- * frontmatter. Accepting a proposal writes the meeting's `tasks` or
- * `decisions`; that is Atlas's change, not something said in the meeting, and
- * must not make the meeting new.
- */
-function bodyDigestOf({ text, meeting }: Pick<AnsweredNote, 'text' | 'meeting'>): string | null {
-  const identity = meeting?.identity;
-  // Keys match across paths: only a meeting the import vouches for is unique enough to name.
-  if (identity === null || identity === undefined) return null;
-  return `meeting:${identity.provider}:${identity.externalId}:body:${digestOf(splitFrontmatter(text).body)}`;
 }

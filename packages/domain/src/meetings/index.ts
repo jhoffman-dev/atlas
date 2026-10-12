@@ -55,11 +55,17 @@ export {
   CORRECTIONS_UNDONE,
   NOTHING_CORRECTED_PROPERTIES,
   recordedCorrections,
+  recorrectMeetingBody,
   UNDONE_CORRECTION_PROPERTIES,
   undoMeetingCorrections,
   wasCorrected,
 } from './meeting-corrections.ts';
-export type { CorrectionRecord, CorrectionUndo, MeetingCorrection } from './meeting-corrections.ts';
+export type {
+  CorrectionRecord,
+  CorrectionUndo,
+  MeetingCorrection,
+  Recorrection,
+} from './meeting-corrections.ts';
 export {
   MEETING_DECISIONS_KEY,
   MEETING_EXTRACTION_PROPERTIES,

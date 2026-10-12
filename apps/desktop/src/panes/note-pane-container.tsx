@@ -62,6 +62,7 @@ import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
 import { useLinePromotion } from '../notes/use-line-promotion.ts';
 import { useMeetingCorrections } from '../notes/use-meeting-corrections.ts';
+import { useMeetingLinks } from '../notes/use-meeting-links.ts';
 import { cryptoRng } from '../random.ts';
 import { usePlanner } from '../timeblocks/use-planner.ts';
 import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
@@ -409,6 +410,18 @@ export function NotePaneContainer({
     onChanged,
     activity: context.activity,
   });
+  const meetingLinks = useMeetingLinks({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    index,
+    openNotes: context.openNotes,
+    flush: note.flush,
+    path,
+    properties: note.open?.properties ?? null,
+    today: localToday,
+    onChanged,
+    activity: context.activity,
+  });
   const embedImage = useEmbedImage({
     ports: {
       fs: notes.fs,
@@ -488,6 +501,7 @@ export function NotePaneContainer({
       }}
       {...(template !== null && { template })}
       {...(corrections !== undefined && template === null && { corrections })}
+      {...(meetingLinks !== undefined && template === null && { meetingLinks })}
       {...(onMoveTo !== undefined &&
         path !== null &&
         template === null &&

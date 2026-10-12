@@ -15,11 +15,9 @@ import {
   noteChangesBetween,
   parseObjectType,
   type NoteVersion,
-  type VaultPath,
-  type Vocabulary,
 } from '@atlas/domain';
 import { heldEntries } from '../index/refresh-index.ts';
-import { createMeetingLinker } from '../meeting-links/link-imported-meetings.ts';
+import { createMeetingLinker, linkBeforeLetIn } from '../meeting-links/link-imported-meetings.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { MEETING_HEADER } from '../testing/meeting-files.ts';
@@ -85,11 +83,7 @@ async function setUp({ openVault = () => VAULT }: { openVault?: () => string | n
     ...wiring,
     active: () => true,
     // As the app wires it: the linker is handed what the import's run has read.
-    beforeLetIn: async (
-      vaultKey: string,
-      path: VaultPath,
-      reading: { readonly vocabulary: Vocabulary },
-    ) => void (await linker(vaultKey, [path], reading)),
+    beforeLetIn: linkBeforeLetIn(linker),
   });
   const land = (path: string) =>
     vault.ports.fs.createNote({ path: createVaultPath(path), contents: ARRIVING });

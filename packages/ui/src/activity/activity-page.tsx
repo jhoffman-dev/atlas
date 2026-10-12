@@ -21,6 +21,11 @@ export interface ActivityRowView {
   readonly message: string;
   /** What the line is about, named for its link; null when it links nowhere. */
   readonly subject: string | null;
+  /**
+   * What the line sums up, in order — the steps of one meeting's run (P29-06).
+   * With any, the line opens to show them; with none it is just the line.
+   */
+  readonly details?: readonly string[];
 }
 
 export interface ActivityPageProps {
@@ -128,6 +133,27 @@ function Filters({ level, kinds, text, onLevel, onToggleKind, onText }: Activity
   );
 }
 
+/**
+ * A line's words. One that sums up several steps is a group that opens: the
+ * line stays its summary, and the steps are listed under it in their order.
+ */
+function Message({ row }: { row: ActivityRowView }) {
+  const details = row.details ?? [];
+  if (details.length === 0) {
+    return <span className="activity-line__message">{row.message}</span>;
+  }
+  return (
+    <details className="activity-line__message activity-line__group">
+      <summary className="activity-line__summary">{row.message}</summary>
+      <ol className="activity-line__steps" aria-label="Steps of this run">
+        {details.map((detail, at) => (
+          <li key={at}>{detail}</li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 function Lines({ rows, total, error, onOpenSubject }: ActivityPageProps) {
   if (error !== null) {
     return (
@@ -157,7 +183,7 @@ function Lines({ rows, total, error, onOpenSubject }: ActivityPageProps) {
             {LEVEL_LABELS[row.level]}
           </span>
           <span className="activity-line__kind">{ACTIVITY_KIND_LABELS[row.kind]}</span>
-          <span className="activity-line__message">{row.message}</span>
+          <Message row={row} />
           {row.subject !== null && (
             <button
               type="button"

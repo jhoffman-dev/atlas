@@ -53,7 +53,17 @@ export interface ImportContext {
 export type BeforeLetIn = (
   path: VaultPath,
   reading: { readonly vocabulary: Vocabulary },
-) => Promise<void | 'vault-changed'>;
+) => Promise<void | 'vault-changed' | LetInStamp>;
+
+/**
+ * What a step done before a meeting is let in asks to have written with the
+ * stamp: its own record, when it had nothing else to write to the meeting
+ * (linking that linked no one, P29-06). Carried in the stamp write, it costs
+ * the meeting no write of its own.
+ */
+export interface LetInStamp {
+  readonly stamp: Readonly<Record<string, unknown>>;
+}
 
 /** Why a meeting was not let in once its vault was no longer the one open. */
 export const VAULT_CHANGED =
@@ -220,6 +230,7 @@ export async function letIn(
     values: {
       [IMPORT_OUTCOME_KEY]: 'imported',
       ...(fixed && { [IMPORT_ERROR_KEY]: null }),
+      ...(typeof went === 'object' && went.stamp),
       ...corrected?.values,
     },
     ...(corrected !== null && corrected.count > 0 && { body: corrected.body }),

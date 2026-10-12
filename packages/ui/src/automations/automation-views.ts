@@ -21,6 +21,22 @@ export interface AutomationRow {
   readonly notice: string | null;
 }
 
+/**
+ * The meeting assistant's one switch (P29-06): the "After a meeting" rule, as
+ * the card above the list shows it. It is that rule's own on and off — made
+ * the first time it is turned on — so the switch and the rule cannot disagree.
+ */
+export interface MeetingAssistantView {
+  /** Whether the rule is there and on. */
+  readonly on: boolean;
+  /** What it does to each meeting, in order, a line each. */
+  readonly steps: readonly string[];
+  /** "27 Sep 2026, 03:00 · Standup: …" — null when it has never run. */
+  readonly lastRun: string | null;
+  /** Why the rule's file cannot be read, when it cannot; the switch is then off and held. */
+  readonly problem: string | null;
+}
+
 /** One line under a log entry: a thing done, or a note left alone and why. */
 export interface LogLineView {
   readonly kind: 'done' | 'left';

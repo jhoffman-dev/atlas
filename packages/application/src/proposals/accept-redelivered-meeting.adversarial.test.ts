@@ -13,10 +13,9 @@ import {
   importOutcomeOf,
   noteChangesBetween,
   type NoteVersion,
-  type VaultPath,
 } from '@atlas/domain';
 import { heldEntries } from '../index/refresh-index.ts';
-import { createMeetingLinker } from '../meeting-links/link-imported-meetings.ts';
+import { createMeetingLinker, linkBeforeLetIn } from '../meeting-links/link-imported-meetings.ts';
 import { createMeetingImporter } from '../meetings/meeting-importer.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
@@ -57,7 +56,7 @@ async function setUp() {
   const importer = createMeetingImporter({
     ...wiring,
     active: () => true,
-    beforeLetIn: async (vaultKey: string, path: VaultPath) => void (await linker(vaultKey, [path])),
+    beforeLetIn: linkBeforeLetIn(linker),
   });
   const land = () =>
     vault.ports.fs.createNote({ path: createVaultPath(MEETING), contents: ARRIVING });

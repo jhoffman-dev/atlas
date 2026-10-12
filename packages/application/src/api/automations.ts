@@ -1,6 +1,7 @@
 import {
   automationIdKey,
   describeAction,
+  describeStep,
   describePlan,
   describeSchedule,
   lastRunOf,
@@ -16,7 +17,10 @@ import {
   type LogEntry,
   type Schedule,
   type PassedOver,
+  type RuleStep,
   type SetValue,
+  type StepsRun,
+  STEPS_ACTION,
   truncated,
 } from '@atlas/domain';
 import { loadAutomations, planRuleNow, type LoadedAutomation } from '../automations/index.ts';
@@ -34,6 +38,7 @@ import type {
   ApiAutomationRef,
   ApiClaudeStep,
   ApiNoteTrigger,
+  ApiRuleStep,
 } from './contract.ts';
 import { countOf } from './fields.ts';
 import { decodeSegment } from './paths.ts';
@@ -160,16 +165,26 @@ const refOf = (rule: { id: string; name: string }): ApiAutomationRef => ({
   name: rule.name,
 });
 
-/** The action as the rule's file writes it: `do`, `set` for a set rule, and a Claude step's keys. */
+/** The action as the rule's file writes it: `do`, `set` for a set rule, a Claude step's keys, and a rule's steps. */
 function actionFields(action: AutomationAction): {
   do: AutomationAction['kind'];
   set: Readonly<Record<string, SetValue>> | null;
   claude: ApiClaudeStep | null;
+  steps: readonly ApiRuleStep[] | null;
 } {
   return {
     do: action.kind,
     set: action.kind === 'set' ? { ...action.values } : null,
     claude: action.kind === 'claude' ? claudeStepOf(action) : null,
+    steps: action.kind === STEPS_ACTION ? action.steps.map(ruleStepOf) : null,
+  };
+}
+
+function ruleStepOf(step: RuleStep): ApiRuleStep {
+  return {
+    do: step.kind,
+    action: describeStep(step),
+    claude: step.kind === 'claude' ? claudeStepOf(step) : null,
   };
 }
 
@@ -233,8 +248,9 @@ function lastRunFrom(log: readonly LogEntry[]): ApiAutomationLastRun | null {
 function withoutPaths(entry: LogEntry): LogEntry {
   switch (entry.kind) {
     case 'failed':
-      return { ...entry, problem: messageWithoutPaths(entry.problem) };
+      return { ...entry, problem: messageWithoutPaths(entry.problem), ...stepsWithoutPaths(entry) };
     case 'run':
+      return { ...entry, left: entry.left.map(leftWithoutPaths), ...stepsWithoutPaths(entry) };
     case 'undo':
       return { ...entry, left: entry.left.map(leftWithoutPaths) };
     case 'turnedOn':
@@ -242,6 +258,16 @@ function withoutPaths(entry: LogEntry): LogEntry {
     case 'letGo':
       return entry;
   }
+}
+
+/** A run's steps with this machine's paths taken out of what each said; nothing for a run without steps. */
+function stepsWithoutPaths({ steps }: { readonly steps?: StepsRun }): { steps?: StepsRun } {
+  if (steps === undefined) return {};
+  const records = steps.records.map((record) => ({
+    ...record,
+    said: messageWithoutPaths(record.said),
+  }));
+  return { steps: { note: steps.note, records } };
 }
 
 const leftWithoutPaths = ({ path, reason }: PassedOver): PassedOver => ({
@@ -263,6 +289,7 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         ...(entry.versions !== undefined && { versions: entry.versions }),
         ...(entry.went !== undefined && { went: entry.went }),
         ...(entry.claude !== undefined && { claude: entry.claude }),
+        ...(entry.steps !== undefined && { steps: entry.steps }),
       };
     case 'undo':
       return { kind: 'undo', ...words, of: entry.of, done: entry.done, left: entry.left };
@@ -273,7 +300,8 @@ function logEntryOf(entry: LogEntry): ApiAutomationLogEntry {
         trigger: entry.trigger,
         problem: truncated(entry.problem),
         ...(entry.claude !== undefined && { claude: entry.claude }),
-        // A Claude step cut off part-way left what it had made.
+        ...(entry.steps !== undefined && { steps: entry.steps }),
+        // A Claude step cut off part-way, or the steps before one that failed, left what they had made.
         done: entry.done ?? [],
         left: [],
       };

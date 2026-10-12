@@ -131,6 +131,12 @@ interface StepArgs extends ProposalWritePorts {
   readonly rule: string;
   /** The rule and run, as each proposal's `made_by` says it. */
   readonly madeBy: string;
+  /**
+   * The most times this step may ask, when it is one of a rule's several and
+   * the steps before it have spent some of the run's asks (P29-06); a run's
+   * own most when left out.
+   */
+  readonly maxAsks?: number;
 }
 
 /**
@@ -196,7 +202,12 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   if (typeof prompt !== 'string') return fail(prompt.problem);
   const notes = await readAnswered(args, args.paths);
   const inParts = output.kind === 'proposals' && output.schema.readsInParts;
-  const plan = claudeAsks(notes, { inParts });
+  const plan = claudeAsks(notes, {
+    inParts,
+    ...(args.maxAsks !== undefined && { maxAsks: args.maxAsks }),
+    ...(output.kind === 'proposals' &&
+      output.schema.partsPerNote !== null && { partsPerNote: output.schema.partsPerNote }),
+  });
   cut = plan.cut;
   const signal = ports.deadline(CLAUDE_RUN_TIMEOUT_MS);
   const asking = { ...args, provider, model, prompt, output, fail, signal };
@@ -533,12 +544,13 @@ async function readVault({
   notePaths,
 }: Pick<StepArgs, 'ports' | 'index' | 'notePaths'>): Promise<AnswerVault> {
   const { people } = await loadLinkDirectory({ index });
-  const { terms } = await loadTerms({ index });
+  const { terms, vocabulary } = await loadTerms({ index });
   return {
     selfName: ports.selfName(),
     people,
     notePaths,
     terms: terms.map((term) => term.canonical),
+    vocabulary,
   };
 }
 

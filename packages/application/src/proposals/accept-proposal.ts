@@ -6,17 +6,25 @@ import {
   FINISHED_TASK_STATUS,
   joinFrontmatter,
   joinVaultPath,
+  linkTakeover,
   messageOf,
+  noteTitle,
   newNotePath,
   parentVaultPath,
   payloadRecord,
   proposalHeadline,
   readProposalPayload,
   splitFrontmatter,
+  suggestedVariantRefusal,
   isTaskNote,
+  proposedVariants,
   TASK_KEYS,
+  TERM_TYPE,
+  tidySpelling,
+  VARIANTS_KEY,
   vaultPathName,
   vaultSpellingOf,
+  type HeldTerm,
   type LinkFrom,
   type LinkTarget,
   type MarkdownDocument,
@@ -35,6 +43,7 @@ import { newNoteTaskRules, withTaskRules } from '../gtd/task-rules.ts';
 import { archiveTaskChange } from '../review/review-actions.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { noteModified } from '../notes/note-modified.ts';
+import { loadTerms } from '../terms/terms.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { unarchiveNotes } from '../archive/index.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
@@ -73,6 +82,81 @@ async function typesHeldAtNewNote(
   const { text } = await ports.fs.readTextFile(held);
   const type = ports.markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)['type'];
   return (Array.isArray(type) ? type : [type]).filter((item) => typeof item === 'string');
+}
+
+/**
+ * The term a term proposal is about, when the vault already has it, and the
+ * refusal of a spelling that may not be anyone's misheard variant (P29-06).
+ *
+ * A proposal's spellings are held to the rule a suggestion was when it was
+ * made (`suggestedVariantRefusal`), against the vocabulary as it is now: it
+ * may have grown since, and the proposal — a note — may have been edited. The
+ * term is found by its right spelling wherever it is filed; the index names
+ * it, and its own file is what is read and written.
+ */
+async function heldTermOf(
+  ports: ProposalPorts,
+  { proposal, notePaths }: { proposal: ProposalNote; notePaths: readonly VaultPath[] },
+): Promise<{ held: HeldTerm; note: LinkNote } | null> {
+  if (proposal.kind !== 'term') return null;
+  const { payload } = proposal;
+  const { terms, vocabulary } = await loadTerms({ index: ports.index });
+  const known = (spelling: string) => tidySpelling(spelling) === tidySpelling(payload.title);
+  const path =
+    terms.find((each) => known(each.canonical))?.path ??
+    notePaths.find((note) => foldedVaultPath(note) === foldedVaultPath(newNotePath(payload)));
+  const held = path === undefined ? null : await readTermNote(ports, path);
+  const listed = new Set((held?.held.variants ?? []).map(tidySpelling));
+  for (const heard of proposedVariants(payload)) {
+    if (listed.has(heard)) continue;
+    const refusal = suggestedVariantRefusal({ heard, canonical: payload.title }, vocabulary);
+    if (refusal !== null) throw new ProposalRefused(`${refusal} Nothing was written.`);
+  }
+  return held;
+}
+
+/**
+ * Refuses a term whose new note would take links written to another: making
+ * a term never changes what a `[[link]]` already in the vault opens (A21-02),
+ * from a proposal as from the Terms page.
+ */
+function refuseLinkTakeover(
+  writes: readonly ProposalWrite[],
+  notePaths: readonly VaultPath[],
+): void {
+  for (const write of writes) {
+    const overtaken = write.kind === 'create' ? linkTakeover(write.path, notePaths) : null;
+    if (overtaken === null) continue;
+    const title = noteTitle(write.path);
+    throw new ProposalRefused(
+      `“${title}” was not made: [[${title}]] already opens ${overtaken}, and would open the new term instead. Rename one of them first.`,
+    );
+  }
+}
+
+/** The term note at `path` as it is on disk; null when the note there is not a term. */
+async function readTermNote(
+  ports: ProposalPorts,
+  path: VaultPath,
+): Promise<{ held: HeldTerm; note: LinkNote } | null> {
+  refuseUnsaved(ports.editors, path);
+  const read = await ports.fs.readTextFile(path).catch((error: unknown) => {
+    // Gone since the index read it: there is no term there to add to, and one is made.
+    if (error instanceof VaultAccessError) return null;
+    throw error;
+  });
+  if (read === null) return null;
+  const document = splitFrontmatter(read.text);
+  const properties = ports.markdown.frontmatterProperties(document.frontmatter);
+  if (String(properties['type'] ?? '').trim().toLowerCase() !== TERM_TYPE) return null;
+  const written = properties[VARIANTS_KEY];
+  const variants = (Array.isArray(written) ? written : written === undefined ? [] : [written])
+    .filter((each): each is string => typeof each === 'string');
+  const target = { digest: digestOf(read.text), value: variants, relation: null };
+  return {
+    held: { path, variants },
+    note: { target, document, text: read.text, modified: read.modified },
+  };
 }
 
 /** A link proposal's note, as read to check it and write it. */
@@ -123,10 +207,18 @@ export async function acceptProposalNote({
   const meeting = await pointedAtItsMeeting({ ports, proposal: asked, notePaths });
   const proposal = spelledAsVault(meeting, notePaths);
   const joins = relationChanged(proposal);
-  const link = joins === null ? null : await readLinkNote(ports, joins);
+  const term = await heldTermOf(ports, { proposal, notePaths });
+  // A term proposal changes the term it adds a spelling to; any other, the note it links through.
+  const link = term?.note ?? (joins === null ? null : await readLinkNote(ports, joins));
   const heldTypes = await typesHeldAtNewNote(ports, { proposal, notePaths });
-  const applied = applyProposal(proposal, { notePaths, target: link?.target ?? null, heldTypes });
+  const applied = applyProposal(proposal, {
+    notePaths,
+    target: term === null ? (link?.target ?? null) : null,
+    heldTypes,
+    term: term?.held ?? null,
+  });
   if (!applied.ok) throw new ProposalRefused(applied.problem);
+  if (proposal.kind === 'term') refuseLinkTakeover(applied.writes, notePaths);
 
   const ruled = applied.writes.map((write) => heldToTaskRules(ports, { write, link, today }));
   const headline = proposalHeadline(proposal);

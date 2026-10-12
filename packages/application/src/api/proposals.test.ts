@@ -189,6 +189,72 @@ describe('POST /v1/proposals/{path}/accept', () => {
     expect(api.activity.reports[0]?.message).toMatch(/^POST v1\/proposals\/\{path\}\/accept/);
   });
 
+  describe('a term proposal (P29-06)', () => {
+    const SUGGESTION = 'Inbox/Proposals/Larkspar Payroll.md';
+    const TERM = 'Terms/Larkspur Payroll.md';
+    const suggestion = (heard: string) =>
+      proposal({
+        kind: 'term',
+        payload: { title: 'Larkspur Payroll', folder: 'Terms', properties: { variants: [heard] } },
+      });
+    const term = jsonLinesNote({ type: 'term', variants: ['Lark Spur Payroll'] }, 'A client.\n');
+
+    it('is listed by what was heard and what it is a mishearing of', async () => {
+      const api = vault({ [SUGGESTION]: suggestion('Larkspar Payroll') });
+
+      const { proposals } = bodyOf(await api.send({ method: 'GET', path: '/v1/proposals' })) as {
+        proposals: { path: string; headline: string }[];
+      };
+
+      expect(proposals.find((each) => each.path === SUGGESTION)?.headline).toBe(
+        'Larkspar Payroll → Larkspur Payroll',
+      );
+    });
+
+    it('adds the misheard spelling to the term the vault has, keeping the ones it had', async () => {
+      const api = vault({ [SUGGESTION]: suggestion('Larkspar Payroll'), [TERM]: term });
+
+      const response = await api.send(answer(SUGGESTION, 'accept'));
+
+      expect(bodyOf(response)).toMatchObject({
+        accepted: {
+          headline: 'Larkspar Payroll → Larkspur Payroll',
+          wrote: [{ kind: 'edited', path: TERM }],
+        },
+      });
+      expect(propertiesOf(api, TERM)).toMatchObject({
+        type: 'term',
+        variants: ['Lark Spur Payroll', 'Larkspar Payroll'],
+      });
+      expect(api.files.get(TERM)?.text).toContain('A client.');
+    });
+
+    it('makes the term with that spelling when the vault has none', async () => {
+      const api = vault({ [SUGGESTION]: suggestion('Larkspar Payroll') });
+
+      const response = await api.send(answer(SUGGESTION, 'accept'));
+
+      expect(bodyOf(response)).toMatchObject({
+        accepted: { wrote: [{ kind: 'created', path: TERM }] },
+      });
+      expect(propertiesOf(api, TERM)).toMatchObject({
+        type: 'term',
+        variants: ['Larkspar Payroll'],
+      });
+    });
+
+    it('refuses an everyday word as a misheard spelling, as conflict, writing nothing', async () => {
+      const api = vault({ [SUGGESTION]: suggestion('the'), [TERM]: term });
+
+      const response = await api.send(answer(SUGGESTION, 'accept'));
+
+      expect(codeOf(response)).toBe('conflict');
+      expect(JSON.stringify(response.body)).toContain('everyday word');
+      expect(api.files.get(TERM)?.text).toBe(term);
+      expect(api.files.has(SUGGESTION)).toBe(true);
+    });
+  });
+
   it('makes the task under a numbered name when a note is already where it would go', async () => {
     const api = vault({ [TASK]: 'By hand.\n' });
     const response = await api.send(answer(PROPOSAL, 'accept'));

@@ -3,8 +3,9 @@ import { isProposalPath } from '../proposals/proposal.ts';
 import { isAtlasNote } from '../vault/vault-visibility.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { MAX_ACTIONS_PER_RUN } from './automation-query.ts';
-import type { AutomationAction } from './automation-rule.ts';
+import { remembersNotes, type AutomationAction } from './automation-rule.ts';
 import { CLAUDE_NOTES_PER_RUN } from './claude-step.ts';
+import { describeSteps, STEPS_ACTION } from './rule-steps.ts';
 
 /** A note the rule matched and will not touch, and why. */
 export interface PassedOver {
@@ -63,16 +64,17 @@ export function planAutomation({
 
 /**
  * The most notes one run of the action takes: a Claude step reads each one,
- * which costs a model's time, so it takes far fewer than a move does.
+ * which costs a model's time, so it takes far fewer than a move does — and a
+ * rule of several steps does each of them to every note.
  */
 export function capFor(action: AutomationAction): number {
-  return action.kind === 'claude' ? CLAUDE_NOTES_PER_RUN : MAX_ACTIONS_PER_RUN;
+  return remembersNotes(action) ? CLAUDE_NOTES_PER_RUN : MAX_ACTIONS_PER_RUN;
 }
 
 function refusalOf(action: AutomationAction, path: VaultPath): string | null {
   if (action.kind === 'archive') return archiveRefusal(path);
   // Read, a proposal would be answered with more proposals, each setting the rule off again.
-  if (action.kind === 'claude' && isProposalPath(path)) {
+  if (remembersNotes(action) && isProposalPath(path)) {
     return 'A Claude step does not read proposals: it would be answering itself.';
   }
   return isAtlasNote(path) ? 'Atlas keeps its own files as they are.' : null;
@@ -84,12 +86,19 @@ export function describePlan(plan: AutomationPlan): string {
   const notes = `${count} ${count === 1 ? 'note' : 'notes'}`;
   const head =
     count === 0 ? 'Nothing to do right now.' : `Would ${planVerb(plan.action)} ${notes}.`;
-  return plan.capped ? `${head} ${cappedLine(plan.paths.length)}` : head;
+  const steps = plan.action.kind === STEPS_ACTION ? ` ${stepsLine(plan.action)}` : '';
+  return plan.capped ? `${head}${steps} ${cappedLine(plan.paths.length)}` : `${head}${steps}`;
+}
+
+/** What a dry run says a rule of several steps would do to each note, in order. */
+function stepsLine(action: Extract<AutomationAction, { kind: typeof STEPS_ACTION }>): string {
+  return `For each, in order: ${describeSteps(action)}. A step that fails stops the ones after it.`;
 }
 
 /** What a plan would do to its notes, as "Would … 12 notes" says it. */
 export function planVerb(action: AutomationAction): string {
   if (action.kind === 'archive') return 'archive';
+  if (action.kind === STEPS_ACTION) return `run its ${action.steps.length} steps on`;
   return action.kind === 'set' ? 'change' : 'ask Claude about';
 }
 

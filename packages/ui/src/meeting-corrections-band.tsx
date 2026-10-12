@@ -41,7 +41,6 @@ export function MeetingCorrectionsBand({
       <div className="corrections-band__text">
         <p className="corrections-band__lead">
           <strong>Corrected</strong> · {total === 1 ? '1 spelling' : `${total} spellings`} put right
-          on import
         </p>
         <ul className="corrections-band__list">
           {spellings.map((spelling) => (

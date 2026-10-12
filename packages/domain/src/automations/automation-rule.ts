@@ -15,8 +15,9 @@
  * ```
  *
  * What a rule may do is a short list: archive, set properties to fixed
- * values, or ask Claude for proposals or one new note (P29-03). Anything else
- * is refused rather than guessed at.
+ * values, ask Claude for proposals or one new note (P29-03), or run a few
+ * declared steps in order (P29-06, `rule-steps.ts`). Anything else is refused
+ * rather than guessed at.
  */
 
 import { isRecord } from '../query/frontmatter-query.ts';
@@ -30,6 +31,14 @@ import {
 } from './claude-step.ts';
 import { noteTriggerQueryProblem } from './note-trigger.ts';
 import { setKeyProblem } from './property-key.ts';
+import {
+  describeSteps,
+  readStepsAction,
+  STEPS_ACTION,
+  stepsField,
+  stepsTriggerProblem,
+  type StepsAction,
+} from './rule-steps.ts';
 import { parseSchedule, printSchedule, type Schedule } from './schedule.ts';
 
 export const AUTOMATION_MARKER = 'atlas';
@@ -44,7 +53,8 @@ export type SetValue = string | number | boolean;
 export type AutomationAction =
   | { readonly kind: 'archive' }
   | { readonly kind: 'set'; readonly values: Readonly<Record<string, SetValue>> }
-  | ClaudeAction;
+  | ClaudeAction
+  | StepsAction;
 
 /** What the person writes, or the editor holds: a rule without a home yet. */
 export interface AutomationDraft {
@@ -186,6 +196,8 @@ function readDraft(
   }
   const action = readAction(frontmatter);
   if (typeof action === 'string') return { problem: action };
+  const stepsProblem = action.kind === STEPS_ACTION ? stepsTriggerProblem(action, when) : null;
+  if (stepsProblem !== null) return { problem: stepsProblem };
   const enabled = frontmatter['enabled'] ?? false;
   // Anything but a checkbox's own value would be a guess at on or off, and a wrong "off" is silent.
   if (typeof enabled !== 'boolean') return { problem: 'Write enabled: true or false.' };
@@ -214,8 +226,9 @@ function readAction(frontmatter: Readonly<Record<string, unknown>>): AutomationA
     .toLowerCase();
   if (word === 'archive') return { kind: 'archive' };
   if (word === 'claude') return readClaudeAction(frontmatter);
+  if (word === STEPS_ACTION) return readStepsAction(frontmatter);
   if (word !== 'set') {
-    return 'Say what it does: do: archive, do: set with the values under set:, or do: claude.';
+    return 'Say what it does: do: archive, do: set with the values under set:, do: claude, or do: steps with them under steps:.';
   }
   const values = frontmatter['set'];
   if (!isRecord(values) || Object.keys(values).length === 0) {
@@ -259,8 +272,8 @@ export function draftProblem(draft: AutomationDraft): string | null {
 
 /**
  * A rule as its file's frontmatter, every key written so the file reads as
- * the rule; `set`, and a Claude step's keys, are null for a rule without
- * them, which takes them out.
+ * the rule; `set`, a Claude step's keys and `steps` are null for a rule
+ * without them, which takes them out.
  */
 export function automationFrontmatter(draft: AutomationDraft): Record<string, unknown> {
   return {
@@ -273,6 +286,7 @@ export function automationFrontmatter(draft: AutomationDraft): Record<string, un
     do: draft.action.kind,
     set: draft.action.kind === 'set' ? { ...draft.action.values } : null,
     ...claudeActionFields(draft.action.kind === 'claude' ? draft.action : null),
+    ...stepsField(draft.action.kind === STEPS_ACTION ? draft.action : null),
   };
 }
 
@@ -297,6 +311,7 @@ export function wouldChange(
 export function describeAction(action: AutomationAction): string {
   if (action.kind === 'archive') return 'Archive';
   if (action.kind === 'claude') return describeClaudeAction(action);
+  if (action.kind === STEPS_ACTION) return describeSteps(action);
   const parts = Object.entries(action.values).map(([key, value]) => `${key} to ${String(value)}`);
   return `Set ${parts.join(', ')}`;
 }
@@ -311,4 +326,20 @@ export function setValueFromInput(typed: string): SetValue {
   const number = Number(text);
   // `007` and `02134` are codes, not numbers: read as numbers they would lose their zeros.
   return /^-?(0|[1-9]\d*)(\.\d+)?$/.test(text) && Number.isFinite(number) ? number : text;
+}
+
+/**
+ * The Claude steps a rule runs, in order: its one, each of its steps that is
+ * one, or none. What asks a model is what a rule is capped, remembered and
+ * handed its prompts by, whether it is the rule's whole action or a step.
+ */
+export function claudeStepsOf(action: AutomationAction): readonly ClaudeAction[] {
+  if (action.kind === 'claude') return [action];
+  if (action.kind !== STEPS_ACTION) return [];
+  return action.steps.filter((step): step is ClaudeAction => step.kind === 'claude');
+}
+
+/** Whether a rule's action is carried out note by note, each remembered once handled: a Claude step, or steps. */
+export function remembersNotes(action: AutomationAction): boolean {
+  return action.kind === 'claude' || action.kind === STEPS_ACTION;
 }

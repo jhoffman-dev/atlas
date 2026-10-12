@@ -35,6 +35,7 @@ import {
 } from '../proposals/proposal.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
+import type { Vocabulary } from '../terms/vocabulary.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
 import {
@@ -68,6 +69,12 @@ export interface AnswerVault {
   readonly notePaths: readonly VaultPath[];
   /** The right spellings the Terms page keeps. */
   readonly terms: readonly string[];
+  /**
+   * Every spelling the vault corrects and what to, with the names of its
+   * people and companies: what a suggested term is held to (P29-06). A run
+   * that did not read it suggests against an empty one.
+   */
+  readonly vocabulary?: Vocabulary;
 }
 
 /** What an answer is checked against. */
@@ -146,6 +153,12 @@ export interface CheckedProposal {
    * ({@link ProposalSchema.sharedAcrossRules}).
    */
   readonly sharedAcrossRules: boolean;
+  /**
+   * Whether it is known by what it proposes alone, wherever it was heard
+   * ({@link ProposalSchema.sharedAcrossNotes}): the note and block it cites
+   * are then no part of what it is known by.
+   */
+  readonly sharedAcrossNotes: boolean;
 }
 
 export type Reading<Value> =
@@ -203,6 +216,13 @@ export interface ProposalSchema<Item> {
    * commitment from the same meeting make it once. Default: per rule.
    */
   readonly sharedAcrossRules?: boolean;
+  /**
+   * Whether the proposals are known by what they propose alone, not by where
+   * it was heard: a spelling misheard in two meetings is one suggestion, made
+   * once, and a rejection answers it for every meeting after. Default: a
+   * proposal is known by the block it cites as well.
+   */
+  readonly sharedAcrossNotes?: boolean;
   /** Whether an item that is no object is dropped, as one {@link ItemReading} drops, instead of refusing the answer. */
   readonly dropsUnreadable?: boolean;
   /**
@@ -239,6 +259,12 @@ export interface ProposalSchema<Item> {
    * (`claudeAsks`): for a schema that reads a transcript turn by turn.
    */
   readonly readsInParts?: boolean;
+  /**
+   * The most parts of one long note it reads, for an output that need not
+   * read a meeting through to its end (P29-06). Default: as many as the run
+   * has asks for.
+   */
+  readonly partsPerNote?: number;
   /** What the model is told beside the notes of one ask, as data. */
   readonly dataFor?: (context: AnswerContext) => readonly PromptData[];
 }
@@ -258,6 +284,8 @@ export interface RegisteredProposalSchema {
   readonly read: (answer: string, context: AnswerContext) => AnswerReading;
   readonly readsVault: boolean;
   readonly readsInParts: boolean;
+  /** The most parts of one long note it reads; null for as many as the run has asks for. */
+  readonly partsPerNote: number | null;
   readonly handledKeyOf: ((note: Pick<AnsweredNote, 'text' | 'meeting'>) => string | null) | null;
   /** The relations of a meeting its proposals join on Accept. */
   readonly meetingRelations: readonly string[];
@@ -296,6 +324,7 @@ export function registerProposalSchema<Item>(
     read: (answer, context) => readAnswer({ schema, answer, context }),
     readsVault: schema.readsVault === true,
     readsInParts: schema.readsInParts === true,
+    partsPerNote: schema.partsPerNote ?? null,
     handledKeyOf: schema.handledKeyOf ?? null,
     meetingRelations: schema.meetingRelations ?? [],
     dataFor: (context) => schema.dataFor?.(context) ?? [],
@@ -338,7 +367,11 @@ function readAnswer<Item>({
     for (const draft of item.drafts) {
       const proposal = checkDraft(draft, context, schema.meetingRelations);
       if (!proposal.ok) return refused(`Item ${at + 1}: ${proposal.problem}`);
-      checked.push({ ...proposal.value, sharedAcrossRules: schema.sharedAcrossRules === true });
+      checked.push({
+        ...proposal.value,
+        sharedAcrossRules: schema.sharedAcrossRules === true,
+        sharedAcrossNotes: schema.sharedAcrossNotes === true,
+      });
     }
     if (checked.length > MAX_PROPOSALS_PER_ANSWER) {
       return refused(`It made more than ${MAX_PROPOSALS_PER_ANSWER} proposals in one run.`);
@@ -474,6 +507,7 @@ export function checkDraft(
       why: draft.why.trim(),
       distinguishedBy: draft.distinguishedBy ?? '',
       sharedAcrossRules: false,
+      sharedAcrossNotes: false,
     },
   };
 }

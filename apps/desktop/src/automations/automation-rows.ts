@@ -1,7 +1,10 @@
 import {
+  AFTER_A_MEETING_PRESET,
   describeAction,
   describePlan,
   describeSchedule,
+  describeStep,
+  STEPS_ACTION,
   futureMarkOf,
   lastRunOf,
   lastUndoableRun,
@@ -10,14 +13,22 @@ import {
   nextRunOf,
   noteTitle,
   type AutomationPlan,
+  type BrokenAutomation,
   type DoneAction,
   type LocalTime,
   type LogEntry,
   type PriorValue,
+  type StepsRun,
   type VaultPath,
 } from '@atlas/domain';
 import type { AutomationListing, LoadedAutomation } from '@atlas/application';
-import type { AutomationRow, DryRunView, LogEntryView, LogLineView } from '@atlas/ui';
+import type {
+  AutomationRow,
+  DryRunView,
+  LogEntryView,
+  LogLineView,
+  MeetingAssistantView,
+} from '@atlas/ui';
 import type { RulePause } from './use-automations.ts';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -74,6 +85,29 @@ function rowOf({ rule, log }: LoadedAutomation, clock: RowClock): AutomationRow 
   };
 }
 
+/**
+ * The meeting assistant's switch (P29-06), from the "After a meeting" rule as
+ * it is: on when that rule is there and on; its steps as the rule lists them,
+ * or as the ready-made one would when the vault has none yet.
+ */
+export function meetingAssistantView({
+  loaded,
+  broken,
+}: {
+  loaded: LoadedAutomation | null;
+  broken: BrokenAutomation | null;
+}): MeetingAssistantView {
+  const action = loaded?.rule.action ?? AFTER_A_MEETING_PRESET.action;
+  const last = loaded === null ? null : lastRunOf(loaded.log);
+  return {
+    on: loaded?.rule.enabled === true,
+    steps: action.kind === STEPS_ACTION ? action.steps.map(describeStep) : [describeAction(action)],
+    lastRun: last === null ? null : `${shownTime(last.at)} · ${logEntrySummary(last)}`,
+    problem:
+      broken === null ? null : `Its rule’s file cannot be read, so it is off: ${broken.problem}`,
+  };
+}
+
 /** What the row says of a mark later than now, which the schedule does not count from. */
 function futureNotice(log: readonly LogEntry[], now: LocalTime): string | null {
   const ahead = futureMarkOf(log, now);
@@ -90,7 +124,8 @@ export function logViews(log: readonly LogEntry[]): LogEntryView[] {
       heading: `${shownTime(entry.at, { seconds: true })} · ${logEntryHeading(entry)}`,
       summary: logEntrySummary(entry),
       lines: [
-        ...('done' in entry ? entry.done.map(doneLine) : []),
+        ...('steps' in entry && entry.steps !== undefined ? stepLines(entry.steps) : []),
+        ...('done' in entry && entry.done !== undefined ? entry.done.map(doneLine) : []),
         ...('left' in entry
           ? entry.left.map((left): LogLineView => ({
               kind: 'left',
@@ -100,6 +135,14 @@ export function logViews(log: readonly LogEntry[]): LogEntryView[] {
       ],
     }))
     .reverse();
+}
+
+/** A rule of several steps, as its entry lists them: each step in order, numbered, with how it went. */
+function stepLines({ records }: StepsRun): LogLineView[] {
+  return records.map((record, at) => ({
+    kind: record.outcome === 'failed' || record.outcome === 'skipped' ? 'left' : 'done',
+    text: `Step ${at + 1} · ${record.said}`,
+  }));
 }
 
 const valueText = (value: PriorValue): string =>
@@ -124,6 +167,18 @@ function doneLine(action: DoneAction): LogLineView {
       return { kind: 'done', text: `Proposed ${noteTitle(action.path)} (${action.path})` };
     case 'created':
       return { kind: 'done', text: `Made ${noteTitle(action.path)} (${action.path})` };
+    case 'corrected':
+    case 'uncorrected': {
+      const verb = action.kind === 'corrected' ? 'Corrected' : 'Put back';
+      const spellings = `${action.count} ${action.count === 1 ? 'spelling' : 'spellings'}`;
+      return { kind: 'done', text: `${verb} ${spellings} in ${noteTitle(action.path)}` };
+    }
+    case 'linked':
+    case 'unlinked': {
+      const verb = action.kind === 'linked' ? 'Linked or proposed' : 'Took back';
+      const links = `${action.count} ${action.count === 1 ? 'link' : 'links'}`;
+      return { kind: 'done', text: `${verb} ${links} for ${noteTitle(action.path)}` };
+    }
   }
 }
 

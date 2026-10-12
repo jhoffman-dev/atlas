@@ -56,10 +56,26 @@
  * - dropped `"Send the contract"`: Vendor call has no transcript turn ^t0099 that Claude was shown.
  * ```
  *
+ * A rule of several steps (P29-06) writes one entry for each note it ran on:
+ * the note, then each step in order with how it went — done, already done by
+ * whatever let the note in, nothing to do, failed, or not run because an
+ * earlier one failed — and, among its other lines, what its deterministic
+ * steps changed, which is what "Undo last run" takes back:
+ *
+ * ```markdown
+ * - corrected `"Inbox/Meetings/Standup.md"` `2`
+ * - linked `"Inbox/Meetings/Standup.md"` `3`
+ * - on `"Inbox/Meetings/Standup.md"`
+ * - step `"correct-terms"` `"done"`: Corrected 2 misheard spellings.
+ * - step `"claude meeting-items"` `"failed"`: Claude’s answer is not what the rule asks for.
+ * - step `"claude term-suggestions"` `"skipped"`: Not run: an earlier step failed.
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
 
+import { noteTitle } from '../vault/vault-entry.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { truncated } from './answer-limits.ts';
@@ -94,6 +110,16 @@ export type DoneAction =
   /** A Claude step made the one new note its rule asks for. */
   | { readonly kind: 'created'; readonly path: VaultPath }
   | { readonly kind: 'unarchived'; readonly from: VaultPath; readonly to: VaultPath }
+  /**
+   * A step put a meeting's misheard spellings right (`corrected`) or linked
+   * its people and companies (`linked`), and an undo took that back: `count`
+   * spellings, or links and the proposals made with them. The detail is
+   * recorded on the meeting itself, which is what undoing it reads.
+   */
+  | MeetingStepAction<'corrected'>
+  | MeetingStepAction<'uncorrected'>
+  | MeetingStepAction<'linked'>
+  | MeetingStepAction<'unlinked'>
   | {
       readonly kind: 'set' | 'restored';
       readonly path: VaultPath;
@@ -101,6 +127,13 @@ export type DoneAction =
       readonly before: PriorValue;
       readonly after: PriorValue;
     };
+
+/** What a deterministic step did to a meeting, or an undo took back: one kind each, so each is told apart. */
+interface MeetingStepAction<Kind extends string> {
+  readonly kind: Kind;
+  readonly path: VaultPath;
+  readonly count: number;
+}
 
 /** What started a run. */
 export type RunTrigger = 'schedule' | 'open' | 'hand' | 'note';
@@ -141,6 +174,31 @@ export interface ClaudeRunInfo {
   readonly alreadyMade?: number;
 }
 
+/** How one step of a rule went, for one note. */
+export const STEP_OUTCOMES = ['done', 'already', 'nothing', 'failed', 'skipped'] as const;
+export type StepOutcome = (typeof STEP_OUTCOMES)[number];
+
+/** One step of a rule of several, as it went for one note. */
+export interface StepRecord {
+  /** The step, as `stepName` calls it: `correct-terms`, `claude meeting-items`. */
+  readonly step: string;
+  /**
+   * `done` when it changed or made something; `already` when what it does had
+   * been done before it ran (the import corrects and links a meeting as it
+   * lets it in); `nothing` when it ran and found nothing to do; `failed`; and
+   * `skipped` when it was not run, because an earlier step failed.
+   */
+  readonly outcome: StepOutcome;
+  /** What it did, or why not, in a sentence. */
+  readonly said: string;
+}
+
+/** A rule of several steps, run on one note: each step in the order it was written. */
+export interface StepsRun {
+  readonly note: VaultPath;
+  readonly records: readonly StepRecord[];
+}
+
 /** The longest an item's title runs in a log line: it is a model's, and a line is not a note. */
 const MAX_DROPPED_TITLE = 120;
 
@@ -158,6 +216,8 @@ export type LogEntry =
       readonly went?: readonly VaultPath[];
       /** For a Claude step: the model it asked. */
       readonly claude?: ClaudeRunInfo;
+      /** For a rule of several steps: the note it ran on, and how each step went. */
+      readonly steps?: StepsRun;
     }
   | {
       readonly kind: 'undo';
@@ -177,6 +237,8 @@ export type LogEntry =
       readonly claude?: ClaudeRunInfo;
       /** For a Claude step cut off part-way: what it had already made, which stays. */
       readonly done?: readonly DoneAction[];
+      /** For a rule of several steps: the note, and each step up to and past the one that failed. */
+      readonly steps?: StepsRun;
     }
   | { readonly kind: 'turnedOn'; readonly at: LocalTime }
   /** A rule Atlas found that had never run nor been turned on here: its schedule counts from then. */
@@ -239,6 +301,7 @@ function actionLine(action: DoneAction): string {
   if (action.kind === 'proposed' || action.kind === 'created') {
     return `- ${action.kind} ${code(action.path)}`;
   }
+  if ('count' in action) return `- ${action.kind} ${code(action.path)} ${code(action.count)}`;
   const change = `${prior(action.before)} → ${prior(action.after)}`;
   return `- ${action.kind} ${code(action.path)} ${code(action.key)}: ${change}`;
 }
@@ -251,6 +314,7 @@ export function logEntrySummary(entry: LogEntry): string {
   // A failure's words can be a model's (a tool it named, a title it chose): bounded, as the log is.
   if (entry.kind === 'failed') return oneLine(truncated(entry.problem));
   if (entry.kind === 'letGo') return letGoWords(entry.count);
+  if (entry.kind === 'run' && entry.steps !== undefined) return stepsSummary(entry, entry.steps);
   const askedForNothing =
     entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
   const counts = askedForNothing ? nothingProposedWords(entry.claude) : countDone(entry.done);
@@ -260,6 +324,16 @@ export function logEntrySummary(entry: LogEntry): string {
   const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
   const claude = 'claude' in entry ? entry.claude : undefined;
   return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}${adjustedWords(claude?.adjusted ?? [])}${warningWords(claude?.warnings ?? [])}`;
+}
+
+/**
+ * What a rule of several steps did to one note, as one line: the note, then
+ * what each step that ran said. The per-step detail is the entry's own lines.
+ */
+function stepsSummary(entry: Extract<LogEntry, { kind: 'run' }>, steps: StepsRun): string {
+  const said = steps.records.map((record) => oneLine(truncated(record.said))).join(' ');
+  const capped = entry.capped ? ` ${STEPS_CAPPED}` : '';
+  return `${noteTitle(steps.note)}: ${said}${capped}${warningWords(entry.claude?.warnings ?? [])}`;
 }
 
 /** What a run says of what the person should know. */
@@ -320,6 +394,10 @@ function countDone(done: readonly DoneAction[]): string {
     done.flatMap((action) => (action.kind === 'restored' ? [action.path] : [])),
   ).size;
   const proposals = (count: number) => `${count} ${count === 1 ? 'proposal' : 'proposals'}`;
+  const counted = (kind: DoneAction['kind']) =>
+    done.reduce((sum, action) => sum + (action.kind === kind && 'count' in action ? action.count : 0), 0);
+  const spellings = (count: number) => `${count} ${count === 1 ? 'spelling' : 'spellings'}`;
+  const links = (count: number) => `${count} ${count === 1 ? 'link' : 'links'}`;
   const parts = [
     tally('archived') > 0 ? `Archived ${notes(tally('archived'))}.` : '',
     tally('unarchived') > 0 ? `Put back ${notes(tally('unarchived'))}.` : '',
@@ -327,6 +405,10 @@ function countDone(done: readonly DoneAction[]): string {
     restored > 0 ? `Restored ${notes(restored)}.` : '',
     tally('proposed') > 0 ? `Made ${proposals(tally('proposed'))}.` : '',
     tally('created') > 0 ? `Made ${notes(tally('created'))}.` : '',
+    tally('corrected') > 0 ? `Corrected ${spellings(counted('corrected'))}.` : '',
+    tally('uncorrected') > 0 ? `Put back ${spellings(counted('uncorrected'))}.` : '',
+    tally('linked') > 0 ? `Added ${links(counted('linked'))}.` : '',
+    tally('unlinked') > 0 ? `Took back ${links(counted('unlinked'))}.` : '',
   ].filter((part) => part !== '');
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
 }
@@ -360,6 +442,16 @@ function claudeLines({
   ];
 }
 
+function stepLines({ note, records }: StepsRun): string[] {
+  return [
+    `- on ${code(note)}`,
+    ...records.map(
+      ({ step, outcome, said }) =>
+        `- step ${code(step)} ${code(outcome)}: ${oneLine(truncated(said))}`,
+    ),
+  ];
+}
+
 function versionLine({ path, digest, wrote, keys = [] }: LoggedVersion): string {
   const also = keys.length === 0 ? '' : ` also ${code(keys)}`;
   return `- ${wrote ? 'wrote' : 'triggered by'} ${code(path)} at ${code(digest)}${also}`;
@@ -377,9 +469,9 @@ export function formatLogEntry(entry: LogEntry): string {
   const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
   const claude = 'claude' in entry && entry.claude !== undefined ? claudeLines(entry.claude) : [];
   const letGo = entry.kind === 'letGo' ? [`- let go ${code(entry.count)}`] : [];
-  if (done.length + left.length + versions.length + went.length + claude.length > 0) {
-    lines.push('', ...done, ...left, ...versions, ...went, ...claude);
-  }
+  const steps = 'steps' in entry && entry.steps !== undefined ? stepLines(entry.steps) : [];
+  const all = [...done, ...left, ...versions, ...went, ...claude, ...steps];
+  if (all.length > 0) lines.push('', ...all);
   if (letGo.length > 0) lines.push('', ...letGo);
   return `${lines.join('\n')}\n`;
 }
@@ -509,10 +601,18 @@ function splitSections(text: string): { head: string; sections: string[] } {
 /** How a Claude step's log says it read only the first of the notes; parsed back as `capped`. */
 const CLAUDE_CAPPED = `Read the first ${CLAUDE_NOTES_PER_RUN} notes, the most one Claude run takes; run it by hand for the rest.`;
 
+/** How a rule of several steps says it stopped before every note; parsed back as `capped`. */
+const STEPS_CAPPED = 'The most one run may do; the rest wait for a run by hand.';
+
 const HEADING = /^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) · (.+)$/;
 const PRIOR_SPAN = `(nothing|${JSON_SPAN})`;
 const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_SPAN}$`);
 const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
+const COUNTED_LINE = new RegExp(
+  `^- (corrected|uncorrected|linked|unlinked) ${JSON_SPAN} ${JSON_SPAN}$`,
+);
+const ON_LINE = new RegExp(`^- on ${JSON_SPAN}$`);
+const STEP_LINE = new RegExp(`^- step ${JSON_SPAN} ${JSON_SPAN}: (.*)$`);
 const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
 const CUT_LINE = new RegExp(`^- cut ${JSON_SPAN}: read ${JSON_SPAN} of ${JSON_SPAN} characters$`);
 const ASKED_LINE = new RegExp(`^- asked ${JSON_SPAN} times?$`);
@@ -563,6 +663,7 @@ function parseSection(section: string): LogEntry | null {
   if (trigger === null) return null;
   const claude = claudeOf(body);
   const made = linesOf(body).done;
+  const steps = stepsOf(body);
   if (title.endsWith(', and could not')) {
     return {
       kind: 'failed',
@@ -571,10 +672,14 @@ function parseSection(section: string): LogEntry | null {
       problem: body.find((line) => line !== '') ?? '',
       ...(claude !== null && { claude }),
       ...(made.length > 0 && { done: made }),
+      ...(steps !== null && { steps }),
     };
   }
   const capped = body.some(
-    (line) => line.includes('the most one run may do') || line.includes(CLAUDE_CAPPED),
+    (line) =>
+      line.includes('the most one run may do') ||
+      line.includes(CLAUDE_CAPPED) ||
+      line.includes(STEPS_CAPPED),
   );
   const versions = body.flatMap((line) => {
     const version = readVersion(line);
@@ -593,7 +698,34 @@ function parseSection(section: string): LogEntry | null {
     ...(versions.length > 0 && { versions }),
     ...(went.length > 0 && { went }),
     ...(claude !== null && { claude }),
+    ...(steps !== null && { steps }),
   };
+}
+
+/**
+ * The note a rule of several steps ran on and how each step went, from its
+ * lines; null when the entry names no note. A step line that does not read —
+ * an outcome that is none of them — is left out, as every line is.
+ */
+function stepsOf(body: readonly string[]): StepsRun | null {
+  let note: VaultPath | null = null;
+  const records: StepRecord[] = [];
+  for (const line of body) {
+    try {
+      const on = ON_LINE.exec(line);
+      if (on !== null && note === null) note = pathOf(on[1]!);
+      const step = STEP_LINE.exec(line);
+      if (step === null) continue;
+      const [name, outcome] = [JSON.parse(step[1]!) as unknown, JSON.parse(step[2]!) as unknown];
+      const known = STEP_OUTCOMES.find((each) => each === outcome);
+      if (typeof name === 'string' && known !== undefined) {
+        records.push({ step: name, outcome: known, said: step[3]! });
+      }
+    } catch {
+      // A line edited into JSON that does not read, or a path that is no path, is left out.
+    }
+  }
+  return note === null ? null : { note, records };
 }
 
 /** The model a Claude step asked, from its line; null when there is none, or it does not read. */
@@ -743,6 +875,13 @@ function readLine(line: string): DoneAction | PassedOver | null {
       const kind = move[1] as 'archived' | 'unarchived';
       return { kind, from: pathOf(move[2]!), to: pathOf(move[3]!) };
     }
+    const counted = COUNTED_LINE.exec(line);
+    if (counted !== null) {
+      const count = JSON.parse(counted[3]!) as unknown;
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) return null;
+      const kind = counted[1] as 'corrected' | 'uncorrected' | 'linked' | 'unlinked';
+      return { kind, path: pathOf(counted[2]!), count } as DoneAction;
+    }
     const made = MADE_LINE.exec(line);
     if (made !== null) {
       const path = pathOf(made[2]!);
@@ -786,21 +925,34 @@ export function stillAsLeft(current: PriorValue, left: PriorValue): boolean {
   return JSON.stringify(current.value) === JSON.stringify(left.value);
 }
 
-/** What undo can put back: a move or a set. What a Claude step made is answered in the Inbox. */
+/**
+ * What undo can put back: a move, a set, and what a deterministic step did to
+ * a meeting (its words corrected, its people linked). What a Claude step made
+ * is answered in the Inbox.
+ */
 const isUndoable = (action: DoneAction): boolean =>
-  action.kind === 'archived' || action.kind === 'set';
+  action.kind === 'archived' ||
+  action.kind === 'set' ||
+  // A step that found nothing to correct or link still wrote its record; there is nothing of it to take back.
+  ((action.kind === 'corrected' || action.kind === 'linked') && action.count > 0);
+
+/** A run "Undo last run" can undo: one that ran, or one of several steps that stopped part-way. */
+export type UndoableRun = Extract<LogEntry, { kind: 'run' | 'failed' }>;
 
 /**
  * The run that "Undo last run" undoes: the newest run that did something
  * undo can put back, unless it has been undone already. Only the last one —
- * undoing further back would put back notes that later runs have acted on since.
+ * undoing further back would put back notes that later runs have acted on
+ * since. A rule of several steps that failed part-way counts: what its
+ * earlier steps did stayed, and is as undoable as if the rest had run.
  */
-export function lastUndoableRun(
-  entries: readonly LogEntry[],
-): Extract<LogEntry, { kind: 'run' }> | null {
-  const at = entries.findLastIndex((entry) => entry.kind === 'run' && entry.done.some(isUndoable));
+export function lastUndoableRun(entries: readonly LogEntry[]): UndoableRun | null {
+  const at = entries.findLastIndex(
+    (entry) =>
+      (entry.kind === 'run' || entry.kind === 'failed') && (entry.done ?? []).some(isUndoable),
+  );
   if (at === -1) return null;
-  const last = entries[at] as Extract<LogEntry, { kind: 'run' }>;
+  const last = entries[at] as UndoableRun;
   // Only an undo written after it undid it: an earlier run in the same second is another run.
   const undone = entries
     .slice(at + 1)

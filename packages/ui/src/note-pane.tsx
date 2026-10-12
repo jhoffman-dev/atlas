@@ -30,6 +30,7 @@ import { EditableTitle, PageHead } from './page-head.tsx';
 import { PageBar, type PageHistory, type PageMenuItem } from './page-bar.tsx';
 import { TemplateBanner, type TemplateNotice } from './template-banner.tsx';
 import { MeetingCorrectionsBand, type CorrectionsNotice } from './meeting-corrections-band.tsx';
+import { MeetingLinksBand, type LinksNotice } from './meeting-links-band.tsx';
 import { PromotionBanner, type LinePromotion } from './promotion-notice.tsx';
 import {
   PropertiesPanel,
@@ -182,6 +183,8 @@ export interface NotePaneProps {
   template?: TemplateNotice;
   /** Given for a meeting whose spellings were corrected: the band over it, with its Undo. */
   corrections?: CorrectionsNotice;
+  /** Given for a meeting that was linked: the band over it, with Undo links and Correct again. */
+  meetingLinks?: LinksNotice;
 }
 
 /** A page: its bar across the top, then the note — or why there is no note yet. */
@@ -280,6 +283,7 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
       <SaveConflict state={state} onOverwrite={props.onOverwrite} onDiscard={props.onDiscard} />
       {props.template !== undefined && <TemplateBanner {...props.template} />}
       {props.corrections !== undefined && <MeetingCorrectionsBand {...props.corrections} />}
+      {props.meetingLinks !== undefined && <MeetingLinksBand {...props.meetingLinks} />}
       <PromotionBanner notice={props.promotion?.notice ?? null} />
       <div className="panel__body">
         {/* A view is a table or a board, not prose, so it is not held to a

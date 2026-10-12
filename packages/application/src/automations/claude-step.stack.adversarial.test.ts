@@ -21,11 +21,10 @@ import {
   type LogEntry,
   type NoteChange,
   type NoteVersion,
-  type VaultPath,
 } from '@atlas/domain';
 import type { ModelEvent } from '../chat/ports.ts';
 import { heldEntries } from '../index/refresh-index.ts';
-import { createMeetingLinker } from '../meeting-links/link-imported-meetings.ts';
+import { createMeetingLinker, linkBeforeLetIn } from '../meeting-links/link-imported-meetings.ts';
 import { createMeetingImporter } from '../meetings/meeting-importer.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
@@ -130,7 +129,7 @@ async function setUp(
   const importer = createMeetingImporter({
     ...wiring,
     active: () => true,
-    beforeLetIn: async (vaultKey: string, path: VaultPath) => void (await linker(vaultKey, [path])),
+    beforeLetIn: linkBeforeLetIn(linker),
   });
 
   // The feed, as `syncIndex` keeps it: measured from what was held, which each sync's changes move on.

@@ -5,7 +5,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { digestOf, newLogText, VAULT_WALK_DEPTH, type LogEntry } from '@atlas/domain';
+import {
+  AFTER_A_MEETING_PRESET,
+  automationFrontmatter,
+  digestOf,
+  newLogText,
+  VAULT_WALK_DEPTH,
+  type LogEntry,
+} from '@atlas/domain';
 import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT, VAULT } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
@@ -96,6 +103,7 @@ describe('GET /v1/automations', () => {
       olderThanDays: null,
       do: 'archive',
       set: null,
+      steps: null,
       claude: null,
       schedule: 'Every day at 03:00',
       action: 'Archive',
@@ -383,6 +391,7 @@ describe('POST /v1/automations/{id}/dry-run', () => {
       plan: {
         do: 'archive',
         set: null,
+        steps: null,
         claude: null,
         summary: 'Would archive 2 notes.',
         notes: [
@@ -671,6 +680,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     expect(automations.find((automation) => automation['id'] === 'ask')).toMatchObject({
       do: 'claude',
       set: null,
+      steps: null,
       claude: step,
       action: 'Ask Claude (tasks) for a note in Briefs',
     });
@@ -707,6 +717,7 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
       plan: {
         do: 'claude',
         set: null,
+        steps: null,
         claude: step,
         summary: 'Would ask Claude about 2 notes.',
         notes: [{ path: 'tasks/B.md' }, { path: 'tasks/C.md' }],
@@ -873,5 +884,227 @@ describe('a rule with a Claude step, through the API (P29-03)', () => {
     };
     expect(entries[0]!.done).toEqual([{ kind: 'proposed', path: 'Inbox/Proposals/One.md' }]);
     expect(entries[0]!.problem.length).toBeLessThanOrEqual(600);
+  });
+});
+
+describe('a rule of several steps, through the API (P29-06)', () => {
+  const AFTER = jsonNote({ id: 'after', ...automationFrontmatter(AFTER_A_MEETING_PRESET) });
+  // Made by hand, outside where imported meetings land: the import has not corrected or linked it.
+  const MEETING = 'Meetings/Larkspur Payroll sync.md';
+  const files: Record<string, string> = {
+    ...FILES,
+    '.atlas/types/meeting.md': jsonNote({ name: 'meeting', label: 'Meeting', properties: {} }),
+    '.atlas/automations/After a meeting.md': AFTER,
+    [MEETING]: jsonNote({ type: 'meeting' }),
+  };
+  const extraction = {
+    prompt: '.atlas/prompts/meeting-extraction.md',
+    tools: [],
+    output: 'meeting-items',
+    folder: null,
+  };
+  const suggestions = {
+    prompt: '.atlas/prompts/term-suggestions.md',
+    tools: [],
+    output: 'term-suggestions',
+    folder: null,
+  };
+  const steps = [
+    { do: 'correct-terms', action: 'Correct its terms', claude: null },
+    { do: 'link-meeting', action: 'Link its people and companies', claude: null },
+    {
+      do: 'claude',
+      action: 'Ask Claude (meeting-extraction) for meeting-items',
+      claude: extraction,
+    },
+    {
+      do: 'claude',
+      action: 'Ask Claude (term-suggestions) for term-suggestions',
+      claude: suggestions,
+    },
+  ];
+  const DID = [
+    { kind: 'corrected', path: MEETING as never, count: 2 },
+    { kind: 'linked', path: MEETING as never, count: 3 },
+  ] as const;
+  const RAN_STEPS: LogEntry = {
+    kind: 'run',
+    at: '2026-10-11T09:00:00',
+    trigger: 'note',
+    done: [...DID, { kind: 'proposed', path: 'Inbox/Proposals/Send the payroll file.md' as never }],
+    left: [],
+    capped: false,
+    claude: { model: 'claude-opus-5-5', ms: 900, asks: 2 },
+    steps: {
+      note: MEETING as never,
+      records: [
+        { step: 'correct-terms', outcome: 'done', said: 'Corrected 2 misheard spellings.' },
+        { step: 'link-meeting', outcome: 'already', said: 'Already linked when it arrived.' },
+        { step: 'claude meeting-items', outcome: 'done', said: 'Claude proposed 1 item.' },
+        { step: 'claude term-suggestions', outcome: 'nothing', said: 'Claude proposed nothing.' },
+      ],
+    },
+  };
+  const FAILED_STEPS: LogEntry = {
+    kind: 'failed',
+    at: '2026-10-11T10:00:00',
+    trigger: 'hand',
+    problem: 'Step 3 of 4 (claude meeting-items) failed: the model did not answer.',
+    done: [...DID],
+    steps: {
+      note: MEETING as never,
+      records: [
+        { step: 'correct-terms', outcome: 'done', said: 'Corrected 2 misheard spellings.' },
+        { step: 'link-meeting', outcome: 'done', said: 'Added 3 links.' },
+        {
+          step: 'claude meeting-items',
+          outcome: 'failed',
+          said: 'Could not write /Users/mara/Atlas Vault/Inbox/Proposals/One.md: disk full.',
+        },
+        {
+          step: 'claude term-suggestions',
+          outcome: 'skipped',
+          said: 'Not run, because an earlier step failed.',
+        },
+      ],
+    },
+  };
+
+  function stepsVault(extra: Record<string, string> = {}): Api {
+    const all = { ...files, ...extra };
+    const markdown = jsonMarkdown();
+    return apiFixture({
+      files: all,
+      markdown,
+      index: {
+        query: atlasQueryIndex({ files: all, markdown }),
+        manifest: async () =>
+          Object.entries(all).map(([path, text]) => ({
+            path,
+            modified: 0,
+            size: text.length,
+            type: null,
+            digest: digestOf(text),
+          })),
+      },
+    });
+  }
+
+  it('lists it as do: steps, each step in order with its words and what a Claude step asks', async () => {
+    const { automations } = bodyOf(await list(stepsVault())) as {
+      automations: Record<string, unknown>[];
+    };
+
+    expect(automations.find((automation) => automation['id'] === 'after')).toMatchObject({
+      name: 'After a meeting',
+      when: 'a meeting is created',
+      note: { type: 'meeting', on: ['created'] },
+      do: 'steps',
+      set: null,
+      claude: null,
+      steps,
+      action: steps.map((step) => step.action).join(' → '),
+    });
+  });
+
+  it('dry-runs it to its steps and a summary naming them, writing nothing', async () => {
+    const api = stepsVault();
+    const before = new Map([...api.files].map(([path, note]) => [path, note.text]));
+
+    const response = await dryRun(api, 'after');
+
+    expect(response.status).toBe(200);
+    expect(bodyOf(response)).toMatchObject({
+      automation: { id: 'after', name: 'After a meeting' },
+      plan: {
+        do: 'steps',
+        set: null,
+        claude: null,
+        steps,
+        summary:
+          'Would run its 4 steps on 1 note. For each, in order: Correct its terms → ' +
+          'Link its people and companies → Ask Claude (meeting-extraction) for meeting-items → ' +
+          'Ask Claude (term-suggestions) for term-suggestions. A step that fails stops the ones ' +
+          'after it.',
+        notes: [{ path: MEETING, title: 'Larkspur Payroll sync' }],
+        capped: false,
+        cap: 10,
+      },
+    });
+    // The route is handed no model to ask; what a dry run could do is write, and it does not.
+    expect(new Map([...api.files].map(([path, note]) => [path, note.text]))).toEqual(before);
+  });
+
+  it("answers a run's note and how each step went, with what the steps did", async () => {
+    const api = stepsVault({
+      '.atlas/automations/log/after.md': newLogText('After a meeting', [RAN_STEPS]),
+    });
+
+    const { entries } = bodyOf(await logOf(api, 'after')) as { entries: Record<string, unknown>[] };
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: 'run',
+      trigger: 'note',
+      done: [
+        { kind: 'corrected', path: MEETING, count: 2 },
+        { kind: 'linked', path: MEETING, count: 3 },
+        { kind: 'proposed', path: 'Inbox/Proposals/Send the payroll file.md' },
+      ],
+      steps: RAN_STEPS.steps,
+    });
+    expect(entries[0]!['summary']).toContain('Larkspur Payroll sync: Corrected 2 misheard');
+  });
+
+  it('answers the steps of a run a step failed, keeping what the earlier steps did and no machine path', async () => {
+    const api = stepsVault({
+      '.atlas/automations/log/after.md': newLogText('After a meeting', [RAN_STEPS, FAILED_STEPS]),
+    });
+
+    const response = await logOf(api, 'after');
+    const { entries } = bodyOf(response) as {
+      entries: { kind: string; steps: { note: string; records: Record<string, string>[] } }[];
+    };
+
+    expect(entries.map((entry) => entry.kind)).toEqual(['failed', 'run']);
+    expect(entries[0]).toMatchObject({
+      problem: 'Step 3 of 4 (claude meeting-items) failed: the model did not answer.',
+      done: [
+        { kind: 'corrected', path: MEETING, count: 2 },
+        { kind: 'linked', path: MEETING, count: 3 },
+      ],
+      left: [],
+    });
+    expect(entries[0]!.steps.note).toBe(MEETING);
+    expect(entries[0]!.steps.records.map(({ step, outcome }) => [step, outcome])).toEqual([
+      ['correct-terms', 'done'],
+      ['link-meeting', 'done'],
+      ['claude meeting-items', 'failed'],
+      ['claude term-suggestions', 'skipped'],
+    ]);
+    expect(entries[0]!.steps.records[3]!['said']).toBe('Not run, because an earlier step failed.');
+    expect(entries[0]!.steps.records[2]!['said']).toContain('disk full');
+    expect(JSON.stringify(bodyOf(response))).not.toContain('/Users/mara');
+  });
+
+  it('takes machine paths out of what a step of a finished run said', async () => {
+    const said = 'Linked nothing: could not read /Users/mara/Atlas Vault/People/Tobias Fenn.md.';
+    const ran: LogEntry = {
+      ...RAN_STEPS,
+      steps: {
+        note: MEETING as never,
+        records: [{ step: 'link-meeting', outcome: 'nothing', said }],
+      },
+    };
+    const api = stepsVault({
+      '.atlas/automations/log/after.md': newLogText('After a meeting', [ran]),
+    });
+
+    const response = await logOf(api, 'after');
+
+    expect(JSON.stringify(bodyOf(response))).not.toContain('/Users/mara');
+    expect(bodyOf(response)).toMatchObject({
+      entries: [{ steps: { records: [{ step: 'link-meeting', outcome: 'nothing' }] } }],
+    });
   });
 });

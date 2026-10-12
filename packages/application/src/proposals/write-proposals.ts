@@ -103,11 +103,25 @@ export async function writeProposals(
   args: ProposalWritePorts & { proposals: readonly NewProposal[] },
 ): Promise<ProposalsWritten> {
   const { planned, left: unplanned } = await planProposals(args);
+  const made = await writePlannedProposals(args.fs, planned);
+  return { written: made.written, left: [...unplanned, ...made.left] };
+}
+
+/**
+ * Writes proposals already planned, each as its note. One that cannot be
+ * written is said, and the rest are written: for a step that must know where
+ * its proposals will be before it writes them (linking records them on the
+ * meeting in the write that adds its links).
+ */
+export async function writePlannedProposals(
+  fs: Pick<VaultFsPort, 'createNote'>,
+  planned: readonly PlannedProposal[],
+): Promise<ProposalsWritten> {
   const written: VaultPath[] = [];
-  const left: ProposalLeft[] = [...unplanned];
+  const left: ProposalLeft[] = [];
   for (const note of planned) {
     try {
-      await args.fs.createNote(note);
+      await fs.createNote(note);
       written.push(note.path);
     } catch (cause) {
       left.push({ path: note.path, reason: messageWithoutPaths(cause) });

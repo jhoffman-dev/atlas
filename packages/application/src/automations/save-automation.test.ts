@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AFTER_A_MEETING_PRESET,
   AUTOMATION_PRESETS,
   builtInPromptAt,
   logPathFor,
@@ -240,5 +241,44 @@ describe('a ready-made rule whose prompt Atlas ships (P29-05)', () => {
     await create(vault);
 
     expect([...vault.files.keys()].some((at) => at.startsWith('.atlas/prompts/'))).toBe(false);
+  });
+});
+
+describe('the "After a meeting" rule, saved (P29-06)', () => {
+  it('writes both of its steps’ prompts with it, and reads back as the rule it is', async () => {
+    const vault = automationVault({ notes: {}, today: '2026-10-08' });
+    const write = { fs: vault.ports.fs, markdown: vault.ports.markdown, clock: { localNow: () => '2026-10-08T09:00:00' } };
+
+    const path = await createAutomation({ ...write, draft: AFTER_A_MEETING_PRESET, takenPaths: [] });
+
+    expect(path).toBe('.atlas/automations/After a meeting.md');
+    expect([...vault.files.keys()].filter((at) => at.startsWith('.atlas/prompts/')).sort()).toEqual([
+      '.atlas/prompts/meeting-extraction.md',
+      '.atlas/prompts/term-suggestions.md',
+    ]);
+    expect(vault.files.get('.atlas/prompts/term-suggestions.md')).toContain('# Term suggestions');
+    expect(vault.properties(path)).toMatchObject({
+      do: 'steps',
+      steps: [
+        { do: 'correct-terms' },
+        { do: 'link-meeting' },
+        { do: 'claude', output: 'meeting-items' },
+        { do: 'claude', output: 'term-suggestions' },
+      ],
+    });
+  });
+
+  it('leaves a prompt of either step that is already there as the person wrote it', async () => {
+    const mine = 'My own words.\n';
+    const vault = automationVault({
+      notes: { '.atlas/prompts/term-suggestions.md': mine },
+      today: '2026-10-08',
+    });
+    const write = { fs: vault.ports.fs, markdown: vault.ports.markdown, clock: { localNow: () => '2026-10-08T09:00:00' } };
+
+    await createAutomation({ ...write, draft: AFTER_A_MEETING_PRESET, takenPaths: [] });
+
+    expect(vault.files.get('.atlas/prompts/term-suggestions.md')).toBe(mine);
+    expect(vault.files.has('.atlas/prompts/meeting-extraction.md')).toBe(true);
   });
 });

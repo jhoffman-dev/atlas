@@ -18,6 +18,7 @@ import type {
   FilterOperator,
   NoteEvent,
   RunTrigger,
+  StepOutcome,
   SetValue,
 } from '@atlas/domain';
 
@@ -968,11 +969,13 @@ export interface ApiAutomation {
   readonly which: string;
   /** Only notes not modified in this many days; null for any. */
   readonly olderThanDays: number | null;
-  readonly do: 'archive' | 'set' | 'claude';
+  readonly do: 'archive' | 'set' | 'claude' | 'steps';
   /** What a `set` rule sets; null for any other. */
   readonly set: Readonly<Record<string, SetValue>> | null;
   /** What a `claude` rule asks Claude (P29-03); null for any other. */
   readonly claude: ApiClaudeStep | null;
+  /** What a `steps` rule does to each note, in order (P29-06); null for any other. */
+  readonly steps: readonly ApiRuleStep[] | null;
   /** Its schedule in words, as the app shows it: "Every day at 03:00". */
   readonly schedule: string;
   /** Its action in words: "Archive", "Set status to done". */
@@ -1020,10 +1023,43 @@ export interface ApiClaudeStep {
   /** The prompt note, in `.atlas/prompts/`. */
   readonly prompt: string;
   readonly tools: readonly string[];
-  /** `note`, or the name of a proposal schema: `proposals`, or `meeting-items` (what Claude pulls out of a meeting). */
+  /**
+   * `note`, or the name of a proposal schema: `proposals`, `meeting-items`
+   * (what Claude pulls out of a meeting) or `term-suggestions` (the spellings
+   * in a meeting that look like misheard names, P29-06).
+   */
   readonly output: string;
   /** Where its one new note goes, for `output: note`; null otherwise. */
   readonly folder: string | null;
+}
+
+/**
+ * One step of a rule of several (P29-06). `correct-terms` puts a meeting's
+ * misheard spellings right and `link-meeting` links its people and companies:
+ * both deterministic, recorded on the meeting, undoable there, and done by the
+ * import already for a meeting it let in — so here they act only on a meeting
+ * that holds no record of them. `claude` only proposes.
+ */
+export interface ApiRuleStep {
+  readonly do: 'correct-terms' | 'link-meeting' | 'claude';
+  /** The step in words: "Correct its terms". */
+  readonly action: string;
+  /** What a `claude` step asks; null for the others. */
+  readonly claude: ApiClaudeStep | null;
+}
+
+/** How one step of a rule of several went for one note (P29-06). */
+export interface ApiStepRecord {
+  /** The step: `correct-terms`, `link-meeting`, or `claude <output>`. */
+  readonly step: string;
+  /**
+   * `done`; `already` (done before the step ran — the import corrects and
+   * links a meeting as it lets it in); `nothing` (it ran and found nothing to
+   * do); `failed`; or `skipped` (not run, because an earlier step failed).
+   */
+  readonly outcome: StepOutcome;
+  /** What it did, or why not, in a sentence. */
+  readonly said: string;
 }
 
 /** One entry in a rule's log, as its file records it. */
@@ -1084,15 +1120,28 @@ export interface ApiAutomationLogEntry {
     readonly adjusted?: readonly { readonly title: string; readonly reason: string }[];
     readonly warnings?: readonly string[];
   };
+  /**
+   * On a `run` or `failed` entry of a rule of several steps (P29-06): the one
+   * note the entry is about, and each step in order with how it went. A
+   * `failed` entry's `done` is what the steps before the failure did, which
+   * stays; `claude` then sums every Claude step that ran.
+   */
+  readonly steps?: { readonly note: string; readonly records: readonly ApiStepRecord[] };
 }
 
 /** What a rule would do if it ran now. Nothing is written to find out. */
 export interface ApiAutomationPlan {
-  readonly do: 'archive' | 'set' | 'claude';
+  readonly do: 'archive' | 'set' | 'claude' | 'steps';
   /** What a `set` rule would set on each note; null for any other. */
   readonly set: Readonly<Record<string, SetValue>> | null;
   /** The prompt and tools a `claude` rule's run would use; null for any other. Claude is not asked. */
   readonly claude: ApiClaudeStep | null;
+  /**
+   * The steps a `steps` rule's run would carry out on each note, in order
+   * (P29-06); null for any other. Nothing is run: neither deterministic step
+   * writes, and Claude is not asked.
+   */
+  readonly steps: readonly ApiRuleStep[] | null;
   /** "Would archive 12 notes." */
   readonly summary: string;
   /** The notes it would act on, at most `cap`, in the order it would. */

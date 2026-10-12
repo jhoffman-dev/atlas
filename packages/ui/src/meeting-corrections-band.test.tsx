@@ -25,7 +25,7 @@ describe('MeetingCorrectionsBand', () => {
     );
 
     const band = screen.getByRole('complementary', { name: 'Corrections' });
-    expect(band.textContent).toContain('3 spellings put right on import');
+    expect(band.textContent).toContain('3 spellings put right');
     const items = within(band)
       .getAllByRole('listitem')
       .map((item) => item.textContent);

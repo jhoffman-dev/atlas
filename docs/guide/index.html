@@ -146,6 +146,7 @@ td:first-child { white-space: nowrap; }
     <a href="#blocks">Blocks and embeds</a>
     <a href="#people">People and mentions</a>
     <a href="#meetings">Meetings</a>
+    <a href="#meeting-assistant">The meeting assistant</a>
     <a href="#terms">Terms</a>
     <a href="#proposals">Proposals in the Inbox</a>
     <a href="#tags">Tags</a>
@@ -1043,11 +1044,19 @@ ORDER BY phase</pre>
         <li><b>A meeting with nothing misheard</b> is not changed. If you have terms with misheard spellings, the same write adds <code>atlas_corrections: none</code> so the meeting is never read again; if you have none yet, nothing is added, so terms you add later still apply.</li>
       </ul>
       <h4>Undo corrections</h4>
-      <p>A corrected meeting's page has a band under its bar: <b>Corrected · 2 spellings put right on import</b>, then each change, the old spelling struck through — <s>Lark Spur Pay</s> → Larkspur Pay ×2. <b>Undo corrections</b> puts every original word back, byte for byte, and sets <code>atlas_corrections: undone</code>, so the band goes and the meeting is never corrected again. If the meeting was edited since, Undo says so and turns itself off; <b>Dismiss</b> hides the band for now (it comes back when the meeting is opened again).</p>
+      <p>A corrected meeting's page has a band under its bar: <b>Corrected · 2 spellings put right</b>, then each change, the old spelling struck through — <s>Lark Spur Pay</s> → Larkspur Pay ×2. <b>Undo corrections</b> puts every original word back, byte for byte, and sets <code>atlas_corrections: undone</code>, so the band goes and the meeting is never corrected again. If the meeting was edited since, Undo says so and turns itself off; <b>Dismiss</b> hides the band for now (it comes back when the meeting is opened again).</p>
       <ul>
         <li><b>Refused if the meeting's text changed since</b>, as an automation's Undo is: <i>“The meeting changed since its words were corrected, so they were left as they are.”</i> Putting the old words back into text you've since edited could undo your edit. Changing its properties — a tag, a project — doesn't count. Anything you've typed is saved first, so it counts.</li>
         <li>An <code>atlas_corrections</code> list edited by hand into something Atlas didn't write is refused too, and nothing is changed.</li>
         <li>Corrections are read through the <a href="#connect">Local API</a> as the meeting's properties (<code>GET /v1/notes/{path}</code>). Undo stays in the app: it rewrites a note you're reading.</li>
+      </ul>
+      <h4 id="correct-again">Correct again</h4>
+      <p>A term you add — or a <a href="#suggested-terms">suggested one</a> you accept — corrects the meetings that arrive after it. A meeting already in the vault is corrected by it only when you say so: <b>Correct again</b>, on the meeting's <a href="#meeting-links-band">Linked band</a>.</p>
+      <ul>
+        <li>The last correction is taken back first, where the words are still as it left them, and the original is corrected afresh by today's terms. So <b>Undo corrections</b> still puts every original word back.</li>
+        <li>Where you edited the words since, or undid its corrections, what is there now is corrected, and Undo goes back to that.</li>
+        <li>The band says what it did: <i>“Corrected again: 1 spelling put right. Undo corrections puts the words back.”</i> or <i>“Corrected again: no misheard spelling is left in it.”</i></li>
+        <li>Nothing else corrects a meeting twice. Like Undo, it is in the app only.</li>
       </ul>
       <h3 id="meeting-links">Who was there: people, companies and the project</h3>
       <p>As a meeting is let in, Atlas links it, so clicking a person or a company shows their meetings. The links, the corrected spellings and the <code>imported</code> line all arrive together: an <a href="#automations">automation</a> set off when a meeting is created runs once, on the meeting already linked and corrected. What it's sure of it writes into the meeting; what it isn't sure of waits in the <a href="#proposals">Inbox</a> as a proposal. It never guesses.</p>
@@ -1060,10 +1069,20 @@ ORDER BY phase</pre>
         <li><b>Two people with one name or alias</b> — two Tobys — is never a guess: each is proposed as a link on the meeting, low confidence. Accept the one it was and reject the other.</li>
         <li><b>Group addresses are never people.</b> <code>payroll-team@larkspur.example</code> stays in the attendees and is never proposed. Neither are you: an attendee with your <a href="#profile">profile</a> name — however it's written, even “Last, First” — or an address on your own Person note is left out. If the one person of an attendee's name has other addresses on file, Atlas proposes the link instead of making it.</li>
         <li><b>The likely project.</b> If the meeting has no project, Atlas proposes the open project most tied to its people and company — one they own, link, or met about before — and names the runners-up on the card. It's always a proposal; only you set a meeting's project.</li>
-        <li><b>Once per meeting.</b> Atlas links a meeting as it's let in, and never again: take someone out of its people and they stay out. It only ever adds — nothing already linked is changed — and a proposal you rejected isn't made again. A meeting you're typing in is left alone, and Activity says so: <i>“2026-10-06 Payroll sync: linked Mara Quill, Larkspur Payroll; proposed 1 in the Inbox.”</i></li>
+        <li><b>Once per meeting.</b> Atlas links a meeting as it's let in, and never again: take someone out of its people and they stay out. It only ever adds — nothing already linked is changed — and a proposal you rejected isn't made again. Activity's line: <i>“2026-10-06 Payroll sync: linked Mara Quill, Larkspur Payroll; proposed 1 in the Inbox.”</i></li>
+        <li><b>Recorded on the meeting</b>, in the same write as the links. Its frontmatter gets <code>atlas_links:</code> — the links added to each relation, like <code>[{ key: people, added: ["[[Mara Quill]]"] }]</code>, or <code>none</code> when nothing was sure — and <code>atlas_link_proposals:</code>, the proposals it wrote. A meeting that has <code>atlas_links</code> in any form has been linked and is never linked again by itself.</li>
+        <li><b>If linking couldn't be done as it arrived</b> — you were typing in the meeting, or the index didn't answer — the meeting has no <code>atlas_links</code>, and the <a href="#meeting-assistant">meeting assistant</a>'s link step links it. So does that step for a meeting you made by hand.</li>
+      </ul>
+      <h4 id="meeting-links-band">The Linked band, and Undo links</h4>
+      <p>Every meeting's page has a second band under its bar: <b>Linked · Mara Quill, Larkspur Payroll · 1 proposal in the Inbox</b>, <b>Linked · no one it was sure of</b>, or — for a meeting made by hand, or imported before linking kept a record — <b>Not linked by Atlas yet</b>, where only Correct again can be pressed. It has two buttons, <b><a href="#correct-again">Correct again</a></b> and <b>Undo links</b>.</p>
+      <ul>
+        <li><b>Undo links</b> takes out of <b>People</b> and <b>Companies</b> each link linking added that still stands as it wrote it. One you added or rewrote yourself, or got by accepting a proposal, stays.</li>
+        <li>Each proposal linking wrote that is still open goes to the Trash; one you already answered is left. The band says <i>“Took back 2 links and 1 open proposal.”</i></li>
+        <li>The meeting is marked <code>atlas_links: undone</code>, the band reads <b>Links undone</b>, and it is never linked again by itself.</li>
+        <li>Refused, with nothing written, for a meeting being typed in. In the app only, as Undo corrections is.</li>
       </ul>
       <h3 id="meeting-extraction">What Claude pulls out</h3>
-      <p>Turn on the ready-made automation <b>Pull actions and decisions out of a new meeting</b> (open <a href="#automations">Automations</a>, click the button of that name, then <b>Create automation</b>) and each meeting that arrives is read by Claude once it's let in. What it finds waits in the <a href="#proposals">Inbox</a> as proposals. Nothing is written until you accept one.</p>
+      <p>Turn on the <a href="#meeting-assistant">meeting assistant</a> — this is its third step — and each meeting that arrives is read by Claude once it's let in. What it finds waits in the <a href="#proposals">Inbox</a> as proposals. Nothing is written until you accept one. The older ready-made automation <b>Pull actions and decisions out of a new meeting</b> (open <a href="#automations">Automations</a>, click the button of that name, then <b>Create automation</b>) does this step alone. Use one or the other: with both on, Claude is asked twice, though each proposal is still made once.</p>
       <ul>
         <li><b>Yours.</b> Something you said you'd do becomes a <b>Task</b> proposal at <code>status: inbox</code>. You are <i>You</i> in the transcript, your <a href="#profile">profile</a> name (in any common spelling, or just your first name when nobody else in the meeting has it), or an address on your own Person note. <i>We</i> is yours too, marked low confidence so you check it. An item with two owners (<i>You and Tobias</i>) is made once, as yours, and the card names the other.</li>
         <li><b>Someone else's.</b> Something another attendee took on becomes a Task at <code>status: waiting</code>, with <code>waiting_on</code> linking their Person note — <code>[[Tobias Fenn]]</code>. If you have no note for them, <code>waiting_on</code> holds their name as text and the card says so: <i>“There is no Person note for Lena Hart yet, so waiting_on holds the name as text.”</i> When the name could be more than one person (two Tobiases in the meeting, or two notes for one name), a group, “Everyone” or “TBD”, nobody is guessed: the task goes to your Inbox with an empty <code>waiting_on</code>, and the card says who it could be.</li>
@@ -1075,8 +1094,8 @@ ORDER BY phase</pre>
         <li><b>Accept</b> makes the task or the decision and links it from the meeting, under its <b>Tasks</b> or <b>Decisions</b>, so the meeting lists what came out of it. If your Meeting type doesn't have those two relations yet, Atlas offers to add them when the vault opens; until it has them, Accept is refused and says why — <i>“… has no relation called tasks to link through.”</i> The run's log and Activity say so too, once, when the Meeting type lacks them. If a note of the task's name is already there (last year's finished one, say), Accept makes yours as <i>Send the notes 2</i> and links that, never the old one. A waiting-for whose Person note was renamed or deleted since is refused, saying so; Edit its <code>waiting_on</code> and accept again. Undo of an accept takes back both the task and the meeting's link, or neither.</li>
         <li><b>An item that is wrong on its own is left out</b>, and the rest are kept: one that cites a turn the meeting doesn't have, or has an owner longer than a name, or a confidence or kind that isn't one. A due date that isn't a date (or is years from the meeting) is left off and the item kept one step less sure, the log saying <code>- adjusted …</code>. One run makes at most 25 proposals; the log says how many it left out. The rule's log names it — <code>- dropped "Order the cake": Platform weekly sync has no transcript turn ^t0099 that Claude was shown.</code> — and Activity says <i>“Left out 1 item of the answer that did not read.”</i> A meeting with no transcript turn isn't asked about at all, and the log says so. Each part of a long meeting also starts with the last two turns of the one before, quoted for context.</li>
         <li><b>A long meeting is read in parts</b>, a few thousand words of whole turns at a time, so the end of an hour's call is read as carefully as the start. The log says <code>- asked 3 times</code>. One run asks at most 10 times, within ten minutes in all; past that (several hours of talk) the log says how much was read: <code>- cut "…": read 193709 of 281220 characters</code>.</li>
-        <li><b>The prompt is yours to edit.</b> Saving the automation writes <code>.atlas/prompts/meeting-extraction.md</code> if it isn't there: what counts as a commitment, how sure to be, how to write a title. Change it and the next meeting is read your way. Atlas never writes over it.</li>
-        <li><b>To run it on a meeting you already have</b>, open the automation and click <b>Dry run</b> to see which meetings it would read, then <b>Run now</b>.</li>
+        <li><b>The prompt is yours to edit.</b> Turning on the assistant, or saving the automation, writes <code>.atlas/prompts/meeting-extraction.md</code> if it isn't there: what counts as a commitment, how sure to be, how to write a title. Change it and the next meeting is read your way. Atlas never writes over it.</li>
+        <li><b>To run it on a meeting you already have</b>, open the rule — <b>After a meeting</b>, or the older one — and click <b>Dry run</b> to see which meetings it would read, then <b>Run now</b>.</li>
       </ul>
       <div class="note"><b>Your own vault's types.</b> Matching reads <code>email</code>, <code>other_emails</code> and <code>aliases</code> on a person, and <code>domains</code>, <code>site</code> and <code>aliases</code> on a company, whether or not your types declare them. The vault in the Atlas repository declares <b>Other emails</b> and <b>Email domains</b>; add them to yours in <a href="#edit-type">Edit type</a> (multi-select) to fill them in from the properties panel.</div>
       <h3>What's in a meeting file</h3>
@@ -1115,6 +1134,71 @@ ORDER BY phase</pre>
       <div class="note"><b>What's coming.</b> A meeting file waits in <code>Inbox/Meetings</code> and shows on the <a href="#para">Inbox page</a>, where it can be filed under a project or an area. Misheard names are already <a href="#meeting-corrections">put right</a> as it arrives. Next (phase 29): linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
     </section>
 
+    <section id="meeting-assistant">
+      <h2>Turning on the meeting assistant</h2>
+      <p class="sub">One switch for everything Atlas does after a meeting arrives: its misheard names put right, its people and companies linked, its actions and decisions pulled out, and spellings that look like misheard names suggested as <a href="#terms">terms</a>. Claude only proposes; you answer in the <a href="#proposals">Inbox</a>.</p>
+      <h3>The switch</h3>
+      <ul>
+        <li>Open <a href="#automations">Automations</a>. At the top, above the rules, is the card <b>After a meeting</b>, with one switch (<b>Run the meeting assistant after each meeting</b>), its steps in order, and what its last run did.</li>
+        <li><b>The first time you turn it on</b>, Atlas makes the ready-made rule <code>After a meeting</code> — <code>.atlas/automations/After a meeting.md</code> — and its two prompt notes, <code>.atlas/prompts/meeting-extraction.md</code> and <code>.atlas/prompts/term-suggestions.md</code>. The prompts are yours to edit.</li>
+        <li><b>After that the switch is that rule's own on/off</b>, the same one as on its row in the list. Off deletes nothing. Its <b>Log</b>, <b>Dry run</b>, <b>Run now</b> and <b>Undo last run</b> are the rule's, like any other's.</li>
+        <li>The card finds the rule by its file's name. Rename the rule and the card offers to make a new one. If the rule's file can't be read, the card says so and the switch is off: <i>“Its rule’s file cannot be read, so it is off: …”</i></li>
+        <li>It asks Claude the way any rule does (<a href="#claude-setup">Settings → Claude</a>), and with <a href="#sync">sync</a> on it runs on the one Mac that runs automations.</li>
+      </ul>
+      <h3>What it does when a meeting arrives</h3>
+      <p>Each meeting gets four steps, in this order:</p>
+      <ol class="steps">
+        <li><b>Corrects its terms</b> — the spellings your Terms say are misheard, <a href="#meeting-corrections">as on import</a>.</li>
+        <li><b>Links its people and companies</b>, and proposes the ones it isn't sure of — <a href="#meeting-links">as on import</a>.</li>
+        <li><b>Asks Claude for its actions, decisions and follow-ups.</b> Each is a proposal citing the transcript turn it came from — see <a href="#meeting-extraction">What Claude pulls out</a>.</li>
+        <li><b>Asks Claude for spellings that look like misheard names.</b> Each is a term proposal — see <a href="#suggested-terms">Suggested terms</a>.</li>
+      </ol>
+      <p>The <a href="#meeting-import">import</a> already corrects and links a meeting as it lets it in. For those meetings steps 1 and 2 say so and write nothing: <i>“Already corrected when it arrived (2 misheard spellings); not corrected again.”</i>, <i>“Already linked when it arrived; not linked again.”</i> They do the work only where nothing has: a meeting you made by hand, or one whose linking failed as it arrived. No meeting is corrected or linked twice.</p>
+      <h3>If a step fails</h3>
+      <ul>
+        <li>The steps after it aren't run for that meeting: <i>“… not run, because an earlier step failed.”</i></li>
+        <li>What the earlier steps did stays.</li>
+        <li><b>Run now</b> on the rule takes the meeting again. The steps already done say <i>already</i>, and it carries on from the one that failed. The next time the vault opens, it is taken again by itself.</li>
+        <li>The other meetings of the same run are still run.</li>
+        <li>A meeting open with unsaved typing can't be corrected or linked: that step fails and says so, so save and run it again.</li>
+      </ul>
+      <h3>What it never does</h3>
+      <ul>
+        <li>Claude never edits a note. Nothing it suggests is written until you accept it in the Inbox.</li>
+        <li>A term suggestion never rewrites a meeting — not when it's made, and not when you accept it.</li>
+        <li>It never suggests an everyday word as a misheard spelling, nor someone's name or a word out of one (<i>Quill</i>, while there is a Mara Quill), nor a spelling a term already lists. A suggestion must be in the turn it cites, word for word.</li>
+      </ul>
+      <h3 id="suggested-terms">Accepting a suggested term</h3>
+      <p>The card reads <i>TERM · Lark Spur Pay → Larkspur Pay</i>: what was heard, then the right spelling, with the turn it was heard in.</p>
+      <ul>
+        <li><b>Accept</b> adds the heard spelling to that term's <b>Misheard as</b>. If you have no term of that spelling, it makes one in <code>Terms/</code> with that one misheard spelling. <b>Undo</b> takes it back, as for any accept.</li>
+        <li><b>Meetings that arrive later</b> are corrected by it.</li>
+        <li><b>A meeting already in the vault</b> is corrected only when you choose <b>Correct again</b> on its band — see <a href="#correct-again">Correct again</a>.</li>
+        <li><b>Low confidence</b> when the right spelling is neither in your vault nor an attendee's name: the card says to check the spelling. <b>Edit</b> it before you accept.</li>
+        <li>The same mishearing in the next meeting doesn't make a second card. <b>Reject</b> it once and it isn't suggested again.</li>
+        <li>Refused, with nothing written, when the term already lists that spelling.</li>
+      </ul>
+      <h3>What it costs</h3>
+      <ul>
+        <li><b>At most 10 questions to Claude in one run</b>, across both Claude steps and every meeting the run takes. A meeting is started only while a question is left for each of its Claude steps; the rest wait for <b>Run now</b>, and the log says the run stopped short.</li>
+        <li><b>The hourly cap of 20</b> on a <a href="#automation-note">rule a note sets off</a> counts every question, so an ordinary meeting uses two.</li>
+        <li><b>One meeting per question.</b> A long meeting's actions are <a href="#meeting-extraction">read in parts</a>; term suggestions read at most its first two parts, since a name misheard once is misheard throughout. The log's <code>- cut</code> line says when a meeting was read in part.</li>
+      </ul>
+      <h3>Undo</h3>
+      <div class="grid2">
+        <div class="card"><h4>On the meeting</h4><p><b>Undo corrections</b> puts every original word back. <b>Undo links</b> takes out the links linking added that still stand as it wrote them, and withdraws its proposals still open; the meeting is then never linked again by itself. <b>Correct again</b> corrects it by today's terms. See <a href="#meeting-corrections">corrections</a> and <a href="#meeting-links">links</a>.</p></div>
+        <div class="card"><h4>On the rule</h4><p><b>Undo last run</b> undoes the last meeting's run: its corrections and its links, if that run made them. A step that said <i>already</i> did nothing to take back — what the import did is undone on the meeting. It lists the proposals the run left, for you to reject in the Inbox.</p></div>
+      </div>
+      <h3>Where to see what it did</h3>
+      <ul>
+        <li><b><a href="#activity">Activity</a></b> has one line per meeting — <i>“After a meeting · 2026-10-06 Payroll sync: ran its 4 steps. Asked claude-opus-5-5, 9.3 s.”</i> — that opens to show each step. One that failed is an error: <i>“… stopped at step 3 of 4.”</i> with why.</li>
+        <li><b>The rule's log</b> has one entry per meeting, listing each step and how it went: <code>done</code>, <code>already</code>, <code>nothing</code>, <code>failed</code> or <code>skipped</code>.</li>
+        <li><b>Dry run</b> names the steps without running them: <i>“Would run its 4 steps on 1 note. For each, in order: Correct its terms → Link its people and companies → …”</i></li>
+      </ul>
+      <div class="note"><b>Already use “Pull actions and decisions out of a new meeting”?</b> Use one or the other. With both on, Claude is asked about each meeting twice; the proposals are still made once. <b>The steps aren't edited in the app:</b> the rule's editor lists them, and its file is where you take one out or name another prompt — see <a href="#automation-file">The rule's file</a>.</div>
+      <div class="warn"><b>Meetings imported before this was built</b> carry no record of their links. <b>Run now</b> on one links it again: only links Atlas is sure of are added, but a person you had taken out comes back once.</div>
+    </section>
+
     <section id="terms">
       <h2>Terms</h2>
       <p class="sub">Teaching Atlas how names are spelt. A notetaker mishears the names it doesn't know — a product, a colleague, a vendor. A term is the one right spelling and the ways it gets misheard, and Atlas and Claude both use the list.</p>
@@ -1142,11 +1226,13 @@ ORDER BY phase</pre>
         <li>The top of the page counts them: <i>“2 terms · 9 misheard spellings Atlas puts right — exactly as written, capitals included…”</i>.</li>
         <li>Templates, notes in hidden folders and archived notes don't count. To retire a term, <a href="#archive">archive</a> it.</li>
       </ul>
+      <h3>Suggested terms</h3>
+      <p>With the <a href="#meeting-assistant">meeting assistant</a> on, Claude reads each new meeting for spellings that look like misheard names, and each arrives in the <a href="#proposals">Inbox</a> as a term proposal: <i>Lark Spur Pay → Larkspur Pay</i>. Accepting one adds the heard spelling to that term's <b>Misheard as</b>, or makes the term here if you have none. Nothing is added to this list until you accept — see <a href="#suggested-terms">Accepting a suggested term</a>.</p>
       <h3>Conflicts</h3>
       <p>If two notes claim one spelling for two different right spellings — <i>lark spur</i> as a variant of both <i>Larkspur</i> and <i>Larkspur Payroll</i> — Atlas can't know which you meant, so it leaves that spelling alone. The page shows a <b>Conflicts</b> box above the list with each such spelling and the notes that claim it (click one to open it), and under the term: <i>“In conflict, so not used: “lark spur””</i>. Take the spelling off one of them and the conflict goes.</p>
       <h3>Built in</h3>
       <p><b>Term</b> and <b>Company</b> are <a href="#edit-type">built-in types</a>: <b>Delete</b> is turned off for both — <i>“Term is built in — the Terms page lists its notes, and Atlas spells names by them — so it cannot be deleted.”</i> Their properties are yours to change.</p>
-      <div class="note"><b>Where it's used.</b> When a meeting arrives, its misheard names are <a href="#meeting-corrections">corrected by this list</a> — every change recorded on the meeting, and undoable from its page.</div>
+      <div class="note"><b>Where it's used.</b> When a meeting arrives, its misheard names are <a href="#meeting-corrections">corrected by this list</a> — every change recorded on the meeting, and undoable from its page. A term added later reaches a meeting already there only through <a href="#correct-again">Correct again</a> on that meeting.</div>
     </section>
 
     <section id="proposals">
@@ -1155,7 +1241,7 @@ ORDER BY phase</pre>
       <h3>Open the proposals</h3>
       <ol class="steps">
         <li>Open the <a href="#para">Inbox</a>: proposals are its <b>Proposals</b> section, above the notes waiting to be filed. The section shows while something waits for an answer, and the Inbox's count includes them.</li>
-        <li>Each card says what it would make — <i>TASK · Send Mara the payroll file</i> — with why it was proposed and what it would write under it, how sure its maker was (<i>high confidence</i>; a <i>low confidence</i> card has a coloured edge, so you check it first), and the line it came from: click <b>[[2026-10-01 Standup#^t0003]]</b> and the meeting opens at that line. A proposal that cites nothing says <b>Cites no source</b>, so you know to check it yourself.</li>
+        <li>Each card says what it would make — <i>TASK · Send Mara the payroll file</i>, or for a <a href="#suggested-terms">suggested term</a> what was heard and the right spelling, <i>TERM · Lark Spur Pay → Larkspur Pay</i> — with why it was proposed and what it would write under it, how sure its maker was (<i>high confidence</i>; a <i>low confidence</i> card has a coloured edge, so you check it first), and the line it came from: click <b>[[2026-10-01 Standup#^t0003]]</b> and the meeting opens at that line. A proposal that cites nothing says <b>Cites no source</b>, so you know to check it yourself.</li>
         <li>Answer it: <b>Accept</b>, <b>Edit</b> or <b>Reject</b>.</li>
       </ol>
       <h3>What each answer does</h3>
@@ -1171,7 +1257,8 @@ ORDER BY phase</pre>
           <tbody>
             <tr><td>Task, Follow-up</td><td>A new task, with <code>source</code> linking the line it came from and <code>meeting</code> linking the meeting the proposal names — whatever made it from a meeting says which. A follow-up is a task to chase someone.</td></tr>
             <tr><td>Decision</td><td>A new note of the built-in <b>Decision</b> type — title, date, meeting, project, people — citing its line the same way.</td></tr>
-            <tr><td>Person, Term, Project</td><td>A new note of that type. A person proposed from a <a href="#meeting-links">meeting</a> is added to that meeting's <b>People</b> too.</td></tr>
+            <tr><td>Person, Project</td><td>A new note of that type. A person proposed from a <a href="#meeting-links">meeting</a> is added to that meeting's <b>People</b> too.</td></tr>
+            <tr><td>Term</td><td>Adds the heard spelling to the <b>Misheard as</b> of the term you have by that right spelling, wherever it's filed; with none, a new term in <code>Terms/</code>. It never changes a meeting — see <a href="#suggested-terms">Accepting a suggested term</a>.</td></tr>
             <tr><td>Link</td><td>Adds one link to a note's relation — Mara Quill's <b>Companies</b> gets <code>[[Larkspur Payroll]]</code>. A link from <a href="#meeting-links">meeting linking</a> goes in even if the meeting has changed since, but never replaces a link already there: a meeting whose project you set is left with yours.</td></tr>
           </tbody>
         </table>
@@ -1182,6 +1269,7 @@ ORDER BY phase</pre>
         <li><i>“There is already a note at Send Mara the payroll file.md, which may be this one. Edit the title to make another.”</i></li>
         <li><i>“Mara Quill changed since this was proposed, so it was left as it is.”</i> — the note a link would change has been edited since; check it and answer again.</li>
         <li><i>“2026-10-06 Payroll sync already links [[Payrun]] in project; this would replace it.”</i> — the meeting got a project since the proposal was made.</li>
+        <li><i>“There is already a term “Larkspur Pay” at Terms/Larkspur Pay.md, and it lists every misheard spelling this proposes.”</i> — nothing to add; reject it. A suggested spelling that has since become an everyday word, someone's name or another term's spelling is refused too.</li>
         <li>A proposal, or the note it would change, with unsaved typing: save it first.</li>
         <li>A proposal may only write where your notes live: never in <code>.atlas</code>, a hidden folder, a folder Atlas doesn't show (<code>node_modules</code>), the Archive or <code>Inbox/Proposals</code> itself. A title too long for a file name is cut to fit.</li>
       </ul>
@@ -1191,7 +1279,7 @@ ORDER BY phase</pre>
         <li><b>Proposal</b> and <b>Decision</b> are <a href="#types">built-in types</a>, and every task gains a <b>Meeting</b> link.</li>
         <li>Claude can list and answer them for you through <a href="#connect"><code>atlas_proposals</code></a> — only when you ask it to.</li>
       </ul>
-      <div class="note"><b>Proposals that arrive by themselves.</b> An automation can <a href="#automation-claude">ask Claude</a> about each new meeting, or any note, and what it answers lands here as proposals. A ready-made rule for a meeting's action items is coming later in phase 29.</div>
+      <div class="note"><b>Proposals that arrive by themselves.</b> An automation can <a href="#automation-claude">ask Claude</a> about each new meeting, or any note, and what it answers lands here as proposals. The <a href="#meeting-assistant">meeting assistant</a> is the ready-made one: a meeting's actions, decisions and follow-ups, and its suggested terms.</div>
     </section>
 
     <section id="tags">
@@ -1247,7 +1335,7 @@ ORDER BY phase</pre>
 
     <section id="automations">
       <h2>Automations</h2>
-      <p class="sub">A rule that tidies the vault while you work: when it runs — on a clock, or when a note of a type appears or changes — which notes it takes — an <a href="#queries">Atlas query</a> — and what it does to them: archive them, set a property, or <a href="#automation-claude">ask Claude</a> to propose things. Every run is logged and can be tried first as a dry run. The last run that archived or set something can be undone.</p>
+      <p class="sub">A rule that tidies the vault while you work: when it runs — on a clock, or when a note of a type appears or changes — which notes it takes — an <a href="#queries">Atlas query</a> — and what it does to them: archive them, set a property, <a href="#automation-claude">ask Claude</a> to propose things, or — for a meeting — <a href="#meeting-assistant">several steps in order</a>. Every run is logged and can be tried first as a dry run. The last run that archived or set something can be undone.</p>
       <h3>Where they are</h3>
       <ul>
         <li><b>Automations</b> is in the sidebar, under <b>Tags</b>. It opens a page listing every rule.</li>
@@ -1255,7 +1343,9 @@ ORDER BY phase</pre>
       </ul>
       <h3>Start one</h3>
       <ul>
+        <li><b>After a meeting</b>, the card at the top of the page above the rules, is one switch for the <a href="#meeting-assistant">meeting assistant</a>. Turning it on makes its rule; after that the card's switch and the rule's are the same one.</li>
         <li><b>Archive done tasks after 30 days</b>, the ready-made one, sits at the top of the page. It opens in the editor for you to look over; nothing is made until you press <b>Create automation</b>. It runs every day at 03:00, takes <code>FROM task WHERE status = done</code>, only notes not changed in the last 30 days, and archives them.</li>
+        <li><b>Pull actions and decisions out of a new meeting</b>, the other ready-made one, is the assistant's third step by itself — see <a href="#meeting-extraction">What Claude pulls out</a>. Use it or the card, not both: with both on, Claude is asked about each meeting twice, though each proposal is still made once.</li>
         <li><b>New automation</b> starts a blank rule, taking every note of your first type.</li>
       </ul>
       <h3>The editor</h3>
@@ -1269,7 +1359,7 @@ ORDER BY phase</pre>
             <tr><td>When</td><td><b>Daily</b> at a time, <b>Every few hours</b> (every 1 to 168 hours), <b>When Atlas opens</b>, <b>By hand</b>, or <b>When a note appears</b>: a type, then <b>is created</b>, <b>is changed</b> or both — one stays ticked. See <a href="#automation-note">When a note appears</a>.</td></tr>
             <tr><td>Which notes</td><td>An Atlas query, in the builder or as text, as on the Query page. Dates like <code>@today</code> mean the day the rule runs. For a rule a note sets off, it must take that type's notes — <code>FROM meeting …</code> — or it says so in red.</td></tr>
             <tr><td>Only notes not changed in the last … days</td><td>Tick it to leave out notes changed recently, by their <code>modified</code> date: 1 to 3650 days. Not offered for a rule a note sets off: that note has just changed.</td></tr>
-            <tr><td>Do</td><td><b>Archive</b>, <b>Set a property</b> to a value (<b>Property</b> <i>to</i> <b>Value</b>), or <b>Ask Claude</b>: a <b>Prompt</b>, what it <b>Writes</b> (<b>Proposals in the Inbox</b>, or <b>One new note</b> <i>in</i> a <b>Folder</b>), and the <b>Tools Claude may use</b>. See <a href="#automation-claude">Ask Claude</a>.</td></tr>
+            <tr><td>Do</td><td><b>Archive</b>, <b>Set a property</b> to a value (<b>Property</b> <i>to</i> <b>Value</b>), or <b>Ask Claude</b>: a <b>Prompt</b>, what it <b>Writes</b> (<b>Proposals in the Inbox</b>, or <b>One new note</b> <i>in</i> a <b>Folder</b>), and the <b>Tools Claude may use</b>. See <a href="#automation-claude">Ask Claude</a>. Or <b>Several steps</b>, for a rule a meeting sets off: it starts from the <a href="#meeting-assistant">meeting assistant</a>'s four and lists them in order. The steps are read here, not edited; change them in <a href="#automation-file">the rule's file</a>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1305,7 +1395,7 @@ ORDER BY phase</pre>
       <p>A rule can ask Claude to read its notes and propose things. Claude never edits a note this way: it only writes <a href="#proposals">proposals</a> for you to accept, or one new note. Example: <i>Meeting actions</i> — when a meeting is created, ask Claude to find the action items, and propose each one as a task.</p>
       <ul>
         <li><b>The prompt</b> is a note in <code>.atlas/prompts/</code>, like <code>.atlas/prompts/meeting-actions.md</code>. Its body is what you ask; write it like a note to a colleague. In the editor you can type just its name, <code>meeting-actions</code>.</li>
-        <li><b>What it writes:</b> <b>Proposals in the Inbox</b> — each one a task, decision, follow-up, person, term or project for you to accept, edit or reject, citing the line of the note it came from, like <code>[[2026-10-01 Standup#^t0003]]</code>, with a confidence. Or <b>A meeting's actions and decisions, as proposals</b> (<code>output: meeting-items</code>) — see <a href="#meeting-extraction">What Claude pulls out</a>. Or <b>One new note</b> in a folder you name, like a morning brief: a new note every run, numbered past one already there (<i>Morning brief 2</i>), never written over.</li>
+        <li><b>What it writes:</b> <b>Proposals in the Inbox</b> — each one a task, decision, follow-up, person, term or project for you to accept, edit or reject, citing the line of the note it came from, like <code>[[2026-10-01 Standup#^t0003]]</code>, with a confidence. Or <b>A meeting's actions and decisions, as proposals</b> (<code>output: meeting-items</code>) — see <a href="#meeting-extraction">What Claude pulls out</a>. Or <b>Spellings that look like misheard names, as term proposals</b> (<code>output: term-suggestions</code>) — see <a href="#suggested-terms">Accepting a suggested term</a>. Or <b>One new note</b> in a folder you name, like a morning brief: a new note every run, numbered past one already there (<i>Morning brief 2</i>), never written over.</li>
         <li><b>Tools Claude may use</b> are some of the chat's read tools, like <code>atlas_read_note</code> and <code>atlas_search</code>. It's handed the notes the run is about either way. With none ticked, it reads only those.</li>
         <li>It reaches Claude the way the <a href="#claude">chat</a> does: your own Claude Code, or the API key, and the model chosen in Settings → Claude.</li>
         <li><b>All or nothing.</b> If Claude's answer isn't what the rule asks for, nothing is written and the run fails. That covers an answer that isn't JSON, one with a key it wasn't asked for, a proposal that cites a line the note doesn't have (or one inside a code block, or past where a long note was cut), a tool the rule didn't tick, or no answer within 10 minutes (the whole run, however many asks it makes). Activity says why: <i>“Meeting actions: Ran by hand, and could not. Claude called atlas_search, which this rule does not let it use.”</i></li>
@@ -1320,7 +1410,7 @@ ORDER BY phase</pre>
         <li><b>10 notes a run</b> at most, because Claude reads each one. If more match, the log says <i>“Read the first 10 notes, the most one Claude run takes; run it by hand for the rest”</i>, and <b>Run now</b> takes the next ones. A note it was asked about counts as handled, even if it proposed nothing, on a clock or when a note sets it off alike, so the same version isn't sent again until the note changes. That holds wherever the note goes: a meeting filed or renamed out of the Inbox, its text unchanged, isn't sent again — not by <b>Run now</b> either. A failed run handles nothing: <b>Run now</b> asks again.</li>
         <li><b>It counts toward the hourly cap</b> of a rule a note sets off — each time Claude was asked, including an answer of nothing and a failure, so a long meeting read in four parts counts four. A run that never asked (a prompt over 20,000 characters, Claude not signed in) counts nothing.</li>
         <li>It never reads a proposal, since it would only be answering itself. Atlas's own files are skipped too.</li>
-        <li>A rule can't say a Claude step edits a note. Anything but <code>output: note</code>, <code>output: proposals</code> or <code>output: meeting-items</code> — <code>edit</code>, say — or a note named by <code>path:</code>, is refused: <i>“… A Claude step never edits a note: it writes proposals for you to accept, or one new note.”</i></li>
+        <li>A rule can't say a Claude step edits a note. Anything but <code>output: note</code>, <code>output: proposals</code>, <code>output: meeting-items</code> or <code>output: term-suggestions</code> — <code>edit</code>, say — or a note named by <code>path:</code>, is refused: <i>“… A Claude step never edits a note: it writes proposals for you to accept, or one new note.”</i></li>
         <li><b>Dry run</b> lists the notes it would ask about, without asking Claude. Its run can't be undone; answer its proposals in the Inbox instead, and keep or delete a note it made.</li>
       </ul>
       <h3>Dry run, run, undo</h3>
@@ -1328,6 +1418,7 @@ ORDER BY phase</pre>
         <li><b>Dry run</b> says exactly what the rule would do now — <i>“Would archive 12 notes.”</i> or <i>“Nothing to do right now.”</i> — then lists each note it would take (click to open) and each it would leave, with why. It changes nothing, and works before a new rule is saved.</li>
         <li><b>Run now</b> runs it at once, on or off, whatever its schedule. Afterwards <b>Last run</b> says what it did: <i>“Archived 12 notes. Left 1 alone.”</i></li>
         <li><b>Undo last run</b> undoes the newest run that archived or set something, once. It can't reach further back: that would put back notes later runs have acted on since.</li>
+        <li>On a rule of several steps, a run is one meeting's, so <b>Dry run</b> names the steps in order and <b>Undo last run</b> undoes the last meeting's: the corrections and links that run made, through the meeting's own undos. What Claude proposed is listed, for you to reject in the Inbox — see <a href="#meeting-assistant">the meeting assistant</a>.</li>
         <li>It reverses only what that rule did: notes it archived go back where they were, and properties it set go back to what they held.</li>
         <li>What has changed since is left as it is and listed: a property changed again, a note moved out of where the run put it, or an archived note whose archive stamp isn't the run's.</li>
         <li>The log is a note anyone could edit, so a line the rule couldn't have made — an archive in a rule that sets, a key it doesn't set, a value no property holds — is skipped and listed, never carried out.</li>
@@ -1352,7 +1443,7 @@ ORDER BY phase</pre>
         <li>Atlas's own files in <code>.atlas</code> are never changed by a rule.</li>
         <li>A <a href="#connect">connected Claude</a> can read the rules and their logs and dry-run one, but never run, undo, turn on or off, make or change one — that stays on this page.</li>
       </ul>
-      <h3>The rule's file</h3>
+      <h3 id="automation-file">The rule's file</h3>
       <p>A rule can be written or edited by hand, anywhere. Its frontmatter:</p>
       <pre>atlas: automation
 id: Archive done tasks after 30 days
@@ -1374,10 +1465,11 @@ do: archive</pre>
             <tr><td><code>when</code></td><td><code>daily at HH:MM</code>, <code>every N hours</code> (1 to 168), <code>on app open</code>, <code>manually</code>, or a note: <code>a meeting is created</code>, <code>a meeting is changed</code>, <code>a meeting is created or changed</code> (<code>an</code> before a vowel).</td></tr>
             <tr><td><code>which</code></td><td>An Atlas query: <code>FROM task WHERE …</code></td></tr>
             <tr><td><code>olderThanDays</code></td><td>Optional: only notes not changed in this many days, 1 to 3650.</td></tr>
-            <tr><td><code>do</code></td><td><code>archive</code>, <code>set</code> with the values under <code>set:</code>, like <code>set: {status: done}</code>, or <code>claude</code>.</td></tr>
+            <tr><td><code>do</code></td><td><code>archive</code>, <code>set</code> with the values under <code>set:</code>, like <code>set: {status: done}</code>, <code>claude</code>, or <code>steps</code>.</td></tr>
+            <tr><td><code>steps</code></td><td>For <code>do: steps</code>: a list of up to six, run in the order written, each with its own <code>do:</code> — <code>correct-terms</code>, <code>link-meeting</code>, or <code>claude</code> with its own <code>prompt</code>, <code>tools</code> and <code>output</code>. Never <code>archive</code> or <code>set</code>: those stay rules of their own. A rule with <code>correct-terms</code> or <code>link-meeting</code> must be one a meeting sets off (<code>when: a meeting is created</code>).</td></tr>
             <tr><td><code>prompt</code></td><td>For <code>do: claude</code>: the prompt note, <code>.atlas/prompts/&lt;name&gt;.md</code>.</td></tr>
             <tr><td><code>tools</code></td><td>For <code>do: claude</code>: a list of read tools, like <code>[atlas_read_note, atlas_search]</code>. Optional.</td></tr>
-            <tr><td><code>output</code></td><td>For <code>do: claude</code>: <code>proposals</code>, or <code>note</code> with the folder under <code>folder:</code>, like <code>folder: Briefs</code>. Not <code>.atlas</code>, the Archive, <code>Inbox/Proposals</code> or <code>Inbox/Meetings</code>.</td></tr>
+            <tr><td><code>output</code></td><td>For <code>do: claude</code>: <code>proposals</code>, <code>meeting-items</code>, <code>term-suggestions</code>, or <code>note</code> with the folder under <code>folder:</code>, like <code>folder: Briefs</code>. Not <code>.atlas</code>, the Archive, <code>Inbox/Proposals</code> or <code>Inbox/Meetings</code>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1390,6 +1482,7 @@ do: archive</pre>
         <li>One file per rule, <code>.atlas/automations/log/&lt;id&gt;.md</code>, headed <i>&lt;name&gt; — run log</i>. Each run, undo, <b>Turned on</b> and <b>First seen</b> is a <code>##</code> section, newest last: when, what happened, then one line per note changed or left and why.</li>
         <li>A run a note set off also lists <code>- triggered by "…" at "…"</code> for each note version it handled, <code>- wrote "…" at "…"</code> for the version its own change left, and <code>- went "…"</code> for a path a note it had handled left. That is the rule's memory of what it has done: delete those lines and it may act on those versions again.</li>
         <li>A Claude step's run lists <code>- proposed "…"</code> for each proposal, <code>- created "…"</code> for its note, and <code>- claude "&lt;model&gt;" in "…" ms</code>, with a <code>- cut "…"</code> line for each note it read only the start of, <code>- asked 3 times</code> when a long meeting was read in parts, and a <code>- dropped "…"</code> line for each item it left out. What Claude wrote itself, like a reason it failed, is cut to a few hundred characters.</li>
+        <li>A rule of several steps writes one entry per meeting, not per run: <code>- on "…"</code> names the meeting, then <code>- step "correct-terms" "done": Corrected 2 misheard spellings.</code> for each step, with how it went — <code>done</code>, <code>already</code>, <code>nothing</code>, <code>failed</code> or <code>skipped</code>. <code>- corrected "…" 2</code> and <code>- linked "…" 3</code> are what <b>Undo last run</b> reads.</li>
         <li>It's meant to be read. You can add your own sections, like <code>## Notes</code>; Atlas keeps them.</li>
         <li>It keeps the latest 100 entries, and no more than 256 KB; the oldest entries go first, never your own sections.</li>
       </ul>
@@ -1407,10 +1500,11 @@ do: archive</pre>
         <li>Newest first. Each line: time, level (<b>Info</b>, <b>Warning</b>, <b>Error</b>), kind, and one line of what happened.</li>
         <li><b>Show</b>: <b>Everything</b>, <b>Warnings and errors</b> or <b>Errors only</b>. Kinds: <b>Automations</b>, <b>Sources</b>, <b>Meetings</b>, <b>API &amp; MCP</b>, <b>Claude</b>, <b>Index</b>, <b>Saves</b>, <b>Sync</b>, <b>App</b>. Search box: <b>Search the activity…</b></li>
         <li>Click a line to open its note or source — or the Automations page, for a rule.</li>
+        <li>A line that sums up several steps opens: the <a href="#meeting-assistant">meeting assistant</a>'s line for a meeting — <i>“After a meeting · 2026-10-06 Payroll sync: ran its 4 steps.”</i> — lists each step under it, in order, with what it did.</li>
       </ul>
       <h3>What's recorded</h3>
       <ul>
-        <li><a href="#automations">Automation</a> runs, dry runs and undos — a run a note set off names the note; the rule's own log keeps the detail.</li>
+        <li><a href="#automations">Automation</a> runs, dry runs and undos — a run a note set off names the note; the rule's own log keeps the detail. A rule of several steps has one line per meeting, an error when a step failed: <i>“… stopped at step 3 of 4.”</i> with why.</li>
         <li><a href="#sources">Source</a> refreshes.</li>
         <li><a href="#meeting-import">Meetings</a> as they arrive: imported, archived as a second copy, or could not be imported and why.</li>
         <li>Notes written through the Local API or MCP: the route and the note, never the contents.</li>

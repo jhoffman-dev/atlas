@@ -228,6 +228,50 @@ export const NOTHING_CORRECTED_PROPERTIES: Readonly<Record<string, unknown>> = {
   [CORRECTIONS_KEY]: CORRECTIONS_NONE,
 };
 
+/** What a meeting is written with when it is corrected again: its body, and what its frontmatter is changed by. */
+export interface Recorrection {
+  readonly body: string;
+  readonly values: Readonly<Record<string, unknown>>;
+  /** How many spellings are put right in the body as it is written. */
+  readonly count: number;
+}
+
+/**
+ * A meeting corrected again by the vocabulary as it is now (P29-06): what
+ * "Correct again" writes, for a term added since the meeting arrived. Only
+ * ever asked for by the person; nothing corrects a meeting twice by itself.
+ *
+ * Where the meeting still reads as its last correction left it, that
+ * correction is taken back first and the original words are corrected afresh
+ * — so one Undo still puts every original word back, and a spelling a term
+ * no longer lists goes back to what was said. Where the words were edited
+ * since, or its corrections were undone, the body as it is now is what is
+ * corrected, and Undo goes back to that. Null when today's vocabulary would
+ * leave the meeting exactly as it reads now.
+ */
+export function recorrectMeetingBody({
+  body,
+  properties,
+  vocabulary,
+}: {
+  body: string;
+  properties: Readonly<Record<string, unknown>>;
+  vocabulary: Pick<Vocabulary, 'entries'> & Partial<Pick<Vocabulary, 'speakers'>>;
+}): Recorrection | null {
+  const before = undoMeetingCorrections({ body, properties });
+  const correction = correctMeetingBody(before.ok ? before.body : body, vocabulary);
+  if (correction.body === body) return null;
+  const values =
+    correction.count === 0
+      ? {
+          ...NOTHING_CORRECTED_PROPERTIES,
+          [CORRECTIONS_DIGEST_KEY]: null,
+          [CORRECTIONS_ORIGINAL_DIGEST_KEY]: null,
+        }
+      : correctionProperties(correction);
+  return { body: correction.body, values, count: correction.count };
+}
+
 /** What the frontmatter is changed by once the corrections are undone. */
 export const UNDONE_CORRECTION_PROPERTIES: Readonly<Record<string, unknown>> = {
   [CORRECTIONS_KEY]: CORRECTIONS_UNDONE,

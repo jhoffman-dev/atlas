@@ -15,6 +15,7 @@ describe('the prompts Atlas ships', () => {
   it('are prompt notes a rule can name, each with words to ask', () => {
     expect(BUILT_IN_PROMPTS.map((prompt) => prompt.path)).toEqual([
       '.atlas/prompts/meeting-extraction.md',
+      '.atlas/prompts/term-suggestions.md',
     ]);
     for (const prompt of BUILT_IN_PROMPTS) {
       expect(isPromptPath(prompt.path)).toBe(true);

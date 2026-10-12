@@ -3,7 +3,7 @@ import { Icon } from '../icon.tsx';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
 import { PageHead } from '../page-head.tsx';
 import { Toggle } from '../toggle.tsx';
-import type { AutomationRow } from './automation-views.ts';
+import type { AutomationRow, MeetingAssistantView } from './automation-views.ts';
 
 export interface AutomationsPageProps {
   /** Null while the rules are being read. */
@@ -15,6 +15,10 @@ export interface AutomationsPageProps {
   readonly editor: ReactNode | null;
   /** The ready-made rules, by name, that "Add" offers. */
   readonly presets: readonly string[];
+  /** The meeting assistant's switch; left out where the page has none to show. */
+  readonly assistant?: MeetingAssistantView;
+  /** Turns the meeting assistant on — making its rule the first time — or off. */
+  readonly onAssistant?: (on: boolean) => void;
   readonly onNew: () => void;
   readonly onAddPreset: (name: string) => void;
   readonly onOpen: (id: string) => void;
@@ -55,6 +59,13 @@ export function AutomationsPage(props: AutomationsPageProps) {
               {props.notice}
             </p>
           )}
+          {props.assistant !== undefined && (
+            <MeetingAssistant
+              assistant={props.assistant}
+              busy={props.busy}
+              onChange={(on) => props.onAssistant?.(on)}
+            />
+          )}
           {props.editor}
           <RuleList {...props} />
         </article>
@@ -68,6 +79,48 @@ function describe(rows: readonly AutomationRow[] | null): string | null {
   const on = rows.filter((row) => row.enabled && row.problem === null).length;
   const count = `${rows.length} ${rows.length === 1 ? 'automation' : 'automations'}`;
   return `${count}, ${on} on · rules that tidy the vault while you work`;
+}
+
+/**
+ * The meeting assistant (P29-06): one switch for everything Atlas does when a
+ * meeting arrives, saying what that is, in order, and what it never does.
+ */
+function MeetingAssistant({
+  assistant,
+  busy,
+  onChange,
+}: {
+  assistant: MeetingAssistantView;
+  busy: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <section className="meeting-assistant" aria-label="Meeting assistant">
+      <Toggle
+        label="Run the meeting assistant after each meeting"
+        checked={assistant.on}
+        disabled={busy || assistant.problem !== null}
+        onChange={onChange}
+      />
+      <div>
+        <h2 className="meeting-assistant__title">After a meeting</h2>
+        <p className="meeting-assistant__what">
+          {assistant.problem ??
+            'One switch for what happens when a meeting arrives. Each step is logged; one that fails stops the ones after it, and what the earlier ones did stays.'}
+        </p>
+        <ol className="meeting-assistant__steps" aria-label="What it does, in order">
+          {assistant.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <p className="meeting-assistant__never">
+          Claude only ever proposes: nothing it suggests is written until you accept it in the
+          Inbox. Corrections and links are recorded on the meeting and undone there.
+          {assistant.lastRun !== null && ` Last run: ${assistant.lastRun}`}
+        </p>
+      </div>
+    </section>
+  );
 }
 
 function Adders({ presets, onNew, onAddPreset, busy }: AutomationsPageProps) {

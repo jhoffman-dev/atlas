@@ -1,5 +1,6 @@
 import {
   answeredMeetingOf,
+  claudeStepsOf,
   proposalSchemaNamed,
   splitFrontmatter,
   type AutomationRule,
@@ -18,7 +19,8 @@ import type { VaultFsPort } from '../vault/ports.ts';
  * answers and finds them when it looks again; no other memory is kept.
  *
  * Versions are returned as they came for a rule with no such output, and for
- * a note that cannot be read: it is then known by its digest alone.
+ * a note that cannot be read: it is then known by its digest alone. A rule of
+ * several steps (P29-06) is known by every Claude step's output.
  */
 export async function withHandledKeys({
   fs,
@@ -31,12 +33,8 @@ export async function withHandledKeys({
   rule: Pick<AutomationRule, 'action'>;
   versions: readonly NoteVersionRef[];
 }): Promise<NoteVersionRef[]> {
-  const { action } = rule;
-  const keyOf =
-    action.kind === 'claude' && action.output.kind === 'proposals'
-      ? proposalSchemaNamed(action.output.schema)?.handledKeyOf
-      : null;
-  if (keyOf === null || keyOf === undefined || versions.length === 0) return [...versions];
+  const keysOf = handledKeyReaders(rule);
+  if (keysOf.length === 0 || versions.length === 0) return [...versions];
   const texts = new Map(
     (await fs.readNotes(versions.map(({ path }) => path))).map((note) => [note.path, note.text]),
   );
@@ -46,7 +44,26 @@ export async function withHandledKeys({
     const meeting = answeredMeetingOf(
       markdown.frontmatterProperties(splitFrontmatter(text).frontmatter),
     );
-    const key = keyOf({ text, ...(meeting !== undefined && { meeting }) });
-    return key === null ? version : { ...version, keys: [...(version.keys ?? []), key] };
+    const note = { text, ...(meeting !== undefined && { meeting }) };
+    const keys = keysOf.flatMap((keyOf) => keyOf(note) ?? []);
+    const known = new Set(version.keys ?? []);
+    const added = [...new Set(keys)].filter((key) => !known.has(key));
+    return added.length === 0 ? version : { ...version, keys: [...known, ...added] };
+  });
+}
+
+/**
+ * How each of the rule's Claude steps knows a note besides its whole-file
+ * digest: its one step's output, or — for a rule of several steps — every
+ * step's that has one. Two steps that read the same words name the same key,
+ * which is then recorded once.
+ */
+function handledKeyReaders(rule: Pick<AutomationRule, 'action'>) {
+  return claudeStepsOf(rule.action).flatMap((step) => {
+    const keyOf =
+      step.output.kind === 'proposals'
+        ? proposalSchemaNamed(step.output.schema)?.handledKeyOf
+        : null;
+    return keyOf === null || keyOf === undefined ? [] : [keyOf];
   });
 }

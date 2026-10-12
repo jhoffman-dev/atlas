@@ -3,10 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AUTOMATION_PRESETS, BLANK_AUTOMATION, type AutomationDraft } from '@atlas/domain';
+import {
+  AFTER_A_MEETING_PRESET,
+  AUTOMATION_PRESETS,
+  BLANK_AUTOMATION,
+  type AutomationDraft,
+  type StepsAction,
+} from '@atlas/domain';
 import { AutomationEditor, type AutomationEditorProps } from './automation-editor.tsx';
 import { AutomationsPage, type AutomationsPageProps } from './automations-page.tsx';
 import type { AutomationRow, LogEntryView } from './automation-views.ts';
+
+const AFTER_A_MEETING_STEPS = AFTER_A_MEETING_PRESET.action as StepsAction;
 
 const ROW: AutomationRow = {
   id: '.atlas/automations/Tidy.md',
@@ -155,6 +163,7 @@ function Editor({
       typeNames={['task', 'meeting']}
       claudeTools={['atlas_search', 'atlas_read_note', 'atlas_backlinks']}
       claudeOutputs={['proposals']}
+      startingSteps={AFTER_A_MEETING_STEPS}
       busy={false}
       onSave={() => {}}
       onCancel={() => {}}
@@ -407,5 +416,104 @@ describe('AutomationEditor', () => {
   it('says a rule that has not run has not', () => {
     render(<Editor log={[]} />);
     expect(screen.getByText('It has not run yet.')).toBeTruthy();
+  });
+});
+
+/** P29-06: the meeting assistant's one switch, and a rule of several steps in the editor. */
+describe('the meeting assistant’s switch', () => {
+  const ASSISTANT = {
+    on: false,
+    steps: ['Correct its terms', 'Link its people and companies', 'Ask Claude for its actions'],
+    lastRun: null,
+    problem: null,
+  };
+
+  it('says what it does, in order, and what it never does, and turns on with one click', async () => {
+    const onAssistant = vi.fn();
+    page({ assistant: ASSISTANT, onAssistant });
+    const card = screen.getByRole('region', { name: 'Meeting assistant' });
+    const steps = within(within(card).getByRole('list', { name: 'What it does, in order' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent);
+    expect(steps).toEqual(ASSISTANT.steps);
+    expect(card.textContent).toContain('Claude only ever proposes');
+    const toggle = within(card).getByRole('switch', {
+      name: 'Run the meeting assistant after each meeting',
+    });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+
+    await userEvent.click(toggle);
+
+    expect(onAssistant).toHaveBeenCalledWith(true);
+  });
+
+  it('shows on, says when it last ran, and turns off', async () => {
+    const onAssistant = vi.fn();
+    page({
+      assistant: { ...ASSISTANT, on: true, lastRun: '8 Oct 2026, 09:00 · Standup: ran.' },
+      onAssistant,
+    });
+    const card = screen.getByRole('region', { name: 'Meeting assistant' });
+    expect(card.textContent).toContain('Last run: 8 Oct 2026, 09:00 · Standup: ran.');
+    const toggle = within(card).getByRole('switch');
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+
+    await userEvent.click(toggle);
+
+    expect(onAssistant).toHaveBeenCalledWith(false);
+  });
+
+  it('is held, saying why, when its rule’s file cannot be read, and while a command runs', () => {
+    page({ assistant: { ...ASSISTANT, problem: 'Its rule’s file cannot be read.' } });
+    const card = screen.getByRole('region', { name: 'Meeting assistant' });
+    expect(card.textContent).toContain('Its rule’s file cannot be read.');
+    expect(within(card).getByRole('switch').hasAttribute('disabled')).toBe(true);
+  });
+
+  it('is held while another command is under way', () => {
+    page({ assistant: ASSISTANT, busy: true });
+    const card = screen.getByRole('region', { name: 'Meeting assistant' });
+    expect(within(card).getByRole('switch').hasAttribute('disabled')).toBe(true);
+  });
+
+  it('is not shown where the page was given none', () => {
+    page();
+    expect(screen.queryByRole('region', { name: 'Meeting assistant' })).toBeNull();
+  });
+});
+
+describe('a rule of several steps in the editor', () => {
+  it('lists its steps in order, read and not edited, and no Claude fields of its own', () => {
+    render(<Editor start={AFTER_A_MEETING_PRESET} />);
+    const steps = within(screen.getByRole('list', { name: 'Steps, in order' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent);
+    expect(steps).toEqual([
+      'Correct its terms',
+      'Link its people and companies',
+      'Ask Claude (meeting-extraction) for meeting-items',
+      'Ask Claude (term-suggestions) for term-suggestions',
+    ]);
+    expect(screen.queryByLabelText('Prompt')).toBeNull();
+    expect(screen.getByText(/To\s+change the steps, edit the rule’s file/)).toBeTruthy();
+  });
+
+  it('starts from the ready-made steps when "Several steps" is picked, and leaves them when another is', async () => {
+    const onChange = vi.fn();
+    render(<Editor onChange={onChange} />);
+    expect(screen.queryByRole('list', { name: 'Steps, in order' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Several steps' }));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: AFTER_A_MEETING_STEPS }),
+    );
+    expect(screen.getByRole('list', { name: 'Steps, in order' })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Archive' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ action: { kind: 'archive' } }),
+    );
+    expect(screen.queryByRole('list', { name: 'Steps, in order' })).toBeNull();
   });
 });

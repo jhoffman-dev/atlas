@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath } from '@atlas/domain';
 import { createMeetingImporter } from '../meetings/meeting-importer.ts';
 import { automationVault, jsonNote } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { meetingFile } from '../testing/meeting-files.ts';
 import { jsonLinesMarkdown, jsonLinesNote, proposalVault } from '../testing/proposal-vault.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
-import { createMeetingLinker } from './link-imported-meetings.ts';
+import { createMeetingLinker, linkBeforeLetIn } from './link-imported-meetings.ts';
 
 const VAULT = '/Users/someone/Vault';
 const p = (path: string) => createVaultPath(path);
@@ -36,8 +36,7 @@ describe('linking as the import lets a meeting in', () => {
       active: () => true,
       onWritten: () => undefined,
       ...(link && {
-        beforeLetIn: async (vaultKey: string, path: VaultPath) =>
-          void (await linker(vaultKey, [path])),
+        beforeLetIn: linkBeforeLetIn(linker),
       }),
     });
     return { importer, activity };

@@ -19,7 +19,6 @@ import {
   type AutomationRule,
   type NoteChange,
   type NoteVersion,
-  type VaultPath,
 } from '@atlas/domain';
 import { runOnNoteChanges } from '../automations/run-automation.ts';
 import type { VaultGuard } from '../automations/vault-guard.ts';
@@ -29,7 +28,7 @@ import { createMeetingImporter } from '../meetings/meeting-importer.ts';
 import { automationVault, jsonNote, TASK_TYPES } from '../testing/automation-vault.ts';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { MEETING_HEADER } from '../testing/meeting-files.ts';
-import { createMeetingLinker } from './link-imported-meetings.ts';
+import { createMeetingLinker, linkBeforeLetIn } from './link-imported-meetings.ts';
 
 const TODAY = '2026-10-08';
 const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
@@ -122,7 +121,7 @@ async function setUp() {
     openVault: () => VAULT,
     active: () => true,
     onWritten: () => undefined,
-    beforeLetIn: async (vaultKey: string, path: VaultPath) => void (await linker(vaultKey, [path])),
+    beforeLetIn: linkBeforeLetIn(linker),
   });
 
   // The feed, as `syncIndex` keeps it: measured from what was held, which each sync's changes move on.

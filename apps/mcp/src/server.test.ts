@@ -224,6 +224,26 @@ describe('tools/list', () => {
     expect(described('atlas_automation_dry_run')).toContain('Claude is not asked.');
   });
 
+  it('tells the model a rule can run several steps, and how to read what each did (P29-06)', async () => {
+    const { tools } = await mcp.listTools();
+    const described = (name: string) => tools.find((t) => t.name === name)?.description ?? '';
+
+    expect(described('atlas_automations')).toContain('"archive", "set", "claude" or "steps"');
+    expect(described('atlas_automations')).toContain('"steps", [{ do, action, claude }]');
+    expect(described('atlas_automations')).toContain('"term-suggestions"');
+    expect(described('atlas_automations')).toContain('say "already"');
+    expect(described('atlas_automation_log')).toContain('records: [{ step, outcome, said }]');
+    expect(described('atlas_automation_log')).toContain('{ kind: "corrected" or "linked", ');
+    for (const outcome of ['"done"', '"already"', '"nothing"', '"failed"', '"skipped"']) {
+      expect(described('atlas_automation_log')).toContain(outcome);
+    }
+    expect(described('atlas_automation_log')).toContain('what the earlier steps did, which stays');
+    expect(described('atlas_automation_dry_run')).toContain('plan: { do, set, claude, steps,');
+    expect(described('atlas_automation_dry_run')).toContain('no step is run');
+    expect(described('atlas_accept_proposal')).toContain('never rewrites a meeting');
+    expect(described('atlas_proposals')).toContain('"heard → right spelling"');
+  });
+
   it('tells the model how to answer a query block a note holds', async () => {
     const { tools } = await mcp.listTools();
     const described = tools.find((t) => t.name === 'atlas_run_query')?.description ?? '';

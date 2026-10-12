@@ -289,4 +289,52 @@ describe('a meeting read in parts (P29-05)', () => {
   it('asks nothing about no notes', () => {
     expect(claudeAsks([], { inParts: true })).toEqual({ asks: [], cut: [], skipped: [] });
   });
+
+  describe('the asks one step of several may make (P29-06)', () => {
+    it('makes no more than it is left, giving a long meeting only what is spare', () => {
+      const long = meetingOf(120);
+      const whole = claudeAsks([long], { inParts: true }).asks.length;
+      expect(whole).toBeGreaterThan(2);
+
+      const plan = claudeAsks([long], { inParts: true, maxAsks: 2 });
+
+      expect(plan.asks).toHaveLength(2);
+      expect(plan.cut).toHaveLength(1);
+      expect(plan.asks.flatMap(([part]) => idsIn(part!.text))[0]).toBe(1);
+    });
+
+    it('reads no more parts of one note than the output wants, and says the rest was not read', () => {
+      const long = meetingOf(120);
+
+      const plan = claudeAsks([long], { inParts: true, partsPerNote: 2 });
+
+      expect(plan.asks).toHaveLength(2);
+      expect(plan.cut).toEqual([
+        { path: long.path, shown: expect.any(Number) as number, of: long.text.length },
+      ]);
+      expect(plan.cut[0]!.shown).toBeLessThan(long.text.length);
+    });
+
+    it('reads a short meeting whole whatever the most parts is', () => {
+      const short = meetingOf(3);
+      const plan = claudeAsks([short], { inParts: true, partsPerNote: 2, maxAsks: 1 });
+      expect(plan.asks).toEqual([[short]]);
+      expect(plan.cut).toEqual([]);
+    });
+
+    it('does not ask about a note it has no ask left for, and says so', () => {
+      const notes = [meetingOf(3), meetingOf(4, createVaultPath('Meetings/Other.md'))];
+
+      const plan = claudeAsks(notes, { inParts: true, maxAsks: 1 });
+
+      expect(plan.asks).toEqual([[notes[0]]]);
+      expect(plan.skipped).toEqual([
+        {
+          path: 'Meetings/Other.md',
+          reason:
+            'The run had no questions left to put to Claude, so it was not asked about; run it by hand.',
+        },
+      ]);
+    });
+  });
 });

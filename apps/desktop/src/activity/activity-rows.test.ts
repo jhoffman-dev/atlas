@@ -65,3 +65,25 @@ describe('activityRows', () => {
     expect(subjectOf(events, '7')).toBeNull();
   });
 });
+
+describe('a line that sums up steps (P29-06)', () => {
+  it('carries its details to the page, and a line without any carries none', () => {
+    const at = Date.parse('2026-09-28T03:00:00');
+    const [detailed, plain] = activityRows(
+      [
+        {
+          at,
+          level: 'info',
+          kind: 'automation',
+          message: 'a',
+          subject: null,
+          details: ['1. One.', '2. Two.'],
+        },
+        { at, level: 'info', kind: 'automation', message: 'b', subject: null },
+      ],
+      '2026-09-28',
+    );
+    expect(detailed?.details).toEqual(['1. One.', '2. Two.']);
+    expect(plain !== undefined && 'details' in plain).toBe(false);
+  });
+});

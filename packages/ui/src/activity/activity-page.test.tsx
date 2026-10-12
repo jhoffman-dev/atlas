@@ -163,3 +163,60 @@ describe('ActivityPage', () => {
     expect(screen.getByText('Reading the log…')).toBeTruthy();
   });
 });
+
+/** P29-06: a line that sums up a run's steps opens to show them. */
+describe('an Activity line with steps', () => {
+  const GROUP: ActivityRowView = {
+    id: '4',
+    time: 'Today 15:00',
+    dateTime: '2026-09-28T15:00:00',
+    level: 'info',
+    kind: 'automation',
+    message: 'After a meeting · Standup: ran its 4 steps.',
+    subject: 'Standup',
+    details: ['1. Corrected 2 misheard spellings.', '2. Linked Mara Quill.'],
+  };
+
+  function lines(rows: ActivityRowView[]) {
+    render(
+      <ActivityPage
+        rows={rows}
+        total={rows.length}
+        error={null}
+        level="all"
+        kinds={[]}
+        text=""
+        onLevel={vi.fn()}
+        onToggleKind={vi.fn()}
+        onText={vi.fn()}
+        onOpenSubject={vi.fn()}
+      />,
+    );
+    return screen.getByRole('list', { name: 'Activity lines' });
+  }
+
+  it('is a group that opens: its summary the line, its steps listed under it in order', async () => {
+    const list = lines([GROUP]);
+    const group = list.querySelector('details');
+    expect(group).not.toBeNull();
+    expect(group!.open).toBe(false);
+    expect(group!.querySelector('summary')!.textContent).toBe(
+      'After a meeting · Standup: ran its 4 steps.',
+    );
+
+    await userEvent.click(group!.querySelector('summary')!);
+
+    expect(group!.open).toBe(true);
+    const steps = within(screen.getByRole('list', { name: 'Steps of this run' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent);
+    expect(steps).toEqual(['1. Corrected 2 misheard spellings.', '2. Linked Mara Quill.']);
+  });
+
+  it('leaves a line with no steps as a plain line, with nothing to open', () => {
+    const list = lines([ROWS[0]!, { ...GROUP, details: [] }]);
+    expect(list.querySelector('details')).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Steps of this run' })).toBeNull();
+    expect(within(list).getByText('After a meeting · Standup: ran its 4 steps.')).toBeTruthy();
+  });
+});

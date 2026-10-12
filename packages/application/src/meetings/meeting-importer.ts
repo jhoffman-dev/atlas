@@ -14,6 +14,7 @@ import {
   type MeetingImportPorts,
   type MeetingImportRun,
 } from './import-arrived-meetings.ts';
+import type { LetInStamp } from './meeting-files.ts';
 
 /**
  * Imports meetings (P28-04): as the change feed hears of them, and all at
@@ -67,7 +68,7 @@ export function createMeetingImporter({
     vault: string,
     path: VaultPath,
     reading: { readonly vocabulary: Vocabulary },
-  ) => Promise<void>;
+  ) => Promise<void | LetInStamp>;
 }): MeetingImporter {
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -85,9 +86,9 @@ export function createMeetingImporter({
           activity: recorder,
           ...(beforeLetIn !== undefined && {
             beforeLetIn: async (path, reading) => {
-              await beforeLetIn(vault, path, reading);
+              const asked = await beforeLetIn(vault, path, reading);
               // The hook does nothing once another vault is open; nor may the stamp that follows it.
-              return openVault() === vault ? undefined : 'vault-changed';
+              return openVault() === vault ? asked : 'vault-changed';
             },
           }),
         });

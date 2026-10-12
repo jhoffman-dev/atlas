@@ -16,6 +16,7 @@ export function activityRows(events: readonly ActivityEvent[], today: string): A
     kind: event.kind,
     message: event.message,
     subject: event.subject === null ? null : noteTitle(event.subject.path),
+    ...(event.details !== undefined && { details: event.details }),
   }));
 }
 

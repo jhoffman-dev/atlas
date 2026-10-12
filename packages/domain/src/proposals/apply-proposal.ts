@@ -3,6 +3,8 @@ import { resolveWikiLinkTarget, wikiLinkTargetFor } from '../markdown/resolve-wi
 import { withLink, linkedNotes } from '../types/relation-links.ts';
 import { fitFileNameStem } from '../vault/file-name-bytes.ts';
 import { TASK_KEYS } from '../gtd/gtd-status.ts';
+import { tidySpelling } from '../terms/spelling.ts';
+import { VARIANTS_KEY } from '../terms/term.ts';
 import { cleanEntryName, nextAvailableNotePath } from '../vault/new-note.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { joinVaultPath, VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
@@ -41,6 +43,13 @@ export interface LinkTarget {
   readonly relation: { readonly many: boolean } | null;
 }
 
+/** The term the vault already has by a proposal's right spelling, as its note is now. */
+export interface HeldTerm {
+  readonly path: VaultPath;
+  /** Its misheard spellings, as its frontmatter lists them. */
+  readonly variants: readonly string[];
+}
+
 /** What accepting a proposal is checked against. */
 export interface ProposalVault {
   /** Every note in the vault now: a new note never takes a path one of them has. */
@@ -57,6 +66,13 @@ export interface ProposalVault {
    * proposed.
    */
   readonly heldTypes?: readonly string[] | undefined;
+  /**
+   * For a term proposal: the term of that right spelling the vault already
+   * has, wherever it is filed; null or left out when it has none. Accepting
+   * then adds the proposal's misheard spellings to it rather than making a
+   * second term of the same name.
+   */
+  readonly term?: HeldTerm | null | undefined;
 }
 
 export type ProposalApplication =
@@ -71,7 +87,9 @@ const CITING_KINDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up'
  *
  * A task, a follow-up or a decision makes a note of its type citing the block
  * the proposal came from; a person, a term or a project makes a note of its
- * type, and with `linkFrom` is added to that note's relation too. A link adds
+ * type, and with `linkFrom` is added to that note's relation too. A term the
+ * vault already has is not made again: the misheard spellings the proposal
+ * carries are added to it (P29-06). A link adds
  * one link to a relation of an existing note. Nothing is written over: a note
  * already at the path a new one would take is a refusal (it may be the very
  * note this proposes), and a note changed since a proposal with a digest was
@@ -93,11 +111,12 @@ const OWN_RECORDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up',
 
 function applyNote(
   proposal: ProposalNote & { readonly kind: NoteProposalKind },
-  { notePaths, target, heldTypes }: ProposalVault,
+  { notePaths, target, heldTypes, term }: ProposalVault,
 ): ProposalApplication {
   const { payload, kind, source } = proposal;
   const refusal = payload.folder === null ? null : proposedWriteRefusal(payload.folder);
   if (refusal !== null) return refused(refusal);
+  if (kind === 'term' && term !== undefined && term !== null) return addedVariants(payload, term);
   const gone = waitingOnGone(proposal, notePaths);
   if (gone !== null) return refused(gone);
   const wanted = newNotePath(payload);
@@ -141,6 +160,41 @@ function applyNote(
     target,
   });
   return joined.ok ? { ok: true, writes: [...creates, ...joined.writes] } : joined;
+}
+
+/** The misheard spellings a term proposal carries, each once, tidied as a term's are. */
+export function proposedVariants(payload: NotePayload): string[] {
+  const written = payload.properties[VARIANTS_KEY];
+  const listed = Array.isArray(written) ? written : written === undefined ? [] : [written];
+  const spellings = listed
+    .filter((each): each is string => typeof each === 'string')
+    .map(tidySpelling)
+    .filter((spelling) => spelling !== '');
+  return [...new Set(spellings)];
+}
+
+/**
+ * What accepting a term proposal writes when the vault already has the term:
+ * its misheard spellings with the proposal's added, the ones it had kept in
+ * their order. Refused when the proposal carries none the term lacks — there
+ * is then nothing to accept, and a second term of the name is never made.
+ */
+function addedVariants(payload: NotePayload, term: HeldTerm): ProposalApplication {
+  const held = new Set(term.variants.map(tidySpelling));
+  const added = proposedVariants(payload).filter(
+    (spelling) => !held.has(spelling) && spelling !== tidySpelling(payload.title),
+  );
+  if (added.length === 0) {
+    return refused(
+      `There is already a term “${payload.title}” at ${term.path}, and it lists every misheard spelling this proposes.`,
+    );
+  }
+  return {
+    ok: true,
+    writes: [
+      { kind: 'set', path: term.path, changes: { [VARIANTS_KEY]: [...term.variants, ...added] } },
+    ],
+  };
 }
 
 /**

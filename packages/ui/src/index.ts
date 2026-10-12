@@ -155,6 +155,8 @@ export type { TemplateLessType, TemplateListing, TemplatesPageProps } from './te
 export { TemplateBanner } from './template-banner.tsx';
 export { MeetingCorrectionsBand } from './meeting-corrections-band.tsx';
 export type { CorrectedSpelling, CorrectionsNotice } from './meeting-corrections-band.tsx';
+export { MeetingLinksBand } from './meeting-links-band.tsx';
+export type { LinksNotice } from './meeting-links-band.tsx';
 export { PromotionBanner } from './promotion-notice.tsx';
 export type { LinePromotion, PromotionNotice } from './promotion-notice.tsx';
 export type { PromotedLine, PromoteLine } from './editor/promote-line.ts';

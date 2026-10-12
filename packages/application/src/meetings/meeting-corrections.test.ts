@@ -232,7 +232,7 @@ describe('correctMeetingTerms, the pipeline’s step', () => {
     const corrected = vault.files.get(STANDUP);
 
     const again = await correctMeetingTerms({ ports: vault.ports, path });
-    expect(again).toEqual({ records: first.records, written: false });
+    expect(again).toEqual({ records: first.records, written: false, state: 'already' });
     expect(vault.files.get(STANDUP)).toBe(corrected);
 
     await undoMeetingTermCorrections({ ports: vault.ports, path });
@@ -240,6 +240,7 @@ describe('correctMeetingTerms, the pipeline’s step', () => {
     expect(await correctMeetingTerms({ ports: vault.ports, path })).toEqual({
       records: [],
       written: false,
+      state: 'undone',
     });
     expect(vault.files.get(STANDUP)).toBe(undone);
   });
@@ -251,6 +252,7 @@ describe('correctMeetingTerms, the pipeline’s step', () => {
     expect(await correctMeetingTerms({ ports: vault.ports, path })).toEqual({
       records: [],
       written: false,
+      state: 'none',
     });
     expect(vault.files.get(STANDUP)).toBe(before);
   });
@@ -263,6 +265,7 @@ describe('correctMeetingTerms, the pipeline’s step', () => {
     expect(await correctMeetingTerms({ ports: vault.ports, path })).toEqual({
       records: [],
       written: false,
+      state: 'none',
     });
     expect(vault.files.get(STANDUP)).toBe(marked);
   });

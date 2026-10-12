@@ -39,7 +39,9 @@ export function claudeProposalId({
       : JSON.stringify(['meeting', meeting.provider, meeting.externalId.trim()]);
   // A schema whose proposals are the meeting's, not the rule's, leaves the rule out: two rules make each once.
   const scope = proposal.sharedAcrossRules ? '' : rule;
-  const what = [scope, proposal.kind, title, proposal.distinguishedBy, cited, block].join('\n');
+  // One whose proposals are what they propose, wherever it was heard, leaves out where: every meeting makes it once.
+  const where = proposal.sharedAcrossNotes ? [] : [cited, block];
+  const what = [scope, proposal.kind, title, proposal.distinguishedBy, ...where].join('\n');
   return `claude-${digestOf(`a${what}`)}${digestOf(`b${what}`)}`;
 }
 

@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import type { AutomationAction, AutomationDraft, NoteEvent, Schedule } from '@atlas/domain';
+import {
+  describeStep,
+  type AutomationAction,
+  type AutomationDraft,
+  type NoteEvent,
+  type Schedule,
+  type StepsAction,
+} from '@atlas/domain';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { Toggle } from '../toggle.tsx';
 import type { DryRunView, LogEntryView } from './automation-views.ts';
@@ -20,6 +27,8 @@ export interface AutomationEditorProps {
   readonly claudeTools: readonly string[];
   /** The proposal schemas a Claude step can answer with, by name: `proposals` first. */
   readonly claudeOutputs: readonly string[];
+  /** The steps a rule starts with when "Several steps" is picked: the ready-made "After a meeting" ones. */
+  readonly startingSteps: StepsAction;
   readonly busy: boolean;
   readonly onSave: () => void;
   readonly onCancel: () => void;
@@ -51,6 +60,7 @@ const ACTIONS = [
   { value: 'archive' as const, label: 'Archive' },
   { value: 'set' as const, label: 'Set a property' },
   { value: 'claude' as const, label: 'Ask Claude' },
+  { value: 'steps' as const, label: 'Several steps' },
 ];
 
 /** What a Claude step writes, as the editor offers it: a schema's proposals, or one new note. */
@@ -58,6 +68,7 @@ const NOTE_OUTPUT = 'note';
 const OUTPUT_LABELS: Readonly<Record<string, string>> = {
   proposals: 'Proposals in the Inbox',
   'meeting-items': 'A meeting’s actions and decisions, as proposals',
+  'term-suggestions': 'Spellings that look like misheard names, as term proposals',
   [NOTE_OUTPUT]: 'One new note',
 };
 
@@ -120,6 +131,7 @@ export function AutomationEditor(props: AutomationEditorProps) {
           onChange={onChange}
           claudeTools={props.claudeTools}
           claudeOutputs={props.claudeOutputs}
+          startingSteps={props.startingSteps}
         />
       </div>
       {props.problem !== null && (
@@ -267,13 +279,17 @@ function AgeField({ draft, onChange }: Pick<AutomationEditorProps, 'draft' | 'on
 
 type ActionProps = Pick<
   AutomationEditorProps,
-  'draft' | 'onChange' | 'claudeTools' | 'claudeOutputs'
+  'draft' | 'onChange' | 'claudeTools' | 'claudeOutputs' | 'startingSteps'
 >;
 
 /** What picking an action starts from: a Claude step reads the note with the first schema. */
-function actionOf(kind: AutomationAction['kind'], outputs: readonly string[]): AutomationAction {
+function actionOf(
+  kind: AutomationAction['kind'],
+  { claudeOutputs: outputs, startingSteps }: Pick<ActionProps, 'claudeOutputs' | 'startingSteps'>,
+): AutomationAction {
   if (kind === 'archive') return { kind };
   if (kind === 'set') return { kind, values: { status: '' } };
+  if (kind === 'steps') return startingSteps;
   return {
     kind,
     prompt: '',
@@ -282,7 +298,13 @@ function actionOf(kind: AutomationAction['kind'], outputs: readonly string[]): A
   };
 }
 
-function ActionField({ draft, onChange, claudeTools, claudeOutputs }: ActionProps) {
+function ActionField({
+  draft,
+  onChange,
+  claudeTools,
+  claudeOutputs,
+  startingSteps,
+}: ActionProps) {
   const { action } = draft;
   const [key = '', value = ''] =
     action.kind === 'set' ? (Object.entries(action.values)[0] ?? []) : [];
@@ -298,7 +320,9 @@ function ActionField({ draft, onChange, claudeTools, claudeOutputs }: ActionProp
           label="What it does"
           options={ACTIONS}
           value={action.kind}
-          onChange={(kind) => onChange({ ...draft, action: actionOf(kind, claudeOutputs) })}
+          onChange={(kind) =>
+            onChange({ ...draft, action: actionOf(kind, { claudeOutputs, startingSteps }) })
+          }
         />
         {action.kind === 'set' && (
           <>
@@ -328,9 +352,32 @@ function ActionField({ draft, onChange, claudeTools, claudeOutputs }: ActionProp
           onChange={onChange}
           claudeTools={claudeTools}
           claudeOutputs={claudeOutputs}
+          startingSteps={startingSteps}
         />
       )}
+      {action.kind === 'steps' && <StepsList action={action} />}
     </div>
+  );
+}
+
+/**
+ * A rule's steps, in the order they run. They are read here, not edited: the
+ * ready-made ones are the whole "after a meeting" pipeline, and a rule's file
+ * is where a step is taken out or its prompt changed.
+ */
+function StepsList({ action }: { action: StepsAction }) {
+  return (
+    <>
+      <ol className="automation-editor__steps" aria-label="Steps, in order">
+        {action.steps.map((step, at) => (
+          <li key={at}>{describeStep(step)}</li>
+        ))}
+      </ol>
+      <p className="automation-editor__hint">
+        Each note gets every step in this order; a step that fails stops the ones after it. To
+        change the steps, edit the rule’s file under <code>steps:</code>.
+      </p>
+    </>
   );
 }
 

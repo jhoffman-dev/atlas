@@ -1,11 +1,14 @@
 import {
   canCorrect,
   correctionProperties,
+  CORRECTIONS_KEY,
+  CORRECTIONS_UNDONE,
   correctMeetingBody,
   isMeetingType,
   noteTitle,
   NOTHING_CORRECTED_PROPERTIES,
   recordedCorrections,
+  recorrectMeetingBody,
   splitFrontmatter,
   UNDONE_CORRECTION_PROPERTIES,
   undoMeetingCorrections,
@@ -108,6 +111,12 @@ export async function meetingTextAsCorrected({
 export interface MeetingTermsCorrection {
   readonly records: readonly CorrectionRecord[];
   readonly written: boolean;
+  /**
+   * How the meeting stands: `corrected` by this call; `already` corrected
+   * before it (by the import, as the meeting was let in); its corrections
+   * `undone`, so it is left; or read with `none` to make.
+   */
+  readonly state: 'corrected' | 'already' | 'undone' | 'none';
 }
 
 /**
@@ -133,15 +142,71 @@ export async function correctMeetingTerms({
       `${noteTitle(path)} is not a meeting, so nothing was corrected.`,
     );
   }
-  if (wasCorrected(properties))
-    return { records: recordedCorrections(properties) ?? [], written: false };
+  if (wasCorrected(properties)) {
+    const records = recordedCorrections(properties) ?? [];
+    const undone = properties[CORRECTIONS_KEY] === CORRECTIONS_UNDONE;
+    const state = records.length > 0 ? 'already' : undone ? 'undone' : 'none';
+    return { records, written: false, state };
+  }
   const { vocabulary } = await loadTerms({ index: ports.index });
   const corrected = correctedMeeting({ markdown: ports.markdown, text, vocabulary });
-  if (corrected === null || corrected.count === 0) return { records: [], written: false };
+  if (corrected === null || corrected.count === 0) {
+    return { records: [], written: false, state: 'none' };
+  }
   const { values, body } = corrected;
   const unsaved = await writeStamp(ports, { path, modified, values, body });
   if (unsaved !== null) throw new UnsavedTypingError(path);
-  return { records: corrected.records, written: true };
+  return { records: corrected.records, written: true, state: 'corrected' };
+}
+
+/** What correcting a meeting again did. */
+export interface MeetingRecorrection {
+  /** How many spellings the meeting now records as put right. */
+  readonly count: number;
+}
+
+/**
+ * Corrects a meeting again by the vocabulary as it is now (P29-06): the
+ * "Correct again" a person asks for once a term was added after the meeting
+ * arrived. It is the only way a meeting is corrected twice — the import and
+ * the rule's step both leave a meeting that was read alone — and it is undone
+ * by the same Undo corrections, which puts back the words the meeting had
+ * before any correction (`recorrectMeetingBody` says when it cannot go back
+ * that far).
+ *
+ * Refused, with nothing written: a note that is no meeting, a vocabulary
+ * that would leave the meeting exactly as it reads, and unsaved typing.
+ */
+export async function recorrectMeetingTerms({
+  ports,
+  path,
+}: {
+  ports: MeetingCorrectionPorts;
+  path: VaultPath;
+}): Promise<MeetingRecorrection> {
+  const { text, modified } = await ports.fs.readTextFile(path);
+  const document = splitFrontmatter(text);
+  const { properties } = readFrontmatter(ports.markdown, document.frontmatter);
+  if (!isMeetingType(properties['type'])) {
+    throw new CorrectionRefusedError(
+      `${noteTitle(path)} is not a meeting, so nothing was corrected.`,
+    );
+  }
+  const { vocabulary } = await loadTerms({ index: ports.index });
+  const again = recorrectMeetingBody({ body: document.body, properties, vocabulary });
+  if (again === null) {
+    throw new CorrectionRefusedError(
+      'Nothing to correct: the meeting already reads as today’s terms spell it.',
+    );
+  }
+  const unsaved = await writeStamp(ports, {
+    path,
+    modified,
+    values: again.values,
+    body: again.body,
+  });
+  if (unsaved !== null) throw new UnsavedTypingError(path);
+  return { count: again.count };
 }
 
 /**

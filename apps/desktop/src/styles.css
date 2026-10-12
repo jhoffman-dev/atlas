@@ -10925,6 +10925,50 @@ select.type-editor__field,
   margin: var(--space-1) 0 0;
 }
 
+/* ---- After the meeting (P29-06) ----
+   The band over a meeting that was linked: who, how many proposals wait, and
+   the two things only the person does — correct it again, undo its links. */
+
+.links-band {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-text) 5%, var(--raised));
+  border-radius: var(--radius-card);
+  color: var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-2) var(--space-4);
+}
+
+.links-band__icon {
+  color: var(--accent-text);
+  flex: none;
+}
+
+.links-band__text {
+  flex: 1;
+  font-size: var(--text-ui);
+  min-width: 20ch;
+}
+
+.links-band__lead {
+  margin: 0;
+}
+
+.links-band__lead strong {
+  color: var(--accent-text);
+}
+
+.links-band__said {
+  color: var(--ink-2);
+  margin: var(--space-1) 0 0;
+}
+
+.links-band__said--refused {
+  color: var(--warning);
+}
+
 /* ---- Terms (P28-05) ----
    A page like the Templates': a head, a form for a new term that opens under
    it, the conflicts when there are any, then a table of every term with its
@@ -11467,6 +11511,63 @@ select.type-editor__field,
   align-items: center;
   display: inline-flex;
   gap: 6px;
+}
+
+/* The meeting assistant's one switch (P29-06): the "After a meeting" rule, on or off. */
+.meeting-assistant {
+  align-items: flex-start;
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+}
+
+.meeting-assistant__title {
+  font-size: var(--text-body);
+  font-weight: 700;
+  margin: 0;
+}
+
+.meeting-assistant__what {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  margin: 4px 0 0;
+}
+
+.meeting-assistant__steps {
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-ui);
+  gap: 2px;
+  margin: var(--space-2) 0 0;
+  padding: 0 0 0 var(--space-4);
+}
+
+.meeting-assistant__never {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: var(--space-2) 0 0;
+}
+
+.automation-editor__steps {
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-ui);
+  gap: 2px;
+  margin: var(--space-2) 0 0;
+  padding: 0 0 0 var(--space-4);
+}
+
+.automation-editor__hint {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  margin: var(--space-1) 0 0;
 }
 
 .automations__notice {
@@ -12451,6 +12552,32 @@ select.type-editor__field,
   font-size: var(--text-ui);
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* A line that sums up a run of several steps opens to show them (P29-06). */
+.activity-line__group {
+  padding: 4px 0;
+}
+
+.activity-line__summary {
+  cursor: pointer;
+}
+
+.activity-line__summary:focus-visible {
+  border-radius: var(--radius-chip);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.activity-line__steps {
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-small);
+  gap: 2px;
+  list-style: none;
+  margin: 6px 0 2px;
+  padding: 0 0 0 var(--space-4);
 }
 
 .activity-line__open {

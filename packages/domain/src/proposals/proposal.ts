@@ -331,9 +331,19 @@ export function payloadRecord(payload: ProposalPayload): Readonly<Record<string,
 
 /** One line saying what a proposal would do, as the Inbox lists it. */
 export function proposalHeadline(proposal: ProposalNote): string {
+  if (proposal.kind === 'term') return termHeadline(proposal.payload);
   if (proposal.kind !== 'link') return proposal.payload.title;
   const { note, property, link } = proposal.payload;
   return `${noteTitle(note)} · ${property} → ${link}`;
+}
+
+/** A term proposal as a line: what was heard, and what it is a mishearing of — or the term alone. */
+function termHeadline({ title, properties }: NotePayload): string {
+  const written = properties['variants'];
+  const heard = (Array.isArray(written) ? written : [written]).filter(
+    (each): each is string => typeof each === 'string' && each.trim() !== '',
+  );
+  return heard.length === 0 ? title : `${heard.join(', ')} → ${title}`;
 }
 
 function notePath(raw: string): VaultPath | Error {

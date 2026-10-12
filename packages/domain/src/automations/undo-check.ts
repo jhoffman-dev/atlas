@@ -15,6 +15,7 @@ import {
 import { isAtlasNote } from '../vault/vault-visibility.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { setKeyProblem, type AutomationAction } from './automation-rule.ts';
+import { CORRECT_TERMS_STEP, LINK_MEETING_STEP, STEPS_ACTION } from './rule-steps.ts';
 import type { DoneAction, PriorValue } from './run-log.ts';
 import type { LocalTime } from './schedule.ts';
 
@@ -42,8 +43,12 @@ export function loggedActionProblem(action: AutomationAction, line: DoneAction):
   if (line.kind === 'proposed' || line.kind === 'created') {
     return 'What a Claude step made is answered in the Inbox, or kept or deleted by you; undo leaves it.';
   }
+  if (line.kind === 'corrected' || line.kind === 'linked') return meetingStepProblem(action, line);
   if (action.kind === 'claude')
     return 'This rule asks Claude; it never archived a note or set a property.';
+  if (action.kind === STEPS_ACTION) {
+    return 'This rule runs steps on a meeting; it never archived a note or set a property.';
+  }
   if (line.kind === 'archived') {
     if (action.kind !== 'archive') return 'This rule sets properties; it never archived a note.';
     if (archiveRefusal(line.from) !== null || unarchiveRefusal(line.to) !== null) {
@@ -61,6 +66,21 @@ export function loggedActionProblem(action: AutomationAction, line: DoneAction):
     return `The log gives “${line.key}” a value no property of a note holds.`;
   }
   return null;
+}
+
+/**
+ * Why undo will not take back what a line says a deterministic step did to a
+ * meeting, or null when this rule has that step. What is then put back is
+ * read from the meeting's own record, never from the line.
+ */
+function meetingStepProblem(
+  action: AutomationAction,
+  line: { readonly kind: 'corrected' | 'linked'; readonly path: VaultPath },
+): string | null {
+  const step = line.kind === 'corrected' ? CORRECT_TERMS_STEP : LINK_MEETING_STEP;
+  const has = action.kind === STEPS_ACTION && action.steps.some((each) => each.kind === step);
+  if (!has) return `This rule has no ${step} step; it never did that to a meeting.`;
+  return isAtlasNote(line.path) ? 'Atlas keeps its own files as they are.' : null;
 }
 
 /**

@@ -77,7 +77,9 @@ export function recordRun(ledger: HandledLedger, entry: Run, at: number): Handle
   for (const { path, digest, wrote, keys = [] } of entry.versions ?? []) {
     const before = paths.get(path)?.digests.filter((each) => each !== digest) ?? [];
     paths.set(path, { at, digests: [...before, digest].slice(-MAX_DIGESTS_PER_PATH) });
-    if (entry.claude !== undefined && !wrote) {
+    // A step of the same run that wrote the note (P29-06) wrote it before Claude was asked:
+    // the version it left is the words that were answered, as much as the one that set the run off.
+    if (entry.claude !== undefined && (!wrote || entry.steps !== undefined)) {
       answered = answered.filter((each) => !(each.path === path && each.keys[0] === digest));
       answered.push({ at, path, keys: [digest, ...keys] });
     }

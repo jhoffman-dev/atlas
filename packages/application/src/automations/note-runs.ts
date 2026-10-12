@@ -6,6 +6,7 @@ import {
   MAX_ACTIONS_PER_RUN,
   missedArrivals,
   noteRunsCappedProblem,
+  remembersNotes,
   unhandledVersions,
   type AutomationPlan,
   type AutomationRule,
@@ -63,7 +64,7 @@ export async function planRuleNow({
   ledger?: HandledLedger | null | undefined;
   today: string;
 }): Promise<RuleTarget> {
-  if (rule.when.kind !== 'note' && rule.action.kind !== 'claude') {
+  if (rule.when.kind !== 'note' && !remembersNotes(rule.action)) {
     return { plan: await planRun({ ports, rule, today }), versions: null };
   }
   const matched = await matchedPaths({ ports, rule, today });

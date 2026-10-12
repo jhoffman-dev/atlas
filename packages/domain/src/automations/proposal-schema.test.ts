@@ -85,6 +85,7 @@ describe('the general proposals schema', () => {
           why: 'Mara asked for it on the call.',
           distinguishedBy: '',
           sharedAcrossRules: false,
+          sharedAcrossNotes: false,
         },
         expect.objectContaining({ kind: 'decision' }),
       ],
@@ -328,7 +329,7 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
   });
 
   it('is named among the schemas only once added to the registry', () => {
-    expect(Object.keys(PROPOSAL_SCHEMAS)).toEqual(['proposals', 'meeting-items']);
+    expect(Object.keys(PROPOSAL_SCHEMAS)).toEqual(['proposals', 'meeting-items', 'term-suggestions']);
     expect(proposalSchemaNamed('meeting-notes')).toBeNull();
     expect(proposalSchemaNamed('constructor')).toBeNull();
   });

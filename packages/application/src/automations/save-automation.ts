@@ -5,6 +5,7 @@ import {
   automationNameProblem,
   automationPathFor,
   builtInPromptAt,
+  claudeStepsOf,
   createVaultPath,
   parentVaultPath,
   draftProblem,
@@ -12,6 +13,7 @@ import {
   splitFrontmatter,
   type AutomationDraft,
   type AutomationRule,
+  type BuiltInPrompt,
   type VaultPath,
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -107,13 +109,19 @@ export async function updateAutomation({
 }
 
 /**
- * Writes the prompt a rule's Claude step names when it is one Atlas ships and
- * the vault has no note there (P29-05) — so a ready-made rule runs as saved.
+ * Writes the prompt each of a rule's Claude steps names when it is one Atlas
+ * ships and the vault has no note there (P29-05) — so a ready-made rule runs
+ * as saved, every step of it (P29-06).
  * A prompt that is there is the person's, edited or not, and is left as it is.
  */
 async function ensureBuiltInPrompt(fs: VaultFsPort, { action }: AutomationDraft): Promise<void> {
-  const prompt = action.kind === 'claude' ? builtInPromptAt(action.prompt) : null;
-  if (prompt === null) return;
+  for (const step of claudeStepsOf(action)) {
+    const prompt = builtInPromptAt(step.prompt);
+    if (prompt !== null) await ensurePrompt(fs, prompt);
+  }
+}
+
+async function ensurePrompt(fs: VaultFsPort, prompt: BuiltInPrompt): Promise<void> {
   const [held] = await fs.readNotes([prompt.path]);
   if (held !== undefined) return;
   await ensureFolder({ fs, folder: parentVaultPath(prompt.path) });

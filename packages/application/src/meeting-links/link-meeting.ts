@@ -1,7 +1,10 @@
 import {
+  addedLinks,
   attendeesOf,
   isMeetingType,
   linkedEntities,
+  linkRecordProperties,
+  linksUndone,
   matchAttendees,
   matchSpeakers,
   messageWithoutPaths,
@@ -10,6 +13,9 @@ import {
   planMeetingLinks,
   rankProjects,
   splitFrontmatter,
+  stillAsLeft,
+  wasLinked,
+  type AddedLinks,
   type DirectoryPerson,
   type DoneAction,
   type MeetingLinkPlan,
@@ -21,10 +27,16 @@ import {
   type Vocabulary,
 } from '@atlas/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
-import { changeProperties, type PropertyChange } from '../automations/apply-changes.ts';
+import { UNSAVED_TYPING } from '../automations/apply-changes.ts';
+import { VaultChangedError } from '../automations/vault-guard.ts';
 import { meetingTextAsCorrected } from '../meetings/meeting-corrections.ts';
 import { validateMeetingFile } from '../meetings/meeting-reading.ts';
-import { writeProposals } from '../proposals/write-proposals.ts';
+import {
+  planProposals,
+  writePlannedProposals,
+  type ProposalsPlanned,
+} from '../proposals/write-proposals.ts';
+import { setNoteProperties } from '../query/set-property.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { loadLinkDirectory, loadProjectTies } from './link-directory.ts';
@@ -47,6 +59,24 @@ export interface MeetingLinkRun {
   readonly passedOver: readonly PassedOverAttendee[];
   /** Why none of its proposals were written, when the Inbox could not be read or written; null otherwise. */
   readonly unproposed: string | null;
+  /**
+   * Whether the record of this linking is on the meeting now. False when the
+   * meeting could not be written — unsaved typing, a change since — so it
+   * holds no record and is linked again the next time this runs.
+   */
+  readonly recorded: boolean;
+  /**
+   * The record of this linking, for the caller to write, when it asked to
+   * write it itself (`recordInStamp`) and linking had nothing else to write
+   * to the meeting. The import stamps it in the write that lets the meeting
+   * in, so a meeting nobody was linked to costs no write of its own.
+   */
+  readonly stamp?: Readonly<Record<string, unknown>>;
+  /**
+   * Set when the meeting had been linked before — or its links undone — and
+   * so was left as it is: nothing above was done by this call.
+   */
+  readonly already?: { readonly undone: boolean };
 }
 
 /** A meeting that cannot be linked, for a reason said in these words. */
@@ -76,6 +106,13 @@ export class MeetingLinkRefusedError extends Error {
  * refuses to be listed or written — the run still says who it linked, with
  * what it set, and why nothing was proposed (`unproposed`): the links are in
  * the meeting, and saying it could not be linked would be untrue.
+ *
+ * What it added is recorded on the meeting in the same write (`atlas_links`,
+ * P29-06), as its corrections are: so {@link undoMeetingLinks} can take the
+ * links back long after this run is forgotten, and so the meeting is linked
+ * once — a meeting that holds the record, in any form, is answered `already`
+ * and nothing is read or written for it. One that never got the record — it
+ * was being typed in, or linking failed — is linked the next time this runs.
  */
 export async function linkMeeting({
   ports,
@@ -83,27 +120,39 @@ export async function linkMeeting({
   today,
   selfName = null,
   vocabulary,
+  recordInStamp = false,
 }: {
   ports: MeetingLinkPorts;
   path: VaultPath;
   /** `YYYY-MM-DD`: the day of the write, as every write that may touch a task is dated. */
   today: string;
+  /**
+   * Whether the caller writes the record itself when linking adds no link:
+   * the import, whose stamp write follows at once. The record then comes
+   * back as `stamp`, and the meeting is not written here at all.
+   */
+  recordInStamp?: boolean;
   /** The vault owner's name from their profile: an attendee of that name is never proposed. */
   selfName?: string | null;
   /** The vocabulary the caller's run corrects by, so speakers are read by the same one; read from the index when not given. */
   vocabulary?: Vocabulary | undefined;
 }): Promise<MeetingLinkRun> {
-  const plan = await planFor({ ports, path, selfName, vocabulary });
-  const linked = await changeProperties({
-    ports,
-    changes: relationChanges(path, plan.properties, plan.changes),
-    kind: 'set',
-    today,
-  });
-  const proposals = await writeProposals({ ...ports, proposals: plan.proposals }).then(
+  const read = await readMeeting(ports, path);
+  if (wasLinked(read.properties)) return alreadyLinked(path, read.properties);
+  const plan = await planFor({ ports, path, selfName, vocabulary, read });
+  const planned = await planProposals({ ...ports, proposals: plan.proposals }).then(
     (made) => ({ ...made, unproposed: null }),
-    (cause: unknown) => ({ written: [], left: [], unproposed: messageWithoutPaths(cause) }),
+    (cause: unknown) => ({ planned: [], left: [], unproposed: messageWithoutPaths(cause) }),
   );
+  const deferred = recordInStamp && Object.keys(plan.changes).length === 0;
+  const linked = deferred
+    ? { done: [], left: [], recorded: false }
+    : await writeLinks({ ports, path, plan, planned, today });
+  const proposals = await writePlannedProposals(ports.fs, planned.planned);
+  const stamp = linkRecordProperties({
+    links: [],
+    proposals: planned.planned.map((proposal) => proposal.path),
+  });
   const set = new Set(linked.done.map((line) => ('key' in line ? line.key : null)));
   const unreadable = plan.unreadable.map(({ reason }) => ({ path, reason }));
   return {
@@ -111,10 +160,87 @@ export async function linkMeeting({
     linked: Object.entries(plan.added).flatMap(([key, paths]) => (set.has(key) ? paths : [])),
     done: linked.done,
     proposed: proposals.written,
-    left: [...unreadable, ...linked.left, ...proposals.left],
+    left: [...unreadable, ...linked.left, ...planned.left, ...proposals.left],
     passedOver: plan.passedOver,
-    unproposed: proposals.unproposed,
+    unproposed: planned.unproposed,
+    recorded: linked.recorded,
+    ...(deferred && { stamp }),
   };
+}
+
+/** What linking answers for a meeting linked before: nothing done, and whether its links were undone. */
+function alreadyLinked(
+  path: VaultPath,
+  properties: Readonly<Record<string, unknown>>,
+): MeetingLinkRun {
+  return {
+    meeting: path,
+    linked: [],
+    done: [],
+    proposed: [],
+    left: [],
+    passedOver: [],
+    unproposed: null,
+    recorded: true,
+    already: { undone: linksUndone(properties) },
+  };
+}
+
+/**
+ * Adds the plan's links to the meeting and records them, in one write: each
+ * relation only while it still holds what the plan read, and the record of
+ * exactly the links that went in — with the proposals about to be written for
+ * it. A meeting with unsaved typing is left, record and all, and said.
+ */
+async function writeLinks({
+  ports,
+  path,
+  plan,
+  planned,
+  today,
+}: {
+  ports: MeetingLinkPorts;
+  path: VaultPath;
+  plan: MeetingLinkPlan & { readonly properties: Readonly<Record<string, unknown>> };
+  planned: Pick<ProposalsPlanned, 'planned'>;
+  today: string;
+}): Promise<{ done: DoneAction[]; left: PassedOver[]; recorded: boolean }> {
+  if (ports.editors.state(path) === 'dirty') {
+    return { done: [], left: [{ path, reason: UNSAVED_TYPING }], recorded: false };
+  }
+  const done: DoneAction[] = [];
+  const left: PassedOver[] = [];
+  try {
+    await setNoteProperties({
+      fs: ports.fs,
+      markdown: ports.markdown,
+      path,
+      today,
+      values: (properties) => {
+        const written: Record<string, unknown> = {};
+        const links: AddedLinks[] = [];
+        for (const [key, value] of Object.entries(plan.changes)) {
+          const [before, read] = [priorOf(properties, key), priorOf(plan.properties, key)];
+          if (!stillAsLeft(before, read)) {
+            left.push({ path, reason: `Its ${key} has changed since, so it was left as it is.` });
+            continue;
+          }
+          written[key] = [...value];
+          links.push({ key, added: addedLinks(properties[key], value) });
+          done.push({ kind: 'set', path, key, before, after: { value: [...value] } });
+        }
+        const proposals = planned.planned.map((proposal) => proposal.path);
+        return { ...written, ...linkRecordProperties({ links, proposals }) };
+      },
+    });
+  } catch (cause) {
+    // Another vault is open: the run this is part of must stop, not carry on to its proposals.
+    if (cause instanceof VaultChangedError) throw cause;
+    // The reason is kept in Activity and a rule's log, which any tool can read.
+    return { done: [], left: [{ path, reason: messageWithoutPaths(cause) }], recorded: false };
+  }
+  if (ports.editors.state(path) === 'clean') ports.editors.reload(path);
+  return { done, left, recorded: true };
 }
 
 /** What linking the meeting would do, worked out from the meeting, the index and the vault's notes. */
@@ -123,13 +249,14 @@ async function planFor({
   path,
   selfName,
   vocabulary,
+  read,
 }: {
   ports: MeetingLinkPorts;
   path: VaultPath;
   selfName: string | null;
   vocabulary: Vocabulary | undefined;
+  read: MeetingRead;
 }): Promise<MeetingLinkPlan & { readonly properties: Readonly<Record<string, unknown>> }> {
-  const read = await readMeeting(ports, path);
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const { people, companies } = await loadLinkDirectory({ index: ports.index });
   const matching = matchAttendees(attendeesOf(read.properties), people, companies);
@@ -209,20 +336,6 @@ function speakersOf(
 function turnsOf(ports: MeetingLinkPorts, text: string): readonly TranscriptTurn[] {
   const reading = validateMeetingFile(ports.markdown, text);
   return reading.ok ? reading.meeting.transcript : [];
-}
-
-/** Each relation to set, only while it still holds what was read. */
-function relationChanges(
-  path: VaultPath,
-  properties: Readonly<Record<string, unknown>>,
-  changes: Readonly<Record<string, readonly string[]>>,
-): PropertyChange[] {
-  return Object.entries(changes).map(([key, value]) => ({
-    path,
-    key,
-    expect: priorOf(properties, key),
-    to: { value: [...value] },
-  }));
 }
 
 function priorOf(properties: Readonly<Record<string, unknown>>, key: string): PriorValue {

@@ -736,3 +736,38 @@ not a replacement. It is held to the terms above:
   says the route and the file, never what the meeting carried.
 - **No MCP tool.** The route takes a provider's raw meeting and email for a
   program; a model recording a meeting writes a note with `atlas_create_note`.
+
+## Amendment: a rule of several steps is read as any rule is (P29-06, 2026-10-11)
+
+ADR-0028's addendum for P29-06 gives a rule several steps (`do: steps`), the
+"After a meeting" rule and its switch, a third Claude output
+(`term-suggestions`), a link record on the meeting, and "Correct again". No
+route was added; the three automations routes and the proposals routes carry
+it.
+
+- **Read.** `GET /v1/automations` and the dry run answer `steps`,
+  `[{ do, action, claude }]`, for such a rule, null for any other; a log
+  entry of one answers `steps`, `{ note, records: [{ step, outcome, said }] }`
+  — one entry per meeting — and `done` may hold what a step did to a meeting
+  (`corrected`, `linked`, and their undos). What a step said has this
+  machine's paths taken out, as every reason in a log has.
+- **Still not run from outside.** Running the rule, undoing its last run, and
+  the "After a meeting" switch stay on the Automations page, for the reasons
+  above: the switch writes a rule into `.atlas`, and a run changes notes with
+  no one watching the page it reports to.
+- **A meeting's words and links are the person's.** "Undo links" and "Correct
+  again" have no route, as "Undo corrections" has none: each rewrites a note
+  the person is reading, from the record the meeting holds, and is a decision
+  about one meeting.
+- **Accepting a term adds a spelling; it rewrites no meeting.** `POST
+  /v1/proposals/{path}/accept` on a `term` adds the misheard spellings to the
+  term's `variants` through the byte-preserving frontmatter write, or makes
+  the term, in user space as every accept writes. A spelling the domain rule
+  refuses (`suggestedVariantRefusal`) is a `conflict` with nothing written.
+- **Activity is not read through the API.** A run's line may now carry
+  details (one per step); no route or tool answers Activity lines, so nothing
+  here changed. The router still only writes them, one per write.
+
+MCP: the descriptions of `atlas_automations`, `atlas_automation_log`,
+`atlas_automation_dry_run`, `atlas_proposals` and `atlas_accept_proposal` say
+the above; no tool was added.

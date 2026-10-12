@@ -54,7 +54,8 @@ export function activityMatches(event: ActivityEvent, query: ActivityQuery): boo
 }
 
 function searchable(event: ActivityEvent): string {
-  return `${event.message} ${event.kind} ${event.subject?.path ?? ''}`.toLowerCase();
+  const details = (event.details ?? []).join(' ');
+  return `${event.message} ${details} ${event.kind} ${event.subject?.path ?? ''}`.toLowerCase();
 }
 
 /**
@@ -87,8 +88,8 @@ export function repeatsActivity(earlier: ActivityEvent, next: ActivityEvent): bo
  * repeat in one look-up, rather than by comparing it with every line before.
  */
 export function activityRepeatKey(event: ActivityEvent): string {
-  const { level, kind, message, subject } = event;
-  return JSON.stringify([level, kind, message, subject?.kind ?? null, subject?.path ?? null]);
+  const { level, kind, message, subject, details = [] } = event;
+  return JSON.stringify([level, kind, message, subject?.kind ?? null, subject?.path ?? null, details]);
 }
 
 /**

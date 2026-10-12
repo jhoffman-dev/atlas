@@ -79,8 +79,51 @@ vocabulary as data beside the meeting, and checks every answer itself.
     decisions gets an empty list.
 `;
 
+/** The prompt of the `term-suggestions` output: which spellings look like misheard names. */
+export const TERM_SUGGESTIONS_PROMPT = createVaultPath(`${PROMPTS_DIRECTORY}/term-suggestions.md`);
+
+const TERM_SUGGESTIONS = `# Term suggestions
+
+Read the meeting's transcript and find the spellings in it that look like a name
+the transcriber misheard: a product, a person, a company or an acronym. Each one
+becomes a suggestion the vault's owner accepts or rejects. An accepted one is
+then put right in every meeting that arrives, so a wrong one does harm: leave
+out anything they would reject.
+
+This note is yours to edit: it is what a rule with \`output: term-suggestions\`
+asks Claude. Atlas adds who was in the meeting, the names of the vault's people
+and companies and its terms as data beside the meeting, and checks every answer
+itself.
+
+## Rules
+
+1. **Only mishearings of names.** A spelling that sounds like a name you were
+   given but is written differently ("Lark Spur" for Larkspur, "Mara Quil" for
+   Mara Quill), or that the meeting itself spells two ways. Not grammar, not a
+   typo in an everyday word, not a word you would simply phrase differently.
+2. **Never an everyday word.** If the heard spelling is a word people say for
+   its own sake ("mark", "spring", "notion" in a sentence about an idea), leave
+   it out, however likely the name seems here. Atlas leaves those out anyway.
+3. **Spell the right name as the data spells it.** "canonical" is a term, a
+   person, a company or an attendee you were given, written exactly as given.
+   Suggest a name you were not given only when the meeting itself spells it
+   out, and say "confidence": "low".
+4. **Copy the heard spelling exactly.** "heard" is the words as the transcript
+   has them, capitals and spaces included, and nothing around them.
+5. **Cite one turn that holds it.** "source_block" is the id of a turn where
+   the heard spelling appears.
+6. **Nothing already known.** A mishearing listed beside its term is corrected
+   already: do not suggest it again.
+7. **One suggestion per spelling.** However often it was said.
+8. **Confidence means how sure you are it is that name.** "high": it can be
+   nothing else in this meeting. "medium": likely. "low": a guess.
+9. **Nothing to suggest is an answer.** Most meetings need none: answer with an
+   empty list.
+`;
+
 export const BUILT_IN_PROMPTS: readonly BuiltInPrompt[] = [
   { path: MEETING_EXTRACTION_PROMPT, contents: MEETING_EXTRACTION },
+  { path: TERM_SUGGESTIONS_PROMPT, contents: TERM_SUGGESTIONS },
 ];
 
 /** The prompt Atlas ships at `path`, or null when it ships none there. */

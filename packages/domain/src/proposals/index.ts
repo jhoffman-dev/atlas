@@ -32,8 +32,9 @@ export type {
   ProposalState,
 } from './proposal.ts';
 export { PROPOSAL_TYPE_FILES } from './proposal-types.ts';
-export { applyProposal, newNotePath } from './apply-proposal.ts';
+export { applyProposal, newNotePath, proposedVariants } from './apply-proposal.ts';
 export type {
+  HeldTerm,
   LinkTarget,
   ProposalApplication,
   ProposalVault,

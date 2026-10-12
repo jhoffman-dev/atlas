@@ -48,6 +48,12 @@ export interface ActivityReport {
   readonly kind: ActivityKind;
   readonly message: string;
   readonly subject: ActivitySubject | null;
+  /**
+   * What the line sums up, a line each, in order (P29-06): the steps of one
+   * rule's run on one meeting. The page shows them under the line when it is
+   * opened; a line without any is just the line.
+   */
+  readonly details?: readonly string[];
 }
 
 export interface ActivityEvent extends ActivityReport {
@@ -58,11 +64,15 @@ export interface ActivityEvent extends ActivityReport {
 /** The longest a line's message may be: one line on the page, not a stack trace. */
 export const MAX_ACTIVITY_MESSAGE = 300;
 
+/** The most lines of detail one line carries: a run's steps, not its log. */
+export const MAX_ACTIVITY_DETAILS = 12;
+
 /**
  * A line, made safe to keep: its message on one line, without absolute paths,
  * chat notes' names or secret values, and no longer than
  * {@link MAX_ACTIVITY_MESSAGE}; its subject dropped when it is not a path
- * inside the vault, or is a chat note.
+ * inside the vault, or is a chat note. Its details are held to the same
+ * rules, each one, and to {@link MAX_ACTIVITY_DETAILS} of them.
  */
 export function activityEvent(report: ActivityReport & { at: number }): ActivityEvent {
   const chat = report.subject !== null && isInChats(report.subject.path) ? report.subject : null;
@@ -74,7 +84,20 @@ export function activityEvent(report: ActivityReport & { at: number }): Activity
       chat === null ? report.message : withoutChatTitle(report.message, chat.path),
     ),
     subject: chat === null ? cleanSubject(report.subject) : null,
+    ...cleanDetails(report.details, chat?.path ?? null),
   };
+}
+
+/** The details made safe as the message is; the key left off when there are none. */
+function cleanDetails(
+  details: readonly string[] | undefined,
+  chat: VaultPath | null,
+): { details?: readonly string[] } {
+  const kept = (details ?? [])
+    .filter((detail) => typeof detail === 'string' && detail.trim() !== '')
+    .slice(0, MAX_ACTIVITY_DETAILS)
+    .map((detail) => cleanMessage(chat === null ? detail : withoutChatTitle(detail, chat)));
+  return kept.length === 0 ? {} : { details: kept };
 }
 
 function cleanMessage(raw: string): string {

@@ -6,16 +6,19 @@ export type {
 } from './import-arrived-meetings.ts';
 export { createMeetingImporter, importMeetingsOnArrival } from './meeting-importer.ts';
 export type { MeetingImporter } from './meeting-importer.ts';
+export type { LetInStamp } from './meeting-files.ts';
 export { MeetingPathsTakenError, receiveMeeting } from './receive-meeting.ts';
 export type { MeetingReceipt } from './receive-meeting.ts';
 export {
   correctedMeeting,
   correctMeetingTerms,
   CorrectionRefusedError,
+  recorrectMeetingTerms,
   undoMeetingTermCorrections,
 } from './meeting-corrections.ts';
 export type {
   CorrectedMeeting,
   MeetingCorrectionPorts,
+  MeetingRecorrection,
   MeetingTermsCorrection,
 } from './meeting-corrections.ts';
