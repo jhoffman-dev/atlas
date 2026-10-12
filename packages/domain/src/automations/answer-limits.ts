@@ -21,7 +21,14 @@ export const MAX_LOGGED_CHARACTERS = 600;
 
 /** `text` cut to `max` characters, with an ellipsis where it was; whole when it fits. */
 export function truncated(text: string, max = MAX_LOGGED_CHARACTERS): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+  return text.length <= max ? text : `${leading(text, max - 1)}…`;
+}
+
+/** The first `max` UTF-16 units of `text`, less one if that would cut a pair in half: an emoji is not left as a lone surrogate. */
+export function leading(text: string, max: number): string {
+  const last = text.charCodeAt(max - 1);
+  const splitsPair = last >= 0xd800 && last <= 0xdbff && max < text.length;
+  return text.slice(0, splitsPair ? max - 1 : max);
 }
 
 /** Why `text` is too long to be called `what`, or null. */

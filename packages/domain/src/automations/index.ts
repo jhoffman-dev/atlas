@@ -111,7 +111,7 @@ export {
 } from './claude-step-prompt.ts';
 export { claudeWriteRefusal } from './claude-write-folder.ts';
 export { claudeNewProposal, claudeProposalId } from './claude-proposal-id.ts';
-export { MAX_LOGGED_CHARACTERS, truncated } from './answer-limits.ts';
+export { leading, MAX_LOGGED_CHARACTERS, truncated } from './answer-limits.ts';
 export {
   answeredMeetingOf,
   CLAUDE_ASKS_PER_RUN,

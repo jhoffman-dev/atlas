@@ -7,6 +7,9 @@
 import { attendeesOf } from '../meeting-links/meeting-link-plan.ts';
 import { importOutcomeOf } from '../meetings/meeting-arrival.ts';
 import { isMeetingType, type MeetingAttendee } from '../meetings/meeting-header.ts';
+import { unclosedFence } from '../meetings/meeting-lines.ts';
+import { meetingSectionBounds, meetingTurnsOf } from '../meetings/meeting-turns.ts';
+import { truncated } from './answer-limits.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 
@@ -25,6 +28,8 @@ export interface AnsweredMeeting {
   readonly identity: MeetingIdentity | null;
   /** Who its frontmatter lists as there: who an item taken from it may be owned by (P29-05). */
   readonly attendees?: readonly MeetingAttendee[];
+  /** The day it was held (`YYYY-MM-DD`), when its frontmatter says: what a due date is judged near. */
+  readonly date?: string;
 }
 
 /** A note the run was about, as it was read: what a proposal may cite. */
@@ -76,9 +81,15 @@ export function answeredMeetingOf(
     const value = properties[key];
     return typeof value === 'string' ? value : '';
   };
-  const [provider, externalId] = [text('provider'), text('external_id')];
-  const letIn = importOutcomeOf(properties) === 'imported' && provider !== '' && externalId !== '';
-  return { identity: letIn ? { provider, externalId } : null, attendees: attendeesOf(properties) };
+  const [provider, externalId] = [text('provider'), text('external_id').trim()];
+  const letIn =
+    importOutcomeOf(properties) === 'imported' && provider.trim() !== '' && externalId !== '';
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(text('date').trim()) ? text('date').trim() : undefined;
+  return {
+    identity: letIn ? { provider, externalId } : null,
+    attendees: attendeesOf(properties),
+    ...(date !== undefined && { date }),
+  };
 }
 
 /**
@@ -155,36 +166,57 @@ export interface ClaudeAsks {
   readonly asks: readonly (readonly AnsweredNote[])[];
   /** The notes some of which no ask shows. */
   readonly cut: readonly NoteCut[];
+  /** The notes no ask is made about, and why: there was nothing in them to cite. */
+  readonly skipped: readonly NoteSkipped[];
+}
+
+/** A note a run did not ask about. */
+export interface NoteSkipped {
+  readonly path: VaultPath;
+  readonly reason: string;
 }
 
 /**
  * The asks a run makes about `notes`. Ordinarily one, about all of them, each
  * cut to its share. With `inParts` (an output that reads meetings turn by
- * turn, P29-05) every note is asked about alone, and a meeting too long for
- * one ask is read in parts — each its frontmatter and the sections before its
- * transcript, then as many whole turns as fit — up to
- * {@link CLAUDE_ASKS_PER_RUN} asks a run. Past that the rest of a meeting is
- * not read, and is reported as cut.
+ * turn, P29-05) every note is asked about alone — unless it has no transcript
+ * turn to cite, which costs an ask for nothing and is skipped, with why — and
+ * a meeting too long for one ask is read in parts: each its frontmatter and
+ * the sections before its transcript (the notes trimmed to fit), then as many
+ * whole turns as fit, after the last two turns of the part before, quoted for
+ * context and not citable — up to {@link CLAUDE_ASKS_PER_RUN} asks a run.
+ * Past that the rest of a meeting is not read, and is reported as cut.
  */
 export function claudeAsks(
   notes: readonly AnsweredNote[],
   { inParts }: { inParts: boolean },
 ): ClaudeAsks {
-  if (!inParts) return { asks: [notes], cut: cutNotes(notes) };
-  let spare = Math.max(0, CLAUDE_ASKS_PER_RUN - notes.length);
+  if (!inParts) return { asks: [notes], cut: cutNotes(notes), skipped: [] };
+  const skipped = notes
+    .filter((note) => meetingTurnsOf(note.text).length === 0)
+    .map(skippedWithout);
+  const read = notes.filter((note) => !skipped.some(({ path }) => path === note.path));
+  let spare = Math.max(0, CLAUDE_ASKS_PER_RUN - read.length);
   const asks: AnsweredNote[][] = [];
   const cut: NoteCut[] = [];
-  for (const note of notes) {
+  for (const note of read) {
     const { parts, head, unfit } = meetingParts(note, CLAUDE_NOTE_CHARACTERS);
     const taken = parts.slice(0, 1 + spare);
     spare -= taken.length - 1;
     asks.push(...taken.map((part) => [{ ...note, text: part.text }]));
-    const read = head + taken.reduce((sum, part) => sum + part.read, 0);
+    const characters = head + taken.reduce((sum, part) => sum + part.read, 0);
     if (taken.length < parts.length || unfit) {
-      cut.push({ path: note.path, shown: read, of: note.text.length });
+      cut.push({ path: note.path, shown: characters, of: note.text.length });
     }
   }
-  return { asks, cut };
+  return { asks, cut, skipped };
+}
+
+function skippedWithout(note: AnsweredNote): NoteSkipped {
+  return {
+    path: note.path,
+    reason: 'It has no transcript turn for Claude to cite, so Claude was not asked about it.',
+  };
 }
 
 /** One part of a note as an ask shows it, and how many of the note's own characters it holds past the head. */
@@ -193,44 +225,113 @@ interface NotePart {
   readonly read: number;
 }
 
-/** A turn's heading, at the start of a line: where a meeting's head ends. */
-const TRANSCRIPT_HEADING = /^##[ \t]+Transcript\b[^\n]*$/im;
+interface NoteParts {
+  readonly parts: NotePart[];
+  readonly head: number;
+  readonly unfit: boolean;
+}
 
 /**
  * A note as the parts it is read in. A note that fits, or is no meeting, or
  * whose transcript cannot be found, is one part — cut, when too long, as
  * {@link shownNotes} cuts it. A long meeting is its head (everything up to
- * and including its `## Transcript` heading) before each run of whole
- * turns that fits; a turn too long to fit with the head is in no part.
+ * and including its `## Transcript` heading, found as the import's contract
+ * finds it, with its Notes trimmed when the head would crowd out the turns)
+ * before each run of whole turns that fits; a turn too long to fit with the
+ * head is in no part.
  */
-function meetingParts(
-  note: AnsweredNote,
-  room: number,
-): { parts: NotePart[]; head: number; unfit: boolean } {
-  const whole = (): { parts: NotePart[]; head: number; unfit: boolean } => {
+function meetingParts(note: AnsweredNote, room: number): NoteParts {
+  const whole = (): NoteParts => {
     const fits = note.text.length <= room;
     const read = fits ? note.text.length : shownStart(note, room).length;
     return { parts: [{ text: note.text, read }], head: 0, unfit: !fits };
   };
   if (note.meeting === undefined || note.text.length <= room) return whole();
-  const heading = TRANSCRIPT_HEADING.exec(note.text);
-  const headEnd = heading === null ? -1 : heading.index + heading[0].length;
-  // A head that leaves little room for turns is a note to cut, not one to read in parts.
-  if (headEnd === -1 || headEnd > room / 2) return whole();
-  const head = note.text.slice(0, headEnd);
+  const head = headOf(note.text, room / 2);
+  if (head === null) return whole();
   const turns = note.text
-    .slice(headEnd)
+    .slice(head.end)
     .split(TURN_GAP)
     .map((turn) => turn.replace(/^[\r\n]+|[\r\n]+$/g, ''))
     .filter((turn) => turn.trim() !== '');
-  const runs = runsThatFit(turns, room - head.length - PART_MARK_ROOM);
+  const runs = runsThatFit(turns, room - head.text.length - PART_MARK_ROOM - CONTEXT_ROOM);
   if (runs.runs.length === 0) return whole();
   const parts = runs.runs.map((run, at) => ({
-    text: `${head}\n\n${partMark(at, runs.runs.length)}\n\n${run.join('\n\n')}\n`,
+    text: partText({ head: head.text, run, before: runs.runs[at - 1], at, of: runs.runs.length }),
     read: run.reduce((sum, turn) => sum + turn.length, 0),
   }));
-  return { parts, head: head.length, unfit: runs.unfit };
+  return { parts, head: head.text.length, unfit: runs.unfit };
 }
+
+/**
+ * A meeting's head: its text up to and including the Transcript heading's
+ * line, no longer than `budget` — the Notes cut at a line and any code fence
+ * they opened closed, so what follows is not read as code. Null when the
+ * transcript cannot be found, or the head cannot be made to fit.
+ */
+function headOf(text: string, budget: number): { text: string; end: number } | null {
+  const sections = meetingSectionBounds(text);
+  const transcript = sections.find((section) => section.name === 'transcript');
+  if (transcript === undefined) return null;
+  const end = Math.max(transcript.headingStart, transcript.textStart - 1);
+  const headText = text.slice(0, end);
+  if (headText.length <= budget) return { text: headText, end: transcript.textStart - 1 };
+  const notes = sections.find((section) => section.name === 'notes');
+  if (notes === undefined) return null;
+  const rest = text.slice(notes.textEnd, end);
+  const before = text.slice(0, notes.textStart);
+  const room = budget - before.length - rest.length - NOTES_CUT_ROOM;
+  if (room <= 0) return null;
+  const kept = wholeLines(text.slice(notes.textStart, notes.textEnd), room);
+  const fence = unclosedFence(kept);
+  const closed = fence === null ? kept : `${kept.replace(/\n+$/, '')}\n${fence}`;
+  return { text: `${before}${closed}\n… (notes cut)\n\n${rest}`, end: transcript.textStart - 1 };
+}
+
+/** Room kept in a head for the line saying its Notes were cut, and a fence closed. */
+const NOTES_CUT_ROOM = 100;
+
+/** Room kept in each later part for the turns before it, quoted. */
+const CONTEXT_ROOM = 2_000;
+
+/** How many of the part before's last turns a part quotes. */
+const CONTEXT_TURNS = 2;
+
+/** The last turns of the part before, quoted so they read as no turn and carry no id that could be cited. */
+function contextOf(before: readonly string[] | undefined): string {
+  if (before === undefined) return '';
+  const quoted = before
+    .slice(-CONTEXT_TURNS)
+    .map((turn) => turn.replace(/[ \t]*\^[A-Za-z0-9-]+[ \t]*$/, ''))
+    .map((turn) =>
+      turn
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n'),
+    );
+  return truncated(quoted.join('\n>\n'), CONTEXT_ROOM - 100);
+}
+
+function partText({
+  head,
+  run,
+  before,
+  at,
+  of,
+}: {
+  head: string;
+  run: readonly string[];
+  before: readonly string[] | undefined;
+  at: number;
+  of: number;
+}): string {
+  const context = contextOf(before);
+  const earlier = context === '' ? '' : `\n\n${CONTEXT_MARK}\n\n${context}`;
+  return `${head}\n\n${partMark(at, of)}${earlier}\n\n${run.join('\n\n')}\n`;
+}
+
+const CONTEXT_MARK =
+  '(The end of the part before, quoted for context only. It has no ids and cannot be cited.)';
 
 /** The blank line between two turns, as either kind of line ending writes it. */
 const TURN_GAP = /\r?\n[ \t]*\r?\n/;

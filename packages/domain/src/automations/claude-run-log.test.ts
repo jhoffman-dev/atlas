@@ -278,7 +278,7 @@ describe('a Claude step that read a meeting in parts, and left items out', () =>
       '- dropped `"Send the \\u0060contract\\u0060 now"`: Vendor call has no transcript turn ^t0099 that Claude was shown.',
     );
     expect(logEntrySummary(parts)).toBe(
-      'Made 1 proposal. Left out 2 items that cited no turn of the meeting.',
+      'Made 1 proposal. Left out 2 items of the answer that did not read.',
     );
     const [back] = parseRunLog(text);
     expect(back).toMatchObject({ claude: { asks: 3 } });
@@ -293,7 +293,7 @@ describe('a Claude step that read a meeting in parts, and left items out', () =>
     const one: LogEntry = { ...RAN, claude: { ...RAN.claude!, dropped: dropped.slice(0, 1) } };
 
     expect(logEntrySummary(one)).toBe(
-      'Made 1 proposal. Left out 1 item that cited no turn of the meeting.',
+      'Made 1 proposal. Left out 1 item of the answer that did not read.',
     );
     expect(formatLogEntry(RAN)).not.toMatch(/- asked|- dropped/);
     expect(parseRunLog(formatLogEntry(RAN))[0]).toMatchObject({

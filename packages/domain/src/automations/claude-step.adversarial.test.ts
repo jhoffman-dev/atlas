@@ -158,7 +158,7 @@ describe('the hourly cap on a rule a note sets off', () => {
       left: [],
       capped: false,
       versions: [{ path: STANDUP, digest: `d${minute}`, wrote: false }],
-      claude: { model: 'claude-test', ms: 4000 },
+      claude: { model: 'claude-test', ms: 4000, asks: 1 },
     }));
 
     expect(noteRunsHeldUntil(asked, '2026-10-11T09:30:00')).not.toBeNull();

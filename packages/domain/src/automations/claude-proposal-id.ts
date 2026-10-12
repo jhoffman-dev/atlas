@@ -19,7 +19,8 @@ import type { CheckedProposal } from './proposal-schema.ts';
  * Standup.md#^t1]]` and the same turn of the same meeting once it is renamed
  * and filed are one proposal. A meeting the import let in is known by its
  * provider and id, which filing does not change; any other note by its path.
- * Two hashes of the same text, so a collision (a 32-bit hash alone would meet
+ * What tells two items of one title on one turn apart (`distinguishedBy`, who
+ * they concern) is part of it. Two hashes of the same text, so a collision (a 32-bit hash alone would meet
  * one in a large vault) needs both to meet.
  */
 export function claudeProposalId({
@@ -36,7 +37,9 @@ export function claudeProposalId({
     meeting === null
       ? JSON.stringify(['note', note])
       : JSON.stringify(['meeting', meeting.provider, meeting.externalId.trim()]);
-  const what = [rule, proposal.kind, title, cited, block].join('\n');
+  // A schema whose proposals are the meeting's, not the rule's, leaves the rule out: two rules make each once.
+  const scope = proposal.sharedAcrossRules ? '' : rule;
+  const what = [scope, proposal.kind, title, proposal.distinguishedBy, cited, block].join('\n');
   return `claude-${digestOf(`a${what}`)}${digestOf(`b${what}`)}`;
 }
 

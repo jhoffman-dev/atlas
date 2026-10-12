@@ -66,36 +66,45 @@ export const NOTE_RUNS_PER_HOUR = 20;
 const HOUR_MS = 3_600_000;
 
 /**
- * When a rule a note sets off may run again, once it has made as many runs in
- * the hour up to `now` as it may; null while it may still run. Counted are
- * runs that changed a note, runs whose query did not read, so a broken rule
- * is held too, and every run that asked Claude, whatever it came back with —
- * nothing, or a failure: the model was still asked, and that is what the cap
- * is for (P29-03). A run that changed nothing — every note it heard already
- * as it leaves them, or open with unsaved typing — spends nothing.
+ * When a rule a note sets off may run again, once it has spent as much in the
+ * hour up to `now` as it may; null while it may still run. A run that changed
+ * a note, and a run whose query did not read (so a broken rule is held too),
+ * spend one. A Claude step spends what it asked the model: one for each ask
+ * (`claude.asks`) — a long meeting read in ten parts is ten, not one — and
+ * nothing when it never asked (a prompt that would not read, a provider that
+ * was not ready), since the model was not used (P29-03, P29-05). A run that
+ * changed nothing — every note it heard already as it leaves them, or open
+ * with unsaved typing — spends nothing. A run is let start while under the
+ * cap, so one may take it past by its own asks (at most ten).
  */
 export function noteRunsHeldUntil(entries: readonly LogEntry[], now: LocalTime): LocalTime | null {
   const end = localTimeMs(now);
   if (end === null) return null;
   const counted = entries
-    .filter(
-      (entry) =>
-        (entry.kind === 'failed' && (entry.trigger === 'note' || entry.claude !== undefined)) ||
-        (entry.kind === 'run' &&
-          ((entry.trigger === 'note' && entry.done.length > 0) || entry.claude !== undefined)),
-    )
-    .map((entry) => localTimeMs(entry.at))
-    .filter((at): at is number => at !== null && at > end - HOUR_MS && at <= end)
+    .flatMap((entry) => {
+      const at = localTimeMs(entry.at);
+      return at === null || at <= end - HOUR_MS || at > end
+        ? []
+        : Array.from({ length: spentBy(entry) }, () => at);
+    })
     .sort((a, b) => a - b);
   if (counted.length < NOTE_RUNS_PER_HOUR) return null;
   // Once this one is an hour old, one fewer than the most is left in the hour.
   return localTimeOf(counted[counted.length - NOTE_RUNS_PER_HOUR]! + HOUR_MS);
 }
 
+/** What an entry spent of the hour's cap. */
+function spentBy(entry: LogEntry): number {
+  if (entry.kind !== 'run' && entry.kind !== 'failed') return 0;
+  if (entry.claude !== undefined) return entry.claude.asks ?? 0;
+  if (entry.kind === 'failed') return entry.trigger === 'note' ? 1 : 0;
+  return entry.trigger === 'note' && entry.done.length > 0 ? 1 : 0;
+}
+
 /** What a rule held back until `until` by {@link noteRunsHeldUntil} says. */
 export function noteRunsCappedProblem(until: LocalTime): string {
   return (
-    `It has run ${NOTE_RUNS_PER_HOUR} times in the last hour, the most a rule may. ` +
+    `It has used its ${NOTE_RUNS_PER_HOUR} runs, or questions put to Claude, for the last hour, the most a rule may. ` +
     `It runs on what changed meanwhile at ${until.slice(11, 16)}.`
   );
 }

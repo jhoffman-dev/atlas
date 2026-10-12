@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { meetingTurnsOf } from '../meetings/meeting-turns.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import {
   CLAUDE_NOTE_CHARACTERS,
@@ -217,17 +218,52 @@ describe('a meeting read in parts (P29-05)', () => {
     expect(plan.cut[0]!.shown).toBeLessThan(1_000);
   });
 
-  it('falls back to the start of a note it cannot read in parts: no transcript heading, or no meeting', () => {
+  it('skips a note with no transcript turn to cite, and says why, instead of asking about it', () => {
     const unheaded = asMeeting(meetingOf(120).text.replace('## Transcript', '## Words'));
     const plain: AnsweredNote = { path: MEETING, text: 'line\n'.repeat(10_000) };
 
     for (const note of [unheaded, plain]) {
       const plan = claudeAsks([note], { inParts: true });
 
-      expect(plan.asks).toEqual([[note]]);
-      expect(plan.cut).toEqual(cutNotes([note]));
-      expect(plan.cut).toHaveLength(1);
+      expect(plan.asks).toEqual([]);
+      expect(plan.skipped).toEqual([
+        { path: note.path, reason: expect.stringContaining('no transcript turn') },
+      ]);
     }
+  });
+
+  it('closes a fence the trimmed Notes opened, and keeps the head within its budget', () => {
+    const notes = `- ${'a note line '.repeat(8)}\n`.repeat(400);
+    const text = meetingOf(120).text.replace(
+      '## Transcript',
+      `## Notes\n\n\`\`\`\n${notes}\`\`\`\n\n## Transcript`,
+    );
+
+    const plan = claudeAsks([asMeeting(text)], { inParts: true });
+
+    expect(plan.asks.length).toBeGreaterThan(1);
+    for (const [part] of plan.asks) {
+      const head = part!.text.slice(0, part!.text.indexOf('## Transcript'));
+      expect(head.length).toBeLessThan(CLAUDE_NOTE_CHARACTERS / 2);
+      expect((head.match(/^```/gm) ?? []).length % 2).toBe(0);
+      expect(part!.text.length).toBeLessThanOrEqual(CLAUDE_NOTE_CHARACTERS);
+      expect(meetingTurnsOf(part!.text).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('quotes the last two turns of the part before at the start of the next, and they cannot be cited', () => {
+    const plan = claudeAsks([meetingOf(120)], { inParts: true });
+    const [first, second] = plan.asks.map(([part]) => part!);
+    const lastBefore = idsIn(first!.text).slice(-2);
+
+    const quoted = second!.text.split('\n').filter((line) => line.startsWith('> '));
+    expect(quoted.join('\n')).toContain(`Turn ${lastBefore[0]}.`);
+    expect(quoted.join('\n')).toContain(`Turn ${lastBefore[1]}.`);
+    expect(quoted.join('\n')).not.toMatch(/\^t\d+/);
+    expect(meetingTurnsOf(second!.text).map((turn) => turn.blockId)).not.toContain(
+      `t${String(lastBefore[1]).padStart(4, '0')}`,
+    );
+    expect(first!.text).not.toContain('\n> ');
   });
 
   it('reads a long meeting saved with Windows line endings in parts too', () => {
@@ -251,6 +287,6 @@ describe('a meeting read in parts (P29-05)', () => {
   });
 
   it('asks nothing about no notes', () => {
-    expect(claudeAsks([], { inParts: true })).toEqual({ asks: [], cut: [] });
+    expect(claudeAsks([], { inParts: true })).toEqual({ asks: [], cut: [], skipped: [] });
   });
 });

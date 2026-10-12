@@ -108,6 +108,12 @@ export interface ProposalDraft {
    * written by the schema's own code. The meeting is the note `source` cites.
    */
   readonly joinsMeeting?: string;
+  /**
+   * What tells this draft from another of the same kind, title and block:
+   * who it concerns, normalised. Part of what the proposal is known by, so
+   * two people taking on "Send the notes" in one turn are two proposals.
+   */
+  readonly distinguishedBy?: string;
 }
 
 /**
@@ -132,10 +138,27 @@ export interface CheckedProposal {
   readonly cites: ProposalCitation;
   readonly confidence: ProposalConfidence;
   readonly why: string;
+  /** See {@link ProposalDraft.distinguishedBy}; empty when nothing does. */
+  readonly distinguishedBy: string;
+  /**
+   * Whether the proposal is known by what it is and where it came from alone,
+   * so that two rules reading one meeting propose it once between them
+   * ({@link ProposalSchema.sharedAcrossRules}).
+   */
+  readonly sharedAcrossRules: boolean;
 }
 
 export type Reading<Value> =
   { readonly ok: true; readonly value: Value } | { readonly ok: false; readonly problem: string };
+
+/**
+ * One item of an answer, read: the item (with a note of anything about it
+ * that was put right, for the log), or why it is not one — refused, which
+ * fails the whole answer, or dropped (`drop`), which leaves out just it.
+ */
+export type ItemReading<Item> =
+  | { readonly ok: true; readonly value: Item; readonly adjusted?: string }
+  | { readonly ok: false; readonly problem: string; readonly drop?: boolean };
 
 /**
  * A kind of answer a Claude step can give: the extension point for new
@@ -167,8 +190,26 @@ export interface ProposalSchema<Item> {
    * each must be a relation the meeting type has, or Accept refuses the link.
    */
   readonly meetingRelations?: readonly string[];
-  /** One item of the list, or why it is not one. */
-  readonly readItem: (value: unknown) => Reading<Item>;
+  /**
+   * One item of the list, or why it is not one. A schema may drop an item
+   * that does not read (the rest are kept) and keep one with a fault put
+   * right; both are in the run's record. By default one that does not read
+   * refuses the whole answer.
+   */
+  readonly readItem: (value: unknown, context: AnswerContext) => ItemReading<Item>;
+  /**
+   * Whether the proposals are known by what they are and where they came
+   * from, not by the rule that made them: two rules proposing the same
+   * commitment from the same meeting make it once. Default: per rule.
+   */
+  readonly sharedAcrossRules?: boolean;
+  /** Whether an item that is no object is dropped, as one {@link ItemReading} drops, instead of refusing the answer. */
+  readonly dropsUnreadable?: boolean;
+  /**
+   * Where in its note the block a proposal cites falls, to take an answer's
+   * proposals in the order of the note whatever order the model listed them.
+   */
+  readonly positionOf?: (cites: ProposalCitation, context: AnswerContext) => number;
   /**
    * The proposals an item makes, given the notes the run was about: none, one,
    * or several (a meeting's one action item may be a task and a follow-up).
@@ -217,6 +258,8 @@ export type AnswerReading =
       readonly ok: true;
       readonly value: CheckedProposal[];
       readonly dropped: readonly DroppedItem[];
+      /** Items kept with a fault put right, and what was put right. */
+      readonly adjusted: readonly DroppedItem[];
     }
   | { readonly ok: false; readonly problem: string };
 
@@ -269,6 +312,7 @@ function readAnswer<Item>({
   }
   const checked: CheckedProposal[] = [];
   const dropped: DroppedItem[] = [];
+  const adjusted: DroppedItem[] = [];
   for (const [at, value] of list.entries()) {
     const item = itemDrafts({ schema, value, context });
     if (!item.ok) return refused(`Item ${at + 1}: ${item.problem}`);
@@ -276,16 +320,32 @@ function readAnswer<Item>({
       dropped.push(item.dropped);
       continue;
     }
+    if (item.adjusted !== undefined) adjusted.push(item.adjusted);
     for (const draft of item.drafts) {
       const proposal = checkDraft(draft, context, schema.meetingRelations);
       if (!proposal.ok) return refused(`Item ${at + 1}: ${proposal.problem}`);
-      checked.push(proposal.value);
+      checked.push({ ...proposal.value, sharedAcrossRules: schema.sharedAcrossRules === true });
     }
     if (checked.length > MAX_PROPOSALS_PER_ANSWER) {
       return refused(`It made more than ${MAX_PROPOSALS_PER_ANSWER} proposals in one run.`);
     }
   }
-  return { ok: true, value: checked, dropped };
+  return { ok: true, value: inNoteOrder(schema, checked, context), dropped, adjusted };
+}
+
+/** The proposals in the order of the note they cite, when the schema can say where each falls; else as listed. */
+function inNoteOrder<Item>(
+  schema: ProposalSchema<Item>,
+  proposals: CheckedProposal[],
+  context: AnswerContext,
+): CheckedProposal[] {
+  const { positionOf } = schema;
+  if (positionOf === undefined) return proposals;
+  // Array.prototype.sort is stable: proposals at one place keep the order they were listed in.
+  return proposals
+    .map((proposal) => ({ proposal, at: positionOf(proposal.cites, context) }))
+    .sort((a, b) => a.at - b.at)
+    .map(({ proposal }) => proposal);
 }
 
 /** An item's drafts, or the item as dropped; refused when it does not read. */
@@ -298,17 +358,51 @@ function itemDrafts<Item>({
   value: unknown;
   context: AnswerContext;
 }):
-  | { readonly ok: true; readonly drafts: readonly ProposalDraft[] }
+  | {
+      readonly ok: true;
+      readonly drafts: readonly ProposalDraft[];
+      readonly adjusted?: DroppedItem;
+    }
   | { readonly ok: true; readonly dropped: DroppedItem }
   | { readonly ok: false; readonly problem: string } {
-  if (!isRecord(value)) return refused('It is not an object.');
+  if (!isRecord(value)) return droppedOrRefused(schema, 'It is not an object.', value);
   const extra = unknownKeyProblem(value, schema.itemKeys, 'It');
   if (extra !== null) return refused(extra);
-  const item = schema.readItem(value);
-  if (!item.ok) return item;
+  const item = schema.readItem(value, context);
+  if (!item.ok) {
+    return item.drop === true
+      ? { ok: true, dropped: { title: titleOf(value), reason: item.problem } }
+      : refused(item.problem);
+  }
   const dropped = schema.dropped?.(item.value, context) ?? null;
   if (dropped !== null) return { ok: true, dropped };
-  return { ok: true, drafts: schema.draftsOf(item.value, context) };
+  const drafts = schema.draftsOf(item.value, context);
+  return {
+    ok: true,
+    drafts,
+    ...(item.adjusted !== undefined && {
+      adjusted: { title: titleOf(value), reason: item.adjusted },
+    }),
+  };
+}
+
+/** What an item called itself, for the record; a stand-in when it did not. */
+function titleOf(value: unknown): string {
+  const title = isRecord(value) ? value['title'] : undefined;
+  return typeof title === 'string' && title.trim() !== '' ? title.trim() : 'an item';
+}
+
+/** An item that is no object: dropped by a schema that drops what does not read, else the answer is refused. */
+function droppedOrRefused<Item>(
+  schema: ProposalSchema<Item>,
+  problem: string,
+  value: unknown,
+):
+  | { readonly ok: true; readonly dropped: DroppedItem }
+  | { readonly ok: false; readonly problem: string } {
+  return schema.dropsUnreadable === true
+    ? { ok: true, dropped: { title: titleOf(value), reason: problem } }
+    : refused(problem);
 }
 
 /** What a payload may hold: a note, and nothing that would edit one. */
@@ -364,6 +458,8 @@ export function checkDraft(
       },
       confidence,
       why: draft.why.trim(),
+      distinguishedBy: draft.distinguishedBy ?? '',
+      sharedAcrossRules: false,
     },
   };
 }

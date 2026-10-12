@@ -250,17 +250,19 @@ describe('what the run reads as a meeting', () => {
   it('reads the type as linking does: a list, in any case', () => {
     expect(
       answeredMeetingOf({ ...stamped, type: ['Meeting', 'note'], provider: 'gemini' }),
-    ).toEqual({ identity: { provider: 'gemini', externalId: 'gemini-1' } });
-    expect(answeredMeetingOf({ type: ' MEETING ' })).toEqual({ identity: null });
+    ).toEqual({ identity: { provider: 'gemini', externalId: 'gemini-1' }, attendees: [] });
+    expect(answeredMeetingOf({ type: ' MEETING ' })).toEqual({ identity: null, attendees: [] });
     expect(answeredMeetingOf({ type: 'task' })).toBeUndefined();
   });
 
   it('keeps the provider as written, as the meeting is found by it: only the id is trimmed', () => {
     expect(answeredMeetingOf({ ...stamped, type: 'meeting', provider: ' gemini ' })).toEqual({
       identity: { provider: ' gemini ', externalId: 'gemini-1' },
+      attendees: [],
     });
     expect(answeredMeetingOf({ ...stamped, type: 'meeting', provider: '  ' })).toEqual({
       identity: null,
+      attendees: [],
     });
   });
 });

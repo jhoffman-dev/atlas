@@ -21,6 +21,7 @@ const GEMINI: AnsweredNote = {
   text: fixture('gemini-platform-sync.md'),
   meeting: {
     identity: { provider: 'gemini', externalId: 'gemini-7f3a9c21' },
+    date: '2026-09-29',
     attendees: [
       { name: 'Mara Quill', email: 'mara.quill@example.com', group: false },
       { name: 'Tobias Fenn', email: 'tobias.fenn@example.com', group: false },
@@ -90,8 +91,11 @@ describe('whose an action item is', () => {
         linkFrom: { note: GEMINI.path, property: 'tasks', meeting: LINK_BACK },
       },
       source: '[[Platform weekly sync#^t0003]]',
+      cites: { note: GEMINI.path, meeting: LINK_BACK, block: 't0003' },
       confidence: 'high',
       why: 'Yours, from Platform weekly sync.',
+      distinguishedBy: 'self',
+      sharedAcrossRules: true,
     });
   });
 
@@ -139,7 +143,7 @@ describe('whose an action item is', () => {
     );
   });
 
-  it('waits on the name as text when more than one Person note could be them', () => {
+  it('leaves it to be picked, naming who it could be, when more than one Person note could be them', () => {
     const twins = {
       ...VAULT,
       people: [
@@ -151,11 +155,10 @@ describe('whose an action item is', () => {
 
     const proposal = one({ owner: 'Lena Hart', source_block: 't0001' }, about(GRANOLA, twins));
 
-    expect(proposal.payload.properties).toMatchObject({
-      status: 'waiting',
-      waiting_on: 'Lena Hart',
-    });
-    expect(proposal.why).toContain('More than one Person note could be Lena Hart');
+    expect(proposal.payload.properties).toEqual({ status: 'inbox', waiting_on: '' });
+    expect(proposal.confidence).toBe('low');
+    expect(proposal.why).toContain('which could be Lena H or Lena Hart');
+    expect(proposal.why).not.toContain('no Person note');
   });
 
   it('never calls the owner someone to wait on, by the address their own note holds', () => {
@@ -170,17 +173,38 @@ describe('whose an action item is', () => {
     expect(proposal.payload.properties).toEqual({ status: 'inbox' });
   });
 
-  it('carries a due date that was said, and refuses one that is no day', () => {
+  it('carries a due date that was said', () => {
     expect(one({ due: '2026-10-02' }).payload.properties).toEqual({
       status: 'inbox',
       due: '2026-10-02',
     });
     expect(one({ due: null }).payload.properties).toEqual({ status: 'inbox' });
-    expect(read([item({ due: 'Friday' })])).toMatchObject({
-      ok: false,
-      problem: 'Item 1: Its "due" is not a date written YYYY-MM-DD.',
+  });
+
+  it.each([
+    ['Friday', 'is not a date written YYYY-MM-DD'],
+    ['2026-02-30', 'is not a day that exists'],
+    ['0026-10-02', 'is not a day that exists'],
+    ['2999-01-01', 'is too far from the meeting'],
+    ['2033-10-02', 'is too far from the meeting'],
+  ])('keeps the item, with %j left off it and one step less confidence', (due, why) => {
+    const reading = read([item({ due })]);
+
+    expect(reading).toMatchObject({ ok: true, dropped: [] });
+    if (!reading.ok) throw new Error(reading.problem);
+    expect(reading.value[0]).toMatchObject({
+      confidence: 'medium',
+      payload: { properties: { status: 'inbox' } },
     });
-    expect(read([item({ due: '2026-02-30' })])).toMatchObject({ ok: false });
+    expect(reading.value[0]!.payload.properties).not.toHaveProperty('due');
+    expect(reading.adjusted).toEqual([
+      { title: 'Write the rollout note', reason: expect.stringContaining(why) },
+    ]);
+  });
+
+  it('judges a due date by the day the meeting was held, five years either way', () => {
+    expect(one({ due: '2031-09-29' }).payload.properties).toMatchObject({ due: '2031-09-29' });
+    expect(read([item({ due: '2031-10-05' })])).toMatchObject({ adjusted: [expect.anything()] });
   });
 });
 
@@ -215,6 +239,7 @@ describe('an owner nobody can be sure of', () => {
     expect(
       one({ owner: 'Tobias Fenn', source_block: 't0002', confidence: 'medium' }).confidence,
     ).toBe('medium');
+    expect(one({ owner: 'Tobias Fenn', source_block: 't0002' }).confidence).toBe('high');
   });
 
   it('is low confidence when called a waiting-for and owned by the owner', () => {
@@ -358,18 +383,36 @@ describe('the turn an item cites', () => {
 
 describe('an answer that does not read', () => {
   it.each([
-    [{ kind: 'idea' }, 'Item 1: Its kind is not one of task, waiting, decision, follow-up.'],
-    [{ title: '  ' }, 'Item 1: It has no "title".'],
-    [{ owner: 7 }, 'Item 1: Its "owner" is not text.'],
-    [{ owner: 'x'.repeat(121) }, 'Item 1: Its "owner" is longer than a name: at most 120.'],
-    [{ source_block: undefined }, 'Item 1: It has no "source_block".'],
-    [{ confidence: 'certain' }, 'Item 1: Its confidence is not one of high, medium, low.'],
-    [
-      { why: 'because' },
-      'Item 1: It has “why”, which is not one of kind, title, owner, due, source_block, confidence.',
-    ],
-  ])('refuses the whole answer for %j', (fields, problem) => {
-    expect(read([item(), item(fields)].reverse())).toEqual({ ok: false, problem });
+    [{ kind: 'idea' }, 'Its kind is not one of task, waiting, decision, follow-up.'],
+    [{ title: '  ' }, 'It has no "title".'],
+    [{ owner: 7 }, 'Its "owner" is not text.'],
+    [{ owner: 'x'.repeat(121) }, 'Its "owner" is longer than a name: at most 120.'],
+    [{ source_block: undefined }, 'It has no "source_block".'],
+    [{ confidence: 'certain' }, 'Its confidence is not one of high, medium, low.'],
+  ])('drops only the item that is wrong, and says why: %j', (fields, reason) => {
+    const reading = read([item(), item(fields)].reverse());
+
+    expect(reading).toMatchObject({ ok: true, adjusted: [] });
+    if (!reading.ok) throw new Error(reading.problem);
+    expect(reading.value).toHaveLength(1);
+    expect(reading.dropped).toEqual([{ title: expect.any(String), reason }]);
+  });
+
+  it('drops an item that is no object, and refuses an answer with a key it was not asked for', () => {
+    const reading = read([item(), 'later', null]);
+
+    expect(reading).toMatchObject({ ok: true });
+    if (!reading.ok) throw new Error(reading.problem);
+    expect(reading.value).toHaveLength(1);
+    expect(reading.dropped.map((each) => each.reason)).toEqual([
+      'It is not an object.',
+      'It is not an object.',
+    ]);
+    expect(read([item({ why: 'because' })])).toEqual({
+      ok: false,
+      problem:
+        'Item 1: It has “why”, which is not one of kind, title, owner, due, source_block, confidence.',
+    });
   });
 
   it('refuses an answer under another key', () => {
@@ -485,5 +528,85 @@ describe('what the model is told', () => {
     });
 
     expect(system).not.toContain('What the vault says about them');
+  });
+});
+
+describe('how sure a card is, from who spoke the turn it cites', () => {
+  it('is medium at most when another named person spoke it: they may be asking the owner', () => {
+    // Tobias said it at t0002; the task is the vault’s owner’s.
+    const asked = one({ owner: 'You', source_block: 't0002', confidence: 'high' });
+
+    expect(asked.confidence).toBe('medium');
+    expect(asked.why).toContain('Tobias Fenn spoke the turn it cites');
+  });
+
+  it('keeps what was claimed when the owner spoke it, or the vault’s owner handed it out', () => {
+    const own = one({ owner: 'Tobias Fenn', source_block: 't0002' });
+    const handed = one({ owner: 'Tobias Fenn', source_block: 't0001' });
+
+    expect(own.confidence).toBe('high');
+    expect(handed.confidence).toBe('high');
+  });
+
+  it('is low for a decision or a follow-up citing a turn nobody is named for', () => {
+    const decision = one({ kind: 'decision', source_block: 't0002' }, about(GRANOLA));
+    const followUp = one({ kind: 'follow-up', source_block: 't0002' }, about(GRANOLA));
+    const named = one({ kind: 'decision', source_block: 't0003' }, about(GEMINI));
+
+    expect(decision.confidence).toBe('low');
+    expect(followUp.confidence).toBe('low');
+    expect(followUp.why).toContain('no named speaker');
+    expect(named.confidence).toBe('high');
+  });
+
+  it('is low for a name nobody in the meeting or the vault has', () => {
+    const proposal = one({ owner: 'Ines Okafor', source_block: 't0001' }, about(GEMINI));
+
+    expect(proposal.payload.properties).toMatchObject({ waiting_on: 'Ines Okafor' });
+    expect(proposal.confidence).toBe('low');
+    expect(proposal.why).toContain('not listed in the meeting');
+  });
+});
+
+describe('a meeting the import did not let in', () => {
+  const byHand: AnsweredNote = {
+    ...GEMINI,
+    meeting: { ...GEMINI.meeting!, identity: null },
+  };
+
+  it('is still read, and its proposals are made without joining it, saying so', () => {
+    const task = one({}, about(byHand));
+    const decision = one({ kind: 'decision', owner: '' }, about(byHand));
+
+    expect(task.payload.linkFrom).toBeNull();
+    expect(decision.payload.linkFrom).toBeNull();
+    expect(task.why).toContain('not imported');
+  });
+});
+
+describe('what a proposal is known by', () => {
+  const idOf = (fields: Record<string, unknown>) => {
+    const proposal = one(fields);
+    return [proposal.kind, proposal.payload.title, proposal.cites.block, proposal.distinguishedBy];
+  };
+
+  it('tells two people taking on one title in one turn apart, and one person worded two ways together', () => {
+    expect(idOf({ owner: 'You' })).not.toEqual(idOf({ owner: 'Tobias Fenn' }));
+    expect(idOf({ owner: 'You' })).toEqual(idOf({ owner: 'Mara Quill (the vault’s owner)' }));
+    expect(idOf({ owner: 'Tobias Fenn' })).toEqual(idOf({ owner: 'tobias.fenn@example.com' }));
+  });
+
+  it('is the meeting’s, not one rule’s', () => {
+    expect(one({}).sharedAcrossRules).toBe(true);
+  });
+
+  it('takes the proposals in the order of the transcript, whatever order the model listed them', () => {
+    const reading = read([
+      item({ title: 'Late', source_block: 't0004', owner: 'Tobias Fenn' }),
+      item({ title: 'Early', source_block: 't0002', owner: 'Tobias Fenn' }),
+    ]);
+
+    if (!reading.ok) throw new Error(reading.problem);
+    expect(reading.value.map((each) => each.payload.title)).toEqual(['Early', 'Late']);
   });
 });

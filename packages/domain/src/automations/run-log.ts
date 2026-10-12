@@ -52,6 +52,7 @@
  *
  * ```markdown
  * - asked `3` times
+ * - adjusted `"Send the contract"`: Its "due" "Friday" is not a date written YYYY-MM-DD, so it has no due date, and one step less confidence.
  * - dropped `"Send the contract"`: Vendor call has no transcript turn ^t0099 that Claude was shown.
  * ```
  *
@@ -110,10 +111,16 @@ export interface ClaudeRunInfo {
    * read every note whole.
    */
   readonly cut?: readonly NoteCut[];
-  /** How many times it asked, when more than once: a long meeting read in parts. */
+  /**
+   * How many times the model was asked, once it was: what the hourly cap
+   * counts. Left out when it was never asked (a prompt that could not be
+   * read, a provider that was not ready), which costs nothing.
+   */
   readonly asks?: number;
   /** The items of its answers it left out while keeping the rest, each with why. */
   readonly dropped?: readonly DroppedItem[];
+  /** The items it kept with a fault put right (a due date that was no date), each with what. */
+  readonly adjusted?: readonly DroppedItem[];
   /**
    * How many of the proposals it answered with were made before — by an
    * earlier run, open or answered since — and so were not made again; left
@@ -242,14 +249,20 @@ export function logEntrySummary(entry: LogEntry): string {
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
   const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
   const claude = 'claude' in entry ? entry.claude : undefined;
-  return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}`;
+  return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}${adjustedWords(claude?.adjusted ?? [])}`;
+}
+
+/** What a run says when it kept items with a fault put right. */
+function adjustedWords(adjusted: readonly DroppedItem[]): string {
+  if (adjusted.length === 0) return '';
+  return ` Put right ${adjusted.length === 1 ? '1 item' : `${adjusted.length} items`} (see the log).`;
 }
 
 /** What a run says when it left items out of an answer it kept. */
 function droppedWords(dropped: readonly DroppedItem[]): string {
   if (dropped.length === 0) return '';
   const items = dropped.length === 1 ? '1 item' : `${dropped.length} items`;
-  return ` Left out ${items} that cited no turn of the meeting.`;
+  return ` Left out ${items} of the answer that did not read.`;
 }
 
 /**
@@ -303,10 +316,18 @@ function countDone(done: readonly DoneAction[]): string {
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
 }
 
-function claudeLines({ model, ms, cut = [], asks, alreadyMade = 0, dropped = [] }: ClaudeRunInfo): string[] {
+function claudeLines({
+  model,
+  ms,
+  cut = [],
+  asks,
+  alreadyMade = 0,
+  dropped = [],
+  adjusted = [],
+}: ClaudeRunInfo): string[] {
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
-    ...(asks === undefined ? [] : [`- asked ${code(asks)} times`]),
+    ...(asks === undefined ? [] : [`- asked ${code(asks)} ${asks === 1 ? 'time' : 'times'}`]),
     ...(alreadyMade > 0 ? [`- already made ${code(alreadyMade)}`] : []),
     ...cut.map(
       ({ path, shown, of }) => `- cut ${code(path)}: read ${code(shown)} of ${code(of)} characters`,
@@ -314,6 +335,10 @@ function claudeLines({ model, ms, cut = [], asks, alreadyMade = 0, dropped = [] 
     ...dropped.map(
       ({ title, reason }) =>
         `- dropped ${code(truncated(oneLine(title), MAX_DROPPED_TITLE))}: ${oneLine(truncated(reason))}`,
+    ),
+    ...adjusted.map(
+      ({ title, reason }) =>
+        `- adjusted ${code(truncated(oneLine(title), MAX_DROPPED_TITLE))}: ${oneLine(truncated(reason))}`,
     ),
   ];
 }
@@ -416,7 +441,8 @@ const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_S
 const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
 const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
 const CUT_LINE = new RegExp(`^- cut ${JSON_SPAN}: read ${JSON_SPAN} of ${JSON_SPAN} characters$`);
-const ASKED_LINE = new RegExp(`^- asked ${JSON_SPAN} times$`);
+const ASKED_LINE = new RegExp(`^- asked ${JSON_SPAN} times?$`);
+const ADJUSTED_LINE = new RegExp(`^- adjusted ${JSON_SPAN}: (.*)$`);
 const DROPPED_LINE = new RegExp(`^- dropped ${JSON_SPAN}: (.*)$`);
 const SET_LINE = new RegExp(
   `^- (set|restored) ${JSON_SPAN} ${JSON_SPAN}: ${PRIOR_SPAN} → ${PRIOR_SPAN}$`,
@@ -504,7 +530,8 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
       if (typeof model === 'string' && typeof ms === 'number') {
         const cut = cutOf(body);
         const asks = asksOf(body);
-        const dropped = droppedOf(body);
+        const dropped = droppedOf(body, DROPPED_LINE);
+        const adjusted = droppedOf(body, ADJUSTED_LINE);
         const alreadyMade = countOn(body, ALREADY_MADE_LINE);
         return {
           model,
@@ -512,6 +539,7 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
           ...(cut.length > 0 && { cut }),
           ...(asks !== null && { asks }),
           ...(dropped.length > 0 && { dropped }),
+          ...(adjusted.length > 0 && { adjusted }),
           ...(alreadyMade !== null && { alreadyMade }),
         };
       }
@@ -561,7 +589,7 @@ function asksOf(body: readonly string[]): number | null {
     if (match === null) continue;
     try {
       const asks = JSON.parse(match[1]!) as unknown;
-      return typeof asks === 'number' && Number.isInteger(asks) && asks > 1 ? asks : null;
+      return typeof asks === 'number' && Number.isInteger(asks) && asks > 0 ? asks : null;
     } catch {
       // A line edited into JSON that does not read is left out, as any other line is.
       return null;
@@ -571,9 +599,9 @@ function asksOf(body: readonly string[]): number | null {
 }
 
 /** The items a Claude step left out of its answers, from its lines; one that does not read is left out. */
-function droppedOf(body: readonly string[]): DroppedItem[] {
+function droppedOf(body: readonly string[], pattern: RegExp): DroppedItem[] {
   return body.flatMap((line) => {
-    const match = DROPPED_LINE.exec(line);
+    const match = pattern.exec(line);
     if (match === null) return [];
     try {
       const title = JSON.parse(match[1]!) as unknown;

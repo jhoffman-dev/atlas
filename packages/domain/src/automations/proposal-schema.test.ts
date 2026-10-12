@@ -83,15 +83,23 @@ describe('the general proposals schema', () => {
           cites: { note: STANDUP, meeting: null, block: 't0003' },
           confidence: 'high',
           why: 'Mara asked for it on the call.',
+          distinguishedBy: '',
+          sharedAcrossRules: false,
         },
         expect.objectContaining({ kind: 'decision' }),
       ],
       dropped: [],
+      adjusted: [],
     });
   });
 
   it('reads an answer with nothing to propose as none', () => {
-    expect(general.read(answer(), CONTEXT)).toEqual({ ok: true, value: [], dropped: [] });
+    expect(general.read(answer(), CONTEXT)).toEqual({
+      ok: true,
+      value: [],
+      dropped: [],
+      adjusted: [],
+    });
   });
 
   it('reads JSON a model fenced, and refuses anything else around it', () => {
@@ -266,6 +274,7 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
       ok: true,
       value: [],
       dropped: [],
+      adjusted: [],
     });
     const extra = registered.read(
       JSON.stringify({ items: [{ ...item, link_from: 'x' }] }),

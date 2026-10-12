@@ -66,9 +66,9 @@ describe('itemOwner', () => {
 
   it('does not guess between two attendees of one first name', () => {
     expect(itemOwner('Tobias', DIRECTORY)).toEqual({
-      kind: 'named',
+      kind: 'ambiguous',
       name: 'Tobias',
-      several: false,
+      candidates: ['Tobias Fenn', 'Tobias Reed'],
     });
   });
 
@@ -82,13 +82,10 @@ describe('itemOwner', () => {
     expect(itemOwner('Ines Okafor', DIRECTORY)).toEqual({
       kind: 'named',
       name: 'Ines Okafor',
-      several: false,
+      inMeeting: false,
     });
-    expect(itemOwner('platform-team', DIRECTORY)).toEqual({
-      kind: 'named',
-      name: 'platform-team',
-      several: false,
-    });
+    expect(itemOwner('platform-team', DIRECTORY)).toEqual({ kind: 'unknown' });
+    expect(itemOwner('platform-team@example.com', DIRECTORY)).toEqual({ kind: 'unknown' });
   });
 
   it('says when several Person notes could be them', () => {
@@ -102,9 +99,9 @@ describe('itemOwner', () => {
     };
 
     expect(itemOwner('Ines Okafor', twins)).toEqual({
-      kind: 'named',
+      kind: 'ambiguous',
       name: 'Ines Okafor',
-      several: true,
+      candidates: ['I. Okafor', 'Ines Okafor'],
     });
   });
 
@@ -130,11 +127,87 @@ describe('itemOwner', () => {
     expect(itemOwner('Mara', { ...unnamed, attendees: [] })).toEqual({
       kind: 'named',
       name: 'Mara',
-      several: false,
+      inMeeting: false,
     });
     expect(itemOwner('Mara Quill', { ...unnamed, attendees: [] })).toMatchObject({
       kind: 'person',
       name: 'Mara Quill',
     });
   });
+
+  it.each([
+    'You.',
+    'You (Mara Quill)',
+    'Mara Quill (the vault’s owner)',
+    'Mara Quill: the vault’s owner',
+    'Quill, Mara',
+    'MARA QUILL',
+    'Mara',
+    'mara.quill@example.com',
+    'Mara Quill <mara.quill@example.com>',
+  ])('reads %j as the vault’s owner', (written) =>
+    expect(itemOwner(written, OWNED)).toEqual({ kind: 'self' }),
+  );
+
+  it('does not read a first name as the owner when another attendee has it', () => {
+    const shared = {
+      ...OWNED,
+      attendees: [...OWNED.attendees, { name: 'Mara Lee', email: null, group: false }],
+    };
+
+    expect(itemOwner('Mara', shared)).toMatchObject({ kind: 'ambiguous' });
+    expect(itemOwner('Mara Lee', shared)).toMatchObject({ kind: 'named', name: 'Mara Lee' });
+  });
+
+  it.each(['We', 'us', 'we'])('reads %j as the owner’s, with a doubt to say', (written) => {
+    const owner = itemOwner(written, OWNED);
+
+    expect(owner).toMatchObject({ kind: 'self' });
+    expect('doubt' in owner && owner.doubt).toContain('“We”');
+  });
+
+  it.each(['Everyone', 'The team', 'All', 'Not sure', 'TBD', 'everybody', 'all of us'])(
+    'reads %j as nobody',
+    (written) => expect(itemOwner(written, OWNED)).toEqual({ kind: 'unknown' }),
+  );
+
+  it('reads a piped link as the note it points at', () => {
+    expect(itemOwner('[[People/Tobias Fenn|Toby]]', OWNED)).toMatchObject({
+      kind: 'person',
+      name: 'Tobias Fenn',
+    });
+    expect(itemOwner('[[People/Mara Quill|me]]', OWNED)).toEqual({ kind: 'self' });
+  });
+
+  it('gives a joint item to the owner when they are one of the owners, naming the other', () => {
+    const owner = itemOwner('You and Tobias', OWNED);
+
+    expect(owner).toMatchObject({ kind: 'self' });
+    expect('doubt' in owner && owner.doubt).toContain('Tobias');
+    expect(itemOwner('Tobias & Mara Quill', OWNED)).toMatchObject({ kind: 'self' });
+  });
+
+  it('cannot give a joint item to people who are not the owner to one of them', () => {
+    expect(itemOwner('Tobias Fenn and Lena Hart', OWNED)).toEqual({
+      kind: 'ambiguous',
+      name: 'Tobias Fenn and Lena Hart',
+      candidates: ['Tobias Fenn', 'Lena Hart'],
+    });
+  });
+
+  it('knows a person who is in the meeting from a name that is in no meeting and no note', () => {
+    expect(itemOwner('Lena Hart', OWNED)).toMatchObject({ kind: 'named', inMeeting: true });
+    expect(itemOwner('Ines Okafor', OWNED)).toMatchObject({ kind: 'named', inMeeting: false });
+  });
 });
+
+/** Mara owns the vault, with a first name no one else in the meeting shares. */
+const OWNED: OwnerDirectory = {
+  attendees: [
+    { name: 'Mara Quill', email: 'mara.quill@example.com', group: false },
+    { name: 'Tobias Fenn', email: 'tobias.fenn@example.com', group: false },
+    { name: 'Lena Hart', email: null, group: false },
+  ],
+  people: [person('Mara Quill', { emails: ['mara.quill@example.com'] }), TOBIAS],
+  selfName: 'Mara Quill',
+};

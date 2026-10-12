@@ -33,3 +33,43 @@ export function providerNextStepsOf(text: string): readonly ProviderNextStep[] {
   const section = sectionOf(text, 'nextSteps');
   return section === null ? [] : parseProviderNextSteps(section.text, section.firstLine).steps;
 }
+
+/** Where one section of a meeting note sits in its text, as character offsets. */
+export interface MeetingSectionBounds {
+  readonly name: MeetingSectionName;
+  /** Where its `## Heading` line starts. */
+  readonly headingStart: number;
+  /** Where the text under the heading starts: after the heading's line break. */
+  readonly textStart: number;
+  /** Where it ends: where the next section's heading starts, or the end of the note. */
+  readonly textEnd: number;
+}
+
+/**
+ * The sections of a meeting note and where each lies in `text`, found by the
+ * same reader the import's contract uses (`splitMeetingSections`) — so a
+ * `## Transcript` inside a code fence is no heading here either.
+ */
+export function meetingSectionBounds(text: string): MeetingSectionBounds[] {
+  const { body } = splitFrontmatter(text);
+  if (!text.endsWith(body)) return [];
+  const lines = body.split('\n');
+  const starts: number[] = [];
+  let at = text.length - body.length;
+  for (const line of lines) {
+    starts.push(at);
+    at += line.length + 1;
+  }
+  const { sections } = splitMeetingSections(body, 1);
+  return sections.map((section, index) => {
+    const headingStart = starts[section.headingLine - 1] ?? text.length;
+    const heading = lines[section.headingLine - 1] ?? '';
+    const next = sections[index + 1];
+    return {
+      name: section.name,
+      headingStart,
+      textStart: Math.min(text.length, headingStart + heading.length + 1),
+      textEnd: next === undefined ? text.length : (starts[next.headingLine - 1] ?? text.length),
+    };
+  });
+}
