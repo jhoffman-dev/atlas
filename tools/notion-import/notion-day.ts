@@ -1,6 +1,6 @@
 import { meetingWhen } from '../../packages/domain/src/meetings/mapping/meeting-when.ts';
 import { MeetingMappingError } from '../../packages/domain/src/meetings/mapping/meeting-mapping-error.ts';
-import { notionWhen } from './notion-date.ts';
+import { notionWhen, type DateOrder } from './notion-date.ts';
 
 /** What a Notion date cell says about a day: the day, and the end of a range, or why it says nothing readable. */
 export type DayReading =
@@ -46,10 +46,15 @@ function dayIn(value: string, timeZone: string | null): { day: string | null; wh
  * The day a Notion date cell is on. The cell is read as the meeting import
  * reads a Date (`notionWhen`): a time with a zone other than UTC is that
  * clock's, and a UTC time is an instant, whose day is the one it falls on in
- * `timeZone` — the day Notion showed. A range keeps its end's day.
+ * `timeZone` — the day Notion showed. A range keeps its end's day. A date
+ * written `10/06/2026` is read in `order`, and with none is not read.
  */
-export function readDay(cell: string, timeZone: string | null): DayReading {
-  const when = notionWhen(cell);
+export function readDay(
+  cell: string,
+  timeZone: string | null,
+  order: DateOrder | null = null,
+): DayReading {
+  const when = notionWhen(cell, order);
   const start = dayIn(when.date, timeZone);
   if (start.day === null) return { kind: 'unread', why: start.why };
   const endText = cell.includes('→') ? (cell.split('→')[1]?.trim() ?? '') : null;

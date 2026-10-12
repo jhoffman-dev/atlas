@@ -32,6 +32,7 @@ const input = (
   statuses: DEFAULT_TASK_STATUSES,
   today: '2026-10-10',
   timeZone: 'America/Los_Angeles',
+  dateOrder: null,
   recreateDeleted: false,
   meetingPaths: new Map(),
   meetingIds: new Set(),
@@ -80,5 +81,52 @@ describe('the plan', () => {
     expect(plan.pages).toEqual([
       expect.objectContaining({ kind: 'create', path: 'People/Q3 1 draft v2.md' }),
     ]);
+  });
+
+  it('names a note whose row has no title Untitled, and says so', () => {
+    const database = {
+      ...people(`People/Untitled ${ID}.md`, ID),
+      csv: readCsv('Name,Role\n,Head of Payroll\n'),
+      pages: [
+        {
+          file: `People/Untitled ${ID}.md`,
+          id: ID,
+          page: readNotionPage('# Untitled\n\nRole: Head of Payroll\n'),
+        },
+      ],
+    };
+    const plan = planWorkspace(input(database, new Map()));
+    expect(plan.pages).toEqual([
+      expect.objectContaining({
+        kind: 'create',
+        title: '',
+        path: 'People/Untitled.md',
+        notes: ['named "Untitled": its row has no title'],
+      }),
+    ]);
+  });
+
+  it('refuses a page the export holds in two databases, naming where else it is', () => {
+    const teams: ExportDatabase = {
+      name: 'Teams',
+      kind: 'teams',
+      csvPath: '/export/Teams.csv',
+      csvFile: 'Teams.csv',
+      csv: readCsv('Name\nMara Quill\n'),
+      pages: [
+        { file: `Teams/Mara Quill ${ID}.md`, id: ID, page: readNotionPage('# Mara Quill\n') },
+      ],
+    };
+    const plan = planWorkspace({
+      ...input(people(`People/Mara Quill ${ID}.md`, ID), new Map()),
+      databases: [people(`People/Mara Quill ${ID}.md`, ID), teams],
+      selected: new Set(['people', 'teams']),
+    });
+    expect(plan.pages).toContainEqual({
+      kind: 'refused',
+      database: 'Teams',
+      title: 'Mara Quill',
+      reason: `the export holds its page twice: People/Mara Quill ${ID}.md too`,
+    });
   });
 });

@@ -518,13 +518,14 @@ the Meeting Notes: `tools/notion-import/README.md`.
 
 | Option                    | Default               | What it does                                                                                 |
 | ------------------------- | --------------------- | -------------------------------------------------------------------------------------------- |
-| `--csv <file>`            | (required)            | The export's `_all.csv`; its pages are the `.md` files in its folder and below               |
+| `--csv <file>`            | (required)            | The export's `_all.csv`; its pages are the `.md` files in its pages folder beside it, below  |
 | `--vault <folder>`        | (required)            | The vault to write into. It must exist                                                       |
 | `--folder <path>`         | `Inbox/Meetings`      | Where in the vault the files go. Not hidden, and not linked out of the vault                 |
 | `--time-zone <zone>`      | `America/Los_Angeles` | The clock UTC times are read on; `none` refuses a UTC time rather than read it as local time |
 | `--group-address <email>` | none                  | An address to mark as a group (repeat it), as the workflow's `groupAddresses`                |
 | `--providers <list>`      | every provider        | Only these providers' rows, comma-separated: `--providers granola`                           |
 | `--gemini-dates <how>`    | none: Gemini held     | `arrival-local`: Gemini's Date is when its notes arrived, in local time (issue #44)          |
+| `--date-order <order>`    | none: refused         | How a Date written `10/06/2026` is read: `mdy` (month first) or `dmy` (day first)            |
 
 **Which folder.** In `Inbox/Meetings/`, Atlas imports each file on arrival,
 and the Inbox lists every one until you file it: a whole history at once.
