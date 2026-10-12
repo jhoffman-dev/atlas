@@ -3,6 +3,11 @@ import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 
+/** What writing a stamp reaches: the note, the YAML writer, and the panes that may hold it. */
+export type StampPorts = Pick<ArchivePorts, 'fs' | 'markdown'> & {
+  readonly editors: Pick<ArchivePorts['editors'], 'state' | 'reload'>;
+};
+
 export const UNSAVED = 'It is open in Atlas with unsaved typing, so the import left it as it is.';
 
 /**
@@ -11,12 +16,19 @@ export const UNSAVED = 'It is open in Atlas with unsaved typing, so the import l
  * never written: why is said instead (null when it was written).
  */
 export async function writeStamp(
-  ports: Pick<ArchivePorts, 'fs' | 'markdown' | 'editors'>,
+  ports: StampPorts,
   {
     path,
     modified,
     values,
-  }: { path: VaultPath; modified: number; values: Readonly<Record<string, unknown>> },
+    body,
+  }: {
+    path: VaultPath;
+    modified: number;
+    values: Readonly<Record<string, unknown>>;
+    /** The body to write in place of the note's own, when the import corrected its words. */
+    body?: string;
+  },
 ): Promise<string | null> {
   if (ports.editors.state(path) === 'dirty') return UNSAVED;
   const { text, modified: now } = await ports.fs.readTextFile(path);
@@ -24,7 +36,8 @@ export async function writeStamp(
   const document = splitFrontmatter(text);
   await ports.fs.writeTextFile({
     path,
-    contents: stampedFrontmatter(ports.markdown, document.frontmatter, values) + document.body,
+    contents:
+      stampedFrontmatter(ports.markdown, document.frontmatter, values) + (body ?? document.body),
     expectedModified: modified,
   });
   if (ports.editors.state(path) === 'clean') ports.editors.reload(path);

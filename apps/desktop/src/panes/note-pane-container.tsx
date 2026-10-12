@@ -61,6 +61,7 @@ import { useBookmarks } from '../notes/use-bookmarks.ts';
 import { useEmbedImage } from '../notes/use-embed-image.ts';
 import { useBlockPicking, useTransclusions } from '../notes/use-block-links.ts';
 import { useLinePromotion } from '../notes/use-line-promotion.ts';
+import { useMeetingCorrections } from '../notes/use-meeting-corrections.ts';
 import { cryptoRng } from '../random.ts';
 import { usePlanner } from '../timeblocks/use-planner.ts';
 import { useTaskSchedule } from '../timeblocks/use-task-schedule.ts';
@@ -398,6 +399,16 @@ export function NotePaneContainer({
     onOpenNote,
     activity: context.activity,
   });
+  const corrections = useMeetingCorrections({
+    fs: notes.fs,
+    markdown: notes.markdown,
+    openNotes: context.openNotes,
+    flush: note.flush,
+    path,
+    properties: note.open?.properties ?? null,
+    onChanged,
+    activity: context.activity,
+  });
   const embedImage = useEmbedImage({
     ports: {
       fs: notes.fs,
@@ -476,6 +487,7 @@ export function NotePaneContainer({
         else onRename({ path, name });
       }}
       {...(template !== null && { template })}
+      {...(corrections !== undefined && template === null && { corrections })}
       {...(onMoveTo !== undefined &&
         path !== null &&
         template === null &&

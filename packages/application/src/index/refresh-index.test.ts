@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, digestOf } from '@atlas/domain';
-import { refreshIndex, toIndexedNote } from './refresh-index.ts';
+import { createVaultPath, digestOf, IMPORT_OUTCOMES_PAGE } from '@atlas/domain';
+import { heldEntries, refreshIndex, toIndexedNote } from './refresh-index.ts';
 import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -309,6 +309,37 @@ describe('refreshIndex says what changed (P28-03)', () => {
   });
 });
 
+describe('refreshIndex says how the meeting import settled each note (#92)', () => {
+  const held = '---\ntype: meeting\natlas_import_outcome: imported\n---\nAgenda';
+  const edited = `${held} and more`;
+
+  it('reads the stamp from a note it reads again, and from the index for the note it held', async () => {
+    const fs = fakeVault({ 'Standup.md': { text: edited, modified: 2 } });
+    const { index } = fakeIndex([
+      { path: 'Standup.md', modified: 1, size: 5, digest: digestOf(held), type: 'meeting' },
+    ]);
+    index.query = async (_sql, parameters) => ({
+      columns: ['path', 'outcome'],
+      rows: parameters.includes('atlas_import_outcome') ? [['Standup.md', 'imported']] : [],
+      truncated: false,
+    });
+
+    const { changes } = await refreshIndex({ fs, index, markdown });
+
+    expect(changes).toEqual([
+      {
+        kind: 'changed',
+        path: 'Standup.md',
+        type: 'meeting',
+        digest: digestOf(edited),
+        before: digestOf(held),
+        importOutcome: 'imported',
+        beforeImportOutcome: 'imported',
+      },
+    ]);
+  });
+});
+
 describe('refreshIndex and relations to notes that come and go (P24 review)', () => {
   /** An index that answers the stale-relations question with `holders`, and records it. */
   function indexHolding(entries: HeldEntry[], holders: string[]) {
@@ -365,7 +396,9 @@ describe('refreshIndex and relations to notes that come and go (P24 review)', ()
     const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
     const { index, asked } = indexHolding([{ path: 'a.md', modified: 1, size: 5 }], ['a.md']);
     await refreshIndex({ fs, index, markdown });
-    expect(asked).toEqual([]);
+    // Only the question every refresh of a held index asks: how the import settled each note.
+    expect(asked.filter(([sql]) => String(sql).includes('FROM relations'))).toEqual([]);
+    expect(asked).toHaveLength(1);
   });
 });
 
@@ -543,5 +576,77 @@ describe('toIndexedNote', () => {
     const text = '---\ntype: meeting\n---\nAgenda';
     expect(build(text)).toMatchObject({ digest: digestOf(text), type: 'meeting' });
     expect(build('Agenda')).toMatchObject({ digest: digestOf('Agenda'), type: null });
+  });
+
+  it('keeps how the meeting import settled the note, and nothing when it has not (#92)', () => {
+    expect(build('---\natlas_import_outcome: error\n---\n')).toMatchObject({
+      importOutcome: 'error',
+    });
+    expect(build('Agenda')).not.toHaveProperty('importOutcome');
+  });
+});
+
+describe('heldEntries: the import stamps of the notes the index holds (#92 review)', () => {
+  const entries: HeldEntry[] = [
+    { path: 'Inbox/Meetings/Standup.md', modified: 1, size: 5, digest: 'aa', type: 'meeting' },
+    { path: 'Projects/Notes.md', modified: 1, size: 5, digest: 'bb', type: null },
+  ];
+
+  it('asks only about notes where meeting files land', async () => {
+    const { index } = fakeIndex(entries);
+    const asked: string[] = [];
+    index.query = async (sql) => {
+      asked.push(sql);
+      return { columns: [], rows: [], truncated: false };
+    };
+
+    await heldEntries(index);
+
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain(`lower(path) LIKE 'inbox/meetings/%'`);
+  });
+
+  it('reads every page of stamps, not only the first', async () => {
+    const { index } = fakeIndex(entries);
+    const page = Array.from({ length: IMPORT_OUTCOMES_PAGE }, (_, n) => [
+      `Inbox/Meetings/${n}.md`,
+      'imported',
+    ]);
+    let pages = 0;
+    index.query = async () => {
+      pages++;
+      return {
+        columns: [],
+        rows: pages === 1 ? page : [['Inbox/Meetings/Standup.md', 'error']],
+        truncated: false,
+      };
+    };
+
+    const held = await heldEntries(index);
+
+    expect(pages).toBe(2);
+    expect(held.get('Inbox/Meetings/Standup.md')?.importOutcome).toBe('error');
+  });
+
+  it('takes the notes where meetings land as already arrived when the host cut the stamps short', async () => {
+    const { index } = fakeIndex(entries);
+    index.query = async () => ({ columns: [], rows: [], truncated: true });
+
+    const held = await heldEntries(index);
+
+    expect(held.get('Inbox/Meetings/Standup.md')).toMatchObject({ arrivalHeard: true });
+    expect(held.get('Projects/Notes.md')).not.toHaveProperty('arrivalHeard');
+  });
+
+  it('takes them as already arrived when the stamps cannot be asked for, and still answers', async () => {
+    const { index } = fakeIndex(entries);
+    index.query = async () => {
+      throw new Error('no such column');
+    };
+
+    const held = await heldEntries(index);
+
+    expect(held.size).toBe(2);
+    expect(held.get('Inbox/Meetings/Standup.md')).toMatchObject({ arrivalHeard: true });
   });
 });

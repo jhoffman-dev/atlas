@@ -1,6 +1,12 @@
 import { outsideArchiveSql } from '../archive/archive.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
-import { DUPLICATE_OF_KEY, IMPORT_ERROR_KEY, IMPORT_OUTCOME_KEY } from './meeting-arrival.ts';
+import {
+  DUPLICATE_OF_KEY,
+  IMPORT_ERROR_KEY,
+  IMPORT_OUTCOME_KEY,
+  importOutcomeOf,
+  type ImportOutcome,
+} from './meeting-arrival.ts';
 import { MEETING_TYPE } from './meeting-header.ts';
 
 /** What the statements here start with, so a log or a stand-in index can tell them apart. */
@@ -39,6 +45,45 @@ export function compileMeetingHoldersQuery({
     ].join('\n'),
     parameters: [MEETING_TYPE, provider, externalId.trim()],
   };
+}
+
+/** The most stamp rows one page of {@link compileImportOutcomesQuery} asks for: under the host's own cap on a result. */
+export const IMPORT_OUTCOMES_PAGE = 1000;
+
+/**
+ * One page of the import stamps the index holds for notes where meeting files
+ * land, and the stamp as text: what the index knows of how the import settled
+ * each note, which its manifest does not say (#92). Stamps are the import's
+ * only where meetings land, so no other note is asked about — a vault with
+ * thousands of stamped notes elsewhere costs nothing. Pages are numbered from
+ * 0; one with fewer rows than {@link IMPORT_OUTCOMES_PAGE} is the last. Read
+ * with {@link importOutcomesOf}.
+ */
+export function compileImportOutcomesQuery(page = 0): CompiledQuery {
+  return {
+    sql: [
+      `${MEETING_QUERY_MARK} SELECT path, value_text FROM props`,
+      `WHERE key = ? AND lower(path) LIKE 'inbox/meetings/%'`,
+      `ORDER BY path, idx LIMIT ? OFFSET ?`,
+    ].join('\n'),
+    parameters: [IMPORT_OUTCOME_KEY, IMPORT_OUTCOMES_PAGE, page * IMPORT_OUTCOMES_PAGE],
+  };
+}
+
+/**
+ * How the import settled each note, from {@link compileImportOutcomesQuery}'s
+ * rows, as the import reads a stamp: one it does not know, or not text, is
+ * `imported` all the same.
+ */
+export function importOutcomesOf(
+  rows: readonly (readonly unknown[])[],
+): Map<string, ImportOutcome> {
+  const outcomes = new Map<string, ImportOutcome>();
+  for (const [path, stamp] of rows) {
+    const outcome = importOutcomeOf({ [IMPORT_OUTCOME_KEY]: stamp });
+    if (!outcomes.has(String(path)) && outcome !== null) outcomes.set(String(path), outcome);
+  }
+  return outcomes;
 }
 
 /** The columns {@link compileMeetingListQuery} comes back as, in order. */

@@ -30,8 +30,8 @@ const TODAY = '2026-10-08';
 const CLOCK = { today: () => TODAY, localNow: () => `${TODAY}T09:00:00` };
 const VAULT = '/vaults/home';
 const GUARD: VaultGuard = { vault: VAULT, currentVault: () => VAULT };
-const STANDUP = 'Inbox/Meetings/2026-10-06 Standup.md';
-const KICKOFF = 'Inbox/Meetings/2026-10-07 Kickoff.md';
+const STANDUP = 'Meetings/2026-10-06 Standup.md';
+const KICKOFF = 'Meetings/2026-10-07 Kickoff.md';
 
 const TYPES = [
   ...TASK_TYPES,
@@ -199,7 +199,7 @@ describe('runOnNoteChanges: a note arrives', () => {
 
 describe('runOnNoteChanges: its own writes elsewhere', () => {
   it('hears a note an archive relinked, and writes nothing when it finds it as it leaves it', async () => {
-    const linking = meeting('kickoff', 'Follows [[Inbox/Meetings/2026-10-06 Standup]].\n');
+    const linking = meeting('kickoff', 'Follows [[Meetings/2026-10-06 Standup]].\n');
     const { vault, run, as, logOf } = setUp({
       [STANDUP]: meeting('standup'),
       [KICKOFF]: linking,

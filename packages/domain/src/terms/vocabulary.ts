@@ -1,8 +1,12 @@
 import type { VaultPath } from '../vault/vault-path.ts';
-import { tidySpelling, vocabularyKey } from './spelling.ts';
+import { isSearchable, tidySpelling, vocabularyKey } from './spelling.ts';
 import type { TermNote } from './term.ts';
 
-/** A person's or a company's note: their name (its title) and the other spellings of it. */
+/**
+ * A person's or a company's note: their name (its title) and the other
+ * spellings of it. The aliases link an attendee to the person; they are never
+ * used to rewrite text (ADR-0027), so the vocabulary reads only the name.
+ */
 export interface NamedEntity {
   readonly path: VaultPath;
   readonly name: string;
@@ -52,13 +56,16 @@ export interface Vocabulary {
 /**
  * The spellings Atlas knows and what each should be: every term's right
  * spelling and the ways it is misheard, and every person's and company's
- * name and its aliases. A name is its own right spelling, so `mara quill`
- * comes back as `Mara Quill`.
+ * name as its own right spelling — so `Mara Quill` is left alone and a
+ * misheard spelling inside it is not corrected. A person's or a company's
+ * aliases are not in it: they link people, they never rewrite text.
  *
- * Spellings are matched however they are cased and spaced. Where two notes
- * claim one spelling for two different right spellings, it is a conflict:
- * listed, and left out of the entries, since correcting it either way would
- * be a guess.
+ * Spellings are matched exactly as written, case included: `mark` and `Mark`
+ * are two spellings. Where two notes claim one spelling for two different
+ * right spellings, it is a conflict: listed, and left out of the entries,
+ * since correcting it either way would be a guess. A misheard spelling with no
+ * letter or digit in it (`~`) is left out too: it would be found in every
+ * timestamp.
  */
 export function vocabulary({ terms, people, companies }: VocabularySources): Vocabulary {
   const claims = [
@@ -69,7 +76,7 @@ export function vocabulary({ terms, people, companies }: VocabularySources): Voc
 
   const entries: VocabularyEntry[] = [];
   const conflicts: VocabularyConflict[] = [];
-  for (const claimed of groupByKey(claims).values()) {
+  for (const claimed of groupByForm(claims).values()) {
     const first = claimed[0];
     if (first === undefined) continue;
     const canonicals = new Set(claimed.map((claim) => claim.canonical));
@@ -85,11 +92,12 @@ export function vocabulary({ terms, people, companies }: VocabularySources): Voc
   };
 }
 
-function namedAsTerm({ path, name, aliases }: NamedEntity) {
-  return { path, canonical: name, variants: aliases };
+/** A name is only its own right spelling: its aliases are left out on purpose. */
+function namedAsTerm({ path, name }: NamedEntity) {
+  return { path, canonical: name, variants: [] };
 }
 
-/** A note's claims: its right spelling, then each other spelling — each once, however cased. */
+/** A note's claims: its right spelling, then each other spelling — each once, as written. */
 function noteClaims(
   note: Pick<TermNote, 'path' | 'canonical' | 'variants'>,
   source: VocabularySource,
@@ -98,20 +106,19 @@ function noteClaims(
   if (canonical === '') return [];
   const seen = new Set<string>();
   const claims: VocabularyClaim[] = [];
-  for (const form of [canonical, ...note.variants].map(tidySpelling)) {
-    const key = vocabularyKey(form);
-    if (key === '' || seen.has(key)) continue;
-    seen.add(key);
+  const forms = [canonical, ...note.variants.filter(isSearchable).map(tidySpelling)];
+  for (const form of forms) {
+    if (form === '' || seen.has(form)) continue;
+    seen.add(form);
     claims.push({ form, canonical, path: note.path, source });
   }
   return claims;
 }
 
-function groupByKey(claims: readonly VocabularyClaim[]): Map<string, VocabularyClaim[]> {
+function groupByForm(claims: readonly VocabularyClaim[]): Map<string, VocabularyClaim[]> {
   const groups = new Map<string, VocabularyClaim[]>();
   for (const claim of claims) {
-    const key = vocabularyKey(claim.form);
-    groups.set(key, [...(groups.get(key) ?? []), claim]);
+    groups.set(claim.form, [...(groups.get(claim.form) ?? []), claim]);
   }
   return groups;
 }
@@ -123,6 +130,8 @@ function longestFirst(left: VocabularyEntry, right: VocabularyEntry): number {
 
 function compareKeys(left: string, right: string): number {
   const [a, b] = [vocabularyKey(left), vocabularyKey(right)];
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
+  if (a !== b) return a < b ? -1 : 1;
+  // Two spellings differing only in case are two spellings: a stable order for them.
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
 }
