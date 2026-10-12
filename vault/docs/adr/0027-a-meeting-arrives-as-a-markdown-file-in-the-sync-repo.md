@@ -360,10 +360,25 @@ pipeline (#19) is to run as a deterministic step.
   vocabulary compares spellings, P28-05). Exactly one person is a link; two or
   more are a `link` proposal for each, never a guess; none is a `person`
   proposal with their name, address and the company their domain surely
-  names. A group address is never a person and never proposed; nor is the
-  vault's owner, by their profile's name. Companies come from an attendee's
-  domain — a company's `domains` or `site`, or a domain named for its name or
-  alias, never a public mail domain — and from a linked person's `company`.
+  names. One person of that name whose address is not among those on file is
+  a `link` proposal too, not a sure link: it may be someone else of the same
+  name. A group address is never a person and never proposed; nor is the
+  vault's owner, by their profile's name (as written, `Last, First`, any case
+  or spacing) or by the addresses of their own Person note (the one whose name
+  is the profile's). The profile holds no address, and the meeting contract
+  marks no attendee as the organiser or the owner, so with no profile name
+  set nobody is known to be the owner.
+- **A company is sure only from a domain it declares.** From an attendee's
+  domain: a company's `domains`, or its `site` when that is a root (a page
+  below the root says where the company is, not whose domain it is); the most
+  specific declared domain wins, so a subsidiary is not its parent, and two
+  companies at the same depth claim nothing. Public mail providers (by their
+  label, in any country: `gmail.co.uk`, `outlook.de`) and shared hosts
+  (LinkedIn, YouTube, `*.zendesk.com`, `*.github.io`…) claim no one. A domain
+  named like a company ("Fenn" for `fenn.example`) only _guesses_ it, and
+  only for a company that declares no domain: that is a `link` proposal on
+  `companies`, never a write. Companies also come from a linked person's
+  `company`.
 - **Speakers are linked too**, when a named speaker is exactly one person.
   It was cheap: the transcript is already parsed by the validator. An
   unmatched speaker is not proposed: a speaker has no address to tell two
@@ -375,15 +390,39 @@ pipeline (#19) is to run as a deterministic step.
 - **It only adds, and records what it changed.** It writes `people` and
   `companies` of the meeting and nothing else, with each key's value before
   and after as an automation's log does (`DoneAction`), so `undoMeetingLink`
-  puts back what is unchanged since and takes away its still-open proposals. Nothing in the app offers that undo yet: the
-  run is said in Activity, and #19's pipeline is to log it in its rule's log,
-  where "Undo last run" will call it. A relation holding something other than
-  links is left as it is, and said.
-- **It runs once per meeting** until #19: when the import stamps a file
-  `imported` (an arrival, or a fixed error), never on later changes, so a
-  person taken out of `people` stays out. Each proposal carries a
-  `proposal_id`, looked up across the vault and the Archive, so running again
-  proposes nothing twice and a rejection stays an answer.
+  puts back what is unchanged since and takes away its still-open proposals.
+  Nothing in the app offers that undo yet — the run lives only as long as the
+  import that made it, and a button needs it kept per meeting: it is said in
+  Activity, and #19's pipeline is to log it in its rule's log, where "Undo
+  last run" will call it. A relation holding something other than links is
+  left as it is, and said.
+- **It runs once per meeting, before the stamp.** The importer calls it
+  (`beforeLetIn`) just before it stamps a file `imported` (an arrival, or a
+  fixed error), never on later changes, so a person taken out of `people`
+  stays out. Linking first means the links are in the version that arrives:
+  a note-triggered rule (#92) hears a meeting at the stamp, so a `created`
+  rule sees it linked, and no write follows the stamp to be heard as a user
+  edit of a meeting that is in. A meeting whose linking failed is stamped all
+  the same and not retried until #19's pipeline runs the step; Activity says
+  it could not be linked.
+- **Proposals are known by what they are for.** Each carries a `proposal_id`,
+  looked up across the vault and the Archive, so running again proposes
+  nothing twice and a rejection stays an answer. A person is known by their
+  address alone, so rejecting "add X" once covers every later meeting (and
+  accepting it links X to the meeting it came from only: a pending proposal
+  is not made again for the next meeting). The others are known by the
+  meeting's provider and id, which filing does not change, not by its path.
+- **A proposal is input, and the meeting it names is found by what it is.**
+  A proposal's payload names its meeting by path and records its provider and
+  id (`meeting`). Filing moves the file and a newer meeting can take the
+  old path, so accepting finds the note that holds that meeting — the
+  index names where to look, the proposal's path and `source` are hints, and
+  each candidate is read — and writes only there, never to the Archive, nor
+  to a note a hand-edited `source` merely names. It refuses, in words, a
+  meeting that is now only in the Archive, one that is several notes, and a
+  path that holds another meeting; a meeting gone altogether still lets a
+  person be made, and says a link is not there. The card names the meeting
+  by its title, which filing does not change.
 - **Proposals grew two things** (ADR-0028's proposals): a note proposal's
   `link_from: { note, property }`, so accepting a person makes them and adds
   them to the meeting; and a link proposal with no `digest`, judged on the
@@ -394,14 +433,13 @@ pipeline (#19) is to run as a deterministic step.
   refused.
 - **Accepting a person is all or nothing, and never stuck.** If adding them
   to the meeting fails after the note was made, the note is taken back. A
-  meeting filed since is found by the proposal's `source`, as the move
-  rewrote that link; one gone altogether no longer blocks making the person.
-  A person already made, by another meeting's proposal for them, is linked
-  rather than refused, and a meeting that links them in another spelling
-  gets no second link. An attendee listed with and without an address is one
-  person; an address written `Name <address>` on a person is read as the
-  address; a company's `site` on a shared host (LinkedIn, GitHub…) claims no
-  one.
+  person already made, by another meeting's proposal for them, is linked
+  rather than refused — but only if the note at their path is a person. A
+  link that the meeting already holds in another spelling
+  (`[[People/Sam Okoro|Sam]]` for `[[Sam Okoro]]`) is not added twice, for a
+  link proposal as for a person. An attendee listed with and without an
+  address is one person; an address written `Name <address>` on a person is
+  read as the address.
 - **Person and Company gained `other_emails` and `domains`** in this
   repository's vault. Matching reads them whether or not a vault's types
   declare them.
