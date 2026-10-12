@@ -353,21 +353,64 @@ Terminology correction is the first declared deterministic step (PLAN.md §11,
 principle 6). It runs as the import lets a meeting in, in the same write as
 the `imported` stamp, so a meeting is never synced half-settled.
 
+- **Decision (James, 2026-10-11): only a Term's "misheard as" spellings
+  rewrite text.** A Person's or a Company's `aliases` link attendees to them
+  and are never used to correct; the vocabulary holds a person's or company's
+  _name_ only, as a right spelling that protects itself. Matching is
+  **case-sensitive, as the variant is written** (`mark` is not `Mark`; list
+  both when both turn up): a Term holds a plain list of strings, so an
+  "any case" flag was not cheap and is not offered. A common word that differs
+  in case from a variant is therefore never touched, and shouted text is no
+  longer shouted back.
 - **What is corrected.** Domain `correctTerms(text, vocabulary)` over the
-  Summary, Notes, Provider next steps and Transcript only: whole words, any
-  case and run of spaces (never across a line break); the earliest match wins,
-  then the longer; a right spelling matches too and is left as written. Wiki
-  and markdown links, URLs, tags, code spans and fences, comments and `^ids`
-  are masked out before matching, so no match can reach into them.
-- **The record.** `atlas_corrections: [{ from, to, count, blocks, at }]` and
-  `atlas_corrections_digest` (FNV-1a of the corrected body), written after
-  `atlas_import:` like the stamp. `at` holds each change's offset in the
-  corrected body, so undo is exact without keeping the original text.
+  Summary, Notes, Provider next steps and Transcript only. The text is read as
+  words, runs of spaces and single other characters, and every 1..n-gram that
+  starts at a word some variant starts with is looked up in a map keyed by the
+  variant, so a text is read in time linear in its length however many terms
+  there are (a 400-turn transcript by a 1000-term vocabulary: tens of
+  milliseconds; the first build compiled one pattern of every spelling and
+  took 18-23 s). The table is cached per vocabulary. The earliest match wins,
+  then the longer; a right spelling matches too and is left as written. Two
+  variants that run into each other (`Lark Spur` and `Spur Pay` in `Lark Spur
+Pay`) correct only the first, and the second is not read: list the longer
+  spelling as well to get both words right.
+- **What a match may not touch.** A match needs a non-word neighbour on both
+  sides, so `C#` is not found in `C#sharp`; a word joined to its neighbour by
+  `-`, `.`, `/`, `@` or `\` (emails, domains, paths, `quill-based`) is left
+  alone. A name of more than one word (a person's or company's, or a term's
+  right spelling) is also found through a soft line break, `**emphasis**`,
+  `*` or `~~`, so the variant `Quill` is not put inside `**Mara** Quill` or
+  `Mara⏎Quill`. A variant with no letter or digit in it is refused when the
+  vocabulary is built and shown as a warning on the Terms page, as is one that
+  is a word of another note's right spelling (a lone `Quill` is corrected
+  although `Mara Quill` is not). Wiki and markdown links (a target may hold
+  balanced parentheses), URLs, tags, code spans and fences, comments and `^ids`
+  are masked out before matching.
+- **The record.** `atlas_corrections: [{ from, to, count, blocks, at }]`,
+  `atlas_corrections_digest` and `atlas_corrections_original_digest`, written
+  after `atlas_import:` like the stamp. `at` holds each change's offset in the
+  corrected body, so undo is exact without keeping the original text. The
+  digests are `correctionDigestOf`: the domain's FNV-1a (`digestOf`), a 53-bit
+  mix of the same text and the length, about 90 bits in all, with no new
+  dependency (a defence against hand edits, not against a crafted collision).
 - **Undo** (`undoMeetingTermCorrections`) restores the original body byte for
   byte, refused when the body's digest is not the one recorded (frontmatter
-  edits do not count) or when any recorded spot does not read `to`. It leaves
+  edits do not count), when any recorded spot does not read `to`, or when the
+  body it rebuilds does not match the digest of the original (so a `from` or
+  `at` edited by hand cannot write words the meeting never had; a record from
+  the first build, which had no original digest, is refused too). It leaves
   `atlas_corrections: undone`; a meeting holding the key in any form is never
   corrected again, by the import or by `correctMeetingTerms({ path })`, the
-  use-case the "after a meeting" pipeline (P29-06) calls as its step.
-- A meeting with nothing to correct gets no correction keys; its stamp is the
-  only line written.
+  use-case the "after a meeting" pipeline (P29-06) calls as its step. The
+  band over the meeting turns Undo off and offers Dismiss when the refusal
+  cannot pass (the body no longer matches); unsaved typing or a note changed a
+  moment ago leave it on.
+- **Nothing to correct.** The import writes `atlas_corrections: none` in the
+  same stamp write when the vocabulary holds a misheard spelling and the
+  meeting held none, so the pipeline step never reads it again. It is not
+  written while the vocabulary has no misheard spelling at all, so terms added
+  later still apply. The pipeline step itself does not write that mark (an
+  extra write per meeting for nothing): a meeting that did not pass through
+  the import is read again each run, which is a linear scan.
+- **Speaker labels** are corrected like the words: the label is what links a
+  turn to a person, and a misheard speaker is the same mishearing.
