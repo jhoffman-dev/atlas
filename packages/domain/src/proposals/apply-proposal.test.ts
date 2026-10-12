@@ -131,6 +131,8 @@ describe('applyProposal — every other kind that makes a note', () => {
   });
 });
 
+const linkPayloadOf = (made: ProposalNote) => made.payload as unknown as Record<string, unknown>;
+
 describe('applyProposal — a link', () => {
   const link = proposal('link', {
     note: 'People/Mara Quill.md',
@@ -175,6 +177,26 @@ describe('applyProposal — a link', () => {
 
   it('refuses when the note already links it, as there is nothing to do', () => {
     expect(problemOf(link, target({ value: '[[Larkspur Payroll]]' }))).toMatch(/already links/);
+  });
+
+  it('refuses when the note already links the same note spelt another way', () => {
+    const vault = {
+      ...target({ value: ['[[Companies/Larkspur Payroll|Larkspur]]'] }),
+      notePaths: notes('Companies/Larkspur Payroll.md'),
+    };
+    expect(problemOf(link, vault)).toMatch(/already links/);
+  });
+
+  it('still adds a link to a different note that reads alike', () => {
+    const vault = {
+      ...target({ value: ['[[Companies/Larkspur Payroll|Larkspur]]'] }),
+      notePaths: notes('Companies/Larkspur Payroll.md', 'Clients/Larkspur Payroll.md'),
+    };
+    const other = proposal('link', {
+      ...linkPayloadOf(link),
+      link: '[[Clients/Larkspur Payroll]]',
+    });
+    expect(writesOf(other, vault)).toMatchObject([{ kind: 'set' }]);
   });
 });
 
@@ -234,11 +256,27 @@ describe('applyProposal — a person who joins a meeting (P29-04)', () => {
   });
 
   it('links the person already made — from another meeting’s proposal — rather than refusing', () => {
-    const vault = { notePaths: notes(STANDUP, 'people/ada venn.md'), target: meeting([]) };
+    const vault = {
+      notePaths: notes(STANDUP, 'people/ada venn.md'),
+      target: meeting([]),
+      heldTypes: ['Person'],
+    };
     expect(writesOf(person, vault)).toEqual([
       { kind: 'set', path: STANDUP, changes: { people: ['[[ada venn]]'] } },
     ]);
   });
+
+  it.each([[['project']], [[]], [undefined]])(
+    'refuses a note at their path that is not a person (%j), rather than linking it as one',
+    (heldTypes) => {
+      const vault = {
+        notePaths: notes(STANDUP, 'People/Ada Venn.md'),
+        target: meeting([]),
+        ...(heldTypes !== undefined && { heldTypes }),
+      };
+      expect(problemOf(person, vault)).toMatch(/not a person/);
+    },
+  );
 
   it('adds no second link when the meeting links them in another spelling', () => {
     const vault = { notePaths: notes(STANDUP), target: meeting(['[[ada venn]]']) };
