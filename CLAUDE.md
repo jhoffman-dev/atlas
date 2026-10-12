@@ -154,6 +154,15 @@ builds first for exactly this reason. If you ever run `playwright test` directly
 build first or you are testing the previous bundle — which can fail code that
 works, and pass code that does not.
 
+**CI splits the slow work across machines** (`.github/workflows/gate.yml`): the
+unit tests over three Linux shards whose coverage the `coverage` job merges and
+holds to the thresholds, the e2e suite over four macOS shards, Rust on a fifth
+Mac. `gate` is still the one required check. A pull request that touches only
+documentation, as `tools/ci/docs-only.ts` defines it, runs `static` alone. A
+failed e2e shard uploads its HTML report as `playwright-report-<n>` (no traces:
+tracing every test cost a third more time). To run one shard here:
+`pnpm e2e --shard=2/4`.
+
 **Check CI by commit, never by "the latest run".** A run is not registered the
 instant a push returns, so `gh run list --limit 1` will happily hand back the
 _previous_ run and its conclusion. This has already caused a phase to be reported
