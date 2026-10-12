@@ -9,10 +9,54 @@ concurrency:
   group: gate-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    # Named, so a failure on the left of a pipe fails the step (`-o pipefail`).
+    shell: bash
+
+# The slow work is split across machines: the unit tests over three, the
+# end-to-end suite over four. `gate`, at the bottom, is the one check to require.
+#
+# macOS: the account runs only five macOS jobs at once, and a full run uses
+# exactly five (four end-to-end shards and `rust`). Add a sixth and it queues.
+
 jobs:
-  checks:
-    # Linux, because the account runs only five macOS jobs at once and none of these need it.
+  changes:
+    # Decides whether the slow jobs are needed. A job rather than a workflow-level
+    # `paths:` filter, because a workflow that never starts never reports `gate`,
+    # and a required check that never reports blocks the merge for good.
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # A pull request is checked out as its merge into the base, so the
+          # first parent is the base and the diff between them is the change.
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Is this more than documentation?
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only --no-renames HEAD^1 HEAD \
+              | node tools/ci/changed-scope.mjs | tee -a "$GITHUB_OUTPUT"
+          else
+            echo code=true | tee -a "$GITHUB_OUTPUT"
+          fi
+
+  static:
+    # Everything that fails fast, and the only job a docs-only change still
+    # runs: the formatter checks Markdown too.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -36,6 +80,34 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Build frontend
+        run: pnpm build
+
+  unit:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    # Linux, because none of this needs macOS and macOS jobs are the scarce ones.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: unit (${{ matrix.shard }}/3)
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
       # The sync tests merge with real git under an isolated HOME, so a merge
       # commit takes the identity git guesses from the machine: the account's
       # full name and the host's domain. A Mac has both; this runner has neither.
@@ -44,11 +116,52 @@ jobs:
           sudo usermod --comment 'Atlas CI' "$(whoami)"
           sudo hostname "$(hostname).local"
 
-      - name: Test with coverage
-        run: pnpm test:coverage
+      # A third of the tests cannot meet the coverage thresholds, so the shard
+      # config leaves them out. What this shard covered goes into its blob, and
+      # the `coverage` job holds the three together to the thresholds.
+      - name: Test, a third of the suite
+        run: >
+          pnpm exec vitest run --config tools/ci/vitest.shard.config.ts
+          --coverage --coverage.reporter=text-summary
+          --shard=${{ matrix.shard }}/3 --reporter=default --reporter=blob
 
-      - name: Build frontend
-        run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unit-blob-${{ matrix.shard }}
+          path: .vitest/blob/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  coverage:
+    # Puts the three shards' coverage back together and holds it to the
+    # thresholds in vitest.config.ts: the repo floor and each module's own.
+    needs: [changes, unit]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: unit-blob-*
+          path: .vitest/blob
+          merge-multiple: true
+
+      - name: Merge coverage and enforce the thresholds
+        run: pnpm exec vitest --merge-reports --coverage
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -57,10 +170,12 @@ jobs:
           path: coverage/
           retention-days: 7
 
-  macos:
-    # macOS because the Tauri shell links against WebKit, and the end-to-end suite
-    # drives the same WebKit the Tauri window uses.
+  rust:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    # macOS because the Tauri shell links against WebKit.
     runs-on: macos-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
@@ -103,23 +218,80 @@ jobs:
         env:
           ATLAS_TEST_MODEL_DIR: ${{ runner.temp }}/atlas-test-models
 
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    # macOS because the end-to-end suite drives the same WebKit the Tauri window
+    # uses. One worker per machine, as before; the four machines are the speed-up.
+    runs-on: macos-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    name: e2e (${{ matrix.shard }}/4)
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Read the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: webkit
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: playwright-webkit-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+
       - name: Install WebKit for end-to-end tests
+        if: steps.webkit.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps webkit
 
-      - name: End-to-end smoke
-        run: pnpm e2e
+      # `pnpm e2e` builds first, here on the shard: the build takes seconds, and
+      # handing `dist` over from another job would hold every shard back until
+      # that job had installed and built.
+      - name: End-to-end, a quarter of the suite
+        run: pnpm e2e --shard=${{ matrix.shard }}/4 --reporter=list,html --trace=retain-on-failure
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.shard }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
   gate:
     # The one check to require. `always()` because a job skipped after a failed
-    # dependency counts as passing, which would let a red run through.
-    needs: [checks, macos]
+    # dependency counts as passing, which would let a red run through. So a skip
+    # is accepted only where `changes` asked for it: a docs-only change.
+    needs: [changes, static, unit, coverage, rust, e2e]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Require every job to pass
+      - name: Require every job that should have run to pass
         env:
-          CHECKS: ${{ needs.checks.result }}
-          MACOS: ${{ needs.macos.result }}
+          NEEDS: ${{ toJSON(needs) }}
+          CODE: ${{ needs.changes.outputs.code }}
         run: |
-          echo "checks: $CHECKS, macos: $MACOS"
-          test "$CHECKS" = success && test "$MACOS" = success
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          echo "code changed: ${CODE:-unknown}"
+          jq -e --arg code "$CODE" '
+            (if $code == "false" then "skipped" else "success" end) as $slow
+            | .changes.result == "success"
+              and .static.result == "success"
+              and ([.unit, .coverage, .rust, .e2e] | all(.result == $slow))
+          ' <<< "$NEEDS"
