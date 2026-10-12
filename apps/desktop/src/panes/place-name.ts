@@ -35,6 +35,8 @@ export function placeName(
       return 'Inbox';
     case 'review':
       return 'Weekly review';
+    case 'today':
+      return 'Today';
     case 'automations':
       return 'Automations';
     case 'activity':

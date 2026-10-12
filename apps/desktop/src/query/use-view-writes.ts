@@ -38,6 +38,7 @@ export async function writeNoteProperties({
   path,
   values,
   today = localToday(),
+  ifModified,
 }: {
   editors: OpenEditors;
   fs: VaultFsPort;
@@ -46,9 +47,23 @@ export async function writeNoteProperties({
   values: PropertyChanges;
   /** `YYYY-MM-DD`, for the task rules; the Mac's day unless the caller has a clock of its own. */
   today?: string;
+  /**
+   * The stamp the caller read the note's file at: a file that has moved on
+   * since is refused, not written. A pane holding the note writes what it
+   * holds, whatever the file's stamp.
+   */
+  ifModified?: number;
 }): Promise<void> {
   const takenByAPane = await editors.setPropertiesIfOpen({ path: createVaultPath(path), values });
-  if (!takenByAPane) await setNoteProperties({ fs, markdown, path, values, today });
+  if (takenByAPane) return;
+  await setNoteProperties({
+    fs,
+    markdown,
+    path,
+    values,
+    today,
+    ...(ifModified !== undefined && { ifModified }),
+  });
 }
 
 /**

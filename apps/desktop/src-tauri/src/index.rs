@@ -35,9 +35,13 @@ use crate::vault::VaultState;
 /// can say what changed and what a removed note was; 12: every checklist box,
 /// which TypeScript reads, gained a row in `checks`, and each file the
 /// progress TypeScript worked out from them — a branch had shipped that as 11
-/// too, so an 11 of either shape is rebuilt). A mismatch throws the cache
-/// away rather than trying to migrate something that can simply be rebuilt.
-const SCHEMA_VERSION: i64 = 12;
+/// too, so an 11 of either shape is rebuilt; 13: `props_path` covers the key
+/// as well as the path (#123) — a statement asking for one key of one note was
+/// planned through `props_key`, every row of that key in the vault, once per
+/// note, since nothing here gathers the statistics that would say otherwise).
+/// A mismatch throws the cache away rather than trying to migrate something
+/// that can simply be rebuilt.
+const SCHEMA_VERSION: i64 = 13;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -274,7 +278,7 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 value_date TEXT,
                 value_json TEXT
             );
-            CREATE INDEX IF NOT EXISTS props_path ON props(path);
+            CREATE INDEX IF NOT EXISTS props_path ON props(path, key);
             CREATE INDEX IF NOT EXISTS props_key ON props(key, value_text);
 
             CREATE TABLE IF NOT EXISTS links (

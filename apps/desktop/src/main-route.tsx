@@ -5,6 +5,7 @@ import {
   InboxPage,
   TemplatesPage,
   TermsPage,
+  TodayPage,
   WeeklyReviewPage,
   type PageHistory,
 } from '@atlas/ui';
@@ -25,6 +26,7 @@ type TagsProps = Omit<ComponentProps<typeof TagsScreen>, 'selected' | 'onShowSid
 type ArchiveProps = Omit<ComponentProps<typeof ArchivePage>, 'onShowSidebar' | 'history'>;
 type InboxProps = Omit<ComponentProps<typeof InboxPage>, 'onShowSidebar' | 'history'>;
 type ReviewProps = Omit<ComponentProps<typeof WeeklyReviewPage>, 'onShowSidebar' | 'history'>;
+type TodayProps = Omit<ComponentProps<typeof TodayPage>, 'onShowSidebar' | 'history'>;
 type AutomationsProps = Omit<ComponentProps<typeof AutomationsScreen>, 'onShowSidebar' | 'history'>;
 type ActivityProps = Omit<ComponentProps<typeof ActivityScreen>, 'onShowSidebar' | 'history'>;
 type TemplatesProps = Omit<ComponentProps<typeof TemplatesPage>, 'onShowSidebar' | 'history'>;
@@ -32,7 +34,7 @@ type TermsProps = Omit<ComponentProps<typeof TermsPage>, 'onShowSidebar' | 'hist
 
 /**
  * The page open over the panes, if any: the graph, a type's page, the query
- * page, the tags, the Archive, the Inbox, the weekly review, the Automations, the Activity, the Templates or the Terms page, in that order when more than one
+ * page, the tags, the Archive, the Inbox, the weekly review, the Today page, the Automations, the Activity, the Templates or the Terms page, in that order when more than one
  * could show. Null leaves the panes —
  * which is why this is called rather than rendered as a component: the shell
  * shows the panes only when it is handed no page at all.
@@ -45,6 +47,7 @@ export function mainRoute({
   archive,
   inbox,
   review,
+  today,
   automations,
   activity,
   templates,
@@ -62,6 +65,7 @@ export function mainRoute({
   archive: { open: boolean; page: ArchiveProps };
   inbox: { open: boolean; page: InboxProps };
   review: { open: boolean; page: ReviewProps };
+  today: { open: boolean; page: TodayProps };
   automations: { open: boolean; screen: AutomationsProps };
   activity: { open: boolean; screen: ActivityProps };
   templates: { open: boolean; page: TemplatesProps };
@@ -92,6 +96,7 @@ export function mainRoute({
   if (archive.open) return <ArchivePage {...archive.page} {...sidebar} />;
   if (inbox.open) return <InboxPage {...inbox.page} {...sidebar} />;
   if (review.open) return <WeeklyReviewPage {...review.page} {...sidebar} />;
+  if (today.open) return <TodayPage {...today.page} {...sidebar} />;
   if (automations.open) return <AutomationsScreen {...automations.screen} {...sidebar} />;
   if (activity.open) return <ActivityScreen {...activity.screen} {...sidebar} />;
   if (templates.open) return <TemplatesPage {...templates.page} {...sidebar} />;

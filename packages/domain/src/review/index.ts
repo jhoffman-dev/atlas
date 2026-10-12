@@ -1,5 +1,6 @@
 export {
   ACTIVE_PROJECT_STATUS,
+  taskDeferral,
   MOVING_STATUSES,
   REVIEW_MOVES,
   REVIEW_DEFER_DAYS,

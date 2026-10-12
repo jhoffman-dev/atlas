@@ -11457,6 +11457,125 @@ select.type-editor__field,
   outline: none;
 }
 
+/* ---- the Today page (#111) ----
+   The weekly review's daily sibling, drawn with its sections: a strip of what
+   waits elsewhere, then tables of tasks, some under a project or a person. */
+
+.today__elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.today__link {
+  align-items: center;
+  appearance: none;
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  gap: var(--space-2);
+  padding: 8px 14px;
+}
+
+.today__link:focus-visible,
+.today__project:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.today__link .icon {
+  color: var(--ink-3);
+}
+
+.today__link-words {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.today__key {
+  margin-left: var(--space-2);
+}
+
+.today__notice {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: 6px 12px 6px 16px;
+}
+
+.today__notice-text {
+  color: var(--ink);
+  flex: 1;
+  font-size: var(--text-small);
+  margin: 0;
+  min-width: 20ch;
+}
+
+.today__measure {
+  font-size: var(--text-small);
+  margin-bottom: var(--space-2);
+}
+
+.today__group + .today__group {
+  margin-top: var(--space-3);
+}
+
+.today__group-name {
+  align-items: baseline;
+  color: var(--ink-2);
+  display: flex;
+  font-size: var(--text-small);
+  font-weight: 700;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+}
+
+.today__project {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.today__project:hover {
+  text-decoration: underline;
+}
+
+.today__pieces {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-3);
+}
+
+.today__context {
+  background: var(--chip);
+  border-radius: var(--radius-chip);
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  padding: 2px 8px;
+}
+
+.today__late {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 /* ---- moving tasks to GTD (P30-02) ----
    The offer is one line; its preview opens in place, every task listed. */
 

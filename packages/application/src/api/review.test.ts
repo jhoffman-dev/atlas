@@ -61,7 +61,9 @@ describe('GET /v1/review/weekly', () => {
         due: null,
         defer: null,
         waitingOn: 'Mara Quill',
+        contexts: [],
         project: null,
+        projectTitle: null,
         modified: NOW - 10 * DAY,
       },
     ]);

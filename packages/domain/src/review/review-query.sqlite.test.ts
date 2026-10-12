@@ -73,6 +73,7 @@ describe('compileReviewTasksQuery', () => {
           due: '2026-10-01T09:00',
           defer: '2026-10-20',
           waiting_on: ['[[Mara Quill]]', '[[Tobias Fenn]]'],
+          contexts: ['@office', ' @calls ', ''],
           project: '[[Atlas]]',
         },
         modified: 1234,
@@ -82,6 +83,7 @@ describe('compileReviewTasksQuery', () => {
           { key: 'project', name: 'Atlas', dst: 'Projects/Atlas.md' },
         ],
       },
+      'Projects/Atlas.md': { frontmatter: { type: 'project', title: 'ignored' } },
     });
     expect(tasks).toEqual([
       {
@@ -91,7 +93,9 @@ describe('compileReviewTasksQuery', () => {
         due: '2026-10-01',
         defer: '2026-10-20',
         waitingOn: 'Mara Quill, Tobias Fenn',
+        contexts: ['@office', '@calls'],
         project: 'Projects/Atlas.md',
+        projectTitle: 'Atlas',
         modified: 1234,
       },
     ]);
@@ -109,7 +113,9 @@ describe('compileReviewTasksQuery', () => {
       due: null,
       defer: null,
       waitingOn: '',
+      contexts: [],
       project: null,
+      projectTitle: null,
     });
   });
 
@@ -124,6 +130,24 @@ describe('compileReviewTasksQuery', () => {
       },
     });
     expect(task).toMatchObject({ status: null, due: '2026-10-03', project: 'Projects/Atlas.md' });
+  });
+
+  it('names a task’s project by its note’s title, and one context written alone as one', () => {
+    const [task] = tasksOf({
+      'Tasks/Call.md': {
+        frontmatter: { type: 'task', status: 'next-action', contexts: '@phone' },
+        relations: [
+          { key: 'project', name: 'Gone', dst: null },
+          { key: 'project', name: 'garden', dst: 'Areas/Home/Garden.md' },
+        ],
+      },
+      'Areas/Home/Garden.md': { frontmatter: { type: 'project' } },
+    });
+    expect(task).toMatchObject({
+      contexts: ['@phone'],
+      project: 'Areas/Home/Garden.md',
+      projectTitle: 'Garden',
+    });
   });
 
   it('names who a task waits on whether it is a link or a plain name, mixed lists included', () => {
