@@ -1,30 +1,13 @@
 import {
-  anchoredBlocks,
-  checklistLines,
-  checklistProgress,
   compileImportOutcomesQuery,
-  mayHoldBlockIds,
-  mayHoldChecklist,
   compileRelationHoldersQuery,
   createVaultPath,
-  createWikiLinkResolver,
-  digestOf,
   IMPORT_OUTCOMES_PAGE,
-  importOutcomeOf,
   importOutcomesOf,
   isMeetingInboxPath,
   linkedName,
   noteChangesBetween,
   RELATION_NAMES_PER_QUERY,
-  indexablePropertiesOf,
-  noteTags,
-  noteTitle,
-  pageTitle,
-  relationsOf,
-  summaryOf,
-  splitFrontmatter,
-  splitWikiLinks,
-  TAGS_KEY,
   type ImportOutcome,
   type NoteChange,
   type NoteVersion,
@@ -33,11 +16,24 @@ import {
 import type { VaultFsPort } from '../vault/ports.ts';
 import { listVaultNoteFiles } from '../vault/read-vault.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
-import { noteTypeName } from '../types/load-types.ts';
-import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
+import { inThreadNoteDeriver, type NoteDeriver, type UnreadNote } from './note-deriver.ts';
+import type { IndexedNote, IndexEntry, IndexPort, IndexWriteScope } from './ports.ts';
 
-/** Notes are read and written in batches so a large vault is not one huge message. */
-const BATCH_SIZE = 200;
+/**
+ * Notes are read, derived and written a batch at a time. A batch crosses to
+ * the host twice and to the deriver once, each a message the window's thread
+ * has to put together, so it is kept small enough that none of them is felt
+ * (#135): at 200 a batch of long notes was megabytes in one go.
+ */
+export const INDEX_BATCH_SIZE = 50;
+
+/** A build given up part-way because it is no longer wanted: its vault was closed. Not a failure. */
+export class IndexSyncAbandoned extends Error {
+  constructor() {
+    super('the index was no longer wanted');
+    this.name = 'IndexSyncAbandoned';
+  }
+}
 
 export interface IndexRefresh {
   readonly indexed: number;
@@ -45,12 +41,40 @@ export interface IndexRefresh {
   readonly unchanged: number;
   /** Each note added, changed or removed since `previous` (P28-03); none when nothing was. */
   readonly changes: readonly NoteChange[];
+  /**
+   * The stale notes that could not be read as notes (#135). Nothing is
+   * written for one: a note the index has never held stays out of it, and a
+   * note it does hold keeps the rows of the last version that could be read,
+   * so it can still be found while it is torn. Each is tried again by the
+   * next refresh.
+   */
+  readonly failed: readonly UnreadNote[];
+  /** Why the notes were read on the window's thread, when they had to be; null when they were not. */
+  readonly inWindow: string | null;
 }
 
 export interface RefreshOptions {
   fs: VaultFsPort;
   index: IndexPort;
   markdown: MarkdownPort;
+  /**
+   * Where the notes are read into rows. Left out, on the calling thread with
+   * `markdown`; the app hands one that does it on another thread (#135).
+   */
+  deriver?: NoteDeriver;
+  /**
+   * Asked between steps of a build: false once the vault it is building for
+   * is no longer the one open, and the build stops with `IndexSyncAbandoned`.
+   */
+  stillWanted?: () => boolean;
+  /**
+   * Aborted when the build is no longer wanted, for a build that is waiting
+   * and cannot ask: one held up reading a batch stops at once rather than
+   * when the batch comes back.
+   */
+  abandoned?: AbortSignal;
+  /** The vault being indexed, named on every write so the host can refuse one that arrives late. */
+  vault?: string;
   /** Called after each batch, for showing progress on a big vault. */
   onProgress?: (done: number, total: number) => void;
   /**
@@ -75,9 +99,14 @@ export async function refreshIndex({
   fs,
   index,
   markdown,
+  deriver = inThreadNoteDeriver(markdown),
+  stillWanted = () => true,
+  abandoned,
+  vault,
   onProgress,
   previous,
 }: RefreshOptions): Promise<IndexRefresh> {
+  const scope = vault === undefined ? undefined : { vault };
   const notes = await listVaultNoteFiles({ fs });
   const current = new Map<string, (typeof notes)[number]>(
     notes.map((note) => [note.path as string, note]),
@@ -90,7 +119,7 @@ export async function refreshIndex({
   });
 
   const removed = [...known.keys()].filter((path) => !current.has(path));
-  if (removed.length > 0) await index.remove(removed.map(createVaultPath));
+  if (removed.length > 0) await index.remove(removed.map(createVaultPath), scope);
 
   // A note made or gone can change which note an unchanged note's relation means.
   const added = [...current.keys()].filter((path) => !known.has(path));
@@ -105,19 +134,24 @@ export async function refreshIndex({
   }
 
   const notePaths = [...current.keys()].map(createVaultPath);
-  const reread = await indexNotes({
+  const { reread, failed, inWindow } = await indexNotes({
     fs,
     index,
-    markdown,
+    deriver,
+    stillWanted,
+    ...(abandoned !== undefined && { abandoned }),
+    ...(scope !== undefined && { scope }),
     notePaths,
     stale,
     ...(onProgress !== undefined && { onProgress }),
   });
 
   return {
-    indexed: stale.length,
+    indexed: stale.length - failed.length,
     removed: removed.length,
     unchanged: current.size - stale.length,
+    failed,
+    inWindow,
     changes: noteChangesBetween(
       previous ?? known,
       versionsNow({ paths: current.keys(), reread, known, previous: previous ?? known }),
@@ -176,34 +210,69 @@ async function importOutcomesHeld(index: IndexPort): Promise<Map<string, ImportO
   }
 }
 
-/** Reads and indexes the stale notes in batches; answers with what was read, by path. */
+/**
+ * Reads and indexes the stale notes in batches; answers with what was read, by
+ * path, and what could not be. Every step waits on another thread or the host,
+ * so the calling thread is never held for longer than it takes to pass a batch on.
+ */
 async function indexNotes({
   fs,
   index,
-  markdown,
+  deriver,
+  stillWanted,
+  abandoned,
+  scope,
   notePaths,
   stale,
   onProgress,
-}: Omit<RefreshOptions, 'previous'> & {
-  notePaths: readonly VaultPath[];
-  stale: readonly { path: VaultPath }[];
-}): Promise<Map<string, IndexedNote>> {
-  // One resolver for the whole refresh: every link in every note asks it.
-  const resolveLink = createWikiLinkResolver(notePaths);
+}: Required<Pick<RefreshOptions, 'fs' | 'index' | 'deriver' | 'stillWanted'>> &
+  Pick<RefreshOptions, 'onProgress' | 'abandoned'> & {
+    scope?: IndexWriteScope;
+    notePaths: readonly VaultPath[];
+    stale: readonly { path: VaultPath }[];
+  }): Promise<{ reread: Map<string, IndexedNote>; failed: UnreadNote[]; inWindow: string | null }> {
   const reread = new Map<string, IndexedNote>();
-  let done = 0;
+  const failed: UnreadNote[] = [];
+  let inWindow: string | null = null;
+  const abandonIfUnwanted = () => {
+    if (abandoned?.aborted === true || !stillWanted()) throw new IndexSyncAbandoned();
+  };
+  const deriving = deriver.begin(notePaths);
+  try {
+    for (let offset = 0; offset < stale.length; offset += INDEX_BATCH_SIZE) {
+      const batch = stale.slice(offset, offset + INDEX_BATCH_SIZE);
+      abandonIfUnwanted();
+      const files = await fs.readNotes(batch.map((note) => note.path));
+      // The host answers for whichever vault is open: read after a switch, these are not this vault's.
+      abandonIfUnwanted();
+      const derived = await unlessAbandoned(deriving.derive(files), abandoned);
+      abandonIfUnwanted();
+      await index.put(derived.notes, scope).catch((cause: unknown) => {
+        // Refused by the host because the vault changed under it: given up, not failed.
+        abandonIfUnwanted();
+        throw cause;
+      });
+      for (const note of derived.notes) reread.set(note.path, note);
+      failed.push(...derived.failed);
+      inWindow ??= derived.inWindow ?? null;
 
-  for (let offset = 0; offset < stale.length; offset += BATCH_SIZE) {
-    const batch = stale.slice(offset, offset + BATCH_SIZE);
-    const files = await fs.readNotes(batch.map((note) => note.path));
-    const notes = files.map((file) => toIndexedNote({ file, notePaths, markdown, resolveLink }));
-    await index.put(notes);
-    for (const note of notes) reread.set(note.path, note);
-
-    done += batch.length;
-    onProgress?.(done, stale.length);
+      onProgress?.(Math.min(offset + INDEX_BATCH_SIZE, stale.length), stale.length);
+    }
+  } finally {
+    deriving.end();
   }
-  return reread;
+  return { reread, failed, inWindow };
+}
+
+/** What `waiting` settles with, unless the build is abandoned first: then it stops waiting. */
+function unlessAbandoned<T>(waiting: Promise<T>, abandoned: AbortSignal | undefined): Promise<T> {
+  if (abandoned === undefined) return waiting;
+  return new Promise<T>((resolve, reject) => {
+    const giveUp = () => reject(new IndexSyncAbandoned());
+    if (abandoned.aborted) return giveUp();
+    abandoned.addEventListener('abort', giveUp, { once: true });
+    waiting.then(resolve, reject).finally(() => abandoned.removeEventListener('abort', giveUp));
+  });
 }
 
 /**
@@ -260,77 +329,4 @@ async function relationHolders(index: IndexPort, changed: readonly string[]): Pr
     holders.push(...result.rows.map((row) => String(row[0])));
   }
   return holders;
-}
-
-/** Everything the index should know about one note. */
-export function toIndexedNote({
-  file,
-  notePaths,
-  markdown,
-  resolveLink = createWikiLinkResolver(notePaths),
-}: {
-  file: { path: string; text: string; modified: number; size: number };
-  notePaths: readonly VaultPath[];
-  markdown: MarkdownPort;
-  /** How a link finds its note among `notePaths` — built once when many notes are read. */
-  resolveLink?: (target: string) => VaultPath | null;
-}): IndexedNote {
-  const path = createVaultPath(file.path);
-  const document = splitFrontmatter(file.text);
-  const frontmatter = markdown.frontmatterProperties(document.frontmatter);
-  const importOutcome = importOutcomeOf(frontmatter);
-
-  const body = markdown.plainText(document.body);
-
-  return {
-    path: file.path,
-    title: pageTitle({ fileTitle: noteTitle(path), properties: frontmatter }).text,
-    modified: file.modified,
-    size: file.size,
-    type: noteTypeName(frontmatter),
-    digest: digestOf(file.text),
-    ...(importOutcome !== null && { importOutcome }),
-    body,
-    summary: summaryOf(document.body),
-    properties: indexablePropertiesOf(frontmatter),
-    links: linksIn(document.body, resolveLink),
-    relations: relationsOf(frontmatter, resolveLink),
-    tags: noteTags({
-      tagsProperty: frontmatter[TAGS_KEY],
-      body: document.body,
-      ranges: markdown.textRanges(document.body),
-    }),
-    ...readBlocks(document.body, markdown),
-  };
-}
-
-/**
- * The note's blocks with ids (P26-01) and its checklist (P30-03), read as the
- * editor reads them, the body parsed once for both. A body with no line
- * ending as an id would has no ids, and one with no line starting with a box
- * has no checklist; a body with neither is not parsed at all.
- */
-function readBlocks(
-  body: string,
-  markdown: MarkdownPort,
-): Pick<IndexedNote, 'blocks' | 'checks' | 'progress'> {
-  const anchored = mayHoldBlockIds(body);
-  const boxed = mayHoldChecklist(body);
-  const doc = anchored || boxed ? markdown.parseBody(body).doc : null;
-  const lines = doc !== null && boxed ? checklistLines(doc) : [];
-  return {
-    blocks: doc !== null && anchored ? anchoredBlocks(doc) : [],
-    checks: lines.map(({ done, text }) => ({ done, text })),
-    progress: checklistProgress(lines),
-  };
-}
-
-function linksIn(body: string, resolveLink: (target: string) => VaultPath | null) {
-  return splitWikiLinks(body)
-    .filter((piece) => piece.kind === 'wikiLink')
-    .map((link) => ({
-      target: link.target,
-      path: resolveLink(link.target),
-      kind: 'wikilink' as const,
-    }));
 }

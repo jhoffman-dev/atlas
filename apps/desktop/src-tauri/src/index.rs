@@ -9,9 +9,8 @@
 //! and handed here as rows.
 
 use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
 use rusqlite::{params, Connection, OpenFlags, Statement};
@@ -39,13 +38,17 @@ use crate::vault::VaultState;
 /// too, so an 11 of either shape is rebuilt; 13: `props_path` covers the key
 /// as well as the path (#123) — a statement asking for one key of one note was
 /// planned through `props_key`, every row of that key in the vault, once per
-/// note, since nothing here gathers the statistics that would say otherwise;
-/// 14: and the value — asking one note for one key *and* value tied with
-/// `props_key` again, so an Atlas query checking each note's type walked every
-/// note of that type per note and ran out of its step budget).
+/// note, since nothing here gathers the statistics that would say otherwise);
+/// 14: a note's row in the search table has the rowid of its row in `files`
+/// (#135) — the table has no index on `path`, so finding a note's row by its
+/// path read every row, once per note written); 15: `props_path` covers the
+/// value as well (#143) — with two columns each, `props_path` and `props_key`
+/// tied for asking for one value of one key of one note, and the order they
+/// were made in chose `props_key`, so a view over every meeting ran out of
+/// its budget at a few hundred of them).
 /// A mismatch throws the cache away rather than trying to migrate something
 /// that can simply be rebuilt.
-const SCHEMA_VERSION: i64 = 14;
+const SCHEMA_VERSION: i64 = 15;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -181,42 +184,153 @@ pub struct IndexStats {
     pub links: i64,
 }
 
-#[derive(Default)]
-pub struct IndexState(Mutex<Option<Connection>>);
-
-/// A second connection to the same file, opened read-only.
+/// A vault's index: the connection that writes it and the one queries read
+/// it through, each with the vault it was opened for.
 ///
-/// Queries someone writes run on this one. Read-only is enforced by SQLite when
-/// the connection is opened — but a read-only connection still runs ATTACH,
+/// No command on the index runs on the main thread, which is the window's:
+/// building an index is thousands of rows written a batch at a time, and the
+/// window froze for each batch (#135). Off it, commands overlap, so the locks
+/// here are what order them — the main thread no longer does:
+///
+/// - whatever throws the index's file away (`open`, `clear`) holds both, the
+///   writer's first and then the reader's, from before the file goes until
+///   the new one is whole. So nothing writes to, opens or reads a file that
+///   is half way to being an index;
+/// - everything else holds one of them.
+///
+/// The reader is a second connection to the same file, opened read-only.
+/// Queries someone writes run on it. Read-only is enforced by SQLite when the
+/// connection is opened — but a read-only connection still runs ATTACH,
 /// VACUUM INTO and pragma setters, so `run_query` also has SQLite refuse
-/// anything that is not a read of this database (see `prepare_read`).
+/// anything that is not a read of this database (see `prepare_read`). It is
+/// let go whenever the file is replaced: kept, it went on answering from the
+/// file that had been deleted, until the app was restarted (#137).
 #[derive(Default)]
-pub struct QueryState(Mutex<Option<Reader>>);
+pub struct IndexState {
+    writer: Mutex<Option<Held>>,
+    reader: Mutex<Option<Held>>,
+}
 
-/// The read-only connection and the file it was opened on.
-struct Reader {
+/// A connection, and the vault whose index it is a connection to.
+struct Held {
+    root: PathBuf,
     connection: Connection,
-    file: FileIdentity,
 }
 
-/// Which file a path names. A rebuilt index, or another vault's, is a new file;
-/// a connection left on the old one goes on reading it after it is deleted.
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct FileIdentity {
-    device: u64,
-    inode: u64,
-}
+impl IndexState {
+    /// Opens the index of the vault at `root`, in place of whichever was open.
+    pub fn open(&self, root: &Path) -> Result<IndexOpened, String> {
+        self.replace(root, false)
+    }
 
-impl FileIdentity {
-    fn of(path: &Path) -> Result<Self, String> {
-        let metadata = fs::metadata(path)
-            .map_err(|error| format!("cannot open the index for reading: {error}"))?;
-        Ok(Self {
-            device: metadata.dev(),
-            inode: metadata.ino(),
-        })
+    /// Throws the index of the vault at `root` away and makes it again, empty.
+    pub fn clear(&self, root: &Path) -> Result<(), String> {
+        self.replace(root, true).map(|_| ())
+    }
+
+    fn replace(&self, root: &Path, discarding: bool) -> Result<IndexOpened, String> {
+        let mut writer = self.writer.lock().map_err(|_| "index state poisoned")?;
+        let mut reader = self.reader.lock().map_err(|_| "query state poisoned")?;
+        // Both let go before the file is touched: a connection outliving its
+        // file answers from the deleted one.
+        *reader = None;
+        *writer = None;
+        if discarding {
+            discard(&database_path(root)?);
+        }
+        let (connection, opened) = open_database(root)?;
+        *writer = Some(Held {
+            root: root.to_path_buf(),
+            connection,
+        });
+        Ok(opened)
+    }
+
+    /// Runs `action` on the writing connection.
+    fn with_connection<T>(
+        &self,
+        action: impl FnOnce(&mut Connection) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut writer = self.writer.lock().map_err(|_| "index state poisoned")?;
+        let held = writer.as_mut().ok_or("the index is not open")?;
+        action(&mut held.connection)
+    }
+
+    /// Runs a write that was meant for one vault's index, and refuses it when
+    /// the index open now is another's: a batch read from a vault that has
+    /// since been switched away from must not land in the next one (#135).
+    /// A write that names no vault is whichever index is open's.
+    fn write<T>(
+        &self,
+        meant_for: Option<&str>,
+        action: impl FnOnce(&mut Connection) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut writer = self.writer.lock().map_err(|_| "index state poisoned")?;
+        let held = writer.as_mut().ok_or("the index is not open")?;
+        if meant_for.is_some_and(|meant| Path::new(meant) != held.root) {
+            return Err("another vault was opened before this could be indexed".into());
+        }
+        action(&mut held.connection)
+    }
+
+    /// Adds or replaces a batch of notes in the index of the vault it names.
+    pub fn put(&self, meant_for: Option<&str>, notes: &[IndexedNote]) -> Result<(), String> {
+        self.write(meant_for, |connection| put_notes(connection, notes))
+    }
+
+    /// Runs a read someone wrote against the index of the vault at `root`.
+    pub fn query(
+        &self,
+        root: &Path,
+        sql: &str,
+        parameters: &[serde_json::Value],
+    ) -> Result<QueryResult, String> {
+        let mut reader = self.reader.lock().map_err(|_| "query state poisoned")?;
+        // Another vault's reader is no answer for this one, whatever let it stay.
+        if reader.as_ref().is_some_and(|held| held.root != root) {
+            *reader = None;
+        }
+        let held = match reader.as_mut() {
+            Some(held) => held,
+            None => reader.insert(Held {
+                root: root.to_path_buf(),
+                connection: open_for_queries(root)?,
+            }),
+        };
+        run_query(&held.connection, sql, parameters)
     }
 }
+
+/// The read-only connection queries run on.
+fn open_for_queries(root: &Path) -> Result<Connection, String> {
+    let connection = Connection::open_with_flags(
+        database_path(root)?,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|error| format!("cannot open the index for reading: {error}"))?;
+    // Returning true aborts, so this stops any query that exceeds the budget.
+    // A failure to install it is not worth refusing to query over: the row cap
+    // and the read-only connection are the guarantees that matter.
+    if let Err(error) = connection.progress_handler(QUERY_STEP_BUDGET, Some(|| true)) {
+        log::warn!("could not limit query time: {error}");
+    }
+    Ok(connection)
+}
+
+/// Runs index work off the main thread and off the async runtime's workers: a
+/// sync command runs on the main thread, where it freezes the window, and a
+/// blocking one on a runtime worker parks a thread the local API server and
+/// every other async command share.
+async fn off_main<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|error| format!("the index stopped: {error}"))?
+}
+
+/// The index, as the commands hold it: shared with the thread each runs its work on.
+pub type SharedIndex = Arc<IndexState>;
 
 /// A view never returns more than this, however the query is written.
 const MAX_QUERY_ROWS: usize = 5_000;
@@ -431,54 +545,31 @@ fn discard(path: &Path) {
     }
 }
 
-fn with_connection<T>(
-    state: &State<'_, IndexState>,
-    action: impl FnOnce(&mut Connection) -> Result<T, String>,
-) -> Result<T, String> {
-    let mut guard = state.0.lock().map_err(|_| "index state poisoned")?;
-    let connection = guard.as_mut().ok_or("the index is not open")?;
-    action(connection)
-}
-
-fn open_index(root: &Path, index: &IndexState, query: &QueryState) -> Result<IndexOpened, String> {
-    let (connection, opened) = open_database(root)?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
-    query.forget()?;
-    Ok(opened)
+fn open_root(vault: &State<'_, VaultState>) -> Result<PathBuf, String> {
+    vault.root().ok_or_else(|| "no vault is open".to_string())
 }
 
 #[tauri::command]
-pub fn index_open(
+pub async fn index_open(
     vault: State<'_, VaultState>,
-    index: State<'_, IndexState>,
-    query: State<'_, QueryState>,
+    index: State<'_, SharedIndex>,
 ) -> Result<IndexOpened, String> {
-    let root = vault.root().ok_or("no vault is open")?;
-    let opened = open_index(&root, &index, &query)?;
+    let root = open_root(&vault)?;
+    let index = Arc::clone(&index);
+    let opened = off_main(move || index.open(&root)).await?;
     log::info!("index opened (fresh: {})", opened.fresh);
     Ok(opened)
 }
 
-fn clear_index(root: &Path, index: &IndexState, query: &QueryState) -> Result<(), String> {
-    *index.0.lock().map_err(|_| "index state poisoned")? = None;
-    let path = database_path(root)?;
-    for suffix in ["", "-wal", "-shm"] {
-        let _ = fs::remove_file(format!("{}{suffix}", path.display()));
-    }
-    let (connection, _) = open_database(root)?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
-    query.forget()
-}
-
 /// Throws the cache away and starts again. The point of having it.
 #[tauri::command]
-pub fn index_clear(
+pub async fn index_clear(
     vault: State<'_, VaultState>,
-    index: State<'_, IndexState>,
-    query: State<'_, QueryState>,
+    index: State<'_, SharedIndex>,
 ) -> Result<(), String> {
-    let root = vault.root().ok_or("no vault is open")?;
-    clear_index(&root, &index, &query)?;
+    let root = open_root(&vault)?;
+    let index = Arc::clone(&index);
+    off_main(move || index.clear(&root)).await?;
     log::info!("index cleared");
     Ok(())
 }
@@ -506,8 +597,9 @@ fn manifest(connection: &Connection) -> Result<Vec<IndexEntry>, String> {
 }
 
 #[tauri::command]
-pub fn index_manifest(index: State<'_, IndexState>) -> Result<Vec<IndexEntry>, String> {
-    with_connection(&index, |connection| manifest(connection))
+pub async fn index_manifest(index: State<'_, SharedIndex>) -> Result<Vec<IndexEntry>, String> {
+    let index = Arc::clone(&index);
+    off_main(move || index.with_connection(|connection| manifest(connection))).await
 }
 
 fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Result<(), String> {
@@ -532,10 +624,6 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
         .execute("DELETE FROM checks WHERE path = ?1", params![note.path])
         .map_err(stringly)?;
     transaction
-        .execute("DELETE FROM fts WHERE path = ?1", params![note.path])
-        .map_err(stringly)?;
-
-    transaction
         .execute(
             "INSERT INTO files (path, title, summary, modified, size, digest, note_type, progress)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -555,10 +643,19 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
         )
         .map_err(stringly)?;
 
+    // A note's search row has the rowid of its row in `files` (schema 14).
+    // The search table cannot be asked for a path without reading every row
+    // of it, which made building an index, and indexing a vault again, n * n
+    // work (#135); by rowid it is one lookup. Whatever sits at that rowid is
+    // replaced, a row left there by a note long gone included.
+    let row = search_row(transaction, &note.path)?;
+    transaction
+        .execute("DELETE FROM fts WHERE rowid = ?1", params![row])
+        .map_err(stringly)?;
     transaction
         .execute(
-            "INSERT INTO fts (path, title, body) VALUES (?1, ?2, ?3)",
-            params![note.path, note.title, note.body],
+            "INSERT INTO fts (rowid, path, title, body) VALUES (?1, ?2, ?3, ?4)",
+            params![row, note.path, note.title, note.body],
         )
         .map_err(stringly)?;
 
@@ -635,6 +732,19 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
     Ok(())
 }
 
+/// The rowid of a note's row in `files`, which is its search row's too; none for a note not held.
+fn search_row(connection: &Connection, path: &str) -> Result<Option<i64>, String> {
+    use rusqlite::OptionalExtension;
+    connection
+        .query_row(
+            "SELECT rowid FROM files WHERE path = ?1",
+            params![path],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())
+}
+
 /// Adds or replaces a batch of notes in one transaction.
 fn put_notes(connection: &mut Connection, notes: &[IndexedNote]) -> Result<(), String> {
     let transaction = connection
@@ -646,13 +756,21 @@ fn put_notes(connection: &mut Connection, notes: &[IndexedNote]) -> Result<(), S
     transaction.commit().map_err(|error| error.to_string())
 }
 
+/// `vault` is the vault the notes were read from, when the caller says:
+/// refused once another's index is the one open.
 #[tauri::command]
-pub fn index_put(index: State<'_, IndexState>, notes: Vec<IndexedNote>) -> Result<(), String> {
-    with_connection(&index, |connection| {
-        put_notes(connection, &notes)?;
+pub async fn index_put(
+    index: State<'_, SharedIndex>,
+    vault: Option<String>,
+    notes: Vec<IndexedNote>,
+) -> Result<(), String> {
+    let index = Arc::clone(&index);
+    off_main(move || {
+        index.put(vault.as_deref(), &notes)?;
         log::debug!("indexed {} notes", notes.len());
         Ok(())
     })
+    .await
 }
 
 fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), String> {
@@ -661,6 +779,12 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
             .transaction()
             .map_err(|error| error.to_string())?;
         for path in paths {
+            // Before the note's own row goes: the search row is found through it.
+            if let Some(row) = search_row(&transaction, path)? {
+                transaction
+                    .execute("DELETE FROM fts WHERE rowid = ?1", params![row])
+                    .map_err(|error| error.to_string())?;
+            }
             for statement in [
                 "DELETE FROM files WHERE path = ?1",
                 "DELETE FROM props WHERE path = ?1",
@@ -669,7 +793,6 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
                 "DELETE FROM relations WHERE src = ?1",
                 "DELETE FROM blocks WHERE path = ?1",
                 "DELETE FROM checks WHERE path = ?1",
-                "DELETE FROM fts WHERE path = ?1",
             ] {
                 transaction
                     .execute(statement, params![path])
@@ -682,8 +805,18 @@ fn remove_paths(connection: &mut Connection, paths: &[String]) -> Result<(), Str
 }
 
 #[tauri::command]
-pub fn index_remove(index: State<'_, IndexState>, paths: Vec<String>) -> Result<(), String> {
-    with_connection(&index, |connection| remove_paths(connection, &paths))
+pub async fn index_remove(
+    index: State<'_, SharedIndex>,
+    vault: Option<String>,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    let index = Arc::clone(&index);
+    off_main(move || {
+        index.write(vault.as_deref(), |connection| {
+            remove_paths(connection, &paths)
+        })
+    })
+    .await
 }
 
 /// Full-text search. `skip_prefix` is handed in by the frontend — the notes
@@ -697,9 +830,12 @@ fn search(
 ) -> Result<Vec<SearchHit>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT path, title, snippet(fts, 2, '<<', '>>', '…', 12)
-             FROM fts WHERE fts MATCH ?1
-               AND (?3 IS NULL OR lower(substr(path, 1, length(?3))) <> ?3)
+            // Through `files`, by the rowid the two share: a search row whose
+            // note is not held is not an answer.
+            "SELECT files.path, fts.title, snippet(fts, 2, '<<', '>>', '…', 12)
+             FROM fts JOIN files ON files.rowid = fts.rowid
+             WHERE fts MATCH ?1
+               AND (?3 IS NULL OR lower(substr(files.path, 1, length(?3))) <> ?3)
              ORDER BY rank LIMIT ?2",
         )
         .map_err(|error| error.to_string())?;
@@ -720,15 +856,18 @@ fn search(
 }
 
 #[tauri::command]
-pub fn index_search(
-    index: State<'_, IndexState>,
+pub async fn index_search(
+    index: State<'_, SharedIndex>,
     query: String,
     limit: u32,
     skip_prefix: Option<String>,
 ) -> Result<Vec<SearchHit>, String> {
-    with_connection(&index, |connection| {
-        search(connection, &query, limit, skip_prefix.as_deref())
+    let index = Arc::clone(&index);
+    off_main(move || {
+        index
+            .with_connection(|connection| search(connection, &query, limit, skip_prefix.as_deref()))
     })
+    .await
 }
 
 #[derive(Debug, Serialize)]
@@ -764,11 +903,12 @@ fn notes_of_type(connection: &Connection, type_name: &str) -> Result<Vec<TypedNo
 }
 
 #[tauri::command]
-pub fn index_notes_of_type(
-    index: State<'_, IndexState>,
+pub async fn index_notes_of_type(
+    index: State<'_, SharedIndex>,
     r#type: String,
 ) -> Result<Vec<TypedNote>, String> {
-    with_connection(&index, |connection| notes_of_type(connection, &r#type))
+    let index = Arc::clone(&index);
+    off_main(move || index.with_connection(|connection| notes_of_type(connection, &r#type))).await
 }
 
 fn backlinks(connection: &Connection, path: &str) -> Result<Vec<String>, String> {
@@ -785,8 +925,12 @@ fn backlinks(connection: &Connection, path: &str) -> Result<Vec<String>, String>
 }
 
 #[tauri::command]
-pub fn index_backlinks(index: State<'_, IndexState>, path: String) -> Result<Vec<String>, String> {
-    with_connection(&index, |connection| backlinks(connection, &path))
+pub async fn index_backlinks(
+    index: State<'_, SharedIndex>,
+    path: String,
+) -> Result<Vec<String>, String> {
+    let index = Arc::clone(&index);
+    off_main(move || index.with_connection(|connection| backlinks(connection, &path))).await
 }
 
 /// Builds one SQL view per type, with a column per declared property.
@@ -795,6 +939,17 @@ pub fn index_backlinks(index: State<'_, IndexState>, path: String) -> Result<Vec
 /// view pivots them back into columns so a query can read like a table:
 /// `SELECT name, arr FROM v_company WHERE arr > 1000000`.
 fn rebuild_views(connection: &Connection, types: &[TypeSpec]) -> Result<(), String> {
+    // Dropped and made again in one transaction: a query on the reading
+    // connection sees the views as they were or as they will be, never the
+    // moment between, when a type has no view at all (#135).
+    let transaction = connection
+        .unchecked_transaction()
+        .map_err(|error| error.to_string())?;
+    replace_views(&transaction, types)?;
+    transaction.commit().map_err(|error| error.to_string())
+}
+
+fn replace_views(connection: &Connection, types: &[TypeSpec]) -> Result<(), String> {
     let existing: Vec<String> = {
         let mut statement = connection
             .prepare("SELECT name FROM sqlite_master WHERE type = 'view' AND name LIKE 'v\\_%' ESCAPE '\\'")
@@ -873,15 +1028,19 @@ fn rebuild_views(connection: &Connection, types: &[TypeSpec]) -> Result<(), Stri
 }
 
 #[tauri::command]
-pub fn index_rebuild_views(
-    index: State<'_, IndexState>,
+pub async fn index_rebuild_views(
+    index: State<'_, SharedIndex>,
     types: Vec<TypeSpec>,
 ) -> Result<(), String> {
-    with_connection(&index, |connection| {
-        rebuild_views(connection, &types)?;
-        log::debug!("rebuilt {} views", types.len());
-        Ok(())
+    let index = Arc::clone(&index);
+    off_main(move || {
+        index.with_connection(|connection| {
+            rebuild_views(connection, &types)?;
+            log::debug!("rebuilt {} views", types.len());
+            Ok(())
+        })
     })
+    .await
 }
 
 /// Pragmas that take an argument and only report: what describing a table
@@ -1023,81 +1182,37 @@ pub(crate) fn run_query(
     })
 }
 
-impl Reader {
-    /// The file is identified before it is opened: should it be replaced in
-    /// between, the reader holds the newer file under the older name, and the
-    /// next query reopens it — a wasted open rather than a stale read.
-    fn open(path: &Path) -> Result<Self, String> {
-        let file = FileIdentity::of(path)?;
-        let connection = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(|error| format!("cannot open the index for reading: {error}"))?;
-        // Returning true aborts, so this stops any query that exceeds the budget.
-        // A failure to install it is not worth refusing to query over: the row cap
-        // and the read-only connection are the guarantees that matter.
-        if let Err(error) = connection.progress_handler(QUERY_STEP_BUDGET, Some(|| true)) {
-            log::warn!("could not limit query time: {error}");
-        }
-        Ok(Self { connection, file })
-    }
-}
-
-impl QueryState {
-    /// Runs a query on the index file at `path` as it is now, reopening the
-    /// reader when that is no longer the file it has open.
-    fn run(
-        &self,
-        path: &Path,
-        sql: &str,
-        parameters: &[serde_json::Value],
-    ) -> Result<QueryResult, String> {
-        let mut guard = self.0.lock().map_err(|_| "query state poisoned")?;
-        let current = FileIdentity::of(path)?;
-        let reader = match guard.take() {
-            Some(reader) if reader.file == current => reader,
-            _ => Reader::open(path)?,
-        };
-        let reader = guard.insert(reader);
-        run_query(&reader.connection, sql, parameters)
-    }
-
-    /// Lets go of the file the reader has open, so a replaced index is released
-    /// now rather than at the next query.
-    fn forget(&self) -> Result<(), String> {
-        *self.0.lock().map_err(|_| "query state poisoned")? = None;
-        Ok(())
-    }
-}
-
 #[tauri::command]
-pub fn index_query(
+pub async fn index_query(
     vault: State<'_, VaultState>,
-    query: State<'_, QueryState>,
+    index: State<'_, SharedIndex>,
     sql: String,
     parameters: Vec<serde_json::Value>,
 ) -> Result<QueryResult, String> {
-    let root = vault.root().ok_or("no vault is open")?;
-    query.run(&database_path(&root)?, &sql, &parameters)
+    let root = open_root(&vault)?;
+    let index = Arc::clone(&index);
+    off_main(move || index.query(&root, &sql, &parameters)).await
+}
+
+fn stats(connection: &Connection) -> Result<IndexStats, String> {
+    let count = |table: &str| -> Result<i64, String> {
+        connection
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .map_err(|error| error.to_string())
+    };
+    Ok(IndexStats {
+        notes: count("files")?,
+        properties: count("props")?,
+        links: count("links")?,
+    })
 }
 
 #[tauri::command]
-pub fn index_stats(index: State<'_, IndexState>) -> Result<IndexStats, String> {
-    with_connection(&index, |connection| {
-        let count = |table: &str| -> Result<i64, String> {
-            connection
-                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
-                    row.get(0)
-                })
-                .map_err(|error| error.to_string())
-        };
-        Ok(IndexStats {
-            notes: count("files")?,
-            properties: count("props")?,
-            links: count("links")?,
-        })
-    })
+pub async fn index_stats(index: State<'_, SharedIndex>) -> Result<IndexStats, String> {
+    let index = Arc::clone(&index);
+    off_main(move || index.with_connection(|connection| stats(connection))).await
 }
 
 #[cfg(test)]
@@ -1742,143 +1857,6 @@ mod tests {
         assert!(!reopened.fresh);
     }
 
-    /// The titles a query on the read-only path finds in the index at `root`.
-    fn titles_read(query: &QueryState, root: &Path) -> Vec<serde_json::Value> {
-        let path = database_path(root).unwrap();
-        let result = query
-            .run(&path, "SELECT title FROM files ORDER BY title", &[])
-            .unwrap();
-        result.rows.into_iter().map(|row| row[0].clone()).collect()
-    }
-
-    fn put(index: &IndexState, notes: &[IndexedNote]) {
-        let mut guard = index.0.lock().unwrap();
-        put_notes(guard.as_mut().unwrap(), notes).unwrap();
-    }
-
-    #[test]
-    fn a_query_after_the_index_is_cleared_reads_the_rebuilt_index() {
-        let vault = tempfile::tempdir().unwrap();
-        let (index, query) = (IndexState::default(), QueryState::default());
-        open_index(vault.path(), &index, &query).unwrap();
-        put(&index, &[note("old.md", "Before the rebuild", "")]);
-        assert_eq!(titles_read(&query, vault.path()), ["Before the rebuild"]);
-
-        clear_index(vault.path(), &index, &query).unwrap();
-        put(&index, &[note("new.md", "After the rebuild", "")]);
-
-        assert_eq!(titles_read(&query, vault.path()), ["After the rebuild"]);
-    }
-
-    #[test]
-    fn a_query_after_an_index_of_another_shape_is_reopened_reads_the_new_index() {
-        let vault = tempfile::tempdir().unwrap();
-        let (index, query) = (IndexState::default(), QueryState::default());
-        open_index(vault.path(), &index, &query).unwrap();
-        put(&index, &[note("old.md", "Older shape", "")]);
-        assert_eq!(titles_read(&query, vault.path()), ["Older shape"]);
-        index
-            .0
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .execute_batch(&format!("PRAGMA user_version = {};", SCHEMA_VERSION - 1))
-            .unwrap();
-
-        let opened = open_index(vault.path(), &index, &query).unwrap();
-        assert!(opened.fresh, "the older index is thrown away");
-        put(&index, &[note("new.md", "Current shape", "")]);
-
-        assert_eq!(titles_read(&query, vault.path()), ["Current shape"]);
-    }
-
-    #[test]
-    fn a_query_after_switching_vaults_reads_the_new_vaults_index() {
-        let first = tempfile::tempdir().unwrap();
-        let second = tempfile::tempdir().unwrap();
-        let (index, query) = (IndexState::default(), QueryState::default());
-        open_index(first.path(), &index, &query).unwrap();
-        put(&index, &[note("a.md", "Larkspur kickoff", "")]);
-        assert_eq!(titles_read(&query, first.path()), ["Larkspur kickoff"]);
-
-        open_index(second.path(), &index, &query).unwrap();
-        put(&index, &[note("b.md", "Mara Quill one-on-one", "")]);
-
-        assert_eq!(
-            titles_read(&query, second.path()),
-            ["Mara Quill one-on-one"]
-        );
-    }
-
-    #[test]
-    fn a_query_reads_another_vault_even_before_its_index_is_reopened() {
-        let first = tempfile::tempdir().unwrap();
-        let second = tempfile::tempdir().unwrap();
-        let (index, query) = (IndexState::default(), QueryState::default());
-        open_index(second.path(), &index, &query).unwrap();
-        put(&index, &[note("b.md", "Tobias Fenn sync", "")]);
-        open_index(first.path(), &index, &query).unwrap();
-        put(&index, &[note("a.md", "Larkspur kickoff", "")]);
-        assert_eq!(titles_read(&query, first.path()), ["Larkspur kickoff"]);
-
-        assert_eq!(titles_read(&query, second.path()), ["Tobias Fenn sync"]);
-    }
-
-    fn holds_a_reader(query: &QueryState) -> bool {
-        query.0.lock().unwrap().is_some()
-    }
-
-    #[test]
-    fn clearing_or_reopening_the_index_lets_go_of_the_file_the_reader_held() {
-        let vault = tempfile::tempdir().unwrap();
-        let (index, query) = (IndexState::default(), QueryState::default());
-        open_index(vault.path(), &index, &query).unwrap();
-        titles_read(&query, vault.path());
-        assert!(holds_a_reader(&query));
-
-        clear_index(vault.path(), &index, &query).unwrap();
-        assert!(!holds_a_reader(&query), "cleared");
-
-        titles_read(&query, vault.path());
-        open_index(vault.path(), &index, &query).unwrap();
-        assert!(!holds_a_reader(&query), "reopened");
-    }
-
-    /// What an Atlas query (`compileAtlasQuery`) asks of every note: is this
-    /// one of the types listed? One key and one value of one note.
-    const NOTES_OF_A_TYPE: &str = "SELECT n.path FROM files AS n
-         WHERE EXISTS (SELECT 1 FROM props AS t
-                       WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
-         ORDER BY n.title LIMIT ?";
-
-    #[test]
-    fn checking_each_notes_type_stays_within_the_query_budget_in_a_large_vault() {
-        let vault = tempfile::tempdir().unwrap();
-        let (index, query) = (IndexState::default(), QueryState::default());
-        open_index(vault.path(), &index, &query).unwrap();
-        let meetings: Vec<IndexedNote> = (0..1_200)
-            .map(|at| IndexedNote {
-                properties: vec![property("type", "meeting")],
-                ..note(
-                    &format!("meetings/{at:04}.md"),
-                    &format!("Meeting {at:04}"),
-                    "",
-                )
-            })
-            .collect();
-        put(&index, &meetings);
-
-        let path = database_path(vault.path()).unwrap();
-        let found = query.run(
-            &path,
-            NOTES_OF_A_TYPE,
-            &[serde_json::json!("meeting"), serde_json::json!(5)],
-        );
-
-        assert_eq!(found.map(|result| result.rows.len()), Ok(5));
-    }
-
     #[test]
     fn opening_says_whether_it_is_fresh_under_the_name_typescript_reads() {
         assert_eq!(
@@ -1934,6 +1912,70 @@ mod tests {
 
         assert_eq!(manifest(&index).unwrap().len(), 1);
         assert_eq!(stats_of(&index).notes, 1);
+        assert_eq!(search(&index, "alpha", 10, None).unwrap().len(), 1);
+    }
+
+    /// How many steps SQLite takes to add one note to an index holding this many.
+    fn steps_to_add_a_note_to(held: usize) -> usize {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let mut index = empty_index();
+        let notes: Vec<IndexedNote> = (0..held)
+            .map(|n| note(&format!("Note {n}.md"), "Note", "alpha beta gamma"))
+            .collect();
+        put_notes(&mut index, &notes).unwrap();
+
+        let steps = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&steps);
+        index
+            .progress_handler(
+                1,
+                Some(move || {
+                    counted.fetch_add(1, Ordering::Relaxed);
+                    false
+                }),
+            )
+            .unwrap();
+        put_notes(&mut index, &[note("New.md", "New", "delta")]).unwrap();
+        steps.load(Ordering::Relaxed)
+    }
+
+    /// #135: the search table has no index on `path`, so clearing a note's old
+    /// row from it reads every row. Done for a note the index has never held,
+    /// that made building an index of n notes n * n work: five thousand notes
+    /// took most of a minute, each batch slower than the last.
+    #[test]
+    fn adding_a_note_costs_the_same_however_many_the_index_holds() {
+        let few = steps_to_add_a_note_to(20);
+        let many = steps_to_add_a_note_to(2_000);
+        assert!(
+            many < few * 2,
+            "adding a note to 2,000 took {many} steps, to 20 took {few}"
+        );
+    }
+
+    #[test]
+    fn a_note_put_twice_in_one_batch_is_held_once() {
+        let mut index = empty_index();
+        put_notes(
+            &mut index,
+            &[note("a.md", "A", "alpha"), note("a.md", "A", "alpha twice")],
+        )
+        .unwrap();
+
+        assert_eq!(stats_of(&index).notes, 1);
+        assert_eq!(search(&index, "alpha", 10, None).unwrap().len(), 1);
+        assert_eq!(search(&index, "twice", 10, None).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_note_removed_and_put_again_is_found_once() {
+        let mut index = empty_index();
+        put_notes(&mut index, &[note("a.md", "A", "alpha")]).unwrap();
+        remove_paths(&mut index, &["a.md".to_string()]).unwrap();
+        put_notes(&mut index, &[note("a.md", "A", "alpha")]).unwrap();
+
         assert_eq!(search(&index, "alpha", 10, None).unwrap().len(), 1);
     }
 
@@ -2690,6 +2732,321 @@ ORDER BY m.type DESC, m.name, p.cid";
             assert!(manifest(&index).unwrap().is_empty());
             assert!(search(&index, "anything", 10, None).unwrap().is_empty());
             assert!(backlinks(&index, "a.md").unwrap().is_empty());
+        }
+    }
+
+    /// Attacks on #135 (PR #138): what the index does now that its commands
+    /// can overlap, and what the search-table shortcut left behind.
+    mod attack_135 {
+        use super::*;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{mpsc, Arc};
+        use std::time::Duration;
+
+        /// How many steps SQLite takes to index again one note of an index holding this many.
+        fn steps_to_index_again_a_note_of(held: usize) -> usize {
+            let mut index = empty_index();
+            let notes: Vec<IndexedNote> = (0..held)
+                .map(|n| note(&format!("Note {n}.md"), "Note", "alpha beta gamma"))
+                .collect();
+            put_notes(&mut index, &notes).unwrap();
+
+            let steps = Arc::new(AtomicUsize::new(0));
+            let counted = Arc::clone(&steps);
+            index
+                .progress_handler(
+                    1,
+                    Some(move || {
+                        counted.fetch_add(1, Ordering::Relaxed);
+                        false
+                    }),
+                )
+                .unwrap();
+            put_notes(&mut index, &[note("Note 0.md", "Note", "delta")]).unwrap();
+            steps.load(Ordering::Relaxed)
+        }
+
+        /// The shortcut only covers a note the index has never held. A note it
+        /// holds still has its search row found by reading every row, so a
+        /// vault whose notes all changed at once (a pull, a sync that touched
+        /// every file, a relation re-resolved across the vault) is n * n again,
+        /// and each batch holds the index lock, which search waits on.
+        #[test]
+        fn indexing_a_note_again_costs_the_same_however_many_the_index_holds() {
+            let few = steps_to_index_again_a_note_of(20);
+            let many = steps_to_index_again_a_note_of(2_000);
+            assert!(
+                many < few * 2,
+                "indexing a note again among 2,000 took {many} steps, among 20 took {few}"
+            );
+        }
+
+        /// Before #138 every put cleared the note's search row, so an index
+        /// whose search table had got ahead of `files` healed on the next
+        /// read of the note. Now the row is only cleared for a note `files`
+        /// holds, and the note is found twice until the index is rebuilt.
+        #[test]
+        fn a_search_row_left_without_its_note_is_replaced_when_the_note_is_indexed() {
+            let mut index = empty_index();
+            index
+                .execute(
+                    "INSERT INTO fts (path, title, body) VALUES ('a.md', 'A', 'alpha as it was')",
+                    [],
+                )
+                .unwrap();
+
+            put_notes(&mut index, &[note("a.md", "A", "alpha as it is")]).unwrap();
+
+            let hits = search(&index, "alpha", 10, None).unwrap();
+            assert_eq!(hits.len(), 1, "the note is found {} times", hits.len());
+        }
+
+        fn notes_counted_in(index: &IndexState, root: &Path) -> serde_json::Value {
+            index
+                .query(root, "SELECT COUNT(*) FROM files", &[])
+                .unwrap()
+                .rows[0][0]
+                .clone()
+        }
+
+        /// What an Atlas query (`compileAtlasQuery`) asks of every note: is this
+        /// one of the types listed? One key and one value of one note.
+        const NOTES_OF_A_TYPE: &str = "SELECT n.path FROM files AS n
+             WHERE EXISTS (SELECT 1 FROM props AS t
+                           WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
+             ORDER BY n.title LIMIT ?";
+
+        /// #143: a view over every meeting came back "interrupted" at 614 of them.
+        #[test]
+        fn checking_each_notes_type_stays_within_the_query_budget_in_a_large_vault() {
+            let vault = tempfile::tempdir().unwrap();
+            let index = IndexState::default();
+            index.open(vault.path()).unwrap();
+            let meetings: Vec<IndexedNote> = (0..1_200)
+                .map(|at| IndexedNote {
+                    properties: vec![property("type", "meeting")],
+                    ..note(
+                        &format!("meetings/{at:04}.md"),
+                        &format!("Meeting {at:04}"),
+                        "",
+                    )
+                })
+                .collect();
+            index.put(None, &meetings).unwrap();
+
+            let found = index.query(
+                vault.path(),
+                NOTES_OF_A_TYPE,
+                &[serde_json::json!("meeting"), serde_json::json!(5)],
+            );
+
+            assert_eq!(found.map(|result| result.rows.len()), Ok(5));
+        }
+
+        /// #137, at the seam the commands now share (`IndexState`): a query
+        /// leaves the reading connection open, as `index_query` always has,
+        /// and the index is then cleared as `index_clear` clears it. (As
+        /// first written this held a connection of its own and deleted the
+        /// file by hand, since there was no seam to call; it is the same
+        /// question, asked of the code the commands run.)
+        #[test]
+        fn a_query_after_the_index_is_cleared_reads_the_index_that_is_there_now() {
+            let vault = tempfile::tempdir().unwrap();
+            let index = IndexState::default();
+            index.open(vault.path()).unwrap();
+            index.put(None, &[note("a.md", "A", "alpha")]).unwrap();
+            assert_eq!(notes_counted_in(&index, vault.path()), serde_json::json!(1));
+
+            index.clear(vault.path()).unwrap();
+
+            assert_eq!(
+                notes_counted_in(&index, vault.path()),
+                serde_json::json!(0),
+                "a view still reads the note the cleared index does not hold"
+            );
+        }
+
+        /// The same for an index of an older shape, thrown away as the app opens the vault.
+        #[test]
+        fn a_query_made_before_an_old_index_is_thrown_away_does_not_outlive_it() {
+            let vault = tempfile::tempdir().unwrap();
+            let index = IndexState::default();
+            index.open(vault.path()).unwrap();
+            index.put(None, &[note("a.md", "A", "alpha")]).unwrap();
+            index
+                .with_connection(|connection| {
+                    connection
+                        .execute_batch(&format!("PRAGMA user_version = {};", SCHEMA_VERSION - 1))
+                        .map_err(|error| error.to_string())
+                })
+                .unwrap();
+            assert_eq!(notes_counted_in(&index, vault.path()), serde_json::json!(1));
+
+            assert!(index.open(vault.path()).unwrap().fresh);
+
+            assert_eq!(notes_counted_in(&index, vault.path()), serde_json::json!(0));
+        }
+
+        #[test]
+        fn a_query_reads_the_vault_it_names_not_the_one_last_read() {
+            let (larkspur, quill) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+            let index = IndexState::default();
+            index.open(quill.path()).unwrap();
+            index.put(None, &[note("q.md", "Q", "quill")]).unwrap();
+            index.open(larkspur.path()).unwrap();
+            assert_eq!(
+                notes_counted_in(&index, larkspur.path()),
+                serde_json::json!(0)
+            );
+
+            // Asked of the other vault, as a query arriving before its `index_open` is.
+            assert_eq!(notes_counted_in(&index, quill.path()), serde_json::json!(1));
+        }
+
+        /// A batch read from one vault, arriving after another has been opened.
+        #[test]
+        fn a_batch_meant_for_a_vault_no_longer_open_is_refused_not_written_to_the_next() {
+            let (larkspur, quill) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+            let index = IndexState::default();
+            index.open(larkspur.path()).unwrap();
+            index.open(quill.path()).unwrap();
+            let late = [note("Idea.md", "Idea", "a spark in Larkspur")];
+
+            let refused = index.put(larkspur.path().to_str(), &late).unwrap_err();
+
+            assert_eq!(
+                refused,
+                "another vault was opened before this could be indexed"
+            );
+            assert_eq!(notes_counted_in(&index, quill.path()), serde_json::json!(0));
+            // Meant for the vault that is open, it is written.
+            index.put(quill.path().to_str(), &late).unwrap();
+            assert_eq!(notes_counted_in(&index, quill.path()), serde_json::json!(1));
+        }
+
+        /// The views are dropped and made again as one change: a reader never
+        /// finds a type without its view, and a rebuild that fails part-way
+        /// leaves the views that were there.
+        #[test]
+        fn views_made_again_are_replaced_in_one_step_or_not_at_all() {
+            let vault = tempfile::tempdir().unwrap();
+            let index = IndexState::default();
+            index.open(vault.path()).unwrap();
+            let spec = |name: &str| TypeSpec {
+                name: name.to_string(),
+                columns: Vec::new(),
+                progress: false,
+            };
+            index
+                .with_connection(|connection| rebuild_views(connection, &[spec("task")]))
+                .unwrap();
+
+            // The second of two views of one name cannot be made, after the old ones are dropped.
+            let failed = index.with_connection(|connection| {
+                rebuild_views(connection, &[spec("meeting"), spec("meeting")])
+            });
+
+            assert!(failed.is_err());
+            index
+                .query(vault.path(), "SELECT COUNT(*) FROM v_task", &[])
+                .expect("the view that was there is gone");
+        }
+
+        /// Runs `work` on its own thread and fails if it has not finished in time: a deadlock, said.
+        fn within<T: Send + 'static>(
+            limit: Duration,
+            work: impl FnOnce() -> T + Send + 'static,
+        ) -> T {
+            let (done, finished) = mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = done.send(work());
+            });
+            finished
+                .recv_timeout(limit)
+                .expect("the index did not answer in time: a deadlock, or a panic")
+        }
+
+        /// Batches written, queries read and the index cleared, all at once, as
+        /// the commands may now be (they are `async`, so no thread orders them).
+        /// Nothing may fail for want of a lock, nothing may hang, and a query
+        /// may not be answered from a file that is half way to being an index:
+        /// on the main thread a query ran before a clear or after it, never during.
+        #[test]
+        fn puts_queries_and_clears_at_once_never_fail_or_find_a_half_made_index() {
+            let problems = within(Duration::from_secs(120), || {
+                let vault = tempfile::tempdir().unwrap();
+                let root = vault.path().to_path_buf();
+                // The state the commands share, and its own `put`, `clear` and
+                // `query`: what `index_put`, `index_clear` and `index_query` run.
+                // (As first written this took the lock, deleted the file and
+                // opened a reader by hand, mirroring the commands as they were.)
+                let held = Arc::new(IndexState::default());
+                held.open(&root).unwrap();
+                let problems = Arc::new(Mutex::new(Vec::<String>::new()));
+                let said = |problems: &Arc<Mutex<Vec<String>>>, who: &str, problem: String| {
+                    problems.lock().unwrap().push(format!("{who}: {problem}"));
+                };
+
+                let mut threads = Vec::new();
+                for writer in 0..3 {
+                    let (held, problems, root) =
+                        (Arc::clone(&held), Arc::clone(&problems), root.clone());
+                    threads.push(std::thread::spawn(move || {
+                        for batch in 0..40 {
+                            let notes: Vec<IndexedNote> = (0..50)
+                                .map(|n| {
+                                    note(
+                                        &format!("w{writer}/b{batch}/n{n}.md"),
+                                        "Note",
+                                        "alpha beta",
+                                    )
+                                })
+                                .collect();
+                            if let Err(problem) = held.put(root.to_str(), &notes) {
+                                said(&problems, "put", problem);
+                            }
+                        }
+                    }));
+                }
+                {
+                    let (held, problems, root) =
+                        (Arc::clone(&held), Arc::clone(&problems), root.clone());
+                    threads.push(std::thread::spawn(move || {
+                        for _ in 0..25 {
+                            if let Err(problem) = held.clear(&root) {
+                                said(&problems, "clear", problem);
+                            }
+                            std::thread::yield_now();
+                        }
+                    }));
+                }
+                for _ in 0..3 {
+                    let (held, problems, root) =
+                        (Arc::clone(&held), Arc::clone(&problems), root.clone());
+                    threads.push(std::thread::spawn(move || {
+                        for _ in 0..400 {
+                            let answer = held.query(&root, "SELECT COUNT(*) FROM files", &[]);
+                            if let Err(problem) = answer {
+                                said(&problems, "query", problem);
+                            }
+                        }
+                    }));
+                }
+                for thread in threads {
+                    thread.join().expect("a command panicked");
+                }
+                let problems = problems.lock().unwrap().clone();
+                problems
+            });
+
+            let mut kinds: Vec<String> = problems.clone();
+            kinds.sort();
+            kinds.dedup();
+            assert!(
+                problems.is_empty(),
+                "{} commands failed; the kinds of failure: {kinds:#?}",
+                problems.len()
+            );
         }
     }
 }

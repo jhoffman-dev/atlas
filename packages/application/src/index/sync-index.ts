@@ -1,7 +1,9 @@
 import {
   indexFailedReport,
+  indexInWindowReport,
   indexRebuiltReport,
   messageWithoutPaths,
+  notesNotIndexedReport,
   versionsAfter,
   type NoteChange,
   type NoteVersion,
@@ -9,7 +11,13 @@ import {
 import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChanges } from './note-changes.ts';
 import type { IndexPort, IndexStats } from './ports.ts';
-import { heldEntries, refreshIndex, type RefreshOptions } from './refresh-index.ts';
+import type { UnreadNote } from './note-deriver.ts';
+import {
+  heldEntries,
+  IndexSyncAbandoned,
+  refreshIndex,
+  type RefreshOptions,
+} from './refresh-index.ts';
 
 /**
  * What a sync is measured from: every note as it was, or null when nothing is
@@ -24,6 +32,10 @@ export interface IndexSync {
   readonly changes: readonly NoteChange[];
   /** Every note as it now is: the baseline of the next sync. */
   readonly versions: ReadonlyMap<string, NoteVersion>;
+  /** The notes that could not be read as notes; see `IndexRefresh.failed`. */
+  readonly failed: readonly UnreadNote[];
+  /** Why the notes were read on the window's thread, when they had to be. */
+  readonly inWindow: string | null;
 }
 
 /**
@@ -38,18 +50,24 @@ export interface IndexSync {
  *
  * A rebuild, and any failure, is said in the Activity log (U-28); the refresh
  * every change sets off is not, since it is routine. The failure is passed on
- * as well, for the window to show.
+ * as well, for the window to show. Notes that could not be read are said too,
+ * unless they are the ones `unreadBefore` names: a note left torn is tried
+ * again by every sync, and is worth one line, not one per save (#135). A sync
+ * given up because its vault closed is neither a failure nor said.
  */
 export async function syncIndex({
   fromScratch,
   activity,
   previous,
+  unreadBefore,
   onBaseline,
   ...options
 }: Omit<RefreshOptions, 'previous'> & {
   fromScratch: boolean;
   activity: ActivityLog;
   previous?: SyncBaseline;
+  /** The notes the last sync of this vault could not read, as `unreadKey` names them. */
+  unreadBefore?: string;
   /** Told the baseline before anything is written, so a sync that fails can be tried again from it. */
   onBaseline?: (baseline: SyncBaseline) => void;
 }): Promise<IndexSync> {
@@ -69,17 +87,28 @@ export async function syncIndex({
     const refresh = await refreshIndex({ ...options, previous: measuredFrom });
     const stats = await options.index.stats();
     if (fromScratch) recorder.record(indexRebuiltReport(stats.notes));
+    const [first, ...rest] = refresh.failed;
+    if (first !== undefined && unreadKey(refresh.failed) !== unreadBefore) {
+      recorder.record(notesNotIndexedReport([first, ...rest]));
+    }
     return {
       stats,
       changes: baseline === null ? [] : refresh.changes,
       versions: versionsAfter(measuredFrom, refresh.changes),
+      failed: refresh.failed,
+      inWindow: refresh.inWindow,
     };
   } catch (cause) {
+    if (cause instanceof IndexSyncAbandoned) throw cause;
     const problem = messageWithoutPaths(cause);
     recorder.record(indexFailedReport({ rebuilding: fromScratch, problem }));
     throw cause;
   }
 }
+
+/** Which notes could not be read, as one value to tell one sync's from the next's. */
+const unreadKey = (failed: readonly UnreadNote[]): string =>
+  JSON.stringify(failed.map(({ path }) => path).sort());
 
 /**
  * The notes the index holds, asked before a rebuild clears them, so reading
@@ -125,7 +154,8 @@ async function versionsHeld(
  * The host's ports answer for whichever vault is open, so a sync asked for a
  * vault that is no longer open — queued before a switch, or caught by one —
  * would read the other vault's notes under this one's name. It is dropped
- * instead: nothing is published or remembered, and it settles with null.
+ * instead: nothing is published or remembered, and it settles with null. One
+ * caught mid-build stops at its next batch rather than reading the rest (#135).
  */
 export interface IndexSyncer {
   /** Settles with what the index then holds, after any sync already under way; null when dropped. */
@@ -141,7 +171,7 @@ export function createIndexSyncer({
   changes,
   openVault,
   ...ports
-}: Omit<RefreshOptions, 'onProgress' | 'previous'> & {
+}: Omit<RefreshOptions, 'onProgress' | 'previous' | 'stillWanted' | 'abandoned' | 'vault'> & {
   activity: ActivityLog;
   /** Where each sync's changes are published, when it has any. */
   changes: NoteChanges;
@@ -150,28 +180,55 @@ export function createIndexSyncer({
 }): IndexSyncer {
   let queue: Promise<unknown> = Promise.resolve();
   let remembered: { vault: string; versions: SyncBaseline } | null = null;
+  let unread: { vault: string; key: string } | null = null;
+  /** The sync under way, and the way to tell it that it is no longer wanted. */
+  let running: { vault: string; abandon: AbortController } | null = null;
+  let saidInWindow = false;
 
   const syncOnce: IndexSyncer['sync'] = async ({ vault, fromScratch, onProgress }) => {
     if (openVault() !== vault) return null;
     const previous = remembered?.vault === vault ? remembered.versions : undefined;
+    const abandon = new AbortController();
+    running = { vault, abandon };
     const synced = await syncIndex({
       ...ports,
       fromScratch,
+      vault,
+      abandoned: abandon.signal,
+      stillWanted: () => openVault() === vault,
       ...(onProgress !== undefined && { onProgress }),
       ...(previous !== undefined && { previous }),
+      ...(unread?.vault === vault && { unreadBefore: unread.key }),
       onBaseline: (baseline) => {
         remembered = { vault, versions: baseline };
       },
-    });
+    })
+      .catch((cause: unknown) => {
+        if (cause instanceof IndexSyncAbandoned) return null;
+        throw cause;
+      })
+      .finally(() => {
+        running = null;
+      });
     // What was read may have been another vault's, opened while this sync ran.
-    if (openVault() !== vault) return null;
+    if (synced === null || openVault() !== vault) return null;
+    // Said once, however many syncs follow: it is the app's state, not this sync's news.
+    if (synced.inWindow !== null && !saidInWindow) {
+      saidInWindow = true;
+      ports.activity.inOpenVault().record(indexInWindowReport(synced.inWindow));
+    }
     remembered = { vault, versions: synced.versions };
+    unread = { vault, key: unreadKey(synced.failed) };
     if (synced.changes.length > 0) changes.publish({ vault, changes: synced.changes });
     return synced.stats;
   };
 
   return {
     sync(args) {
+      // A sync for another vault means the one running is for a vault no
+      // longer open. It is told now: it may be waiting on something that
+      // will not come back soon, and this one waits behind it (#135).
+      if (running !== null && running.vault !== args.vault) running.abandon.abort();
       const next = queue.then(() => syncOnce(args));
       // The queue only orders; each caller gets its own sync's outcome.
       queue = next.catch(() => undefined);

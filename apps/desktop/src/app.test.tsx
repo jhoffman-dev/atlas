@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain';
 import {
@@ -338,6 +338,29 @@ describe('App', () => {
     await userEvent.click(screen.getByText('Notes'));
     await screen.findByRole('treeitem', { name: 'today' });
     expect(readsOf('Notes')).toBe(1);
+  });
+
+  it('stops reading the vault once it is listed, rather than reading it again on every render (#140)', async () => {
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('todo.md', 'file')] },
+    });
+    const listDirectory = vi.spyOn(vault.fs, 'listDirectory');
+    renderApp(vault);
+    await screen.findByRole('treeitem', { name: 'todo' });
+
+    /** How many listings the app asks for across a few turns of the event loop. */
+    const readsOverAFewTurns = async () => {
+      const before = listDirectory.mock.calls.length;
+      await act(async () => {
+        for (let turn = 0; turn < 5; turn += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      });
+      return listDirectory.mock.calls.length - before;
+    };
+    // A read whose answer draws the app, which reads again, never gets to none.
+    await waitFor(async () => expect(await readsOverAFewTurns()).toBe(0), { timeout: 4000 });
   });
 
   it('renders the note body in the editor, without its frontmatter', async () => {

@@ -11,6 +11,7 @@ export {
   RAW_BLOCK,
 } from './markdown/markdown-blocks.ts';
 export { tauriIndex } from './index/tauri-index.ts';
+export { webWorkerNoteDeriver } from './index/web-worker-note-deriver.ts';
 export { tauriVaultWatch } from './vault/tauri-vault-watch.ts';
 export { tauriHttp } from './sources/tauri-http.ts';
 export { tauriSecrets } from './sources/tauri-secrets.ts';

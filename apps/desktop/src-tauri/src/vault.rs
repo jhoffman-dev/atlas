@@ -517,23 +517,39 @@ impl NoteWalk<'_> {
 /// Every markdown note on disk, for link resolution, autocomplete, the index and
 /// backlinks — minus the folders `skip_directories` named, and no more than
 /// `max_depth` folders down.
+///
+/// Off the main thread, as `read_notes` is: walking a large vault, and reading
+/// it for the index, would otherwise freeze the window while they ran (#135).
 #[tauri::command]
-pub fn list_notes(
+pub async fn list_notes(
     state: State<'_, VaultState>,
     skip_directories: Vec<String>,
     max_depth: usize,
 ) -> Result<Vec<VaultEntry>, String> {
     let root = root_of(&state)?;
-    let skip: HashSet<String> = skip_directories.into_iter().collect();
-    let mut notes = Vec::new();
-    NoteWalk {
-        root: &root,
-        skip: &skip,
-        max_depth,
-    }
-    .collect(&root, "", 0, &mut notes);
-    log::debug!("found {} notes", notes.len());
-    Ok(notes)
+    off_main(move || {
+        let skip: HashSet<String> = skip_directories.into_iter().collect();
+        let mut notes = Vec::new();
+        NoteWalk {
+            root: &root,
+            skip: &skip,
+            max_depth,
+        }
+        .collect(&root, "", 0, &mut notes);
+        log::debug!("found {} notes", notes.len());
+        Ok(notes)
+    })
+    .await
+}
+
+/// Runs a read of the vault off the main thread, and off the async runtime's
+/// workers, which every other async command and the local API server share.
+async fn off_main<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|error| format!("the vault could not be read: {error}"))?
 }
 
 #[tauri::command]
@@ -588,11 +604,12 @@ fn read_notes_at(root: &Path, paths: &[String]) -> Vec<NoteFile> {
 
 /// Reads many notes in one call, so indexing a vault is not thousands of round trips.
 #[tauri::command]
-pub fn read_notes(
+pub async fn read_notes(
     state: State<'_, VaultState>,
     paths: Vec<String>,
 ) -> Result<Vec<NoteFile>, String> {
-    Ok(read_notes_at(&root_of(&state)?, &paths))
+    let root = root_of(&state)?;
+    off_main(move || Ok(read_notes_at(&root, &paths))).await
 }
 
 #[tauri::command]

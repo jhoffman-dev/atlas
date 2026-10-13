@@ -80,6 +80,7 @@ import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
+import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
 import { useVaultWatch } from './vault/use-vault-watch.ts';
 import { useSearch } from './index/use-search.ts';
 import { useCreateNote } from './notes/use-create-note.ts';
@@ -324,6 +325,7 @@ export function App({
   const focusedPath = panes.layout.paths[panes.layout.focused] ?? null;
   const {
     status: indexStatus,
+    progress: indexProgress,
     rebuild,
     refresh,
   } = useIndex({
@@ -794,6 +796,19 @@ export function App({
     changeKey: indexKey,
   });
 
+  // Held from one render to the next: `createNoteIn` is built on it and is one
+  // of the ports every vault use-case is handed. A new one each render gave
+  // them all new ports each render, and whatever reads when its ports change
+  // (the Inbox's proposals) then read the vault again, drew, and read again,
+  // without end — which kept the window too busy to place a click (#140).
+  const openCreated = useCallback(
+    (path: VaultPath) => {
+      void reload();
+      openNote(path);
+      void refresh();
+    },
+    [reload, openNote, refresh],
+  );
   const {
     createNewNote,
     createNoteIn,
@@ -808,11 +823,7 @@ export function App({
     beside: focusedPath,
     templates,
     contentsOf,
-    onCreated: (path) => {
-      void reload();
-      openNote(path);
-      void refresh();
-    },
+    onCreated: openCreated,
   });
 
   // A note or folder moved in the app takes with it the panes showing it, the
@@ -1742,11 +1753,14 @@ export function App({
           status={location === null ? null : indexStatusText(indexStatus)}
           floating={
             location === null ? null : (
-              <QuickAdd
-                quickAdd={quickAdd}
-                overlay={{ current: overlay, show: showOverlay, hide: hideOverlay }}
-                onOpen={openNote}
-              />
+              <>
+                <IndexProgressPill status={indexStatus} progress={indexProgress} />
+                <QuickAdd
+                  quickAdd={quickAdd}
+                  overlay={{ current: overlay, show: showOverlay, hide: hideOverlay }}
+                  onOpen={openNote}
+                />
+              </>
             )
           }
           overlay={
@@ -1758,11 +1772,16 @@ export function App({
                 fallbackFocus={focusFallback}
               >
                 {location !== null && <ProfileSettingsCard setting={profileSetting} />}
-                <IndexSettings
-                  index={location === null ? null : indexStatus}
-                  app={app}
-                  onRebuild={() => void rebuild()}
-                />
+                {location === null ? (
+                  <IndexSettings index={null} app={app} onRebuild={() => void rebuild()} />
+                ) : (
+                  <LiveIndexSettings
+                    index={indexStatus}
+                    progress={indexProgress}
+                    app={app}
+                    onRebuild={() => void rebuild()}
+                  />
+                )}
                 <ImageSettingsPanel store={browserImagePlacementStore} />
                 <GlobalCaptureSettings
                   view={globalCapture.status}

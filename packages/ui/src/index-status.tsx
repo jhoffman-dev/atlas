@@ -16,7 +16,9 @@ export type AppInfoState =
 export function indexStatusText(index: IndexSummary): string {
   switch (index.kind) {
     case 'working':
-      return index.total === 0 ? 'Indexing…' : `Indexing ${index.done}/${index.total}…`;
+      return index.total === 0
+        ? 'Indexing…'
+        : `Indexing ${index.done.toLocaleString()} of ${index.total.toLocaleString()}…`;
     case 'ready':
       return `${index.notes.toLocaleString()} notes indexed`;
     case 'failed':

@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createVaultPath, digestOf, IMPORT_OUTCOMES_PAGE } from '@atlas/domain';
-import { heldEntries, refreshIndex, toIndexedNote } from './refresh-index.ts';
+import {
+  heldEntries,
+  INDEX_BATCH_SIZE,
+  IndexSyncAbandoned,
+  refreshIndex,
+} from './refresh-index.ts';
+import { toIndexedNote } from './to-indexed-note.ts';
+import { inThreadNoteDeriver, type NoteDeriver } from './note-deriver.ts';
 import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -648,5 +655,268 @@ describe('heldEntries: the import stamps of the notes the index holds (#92 revie
 
     expect(held.size).toBe(2);
     expect(held.get('Inbox/Meetings/Standup.md')).toMatchObject({ arrivalHeard: true });
+  });
+});
+
+/** A vault of this many small notes, for a build that takes more than one batch. */
+function manyNotes(count: number) {
+  return Object.fromEntries(
+    Array.from({ length: count }, (_, n) => [`Note ${n}.md`, { text: `note ${n}`, modified: 1 }]),
+  );
+}
+
+/** The in-thread deriver, watched: what it was handed, batch by batch, and whether it was let go. */
+function watchedDeriver() {
+  const batches: number[] = [];
+  let ended = 0;
+  const deriver: NoteDeriver = {
+    begin(notePaths) {
+      const deriving = inThreadNoteDeriver(markdown).begin(notePaths);
+      return {
+        derive: async (files) => {
+          batches.push(files.length);
+          return deriving.derive(files);
+        },
+        end: () => {
+          ended += 1;
+        },
+      };
+    },
+  };
+  return { deriver, batches, ended: () => ended };
+}
+
+describe('refreshIndex, with the notes derived elsewhere (#135)', () => {
+  it('reads no note itself, and hands the deriver no more than a batch at a time', async () => {
+    const fs = fakeVault(manyNotes(INDEX_BATCH_SIZE * 2 + 20));
+    const { index, written } = fakeIndex();
+    const { deriver, batches, ended } = watchedDeriver();
+    // What the calling thread would run, were it to read a note: none of it may be asked.
+    const untouched: MarkdownPort = {
+      ...markdown,
+      frontmatterProperties: vi.fn(markdown.frontmatterProperties),
+      plainText: vi.fn(markdown.plainText),
+      textRanges: vi.fn(markdown.textRanges),
+      parseBody: vi.fn(markdown.parseBody),
+    };
+
+    await refreshIndex({ fs, index, markdown: untouched, deriver });
+
+    expect(batches).toEqual([INDEX_BATCH_SIZE, INDEX_BATCH_SIZE, 20]);
+    expect(written).toHaveLength(INDEX_BATCH_SIZE * 2 + 20);
+    expect(untouched.frontmatterProperties).not.toHaveBeenCalled();
+    expect(untouched.plainText).not.toHaveBeenCalled();
+    expect(untouched.textRanges).not.toHaveBeenCalled();
+    expect(untouched.parseBody).not.toHaveBeenCalled();
+    expect(ended()).toBe(1);
+  });
+
+  it('keeps a batch small enough that one message to the host stays short', () => {
+    expect(INDEX_BATCH_SIZE).toBeLessThanOrEqual(50);
+  });
+
+  it('writes the same rows whether the notes are derived here or elsewhere', async () => {
+    const files = {
+      'a.md': { text: '---\ntype: task\n---\nSee [[b]] #alpha\n', modified: 1 },
+      'b.md': { text: '- [ ] one\n- [x] two\n', modified: 2 },
+    };
+    const here = fakeIndex();
+    const elsewhere = fakeIndex();
+
+    await refreshIndex({ fs: fakeVault(files), index: here.index, markdown });
+    await refreshIndex({
+      fs: fakeVault(files),
+      index: elsewhere.index,
+      markdown,
+      deriver: watchedDeriver().deriver,
+    });
+
+    expect(elsewhere.written).toEqual(here.written);
+    expect(here.written).toHaveLength(2);
+  });
+
+  it('says which notes could not be read as notes, and indexes the rest', async () => {
+    const fs = fakeVault({
+      'a.md': { text: 'alpha', modified: 1 },
+      'broken.md': { text: 'cannot be read', modified: 1 },
+      'c.md': { text: 'gamma', modified: 1 },
+    });
+    const { index, written } = fakeIndex();
+    const failing: MarkdownPort = {
+      ...markdown,
+      plainText: (body) => {
+        if (body.includes('cannot be read')) throw new Error('unexpected end of note');
+        return markdown.plainText(body);
+      },
+    };
+
+    const result = await refreshIndex({ fs, index, markdown: failing });
+
+    expect(written.map((note) => note.path)).toEqual(['a.md', 'c.md']);
+    expect(result.failed).toEqual([{ path: 'broken.md', problem: 'unexpected end of note' }]);
+  });
+
+  it('reports no failures when every note was read', async () => {
+    const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
+    const result = await refreshIndex({ fs, index: fakeIndex().index, markdown });
+    expect(result.failed).toEqual([]);
+  });
+
+  it('stops between batches once it is no longer wanted, and lets the deriver go', async () => {
+    const fs = fakeVault(manyNotes(INDEX_BATCH_SIZE * 3));
+    const { index, written } = fakeIndex();
+    const { deriver, batches, ended } = watchedDeriver();
+    let wanted = true;
+    const put = index.put;
+    index.put = async (notes) => {
+      await put(notes);
+      wanted = false;
+    };
+
+    await expect(
+      refreshIndex({ fs, index, markdown, deriver, stillWanted: () => wanted }),
+    ).rejects.toBeInstanceOf(IndexSyncAbandoned);
+
+    expect(batches).toEqual([INDEX_BATCH_SIZE]);
+    expect(written).toHaveLength(INDEX_BATCH_SIZE);
+    expect(ended()).toBe(1);
+  });
+
+  it('writes nothing it derived for a vault closed while it was deriving', async () => {
+    const fs = fakeVault(manyNotes(3));
+    const { index, written } = fakeIndex();
+    let wanted = true;
+    const deriver: NoteDeriver = {
+      begin: (notePaths) => {
+        const deriving = inThreadNoteDeriver(markdown).begin(notePaths);
+        return {
+          derive: async (files) => {
+            wanted = false;
+            return deriving.derive(files);
+          },
+          end: () => {},
+        };
+      },
+    };
+
+    await expect(
+      refreshIndex({ fs, index, markdown, deriver, stillWanted: () => wanted }),
+    ).rejects.toBeInstanceOf(IndexSyncAbandoned);
+    expect(written).toEqual([]);
+  });
+
+  it('lets the deriver go when the index refuses a batch', async () => {
+    const fs = fakeVault(manyNotes(2));
+    const { index } = fakeIndex();
+    const { deriver, ended } = watchedDeriver();
+    index.put = async () => {
+      throw new Error('disk full');
+    };
+
+    await expect(refreshIndex({ fs, index, markdown, deriver })).rejects.toThrow('disk full');
+    expect(ended()).toBe(1);
+  });
+
+  it('counts as indexed only the notes it could read', async () => {
+    const fs = fakeVault({
+      'a.md': { text: 'alpha', modified: 1 },
+      'broken.md': { text: 'cannot be read', modified: 1 },
+    });
+    const failing: MarkdownPort = {
+      ...markdown,
+      plainText: (body) => {
+        if (body.includes('cannot be read')) throw new Error('unexpected end of note');
+        return markdown.plainText(body);
+      },
+    };
+
+    const result = await refreshIndex({ fs, index: fakeIndex().index, markdown: failing });
+
+    expect(result).toMatchObject({ indexed: 1, unchanged: 0 });
+  });
+
+  it('names the vault on every write, so the host can refuse one that arrives late', async () => {
+    const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
+    const { index } = fakeIndex([{ path: 'gone.md', modified: 1, size: 1 }]);
+    const put = vi.fn(index.put);
+    const remove = vi.fn(index.remove);
+
+    await refreshIndex({
+      fs,
+      index: { ...index, put, remove },
+      markdown,
+      vault: '/vaults/Larkspur',
+    });
+
+    expect(put).toHaveBeenCalledWith(expect.any(Array), { vault: '/vaults/Larkspur' });
+    expect(remove).toHaveBeenCalledWith(['gone.md'], { vault: '/vaults/Larkspur' });
+  });
+
+  it('gives up, rather than fails, when the host refuses a batch for a vault since closed', async () => {
+    const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
+    const { index } = fakeIndex();
+    let wanted = true;
+    index.put = async () => {
+      wanted = false;
+      throw new Error('another vault was opened before this could be indexed');
+    };
+
+    await expect(
+      refreshIndex({ fs, index, markdown, stillWanted: () => wanted }),
+    ).rejects.toBeInstanceOf(IndexSyncAbandoned);
+  });
+
+  it('stops waiting for a batch to be derived the moment it is abandoned', async () => {
+    const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
+    const { index, written } = fakeIndex();
+    const abandon = new AbortController();
+    let ended = 0;
+    let asked = () => {};
+    const reached = new Promise<void>((resolve) => (asked = resolve));
+    const never: NoteDeriver = {
+      begin: () => ({
+        derive: () => {
+          asked();
+          return new Promise(() => {});
+        },
+        end: () => void (ended += 1),
+      }),
+    };
+
+    const refreshing = refreshIndex({
+      fs,
+      index,
+      markdown,
+      deriver: never,
+      abandoned: abandon.signal,
+    });
+    await reached;
+    abandon.abort();
+
+    await expect(refreshing).rejects.toBeInstanceOf(IndexSyncAbandoned);
+    expect(written).toEqual([]);
+    expect(ended).toBe(1);
+  });
+
+  it('says why the notes were read in the window, when the deriver had to', async () => {
+    const fs = fakeVault(manyNotes(INDEX_BATCH_SIZE + 1));
+    const inWindow: NoteDeriver = {
+      begin: (notePaths) => {
+        const deriving = inThreadNoteDeriver(markdown).begin(notePaths);
+        return {
+          derive: async (files) => ({
+            ...(await deriving.derive(files)),
+            inWindow: 'The worker could not be started.',
+          }),
+          end: () => {},
+        };
+      },
+    };
+
+    const slow = await refreshIndex({ fs, index: fakeIndex().index, markdown, deriver: inWindow });
+    const usual = await refreshIndex({ fs, index: fakeIndex().index, markdown });
+
+    expect(slow.inWindow).toBe('The worker could not be started.');
+    expect(usual.inWindow).toBeNull();
   });
 });

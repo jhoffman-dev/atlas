@@ -8,7 +8,7 @@
  */
 
 import { noteTitle } from '../vault/vault-entry.ts';
-import type { VaultPath } from '../vault/vault-path.ts';
+import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import {
   logEntryHeading,
   logEntrySummary,
@@ -400,6 +400,44 @@ export function indexFailedReport({
 }): ActivityReport {
   const what = rebuilding ? 'could not be rebuilt' : 'could not be brought up to date';
   return { level: 'error', kind: 'index', message: `The index ${what}. ${problem}`, subject: null };
+}
+
+/**
+ * The index is being built on the window's own thread, because the thread
+ * meant for it could not be used: slower, and the window may hitch on a long
+ * note. Said once, so a slow index has its reason on record (#135).
+ */
+export function indexInWindowReport(reason: string): ActivityReport {
+  return {
+    level: 'warning',
+    kind: 'index',
+    message: `Indexing in the window, which is slower: the background indexer could not be used. ${reason}`,
+    subject: null,
+  };
+}
+
+/** A note the index could not take, and why. */
+export interface NoteNotIndexed {
+  readonly path: string;
+  readonly problem: string;
+}
+
+/**
+ * Notes a build of the index could not read as notes, so it holds nothing new
+ * of them (one it read before keeps what it last read): one line for however
+ * many, linked to the first so it can be opened and looked at (#135).
+ */
+export function notesNotIndexedReport(
+  failed: readonly [NoteNotIndexed, ...NoteNotIndexed[]],
+): ActivityReport {
+  const [first] = failed;
+  const count = `${failed.length} ${failed.length === 1 ? 'note' : 'notes'}`;
+  return {
+    level: 'warning',
+    kind: 'index',
+    message: `${count} could not be indexed. The first is ${first.path}: ${first.problem}`,
+    subject: noteSubject(createVaultPath(first.path)),
+  };
 }
 
 /** The writes a failed one can be, as its line says what was being done. */
