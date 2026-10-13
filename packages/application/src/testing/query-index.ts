@@ -41,9 +41,11 @@ export function atlasQueryIndex({
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                             target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);
     CREATE INDEX relations_src ON relations(src, key);
-    CREATE INDEX relations_dst ON relations(dst);
+    CREATE INDEX relations_dst ON relations(dst, src);
     CREATE TABLE tags (path TEXT NOT NULL, idx INTEGER NOT NULL, tag TEXT NOT NULL, name TEXT NOT NULL);
-    CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);`);
+    CREATE TABLE links (src TEXT NOT NULL, dst TEXT, target TEXT NOT NULL, kind TEXT NOT NULL);
+    CREATE INDEX links_src ON links(src);
+    CREATE INDEX links_dst ON links(dst, src);`);
   const paths = Object.keys(files).map(createVaultPath);
   for (const [path, text] of Object.entries(files)) {
     addNote(database, {
