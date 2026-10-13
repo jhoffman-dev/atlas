@@ -423,9 +423,9 @@ export interface NoteNotIndexed {
 }
 
 /**
- * Notes a build of the index could not read as notes, so it holds nothing of
- * them: one line for however many, linked to the first so it can be opened
- * and looked at (#135).
+ * Notes a build of the index could not read as notes, so it holds nothing new
+ * of them (one it read before keeps what it last read): one line for however
+ * many, linked to the first so it can be opened and looked at (#135).
  */
 export function notesNotIndexedReport(
   failed: readonly [NoteNotIndexed, ...NoteNotIndexed[]],
