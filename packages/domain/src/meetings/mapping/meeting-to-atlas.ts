@@ -1,6 +1,6 @@
 import { readAttendees, type Attendee } from './meeting-attendees.ts';
 import { meetingPaths } from './meeting-file-name.ts';
-import { MeetingMappingError, oneLine } from './meeting-mapping-error.ts';
+import { MeetingMappingError, oneLine, shown } from './meeting-mapping-error.ts';
 import { splitSections } from './meeting-sections.ts';
 import { nextStepsText, sectionText } from './meeting-text.ts';
 import {
@@ -88,7 +88,7 @@ const PROVIDER = /^[a-z][a-z0-9-]*$/;
 const WEB_ADDRESS = /^https?:\/\/[^\s/]\S*$/i;
 
 function required(value: unknown, field: string): string {
-  const text = oneLine(value);
+  const text = oneLine(value, field);
   if (text === '') throw new MeetingMappingError(`${field}: missing`);
   return text;
 }
@@ -96,17 +96,17 @@ function required(value: unknown, field: string): string {
 function providerOf(source: unknown): string {
   const provider = required(source, 'source').toLowerCase();
   if (!PROVIDER.test(provider)) {
-    throw new MeetingMappingError(`source: "${provider}" is not a provider name like gemini`);
+    throw new MeetingMappingError(`source: ${shown(provider)} is not a provider name like gemini`);
   }
   return provider;
 }
 
 /** The provider's link to the meeting, or null when none was given. */
 function sourceUrlOf(value: unknown): string | null {
-  const url = oneLine(value);
+  const url = oneLine(value, 'url');
   if (url === '') return null;
   if (!WEB_ADDRESS.test(url)) {
-    throw new MeetingMappingError(`url: "${url}" is not a web address (https://…)`);
+    throw new MeetingMappingError(`url: ${shown(url)} is not a web address (https://…)`);
   }
   return url;
 }
@@ -231,7 +231,7 @@ export function mapMeeting(given: MeetingFields, options: MappingOptions = {}): 
   const header: Header = {
     title,
     when,
-    kind: oneLine(fields.category),
+    kind: oneLine(fields.category, 'category'),
     provider,
     externalId,
     sourceUrl: sourceUrlOf(fields.url),

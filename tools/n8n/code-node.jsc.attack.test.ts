@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { mapGranolaNote } from '@atlas/domain';
+import { mapGranolaNote, mapMeeting } from '@atlas/domain';
 import { codeNodeScript } from './code-node.ts';
 
 /*
@@ -57,12 +57,13 @@ const scheduled = (start: string) => ({
   },
 });
 
+const GRANOLA_RUN = `const OPTIONS = ${JSON.stringify(OPTIONS)};\nreturn mapGranolaNote($json, OPTIONS);`;
+const MEETING_RUN = `return mapMeeting($json, { timeZone: '${OPTIONS.timeZone}', groupAddresses: [] });`;
+
 /** The compiled Code-node script run under JavaScriptCore, each note's file or refusal. */
-function inJavaScriptCore(notes: readonly unknown[]): unknown[] {
+function inJavaScriptCore(notes: readonly unknown[], run = GRANOLA_RUN): unknown[] {
   const dir = mkdtempSync(join(tmpdir(), 'atlas-jsc-'));
-  const script = codeNodeScript(
-    `const OPTIONS = ${JSON.stringify(OPTIONS)};\nreturn mapGranolaNote($json, OPTIONS);`,
-  );
+  const script = codeNodeScript(run);
   const driver = [
     `function mapInNode($json) {\n${script}\n}`,
     `const notes = ${JSON.stringify(notes)};`,
@@ -85,9 +86,42 @@ describe.skipIf(!existsSync(JSC))('a Granola note mapped in the webview’s engi
   it.each([
     ['a lowercase t and z (RFC 3339 §5.6)', '2026-10-06t17:00:00z'],
     ['a 60th second', '2026-10-06T17:00:60Z'],
+    ['30 February', '2026-02-30T17:00:00Z'],
+    ['29 February in a leap year', '2028-02-29T17:00:00Z'],
+    ['a fraction finer than a millisecond', '2026-10-06T17:00:00.9999999Z'],
+    ['a half-hour offset', '2026-10-06T22:30:00+05:30'],
+    ['an offset of 24 hours', '2026-10-06T17:00:00+24:00'],
   ])('with %s is written byte for byte as Node writes it', (_, start) => {
     const note = scheduled(start);
     const [webview] = inJavaScriptCore([note]);
     expect(webview).toEqual(inApp(note));
+  });
+});
+
+describe.skipIf(!existsSync(JSC))('a meeting’s instant mapped in the webview’s engine', () => {
+  const MEETING = {
+    title: 'Larkspur Payroll weekly sync',
+    source: 'gemini',
+    sourceId: 'doc-7f3a',
+    summary: 'Agreed.',
+  };
+  function inNode(meeting: unknown): unknown {
+    try {
+      return {
+        ...mapMeeting(meeting as never, { timeZone: OPTIONS.timeZone, groupAddresses: [] }),
+      };
+    } catch (error) {
+      return `${(error as Error).name}: ${(error as Error).message}`;
+    }
+  }
+
+  it.each([
+    ['a 60th second', '2026-10-06T17:00:60Z'],
+    ['a lowercase t and z', '2026-10-06t17:00:00z'],
+    ['an offset with no colon', '2026-10-06 17:00:00-0700'],
+  ])('with %s is written byte for byte as Node writes it', (_, date) => {
+    const meeting = { ...MEETING, date };
+    const [webview] = inJavaScriptCore([meeting], MEETING_RUN);
+    expect(webview).toEqual(inNode(meeting));
   });
 });

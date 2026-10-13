@@ -185,6 +185,43 @@ describe('when the meeting was', () => {
   it('refuses a zone that is not one', () => {
     expect(() => fieldsOf(NOTE, 'Mars/Olympus_Mons')).toThrow(MeetingMappingError);
   });
+
+  it('reads a lowercase t and z as RFC 3339 allows, the same as uppercase', () => {
+    const upper = { ...NOTE, calendar_event: calendar('2026-10-06T17:00:00Z', null) };
+    const lower = { ...NOTE, calendar_event: calendar('2026-10-06t17:00:00z', null) };
+    expect(fieldsOf(lower)).toMatchObject({ date: '2026-10-06', start: '10:00' });
+    expect(fileOf(lower)).toBe(fileOf(upper));
+  });
+
+  it.each([
+    ['30 February', '2026-02-30T17:00:00Z'],
+    ['29 February outside a leap year', '2026-02-29T17:00:00Z'],
+    ['29 February in a century year that is not a leap year', '2100-02-29T17:00:00Z'],
+    ['31 April', '2026-04-31T17:00:00Z'],
+    ['a 13th month', '2026-13-01T17:00:00Z'],
+    ['a 24th hour', '2026-10-06T24:00:00Z'],
+    ['a leap second, which is refused rather than clamped', '2026-12-31T23:59:60Z'],
+    ['an offset past 23:59', '2026-10-06T17:00:00+24:00'],
+  ])('does not read %s as the calendar’s time, and falls back to the turns', (_, start) => {
+    const note = { ...NOTE, calendar_event: calendar(start, null) };
+    expect(fieldsOf(note)).toMatchObject({ date: '2026-10-06', start: '10:01' });
+  });
+
+  it.each([
+    ['29 February in a leap year', '2028-02-29T17:00:00Z', '2028-02-29', '09:00'],
+    ['29 February in 2000, a leap century', '2000-02-29T17:00:00Z', '2000-02-29', '09:00'],
+    ['31 December', '2026-12-31T23:59:59Z', '2026-12-31', '15:59'],
+    ['a half-hour offset', '2026-10-06T22:30:00+05:30', '2026-10-06', '10:00'],
+    ['a negative offset', '2026-10-06T10:00:00-07:00', '2026-10-06', '10:00'],
+  ])('reads %s', (_, start, date, time) => {
+    const note = { ...NOTE, calendar_event: calendar(start, null) };
+    expect(fieldsOf(note)).toMatchObject({ date, start: time });
+  });
+
+  it('cuts a fraction of a second to the millisecond, never rounding it up', () => {
+    const note = { ...NOTE, transcript: [item({}, 'Hi.', '2026-10-06T17:01:05.99999Z')] };
+    expect(turnsOf(note)[0]?.['time']).toBe('10:01:05');
+  });
 });
 
 describe('the turns', () => {
@@ -382,6 +419,28 @@ describe('who was there, and what was said about it', () => {
     expect(() => fileOf({ ...NOTE, title: null })).toThrow(/title: missing/);
     expect(() => fileOf({ ...NOTE, id: undefined })).toThrow(/sourceId: missing/);
   });
+
+  it.each([
+    ['null', null],
+    ['blank', '  \n '],
+  ])('takes the calendar event’s title, trimmed, when the note’s is %s', (_, title) => {
+    const event = { ...calendar('2026-10-06T17:00:00Z', null), event_title: '  Renewal sync ' };
+    const note = { ...NOTE, title, calendar_event: event };
+    expect(fieldsOf(note)['title']).toBe('  Renewal sync ');
+    expect(fileOf(note)).toContain("title: 'Renewal sync'");
+  });
+
+  it('keeps the note’s own title over the calendar event’s', () => {
+    const note = { ...NOTE, calendar_event: calendar('2026-10-06T17:00:00Z', null) };
+    expect(fileOf(note)).toContain("title: 'Larkspur Payroll renewal'");
+  });
+
+  it('refuses a note with no title of its own and a blank or missing event title', () => {
+    const blank = { ...calendar('2026-10-06T17:00:00Z', null), event_title: '   ' };
+    expect(() => fileOf({ ...NOTE, title: '', calendar_event: blank })).toThrow(/title: missing/);
+    const none = { ...calendar('2026-10-06T17:00:00Z', null), event_title: null };
+    expect(() => fileOf({ ...NOTE, title: null, calendar_event: none })).toThrow(/title: missing/);
+  });
 });
 
 describe('a note that is not shaped as Granola documents it', () => {
@@ -412,6 +471,68 @@ describe('a note that is not shaped as Granola documents it', () => {
   ])('is refused for %s', (_, change, message) => {
     expect(() => fieldsOf({ ...NOTE, ...change })).toThrow(MeetingMappingError);
     expect(() => fieldsOf({ ...NOTE, ...change })).toThrow(message);
+  });
+});
+
+describe('a refusal’s message, which n8n emails and the pull logs', () => {
+  const CONTENT = 'Confidential renewal terms. ';
+
+  it.each([
+    ['summary_markdown', { summary_markdown: { markdown: CONTENT } }],
+    ['summary_text', { summary_markdown: null, summary_text: { text: CONTENT } }],
+    ['private_notes_markdown', { private_notes_markdown: [{ text: CONTENT }] }],
+    ['private_notes_text', { private_notes_text: { text: CONTENT } }],
+    ['title', { title: { text: CONTENT } }],
+    ['calendar_event.event_title', { title: null, calendar_event: { event_title: { CONTENT } } }],
+    ['owner.email', { owner: { email: { CONTENT } } }],
+    ['owner.name', { owner: { name: { CONTENT } } }],
+    ['transcript[0].text', { transcript: [item({}, { CONTENT } as never, null)] }],
+    ['transcript[0].speaker.name', { transcript: [item({ name: { CONTENT } }, 'Hi.', null)] }],
+  ])('names %s when it is not text, and shows only its type', (field, change) => {
+    expect(() => fileOf({ ...NOTE, ...change })).toThrow(
+      new MeetingMappingError(`${field}: expected text, got object`),
+    );
+  });
+
+  it('cuts an echoed value short', () => {
+    const url = `ftp://example.com/${CONTENT.repeat(100)}`;
+    let message = '';
+    try {
+      fileOf({ ...NOTE, web_url: url });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toBe(
+      `url: ${JSON.stringify(`${url.slice(0, 40)}…`)} is not a web address (https://…)`,
+    );
+  });
+});
+
+describe('the caller’s options, which n8n hands over untyped', () => {
+  it('are checked by granolaNoteToFields on its own too, which is exported', () => {
+    expect(() => granolaNoteToFields(NOTE, undefined as never)).toThrow(
+      new MeetingMappingError('options: expected an object'),
+    );
+    expect(() => granolaNoteToFields(NOTE, { selfEmails: SELF } as never)).toThrow(
+      /^options\.timeZone: missing/,
+    );
+  });
+
+  it.each([
+    ['no options at all', undefined, /^options: expected an object$/],
+    ['no zone', { ...OPTIONS, timeZone: undefined }, /^options\.timeZone: missing/],
+    ['an empty zone', { ...OPTIONS, timeZone: '' }, /^options\.timeZone: missing/],
+    ['a blank zone', { ...OPTIONS, timeZone: '  ' }, /^options\.timeZone: missing/],
+    ['a zone that is not text', { ...OPTIONS, timeZone: 7 }, /^options\.timeZone: missing/],
+    ['no selfEmails', { ...OPTIONS, selfEmails: undefined }, /^options\.selfEmails: expected/],
+    ['selfEmails as text', { ...OPTIONS, selfEmails: 'a@example.com' }, /^options\.selfEmails/],
+    ['selfEmails with a number', { ...OPTIONS, selfEmails: [7] }, /^options\.selfEmails/],
+    ['no groupAddresses', { ...OPTIONS, groupAddresses: undefined }, /^options\.groupAddresses/],
+    ['groupAddresses as text', { ...OPTIONS, groupAddresses: 'x' }, /^options\.groupAddresses/],
+  ])('refuses %s by name, never falling back to the host’s zone', (_, options, message) => {
+    const map = () => mapGranolaNote(NOTE, options as never);
+    expect(map).toThrow(MeetingMappingError);
+    expect(map).toThrow(message);
   });
 });
 

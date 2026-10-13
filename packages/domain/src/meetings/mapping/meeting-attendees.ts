@@ -76,10 +76,14 @@ function fromLine(line: string, groupAddresses: Set<string>): Read | null {
 }
 
 function fromRecord(record: Record<string, unknown>, groupAddresses: Set<string>) {
-  return attendee(oneLine(record.name), oneLine(record.email), {
-    explicitGroup: record.group === true,
-    groupAddresses,
-  });
+  return attendee(
+    oneLine(record.name, 'attendees.name'),
+    oneLine(record.email, 'attendees.email'),
+    {
+      explicitGroup: record.group === true,
+      groupAddresses,
+    },
+  );
 }
 
 /** CRLF, LF, or a lone CR, as the prose sections read them. */

@@ -1,4 +1,4 @@
-import { MeetingMappingError, oneLine } from './meeting-mapping-error.ts';
+import { MeetingMappingError, oneLine, shown } from './meeting-mapping-error.ts';
 import { fencedLines, isBoilerplate, textLines } from './meeting-text.ts';
 
 /** One speaker turn, before it is written. */
@@ -217,20 +217,20 @@ function clockOf(value: unknown): TranscriptClock {
   if (value === null || value === undefined || value === '') return 'elapsed';
   const clock = CLOCKS.find((each) => each === value);
   if (clock === undefined) {
-    throw new MeetingMappingError(`clock: ${JSON.stringify(value)} is not one of elapsed, wall`);
+    throw new MeetingMappingError(`clock: ${shown(value)} is not one of elapsed, wall`);
   }
   return clock;
 }
 
 /** A turn's time as the clock counts it: a time of day on a wall clock, else time since the start. */
 function turnTime(value: unknown, clock: TranscriptClock, field: string): string | null {
-  const text = oneLine(value);
+  const text = oneLine(value, field);
   if (text === '') return null;
   const time = padded(text);
   const valid = clock === 'wall' ? WALL_TIME : ELAPSED_TIME;
   if (valid.test(time)) return time;
   const counts = clock === 'wall' ? 'a time of day' : 'a time like 00:09:44';
-  throw new MeetingMappingError(`${field}: "${text}" is not ${counts}`);
+  throw new MeetingMappingError(`${field}: ${shown(text)} is not ${counts}`);
 }
 
 function structuredTurn(value: unknown, at: number, clock: TranscriptClock): Turn {
@@ -239,10 +239,10 @@ function structuredTurn(value: unknown, at: number, clock: TranscriptClock): Tur
   }
   const turn = value as Record<string, unknown>;
   return {
-    speaker: speakerName(oneLine(turn['speaker'])),
+    speaker: speakerName(oneLine(turn['speaker'], `turns[${at}].speaker`)),
     time: turnTime(turn['time'], clock, `turns[${at}].time`),
     approximate: turn['approximate'] === true,
-    words: oneLine(turn['words']),
+    words: oneLine(turn['words'], `turns[${at}].words`),
   };
 }
 

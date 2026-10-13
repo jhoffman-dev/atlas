@@ -1,4 +1,5 @@
-import { MeetingMappingError } from './meeting-mapping-error.ts';
+import { rfc3339Instant } from './meeting-instant.ts';
+import { MeetingMappingError, shown } from './meeting-mapping-error.ts';
 import { zoneOffsetMinutes, type StatedWhen } from './meeting-stated.ts';
 
 /** When a meeting was: the day, its local start, and its end when known. */
@@ -19,7 +20,7 @@ interface Moment {
 const NOTHING: Moment = { day: null, time: null };
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DATE_TIME =
-  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i;
+  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(Z|[+-]\d{2}:?\d{2})?$/i;
 const CLOCK = /^(\d{1,2})[:.](\d{2})(?::\d{2})?\s*([ap])?\.?m?\.?$/i;
 
 /** `2026-09-29`, when it is a day the calendar has (no 30 February). */
@@ -60,7 +61,9 @@ function zoneClock(timeZone: string): Intl.DateTimeFormat {
       hourCycle: 'h23',
     });
   } catch {
-    throw new MeetingMappingError(`"${timeZone}" is not a time zone (try "America/Los_Angeles")`);
+    throw new MeetingMappingError(
+      `${shown(timeZone)} is not a time zone (try "America/Los_Angeles")`,
+    );
   }
 }
 
@@ -99,7 +102,7 @@ function inZone(instant: Date, timeZone: string): Moment {
  * UTC clock time would put a 17:02 meeting at 00:02 the next day.
  */
 function dateTime(match: RegExpExecArray, field: string, timeZone: string | null): Moment {
-  const [text, day = '', hours = '', minutes = '', offset] = match;
+  const [text, day = '', hours = '', minutes = '', seconds = '00', offset] = match;
   if (realDay(day) === null) throw new MeetingMappingError(`${field}: ${day} is not a real day`);
   const time = clockTime(`${hours}:${minutes}`);
   if (time === null) {
@@ -111,15 +114,13 @@ function dateTime(match: RegExpExecArray, field: string, timeZone: string | null
       `${field}: ${text} is an instant (it ends in Z or an offset) and there is no time zone to read it in; set timeZone`,
     );
   }
-  const iso = text
-    .replace(' ', 'T')
-    .toUpperCase()
-    .replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
-  const instant = new Date(iso);
-  if (Number.isNaN(instant.getTime())) {
-    throw new MeetingMappingError(`${field}: cannot read "${text}" as an instant`);
+  const zone = offset.toUpperCase().replace(/^([+-]\d{2})(\d{2})$/, '$1:$2');
+  // Read by our own rules, not the engine's: V8 and JavaScriptCore differ on a 60th second.
+  const instant = rfc3339Instant(`${day}T${hours}:${minutes}:${seconds}${zone}`);
+  if (instant === null) {
+    throw new MeetingMappingError(`${field}: cannot read ${shown(text)} as an instant`);
   }
-  return inZone(instant, timeZone);
+  return inZone(new Date(instant), timeZone);
 }
 
 function readMoment(value: unknown, field: string, timeZone: string | null): Moment {
@@ -129,7 +130,7 @@ function readMoment(value: unknown, field: string, timeZone: string | null): Mom
     return readMoment(value.toISOString(), field, timeZone);
   }
   if (typeof value !== 'string') {
-    throw new MeetingMappingError(`${field}: expected text, got ${JSON.stringify(value)}`);
+    throw new MeetingMappingError(`${field}: expected text, got ${shown(value)}`);
   }
   const text = value.trim();
   const full = DATE_TIME.exec(text);
@@ -141,7 +142,7 @@ function readMoment(value: unknown, field: string, timeZone: string | null): Mom
   }
   const time = clockTime(text);
   if (time !== null) return { day: null, time };
-  throw new MeetingMappingError(`${field}: cannot read "${text}" as a date or a time`);
+  throw new MeetingMappingError(`${field}: cannot read ${shown(text)} as a date or a time`);
 }
 
 /** What the mapping reads the meeting's time from. */

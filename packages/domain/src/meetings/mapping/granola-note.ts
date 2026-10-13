@@ -1,3 +1,4 @@
+import { rfc3339Instant } from './meeting-instant.ts';
 import { MeetingMappingError, oneLine } from './meeting-mapping-error.ts';
 import { mapMeeting, type MeetingFields, type MeetingFile } from './meeting-to-atlas.ts';
 import type { Turn } from './meeting-transcript.ts';
@@ -30,12 +31,6 @@ export interface GranolaFileOptions extends GranolaMappingOptions {
 
 type JsonRecord = Readonly<Record<string, unknown>>;
 
-/**
- * An RFC 3339 instant, which Granola sends every time as. One without an
- * offset is not read: `Date.parse` would take it on the Mac's own clock.
- */
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i;
-
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -57,16 +52,40 @@ function recordAt(value: unknown, field: string): JsonRecord {
   return value;
 }
 
-/** Milliseconds since the epoch, or null when absent or not an instant. */
+/**
+ * Milliseconds since the epoch, or null when absent or not an RFC 3339
+ * instant, which Granola sends every time as. One without an offset is not
+ * read: it would be taken on the Mac's own clock.
+ */
 function instantOf(value: unknown): number | null {
-  if (typeof value !== 'string' || !INSTANT.test(value)) return null;
-  const instant = Date.parse(value);
-  return Number.isNaN(instant) ? null : instant;
+  return typeof value === 'string' ? rfc3339Instant(value) : null;
 }
 
-/** The first of the values with text in it: Granola's markdown, else its plain text. */
-function firstWithText(...values: readonly unknown[]): unknown {
-  return values.find((value) => oneLine(value) !== '') ?? null;
+/** The first of the fields with text in it (Granola's markdown, else its plain text); null for none. */
+function firstWithText(...fields: readonly (readonly [field: string, value: unknown])[]): unknown {
+  return fields.find(([field, value]) => oneLine(value, field) !== '')?.[1] ?? null;
+}
+
+/** A list-of-addresses option, refused by name when it is not one: n8n hands over whatever OPTIONS holds. */
+function addressesOption(value: unknown, option: string): readonly string[] {
+  if (!Array.isArray(value) || !value.every((each) => typeof each === 'string')) {
+    throw new MeetingMappingError(`options.${option}: expected a list of addresses`);
+  }
+  return value;
+}
+
+function timeZoneOption(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new MeetingMappingError(
+      'options.timeZone: missing (the zone the meeting’s times are written in, like "America/Los_Angeles")',
+    );
+  }
+  return value;
+}
+
+function optionsRecord(value: unknown): JsonRecord {
+  if (!isRecord(value)) throw new MeetingMappingError('options: expected an object');
+  return value;
 }
 
 /**
@@ -75,10 +94,10 @@ function firstWithText(...values: readonly unknown[]): unknown {
  */
 function noteTakerOf(note: JsonRecord, selfEmails: readonly string[]): string {
   const owner = optionalRecord(note['owner'], 'owner');
-  const email = oneLine(owner?.['email']).toLowerCase();
+  const email = oneLine(owner?.['email'], 'owner.email').toLowerCase();
   const self = selfEmails.some((each) => each.trim().toLowerCase() === email);
   if (email !== '' && self) return 'You';
-  return oneLine(owner?.['name']) || 'Unknown';
+  return oneLine(owner?.['name'], 'owner.name') || 'Unknown';
 }
 
 /** How the turns are read: on the zone's clock, with `me` named as the note's owner. */
@@ -90,7 +109,7 @@ interface TurnReading {
 /** Who spoke: the name Granola resolved, else the note's owner for `me`, else Unknown. */
 function speakerOf(value: unknown, field: string, noteTaker: string): string {
   const speaker = optionalRecord(value, field);
-  const name = oneLine(speaker?.['name']);
+  const name = oneLine(speaker?.['name'], `${field}.name`);
   if (name !== '') return name;
   return speaker?.['attribution'] === 'me' ? noteTaker : 'Unknown';
 }
@@ -111,7 +130,7 @@ function readItem(value: unknown, at: number, { clock, noteTaker }: TurnReading)
       speaker: speakerOf(item['speaker'], `transcript[${at}].speaker`, noteTaker),
       time: began === null ? null : clock(began).time,
       approximate: false,
-      words: oneLine(item['text']),
+      words: oneLine(item['text'], `transcript[${at}].text`),
     },
     began,
     // A turn that ends before it starts ends, for the meeting, when it starts.
@@ -119,13 +138,20 @@ function readItem(value: unknown, at: number, { clock, noteTaker }: TurnReading)
   };
 }
 
-/** The earliest (`Math.min`) or latest (`Math.max`) of the times known; null when none is. */
+/**
+ * The earliest (`Math.min`) or latest (`Math.max`) of the times known; null
+ * when none is. Taken pairwise: spread into `Math.min`, a long meeting's
+ * turns overflow the engine's argument limit.
+ */
 function extreme(
-  pick: (...times: number[]) => number,
+  pick: (a: number, b: number) => number,
   times: readonly (number | null)[],
 ): number | null {
-  const known = times.filter((time): time is number => time !== null);
-  return known.length === 0 ? null : pick(...known);
+  let found: number | null = null;
+  for (const time of times) {
+    if (time !== null) found = found === null ? time : pick(found, time);
+  }
+  return found;
 }
 
 /**
@@ -167,19 +193,33 @@ function attendeesOf(note: JsonRecord, event: JsonRecord | null): unknown[] {
 }
 
 /**
+ * The meeting's title: the note's, else its calendar event's. With neither,
+ * the mapper refuses it as `title: missing`.
+ */
+function titleOf(note: JsonRecord, event: JsonRecord | null): unknown {
+  return firstWithText(
+    ['title', note['title']],
+    ['calendar_event.event_title', event?.['event_title']],
+  );
+}
+
+/**
  * The note as the mapper's fields, its times on the clock of `timeZone`
  * (see {@link spanOf} for the meeting's start and end). Each turn is
  * named by the speaker's resolved name, else — for `me` — the note's owner
- * (`You` when that is the vault's person), else `Unknown`, and stamped with its time of day on the zone's clock. The
- * attendees and the invitees are merged by address; the summary is the
- * markdown one, else the plain text; the owner's private notes are Notes.
- * A turn with no words is dropped. A field the mapper requires (`title`,
- * the id) is left for it to refuse, by name.
+ * (`You` when that is the vault's person), else `Unknown`, and stamped with
+ * its time of day on the zone's clock. The attendees and the invitees are
+ * merged by address; the summary is the markdown one, else the plain text;
+ * the owner's private notes are Notes. A turn with no words is dropped. The
+ * title is the note's, else the calendar event's. A field the mapper
+ * requires (`title`, the id) is left for it to refuse, by name. Options
+ * that are missing or of the wrong kind are refused by name too: n8n's Code
+ * node is untyped, and a missing zone would otherwise be the host's.
  */
-export function granolaNoteToFields(
-  value: unknown,
-  { timeZone, selfEmails }: GranolaMappingOptions,
-): MeetingFields {
+export function granolaNoteToFields(value: unknown, options: GranolaMappingOptions): MeetingFields {
+  const given = optionsRecord(options);
+  const timeZone = timeZoneOption(given['timeZone']);
+  const selfEmails = addressesOption(given['selfEmails'], 'selfEmails');
   if (!isRecord(value)) throw new MeetingMappingError('the Granola note: expected an object');
   const note = value;
   const clock = wallClockIn(timeZone);
@@ -191,13 +231,19 @@ export function granolaNoteToFields(
   const { start, end } = spanOf(event, items);
   const began = clock(start);
   return {
-    title: note['title'],
+    title: titleOf(note, event),
     date: began.day,
     start: began.time.slice(0, 5),
     end: end === null ? null : clock(end).time.slice(0, 5),
     attendees: attendeesOf(note, event),
-    summary: firstWithText(note['summary_markdown'], note['summary_text']),
-    details: firstWithText(note['private_notes_markdown'], note['private_notes_text']),
+    summary: firstWithText(
+      ['summary_markdown', note['summary_markdown']],
+      ['summary_text', note['summary_text']],
+    ),
+    details: firstWithText(
+      ['private_notes_markdown', note['private_notes_markdown']],
+      ['private_notes_text', note['private_notes_text']],
+    ),
     turns: items.map((item) => item.turn),
     clock: 'wall',
     source: 'granola',
@@ -212,7 +258,7 @@ export function granolaNoteToFields(
  * setting to a default the other does not share.
  */
 export function mapGranolaNote(note: unknown, options: GranolaFileOptions): MeetingFile {
-  return mapMeeting(granolaNoteToFields(note, options), {
-    groupAddresses: options.groupAddresses,
-  });
+  const given = optionsRecord(options);
+  const groupAddresses = addressesOption(given['groupAddresses'], 'groupAddresses');
+  return mapMeeting(granolaNoteToFields(note, options), { groupAddresses });
 }

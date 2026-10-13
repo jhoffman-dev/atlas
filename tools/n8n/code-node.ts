@@ -12,6 +12,7 @@ const MAPPING = '../../packages/domain/src/meetings/mapping/';
  */
 const MODULES = [
   `${MAPPING}meeting-mapping-error.ts`,
+  `${MAPPING}meeting-instant.ts`,
   `${MAPPING}meeting-stated.ts`,
   `${MAPPING}meeting-when.ts`,
   `${MAPPING}meeting-attendees.ts`,
