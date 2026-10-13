@@ -14,6 +14,12 @@ export interface UnreadNote {
 export interface NoteDerivation {
   readonly notes: readonly IndexedNote[];
   readonly failed: readonly UnreadNote[];
+  /**
+   * Said when the notes were read on the window's own thread because the
+   * thread meant for it could not be used, with why: slower, and worth telling
+   * the user once (#135).
+   */
+  readonly inWindow?: string;
 }
 
 /** One build's worth of deriving: every batch is resolved against the same notes. */

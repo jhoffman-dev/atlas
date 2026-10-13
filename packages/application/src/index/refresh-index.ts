@@ -17,7 +17,7 @@ import type { VaultFsPort } from '../vault/ports.ts';
 import { listVaultNoteFiles } from '../vault/read-vault.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { inThreadNoteDeriver, type NoteDeriver, type UnreadNote } from './note-deriver.ts';
-import type { IndexedNote, IndexEntry, IndexPort } from './ports.ts';
+import type { IndexedNote, IndexEntry, IndexPort, IndexWriteScope } from './ports.ts';
 
 /**
  * Notes are read, derived and written a batch at a time. A batch crosses to
@@ -41,8 +41,16 @@ export interface IndexRefresh {
   readonly unchanged: number;
   /** Each note added, changed or removed since `previous` (P28-03); none when nothing was. */
   readonly changes: readonly NoteChange[];
-  /** The stale notes that could not be read as notes, which the index does not hold (#135). */
+  /**
+   * The stale notes that could not be read as notes (#135). Nothing is
+   * written for one: a note the index has never held stays out of it, and a
+   * note it does hold keeps the rows of the last version that could be read,
+   * so it can still be found while it is torn. Each is tried again by the
+   * next refresh.
+   */
   readonly failed: readonly UnreadNote[];
+  /** Why the notes were read on the window's thread, when they had to be; null when they were not. */
+  readonly inWindow: string | null;
 }
 
 export interface RefreshOptions {
@@ -59,6 +67,14 @@ export interface RefreshOptions {
    * is no longer the one open, and the build stops with `IndexSyncAbandoned`.
    */
   stillWanted?: () => boolean;
+  /**
+   * Aborted when the build is no longer wanted, for a build that is waiting
+   * and cannot ask: one held up reading a batch stops at once rather than
+   * when the batch comes back.
+   */
+  abandoned?: AbortSignal;
+  /** The vault being indexed, named on every write so the host can refuse one that arrives late. */
+  vault?: string;
   /** Called after each batch, for showing progress on a big vault. */
   onProgress?: (done: number, total: number) => void;
   /**
@@ -85,9 +101,12 @@ export async function refreshIndex({
   markdown,
   deriver = inThreadNoteDeriver(markdown),
   stillWanted = () => true,
+  abandoned,
+  vault,
   onProgress,
   previous,
 }: RefreshOptions): Promise<IndexRefresh> {
+  const scope = vault === undefined ? undefined : { vault };
   const notes = await listVaultNoteFiles({ fs });
   const current = new Map<string, (typeof notes)[number]>(
     notes.map((note) => [note.path as string, note]),
@@ -100,7 +119,7 @@ export async function refreshIndex({
   });
 
   const removed = [...known.keys()].filter((path) => !current.has(path));
-  if (removed.length > 0) await index.remove(removed.map(createVaultPath));
+  if (removed.length > 0) await index.remove(removed.map(createVaultPath), scope);
 
   // A note made or gone can change which note an unchanged note's relation means.
   const added = [...current.keys()].filter((path) => !known.has(path));
@@ -115,21 +134,24 @@ export async function refreshIndex({
   }
 
   const notePaths = [...current.keys()].map(createVaultPath);
-  const { reread, failed } = await indexNotes({
+  const { reread, failed, inWindow } = await indexNotes({
     fs,
     index,
     deriver,
     stillWanted,
+    ...(abandoned !== undefined && { abandoned }),
+    ...(scope !== undefined && { scope }),
     notePaths,
     stale,
     ...(onProgress !== undefined && { onProgress }),
   });
 
   return {
-    indexed: stale.length,
+    indexed: stale.length - failed.length,
     removed: removed.length,
     unchanged: current.size - stale.length,
     failed,
+    inWindow,
     changes: noteChangesBetween(
       previous ?? known,
       versionsNow({ paths: current.keys(), reread, known, previous: previous ?? known }),
@@ -198,18 +220,22 @@ async function indexNotes({
   index,
   deriver,
   stillWanted,
+  abandoned,
+  scope,
   notePaths,
   stale,
   onProgress,
 }: Required<Pick<RefreshOptions, 'fs' | 'index' | 'deriver' | 'stillWanted'>> &
-  Pick<RefreshOptions, 'onProgress'> & {
+  Pick<RefreshOptions, 'onProgress' | 'abandoned'> & {
+    scope?: IndexWriteScope;
     notePaths: readonly VaultPath[];
     stale: readonly { path: VaultPath }[];
-  }): Promise<{ reread: Map<string, IndexedNote>; failed: UnreadNote[] }> {
+  }): Promise<{ reread: Map<string, IndexedNote>; failed: UnreadNote[]; inWindow: string | null }> {
   const reread = new Map<string, IndexedNote>();
   const failed: UnreadNote[] = [];
+  let inWindow: string | null = null;
   const abandonIfUnwanted = () => {
-    if (!stillWanted()) throw new IndexSyncAbandoned();
+    if (abandoned?.aborted === true || !stillWanted()) throw new IndexSyncAbandoned();
   };
   const deriving = deriver.begin(notePaths);
   try {
@@ -219,18 +245,34 @@ async function indexNotes({
       const files = await fs.readNotes(batch.map((note) => note.path));
       // The host answers for whichever vault is open: read after a switch, these are not this vault's.
       abandonIfUnwanted();
-      const derived = await deriving.derive(files);
+      const derived = await unlessAbandoned(deriving.derive(files), abandoned);
       abandonIfUnwanted();
-      await index.put(derived.notes);
+      await index.put(derived.notes, scope).catch((cause: unknown) => {
+        // Refused by the host because the vault changed under it: given up, not failed.
+        abandonIfUnwanted();
+        throw cause;
+      });
       for (const note of derived.notes) reread.set(note.path, note);
       failed.push(...derived.failed);
+      inWindow ??= derived.inWindow ?? null;
 
       onProgress?.(Math.min(offset + INDEX_BATCH_SIZE, stale.length), stale.length);
     }
   } finally {
     deriving.end();
   }
-  return { reread, failed };
+  return { reread, failed, inWindow };
+}
+
+/** What `waiting` settles with, unless the build is abandoned first: then it stops waiting. */
+function unlessAbandoned<T>(waiting: Promise<T>, abandoned: AbortSignal | undefined): Promise<T> {
+  if (abandoned === undefined) return waiting;
+  return new Promise<T>((resolve, reject) => {
+    const giveUp = () => reject(new IndexSyncAbandoned());
+    if (abandoned.aborted) return giveUp();
+    abandoned.addEventListener('abort', giveUp, { once: true });
+    waiting.then(resolve, reject).finally(() => abandoned.removeEventListener('abort', giveUp));
+  });
 }
 
 /**

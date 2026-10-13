@@ -402,6 +402,20 @@ export function indexFailedReport({
   return { level: 'error', kind: 'index', message: `The index ${what}. ${problem}`, subject: null };
 }
 
+/**
+ * The index is being built on the window's own thread, because the thread
+ * meant for it could not be used: slower, and the window may hitch on a long
+ * note. Said once, so a slow index has its reason on record (#135).
+ */
+export function indexInWindowReport(reason: string): ActivityReport {
+  return {
+    level: 'warning',
+    kind: 'index',
+    message: `Indexing in the window, which is slower: the background indexer could not be used. ${reason}`,
+    subject: null,
+  };
+}
+
 /** A note the index could not take, and why. */
 export interface NoteNotIndexed {
   readonly path: string;

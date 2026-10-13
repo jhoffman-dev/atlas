@@ -113,37 +113,73 @@ describe('IPC contract', () => {
   // the window's. Building the index walks the vault, reads every note and
   // writes every row through these, so one of them left on the main thread
   // freezes the window for as long as it runs, whatever the webview does.
-  it('runs every command that builds or reads the index off the main thread', () => {
+  // Nor on the async runtime's own workers, which a blocking call parks: the
+  // local API server and every other async command share them.
+  it('runs every command that builds or reads the index on a thread of its own', () => {
     const exposed = [...commandsExposedByRust()];
     const indexing = [...exposed.filter((name) => name.startsWith('index_')), ...VAULT_READS];
     expect(indexing).toContain('index_put');
-    expect(indexing.filter((name) => threadOf(name) !== 'worker')).toEqual([]);
+    expect(indexing.filter((name) => threadOf(name) !== 'blocking pool')).toEqual([]);
   });
 
-  it('tells a main-thread command from one that is not', () => {
+  it('tells where a command runs from how it is declared', () => {
     // Saving a note is still the main thread's, where one write follows another.
     expect(threadOf('write_text_file')).toBe('main');
-    expect(threadOf('activity_read')).toBe('worker');
+    expect(threadOf('activity_read')).toBe('blocking pool');
+    const declared = (source: string) => threadDeclaredBy(source, 'probe');
+    expect(declared('#[tauri::command]\npub fn probe() {}')).toBe('main');
+    // A sync body on the runtime: off the main thread, and in the way of everything async.
+    expect(declared('#[tauri::command(async)]\npub fn probe() {}')).toBe('runtime');
+    expect(declared('#[tauri::command]\npub async fn probe() { read() }')).toBe('runtime');
+    expect(declared('#[tauri::command]\npub async fn probe() { off_main(read).await }')).toBe(
+      'blocking pool',
+    );
+    expect(
+      declared(
+        '#[tauri::command]\npub async fn probe() { tauri::async_runtime::spawn_blocking(read) }',
+      ),
+    ).toBe('blocking pool');
+    // Only its own body counts, not the next command's.
+    expect(
+      declared(
+        '#[tauri::command]\npub async fn probe() {}\n#[tauri::command]\npub async fn next() { off_main(read) }',
+      ),
+    ).toBe('runtime');
   });
 });
 
 /** The commands that walk the vault and read its notes for the index. */
 const VAULT_READS = ['list_notes', 'read_notes'];
 
-/** Where the host runs a command: its main thread, unless the command is declared async. */
-function threadOf(command: string): 'main' | 'worker' {
+type CommandThread = 'main' | 'runtime' | 'blocking pool';
+
+/**
+ * Where the host runs the command of this name declared in `source`: its main
+ * thread unless the command is async, the async runtime's workers if it is,
+ * and a thread of the blocking pool when its body hands the work there (the
+ * repo's `off_main` / `off_thread`, which wrap `spawn_blocking`). Null when
+ * the source does not declare it.
+ */
+function threadDeclaredBy(source: string, command: string): CommandThread | null {
+  const declared = new RegExp(
+    String.raw`#\[tauri::command(\(async\))?\]\s*pub (async )?fn ${command}\b`,
+  ).exec(source);
+  if (declared === null) return null;
+  if (declared[2] === undefined) return declared[1] === undefined ? 'main' : 'runtime';
+  const rest = source.slice(declared.index + declared[0].length);
+  const next = rest.search(/#\[tauri::command/);
+  const body = next === -1 ? rest : rest.slice(0, next);
+  return /\b(off_main|off_thread|spawn_blocking)\(/.test(body) ? 'blocking pool' : 'runtime';
+}
+
+function threadOf(command: string): CommandThread {
   const directory = here('../src-tauri/src');
   const sources = readdirSync(directory, { recursive: true, encoding: 'utf8' })
     .filter((file) => file.endsWith('.rs'))
     .map((file) => readFileSync(join(directory, file), 'utf8'));
-  const declared = new RegExp(
-    String.raw`#\[tauri::command(\(async\))?\]\s*pub (async )?fn ${command}\b`,
-  );
   for (const source of sources) {
-    const found = declared.exec(source);
-    if (found !== null) {
-      return found[1] !== undefined || found[2] !== undefined ? 'worker' : 'main';
-    }
+    const thread = threadDeclaredBy(source, command);
+    if (thread !== null) return thread;
   }
   throw new Error(`no #[tauri::command] named ${command} in src-tauri/src`);
 }

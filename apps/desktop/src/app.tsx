@@ -64,6 +64,7 @@ import {
   PaneFrame,
   Sidebar,
   IndexSettings,
+  indexStatusText,
   SidebarFooter,
   SyncIndicator,
   OpenFromGitHubDialog,
@@ -79,7 +80,7 @@ import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
-import { IndexStatusLine, LiveIndexSettings } from './index/index-progress.tsx';
+import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
 import { useVaultWatch } from './vault/use-vault-watch.ts';
 import { useSearch } from './index/use-search.ts';
 import { useCreateNote } from './notes/use-create-note.ts';
@@ -1740,18 +1741,17 @@ export function App({
               />
             ) : null
           }
-          status={
-            location === null ? null : (
-              <IndexStatusLine status={indexStatus} progress={indexProgress} />
-            )
-          }
+          status={location === null ? null : indexStatusText(indexStatus)}
           floating={
             location === null ? null : (
-              <QuickAdd
-                quickAdd={quickAdd}
-                overlay={{ current: overlay, show: showOverlay, hide: hideOverlay }}
-                onOpen={openNote}
-              />
+              <>
+                <IndexProgressPill status={indexStatus} progress={indexProgress} />
+                <QuickAdd
+                  quickAdd={quickAdd}
+                  overlay={{ current: overlay, show: showOverlay, hide: hideOverlay }}
+                  onOpen={openNote}
+                />
+              </>
             )
           }
           overlay={

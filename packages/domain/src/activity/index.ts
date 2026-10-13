@@ -47,6 +47,7 @@ export {
   chatReport,
   dryRunReport,
   indexFailedReport,
+  indexInWindowReport,
   indexRebuiltReport,
   meetingImportReport,
   meetingImportStoppedReport,

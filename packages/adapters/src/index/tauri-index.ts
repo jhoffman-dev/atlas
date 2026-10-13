@@ -6,6 +6,7 @@ import type {
   IndexOpening,
   IndexPort,
   IndexStats,
+  IndexWriteScope,
   QueryResult,
   SearchHit,
   SearchScope,
@@ -27,12 +28,12 @@ export const tauriIndex: IndexPort = {
     return throughHost(invoke<IndexEntry[]>('index_manifest'));
   },
 
-  async put(notes: readonly IndexedNote[]) {
-    await throughHost(invoke('index_put', { notes }));
+  async put(notes: readonly IndexedNote[], scope?: IndexWriteScope) {
+    await throughHost(invoke('index_put', { vault: scope?.vault ?? null, notes }));
   },
 
-  async remove(paths: readonly VaultPath[]) {
-    await throughHost(invoke('index_remove', { paths }));
+  async remove(paths: readonly VaultPath[], scope?: IndexWriteScope) {
+    await throughHost(invoke('index_remove', { vault: scope?.vault ?? null, paths }));
   },
 
   search(query: string, limit: number, scope: SearchScope = {}) {

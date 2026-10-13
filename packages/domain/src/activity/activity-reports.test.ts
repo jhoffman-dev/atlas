@@ -8,6 +8,7 @@ import {
   chatReport,
   dryRunReport,
   indexFailedReport,
+  indexInWindowReport,
   indexRebuiltReport,
   meetingImportReport,
   meetingImportStoppedReport,
@@ -321,6 +322,16 @@ describe('index, save and notice reports', () => {
     expect(indexFailedReport({ rebuilding: false, problem: 'locked' }).message).toBe(
       'The index could not be brought up to date. locked',
     );
+  });
+
+  it('records that the index is being built in the window, and why (#135)', () => {
+    expect(indexInWindowReport('The worker could not be started.')).toEqual({
+      level: 'warning',
+      kind: 'index',
+      message:
+        'Indexing in the window, which is slower: the background indexer could not be used. The worker could not be started.',
+      subject: null,
+    });
   });
 
   it('records the notes a build could not index, linked to the first (#135)', () => {

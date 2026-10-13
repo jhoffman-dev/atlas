@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, digestOf, notesNotIndexedReport, type NoteChange } from '@atlas/domain';
+import {
+  createVaultPath,
+  digestOf,
+  indexInWindowReport,
+  notesNotIndexedReport,
+  type NoteChange,
+} from '@atlas/domain';
 import { recordingActivity } from '../testing/fake-activity.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { deleteEntry } from '../vault/delete-entry.ts';
@@ -7,6 +13,7 @@ import { renameEntry } from '../vault/relocate-entry.ts';
 import type { OpenEditorsPort } from '../vault/ports.ts';
 import { createNoteChanges, type NoteChangeNews } from './note-changes.ts';
 import type { IndexEntry, IndexPort } from './ports.ts';
+import { inThreadNoteDeriver } from './note-deriver.ts';
 import { INDEX_BATCH_SIZE } from './refresh-index.ts';
 import { createIndexSyncer } from './sync-index.ts';
 
@@ -540,13 +547,18 @@ describe('createIndexSyncer, attacked (#135)', () => {
     },
   });
 
-  it('does not go on holding, as it was, a note that has changed and can no longer be read', async () => {
+  // The expectation here was the opposite as first written (the note dropped
+  // from the index). The coordinator decided the other way for #138, for James
+  // to overrule: a note that is torn stays findable by what it last said,
+  // and is reported once, rather than vanishing from search and every view.
+  it('goes on holding, as it last read, a note that has changed and can no longer be read', async () => {
     const vault = vaultWithIndex({ 'Idea.md': 'a spark', 'Plan.md': 'whole' });
     const unreadable = new Set<string>();
+    const activity = recordingActivity();
     const { sync } = syncerOver(
       { fs: vault.fs, index: vault.index },
       undefined,
-      recordingActivity(),
+      activity,
       tearing(unreadable),
     );
     await sync();
@@ -557,8 +569,46 @@ describe('createIndexSyncer, attacked (#135)', () => {
     vault.write('Plan.md', 'torn');
     await sync();
 
-    // `IndexRefresh.failed` is "the notes the index does not hold"; search
-    // must not go on answering with the words the note no longer has.
-    expect(vault.held.has('Plan.md')).toBe(false);
+    await sync();
+
+    // `IndexRefresh.failed` now says so: the rows of the last version that
+    // could be read are kept, and the note is said once in Activity.
+    expect(vault.held.get('Plan.md')?.digest).toBe(digestOf('whole'));
+    expect(activity.reports).toEqual([
+      notesNotIndexedReport([{ path: 'Plan.md', problem: 'unexpected end of note' }]),
+    ]);
+  });
+
+  it('says once that the index is being built in the window, however many syncs follow', async () => {
+    const vault = vaultWithIndex({ 'Idea.md': 'a spark' });
+    const markdown = fakeMarkdown();
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const syncer = createIndexSyncer({
+      fs: vault.fs,
+      index: vault.index,
+      markdown,
+      deriver: {
+        begin: (notePaths) => {
+          const deriving = inThreadNoteDeriver(markdown).begin(notePaths);
+          return {
+            derive: async (files) => ({
+              ...(await deriving.derive(files)),
+              inWindow: 'The worker could not be started.',
+            }),
+            end: () => {},
+          };
+        },
+      },
+      activity,
+      changes,
+      openVault: () => LARKSPUR,
+    });
+
+    await syncer.sync({ vault: LARKSPUR, fromScratch: false });
+    vault.write('Plan.md', 'first');
+    await syncer.sync({ vault: LARKSPUR, fromScratch: false });
+
+    expect(activity.reports).toEqual([indexInWindowReport('The worker could not be started.')]);
   });
 });

@@ -19,6 +19,7 @@ export type {
   IndexOpening,
   IndexPort,
   IndexStats,
+  IndexWriteScope,
   SearchHit,
   SearchScope,
 } from './ports.ts';

@@ -102,8 +102,8 @@ export function useIndex({
   const [status, setStatus] = useState<IndexStatus>({ kind: 'idle' });
   const [progress] = useState(createIndexProgress);
   const revision = useRef(0);
-  /** Syncs asked for and not yet settled: the one running, and any queued behind it. */
-  const waiting = useRef(0);
+  /** Syncs asked for and not yet settled, of the vault they were asked for: the one running, and any queued behind it. */
+  const waiting = useRef<{ vault: string | null; count: number }>({ vault: null, count: 0 });
   // Read by every syncer this hook has made, so one left from a vault since
   // closed drops what is still queued on it instead of reading the new vault.
   const open = useRef(vaultKey);
@@ -125,25 +125,39 @@ export function useIndex({
   const run = useCallback(
     async ({ fromScratch }: { fromScratch: boolean }) => {
       if (vaultKey === null || open.current !== vaultKey) return;
+      // Another vault's syncs are not this one's: its count starts again, and so
+      // does what the window says of how far it has got.
+      if (waiting.current.vault !== vaultKey) waiting.current = { vault: vaultKey, count: 0 };
+      const asked = waiting.current;
+      // A refresh asked for while a build runs waits its turn behind it, and
+      // must not wipe what the window says of the one under way.
+      if (asked.count === 0) progress.set(NOT_STARTED);
+      setStatus(WORKING);
+      asked.count += 1;
+      /** Whether this is the last word on the vault still open: nothing queued behind it, no switch since. */
+      const settles = () => asked.count === 0 && waiting.current === asked;
       try {
-        // A refresh asked for while a build runs waits its turn behind it, and
-        // must not wipe what the window says of the one under way.
-        if (waiting.current === 0) progress.set(NOT_STARTED);
-        setStatus(WORKING);
-        waiting.current += 1;
         const stats = await syncer
           .sync({
             vault: vaultKey,
             fromScratch,
-            onProgress: (done, total) => progress.set({ done, total }),
+            onProgress: (done, total) => {
+              // A build caught by a switch may report once more before it stops.
+              if (waiting.current === asked) progress.set({ done, total });
+            },
           })
-          .finally(() => (waiting.current -= 1));
+          .finally(() => (asked.count -= 1));
         // Dropped: the vault closed while it waited, and the one open now has its own.
         if (stats === null) return;
         revision.current += 1;
-        setStatus({ kind: 'ready', notes: stats.notes, revision: revision.current });
+        // Not "ready" while a sync queued behind this one is still to write:
+        // whatever reads the index on "ready" would read it half written (#135).
+        if (settles()) {
+          setStatus({ kind: 'ready', notes: stats.notes, revision: revision.current });
+        }
       } catch (cause) {
-        setStatus({ kind: 'failed', message: message(cause) });
+        // A sync still to come has the last word; this failure is in the Activity log.
+        if (settles()) setStatus({ kind: 'failed', message: message(cause) });
       }
     },
     [syncer, vaultKey, progress],

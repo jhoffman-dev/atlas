@@ -10,7 +10,7 @@ import {
   INDEX_BATCH_SIZE,
   recordingActivity,
 } from '@atlas/application';
-import { IndexStatusLine } from './index-progress.tsx';
+import { IndexProgressPill, LiveIndexSettings } from './index-progress.tsx';
 import { useIndex, type IndexPorts, type IndexStatus } from './use-index.ts';
 
 const VAULT = '/vaults/Larkspur';
@@ -107,29 +107,54 @@ describe('useIndex, asked to refresh while a build is running (#135)', () => {
   });
 });
 
-describe('IndexStatusLine', () => {
+describe('IndexProgressPill', () => {
   const progress = (done: number, total: number) => {
     const reached = { done, total };
     return { subscribe: () => () => {}, current: () => reached };
   };
+  const working = { kind: 'working', done: 0, total: 0 } as const;
 
   it('shows how far a build has got, from the progress rather than the status', () => {
-    render(
-      <IndexStatusLine
-        status={{ kind: 'working', done: 0, total: 0 }}
-        progress={progress(1240, 5000)}
-      />,
-    );
+    render(<IndexProgressPill status={working} progress={progress(1240, 5000)} />);
     expect(screen.getByText('Indexing 1,240 of 5,000…')).toBeDefined();
   });
 
-  it('shows the status as it is once the build is done', () => {
-    render(
-      <IndexStatusLine
+  it('is not said to a screen reader, which hears the start and the end from the status', () => {
+    render(<IndexProgressPill status={working} progress={progress(1240, 5000)} />);
+    expect(screen.getByText('Indexing 1,240 of 5,000…').getAttribute('aria-hidden')).toBe('true');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows nothing for a build of one batch, which is over before it could be read', () => {
+    const { container } = render(
+      <IndexProgressPill status={working} progress={progress(1, INDEX_BATCH_SIZE)} />,
+    );
+    expect(container.textContent).toBe('');
+  });
+
+  it('shows nothing once the build is done', () => {
+    const { container } = render(
+      <IndexProgressPill
         status={{ kind: 'ready', notes: 5000, revision: 1 }}
         progress={progress(5000, 5000)}
       />,
     );
-    expect(screen.getByText('5,000 notes indexed')).toBeDefined();
+    expect(container.textContent).toBe('');
+  });
+});
+
+describe('LiveIndexSettings', () => {
+  it('says how far a build has got, and will not start another meanwhile', () => {
+    const reached = { done: 1240, total: 5000 };
+    render(
+      <LiveIndexSettings
+        index={{ kind: 'working', done: 0, total: 0 }}
+        progress={{ subscribe: () => () => {}, current: () => reached }}
+        app={{ kind: 'loading' }}
+        onRebuild={() => {}}
+      />,
+    );
+    expect(screen.getByText('Indexing 1,240 of 5,000…')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Rebuild' }).hasAttribute('disabled')).toBe(true);
   });
 });

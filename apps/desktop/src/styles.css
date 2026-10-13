@@ -761,6 +761,25 @@ body {
   z-index: 2;
 }
 
+/* How far a build of the index has got: a line at the foot of the panels,
+   out of the way of the note and of the add button opposite. It takes no
+   clicks — whatever is under it stays reachable. */
+.index-progress {
+  background: var(--raised);
+  border-radius: var(--radius-pill);
+  bottom: calc(var(--shell-inset) + 12px);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  left: calc(var(--shell-inset) + 12px);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
 /* Which pane the next note opens in. Quiet on purpose — it answers a question
    you only ask while you are splitting, and the note is what should be read. */
 .pane--focused::before {

@@ -1,5 +1,6 @@
 import {
   indexFailedReport,
+  indexInWindowReport,
   indexRebuiltReport,
   messageWithoutPaths,
   notesNotIndexedReport,
@@ -31,8 +32,10 @@ export interface IndexSync {
   readonly changes: readonly NoteChange[];
   /** Every note as it now is: the baseline of the next sync. */
   readonly versions: ReadonlyMap<string, NoteVersion>;
-  /** The notes that could not be read as notes, which the index does not hold. */
+  /** The notes that could not be read as notes; see `IndexRefresh.failed`. */
   readonly failed: readonly UnreadNote[];
+  /** Why the notes were read on the window's thread, when they had to be. */
+  readonly inWindow: string | null;
 }
 
 /**
@@ -93,6 +96,7 @@ export async function syncIndex({
       changes: baseline === null ? [] : refresh.changes,
       versions: versionsAfter(measuredFrom, refresh.changes),
       failed: refresh.failed,
+      inWindow: refresh.inWindow,
     };
   } catch (cause) {
     if (cause instanceof IndexSyncAbandoned) throw cause;
@@ -167,7 +171,7 @@ export function createIndexSyncer({
   changes,
   openVault,
   ...ports
-}: Omit<RefreshOptions, 'onProgress' | 'previous' | 'stillWanted'> & {
+}: Omit<RefreshOptions, 'onProgress' | 'previous' | 'stillWanted' | 'abandoned' | 'vault'> & {
   activity: ActivityLog;
   /** Where each sync's changes are published, when it has any. */
   changes: NoteChanges;
@@ -177,13 +181,20 @@ export function createIndexSyncer({
   let queue: Promise<unknown> = Promise.resolve();
   let remembered: { vault: string; versions: SyncBaseline } | null = null;
   let unread: { vault: string; key: string } | null = null;
+  /** The sync under way, and the way to tell it that it is no longer wanted. */
+  let running: { vault: string; abandon: AbortController } | null = null;
+  let saidInWindow = false;
 
   const syncOnce: IndexSyncer['sync'] = async ({ vault, fromScratch, onProgress }) => {
     if (openVault() !== vault) return null;
     const previous = remembered?.vault === vault ? remembered.versions : undefined;
+    const abandon = new AbortController();
+    running = { vault, abandon };
     const synced = await syncIndex({
       ...ports,
       fromScratch,
+      vault,
+      abandoned: abandon.signal,
       stillWanted: () => openVault() === vault,
       ...(onProgress !== undefined && { onProgress }),
       ...(previous !== undefined && { previous }),
@@ -191,12 +202,21 @@ export function createIndexSyncer({
       onBaseline: (baseline) => {
         remembered = { vault, versions: baseline };
       },
-    }).catch((cause: unknown) => {
-      if (cause instanceof IndexSyncAbandoned) return null;
-      throw cause;
-    });
+    })
+      .catch((cause: unknown) => {
+        if (cause instanceof IndexSyncAbandoned) return null;
+        throw cause;
+      })
+      .finally(() => {
+        running = null;
+      });
     // What was read may have been another vault's, opened while this sync ran.
     if (synced === null || openVault() !== vault) return null;
+    // Said once, however many syncs follow: it is the app's state, not this sync's news.
+    if (synced.inWindow !== null && !saidInWindow) {
+      saidInWindow = true;
+      ports.activity.inOpenVault().record(indexInWindowReport(synced.inWindow));
+    }
     remembered = { vault, versions: synced.versions };
     unread = { vault, key: unreadKey(synced.failed) };
     if (synced.changes.length > 0) changes.publish({ vault, changes: synced.changes });
@@ -205,6 +225,10 @@ export function createIndexSyncer({
 
   return {
     sync(args) {
+      // A sync for another vault means the one running is for a vault no
+      // longer open. It is told now: it may be waiting on something that
+      // will not come back soon, and this one waits behind it (#135).
+      if (running !== null && running.vault !== args.vault) running.abandon.abort();
       const next = queue.then(() => syncOnce(args));
       // The queue only orders; each caller gets its own sync's outcome.
       queue = next.catch(() => undefined);

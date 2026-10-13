@@ -20,6 +20,9 @@ import {
  */
 const LARGE = Number(process.env.INDEX_E2E_NOTES ?? 1500);
 
+/** The longest the main thread may go without running a timer while a vault is indexed. */
+const LONGEST_TASK_MS = 200;
+
 /** A note like the ones people keep: properties, links, tags, a checklist and a block id. */
 function noteText(n: number, count: number): string {
   const paragraphs = Array.from(
@@ -148,7 +151,12 @@ test('the sidebar, Settings and an open note all answer while the vault is being
 
   // Two batches are in and the third is in flight: the build is under way, and stays so.
   const total = (count + 1).toLocaleString();
-  const underWay = page.getByText(new RegExp(`^Indexing \\d+ of ${total}…$`));
+  // The line drawn at the foot of the window, not the status a screen reader hears.
+  const underWay = page.locator('.index-progress', {
+    hasText: new RegExp(`^Indexing \\d+ of ${total}…$`),
+  });
+  // That status says only that it started: one announcement, not one per batch.
+  await expect(page.getByRole('status').filter({ hasText: /^Indexing…$/ })).toHaveCount(1);
   await expect(underWay).toBeVisible();
 
   // A sidebar row opens its note.
@@ -221,9 +229,62 @@ test('indexing a large vault leaves the main thread free', async ({ page }) => {
 
   // Every note was read for the index somewhere other than the main thread.
   expect(watch.derivedInWorker).toBe(LARGE + 1);
-  // And the main thread was the window's for the build: read on it, the notes
-  // take most of the build's time in stretches of half a second and more.
-  // A share rather than a longest stretch, so a busy machine's one slow frame
-  // is not a failure.
-  expect(stalled / took).toBeLessThan(0.2);
+  // And the main thread was the window's throughout. Read on it, the notes
+  // were one task of half a second and more per batch; the issue asks for
+  // none over about 50 ms, and it measures 12 to 14 ms here. The cap is well
+  // above that, for a busy CI machine's worst frame, and well below what it
+  // was.
+  expect(watch.longestGap).toBeLessThan(LONGEST_TASK_MS);
+});
+
+test('with no worker to read the notes, the vault is still indexed and the window still answers', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const count = 600;
+  const vault = await largeVault({ count, folders: 3 });
+  const host = await installHost(page, vault);
+  await watchMainThread(page);
+  // The window refuses to start workers, as a webview might: after the watch,
+  // so this is the `Worker` the app finds.
+  await page.addInitScript(() => {
+    if (window !== window.top) return;
+    window.Worker = class {
+      constructor() {
+        throw new Error('workers are not allowed here');
+      }
+    } as unknown as typeof Worker;
+  });
+  const release = host.holdIndexAfter(2);
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  const total = (count + 1).toLocaleString();
+  const underWay = page.locator('.index-progress', {
+    hasText: new RegExp(`^Indexing \\d+ of ${total}…$`),
+  });
+  await expect(underWay).toBeVisible();
+
+  // Mid-build, the window is still the user's.
+  await page.getByRole('treeitem', { name: 'Camping', exact: true }).click();
+  await expect(page.getByLabel('Note', { exact: true }).getByText('Pack the tent.')).toBeVisible();
+  await expect(underWay).toBeVisible();
+
+  release();
+  await expect(page.getByRole('status').filter({ hasText: `${total} notes indexed` })).toHaveCount(
+    1,
+    { timeout: 120_000 },
+  );
+
+  const watch = await watched(page);
+  // Read in the window, a note at a time with a breath between: no worker saw one.
+  expect(watch.derivedInWorker).toBe(0);
+  expect(watch.longestGap).toBeLessThan(LONGEST_TASK_MS);
+  // And it is said, once, so a slow index has its reason on record.
+  const said = host.activityLog().match(/Indexing in the window, which is slower/g) ?? [];
+  expect(said).toHaveLength(1);
+  expect(host.activityLog()).toContain('Workers are not allowed here.');
+  process.stdout.write(
+    `[index-responsive] ${count + 1} notes in the window: its longest task was ${Math.round(watch.longestGap)} ms\n`,
+  );
 });

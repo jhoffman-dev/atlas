@@ -816,4 +816,107 @@ describe('refreshIndex, with the notes derived elsewhere (#135)', () => {
     await expect(refreshIndex({ fs, index, markdown, deriver })).rejects.toThrow('disk full');
     expect(ended()).toBe(1);
   });
+
+  it('counts as indexed only the notes it could read', async () => {
+    const fs = fakeVault({
+      'a.md': { text: 'alpha', modified: 1 },
+      'broken.md': { text: 'cannot be read', modified: 1 },
+    });
+    const failing: MarkdownPort = {
+      ...markdown,
+      plainText: (body) => {
+        if (body.includes('cannot be read')) throw new Error('unexpected end of note');
+        return markdown.plainText(body);
+      },
+    };
+
+    const result = await refreshIndex({ fs, index: fakeIndex().index, markdown: failing });
+
+    expect(result).toMatchObject({ indexed: 1, unchanged: 0 });
+  });
+
+  it('names the vault on every write, so the host can refuse one that arrives late', async () => {
+    const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
+    const { index } = fakeIndex([{ path: 'gone.md', modified: 1, size: 1 }]);
+    const put = vi.fn(index.put);
+    const remove = vi.fn(index.remove);
+
+    await refreshIndex({
+      fs,
+      index: { ...index, put, remove },
+      markdown,
+      vault: '/vaults/Larkspur',
+    });
+
+    expect(put).toHaveBeenCalledWith(expect.any(Array), { vault: '/vaults/Larkspur' });
+    expect(remove).toHaveBeenCalledWith(['gone.md'], { vault: '/vaults/Larkspur' });
+  });
+
+  it('gives up, rather than fails, when the host refuses a batch for a vault since closed', async () => {
+    const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
+    const { index } = fakeIndex();
+    let wanted = true;
+    index.put = async () => {
+      wanted = false;
+      throw new Error('another vault was opened before this could be indexed');
+    };
+
+    await expect(
+      refreshIndex({ fs, index, markdown, stillWanted: () => wanted }),
+    ).rejects.toBeInstanceOf(IndexSyncAbandoned);
+  });
+
+  it('stops waiting for a batch to be derived the moment it is abandoned', async () => {
+    const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
+    const { index, written } = fakeIndex();
+    const abandon = new AbortController();
+    let ended = 0;
+    let asked = () => {};
+    const reached = new Promise<void>((resolve) => (asked = resolve));
+    const never: NoteDeriver = {
+      begin: () => ({
+        derive: () => {
+          asked();
+          return new Promise(() => {});
+        },
+        end: () => void (ended += 1),
+      }),
+    };
+
+    const refreshing = refreshIndex({
+      fs,
+      index,
+      markdown,
+      deriver: never,
+      abandoned: abandon.signal,
+    });
+    await reached;
+    abandon.abort();
+
+    await expect(refreshing).rejects.toBeInstanceOf(IndexSyncAbandoned);
+    expect(written).toEqual([]);
+    expect(ended).toBe(1);
+  });
+
+  it('says why the notes were read in the window, when the deriver had to', async () => {
+    const fs = fakeVault(manyNotes(INDEX_BATCH_SIZE + 1));
+    const inWindow: NoteDeriver = {
+      begin: (notePaths) => {
+        const deriving = inThreadNoteDeriver(markdown).begin(notePaths);
+        return {
+          derive: async (files) => ({
+            ...(await deriving.derive(files)),
+            inWindow: 'The worker could not be started.',
+          }),
+          end: () => {},
+        };
+      },
+    };
+
+    const slow = await refreshIndex({ fs, index: fakeIndex().index, markdown, deriver: inWindow });
+    const usual = await refreshIndex({ fs, index: fakeIndex().index, markdown });
+
+    expect(slow.inWindow).toBe('The worker could not be started.');
+    expect(usual.inWindow).toBeNull();
+  });
 });
