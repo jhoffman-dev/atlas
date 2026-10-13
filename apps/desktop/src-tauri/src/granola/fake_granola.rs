@@ -50,6 +50,8 @@ pub struct Granola {
     /// Every answer carries the request's Authorization header in its body,
     /// as plenty of servers echo what they were sent.
     pub echoes: bool,
+    /// How an echoed Authorization header is written, when not as it is.
+    pub echo_as: Option<fn(&str) -> String>,
     pub heard: Vec<Heard>,
 }
 
@@ -59,6 +61,7 @@ impl Default for Granola {
             key: None,
             reply: Reply::Notes,
             echoes: false,
+            echo_as: None,
             heard: Vec::new(),
         }
     }
@@ -83,7 +86,10 @@ fn answer_of(status: u16, body: impl Into<Bytes>) -> Answer {
 
 fn echo_of(granola: &Granola, authorization: &str) -> String {
     if granola.echoes {
-        format!(r#","authorization":"{authorization}""#)
+        let written = granola
+            .echo_as
+            .map_or(authorization.to_string(), |form| form(authorization));
+        format!(r#","authorization":"{written}""#)
     } else {
         String::new()
     }

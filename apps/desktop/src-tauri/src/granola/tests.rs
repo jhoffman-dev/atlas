@@ -375,3 +375,167 @@ async fn no_answer_or_failure_handed_to_the_webview_carries_the_key() {
         );
     }
 }
+
+/// Adversarial (P28-10): Granola echoing its Authorization header encoded
+/// whole. base64 of `Bearer <key>` puts the key at byte 7, off the 3-byte
+/// grid that `redact` encodes the bare key on, so no form it looks for
+/// matches, and anyone who decodes the answer reads the key.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_key_is_struck_from_an_echo_of_the_authorization_header_in_base64() {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    let setup = Setup::keyed().await;
+    setup.granola().echoes = true;
+    setup.granola().echo_as = Some(|header| STANDARD.encode(header));
+
+    let answer = setup.session().request(NOTES, &no_query()).await.unwrap();
+
+    let body: serde_json::Value = serde_json::from_str(&answer.body).unwrap();
+    let echoed = body["authorization"].as_str().unwrap_or_default();
+    let decoded = STANDARD
+        .decode(echoed)
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+        .unwrap_or_default();
+    assert!(
+        !decoded.contains(KEY),
+        "the key reached the webview as base64: {echoed} decodes to {decoded}"
+    );
+}
+
+/// Adversarial (P28-10): an echo that escapes every character, letters and
+/// digits too, with its hex in either case. Every form is legal (`g` is `g`
+/// to any JSON parser, `%67` and `%6e` to any URL decoder), but `redact`
+/// matched letters and digits only as themselves, so the key survived in the
+/// answer TypeScript parses.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_key_is_struck_from_an_echo_that_escapes_letters_and_digits() {
+    /// Upper-case hex on every other character, lower-case on the rest.
+    fn mixed(at: usize, hex: String) -> String {
+        if at % 2 == 0 {
+            hex.to_uppercase()
+        } else {
+            hex
+        }
+    }
+    fn json_escaped(header: &str) -> String {
+        header
+            .chars()
+            .map(|c| format!("\\u{:04x}", c as u32))
+            .collect()
+    }
+    fn json_escaped_mixed(header: &str) -> String {
+        header
+            .chars()
+            .enumerate()
+            .map(|(at, c)| format!("\\u{}", mixed(at, format!("{:04x}", c as u32))))
+            .collect()
+    }
+    fn percent_encoded(header: &str) -> String {
+        header.bytes().map(|byte| format!("%{byte:02X}")).collect()
+    }
+    fn percent_encoded_mixed(header: &str) -> String {
+        header
+            .bytes()
+            .enumerate()
+            .map(|(at, byte)| format!("%{}", mixed(at, format!("{byte:02x}"))))
+            .collect()
+    }
+    fn json_parsed(echoed: &str) -> String {
+        echoed.to_string()
+    }
+    fn percent_decoded(echoed: &str) -> String {
+        Url::parse(&format!("http://x/?a={echoed}"))
+            .unwrap()
+            .query_pairs()
+            .next()
+            .map(|(_, value)| value.into_owned())
+            .unwrap_or_default()
+    }
+    let setup = Setup::keyed().await;
+    setup.granola().echoes = true;
+
+    for (form, read) in [
+        (
+            json_escaped as fn(&str) -> String,
+            json_parsed as fn(&str) -> String,
+        ),
+        (json_escaped_mixed, json_parsed),
+        (percent_encoded, percent_decoded),
+        (percent_encoded_mixed, percent_decoded),
+    ] {
+        setup.granola().echo_as = Some(form);
+        let answer = setup.session().request(NOTES, &no_query()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_str(&answer.body).unwrap();
+        let echoed = body["authorization"].as_str().unwrap_or_default();
+        let read = read(echoed);
+        assert!(
+            !read.contains(KEY),
+            "the echo {} reads as {read}",
+            form("Bearer grn_")
+        );
+    }
+}
+
+/// A store whose write of a key holds, once written, until let go: the
+/// moment between `set_key` keeping the new key and noting that it changed.
+struct HeldStore {
+    inner: MemoryStore,
+    written: std::sync::mpsc::SyncSender<()>,
+    let_go: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl SecretStore for HeldStore {
+    fn set(&self, account: &str, value: &str) -> Result<(), String> {
+        self.inner.set(account, value)?;
+        let _ = self.written.send(());
+        let _ = self.let_go.lock().unwrap().recv();
+        Ok(())
+    }
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        self.inner.get(account)
+    }
+    fn delete(&self, account: &str) -> Result<(), String> {
+        self.inner.delete(account)
+    }
+    fn accounts(&self) -> Result<Vec<String>, String> {
+        self.inner.accounts()
+    }
+}
+
+/// Adversarial (P28-10): a pull racing `granola_set_key`. `set_key` keeps the
+/// key before it bumps `changes`, so a request in between reads the old
+/// standing, sends the NEW key, and Granola's 401 for it is then wiped by the
+/// bump. The kept key was refused, and status says it was not.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refusal_of_the_new_key_heard_while_it_is_being_set_is_kept() {
+    let fake = FakeGranola::start().await; // honours no key: every request is 401
+    let (written, was_written) = std::sync::mpsc::sync_channel(1);
+    let (let_go, held) = std::sync::mpsc::channel();
+    let store: &'static HeldStore = Box::leak(Box::new(HeldStore {
+        inner: MemoryStore::default(),
+        written,
+        let_go: std::sync::Mutex::new(held),
+    }));
+    let state: &'static GranolaState = Box::leak(Box::default());
+    let origin: &'static Url = Box::leak(Box::new(fake.origin.clone()));
+    let session = move || Session {
+        origin,
+        store,
+        scope: VAULT,
+        state,
+    };
+
+    let setting = std::thread::spawn(move || session().set_key("grn_TheNewKey").unwrap());
+    was_written.recv().unwrap();
+    let answer = session().request(NOTES, &no_query()).await.unwrap();
+    let_go.send(()).unwrap();
+    setting.join().unwrap();
+
+    assert_eq!(answer.status, 401);
+    assert_eq!(
+        fake.granola.lock().unwrap().heard[0].authorization,
+        "Bearer grn_TheNewKey",
+        "the refused request carried the key now kept"
+    );
+    assert_eq!(session().status().unwrap().last_refusal, Some(401));
+}
