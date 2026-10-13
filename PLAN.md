@@ -383,6 +383,13 @@ A meeting written up by Gemini lands in the vault while the Mac sleeps, as a Mee
 - **P28-05** (#11) Terminology: Term type, aliases on People and Companies, and a Terms page _(after: P28-01)_
 - **P28-06** (#12) Transcript correction: deterministic, recorded and undoable _(after: P28-04, P28-05)_
 - **P28-07** (#13) One-time import of existing Notion Meeting Notes into the vault _(after: P28-02, P28-04)_
+- **P28-08** (#144) ADR-0034 and the meeting contract amendment for Granola (docs; epic #151) _(after: —)_
+- **P28-09** (#145) Domain: Granola note to MeetingFields, and the pull rules _(after: —)_
+- **P28-10** (#146) Host: `granola.rs`, a pinned GET module with the key in the Keychain _(after: —)_
+- **P28-11** (#147) Application + adapter: `pullGranolaMeetings` _(after: P28-09, P28-10)_
+- **P28-12** (#148) Desktop: Settings → Granola, Sync now, pull on open and every 15 min _(after: P28-11)_
+- **P28-13** (#149) API/MCP: Granola status and a guarded pull _(after: P28-11)_
+- **P28-14** (#150) n8n: the Granola webhook workflow _(after: P28-09)_
 
 #### Phase 29 — The assistant reacts
 
