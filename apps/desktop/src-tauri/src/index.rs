@@ -1842,6 +1842,40 @@ mod tests {
         assert!(!holds_a_reader(&query), "reopened");
     }
 
+    /// What an Atlas query (`compileAtlasQuery`) asks of every note: is this
+    /// one of the types listed? One key and one value of one note.
+    const NOTES_OF_A_TYPE: &str = "SELECT n.path FROM files AS n
+         WHERE EXISTS (SELECT 1 FROM props AS t
+                       WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
+         ORDER BY n.title LIMIT ?";
+
+    #[test]
+    fn checking_each_notes_type_stays_within_the_query_budget_in_a_large_vault() {
+        let vault = tempfile::tempdir().unwrap();
+        let (index, query) = (IndexState::default(), QueryState::default());
+        open_index(vault.path(), &index, &query).unwrap();
+        let meetings: Vec<IndexedNote> = (0..1_200)
+            .map(|at| IndexedNote {
+                properties: vec![property("type", "meeting")],
+                ..note(
+                    &format!("meetings/{at:04}.md"),
+                    &format!("Meeting {at:04}"),
+                    "",
+                )
+            })
+            .collect();
+        put(&index, &meetings);
+
+        let path = database_path(vault.path()).unwrap();
+        let found = query.run(
+            &path,
+            NOTES_OF_A_TYPE,
+            &[serde_json::json!("meeting"), serde_json::json!(5)],
+        );
+
+        assert_eq!(found.map(|result| result.rows.len()), Ok(5));
+    }
+
     #[test]
     fn opening_says_whether_it_is_fresh_under_the_name_typescript_reads() {
         assert_eq!(
