@@ -796,6 +796,19 @@ export function App({
     changeKey: indexKey,
   });
 
+  // Held from one render to the next: `createNoteIn` is built on it and is one
+  // of the ports every vault use-case is handed. A new one each render gave
+  // them all new ports each render, and whatever reads when its ports change
+  // (the Inbox's proposals) then read the vault again, drew, and read again,
+  // without end — which kept the window too busy to place a click (#140).
+  const openCreated = useCallback(
+    (path: VaultPath) => {
+      void reload();
+      openNote(path);
+      void refresh();
+    },
+    [reload, openNote, refresh],
+  );
   const {
     createNewNote,
     createNoteIn,
@@ -810,11 +823,7 @@ export function App({
     beside: focusedPath,
     templates,
     contentsOf,
-    onCreated: (path) => {
-      void reload();
-      openNote(path);
-      void refresh();
-    },
+    onCreated: openCreated,
   });
 
   // A note or folder moved in the app takes with it the panes showing it, the
