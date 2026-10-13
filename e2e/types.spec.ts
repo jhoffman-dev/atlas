@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
+import {
+  createVault,
+  expectFile,
+  expectParaTypeRows,
+  installHost,
+  sidebarSection,
+} from './host.ts';
 
 const COMPANY_TYPE = [
   '---',
@@ -49,6 +55,7 @@ async function openTypedVault(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await expectParaTypeRows(page, vault);
   return vault;
 }
 
