@@ -20,6 +20,7 @@ use tokio::net::TcpListener;
 
 use super::pkce::challenge_of;
 use super::Endpoints;
+use crate::http::MAX_RESPONSE_BYTES;
 
 pub const CLIENT_ID: &str = "1234-fictional.apps.googleusercontent.com";
 pub const SCOPE: &str = "https://www.googleapis.com/auth/calendar.app.created";
@@ -31,6 +32,8 @@ pub enum CodeAnswer {
     WithoutRefreshToken,
     WithoutTheScope,
     NotJson,
+    /// One byte more than the host will read.
+    Oversized,
 }
 
 /// What the person does on the consent screen, and what comes back.
@@ -172,6 +175,9 @@ fn code_tokens(google: &mut Google) -> Answer {
     let answer = google.code_answer.unwrap_or(CodeAnswer::Tokens);
     if answer == CodeAnswer::NotJson {
         return json(200, "<html>Sign in</html>".into());
+    }
+    if answer == CodeAnswer::Oversized {
+        return json(200, " ".repeat(MAX_RESPONSE_BYTES + 1));
     }
     let refresh = google.issue("1//REFRESH-");
     let access = google.issue("ya29.ACCESS-");

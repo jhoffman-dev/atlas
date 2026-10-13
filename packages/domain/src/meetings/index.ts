@@ -44,6 +44,8 @@ export { MEETING_IMPORT_PROPERTIES } from './meeting-import-properties.ts';
 export { mapMeeting } from './mapping/meeting-to-atlas.ts';
 export type { MappingOptions, MeetingFields, MeetingFile } from './mapping/meeting-to-atlas.ts';
 export { MeetingMappingError } from './mapping/meeting-mapping-error.ts';
+export { granolaNoteToFields, mapGranolaNote } from './mapping/granola-note.ts';
+export type { GranolaFileOptions, GranolaMappingOptions } from './mapping/granola-note.ts';
 export { correctionDigestOf } from './correction-digest.ts';
 export {
   correctionProperties,

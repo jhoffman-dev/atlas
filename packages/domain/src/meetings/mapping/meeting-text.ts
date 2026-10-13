@@ -36,7 +36,7 @@ export const isBoilerplate = (line: string): boolean =>
 export function textLines(value: unknown, field: string): string[] {
   if (value === null || value === undefined) return [];
   if (typeof value === 'string') return value.replace(/\r\n?/g, '\n').split('\n');
-  if (Array.isArray(value)) return value.flatMap((each) => textLines(oneLine(each), field));
+  if (Array.isArray(value)) return value.flatMap((each) => textLines(oneLine(each, field), field));
   throw new MeetingMappingError(`${field}: expected text, got ${typeof value}`);
 }
 
@@ -148,10 +148,14 @@ function stepLine(rawOwner: string, text: string, confidence: string): string | 
 }
 
 function fromRecord(record: StepRecord): string | null {
-  const title = oneLine(record.title);
-  const description = oneLine(record.description ?? record.text);
+  const title = oneLine(record.title, 'nextSteps.title');
+  const description = oneLine(record.description ?? record.text, 'nextSteps.description');
   const text = title && description ? `${title}: ${description}` : title || description;
-  return stepLine(oneLine(record.owner), text, oneLine(record.confidence));
+  return stepLine(
+    oneLine(record.owner, 'nextSteps.owner'),
+    text,
+    oneLine(record.confidence, 'nextSteps.confidence'),
+  );
 }
 
 function fromItem(item: string): string | null {

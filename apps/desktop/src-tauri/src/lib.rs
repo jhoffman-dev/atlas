@@ -7,6 +7,7 @@ pub mod embeddings;
 mod git_process;
 mod global_capture;
 mod google;
+mod granola;
 mod http;
 mod index;
 mod model_http;
@@ -46,6 +47,7 @@ pub fn run() {
         .manage(git_process::GitHost::default())
         .manage(embeddings::EmbeddingState::default())
         .manage(google::GoogleState::default())
+        .manage(granola::GranolaState::default())
         .manage(global_capture::GlobalCaptureState::default())
         .invoke_handler(tauri::generate_handler![
             report_error,
@@ -77,6 +79,10 @@ pub fn run() {
             google::google_connect_cancel,
             google::google_disconnect,
             google::google_calendar_request,
+            granola::granola_status,
+            granola::granola_set_key,
+            granola::granola_forget_key,
+            granola::granola_request,
             sqlite_source::sqlite_source_query,
             sqlite_source::pick_sqlite_file,
             vault::pick_vault,

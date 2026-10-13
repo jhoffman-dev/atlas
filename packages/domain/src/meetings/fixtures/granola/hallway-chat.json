@@ -1,0 +1,37 @@
+{
+  "id": "not_9pLw3nVbQx2Hd5",
+  "object": "note",
+  "title": "Quick chat about the import",
+  "owner": { "name": "Mara Quill", "email": "mara.quill@example.com" },
+  "created_at": "2026-10-07T21:58:01Z",
+  "updated_at": "2026-10-07T22:20:44Z",
+  "deleted_at": null,
+  "web_url": "https://notes.granola.ai/d/5e7f8a9b-0c1d-4e2f-9a3b-4c5d6e7f8a9b",
+  "calendar_event": null,
+  "attendees": [],
+  "folder_membership": [],
+  "summary_text": "Tobias will retry the import after the fix lands.",
+  "summary_markdown": null,
+  "private_notes_text": null,
+  "private_notes_markdown": null,
+  "transcript": [
+    {
+      "speaker": { "source": "microphone", "attribution": "me" },
+      "text": "Did the import finish?",
+      "start_time": "2026-10-07T21:58:30Z",
+      "end_time": "2026-10-07T21:58:32Z"
+    },
+    {
+      "speaker": { "source": "speaker", "attribution": "them" },
+      "text": "Not yet. I will retry it after the fix lands.",
+      "start_time": "2026-10-07T21:58:34Z",
+      "end_time": "2026-10-07T21:58:39Z"
+    },
+    {
+      "speaker": { "source": "microphone", "attribution": "me" },
+      "text": "Good. Ping me when it is in.",
+      "start_time": "2026-10-07T22:12:41Z",
+      "end_time": "2026-10-07T22:12:47Z"
+    }
+  ]
+}

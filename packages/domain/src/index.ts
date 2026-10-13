@@ -47,3 +47,4 @@ export * from './meeting-links/index.ts';
 export * from './export/index.ts';
 export * from './google-calendar/index.ts';
 export * from './daily/index.ts';
+export * from './granola/index.ts';

@@ -99,6 +99,13 @@ pub fn oauth_account(scope: &str, provider: &str) -> String {
     format!("{scope}:oauth/{provider}")
 }
 
+/// Where the host keeps an API key a provider's own module sends, such as
+/// Granola's: `<vault>:apikey/<provider>`. Outside the `<vault>/` accounts for
+/// the same reason as `oauth_account`.
+pub fn apikey_account(scope: &str, provider: &str) -> String {
+    format!("{scope}:apikey/{provider}")
+}
+
 /// One piece of a value that may name secrets, as TypeScript split it.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]

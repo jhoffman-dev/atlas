@@ -184,6 +184,57 @@ fn a_secret_echoed_as_base64_is_struck() {
     );
 }
 
+/// A secret sent inside a longer value — `Bearer <key>`, `user:<key>` — sits at
+/// any byte offset of what is base64-encoded, and each offset modulo 3 encodes
+/// it as different text. Every alignment is struck, in both alphabets, however
+/// the value around it begins and ends.
+#[test]
+fn a_secret_echoed_as_base64_at_any_offset_in_either_alphabet_is_struck() {
+    use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+    use base64::Engine;
+    // `~` and `?` put `+` and `/` (`-` and `_` in the URL-safe alphabet) into
+    // every alignment, so the two alphabets differ.
+    let secret = "tok~~~???~~~???~~~end";
+    for prefix in ["", "B", "Be", "Bearer "] {
+        for engine in [STANDARD, URL_SAFE] {
+            let echo = engine.encode(format!("{prefix}{secret}\""));
+            let alphabet_matters = echo != STANDARD.encode(format!("{prefix}{secret}\""))
+                || echo != URL_SAFE.encode(format!("{prefix}{secret}\""));
+            assert!(alphabet_matters, "{echo} reads the same in both alphabets");
+
+            let redacted = struck(&format!("echo={echo};"), secret);
+
+            let (before, after) = redacted
+                .strip_prefix("echo=")
+                .and_then(|rest| rest.split_once("[secret key removed]"))
+                .unwrap_or_else(|| panic!("{prefix:?}: {echo} was not struck: {redacted}"));
+            // What is left is the prefix's own characters and the few that
+            // share a byte with what follows the secret: never a run of it.
+            assert!(before.len() <= 4 * prefix.len().div_ceil(3), "{redacted}");
+            assert!(after.len() <= "Ig==;".len(), "{redacted}");
+        }
+    }
+}
+
+/// An encoder is free to escape a letter or a digit too: `\u0067` is `g` to a
+/// JSON parser and `%67` is `g` to a URL decoder, in either case of hex.
+#[test]
+fn a_secret_echoed_with_letters_and_digits_escaped_is_struck() {
+    for echo in [
+        r"\u0067\u0072\u006e\u005f\u0031",
+        r"\u0067\u0072\u006E\u005F\u0031",
+        "%67%72%6E%5F%31",
+        "%67%72%6e%5f%31",
+        "g%72n%5F1",
+    ] {
+        assert_eq!(
+            struck(&format!("sent={echo}&"), "grn_1"),
+            "sent=[secret key removed]&",
+            "{echo}"
+        );
+    }
+}
+
 // Host binding (A19-01).
 
 fn owned(origins: &[&str]) -> Vec<String> {
@@ -372,4 +423,26 @@ fn a_name_starts_with_a_letter_or_digit_as_typescript_says() {
 fn text_that_only_resembles_a_secret_is_left_alone() {
     // The same letters, with `-` where the secret has `+`.
     assert_eq!(struck("aB3-dE6", "aB3+dE6"), "aB3-dE6");
+}
+
+/// Every character of a secret may be escaped, so its pattern grows with it; a
+/// long one, a signed token or a service account's key, is still looked for
+/// rather than the answer withheld as unchecked.
+#[test]
+fn a_long_secret_is_struck_rather_than_the_answer_withheld() {
+    let secret: String = (0..4000)
+        .map(|at| char::from(b'a' + (at % 26) as u8))
+        .collect();
+    assert_eq!(
+        struck(&format!("echo={secret};"), &secret),
+        "echo=[secret key removed];"
+    );
+}
+
+/// A one-byte secret, one byte into a base64 group, holds no whole character
+/// of its own; nothing is looked for there, rather than the empty text found
+/// between every two characters.
+#[test]
+fn a_one_character_secret_strikes_only_itself() {
+    assert_eq!(struck("a-b", "a"), "[secret key removed]-b");
 }

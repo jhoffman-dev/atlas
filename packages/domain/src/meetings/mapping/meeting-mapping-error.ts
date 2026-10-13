@@ -9,12 +9,37 @@ export class MeetingMappingError extends Error {
   override readonly name = 'MeetingMappingError';
 }
 
-/** The value as trimmed text with its whitespace collapsed; '' when there is none. */
-export function oneLine(value: unknown): string {
+/** How much of a value a refusal shows: enough to find it, never a meeting's content. */
+const SHOWN_LENGTH = 40;
+
+/**
+ * A value as a refusal may show it: text quoted and cut to
+ * {@link SHOWN_LENGTH} characters, anything else by its type alone. A refusal
+ * is emailed by n8n and logged by the pull, so it never carries what the
+ * value holds.
+ */
+export function shown(value: unknown): string {
+  if (typeof value !== 'string') return Array.isArray(value) ? 'a list' : String(typeof value);
+  const characters = [...value];
+  const cut = characters.length > SHOWN_LENGTH;
+  return JSON.stringify(cut ? `${characters.slice(0, SHOWN_LENGTH).join('')}…` : value);
+}
+
+/**
+ * The value as trimmed text with its whitespace collapsed; '' when there is
+ * none. Refuses an object, naming `field` (and never what the object holds).
+ */
+export function oneLine(value: unknown, field?: string): string {
   if (value === null || value === undefined) return '';
-  if (Array.isArray(value)) return value.map(oneLine).filter(Boolean).join(', ');
+  if (Array.isArray(value)) {
+    return value
+      .map((each) => oneLine(each, field))
+      .filter(Boolean)
+      .join(', ');
+  }
   if (typeof value === 'object') {
-    throw new MeetingMappingError(`expected text, got ${JSON.stringify(value)}`);
+    const named = field === undefined ? '' : `${field}: `;
+    throw new MeetingMappingError(`${named}expected text, got object`);
   }
   return (
     String(value)

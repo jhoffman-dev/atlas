@@ -22,7 +22,7 @@ use crate::vault::{root_for_write, VaultState};
 
 /// A feed is text. Anything this large is a mistake or an attack, and holding it
 /// in memory would take the app down with it.
-const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
 /// Long enough for a calendar server having a slow morning, short enough that a
 /// host that never answers does not leave a refresh hanging for good.
@@ -170,34 +170,57 @@ pub(crate) fn prepare(
     })
 }
 
+/// Why an answer could not be read whole.
+#[derive(Debug)]
+pub(crate) enum ReadFailure {
+    /// It is larger than the cap.
+    TooLarge,
+    /// The connection stopped sending. The error is without its URL.
+    Stopped(reqwest::Error),
+}
+
 /// Adds what has just arrived to what has been read, refusing to grow past the
 /// cap. Checked chunk by chunk because a server is free to lie about, or simply
 /// not declare, how much it is about to send.
-fn take_chunk(body: &mut Vec<u8>, chunk: &[u8]) -> Result<(), String> {
-    if body.len().saturating_add(chunk.len()) > MAX_RESPONSE_BYTES {
-        return Err(TOO_LARGE.to_string());
+fn take_chunk(body: &mut Vec<u8>, chunk: &[u8], cap: usize) -> Result<(), ReadFailure> {
+    if body.len().saturating_add(chunk.len()) > cap {
+        return Err(ReadFailure::TooLarge);
     }
     body.extend_from_slice(chunk);
     Ok(())
 }
 
-pub(crate) async fn read_capped(mut response: Response) -> Result<Vec<u8>, String> {
+/// Reads an answer whole, refusing one larger than `cap` bytes.
+pub(crate) async fn read_capped(
+    mut response: Response,
+    cap: usize,
+) -> Result<Vec<u8>, ReadFailure> {
     if response
         .content_length()
-        .is_some_and(|length| length > MAX_RESPONSE_BYTES as u64)
+        .is_some_and(|length| length > cap as u64)
     {
-        return Err(TOO_LARGE.to_string());
+        return Err(ReadFailure::TooLarge);
     }
 
     let mut body = Vec::new();
     while let Some(chunk) = response
         .chunk()
         .await
-        .map_err(|error| format!("the feed stopped sending: {}", error.without_url()))?
+        .map_err(|error| ReadFailure::Stopped(error.without_url()))?
     {
-        take_chunk(&mut body, &chunk)?;
+        take_chunk(&mut body, &chunk, cap)?;
     }
     Ok(body)
+}
+
+/// A feed's answer, within the cap every feed is held to, its failure in words.
+pub(crate) async fn read_feed(response: Response) -> Result<Vec<u8>, String> {
+    read_capped(response, MAX_RESPONSE_BYTES)
+        .await
+        .map_err(|failure| match failure {
+            ReadFailure::TooLarge => TOO_LARGE.to_string(),
+            ReadFailure::Stopped(error) => format!("the feed stopped sending: {error}"),
+        })
 }
 
 async fn fetch(prepared: &Prepared) -> Result<String, String> {
@@ -216,7 +239,7 @@ async fn fetch(prepared: &Prepared) -> Result<String, String> {
         return Err(format!("the feed answered {status}"));
     }
 
-    let body = read_capped(response).await?;
+    let body = read_feed(response).await?;
     let read = body.len();
     let text =
         String::from_utf8(body).map_err(|_| "the feed did not answer with text".to_string())?;
@@ -253,7 +276,13 @@ mod secret_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_url, take_chunk, MAX_RESPONSE_BYTES, TOO_LARGE};
+    use reqwest::header::HeaderMap;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    use super::{
+        checked_url, send, take_chunk, Prepared, ReadFailure, MAX_RESPONSE_BYTES, TOO_LARGE,
+    };
 
     #[test]
     fn accepts_http_and_https() {
@@ -295,15 +324,16 @@ mod tests {
     #[test]
     fn collects_chunks_that_stay_under_the_cap() {
         let mut body = Vec::new();
-        take_chunk(&mut body, b"id,name\n").unwrap();
-        take_chunk(&mut body, b"1,Ada\n").unwrap();
+        take_chunk(&mut body, b"id,name\n", MAX_RESPONSE_BYTES).unwrap();
+        take_chunk(&mut body, b"1,Ada\n", MAX_RESPONSE_BYTES).unwrap();
         assert_eq!(body, b"id,name\n1,Ada\n");
     }
 
     #[test]
     fn refuses_the_chunk_that_would_cross_the_cap() {
         let mut body = vec![0; MAX_RESPONSE_BYTES - 1];
-        assert_eq!(take_chunk(&mut body, b"xx").unwrap_err(), TOO_LARGE);
+        let refused = take_chunk(&mut body, b"xx", MAX_RESPONSE_BYTES);
+        assert!(matches!(refused, Err(ReadFailure::TooLarge)), "{refused:?}");
         // Nothing past the cap is kept, so a runaway feed cannot grow memory by
         // one chunk more than it was allowed.
         assert_eq!(body.len(), MAX_RESPONSE_BYTES - 1);
@@ -312,7 +342,56 @@ mod tests {
     #[test]
     fn accepts_a_chunk_that_exactly_fills_the_cap() {
         let mut body = vec![0; MAX_RESPONSE_BYTES - 2];
-        assert!(take_chunk(&mut body, b"xx").is_ok());
+        assert!(take_chunk(&mut body, b"xx", MAX_RESPONSE_BYTES).is_ok());
         assert_eq!(body.len(), MAX_RESPONSE_BYTES);
+    }
+
+    /// A server that answers one request with `head` and then hangs up.
+    async fn answering(head: String) -> Prepared {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = vec![0; 4096];
+            let _ = socket.read(&mut request).await;
+            let _ = socket.write_all(head.as_bytes()).await;
+        });
+        let url = format!("http://{address}/feed");
+        Prepared {
+            url: url.parse().unwrap(),
+            headers: HeaderMap::new(),
+            used: Vec::new(),
+            shown: url,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_feed_declared_larger_than_8_mb_is_refused_in_words() {
+        let head = format!(
+            "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            MAX_RESPONSE_BYTES + 1
+        );
+        let refused = send(&answering(head).await).await.unwrap_err();
+        assert_eq!(refused, TOO_LARGE);
+        assert_eq!(MAX_RESPONSE_BYTES, 8 * 1024 * 1024);
+    }
+
+    #[tokio::test]
+    async fn a_feed_that_stops_sending_says_so() {
+        let head = "HTTP/1.1 200 OK\r\ncontent-length: 9\r\nconnection: close\r\n\r\nid,".into();
+        let refused = send(&answering(head).await).await.unwrap_err();
+        assert!(
+            refused.starts_with("the feed stopped sending: "),
+            "{refused}"
+        );
+    }
+
+    #[test]
+    fn the_cap_is_the_one_the_caller_names() {
+        let mut body = Vec::new();
+        assert!(take_chunk(&mut body, b"abc", 3).is_ok());
+        let refused = take_chunk(&mut body, b"d", 3);
+        assert!(matches!(refused, Err(ReadFailure::TooLarge)), "{refused:?}");
+        assert_eq!(body, b"abc");
     }
 }

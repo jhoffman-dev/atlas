@@ -3,9 +3,10 @@
 //! A server that echoes its request rarely echoes it byte for byte. It builds a
 //! `next` link from the query it was sent, percent-encoding some characters and
 //! not others, in upper or lower case; it quotes a header in JSON, escaping `"`
-//! and `\`; it hands back the credentials of a Basic header as base64. Each of
-//! those forms is looked for, character by character, so a value written in any
-//! mixture of them is still found.
+//! and `\`, or every character; it hands back a whole header — `Bearer <key>`,
+//! the credentials of a Basic one — as base64. Each of those forms is looked
+//! for, character by character, so a value written in any mixture of them is
+//! still found.
 //!
 //! Every match of every secret is collected before anything is replaced, and
 //! matches that overlap are struck as one span: replacing a shorter secret first
@@ -14,13 +15,18 @@
 
 use std::cmp::Reverse;
 
-use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::{GeneralPurpose, STANDARD_NO_PAD, URL_SAFE_NO_PAD};
 use base64::Engine;
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 
 /// Handed back in place of a response that could not be checked. Nothing is
 /// better than something that might hold a secret.
 const UNCHECKED: &str = "[the response could not be checked for secrets, so it is not shown]";
+
+/// Room for the pattern of a secret of some 12,000 characters, every one of
+/// which may be written several ways. The regex crate's default (10 MiB) holds
+/// about 2,000, and past the limit an answer is handed back unchecked.
+const MATCHER_SIZE_LIMIT: usize = 64 * 1024 * 1024;
 
 /// Replaces every secret that went into a request wherever it appears in what
 /// came back, in any of the forms described above.
@@ -64,30 +70,50 @@ fn strike(text: &str, mut found: Vec<(usize, usize, &str)>) -> String {
 }
 
 /// One secret in any of its forms: as it is, and as base64 (standard and
-/// URL-safe; padding is left outside the match, so padded and bare are both
-/// found), each of which may itself be percent-encoded or JSON-escaped.
+/// URL-safe), each of which may itself be percent-encoded or JSON-escaped.
+/// Longer forms come first, so that where two match at the same place the
+/// whole of the secret is struck.
 fn matcher(value: &str) -> Result<Regex, regex::Error> {
-    let mut forms = vec![
-        value.to_string(),
-        STANDARD_NO_PAD.encode(value),
-        URL_SAFE_NO_PAD.encode(value),
-    ];
+    let mut forms = vec![value.to_string()];
+    for engine in [STANDARD_NO_PAD, URL_SAFE_NO_PAD] {
+        forms.push(engine.encode(value));
+        forms.extend(base64_cores(&engine, value));
+    }
+    forms.sort_by_key(|form| Reverse(form.len()));
     forms.dedup();
     let alternatives: Vec<String> = forms.iter().map(|form| spelled(form)).collect();
-    Regex::new(&alternatives.join("|"))
+    RegexBuilder::new(&alternatives.join("|"))
+        .size_limit(MATCHER_SIZE_LIMIT)
+        .build()
 }
 
-/// A pattern for the text written in any mixture of its escaped forms. Letters
-/// and digits are matched as they are: no encoder escapes them.
+/// The base64 text the value always encodes to, wherever it sits in what was
+/// encoded. Base64 writes each 3 bytes as 4 characters, so a value that starts
+/// 0, 1 or 2 bytes into a group (`Bearer ` is 7 bytes) is written three
+/// different ways; within each, the characters that hold a bit of a byte
+/// before or after the value change with those bytes, and the rest do not.
+/// Those are the core, and the padding is left outside it.
+fn base64_cores(engine: &GeneralPurpose, value: &str) -> Vec<String> {
+    const BITS_PER_CHAR: usize = 6;
+    (0..3)
+        .filter_map(|offset| {
+            let mut placed = vec![0u8; offset];
+            placed.extend_from_slice(value.as_bytes());
+            let encoded = engine.encode(&placed);
+            let first = (offset * 8).div_ceil(BITS_PER_CHAR);
+            let end = (placed.len() * 8) / BITS_PER_CHAR;
+            let core = encoded.get(first..end)?;
+            (!core.is_empty()).then(|| core.to_string())
+        })
+        .collect()
+}
+
+/// A pattern for the text written in any mixture of its escaped forms. Any
+/// character may be escaped, letters and digits too: `\u0067` is `g` to a JSON
+/// parser and `%67` is `g` to a URL decoder.
 fn spelled(text: &str) -> String {
     text.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_string()
-            } else {
-                format!("(?:{})", escapes_of(c).join("|"))
-            }
-        })
+        .map(|c| format!("(?:{})", escapes_of(c).join("|")))
         .collect()
 }
 
