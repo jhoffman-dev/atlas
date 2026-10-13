@@ -14,6 +14,7 @@ use reqwest::header::{ACCEPT, AUTHORIZATION};
 use reqwest::{redirect, Client, Response, Url};
 
 use super::failure::{FailureKind, GranolaFailure};
+use crate::http::{self, ReadFailure};
 
 /// The only paths a call may reach: version 1 of the API.
 const API_PATH: &str = "/v1/";
@@ -104,29 +105,13 @@ fn too_large() -> GranolaFailure {
     )
 }
 
-/// Adds what has just arrived to what has been read, refusing to grow past
-/// the cap. Checked chunk by chunk because a server is free to lie about, or
-/// simply not declare, how much it is about to send.
-fn take_chunk(body: &mut Vec<u8>, chunk: &[u8]) -> Result<(), GranolaFailure> {
-    if body.len().saturating_add(chunk.len()) > MAX_ANSWER_BYTES {
-        return Err(too_large());
-    }
-    body.extend_from_slice(chunk);
-    Ok(())
-}
-
-async fn read_capped(mut response: Response) -> Result<Vec<u8>, GranolaFailure> {
-    if response
-        .content_length()
-        .is_some_and(|length| length > MAX_ANSWER_BYTES as u64)
-    {
-        return Err(too_large());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(failed)? {
-        take_chunk(&mut body, &chunk)?;
-    }
-    Ok(body)
+async fn read_capped(response: Response) -> Result<Vec<u8>, GranolaFailure> {
+    http::read_capped(response, MAX_ANSWER_BYTES)
+        .await
+        .map_err(|failure| match failure {
+            ReadFailure::TooLarge => too_large(),
+            ReadFailure::Stopped(error) => failed(error),
+        })
 }
 
 /// Sends the GET with `key`. The answer's body is raw; the caller strikes the
@@ -149,7 +134,7 @@ mod tests {
 
     use reqwest::Url;
 
-    use super::{call_url, take_chunk, MAX_ANSWER_BYTES};
+    use super::call_url;
     use crate::granola::failure::FailureKind;
 
     fn origin() -> Url {
@@ -229,15 +214,5 @@ mod tests {
             let failure = call_url(&origin(), path, &no_query()).unwrap_err();
             assert_eq!(failure.kind, FailureKind::Invalid, "{path}");
         }
-    }
-
-    #[test]
-    fn an_answer_may_reach_the_cap_and_no_further() {
-        let mut body = vec![0; MAX_ANSWER_BYTES - 1];
-        take_chunk(&mut body, &[1]).unwrap();
-        assert_eq!(body.len(), MAX_ANSWER_BYTES);
-        let failure = take_chunk(&mut body, &[1]).unwrap_err();
-        assert_eq!(failure.kind, FailureKind::TooLarge);
-        assert_eq!(body.len(), MAX_ANSWER_BYTES);
     }
 }

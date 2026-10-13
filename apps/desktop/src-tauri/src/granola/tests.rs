@@ -317,6 +317,15 @@ async fn a_redirect_is_handed_back_not_followed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn an_answer_may_reach_the_cap() {
+    let setup = Setup::keyed().await;
+    setup.granola().reply = Reply::AtTheCap;
+    let answer = setup.session().request(NOTES, &no_query()).await.unwrap();
+    assert_eq!(answer.status, 200);
+    assert_eq!(answer.body.len(), super::api::MAX_ANSWER_BYTES);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_answer_larger_than_the_cap_is_refused() {
     let setup = Setup::keyed().await;
     setup.granola().reply = Reply::Oversized;

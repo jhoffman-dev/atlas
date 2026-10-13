@@ -21,7 +21,7 @@ use reqwest::{redirect, Client};
 use serde::Serialize;
 use tauri::State;
 
-use crate::http::{prepare, read_capped, HttpRequest, Prepared};
+use crate::http::{prepare, read_feed, HttpRequest, Prepared};
 use crate::secrets::{redact, vault_scope, SecretState, SecretStore};
 use crate::vault::{root_for_write, VaultState};
 
@@ -93,7 +93,7 @@ async fn post(prepared: &Prepared, body: String) -> Result<ModelAnswer, String> 
         .await
         .map_err(|error| format!("cannot reach the model's API: {}", error.without_url()))?;
     let status = response.status().as_u16();
-    let bytes = read_capped(response).await?;
+    let bytes = read_feed(response).await?;
     log::info!("model API answered {status}");
     answer_of(status, bytes, &prepared.used)
 }

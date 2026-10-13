@@ -28,6 +28,8 @@ pub enum Reply {
     Redirect(String),
     /// Bytes that are not text.
     NotText,
+    /// As much as the host will read, and no more.
+    AtTheCap,
     /// One byte more than the host will read.
     Oversized,
     /// Accepts the request and never answers it.
@@ -126,6 +128,7 @@ fn reply_to(granola: &Granola, authorization: &str) -> Option<Answer> {
             response
         }
         Reply::NotText => answer_of(200, vec![0xff, 0xfe, 0x00]),
+        Reply::AtTheCap => answer_of(200, vec![b' '; MAX_ANSWER_BYTES]),
         Reply::Oversized => answer_of(200, vec![b' '; MAX_ANSWER_BYTES + 1]),
         Reply::Silent => return None,
     })
