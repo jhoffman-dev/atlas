@@ -3373,5 +3373,86 @@ LIMIT ?"#;
                 problems.len()
             );
         }
+
+        /// The open projects tied to a meeting's people, as
+        /// `compileProjectTiesQuery` writes it for one attendee.
+        const PROJECT_TIES_OF_ONE_PERSON: &str = r#"/* meeting links: projects */ WITH open_projects AS (
+  SELECT files.path AS path, files.title AS title FROM files
+   WHERE files.path IN (SELECT path FROM props WHERE key = 'type' AND value_text = ?)
+     AND instr('/' || files.path, '/.') = 0 AND instr('/' || lower(files.path) || '/', '/node_modules/') = 0 AND lower(substr(files.path, 1, 8)) <> 'archive/'
+     AND NOT EXISTS (SELECT 1 FROM props AS state WHERE state.path = files.path
+                      AND state.key = 'status' AND lower(state.value_text) IN (?, ?, ?))
+)
+SELECT open_projects.path AS "project", open_projects.title AS "title", relations.dst AS "entity"
+  FROM open_projects JOIN relations ON relations.src = open_projects.path
+ WHERE relations.dst IN (?)
+UNION
+SELECT open_projects.path, open_projects.title, relations.src
+  FROM open_projects JOIN relations ON relations.dst = open_projects.path
+ WHERE relations.src IN (?)
+UNION
+SELECT open_projects.path, open_projects.title, other.dst
+  FROM open_projects
+  CROSS JOIN relations AS filed ON filed.dst = open_projects.path AND filed.key = ?
+  CROSS JOIN relations AS other ON other.src = filed.src AND other.key IN (?, ?)
+ WHERE +other.dst IN (?) AND filed.src <> ?
+ORDER BY 1, 3"#;
+
+        /// Adversarial (#143, eacb525): joined plainly, `filed.dst =
+        /// open_projects.path AND filed.src = other.src` ties
+        /// `relations_dst (dst, src)` with `relations_src (src, key)`; SQLite
+        /// starts from the person and takes the dst index with `dst` bound to
+        /// every open project, so each meeting naming the person probes once
+        /// per project and the query runs out of the budget (6.4M steps here).
+        /// `CROSS JOIN` and `+other.dst` pin it to project first, then each
+        /// filed note's own links: about 0.18M.
+        #[test]
+        fn linking_a_meeting_whose_attendee_is_in_thousands_of_meetings_finds_project_ties_within_the_query_budget(
+        ) {
+            let mut notes = vec![person_page(MARA, "Mara Quill", vec![])];
+            notes.extend((0..500).map(|at| IndexedNote {
+                properties: vec![property("type", "project")],
+                ..note(
+                    &format!("projects/{at:03}.md"),
+                    &format!("Project {at:03}"),
+                    "",
+                )
+            }));
+            notes.extend((0..2_500).map(|at| {
+                meeting(
+                    at,
+                    vec![
+                        relation("people", 0, "Mara Quill", Some(MARA)),
+                        relation(
+                            "project",
+                            0,
+                            "P",
+                            Some(&format!("projects/{:03}.md", at % 500)),
+                        ),
+                    ],
+                    vec![],
+                )
+            }));
+
+            let found = rows_found(
+                &notes,
+                PROJECT_TIES_OF_ONE_PERSON,
+                &[
+                    serde_json::json!("project"),
+                    serde_json::json!("done"),
+                    serde_json::json!("cancelled"),
+                    serde_json::json!("dropped"),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!("project"),
+                    serde_json::json!("people"),
+                    serde_json::json!("companies"),
+                    serde_json::json!(MARA),
+                    serde_json::json!("meetings/0001.md"),
+                ],
+            );
+
+            assert_eq!(found, Ok(500));
+        }
     }
 }

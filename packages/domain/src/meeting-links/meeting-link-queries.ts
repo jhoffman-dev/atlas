@@ -127,6 +127,15 @@ export function linkDirectoryOf(rows: readonly LinkDirectoryRow[]): LinkDirector
  * never makes its own evidence. A project is open while it is outside the
  * Archive and its status is not done, cancelled or dropped. Columns: project,
  * title, entity. Every value is bound.
+ *
+ * The other-note ties are read project first — each open project, the notes
+ * filed under it, then whom those notes link — so the work grows with the
+ * notes filed under open projects. `CROSS JOIN` holds SQLite to that order,
+ * and `+other.dst` keeps it reading a filed note's links by the note, not by
+ * the person. Left to choose, with no statistics it could start from the
+ * people and look each of their notes up once per open project, or read
+ * every note naming the person again for each project or filed note: either
+ * ran a person in a thousand meetings out of the query budget (#143).
  */
 export function compileProjectTiesQuery({
   meeting,
@@ -156,9 +165,9 @@ SELECT open_projects.path, open_projects.title, relations.src
 UNION
 SELECT open_projects.path, open_projects.title, other.dst
   FROM open_projects
-  JOIN relations AS filed ON filed.dst = open_projects.path AND filed.key = ?
-  JOIN relations AS other ON other.src = filed.src AND other.key IN (${linkKeys})
- WHERE other.dst IN (${among}) AND filed.src <> ?
+  CROSS JOIN relations AS filed ON filed.dst = open_projects.path AND filed.key = ?
+  CROSS JOIN relations AS other ON other.src = filed.src AND other.key IN (${linkKeys})
+ WHERE +other.dst IN (${among}) AND filed.src <> ?
 ORDER BY 1, 3`,
     parameters: [
       PROJECT_TYPE,
