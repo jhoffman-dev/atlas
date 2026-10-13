@@ -52,12 +52,22 @@ describe('tauriIndex', () => {
       },
     ];
     await tauriIndex.put(notes);
-    expect(invoke).toHaveBeenCalledWith('index_put', { notes });
+    expect(invoke).toHaveBeenCalledWith('index_put', { vault: null, notes });
+
+    // Said to be one vault's, it names the vault, for the host to refuse it once another is open.
+    await tauriIndex.put(notes, { vault: '/vaults/Larkspur' });
+    expect(invoke).toHaveBeenLastCalledWith('index_put', { vault: '/vaults/Larkspur', notes });
   });
 
   it('removes notes by path', async () => {
     await tauriIndex.remove([createVaultPath('a.md')]);
-    expect(invoke).toHaveBeenCalledWith('index_remove', { paths: ['a.md'] });
+    expect(invoke).toHaveBeenCalledWith('index_remove', { vault: null, paths: ['a.md'] });
+
+    await tauriIndex.remove([createVaultPath('a.md')], { vault: '/vaults/Larkspur' });
+    expect(invoke).toHaveBeenLastCalledWith('index_remove', {
+      vault: '/vaults/Larkspur',
+      paths: ['a.md'],
+    });
   });
 
   it('runs a search with its limit', async () => {

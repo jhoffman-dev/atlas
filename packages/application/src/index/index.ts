@@ -1,4 +1,7 @@
-export { refreshIndex, toIndexedNote } from './refresh-index.ts';
+export { INDEX_BATCH_SIZE, IndexSyncAbandoned, refreshIndex } from './refresh-index.ts';
+export { toIndexedNote } from './to-indexed-note.ts';
+export { deriveNotes, inThreadNoteDeriver } from './note-deriver.ts';
+export type { NoteDerivation, NoteDeriver, NoteDeriving, UnreadNote } from './note-deriver.ts';
 export { createIndexSyncer } from './sync-index.ts';
 export type { IndexSyncer } from './sync-index.ts';
 export { createNoteChanges } from './note-changes.ts';
@@ -16,6 +19,7 @@ export type {
   IndexOpening,
   IndexPort,
   IndexStats,
+  IndexWriteScope,
   SearchHit,
   SearchScope,
 } from './ports.ts';

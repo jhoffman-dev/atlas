@@ -15,6 +15,7 @@ import {
   tauriSqliteSource,
   tauriPageSnapshot,
   tauriIndex,
+  webWorkerNoteDeriver,
   staticAppInfo,
   tauriAppInfo,
   tauriVaultFs,
@@ -76,7 +77,13 @@ export function resolveNotePorts(): OnHost<NotePorts> {
 }
 
 export function resolveIndexPorts(): OnHost<IndexPorts> {
-  return { fs: tauriVaultFs, index: tauriIndex, markdown: remarkMarkdown };
+  return {
+    fs: tauriVaultFs,
+    index: tauriIndex,
+    markdown: remarkMarkdown,
+    // The notes are read for the index in a worker, so the window stays the user's (#135).
+    deriver: webWorkerNoteDeriver,
+  };
 }
 
 export function resolveSourcePorts(): SourcePorts {

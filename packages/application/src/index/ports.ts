@@ -134,12 +134,23 @@ export interface IndexOpening {
   readonly fresh: boolean;
 }
 
+/**
+ * Which vault a write to the index was meant for. The host holds one index,
+ * the open vault's; a batch read from a vault that has since been switched
+ * away from names that vault, and is refused rather than written to the next
+ * one's index (#135).
+ */
+export interface IndexWriteScope {
+  readonly vault: string;
+}
+
 export interface IndexPort {
   open(): Promise<IndexOpening>;
   clear(): Promise<void>;
   manifest(): Promise<readonly IndexEntry[]>;
-  put(notes: readonly IndexedNote[]): Promise<void>;
-  remove(paths: readonly VaultPath[]): Promise<void>;
+  /** With a `scope`, refused once the index open is another vault's than the notes were read from. */
+  put(notes: readonly IndexedNote[], scope?: IndexWriteScope): Promise<void>;
+  remove(paths: readonly VaultPath[], scope?: IndexWriteScope): Promise<void>;
   search(query: string, limit: number, scope?: SearchScope): Promise<readonly SearchHit[]>;
   /** Notes whose frontmatter declares this type — what a relation may point at. */
   notesOfType(type: string): Promise<readonly { path: string; title: string }[]>;

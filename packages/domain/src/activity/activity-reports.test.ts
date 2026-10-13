@@ -8,10 +8,12 @@ import {
   chatReport,
   dryRunReport,
   indexFailedReport,
+  indexInWindowReport,
   indexRebuiltReport,
   meetingImportReport,
   meetingImportStoppedReport,
   noticeReport,
+  notesNotIndexedReport,
   screenWriteFailedReport,
   sourceRefreshReport,
   writeFailedReport,
@@ -319,6 +321,33 @@ describe('index, save and notice reports', () => {
     });
     expect(indexFailedReport({ rebuilding: false, problem: 'locked' }).message).toBe(
       'The index could not be brought up to date. locked',
+    );
+  });
+
+  it('records that the index is being built in the window, and why (#135)', () => {
+    expect(indexInWindowReport('The worker could not be started.')).toEqual({
+      level: 'warning',
+      kind: 'index',
+      message:
+        'Indexing in the window, which is slower: the background indexer could not be used. The worker could not be started.',
+      subject: null,
+    });
+  });
+
+  it('records the notes a build could not index, linked to the first (#135)', () => {
+    expect(
+      notesNotIndexedReport([
+        { path: 'Torn.md', problem: 'unexpected end of note' },
+        { path: 'Frayed.md', problem: 'bad escape' },
+      ]),
+    ).toEqual({
+      level: 'warning',
+      kind: 'index',
+      message: '2 notes could not be indexed. The first is Torn.md: unexpected end of note',
+      subject: { kind: 'note', path: 'Torn.md' },
+    });
+    expect(notesNotIndexedReport([{ path: 'Torn.md', problem: 'cut short' }]).message).toBe(
+      '1 note could not be indexed. The first is Torn.md: cut short',
     );
   });
 
