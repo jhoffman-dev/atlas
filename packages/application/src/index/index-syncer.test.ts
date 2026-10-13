@@ -529,3 +529,36 @@ describe('the index syncer reports what changed (P28-03)', () => {
     expect(activity.reports[1]?.message).toContain('2 notes could not be indexed');
   });
 });
+
+describe('createIndexSyncer, attacked (#135)', () => {
+  /** A reader that cannot read any note whose words are in `unreadable`. */
+  const tearing = (unreadable: ReadonlySet<string>) => ({
+    ...fakeMarkdown(),
+    plainText: (body: string) => {
+      if (unreadable.has(body.trim())) throw new Error('unexpected end of note');
+      return '';
+    },
+  });
+
+  it('does not go on holding, as it was, a note that has changed and can no longer be read', async () => {
+    const vault = vaultWithIndex({ 'Idea.md': 'a spark', 'Plan.md': 'whole' });
+    const unreadable = new Set<string>();
+    const { sync } = syncerOver(
+      { fs: vault.fs, index: vault.index },
+      undefined,
+      recordingActivity(),
+      tearing(unreadable),
+    );
+    await sync();
+    expect(vault.held.get('Plan.md')?.digest).toBe(digestOf('whole'));
+
+    // The note is rewritten, and what is there now cannot be read as a note.
+    unreadable.add('torn');
+    vault.write('Plan.md', 'torn');
+    await sync();
+
+    // `IndexRefresh.failed` is "the notes the index does not hold"; search
+    // must not go on answering with the words the note no longer has.
+    expect(vault.held.has('Plan.md')).toBe(false);
+  });
+});

@@ -2574,4 +2574,228 @@ ORDER BY m.type DESC, m.name, p.cid";
             assert!(backlinks(&index, "a.md").unwrap().is_empty());
         }
     }
+
+    /// Attacks on #135 (PR #138): what the index does now that its commands
+    /// can overlap, and what the search-table shortcut left behind.
+    mod attack_135 {
+        use super::*;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{mpsc, Arc};
+        use std::time::Duration;
+
+        /// How many steps SQLite takes to index again one note of an index holding this many.
+        fn steps_to_index_again_a_note_of(held: usize) -> usize {
+            let mut index = empty_index();
+            let notes: Vec<IndexedNote> = (0..held)
+                .map(|n| note(&format!("Note {n}.md"), "Note", "alpha beta gamma"))
+                .collect();
+            put_notes(&mut index, &notes).unwrap();
+
+            let steps = Arc::new(AtomicUsize::new(0));
+            let counted = Arc::clone(&steps);
+            index
+                .progress_handler(
+                    1,
+                    Some(move || {
+                        counted.fetch_add(1, Ordering::Relaxed);
+                        false
+                    }),
+                )
+                .unwrap();
+            put_notes(&mut index, &[note("Note 0.md", "Note", "delta")]).unwrap();
+            steps.load(Ordering::Relaxed)
+        }
+
+        /// The shortcut only covers a note the index has never held. A note it
+        /// holds still has its search row found by reading every row, so a
+        /// vault whose notes all changed at once (a pull, a sync that touched
+        /// every file, a relation re-resolved across the vault) is n * n again,
+        /// and each batch holds the index lock, which search waits on.
+        #[test]
+        fn indexing_a_note_again_costs_the_same_however_many_the_index_holds() {
+            let few = steps_to_index_again_a_note_of(20);
+            let many = steps_to_index_again_a_note_of(2_000);
+            assert!(
+                many < few * 2,
+                "indexing a note again among 2,000 took {many} steps, among 20 took {few}"
+            );
+        }
+
+        /// Before #138 every put cleared the note's search row, so an index
+        /// whose search table had got ahead of `files` healed on the next
+        /// read of the note. Now the row is only cleared for a note `files`
+        /// holds, and the note is found twice until the index is rebuilt.
+        #[test]
+        fn a_search_row_left_without_its_note_is_replaced_when_the_note_is_indexed() {
+            let mut index = empty_index();
+            index
+                .execute(
+                    "INSERT INTO fts (path, title, body) VALUES ('a.md', 'A', 'alpha as it was')",
+                    [],
+                )
+                .unwrap();
+
+            put_notes(&mut index, &[note("a.md", "A", "alpha as it is")]).unwrap();
+
+            let hits = search(&index, "alpha", 10, None).unwrap();
+            assert_eq!(hits.len(), 1, "the note is found {} times", hits.len());
+        }
+
+        /// The connection `index_query` keeps, opened as it opens it.
+        fn query_connection(root: &Path) -> Connection {
+            Connection::open_with_flags(
+                database_path(root).unwrap(),
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )
+            .unwrap()
+        }
+
+        fn notes_counted_by(connection: &Connection) -> serde_json::Value {
+            run_query(connection, "SELECT COUNT(*) FROM files", &[])
+                .unwrap()
+                .rows[0][0]
+                .clone()
+        }
+
+        /// #137, at the level the commands work at. `index_query` cannot be
+        /// called without a running app, so this holds a connection as it
+        /// does (`QueryState`: opened on the first query, never let go) and
+        /// does to the file what `index_clear` does. Whoever fixes it should
+        /// point this at the seam the fix makes.
+        #[test]
+        fn a_query_after_the_index_is_cleared_reads_the_index_that_is_there_now() {
+            let vault = tempfile::tempdir().unwrap();
+            let (mut index, _) = open_database(vault.path()).unwrap();
+            put_notes(&mut index, &[note("a.md", "A", "alpha")]).unwrap();
+            let kept_for_queries = query_connection(vault.path());
+            assert_eq!(notes_counted_by(&kept_for_queries), serde_json::json!(1));
+
+            // index_clear: the writing connection is let go, the files removed, the index made again.
+            drop(index);
+            discard(&database_path(vault.path()).unwrap());
+            let (cleared, _) = open_database(vault.path()).unwrap();
+            assert_eq!(file_count(&cleared), 0);
+
+            assert_eq!(
+                notes_counted_by(&kept_for_queries),
+                serde_json::json!(0),
+                "a view still reads the note the cleared index does not hold"
+            );
+        }
+
+        /// Runs `work` on its own thread and fails if it has not finished in time: a deadlock, said.
+        fn within<T: Send + 'static>(
+            limit: Duration,
+            work: impl FnOnce() -> T + Send + 'static,
+        ) -> T {
+            let (done, finished) = mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = done.send(work());
+            });
+            finished
+                .recv_timeout(limit)
+                .expect("the index did not answer in time: a deadlock, or a panic")
+        }
+
+        /// What the commands share: the writing connection behind its lock, as `IndexState` holds it.
+        type Held = Arc<Mutex<Option<Connection>>>;
+
+        fn clear_as_the_command_does(held: &Held, root: &Path) -> Result<(), String> {
+            let mut guard = held.lock().map_err(|_| "index state poisoned")?;
+            *guard = None;
+            discard(&database_path(root)?);
+            let (connection, _) = open_database(root)?;
+            *guard = Some(connection);
+            Ok(())
+        }
+
+        /// Batches written, queries read and the index cleared, all at once, as
+        /// the commands may now be (they are `async`, so no thread orders them).
+        /// Nothing may fail for want of a lock, nothing may hang, and a query
+        /// may not be answered from a file that is half way to being an index:
+        /// on the main thread a query ran before a clear or after it, never during.
+        #[test]
+        fn puts_queries_and_clears_at_once_never_fail_or_find_a_half_made_index() {
+            let problems = within(Duration::from_secs(120), || {
+                let vault = tempfile::tempdir().unwrap();
+                let root = vault.path().to_path_buf();
+                let (connection, _) = open_database(&root).unwrap();
+                let held: Held = Arc::new(Mutex::new(Some(connection)));
+                let problems = Arc::new(Mutex::new(Vec::<String>::new()));
+                let said = |problems: &Arc<Mutex<Vec<String>>>, who: &str, problem: String| {
+                    problems.lock().unwrap().push(format!("{who}: {problem}"));
+                };
+
+                let mut threads = Vec::new();
+                for writer in 0..3 {
+                    let (held, problems) = (Arc::clone(&held), Arc::clone(&problems));
+                    threads.push(std::thread::spawn(move || {
+                        for batch in 0..40 {
+                            let notes: Vec<IndexedNote> = (0..50)
+                                .map(|n| {
+                                    note(
+                                        &format!("w{writer}/b{batch}/n{n}.md"),
+                                        "Note",
+                                        "alpha beta",
+                                    )
+                                })
+                                .collect();
+                            let mut guard = held.lock().unwrap();
+                            if let Err(problem) = put_notes(guard.as_mut().unwrap(), &notes) {
+                                said(&problems, "put", problem);
+                            }
+                        }
+                    }));
+                }
+                {
+                    let (held, problems, root) =
+                        (Arc::clone(&held), Arc::clone(&problems), root.clone());
+                    threads.push(std::thread::spawn(move || {
+                        for _ in 0..25 {
+                            if let Err(problem) = clear_as_the_command_does(&held, &root) {
+                                said(&problems, "clear", problem);
+                            }
+                            std::thread::yield_now();
+                        }
+                    }));
+                }
+                for _ in 0..3 {
+                    let (problems, root) = (Arc::clone(&problems), root.clone());
+                    threads.push(std::thread::spawn(move || {
+                        for _ in 0..400 {
+                            // A new connection each time: what a query finds after the fix for #137.
+                            let opened = Connection::open_with_flags(
+                                database_path(&root).unwrap(),
+                                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+                            );
+                            let answer =
+                                opened
+                                    .map_err(|error| error.to_string())
+                                    .and_then(|connection| {
+                                        run_query(&connection, "SELECT COUNT(*) FROM files", &[])
+                                            .map(|_| ())
+                                    });
+                            if let Err(problem) = answer {
+                                said(&problems, "query", problem);
+                            }
+                        }
+                    }));
+                }
+                for thread in threads {
+                    thread.join().expect("a command panicked");
+                }
+                let problems = problems.lock().unwrap().clone();
+                problems
+            });
+
+            let mut kinds: Vec<String> = problems.clone();
+            kinds.sort();
+            kinds.dedup();
+            assert!(
+                problems.is_empty(),
+                "{} commands failed; the kinds of failure: {kinds:#?}",
+                problems.len()
+            );
+        }
+    }
 }
