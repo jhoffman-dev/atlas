@@ -1,0 +1,38 @@
+{
+  "id": "not_2sRk8fJmTz6Wc1",
+  "object": "note",
+  "title": "Late-night release check",
+  "owner": { "name": "Mara Quill", "email": "mara.quill@example.com" },
+  "created_at": "2026-11-01T08:29:50Z",
+  "updated_at": "2026-11-01T09:40:02Z",
+  "deleted_at": null,
+  "web_url": "https://notes.granola.ai/d/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+  "calendar_event": {
+    "event_title": "Release check",
+    "invitees": [{ "email": "tobias.fenn@example.com" }],
+    "organiser": "mara.quill@example.com",
+    "calendar_event_id": "3kd9release_20261101T083000Z",
+    "scheduled_start_time": "2026-11-01T08:30:00Z",
+    "scheduled_end_time": "2026-11-01T09:30:00Z"
+  },
+  "attendees": [{ "name": "Tobias Fenn", "email": "tobias.fenn@example.com" }],
+  "folder_membership": [],
+  "summary_text": "The release went out before the clocks went back.",
+  "summary_markdown": "The release went out before the clocks went back.",
+  "private_notes_text": null,
+  "private_notes_markdown": null,
+  "transcript": [
+    {
+      "speaker": { "source": "speaker", "attribution": "them", "name": "Tobias Fenn" },
+      "text": "The build is green. Shipping now.",
+      "start_time": "2026-11-01T08:45:10Z",
+      "end_time": "2026-11-01T08:45:14Z"
+    },
+    {
+      "speaker": { "source": "microphone", "attribution": "me" },
+      "text": "It is live. The clocks just went back an hour.",
+      "start_time": "2026-11-01T09:05:00Z",
+      "end_time": "2026-11-01T09:05:06Z"
+    }
+  ]
+}

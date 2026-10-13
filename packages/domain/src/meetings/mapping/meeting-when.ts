@@ -56,6 +56,7 @@ function zoneClock(timeZone: string): Intl.DateTimeFormat {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
       hourCycle: 'h23',
     });
   } catch {
@@ -63,14 +64,32 @@ function zoneClock(timeZone: string): Intl.DateTimeFormat {
   }
 }
 
+/** The day an instant falls on and its `HH:MM:SS` time of day, on one zone's clock. */
+export interface WallTime {
+  readonly day: string;
+  readonly time: string;
+}
+
+/**
+ * A reader of instants (milliseconds since the epoch) on the clock of
+ * `timeZone`, made once for many turns. Refuses a name that is not an IANA zone.
+ */
+export function wallClockIn(timeZone: string): (instant: number) => WallTime {
+  const clock = zoneClock(timeZone);
+  return (instant) => {
+    const parts = clock.formatToParts(instant);
+    const part = (type: string) => parts.find((each) => each.type === type)?.value ?? '';
+    return {
+      day: `${part('year')}-${part('month')}-${part('day')}`,
+      time: `${part('hour')}:${part('minute')}:${part('second')}`,
+    };
+  };
+}
+
 /** The day and time an instant shows on a clock in `timeZone`. */
 function inZone(instant: Date, timeZone: string): Moment {
-  const parts = zoneClock(timeZone).formatToParts(instant);
-  const part = (type: string) => parts.find((each) => each.type === type)?.value ?? '';
-  return {
-    day: `${part('year')}-${part('month')}-${part('day')}`,
-    time: `${part('hour')}:${part('minute')}`,
-  };
+  const { day, time } = wallClockIn(timeZone)(instant.getTime());
+  return { day, time: time.slice(0, 5) };
 }
 
 /**

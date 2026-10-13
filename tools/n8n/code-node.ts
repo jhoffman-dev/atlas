@@ -20,6 +20,7 @@ const MODULES = [
   `${MAPPING}meeting-transcript.ts`,
   `${MAPPING}meeting-file-name.ts`,
   `${MAPPING}meeting-to-atlas.ts`,
+  `${MAPPING}granola-note.ts`,
   './github-file.ts',
 ] as const;
 
@@ -67,7 +68,7 @@ const HEADER = [
 ].join('\n');
 
 /** The mapper as one plain-JavaScript script, followed by `run`, the node's own lines. */
-function codeNodeScript(run: string): string {
+export function codeNodeScript(run: string): string {
   return `${HEADER}\n\n${MODULES.map(moduleScript).join('\n')}\n// --- n8n ---\n${run}\n`;
 }
 

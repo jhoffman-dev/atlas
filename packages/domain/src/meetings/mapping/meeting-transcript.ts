@@ -1,4 +1,4 @@
-import { oneLine } from './meeting-mapping-error.ts';
+import { MeetingMappingError, oneLine } from './meeting-mapping-error.ts';
 import { fencedLines, isBoilerplate, textLines } from './meeting-text.ts';
 
 /** One speaker turn, before it is written. */
@@ -209,6 +209,58 @@ export function readTranscript(value: unknown, attendeeNames: readonly string[] 
     }))
     .filter((turn) => turn.words !== '');
   return { turns, clock, length: clock === 'elapsed' ? seconds(reader.lastElapsed) : null };
+}
+
+const CLOCKS: readonly TranscriptClock[] = ['elapsed', 'wall'];
+
+function clockOf(value: unknown): TranscriptClock {
+  if (value === null || value === undefined || value === '') return 'elapsed';
+  const clock = CLOCKS.find((each) => each === value);
+  if (clock === undefined) {
+    throw new MeetingMappingError(`clock: ${JSON.stringify(value)} is not one of elapsed, wall`);
+  }
+  return clock;
+}
+
+/** A turn's time as the clock counts it: a time of day on a wall clock, else time since the start. */
+function turnTime(value: unknown, clock: TranscriptClock, field: string): string | null {
+  const text = oneLine(value);
+  if (text === '') return null;
+  const time = padded(text);
+  const valid = clock === 'wall' ? WALL_TIME : ELAPSED_TIME;
+  if (valid.test(time)) return time;
+  const counts = clock === 'wall' ? 'a time of day' : 'a time like 00:09:44';
+  throw new MeetingMappingError(`${field}: "${text}" is not ${counts}`);
+}
+
+function structuredTurn(value: unknown, at: number, clock: TranscriptClock): Turn {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new MeetingMappingError(`turns[${at}]: expected { speaker, time, approximate, words }`);
+  }
+  const turn = value as Record<string, unknown>;
+  return {
+    speaker: speakerName(oneLine(turn['speaker'])),
+    time: turnTime(turn['time'], clock, `turns[${at}].time`),
+    approximate: turn['approximate'] === true,
+    words: oneLine(turn['words']),
+  };
+}
+
+/**
+ * Turns a provider handed over as data (Granola's API) rather than as text:
+ * each `{ speaker, time, approximate, words }`, its times counted by `clock`
+ * (`elapsed` when not given). Read as they are, never written out as text and
+ * read back, so a speaker with a `:` in their name stays whole; a turn with no
+ * words is dropped.
+ */
+export function readTurns(value: unknown, clock: unknown): Transcript {
+  if (!Array.isArray(value)) throw new MeetingMappingError('turns: expected a list');
+  const counted = clockOf(clock);
+  const turns = value
+    .map((each, at) => structuredTurn(each, at, counted))
+    .filter((turn) => turn.words !== '');
+  const last = turns.findLast((turn) => turn.time !== null)?.time ?? null;
+  return { turns, clock: counted, length: counted === 'elapsed' ? seconds(last) : null };
 }
 
 function seconds(time: string | null): number | null {

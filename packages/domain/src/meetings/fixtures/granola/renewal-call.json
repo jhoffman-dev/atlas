@@ -1,0 +1,71 @@
+{
+  "id": "not_4kTq2mWxLp4Rz7",
+  "object": "note",
+  "title": "Larkspur Payroll renewal",
+  "owner": { "name": "Mara Quill", "email": "mara.quill@example.com" },
+  "created_at": "2026-10-06T16:58:12Z",
+  "updated_at": "2026-10-06T17:41:03Z",
+  "deleted_at": null,
+  "web_url": "https://notes.granola.ai/d/0b6c1d2e-3f40-4a5b-8c6d-7e8f9a0b1c2d",
+  "calendar_event": {
+    "event_title": "Larkspur Payroll renewal",
+    "invitees": [
+      { "email": "mara.quill@example.com" },
+      { "email": "TOBIAS.FENN@example.com" },
+      { "email": "payroll-team@example.com" }
+    ],
+    "organiser": "mara.quill@example.com",
+    "calendar_event_id": "7hq2v0renewal_20261006T170000Z",
+    "scheduled_start_time": "2026-10-06T17:00:00Z",
+    "scheduled_end_time": "2026-10-06T17:30:00Z"
+  },
+  "attendees": [
+    { "name": "Mara Quill", "email": "mara.quill@example.com" },
+    { "name": "Tobias Fenn", "email": "tobias.fenn@example.com" },
+    { "name": null, "email": "ines.park@example.com" }
+  ],
+  "folder_membership": [],
+  "space_membership": [],
+  "summary_text": "Larkspur Payroll renews at the current price. This plain text is not what the file uses.",
+  "summary_markdown": "## Renewal\n\nLarkspur Payroll renews at the current price with a sixty-day notice period.\n\n- Tobias sends the redline today\n- Mara confirms the start date",
+  "private_notes_text": "Ask about the onboarding credit",
+  "private_notes_markdown": "- Ask about the **onboarding** credit",
+  "transcript": [
+    {
+      "speaker": { "source": "microphone", "attribution": "me" },
+      "text": "Morning, Tobias. Shall we start with the renewal?",
+      "start_time": "2026-10-06T17:01:05Z",
+      "end_time": "2026-10-06T17:01:09Z"
+    },
+    {
+      "speaker": { "source": "speaker", "attribution": "them", "name": "Tobias Fenn" },
+      "text": "Yes. Larkspur Payroll wants the notice period at sixty days.",
+      "start_time": "2026-10-06T17:01:11.400Z",
+      "end_time": "2026-10-06T17:01:16Z"
+    },
+    {
+      "speaker": { "source": "speaker", "attribution": "them" },
+      "text": "   ",
+      "start_time": "2026-10-06T17:01:17Z",
+      "end_time": "2026-10-06T17:01:18Z"
+    },
+    {
+      "speaker": { "source": "speaker", "attribution": "them" },
+      "text": "Sixty works if the price holds.",
+      "start_time": "2026-10-06T17:01:20Z",
+      "end_time": "2026-10-06T17:01:23Z"
+    },
+    {
+      "speaker": { "source": "speaker" },
+      "text": "I can send the redline today.",
+      "start_time": "2026-10-06T17:01:25Z",
+      "end_time": "2026-10-06T17:01:28Z"
+    },
+    {
+      "speaker": { "source": "microphone", "attribution": "me", "name": "Mara Quill" },
+      "text": "Thanks, both.",
+      "start_time": "2026-10-06T17:28:40Z",
+      "end_time": "2026-10-06T17:28:42Z"
+    }
+  ]
+}

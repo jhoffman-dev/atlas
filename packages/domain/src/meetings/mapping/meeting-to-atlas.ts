@@ -6,6 +6,7 @@ import { nextStepsText, sectionText } from './meeting-text.ts';
 import {
   firstSpoken,
   readTranscript,
+  readTurns,
   transcriptText,
   type Transcript,
 } from './meeting-transcript.ts';
@@ -45,6 +46,16 @@ export interface MeetingFields {
    */
   readonly sections?: unknown;
   readonly transcript?: unknown;
+  /**
+   * The transcript as data, for a provider whose API gives it so (Granola):
+   * `{ speaker, time, approximate, words }` turns, in order. When given,
+   * `transcript` is not read.
+   */
+  readonly turns?: unknown;
+  /** What the `turns`' times count: `wall` (time of day) or `elapsed` (the default). */
+  readonly clock?: unknown;
+  /** The meeting in the provider's own app, written as `source_url:`. */
+  readonly url?: unknown;
   readonly category?: unknown;
   readonly source?: unknown;
   readonly sourceId?: unknown;
@@ -73,6 +84,8 @@ export interface MeetingFile {
 }
 
 const PROVIDER = /^[a-z][a-z0-9-]*$/;
+/** A web address someone can open: `javascript:` and the like are never written as a link. */
+const WEB_ADDRESS = /^https?:\/\/[^\s/]\S*$/i;
 
 function required(value: unknown, field: string): string {
   const text = oneLine(value);
@@ -86,6 +99,16 @@ function providerOf(source: unknown): string {
     throw new MeetingMappingError(`source: "${provider}" is not a provider name like gemini`);
   }
   return provider;
+}
+
+/** The provider's link to the meeting, or null when none was given. */
+function sourceUrlOf(value: unknown): string | null {
+  const url = oneLine(value);
+  if (url === '') return null;
+  if (!WEB_ADDRESS.test(url)) {
+    throw new MeetingMappingError(`url: "${url}" is not a web address (https://…)`);
+  }
+  return url;
 }
 
 /** A YAML scalar that every reader takes as text: single-quoted, `'` doubled. */
@@ -105,12 +128,13 @@ interface Header {
   readonly kind: string;
   readonly provider: string;
   readonly externalId: string;
+  readonly sourceUrl: string | null;
   readonly clock: Transcript['clock'] | null;
   readonly attendees: readonly Attendee[];
 }
 
 function frontmatter(header: Header): string {
-  const { title, when, kind, provider, externalId, clock, attendees } = header;
+  const { title, when, kind, provider, externalId, sourceUrl, clock, attendees } = header;
   const lines = [
     '---',
     'type: meeting',
@@ -123,6 +147,7 @@ function frontmatter(header: Header): string {
     ...(kind === '' ? [] : [`kind: ${quoted(kind)}`]),
     `provider: ${quoted(provider)}`,
     `external_id: ${quoted(externalId)}`,
+    ...(sourceUrl === null ? [] : [`source_url: ${quoted(sourceUrl)}`]),
     ...(clock === null ? [] : [`transcript_clock: ${clock}`]),
     ...(attendees.length === 0 ? [] : ['attendees:', ...attendees.flatMap(attendeeYaml)]),
     '---',
@@ -187,10 +212,12 @@ export function mapMeeting(given: MeetingFields, options: MappingOptions = {}): 
   const provider = providerOf(fields.source);
   const externalId = required(fields.sourceId, 'sourceId');
   const attendees = readAttendees(fields.attendees, options.groupAddresses ?? []);
-  const transcript = readTranscript(
-    fields.transcript,
-    attendees.map((each) => each.name),
-  );
+  const transcript = isEmpty(fields.turns)
+    ? readTranscript(
+        fields.transcript,
+        attendees.map((each) => each.name),
+      )
+    : readTurns(fields.turns, fields.clock);
   const when = meetingWhen({
     date: fields.date,
     start: fields.start,
@@ -207,6 +234,7 @@ export function mapMeeting(given: MeetingFields, options: MappingOptions = {}): 
     kind: oneLine(fields.category),
     provider,
     externalId,
+    sourceUrl: sourceUrlOf(fields.url),
     clock: transcript.turns.length === 0 ? null : transcript.clock,
     attendees,
   };
