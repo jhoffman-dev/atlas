@@ -95,6 +95,27 @@ describe('explainGranolaFailure', () => {
     expect(fix).toMatch(/next pull/);
   });
 
+  it('names a request the host would not make, with what it said, and nothing to fix', () => {
+    expect(explainGranolaFailure(failure('invalid'))).toEqual({
+      problem: 'Atlas could not ask Granola: what the host said.',
+      fix: null,
+    });
+  });
+
+  it('points a Keychain that would not give up the key at the Keychain and the card', () => {
+    const { problem, fix } = explainGranolaFailure(failure('keychain'));
+    expect(problem).toBe(
+      'The Keychain did not give Atlas the Granola API key: what the host said.',
+    );
+    expect(fix).toMatch(/Keychain.*Settings → Granola/);
+  });
+
+  it('says an answer larger than Atlas reads was skipped', () => {
+    const { problem, fix } = explainGranolaFailure(failure('too_large'));
+    expect(problem).toBe('Granola answered with more than Atlas will read.');
+    expect(fix).toBe('It was skipped; Sync now tries it again.');
+  });
+
   it('has words for every kind there is', () => {
     for (const kind of GRANOLA_FAILURE_KINDS) {
       expect(explainGranolaFailure(failure(kind)).problem).not.toBe('');
@@ -106,6 +127,7 @@ describe('isGranolaFailureKind', () => {
   it('knows the kinds, and nothing else', () => {
     expect(isGranolaFailureKind('no_key')).toBe(true);
     expect(isGranolaFailureKind('api_refused')).toBe(true);
+    expect(isGranolaFailureKind('keychain')).toBe(true);
     expect(isGranolaFailureKind('refused')).toBe(false);
     expect(isGranolaFailureKind(undefined)).toBe(false);
   });
@@ -115,6 +137,16 @@ describe('granolaFailureEffect', () => {
   it('stops the pull when there is no key or Granola refused it', () => {
     expect(granolaFailureEffect(failure('no_key'))).toBe('stop');
     expect(granolaFailureEffect(refused(401))).toBe('stop');
+  });
+
+  it('stops the pull when the host will not send, or the Keychain will not give the key', () => {
+    expect(granolaFailureEffect(failure('invalid'))).toBe('stop');
+    expect(granolaFailureEffect(failure('keychain'))).toBe('stop');
+    expect(granolaFailureEffect({ ...failure('keychain'), transcriptPage: true })).toBe('stop');
+  });
+
+  it('skips an answer larger than Atlas reads: it is as large on every pull', () => {
+    expect(granolaFailureEffect(failure('too_large'))).toBe('skip');
   });
 
   it('skips a note Granola no longer has, rather than hold the watermark for it', () => {

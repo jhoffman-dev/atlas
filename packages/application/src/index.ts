@@ -21,6 +21,8 @@ export { fakeHostVaultFs, fakeIndexPort, fakeMarkdown, fakeVaultFs } from './tes
 export { memoryActivityStore, recordingActivity } from './testing/fake-activity.ts';
 export { apiFixture, bodyOf, codeOf, encoded } from './testing/api-fixture.ts';
 export { fakeGoogleCalendar } from './testing/fake-google-calendar.ts';
+export { fakeGranola, granolaNote, granolaTurn } from './testing/fake-granola.ts';
+export type { GranolaCall, GranolaCallKey } from './testing/fake-granola.ts';
 export { fakeClaudeStepPorts } from './testing/fake-claude-step.ts';
 export * from './api/index.ts';
 export * from './archive/index.ts';
@@ -38,6 +40,7 @@ export * from './bookmarks/index.ts';
 export * from './chat/index.ts';
 export * from './proposals/index.ts';
 export * from './meeting-links/index.ts';
+export * from './granola/index.ts';
 export * from './transclusion/index.ts';
 export * from './activity/index.ts';
 export * from './sync/index.ts';

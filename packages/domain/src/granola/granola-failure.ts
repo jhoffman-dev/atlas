@@ -7,8 +7,14 @@
 export const GRANOLA_FAILURE_KINDS = [
   /** No API key is held on this Mac for the vault. */
   'no_key',
+  /** The host would not send the request: no vault open, or not the one named. */
+  'invalid',
+  /** The Keychain would not give the host the key. */
+  'keychain',
   'unreachable',
   'timeout',
+  /** Granola's answer is larger than the host will read. */
+  'too_large',
   /** Granola answered, but not in the shape its API documents. */
   'malformed',
   /** Granola answered a request with an error status; `status` is it. */
@@ -87,6 +93,15 @@ export function explainGranolaFailure(failure: GranolaFailure): GranolaProblem {
       return refusal(failure.status);
     case 'no_key':
       return { problem: 'No Granola API key is set on this Mac.', fix: MAKE_A_KEY };
+    case 'invalid':
+      return { problem: `Atlas could not ask Granola: ${failure.message}.`, fix: null };
+    case 'keychain':
+      return {
+        problem: `The Keychain did not give Atlas the Granola API key: ${failure.message}.`,
+        fix: 'Unlock the Keychain, or paste the key again in Settings → Granola.',
+      };
+    case 'too_large':
+      return { problem: 'Granola answered with more than Atlas will read.', fix: SKIPPED };
     case 'unreachable':
       return {
         problem: `Granola could not be reached: ${failure.message}.`,
@@ -108,13 +123,15 @@ export function explainGranolaFailure(failure: GranolaFailure): GranolaProblem {
 /**
  * What a failure means for the pull (ADR-0034's watermark rule):
  *
- * - `stop` when there is no key or Granola refused it (401): every later
- *   request would be refused too.
+ * - `stop` when there is no key, the Keychain will not give it, Granola
+ *   refused it (401), or the host will not send for this vault: every later
+ *   request would fail the same way.
  * - `retry` only for a failure that may pass by itself — the network, a
  *   timeout, 408, 429, a 5xx, or a page of a transcript — which holds the
  *   watermark so the next pull lists the note again.
  * - `skip` for the rest — 404, 403, any other refusal, an answer Atlas could
- *   not read — which would fail the same way on every pull. It settles the
+ *   not read or would not read for its size — which would fail the same way
+ *   on every pull. It settles the
  *   note (logged, the watermark not held); Sync now's full listing tries it
  *   again, once the key or Granola has changed.
  *
@@ -133,17 +150,20 @@ function statusEffect(status: number | undefined): GranolaFailureEffect {
   return status === 413 || isTransientStatus(status) ? 'retry' : 'skip';
 }
 
+/** Kinds that fail every request after them the same way, whatever is asked. */
+const STOPPING_KINDS: ReadonlySet<GranolaFailureKind> = new Set(['no_key', 'invalid', 'keychain']);
+
 export function granolaFailureEffect(failure: GranolaFailure): GranolaFailureEffect {
-  if (failure.kind === 'no_key') return 'stop';
+  if (STOPPING_KINDS.has(failure.kind)) return 'stop';
   if (failure.kind === 'api_refused' && failure.status === 401) return 'stop';
   if (failure.transcriptPage === true) return 'retry';
   switch (failure.kind) {
     case 'unreachable':
     case 'timeout':
       return 'retry';
-    case 'malformed':
-      return 'skip';
     case 'api_refused':
       return statusEffect(failure.status);
+    default:
+      return 'skip';
   }
 }
