@@ -12,7 +12,9 @@
 //! webview, the way `google.rs` fixes Google's endpoints — and GET, the only
 //! method a read-only API has.
 
+use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, HashMap};
+use std::hash::BuildHasher;
 use std::sync::{Mutex, MutexGuard};
 
 use reqwest::Url;
@@ -46,12 +48,23 @@ pub struct GranolaAnswer {
     pub body: String,
 }
 
+/// Which key a vault's standing is about, by its fingerprint.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Kept {
+    /// No key was set or forgotten in this run: the key kept from an earlier
+    /// one, if any, is the one the next answer was sent with.
+    #[default]
+    Unknown,
+    Nothing,
+    Key(u64),
+}
+
 /// How a vault's key stands in this run of the app.
 #[derive(Debug, Default, Clone, Copy)]
 struct Standing {
-    /// How many times the key was set or forgotten, so an answer to a request
-    /// sent with an earlier key is not taken as the word on this one.
-    changes: u64,
+    /// The key Granola's word is taken on. An answer is about the key its
+    /// request carried, so one sent with any other key says nothing of this.
+    kept: Kept,
     refused: Option<u16>,
 }
 
@@ -60,6 +73,11 @@ struct Standing {
 #[derive(Default)]
 pub struct GranolaState {
     standings: Mutex<HashMap<String, Standing>>,
+    /// Held while a key is set or forgotten, so that the Keychain and the
+    /// standing change together, one change at a time. Requests never take it.
+    changing: Mutex<()>,
+    /// Keyed afresh in each run, so a fingerprint means nothing outside it.
+    fingerprints: RandomState,
 }
 
 impl GranolaState {
@@ -71,24 +89,44 @@ impl GranolaState {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    /// Guards nothing but its own holding, so a panic under it is no harm.
+    fn changing(&self) -> MutexGuard<'_, ()> {
+        self.changing
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn standing(&self, scope: &str) -> Standing {
         self.standings().get(scope).copied().unwrap_or_default()
     }
 
-    fn key_changed(&self, scope: &str) {
-        let mut standings = self.standings();
-        let standing = standings.entry(scope.to_string()).or_default();
-        standing.changes += 1;
-        standing.refused = None;
+    fn fingerprint(&self, key: &str) -> Kept {
+        Kept::Key(self.fingerprints.hash_one(key))
     }
 
-    /// Takes Granola's answer to a request sent while the key stood at
-    /// `seen` as the word on the key: 401 and 403 refuse it, a success clears
-    /// that. An answer to an earlier key says nothing about this one.
-    fn heard(&self, scope: &str, seen: Standing, status: u16) {
+    /// Notes which key is now kept, with no refusal: what Granola said of the
+    /// one before says nothing of this one.
+    fn now_keeping(&self, scope: &str, kept: Kept) {
+        self.standings().insert(
+            scope.to_string(),
+            Standing {
+                kept,
+                refused: None,
+            },
+        );
+    }
+
+    /// Takes Granola's answer to a request sent with `sent` as the word on the
+    /// key, if that is the key kept: 401 and 403 refuse it, a success clears
+    /// that.
+    fn heard(&self, scope: &str, sent: &str, status: u16) {
+        let sent = self.fingerprint(sent);
         let mut standings = self.standings();
         let standing = standings.entry(scope.to_string()).or_default();
-        if standing.changes != seen.changes {
+        if standing.kept == Kept::Unknown {
+            standing.kept = sent;
+        }
+        if standing.kept != sent {
             return;
         }
         match status {
@@ -123,9 +161,15 @@ impl Session<'_> {
         })
     }
 
+    /// The new key is noted before it is kept, so a refusal of it heard the
+    /// moment it is kept stands; an answer to the old key, after the note, is
+    /// about a key no longer kept.
     pub fn set_key(&self, key: &str) -> Result<GranolaStatus, GranolaFailure> {
-        key::save(self.store, self.scope, key)?;
-        self.state.key_changed(self.scope);
+        key::check(key)?;
+        let _changing = self.state.changing();
+        self.state
+            .now_keeping(self.scope, self.state.fingerprint(key));
+        key::save(self.store, self.scope, key).inspect_err(|_| self.no_longer_known())?;
         log::info!("Granola API key stored");
         Ok(GranolaStatus {
             has_key: true,
@@ -134,13 +178,20 @@ impl Session<'_> {
     }
 
     pub fn forget_key(&self) -> Result<GranolaStatus, GranolaFailure> {
-        key::forget(self.store, self.scope)?;
-        self.state.key_changed(self.scope);
+        let _changing = self.state.changing();
+        self.state.now_keeping(self.scope, Kept::Nothing);
+        key::forget(self.store, self.scope).inspect_err(|_| self.no_longer_known())?;
         log::info!("Granola API key removed");
         Ok(GranolaStatus {
             has_key: false,
             last_refusal: None,
         })
+    }
+
+    /// After the Keychain failed to change, which key it holds is not known;
+    /// the next answer heard says.
+    fn no_longer_known(&self) {
+        self.state.now_keeping(self.scope, Kept::Unknown);
     }
 
     /// Sends one GET and hands back its answer. A path off the API is refused
@@ -151,13 +202,12 @@ impl Session<'_> {
         query: &BTreeMap<String, String>,
     ) -> Result<GranolaAnswer, GranolaFailure> {
         let url = api::call_url(self.origin, path, query)?;
-        let seen = self.state.standing(self.scope);
         let key = key::load(self.store, self.scope)?.ok_or_else(no_key)?;
         let sent = [(KEY_NAME.to_string(), key)];
         let (status, body) = api::get(&url, &sent[0].1)
             .await
             .map_err(|failure| failure.struck_of(&sent))?;
-        self.state.heard(self.scope, seen, status);
+        self.state.heard(self.scope, &sent[0].1, status);
         log::debug!("Granola answered {status}");
         let text = String::from_utf8(body).map_err(|_| {
             GranolaFailure::new(FailureKind::Malformed, "Granola did not answer with text")

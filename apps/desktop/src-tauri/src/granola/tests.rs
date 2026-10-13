@@ -9,7 +9,7 @@ use std::sync::MutexGuard;
 use reqwest::Url;
 
 use super::fake_granola::{FakeGranola, Granola, Reply};
-use super::{FailureKind, GranolaFailure, GranolaState, GranolaStatus, Session};
+use super::{FailureKind, GranolaFailure, GranolaState, GranolaStatus, Kept, Session};
 use crate::secrets::{MemoryStore, SecretStore};
 
 const VAULT: &str = "v1";
@@ -203,14 +203,97 @@ async fn any_other_status_is_an_answer_and_says_nothing_about_the_key() {
 #[test]
 fn an_answer_to_a_key_since_replaced_says_nothing_about_the_new_one() {
     let state = GranolaState::default();
-    let seen = state.standing(VAULT);
-    state.key_changed(VAULT);
-    state.heard(VAULT, seen, 401);
+    state.now_keeping(VAULT, state.fingerprint("grn_TheOldOne"));
+    state.now_keeping(VAULT, state.fingerprint("grn_TheNewOne"));
+    state.heard(VAULT, "grn_TheOldOne", 401);
     assert_eq!(state.standing(VAULT).refused, None);
 
-    let now = state.standing(VAULT);
-    state.heard(VAULT, now, 401);
+    state.heard(VAULT, "grn_TheNewOne", 401);
     assert_eq!(state.standing(VAULT).refused, Some(401));
+    state.heard(VAULT, "grn_TheOldOne", 200);
+    assert_eq!(
+        state.standing(VAULT).refused,
+        Some(401),
+        "a success for the old key cleared the new one's refusal"
+    );
+}
+
+#[test]
+fn an_answer_heard_once_the_key_is_forgotten_says_nothing() {
+    let state = GranolaState::default();
+    state.now_keeping(VAULT, Kept::Nothing);
+    state.heard(VAULT, KEY, 401);
+    assert_eq!(state.standing(VAULT).refused, None);
+}
+
+/// No key was set in this run: the one kept from an earlier run is the one
+/// Granola's answers are about.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refusal_of_a_key_kept_from_an_earlier_run_is_kept() {
+    let setup = Setup::new().await;
+    super::key::save(&setup.store, VAULT, KEY).unwrap();
+
+    let answer = setup.session().request(NOTES, &no_query()).await.unwrap();
+
+    assert_eq!(answer.status, 401);
+    assert_eq!(setup.refusal(), Some(401));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_that_is_not_granolas_leaves_the_kept_ones_refusal_standing() {
+    let setup = Setup::keyed().await;
+    setup.granola().key = Some("grn_TheOneGranolaHasNow".into());
+    setup.session().request(NOTES, &no_query()).await.unwrap();
+    assert_eq!(setup.refusal(), Some(401));
+
+    setup.session().set_key("not-a-key").unwrap_err();
+
+    assert_eq!(setup.refusal(), Some(401));
+}
+
+/// A Keychain that keeps nothing new and lets nothing go.
+struct RefusingStore(MemoryStore);
+
+impl SecretStore for RefusingStore {
+    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        Err("the keychain is locked".into())
+    }
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        self.0.get(account)
+    }
+    fn delete(&self, _: &str) -> Result<(), String> {
+        Err("the keychain is locked".into())
+    }
+    fn accounts(&self) -> Result<Vec<String>, String> {
+        self.0.accounts()
+    }
+}
+
+/// The Keychain refused the change, so it still holds the old key, and a
+/// refusal of that key is heard as one.
+#[tokio::test(flavor = "multi_thread")]
+async fn after_the_keychain_refuses_a_change_a_refusal_of_the_key_it_holds_is_kept() {
+    let fake = FakeGranola::start().await;
+    let store = RefusingStore(MemoryStore::default());
+    super::key::save(&store.0, VAULT, KEY).unwrap();
+    let state = GranolaState::default();
+    let session = Session {
+        origin: &fake.origin,
+        store: &store,
+        scope: VAULT,
+        state: &state,
+    };
+
+    let refused_once_changed = |change: Result<GranolaStatus, GranolaFailure>| async {
+        assert_eq!(change.unwrap_err().kind, FailureKind::Keychain);
+        session.request(NOTES, &no_query()).await.unwrap();
+        session.status().unwrap().last_refusal
+    };
+    assert_eq!(
+        refused_once_changed(session.set_key("grn_ANewOne")).await,
+        Some(401)
+    );
+    assert_eq!(refused_once_changed(session.forget_key()).await, Some(401));
 }
 
 #[tokio::test(flavor = "multi_thread")]
