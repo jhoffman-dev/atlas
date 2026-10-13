@@ -446,3 +446,45 @@ fn a_long_secret_is_struck_rather_than_the_answer_withheld() {
 fn a_one_character_secret_strikes_only_itself() {
     assert_eq!(struck("a-b", "a"), "[secret key removed]-b");
 }
+
+/// Adversarial (P28-10 fix). A server that puts the request URL inside
+/// another URL's query — `return_to`, `login_url`, `redirect` — encodes it
+/// twice, so a `+` the secret held reaches the answer as `%252B`. Each
+/// character is matched as itself, `%XX` or `\uXXXX`, never `%25XX`, so the
+/// letters and digits match and the rest do not: the whole secret is in the
+/// answer, two URL decodes from the clear.
+#[test]
+fn a_secret_echoed_percent_encoded_twice_is_struck() {
+    let secret = "aB3+dE6/gH9=";
+    let echo = r#"{"login_url":"https://feeds.example/login?return_to=https%3A%2F%2Ffeeds.example%2Fcal%3Ftoken%3DaB3%252BdE6%252FgH9%253D"}"#;
+
+    let redacted = struck(echo, secret);
+
+    assert!(
+        redacted.contains("[secret key removed]"),
+        "the secret survives as aB3%252BdE6%252FgH9%253D: {redacted}"
+    );
+}
+
+/// Adversarial (P28-10 fix). A server that rebuilds a `next` link with form
+/// encoding (Python's `urlencode`, Java's `URLEncoder`) writes a space as `+`.
+/// A secret holding a space is matched against ` `, `%20` and ` ` only.
+#[test]
+fn a_secret_echoed_form_encoded_with_plus_for_space_is_struck() {
+    let secret = "correct horse battery staple";
+
+    let redacted = struck("next=/feed?page=2&pass=correct+horse+battery+staple", secret);
+
+    assert_eq!(redacted, "next=/feed?page=2&pass=[secret key removed]");
+}
+
+/// Adversarial (P28-10 fix). The base64 "cores" of a one- or two-byte secret
+/// are one or two characters long, and are struck wherever they occur in the
+/// answer: a secret of `a` strikes every `Y`, one of `ab` every `Fi`. Text
+/// that is not the secret in any form is changed, and the answer the webview
+/// reads is corrupted.
+#[test]
+fn a_short_secret_strikes_only_itself_and_not_text_its_base64_shares() {
+    assert_eq!(struck("Yes", "a"), "Yes");
+    assert_eq!(struck("Final", "ab"), "Final");
+}

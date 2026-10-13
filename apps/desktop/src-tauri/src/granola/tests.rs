@@ -635,3 +635,68 @@ async fn a_refusal_of_the_new_key_heard_while_it_is_being_set_is_kept() {
     );
     assert_eq!(session().status().unwrap().last_refusal, Some(401));
 }
+
+/// A Keychain whose writes fail while `refusing` is set.
+#[derive(Default)]
+struct FlakyStore {
+    inner: MemoryStore,
+    refusing: std::sync::atomic::AtomicBool,
+}
+
+impl SecretStore for FlakyStore {
+    fn set(&self, account: &str, value: &str) -> Result<(), String> {
+        if self.refusing.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err("the keychain is locked".into());
+        }
+        self.inner.set(account, value)
+    }
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        self.inner.get(account)
+    }
+    fn delete(&self, account: &str) -> Result<(), String> {
+        self.inner.delete(account)
+    }
+    fn accounts(&self) -> Result<Vec<String>, String> {
+        self.inner.accounts()
+    }
+}
+
+/// Adversarial (P28-10 fix). After a Keychain failure the standing is
+/// `Unknown`, and the first answer heard pins `kept` to whatever key that
+/// request carried — even one sent before the key now in the Keychain was set.
+/// The stale 401 then stands against the kept key, and every success of the
+/// kept key is ignored (`kept != sent`) for the rest of the run.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_late_answer_to_an_earlier_key_after_a_keychain_failure_does_not_pin_the_standing() {
+    let fake = FakeGranola::start().await;
+    let store = FlakyStore::default();
+    let state = GranolaState::default();
+    let session = Session {
+        origin: &fake.origin,
+        store: &store,
+        scope: VAULT,
+        state: &state,
+    };
+    let (earlier, kept) = ("grn_TheEarlierKey", "grn_TheKeptKey");
+    fake.granola.lock().unwrap().key = Some(kept.into());
+
+    session.set_key(earlier).unwrap();
+    // A pull goes out with the earlier key and is still waiting on Granola…
+    session.set_key(kept).unwrap();
+    store.refusing.store(true, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(
+        session.set_key("grn_ATypoTheKeychainRefused").unwrap_err().kind,
+        FailureKind::Keychain
+    );
+    store.refusing.store(false, std::sync::atomic::Ordering::SeqCst);
+    // …and Granola's 401 for the earlier key lands now.
+    state.heard(VAULT, earlier, 401);
+
+    let answer = session.request(NOTES, &no_query()).await.unwrap();
+    assert_eq!(answer.status, 200, "the kept key works");
+    assert_eq!(
+        session.status().unwrap().last_refusal,
+        None,
+        "the kept key answered 200, yet it stands refused for a 401 to the earlier key"
+    );
+}
