@@ -31,8 +31,10 @@ const ORIGIN: &str = "https://public-api.granola.ai";
 /// What the key is called where it is struck from an answer.
 const KEY_NAME: &str = "granola-api-key";
 
-/// Whether this vault has a key on this Mac, and the status Granola last
-/// refused it with (401 or 403), if it has since a key was set. Never a key.
+/// Whether this vault has a key on this Mac, and 401 if Granola refused it
+/// since it was set and has not since answered it with a success. A 403 is
+/// a call the key may not make, not a key Granola does not know: it says
+/// nothing about the key. Never a key.
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GranolaStatus {
@@ -117,8 +119,7 @@ impl GranolaState {
     }
 
     /// Takes Granola's answer to a request sent with `sent` as the word on the
-    /// key, if that is the key kept: 401 and 403 refuse it, a success clears
-    /// that.
+    /// key, if that is the key kept: 401 refuses it, a success clears that.
     fn heard(&self, scope: &str, sent: &str, status: u16) {
         let sent = self.fingerprint(sent);
         let mut standings = self.standings();
@@ -130,7 +131,7 @@ impl GranolaState {
             return;
         }
         match status {
-            401 | 403 => standing.refused = Some(status),
+            401 => standing.refused = Some(status),
             200..=299 => standing.refused = None,
             _ => {}
         }

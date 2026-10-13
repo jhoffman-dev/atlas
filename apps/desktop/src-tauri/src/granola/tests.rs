@@ -159,14 +159,18 @@ async fn a_401_is_handed_back_as_itself_with_the_key_struck_and_marks_the_key_re
     assert_eq!(setup.refusal(), Some(401));
 }
 
+/// A 403 is a call the key may not make, not a key Granola does not know.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_403_marks_the_key_refused_and_a_success_clears_it() {
+async fn a_403_is_an_answer_that_does_not_refuse_the_key_and_a_success_clears_a_refusal() {
     let setup = Setup::keyed().await;
     setup.granola().reply = Reply::Status(403);
     let answer = setup.session().request(NOTES, &no_query()).await.unwrap();
     assert_eq!(answer.status, 403);
-    assert_eq!(setup.refusal(), Some(403));
+    assert_eq!(setup.refusal(), None);
 
+    setup.granola().reply = Reply::Status(401);
+    setup.session().request(NOTES, &no_query()).await.unwrap();
+    assert_eq!(setup.refusal(), Some(401));
     setup.granola().reply = Reply::Notes;
     setup.session().request(NOTES, &no_query()).await.unwrap();
     assert_eq!(setup.refusal(), None);

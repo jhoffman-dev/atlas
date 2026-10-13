@@ -467,9 +467,10 @@ export interface FakeHost {
   /**
    * Granola, as `granola.rs` answers for it: an API key kept per vault, and a
    * GET under `/v1/` answered with what a test served at that path (404 where
-   * nothing was). 401 and 403 mark the key refused and a 2xx clears that, as
-   * the host does. The Keychain item, the pinned origin and the key struck
-   * from every answer are Rust's and tested there against a fake Granola.
+   * nothing was). A 401 marks the key refused and a 2xx clears that, as the
+   * host does; a 403 says nothing about the key. The Keychain item, the
+   * pinned origin and the key struck from every answer are Rust's and tested
+   * there against a fake Granola.
    */
   readonly granola: {
     serve(path: string, answer: { status: number; body: string }): void;
@@ -1297,7 +1298,7 @@ export async function installHost(
         const { path, query } = args as { path: string; query: Record<string, string> };
         granolaRequests.push({ path, query });
         const answer = granolaAnswers.get(path) ?? { status: 404, body: '{"message":"Not found"}' };
-        if (answer.status === 401 || answer.status === 403) {
+        if (answer.status === 401) {
           granolaRefusals.set(root, answer.status);
         } else if (answer.status >= 200 && answer.status < 300) {
           granolaRefusals.delete(root);
