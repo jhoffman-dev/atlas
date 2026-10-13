@@ -36,7 +36,7 @@ export function atlasQueryIndex({
                         modified INTEGER NOT NULL, size INTEGER NOT NULL);
     CREATE TABLE props (path TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL DEFAULT 0,
                         value_text TEXT, value_num REAL, value_date TEXT, value_json TEXT);
-    CREATE INDEX props_path ON props(path, key);
+    CREATE INDEX props_path ON props(path, key, value_text);
     CREATE INDEX props_key ON props(key, value_text);
     CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
                             target TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', dst TEXT);

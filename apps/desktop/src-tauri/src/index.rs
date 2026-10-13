@@ -39,10 +39,13 @@ use crate::vault::VaultState;
 /// too, so an 11 of either shape is rebuilt; 13: `props_path` covers the key
 /// as well as the path (#123) — a statement asking for one key of one note was
 /// planned through `props_key`, every row of that key in the vault, once per
-/// note, since nothing here gathers the statistics that would say otherwise).
+/// note, since nothing here gathers the statistics that would say otherwise;
+/// 14: and the value — asking one note for one key *and* value tied with
+/// `props_key` again, so an Atlas query checking each note's type walked every
+/// note of that type per note and ran out of its step budget).
 /// A mismatch throws the cache away rather than trying to migrate something
 /// that can simply be rebuilt.
-const SCHEMA_VERSION: i64 = 13;
+const SCHEMA_VERSION: i64 = 14;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -304,7 +307,7 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 value_date TEXT,
                 value_json TEXT
             );
-            CREATE INDEX IF NOT EXISTS props_path ON props(path, key);
+            CREATE INDEX IF NOT EXISTS props_path ON props(path, key, value_text);
             CREATE INDEX IF NOT EXISTS props_key ON props(key, value_text);
 
             CREATE TABLE IF NOT EXISTS links (
