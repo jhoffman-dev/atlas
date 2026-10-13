@@ -411,16 +411,33 @@ fn with_connection<T>(
     action(connection)
 }
 
+fn open_index(root: &Path, index: &IndexState, _query: &QueryState) -> Result<IndexOpened, String> {
+    let (connection, opened) = open_database(root)?;
+    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
+    Ok(opened)
+}
+
 #[tauri::command]
 pub fn index_open(
     vault: State<'_, VaultState>,
     index: State<'_, IndexState>,
+    query: State<'_, QueryState>,
 ) -> Result<IndexOpened, String> {
     let root = vault.root().ok_or("no vault is open")?;
-    let (connection, opened) = open_database(&root)?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
+    let opened = open_index(&root, &index, &query)?;
     log::info!("index opened (fresh: {})", opened.fresh);
     Ok(opened)
+}
+
+fn clear_index(root: &Path, index: &IndexState, _query: &QueryState) -> Result<(), String> {
+    *index.0.lock().map_err(|_| "index state poisoned")? = None;
+    let path = database_path(root)?;
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = fs::remove_file(format!("{}{suffix}", path.display()));
+    }
+    let (connection, _) = open_database(root)?;
+    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
+    Ok(())
 }
 
 /// Throws the cache away and starts again. The point of having it.
@@ -428,15 +445,10 @@ pub fn index_open(
 pub fn index_clear(
     vault: State<'_, VaultState>,
     index: State<'_, IndexState>,
+    query: State<'_, QueryState>,
 ) -> Result<(), String> {
     let root = vault.root().ok_or("no vault is open")?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = None;
-    let path = database_path(&root)?;
-    for suffix in ["", "-wal", "-shm"] {
-        let _ = fs::remove_file(format!("{}{suffix}", path.display()));
-    }
-    let (connection, _) = open_database(&root)?;
-    *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
+    clear_index(&root, &index, &query)?;
     log::info!("index cleared");
     Ok(())
 }
@@ -981,6 +993,35 @@ pub(crate) fn run_query(
     })
 }
 
+impl QueryState {
+    fn run(
+        &self,
+        path: &Path,
+        sql: &str,
+        parameters: &[serde_json::Value],
+    ) -> Result<QueryResult, String> {
+        let mut guard = self.0.lock().map_err(|_| "query state poisoned")?;
+
+        if guard.is_none() {
+            let connection = Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )
+            .map_err(|error| format!("cannot open the index for reading: {error}"))?;
+            // Returning true aborts, so this stops any query that exceeds the budget.
+            // A failure to install it is not worth refusing to query over: the row cap
+            // and the read-only connection are the guarantees that matter.
+            if let Err(error) = connection.progress_handler(QUERY_STEP_BUDGET, Some(|| true)) {
+                log::warn!("could not limit query time: {error}");
+            }
+            *guard = Some(connection);
+        }
+
+        let connection = guard.as_ref().ok_or("the index is not open")?;
+        run_query(connection, sql, parameters)
+    }
+}
+
 #[tauri::command]
 pub fn index_query(
     vault: State<'_, VaultState>,
@@ -988,27 +1029,8 @@ pub fn index_query(
     sql: String,
     parameters: Vec<serde_json::Value>,
 ) -> Result<QueryResult, String> {
-    let mut guard = query.0.lock().map_err(|_| "query state poisoned")?;
-
-    if guard.is_none() {
-        let root = vault.root().ok_or("no vault is open")?;
-        let path = database_path(&root)?;
-        let connection = Connection::open_with_flags(
-            &path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(|error| format!("cannot open the index for reading: {error}"))?;
-        // Returning true aborts, so this stops any query that exceeds the budget.
-        // A failure to install it is not worth refusing to query over: the row cap
-        // and the read-only connection are the guarantees that matter.
-        if let Err(error) = connection.progress_handler(QUERY_STEP_BUDGET, Some(|| true)) {
-            log::warn!("could not limit query time: {error}");
-        }
-        *guard = Some(connection);
-    }
-
-    let connection = guard.as_ref().ok_or("the index is not open")?;
-    run_query(connection, &sql, &parameters)
+    let root = vault.root().ok_or("no vault is open")?;
+    query.run(&database_path(&root)?, &sql, &parameters)
 }
 
 #[tauri::command]
@@ -1669,6 +1691,89 @@ mod tests {
         drop(index);
         let (_, reopened) = open_database(vault.path()).unwrap();
         assert!(!reopened.fresh);
+    }
+
+    /// The titles a query on the read-only path finds in the index at `root`.
+    fn titles_read(query: &QueryState, root: &Path) -> Vec<serde_json::Value> {
+        let path = database_path(root).unwrap();
+        let result = query
+            .run(&path, "SELECT title FROM files ORDER BY title", &[])
+            .unwrap();
+        result.rows.into_iter().map(|row| row[0].clone()).collect()
+    }
+
+    fn put(index: &IndexState, notes: &[IndexedNote]) {
+        let mut guard = index.0.lock().unwrap();
+        put_notes(guard.as_mut().unwrap(), notes).unwrap();
+    }
+
+    #[test]
+    fn a_query_after_the_index_is_cleared_reads_the_rebuilt_index() {
+        let vault = tempfile::tempdir().unwrap();
+        let (index, query) = (IndexState::default(), QueryState::default());
+        open_index(vault.path(), &index, &query).unwrap();
+        put(&index, &[note("old.md", "Before the rebuild", "")]);
+        assert_eq!(titles_read(&query, vault.path()), ["Before the rebuild"]);
+
+        clear_index(vault.path(), &index, &query).unwrap();
+        put(&index, &[note("new.md", "After the rebuild", "")]);
+
+        assert_eq!(titles_read(&query, vault.path()), ["After the rebuild"]);
+    }
+
+    #[test]
+    fn a_query_after_an_index_of_another_shape_is_reopened_reads_the_new_index() {
+        let vault = tempfile::tempdir().unwrap();
+        let (index, query) = (IndexState::default(), QueryState::default());
+        open_index(vault.path(), &index, &query).unwrap();
+        put(&index, &[note("old.md", "Older shape", "")]);
+        assert_eq!(titles_read(&query, vault.path()), ["Older shape"]);
+        index
+            .0
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .execute_batch(&format!("PRAGMA user_version = {};", SCHEMA_VERSION - 1))
+            .unwrap();
+
+        let opened = open_index(vault.path(), &index, &query).unwrap();
+        assert!(opened.fresh, "the older index is thrown away");
+        put(&index, &[note("new.md", "Current shape", "")]);
+
+        assert_eq!(titles_read(&query, vault.path()), ["Current shape"]);
+    }
+
+    #[test]
+    fn a_query_after_switching_vaults_reads_the_new_vaults_index() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        let (index, query) = (IndexState::default(), QueryState::default());
+        open_index(first.path(), &index, &query).unwrap();
+        put(&index, &[note("a.md", "Larkspur kickoff", "")]);
+        assert_eq!(titles_read(&query, first.path()), ["Larkspur kickoff"]);
+
+        open_index(second.path(), &index, &query).unwrap();
+        put(&index, &[note("b.md", "Mara Quill one-on-one", "")]);
+
+        assert_eq!(
+            titles_read(&query, second.path()),
+            ["Mara Quill one-on-one"]
+        );
+    }
+
+    #[test]
+    fn a_query_reads_another_vault_even_before_its_index_is_reopened() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        let (index, query) = (IndexState::default(), QueryState::default());
+        open_index(second.path(), &index, &query).unwrap();
+        put(&index, &[note("b.md", "Tobias Fenn sync", "")]);
+        open_index(first.path(), &index, &query).unwrap();
+        put(&index, &[note("a.md", "Larkspur kickoff", "")]);
+        assert_eq!(titles_read(&query, first.path()), ["Larkspur kickoff"]);
+
+        assert_eq!(titles_read(&query, second.path()), ["Tobias Fenn sync"]);
     }
 
     #[test]
