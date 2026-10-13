@@ -424,3 +424,25 @@ fn text_that_only_resembles_a_secret_is_left_alone() {
     // The same letters, with `-` where the secret has `+`.
     assert_eq!(struck("aB3-dE6", "aB3+dE6"), "aB3-dE6");
 }
+
+/// Every character of a secret may be escaped, so its pattern grows with it; a
+/// long one, a signed token or a service account's key, is still looked for
+/// rather than the answer withheld as unchecked.
+#[test]
+fn a_long_secret_is_struck_rather_than_the_answer_withheld() {
+    let secret: String = (0..4000)
+        .map(|at| char::from(b'a' + (at % 26) as u8))
+        .collect();
+    assert_eq!(
+        struck(&format!("echo={secret};"), &secret),
+        "echo=[secret key removed];"
+    );
+}
+
+/// A one-byte secret, one byte into a base64 group, holds no whole character
+/// of its own; nothing is looked for there, rather than the empty text found
+/// between every two characters.
+#[test]
+fn a_one_character_secret_strikes_only_itself() {
+    assert_eq!(struck("a-b", "a"), "[secret key removed]-b");
+}
