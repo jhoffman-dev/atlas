@@ -9,6 +9,7 @@
 //! and handed here as rows.
 
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -187,7 +188,32 @@ pub struct IndexState(Mutex<Option<Connection>>);
 /// VACUUM INTO and pragma setters, so `run_query` also has SQLite refuse
 /// anything that is not a read of this database (see `prepare_read`).
 #[derive(Default)]
-pub struct QueryState(Mutex<Option<Connection>>);
+pub struct QueryState(Mutex<Option<Reader>>);
+
+/// The read-only connection and the file it was opened on.
+struct Reader {
+    connection: Connection,
+    file: FileIdentity,
+}
+
+/// Which file a path names. A rebuilt index, or another vault's, is a new file;
+/// a connection left on the old one goes on reading it after it is deleted.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct FileIdentity {
+    device: u64,
+    inode: u64,
+}
+
+impl FileIdentity {
+    fn of(path: &Path) -> Result<Self, String> {
+        let metadata = fs::metadata(path)
+            .map_err(|error| format!("cannot open the index for reading: {error}"))?;
+        Ok(Self {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        })
+    }
+}
 
 /// A view never returns more than this, however the query is written.
 const MAX_QUERY_ROWS: usize = 5_000;
@@ -411,9 +437,10 @@ fn with_connection<T>(
     action(connection)
 }
 
-fn open_index(root: &Path, index: &IndexState, _query: &QueryState) -> Result<IndexOpened, String> {
+fn open_index(root: &Path, index: &IndexState, query: &QueryState) -> Result<IndexOpened, String> {
     let (connection, opened) = open_database(root)?;
     *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
+    query.forget()?;
     Ok(opened)
 }
 
@@ -429,7 +456,7 @@ pub fn index_open(
     Ok(opened)
 }
 
-fn clear_index(root: &Path, index: &IndexState, _query: &QueryState) -> Result<(), String> {
+fn clear_index(root: &Path, index: &IndexState, query: &QueryState) -> Result<(), String> {
     *index.0.lock().map_err(|_| "index state poisoned")? = None;
     let path = database_path(root)?;
     for suffix in ["", "-wal", "-shm"] {
@@ -437,7 +464,7 @@ fn clear_index(root: &Path, index: &IndexState, _query: &QueryState) -> Result<(
     }
     let (connection, _) = open_database(root)?;
     *index.0.lock().map_err(|_| "index state poisoned")? = Some(connection);
-    Ok(())
+    query.forget()
 }
 
 /// Throws the cache away and starts again. The point of having it.
@@ -993,7 +1020,30 @@ pub(crate) fn run_query(
     })
 }
 
+impl Reader {
+    /// The file is identified before it is opened: should it be replaced in
+    /// between, the reader holds the newer file under the older name, and the
+    /// next query reopens it — a wasted open rather than a stale read.
+    fn open(path: &Path) -> Result<Self, String> {
+        let file = FileIdentity::of(path)?;
+        let connection = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(|error| format!("cannot open the index for reading: {error}"))?;
+        // Returning true aborts, so this stops any query that exceeds the budget.
+        // A failure to install it is not worth refusing to query over: the row cap
+        // and the read-only connection are the guarantees that matter.
+        if let Err(error) = connection.progress_handler(QUERY_STEP_BUDGET, Some(|| true)) {
+            log::warn!("could not limit query time: {error}");
+        }
+        Ok(Self { connection, file })
+    }
+}
+
 impl QueryState {
+    /// Runs a query on the index file at `path` as it is now, reopening the
+    /// reader when that is no longer the file it has open.
     fn run(
         &self,
         path: &Path,
@@ -1001,24 +1051,20 @@ impl QueryState {
         parameters: &[serde_json::Value],
     ) -> Result<QueryResult, String> {
         let mut guard = self.0.lock().map_err(|_| "query state poisoned")?;
+        let current = FileIdentity::of(path)?;
+        let reader = match guard.take() {
+            Some(reader) if reader.file == current => reader,
+            _ => Reader::open(path)?,
+        };
+        let reader = guard.insert(reader);
+        run_query(&reader.connection, sql, parameters)
+    }
 
-        if guard.is_none() {
-            let connection = Connection::open_with_flags(
-                path,
-                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-            )
-            .map_err(|error| format!("cannot open the index for reading: {error}"))?;
-            // Returning true aborts, so this stops any query that exceeds the budget.
-            // A failure to install it is not worth refusing to query over: the row cap
-            // and the read-only connection are the guarantees that matter.
-            if let Err(error) = connection.progress_handler(QUERY_STEP_BUDGET, Some(|| true)) {
-                log::warn!("could not limit query time: {error}");
-            }
-            *guard = Some(connection);
-        }
-
-        let connection = guard.as_ref().ok_or("the index is not open")?;
-        run_query(connection, sql, parameters)
+    /// Lets go of the file the reader has open, so a replaced index is released
+    /// now rather than at the next query.
+    fn forget(&self) -> Result<(), String> {
+        *self.0.lock().map_err(|_| "query state poisoned")? = None;
+        Ok(())
     }
 }
 
@@ -1774,6 +1820,26 @@ mod tests {
         assert_eq!(titles_read(&query, first.path()), ["Larkspur kickoff"]);
 
         assert_eq!(titles_read(&query, second.path()), ["Tobias Fenn sync"]);
+    }
+
+    fn holds_a_reader(query: &QueryState) -> bool {
+        query.0.lock().unwrap().is_some()
+    }
+
+    #[test]
+    fn clearing_or_reopening_the_index_lets_go_of_the_file_the_reader_held() {
+        let vault = tempfile::tempdir().unwrap();
+        let (index, query) = (IndexState::default(), QueryState::default());
+        open_index(vault.path(), &index, &query).unwrap();
+        titles_read(&query, vault.path());
+        assert!(holds_a_reader(&query));
+
+        clear_index(vault.path(), &index, &query).unwrap();
+        assert!(!holds_a_reader(&query), "cleared");
+
+        titles_read(&query, vault.path());
+        open_index(vault.path(), &index, &query).unwrap();
+        assert!(!holds_a_reader(&query), "reopened");
     }
 
     #[test]
