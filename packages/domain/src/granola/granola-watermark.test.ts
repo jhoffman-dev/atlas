@@ -91,11 +91,11 @@ describe('nextWatermark', () => {
     expect(nextWatermark({ watermark: null, results })).toBe('2026-10-12T10:00:00.000Z');
   });
 
-  it('is not held back by a note Granola no longer has (404), and moves past it', () => {
+  it('is not held back by a skipped note (a 404, a 403, an answer it cannot read), and moves past it', () => {
     const results = [
-      result('gone', '2026-10-12T08:00:00Z'),
+      result('skipped', '2026-10-12T08:00:00Z'),
       result('written', '2026-10-12T09:00:00Z'),
-      result('gone', '2026-10-12T10:00:00Z'),
+      result('skipped', '2026-10-12T10:00:00Z'),
     ];
     expect(nextWatermark({ watermark: null, results })).toBe('2026-10-12T10:00:00.000Z');
   });
@@ -138,6 +138,17 @@ describe('nextWatermark', () => {
       '2026-10-12T09:00:00.000Z',
     );
     expect(nextWatermark({ watermark: null, results })).toBeNull();
+  });
+
+  it('settles a pull of more notes than the engine takes as arguments', () => {
+    // Spread into Math.max, 200,000 instants throw a RangeError in V8.
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 1) + minute * 60_000).toISOString();
+    const written = Array.from({ length: 200_000 }, (_, minute) => result('written', at(minute)));
+    const failed = Array.from({ length: 200_000 }, (_, minute) =>
+      result('failed', at(minute + 10)),
+    );
+    expect(nextWatermark({ watermark: null, results: written })).toBe(at(199_999));
+    expect(nextWatermark({ watermark: null, results: [...written, ...failed] })).toBe(at(10));
   });
 
   it('treats a watermark it cannot read as none', () => {

@@ -28,7 +28,7 @@ describe('explainGranolaFailure', () => {
   it('points a key Granola will not let read a note (403) at its scopes', () => {
     const { problem, fix } = explainGranolaFailure(refused(403));
     expect(problem).toMatch(/does not let this API key read the note/);
-    expect(fix).toMatch(/scopes/);
+    expect(fix).toMatch(/scopes.*Sync now/);
   });
 
   it('says a note Granola no longer has (404) was skipped, with nothing to do', () => {
@@ -59,7 +59,10 @@ describe('explainGranolaFailure', () => {
   );
 
   it('passes any other status on, as a refusal with its number', () => {
-    expect(explainGranolaFailure(refused(400)).problem).toBe('Granola refused the request (400).');
+    expect(explainGranolaFailure(refused(400))).toEqual({
+      problem: 'Granola refused the request (400).',
+      fix: 'It was skipped; Sync now tries it again.',
+    });
     expect(explainGranolaFailure({ kind: 'api_refused', message: 'x' }).problem).toBe(
       'Granola refused the request (no status).',
     );
@@ -78,10 +81,18 @@ describe('explainGranolaFailure', () => {
     expect(explainGranolaFailure(failure('timeout')).problem).toMatch(/did not answer in time/);
   });
 
-  it('names an answer Atlas cannot read, without its body', () => {
-    expect(explainGranolaFailure(failure('malformed')).problem).toBe(
+  it('names an answer Atlas cannot read, without its body, and says it was skipped', () => {
+    const { problem, fix } = explainGranolaFailure(failure('malformed'));
+    expect(problem).toBe(
       'Granola answered in a way Atlas does not understand: what the host said.',
     );
+    expect(fix).toBe('It was skipped; Sync now tries it again.');
+  });
+
+  it('says a request Granola did not answer in time (408) is tried on the next pull', () => {
+    const { problem, fix } = explainGranolaFailure(refused(408));
+    expect(problem).toMatch(/did not answer in time/);
+    expect(fix).toMatch(/next pull/);
   });
 
   it('has words for every kind there is', () => {
@@ -110,13 +121,39 @@ describe('granolaFailureEffect', () => {
     expect(granolaFailureEffect(refused(404))).toBe('skip');
   });
 
-  it('retries everything else on the next pull', () => {
-    for (const status of [403, 413, 429, 500, 503]) {
+  it.each([408, 429, 500, 503, 599])(
+    'retries a status that may pass by itself (%i), holding the watermark',
+    (status) => {
       expect(granolaFailureEffect(refused(status))).toBe('retry');
-    }
-    for (const kind of ['unreachable', 'timeout', 'malformed'] as const) {
-      expect(granolaFailureEffect(failure(kind))).toBe('retry');
-    }
-    expect(granolaFailureEffect({ kind: 'api_refused', message: 'x' })).toBe('retry');
+    },
+  );
+
+  it('retries a network failure and a timeout', () => {
+    expect(granolaFailureEffect(failure('unreachable'))).toBe('retry');
+    expect(granolaFailureEffect(failure('timeout'))).toBe('retry');
+  });
+
+  it('retries a 413, which the next pull reads in pages', () => {
+    expect(granolaFailureEffect(refused(413))).toBe('retry');
+  });
+
+  it('retries a failed page of a transcript, whatever its status, except a 401', () => {
+    const page = (status: number): GranolaFailure => ({ ...refused(status), transcriptPage: true });
+    expect(granolaFailureEffect(page(404))).toBe('retry');
+    expect(granolaFailureEffect(page(400))).toBe('retry');
+    expect(granolaFailureEffect({ ...failure('malformed'), transcriptPage: true })).toBe('retry');
+    expect(granolaFailureEffect(page(401))).toBe('stop');
+  });
+
+  it.each([400, 403, 405, 409, 410, 422, 499, 302, 600])(
+    'skips a refusal that would come back the same on every pull (%i)',
+    (status) => {
+      expect(granolaFailureEffect(refused(status))).toBe('skip');
+    },
+  );
+
+  it('skips an answer Atlas cannot read, and a refusal with no status', () => {
+    expect(granolaFailureEffect(failure('malformed'))).toBe('skip');
+    expect(granolaFailureEffect({ kind: 'api_refused', message: 'x' })).toBe('skip');
   });
 });

@@ -24,8 +24,21 @@ function instantOf(text: string | null): number | null {
   return Number.isNaN(instant) ? null : instant;
 }
 
-const known = (instants: readonly (number | null)[]): number[] =>
-  instants.filter((instant): instant is number => instant !== null);
+/**
+ * The earliest (`Math.min`) or latest (`Math.max`) of the instants known;
+ * null when none is. Taken pairwise: spread, a pull of many notes would
+ * overflow the engine's argument limit.
+ */
+function extreme(
+  pick: (a: number, b: number) => number,
+  instants: readonly (number | null)[],
+): number | null {
+  let found: number | null = null;
+  for (const instant of instants) {
+    if (instant !== null) found = found === null ? instant : pick(found, instant);
+  }
+  return found;
+}
 
 const isoOf = (instant: number | null) =>
   instant === null ? null : new Date(instant).toISOString();
@@ -49,12 +62,14 @@ export function sinceOf({
 /**
  * What became of one listed note. `written` and `held` (already in the
  * vault) are settled; so is `refused` (the mapper said no, which only a
- * mapper fix changes; Sync now retries it) and `gone` (Granola answered 404:
- * deleted, or no longer shared). `failed` went wrong in transport — network,
- * timeout, 5xx, 429 past its retries, a transcript page, an answer Atlas could
- * not read — and must be listed again.
+ * mapper fix changes) and `skipped` (granolaFailureEffect's `skip`: a 404,
+ * a 403, any other refusal, an answer Atlas could not read — each would
+ * fail the same way on every pull). Sync now's full listing tries both
+ * again. `failed` is granolaFailureEffect's `retry`, a failure that may pass
+ * by itself — network, timeout, 408, a 429 past its retries, a 5xx, a page
+ * of a transcript — and must be listed again.
  */
-export type GranolaNoteOutcome = 'written' | 'held' | 'refused' | 'gone' | 'failed';
+export type GranolaNoteOutcome = 'written' | 'held' | 'refused' | 'skipped' | 'failed';
 
 export interface GranolaNoteResult {
   readonly outcome: GranolaNoteOutcome;
@@ -64,10 +79,11 @@ export interface GranolaNoteResult {
 
 /**
  * The watermark after a pull: the newest settled note's `updated_at` (never
- * behind the watermark it started from), but never past the oldest note
- * that failed in transport, so the next pull lists that one again. A failed
- * note whose time cannot be read keeps the watermark where it was, rather
- * than risk passing it.
+ * behind the watermark it started from), but never past the oldest `failed`
+ * note, so the next pull lists that one again. Only `failed` holds it: a
+ * note skipped or refused would hold it for good, every later pull listing
+ * everything since. A failed note whose time cannot be read keeps the
+ * watermark where it was, rather than risk passing it.
  */
 export function nextWatermark({
   watermark,
@@ -84,8 +100,6 @@ export function nextWatermark({
   const settledAt = results
     .filter((result) => result.outcome !== 'failed')
     .map((result) => instantOf(result.updatedAt));
-  const reached = known([current, ...settledAt]);
-  const held = known(failedAt);
-  const candidates = [...(reached.length === 0 ? [] : [Math.max(...reached)]), ...held];
-  return isoOf(candidates.length === 0 ? null : Math.min(...candidates));
+  const reached = extreme(Math.max, [current, extreme(Math.max, settledAt)]);
+  return isoOf(extreme(Math.min, [reached, extreme(Math.min, failedAt)]));
 }
