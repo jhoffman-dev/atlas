@@ -41,10 +41,19 @@ use crate::vault::VaultState;
 /// note, since nothing here gathers the statistics that would say otherwise);
 /// 14: a note's row in the search table has the rowid of its row in `files`
 /// (#135) — the table has no index on `path`, so finding a note's row by its
-/// path read every row, once per note written).
+/// path read every row, once per note written); 15: `props_path` covers the
+/// value as well (#143) — with two columns each, `props_path` and `props_key`
+/// tied for asking for one value of one key of one note, and the order they
+/// were made in chose `props_key`, so a view over every meeting ran out of
+/// its budget at a few hundred of them; and `links_dst` and `relations_dst`
+/// cover the source as well — asking whether one note links to, or names,
+/// another fixes both ends, and `links_src` or `relations_src` tied with the
+/// `dst` index, which won and read every link or relation into the other note
+/// once per note, so `LINKS TO this` and `CONNECTED TO this` over a person in
+/// a thousand meetings ran out too).
 /// A mismatch throws the cache away rather than trying to migrate something
 /// that can simply be rebuilt.
-const SCHEMA_VERSION: i64 = 14;
+const SCHEMA_VERSION: i64 = 15;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -417,7 +426,7 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 value_date TEXT,
                 value_json TEXT
             );
-            CREATE INDEX IF NOT EXISTS props_path ON props(path, key);
+            CREATE INDEX IF NOT EXISTS props_path ON props(path, key, value_text);
             CREATE INDEX IF NOT EXISTS props_key ON props(key, value_text);
 
             CREATE TABLE IF NOT EXISTS links (
@@ -427,7 +436,7 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 kind   TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS links_src ON links(src);
-            CREATE INDEX IF NOT EXISTS links_dst ON links(dst);
+            CREATE INDEX IF NOT EXISTS links_dst ON links(dst, src);
 
             CREATE TABLE IF NOT EXISTS tags (
                 path TEXT NOT NULL,
@@ -447,7 +456,7 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
                 dst    TEXT
             );
             CREATE INDEX IF NOT EXISTS relations_src ON relations(src, key);
-            CREATE INDEX IF NOT EXISTS relations_dst ON relations(dst);
+            CREATE INDEX IF NOT EXISTS relations_dst ON relations(dst, src);
 
             CREATE TABLE IF NOT EXISTS blocks (
                 path TEXT NOT NULL,
@@ -2805,6 +2814,360 @@ ORDER BY m.type DESC, m.name, p.cid";
                 .clone()
         }
 
+        /// What an Atlas query (`compileAtlasQuery`) asks of every note: is this
+        /// one of the types listed? One key and one value of one note.
+        const NOTES_OF_A_TYPE: &str = "SELECT n.path FROM files AS n
+             WHERE EXISTS (SELECT 1 FROM props AS t
+                           WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
+             ORDER BY n.title LIMIT ?";
+
+        /// #143: a view over every meeting came back "interrupted" at 614 of them.
+        #[test]
+        fn checking_each_notes_type_stays_within_the_query_budget_in_a_large_vault() {
+            let vault = tempfile::tempdir().unwrap();
+            let index = IndexState::default();
+            index.open(vault.path()).unwrap();
+            let meetings: Vec<IndexedNote> = (0..1_200)
+                .map(|at| IndexedNote {
+                    properties: vec![property("type", "meeting")],
+                    ..note(
+                        &format!("meetings/{at:04}.md"),
+                        &format!("Meeting {at:04}"),
+                        "",
+                    )
+                })
+                .collect();
+            index.put(None, &meetings).unwrap();
+
+            let found = index.query(
+                vault.path(),
+                NOTES_OF_A_TYPE,
+                &[serde_json::json!("meeting"), serde_json::json!(5)],
+            );
+
+            assert_eq!(found.map(|result| result.rows.len()), Ok(5));
+        }
+
+        /// The Linked notes section of a person's page (P30-06), as
+        /// `linkedSectionPlans('person', …)` writes it and `compileAtlasQuery`
+        /// compiles it: `FROM meeting, person, project WHERE CONNECTED TO this
+        /// AND NOT (type = meeting AND attendees = this) SORT BY modified DESC
+        /// SHOW title LIMIT 202`, with `this` the person's page.
+        const LINKED_NOTES_OF_A_PERSON: &str = r#"/* atlas-query */ SELECT n.path AS "path", n.title AS "title", (SELECT t.value_text FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?, ?, ?) ORDER BY t.idx LIMIT 1) AS "type"
+FROM files AS n
+WHERE EXISTS (SELECT 1 FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?, ?, ?))
+  AND instr('/' || n.path, '/.') = 0 AND instr('/' || lower(n.path) || '/', '/node_modules/') = 0
+  AND lower(substr(n.path, 1, 8)) <> 'archive/'
+  AND (((n.path <> ? AND (EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ?) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = n.path AND r.dst = ?) OR EXISTS (SELECT 1 FROM links AS l WHERE l.src = ? AND l.dst = n.path) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ? AND r.dst = n.path)))) AND (NOT ((EXISTS (SELECT 1 FROM props AS p WHERE p.path = n.path AND p.key = ? AND p.value_text = ?)) AND (EXISTS (SELECT 1 FROM relations AS r WHERE r.src = n.path AND r.key = ? AND r.dst = ?)))))
+ORDER BY NULLIF((SELECT f.modified FROM files AS f WHERE f.path = n.path ORDER BY f.rowid LIMIT 1), '') DESC NULLS LAST, n.title COLLATE NOCASE ASC, n.path ASC
+LIMIT ?"#;
+
+        /// #143's other half: `l.src = n.path AND l.dst = ?` ties `links_src`
+        /// with `links_dst` (and `r.src = n.path AND r.dst = ?` ties
+        /// `relations_dst` with the `src` column of `relations_src`), and the
+        /// `dst` index wins. So for every note the query reads every link
+        /// and relation into the page: a person in 1,000 meetings who owns
+        /// 300 tasks has their page's Linked notes (and Open tasks) come back
+        /// "interrupted". With `links_dst` and `relations_dst` covering
+        /// `(dst, src)` both ends are looked up at once. (This vault only runs
+        /// out with both indexes as they were; the tests below catch either
+        /// one put back on its own.)
+        #[test]
+        fn a_person_in_hundreds_of_meetings_has_their_linked_notes_within_the_query_budget() {
+            let vault = tempfile::tempdir().unwrap();
+            let index = IndexState::default();
+            index.open(vault.path()).unwrap();
+            let page = "people/Mara Quill.md";
+            let mut notes = vec![IndexedNote {
+                properties: vec![property("type", "person")],
+                ..note(page, "Mara Quill", "")
+            }];
+            notes.extend((0..1_000).map(|at| IndexedNote {
+                properties: vec![property("type", "meeting")],
+                relations: vec![relation("attendees", 0, "Mara Quill", Some(page))],
+                links: vec![link("Mara Quill", Some(page))],
+                ..note(
+                    &format!("meetings/{at:04}.md"),
+                    &format!("Meeting {at:04}"),
+                    "",
+                )
+            }));
+            notes.extend((0..300).map(|at| IndexedNote {
+                properties: vec![property("type", "task")],
+                relations: vec![relation("owner", 0, "Mara Quill", Some(page))],
+                ..note(&format!("tasks/{at:04}.md"), &format!("Task {at:04}"), "")
+            }));
+            index.put(None, &notes).unwrap();
+
+            let found = index.query(
+                vault.path(),
+                LINKED_NOTES_OF_A_PERSON,
+                &[
+                    serde_json::json!("meeting"),
+                    serde_json::json!("person"),
+                    serde_json::json!("project"),
+                    serde_json::json!("meeting"),
+                    serde_json::json!("person"),
+                    serde_json::json!("project"),
+                    serde_json::json!("people/Mara Quill.md"),
+                    serde_json::json!("people/Mara Quill.md"),
+                    serde_json::json!("people/Mara Quill.md"),
+                    serde_json::json!("people/Mara Quill.md"),
+                    serde_json::json!("people/Mara Quill.md"),
+                    serde_json::json!("type"),
+                    serde_json::json!("meeting"),
+                    serde_json::json!("attendees"),
+                    serde_json::json!("people/Mara Quill.md"),
+                    serde_json::json!(202),
+                ],
+            );
+
+            assert_eq!(found.map(|result| result.rows.len()), Ok(0));
+        }
+
+        /// The page every test below asks about, as `this`.
+        const MARA: &str = "people/Mara Quill.md";
+
+        fn person_page(path: &str, title: &str, links: Vec<IndexedLink>) -> IndexedNote {
+            IndexedNote {
+                properties: vec![property("type", "person")],
+                links,
+                ..note(path, title, "")
+            }
+        }
+
+        fn meeting(
+            at: usize,
+            relations: Vec<IndexedRelation>,
+            links: Vec<IndexedLink>,
+        ) -> IndexedNote {
+            IndexedNote {
+                properties: vec![property("type", "meeting")],
+                relations,
+                links,
+                ..note(
+                    &format!("meetings/{at:04}.md"),
+                    &format!("Meeting {at:04}"),
+                    "",
+                )
+            }
+        }
+
+        /// How many rows a compiled Atlas query finds in an index holding
+        /// `notes`, asked as `index_query` asks it, budget and all.
+        fn rows_found(
+            notes: &[IndexedNote],
+            sql: &str,
+            parameters: &[serde_json::Value],
+        ) -> Result<usize, String> {
+            let vault = tempfile::tempdir().unwrap();
+            let index = IndexState::default();
+            index.open(vault.path()).unwrap();
+            index.put(None, notes).unwrap();
+            index
+                .query(vault.path(), sql, parameters)
+                .map(|result| result.rows.len())
+        }
+
+        /// `FROM meeting WHERE LINKS TO this`, as `compileAtlasQuery` compiles it.
+        const MEETINGS_LINKING_TO_THIS: &str = r#"/* atlas-query */ SELECT n.path AS "path", n.title AS "title", (SELECT t.value_text FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?) ORDER BY t.idx LIMIT 1) AS "type"
+FROM files AS n
+WHERE EXISTS (SELECT 1 FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
+  AND instr('/' || n.path, '/.') = 0 AND instr('/' || lower(n.path) || '/', '/node_modules/') = 0
+  AND lower(substr(n.path, 1, 8)) <> 'archive/'
+  AND (EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ? AND l.src <> l.dst))
+ORDER BY n.title COLLATE NOCASE ASC, n.path ASC
+LIMIT ?"#;
+
+        /// #143: `l.src = n.path AND l.dst = ?` tied `links_src (src)` with
+        /// `links_dst (dst)`, and the `dst` index won, so each meeting read
+        /// every link to the page before finding its own.
+        #[test]
+        fn what_links_to_a_person_in_two_thousand_meetings_is_found_within_the_query_budget() {
+            let mut notes = vec![person_page(MARA, "Mara Quill", vec![])];
+            notes.extend(
+                (0..2_000).map(|at| meeting(at, vec![], vec![link("Mara Quill", Some(MARA))])),
+            );
+
+            let found = rows_found(
+                &notes,
+                MEETINGS_LINKING_TO_THIS,
+                &[
+                    serde_json::json!("meeting"),
+                    serde_json::json!("meeting"),
+                    serde_json::json!(MARA),
+                    serde_json::json!(2_000),
+                ],
+            );
+
+            assert_eq!(found, Ok(2_000));
+        }
+
+        /// `FROM meeting WHERE CONNECTED TO this`, as `compileAtlasQuery` compiles it.
+        const MEETINGS_CONNECTED_TO_THIS: &str = r#"/* atlas-query */ SELECT n.path AS "path", n.title AS "title", (SELECT t.value_text FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?) ORDER BY t.idx LIMIT 1) AS "type"
+FROM files AS n
+WHERE EXISTS (SELECT 1 FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
+  AND instr('/' || n.path, '/.') = 0 AND instr('/' || lower(n.path) || '/', '/node_modules/') = 0
+  AND lower(substr(n.path, 1, 8)) <> 'archive/'
+  AND ((n.path <> ? AND (EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ?) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = n.path AND r.dst = ?) OR EXISTS (SELECT 1 FROM links AS l WHERE l.src = ? AND l.dst = n.path) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ? AND r.dst = n.path))))
+ORDER BY n.title COLLATE NOCASE ASC, n.path ASC
+LIMIT ?"#;
+
+        /// #143: as for links, `r.src = n.path AND r.dst = ?` tied the `src`
+        /// column of `relations_src (src, key)` with `relations_dst (dst)`.
+        /// Two thousand meetings name the person only as an attendee, so each
+        /// asks the links and then the relations; a thousand only link to them.
+        #[test]
+        fn what_is_connected_to_a_person_in_three_thousand_meetings_is_found_within_the_query_budget(
+        ) {
+            let mut notes = vec![person_page(MARA, "Mara Quill", vec![])];
+            notes.extend((0..2_000).map(|at| {
+                meeting(
+                    at,
+                    vec![relation("attendees", 0, "Mara Quill", Some(MARA))],
+                    vec![],
+                )
+            }));
+            notes.extend(
+                (2_000..3_000).map(|at| meeting(at, vec![], vec![link("Mara Quill", Some(MARA))])),
+            );
+
+            let found = rows_found(
+                &notes,
+                MEETINGS_CONNECTED_TO_THIS,
+                &[
+                    serde_json::json!("meeting"),
+                    serde_json::json!("meeting"),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(3_000),
+                ],
+            );
+
+            assert_eq!(found, Ok(3_000));
+        }
+
+        /// `FROM meeting WHERE attendees CONNECTED TO this`, as
+        /// `compileAtlasQuery` compiles it.
+        const MEETINGS_WITH_AN_ATTENDEE_CONNECTED_TO_THIS: &str = r#"/* atlas-query */ SELECT n.path AS "path", n.title AS "title", (SELECT t.value_text FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?) ORDER BY t.idx LIMIT 1) AS "type"
+FROM files AS n
+WHERE EXISTS (SELECT 1 FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
+  AND instr('/' || n.path, '/.') = 0 AND instr('/' || lower(n.path) || '/', '/node_modules/') = 0
+  AND lower(substr(n.path, 1, 8)) <> 'archive/'
+  AND (EXISTS (SELECT 1 FROM relations AS h WHERE h.src = n.path AND h.key = ? AND h.dst IS NOT NULL AND (h.dst <> ? AND (EXISTS (SELECT 1 FROM links AS l WHERE l.src = h.dst AND l.dst = ?) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = h.dst AND r.dst = ?) OR EXISTS (SELECT 1 FROM links AS l WHERE l.src = ? AND l.dst = h.dst) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ? AND r.dst = h.dst)))))
+ORDER BY n.title COLLATE NOCASE ASC, n.path ASC
+LIMIT ?"#;
+
+        /// #143: each attendee of each meeting is asked whether it links to,
+        /// or names, the person — the same two ties, once per attendee rather
+        /// than once per note. Of five colleagues only the first links to the
+        /// person, so a fifth of the meetings are found.
+        #[test]
+        fn meetings_whose_attendees_are_connected_to_a_person_in_fifteen_hundred_meetings_are_found_within_the_query_budget(
+        ) {
+            let colleague = |at: usize| format!("people/Colleague {}.md", at % 5);
+            let mut notes = vec![person_page(MARA, "Mara Quill", vec![])];
+            notes.extend((0..5).map(|at| {
+                let links = if at == 0 {
+                    vec![link("Mara Quill", Some(MARA))]
+                } else {
+                    vec![]
+                };
+                person_page(&colleague(at), &format!("Colleague {at}"), links)
+            }));
+            notes.extend((0..1_500).map(|at| {
+                meeting(
+                    at,
+                    vec![
+                        relation("attendees", 0, "Mara Quill", Some(MARA)),
+                        relation("attendees", 1, "Colleague", Some(&colleague(at))),
+                    ],
+                    vec![link("Mara Quill", Some(MARA))],
+                )
+            }));
+
+            let found = rows_found(
+                &notes,
+                MEETINGS_WITH_AN_ATTENDEE_CONNECTED_TO_THIS,
+                &[
+                    serde_json::json!("meeting"),
+                    serde_json::json!("meeting"),
+                    serde_json::json!("attendees"),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(1_500),
+                ],
+            );
+
+            assert_eq!(found, Ok(300));
+        }
+
+        /// The Open tasks section of a person's page (P30-06), as
+        /// `linkedSectionPlans('person', …)` writes it and `compileAtlasQuery`
+        /// compiles it: `FROM task WHERE CONNECTED TO this AND status != done
+        /// AND NOT (status = waiting AND waiting_on = this) SORT BY due, title
+        /// GROUP BY status SHOW due LIMIT 202`, with `this` the person's page.
+        const OPEN_TASKS_OF_A_PERSON: &str = r#"/* atlas-query */ SELECT n.path AS "path", n.title AS "title", (SELECT t.value_text FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?) ORDER BY t.idx LIMIT 1) AS "type", (SELECT p.value_date FROM props AS p WHERE p.path = n.path AND p.key = ? ORDER BY p.idx, p.rowid LIMIT 1) AS "due", (SELECT p.value_text FROM props AS p WHERE p.path = n.path AND p.key = ? ORDER BY p.idx, p.rowid LIMIT 1) AS "status"
+FROM files AS n
+WHERE EXISTS (SELECT 1 FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (?))
+  AND instr('/' || n.path, '/.') = 0 AND instr('/' || lower(n.path) || '/', '/node_modules/') = 0
+  AND lower(substr(n.path, 1, 8)) <> 'archive/'
+  AND ((((n.path <> ? AND (EXISTS (SELECT 1 FROM links AS l WHERE l.src = n.path AND l.dst = ?) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = n.path AND r.dst = ?) OR EXISTS (SELECT 1 FROM links AS l WHERE l.src = ? AND l.dst = n.path) OR EXISTS (SELECT 1 FROM relations AS r WHERE r.src = ? AND r.dst = n.path)))) AND (NOT EXISTS (SELECT 1 FROM props AS p WHERE p.path = n.path AND p.key = ? AND p.value_text = ?))) AND ((NOT ((EXISTS (SELECT 1 FROM props AS p WHERE p.path = n.path AND p.key = ? AND p.value_text = ?)) AND (EXISTS (SELECT 1 FROM relations AS r WHERE r.src = n.path AND r.key = ? AND r.dst = ?))))))
+ORDER BY NULLIF((SELECT replace(p.value_date, ' ', 'T') FROM props AS p WHERE p.path = n.path AND p.key = ? ORDER BY p.idx, p.rowid LIMIT 1), '') ASC NULLS LAST, NULLIF((SELECT f.title FROM files AS f WHERE f.path = n.path ORDER BY f.rowid LIMIT 1), '') COLLATE NOCASE ASC NULLS LAST, n.title COLLATE NOCASE ASC, n.path ASC
+LIMIT ?"#;
+
+        /// #143: the person's tasks name them as owner and do not link to
+        /// them, so each task asks the links and then the relations, among
+        /// the links and relations of the 1,000 meetings that name them too.
+        #[test]
+        fn a_person_in_a_thousand_meetings_has_their_open_tasks_within_the_query_budget() {
+            let mut notes = vec![person_page(MARA, "Mara Quill", vec![])];
+            notes.extend((0..1_000).map(|at| {
+                meeting(
+                    at,
+                    vec![relation("attendees", 0, "Mara Quill", Some(MARA))],
+                    vec![link("Mara Quill", Some(MARA))],
+                )
+            }));
+            notes.extend((0..1_500).map(|at| IndexedNote {
+                properties: vec![property("type", "task"), property("status", "next")],
+                relations: vec![relation("owner", 0, "Mara Quill", Some(MARA))],
+                ..note(&format!("tasks/{at:04}.md"), &format!("Task {at:04}"), "")
+            }));
+
+            let found = rows_found(
+                &notes,
+                OPEN_TASKS_OF_A_PERSON,
+                &[
+                    serde_json::json!("task"),
+                    serde_json::json!("due"),
+                    serde_json::json!("status"),
+                    serde_json::json!("task"),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!("status"),
+                    serde_json::json!("done"),
+                    serde_json::json!("status"),
+                    serde_json::json!("waiting"),
+                    serde_json::json!("waiting_on"),
+                    serde_json::json!(MARA),
+                    serde_json::json!("due"),
+                    serde_json::json!(202),
+                ],
+            );
+
+            assert_eq!(found, Ok(202));
+        }
+
         /// #137, at the seam the commands now share (`IndexState`): a query
         /// leaves the reading connection open, as `index_query` always has,
         /// and the index is then cleared as `index_clear` clears it. (As
@@ -3009,6 +3372,87 @@ ORDER BY m.type DESC, m.name, p.cid";
                 "{} commands failed; the kinds of failure: {kinds:#?}",
                 problems.len()
             );
+        }
+
+        /// The open projects tied to a meeting's people, as
+        /// `compileProjectTiesQuery` writes it for one attendee.
+        const PROJECT_TIES_OF_ONE_PERSON: &str = r#"/* meeting links: projects */ WITH open_projects AS (
+  SELECT files.path AS path, files.title AS title FROM files
+   WHERE files.path IN (SELECT path FROM props WHERE key = 'type' AND value_text = ?)
+     AND instr('/' || files.path, '/.') = 0 AND instr('/' || lower(files.path) || '/', '/node_modules/') = 0 AND lower(substr(files.path, 1, 8)) <> 'archive/'
+     AND NOT EXISTS (SELECT 1 FROM props AS state WHERE state.path = files.path
+                      AND state.key = 'status' AND lower(state.value_text) IN (?, ?, ?))
+)
+SELECT open_projects.path AS "project", open_projects.title AS "title", relations.dst AS "entity"
+  FROM open_projects JOIN relations ON relations.src = open_projects.path
+ WHERE relations.dst IN (?)
+UNION
+SELECT open_projects.path, open_projects.title, relations.src
+  FROM open_projects JOIN relations ON relations.dst = open_projects.path
+ WHERE relations.src IN (?)
+UNION
+SELECT open_projects.path, open_projects.title, other.dst
+  FROM open_projects
+  CROSS JOIN relations AS filed ON filed.dst = open_projects.path AND filed.key = ?
+  CROSS JOIN relations AS other ON other.src = filed.src AND other.key IN (?, ?)
+ WHERE +other.dst IN (?) AND filed.src <> ?
+ORDER BY 1, 3"#;
+
+        /// Adversarial (#143, eacb525): joined plainly, `filed.dst =
+        /// open_projects.path AND filed.src = other.src` ties
+        /// `relations_dst (dst, src)` with `relations_src (src, key)`; SQLite
+        /// starts from the person and takes the dst index with `dst` bound to
+        /// every open project, so each meeting naming the person probes once
+        /// per project and the query runs out of the budget (6.4M steps here).
+        /// `CROSS JOIN` and `+other.dst` pin it to project first, then each
+        /// filed note's own links: about 0.18M.
+        #[test]
+        fn linking_a_meeting_whose_attendee_is_in_thousands_of_meetings_finds_project_ties_within_the_query_budget(
+        ) {
+            let mut notes = vec![person_page(MARA, "Mara Quill", vec![])];
+            notes.extend((0..500).map(|at| IndexedNote {
+                properties: vec![property("type", "project")],
+                ..note(
+                    &format!("projects/{at:03}.md"),
+                    &format!("Project {at:03}"),
+                    "",
+                )
+            }));
+            notes.extend((0..2_500).map(|at| {
+                meeting(
+                    at,
+                    vec![
+                        relation("people", 0, "Mara Quill", Some(MARA)),
+                        relation(
+                            "project",
+                            0,
+                            "P",
+                            Some(&format!("projects/{:03}.md", at % 500)),
+                        ),
+                    ],
+                    vec![],
+                )
+            }));
+
+            let found = rows_found(
+                &notes,
+                PROJECT_TIES_OF_ONE_PERSON,
+                &[
+                    serde_json::json!("project"),
+                    serde_json::json!("done"),
+                    serde_json::json!("cancelled"),
+                    serde_json::json!("dropped"),
+                    serde_json::json!(MARA),
+                    serde_json::json!(MARA),
+                    serde_json::json!("project"),
+                    serde_json::json!("people"),
+                    serde_json::json!("companies"),
+                    serde_json::json!(MARA),
+                    serde_json::json!("meetings/0001.md"),
+                ],
+            );
+
+            assert_eq!(found, Ok(500));
         }
     }
 }
