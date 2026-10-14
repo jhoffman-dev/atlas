@@ -8,16 +8,18 @@ import { listVaultInbox } from '../inbox/list-inbox.ts';
 import { FilingRefusedError, processInboxItems } from '../inbox/process-inbox.ts';
 import { ApiError } from './api-error.ts';
 import { moveBatch } from './archive.ts';
-import { bodyObject, countOf, offsetOf, requiredString } from './fields.ts';
+import { decodeInboxCursor, encodeInboxCursor } from './cursor.ts';
+import { bodyObject, countOf, requiredString } from './fields.ts';
 import { isApiNotePath } from './paths.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /**
  * The notes waiting in the Inbox to be filed, as its page lists them (P30-01):
  * newest first, each with what the meeting import made of it, a page at a
- * time with how many wait in all (#167). Notes of the proposal type are not
- * among them — they are answered through the proposals routes, never filed.
- * Reads the index and writes nothing.
+ * time with how many wait in all (#167). Each page is read on from the
+ * cursor the one before handed out, so filing what a page listed loses
+ * nothing. Notes of the proposal type are not among them — they are answered
+ * through the proposals routes, never filed. Reads the index and writes nothing.
  */
 export async function inboxRoute(request: VaultRequest): Promise<RouteResult> {
   const limit = countOf(request.query['limit'], {
@@ -25,12 +27,14 @@ export async function inboxRoute(request: VaultRequest): Promise<RouteResult> {
     fallback: INBOX_LIST_LIMIT,
     max: INBOX_LIST_LIMIT,
   });
-  const offset = offsetOf(request.query['offset']);
-  const { items, truncated, total } = await listVaultInbox({ ...request, page: { limit, offset } });
-  return {
-    status: 200,
-    body: { items, truncated, next: truncated ? offset + items.length : null, total },
-  };
+  const cursor = request.query['cursor'];
+  const after = cursor === undefined ? null : decodeInboxCursor(cursor);
+  const { items, truncated, total, last } = await listVaultInbox({
+    ...request,
+    page: { limit, after },
+  });
+  const next = truncated && last !== null ? encodeInboxCursor(last) : null;
+  return { status: 200, body: { items, truncated, next, total } };
 }
 
 /**

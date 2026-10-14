@@ -13,6 +13,7 @@ import {
   type ProposalArchived,
   type ProposalListing,
   type ProposalPorts,
+  type WindowClosingPort,
 } from '@atlas/application';
 import type {
   ProposalNotice,
@@ -23,7 +24,7 @@ import type {
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useRowSelection } from '../archive/use-row-selection.ts';
 import { answeredNotice, inTurn, undoneNotice, type InTurn } from './answer-many.ts';
-import { useAnswerQueue } from './answer-queue.ts';
+import { useAnswerQueue, useAnswersWrittenBeforeClose } from './answer-queue.ts';
 
 export interface ProposalsOptions {
   readonly ports: ProposalPorts;
@@ -34,6 +35,8 @@ export interface ProposalsOptions {
   readonly onSettled: () => void;
   /** Where an answer the section gives up on is recorded; a refusal is not. */
   readonly activity: Pick<ActivityLog, 'inOpenVault'>;
+  /** The window's close, held until the answers still being written are written. */
+  readonly closing: WindowClosingPort;
 }
 
 /** What an answer refuses so as not to write over or lose anything: shown on the card, no fault. */
@@ -57,6 +60,7 @@ function acceptedNotice(accepted: AcceptedProposal): ProposalNotice {
     text: `Accepted: ${accepted.headline}.${archivedNote(accepted)}`,
     opens: made === undefined ? null : { path: made.path, title: noteTitle(made.path) },
     undoable: true,
+    failed: false,
   };
 }
 
@@ -65,6 +69,24 @@ interface Answered {
   readonly notice: ProposalNotice;
   /** What the notice's Undo takes back: none, one, or a batch (#168). */
   readonly accepted: readonly AcceptedProposal[];
+}
+
+/** What the section says, and what its notice's Undo takes back: that answer's own, never another's. */
+interface Said {
+  readonly notice: ProposalNotice;
+  readonly undo: readonly AcceptedProposal[];
+}
+
+/**
+ * The Activity log of the vault open now, kept for a write that may begin
+ * later (#166): an answer queued behind others is recorded where it was
+ * given, not in whatever vault is open by the time it is written.
+ */
+function logOfVaultOpenNow(
+  activity: Pick<ActivityLog, 'inOpenVault'>,
+): Pick<ActivityLog, 'inOpenVault'> {
+  const recorder = activity.inOpenVault();
+  return { inOpenVault: () => recorder };
 }
 
 /**
@@ -80,24 +102,32 @@ interface Answered {
  * may still list one as open. Several chosen together are answered in turn,
  * each as it would be alone, and one Undo takes back every accept (#168).
  */
-export function useProposals({ ports, clock, indexKey, onSettled, activity }: ProposalsOptions) {
+export function useProposals({
+  ports,
+  clock,
+  indexKey,
+  onSettled,
+  activity,
+  closing,
+}: ProposalsOptions) {
   const [listing, setListing] = useState<ProposalsContents | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [problems, setProblems] = useState<ReadonlyMap<VaultPath, string>>(new Map());
-  const [notice, setNotice] = useState<ProposalNotice | null>(null);
   const [reads, setReads] = useState(0);
-  const lastAccepted = useRef<readonly AcceptedProposal[]>([]);
+  const { said, saidNow, say } = useSaid();
   const answered = useAnsweredPaths();
   const choosing = useRowSelection('');
   const queue = useAnswerQueue(() => {
     onSettled();
     setReads((count) => count + 1);
   });
+  useAnswersWrittenBeforeClose(queue, closing);
 
   // What the page says about answers belongs to the vault they were given in:
   // another vault (its own files) gets none of it — above all not Undo, which
-  // would run one vault's paths against another's.
+  // would run one vault's paths against another's — nor its list, nor why
+  // that could not be read.
   const { fs } = ports;
   const openVault = useRef(fs);
   const { forget } = answered;
@@ -105,20 +135,22 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
   useEffect(() => {
     openVault.current = fs;
     return () => {
-      lastAccepted.current = [];
-      setNotice(null);
+      say(null);
       setProblems(new Map());
+      setListing(null);
+      setError(null);
       forget();
       clearChosen();
     };
-  }, [fs, forget, clearChosen]);
+  }, [fs, forget, say, clearChosen]);
 
   useEffect(() => {
     let cancelled = false;
-    const begun = queue.mark();
+    // Only this vault's answers can leave a read of it behind; another's still being written cannot.
+    const begun = queue.mark(ports.fs);
     listProposals(ports)
       .then((read) => {
-        if (cancelled || !queue.quietSince(begun)) return;
+        if (cancelled || !queue.quietSince(ports.fs, begun)) return;
         setListing(contentsOf(read));
         setError(null);
         forget();
@@ -136,13 +168,17 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
       if (!answered.take(path)) return;
       setProblems((was) => without(was, path));
       const vault = fs;
-      const named = { activity, write: 'proposal', path, refusal: ANSWER_REFUSALS } as const;
-      queue.enqueue(async () => {
+      const named = {
+        activity: logOfVaultOpenNow(activity),
+        write: 'proposal',
+        path,
+        refusal: ANSWER_REFUSALS,
+      } as const;
+      queue.enqueue(vault, async () => {
         try {
-          const said = await withGiveUpRecorded(named, run);
+          const done = await withGiveUpRecorded(named, run);
           if (vault !== openVault.current) return;
-          lastAccepted.current = said.accepted;
-          setNotice(said.notice);
+          say({ notice: done.notice, undo: done.accepted });
         } catch (cause) {
           if (vault !== openVault.current) return;
           answered.giveBack(path);
@@ -150,7 +186,7 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
         }
       });
     },
-    [activity, answered, fs, queue],
+    [activity, answered, fs, queue, say],
   );
 
   const onAccept = useCallback(
@@ -188,9 +224,10 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
       setProblems((was) => taken.reduce(without, was));
       const vault = fs;
       const today = clock.today();
+      const log = logOfVaultOpenNow(activity);
       const recorded = <Done>(path: VaultPath, write: () => Promise<Done>) =>
         withGiveUpRecorded(
-          { activity, write: 'proposal', path, refusal: ANSWER_REFUSALS } as const,
+          { activity: log, write: 'proposal', path, refusal: ANSWER_REFUSALS } as const,
           write,
         );
       const settle = (
@@ -205,10 +242,9 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
           return next;
         });
         keepChosen(outcome.failed.map(({ item }) => item));
-        lastAccepted.current = accepted;
-        setNotice(answeredNotice(verb, outcome));
+        say({ notice: answeredNotice(verb, outcome), undo: accepted });
       };
-      queue.enqueue(async () => {
+      queue.enqueue(vault, async () => {
         if (verb === 'Accepted') {
           const outcome = await inTurn(taken, (path) =>
             recorded(path, () => acceptProposalNote({ ports, path, today })),
@@ -222,7 +258,7 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
         }
       });
     },
-    [activity, answered, clock, fs, keepChosen, ports, queue],
+    [activity, answered, clock, fs, keepChosen, ports, queue, say],
   );
   const onAcceptMany = useCallback(
     (paths: readonly VaultPath[]) => answerMany(paths, 'Accepted'),
@@ -233,34 +269,50 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
     [answerMany],
   );
 
+  /**
+   * Takes back the accept the notice shown offers to undo — that one, never
+   * another's. Queued (#166), it may finish after a later answer has said its
+   * own notice: that notice and its Undo stand, and only a failure of this
+   * undo is said beside it.
+   */
   const onUndo = useCallback(() => {
-    const accepted = lastAccepted.current;
-    if (accepted.length === 0) return;
-    lastAccepted.current = [];
+    const asked = saidNow.current;
+    const accepted = asked?.undo ?? [];
+    if (asked === null || accepted.length === 0) return;
+    // Still shown while it is undone, but not offered twice.
+    const undoingIt: Said = { notice: asked.notice, undo: [] };
+    say(undoingIt);
     setUndoing(true);
     const vault = fs;
-    const named = { activity, write: 'proposal', path: null, refusal: ANSWER_REFUSALS } as const;
+    const named = {
+      activity: logOfVaultOpenNow(activity),
+      write: 'proposal',
+      path: null,
+      refusal: ANSWER_REFUSALS,
+    } as const;
     // Last accepted, first taken back, each checked on its own: one changed since stays, and says why.
     const undoOne = (one: AcceptedProposal) =>
       withGiveUpRecorded(named, () => undoAcceptedProposal({ ports, accepted: one }));
-    queue.enqueue(async () => {
-      const outcome = await inTurn([...accepted].reverse(), undoOne);
+    queue.enqueue(vault, async () => {
+      const outcome = undoneNotice(accepted, await inTurn([...accepted].reverse(), undoOne));
       setUndoing(false);
-      if (vault === openVault.current) setNotice(undoneNotice(accepted, outcome));
+      if (vault !== openVault.current) return;
+      const now = saidNow.current;
+      if (now === null || now === undoingIt) say({ notice: outcome, undo: [] });
+      else if (outcome.failed) say(besideLater(outcome, now));
     });
-  }, [activity, fs, ports, queue]);
+  }, [activity, fs, ports, queue, say, saidNow]);
 
   // The undo lasts as long as the notice offering it (#165): once that has gone, so has the undo.
-  const onDismissNotice = useCallback(() => {
-    lastAccepted.current = [];
-    setNotice(null);
-  }, []);
+  const onDismissNotice = useCallback(() => say(null), [say]);
 
   const contents = useMemo(
     () => withoutAnswered(listing, answered.paths),
     [listing, answered.paths],
   );
   const busy = undoing ? 'undo' : null;
+  const notice = said?.notice ?? null;
+  const answering = answered.paths.size > 0;
   const selection = useShownSelection(choosing.selection, contents);
   const section = useMemo<ProposalsSectionState>(
     () => ({
@@ -269,6 +321,7 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
       notice,
       busy,
       problems,
+      answering,
       onAccept,
       onReject,
       selection,
@@ -284,6 +337,7 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
       notice,
       busy,
       problems,
+      answering,
       onAccept,
       onReject,
       selection,
@@ -295,6 +349,28 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
     ],
   );
   return { section, count: contents?.open.length ?? null };
+}
+
+/**
+ * What the section says, kept as well where an answer finishing later can
+ * see what is shown by then, without waiting for a render.
+ */
+function useSaid() {
+  const [said, setSaid] = useState<Said | null>(null);
+  const saidNow = useRef<Said | null>(null);
+  const say = useCallback((next: Said | null) => {
+    saidNow.current = next;
+    setSaid(next);
+  }, []);
+  return { said, saidNow, say };
+}
+
+/** An undo's failure, said beside the later answer's notice without taking that answer's Undo away. */
+function besideLater(failure: ProposalNotice, later: Said): Said {
+  return {
+    notice: { ...later.notice, text: `${failure.text} ${later.notice.text}`, failed: true },
+    undo: later.undo,
+  };
 }
 
 /**
@@ -362,6 +438,8 @@ function rejectedNotice(path: VaultPath, rejected: ProposalArchived): ProposalNo
     text: `Rejected: ${noteTitle(path)}.${archivedNote(rejected)}`,
     opens: null,
     undoable: false,
+    // Left in the Inbox, it has nothing to undo and must be read: it stays until dismissed.
+    failed: rejected.archiveProblem !== null,
   };
 }
 

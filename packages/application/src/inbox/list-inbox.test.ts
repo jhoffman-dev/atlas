@@ -85,7 +85,7 @@ describe('listInbox', () => {
     const index = fakeIndexPort({ query });
 
     const first = await listInbox({ index, limit: 2 });
-    const rest = await listInbox({ index, limit: 2, offset: 2 });
+    const rest = await listInbox({ index, limit: 2, after: first.last });
 
     expect(first).toMatchObject({ truncated: true, total: 3 });
     expect(rest).toMatchObject({ truncated: false, total: 3 });

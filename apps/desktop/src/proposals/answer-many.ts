@@ -39,10 +39,14 @@ export function answeredNotice(
     done.length === 0
       ? `None of the ${proposals(failed.length)} was ${verb.toLowerCase()}.`
       : `${verb} ${proposals(done.length)}.`;
+  const undoable = verb === 'Accepted' && done.length > 0;
+  const stranded = strandedNote(done);
   return {
-    text: [said, notAnswered(failed.length, done.length), strandedNote(done)].join(''),
+    text: [said, notAnswered(failed.length, done.length), stranded].join(''),
     opens: null,
-    undoable: verb === 'Accepted' && done.length > 0,
+    undoable,
+    // Those not answered say why on their cards; one left in the Inbox, with nothing to undo, stays until read.
+    failed: !undoable && stranded !== '',
   };
 }
 
@@ -71,12 +75,17 @@ export function undoneNotice(
     const [refused] = failed;
     const text =
       refused === undefined ? `Undone: ${only.headline} is back in the Inbox.` : refused.reason;
-    return { text, opens: null, undoable: false };
+    return { text, opens: null, undoable: false, failed: refused !== undefined };
   }
   const back =
     done.length === 0
       ? ''
       : `Undone: ${proposals(done.length)} ${done.length === 1 ? 'is' : 'are'} back in the Inbox.`;
   const left = failed.map(({ item, reason }) => ` ${item.headline} was not: ${reason}`);
-  return { text: [back, ...left].join('').trim(), opens: null, undoable: false };
+  return {
+    text: [back, ...left].join('').trim(),
+    opens: null,
+    undoable: false,
+    failed: failed.length > 0,
+  };
 }

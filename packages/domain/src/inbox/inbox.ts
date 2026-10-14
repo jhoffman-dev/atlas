@@ -129,7 +129,19 @@ export const INBOX_QUERY_COLUMNS = [
   'waitingOnNames',
   'defer',
   'due',
+  'modified',
 ] as const;
+
+/**
+ * Where a note stands in the Inbox's order (#167): newest first, then by
+ * path. A page is read on from the last note listed, by this, never by
+ * position — so filing or editing notes between pages skips and repeats none.
+ */
+export interface InboxKey {
+  /** When the note last changed, in milliseconds, as the index holds it. */
+  readonly modified: number;
+  readonly path: VaultPath;
+}
 
 /*
  * Every subquery below finds a note's own rows by its path. `+p.key` keeps
@@ -225,25 +237,35 @@ const WAITING_FILES = [
 
 /**
  * The Inbox's notes, asked of the index: newest first, so what just arrived
- * is on top, then by title so the list never reshuffles. Notes of the
+ * is on top, then by path so the list never reshuffles. Notes of the
  * proposal type are left out, wherever in the Inbox they are — they are
  * answered in its Proposals section, never filed — and any other note is
  * listed, one dropped into `Inbox/Proposals` included. Each note carries
- * what the meeting import wrote into it, and what it says as a task. Which
- * notes wait is {@link waitingArms}' rule. A page at a time: `limit` from
- * `offset` (#167).
+ * what the meeting import wrote into it, what it says as a task, and its
+ * {@link InboxKey}. Which notes wait is {@link waitingArms}' rule.
+ *
+ * A page at a time (#167): `limit` of the notes after `after`, and none past
+ * `through` — both {@link InboxKey}s, so a page starts where the last one
+ * ended however the notes before it have moved.
  */
 export function compileInboxQuery({
   limit = INBOX_LIST_LIMIT,
-  offset = 0,
+  after = null,
+  through = null,
   tasksStartInInbox = false,
 }: {
   limit?: number;
-  /** How many of the newest to pass over: where this page starts. */
-  offset?: number;
+  /** The last note of the page before: this page lists only notes after it. */
+  after?: InboxKey | null;
+  /** The last note to list: none after it is. */
+  through?: InboxKey | null;
   /** Whether the vault's Task type has the Inbox status (`tasksStartInInbox`). */
   tasksStartInInbox?: boolean;
 } = {}): CompiledQuery {
+  const bounds = [
+    ...(after === null ? [] : [AFTER_KEY]),
+    ...(through === null ? [] : [THROUGH_KEY]),
+  ];
   return {
     sql: [
       `${INBOX_QUERY_MARK} ${waitingNotes(tasksStartInInbox).join('\n')}`,
@@ -258,13 +280,31 @@ export function compileInboxQuery({
       `  ${firstLinked(TASK_KEYS.waitingOn)} AS "waitingOn",`,
       `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOnNames",`,
       `  ${firstDay(TASK_KEYS.defer)} AS "defer",`,
-      `  ${firstDay(TASK_KEYS.due)} AS "due"`,
+      `  ${firstDay(TASK_KEYS.due)} AS "due",`,
+      `  files.modified AS "modified"`,
       ...WAITING_FILES,
-      `ORDER BY files.modified DESC, lower(files.title), files.path`,
-      `LIMIT ? OFFSET ?`,
+      ...bounds,
+      `ORDER BY files.modified DESC, files.path`,
+      `LIMIT ?`,
     ].join('\n'),
-    parameters: [Math.max(1, Math.floor(limit)), Math.max(0, Math.floor(offset))],
+    parameters: [
+      ...(after === null ? [] : keyParameters(after)),
+      ...(through === null ? [] : keyParameters(through)),
+      Math.max(1, Math.floor(limit)),
+    ],
   };
+}
+
+/** Notes after a key, in the Inbox's order: older, or as old and later by path. */
+const AFTER_KEY = `  AND (files.modified < ? OR (files.modified = ? AND files.path > ?))`;
+/** Notes up to a key, in the Inbox's order: newer, or as old and not later by path. */
+const THROUGH_KEY = `  AND (files.modified > ? OR (files.modified = ? AND files.path <= ?))`;
+
+const keyParameters = ({ modified, path }: InboxKey) => [modified, modified, path];
+
+/** Where a row of {@link compileInboxQuery} stands in the Inbox's order. */
+export function inboxKeyOf(row: { path: VaultPath; modified?: unknown }): InboxKey {
+  return { modified: Number(row.modified ?? 0), path: row.path };
 }
 
 /** How many notes wait in the Inbox, as {@link compileInboxQuery} would list them all (#167). */

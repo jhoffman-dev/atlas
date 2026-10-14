@@ -182,6 +182,19 @@ function recordedFile(raw: unknown): RecordedFile {
 }
 
 /**
+ * The record a new run goes on from (#163): one cut off partway, or one that
+ * finished with files it could not move yet — that run is not over, so one
+ * undo covers both. A run that finished with nothing left is over, and so is
+ * one whose undo was dismissed: the new run is a run of its own, with its own
+ * record, and its Undo never takes back the run before it.
+ */
+export function recordGoneOnFrom(earlier: MigrationRecord | null): MigrationRecord | null {
+  if (earlier === null || earlier.undoDismissed === true) return null;
+  const over = earlier.finished === true && (earlier.left ?? []).length === 0;
+  return over ? null : earlier;
+}
+
+/**
  * A run that went on after one that stopped partway — on this Mac, or from a
  * record another Mac's partial run synced in: one record for both, so one
  * undo covers both.

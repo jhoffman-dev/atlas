@@ -417,6 +417,37 @@ describe('dismissing the undo offer (#163)', () => {
   });
 });
 
+describe('adversarial: an undo dismissed, then another run (#163)', () => {
+  // Dismissed "for good" on one Mac; the other Mac then moves a task synced in
+  // with an old status. The later run's record is merged into the dismissed one
+  // (dismissal dropped), so the offer comes back and its Undo takes back the
+  // dismissed run's every task as well as the one just moved.
+  it('does not take back the dismissed run when the later run is undone', async () => {
+    const { ports, files } = vault();
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    await dismissMigrationUndo(ports.fs);
+    const movedByFirst = files.get('tasks/Call Mara.md');
+
+    files.set('tasks/Synced in.md', note({ type: 'task', status: 'doing' }));
+    const later = await previewTaskMigration(ports);
+    expect(later.tasks.map((task) => task.title)).toEqual(['Synced in']);
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock: { localNow: () => '2026-10-20T09:30:00' },
+      preview: later,
+    });
+
+    await undoTaskMigration({ fs: ports.fs, panes: closedPanes });
+    expect(files.get('tasks/Call Mara.md')).toBe(movedByFirst);
+  });
+});
+
 describe('a run cut off partway', () => {
   it('has its record written before it changes any file, so a run that dies can still be undone', async () => {
     const { ports, files } = vault();

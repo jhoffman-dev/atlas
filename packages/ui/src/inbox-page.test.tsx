@@ -93,8 +93,11 @@ function page(overrides: Partial<InboxPageProps> = {}) {
     problem: null,
     ...overrides,
   };
-  render(<InboxPage {...props} />);
-  return props;
+  const view = render(<InboxPage {...props} />);
+  return {
+    ...props,
+    rerender: (next: Partial<InboxPageProps>) => view.rerender(<InboxPage {...props} {...next} />),
+  };
 }
 
 const rowOf = (title: string) =>
@@ -487,6 +490,26 @@ describe('InboxPage — the undo bar goes by itself (#165)', () => {
     expect(onDismissLastAction).not.toHaveBeenCalled();
     fireEvent.pointerLeave(said);
     act(() => vi.advanceTimersByTime(20_100));
+    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('InboxPage — a second clarification of the same title (review)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('gives it the full 20 seconds again', () => {
+    vi.useFakeTimers();
+    const onDismissLastAction = vi.fn();
+    const view = page({
+      lastAction: { title: 'Call the bank' },
+      onUndo: vi.fn(),
+      onDismissLastAction,
+    });
+    act(() => vi.advanceTimersByTime(15_000));
+    view.rerender({ lastAction: { title: 'Call the bank' } });
+    act(() => vi.advanceTimersByTime(15_000));
+    expect(onDismissLastAction).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(5_100));
     expect(onDismissLastAction).toHaveBeenCalledTimes(1);
   });
 });
