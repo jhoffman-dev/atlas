@@ -76,6 +76,13 @@ export interface WallTime {
 /**
  * A reader of instants (milliseconds since the epoch) on the clock of
  * `timeZone`, made once for many turns. Refuses a name that is not an IANA zone.
+ *
+ * Known limit: the zone's rules come from each engine's own tz database
+ * (Node bundles one; the webview's JavaScriptCore reads macOS's). Writers on
+ * different tz versions can disagree by an hour for a zone whose rules
+ * changed — America/Vancouver from 2026-11-01, for one. The in-app pull
+ * checks the ids the vault holds before fetching and runs after a sync pull,
+ * so the first file written wins and the second writer skips the note.
  */
 export function wallClockIn(timeZone: string): (instant: number) => WallTime {
   const clock = zoneClock(timeZone);

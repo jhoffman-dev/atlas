@@ -67,7 +67,9 @@ describe('granolaPullReport', () => {
         counts: NONE,
         problem: granolaFailureWords({ kind: 'invalid', message: 'no vault is open' }),
       })?.message,
-    ).toBe('Granola: the pull failed. Atlas could not ask Granola: no vault is open.');
+    ).toBe(
+      'Granola: the pull failed. Atlas could not ask Granola: no vault is open. Atlas stops pulling; the next pull asks again.',
+    );
     expect(
       granolaPullReport({ ended: 'failed', counts: NONE, problem: 'the index is not ready' })
         ?.message,
@@ -114,11 +116,12 @@ describe('granolaNoteReport', () => {
         ...NOTE,
         title: null,
         url: null,
-        problem: 'Granola no longer has the note.',
+        problem: 'Granola no longer has the note. It was skipped; Sync now tries it again.',
       }),
     ).toMatchObject({
       level: 'warning',
-      message: 'Granola: “not_1d3tmYTlCICgjy” was skipped. Granola no longer has the note.',
+      message:
+        'Granola: “not_1d3tmYTlCICgjy”: Granola no longer has the note. It was skipped; Sync now tries it again.',
     });
   });
 

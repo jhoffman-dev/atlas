@@ -112,6 +112,31 @@ describe('when the meeting was', () => {
     expect(fieldsOf(note)).toMatchObject({ start: '15:30', end: '15:30' });
   });
 
+  it('has no end when the calendar event ends before it starts, and keeps its start', () => {
+    const note = {
+      ...NOTE,
+      calendar_event: calendar('2026-10-06T17:00:00Z', '2026-10-06T16:30:00Z'),
+    };
+    expect(fieldsOf(note)).toMatchObject({ date: '2026-10-06', start: '10:00', end: null });
+  });
+
+  it('has no end when the last word was spoken before the scheduled start', () => {
+    const note = {
+      ...NOTE,
+      calendar_event: calendar('2026-10-06T17:00:00Z', null),
+      transcript: [item({}, 'Early.', '2026-10-06T16:50:00Z', '2026-10-06T16:55:00Z')],
+    };
+    expect(fieldsOf(note)).toMatchObject({ start: '10:00', end: null });
+  });
+
+  it('keeps an end that is the start itself', () => {
+    const note = {
+      ...NOTE,
+      calendar_event: calendar('2026-10-06T17:00:00Z', '2026-10-06T17:00:00Z'),
+    };
+    expect(fieldsOf(note)).toMatchObject({ start: '10:00', end: '10:00' });
+  });
+
   it('falls back to the turns for a calendar event with no scheduled times', () => {
     const note = {
       ...NOTE,

@@ -54,10 +54,10 @@ function levelOf({ refused, skipped, failed }: GranolaPullCounts): ActivityLevel
   return refused + skipped > 0 ? 'warning' : 'info';
 }
 
-/** A failure's problem and what to do about it, as one sentence or two. */
+/** A failure's problem, what to do about it, and what the pull did. */
 export function granolaFailureWords(failure: GranolaFailure): string {
   const { problem, fix } = explainGranolaFailure(failure);
-  return fix === null ? problem : `${problem} ${fix}`;
+  return `${problem} ${fix}`;
 }
 
 const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
@@ -121,7 +121,7 @@ export function granolaNoteReport(
         `${named(note)} was not written: ${why} Sync now tries it again.${openIt(note)}`,
       );
     case 'skipped':
-      return meetingLine('warning', `${named(note)} was skipped. ${why}${openIt(note)}`);
+      return meetingLine('warning', `${named(note)}: ${why}${openIt(note)}`);
     case 'failed':
       return meetingLine(
         'error',
