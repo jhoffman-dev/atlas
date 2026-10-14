@@ -7,7 +7,10 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use super::{prepare, send, HttpRequest, Prepared, RequestHeader};
+use super::{prepare, prepare_off_worker, send, HttpRequest, Prepared, RequestHeader};
+use crate::secrets::tests::{
+    a_signed_token, assert_never_stalls_the_worker, use_eight_other_values,
+};
 use crate::secrets::{write_secret, MemoryStore, SecretStore, SecretWrite, TemplatePart};
 
 const TOKEN: &str = "ghp_S3CRET_VALUE";
@@ -490,4 +493,77 @@ fn a_secret_kept_too_long_to_protect_is_refused_before_anything_is_sent() {
         refused,
         "the secret \"kept-long\" is too long for Atlas to protect, so nothing was sent — replace it with a shorter one in Settings → Secrets"
     );
+}
+
+/// Adversarial (P28-10 round 3, after 0d51773), rewritten for round 4. A
+/// request already carrying a secret strikes its answer when the answer
+/// lands, after the secret was deleted, and that builds or uses the deleted
+/// value's matcher again. Deleting never let go of it for good; what holds is
+/// the bound: it is let go once eight other values have been used.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_secret_deleted_while_its_request_is_out_is_let_go_once_eight_other_values_are_used() {
+    let (name, value) = ("larkspur-inflight-token", "grn_InFlightDeletedLarkspur");
+    let store = MemoryStore::default();
+    set_bound(&store, name, value, &["https://api.test"]);
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let (arrived, request_arrived) = tokio::sync::oneshot::channel();
+    let (release, released) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = vec![0; 4096];
+        let read = socket.read(&mut request).await.unwrap();
+        let body = String::from_utf8_lossy(&request[..read]).into_owned();
+        arrived.send(()).unwrap();
+        released.await.unwrap();
+        let response = format!(
+            "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        socket.write_all(response.as_bytes()).await.unwrap();
+    });
+    let url = format!("http://{address}/feed?key={value}");
+    let prepared = Prepared {
+        url: url.parse().unwrap(),
+        headers: reqwest::header::HeaderMap::new(),
+        used: vec![(name.into(), value.into())],
+        shown: url.clone(),
+    };
+    let out = tokio::spawn(async move { send(&prepared).await });
+
+    request_arrived.await.unwrap();
+    crate::secrets::remove_secret(&store, "v1", name).unwrap();
+    release.send(()).unwrap();
+    let answer = out.await.unwrap().unwrap();
+    assert!(!answer.contains(value), "{answer}");
+
+    use_eight_other_values();
+
+    assert!(
+        !crate::secrets::holds_matcher(value),
+        "the deleted secret's matcher outlived eight others"
+    );
+}
+
+/// Preparing a request checks its secrets can be struck, which builds their
+/// matchers: for a token of some kilobytes that is most of a second in a
+/// debug build, which the async worker every command shares is never held
+/// for.
+#[tokio::test]
+async fn preparing_a_request_never_stalls_the_worker() {
+    let token = format!("ghp_NotYetBuilt{}", a_signed_token(2_000));
+    let store = Arc::new(MemoryStore::default());
+    set_bound(&store, "long", &token, &["https://api.test"]);
+    use_eight_other_values();
+
+    let prepared = assert_never_stalls_the_worker(prepare_off_worker(
+        store,
+        "v1".into(),
+        bearer("https://api.test/x", "long"),
+    ))
+    .await
+    .unwrap();
+
+    assert_eq!(prepared.used, vec![("long".to_string(), token)]);
 }

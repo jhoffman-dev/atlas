@@ -15,14 +15,17 @@
 //! not for POSTs — so the host pins the POST to the Messages API and the
 //! `anthropic` key (ADR-0021).
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::{redirect, Client};
 use serde::Serialize;
 use tauri::State;
 
-use crate::http::{prepare, read_feed, HttpRequest, Prepared};
-use crate::secrets::{redact, redact_off_worker, vault_scope, SecretState, SecretStore};
+use crate::http::{prepare, read_feed, HttpRequest, Prepared, NOT_PREPARED};
+use crate::secrets::{
+    on_blocking_thread, redact_off_worker, vault_scope, SecretState, SecretStore,
+};
 use crate::vault::{root_for_write, VaultState};
 
 /// A model can take minutes to answer a long question.
@@ -63,6 +66,20 @@ fn prepare_model_request(
         return Err(format!("a model's API is only ever called at {ENDPOINT}"));
     }
     Ok(prepared)
+}
+
+/// `prepare_model_request`, on a thread kept for blocking work, as
+/// `http::prepare_off_worker` is and for the same reasons.
+async fn prepare_model_request_off_worker(
+    store: Arc<dyn SecretStore>,
+    scope: String,
+    request: HttpRequest,
+) -> Result<Prepared, String> {
+    on_blocking_thread(
+        move || prepare_model_request(store.as_ref(), &scope, &request),
+        Err(NOT_PREPARED.to_string()),
+    )
+    .await
 }
 
 /// The answer as the webview may see it: its status, and its body as text
@@ -114,15 +131,18 @@ pub async fn model_http_post(
     // switch is refused, never filled from the other vault's secrets.
     let root = root_for_write(state.root(), Some(&vault))?;
     let scope = vault_scope(&root);
-    let prepared = prepare_model_request(secrets.store(), &scope, &request)?;
-    post(&prepared, body)
-        .await
-        .map_err(|error| redact(&error, &prepared.used))
+    let prepared = prepare_model_request_off_worker(secrets.shared(), scope, request).await?;
+    match post(&prepared, body).await {
+        Ok(answer) => Ok(answer),
+        Err(error) => Err(redact_off_worker(error, prepared.used.clone()).await),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{answer_of, prepare_model_request, ModelAnswer};
+    use std::sync::Arc;
+
+    use super::{answer_of, prepare_model_request, prepare_model_request_off_worker, ModelAnswer};
     use crate::http::{HttpRequest, RequestHeader};
     use crate::secrets::{write_secret, MemoryStore, SecretWrite, TemplatePart};
 
@@ -187,6 +207,36 @@ mod tests {
         )
         .unwrap();
         assert_eq!(prepared.headers["x-api-key"], KEY);
+    }
+
+    /// Its key's matcher is built as the request is prepared — most of a
+    /// second for a long key in a debug build — on a thread kept for it.
+    #[tokio::test]
+    async fn preparing_a_post_never_stalls_the_worker() {
+        use crate::secrets::tests::{
+            a_signed_token, assert_never_stalls_the_worker, use_eight_other_values,
+        };
+        let long = format!("sk-ant-NotYetBuilt{}", a_signed_token(2_000));
+        let store = Arc::new(MemoryStore::default());
+        let origins = vec!["https://api.anthropic.com".to_string()];
+        let write = SecretWrite {
+            scope: "v1",
+            name: "anthropic",
+            value: Some(&long),
+            origins: Some(&origins),
+        };
+        write_secret(store.as_ref(), &write, &|_: &str, _: &[String]| true).unwrap();
+        use_eight_other_values();
+
+        let prepared = assert_never_stalls_the_worker(prepare_model_request_off_worker(
+            store,
+            "v1".into(),
+            request("https://api.anthropic.com/v1/messages", key()),
+        ))
+        .await
+        .unwrap();
+
+        assert_eq!(prepared.headers["x-api-key"], long.as_str());
     }
 
     #[test]

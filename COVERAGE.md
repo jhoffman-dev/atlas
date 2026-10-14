@@ -39,6 +39,13 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `application/proposals`     | Accepting a proposal writes notes, archives it, and undo takes them back.                    | 29      |
 | `application/meeting-links` | Writes a meeting's people and companies, and proposals, by itself; undone.                   | 29      |
 | `*/google-calendar`         | Connects your Google account and reads its answers; tokens stay in Rust.                     | 31      |
+| `domain/granola`            | Granola's watermark, pacing and backoff: a wrong rule drops meetings.                        | 28      |
+| `*/granola`                 | Writes files into your vault from outside it; turns Granola's JSON into domain types.        | 28      |
+
+`src-tauri/src/granola*` (phase 28) holds the Granola key and no Rust coverage tool
+exists here, so its bar is named tests, not a percentage: no answer or error carries
+the key (each is serialised against a fake Granola that echoes `Authorization`), and a
+path off `/v1/`, a non-GET method and a redirect are each refused.
 
 Rules that apply everywhere:
 

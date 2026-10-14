@@ -627,3 +627,24 @@ writer, and the meeting a proposal came from".
 
 - **Tests.** `claude-step.meetings.test.ts` (application, the same fake vault
   and feed) and `e2e/claude-meeting.spec.ts`.
+
+## Amendment: Atlas pulls Granola (P28-08, 2026-10-13)
+
+ADR-0034 (proposed) reverses this record's rejection of "Atlas polls the
+provider" **for Granola only**: Granola's REST API takes a bearer key, so there
+is no OAuth surface, and the parsing is the shared mapping, so it is written
+once. Gmail stays rejected, Gemini stays on n8n, and a further provider needs
+its own record. What stands: the contract, the file's place, and idempotence by
+`provider` + `external_id`.
+
+The contract (v1, unchanged in what it accepts and refuses) gains, for that
+mapping:
+
+- **`MeetingFields.turns`**: a provider's turns, structured (speaker, time,
+  words), written as the same transcript blocks without being rendered to
+  text and read back.
+- **`MeetingFields.clock`**: `elapsed` or `wall`, written as
+  `transcript_clock`.
+- **`source_url`**: a link back to the meeting in the provider's app.
+  Named in `meeting-import-v1.md` now, and in the schema and contract test
+  with the mapper (P28-09).

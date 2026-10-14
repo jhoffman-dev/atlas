@@ -7,8 +7,7 @@
 //! secrets.
 
 use super::failure::{FailureKind, GranolaFailure};
-use super::KEY_NAME;
-use crate::secrets::{apikey_account, ensure_strikable, SecretStore};
+use crate::secrets::{apikey_account, ensure_strikable_off_worker, SecretStore};
 
 const PROVIDER: &str = "granola";
 
@@ -23,9 +22,8 @@ fn keychain(error: String) -> GranolaFailure {
 }
 
 /// The backstop for what TypeScript already checked and words for the
-/// person: a Granola key, nothing that could break the header it is written
-/// into, and one Atlas can strike from every answer. The key is never quoted
-/// back.
+/// person: a Granola key, and nothing that could break the header it is
+/// written into. The key is never quoted back.
 pub fn check(key: &str) -> Result<(), GranolaFailure> {
     let usable = key.len() > KEY_PREFIX.len()
         && key.starts_with(KEY_PREFIX)
@@ -36,12 +34,7 @@ pub fn check(key: &str) -> Result<(), GranolaFailure> {
             "that is not a Granola API key",
         ));
     }
-    ensure_strikable(KEY_NAME, key).map_err(|_| {
-        GranolaFailure::new(
-            FailureKind::Invalid,
-            "that is too long to protect: Atlas could not strike it from Granola's answers, so it is not kept",
-        )
-    })
+    Ok(())
 }
 
 pub fn load(store: &dyn SecretStore, scope: &str) -> Result<Option<String>, GranolaFailure> {
@@ -50,8 +43,18 @@ pub fn load(store: &dyn SecretStore, scope: &str) -> Result<Option<String>, Gran
         .map_err(keychain)
 }
 
-pub fn save(store: &dyn SecretStore, scope: &str, key: &str) -> Result<(), GranolaFailure> {
+/// Keeps `key` once it is a Granola key that Atlas can strike from every
+/// answer. Finding that out builds its matcher, off the async worker.
+pub async fn save(store: &dyn SecretStore, scope: &str, key: &str) -> Result<(), GranolaFailure> {
     check(key)?;
+    ensure_strikable_off_worker(key.to_string())
+        .await
+        .map_err(|_| {
+            GranolaFailure::new(
+                FailureKind::Invalid,
+                "that is too long to protect: Atlas could not strike it from Granola's answers, so it is not kept",
+            )
+        })?;
     store
         .set(&apikey_account(scope, PROVIDER), key)
         .map_err(keychain)
@@ -71,36 +74,36 @@ mod tests {
 
     const KEY: &str = "grn_Fict10nalKey";
 
-    #[test]
-    fn a_key_round_trips_through_the_store_for_its_own_vault_only() {
+    #[tokio::test]
+    async fn a_key_round_trips_through_the_store_for_its_own_vault_only() {
         let store = MemoryStore::default();
-        save(&store, "v1", KEY).unwrap();
+        save(&store, "v1", KEY).await.unwrap();
         assert_eq!(load(&store, "v1").unwrap().as_deref(), Some(KEY));
         assert_eq!(load(&store, "v2").unwrap(), None);
         forget(&store, "v1").unwrap();
         assert_eq!(load(&store, "v1").unwrap(), None);
     }
 
-    #[test]
-    fn the_key_is_kept_at_the_vaults_granola_apikey_account() {
+    #[tokio::test]
+    async fn the_key_is_kept_at_the_vaults_granola_apikey_account() {
         let store = MemoryStore::default();
-        save(&store, "v1", KEY).unwrap();
+        save(&store, "v1", KEY).await.unwrap();
         assert_eq!(store.accounts().unwrap(), vec!["v1:apikey/granola"]);
     }
 
-    #[test]
-    fn the_key_is_never_listed_among_the_vaults_secrets() {
+    #[tokio::test]
+    async fn the_key_is_never_listed_among_the_vaults_secrets() {
         let store = MemoryStore::default();
-        save(&store, "v1", KEY).unwrap();
+        save(&store, "v1", KEY).await.unwrap();
         assert!(entries_in(&store, "v1").unwrap().is_empty());
     }
 
-    #[test]
-    fn a_key_too_long_to_protect_is_refused_and_not_kept() {
+    #[tokio::test]
+    async fn a_key_too_long_to_protect_is_refused_and_not_kept() {
         let store = MemoryStore::default();
         let too_long = format!("grn_{}", "k".repeat(16 * 1024));
 
-        let failure = save(&store, "v1", &too_long).unwrap_err();
+        let failure = save(&store, "v1", &too_long).await.unwrap_err();
 
         assert_eq!(failure.kind, FailureKind::Invalid);
         assert!(
@@ -113,12 +116,12 @@ mod tests {
 
     /// Past the 1,024 bytes Atlas once capped a secret at: a key the length
     /// of a signed token is kept.
-    #[test]
-    fn a_key_as_long_as_a_signed_token_is_kept() {
+    #[tokio::test]
+    async fn a_key_as_long_as_a_signed_token_is_kept() {
         let store = MemoryStore::default();
         let long = format!("grn_{}", crate::secrets::tests::a_signed_token(2_700));
 
-        save(&store, "v1", &long).unwrap();
+        save(&store, "v1", &long).await.unwrap();
 
         assert_eq!(load(&store, "v1").unwrap(), Some(long));
     }
@@ -130,8 +133,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn anything_but_a_granola_key_is_refused_and_never_kept_or_quoted() {
+    #[tokio::test]
+    async fn anything_but_a_granola_key_is_refused_and_never_kept_or_quoted() {
         for key in [
             "",
             "grn_",
@@ -144,7 +147,7 @@ mod tests {
             "grn_ébc",
         ] {
             let store = MemoryStore::default();
-            let failure = save(&store, "v1", key).unwrap_err();
+            let failure = save(&store, "v1", key).await.unwrap_err();
             assert_eq!(failure.kind, FailureKind::Invalid, "{key:?}");
             assert!(
                 key.is_empty() || !failure.message.contains(key),
