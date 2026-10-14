@@ -157,15 +157,27 @@ pub fn describe(parts: &[TemplatePart]) -> String {
         .collect()
 }
 
+#[cfg(test)]
+pub use redact::holds_matcher;
 /// Every secret that went into a request is struck from what came back. A
 /// server that echoes its headers — plenty of test endpoints do — would
 /// otherwise write the token into a note, and so into the vault and Git.
-pub use redact::{redact, redact_off_worker};
+pub use redact::{ensure_strikable, forget_matcher, redact, redact_off_worker};
 
-/// The longest secret Atlas keeps, in bytes: a token, never a document. Every
-/// secret sent is looked for in what comes back in many forms, and the cost of
-/// building that search grows with the secret, so it is bounded here.
-pub const LONGEST_SECRET: usize = 1024;
+/// Refuses, before anything is sent, a request carrying a secret that could
+/// not be struck from what comes back: one kept before Atlas checked that
+/// when a secret is saved. Sending it and then withholding the answer would
+/// already have given it away to wherever it went.
+pub fn check_strikable(used: &[(String, String)]) -> Result<(), String> {
+    for (name, value) in used {
+        ensure_strikable(name, value).map_err(|_| {
+            format!(
+                "the secret {name:?} is too long for Atlas to protect, so nothing was sent — replace it with a shorter one in Settings → Secrets"
+            )
+        })?;
+    }
+    Ok(())
+}
 
 fn names_in(accounts: Vec<String>, scope: &str) -> Vec<String> {
     let prefix = format!("{scope}/");
@@ -318,4 +330,4 @@ mod keychain;
 mod redact;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
