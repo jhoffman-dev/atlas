@@ -1,4 +1,9 @@
-import type { GranolaFailure, GranolaNote, GranolaNoteSummary } from '@atlas/domain';
+import type {
+  GranolaFailure,
+  GranolaNote,
+  GranolaNoteSummary,
+  GranolaUnreadableSummary,
+} from '@atlas/domain';
 
 /**
  * Whether this vault has a Granola API key on this Mac, and 401 when
@@ -12,6 +17,8 @@ export interface GranolaKeyStatus {
 /** One page of `GET /v1/notes`. */
 export interface GranolaNotesPage {
   readonly notes: readonly GranolaNoteSummary[];
+  /** The page's notes not in the documented shape: left out, the rest of the page kept. */
+  readonly unreadable: readonly GranolaUnreadableSummary[];
   /** Where the next page starts; null on the last. */
   readonly cursor: string | null;
 }

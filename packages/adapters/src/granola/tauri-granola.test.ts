@@ -126,7 +126,7 @@ describe('tauriGranola: listing notes', () => {
       cursor: 'c1',
     });
 
-    expect(page).toEqual({ notes: [SUMMARY], cursor: 'c2' });
+    expect(page).toEqual({ notes: [SUMMARY], unreadable: [], cursor: 'c2' });
     expect(invoke).toHaveBeenCalledWith('granola_request', {
       vault: VAULT,
       path: '/v1/notes',
@@ -139,7 +139,7 @@ describe('tauriGranola: listing notes', () => {
 
     const page = await tauriGranola.listNotes({ vault: VAULT, updatedAfter: null, cursor: null });
 
-    expect(page).toEqual({ notes: [], cursor: null });
+    expect(page).toEqual({ notes: [], unreadable: [], cursor: null });
     expect(invoke).toHaveBeenCalledWith('granola_request', {
       vault: VAULT,
       path: '/v1/notes',
@@ -153,17 +153,36 @@ describe('tauriGranola: listing notes', () => {
     ['no hasMore', { notes: [], cursor: null }],
     ['more with no cursor', { notes: [], hasMore: true, cursor: null }],
     ['more with an empty cursor', { notes: [], hasMore: true, cursor: '' }],
-    ['a note with no id', { notes: [{ ...SUMMARY, id: undefined }], hasMore: false }],
-    ['an id a path could not hold', { notes: [{ ...SUMMARY, id: 'not_../x' }], hasMore: false }],
-    ['no updated_at', { notes: [{ ...SUMMARY, updated_at: null }], hasMore: false }],
-    ['a title that is not text', { notes: [{ ...SUMMARY, title: 7 }], hasMore: false }],
-    ['a note that is not an object', { notes: ['not_1d3tmYTlCICgjy'], hasMore: false }],
   ])('calls a list with %s malformed', async (_case, body) => {
     invoke.mockResolvedValue(answer(200, body));
     expect(
       await failureOf(tauriGranola.listNotes({ vault: VAULT, updatedAfter: null, cursor: null })),
     ).toMatchObject({ kind: 'malformed' });
   });
+
+  it.each([
+    ['no id', { ...SUMMARY, id: undefined }, null, 'its id is not a Granola note id'],
+    [
+      'an id a path could not hold',
+      { ...SUMMARY, id: 'not_../x' },
+      'not_../x',
+      'its id is not a Granola note id',
+    ],
+    ['an id that is not text', { ...SUMMARY, id: 7 }, null, 'its id is not a Granola note id'],
+    ['no updated_at', { ...SUMMARY, updated_at: null }, ID, 'its updated_at is not text'],
+    ['a title that is not text', { ...SUMMARY, title: 7 }, ID, 'its title is not text'],
+    ['nothing that is a note', 'not_1d3tmYTlCICgjy', null, 'it is not a note'],
+  ])(
+    'sets a listed note with %s aside, with its id and why, and keeps the rest of the page',
+    async (_case, odd, id, reason) => {
+      const other = { ...SUMMARY, id: 'not_2e4unZUmDJDhkz' };
+      invoke.mockResolvedValue(answer(200, { notes: [SUMMARY, odd, other], hasMore: false }));
+
+      const page = await tauriGranola.listNotes({ vault: VAULT, updatedAfter: null, cursor: null });
+
+      expect(page).toEqual({ notes: [SUMMARY, other], unreadable: [{ id, reason }], cursor: null });
+    },
+  );
 
   it('keeps a note with no title', async () => {
     invoke.mockResolvedValue(answer(200, { notes: [{ ...SUMMARY, title: null }], hasMore: false }));

@@ -11,8 +11,14 @@ export const GRANOLA_TIME_ZONE_KEY = 'granola_time_zone';
 export const GRANOLA_WEBHOOK_KEY = 'granola_webhook';
 /** Whether the app pulls every 15 minutes while the vault is open. */
 export const GRANOLA_PERIODIC_KEY = 'granola_periodic';
-/** Addresses that are groups the address rule misses, for every meeting mapped into the vault. */
-export const MEETING_GROUP_ADDRESSES_KEY = 'meeting_group_addresses';
+/** Addresses that are groups the address rule misses, for each Granola meeting mapped into the vault. */
+export const GRANOLA_GROUP_ADDRESSES_KEY = 'granola_group_addresses';
+/**
+ * The vault person's own addresses: a Granola note owned by one of them has
+ * its `me` turns written as `You`, any other as the owner's name. None is a
+ * setting too: every `me` is then the owner's name.
+ */
+export const GRANOLA_SELF_EMAILS_KEY = 'granola_self_emails';
 
 /** n8n's default zone too, so a vault that says nothing maps as the workflow does. */
 export const DEFAULT_GRANOLA_TIME_ZONE = 'America/Los_Angeles';
@@ -22,6 +28,7 @@ export interface GranolaSettings {
   readonly webhook: boolean;
   readonly periodic: boolean;
   readonly groupAddresses: readonly string[];
+  readonly selfEmails: readonly string[];
 }
 
 function timeZoneOf(value: unknown): string {
@@ -47,6 +54,7 @@ export function parseGranolaSettings(settings: Readonly<Record<string, unknown>>
     timeZone: timeZoneOf(settings[GRANOLA_TIME_ZONE_KEY]),
     webhook: settings[GRANOLA_WEBHOOK_KEY] === true,
     periodic: settings[GRANOLA_PERIODIC_KEY] !== false,
-    groupAddresses: addressesOf(settings[MEETING_GROUP_ADDRESSES_KEY]),
+    groupAddresses: addressesOf(settings[GRANOLA_GROUP_ADDRESSES_KEY]),
+    selfEmails: addressesOf(settings[GRANOLA_SELF_EMAILS_KEY]),
   };
 }

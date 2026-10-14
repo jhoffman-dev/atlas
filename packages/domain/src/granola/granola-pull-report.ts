@@ -1,6 +1,13 @@
 import type { ActivityLevel, ActivityReport } from '../activity/activity-event.ts';
 import { STALE_ARRIVAL_MS } from './granola-arrival.ts';
-import { explainGranolaFailure, type GranolaFailure } from './granola-failure.ts';
+import {
+  explainGranolaFailure,
+  type GranolaFailure,
+  type GranolaFailureContext,
+} from './granola-failure.ts';
+import type { GranolaUnreadableSummary } from './granola-note-types.ts';
+import { SLOW_DOWNS_IN_A_ROW } from './granola-pace.ts';
+import type { GranolaPullMode } from './granola-watermark.ts';
 
 /**
  * How a pull of Granola ended:
@@ -10,7 +17,8 @@ import { explainGranolaFailure, type GranolaFailure } from './granola-failure.ts
  *   completed a sync pull of the vault (ADR-0034);
  * - `stopped`: a failure every later request would share (no key, a refused
  *   key) ended it;
- * - `failed`: the notes could not be listed;
+ * - `failed`: the notes could not be listed, or Granola kept asking Atlas to
+ *   slow down;
  * - `vault-changed`: another vault was opened while it ran.
  */
 export type GranolaPullEnd = 'pulled' | 'not-synced' | 'stopped' | 'failed' | 'vault-changed';
@@ -61,11 +69,46 @@ function levelOf({ refused, skipped, failed }: GranolaPullCounts): ActivityLevel
   return refused + skipped > 0 ? 'warning' : 'info';
 }
 
-/** A failure's problem, what to do about it, and what the pull did. */
-export function granolaFailureWords(failure: GranolaFailure): string {
-  const { problem, fix } = explainGranolaFailure(failure);
+/** A failure's problem, what to do about it, and what the pull did, met where it was. */
+export function granolaFailureWords(
+  failure: GranolaFailure,
+  during: GranolaFailureContext = 'note',
+): string {
+  const { problem, fix } = explainGranolaFailure(failure, during);
   return `${problem} ${fix}`;
 }
+
+/** Why a pull gave up after {@link SLOW_DOWNS_IN_A_ROW} notes in a row were each refused with 429. */
+export const GRANOLA_KEPT_SLOWING_DOWN = `Granola asked Atlas to slow down for ${SLOW_DOWNS_IN_A_ROW} notes in a row, so Atlas stopped this pull. The next pull tries those notes again.`;
+
+/** The most of a listed id a line shows: an id that is not one may be anything, at any length. */
+const SHOWN_ID_LENGTH = 40;
+
+function shownId(id: string | null): string {
+  if (id === null) return 'no id';
+  // eslint-disable-next-line no-control-regex -- a line of Activity holds no control characters
+  const printable = id.replace(/[\u0000-\u001f\u007f]/g, ' ');
+  return printable.length > SHOWN_ID_LENGTH ? `${printable.slice(0, SHOWN_ID_LENGTH)}…` : printable;
+}
+
+/** A listed note the pull left out, as a skipped note: its id, cut short, and why. */
+export function unreadableSummaryProblem({
+  id,
+  reason,
+}: GranolaUnreadableSummary): GranolaNoteProblem {
+  return {
+    id: shownId(id),
+    title: null,
+    url: null,
+    problem: `Granola listed a note Atlas cannot read (${reason}); it was left out of this pull.`,
+  };
+}
+
+/** A pull on the timer that found nothing to write or report: a line every 15 minutes would bury the rest. */
+const isQuietTick = (mode: GranolaPullMode, ended: GranolaPullEnd, counts: GranolaPullCounts) =>
+  mode === 'periodic' &&
+  ended === 'pulled' &&
+  counts.written + counts.refused + counts.skipped + counts.failed === 0;
 
 const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
 
@@ -81,18 +124,21 @@ const meetingLine = (level: ActivityLevel, message: string): ActivityReport => (
 /**
  * The one line a pull gets in Activity, with its counts; null for a pull
  * that did not start because the vault has not been synced yet, which is
- * waiting, not failing.
+ * waiting, not failing, and for a timed pull that found nothing new.
  */
 export function granolaPullReport({
+  mode,
   ended,
   counts,
   problem,
 }: {
+  readonly mode: GranolaPullMode;
   readonly ended: GranolaPullEnd;
   readonly counts: GranolaPullCounts;
   /** Why a pull `stopped` or `failed`, in the person's words. */
   readonly problem: string | null;
 }): ActivityReport | null {
+  if (isQuietTick(mode, ended, counts)) return null;
   const before = counts.written > 0 ? ` ${counts.written} new before it did.` : '';
   switch (ended) {
     case 'not-synced':

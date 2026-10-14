@@ -108,6 +108,7 @@ export function fakeGranola({
       const next = from + pageSize;
       return {
         notes: listed.slice(from, next),
+        unreadable: [],
         cursor: next < listed.length ? String(next) : null,
       };
     },

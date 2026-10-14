@@ -19,7 +19,8 @@ export type GranolaPullMode = 'startup' | 'periodic' | 'sync-now';
 
 /** An instant as milliseconds, or null when it is not one. */
 function instantOf(text: string | null): number | null {
-  if (text === null) return null;
+  // Not trusted to be text: a watermark is read back from where this Mac kept it.
+  if (typeof text !== 'string') return null;
   const instant = Date.parse(text);
   return Number.isNaN(instant) ? null : instant;
 }
@@ -40,13 +41,17 @@ function extreme(
   return found;
 }
 
-const isoOf = (instant: number | null) =>
-  instant === null ? null : new Date(instant).toISOString();
+/** The instant as RFC 3339; null when there is none, or it is past the range a date can hold. */
+function isoOf(instant: number | null): string | null {
+  if (instant === null) return null;
+  const date = new Date(instant);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
 
 /**
  * The `updated_after` for a pull: a day before the watermark at startup and
  * on the timer. Null — list every note — for Sync now, for a first pull, and
- * for a watermark that cannot be read.
+ * for a watermark that cannot be read, or that a day before is no date at all.
  */
 export function sinceOf({
   watermark,
@@ -86,22 +91,33 @@ export interface GranolaNoteResult {
  * note skipped or refused would hold it for good, every later pull listing
  * everything since. A failed note whose time cannot be read keeps the
  * watermark where it was, rather than risk passing it.
+ *
+ * Never past `now`: one note stamped in the future (Granola's clock, or a bad
+ * row) would otherwise carry the watermark there, and no timed pull would
+ * list a new meeting until that time had come.
  */
 export function nextWatermark({
   watermark,
   results,
+  now,
 }: {
   readonly watermark: string | null;
   readonly results: readonly GranolaNoteResult[];
+  /** Now, in milliseconds since the epoch, by the injected clock. */
+  readonly now: number;
 }): string | null {
   const current = instantOf(watermark);
   const failedAt = results
     .filter((result) => result.outcome === 'failed')
     .map((result) => instantOf(result.updatedAt));
-  if (failedAt.includes(null)) return isoOf(current);
+  if (failedAt.includes(null)) return isoOf(notPast(current, now));
   const settledAt = results
     .filter((result) => result.outcome !== 'failed')
     .map((result) => instantOf(result.updatedAt));
   const reached = extreme(Math.max, [current, extreme(Math.max, settledAt)]);
-  return isoOf(extreme(Math.min, [reached, extreme(Math.min, failedAt)]));
+  return isoOf(notPast(extreme(Math.min, [reached, extreme(Math.min, failedAt)]), now));
 }
+
+/** The instant, or `now` when it is later; none stays none. */
+const notPast = (instant: number | null, now: number) =>
+  instant === null ? null : Math.min(instant, now);

@@ -108,7 +108,32 @@ describe('explainGranolaFailure', () => {
     expect(problem).toBe(
       'The Keychain did not give Atlas the Granola API key: what the host said.',
     );
-    expect(fix).toMatch(/Keychain.*Settings → Granola.*stops pulling/);
+    expect(fix).toBe(
+      'Unlock the Keychain, or paste the key again in Settings → Granola. Atlas stops pulling; the next pull asks again.',
+    );
+    expect(fix).not.toMatch(/until it has a key/);
+  });
+
+  it('says a list of notes that failed was not skipped, and that the next pull lists again', () => {
+    for (const failed of [failure('malformed'), refused(404), refused(503), failure('timeout')]) {
+      const { fix } = explainGranolaFailure(failed, 'listing');
+      expect(fix).toMatch(/The notes could not be listed; the next pull lists them again\.$/);
+      expect(fix).not.toMatch(/skipped|Sync now tries it again/);
+    }
+    expect(explainGranolaFailure(refused(403), 'listing').fix).toMatch(
+      /^Check the key’s scopes .* The notes could not be listed/,
+    );
+  });
+
+  it('says a list stopped by the key, the Keychain or the host stopped, as for a note', () => {
+    for (const failed of [
+      refused(401),
+      failure('no_key'),
+      failure('keychain'),
+      failure('invalid'),
+    ]) {
+      expect(explainGranolaFailure(failed, 'listing')).toEqual(explainGranolaFailure(failed));
+    }
   });
 
   it('says an answer larger than Atlas reads was skipped', () => {

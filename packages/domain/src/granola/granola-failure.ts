@@ -111,8 +111,17 @@ const OUTCOME: Readonly<Record<GranolaFailureEffect, string>> = {
   skip: 'It was skipped; Sync now tries it again.',
 };
 
-/** What a pull the host would not send for did: the next one asks again. */
+/**
+ * What a pull did that the host would not send for, or whose key the Keychain
+ * would not give: it stopped this pull, and the next one asks again.
+ */
 const STOPPED_THIS_PULL = 'Atlas stops pulling; the next pull asks again.';
+
+/** What a pull did whose list of notes failed: nothing was skipped, and the next one lists again. */
+const LISTING_FAILED = 'The notes could not be listed; the next pull lists them again.';
+
+/** Where a pull met a failure: listing the notes, or reading one of them. */
+export type GranolaFailureContext = 'note' | 'listing';
 
 /** What went wrong, and what the person can do about it (null for nothing). */
 interface Cause {
@@ -198,10 +207,24 @@ function causeOf(failure: GranolaFailure): Cause {
   }
 }
 
-/** The person's problem and its fix, for any failure, ending with what the pull did about it. */
-export function explainGranolaFailure(failure: GranolaFailure): GranolaProblem {
+/** What the pull did about the failure, met where it was. */
+function outcomeOf(failure: GranolaFailure, during: GranolaFailureContext): string {
+  if (failure.kind === 'invalid' || failure.kind === 'keychain') return STOPPED_THIS_PULL;
+  const effect = granolaFailureEffect(failure);
+  if (during === 'listing' && effect !== 'stop') return LISTING_FAILED;
+  return OUTCOME[effect];
+}
+
+/**
+ * The person's problem and its fix, for any failure, ending with what the
+ * pull did about it: about a note, or — `listing` — about the list of notes,
+ * which no failure skips.
+ */
+export function explainGranolaFailure(
+  failure: GranolaFailure,
+  during: GranolaFailureContext = 'note',
+): GranolaProblem {
   const { problem, remedy } = causeOf(failure);
-  const outcome =
-    failure.kind === 'invalid' ? STOPPED_THIS_PULL : OUTCOME[granolaFailureEffect(failure)];
+  const outcome = outcomeOf(failure, during);
   return { problem, fix: remedy === null ? outcome : `${remedy} ${outcome}` };
 }
