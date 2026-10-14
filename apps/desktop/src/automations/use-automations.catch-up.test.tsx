@@ -381,3 +381,73 @@ describe('queueByRule: the look for missed arrivals', () => {
     expect(letGo.get('Sweep')).toBe(5);
   });
 });
+
+describe('adversarial #174: a Claude step the Mac slept through', () => {
+  /**
+   * The gate is asked before the Claude step starts, never after. A model
+   * turn takes minutes; if the lid closes during it, the Mac wakes and
+   * writes what Claude said — the rule's log, its proposals — before any
+   * pull, though another Mac may have claimed the automations and run the
+   * same rule meanwhile (ADR-0035 part 4, H7: "A must run nothing until it
+   * pulls"). The rule's log is a synced note written for one writer.
+   */
+  it('writes nothing once the Mac has slept during the model turn, until a pull after the wake', async () => {
+    const ASK_RULE = '.atlas/automations/Actions.md';
+    const ASK_RULE_TEXT = [
+      '---',
+      'atlas: automation',
+      'name: Actions',
+      'enabled: true',
+      'when: a meeting is created',
+      'which: FROM meeting',
+      'do: claude',
+      'prompt: .atlas/prompts/actions.md',
+      'output: proposals',
+      '---',
+      '',
+    ].join('\n');
+    let awake = true;
+    let atSleep: Record<string, string> | null = null;
+    const vault = memoryVault(
+      {
+        [ASK_RULE]: ASK_RULE_TEXT,
+        '.atlas/prompts/actions.md': 'List the action items.\n',
+        [MEETING]: LET_IN,
+      },
+      { [ASK_RULE]: 100, [MEETING]: 200 },
+    );
+    const claude = fakeClaudeStepPorts({
+      rounds: [
+        async function* () {
+          // The lid closes while Claude is answering.
+          awake = false;
+          atSleep = { ...vault.files };
+          yield { type: 'text' as const, text: JSON.stringify({ proposals: [] }) };
+        },
+      ],
+    });
+    const PULLED: PullStanding = {
+      kind: 'pulled',
+      startedAsleepMs: 0,
+      finishedAt: 1,
+      namedAfter: true,
+    };
+    const options: AutomationsOptions = {
+      ports: { ...vault.ports, claude },
+      clock,
+      vaultKey: VAULT,
+      indexKey: '1',
+      indexReady: true,
+      activity: recordingActivity(),
+      onSettled: vi.fn(),
+      scheduled: true,
+      pulledFiles: { standing: PULLED, acts: async () => awake },
+    };
+    renderHook((props: AutomationsOptions) => useAutomations(props), { initialProps: options });
+    await settle();
+
+    expect(claude.fake.requests).toHaveLength(1);
+    expect(atSleep).not.toBeNull();
+    expect(vault.files).toEqual(atSleep);
+  });
+});
