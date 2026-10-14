@@ -10,6 +10,7 @@ import {
   type ProposalNote,
 } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
+import { SelectBox } from '../row-selection.tsx';
 
 const KIND_LABEL: Readonly<Record<ProposalKind, string>> = {
   task: 'Task',
@@ -34,6 +35,11 @@ export interface ProposalCardProps {
   readonly onReject: () => void;
   readonly onOpen: () => void;
   readonly onOpenSource: (link: string) => void;
+  /** Its box, to answer it with others at once (#168); none where proposals are answered one by one. */
+  readonly selection?: {
+    readonly checked: boolean;
+    readonly onChange: (how: { readonly shift: boolean }) => void;
+  };
 }
 
 /**
@@ -52,6 +58,13 @@ export function ProposalCard(props: ProposalCardProps) {
       aria-label={`${KIND_LABEL[proposal.kind]}: ${headline}`}
     >
       <header className="proposal-card__head">
+        {props.selection !== undefined && (
+          <SelectBox
+            label={`Select ${headline}`}
+            checked={props.selection.checked}
+            onChange={(_checked, how) => props.selection?.onChange(how)}
+          />
+        )}
         <span className="proposal-card__kind">{KIND_LABEL[proposal.kind]}</span>
         <span className="proposal-card__title">{headline}</span>
         {proposal.confidence !== null && (

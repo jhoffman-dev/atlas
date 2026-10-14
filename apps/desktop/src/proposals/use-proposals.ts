@@ -14,8 +14,15 @@ import {
   type ProposalListing,
   type ProposalPorts,
 } from '@atlas/application';
-import type { ProposalNotice, ProposalsContents, ProposalsSectionProps } from '@atlas/ui';
+import type {
+  ProposalNotice,
+  ProposalsContents,
+  ProposalsSectionProps,
+  RowSelection,
+} from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
+import { useRowSelection } from '../archive/use-row-selection.ts';
+import { answeredNotice, inTurn, undoneNotice, type InTurn } from './answer-many.ts';
 import { useAnswerQueue } from './answer-queue.ts';
 
 export interface ProposalsOptions {
@@ -56,7 +63,8 @@ function acceptedNotice(accepted: AcceptedProposal): ProposalNotice {
 /** What an answer leaves to say, and the accept it can undo, when it was one. */
 interface Answered {
   readonly notice: ProposalNotice;
-  readonly accepted: AcceptedProposal | null;
+  /** What the notice's Undo takes back: none, one, or a batch (#168). */
+  readonly accepted: readonly AcceptedProposal[];
 }
 
 /**
@@ -69,7 +77,8 @@ interface Answered {
  * answered straight away. One that fails puts its card back with why. The
  * proposals are read again once the answers are all written — not once for
  * each — and a read begun while any was being written is not shown, since it
- * may still list one as open.
+ * may still list one as open. Several chosen together are answered in turn,
+ * each as it would be alone, and one Undo takes back every accept (#168).
  */
 export function useProposals({ ports, clock, indexKey, onSettled, activity }: ProposalsOptions) {
   const [listing, setListing] = useState<ProposalsContents | null>(null);
@@ -78,8 +87,9 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
   const [problems, setProblems] = useState<ReadonlyMap<VaultPath, string>>(new Map());
   const [notice, setNotice] = useState<ProposalNotice | null>(null);
   const [reads, setReads] = useState(0);
-  const lastAccepted = useRef<AcceptedProposal | null>(null);
+  const lastAccepted = useRef<readonly AcceptedProposal[]>([]);
   const answered = useAnsweredPaths();
+  const choosing = useRowSelection('');
   const queue = useAnswerQueue(() => {
     onSettled();
     setReads((count) => count + 1);
@@ -91,15 +101,17 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
   const { fs } = ports;
   const openVault = useRef(fs);
   const { forget } = answered;
+  const { clear: clearChosen, keepOnly: keepChosen } = choosing;
   useEffect(() => {
     openVault.current = fs;
     return () => {
-      lastAccepted.current = null;
+      lastAccepted.current = [];
       setNotice(null);
       setProblems(new Map());
       forget();
+      clearChosen();
     };
-  }, [fs, forget]);
+  }, [fs, forget, clearChosen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,7 +162,7 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
           today: clock.today(),
           ...(payload !== undefined && { payload }),
         });
-        return { notice: acceptedNotice(accepted), accepted };
+        return { notice: acceptedNotice(accepted), accepted: [accepted] };
       }),
     [answer, ports, clock],
   );
@@ -159,38 +171,88 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
     (path: VaultPath) =>
       answer(path, async () => {
         const rejected = await rejectProposalNote({ ports, path, today: clock.today() });
-        return { notice: rejectedNotice(path, rejected), accepted: null };
+        return { notice: rejectedNotice(path, rejected), accepted: [] };
       }),
     [answer, ports, clock],
   );
 
+  /**
+   * Answers each of `paths` in turn, as Accept or Reject would each alone
+   * (#168): those that fail come back to the list, still chosen, with why on
+   * their cards; the notice counts both, and its Undo takes back every accept.
+   */
+  const answerMany = useCallback(
+    (paths: readonly VaultPath[], verb: 'Accepted' | 'Rejected') => {
+      const taken = paths.filter((path) => answered.take(path));
+      if (taken.length === 0) return;
+      setProblems((was) => taken.reduce(without, was));
+      const vault = fs;
+      const today = clock.today();
+      const recorded = <Done>(path: VaultPath, write: () => Promise<Done>) =>
+        withGiveUpRecorded(
+          { activity, write: 'proposal', path, refusal: ANSWER_REFUSALS } as const,
+          write,
+        );
+      const settle = (
+        outcome: InTurn<VaultPath, ProposalArchived>,
+        accepted: readonly AcceptedProposal[],
+      ) => {
+        if (vault !== openVault.current) return;
+        for (const { item } of outcome.failed) answered.giveBack(item);
+        setProblems((was) => {
+          const next = new Map(was);
+          for (const { item, reason } of outcome.failed) next.set(item, reason);
+          return next;
+        });
+        keepChosen(outcome.failed.map(({ item }) => item));
+        lastAccepted.current = accepted;
+        setNotice(answeredNotice(verb, outcome));
+      };
+      queue.enqueue(async () => {
+        if (verb === 'Accepted') {
+          const outcome = await inTurn(taken, (path) =>
+            recorded(path, () => acceptProposalNote({ ports, path, today })),
+          );
+          settle(outcome, outcome.done);
+        } else {
+          const outcome = await inTurn(taken, (path) =>
+            recorded(path, () => rejectProposalNote({ ports, path, today })),
+          );
+          settle(outcome, []);
+        }
+      });
+    },
+    [activity, answered, clock, fs, keepChosen, ports, queue],
+  );
+  const onAcceptMany = useCallback(
+    (paths: readonly VaultPath[]) => answerMany(paths, 'Accepted'),
+    [answerMany],
+  );
+  const onRejectMany = useCallback(
+    (paths: readonly VaultPath[]) => answerMany(paths, 'Rejected'),
+    [answerMany],
+  );
+
   const onUndo = useCallback(() => {
     const accepted = lastAccepted.current;
-    if (accepted === null) return;
-    lastAccepted.current = null;
+    if (accepted.length === 0) return;
+    lastAccepted.current = [];
     setUndoing(true);
     const vault = fs;
     const named = { activity, write: 'proposal', path: null, refusal: ANSWER_REFUSALS } as const;
+    // Last accepted, first taken back, each checked on its own: one changed since stays, and says why.
+    const undoOne = (one: AcceptedProposal) =>
+      withGiveUpRecorded(named, () => undoAcceptedProposal({ ports, accepted: one }));
     queue.enqueue(async () => {
-      let said: ProposalNotice;
-      try {
-        await withGiveUpRecorded(named, () => undoAcceptedProposal({ ports, accepted }));
-        said = {
-          text: `Undone: ${accepted.headline} is back in the Inbox.`,
-          opens: null,
-          undoable: false,
-        };
-      } catch (cause) {
-        said = { text: messageOf(cause), opens: null, undoable: false };
-      }
+      const outcome = await inTurn([...accepted].reverse(), undoOne);
       setUndoing(false);
-      if (vault === openVault.current) setNotice(said);
+      if (vault === openVault.current) setNotice(undoneNotice(accepted, outcome));
     });
   }, [activity, fs, ports, queue]);
 
   // The undo lasts as long as the notice offering it (#165): once that has gone, so has the undo.
   const onDismissNotice = useCallback(() => {
-    lastAccepted.current = null;
+    lastAccepted.current = [];
     setNotice(null);
   }, []);
 
@@ -199,6 +261,7 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
     [listing, answered.paths],
   );
   const busy = undoing ? 'undo' : null;
+  const selection = useShownSelection(choosing.selection, contents);
   const section = useMemo<ProposalsSectionState>(
     () => ({
       contents,
@@ -208,10 +271,28 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
       problems,
       onAccept,
       onReject,
+      selection,
+      onClearSelection: clearChosen,
+      onAcceptMany,
+      onRejectMany,
       onUndo,
       onDismissNotice,
     }),
-    [contents, error, notice, busy, problems, onAccept, onReject, onUndo, onDismissNotice],
+    [
+      contents,
+      error,
+      notice,
+      busy,
+      problems,
+      onAccept,
+      onReject,
+      selection,
+      clearChosen,
+      onAcceptMany,
+      onRejectMany,
+      onUndo,
+      onDismissNotice,
+    ],
   );
   return { section, count: contents?.open.length ?? null };
 }
@@ -244,6 +325,18 @@ function useAnsweredPaths() {
     if (now.current.size > 0) set(new Set());
   }, [set]);
   return useMemo(() => ({ paths, take, giveBack, forget }), [paths, take, giveBack, forget]);
+}
+
+/** The choice as far as it reaches proposals still open on the list: an answered one is chosen no more. */
+function useShownSelection(
+  selection: RowSelection,
+  contents: ProposalsContents | null,
+): RowSelection {
+  return useMemo(() => {
+    const open = new Set<string>(contents?.open.map((proposal) => proposal.path) ?? []);
+    const selected = new Set([...selection.selected].filter((path) => open.has(path)));
+    return { ...selection, selected };
+  }, [selection, contents]);
 }
 
 function contentsOf(read: ProposalListing): ProposalsContents {

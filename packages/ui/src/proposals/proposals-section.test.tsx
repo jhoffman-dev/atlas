@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type ProposalNote, type VaultPath } from '@atlas/domain';
+import type { RowSelection } from '../row-selection.tsx';
 import { ProposalsSection, type ProposalsSectionProps } from './proposals-section.tsx';
 
 function proposal(name: string, properties: Record<string, unknown>): ProposalNote {
@@ -36,10 +37,15 @@ const LINK = proposal('Mara works at Larkspur', {
   },
 });
 
+const NONE_CHOSEN: RowSelection = { selected: new Set(), onToggle: vi.fn(), onToggleAll: vi.fn() };
+
 function page(props: Partial<ProposalsSectionProps> = {}) {
   const handlers = {
     onAccept: vi.fn<(path: VaultPath, payload?: unknown) => void>(),
     onReject: vi.fn<(path: VaultPath) => void>(),
+    onClearSelection: vi.fn(),
+    onAcceptMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
+    onRejectMany: vi.fn<(paths: readonly VaultPath[]) => void>(),
     onUndo: vi.fn(),
     onDismissNotice: vi.fn(),
     onOpen: vi.fn<(path: VaultPath) => void>(),
@@ -52,6 +58,7 @@ function page(props: Partial<ProposalsSectionProps> = {}) {
       notice={null}
       busy={null}
       problems={new Map()}
+      selection={NONE_CHOSEN}
       {...handlers}
       {...props}
     />,
@@ -336,5 +343,59 @@ describe('ProposalsSection — the notice goes by itself (#165)', () => {
     act(() => screen.getByRole('button', { name: 'Undo' }).blur());
     act(() => vi.advanceTimersByTime(20_100));
     expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ProposalsSection — answering several at once (#168)', () => {
+  const chosen = (paths: readonly string[]): RowSelection => ({
+    selected: new Set(paths),
+    onToggle: vi.fn(),
+    onToggleAll: vi.fn(),
+  });
+
+  it('gives each card a box, and Select all over them', async () => {
+    const selection = chosen([]);
+    page({ selection });
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Select Send Mara the payroll file' }),
+    );
+    expect(selection.onToggle).toHaveBeenCalledWith(TASK.path, undefined);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all' }));
+    expect(selection.onToggleAll).toHaveBeenCalledWith({
+      paths: [TASK.path, LINK.path],
+      select: true,
+    });
+  });
+
+  it('extends the choice to a range on Shift-click, in the order the cards are listed', async () => {
+    const selection = chosen([TASK.path]);
+    page({ selection });
+    const user = userEvent.setup();
+    await user.keyboard('{Shift>}');
+    await user.click(screen.getByRole('checkbox', { name: /^Select .*Larkspur/ }));
+    await user.keyboard('{/Shift}');
+    expect(selection.onToggle).toHaveBeenCalledWith(LINK.path, { order: [TASK.path, LINK.path] });
+  });
+
+  it('accepts or rejects the chosen ones together, and lets them go', async () => {
+    const handlers = page({ selection: chosen([TASK.path, LINK.path]) });
+    expect(screen.getByRole('status').textContent).toBe('2 selected');
+    await userEvent.click(screen.getByRole('button', { name: 'Accept 2 proposals' }));
+    expect(handlers.onAcceptMany).toHaveBeenCalledWith([TASK.path, LINK.path]);
+    await userEvent.click(screen.getByRole('button', { name: 'Reject 2 proposals' }));
+    expect(handlers.onRejectMany).toHaveBeenCalledWith([TASK.path, LINK.path]);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(handlers.onClearSelection).toHaveBeenCalledOnce();
+  });
+
+  it('holds the answers to the chosen ones while an accept is being undone', () => {
+    page({ selection: chosen([TASK.path]), busy: 'undo' });
+    const accept = screen.getByRole('button', { name: 'Accept proposal' }) as HTMLButtonElement;
+    expect(accept.disabled).toBe(true);
+  });
+
+  it('offers no choosing over a single proposal', () => {
+    page({ contents: { open: [TASK], stranded: [], unreadable: [] } });
+    expect(screen.queryByRole('checkbox')).toBeNull();
   });
 });

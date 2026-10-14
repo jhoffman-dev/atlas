@@ -3,7 +3,11 @@ import { useEffect, useRef } from 'react';
 /** Which rows of a list are chosen, and how to change that — held by the caller. */
 export interface RowSelection {
   readonly selected: ReadonlySet<string>;
-  readonly onToggle: (path: string) => void;
+  /**
+   * Toggles one row; or, with `extend` — a shift-click — chooses every row
+   * from the one last toggled to this one, in `order`, the list's own.
+   */
+  readonly onToggle: (path: string, extend?: { readonly order: readonly string[] }) => void;
   /** Chooses every one of `paths`, or none of them. */
   readonly onToggleAll: (args: { paths: readonly string[]; select: boolean }) => void;
 }
@@ -20,7 +24,8 @@ export function SelectBox({
   checked: boolean;
   /** Some rows but not all, for the heading's box. */
   mixed?: boolean;
-  onChange: (checked: boolean) => void;
+  /** With whether Shift was held, which extends a choice to a range. */
+  onChange: (checked: boolean, how: { readonly shift: boolean }) => void;
 }) {
   const box = useRef<HTMLInputElement>(null);
   // `indeterminate` is a property with no attribute, so it is set by hand.
@@ -34,7 +39,11 @@ export function SelectBox({
       className="select-box"
       aria-label={label}
       checked={checked}
-      onChange={(event) => onChange(event.target.checked)}
+      onChange={(event) => {
+        // A checkbox changes on its click, so the click's Shift is the change's.
+        const shift = (event.nativeEvent as Partial<MouseEvent>).shiftKey === true;
+        onChange(event.target.checked, { shift });
+      }}
     />
   );
 }

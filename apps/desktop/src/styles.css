@@ -13358,6 +13358,28 @@ form.inbox__clarify {
   padding: var(--space-5) 0;
 }
 
+/* Choosing several to answer at once (#168): Select all, then what the chosen can have done. */
+.proposals__choose {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.proposals__choose .selection-bar {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.proposals__all {
+  align-items: center;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: var(--text-small);
+  gap: 6px;
+}
+
 .proposals__list {
   display: flex;
   flex-direction: column;

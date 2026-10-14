@@ -1,6 +1,7 @@
 import { proposalHeadline, type ProposalNote, type VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from '../dismiss-after.ts';
 import { Icon } from '../icon.tsx';
+import { SelectAllBox, SelectionBar, type RowSelection } from '../row-selection.tsx';
 import { ProposalCard } from './proposal-card.tsx';
 
 /** What the Inbox's Proposals section lists, once the folder has been read. */
@@ -40,6 +41,13 @@ export interface ProposalsSectionProps {
   /** Accepts a proposal — with its payload as edited, when it was. */
   readonly onAccept: (path: VaultPath, payload?: unknown) => void;
   readonly onReject: (path: VaultPath) => void;
+  /** Which open proposals are chosen, to answer together (#168). */
+  readonly selection: RowSelection;
+  readonly onClearSelection: () => void;
+  /** Accepts each of these as Accept would one, in turn; one Undo takes them all back. */
+  readonly onAcceptMany: (paths: readonly VaultPath[]) => void;
+  /** Rejects each of these as Reject would one, in turn. */
+  readonly onRejectMany: (paths: readonly VaultPath[]) => void;
   readonly onUndo: () => void;
   /** Takes the notice away — and the Undo it offered — once it has had its time (#165). */
   readonly onDismissNotice: () => void;
@@ -53,7 +61,8 @@ export interface ProposalsSectionProps {
  * (P29-02, P30-01): what Claude or an automation suggested, each with the
  * line it came from, to accept, edit first, or reject. Nothing it proposes is
  * written until it is accepted. Proposals wait in the Inbox but are answered
- * here, never filed with the notes beside them.
+ * here, never filed with the notes beside them. Several can be chosen —
+ * Shift-click for a run of them — and accepted or rejected together (#168).
  */
 export function ProposalsSection(props: ProposalsSectionProps) {
   return (
@@ -63,6 +72,7 @@ export function ProposalsSection(props: ProposalsSectionProps) {
       </h2>
       <p className="proposals__summary">{describe(props.contents)}</p>
       {props.notice !== null && <Notice {...props} notice={props.notice} />}
+      <Chosen {...props} />
       <ProposalList {...props} />
       {props.contents !== null && props.contents.stranded.length > 0 && (
         <Stranded stranded={props.contents.stranded} onOpen={props.onOpen} />
@@ -138,12 +148,20 @@ function ProposalList(props: ProposalsSectionProps) {
       </p>
     );
   }
+  const order = contents.open.map((proposal) => proposal.path);
   return (
     <ul className="proposals__list" aria-label="Open proposals">
       {contents.open.map((proposal) => (
         <li key={proposal.path}>
           <ProposalCard
             proposal={proposal}
+            {...(order.length > 1 && {
+              selection: {
+                checked: props.selection.selected.has(proposal.path),
+                onChange: ({ shift }: { shift: boolean }) =>
+                  props.selection.onToggle(proposal.path, shift ? { order } : undefined),
+              },
+            })}
             reason={contents.reasons?.get(proposal.path) ?? null}
             busy={props.busy !== null}
             problem={props.problems.get(proposal.path) ?? null}
@@ -155,6 +173,38 @@ function ProposalList(props: ProposalsSectionProps) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Choosing every open proposal, and what can be done to the chosen ones together. */
+function Chosen({
+  contents,
+  selection,
+  busy,
+  onAcceptMany,
+  onRejectMany,
+  onClearSelection,
+}: ProposalsSectionProps) {
+  const open = contents?.open ?? [];
+  if (open.length < 2) return null;
+  const paths = open.map((proposal) => proposal.path);
+  const chosen = paths.filter((path) => selection.selected.has(path));
+  const many = chosen.length === 1 ? 'proposal' : `${chosen.length} proposals`;
+  return (
+    <div className="proposals__choose">
+      <label className="proposals__all">
+        <SelectAllBox paths={paths} selection={selection} />
+        <span aria-hidden="true">Select all</span>
+      </label>
+      <SelectionBar
+        count={chosen.length}
+        actions={[
+          { label: `Accept ${many}`, onRun: () => onAcceptMany(chosen), disabled: busy !== null },
+          { label: `Reject ${many}`, onRun: () => onRejectMany(chosen), disabled: busy !== null },
+        ]}
+        onClear={onClearSelection}
+      />
+    </div>
   );
 }
 
