@@ -639,3 +639,33 @@ bullets above, this wins._
   defence stays structural: the step cannot edit, only propose or create.
 - `Inbox/Proposals/` grows; accepted and rejected proposals are archived by
   the existing Archive, so the folder holds only open ones.
+
+## Addendum, 2026-10-14: one declared step may write (ADR-0036, ADR-0035)
+
+Four statements above change. ADR-0035 and ADR-0036 are proposed. This amendment takes effect when ADR-0035 and ADR-0036 are accepted, and until then this record's
+text stands.
+
+- **"A Claude step never edits a note."** One declared exception: ADR-0036
+  lets the "After a meeting" rule's step write a **marked, bounded,
+  digest-guarded summary block** at the top of a meeting, and make a **task
+  for the owner's own action item** at medium confidence or above and with no
+  domain cap, without a proposal. Both are declared on the rule, undone by
+  Undo last run, and refused over the person's edits. Backfilled meetings and
+  everything else a step produces stay proposals.
+- **The handled ledger's extra key** for a meeting (above) is the **body**
+  digest. It becomes the **transcript section's** digest, because the
+  summary block and edits to `## Summary` and `## Notes` change the body's
+  digest. The ledger entry also holds the step's stored answer, reused by
+  every retry.
+- **The caps.** That step has its own ask budget (10 asks per run, reduce
+  included) and its own hourly allowance (30 asks), apart from the rule's 20
+  runs an hour, and defaults to a cheaper model with `model:` to override.
+- **"A Mac that is not the automations Mac never runs Claude on a meeting;
+  the meeting waits until that Mac is awake and has pulled"** stays true.
+  ADR-0035 adds a banner on a Mac that is not named and a one-click "Process
+  here" that names it; the catch-up (`missedArrivals`) is once per vault
+  opened and is not reset today; ADR-0035 resets it when `scheduled` goes
+  false to true (the button or Settings → Sync), instead of waiting for the
+  next open. The step also runs on every Mac, the named one included, only
+  after a pull completed since launch or wake and only if that Mac is still
+  named after it.
