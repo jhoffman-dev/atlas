@@ -94,6 +94,13 @@ export {
   syncCommitMessage,
 } from './sync-rules.ts';
 export type { RepositoryPlace } from './sync-rules.ts';
+export {
+  actsOnPulledFiles,
+  ASLEEP_READING_SLACK_MS,
+  pulledAfterArrival,
+  pulledSinceLastSleep,
+} from './pull-freshness.ts';
+export type { PullStanding } from './pull-freshness.ts';
 export { syncActivityMessage, syncBadge, syncStanding } from './sync-state.ts';
 export type {
   ConflictCopy,

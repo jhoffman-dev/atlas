@@ -142,6 +142,16 @@ export interface ThisMacPort {
   id(): Promise<string>;
 }
 
+/**
+ * How long this Mac has been asleep since it booted, in milliseconds (#172):
+ * it grows only while the Mac sleeps, and no clock setting moves it. Read as
+ * a pull starts and again right before acting on what it brought
+ * (ADR-0035 part 4). Rejects when the host cannot read it.
+ */
+export interface SleepClockPort {
+  asleepMs(): Promise<number>;
+}
+
 /** Unsaved typing in the panes, written before anything is committed. */
 export interface UnsavedWorkPort {
   flushAll(): Promise<void>;

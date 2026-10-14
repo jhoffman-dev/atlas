@@ -34,6 +34,7 @@ import {
   type VaultGuard,
 } from '@atlas/application';
 import { errorMessage } from '../query/error-message.ts';
+import type { PulledFilesGate } from '../sync/use-pulled-files.ts';
 
 /** How often the clock is checked for a rule that has come due, and the rules and logs read again. */
 export const SCHEDULE_TICK_MS = 60_000;
@@ -83,6 +84,13 @@ export interface AutomationsOptions {
   readonly scheduled?: boolean | null;
   /** Where every sync says which notes changed: what sets off a rule that waits for a note. */
   readonly changes?: NoteChanges;
+  /**
+   * Whether this Mac may run a Claude step on what sync brought in, and the
+   * pull that says so (ADR-0035 part 4). A rule a note sets off that asks
+   * Claude holds its news until it may, and runs once a pull completes.
+   * Left out, it may.
+   */
+  readonly pulledFiles?: Pick<PulledFilesGate, 'standing' | 'acts'>;
 }
 
 /**
@@ -187,6 +195,14 @@ export function useAutomations(options: AutomationsOptions) {
     (vault: string): VaultGuard => ({ vault, currentVault: () => openVault.current }),
     [],
   );
+  const gate = useRef(options.pulledFiles?.acts);
+  gate.current = options.pulledFiles?.acts;
+  /** Whether the rule may run now on what sync brought into the vault: a Claude step waits for fresh sync state. */
+  const mayActOn = useCallback(
+    async (rule: AutomationRule, vault: string) =>
+      !asksClaude(rule) || (await (gate.current?.(vault) ?? true)),
+    [],
+  );
   /** Runs a rule through the one door: a failure pauses it, as the clock's backoff says; success clears that. */
   const forRule = useCallback(
     (
@@ -222,9 +238,15 @@ export function useAutomations(options: AutomationsOptions) {
   const runOnNotes = useCallback(
     async (rule: AutomationRule, news: HeldNews): Promise<boolean> => {
       let failed = false;
+      let held = false;
       const carryOut = async () => {
         // Its turn may come after this Mac is found not to run the vault's automations.
         if (runsHere.current !== true) return null;
+        // Or after a sleep, or during a pull: then the news waits for the next pull.
+        if (!(await mayActOn(rule, news.vault))) {
+          held = true;
+          return null;
+        }
         const run = { ports, rule, clock, activity, guard: guardOf(news.vault) };
         try {
           return 'missedArrivals' in news
@@ -236,9 +258,9 @@ export function useAutomations(options: AutomationsOptions) {
         }
       };
       await forRule(rule, carryOut, { wait: true });
-      return !failed;
+      return !failed && !held;
     },
-    [forRule, guardOf, ports, clock, activity, runsHere],
+    [forRule, guardOf, ports, clock, activity, runsHere, mayActOn],
   );
 
   /** Says, in Activity and the rule's log, that the rule let go of news it was holding. */
@@ -299,6 +321,7 @@ export function useAutomations(options: AutomationsOptions) {
     runOnNotes,
     sayLetGo,
     isPaused: pauses.isPaused,
+    mayActOn,
   });
 
   return {
@@ -551,13 +574,16 @@ function useNoteRuns({
   runOnNotes,
   sayLetGo,
   isPaused,
+  mayActOn,
   scheduled = true,
+  pulledFiles,
 }: AutomationsOptions & {
   listing: AutomationListing | null;
   tick: number;
   runOnNotes: (rule: AutomationRule, news: HeldNews) => Promise<boolean>;
   sayLetGo: (rule: AutomationRule, count: number) => void;
   isPaused: (id: string, now: LocalTime) => boolean;
+  mayActOn: (rule: AutomationRule, vault: string) => Promise<boolean>;
 }) {
   const incoming = useRef<NoteChangeNews[]>([]);
   const queues = useRef(new Map<string, HeldNews[]>());
@@ -594,14 +620,18 @@ function useNoteRuns({
           queues: () => queues.current,
           rules: () => rules.current,
           runOnNotes,
-          mayRun: () => !isPaused(id, clock.localNow()),
+          // Asked before its turn as well, so news held for a pull waits outside the runner.
+          mayRun: async (rule, news) =>
+            !isPaused(id, clock.localNow()) && (await mayActOn(rule, news.vault)),
         });
       } finally {
         running.current.delete(id);
       }
     },
-    [runOnNotes, isPaused, clock],
+    [runOnNotes, isPaused, clock, mayActOn],
   );
+  // Each pull that completes may let held news run.
+  const standing = pulledFiles?.standing;
 
   useEffect(() => {
     if (scheduled === false) {
@@ -638,7 +668,7 @@ function useNoteRuns({
       letGo.current.byRule = new Map();
     }
     for (const id of queues.current.keys()) void runQueue(id);
-  }, [heard, tick, scheduled, vaultKey, indexReady, listing, runQueue, sayLetGo]);
+  }, [heard, tick, scheduled, vaultKey, indexReady, listing, runQueue, sayLetGo, standing]);
 }
 
 /** News let go and not yet said: before any rule could hear it, and from each rule's queue; and the minute it was last said in. */
@@ -708,7 +738,7 @@ async function runHeldNews({
   queues: () => Map<string, HeldNews[]>;
   rules: () => AutomationListing | null;
   runOnNotes: (rule: AutomationRule, news: HeldNews) => Promise<boolean>;
-  mayRun: () => boolean;
+  mayRun: (rule: AutomationRule, news: HeldNews) => Promise<boolean>;
 }): Promise<void> {
   for (let news = queues().get(id)?.[0]; news !== undefined; news = queues().get(id)?.[0]) {
     const rule = rules()?.automations.find((loaded) => loaded.rule.id === id)?.rule;
@@ -716,10 +746,15 @@ async function runHeldNews({
       queues().delete(id);
       return;
     }
-    if (!mayRun()) return;
+    if (!(await mayRun(rule, news))) return;
     if (!(await runOnNotes(rule, news))) return;
     const queue = queues().get(id) ?? [];
     if (queue[0] === news) queues().set(id, queue.slice(1));
   }
   if (queues().get(id)?.length === 0) queues().delete(id);
+}
+
+/** Whether the rule's action asks Claude: the step that is not the same twice (ADR-0035). */
+function asksClaude(rule: AutomationRule): boolean {
+  return rule.action.kind === 'claude';
 }

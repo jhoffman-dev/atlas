@@ -18,6 +18,7 @@ import {
 } from '@atlas/application';
 import { errorMessage } from '../query/error-message.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
+import type { PullRecorder } from './use-pulled-files.ts';
 import { phaseOf, type Exclusive, type ThisMac } from './use-sync-runs.ts';
 
 export interface SetUpContext {
@@ -34,6 +35,8 @@ export interface SetUpContext {
   readonly setSetup: (setup: SyncSetup | null) => void;
   readonly setPhase: (phase: SyncPhase) => void;
   readonly exclusive: Exclusive;
+  /** Told once the vault syncs: nothing acts on its files until its first sync or look completes. */
+  readonly pulls: Pick<PullRecorder, 'unknown'>;
 }
 
 /**
@@ -43,7 +46,7 @@ export interface SetUpContext {
  */
 export function useSetUp(context: SetUpContext) {
   const { git, files, thisMac, vaultKey, folders, fs, markdown, clock, activity } = context;
-  const { flushAll, setSetup, setPhase, exclusive } = context;
+  const { flushAll, setSetup, setPhase, exclusive, pulls } = context;
   const [problem, setProblem] = useState<string | null>(null);
   // Why the last vault could not be set up says nothing about the next one.
   useEffect(() => setProblem(null), [vaultKey]);
@@ -60,16 +63,21 @@ export function useSetUp(context: SetUpContext) {
         readSettingsCopy: (path: VaultPath) => readVaultSettings({ fs, markdown, path }),
       };
       const reread = () => inspectSync({ git, folders, fs, markdown, vaultRoot: vaultKey });
+      // A vault that syncs now waits, like any other, for its first sync or look to complete.
+      const settle = (setup: SyncSetup) => {
+        if (setup.kind === 'set-up') pulls.unknown(vaultKey);
+        setSetup(setup);
+      };
       const setUpNow = () =>
         setUpSync({ ports, vaultRoot: vaultKey, remote, mac: thisMac, clock })
           .then(async (report) => {
-            setSetup(await reread());
+            settle(await reread());
             setPhase({ kind: 'synced', report });
           })
           .catch(async (cause: unknown) => {
             setProblem(errorMessage(cause));
             const setup = await reread().catch(() => ({ kind: 'not-set-up' }) as const);
-            setSetup(setup);
+            settle(setup);
             setPhase(phaseOf(setup));
           });
       if (exclusive.open()) void exclusive.start('set-up', setUpNow);
@@ -88,6 +96,7 @@ export function useSetUp(context: SetUpContext) {
       setSetup,
       setPhase,
       exclusive,
+      pulls,
     ],
   );
   return { setUp, problem };

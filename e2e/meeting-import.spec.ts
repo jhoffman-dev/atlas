@@ -1,13 +1,21 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, emitVaultChanged, expectFile, installHost, type FakeVault } from './host.ts';
+import {
+  createVault,
+  emitVaultChanged,
+  expectFile,
+  installHost,
+  type FakeHost,
+  type FakeVault,
+} from './host.ts';
 
 /**
  * P28-04: a meeting n8n commits into the vault arrives by pull, and the
  * import checks it as the index hears of it — a valid one shows in the Inbox
  * with only its stamp written, a second copy is archived, and a broken one is
- * marked where it landed and listed in the Inbox with why. This vault is not
- * synced, so this Mac is the one that imports.
+ * marked where it landed and listed in the Inbox with why. These vaults are
+ * not synced, so this Mac is the one that imports, except where a test sets
+ * sync up to show the import waits for a fresh pull (ADR-0035 part 4).
  */
 
 const shipped = (path: string) =>
@@ -42,6 +50,10 @@ const BROKEN_TEXT = [
 ].join('\n');
 
 async function openVault(page: Page): Promise<FakeVault> {
+  return (await openWithHost(page)).vault;
+}
+
+async function openWithHost(page: Page): Promise<{ vault: FakeVault; host: FakeHost }> {
   await page.setViewportSize({ width: 1440, height: 900 });
   const vault = await createVault();
   for (const folder of ['.atlas/types', '.atlas/views', 'Inbox/Meetings']) {
@@ -54,11 +66,11 @@ async function openVault(page: Page): Promise<FakeVault> {
   // Captured, so waiting in the Inbox beside the meetings that arrive (P30-01).
   await vault.write('Inbox/Call Mara.md', '---\ntype: task\nstatus: backlog\n---\n\n# Call Mara\n');
 
-  await installHost(page, vault);
+  const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  return vault;
+  return { vault, host };
 }
 
 /** A file landing as a pull lands it: written, then the watcher says so. */
@@ -107,4 +119,37 @@ test('a meeting file that breaks the contract is marked where it landed and list
   const inbox = page.getByRole('main');
   await expect(inbox.getByText('Vendor call', { exact: true })).toBeVisible();
   await expect(inbox.getByText(/external_id is required/)).toBeVisible();
+});
+
+test('catch-up waits for the pull: a meeting heard after the Mac slept is let in once a pull started since has completed', async ({
+  page,
+}) => {
+  const { vault, host } = await openWithHost(page);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Set up sync with GitHub' }).click();
+  const status = page.getByTestId('sync-status');
+  await expect(status).toContainText('Synced at');
+
+  // Awake since its last look at GitHub, the Mac lets a meeting in.
+  await arrive(page, vault, FIRST, VALID);
+  await expectFile(vault, FIRST).toBe(STAMPED);
+  const indexed = page.getByRole('dialog', { name: 'Settings' }).getByText(/notes indexed/);
+  const before = await indexed.textContent();
+
+  // It sleeps, and wakes to a GitHub it cannot reach yet.
+  const reachGitHub = host.git.hold('fetch');
+  host.sleepClock.sleep(20 * 60_000);
+  await arrive(page, vault, BROKEN, BROKEN_TEXT);
+  await expect(indexed).not.toHaveText(before ?? '');
+  await page
+    .getByRole('region', { name: 'Sync' })
+    .getByRole('button', { name: 'Sync now' })
+    .click();
+  await expect(status).toHaveText('Syncing…');
+  // Heard, but not acted on: the last pull started before the sleep.
+  expect(await vault.read(BROKEN)).toBe(BROKEN_TEXT);
+
+  reachGitHub();
+  await expect(status).toContainText('Synced at');
+  await expectFile(vault, BROKEN).toContain('atlas_import_error:');
 });

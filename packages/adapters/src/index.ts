@@ -33,6 +33,7 @@ export {
   tauriMacName,
   tauriSyncFiles,
 } from './sync/tauri-git.ts';
+export { tauriSleepClock } from './sync/tauri-sleep-clock.ts';
 export { gitCommands } from './sync/git-commands.ts';
 export type { RunGit } from './sync/git-commands.ts';
 export { tauriGranola } from './granola/tauri-granola.ts';

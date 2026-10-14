@@ -49,6 +49,7 @@ export {
   CONFLICT_BLOBS,
   failed,
   fakeBlob,
+  fakeSleepClock,
   memorySyncFiles,
   memoryVault,
   OK,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { PullStanding } from '@atlas/domain';
 import {
   createMeetingImporter,
   createMeetingLinker,
@@ -9,6 +10,7 @@ import {
   type MeetingImportPorts,
   type NoteChanges,
 } from '@atlas/application';
+import type { PulledFilesGate } from '../sync/use-pulled-files.ts';
 
 /**
  * Imports meetings (P28-04): every refresh of the index says which notes it
@@ -19,8 +21,10 @@ import {
  * use-cases'; this connects them to the window.
  *
  * Only on the Mac that runs the vault's automations (`active`), so two Macs
- * never write the same file. It catches up when the vault opens there, and
- * when this Mac takes the automations over.
+ * never write the same file, and only on fresh sync state: each run asks the
+ * gates of ADR-0035 part 4 as its turn comes. It catches up after each pull
+ * completes there, which settles whatever it dropped while they were shut,
+ * and when this Mac takes the automations over.
  *
  * One importer for the window, so its queue is not lost. The ports, the open
  * vault, `active` and what to do after a write change more often — the ports
@@ -35,6 +39,7 @@ export function useMeetingImport({
   active,
   indexReady,
   selfName,
+  pulledFiles,
   onWritten,
 }: {
   changes: NoteChanges;
@@ -52,11 +57,14 @@ export function useMeetingImport({
   indexReady: boolean;
   /** The vault owner's name, from their profile: an attendee of that name is never proposed as someone new. */
   selfName: string | null;
+  /** Whether this Mac may act on what sync brought in, and the pull that says so (ADR-0035 part 4). */
+  pulledFiles: Pick<PulledFilesGate, 'standing' | 'acts'>;
   /** Re-reads the tree and the index once the import has written or moved a note. */
   onWritten: () => void;
 }): void {
-  const latest = useRef({ ports, onWritten, vaultKey, active, selfName });
-  latest.current = { ports, onWritten, vaultKey, active, selfName };
+  const { standing, acts } = pulledFiles;
+  const latest = useRef({ ports, onWritten, vaultKey, active, selfName, acts });
+  latest.current = { ports, onWritten, vaultKey, active, selfName, acts };
   const [importer, setImporter] = useState<MeetingImporter | null>(null);
 
   useEffect(() => {
@@ -73,7 +81,7 @@ export function useMeetingImport({
       clock,
       activity,
       openVault: () => latest.current.vaultKey,
-      active: () => latest.current.active,
+      active: (vault) => latest.current.active && latest.current.acts(vault),
       onWritten: () => latest.current.onWritten(),
       // Linked before the stamp: see `createMeetingLinker`.
       beforeLetIn: async (vault, path, reading) => {
@@ -96,13 +104,14 @@ export function useMeetingImport({
   if (!indexReady) readyFor.current.seenWorking = true;
   const readyHere = indexReady && readyFor.current.seenWorking;
 
-  // Once per vault, per spell as the importing Mac, once its index is ready.
-  const caughtUp = useRef<string | null>(null);
+  // Once per pull of the vault completed while this is the importing Mac, once its index is ready.
+  const caughtUp = useRef<{ vault: string; standing: PullStanding } | null>(null);
   useEffect(() => {
     if (!active || vaultKey === null) caughtUp.current = null;
     if (importer === null || !active || !readyHere || vaultKey === null) return;
-    if (caughtUp.current === vaultKey) return;
-    caughtUp.current = vaultKey;
+    if (standing === null || standing.kind === 'pulling') return;
+    if (caughtUp.current?.vault === vaultKey && caughtUp.current.standing === standing) return;
+    caughtUp.current = { vault: vaultKey, standing };
     void importer.catchUp(vaultKey);
-  }, [importer, active, readyHere, vaultKey]);
+  }, [importer, active, readyHere, vaultKey, standing]);
 }

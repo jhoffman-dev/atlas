@@ -17,6 +17,7 @@ import {
   type SyncFilesPort,
   type SyncRemoteChoice,
   type SyncSettings,
+  type SleepClockPort,
   type SyncSetup,
   type ThisMacPort,
   type VaultFsPort,
@@ -25,11 +26,12 @@ import {
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
 import type { SyncPauseStore } from './browser-sync-pause.ts';
+import { usePulledFiles, type PulledFilesGate } from './use-pulled-files.ts';
 import { useExclusive, useInspection, useSyncRuns, type ThisMac } from './use-sync-runs.ts';
 import { useSyncSchedule } from './use-sync-schedule.ts';
 import { useRepositories, useSetUp, type RepositoryList } from './use-sync-setup.ts';
 
-/** The host's git, gh, the sync's own files, this Mac, and its pause switch (U-29). */
+/** The host's git, gh, the sync's own files, this Mac, its pause switch (U-29), and how long it has slept (#172). */
 export interface SyncHostPorts {
   readonly git: (vault: string) => GitPort;
   readonly files: (vault: string) => SyncFilesPort;
@@ -37,6 +39,7 @@ export interface SyncHostPorts {
   readonly github: GitHubPort;
   readonly thisMac: ThisMacPort;
   readonly pause: SyncPauseStore;
+  readonly sleepClock: SleepClockPort;
 }
 
 export interface SyncOptions {
@@ -82,6 +85,12 @@ export interface SyncController {
    * into each vault: each one leaves the index to catch up with them.
    */
   readonly syncPulls: ReadonlyMap<string, number>;
+  /**
+   * Whether this Mac may act on what sync brought into the open vault
+   * (ADR-0035 part 4): a pull started since it last slept has completed, and
+   * the settings name it, as read after that pull and as held now.
+   */
+  readonly pulledFiles: PulledFilesGate;
   /** Why setting up failed, to show beside the form. */
   readonly problem: string | null;
   /** The person's GitHub repositories, for the picker. */
@@ -116,7 +125,20 @@ export function useSync(options: SyncOptions): SyncController {
   const files = useMemo(() => (vaultKey === null ? null : host.files(vaultKey)), [host, vaultKey]);
   const exclusive = useExclusive(options.clock, vaultKey);
   const { syncedThisSession, syncPulls, markSynced } = useSyncedThisSession();
-  const shared = { ...options, git, files, thisMac, setPhase, markSynced, exclusive };
+  const automationsHere =
+    thisMac !== null &&
+    settings.value !== null &&
+    runsAutomationsHere({ automationsMac: settings.value.automationsMac, thisMacId: thisMac.id });
+  const { gate: pulledFiles, pulls } = usePulledFiles({
+    vaultKey,
+    sleepClock: host.sleepClock,
+    fs: options.fs,
+    markdown: options.markdown,
+    thisMacId: thisMac?.id ?? null,
+    namedNow: automationsHere,
+    clock: options.clock,
+  });
+  const shared = { ...options, git, files, thisMac, setPhase, markSynced, exclusive, pulls };
   const { run, check, lastSyncAt, lastCheckAt } = useSyncRuns({ ...shared, setBehind });
   useInspection({
     ...shared,
@@ -151,13 +173,8 @@ export function useSync(options: SyncOptions): SyncController {
     behind,
     syncedThisSession,
     syncPulls,
-    automationsHere:
-      thisMac !== null &&
-      settings.value !== null &&
-      runsAutomationsHere({
-        automationsMac: settings.value.automationsMac,
-        thisMacId: thisMac.id,
-      }),
+    pulledFiles,
+    automationsHere,
     problem: problem ?? settings.problem,
     repositories: repositories.list,
     loadRepositories: repositories.load,

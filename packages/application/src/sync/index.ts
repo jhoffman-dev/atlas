@@ -6,6 +6,7 @@ export type {
   GitIdentity,
   GitPort,
   GitResult,
+  SleepClockPort,
   SyncFileName,
   SyncFilesPort,
   ThisMacPort,
@@ -20,7 +21,7 @@ export type { SetUpMac, SetUpSyncPorts, SyncRemoteChoice } from './set-up-sync.t
 export { inspectSync } from './inspect-sync.ts';
 export type { SyncSetup } from './inspect-sync.ts';
 export { openVaultFromGitHub } from './open-from-github.ts';
-export { loadSyncSettings, saveSyncSettings } from './sync-settings.ts';
+export { loadSyncSettings, saveSyncSettings, settingsNameThisMac } from './sync-settings.ts';
 export type { SyncSettings } from './sync-settings.ts';
 export { checkRemote } from './check-remote.ts';
 export { listGitHubRepositories } from './list-repositories.ts';

@@ -4,6 +4,7 @@ import {
   automationsMacOf,
   pullIntervalMinutes,
   pushDelaySeconds,
+  runsAutomationsHere,
   SYNC_INTERVAL_KEY,
   SYNC_PUSH_DELAY_KEY,
 } from '@atlas/domain';
@@ -34,6 +35,24 @@ export async function loadSyncSettings(args: {
     automationsMac: automationsMacOf(settings[AUTOMATIONS_MAC_KEY]),
     automationsMacName: automationsMacOf(settings[AUTOMATIONS_MAC_NAME_KEY]),
   };
+}
+
+/**
+ * Whether the vault's settings, read from the file now, name this Mac to run
+ * its automations (ADR-0035 part 4): asked once each pull has completed, so
+ * a claim another Mac made is seen before anything acts on what the pull
+ * brought. Rejects when the settings cannot be read.
+ */
+export async function settingsNameThisMac({
+  thisMacId,
+  ...files
+}: {
+  fs: Pick<VaultFsPort, 'readNotes'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
+  thisMacId: string;
+}): Promise<boolean> {
+  const { automationsMac } = await loadSyncSettings(files);
+  return runsAutomationsHere({ automationsMac, thisMacId });
 }
 
 export async function saveSyncSettings({

@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { withManagedIgnores } from '@atlas/domain';
 import {
   failed,
+  fakeSleepClock,
   fakeVaultFs,
   memorySyncFiles,
   OK,
@@ -127,6 +128,7 @@ function setUpHook({
   fs,
   paused = false,
   beforeFetch,
+  sleep = fakeSleepClock(),
 }: {
   script?: GitScript;
   parentTop?: ReturnType<typeof said>;
@@ -138,6 +140,8 @@ function setUpHook({
   paused?: boolean;
   /** Waited on before each fetch runs, so a test can hold one. */
   beforeFetch?: () => Promise<void>;
+  /** The host's sleep counter (#172). */
+  sleep?: ReturnType<typeof fakeSleepClock>;
 } = {}) {
   const { git, called } = scriptedGit({ script });
   const order: string[] = [];
@@ -181,6 +185,7 @@ function setUpHook({
         read: (vault) => pauses.get(vault) ?? false,
         write: (vault, value) => void pauses.set(vault, value),
       },
+      sleepClock: sleep.port,
     },
     fs: fs ?? vaultFiles(settings),
     markdown: remarkMarkdown,
@@ -782,5 +787,258 @@ describe('useSync: what the session has synced (ADR-0034)', () => {
     });
     await waitFor(() => expect(refused.hook.result.current.phase.kind).toBe('refused'));
     expect([...refused.hook.result.current.syncedThisSession]).toEqual(['/Users/j/Notes']);
+  });
+});
+
+describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', () => {
+  const VAULT = '/Users/j/Notes';
+  /** Whether this Mac may run the import or a Claude step on the open vault's files now. */
+  const acts = (hook: ReturnType<typeof setUpHook>['hook']) =>
+    hook.result.current.pulledFiles.acts(VAULT);
+
+  /** A vault's settings whose text the test can change, as a pull would. */
+  function settingsFile(frontmatter: string) {
+    const settings = { frontmatter };
+    const fs = fakeVaultFs({
+      readNotes: async (paths) =>
+        paths
+          .filter((path) => path === '.atlas/settings.md' || path === '.gitignore')
+          .map((path) => ({
+            path,
+            text:
+              path === '.gitignore'
+                ? (withManagedIgnores(null) as string)
+                : `---\n${settings.frontmatter}\n---\n`,
+            modified: 1,
+            size: 1,
+          })),
+    });
+    return { settings, fs };
+  }
+
+  /** A fetch the test holds until it lets it go. */
+  function heldFetch() {
+    let release: () => void = () => {};
+    let held: Promise<void> | null = new Promise<void>((resolve) => (release = resolve));
+    return {
+      beforeFetch: () => held ?? Promise.resolve(),
+      release: () => {
+        held = null;
+        release();
+      },
+    };
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('acts on nothing before the first pull of the session completes, and on the files once it has', async () => {
+    const fetch = heldFetch();
+    const { hook } = setUpHook({ script: modelGit().script, beforeFetch: fetch.beforeFetch });
+    expect(await acts(hook)).toBe(false);
+    await waitFor(() =>
+      expect(hook.result.current.pulledFiles.standing).toEqual({ kind: 'pulling' }),
+    );
+    expect(await acts(hook)).toBe(false);
+    fetch.release();
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(hook.result.current.pulledFiles.standing).toMatchObject({
+      kind: 'pulled',
+      startedAsleepMs: 457_335_000,
+      namedAfter: true,
+    });
+    expect(await acts(hook)).toBe(true);
+  });
+
+  it('acts on nothing once the Mac has slept since that pull, until a pull started after the wake completes', async () => {
+    const sleep = fakeSleepClock();
+    const { hook } = setUpHook({ script: modelGit().script, sleep });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(true);
+    sleep.sleep(20 * 60_000);
+    expect(await acts(hook)).toBe(false);
+    act(() => hook.result.current.syncNow());
+    await waitFor(async () => expect(await acts(hook)).toBe(true));
+  });
+
+  it('does not count a pull that started before a sleep and completed after it', async () => {
+    const sleep = fakeSleepClock();
+    const fetch = heldFetch();
+    const { hook } = setUpHook({
+      script: modelGit().script,
+      sleep,
+      beforeFetch: fetch.beforeFetch,
+    });
+    await waitFor(() =>
+      expect(hook.result.current.pulledFiles.standing).toEqual({ kind: 'pulling' }),
+    );
+    sleep.sleep(60_000);
+    fetch.release();
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(false);
+  });
+
+  it('runs nothing when the settings the pull brought name another Mac, though the settings held still name this one', async () => {
+    const { settings, fs } = settingsFile(SET_UP);
+    const fetch = heldFetch();
+    const { hook } = setUpHook({ script: modelGit().script, fs, beforeFetch: fetch.beforeFetch });
+    await waitFor(() => expect(hook.result.current.automationsHere).toBe(true));
+    // Another Mac claimed the automations: the pull brings its settings in.
+    settings.frontmatter = 'sync: github\nautomationsMac: mac-laptop\nautomationsMacName: Laptop';
+    fetch.release();
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(hook.result.current.automationsHere).toBe(true);
+    expect(hook.result.current.pulledFiles.standing).toMatchObject({ namedAfter: false });
+    expect(await acts(hook)).toBe(false);
+  });
+
+  it('runs nothing when the settings cannot be read after the pull, and says so', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { settings, fs } = settingsFile(SET_UP);
+    const fetch = heldFetch();
+    const { hook } = setUpHook({ script: modelGit().script, fs, beforeFetch: fetch.beforeFetch });
+    await waitFor(() => expect(hook.result.current.automationsHere).toBe(true));
+    settings.frontmatter = 'automationsMac: [mac-studio';
+    fetch.release();
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(false);
+    expect(error).toHaveBeenCalledWith(
+      'The vault’s settings could not be read after a pull:',
+      expect.anything(),
+    );
+  });
+
+  it('acts on nothing while the counter cannot be read, and says so', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const sleep = fakeSleepClock();
+    const { hook } = setUpHook({ script: modelGit().script, sleep });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    sleep.unreadable();
+    expect(await acts(hook)).toBe(false);
+    expect(error).toHaveBeenCalledWith(
+      'How long this Mac has slept could not be read:',
+      expect.any(Error),
+    );
+  });
+
+  it('counts for nothing a pull whose start could not be placed against a sleep', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const sleep = fakeSleepClock();
+    sleep.unreadable();
+    const { hook } = setUpHook({ script: modelGit().script, sleep });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    sleep.unreadable(false);
+    expect(hook.result.current.pulledFiles.standing).toBeNull();
+    expect(await acts(hook)).toBe(false);
+  });
+
+  it('acts as before on a vault that does not sync, and never reads the counter for it', async () => {
+    const sleep = fakeSleepClock();
+    sleep.unreadable();
+    const { hook } = setUpHook({ script: { topLevel: NOT_A_REPO }, sleep });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('not-set-up'));
+    await waitFor(() => expect(hook.result.current.automationsHere).toBe(true));
+    expect(await acts(hook)).toBe(true);
+    expect(sleep.reads()).toBe(0);
+  });
+
+  it('acts on nothing after a sync fails, until one succeeds', async () => {
+    const model = modelGit();
+    const online = model.script.fetch as () => GitResult;
+    let offline = false;
+    const script: GitScript = {
+      ...model.script,
+      fetch: () => (offline ? failed('fatal: unable to access GitHub', 128) : online()),
+    };
+    const { hook } = setUpHook({ script });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(true);
+    offline = true;
+    act(() => hook.result.current.syncNow());
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('failed'));
+    // Not under way, and not known: it may have brought files in before it failed.
+    expect(hook.result.current.pulledFiles.standing).toBeNull();
+    expect(await acts(hook)).toBe(false);
+    offline = false;
+    act(() => hook.result.current.syncNow());
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(true);
+  });
+
+  it('takes a look at GitHub that finds nothing new as a pull: after a wake, it reopens the gate with no sync', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const sleep = fakeSleepClock();
+    const model = modelGit();
+    const { hook, called, clock } = setUpHook({ script: model.script, sleep });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    const merges = called('merge').length;
+    sleep.sleep(20 * 60_000);
+    expect(await acts(hook)).toBe(false);
+    await wait(clock, 60_000);
+    await waitFor(async () => expect(await acts(hook)).toBe(true));
+    expect(called('merge').length).toBe(merges);
+  });
+
+  it('acts on nothing once a look finds other Macs’ changes, until the sync brings them in', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const model = modelGit();
+    const { hook, called, clock, options } = setUpHook({ script: model.script });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(true);
+    const merges = called('merge').length;
+    model.state.onGitHub = 1;
+    // Typing holds the sync back past the minute's look.
+    for (let second = 20; second <= 80; second += 20) {
+      model.state.edits = [`Draft ${second}.md`];
+      hook.rerender({ ...options, changeKey: `ready:${second}` });
+      await wait(clock, 20_000);
+    }
+    await waitFor(() => expect(hook.result.current.behind).toBe(1));
+    expect(await acts(hook)).toBe(false);
+    await wait(clock, 35_000);
+    await waitFor(() => expect(called('merge').length).toBe(merges + 1));
+    await waitFor(async () => expect(await acts(hook)).toBe(true));
+  });
+
+  it('waits, once sync is set up on a vault, for its first sync or look to complete', async () => {
+    // A repository Atlas has not set up: once set up, it reads as one that syncs.
+    const { settings, fs } = settingsFile('automationsMac: mac-studio');
+    let connected = false;
+    const { hook } = setUpHook({
+      script: {
+        topLevel: said('/Users/j/Notes\n'),
+        remoteUrl: () => (connected ? said('https://github.com/james/notes\n') : failed('', 2)),
+      },
+      fs,
+    });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('not-set-up'));
+    expect(hook.result.current.pulledFiles.standing).toEqual({ kind: 'not-synced' });
+    expect(await acts(hook)).toBe(true);
+    act(() =>
+      hook.result.current.setUp({ kind: 'existing', url: 'https://github.com/james/notes' }),
+    );
+    connected = true;
+    settings.frontmatter = SET_UP;
+    await waitFor(() => expect(hook.result.current.setup?.kind).toBe('set-up'));
+    expect(hook.result.current.pulledFiles.standing).toBeNull();
+    expect(await acts(hook)).toBe(false);
+  });
+
+  it('keeps a pull with its vault: the vault opened next waits for a pull of its own', async () => {
+    const fetch = { held: null as Promise<void> | null, release: () => {} };
+    const { hook, options } = setUpHook({
+      script: modelGit().script,
+      beforeFetch: () => fetch.held ?? Promise.resolve(),
+    });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(true);
+    fetch.held = new Promise<void>((resolve) => (fetch.release = resolve));
+    const other = '/Users/j/Work';
+    hook.rerender({ ...options, vaultKey: other });
+    await waitFor(() => expect(hook.result.current.automationsHere).toBe(true));
+    expect(await hook.result.current.pulledFiles.acts(other)).toBe(false);
+    expect(await acts(hook)).toBe(false);
+    fetch.held = null;
+    fetch.release();
+    await waitFor(async () => expect(await hook.result.current.pulledFiles.acts(other)).toBe(true));
   });
 });

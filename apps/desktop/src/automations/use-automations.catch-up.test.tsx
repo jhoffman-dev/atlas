@@ -8,6 +8,7 @@ import {
   logPathFor,
   movedPath,
   type EntryMove,
+  type PullStanding,
   type VaultEntry,
   type VaultPath,
 } from '@atlas/domain';
@@ -209,6 +210,98 @@ describe('useAutomations: opening a vault whose rule missed a meeting’s arriva
     await settle();
 
     expect(vault.files[MEETING]).toBe(LET_IN);
+  });
+});
+
+describe('useAutomations: a Claude step waits for fresh sync state (ADR-0035 part 4)', () => {
+  const ASK_RULE = '.atlas/automations/Actions.md';
+  const ASK_RULE_TEXT = [
+    '---',
+    'atlas: automation',
+    'name: Actions',
+    'enabled: true',
+    'when: a meeting is created',
+    'which: FROM meeting',
+    'do: claude',
+    'prompt: .atlas/prompts/actions.md',
+    'output: proposals',
+    '---',
+    '',
+  ].join('\n');
+  const PULLED: PullStanding = {
+    kind: 'pulled',
+    startedAsleepMs: 0,
+    finishedAt: 1,
+    namedAfter: true,
+  };
+
+  const open = (rule: { path: string; text: string }, pulledFiles: Gate) => {
+    const vault = memoryVault(
+      {
+        [rule.path]: rule.text,
+        '.atlas/prompts/actions.md': 'List the action items.\n',
+        [MEETING]: LET_IN,
+      },
+      { [rule.path]: 100, [MEETING]: 200 },
+    );
+    const claude = fakeClaudeStepPorts();
+    const options: AutomationsOptions = {
+      ports: { ...vault.ports, claude },
+      clock,
+      vaultKey: VAULT,
+      indexKey: '1',
+      indexReady: true,
+      activity: recordingActivity(),
+      onSettled: vi.fn(),
+      scheduled: true,
+      pulledFiles,
+    };
+    const hook = renderHook((props: AutomationsOptions) => useAutomations(props), {
+      initialProps: options,
+    });
+    return { vault, claude, hook, options };
+  };
+
+  type Gate = NonNullable<AutomationsOptions['pulledFiles']>;
+
+  it('holds its look for missed arrivals until a pull completes, then asks once', async () => {
+    const shut = vi.fn(async () => false);
+    const { claude, hook, options } = open(
+      { path: ASK_RULE, text: ASK_RULE_TEXT },
+      { standing: null, acts: shut },
+    );
+    await settle();
+    expect(shut).toHaveBeenCalledWith(VAULT);
+    expect(claude.fake.requests).toHaveLength(0);
+
+    hook.rerender({ ...options, pulledFiles: { standing: PULLED, acts: async () => true } });
+    await settle();
+    expect(claude.fake.requests).toHaveLength(1);
+  });
+
+  it('asks the gate again when its turn comes: shut by then, the news waits for a pull', async () => {
+    // Open as it is queued, shut by the time it runs: the Mac slept in between.
+    const acts = vi.fn(async () => false).mockResolvedValueOnce(true);
+    const { claude, hook, options } = open(
+      { path: ASK_RULE, text: ASK_RULE_TEXT },
+      { standing: PULLED, acts },
+    );
+    await settle();
+    expect(acts.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(claude.fake.requests).toHaveLength(0);
+
+    acts.mockImplementation(async () => true);
+    hook.rerender({ ...options, pulledFiles: { standing: { ...PULLED, finishedAt: 2 }, acts } });
+    await settle();
+    expect(claude.fake.requests).toHaveLength(1);
+  });
+
+  it('does not hold a rule that asks no Claude', async () => {
+    const shut = vi.fn(async () => false);
+    const { vault } = open({ path: RULE, text: RULE_TEXT }, { standing: null, acts: shut });
+    await settle();
+    expect(Object.keys(vault.files)).toContain(`Archive/${MEETING}`);
+    expect(shut).not.toHaveBeenCalled();
   });
 });
 
