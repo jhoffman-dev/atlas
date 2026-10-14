@@ -76,4 +76,34 @@ describe('listInbox', () => {
     expect(listing.items).toHaveLength(1);
     expect(listing.truncated).toBe(true);
   });
+
+  it('reaches every note past a full page, and says how many wait in all (#167)', async () => {
+    const query = atlasQueryIndex({
+      markdown: fakeMarkdown(),
+      files: { 'Inbox/A.md': 'a\n', 'Inbox/B.md': 'b\n', 'Inbox/C.md': 'c\n' },
+    });
+    const index = fakeIndexPort({ query });
+
+    const first = await listInbox({ index, limit: 2 });
+    const rest = await listInbox({ index, limit: 2, offset: 2 });
+
+    expect(first).toMatchObject({ truncated: true, total: 3 });
+    expect(rest).toMatchObject({ truncated: false, total: 3 });
+    expect([...first.items, ...rest.items].map((item) => item.path).sort()).toEqual([
+      'Inbox/A.md',
+      'Inbox/B.md',
+      'Inbox/C.md',
+    ]);
+  });
+
+  it('counts what it lists when it lists everything', async () => {
+    const query = atlasQueryIndex({
+      markdown: fakeMarkdown(),
+      files: { 'Inbox/A.md': 'a\n', 'Inbox/B.md': 'b\n' },
+    });
+    expect(await listInbox({ index: fakeIndexPort({ query }) })).toMatchObject({
+      truncated: false,
+      total: 2,
+    });
+  });
 });

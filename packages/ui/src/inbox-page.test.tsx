@@ -63,6 +63,7 @@ const CONTENTS: InboxContents = {
     item('Inbox/Idea.md', 'Idea', null),
   ],
   truncated: false,
+  total: 3,
 };
 
 const FILING: readonly RelationChoice[] = [
@@ -480,5 +481,28 @@ describe('InboxPage — the undo bar goes by itself (#165)', () => {
     fireEvent.pointerLeave(said);
     act(() => vi.advanceTimersByTime(20_100));
     expect(onDismissLastAction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('InboxPage — more waiting than one page (#167)', () => {
+  const FULL: InboxContents = { ...CONTENTS, truncated: true, total: 734 };
+
+  it('says how many wait in all, and how many are shown', () => {
+    page({ contents: FULL, onShowMore: vi.fn() });
+    expect(screen.getByText(/^734 to process/)).toBeTruthy();
+    expect(screen.getByText('Showing the newest 3 of 734.')).toBeTruthy();
+  });
+
+  it('shows more when asked, so every note can be reached', async () => {
+    const onShowMore = vi.fn();
+    page({ contents: FULL, onShowMore });
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(onShowMore).toHaveBeenCalledOnce();
+  });
+
+  it('offers no more once everything is shown', () => {
+    page({ contents: { ...CONTENTS, total: 3 }, onShowMore: vi.fn() });
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    expect(screen.getByText(/^3 to process/)).toBeTruthy();
   });
 });

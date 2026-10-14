@@ -16,7 +16,9 @@ import {
 } from '@atlas/application';
 import {
   createVaultPath,
+  INBOX_LIST_LIMIT,
   INBOX_QUERY_COLUMNS,
+  INBOX_QUERY_MARK,
   TASK_TYPE_FILE,
   WAITING_NEEDS_SOMEONE,
   type ObjectType,
@@ -248,6 +250,38 @@ describe('useInbox — clarifying a row', () => {
       hook.result.current.clarify({ path: CALL, clarification: { status: 'archive' } }),
     );
     expect(files.get(CALL)).toContain('completed: 2026-12-24');
+  });
+});
+
+describe('useInbox — more than one page (#167)', () => {
+  it('lists the next page once more are asked for, keeping the ones shown', async () => {
+    const waiting = Array.from({ length: INBOX_LIST_LIMIT + 3 }, (_, n) => `Task ${n}`);
+    const index = fakeIndexPort({
+      query: async (sql, parameters = []) => {
+        if (!sql.startsWith(INBOX_QUERY_MARK)) {
+          return { columns: ['count'], rows: [[waiting.length]], truncated: false };
+        }
+        const [limit = 0] = parameters.slice(-2) as number[];
+        const [offset = 0] = parameters.slice(-1) as number[];
+        return {
+          columns: [...INBOX_QUERY_COLUMNS],
+          rows: waiting
+            .slice(offset, offset + limit)
+            .map((title) => [`Inbox/${title}.md`, title, 'task', 0, null, null, 'inbox']),
+          truncated: false,
+        };
+      },
+    });
+    const { hook, initial } = inbox();
+    hook.rerender({ ...initial, ports: { ...initial.ports, index } });
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT));
+    expect(hook.result.current.contents).toMatchObject({ truncated: true, total: waiting.length });
+
+    act(() => hook.result.current.showMore());
+
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(waiting.length));
+    expect(hook.result.current.contents?.truncated).toBe(false);
+    expect(hook.result.current.contents?.items.at(-1)?.title).toBe(waiting.at(-1));
   });
 });
 

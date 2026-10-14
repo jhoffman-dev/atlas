@@ -129,3 +129,20 @@ test('a proposal whose write fails comes back, saying why (#166)', async ({ page
   await expect(cards(page)).toHaveCount(2);
   expect(await vault.exists(task)).toBe(false);
 });
+
+test('every note waiting can be reached past the first 500, and the page says how many wait (#167)', async ({
+  page,
+}) => {
+  await openInbox(page, { proposals: 0, waiting: 505 });
+  const inbox = inboxPage(page);
+  const rows = inbox.locator('.inbox__grid tbody tr');
+  await expect(rows).toHaveCount(500);
+  await expect(inbox.getByText(/^505 to process/)).toBeVisible();
+  await expect(inbox.getByText('Showing the newest 500 of 505.')).toBeVisible();
+
+  await inbox.getByRole('button', { name: 'Show more' }).click();
+
+  await expect(rows).toHaveCount(505);
+  await expect(inbox.getByRole('button', { name: 'Show more' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Inbox/ })).toContainText('505');
+});

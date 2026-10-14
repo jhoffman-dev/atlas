@@ -221,6 +221,43 @@ describe('GET /v1/inbox', () => {
     expect(api.writes).toEqual([]);
   });
 
+  it('pages past a full page by offset, saying where the next starts and how many wait (#167)', async () => {
+    const files = {
+      'Inbox/A.md': 'a\n',
+      'Inbox/B.md': 'b\n',
+      'Inbox/C.md': 'c\n',
+    };
+    const api = apiFixture({
+      files,
+      index: { query: atlasQueryIndex({ markdown: fakeMarkdown(), files }) },
+    });
+    const page = (offset?: string) =>
+      api.send({
+        method: 'GET',
+        path: '/v1/inbox',
+        query: { limit: '2', ...(offset !== undefined && { offset }) },
+      });
+    const paths = (body: Record<string, unknown>) =>
+      (body['items'] as { path: string }[]).map((item) => item.path);
+
+    const first = bodyOf(await page());
+    expect(first).toMatchObject({ truncated: true, next: 2, total: 3 });
+    const second = bodyOf(await page('2'));
+    expect(second).toMatchObject({ truncated: false, next: null, total: 3 });
+    expect([...paths(first), ...paths(second)].sort()).toEqual([
+      'Inbox/A.md',
+      'Inbox/B.md',
+      'Inbox/C.md',
+    ]);
+  });
+
+  it('refuses a limit or an offset that is not a whole number', async () => {
+    const api = apiFixture({ files: {} });
+    for (const query of [{ limit: '0' }, { limit: 'all' }, { offset: '-1' }]) {
+      expect(codeOf(await api.send({ method: 'GET', path: '/v1/inbox', query }))).toBe('invalid');
+    }
+  });
+
   it('answers no_vault when no vault is open', async () => {
     const api = apiFixture({ files: {} });
     api.open = null;
