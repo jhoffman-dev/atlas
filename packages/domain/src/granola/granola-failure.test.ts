@@ -31,10 +31,11 @@ describe('explainGranolaFailure', () => {
     expect(fix).toMatch(/scopes.*Sync now/);
   });
 
-  it('says a note Granola no longer has (404) was skipped, with nothing to do', () => {
-    const { problem, fix } = explainGranolaFailure(refused(404));
-    expect(problem).toMatch(/no longer has the note.*skipped/);
-    expect(fix).toBeNull();
+  it('says a note Granola no longer has (404) was skipped, with nothing else to do', () => {
+    expect(explainGranolaFailure(refused(404))).toEqual({
+      problem: 'Granola no longer has the note, or it is no longer shared with you.',
+      fix: 'It was skipped; Sync now tries it again.',
+    });
   });
 
   it('says a transcript too large to send at once is read in pages next time', () => {
@@ -137,12 +138,26 @@ describe('granolaFailureEffect', () => {
     expect(granolaFailureEffect(refused(413))).toBe('retry');
   });
 
-  it('retries a failed page of a transcript, whatever its status, except a 401', () => {
-    const page = (status: number): GranolaFailure => ({ ...refused(status), transcriptPage: true });
-    expect(granolaFailureEffect(page(404))).toBe('retry');
-    expect(granolaFailureEffect(page(400))).toBe('retry');
-    expect(granolaFailureEffect({ ...failure('malformed'), transcriptPage: true })).toBe('retry');
-    expect(granolaFailureEffect(page(401))).toBe('stop');
+  it('treats a failed page of a transcript by its status, as any other request', () => {
+    const page = (failed: GranolaFailure): GranolaFailure => ({ ...failed, transcriptPage: true });
+    expect(granolaFailureEffect(page(refused(404)))).toBe('skip');
+    expect(granolaFailureEffect(page(refused(400)))).toBe('skip');
+    expect(granolaFailureEffect(page(refused(403)))).toBe('skip');
+    expect(granolaFailureEffect(page(failure('malformed')))).toBe('skip');
+    expect(granolaFailureEffect(page(refused(401)))).toBe('stop');
+    expect(granolaFailureEffect(page(refused(429)))).toBe('retry');
+    expect(granolaFailureEffect(page(refused(503)))).toBe('retry');
+    expect(granolaFailureEffect(page(failure('timeout')))).toBe('retry');
+    expect(granolaFailureEffect(page(failure('unreachable')))).toBe('retry');
+  });
+
+  it('skips a page of a transcript Granola says is still too large (413): paging was the remedy', () => {
+    expect(granolaFailureEffect({ ...refused(413), transcriptPage: true })).toBe('skip');
+  });
+
+  it('skips a failure of a kind it does not know, rather than hold the watermark or stop', () => {
+    const unknown = { kind: 'surprise', message: 'x' } as unknown as GranolaFailure;
+    expect(granolaFailureEffect(unknown)).toBe('skip');
   });
 
   it.each([400, 403, 405, 409, 410, 422, 499, 302, 600])(
@@ -155,5 +170,45 @@ describe('granolaFailureEffect', () => {
   it('skips an answer Atlas cannot read, and a refusal with no status', () => {
     expect(granolaFailureEffect(failure('malformed'))).toBe('skip');
     expect(granolaFailureEffect({ kind: 'api_refused', message: 'x' })).toBe('skip');
+  });
+});
+
+/*
+ * The person is told what the pull did. Every failure there can be — each
+ * kind, an unknown one, every status from 99 to 1000, and none, as a page of
+ * a transcript or not — says it was skipped, that Atlas tries again, or that
+ * it stopped, exactly as granolaFailureEffect decides, and says nothing else.
+ */
+describe('explainGranolaFailure, against granolaFailureEffect', () => {
+  const CLAUSES = {
+    skip: /skipped/,
+    retry: /tries again on the next pull/,
+    stop: /stops pulling/,
+  } as const;
+  const kinds = [...GRANOLA_FAILURE_KINDS, 'surprise'] as GranolaFailure['kind'][];
+  const statuses = [undefined, ...Array.from({ length: 1000 - 99 + 1 }, (_, at) => 99 + at)];
+  const failures = kinds.flatMap((kind) =>
+    statuses.flatMap((status) =>
+      [undefined, false, true].map((transcriptPage): GranolaFailure => ({
+        kind,
+        message: 'what the host said',
+        ...(status === undefined ? {} : { status }),
+        ...(transcriptPage === undefined ? {} : { transcriptPage }),
+      })),
+    ),
+  );
+
+  it('says what the pull does with every failure, and nothing it does not', () => {
+    const disagreements = failures.flatMap((failed) => {
+      const effect = granolaFailureEffect(failed);
+      const { problem, fix } = explainGranolaFailure(failed);
+      const said = `${problem} ${fix ?? ''}`;
+      const wrong = Object.entries(CLAUSES).filter(
+        ([named, clause]) => clause.test(said) !== (named === effect),
+      );
+      return wrong.length === 0 ? [] : [{ failed, effect, said }];
+    });
+    expect(disagreements).toEqual([]);
+    expect(failures.length).toBe(kinds.length * statuses.length * 3);
   });
 });

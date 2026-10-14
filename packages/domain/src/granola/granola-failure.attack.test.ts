@@ -29,11 +29,12 @@ describe('granolaFailureEffect, against ADR-0034’s watermark rule', () => {
 });
 
 /*
- * Adversarial (P28-09, fix commits): a failed transcript page is retried —
- * it holds the watermark and the next pull asks again — whatever its status
- * but 401. explainGranolaFailure ignores `transcriptPage` and tells the
- * person the note "was skipped" (and for a 404, that there is nothing to
- * do), the opposite of what the pull does with it.
+ * Adversarial (P28-09, fix commits): a failed transcript page was retried —
+ * it held the watermark and the next pull asked again — whatever its status
+ * but 401, while explainGranolaFailure told the person the note "was
+ * skipped". Round 2 settled it the other way: a page is a request like any
+ * other, so a 404, a 400 or an answer Atlas could not read on a page is
+ * skipped (it fails the same on every pull), and the person is told so.
  */
 describe('explainGranolaFailure for a failed page of a transcript', () => {
   const page = (failure: GranolaFailure): GranolaFailure => ({ ...failure, transcriptPage: true });
@@ -41,9 +42,11 @@ describe('explainGranolaFailure for a failed page of a transcript', () => {
     ['a 404', page(refused(404))],
     ['a 400', page(refused(400))],
     ['an answer Atlas could not read', page({ kind: 'malformed', message: 'what the host said' })],
-  ])('with %s says it is tried again, as the pull does, not that it was skipped', (_, failure) => {
-    expect(granolaFailureEffect(failure)).toBe('retry');
+  ])('with %s says it was skipped, as the pull does, not that it is tried again', (_, failure) => {
+    expect(granolaFailureEffect(failure)).toBe('skip');
     const { problem, fix } = explainGranolaFailure(failure);
-    expect(`${problem} ${fix ?? ''}`).not.toMatch(/skipped/);
+    const said = `${problem} ${fix ?? ''}`;
+    expect(said).toMatch(/skipped/);
+    expect(said).not.toMatch(/tries again on the next pull/);
   });
 });

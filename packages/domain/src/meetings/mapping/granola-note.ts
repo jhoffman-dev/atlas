@@ -157,7 +157,9 @@ function extreme(
 /**
  * When the meeting began and ended: the calendar event's scheduled times,
  * else its first turn's start and last turn's end. With no start at all it
- * is refused, rather than given a made-up time.
+ * is refused, rather than given a made-up time. An end before the start (a
+ * calendar event that ends before it begins, or a last word spoken before
+ * the scheduled start) is not an end: the meeting is written with none.
  */
 function spanOf(
   event: JsonRecord | null,
@@ -177,7 +179,8 @@ function spanOf(
       'start: the Granola note has no start: no calendar event time, and no transcript turn with a time',
     );
   }
-  return { start, end: instantOf(event?.['scheduled_end_time']) ?? lastSpoken };
+  const end = instantOf(event?.['scheduled_end_time']) ?? lastSpoken;
+  return { start, end: end !== null && end < start ? null : end };
 }
 
 /** Who was there: the attendees, then the calendar's invitees (address only), one per address. */

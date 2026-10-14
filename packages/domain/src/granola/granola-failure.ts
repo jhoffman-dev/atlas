@@ -26,83 +26,24 @@ export interface GranolaFailure {
   /**
    * True when the request that failed was for a page of a transcript too
    * large to send at once — the host's answer to a 413, which is not itself
-   * a failure. A note read part-way is retried, whatever the page's status
-   * (but a 401, which stops).
+   * a failure. A page is judged by its status like any other request, but
+   * for a 413 of its own: paging was the remedy, so it is skipped.
    */
   readonly transcriptPage?: boolean;
 }
 
-/** What went wrong in the person's words, and what to do; null when there is nothing to do. */
+/**
+ * What went wrong in the person's words, and what to do. `fix` always ends
+ * with what the pull did about it (skipped, tried again, stopped), taken from
+ * {@link granolaFailureEffect} so the two cannot disagree.
+ */
 export interface GranolaProblem {
   readonly problem: string;
-  readonly fix: string | null;
+  readonly fix: string;
 }
 
 export function isGranolaFailureKind(value: unknown): value is GranolaFailureKind {
   return (GRANOLA_FAILURE_KINDS as readonly unknown[]).includes(value);
-}
-
-const MAKE_A_KEY =
-  'Create one in Granola → Settings → Connectors → API keys, and paste it in Settings → Granola.';
-const NEXT_PULL = 'Atlas tries again on the next pull.';
-const SKIPPED = 'It was skipped; Sync now tries it again.';
-
-/** Granola answered with an error status. */
-function refusal(status: number | undefined): GranolaProblem {
-  if (status === 401) return { problem: 'Granola refused the API key.', fix: MAKE_A_KEY };
-  if (status === 403) {
-    return {
-      problem: 'Granola does not let this API key read the note.',
-      fix: 'Check the key’s scopes in Granola → Settings → Connectors → API keys: Personal notes, and Public notes for notes others share. Then press Sync now.',
-    };
-  }
-  if (status === 404) {
-    return {
-      problem:
-        'Granola no longer has the note, or it is no longer shared with you; it was skipped.',
-      fix: null,
-    };
-  }
-  if (status === 413) {
-    return {
-      problem: 'The meeting’s transcript is too large for Granola to send in one answer.',
-      fix: 'Atlas reads it in pages on the next pull.',
-    };
-  }
-  if (status === 408) return { problem: 'Granola did not answer in time.', fix: NEXT_PULL };
-  if (status === 429) return { problem: 'Granola asked Atlas to slow down.', fix: NEXT_PULL };
-  if (status !== undefined && status >= 500 && status <= 599) {
-    return {
-      problem: `Granola is having trouble (status ${status}).`,
-      fix: 'Try Sync now later.',
-    };
-  }
-  return { problem: `Granola refused the request (${status ?? 'no status'}).`, fix: SKIPPED };
-}
-
-/** The person's problem and its fix, for any failure. */
-export function explainGranolaFailure(failure: GranolaFailure): GranolaProblem {
-  switch (failure.kind) {
-    case 'api_refused':
-      return refusal(failure.status);
-    case 'no_key':
-      return { problem: 'No Granola API key is set on this Mac.', fix: MAKE_A_KEY };
-    case 'unreachable':
-      return {
-        problem: `Granola could not be reached: ${failure.message}.`,
-        fix: `Check the connection. ${NEXT_PULL}`,
-      };
-    case 'timeout':
-      return {
-        problem: 'Granola did not answer in time.',
-        fix: `Check the connection. ${NEXT_PULL}`,
-      };
-    case 'malformed':
-      return {
-        problem: `Granola answered in a way Atlas does not understand: ${failure.message}.`,
-        fix: SKIPPED,
-      };
-  }
 }
 
 /**
@@ -111,15 +52,17 @@ export function explainGranolaFailure(failure: GranolaFailure): GranolaProblem {
  * - `stop` when there is no key or Granola refused it (401): every later
  *   request would be refused too.
  * - `retry` only for a failure that may pass by itself — the network, a
- *   timeout, 408, 429, a 5xx, or a page of a transcript — which holds the
- *   watermark so the next pull lists the note again.
+ *   timeout, 408, 429, a 5xx, or a 413 for a whole transcript (the next pull
+ *   reads it in pages) — which holds the watermark so the next pull lists
+ *   the note again.
  * - `skip` for the rest — 404, 403, any other refusal, an answer Atlas could
- *   not read — which would fail the same way on every pull. It settles the
- *   note (logged, the watermark not held); Sync now's full listing tries it
- *   again, once the key or Granola has changed.
+ *   not read, a 413 for a page — which would fail the same way on every
+ *   pull. It settles the note (logged, the watermark not held); Sync now's
+ *   full listing tries it again, once the key or Granola has changed.
  *
- * A 413 is not a failure: the host reads that transcript in pages. One that
- * reaches here anyway is retried, so the next pull reads it in pages.
+ * A page of a transcript is a request like any other: its status decides.
+ * A kind the host sends that this rule does not know is skipped: holding the
+ * watermark for it could hold it for good, and stopping would stop every pull.
  */
 export type GranolaFailureEffect = 'stop' | 'skip' | 'retry';
 
@@ -128,22 +71,114 @@ const isTransientStatus = (status: number) =>
   status === 408 || status === 429 || (status >= 500 && status <= 599);
 
 /** What Granola's status means for the pull, once 401 has stopped it. */
-function statusEffect(status: number | undefined): GranolaFailureEffect {
+function statusEffect(status: number | undefined, transcriptPage: boolean): GranolaFailureEffect {
   if (status === undefined) return 'skip';
-  return status === 413 || isTransientStatus(status) ? 'retry' : 'skip';
+  if (status === 413) return transcriptPage ? 'skip' : 'retry';
+  return isTransientStatus(status) ? 'retry' : 'skip';
 }
 
 export function granolaFailureEffect(failure: GranolaFailure): GranolaFailureEffect {
-  if (failure.kind === 'no_key') return 'stop';
-  if (failure.kind === 'api_refused' && failure.status === 401) return 'stop';
-  if (failure.transcriptPage === true) return 'retry';
   switch (failure.kind) {
+    case 'no_key':
+      return 'stop';
     case 'unreachable':
     case 'timeout':
       return 'retry';
     case 'malformed':
       return 'skip';
     case 'api_refused':
-      return statusEffect(failure.status);
+      if (failure.status === 401) return 'stop';
+      return statusEffect(failure.status, failure.transcriptPage === true);
+    default:
+      return 'skip';
   }
+}
+
+/** What the pull did, in the person's words: one clause per effect. */
+const OUTCOME: Readonly<Record<GranolaFailureEffect, string>> = {
+  stop: 'Atlas stops pulling until it has a key Granola accepts.',
+  retry: 'Atlas tries again on the next pull.',
+  skip: 'It was skipped; Sync now tries it again.',
+};
+
+/** What went wrong, and what the person can do about it (null for nothing). */
+interface Cause {
+  readonly problem: string;
+  readonly remedy: string | null;
+}
+
+const MAKE_A_KEY =
+  'Create one in Granola → Settings → Connectors → API keys, and paste it in Settings → Granola.';
+
+/** Granola answered with an error status. */
+function refusal(status: number | undefined, transcriptPage: boolean): Cause {
+  if (status === 401) return { problem: 'Granola refused the API key.', remedy: MAKE_A_KEY };
+  if (status === 403) {
+    return {
+      problem: 'Granola does not let this API key read the note.',
+      remedy:
+        'Check the key’s scopes in Granola → Settings → Connectors → API keys: Personal notes, and Public notes for notes others share.',
+    };
+  }
+  if (status === 404) {
+    return {
+      problem: 'Granola no longer has the note, or it is no longer shared with you.',
+      remedy: null,
+    };
+  }
+  if (status === 413 && transcriptPage) {
+    return {
+      problem: 'A page of the meeting’s transcript is still too large for Granola to send.',
+      remedy: null,
+    };
+  }
+  if (status === 413) {
+    return {
+      problem: 'The meeting’s transcript is too large for Granola to send in one answer.',
+      remedy: 'Atlas reads a transcript that large in pages.',
+    };
+  }
+  if (status === 408) return { problem: 'Granola did not answer in time.', remedy: null };
+  if (status === 429) return { problem: 'Granola asked Atlas to slow down.', remedy: null };
+  if (status !== undefined && status >= 500 && status <= 599) {
+    return {
+      problem: `Granola is having trouble (status ${status}).`,
+      remedy: 'Try Sync now later.',
+    };
+  }
+  return { problem: `Granola refused the request (${status ?? 'no status'}).`, remedy: null };
+}
+
+/** What went wrong, for any failure the host can report. */
+function causeOf(failure: GranolaFailure): Cause {
+  switch (failure.kind) {
+    case 'api_refused':
+      return refusal(failure.status, failure.transcriptPage === true);
+    case 'no_key':
+      return { problem: 'No Granola API key is set on this Mac.', remedy: MAKE_A_KEY };
+    case 'unreachable':
+      return {
+        problem: `Granola could not be reached: ${failure.message}.`,
+        remedy: 'Check the connection.',
+      };
+    case 'timeout':
+      return { problem: 'Granola did not answer in time.', remedy: 'Check the connection.' };
+    case 'malformed':
+      return {
+        problem: `Granola answered in a way Atlas does not understand: ${failure.message}.`,
+        remedy: null,
+      };
+    default:
+      return {
+        problem: `Granola could not be read: ${(failure as GranolaFailure).message}.`,
+        remedy: null,
+      };
+  }
+}
+
+/** The person's problem and its fix, for any failure, ending with what the pull did about it. */
+export function explainGranolaFailure(failure: GranolaFailure): GranolaProblem {
+  const { problem, remedy } = causeOf(failure);
+  const outcome = OUTCOME[granolaFailureEffect(failure)];
+  return { problem, fix: remedy === null ? outcome : `${remedy} ${outcome}` };
 }
