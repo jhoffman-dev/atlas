@@ -251,6 +251,43 @@ describe('GET /v1/inbox', () => {
     ]);
   });
 
+  it('adversarial: an agent that files each page before asking for "next" still reaches every note (#167)', async () => {
+    // The tool tells an agent to pass "next" as "offset". Filing what a page
+    // listed shifts every later note up by that many, so the offset skips them.
+    const files: Record<string, string> = {
+      'Inbox/A.md': 'a\n',
+      'Inbox/B.md': 'b\n',
+      'Inbox/C.md': 'c\n',
+    };
+    const modified = { 'Inbox/A.md': 3, 'Inbox/B.md': 2, 'Inbox/C.md': 1 };
+    let query = atlasQueryIndex({ markdown: fakeMarkdown(), files, modified });
+    const api = apiFixture({
+      files,
+      index: { query: (sql, parameters) => query(sql, parameters) },
+    });
+    const page = async (offset: number) =>
+      bodyOf(
+        await api.send({
+          method: 'GET',
+          path: '/v1/inbox',
+          query: { limit: '1', offset: String(offset) },
+        }),
+      ) as { items: { path: string }[]; next: number | null; total: number };
+
+    const seen: string[] = [];
+    let offset: number | null = 0;
+    while (offset !== null) {
+      const body = await page(offset);
+      seen.push(...body.items.map((item) => item.path));
+      // Filed: gone from the Inbox, as POST /v1/inbox/process leaves it.
+      for (const item of body.items) delete files[item.path];
+      query = atlasQueryIndex({ markdown: fakeMarkdown(), files, modified });
+      offset = body.next;
+    }
+
+    expect(seen).toEqual(['Inbox/A.md', 'Inbox/B.md', 'Inbox/C.md']);
+  });
+
   it('refuses a limit or an offset that is not a whole number', async () => {
     const api = apiFixture({ files: {} });
     for (const query of [{ limit: '0' }, { limit: 'all' }, { offset: '-1' }]) {

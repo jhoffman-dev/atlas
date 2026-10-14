@@ -450,3 +450,58 @@ describe('useProposals — adversarial: another vault opened after an accept', (
     expect(hook.result.current.section.notice?.undoable ?? false).toBe(false);
   });
 });
+
+describe('useProposals — adversarial: a queued answer fails after another vault opened', () => {
+  // `withGiveUpRecorded` asks `activity.inOpenVault()` when the write begins.
+  // Queued (#166), a write begins only once the ones before it are written, so
+  // one asked for in vault A that begins after vault B opened is recorded in B's log.
+  it('records the give-up in the Activity log of the vault it was answered in', async () => {
+    const first = vault({ [PROPOSAL]: PROPOSAL_TEXT, [SECOND]: SECOND_TEXT });
+    const second = vault({ 'Elsewhere.md': 'Another vault.\n' });
+    let release = () => {};
+    const gate = new Promise<void>((open) => (release = open));
+    const firstPorts: ProposalPorts = {
+      ...first.ports,
+      fs: {
+        ...first.ports.fs,
+        createNote: async (note) => {
+          if (note.path === SECOND_TASK) throw new Error('The disk is full.');
+          await gate;
+          return first.ports.fs.createNote(note);
+        },
+      },
+    };
+    let open = 'vault A';
+    const logged: { vault: string; message: string }[] = [];
+    const activity = {
+      inOpenVault: () => {
+        const vaultOpen = open;
+        return {
+          record: (report: { message: string }) =>
+            void logged.push({ vault: vaultOpen, message: report.message }),
+        };
+      },
+    } as unknown as Parameters<typeof useProposals>[0]['activity'];
+    const hook = renderHook(
+      ({ ports }: { ports: ProposalPorts }) =>
+        useProposals({
+          ports,
+          clock: { today: () => '2026-10-08' },
+          indexKey: 'v1',
+          onSettled: () => {},
+          activity,
+        }),
+      { initialProps: { ports: firstPorts } },
+    );
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    act(() => hook.result.current.section.onAccept(path(SECOND)));
+    open = 'vault B';
+    hook.rerender({ ports: second.ports });
+    release();
+
+    await waitFor(() => expect(logged).toHaveLength(1));
+    expect(logged[0]?.vault).toBe('vault A');
+  });
+});
