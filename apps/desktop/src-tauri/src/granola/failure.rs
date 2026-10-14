@@ -5,7 +5,7 @@
 
 use serde::Serialize;
 
-use crate::secrets::redact;
+use crate::secrets::redact_off_worker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -43,10 +43,11 @@ impl GranolaFailure {
         }
     }
 
-    /// The same failure with every key that went out struck from its message.
-    pub fn struck_of(self, sent: &[(String, String)]) -> Self {
+    /// The same failure with every key that went out struck from its
+    /// message, off the async worker.
+    pub async fn struck_of(self, sent: Vec<(String, String)>) -> Self {
         Self {
-            message: redact(&self.message, sent),
+            message: redact_off_worker(self.message, sent).await,
             ..self
         }
     }
@@ -63,11 +64,12 @@ mod tests {
         assert_eq!(json, r#"{"kind":"too_large","message":"big"}"#);
     }
 
-    #[test]
-    fn a_key_in_the_message_is_struck() {
-        let sent = [("granola-api-key".to_string(), "grn_S3CRET".to_string())];
-        let failure =
-            GranolaFailure::new(FailureKind::Unreachable, "refused grn_S3CRET").struck_of(&sent);
+    #[tokio::test]
+    async fn a_key_in_the_message_is_struck() {
+        let sent = vec![("granola-api-key".to_string(), "grn_S3CRET".to_string())];
+        let failure = GranolaFailure::new(FailureKind::Unreachable, "refused grn_S3CRET")
+            .struck_of(sent)
+            .await;
         assert!(
             !failure.message.contains("grn_S3CRET"),
             "{}",
