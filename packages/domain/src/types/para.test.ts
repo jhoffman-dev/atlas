@@ -31,6 +31,13 @@ describe('builtInTypePlan', () => {
     expect(plan.filesByProject).toBe(false);
   });
 
+  it('offers no `project` on a type two files claim, as its readers take the first', () => {
+    const meeting = type({ name: 'meeting', label: 'Meeting' });
+    const copy = type({ name: 'Meeting', label: 'Meeting (conflict copy)' });
+    expect(builtInTypePlan([meeting, copy]).extensions).toEqual([]);
+    expect(builtInTypePlan([meeting]).extensions).toHaveLength(1);
+  });
+
   it('counts a vault with a Project type as one that files by project', () => {
     expect(builtInTypePlan([PROJECT]).filesByProject).toBe(true);
     expect(builtInTypePlan([type({ name: 'Project' })]).filesByProject).toBe(true);

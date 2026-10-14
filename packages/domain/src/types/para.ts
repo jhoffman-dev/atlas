@@ -189,7 +189,8 @@ const folded = (name: string) => name.trim().toLowerCase();
  * a relation that already points at a project or an area: that one is given
  * the other as well. One pointing anywhere else is the vault's own choice.
  *
- * Types are matched by name in any case, as the disk matches their files.
+ * Types are matched by name in any case, as the disk matches their files. A
+ * type two files claim is offered nothing until they are merged.
  */
 export function builtInTypePlan<Type extends ObjectType>(
   existing: readonly Type[],
@@ -197,8 +198,10 @@ export function builtInTypePlan<Type extends ObjectType>(
   const byName = new Map(existing.map((type) => [folded(type.name), type]));
   const missing = PARA_TYPE_FILES.filter((file) => !byName.has(file.type.name));
   const extensions = FILED_TYPES.flatMap((name) => {
+    const claimed = existing.filter((type) => folded(type.name) === name).length;
     const type = byName.get(name);
-    const extension = type === undefined ? null : filedUnder(type);
+    // Two files claiming a type: which one a feature reads is not the offer's to pick.
+    const extension = type === undefined || claimed > 1 ? null : filedUnder(type);
     return extension === null ? [] : [extension];
   });
   return { missing, filesByProject: byName.has(PROJECT_TYPE), extensions };
@@ -276,7 +279,7 @@ function extensionLine({ before, added, widened }: TypeExtension): string {
 }
 
 /** "A", "A and B", "A, B and C". */
-function listed(words: readonly string[]): string {
+export function listed(words: readonly string[]): string {
   if (words.length < 2) return words.join('');
   return `${words.slice(0, -1).join(', ')} and ${words.at(-1) ?? ''}`;
 }

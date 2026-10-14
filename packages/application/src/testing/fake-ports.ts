@@ -102,6 +102,8 @@ export function fakeMarkdown(): MarkdownPort {
       }
       return ['---', ...merged.values(), '---', ''].join('\n');
     },
+    // `key: value` lines hold no map to add to.
+    addToFrontmatterMap: () => null,
   };
 }
 

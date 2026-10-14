@@ -536,6 +536,40 @@ every vault that opened put a Project, an Area and a Resource into vaults
 that never asked for them. Accepting works the change out again from the
 type files as they are then, so an edit made while the offer waited is kept.
 
+**Amended 2026-10-14 (#162): Atlas's own built-in types gain what Atlas ships on
+them, on opening.** This changes the narrowing above for one set of types, and
+no other. A Meeting type written before `tasks` and `decisions` shipped had
+every action-item proposal refused at Accept until someone accepted the Inbox's
+offer, which a person who never opened the Inbox page never saw. So opening a
+vault now adds the properties a type file lacks, once, to Atlas's own built-in
+types that are not PARA's: **Meeting, Proposal, Decision, Daily and Block**
+(`shippedPropertiesPlan`).
+
+- **Project, Area, Resource and Task are never changed without a yes.** A vault
+  shapes these its own way, and PARA's and GTD's keys on them stay the offer
+  described above (ADR-0029 for Task).
+- **Additive, once, and the person's keys win.** A key the file declares —
+  judged from the file's own keys, even one Atlas cannot read — is never
+  changed. The keys added are lines put in after the last of the file's
+  `properties`, at its indentation; every line the file had stays byte for
+  byte, and a result that is not exactly that is not written. Each type found
+  with its shipped keys is recorded as
+  settled in `.atlas/migrations/type-properties.md`, whether or not anything
+  was written, so a key the person removes later stays removed, on either Mac;
+  the Inbox offers it back instead.
+- **Left alone when it cannot be added to as lines.** A type whose
+  `properties` is a list or a sentence, or an inline `{…}` map, and a type two
+  files claim (a sync's conflict copy), is not changed and not settled, and
+  Activity warns which and why — for two files, to merge them. Accept and the
+  Claude step read whichever claiming file comes first, so the Inbox offers
+  neither of them anything either.
+- **Never silent.** Each type changed is an info line in Activity naming what
+  it gained; a type that could not be written is a warning and is tried again
+  on the next open. A record that cannot be read — its folder failing to list
+  included, which is never taken for "no record" — stops it before anything is
+  written. One run at a time per vault: an open while one is under way (React
+  StrictMode's second effect) shares it.
+
 ## Amendment: tasks follow GTD, and the migration stays in the app (P30-02, 2026-10-08)
 
 ADR-0029 gives tasks eight statuses. What the API does about it:

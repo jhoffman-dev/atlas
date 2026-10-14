@@ -120,6 +120,26 @@ describe('what an edit changes in a type file', () => {
     });
   });
 
+  it('adds a property beside one whose key is written with spaces, adding no second key of its own', () => {
+    const spaced = { name: 'meeting', properties: { ' title': 'text', when: 'date' } };
+    const read = parseObjectType(spaced);
+    const after = addProperty(read, { label: 'Tasks', kind: 'text' });
+    const written = typeFrontmatterChanges({ before: read, after, written: spaced })[
+      'properties'
+    ] as Record<string, unknown>;
+    expect(written).toStrictEqual({ ' title': 'text', when: 'date', tasks: 'text' });
+  });
+
+  it('edits a property whose key is written with spaces in place, keeping its spelling', () => {
+    const spaced = { name: 'meeting', properties: { ' title ': { kind: 'text', hint: 'h' } } };
+    const read = parseObjectType(spaced);
+    const after = renameProperty(read, { key: 'title', newKey: 'title', label: 'Called' }).type;
+    const written = typeFrontmatterChanges({ before: read, after, written: spaced })[
+      'properties'
+    ] as Record<string, unknown>;
+    expect(written).toStrictEqual({ ' title ': { kind: 'text', hint: 'h', label: 'Called' } });
+  });
+
   it('keeps the unread keys of a renamed property, where it stood', () => {
     const after = renameProperty(before, { key: 'rating', newKey: 'stars', label: 'Stars' }).type;
     const written = changes(after)['properties'] as Record<string, unknown>;

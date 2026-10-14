@@ -631,6 +631,13 @@ bullets above, this wins._
   is not detected; a compound owner among others (`Tobias and Lena`) is not
   split into two tasks.
 
+### Addendum (2026-10-14, #162): an older Meeting type gains the relations on opening
+
+Amends "a vault's Meeting type is offered them" above: opening a vault now
+adds `tasks` and `decisions`, and the rest of what Atlas ships on its own
+types, to a type file that lacks them. The decision, its scope and its limits
+are ADR-0016's amendment of 2026-10-14 (#162).
+
 ## Consequences
 
 - A Mac that is not the automations Mac never runs Claude on a meeting; the

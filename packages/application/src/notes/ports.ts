@@ -35,6 +35,18 @@ export interface MarkdownPort {
    * key alone, and otherwise removes it.
    */
   updateFrontmatter(frontmatter: string | null, changes: Readonly<Record<string, unknown>>): string;
+  /**
+   * Adds `entries` to the map `key` holds — or starts that map — as lines put
+   * in after the ones it has, every line of the block left byte for byte. Null
+   * when that cannot be done without changing a line already there: `key`
+   * holds a list, a sentence or an inline `{…}` map, or already has one of the
+   * entries' keys.
+   */
+  addToFrontmatterMap(
+    frontmatter: string,
+    key: string,
+    entries: Readonly<Record<string, unknown>>,
+  ): string | null;
   serializeBody(args: { originalBody: string; parsed: ParsedBody; doc: EditorDocument }): string;
   /**
    * What markdown the editor does not model holds that an export rewrites

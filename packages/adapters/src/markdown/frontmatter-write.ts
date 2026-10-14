@@ -187,14 +187,14 @@ function listIndent(
   return {};
 }
 
-function columnOf(source: string, offset: number | undefined): number | null {
+export function columnOf(source: string, offset: number | undefined): number | null {
   return offset === undefined ? null : offset - (source.lastIndexOf('\n', offset - 1) + 1);
 }
 
 /** The key as the reader names it: `2024:` is the property "2024". */
-const keyOf = (key: unknown) => String(isScalar(key) ? key.value : key);
+export const keyOf = (key: unknown) => String(isScalar(key) ? key.value : key);
 
-function pairOf(document: Document, key: string): Pair | undefined {
+export function pairOf(document: Document, key: string): Pair | undefined {
   const contents = document.contents;
   if (!isMap(contents)) return undefined;
   return contents.items.find((pair) => keyOf(pair.key) === key);
@@ -468,7 +468,7 @@ function withCommentsAbove(source: string, lineStart: number): number {
 }
 
 /** Just past the newline that ends a node's value (and its comment on the same line). */
-function lineEnd(source: string, range: Node['range'] | undefined): number {
+export function lineEnd(source: string, range: Node['range'] | undefined): number {
   const at = range?.[1] ?? source.length;
   if (source[at - 1] === '\n') return at;
   const newline = source.indexOf('\n', at);
@@ -478,7 +478,7 @@ function lineEnd(source: string, range: Node['range'] | undefined): number {
 const DEFAULT_OPENING = '---\n';
 const DEFAULT_CLOSING = '---\n';
 
-function split(frontmatter: string | null): {
+export function split(frontmatter: string | null): {
   opening: string;
   body: string;
   closing: string;

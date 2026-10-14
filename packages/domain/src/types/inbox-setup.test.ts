@@ -57,6 +57,13 @@ describe('inboxTypePlan', () => {
     expect(inboxTypePlan([type({ name: 'task' })]).extensions).toEqual([]);
   });
 
+  it('offers nothing on a Meeting type two files claim: Accept reads the first, the offer would pick one', () => {
+    const mine = type({ name: 'meeting', label: 'Meeting' });
+    const copy = type({ name: 'Meeting', label: 'Meeting (conflict copy)' });
+    expect(inboxTypePlan([mine, copy]).extensions).toEqual([]);
+    expect(inboxTypePlan([mine]).extensions).toHaveLength(1);
+  });
+
   it('gives a Meeting type the relations a task and a decision taken from it are linked back through', () => {
     const imported = type({
       name: 'meeting',
