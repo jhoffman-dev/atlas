@@ -21,6 +21,18 @@ describe('loadGranolaSettings', () => {
       periodic: false,
       groupAddresses: ['eng@example.com'],
       selfEmails: ['mara.quill@example.com'],
+      groupAddressesProblem: null,
+      selfEmailsProblem: null,
+    });
+  });
+
+  it('says why addresses the settings note holds could not be read, and reads them as none', async () => {
+    const { fs } = vaultWith({
+      [SETTINGS]: '---\n{"granola_self_emails":"mara.quill@example.com, Mara"}\n---\n',
+    });
+    expect(await loadGranolaSettings({ fs, markdown: jsonMarkdown() })).toMatchObject({
+      selfEmails: [],
+      selfEmailsProblem: 'Not an email address: “Mara”.',
     });
   });
 
@@ -40,6 +52,8 @@ describe('loadGranolaSettings', () => {
       periodic: true,
       groupAddresses: [],
       selfEmails: [],
+      groupAddressesProblem: null,
+      selfEmailsProblem: null,
     });
   });
 });

@@ -64,8 +64,15 @@ function serveNotes(host: FakeHost, notes: readonly ReturnType<typeof note>[]) {
   for (const each of notes) host.granola.serve(`/v1/notes/${each.id}`, ok(each));
 }
 
-async function openSettings(page: Page, { watermark }: { watermark?: string } = {}) {
+async function openSettings(
+  page: Page,
+  { watermark, settings }: { watermark?: string; settings?: string } = {},
+) {
   const vault = await createVault();
+  if (settings !== undefined) {
+    await vault.mkdir('.atlas');
+    await vault.write('.atlas/settings.md', settings);
+  }
   const host = await installHost(page, vault);
   if (watermark !== undefined) {
     // This Mac's record of where its pulls of the vault left off.
@@ -193,4 +200,29 @@ test('your emails in Granola are kept in the vault’s settings once saved', asy
   await expect(card(page).getByRole('alert', { name: 'Your emails were not saved' })).toHaveCount(
     0,
   );
+});
+
+test('addresses in the settings that are not all addresses are said unreadable, never shown as kept', async ({
+  page,
+}) => {
+  const { vault } = await openSettings(page, {
+    settings: '---\ngranola_self_emails: mara.quill@example.com, Mara\n---\n',
+  });
+  const unreadable = card(page).getByRole('alert', {
+    name: 'Your emails in settings could not be read',
+  });
+  await expect(unreadable).toHaveText(
+    'Your emails in settings could not be read: Not an email address: “Mara”.',
+  );
+  const field = card(page).getByLabel('Your emails', { exact: true });
+  await expect(field).toHaveValue('');
+
+  // One on each line, in the field of several lines.
+  await field.fill('mara.quill@example.com\nMara Quill <MQ@example.com>');
+  await card(page).getByRole('button', { name: 'Save emails' }).click();
+  await expectFile(vault, '.atlas/settings.md').toContain(
+    'granola_self_emails:\n  - mara.quill@example.com\n  - mq@example.com\n',
+  );
+  await expect(field).toHaveValue('mara.quill@example.com, mq@example.com');
+  await expect(unreadable).toHaveCount(0);
 });

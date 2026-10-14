@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { granolaCountsLine, granolaFailureWords, granolaSelfEmailsFromText } from '@atlas/domain';
+import {
+  granolaCountsLine,
+  granolaFailureWords,
+  granolaSelfEmailsFromText,
+  type GranolaSettings,
+} from '@atlas/domain';
 import {
   GranolaError,
   loadGranolaSettings,
@@ -77,6 +82,33 @@ function pullProblemOf(report: GranolaPullReport | null): string | null {
   return report?.ended === 'stopped' || report?.ended === 'failed' ? report.problem : null;
 }
 
+/** The person's own addresses as the vault's settings keep them, and why any could not be read. */
+interface KeptEmails {
+  readonly emails: readonly string[];
+  readonly unreadable: string | null;
+}
+
+/**
+ * The addresses Settings holds, and why a setting of addresses could not be
+ * read: it then holds none, and the card says so rather than showing what it
+ * holds as though it were kept.
+ */
+function keptEmailsOf({
+  selfEmails,
+  selfEmailsProblem,
+  groupAddressesProblem,
+}: GranolaSettings): KeptEmails {
+  const unreadable = [
+    selfEmailsProblem === null
+      ? null
+      : `Your emails in settings could not be read: ${selfEmailsProblem}`,
+    groupAddressesProblem === null
+      ? null
+      : `The group addresses in settings could not be read: ${groupAddressesProblem}`,
+  ].filter((each) => each !== null);
+  return { emails: selfEmails, unreadable: unreadable.length === 0 ? null : unreadable.join(' ') };
+}
+
 /**
  * The person's own addresses in Granola, kept in the vault's settings so
  * every Mac maps a meeting alike (ADR-0034), and those of their Person note
@@ -100,11 +132,11 @@ function useSelfEmails({
   activity: Pick<ActivityLog, 'inOpenVault'>;
 }) {
   const load = useCallback(
-    async () => (await loadGranolaSettings({ fs, markdown })).selfEmails,
+    async (): Promise<KeptEmails> => keptEmailsOf(await loadGranolaSettings({ fs, markdown })),
     [fs, markdown],
   );
   const store = useCallback(
-    (emails: readonly string[]) =>
+    ({ emails }: KeptEmails) =>
       saveGranolaSelfEmails({ settings: vaultSettingsWriter({ fs, markdown }), emails }),
     [fs, markdown],
   );
@@ -125,7 +157,8 @@ function useSelfEmails({
   const offered = suggested?.vault === vault ? suggested.value : [];
   const [refused, setRefused] = useState<Said<string> | null>(null);
   return {
-    kept: (setting.value ?? []).join(', '),
+    kept: (setting.value?.emails ?? []).join(', '),
+    unreadable: setting.value?.unreadable ?? null,
     suggested: offered.length === 0 ? null : offered.join(', '),
     problem: setting.problem ?? setting.unreadable,
     refused: refused !== null && refused.vault === vault ? refused.value : null,
@@ -133,7 +166,7 @@ function useSelfEmails({
       if (vault === null) return false;
       const read = granolaSelfEmailsFromText(emails);
       setRefused(read.ok ? null : { vault, value: read.problem });
-      if (read.ok) setting.save(read.emails);
+      if (read.ok) setting.save({ emails: read.emails, unreadable: null });
       return read.ok;
     },
   };
@@ -209,6 +242,7 @@ export function useGranola({
       selfEmails: emails.kept,
       suggestedEmails: emails.suggested,
       emailsProblem: emails.refused,
+      emailsUnreadable: emails.unreadable,
       problem: said ?? pull.keyProblem ?? emails.problem ?? pullProblemOf(report),
       pending,
     },

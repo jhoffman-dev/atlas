@@ -51,6 +51,7 @@ export {
   GRANOLA_KEPT_SLOWING_DOWN,
   granolaCountsLine,
   granolaFailureWords,
+  granolaIndexWaitReport,
   granolaLateArrivalReport,
   granolaNoteReport,
   granolaPullReport,

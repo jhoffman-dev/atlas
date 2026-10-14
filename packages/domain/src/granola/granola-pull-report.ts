@@ -225,3 +225,15 @@ export function granolaLateArrivalReport(count: number): ActivityReport {
     `${plural(count, 'meeting')} came by the pull more than ${hours} hours after Granola had ${count === 1 ? 'it' : 'them'}: the webhook may be off. Check it in Granola → Settings → Connectors → Webhooks, and the workflow in n8n.`,
   );
 }
+
+/**
+ * A pull that waited for the index to catch up with what sync brought in,
+ * and gave up: it did not start, so nothing was written. The next sync asks
+ * the index again, and a pull follows it.
+ */
+export function granolaIndexWaitReport(): ActivityReport {
+  return meetingLine(
+    'warning',
+    'the pull did not start: waiting for the index timed out. The next sync, or opening the vault again, tries again.',
+  );
+}

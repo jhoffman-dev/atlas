@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { granolaFailureWords, type GranolaPullMode } from '@atlas/domain';
+import { granolaFailureWords, granolaIndexWaitReport, type GranolaPullMode } from '@atlas/domain';
 import {
   createGranolaPuller,
   GranolaError,
@@ -18,6 +18,9 @@ import { errorMessage } from '../query/error-message.ts';
 
 /** How often an open vault is pulled while its settings allow it (`granola_periodic`). */
 export const GRANOLA_PULL_INTERVAL_MS = 15 * 60_000;
+
+/** How long a pull waits for one catch-up of the index before it gives up and does not start. */
+export const INDEX_WAIT_MS = 2 * 60_000;
 
 export interface GranolaPullOptions {
   readonly granola: GranolaPort;
@@ -156,12 +159,20 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
     [],
   );
 
+  // Answers about the key land out of order: only the one asked for, or told, last may say what it is.
+  const keyTicket = useRef(0);
   const readKey = useCallback(
-    (vault: string) =>
-      granola.status({ vault }).then(
-        (key) => update(vault, () => ({ key, keyProblem: null })),
-        (cause: unknown) => update(vault, () => ({ keyProblem: problemOf(cause) })),
-      ),
+    (vault: string) => {
+      keyTicket.current += 1;
+      const ticket = keyTicket.current;
+      const ifLatest = (change: () => Partial<VaultPulls>) => {
+        if (ticket === keyTicket.current) update(vault, change);
+      };
+      return granola.status({ vault }).then(
+        (key) => ifLatest(() => ({ key, keyProblem: null })),
+        (cause: unknown) => ifLatest(() => ({ keyProblem: problemOf(cause) })),
+      );
+    },
     [granola, update],
   );
 
@@ -201,8 +212,11 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
       const flight: Flight = { vault };
       setFlights((under) => [...under, flight]);
       try {
-        await settled();
+        const caughtUpInTime = await settled(vault);
         const report = await puller.pull({ vault, mode });
+        if (!caughtUpInTime && report.ended === 'not-synced') {
+          latest.current.activity.inVault(vault).record(granolaIndexWaitReport());
+        }
         if (report.written.length > 0 && latest.current.vaultKey === vault) {
           latest.current.onWrote();
         }
@@ -247,6 +261,8 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
     syncNow: useCallback(() => void pull('sync-now'), [pull]),
     knowKey: useCallback(
       (key: GranolaKeyStatus) => {
+        // Newer than any read still out: that read's answer is set aside when it lands.
+        keyTicket.current += 1;
         if (vaultKey !== null) update(vaultKey, () => ({ key, keyProblem: null }));
       },
       [vaultKey, update],
@@ -265,6 +281,22 @@ interface CatchUp {
   readonly syncPulls: number;
   /** Settles, never rejecting, once the index has answered. */
   readonly done: Promise<void>;
+  /** Settles once a newer catch-up is asked for: one waiting for this one waits for that instead. */
+  readonly superseded: Promise<void>;
+  readonly supersede: () => void;
+}
+
+/** Whether `promise` settled within `milliseconds`; the timer is cleared either way. */
+async function settlesWithin(promise: Promise<void>, milliseconds: number): Promise<boolean> {
+  let timer = 0;
+  const timedOut = new Promise<false>((resolve) => {
+    timer = window.setTimeout(() => resolve(false), milliseconds);
+  });
+  try {
+    return await Promise.race([promise.then(() => true as const), timedOut]);
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 /**
@@ -274,7 +306,9 @@ interface CatchUp {
  * after each later sync that brings files in; the vault is ready while the
  * last of these has caught up. One that fails leaves it waiting and says why
  * in Activity; the next sync, or the vault opened again, asks again. Each is
- * asked once: nothing asks again in a loop.
+ * asked once: nothing asks again in a loop. A pull waits for the last one
+ * asked, and for any asked while it waits, but for no one of them longer
+ * than {@link INDEX_WAIT_MS}.
  */
 function useCaughtUp({
   vaultKey,
@@ -303,9 +337,13 @@ function useCaughtUp({
     const open = opening.current;
     if (open === null || !synced) return;
     if (asked.current?.opening === open && asked.current.syncPulls === pulls) return;
+    let supersede = () => {};
+    const superseded = new Promise<void>((resolve) => (supersede = resolve));
     const ask: CatchUp = {
       opening: open,
       syncPulls: pulls,
+      superseded,
+      supersede,
       done: catchUp.current().then(
         (held) => {
           if (!held || asked.current !== ask) return;
@@ -316,7 +354,9 @@ function useCaughtUp({
         () => undefined,
       ),
     };
+    const previous = asked.current;
     asked.current = ask;
+    previous?.supersede();
     setAsked(ask);
   }, [vaultKey, synced, pulls]);
 
@@ -330,8 +370,20 @@ function useCaughtUp({
       last.syncPulls === (syncPullsNow.current.get(vault) ?? 0)
     );
   }, []);
-  /** Settles once the catch-up asked for last has, so a pull asked for meanwhile waits for it. */
-  const settled = useCallback(() => asked.current?.done ?? Promise.resolve(), []);
+  /**
+   * Settles once the catch-up asked for last has, and no newer one was asked
+   * for meanwhile, so a pull waits for every sync that lands while it waits;
+   * true then, and false when one of them has not answered in
+   * {@link INDEX_WAIT_MS}. Waits for no catch-up of another vault.
+   */
+  const settled = useCallback(async (vault: string): Promise<boolean> => {
+    for (;;) {
+      const ask = asked.current;
+      if (ask?.opening.vault !== vault) return true;
+      const answered = await settlesWithin(Promise.race([ask.done, ask.superseded]), INDEX_WAIT_MS);
+      if (asked.current === ask) return answered;
+    }
+  }, []);
 
   const thisOpen = askedShown !== null && askedShown.opening.vault === vaultKey && synced;
   const openedReady =

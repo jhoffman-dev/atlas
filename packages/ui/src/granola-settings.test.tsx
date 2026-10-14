@@ -17,6 +17,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     selfEmails: '',
     suggestedEmails: null,
     emailsProblem: null,
+    emailsUnreadable: null,
     problem: null,
     pending: false,
     ...overrides,
@@ -186,6 +187,37 @@ describe('GranolaSettings', () => {
     redraw({ selfEmails: 'mara@example.com' });
     expect(field.value).toBe('mara@example.com');
     expect(button('Save emails')).toHaveProperty('disabled', true);
+  });
+
+  it('takes the addresses in a field of several lines, a line break kept as typed', async () => {
+    const { onSaveEmails } = renderWith({ selfEmails: '' });
+    const field = within(card()).getByLabelText<HTMLTextAreaElement>('Your emails');
+    expect(field.tagName).toBe('TEXTAREA');
+    await userEvent.type(field, 'mara@example.com{Enter}Mara Quill <mq@example.com>');
+    await userEvent.click(button('Save emails'));
+    expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com\nMara Quill <mq@example.com>');
+  });
+
+  it('says the settings’ addresses could not be read, and shows none of them as kept', () => {
+    renderWith({
+      selfEmails: '',
+      suggestedEmails: null,
+      emailsUnreadable:
+        'Your emails in settings could not be read: Not an email address: “Mara <someone>”.',
+    });
+    expect(
+      within(card()).getByRole('alert', { name: 'Your emails in settings could not be read' })
+        .textContent,
+    ).toBe('Your emails in settings could not be read: Not an email address: “Mara <someone>”.');
+    expect(within(card()).getByLabelText<HTMLTextAreaElement>('Your emails').value).toBe('');
+  });
+
+  it('says nothing of the settings’ addresses when they were read', () => {
+    renderWith({ selfEmails: 'mara@example.com' });
+    expect(within(card()).getByLabelText('Your emails')).toBeTruthy();
+    expect(
+      within(card()).queryByRole('alert', { name: 'Your emails in settings could not be read' }),
+    ).toBeNull();
   });
 
   it('shows the suggestion that arrives while the field is untouched', () => {

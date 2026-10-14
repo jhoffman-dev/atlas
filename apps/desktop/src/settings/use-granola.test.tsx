@@ -356,4 +356,49 @@ describe('useGranola: the person’s own addresses in Granola', () => {
       expect(vault.file.text).toContain('granola_self_emails:\n  - mq@example.com'),
     );
   });
+  it('reads addresses the settings hold that are not all addresses as none, and says why', async () => {
+    const vault = vaultWith(
+      '---\nprofileName: Mara Quill\ngranola_self_emails: mara.quill@example.com, Mara\n---\n',
+    );
+    const hook = render(vault);
+    await waitFor(() =>
+      expect(hook.result.current.view.emailsUnreadable).toBe(
+        'Your emails in settings could not be read: Not an email address: “Mara”.',
+      ),
+    );
+    expect(hook.result.current.view.selfEmails).toBe('');
+
+    act(() => void hook.result.current.saveEmails('mara.quill@example.com'));
+    // Saved over what could not be read: the card stops saying so at once, not once it is read again.
+    expect(hook.result.current.view.emailsUnreadable).toBeNull();
+    await waitFor(() =>
+      expect(vault.file.text).toContain('granola_self_emails:\n  - mara.quill@example.com'),
+    );
+    await waitFor(() => expect(hook.result.current.view.emailsUnreadable).toBeNull());
+    expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com');
+  });
+
+  it('reads a hand-written line of addresses in the settings as the field reads them', async () => {
+    const hook = render(
+      vaultWith('---\ngranola_self_emails: Mara.Quill@example.com; mq@example.com\n---\n'),
+    );
+    await waitFor(() =>
+      expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com, mq@example.com'),
+    );
+    expect(hook.result.current.view.emailsUnreadable).toBeNull();
+  });
+
+  it('says the group addresses could not be read, beside the person’s own', async () => {
+    const hook = render(
+      vaultWith(
+        '---\ngranola_self_emails:\n  - not one\ngranola_group_addresses:\n  - eng@example..com\n---\n',
+      ),
+    );
+    await waitFor(() =>
+      expect(hook.result.current.view.emailsUnreadable).toBe(
+        'Your emails in settings could not be read: Not an email address: “not one”. ' +
+          'The group addresses in settings could not be read: Not an email address: “eng@example..com”.',
+      ),
+    );
+  });
 });

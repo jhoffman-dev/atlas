@@ -34,6 +34,8 @@ export interface GranolaView {
   readonly suggestedEmails: string | null;
   /** Why the addresses last typed were not saved: some of it is not an address. */
   readonly emailsProblem: string | null;
+  /** Why the addresses the vault's settings hold could not be read: they are then read as none. */
+  readonly emailsUnreadable: string | null;
   readonly problem: string | null;
   /** A key is being saved or forgotten. */
   readonly pending: boolean;
@@ -109,6 +111,7 @@ export function GranolaSettings({
         kept={view.selfEmails}
         suggested={view.suggestedEmails}
         problem={view.emailsProblem}
+        unreadable={view.emailsUnreadable}
         onSave={onSaveEmails}
       />
       {hasKey && view.waiting && (
@@ -176,11 +179,13 @@ function SelfEmailsForm({
   kept,
   suggested,
   problem,
+  unreadable,
   onSave,
 }: {
   kept: string;
   suggested: string | null;
   problem: string | null;
+  unreadable: string | null;
   onSave: (emails: string) => boolean;
 }) {
   // What the person has typed; null while the field is untouched, which then
@@ -197,13 +202,15 @@ function SelfEmailsForm({
     <>
       <p className="settings__lede">
         In a meeting you own, Granola calls you “me”; Atlas writes that as <b>You</b> when the
-        meeting’s owner is one of these addresses, and as the owner’s name otherwise.
+        meeting’s owner is one of these addresses, and as the owner’s name otherwise. Put one on
+        each line, or separate them with commas; <code>Name &lt;address&gt;</code> works too.
       </p>
       <form className="secrets__form" aria-label="Your emails in Granola" onSubmit={submit}>
-        <input
-          className="field secrets__field"
+        <textarea
+          className="field field--block secrets__field granola__emails"
           aria-label="Your emails"
-          placeholder="you@example.com, another@example.com"
+          placeholder={'you@example.com\nMara Quill <another@example.com>'}
+          rows={3}
           autoComplete="off"
           spellCheck={false}
           value={emails}
@@ -215,6 +222,15 @@ function SelfEmailsForm({
       </form>
       {typed === null && kept === '' && suggested !== null && (
         <p className="settings__status">From your Person note. Press Save emails to use them.</p>
+      )}
+      {unreadable !== null && (
+        <p
+          className="settings__problem"
+          role="alert"
+          aria-label="Your emails in settings could not be read"
+        >
+          {unreadable}
+        </p>
       )}
       {problem !== null && (
         <p className="settings__problem" role="alert" aria-label="Your emails were not saved">

@@ -18,6 +18,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     selfEmails: '',
     suggestedEmails: null,
     emailsProblem: null,
+    emailsUnreadable: null,
     problem: null,
     pending: false,
     ...overrides,
