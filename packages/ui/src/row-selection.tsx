@@ -80,14 +80,17 @@ export function SelectionBar({
   count,
   actions,
   onClear,
+  label = 'Chosen notes',
 }: {
   count: number;
   actions: readonly BulkAction[];
   onClear: () => void;
+  /** What the bar is called to a screen reader: what its rows are. */
+  label?: string;
 }) {
   if (count === 0) return null;
   return (
-    <div className="selection-bar" role="toolbar" aria-label="Chosen notes">
+    <div className="selection-bar" role="toolbar" aria-label={label}>
       <span className="selection-bar__count" role="status">
         {count === 1 ? '1 selected' : `${count} selected`}
       </span>

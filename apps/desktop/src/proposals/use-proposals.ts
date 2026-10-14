@@ -131,7 +131,7 @@ export function useProposals({
   const { fs } = ports;
   const openVault = useRef(fs);
   const { forget } = answered;
-  const { clear: clearChosen, keepOnly: keepChosen } = choosing;
+  const { clear: clearChosen, afterBatch } = choosing;
   useEffect(() => {
     openVault.current = fs;
     return () => {
@@ -216,6 +216,7 @@ export function useProposals({
    * Answers each of `paths` in turn, as Accept or Reject would each alone
    * (#168): those that fail come back to the list, still chosen, with why on
    * their cards; the notice counts both, and its Undo takes back every accept.
+   * What the person chose while the batch was written stays chosen.
    */
   const answerMany = useCallback(
     (paths: readonly VaultPath[], verb: 'Accepted' | 'Rejected') => {
@@ -241,7 +242,8 @@ export function useProposals({
           for (const { item, reason } of outcome.failed) next.set(item, reason);
           return next;
         });
-        keepChosen(outcome.failed.map(({ item }) => item));
+        const failed = outcome.failed.map(({ item }) => item);
+        afterBatch({ answered: taken.filter((path) => !failed.includes(path)), failed });
         say({ notice: answeredNotice(verb, outcome), undo: accepted });
       };
       queue.enqueue(vault, async () => {
@@ -258,7 +260,7 @@ export function useProposals({
         }
       });
     },
-    [activity, answered, clock, fs, keepChosen, ports, queue, say],
+    [activity, answered, afterBatch, clock, fs, ports, queue, say],
   );
   const onAcceptMany = useCallback(
     (paths: readonly VaultPath[]) => answerMany(paths, 'Accepted'),

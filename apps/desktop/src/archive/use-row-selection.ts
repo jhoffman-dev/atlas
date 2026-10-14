@@ -14,6 +14,12 @@ export function useRowSelection(resetKey: string): {
   clear: () => void;
   /** Lets go of every chosen row but these. */
   keepOnly: (paths: readonly string[]) => void;
+  /**
+   * Once a batch has been answered: lets go of the rows it `answered`, and
+   * chooses again the ones it `failed`, to try again — keeping every row
+   * chosen while it ran.
+   */
+  afterBatch: (batch: { answered: readonly string[]; failed: readonly string[] }) => void;
 } {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
@@ -59,7 +65,17 @@ export function useRowSelection(resetKey: string): {
     [selected, onToggle, onToggleAll],
   );
   const chosen = useMemo(() => [...selected], [selected]);
-  return { selection, chosen, clear, keepOnly };
+  const afterBatch = useCallback(
+    ({ answered, failed }: { answered: readonly string[]; failed: readonly string[] }) =>
+      setSelected((was) => {
+        const next = new Set(was);
+        for (const path of answered) next.delete(path);
+        for (const path of failed) next.add(path);
+        return next;
+      }),
+    [],
+  );
+  return { selection, chosen, clear, keepOnly, afterBatch };
 }
 
 /**

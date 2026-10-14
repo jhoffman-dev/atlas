@@ -234,6 +234,7 @@ function Chosen({
           { label: `Reject ${many}`, onRun: () => onRejectMany(chosen), disabled: busy !== null },
         ]}
         onClear={onClearSelection}
+        label="Chosen proposals"
       />
     </div>
   );
