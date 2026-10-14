@@ -17,6 +17,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     notes: [],
     selfEmails: '',
     suggestedEmails: null,
+    emailsProblem: null,
     problem: null,
     pending: false,
     ...overrides,
@@ -26,7 +27,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     onForgetKey: vi.fn(),
     onSyncNow: vi.fn(),
     onOpenNote: vi.fn(),
-    onSaveEmails: vi.fn(),
+    onSaveEmails: vi.fn<(emails: string) => boolean>(() => true),
   };
   const { rerender } = render(<GranolaSettings view={view} {...handlers} />);
   /** Draws the same card again with the view changed, as the next render would. */

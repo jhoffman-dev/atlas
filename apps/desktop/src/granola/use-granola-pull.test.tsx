@@ -102,6 +102,7 @@ function setUp({
     vaultKey: VAULT,
     changeKey: 'ready:1',
     syncedThisSession: new Set(synced),
+    syncPulls: new Map(),
     catchUpIndex,
     clock: { now: () => Date.now() },
     activity,
@@ -155,6 +156,119 @@ describe('useGranolaPull', () => {
     await fifteenMinutes();
     expect(lists()).toBe(0);
     expect(hook.result.current.ready).toBe(false);
+  });
+
+  it('after a later sync brings files in, waits for the index to catch up with them before a pull', async () => {
+    const later = held<boolean>();
+    const catchUpIndex = vi.fn(async () => true);
+    const { hook, lists, options } = setUp({ catchUpIndex });
+    await waitFor(() => expect(hook.result.current.report?.ended).toBe('pulled'));
+    expect(catchUpIndex).toHaveBeenCalledOnce();
+
+    // Another Mac's files come in with a later sync; the index is asked to catch up with them.
+    catchUpIndex.mockImplementationOnce(() => later.promise);
+    hook.rerender({ ...options, catchUpIndex, syncPulls: new Map([[VAULT, 1]]) });
+    await waitFor(() => expect(catchUpIndex).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(hook.result.current.ready).toBe(false));
+
+    // Sync now and the 15-minute pull, asked for meanwhile, wait for it.
+    act(() => hook.result.current.syncNow());
+    await fifteenMinutes();
+    await act(async () => undefined);
+    expect(lists()).toBe(1);
+    expect(hook.result.current.pulling).toBe(true);
+
+    later.settle(true);
+    // The Sync now, asked for first, which the timed pull joins.
+    await waitFor(() => expect(lists()).toBe(2));
+    expect(hook.result.current.ready).toBe(true);
+    await waitFor(() => expect(hook.result.current.pulling).toBe(false));
+    expect(hook.result.current.report?.mode).toBe('sync-now');
+    // The catch-up after a later sync starts no pull of its own: no second startup pull.
+    await act(async () => undefined);
+    expect(lists()).toBe(2);
+    expect(catchUpIndex).toHaveBeenCalledTimes(2);
+  });
+
+  it('pulls nothing while a later sync’s catch-up has failed, and asks again on the next sync only', async () => {
+    const catchUpIndex = vi.fn(async () => true);
+    const { hook, lists, options } = setUp({ catchUpIndex });
+    await waitFor(() => expect(lists()).toBe(1));
+    catchUpIndex.mockImplementationOnce(async () => false);
+    hook.rerender({ ...options, catchUpIndex, syncPulls: new Map([[VAULT, 1]]) });
+    await waitFor(() => expect(catchUpIndex).toHaveBeenCalledTimes(2));
+    await act(async () => undefined);
+    expect(hook.result.current.ready).toBe(false);
+
+    act(() => hook.result.current.syncNow());
+    await fifteenMinutes();
+    await act(async () => undefined);
+    expect(lists()).toBe(1);
+    expect(catchUpIndex).toHaveBeenCalledTimes(2);
+
+    // The next sync that brings files in asks again, and then the vault is pulled into.
+    hook.rerender({ ...options, catchUpIndex, syncPulls: new Map([[VAULT, 2]]) });
+    await waitFor(() => expect(hook.result.current.ready).toBe(true));
+    expect(catchUpIndex).toHaveBeenCalledTimes(3);
+    act(() => hook.result.current.syncNow());
+    await waitFor(() => expect(lists()).toBe(2));
+  });
+
+  it('a vault whose catch-up failed asks again when it is opened again', async () => {
+    const catchUpIndex = vi.fn(async () => false);
+    const { hook, lists, options } = setUp({ synced: [VAULT, OTHER], catchUpIndex });
+    await waitFor(() => expect(catchUpIndex).toHaveBeenCalledOnce());
+    await act(async () => undefined);
+    expect(hook.result.current.ready).toBe(false);
+
+    hook.rerender({ ...options, catchUpIndex, vaultKey: OTHER });
+    await waitFor(() => expect(catchUpIndex).toHaveBeenCalledTimes(2));
+    catchUpIndex.mockImplementation(async () => true);
+    hook.rerender({ ...options, catchUpIndex });
+    await waitFor(() => expect(hook.result.current.ready).toBe(true));
+    expect(catchUpIndex).toHaveBeenCalledTimes(3);
+    await waitFor(() => expect(lists()).toBe(1));
+  });
+
+  it('a catch-up asked for before the vault was opened again does not undo the one after', async () => {
+    const first = held<boolean>();
+    const catchUpIndex = vi.fn(() => first.promise);
+    const { hook, lists, options } = setUp({ catchUpIndex });
+    await waitFor(() => expect(catchUpIndex).toHaveBeenCalledOnce());
+    hook.rerender({ ...options, catchUpIndex, vaultKey: OTHER });
+    await act(async () => undefined);
+    catchUpIndex.mockImplementation(async () => true);
+    hook.rerender({ ...options, catchUpIndex });
+    await waitFor(() => expect(hook.result.current.ready).toBe(true));
+    await waitFor(() => expect(lists()).toBe(1));
+
+    // The first open's catch-up answers last.
+    first.settle(true);
+    await act(async () => undefined);
+    expect(hook.result.current.ready).toBe(true);
+  });
+
+  it('coming back from a vault that has not synced pulls once, not twice', async () => {
+    const { hook, lists, options } = setUp({ synced: [VAULT] });
+    await waitFor(() => expect(lists()).toBe(1));
+    hook.rerender({ ...options, vaultKey: OTHER });
+    await act(async () => undefined);
+    hook.rerender(options);
+    await waitFor(() => expect(lists()).toBe(2));
+    await waitFor(() => expect(hook.result.current.pulling).toBe(false));
+    await act(async () => undefined);
+    expect(lists()).toBe(2);
+  });
+
+  it('says it is pulling only of the vault a pull is under way in', async () => {
+    const { hook, gate, options } = setUp({ synced: [VAULT] });
+    const listing = held<void>();
+    gate.current = listing.promise;
+    await waitFor(() => expect(hook.result.current.pulling).toBe(true));
+    hook.rerender({ ...options, vaultKey: OTHER });
+    await act(async () => undefined);
+    expect(hook.result.current.pulling).toBe(false);
+    listing.settle();
   });
 
   it('pulls nothing without a key, nor with one Granola refused', async () => {

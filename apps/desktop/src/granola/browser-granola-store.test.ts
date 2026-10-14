@@ -33,6 +33,29 @@ describe('browserGranolaPullRecords', () => {
     expect(browserGranolaPullRecords.read(VAULT)).toEqual({ watermark: null, lastPullAt: null });
   });
 
+  it.each([
+    ['past the year 9999', Date.UTC(10_000, 0, 1)],
+    ['far past any date', 1e300],
+    ['before 1970', -1],
+    ['not a number', Number.NaN],
+  ])('reads a last pull time %s as none', (_, lastPullAt) => {
+    window.localStorage.setItem(
+      `atlas.granola-pull:${VAULT}`,
+      JSON.stringify({ watermark: RECORD.watermark, lastPullAt }),
+    );
+    expect(browserGranolaPullRecords.read(VAULT).lastPullAt).toBeNull();
+  });
+
+  it('reads the last moment of the year 9999 and the first of 1970 as times', () => {
+    for (const lastPullAt of [Date.UTC(10_000, 0, 1) - 1, 0]) {
+      window.localStorage.setItem(
+        `atlas.granola-pull:${VAULT}`,
+        JSON.stringify({ watermark: null, lastPullAt }),
+      );
+      expect(browserGranolaPullRecords.read(VAULT).lastPullAt).toBe(lastPullAt);
+    }
+  });
+
   it('reads none, and writes nothing, when storage is out of reach', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked');

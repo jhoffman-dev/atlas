@@ -32,6 +32,8 @@ export interface GranolaView {
   readonly selfEmails: string;
   /** Addresses from the person's own Person note, offered while none are kept; null when there are none. */
   readonly suggestedEmails: string | null;
+  /** Why the addresses last typed were not saved: some of it is not an address. */
+  readonly emailsProblem: string | null;
   readonly problem: string | null;
   /** A key is being saved or forgotten. */
   readonly pending: boolean;
@@ -67,8 +69,8 @@ export function GranolaSettings({
 }: {
   view: GranolaView;
   onSaveKey: (key: string) => void;
-  /** The addresses as typed; the application reads them. */
-  onSaveEmails: (emails: string) => void;
+  /** The addresses as typed; the application reads them, and answers whether it kept them. */
+  onSaveEmails: (emails: string) => boolean;
   onForgetKey: () => void;
   onSyncNow: () => void;
   onOpenNote: (url: string) => void;
@@ -104,10 +106,9 @@ export function GranolaSettings({
       )}
       <KeyForm hasKey={hasKey} pending={view.pending} onSave={onSaveKey} />
       <SelfEmailsForm
-        // Started again once the settings or the Person note are read, so what they hold shows.
-        key={`${view.selfEmails}|${view.suggestedEmails ?? ''}`}
         kept={view.selfEmails}
         suggested={view.suggestedEmails}
+        problem={view.emailsProblem}
         onSave={onSaveEmails}
       />
       {hasKey && view.waiting && (
@@ -174,17 +175,22 @@ function KeyForm({
 function SelfEmailsForm({
   kept,
   suggested,
+  problem,
   onSave,
 }: {
   kept: string;
   suggested: string | null;
-  onSave: (emails: string) => void;
+  problem: string | null;
+  onSave: (emails: string) => boolean;
 }) {
-  const offered = kept === '' ? (suggested ?? '') : kept;
-  const [emails, setEmails] = useState(offered);
+  // What the person has typed; null while the field is untouched, which then
+  // shows what is kept, or the Person note's suggestion, as each is read.
+  const [typed, setTyped] = useState<string | null>(null);
+  const emails = typed ?? (kept === '' ? (suggested ?? '') : kept);
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    onSave(emails);
+    // Kept: the field shows what the settings now hold. Refused: what was typed stays, to mend.
+    if (onSave(emails)) setTyped(null);
   };
 
   return (
@@ -201,14 +207,19 @@ function SelfEmailsForm({
           autoComplete="off"
           spellCheck={false}
           value={emails}
-          onChange={(event) => setEmails(event.target.value)}
+          onChange={(event) => setTyped(event.target.value)}
         />
         <button className="btn btn--tinted btn--sm" type="submit" disabled={emails === kept}>
           Save emails
         </button>
       </form>
-      {kept === '' && suggested !== null && (
+      {typed === null && kept === '' && suggested !== null && (
         <p className="settings__status">From your Person note. Press Save emails to use them.</p>
+      )}
+      {problem !== null && (
+        <p className="settings__problem" role="alert" aria-label="Your emails were not saved">
+          {problem}
+        </p>
       )}
     </>
   );

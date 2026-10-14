@@ -28,8 +28,12 @@ export interface GranolaSettingState {
   readonly forgetKey: () => void;
   readonly syncNow: () => void;
   readonly openNote: (url: string) => void;
-  /** Keeps the addresses as typed as the person's own in Granola, in the vault's settings. */
-  readonly saveEmails: (emails: string) => void;
+  /**
+   * Keeps the addresses typed as the person's own in Granola, in the vault's
+   * settings; false, with the reason on the card, when what was typed is not
+   * all addresses, and then nothing is kept.
+   */
+  readonly saveEmails: (emails: string) => boolean;
 }
 
 /** Something said about one vault, kept with the vault it was said of. */
@@ -119,11 +123,19 @@ function useSelfEmails({
     };
   }, [fs, markdown, index, vault, changeKey, active]);
   const offered = suggested?.vault === vault ? suggested.value : [];
+  const [refused, setRefused] = useState<Said<string> | null>(null);
   return {
     kept: (setting.value ?? []).join(', '),
     suggested: offered.length === 0 ? null : offered.join(', '),
     problem: setting.problem ?? setting.unreadable,
-    save: (emails: string) => setting.save(granolaSelfEmailsFromText(emails)),
+    refused: refused !== null && refused.vault === vault ? refused.value : null,
+    save: (emails: string) => {
+      if (vault === null) return false;
+      const read = granolaSelfEmailsFromText(emails);
+      setRefused(read.ok ? null : { vault, value: read.problem });
+      if (read.ok) setting.save(read.emails);
+      return read.ok;
+    },
   };
 }
 
@@ -196,6 +208,7 @@ export function useGranola({
       notes: report === null ? [] : notesOf(report),
       selfEmails: emails.kept,
       suggestedEmails: emails.suggested,
+      emailsProblem: emails.refused,
       problem: said ?? pull.keyProblem ?? emails.problem ?? pullProblemOf(report),
       pending,
     },

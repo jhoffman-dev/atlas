@@ -4,14 +4,16 @@ import { granolaSelfEmailsFromText } from './granola-settings.ts';
 
 describe('granolaSelfEmailsFromText, attacked', () => {
   it('ATTACK: an address pasted as "Name <address>" keeps the address, not the words around it', () => {
-    expect(granolaSelfEmailsFromText('Mara Quill <mara.quill@example.com>')).toEqual([
-      'mara.quill@example.com',
-    ]);
+    expect(granolaSelfEmailsFromText('Mara Quill <mara.quill@example.com>')).toEqual({
+      ok: true,
+      emails: ['mara.quill@example.com'],
+    });
   });
 
+  // Decided on review: words that are not addresses are refused by name, never dropped quietly.
   it('ATTACK: words that are not addresses are not kept as the person’s own addresses', () => {
-    expect(granolaSelfEmailsFromText('mara.quill@example.com and also mq')).toEqual([
-      'mara.quill@example.com',
-    ]);
+    const read = granolaSelfEmailsFromText('mara.quill@example.com and also mq');
+    expect(read.ok).toBe(false);
+    expect(read.ok ? null : read.problem).toContain('“mq”');
   });
 });

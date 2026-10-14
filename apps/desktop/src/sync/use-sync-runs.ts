@@ -81,8 +81,11 @@ export interface RunContext {
   readonly onPulled: () => void;
   readonly setPhase: (phase: SyncPhase) => void;
   readonly setBehind: (behind: number) => void;
-  /** Says a sync of the vault has pulled from GitHub in this session. */
-  readonly markSynced: (vault: string) => void;
+  /**
+   * Says a sync of the vault has pulled from GitHub in this session, and
+   * whether it brought other Macs' files in.
+   */
+  readonly markSynced: (vault: string, broughtIn?: boolean) => void;
   readonly exclusive: Exclusive;
 }
 
@@ -121,12 +124,13 @@ export function useSyncRuns(context: RunContext) {
     return exclusive.start('sync', () =>
       syncNow({ ports, mac: thisMac.name, clock })
         .then((report) => {
+          const broughtIn = report.pulled || report.conflicts.length > 0;
           // Pulled whether or not the vault is still open: the session has synced it.
-          markSynced(vaultKey);
+          markSynced(vaultKey, broughtIn);
           if (!current()) return report;
           setBehind(0);
           setPhase({ kind: 'synced', report });
-          if (report.pulled || report.conflicts.length > 0) pulled.current();
+          if (broughtIn) pulled.current();
           return report;
         })
         .catch((cause: unknown) => {

@@ -60,20 +60,51 @@ export function parseGranolaSettings(settings: Readonly<Record<string, unknown>>
   };
 }
 
+/** What was typed as the person's own addresses: the addresses, or why they cannot be kept. */
+export type GranolaSelfEmailsReading =
+  | { readonly ok: true; readonly emails: readonly string[] }
+  | { readonly ok: false; readonly problem: string };
+
+/** An address as it is typed or pasted: something, an @, and a domain with a dot in it. */
+const ADDRESS = /^[^\s@<>()[\]",;:\\]+@[^\s@<>()[\]",;:\\]+\.[^\s@<>()[\]",;:\\.]+$/;
 /**
- * The addresses typed into Settings → Granola, one list however they were
- * separated (commas, semicolons, spaces or lines), each once whatever its
- * case, in the order typed.
+ * One piece of what was typed: an address in angle brackets with the name
+ * before it (`Mara Quill <mara.quill@example.com>`, the name quoted or not),
+ * or a run of text between separators.
  */
-export function granolaSelfEmailsFromText(text: string): string[] {
-  const seen = new Set<string>();
-  return text
-    .split(/[\s,;]+/)
-    .filter((each) => each !== '')
-    .filter((each) => {
-      const key = each.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+const PIECE =
+  /((?:"[^"]*"|[^\s,;<>"]+)(?:[ \t]+(?:"[^"]*"|[^\s,;<>"]+))*)?[ \t]*<([^<>]*)>|[^\s,;]+/g;
+
+const isAddress = (text: string) => ADDRESS.test(text);
+
+/** Each word of a name before `<address>` that is itself an address: one typed bare beside it. */
+function addressesInName(name: string | undefined): string[] {
+  return (name ?? '').split(/\s+/).filter(isAddress);
+}
+
+/**
+ * The addresses typed into Settings → Granola, however they were separated
+ * (commas, semicolons, spaces or lines) and whether bare or as `Name
+ * <address>`: each once, in lower case, in the order typed. Anything else
+ * typed is not an address, and is named rather than kept, so nothing that is
+ * not an address is ever saved as one.
+ */
+export function granolaSelfEmailsFromText(text: string): GranolaSelfEmailsReading {
+  const found: string[] = [];
+  const notAddresses: string[] = [];
+  for (const [piece, name, angled] of text.matchAll(PIECE)) {
+    if (angled === undefined) {
+      (isAddress(piece) ? found : notAddresses).push(piece);
+      continue;
+    }
+    const address = angled.trim();
+    found.push(...addressesInName(name));
+    if (isAddress(address)) found.push(address);
+    else notAddresses.push(piece.trim());
+  }
+  if (notAddresses.length > 0) {
+    const named = notAddresses.map((each) => `“${each}”`).join(', ');
+    return { ok: false, problem: `Not an email address: ${named}. Nothing was saved.` };
+  }
+  return { ok: true, emails: [...new Set(found.map((each) => each.toLowerCase()))] };
 }

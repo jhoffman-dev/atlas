@@ -733,6 +733,25 @@ describe('useSync: what the session has synced (ADR-0034)', () => {
     expect([...hook.result.current.syncedThisSession]).toEqual(['/Users/j/Notes']);
   });
 
+  it('counts each sync of a vault that brought files in, and none that brought nothing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const model = modelGit();
+    model.state.onGitHub = 1;
+    const { hook, called, clock } = setUpHook({ script: model.script });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect([...hook.result.current.syncPulls]).toEqual([['/Users/j/Notes', 1]]);
+
+    // A sync that finds nothing new on GitHub brings nothing in.
+    act(() => hook.result.current.syncNow());
+    await waitFor(() => expect(called('fetch').length).toBeGreaterThan(1));
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(hook.result.current.syncPulls.get('/Users/j/Notes')).toBe(1);
+
+    model.state.onGitHub = 2;
+    await wait(clock, 60_000);
+    await waitFor(() => expect(hook.result.current.syncPulls.get('/Users/j/Notes')).toBe(2));
+  });
+
   it('does not name a vault whose sync failed', async () => {
     const { hook } = setUpHook({
       script: { fetch: failed('fatal: Could not resolve host: github.com') },

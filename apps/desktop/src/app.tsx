@@ -418,6 +418,7 @@ export function App({
     vaultKey,
     changeKey: indexKey,
     syncedThisSession: sync.syncedThisSession,
+    syncPulls: sync.syncPulls,
     catchUpIndex: refresh,
     clock: localClock,
     activity: activityLog,

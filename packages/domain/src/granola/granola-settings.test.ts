@@ -112,15 +112,60 @@ describe('parseGranolaSettings', () => {
 });
 
 describe('granolaSelfEmailsFromText', () => {
-  it('reads addresses however they were separated, each once whatever its case, in order', () => {
+  it('reads addresses however they were separated, each once and in lower case, in order', () => {
     expect(
       granolaSelfEmailsFromText(
         ' mara.quill@example.com, MQ@example.com;\nmara.quill@EXAMPLE.com  mq@example.com ',
       ),
-    ).toEqual(['mara.quill@example.com', 'MQ@example.com']);
+    ).toEqual({ ok: true, emails: ['mara.quill@example.com', 'mq@example.com'] });
   });
 
   it('reads nothing typed as no addresses', () => {
-    expect(granolaSelfEmailsFromText('  ,; \n')).toEqual([]);
+    expect(granolaSelfEmailsFromText('  ,; \n')).toEqual({ ok: true, emails: [] });
+  });
+
+  it('keeps the address of each "Name <address>", the name quoted or not', () => {
+    expect(
+      granolaSelfEmailsFromText(
+        'Mara Quill <Mara.Quill@example.com>, "Quill, Mara" <mq@example.com>; <mara@example.org>',
+      ),
+    ).toEqual({
+      ok: true,
+      emails: ['mara.quill@example.com', 'mq@example.com', 'mara@example.org'],
+    });
+  });
+
+  it('keeps an address typed bare beside a "Name <address>" with only a space between', () => {
+    expect(granolaSelfEmailsFromText('mq@example.com Mara Quill <mara.quill@example.com>')).toEqual(
+      { ok: true, emails: ['mq@example.com', 'mara.quill@example.com'] },
+    );
+  });
+
+  it('names each entry that is not an address, and keeps none of them', () => {
+    expect(granolaSelfEmailsFromText('mara.quill@example.com and also mq')).toEqual({
+      ok: false,
+      problem: 'Not an email address: “and”, “also”, “mq”. Nothing was saved.',
+    });
+  });
+
+  it.each([
+    ['no @', 'mara.example.com'],
+    ['no dot in the domain', 'mara@example'],
+    ['a domain ending in a dot', 'mara@example.'],
+    ['nothing before the @', '@example.com'],
+    ['two @', 'mara@quill@example.com'],
+    ['angle brackets with no address', 'Mara Quill <someone>'],
+    ['an unclosed bracket', 'Mara <mara@example.com'],
+    ['a stray quote', '"mara@example.com'],
+  ])('refuses %s', (_, typed) => {
+    const read = granolaSelfEmailsFromText(typed);
+    expect(read.ok).toBe(false);
+  });
+
+  it('names the whole "Name <not an address>" it refuses', () => {
+    expect(granolaSelfEmailsFromText('Mara Quill <someone>')).toEqual({
+      ok: false,
+      problem: 'Not an email address: “Mara Quill <someone>”. Nothing was saved.',
+    });
   });
 });

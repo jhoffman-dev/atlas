@@ -64,9 +64,16 @@ function serveNotes(host: FakeHost, notes: readonly ReturnType<typeof note>[]) {
   for (const each of notes) host.granola.serve(`/v1/notes/${each.id}`, ok(each));
 }
 
-async function openSettings(page: Page) {
+async function openSettings(page: Page, { watermark }: { watermark?: string } = {}) {
   const vault = await createVault();
   const host = await installHost(page, vault);
+  if (watermark !== undefined) {
+    // This Mac's record of where its pulls of the vault left off.
+    await page.addInitScript(({ key, record }) => window.localStorage.setItem(key, record), {
+      key: `atlas.granola-pull:${vault.root}`,
+      record: JSON.stringify({ watermark, lastPullAt: null }),
+    });
+  }
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
@@ -111,10 +118,23 @@ test('a key is set, the meetings Granola holds are pulled in, and Sync now bring
   expect(fetched).toHaveLength(1);
 });
 
+/**
+ * Each request to Granola, as which of them it was: the key's check asks for
+ * one note; a pull on open or on the timer lists from the watermark; Sync now
+ * lists everything.
+ */
+const requestKinds = (host: FakeHost) =>
+  host.granola.requests().map(({ path, query }) => {
+    if (path !== '/v1/notes') return path;
+    if (query.page_size === '1') return 'key check';
+    return 'updated_after' in query ? 'pull from the watermark' : 'Sync now';
+  });
+
 test('a key Granola refuses is said on the card, and nothing is pulled with it', async ({
   page,
 }) => {
-  const { vault, host } = await openSettings(page);
+  // A watermark, so a pull that starts by itself is told apart from Sync now by what it asks.
+  const { vault, host } = await openSettings(page, { watermark: '2026-10-01T00:00:00.000Z' });
   host.granola.serve('/v1/notes', { status: 401, body: '{"message":"Unauthorized"}' });
 
   await card(page).getByLabel('Granola API key', { exact: true }).fill(KEY);
@@ -122,8 +142,13 @@ test('a key Granola refuses is said on the card, and nothing is pulled with it',
 
   await expect(card(page).getByTestId('granola-key')).toHaveText('Granola refused this key');
   await expect(card(page).getByTestId('granola-pull')).toHaveText('Not pulled on this Mac yet');
-  // Only the one check of the key went to Granola.
-  expect(host.granola.requests().map(({ path }) => path)).toEqual(['/v1/notes']);
+
+  // Sync now asks Granola whatever its last answer was, and runs after any pull already under
+  // way: once its listing has gone, a pull the refused key started by itself would have too.
+  await card(page).getByRole('button', { name: 'Sync now' }).click();
+  await expect.poll(() => requestKinds(host)).toContain('Sync now');
+  await expect(page.locator('.toast')).toContainText('Granola refused the API key');
+  expect(requestKinds(host)).toEqual(['key check', 'Sync now']);
   expect(await vault.read(RENEWAL_FILE)).toBe('');
 });
 
@@ -147,11 +172,23 @@ test('your emails in Granola are kept in the vault’s settings once saved', asy
   const field = card(page).getByLabel('Your emails', { exact: true });
   await expect(field).toHaveValue('');
 
-  await field.fill('mara.quill@example.com, mq@example.com');
+  // Something that is not an address is named, and nothing is kept; what was typed stays.
+  await field.fill('mara.quill@example.com, Mara');
+  await card(page).getByRole('button', { name: 'Save emails' }).click();
+  await expect(card(page).getByRole('alert', { name: 'Your emails were not saved' })).toHaveText(
+    'Not an email address: “Mara”. Nothing was saved.',
+  );
+  await expect(field).toHaveValue('mara.quill@example.com, Mara');
+
+  await field.fill('Mara Quill <Mara.Quill@example.com>, mq@example.com');
   await card(page).getByRole('button', { name: 'Save emails' }).click();
 
   await expectFile(vault, '.atlas/settings.md').toContain(
-    'granola_self_emails:\n  - mara.quill@example.com\n  - mq@example.com',
+    'granola_self_emails:\n  - mara.quill@example.com\n  - mq@example.com\n',
   );
+  await expect(field).toHaveValue('mara.quill@example.com, mq@example.com');
   await expect(card(page).getByRole('button', { name: 'Save emails' })).toBeDisabled();
+  await expect(card(page).getByRole('alert', { name: 'Your emails were not saved' })).toHaveCount(
+    0,
+  );
 });

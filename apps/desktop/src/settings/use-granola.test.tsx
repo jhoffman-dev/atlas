@@ -306,12 +306,12 @@ describe('useGranola: the person’s own addresses in Granola', () => {
     );
     await waitFor(() =>
       expect(vault.file.text).toContain(
-        'granola_self_emails:\n  - mara.quill@example.com\n  - MQ@example.com',
+        'granola_self_emails:\n  - mara.quill@example.com\n  - mq@example.com',
       ),
     );
     expect(vault.file.text).toContain('profileName: Mara Quill');
     await waitFor(() =>
-      expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com, MQ@example.com'),
+      expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com, mq@example.com'),
     );
   });
 
@@ -328,5 +328,32 @@ describe('useGranola: the person’s own addresses in Granola', () => {
     await waitFor(() => expect(hook.result.current.view.selfEmails).toBe('mara@example.com'));
     act(() => hook.result.current.saveEmails('  '));
     await waitFor(() => expect(vault.file.text).not.toContain('granola_self_emails'));
+  });
+
+  it('refuses, and keeps nothing of, addresses typed with words that are not addresses', async () => {
+    const vault = vaultWith('---\ngranola_self_emails:\n  - mara@example.com\n---\n');
+    const hook = render(vault);
+    await waitFor(() => expect(hook.result.current.view.selfEmails).toBe('mara@example.com'));
+    const before = vault.file.text;
+    let kept = true;
+    act(() => {
+      kept = hook.result.current.saveEmails('mq@example.com, Mara Quill');
+    });
+    expect(kept).toBe(false);
+    expect(hook.result.current.view.emailsProblem).toBe(
+      'Not an email address: “Mara”, “Quill”. Nothing was saved.',
+    );
+    await act(async () => undefined);
+    expect(vault.file.text).toBe(before);
+    expect(hook.result.current.view.selfEmails).toBe('mara@example.com');
+
+    act(() => {
+      kept = hook.result.current.saveEmails('Mara Quill <MQ@example.com>');
+    });
+    expect(kept).toBe(true);
+    expect(hook.result.current.view.emailsProblem).toBeNull();
+    await waitFor(() =>
+      expect(vault.file.text).toContain('granola_self_emails:\n  - mq@example.com'),
+    );
   });
 });

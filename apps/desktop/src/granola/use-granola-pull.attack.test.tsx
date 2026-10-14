@@ -97,6 +97,7 @@ function setUp({
     vaultKey: VAULT,
     changeKey: 'ready:1',
     syncedThisSession: new Set(synced),
+    syncPulls: new Map(),
     catchUpIndex,
     clock: { now: () => Date.now() },
     activity,
@@ -114,9 +115,6 @@ function setUp({
 
 /** Lets fifteen minutes pass on the fake timers. */
 const fifteenMinutes = () => act(async () => vi.advanceTimersByTime(GRANOLA_PULL_INTERVAL_MS));
-
-beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
-afterEach(() => vi.useRealTimers());
 
 beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
 afterEach(() => vi.useRealTimers());

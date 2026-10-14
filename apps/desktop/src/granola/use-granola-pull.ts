@@ -33,10 +33,14 @@ export interface GranolaPullOptions {
   readonly changeKey: string;
   /** The vaults sync has pulled this session, or found not to sync (ADR-0034). */
   readonly syncedThisSession: ReadonlySet<string>;
+  /** How many syncs this session have brought other Macs' files into each vault. */
+  readonly syncPulls: ReadonlyMap<string, number>;
   /**
    * Refreshes the index of the open vault; true once it holds the files as
    * they are now. Until then a meeting the import has moved out of
-   * `Inbox/Meetings/` on another Mac is not found where it now is.
+   * `Inbox/Meetings/` on another Mac is not found where it now is. Asked as
+   * the vault opens once it has synced, and again after each sync that
+   * brings files in.
    */
   readonly catchUpIndex: () => Promise<boolean>;
   readonly clock: Pick<Clock, 'now'>;
@@ -52,7 +56,7 @@ export interface GranolaPullController {
   readonly keyProblem: string | null;
   /**
    * Whether the open vault may be pulled into: it has synced this session, or
-   * does not sync, and the index has caught up with what that sync brought in.
+   * does not sync, and the index has caught up with what every sync brought in.
    */
   readonly ready: boolean;
   /** Whether a pull of the open vault is under way. */
@@ -69,6 +73,11 @@ export interface GranolaPullController {
   readonly knowKey: (status: GranolaKeyStatus) => void;
 }
 
+/** One pull under way, told apart from another of the same vault by its identity. */
+interface Flight {
+  readonly vault: string;
+}
+
 /** What is known of one vault's pulls, kept with the vault it belongs to. */
 interface VaultPulls {
   readonly vault: string | null;
@@ -76,8 +85,6 @@ interface VaultPulls {
   readonly keyProblem: string | null;
   /** `granola_periodic` as the settings say; null until they are read. */
   readonly periodic: boolean | null;
-  /** Pulls under way: Sync now asked for during another pull runs after it. */
-  readonly pulling: number;
   readonly report: GranolaPullReport | null;
   readonly lastPullAt: number | null;
   readonly toast: string | null;
@@ -88,7 +95,6 @@ const nothingFor = (vault: string | null): VaultPulls => ({
   key: null,
   keyProblem: null,
   periodic: null,
-  pulling: 0,
   report: null,
   lastPullAt: null,
   toast: null,
@@ -169,53 +175,69 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
 
   useEffect(() => {
     if (vaultKey === null) return;
+    // Reads land out of order; only the one asked for last may say what the settings are.
+    let live = true;
     loadGranolaSettings({ fs, markdown }).then(
-      ({ periodic }) => update(vaultKey, () => ({ periodic })),
+      ({ periodic }) => live && update(vaultKey, () => ({ periodic })),
       (cause: unknown) => {
+        if (!live) return;
         // The pull reads the settings too, and records in Activity why it could not.
         console.error('The vault’s Granola settings could not be read:', cause);
         update(vaultKey, () => ({ periodic: null }));
       },
     );
+    return () => {
+      live = false;
+    };
   }, [fs, markdown, vaultKey, changeKey, update]);
 
+  // Each pull under way, by the vault it pulls: Sync now asked for during another pull runs after it.
+  const [flights, setFlights] = useState<readonly Flight[]>([]);
+  const { settled, openedReady } = caughtUp;
   const pull = useCallback(
     async (mode: GranolaPullMode) => {
       const vault = latest.current.vaultKey;
       if (vault === null) return;
-      update(vault, (known) => ({ pulling: known.pulling + 1 }));
-      const report = await puller.pull({ vault, mode });
-      if (report.written.length > 0 && latest.current.vaultKey === vault) latest.current.onWrote();
-      update(vault, (known) => ({
-        pulling: known.pulling - 1,
-        report,
-        lastPullAt: latest.current.records.read(vault).lastPullAt,
-        toast: toastOf(report) ?? known.toast,
-      }));
+      const flight: Flight = { vault };
+      setFlights((under) => [...under, flight]);
+      try {
+        await settled();
+        const report = await puller.pull({ vault, mode });
+        if (report.written.length > 0 && latest.current.vaultKey === vault) {
+          latest.current.onWrote();
+        }
+        update(vault, (known) => ({
+          report,
+          lastPullAt: latest.current.records.read(vault).lastPullAt,
+          toast: toastOf(report) ?? known.toast,
+        }));
+      } finally {
+        setFlights((under) => under.filter((each) => each !== flight));
+      }
       await readKey(vault);
     },
-    [puller, update, readKey],
+    [puller, update, readKey, settled],
   );
 
-  const ready = vaultKey !== null && caughtUp.vaults.has(vaultKey);
   const usable = mine.key?.hasKey === true && mine.key.lastRefusal === null;
   const periodic = mine.periodic === true;
 
+  // Once per open, once the index has first caught up: a later sync's catch-up does not start another.
   useEffect(() => {
-    if (ready && usable) void pull('startup');
-  }, [vaultKey, ready, usable, pull]);
+    if (openedReady && usable) void pull('startup');
+  }, [vaultKey, openedReady, usable, pull]);
 
   useEffect(() => {
-    if (!ready || !usable || !periodic) return;
+    if (!openedReady || !usable || !periodic) return;
     const timer = window.setInterval(() => void pull('periodic'), GRANOLA_PULL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [vaultKey, ready, usable, periodic, pull]);
+  }, [vaultKey, openedReady, usable, periodic, pull]);
 
   return {
     key: mine.key,
     keyProblem: mine.keyProblem,
-    ready,
-    pulling: mine.pulling > 0,
+    ready: caughtUp.ready,
+    pulling: vaultKey !== null && flights.some((flight) => flight.vault === vaultKey),
     report: mine.report,
     lastPullAt: mine.lastPullAt,
     toast: mine.toast,
@@ -232,34 +254,88 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
   };
 }
 
+/** One open of a vault: a vault closed and opened again is a new one. */
+interface Opening {
+  readonly vault: string;
+}
+
+/** One request that the index catch up, for an open of a vault and the syncs into it so far. */
+interface CatchUp {
+  readonly opening: Opening;
+  readonly syncPulls: number;
+  /** Settles, never rejecting, once the index has answered. */
+  readonly done: Promise<void>;
+}
+
 /**
- * The vaults whose index has caught up after their first sync this session
- * (ADR-0034): once sync has pulled a vault, or found it does not sync, the
- * index is refreshed, and the vault is ready when that refresh has finished.
- * A refresh that fails leaves it waiting, and says why in Activity; the
- * vault opened again tries again.
+ * Whether the index of the open vault has caught up with what sync brought
+ * in (ADR-0034). Once sync has pulled the vault this session, or found it
+ * does not sync, the index is asked to catch up as the vault opens, and again
+ * after each later sync that brings files in; the vault is ready while the
+ * last of these has caught up. One that fails leaves it waiting and says why
+ * in Activity; the next sync, or the vault opened again, asks again. Each is
+ * asked once: nothing asks again in a loop.
  */
 function useCaughtUp({
   vaultKey,
   syncedThisSession,
+  syncPulls,
   catchUpIndex,
-}: Pick<GranolaPullOptions, 'vaultKey' | 'syncedThisSession' | 'catchUpIndex'>) {
-  const [vaults, setVaults] = useState<ReadonlySet<string>>(() => new Set());
-  // Read by the puller as it starts, so it never waits for a render.
-  const current = useRef(vaults);
-  const catching = useRef<string | null>(null);
+}: Pick<GranolaPullOptions, 'vaultKey' | 'syncedThisSession' | 'syncPulls' | 'catchUpIndex'>) {
   const synced = vaultKey !== null && syncedThisSession.has(vaultKey);
+  const pulls = vaultKey === null ? 0 : (syncPulls.get(vaultKey) ?? 0);
+  const catchUp = useRef(catchUpIndex);
+  catchUp.current = catchUpIndex;
+  // Read by the puller as it starts, and by a pull waiting to, so neither waits for a render.
+  const opening = useRef<Opening | null>(null);
+  const asked = useRef<CatchUp | null>(null);
+  const caught = useRef<CatchUp | null>(null);
+  const syncPullsNow = useRef(syncPulls);
+  syncPullsNow.current = syncPulls;
+  // The same two, for the render.
+  const [askedShown, setAsked] = useState<CatchUp | null>(null);
+  const [caughtShown, setCaught] = useState<CatchUp | null>(null);
+
   useEffect(() => {
-    if (vaultKey === null || !synced || current.current.has(vaultKey)) return;
-    if (catching.current === vaultKey) return;
-    catching.current = vaultKey;
-    void catchUpIndex().then((held) => {
-      if (catching.current === vaultKey) catching.current = null;
-      if (!held) return;
-      current.current = new Set([...current.current, vaultKey]);
-      setVaults(current.current);
-    });
-  }, [vaultKey, synced, catchUpIndex]);
-  const has = useCallback((vault: string) => current.current.has(vault), []);
-  return { vaults, has };
+    if (opening.current?.vault !== vaultKey) {
+      opening.current = vaultKey === null ? null : { vault: vaultKey };
+    }
+    const open = opening.current;
+    if (open === null || !synced) return;
+    if (asked.current?.opening === open && asked.current.syncPulls === pulls) return;
+    const ask: CatchUp = {
+      opening: open,
+      syncPulls: pulls,
+      done: catchUp.current().then(
+        (held) => {
+          if (!held || asked.current !== ask) return;
+          caught.current = ask;
+          setCaught(ask);
+        },
+        // Says why in Activity itself; the vault waits for the next sync or open.
+        () => undefined,
+      ),
+    };
+    asked.current = ask;
+    setAsked(ask);
+  }, [vaultKey, synced, pulls]);
+
+  const has = useCallback((vault: string) => {
+    const last = asked.current;
+    return (
+      last !== null &&
+      caught.current === last &&
+      last.opening === opening.current &&
+      last.opening.vault === vault &&
+      last.syncPulls === (syncPullsNow.current.get(vault) ?? 0)
+    );
+  }, []);
+  /** Settles once the catch-up asked for last has, so a pull asked for meanwhile waits for it. */
+  const settled = useCallback(() => asked.current?.done ?? Promise.resolve(), []);
+
+  const thisOpen = askedShown !== null && askedShown.opening.vault === vaultKey && synced;
+  const openedReady =
+    thisOpen && caughtShown !== null && caughtShown.opening === askedShown.opening;
+  const ready = openedReady && caughtShown === askedShown && askedShown.syncPulls === pulls;
+  return useMemo(() => ({ has, settled, ready, openedReady }), [has, settled, ready, openedReady]);
 }

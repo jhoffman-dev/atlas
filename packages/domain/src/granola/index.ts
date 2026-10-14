@@ -35,7 +35,7 @@ export {
   granolaSelfEmailsFromText,
   parseGranolaSettings,
 } from './granola-settings.ts';
-export type { GranolaSettings } from './granola-settings.ts';
+export type { GranolaSelfEmailsReading, GranolaSettings } from './granola-settings.ts';
 export type {
   GranolaNote,
   GranolaNoteSummary,

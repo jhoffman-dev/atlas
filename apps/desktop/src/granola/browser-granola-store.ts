@@ -4,6 +4,13 @@ const PREFIX = 'atlas.granola-pull:';
 
 const NONE: GranolaPullRecord = { watermark: null, lastPullAt: null };
 
+/** The first instant past the year 9999, which a date can be written out as. */
+const PAST_THE_LAST_YEAR = Date.UTC(10_000, 0, 1);
+
+/** A time a pull could have ended at: from 1970 to the year 9999, else none. */
+const pullTimeOf = (value: unknown): number | null =>
+  typeof value === 'number' && value >= 0 && value < PAST_THE_LAST_YEAR ? value : null;
+
 /** A record as kept, or none when what is kept is not one. */
 function recordOf(kept: string | null): GranolaPullRecord {
   if (kept === null) return NONE;
@@ -12,7 +19,7 @@ function recordOf(kept: string | null): GranolaPullRecord {
   const { watermark, lastPullAt } = parsed as Record<string, unknown>;
   return {
     watermark: typeof watermark === 'string' ? watermark : null,
-    lastPullAt: typeof lastPullAt === 'number' && Number.isFinite(lastPullAt) ? lastPullAt : null,
+    lastPullAt: pullTimeOf(lastPullAt),
   };
 }
 
