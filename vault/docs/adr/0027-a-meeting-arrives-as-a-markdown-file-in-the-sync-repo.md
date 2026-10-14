@@ -648,3 +648,42 @@ mapping:
 - **`source_url`**: a link back to the meeting in the provider's app.
   Named in `meeting-import-v1.md` now, and in the schema and contract test
   with the mapper (P28-09).
+
+## Amendment: a copy can come from another provider, and a Mac can be asked to take over (ADR-0035, ADR-0036, 2026-10-14)
+
+Three statements above change. Both records are proposed. This amendment takes effect when ADR-0035 and ADR-0036 are accepted.
+
+- **"A file whose `provider` + `external_id` the vault already holds is not a
+  second meeting."** That is no longer the only way two files are one meeting.
+  A file from a **different provider** on the same date is also a copy when
+  the rule in ADR-0036 matches it: half-open time windows overlap, attendee
+  emails overlap (Jaccard 0.5 or more, the owner and group addresses left
+  out), and **at least one shared attendee other than the owner**, so
+  owner-only meetings never match. The rule, its **provisional** thresholds
+  and the spike (S1) that fixes them before anything is archived are in
+  ADR-0036; they are not repeated here. What happens to a match is unchanged
+  from "Which copy is kept" above: the original is the one already imported,
+  else the existing order; the copy is archived, stamped `duplicate` and
+  linked with `atlas_duplicate_of`; nothing runs on it. Holders still come
+  from reading the files, not the index. A copy that is a conflict copy,
+  `duplicate` or `error`, or in the Archive, is not a candidate.
+- **"`imported` and `duplicate` are never judged again: an edit, rename, move,
+  unarchive … carries the stamp."** One exception: **unarchiving a copy that
+  the cross-provider rule archived restamps it `imported` and removes its
+  `atlas_duplicate_of`**, so a wrongly matched meeting is processed like any
+  arrival. Same-provider copies are unchanged.
+- **"Only the Mac that runs the automations writes stamps."** Still true, and
+  no Mac takes the automations by itself. ADR-0035 has a Mac that is not named
+  say that meetings are waiting, and offers a one-click "Process here" that
+  names that Mac. **It catches up.** The import's catch-up above already runs
+  when a Mac takes the automations over, so a claim settles every file
+  without an outcome (`use-meeting-import.ts` clears its `caughtUp` while the
+  Mac is not the importer and reruns on becoming it). The Claude step's
+  catch-up (`missedArrivals`, ADR-0028) is once per vault opened and is not
+  reset today; ADR-0035 resets it when `scheduled` goes false to true, so a
+  claim mid-session does not wait for the next open. ADR-0035 also has every
+  Mac, the named one included, run the import only after a pull completed
+  since launch or wake, and only if it is still named after that pull.
+
+Meetings already imported as two originals are not touched on arrival; the
+sweep in ADR-0036 handles them.
