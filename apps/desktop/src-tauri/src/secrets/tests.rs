@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::{
     account, binding::bound_origins, describe, entries_in, fill, names_in, redact, remove_secret,
-    vault_scope, write_secret, MemoryStore, SecretStore, SecretWrite, TemplatePart, LONGEST_SECRET,
+    vault_scope, write_secret, MemoryStore, SecretStore, SecretWrite, TemplatePart,
 };
 
 fn text(text: &str) -> TemplatePart {
@@ -440,55 +440,85 @@ fn text_that_only_resembles_a_secret_is_left_alone() {
 }
 
 /// Every character of a secret may be escaped, so its pattern grows with it;
-/// the longest secret Atlas keeps, of the printable characters whose pattern
-/// is largest, is still looked for rather than the answer withheld as
-/// unchecked.
+/// a long secret of the printable characters whose pattern is largest is
+/// still looked for rather than the answer withheld as unchecked.
 #[test]
-fn the_longest_secret_atlas_keeps_is_struck_rather_than_the_answer_withheld() {
-    let secret = the_costliest_secret_atlas_keeps();
+fn a_long_secret_is_struck_rather_than_the_answer_withheld() {
+    let secret = drawn_from(&(b' '..=b'~').map(char::from).collect::<Vec<_>>(), 1_024);
     assert_eq!(
         struck(&format!("echo={secret};"), &secret),
         "echo=[secret key removed];"
     );
 }
 
-/// `LONGEST_SECRET` bytes of every printable ASCII character in no order:
-/// the secret whose matcher was measured to be the largest.
-pub(super) fn the_costliest_secret_atlas_keeps() -> String {
-    let printable: Vec<char> = (b' '..=b'~').map(char::from).collect();
+/// `len` characters drawn from `alphabet` in no order, the same each time.
+fn drawn_from(alphabet: &[char], len: usize) -> String {
     let mut seed = 1u64;
-    (0..LONGEST_SECRET)
+    (0..len)
         .map(|_| {
             seed = seed
                 .wrapping_mul(6_364_136_223_846_793_005)
                 .wrapping_add(1_442_695_040_888_963_407);
-            printable[(seed >> 33) as usize % printable.len()]
+            alphabet[(seed >> 33) as usize % alphabet.len()]
         })
         .collect()
 }
 
+/// `len` bytes of what a signed token (a JWT) is written in: base64url's
+/// letters, digits, `-` and `_`, and the `.` between its parts.
+pub(crate) fn a_signed_token(len: usize) -> String {
+    let alphabet: Vec<char> = ('A'..='Z')
+        .chain('a'..='z')
+        .chain('0'..='9')
+        .chain(['-', '_', '.'])
+        .collect();
+    drawn_from(&alphabet, len)
+}
+
+/// Past the 1,024 bytes Atlas once capped a secret at: a signed token is
+/// kept, and struck from what comes back.
 #[test]
-fn a_secret_longer_than_atlas_keeps_is_refused_and_not_stored() {
+fn a_signed_token_of_some_kilobytes_is_kept_and_struck() {
     let store = MemoryStore::default();
-    let longest = "k".repeat(LONGEST_SECRET);
-    let longer = format!("{longest}k");
+    let token = a_signed_token(2_700);
 
-    let refused = write(&store, "k", Some(&longer), Some(&["https://a.test"]), false);
-
-    assert_eq!(
-        refused.unwrap_err(),
-        "the secret \"k\" is too long to keep: a secret may be at most 1024 bytes"
-    );
-    assert_eq!(store.accounts().unwrap(), Vec::<String>::new());
     write(
         &store,
-        "k",
-        Some(&longest),
+        "jwt",
+        Some(&token),
         Some(&["https://a.test"]),
         false,
     )
     .unwrap();
-    assert_eq!(store.get("v1/k").unwrap(), Some(longest));
+
+    assert_eq!(
+        store.get("v1/jwt").unwrap().as_deref(),
+        Some(token.as_str())
+    );
+    assert_eq!(
+        struck(&format!("echo={token};"), &token),
+        "echo=[secret key removed];"
+    );
+}
+
+#[test]
+fn a_secret_too_long_to_protect_is_refused_and_not_stored() {
+    let store = MemoryStore::default();
+    let too_long = a_signed_token(8 * 1024);
+
+    let refused = write(
+        &store,
+        "k",
+        Some(&too_long),
+        Some(&["https://a.test"]),
+        false,
+    );
+
+    assert_eq!(
+        refused.unwrap_err(),
+        "the secret \"k\" is too long to protect: Atlas could not strike it from what comes back, so it is not kept"
+    );
+    assert_eq!(store.accounts().unwrap(), Vec::<String>::new());
 }
 
 /// Base64 is looked for from eight characters on: shorter, its text is too

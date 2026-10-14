@@ -21,7 +21,9 @@ use reqwest::Url;
 use serde::Serialize;
 use tauri::State;
 
-use crate::secrets::{redact_off_worker, vault_scope, SecretState, SecretStore};
+use crate::secrets::{
+    ensure_strikable, forget_matcher, redact_off_worker, vault_scope, SecretState, SecretStore,
+};
 use crate::vault::{root_for_write, VaultState};
 
 pub use failure::{FailureKind, GranolaFailure};
@@ -157,6 +159,16 @@ fn no_key() -> GranolaFailure {
     )
 }
 
+/// A key kept before `key::check` refused one Atlas could not strike from an
+/// answer: sending it and then withholding the answer would already have
+/// given it away, so it is not sent.
+fn too_long_to_protect() -> GranolaFailure {
+    GranolaFailure::new(
+        FailureKind::Invalid,
+        "the Granola API key kept is too long for Atlas to protect, so nothing was sent — replace it in Settings",
+    )
+}
+
 impl Session<'_> {
     pub fn status(&self) -> Result<GranolaStatus, GranolaFailure> {
         let has_key = key::load(self.store, self.scope)?.is_some();
@@ -189,6 +201,7 @@ impl Session<'_> {
         let before = self.state.standing(self.scope);
         self.state.now_keeping(self.scope, Kept::Nothing);
         key::forget(self.store, self.scope).inspect_err(|_| self.settle_after_failure(before))?;
+        forget_matcher(KEY_NAME);
         log::info!("Granola API key removed");
         Ok(GranolaStatus {
             has_key: false,
@@ -227,6 +240,7 @@ impl Session<'_> {
     ) -> Result<GranolaAnswer, GranolaFailure> {
         let url = api::call_url(self.origin, path, query)?;
         let key = key::load(self.store, self.scope)?.ok_or_else(no_key)?;
+        ensure_strikable(KEY_NAME, &key).map_err(|_| too_long_to_protect())?;
         let sent = [(KEY_NAME.to_string(), key)];
         let (status, body) = api::get(&url, &sent[0].1)
             .await

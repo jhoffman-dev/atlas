@@ -16,8 +16,8 @@ use serde::Deserialize;
 use tauri::State;
 
 use crate::secrets::{
-    check_bound, describe, fill, redact, redact_off_worker, vault_scope, SecretState, SecretStore,
-    TemplatePart,
+    check_bound, check_strikable, describe, fill, redact, redact_off_worker, vault_scope,
+    SecretState, SecretStore, TemplatePart,
 };
 use crate::vault::{root_for_write, VaultState};
 
@@ -162,6 +162,7 @@ pub(crate) fn prepare(
         // The origin may itself hold a secret, if the host was written as one.
         let origin = url.origin().ascii_serialization();
         check_bound(store, scope, &used, &origin).map_err(|error| redact(&error, &used))?;
+        check_strikable(&used)?;
     }
     Ok(Prepared {
         url,

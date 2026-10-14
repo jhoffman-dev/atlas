@@ -458,3 +458,36 @@ fn a_source_the_api_pointed_at_another_host_is_refused_by_the_binding() {
     assert!(prepare(&store, Some("v1"), &as_written).is_ok());
     assert!(prepare(&store, Some("v1"), &as_patched).is_err());
 }
+
+/// A secret kept before Atlas refused, at saving, one it could not strike from
+/// an answer — main kept a value of any length. Sending it and then withholding
+/// the answer would already have handed it to the server, so the request is
+/// refused before it goes, naming the secret and what to do about it.
+#[test]
+fn a_secret_kept_too_long_to_protect_is_refused_before_anything_is_sent() {
+    let store = store();
+    let value = crate::secrets::tests::a_signed_token(8 * 1024);
+    store.set("v1/kept-long", &value).unwrap();
+    let origins = vec!["https://api.test".to_string()];
+    let bind = SecretWrite {
+        scope: "v1",
+        name: "kept-long",
+        value: None,
+        origins: Some(&origins),
+    };
+    write_secret(&store, &bind, &|_: &str, _: &[String]| true).unwrap();
+
+    let refused = match prepare(
+        &store,
+        Some("v1"),
+        &bearer("https://api.test/x", "kept-long"),
+    ) {
+        Ok(_) => panic!("a secret too long to protect was prepared to be sent"),
+        Err(error) => error,
+    };
+
+    assert_eq!(
+        refused,
+        "the secret \"kept-long\" is too long for Atlas to protect, so nothing was sent — replace it with a shorter one in Settings → Secrets"
+    );
+}

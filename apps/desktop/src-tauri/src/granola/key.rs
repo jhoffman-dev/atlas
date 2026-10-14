@@ -7,7 +7,8 @@
 //! secrets.
 
 use super::failure::{FailureKind, GranolaFailure};
-use crate::secrets::{apikey_account, SecretStore, LONGEST_SECRET};
+use super::KEY_NAME;
+use crate::secrets::{apikey_account, ensure_strikable, SecretStore};
 
 const PROVIDER: &str = "granola";
 
@@ -22,26 +23,25 @@ fn keychain(error: String) -> GranolaFailure {
 }
 
 /// The backstop for what TypeScript already checked and words for the
-/// person: a Granola key, and nothing that could break the header it is
-/// written into. The key is never quoted back.
+/// person: a Granola key, nothing that could break the header it is written
+/// into, and one Atlas can strike from every answer. The key is never quoted
+/// back.
 pub fn check(key: &str) -> Result<(), GranolaFailure> {
-    if key.len() > LONGEST_SECRET {
-        return Err(GranolaFailure::new(
-            FailureKind::Invalid,
-            format!("that is too long to be a Granola API key: a key may be at most {LONGEST_SECRET} characters"),
-        ));
-    }
     let usable = key.len() > KEY_PREFIX.len()
         && key.starts_with(KEY_PREFIX)
         && key.bytes().all(|byte| byte.is_ascii_graphic());
-    if usable {
-        Ok(())
-    } else {
-        Err(GranolaFailure::new(
+    if !usable {
+        return Err(GranolaFailure::new(
             FailureKind::Invalid,
             "that is not a Granola API key",
-        ))
+        ));
     }
+    ensure_strikable(KEY_NAME, key).map_err(|_| {
+        GranolaFailure::new(
+            FailureKind::Invalid,
+            "that is too long to protect: Atlas could not strike it from Granola's answers, so it is not kept",
+        )
+    })
 }
 
 pub fn load(store: &dyn SecretStore, scope: &str) -> Result<Option<String>, GranolaFailure> {
@@ -67,7 +67,7 @@ pub fn forget(store: &dyn SecretStore, scope: &str) -> Result<(), GranolaFailure
 mod tests {
     use super::{check, forget, load, save};
     use crate::granola::failure::FailureKind;
-    use crate::secrets::{entries_in, MemoryStore, SecretStore, LONGEST_SECRET};
+    use crate::secrets::{entries_in, MemoryStore, SecretStore};
 
     const KEY: &str = "grn_Fict10nalKey";
 
@@ -96,18 +96,31 @@ mod tests {
     }
 
     #[test]
-    fn a_key_longer_than_atlas_keeps_is_refused_and_not_kept() {
+    fn a_key_too_long_to_protect_is_refused_and_not_kept() {
         let store = MemoryStore::default();
-        let longest = format!("grn_{}", "k".repeat(LONGEST_SECRET - 4));
-        let longer = format!("{longest}k");
+        let too_long = format!("grn_{}", "k".repeat(16 * 1024));
 
-        let failure = save(&store, "v1", &longer).unwrap_err();
+        let failure = save(&store, "v1", &too_long).unwrap_err();
 
         assert_eq!(failure.kind, FailureKind::Invalid);
-        assert!(failure.message.contains("too long"), "{}", failure.message);
+        assert!(
+            failure.message.contains("too long to protect"),
+            "{}",
+            failure.message
+        );
         assert!(store.accounts().unwrap().is_empty());
-        save(&store, "v1", &longest).unwrap();
-        assert_eq!(load(&store, "v1").unwrap(), Some(longest));
+    }
+
+    /// Past the 1,024 bytes Atlas once capped a secret at: a key the length
+    /// of a signed token is kept.
+    #[test]
+    fn a_key_as_long_as_a_signed_token_is_kept() {
+        let store = MemoryStore::default();
+        let long = format!("grn_{}", crate::secrets::tests::a_signed_token(2_700));
+
+        save(&store, "v1", &long).unwrap();
+
+        assert_eq!(load(&store, "v1").unwrap(), Some(long));
     }
 
     #[test]

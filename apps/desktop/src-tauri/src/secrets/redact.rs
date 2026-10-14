@@ -32,7 +32,7 @@ use std::cmp::Reverse;
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::hash::BuildHasher;
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use base64::engine::general_purpose::{
     GeneralPurpose, STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD,
@@ -44,10 +44,25 @@ use regex::{Regex, RegexBuilder};
 /// better than something that might hold a secret.
 const UNCHECKED: &str = "[the response could not be checked for secrets, so it is not shown]";
 
-/// Room for the pattern of the longest secret Atlas keeps (`LONGEST_SECRET`
-/// bytes, every character of which may be written several ways), whose
-/// largest takes some 8.5 MiB, with a margin. It bounds what one build costs.
+/// What one secret's matcher may take, which bounds what building it costs
+/// and so how long a secret Atlas keeps may be: a value whose matcher will
+/// not build within it is refused when it is saved, and never sent. Every
+/// character may be written several ways, so what fits depends on which
+/// characters they are — some 2.2 KB of printable ASCII in no order, and
+/// 3.7 KB of a signed token's letters, digits, `-`, `_` and `.`.
 const MATCHER_SIZE_LIMIT: usize = 12 * 1024 * 1024;
+
+/// A value longer than this is refused without trying to build its matcher.
+/// Building one tries the whole pattern first, which for a value of megabytes
+/// is gigabytes of text; and no value of more than some 4.3 KB (of `€`, the
+/// cheapest character per byte) has been seen to fit `MATCHER_SIZE_LIMIT`, so
+/// this refuses nothing that would build.
+const NEVER_BUILDS_PAST: usize = 16 * 1024;
+
+/// A secret whose matcher would not build within `MATCHER_SIZE_LIMIT`: it
+/// could not be struck from what comes back, so it is neither kept nor sent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TooLongToProtect;
 
 /// A secret shorter than this is not looked for as base64: the base64 of one
 /// or two bytes is a character or two, which ordinary text is full of.
@@ -70,6 +85,31 @@ pub fn redact(text: &str, used: &[(String, String)]) -> String {
     strike(text, found)
 }
 
+/// Builds the matcher that strikes `value` as `name`, unless it is already
+/// held, so that a value it cannot be built for is refused before it is kept
+/// or sent rather than discovered in an answer that then has to be withheld.
+pub fn ensure_strikable(name: &str, value: &str) -> Result<(), TooLongToProtect> {
+    matchers().for_secret(name, value, matcher).map(drop)
+}
+
+/// Lets go of the matcher held for `name`, whose secret is gone.
+pub fn forget_matcher(name: &str) {
+    matchers().by_name().remove(name);
+}
+
+/// Whether a matcher is held for `name` built for `value`. Asked by value as
+/// well as name because tests running at once share the one cache: another
+/// test's value under the same name is not this one's.
+#[cfg(test)]
+pub fn holds_matcher(name: &str, value: &str) -> bool {
+    let matchers = matchers();
+    let fingerprint = matchers.fingerprints.hash_one(value);
+    matchers
+        .by_name()
+        .get(name)
+        .is_some_and(|(held, _)| *held == fingerprint)
+}
+
 /// `redact`, on a thread kept for blocking work. Matching a long secret
 /// against a large answer built to resemble it takes seconds — two, for a
 /// 1,024-byte secret and 16 MB — and on an async worker that would stall
@@ -86,13 +126,22 @@ fn matchers() -> &'static Matchers {
     MATCHERS.get_or_init(Matchers::default)
 }
 
-/// Each secret's matcher, built once and reused while its value is unchanged.
-/// An entry is the matcher with a fingerprint of the value it was built for,
-/// so a changed value rebuilds it and the matcher for the value it replaced is
-/// dropped. The value itself is not kept.
+/// A matcher, or that it would not build, for the value whose fingerprint it
+/// is held with.
+type Held = (u64, Result<Arc<Regex>, TooLongToProtect>);
+
+/// Each secret's matcher, built once per value and held by the secret's name.
+///
+/// What is held is the compiled matcher, whose pattern spells the value out
+/// in every form it is looked for in: holding it is holding the value, in
+/// this process's memory only. It is held until the secret is deleted (or
+/// the Granola key forgotten), until its name is used with another value,
+/// which replaces it, or until the app quits. A value whose matcher would not
+/// build is held as that failure instead, so a request that names it is
+/// refused at once rather than building it again.
 #[derive(Default)]
 struct Matchers {
-    by_name: Mutex<HashMap<String, (u64, Regex)>>,
+    by_name: Mutex<HashMap<String, Held>>,
     /// Keyed afresh in each run, so a fingerprint means nothing outside it.
     fingerprints: RandomState,
 }
@@ -100,31 +149,31 @@ struct Matchers {
 impl Matchers {
     /// Every write is one whole entry, so a thread that panicked holding the
     /// lock cannot have left it half-changed.
-    fn by_name(&self) -> MutexGuard<'_, HashMap<String, (u64, Regex)>> {
+    fn by_name(&self) -> MutexGuard<'_, HashMap<String, Held>> {
         self.by_name
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// The matcher for `value`, built with `build` only when the one held for
-    /// `name` was built for some other value or none is held. The build runs
+    /// The matcher for `value`, built with `build` only when what is held for
+    /// `name` was built for some other value or nothing is held. The build runs
     /// outside the lock, so one secret's build never holds up another's match.
     fn for_secret(
         &self,
         name: &str,
         value: &str,
-        build: impl FnOnce(&str) -> Result<Regex, regex::Error>,
-    ) -> Result<Regex, regex::Error> {
+        build: impl FnOnce(&str) -> Result<Regex, TooLongToProtect>,
+    ) -> Result<Arc<Regex>, TooLongToProtect> {
         let fingerprint = self.fingerprints.hash_one(value);
         if let Some((held, matcher)) = self.by_name().get(name) {
             if *held == fingerprint {
-                return Ok(matcher.clone());
+                return matcher.clone();
             }
         }
-        let built = build(value)?;
+        let built = build(value).map(Arc::new);
         self.by_name()
             .insert(name.to_string(), (fingerprint, built.clone()));
-        Ok(built)
+        built
     }
 }
 
@@ -153,7 +202,14 @@ fn strike(text: &str, mut found: Vec<(usize, usize, &str)>) -> String {
 }
 
 /// One secret in any of its forms, each of which may itself be escaped.
-fn matcher(value: &str) -> Result<Regex, regex::Error> {
+fn matcher(value: &str) -> Result<Regex, TooLongToProtect> {
+    if value.len() > NEVER_BUILDS_PAST {
+        return Err(TooLongToProtect);
+    }
+    compiled(value).map_err(|_| TooLongToProtect)
+}
+
+fn compiled(value: &str) -> Result<Regex, regex::Error> {
     let alternatives: Vec<String> = forms(value).iter().map(|form| spelled(form)).collect();
     RegexBuilder::new(&alternatives.join("|"))
         .size_limit(MATCHER_SIZE_LIMIT)
@@ -253,13 +309,14 @@ mod tests {
     use std::cell::Cell;
     use std::time::{Duration, Instant};
 
-    use super::{forms, matcher, Matchers, MATCHER_SIZE_LIMIT};
-    use crate::secrets::LONGEST_SECRET;
+    use super::{
+        compiled, forms, matcher, Matchers, TooLongToProtect, MATCHER_SIZE_LIMIT, NEVER_BUILDS_PAST,
+    };
 
     /// Builds with `matcher`, counting each build.
     fn counted<'a>(
         builds: &'a Cell<usize>,
-    ) -> impl FnOnce(&str) -> Result<regex::Regex, regex::Error> + 'a {
+    ) -> impl FnOnce(&str) -> Result<regex::Regex, TooLongToProtect> + 'a {
         move |value| {
             builds.set(builds.get() + 1);
             matcher(value)
@@ -302,6 +359,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_value_that_would_not_build_is_held_as_that_and_not_tried_again() {
+        let (matchers, builds) = (Matchers::default(), Cell::new(0));
+        let refused = |builds: &Cell<usize>| {
+            builds.set(builds.get() + 1);
+            Err(TooLongToProtect)
+        };
+
+        let first = matchers.for_secret("key", "grn_TooLong", |_| refused(&builds));
+        let again = matchers.for_secret("key", "grn_TooLong", |_| refused(&builds));
+
+        assert_eq!(
+            (first.err(), again.err()),
+            (Some(TooLongToProtect), Some(TooLongToProtect))
+        );
+        assert_eq!(builds.get(), 1, "the failed build was tried again");
+    }
+
     /// A secret with no `+`, `/` or `?` in its base64 reads the same in both
     /// alphabets, so most of its forms come twice; each is looked for once.
     #[test]
@@ -318,27 +393,66 @@ mod tests {
         );
     }
 
-    /// The size limit is what bounds a build: the longest secret Atlas keeps,
-    /// of the characters whose pattern is largest, fits within it, and one
-    /// four times as long is refused by it rather than built at whatever cost.
+    /// The size limit is what bounds a build: a signed token of some 3 KB
+    /// fits within it, and one four times as long is refused by it rather
+    /// than built at whatever cost.
     #[test]
     fn building_a_matcher_is_bounded_by_the_size_limit() {
-        let longest = super::super::tests::the_costliest_secret_atlas_keeps();
-        assert_eq!(longest.len(), LONGEST_SECRET);
+        let token = super::super::tests::a_signed_token(3_000);
 
         let started = Instant::now();
-        matcher(&longest).expect("the longest secret Atlas keeps fits the limit");
+        matcher(&token).expect("a 3 KB signed token fits the limit");
         let took = started.elapsed();
 
-        // Some 70 ms in a release build and well under a second in a debug
-        // one; ten seconds is a hang, not a slow machine.
+        // Well under a second in a debug build; ten seconds is a hang, not a
+        // slow machine.
         assert!(took < Duration::from_secs(10), "{took:?}");
-        match matcher(&longest.repeat(4)) {
+        match compiled(&token.repeat(4)) {
             Err(regex::Error::CompiledTooBig(limit)) => assert_eq!(limit, MATCHER_SIZE_LIMIT),
             other => panic!(
-                "a secret four times the longest was built: {:?}",
+                "a secret four times as long was built: {:?}",
                 other.map(|_| ())
             ),
         }
+    }
+
+    /// A value of megabytes would be a pattern of gigabytes before the size
+    /// limit is ever reached, so it is refused before one is written; and the
+    /// ceiling refuses nothing that would build — half of it, of the
+    /// character cheapest per byte, already does not.
+    #[test]
+    fn a_value_past_what_could_ever_build_is_refused_without_building() {
+        let huge = "k".repeat(256 * 1024);
+        let started = Instant::now();
+        assert_eq!(matcher(&huge).err(), Some(TooLongToProtect));
+        assert!(started.elapsed() < Duration::from_secs(1), "it was built");
+
+        let half = "€".repeat(NEVER_BUILDS_PAST / 2 / '€'.len_utf8());
+        assert!(compiled(&half).is_err(), "half the ceiling builds");
+    }
+
+    /// Adversarial (P28-10 round 3). The cache drops a matcher only when the
+    /// same name is used with another value. A secret deleted — or "renamed",
+    /// which is a delete and a set — keeps its matcher, built from its value,
+    /// for the rest of the run: some 15 MiB for one of 1,024 bytes
+    /// (measured: 40 names took the process from 11 MB to 600 MB resident), and
+    /// a pattern the value reads straight back out of.
+    #[test]
+    fn a_deleted_secret_leaves_no_matcher_behind() {
+        use crate::secrets::{account, remove_secret, MemoryStore, SecretStore};
+
+        let (name, value) = ("larkspur-feed-token-deleted", "grn_DeletedLarkspurValue");
+        let store = MemoryStore::default();
+        store.set(&account("v1", name).unwrap(), value).unwrap();
+        let used = [(name.to_string(), value.to_string())];
+        assert_eq!(
+            super::redact(value, &used),
+            format!("[secret {name} removed]")
+        );
+
+        remove_secret(&store, "v1", name).unwrap();
+
+        let held = super::matchers().by_name().contains_key(name);
+        assert!(!held, "the deleted secret's matcher is still held");
     }
 }

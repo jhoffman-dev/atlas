@@ -873,3 +873,43 @@ async fn a_failed_save_learns_the_key_kept_from_an_earlier_run() {
     state.heard(VAULT, KEY, 401);
     assert_eq!(session.status().unwrap().last_refusal, Some(401));
 }
+
+/// A key kept before Atlas refused one it could not strike from an answer is
+/// not sent: the request is refused before it goes, and says what to do.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_kept_too_long_to_protect_is_refused_before_anything_is_sent() {
+    let setup = Setup::new().await;
+    let kept = format!("grn_{}", crate::secrets::tests::a_signed_token(8 * 1024));
+    setup.store.set("v1:apikey/granola", &kept).unwrap();
+
+    let failure = setup
+        .session()
+        .request(NOTES, &no_query())
+        .await
+        .unwrap_err();
+
+    assert_eq!(failure.kind, FailureKind::Invalid);
+    assert!(
+        failure.message.contains("replace it"),
+        "{}",
+        failure.message
+    );
+    assert_eq!(setup.heard(), 0, "the key went out");
+}
+
+/// Forgetting the key lets go of the matcher that spells it.
+#[tokio::test(flavor = "multi_thread")]
+async fn forgetting_the_key_lets_go_of_its_matcher() {
+    let setup = Setup::new().await;
+    let key = "grn_ForgottenLarkspurKey";
+    setup.granola().key = Some(key.into());
+    setup.session().set_key(key).unwrap();
+    setup.session().request(NOTES, &no_query()).await.unwrap();
+
+    setup.session().forget_key().unwrap();
+
+    assert!(
+        !crate::secrets::holds_matcher(super::KEY_NAME, key),
+        "the forgotten key's matcher is still held"
+    );
+}
