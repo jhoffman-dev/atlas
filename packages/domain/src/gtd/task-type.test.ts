@@ -60,6 +60,16 @@ describe('the built-in Task type', () => {
     expect(byKey.get('completed')?.kind).toBe('date');
     expect(byKey.get('estimate')?.kind).toBe('number');
   });
+
+  it('links back to the meeting a task was taken from, and keeps that item’s key (ADR-0036)', () => {
+    const byKey = new Map(TASK_TYPE_FILE.type.properties.map((p) => [p.key, p]));
+    expect(byKey.get('meeting')).toMatchObject({
+      kind: 'relation',
+      target: 'meeting',
+      many: false,
+    });
+    expect(byKey.get('atlas_item')?.kind).toBe('text');
+  });
 });
 
 describe('taskTypeChange', () => {
@@ -91,6 +101,16 @@ describe('taskTypeChange', () => {
 
   it('is nothing to do for a type that already follows GTD', () => {
     expect(taskTypeChange(TASK_TYPE_FILE.type)).toBeNull();
+  });
+
+  it('is nothing to do for a GTD type without the meeting keys: those come on opening (#177), not with the move', () => {
+    const withoutMeetingKeys: ObjectType = {
+      ...TASK_TYPE_FILE.type,
+      properties: TASK_TYPE_FILE.type.properties.filter(
+        (p) => p.key !== 'meeting' && p.key !== 'atlas_item',
+      ),
+    };
+    expect(taskTypeChange(withoutMeetingKeys)).toBeNull();
   });
 
   it('adds a status, first, to a type with none', () => {

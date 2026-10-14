@@ -38,6 +38,8 @@ const MEETING_KEYS = [
   'decisions',
 ];
 
+const TASK_KEYS = ['meeting', 'atlas_item'];
+
 const parsedKeys = (found: ObjectType) => new Set(found.properties.map((added) => added.key));
 
 const plan = (types: readonly ObjectType[], record = NO_SHIPPED_PROPERTIES_RECORD) =>
@@ -82,10 +84,17 @@ describe('shippedPropertiesPlan', () => {
     expect(addedKeys([type(' Daily ', ['date'])])).toEqual([[' Daily ', ['tags']]]);
   });
 
-  it('lists a complete type with nothing added, so it can be settled; a type of the vault’s own, PARA’s and Task are not listed', () => {
+  it('lists a complete type with nothing added, so it can be settled; a type of the vault’s own and PARA’s are not listed', () => {
     const complete = type('meeting', MEETING_KEYS);
-    const others = [type('recipe'), type('task', ['status']), type('project'), type('Area')];
-    expect(addedKeys([complete, ...others])).toEqual([['meeting', []]]);
+    const others = [type('recipe'), type('task', TASK_KEYS), type('project'), type('Area')];
+    expect(addedKeys([complete, ...others])).toEqual([
+      ['meeting', []],
+      ['task', []],
+    ]);
+  });
+
+  it('gives a Task type the keys a task made from a meeting carries, and none of GTD’s (#177)', () => {
+    expect(addedKeys([type('task', ['status'])])).toEqual([['task', TASK_KEYS]]);
   });
 
   it('does not list a type whose shipped keys are all settled', () => {
