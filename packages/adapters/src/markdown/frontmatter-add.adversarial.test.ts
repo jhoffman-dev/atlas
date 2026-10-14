@@ -22,9 +22,18 @@ describe('addToFrontmatterMap, on a block holding an anchor that refers to itsel
   // YAML allows `&e` / `*e` cycles; `toJS` builds a circular object, and the
   // read-back check's JSON.stringify throws on it.
   it.each([
-    ['elsewhere in the block', block('name: meeting', 'extra: &e', '  me: *e', 'properties:', '  title: text')],
-    ['inside `properties`', block('name: meeting', 'properties: &p', '  title: text', '  self: *p')],
-    ['through a list', block('name: meeting', 'extra: &e', '  - *e', 'properties:', '  title: text')],
+    [
+      'elsewhere in the block',
+      block('name: meeting', 'extra: &e', '  me: *e', 'properties:', '  title: text'),
+    ],
+    [
+      'inside `properties`',
+      block('name: meeting', 'properties: &p', '  title: text', '  self: *p'),
+    ],
+    [
+      'through a list',
+      block('name: meeting', 'extra: &e', '  - *e', 'properties:', '  title: text'),
+    ],
   ])('%s: returns null or the block with the keys added — never throws', (_, before) => {
     let written: string | null = null;
     expect(() => {
@@ -50,7 +59,11 @@ describe('addToFrontmatterMap, given a key the map already holds under another s
   // property is silently replaced. `expected` spreads `entries` over what was
   // held, so the read-back check agrees with the shadowed result.
   it.each([
-    ['an alias of it', block('name: meeting', 'k: &k tasks', 'properties:', '  *k : text'), 'tasks'],
+    [
+      'an alias of it',
+      block('name: meeting', 'k: &k tasks', 'properties:', '  *k : text'),
+      'tasks',
+    ],
     ['the number it reads as', block('name: meeting', 'properties:', '  2024: text'), '2024'],
     ['the boolean it reads as', block('name: meeting', 'properties:', '  true: text'), 'true'],
   ])('refuses %s rather than shadow the property', (_, before, key) => {
@@ -67,5 +80,29 @@ describe('addToFrontmatterMap, on a block that is not a map', () => {
     ['only a document-end marker', block('...')],
   ])('returns null for %s rather than throw', (_, before) => {
     expect(() => addToFrontmatterMap(before, 'properties', TASKS)).not.toThrow();
+  });
+});
+
+describe('addToFrontmatterMap, on a key that holds something other than a map', () => {
+  // A list whose item refers back to it, and a flow `!!set`, threw from the
+  // writer before the read-back check could refuse them.
+  it.each([
+    ['a list that holds itself', block('name: meeting', 'properties: &p', '  - *p')],
+    ['a set', block('name: meeting', 'properties: !!set {title}')],
+  ])('returns null for %s rather than throw', (_, before) => {
+    let written: string | null = '';
+    expect(() => {
+      written = addToFrontmatterMap(before, 'properties', TASKS);
+    }).not.toThrow();
+    expect(written).toBeNull();
+  });
+
+  it('returns null for a block that is a set rather than throw', () => {
+    const before = '---\n!!set\n? name\n---\n';
+    let written: string | null = '';
+    expect(() => {
+      written = addToFrontmatterMap(before, 'properties', TASKS);
+    }).not.toThrow();
+    expect(written).toBeNull();
   });
 });

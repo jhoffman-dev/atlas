@@ -1,4 +1,4 @@
-import { Document, isMap, isNode, parseDocument, type Node, type Pair } from 'yaml';
+import { Document, isMap, isNode, isScalar, parseDocument, type Node, type Pair } from 'yaml';
 import { frontmatterProblem, parseFrontmatterProperties } from './frontmatter.ts';
 import { columnOf, lineEnd, pairOf, split, updateFrontmatter } from './frontmatter-write.ts';
 
@@ -10,7 +10,8 @@ import { columnOf, lineEnd, pairOf, split, updateFrontmatter } from './frontmatt
  * own output only adds lines.
  *
  * Null when that cannot be done — `key` holds a list or a sentence, an inline
- * `{…}` map, a key `entries` names already, or YAML that cannot be read — so
+ * `{…}` map, a key `entries` names already (as an alias, a number or a
+ * boolean too), a block that is not a map, or YAML that cannot be read — so
  * the caller leaves the file alone rather than rewriting a line of it. What is
  * returned is checked: it reads back as the block did, with `entries` added.
  */
@@ -19,19 +20,52 @@ export function addToFrontmatterMap(
   key: string,
   entries: Readonly<Record<string, unknown>>,
 ): string | null {
-  if (frontmatterProblem(frontmatter) !== null) return null;
+  if (frontmatterProblem(frontmatter) !== null || !holdsMapAt(frontmatter, key)) return null;
   const read = parseFrontmatterProperties(frontmatter);
-  const held = read[key];
-  // A list or a sentence cannot gain keys: the writer would put a map over it,
-  // which changes its lines, and that is refused below.
-  const expected = { ...read, [key]: { ...(isPlainObject(held) ? held : {}), ...entries } };
+  const held = isPlainObject(read[key]) ? read[key] : {};
+  if (Object.keys(held).some((name) => Object.hasOwn(entries, name))) return null;
+  const expected = { ...read, [key]: { ...held, ...entries } };
   const written =
     linesAddedToBlockMap(frontmatter, key, entries) ??
     updateFrontmatter(frontmatter, { [key]: expected[key] });
-  const readsBack =
-    frontmatterProblem(written) === null &&
-    JSON.stringify(parseFrontmatterProperties(written)) === JSON.stringify(expected);
-  return readsBack && onlyAddsLines(frontmatter, written) ? written : null;
+  return readsBackAs(written, expected) && onlyAddsLines(frontmatter, written) ? written : null;
+}
+
+/**
+ * Whether the block is empty or a map, and `key` is absent, empty or a map:
+ * the only shapes that can gain keys. A list or a sentence would have a map
+ * written over it, and a block that is not a map cannot be given a key at all.
+ */
+function holdsMapAt(frontmatter: string, key: string): boolean {
+  const { body } = split(frontmatter);
+  if (body.trim() === '') return true;
+  const document = parseDocument(body.replace(/\r\n/g, '\n'));
+  if (!isKeyedMap(document.contents)) return false;
+  const value = pairOf(document, key)?.value;
+  return (
+    value === undefined ||
+    value === null ||
+    isKeyedMap(value) ||
+    (isScalar(value) && value.value === null)
+  );
+}
+
+/** A map of keys to values — not `!!set`, which YAML holds as a map of keys alone. */
+const isKeyedMap = (node: unknown) => isMap(node) && node.tag !== 'tag:yaml.org,2002:set';
+
+/**
+ * Whether `written` reads back as `expected`. A block that cannot be compared —
+ * a self-referring anchor has no JSON form — is not one this can vouch for.
+ */
+function readsBackAs(written: string, expected: Record<string, unknown>): boolean {
+  try {
+    return (
+      frontmatterProblem(written) === null &&
+      JSON.stringify(parseFrontmatterProperties(written)) === JSON.stringify(expected)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
