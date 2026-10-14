@@ -138,6 +138,11 @@ function render(
             },
           },
         };
+  return drive(setup, ports);
+}
+
+/** The hook over `ports`, as the Inbox page drives it. */
+function drive(setup: ReturnType<typeof vault>, ports: ProposalPorts) {
   const onSettled = vi.fn();
   const activity = recordingActivity();
   const hook = renderHook(() =>
@@ -256,6 +261,111 @@ describe('useProposals', () => {
 
     expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
     expect(hook.result.current.section.problems.size).toBe(0);
+  });
+});
+
+const SECOND = 'Inbox/Proposals/Call Tobias.md';
+const SECOND_TEXT = PROPOSAL_TEXT.replace(
+  'title: Send Mara the payroll file',
+  'title: Call Tobias Fenn',
+);
+const SECOND_TASK = 'Call Tobias Fenn.md';
+
+/** A vault whose notes are not made until `release`: an answer caught while it is being written. */
+function heldVault(notes: Record<string, string>) {
+  const setup = vault(notes);
+  let release = () => {};
+  const gate = new Promise<void>((open) => (release = open));
+  const reads = { count: 0 };
+  const ports: ProposalPorts = {
+    ...setup.ports,
+    fs: {
+      ...setup.ports.fs,
+      createNote: async (note) => {
+        await gate;
+        return setup.ports.fs.createNote(note);
+      },
+      readNotes: async (paths) => {
+        reads.count += 1;
+        return setup.ports.fs.readNotes(paths);
+      },
+    },
+  };
+  return { ...drive(setup, ports), release, reads };
+}
+
+const openTitles = (hook: ReturnType<typeof render>['hook']) =>
+  hook.result.current.section.contents?.open.map((proposal) => proposal.path) ?? null;
+
+describe('useProposals — an answer leaves the list at once (#166)', () => {
+  it('takes the answered proposal off the list before its write lands, holding no other', async () => {
+    const { hook, files, release } = heldVault({
+      [PROPOSAL]: PROPOSAL_TEXT,
+      [SECOND]: SECOND_TEXT,
+    });
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+
+    expect(openTitles(hook)).toEqual([SECOND]);
+    expect(hook.result.current.count).toBe(1);
+    expect(hook.result.current.section.busy).toBeNull();
+    expect(files.has(TASK)).toBe(false);
+
+    release();
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    expect(files.get(TASK)?.text).toContain('Send Mara the payroll file');
+    expect(openTitles(hook)).toEqual([SECOND]);
+  });
+
+  it('answers the next proposal while the one before is still being written', async () => {
+    const { hook, files, release } = heldVault({
+      [PROPOSAL]: PROPOSAL_TEXT,
+      [SECOND]: SECOND_TEXT,
+    });
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    act(() => hook.result.current.section.onReject(path(SECOND)));
+    expect(openTitles(hook)).toEqual([]);
+
+    release();
+    await waitFor(() => expect(files.has(`Archive/${SECOND}`)).toBe(true));
+    expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
+    expect(files.get(`Archive/${SECOND}`)?.text).toContain('state: rejected');
+    expect(files.has(SECOND_TASK)).toBe(false);
+    await waitFor(() => expect(hook.result.current.count).toBe(0));
+  });
+
+  it('puts the proposal back, saying why, when its write fails', async () => {
+    const { hook } = render({ [PROPOSAL]: PROPOSAL_TEXT }, 'The disk is full.');
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    expect(openTitles(hook)).toEqual([]);
+
+    await waitFor(() => expect(openTitles(hook)).toEqual([PROPOSAL]));
+    expect(hook.result.current.section.problems.get(path(PROPOSAL))).toMatch(/The disk is full/);
+    expect(hook.result.current.section.notice?.undoable ?? false).toBe(false);
+  });
+
+  it('reads the proposals again once the answers are written, not once for each', async () => {
+    const { hook, release, reads, onSettled } = heldVault({
+      [PROPOSAL]: PROPOSAL_TEXT,
+      [SECOND]: SECOND_TEXT,
+    });
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+    const before = reads.count;
+
+    act(() => hook.result.current.section.onReject(path(PROPOSAL)));
+    act(() => hook.result.current.section.onReject(path(SECOND)));
+    release();
+    await waitFor(() => expect(onSettled).toHaveBeenCalled());
+    await act(() => new Promise((settle) => setTimeout(settle, 20)));
+
+    expect(reads.count - before).toBe(1);
+    expect(onSettled).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.count).toBe(0);
   });
 });
 

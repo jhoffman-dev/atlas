@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, installHost, type FakeVault } from './host.ts';
+import { createVault, expectFile, installHost, type FakeHost, type FakeVault } from './host.ts';
 
 /**
  * The Inbox stays usable however much waits in it (#164-#167): the list keeps
@@ -41,7 +41,7 @@ const captured = (n: number) =>
 async function openInbox(
   page: Page,
   { proposals, waiting }: { proposals: number; waiting: number },
-): Promise<FakeVault> {
+): Promise<{ vault: FakeVault; host: FakeHost }> {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.mkdir('Inbox/Proposals');
@@ -52,12 +52,21 @@ async function openInbox(
   await Promise.all(
     Array.from({ length: waiting }, (_, n) => vault.write(`Inbox/Item ${n + 1}.md`, captured(n))),
   );
-  await installHost(page, vault);
+  const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
   await page.getByRole('button', { name: /^Inbox/ }).click();
-  return vault;
+  return { vault, host };
+}
+
+/** The task the first card would make, by the number its title ends in. */
+async function firstCard(page: Page) {
+  const card = cards(page).first();
+  const label = (await card.getAttribute('aria-label')) ?? '';
+  const title = /Follow up with Larkspur Payroll \d+/.exec(label)?.[0] ?? '';
+  expect(title).not.toBe('');
+  return { card, label, task: `${title}.md`, title };
 }
 
 const inboxPage = (page: Page) => page.getByRole('article', { name: 'Inbox' });
@@ -84,4 +93,39 @@ test('the Inbox list keeps its rows whole below a long Proposals section (#164)'
   await last.scrollIntoViewIfNeeded();
   const controls = last.getByRole('combobox').first();
   await expect(controls).toBeInViewport({ ratio: 1 });
+});
+
+test('an answered proposal leaves at once, and the next can be answered while it is written (#166)', async ({
+  page,
+}) => {
+  const { vault, host } = await openInbox(page, { proposals: 3, waiting: 0 });
+  await expect(cards(page)).toHaveCount(3);
+  const { card, label, task, title } = await firstCard(page);
+  const release = host.holdWrites(task);
+
+  await card.getByRole('button', { name: 'Accept' }).click();
+
+  await expect(page.getByRole('region', { name: label, exact: true })).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(2);
+  await expect(cards(page).first().getByRole('button', { name: 'Accept' })).toBeEnabled();
+  expect(await vault.exists(task)).toBe(false);
+
+  release();
+  await expect(page.getByRole('status').filter({ hasText: `Accepted: ${title}.` })).toBeVisible();
+  await expectFile(vault, task).toContain('type: task');
+});
+
+test('a proposal whose write fails comes back, saying why (#166)', async ({ page }) => {
+  const { vault, host } = await openInbox(page, { proposals: 2, waiting: 0 });
+  await expect(cards(page)).toHaveCount(2);
+  const { card, label, task } = await firstCard(page);
+  host.failNext('create_note', 'The disk is full.');
+
+  await card.getByRole('button', { name: 'Accept' }).click();
+
+  const back = page.getByRole('region', { name: label, exact: true });
+  await expect(back).toBeVisible();
+  await expect(back.getByText(/The disk is full/)).toBeVisible();
+  await expect(cards(page)).toHaveCount(2);
+  expect(await vault.exists(task)).toBe(false);
 });
