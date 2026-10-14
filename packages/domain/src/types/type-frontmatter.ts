@@ -127,30 +127,51 @@ function writtenProperties({
 }): Record<string, unknown> {
   const beforeByKey = new Map(before.properties.map((property) => [property.key, property]));
   const former = formerKeys(before, after);
+  const asWritten = writtenKeys(written);
   const oldKey = (property: PropertyDef) => former.get(property.key) ?? property.key;
   const spec = (property: PropertyDef) => {
     const was = beforeByKey.get(oldKey(property));
-    const raw = written[oldKey(property)];
+    const raw = written[asWritten.get(oldKey(property)) ?? oldKey(property)];
     if (was !== undefined && sameProperty(was, property)) return raw;
     return mergedSpec({ raw, spec: propertySpec(property), was });
   };
+  // A property keeps the key as the file spells it — `" title"` — unless it was renamed.
+  const keyOf = (property: PropertyDef) =>
+    property.key === oldKey(property)
+      ? (asWritten.get(property.key) ?? property.key)
+      : property.key;
   // Properties that were read before and still are fill the places those held,
   // in their new order; the ones the parser skipped are never moved.
-  const kept = after.properties.filter((property) => Object.hasOwn(written, oldKey(property)));
+  const kept = after.properties.filter((property) => asWritten.has(oldKey(property)));
   const keptOldKeys = new Set(kept.map(oldKey));
   const entries: [string, unknown][] = [];
   let next = 0;
   for (const [key, raw] of Object.entries(written)) {
-    if (!beforeByKey.has(key)) entries.push([key, raw]);
-    else if (keptOldKeys.has(key)) {
+    const read = key.trim();
+    if (!beforeByKey.has(read) || asWritten.get(read) !== key) entries.push([key, raw]);
+    else if (keptOldKeys.has(read)) {
       const property = kept[next++]!;
-      entries.push([property.key, spec(property)]);
+      entries.push([keyOf(property), spec(property)]);
     }
   }
   for (const property of after.properties) {
     if (!keptOldKeys.has(oldKey(property))) entries.push([property.key, spec(property)]);
   }
   return Object.fromEntries(entries);
+}
+
+/**
+ * Each key the parser reads out of a written `properties` map, to the key as
+ * the file spells it: the parser trims a key, so `" title"` is the property
+ * `title`. Where two spellings trim alike, the first is the one read.
+ */
+function writtenKeys(written: Readonly<Record<string, unknown>>): Map<string, string> {
+  const keys = new Map<string, string>();
+  for (const key of Object.keys(written)) {
+    const read = key.trim();
+    if (read !== '' && !keys.has(read)) keys.set(read, key);
+  }
+  return keys;
 }
 
 /**
