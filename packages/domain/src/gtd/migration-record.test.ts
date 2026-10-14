@@ -124,6 +124,19 @@ describe('recordGoneOnFrom (#163)', () => {
     expect(recordGoneOnFrom({ ...RECORD, undoDismissed: true })).toBeNull();
     expect(recordGoneOnFrom({ ...RECORD, finished: false, undoDismissed: true })).toBeNull();
   });
+  it('goes on from a run whose undo left files to try again, finished or dismissed', () => {
+    const partlyUndone = { ...RECORD, left: [], undoUnfinished: true };
+    expect(recordGoneOnFrom(partlyUndone)).toBe(partlyUndone);
+    const dismissed = { ...partlyUndone, undoDismissed: true };
+    expect(recordGoneOnFrom(dismissed)).toBe(dismissed);
+  });
+
+  it('keeps an unfinished undo through the record file and through a later run merged in', () => {
+    const partlyUndone = { ...RECORD, undoUnfinished: true };
+    expect(parseMigrationRecord(migrationRecordText(partlyUndone))).toEqual(partlyUndone);
+    const merged = mergedRecord(partlyUndone, { at: 'later', files: [], finished: true, left: [] });
+    expect(recordGoneOnFrom(merged)).toBe(merged);
+  });
 });
 
 describe('recordHasWorkLeft', () => {

@@ -305,48 +305,55 @@ function useInboxListing({
   const [listing, setListing] = useState<Listing | null>(null);
   // How far down the page has been shown, by the last note listed; nothing past the first page until asked.
   const reach = useRef<{ vaultKey: string | null; through: InboxKey } | null>(null);
-  const reads = useRef(0);
+  // One more each time a read lands in the list, so a page knows whether the list it extends is still up.
+  const landed = useRef(0);
   const [readAgain, setReadAgain] = useState(0);
+  const land = useCallback((next: Listing) => {
+    landed.current += 1;
+    setListing(next);
+  }, []);
 
   useEffect(() => {
     if (!fresh) return;
     let cancelled = false;
-    reads.current += 1;
-    const through = reach.current?.vaultKey === vaultKey ? reach.current.through : null;
+    const begunFrom = reach.current;
+    const through = begunFrom?.vaultKey === vaultKey ? begunFrom.through : null;
     const read =
       through === null
         ? listInbox({ index, tasksStartInInbox })
         : listInboxThrough({ index, through, tasksStartInInbox });
+    // Shown further down while this read ran: what it found stops short of that, so read again that far.
+    const reachedPast = () => reach.current !== begunFrom && reach.current?.vaultKey === vaultKey;
+    const settle = (next: Listing) => {
+      if (cancelled) return;
+      if (reachedPast()) setReadAgain((count) => count + 1);
+      else land(next);
+    };
     read
-      .then((contents) => {
-        if (!cancelled) setListing({ vaultKey, contents, error: null });
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) setListing({ vaultKey, contents: null, error: errorMessage(cause) });
-      });
+      .then((contents) => settle({ vaultKey, contents, error: null }))
+      .catch((cause: unknown) => settle({ vaultKey, contents: null, error: errorMessage(cause) }));
     return () => {
       cancelled = true;
     };
-  }, [index, indexKey, fresh, vaultKey, tasksStartInInbox, readAgain]);
+  }, [index, indexKey, fresh, vaultKey, tasksStartInInbox, readAgain, land]);
 
   const showMore = useCallback(() => {
     const shown = listing?.vaultKey === vaultKey ? listing.contents : null;
     const after = shown?.last ?? null;
     if (shown === null || !shown.truncated || after === null) return;
-    const begun = reads.current;
+    const begun = landed.current;
     listInbox({ index, after, tasksStartInInbox })
       .then((page) => {
         reach.current = { vaultKey, through: page.last ?? after };
-        // Read again meanwhile, the list is newer than this page: read it again, this far down.
-        if (reads.current !== begun) setReadAgain((count) => count + 1);
-        else setListing({ vaultKey, contents: followedBy(shown, page), error: null });
+        // Another read landed meanwhile, so the list is newer than this page: read it again, this far down.
+        if (landed.current !== begun) setReadAgain((count) => count + 1);
+        else land({ vaultKey, contents: followedBy(shown, page), error: null });
       })
       .catch((cause: unknown) => {
-        if (reads.current === begun) {
-          setListing({ vaultKey, contents: shown, error: errorMessage(cause) });
-        }
+        if (landed.current === begun)
+          land({ vaultKey, contents: shown, error: errorMessage(cause) });
       });
-  }, [listing, vaultKey, index, tasksStartInInbox]);
+  }, [listing, vaultKey, index, tasksStartInInbox, land]);
 
   return { listing, showMore };
 }

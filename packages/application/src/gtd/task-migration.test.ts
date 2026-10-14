@@ -390,6 +390,32 @@ describe('undoing the migration', () => {
     await undoTaskMigration({ fs: ports.fs, panes: closedPanes });
     expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
   });
+
+  it('keeps what a partial undo left to put back when the move is run again (#163)', async () => {
+    const { ports, files } = vault();
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    const typing: MigrationPanes = {
+      state: (path) => (path === 'tasks/Call Mara.md' ? 'dirty' : 'closed'),
+      reload: () => {},
+    };
+    await undoTaskMigration({ fs: ports.fs, panes: typing });
+
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock: { localNow: () => '2026-10-09T09:30:00' },
+      preview: await previewTaskMigration(ports),
+    });
+    await undoTaskMigration({ fs: ports.fs, panes: closedPanes });
+
+    expect(files.get('tasks/Call Mara.md')).toBe(FILES['tasks/Call Mara.md']);
+    expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
+  });
 });
 
 describe('dismissing the undo offer (#163)', () => {

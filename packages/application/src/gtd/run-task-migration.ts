@@ -239,7 +239,7 @@ export async function undoTaskMigration({
   } else {
     await fs.writeTextFile({
       path: MIGRATION_RECORD_PATH,
-      contents: migrationRecordText({ ...kept.record, files: retry }),
+      contents: migrationRecordText({ ...kept.record, files: retry, undoUnfinished: true }),
       expectedModified: kept.modified,
     });
   }

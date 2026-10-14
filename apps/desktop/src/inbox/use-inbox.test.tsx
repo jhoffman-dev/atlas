@@ -406,6 +406,93 @@ describe('useInbox — more than one page (#167)', () => {
   });
 });
 
+/**
+ * The index of {@link keysetIndex}, its first-page reads and its read-on pages
+ * each held until let go: so a re-read and a Show more can be landed in
+ * either order.
+ */
+function heldIndex(waiting: { title: string; modified: number }[]) {
+  const { index } = keysetIndex(waiting);
+  const gate = () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    return { held, release };
+  };
+  const gates = { firstPage: gate(), readOn: gate() };
+  const holding = { firstPage: false, readOn: false };
+  const query: typeof index.query = async (sql, parameters) => {
+    const firstPage = isPage(sql) && !sql.includes('files.path > ?') && !sql.includes('<= ?');
+    if (firstPage && holding.firstPage) await gates.firstPage.held;
+    if (sql.includes('files.path > ?') && holding.readOn) await gates.readOn.held;
+    return index.query(sql, parameters);
+  };
+  return {
+    index: { ...index, query },
+    hold: (which: keyof typeof holding) => (holding[which] = true),
+    release: async (which: keyof typeof holding) => {
+      holding[which] = false;
+      await act(async () => gates[which].release());
+    },
+  };
+}
+
+describe('useInbox — Show more while the list is being read again (#167)', () => {
+  async function shownFirstPage(waiting: { title: string; modified: number }[]) {
+    const held = heldIndex(waiting);
+    const { hook, initial } = inbox();
+    const at = { ...initial, ports: { ...initial.ports, index: held.index } };
+    hook.rerender(at);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT));
+    return { hook, at, held };
+  }
+  const titles = (hook: { result: { current: ReturnType<typeof useInbox> } }) =>
+    hook.result.current.contents?.items.map((item) => item.title) ?? [];
+
+  it('keeps the page it added when the read begun before it lands after it', async () => {
+    const waiting = waitingTasks(INBOX_LIST_LIMIT * 2 + 3);
+    const { hook, at, held } = await shownFirstPage(waiting);
+
+    held.hold('firstPage');
+    hook.rerender({ ...at, indexKey: 'ready:2' });
+    await act(async () => {});
+    held.hold('readOn');
+    act(() => hook.result.current.showMore());
+    await act(async () => {});
+
+    await held.release('readOn');
+    expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT * 2);
+    await held.release('firstPage');
+    await act(async () => {});
+
+    expect(titles(hook)).toEqual(waiting.slice(0, INBOX_LIST_LIMIT * 2).map((task) => task.title));
+  });
+
+  it('never brings back the list it was asked from when the read begun before it lands first', async () => {
+    const waiting = waitingTasks(INBOX_LIST_LIMIT * 2 + 3);
+    const { hook, at, held } = await shownFirstPage(waiting);
+
+    // The first task is filed: the index changes, and Show more is asked for before its re-read lands.
+    const [filed] = waiting.splice(0, 1);
+    held.hold('firstPage');
+    hook.rerender({ ...at, indexKey: 'ready:2' });
+    await act(async () => {});
+    held.hold('readOn');
+    act(() => hook.result.current.showMore());
+    await act(async () => {});
+
+    await held.release('firstPage');
+    expect(titles(hook)[0]).toBe('Task 1');
+    await held.release('readOn');
+    await act(async () => {});
+
+    await waitFor(() => expect(titles(hook)).toHaveLength(INBOX_LIST_LIMIT * 2 - 1));
+    expect(titles(hook)).not.toContain(filed?.title);
+    expect(titles(hook)).toEqual(
+      waiting.slice(0, INBOX_LIST_LIMIT * 2 - 1).map((task) => task.title),
+    );
+  });
+});
+
 describe('useInbox — undo', () => {
   it('moves the note back and puts back what it said', async () => {
     const { hook, files, onSettled } = inbox();
