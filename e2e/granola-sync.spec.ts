@@ -179,6 +179,8 @@ test('your emails in Granola are kept in the vault’s settings once saved', asy
     'Not an email address: “Mara”. Nothing was saved.',
   );
   await expect(field).toHaveValue('mara.quill@example.com, Mara');
+  // Nothing was kept: what is typed still differs from what the settings hold.
+  await expect(card(page).getByRole('button', { name: 'Save emails' })).toBeEnabled();
 
   await field.fill('Mara Quill <Mara.Quill@example.com>, mq@example.com');
   await card(page).getByRole('button', { name: 'Save emails' }).click();
