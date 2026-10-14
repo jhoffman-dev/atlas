@@ -520,6 +520,38 @@ describe('useProposals — answering several at once (#168)', () => {
     expect([...hook.result.current.section.selection.selected]).toEqual([PROPOSAL]);
   });
 
+  it('keeps what was chosen while the batch was written, with the ones it could not answer (review)', async () => {
+    const setup = holdingOne({ ...THREE, [PROPOSAL]: GONE_TEXT }, SECOND_TASK);
+    const { hook } = drive(setup, setup.ports);
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+    act(() => hook.result.current.section.selection.onToggle(SECOND));
+    act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
+
+    act(() => hook.result.current.section.selection.onToggle(THIRD));
+    setup.release();
+    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+
+    expect([...hook.result.current.section.selection.selected].sort()).toEqual(
+      [PROPOSAL, THIRD].sort(),
+    );
+  });
+
+  it('chooses again the ones it could not answer, though the choice was cleared meanwhile (review)', async () => {
+    const setup = holdingOne({ ...THREE, [PROPOSAL]: GONE_TEXT }, SECOND_TASK);
+    const { hook } = drive(setup, setup.ports);
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+    act(() => hook.result.current.section.selection.onToggle(SECOND));
+    act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
+
+    act(() => hook.result.current.section.onClearSelection());
+    setup.release();
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+    expect([...hook.result.current.section.selection.selected]).toEqual([PROPOSAL]);
+  });
+
   it('rejects each chosen one, archiving it, with nothing to undo', async () => {
     const { hook, files } = render(THREE);
     await waitFor(() => expect(hook.result.current.count).toBe(3));

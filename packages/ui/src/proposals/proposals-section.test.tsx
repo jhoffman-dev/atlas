@@ -391,6 +391,7 @@ describe('ProposalsSection — answering several at once (#168)', () => {
   it('accepts or rejects the chosen ones together, and lets them go', async () => {
     const handlers = page({ selection: chosen([TASK.path, LINK.path]) });
     expect(screen.getByRole('status').textContent).toBe('2 selected');
+    expect(screen.getByRole('toolbar', { name: 'Chosen proposals' })).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Accept 2 proposals' }));
     expect(handlers.onAcceptMany).toHaveBeenCalledWith([TASK.path, LINK.path]);
     await userEvent.click(screen.getByRole('button', { name: 'Reject 2 proposals' }));

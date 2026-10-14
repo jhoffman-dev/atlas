@@ -3,7 +3,8 @@ import { createVault, installHost, type FakeVault } from './host.ts';
 
 /**
  * Adversarial: the Proposals section by keyboard and screen reader, now that
- * an answered card leaves the list at once (#166).
+ * an answered card leaves the list at once (#166) and cards carry boxes to
+ * choose several (#168).
  */
 
 const TASK_TYPE = [
@@ -53,6 +54,14 @@ async function openProposals(page: Page): Promise<FakeVault> {
 
 const cards = (page: Page) =>
   page.getByRole('list', { name: 'Open proposals' }).getByRole('region');
+
+test('adversarial: the bar over chosen proposals is named for proposals, not notes', async ({
+  page,
+}) => {
+  await openProposals(page);
+  await page.getByRole('checkbox', { name: 'Select all' }).click();
+  await expect(page.getByRole('toolbar', { name: /proposals/i })).toBeVisible();
+});
 
 test('adversarial: after Accept by keyboard, focus stays in the list for the next answer', async ({
   page,
