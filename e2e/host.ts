@@ -465,6 +465,21 @@ export interface FakeHost {
     calendars(): readonly string[];
   };
   /**
+   * Granola, as `granola.rs` answers for it: an API key kept per vault, and a
+   * GET under `/v1/` answered with what a test served at that path (404 where
+   * nothing was). The last answer is the word on the key, as the host keeps
+   * it: a 401 marks the key refused and any other answer clears that.
+   * Setting a key clears it and then checks the key with one
+   * `GET /v1/notes?page_size=1`, recorded among the requests, whose answer
+   * stands. The Keychain item, the pinned origin and the key struck from
+   * every answer are Rust's and tested there against a fake Granola.
+   */
+  readonly granola: {
+    serve(path: string, answer: { status: number; body: string }): void;
+    hasKey(): boolean;
+    requests(): readonly { path: string; query: Readonly<Record<string, string>> }[];
+  };
+  /**
    * The global capture shortcut, as `global_capture.rs` holds it: what the app
    * asked to register, and a press, delivered as the host's `global-capture`
    * event after it has brought the window forward. Raising the window and the
@@ -611,6 +626,26 @@ export async function installHost(
   const googleSignIns = new Map<string, { clientId: string; scopes: string[] }>();
   const googleCalendars: { id: string; summary: string }[] = [];
   let googleRefusal: { kind: string; code?: string; message: string } | null = null;
+  /** Granola keys and refusals by vault root, what each path answers, and every request. */
+  const granolaKeys = new Map<string, string>();
+  const granolaRefusals = new Map<string, number>();
+  const granolaAnswers = new Map<string, { status: number; body: string }>();
+  const granolaRequests: { path: string; query: Readonly<Record<string, string>> }[] = [];
+  const granolaStatus = (root: string) => ({
+    hasKey: granolaKeys.has(root),
+    lastRefusal: granolaRefusals.get(root) ?? null,
+  });
+  /** One GET to the fake Granola, whose answer is the last word on the key. */
+  const granolaGet = (root: string, path: string, query: Record<string, string>) => {
+    granolaRequests.push({ path, query });
+    const answer = granolaAnswers.get(path) ?? { status: 404, body: '{"message":"Not found"}' };
+    if (answer.status === 401) {
+      granolaRefusals.set(root, answer.status);
+    } else {
+      granolaRefusals.delete(root);
+    }
+    return answer;
+  };
   const databases = new Map<string, { columns: string[]; rows: unknown[][] }>();
   const sqliteQueries: { file: string; sql: string }[] = [];
   let offeredDatabase: string | null = null;
@@ -1250,6 +1285,33 @@ export async function installHost(
         const items = googleCalendars.map((calendar) => ({ ...calendar, accessRole: 'owner' }));
         return { status: 200, body: JSON.stringify({ items }) };
       }
+      case 'granola_status':
+        return granolaStatus(writeRoot(args));
+      case 'granola_set_key': {
+        const root = writeRoot(args);
+        const { key } = args as { key: string };
+        if (!/^grn_[\x21-\x7e]+$/.test(key)) {
+          return { [REJECT]: { kind: 'invalid', message: 'that is not a Granola API key' } };
+        }
+        granolaKeys.set(root, key);
+        granolaRefusals.delete(root);
+        granolaGet(root, '/v1/notes', { page_size: '1' });
+        return granolaStatus(root);
+      }
+      case 'granola_forget_key': {
+        const root = writeRoot(args);
+        granolaKeys.delete(root);
+        granolaRefusals.delete(root);
+        return granolaStatus(root);
+      }
+      case 'granola_request': {
+        const root = writeRoot(args);
+        if (!granolaKeys.has(root)) {
+          return { [REJECT]: { kind: 'no_key', message: 'no Granola API key is kept' } };
+        }
+        const { path, query } = args as { path: string; query: Record<string, string> };
+        return granolaGet(root, path, query);
+      }
       case 'sqlite_source_query': {
         const { file, sql } = args as { file: string; sql: string };
         sqliteQueries.push({ file, sql });
@@ -1579,6 +1641,13 @@ export async function installHost(
       },
       connected: () => googleSignIns.size > 0,
       calendars: () => googleCalendars.map((calendar) => calendar.summary),
+    },
+    granola: {
+      serve: (path, answer) => {
+        granolaAnswers.set(path, answer);
+      },
+      hasKey: () => granolaKeys.size > 0,
+      requests: () => [...granolaRequests],
     },
     globalCapture: {
       registered: () => globalShortcut,

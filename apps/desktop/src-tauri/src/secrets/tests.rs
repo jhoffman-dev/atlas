@@ -1,4 +1,6 @@
+use std::future::Future;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use super::{
     account, binding::bound_origins, describe, entries_in, fill, names_in, redact, remove_secret,
@@ -182,6 +184,71 @@ fn a_secret_echoed_as_base64_is_struck() {
         redacted.starts_with("std=[secret key removed]"),
         "{redacted}"
     );
+}
+
+/// The padding is struck with the rest, in both alphabets, rather than left
+/// beside the strike to say how long the secret was.
+#[test]
+fn a_secret_echoed_as_padded_base64_is_struck_with_its_padding() {
+    let secret = "hunter2-token~";
+    for echo in ["aHVudGVyMi10b2tlbn4=", "aHVudGVyMi10b2tlbn4%3D"] {
+        assert_eq!(
+            struck(&format!("sent={echo};"), secret),
+            "sent=[secret key removed];",
+            "{echo}"
+        );
+    }
+}
+
+/// A secret sent inside a longer value — `Bearer <key>`, `user:<key>` — sits at
+/// any byte offset of what is base64-encoded, and each offset modulo 3 encodes
+/// it as different text. Every alignment is struck, in both alphabets, however
+/// the value around it begins and ends.
+#[test]
+fn a_secret_echoed_as_base64_at_any_offset_in_either_alphabet_is_struck() {
+    use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+    use base64::Engine;
+    // `~` and `?` put `+` and `/` (`-` and `_` in the URL-safe alphabet) into
+    // every alignment, so the two alphabets differ.
+    let secret = "tok~~~???~~~???~~~end";
+    for prefix in ["", "B", "Be", "Bearer "] {
+        for engine in [STANDARD, URL_SAFE] {
+            let echo = engine.encode(format!("{prefix}{secret}\""));
+            let alphabet_matters = echo != STANDARD.encode(format!("{prefix}{secret}\""))
+                || echo != URL_SAFE.encode(format!("{prefix}{secret}\""));
+            assert!(alphabet_matters, "{echo} reads the same in both alphabets");
+
+            let redacted = struck(&format!("echo={echo};"), secret);
+
+            let (before, after) = redacted
+                .strip_prefix("echo=")
+                .and_then(|rest| rest.split_once("[secret key removed]"))
+                .unwrap_or_else(|| panic!("{prefix:?}: {echo} was not struck: {redacted}"));
+            // What is left is the prefix's own characters and the few that
+            // share a byte with what follows the secret: never a run of it.
+            assert!(before.len() <= 4 * prefix.len().div_ceil(3), "{redacted}");
+            assert!(after.len() <= "Ig==;".len(), "{redacted}");
+        }
+    }
+}
+
+/// An encoder is free to escape a letter or a digit too: `\u0067` is `g` to a
+/// JSON parser and `%67` is `g` to a URL decoder, in either case of hex.
+#[test]
+fn a_secret_echoed_with_letters_and_digits_escaped_is_struck() {
+    for echo in [
+        r"\u0067\u0072\u006e\u005f\u0031",
+        r"\u0067\u0072\u006E\u005F\u0031",
+        "%67%72%6E%5F%31",
+        "%67%72%6e%5f%31",
+        "g%72n%5F1",
+    ] {
+        assert_eq!(
+            struck(&format!("sent={echo}&"), "grn_1"),
+            "sent=[secret key removed]&",
+            "{echo}"
+        );
+    }
 }
 
 // Host binding (A19-01).
@@ -372,4 +439,217 @@ fn a_name_starts_with_a_letter_or_digit_as_typescript_says() {
 fn text_that_only_resembles_a_secret_is_left_alone() {
     // The same letters, with `-` where the secret has `+`.
     assert_eq!(struck("aB3-dE6", "aB3+dE6"), "aB3-dE6");
+}
+
+/// Every character of a secret may be escaped, so its pattern grows with it;
+/// a long secret of the printable characters whose pattern is largest is
+/// still looked for rather than the answer withheld as unchecked.
+#[test]
+fn a_long_secret_is_struck_rather_than_the_answer_withheld() {
+    let secret = drawn_from(&(b' '..=b'~').map(char::from).collect::<Vec<_>>(), 1_024);
+    assert_eq!(
+        struck(&format!("echo={secret};"), &secret),
+        "echo=[secret key removed];"
+    );
+}
+
+/// `len` characters drawn from `alphabet` in no order, the same each time.
+fn drawn_from(alphabet: &[char], len: usize) -> String {
+    let mut seed = 1u64;
+    (0..len)
+        .map(|_| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            alphabet[(seed >> 33) as usize % alphabet.len()]
+        })
+        .collect()
+}
+
+/// `len` bytes of what a signed token (a JWT) is written in: base64url's
+/// letters, digits, `-` and `_`, and the `.` between its parts.
+pub(crate) fn a_signed_token(len: usize) -> String {
+    let alphabet: Vec<char> = ('A'..='Z')
+        .chain('a'..='z')
+        .chain('0'..='9')
+        .chain(['-', '_', '.'])
+        .collect();
+    drawn_from(&alphabet, len)
+}
+
+/// Past the 1,024 bytes Atlas once capped a secret at: a signed token is
+/// kept, and struck from what comes back.
+#[test]
+fn a_signed_token_of_some_kilobytes_is_kept_and_struck() {
+    let store = MemoryStore::default();
+    let token = a_signed_token(2_700);
+
+    write(
+        &store,
+        "jwt",
+        Some(&token),
+        Some(&["https://a.test"]),
+        false,
+    )
+    .unwrap();
+
+    assert_eq!(
+        store.get("v1/jwt").unwrap().as_deref(),
+        Some(token.as_str())
+    );
+    assert_eq!(
+        struck(&format!("echo={token};"), &token),
+        "echo=[secret key removed];"
+    );
+}
+
+#[test]
+fn a_secret_too_long_to_protect_is_refused_and_not_stored() {
+    let store = MemoryStore::default();
+    let too_long = a_signed_token(8 * 1024);
+
+    let refused = write(
+        &store,
+        "k",
+        Some(&too_long),
+        Some(&["https://a.test"]),
+        false,
+    );
+
+    assert_eq!(
+        refused.unwrap_err(),
+        "the secret \"k\" is too long to protect: Atlas could not strike it from what comes back, so it is not kept"
+    );
+    assert_eq!(store.accounts().unwrap(), Vec::<String>::new());
+}
+
+/// Base64 is looked for from eight characters on: shorter, its text is too
+/// little to tell from the rest of an answer.
+#[test]
+fn a_secret_is_looked_for_as_base64_from_eight_characters_on() {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    let (seven, eight) = ("pin-123", "pin-1234");
+
+    assert_eq!(
+        struck(&STANDARD.encode(seven), seven),
+        STANDARD.encode(seven)
+    );
+    assert_eq!(
+        struck(&STANDARD.encode(eight), eight),
+        "[secret key removed]"
+    );
+}
+
+/// A secret too short to be told from text by its base64 is looked for as
+/// itself and its escapes only.
+#[test]
+fn a_one_character_secret_is_struck_where_it_appears() {
+    assert_eq!(struck("a-b", "a"), "[secret key removed]-b");
+}
+
+/// Adversarial (P28-10 fix). A server that puts the request URL inside
+/// another URL's query — `return_to`, `login_url`, `redirect` — encodes it
+/// twice, so a `+` the secret held reaches the answer as `%252B`. Each
+/// character is matched as itself, `%XX` or `\uXXXX`, never `%25XX`, so the
+/// letters and digits match and the rest do not: the whole secret is in the
+/// answer, two URL decodes from the clear.
+#[test]
+fn a_secret_echoed_percent_encoded_twice_is_struck() {
+    let secret = "aB3+dE6/gH9=";
+    let echo = r#"{"login_url":"https://feeds.example/login?return_to=https%3A%2F%2Ffeeds.example%2Fcal%3Ftoken%3DaB3%252BdE6%252FgH9%253D"}"#;
+
+    let redacted = struck(echo, secret);
+
+    assert!(
+        redacted.contains("[secret key removed]"),
+        "the secret survives as aB3%252BdE6%252FgH9%253D: {redacted}"
+    );
+}
+
+/// Adversarial (P28-10 fix). A server that rebuilds a `next` link with form
+/// encoding (Python's `urlencode`, Java's `URLEncoder`) writes a space as `+`.
+/// A secret holding a space is matched against ` `, `%20` and ` ` only.
+#[test]
+fn a_secret_echoed_form_encoded_with_plus_for_space_is_struck() {
+    let secret = "correct horse battery staple";
+
+    let redacted = struck(
+        "next=/feed?page=2&pass=correct+horse+battery+staple",
+        secret,
+    );
+
+    assert_eq!(redacted, "next=/feed?page=2&pass=[secret key removed]");
+}
+
+/// Adversarial (P28-10 fix). The base64 "cores" of a one- or two-byte secret
+/// are one or two characters long, and are struck wherever they occur in the
+/// answer: a secret of `a` strikes every `Y`, one of `ab` every `Fi`. Text
+/// that is not the secret in any form is changed, and the answer the webview
+/// reads is corrupted.
+#[test]
+fn a_short_secret_strikes_only_itself_and_not_text_its_base64_shares() {
+    assert_eq!(struck("Yes", "a"), "Yes");
+    assert_eq!(struck("Final", "ab"), "Final");
+}
+
+/// Uses eight values no test keeps. The redactor holds the matchers of the
+/// eight values used most recently, so any value used before these is no
+/// longer among them, whatever other tests use meanwhile.
+pub(crate) fn use_eight_other_values() {
+    for n in 0..8 {
+        super::ensure_strikable(&format!("grn_Displacing{n}")).unwrap();
+    }
+}
+
+/// Runs `work` joined, on one task, with a step that only has to be polled
+/// once more, and checks that step was not kept waiting while `work` ran:
+/// it finishes at once when `work` builds its matchers on another thread,
+/// and only after them when they are built on this one — the async worker
+/// every other command shares.
+pub(crate) async fn assert_never_stalls_the_worker<T>(work: impl Future<Output = T>) -> T {
+    let started = Instant::now();
+    let work = async {
+        let done = work.await;
+        (done, started.elapsed())
+    };
+    let other = async {
+        tokio::task::yield_now().await;
+        started.elapsed()
+    };
+    let ((done, took), waited) = tokio::join!(work, other);
+    assert!(
+        waited * 10 < took && took > Duration::from_millis(5),
+        "another step waited {waited:?} of the {took:?} the work took"
+    );
+    done
+}
+
+/// Adversarial (P28-10 round 3, after 0d51773), rewritten for round 4. The
+/// matcher is built before anything else about the write is checked, and
+/// held whether or not the value is then kept: a write refused for its
+/// origins (or a Keychain that would not take it) leaves a matcher spelling a
+/// value Atlas never kept. That is accepted, within a bound: it is let go
+/// once eight other values have been used.
+#[test]
+fn a_secret_refused_at_saving_is_let_go_once_eight_other_values_are_used() {
+    let store = MemoryStore::default();
+    let (name, value) = ("larkspur-refused-token", "grn_RefusedLarkspurValue");
+
+    let refused = write(
+        &store,
+        name,
+        Some(value),
+        Some(&["http://plain.test"]),
+        true,
+    );
+    assert!(refused.is_err());
+    assert!(store.accounts().unwrap().is_empty(), "the value was kept");
+
+    use_eight_other_values();
+
+    assert!(
+        !super::holds_matcher(value),
+        "the refused value's matcher outlived eight others"
+    );
 }

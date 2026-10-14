@@ -15,6 +15,7 @@
 use reqwest::Url;
 use serde::Serialize;
 
+use super::redact::ensure_strikable;
 use super::{account, checked_name, SecretStore};
 
 /// Origins are stored one per line.
@@ -125,6 +126,14 @@ pub fn write_secret(
     allow: &AllowWidening,
 ) -> Result<(), String> {
     let value_account = account(write.scope, write.name)?;
+    if let Some(value) = write.value {
+        ensure_strikable(value).map_err(|_| {
+            format!(
+                "the secret {:?} is too long to protect: Atlas could not strike it from what comes back, so it is not kept",
+                write.name
+            )
+        })?;
+    }
     let origins = write.origins.map(canonical_origins).transpose()?;
 
     if let (Some(origins), None) = (&origins, write.value) {
@@ -159,7 +168,8 @@ pub fn write_secret(
     Ok(())
 }
 
-/// Removes a secret's value and its binding.
+/// Removes a secret's value and its binding. Its matcher is held until other
+/// values displace it (`redact::Matchers`).
 pub fn remove_secret(store: &dyn SecretStore, scope: &str, name: &str) -> Result<(), String> {
     store.delete(&account(scope, name)?)?;
     store.delete(&binding_account(scope, name)?)

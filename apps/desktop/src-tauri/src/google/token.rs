@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use super::failure::{FailureKind, GoogleFailure};
 use super::grant::Grant;
-use crate::http::read_capped;
+use crate::http::{read_capped, ReadFailure, MAX_RESPONSE_BYTES};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const USER_AGENT: &str = concat!("Atlas/", env!("CARGO_PKG_VERSION"));
@@ -87,12 +87,20 @@ pub fn unreachable(error: reqwest::Error) -> GoogleFailure {
     )
 }
 
-/// Reads an answer whole, within the cap every response is held to.
+/// Reads an answer whole, within the cap every response is held to. One past
+/// it is not what OAuth or the Calendar API sends: malformed, not unreachable.
 pub async fn answer_of(response: reqwest::Response) -> Result<(u16, Vec<u8>), GoogleFailure> {
     let status = response.status().as_u16();
-    let body = read_capped(response)
-        .await
-        .map_err(|error| GoogleFailure::new(FailureKind::Unreachable, error))?;
+    let body =
+        read_capped(response, MAX_RESPONSE_BYTES)
+            .await
+            .map_err(|failure| match failure {
+                ReadFailure::TooLarge => GoogleFailure::new(
+                    FailureKind::Malformed,
+                    "Google's answer is larger than Atlas will read",
+                ),
+                ReadFailure::Stopped(error) => unreachable(error),
+            })?;
     Ok((status, body))
 }
 

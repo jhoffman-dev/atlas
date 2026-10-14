@@ -260,6 +260,18 @@ async fn a_token_answer_that_is_not_oauth_is_malformed_and_nothing_is_kept() {
     assert!(setup.kept().is_none());
 }
 
+/// Google answered, at length: that is not a Google that cannot be reached.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_token_answer_larger_than_the_cap_is_malformed_and_nothing_is_kept() {
+    let setup = Setup::new().await;
+    setup.google().code_answer = Some(CodeAnswer::Oversized);
+
+    let failure = setup.connect(Browser::Allows).await.unwrap_err();
+
+    assert_eq!(failure.kind, FailureKind::Malformed, "{}", failure.message);
+    assert!(setup.kept().is_none());
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn without_a_refresh_token_nothing_is_kept() {
     let setup = Setup::new().await;
