@@ -89,7 +89,7 @@ test('a key is set, the meetings Granola holds are pulled in, and Sync now bring
   const before = Number.parseInt((await indexed.textContent()) ?? '', 10);
   serveNotes(host, [RENEWAL]);
   await card(page).getByLabel('Granola API key', { exact: true }).fill(KEY);
-  await card(page).getByRole('button', { name: 'Save' }).click();
+  await card(page).getByRole('button', { name: 'Save', exact: true }).click();
 
   await expect(card(page).getByTestId('granola-key')).toHaveText('Key accepted');
   await expect(card(page).getByLabel('Granola API key', { exact: true })).toHaveValue('');
@@ -118,7 +118,7 @@ test('a key Granola refuses is said on the card, and nothing is pulled with it',
   host.granola.serve('/v1/notes', { status: 401, body: '{"message":"Unauthorized"}' });
 
   await card(page).getByLabel('Granola API key', { exact: true }).fill(KEY);
-  await card(page).getByRole('button', { name: 'Save' }).click();
+  await card(page).getByRole('button', { name: 'Save', exact: true }).click();
 
   await expect(card(page).getByTestId('granola-key')).toHaveText('Granola refused this key');
   await expect(card(page).getByTestId('granola-pull')).toHaveText('Not pulled on this Mac yet');
@@ -131,7 +131,7 @@ test('a Sync now that fails says why as a toast', async ({ page }) => {
   const { host } = await openSettings(page);
   serveNotes(host, []);
   await card(page).getByLabel('Granola API key', { exact: true }).fill(KEY);
-  await card(page).getByRole('button', { name: 'Save' }).click();
+  await card(page).getByRole('button', { name: 'Save', exact: true }).click();
   await expect(card(page).getByTestId('granola-pull')).toContainText('nothing new');
 
   host.granola.serve('/v1/notes', { status: 503, body: '{"message":"Unavailable"}' });
