@@ -1,6 +1,9 @@
 import type { GranolaFailure, GranolaNote, GranolaNoteSummary } from '@atlas/domain';
 
-/** Whether this vault has a Granola API key on this Mac, and 401 while Granola refuses it. Never the key. */
+/**
+ * Whether this vault has a Granola API key on this Mac, and 401 when
+ * Granola's last answer to a request with it was a 401. Never the key.
+ */
 export interface GranolaKeyStatus {
   readonly hasKey: boolean;
   readonly lastRefusal: 401 | null;
@@ -30,6 +33,7 @@ export interface GranolaTranscriptPage {
  */
 export interface GranolaPort {
   status(args: { vault: string }): Promise<GranolaKeyStatus>;
+  /** Keeps the key, and has Granola check it with one small listing; the status says what it answered. */
   setKey(args: { vault: string; key: string }): Promise<GranolaKeyStatus>;
   forgetKey(args: { vault: string }): Promise<GranolaKeyStatus>;
   /** A page of the notes updated after `updatedAfter` — every note when it is null — from `cursor`. */
