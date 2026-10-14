@@ -45,6 +45,12 @@ export interface MigrationRecord {
   readonly lastRunAt?: string;
   /** Whether the person dismissed the Inbox's offer to undo the move. */
   readonly undoDismissed?: boolean;
+  /**
+   * Whether an undo was tried and left files to try again — unsaved typing, a
+   * refusal — so the files here are those still to put back, and the move is
+   * not over until they are.
+   */
+  readonly undoUnfinished?: boolean;
 }
 
 /** How many days after a run began the Inbox offers to undo it (#163). */
@@ -105,6 +111,7 @@ export function migrationRecordText(record: MigrationRecord): string {
       left: record.left ?? [],
       ...(record.lastRunAt !== undefined && { lastRunAt: record.lastRunAt }),
       ...(record.undoDismissed === true && { undoDismissed: true }),
+      ...(record.undoUnfinished === true && { undoUnfinished: true }),
     }),
     FENCE,
     '',
@@ -137,6 +144,7 @@ export function parseMigrationRecord(text: string): MigrationRecord {
     left: Array.isArray(parsed['left']) ? parsed['left'].map(leftPath) : [],
     ...(typeof parsed['lastRunAt'] === 'string' && { lastRunAt: parsed['lastRunAt'] }),
     ...(parsed['undoDismissed'] === true && { undoDismissed: true }),
+    ...(parsed['undoUnfinished'] === true && { undoUnfinished: true }),
   };
 }
 
@@ -186,9 +194,12 @@ function recordedFile(raw: unknown): RecordedFile {
  * finished with files it could not move yet — that run is not over, so one
  * undo covers both. A run that finished with nothing left is over, and so is
  * one whose undo was dismissed: the new run is a run of its own, with its own
- * record, and its Undo never takes back the run before it.
+ * record, and its Undo never takes back the run before it. One whose undo left
+ * files to try again is never over — replacing it would lose what those files
+ * were before — so the new run goes on from it, and the next Undo puts them back.
  */
 export function recordGoneOnFrom(earlier: MigrationRecord | null): MigrationRecord | null {
+  if (earlier?.undoUnfinished === true) return earlier;
   if (earlier === null || earlier.undoDismissed === true) return null;
   const over = earlier.finished === true && (earlier.left ?? []).length === 0;
   return over ? null : earlier;
@@ -222,6 +233,7 @@ export function mergedRecord(
     files: [...files.values()],
     ...(later.finished === undefined ? {} : { finished: later.finished }),
     ...(later.left === undefined ? {} : { left: later.left }),
+    ...(earlier.undoUnfinished === true && { undoUnfinished: true }),
   };
 }
 
