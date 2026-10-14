@@ -1,4 +1,4 @@
-import { MeetingMappingError, oneLine } from './meeting-mapping-error.ts';
+import { MeetingMappingError, oneLine, shown } from './meeting-mapping-error.ts';
 
 /** The day (`YYYY-MM-DD`) and, when given, the clock time a Gemini email states. */
 export interface StatedWhen {
@@ -112,12 +112,12 @@ function dayOf(match: RegExpExecArray): string | null {
  * rather than falling back to a time that is not the meeting's.
  */
 export function readStated(value: unknown): StatedWhen | null {
-  const text = oneLine(value);
+  const text = oneLine(value, 'stated');
   if (text === '') return null;
   const found = [...text.matchAll(STATED)]
     .map((match) => ({ day: dayOf(match), time: match[7] ?? null, zone: zoneOf(match[8]) }))
     .filter((each): each is StatedWhen => each.day !== null);
   const last = found.at(-1);
-  if (last === undefined) throw new MeetingMappingError(`stated: no date in "${text}"`);
+  if (last === undefined) throw new MeetingMappingError(`stated: no date in ${shown(text)}`);
   return last;
 }
