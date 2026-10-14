@@ -10,8 +10,9 @@ export const SELF_EMAILS_KEY = 'selfEmails';
 
 /**
  * Where Settings → Granola kept the same addresses before `selfEmails`
- * (ADR-0034): read in its place while `selfEmails` holds none, and left where
- * it is, so a vault set up for Granola maps every meeting as it did.
+ * (ADR-0034): read in its place while `selfEmails` holds none, so a vault set
+ * up for Granola maps every meeting as it did, until the person saves their
+ * emails in Settings → Profile, which moves them to `selfEmails`.
  */
 export const GRANOLA_SELF_EMAILS_KEY = 'granola_self_emails';
 
@@ -66,12 +67,16 @@ export function selfEmailsFromText(text: string): SelfEmailsReading {
 }
 
 /**
- * The settings change that keeps the owner's addresses: under `selfEmails`
- * alone, the alias left as the file holds it. None removes the key rather
- * than writing an empty list.
+ * The settings change that keeps the owner's addresses: under `selfEmails`,
+ * with `granola_self_emails` removed in the same write, so what is saved is
+ * the one source and clearing the field leaves no older addresses to read in
+ * its place. None removes `selfEmails` rather than writing an empty list.
  */
 export function selfEmailsSettingsChanges(
   emails: readonly string[],
-): Record<typeof SELF_EMAILS_KEY, readonly string[] | null> {
-  return { [SELF_EMAILS_KEY]: emails.length === 0 ? null : emails };
+): Record<SelfEmailsSource, readonly string[] | null> {
+  return {
+    [SELF_EMAILS_KEY]: emails.length === 0 ? null : emails,
+    [GRANOLA_SELF_EMAILS_KEY]: null,
+  };
 }

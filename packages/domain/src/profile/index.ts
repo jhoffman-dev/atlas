@@ -11,6 +11,7 @@ export {
   profileSettingsChanges,
 } from './profile.ts';
 export type { Profile, ProfileChange, ProfileState } from './profile.ts';
+export { comparableAddress } from './email-addresses.ts';
 export {
   GRANOLA_SELF_EMAILS_KEY,
   parseSelfEmails,

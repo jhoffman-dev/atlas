@@ -64,14 +64,19 @@ const portsOver = (written: string[]): MeetingImportPorts => ({
   },
 });
 
-function render(initial: { active: boolean; indexReady: boolean; vaultKey?: string | null }) {
+function render(initial: {
+  active: boolean;
+  indexReady: boolean;
+  vaultKey?: string | null;
+  ownerKnown?: boolean;
+}) {
   const changes = createNoteChanges({ onError: () => undefined });
   const activity = recordingActivity();
   const written: string[] = [];
   const onWritten = vi.fn();
   const clock = { today: () => '2026-10-08' };
   const hook = renderHook(
-    ({ ports, active, indexReady, vaultKey }) =>
+    ({ ports, active, indexReady, vaultKey, ownerKnown }) =>
       useMeetingImport({
         changes,
         ports,
@@ -80,6 +85,7 @@ function render(initial: { active: boolean; indexReady: boolean; vaultKey?: stri
         vaultKey,
         selfName: null,
         selfEmails: [],
+        ownerKnown,
         active,
         indexReady,
         onWritten,
@@ -88,6 +94,7 @@ function render(initial: { active: boolean; indexReady: boolean; vaultKey?: stri
       initialProps: {
         ports: portsOver(written),
         vaultKey: VAULT as string | null,
+        ownerKnown: true,
         ...initial,
       },
     },
@@ -100,7 +107,13 @@ describe('useMeetingImport', () => {
     const { rerender, changes, written } = render({ active: true, indexReady: false });
     const later: string[] = [];
 
-    rerender({ ports: portsOver(later), active: true, indexReady: false, vaultKey: VAULT });
+    rerender({
+      ports: portsOver(later),
+      active: true,
+      indexReady: false,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
     changes.publish({ vault: VAULT, changes: [ARRIVED] });
 
     await waitFor(() => expect(later).toEqual([BROKEN]));
@@ -121,14 +134,72 @@ describe('useMeetingImport', () => {
     const { rerender, written } = render({ active: true, indexReady: false });
     expect(written).toEqual([]);
 
-    rerender({ ports: portsOver(written), active: true, indexReady: true, vaultKey: VAULT });
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
     await waitFor(() => expect(written).toEqual([BROKEN]));
-    rerender({ ports: portsOver(written), active: true, indexReady: false, vaultKey: VAULT });
-    rerender({ ports: portsOver(written), active: true, indexReady: true, vaultKey: VAULT });
-    rerender({ ports: portsOver(written), active: false, indexReady: true, vaultKey: VAULT });
-    rerender({ ports: portsOver(written), active: true, indexReady: true, vaultKey: VAULT });
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: false,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
+    rerender({
+      ports: portsOver(written),
+      active: false,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
 
     await waitFor(() => expect(written).toEqual([BROKEN, BROKEN]));
+  });
+
+  it('imports nothing until the owner’s name and addresses are read, then catches up (#173)', async () => {
+    const { rerender, changes, activity, written } = render({
+      active: true,
+      indexReady: false,
+      ownerKnown: false,
+    });
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: false,
+    });
+    changes.publish({ vault: VAULT, changes: [ARRIVED] });
+    await settled();
+    expect(written).toEqual([]);
+    expect(activity.reports).toEqual([]);
+
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
+    await waitFor(() => expect(written).toEqual([BROKEN]));
   });
 
   it('imports nothing while no vault is open', async () => {
@@ -184,6 +255,7 @@ describe('useMeetingImport: adversarial, round 3', () => {
           vaultKey,
           selfName: null,
           selfEmails: [],
+          ownerKnown: true,
           active: true,
           indexReady: status.kind === 'ready',
           onWritten: () => undefined,

@@ -6,6 +6,8 @@ import {
   matchSpeakers,
   messageWithoutPaths,
   namedSpeakers,
+  ownerAddressesInUse,
+  ownerNotAGroup,
   planMeetingLinks,
   rankProjects,
   splitFrontmatter,
@@ -134,7 +136,9 @@ async function planFor({
   const read = await readMeeting(ports, path);
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const { people, companies } = await loadLinkDirectory({ index: ports.index });
-  const matching = matchAttendees(attendeesOf(read.properties), people, companies);
+  // An attendee at one of the owner's addresses is them, whatever a group rule made of it.
+  const attendees = ownerNotAGroup(attendeesOf(read.properties), owner.selfEmails);
+  const matching = matchAttendees(attendees, people, companies);
   // As corrected (P28-06): the import corrects in its stamp write, after this, so a misheard speaker is read as it will arrive.
   const corrected = await meetingTextAsCorrected({ ports, text: read.text, vocabulary });
   const speakers = speakersOf(ports, { heard: read.text, corrected }, people);
@@ -142,7 +146,18 @@ async function planFor({
   const ties = await loadProjectTies({ index: ports.index, meeting: path, entities });
   const projects = rankProjects(ties);
   const { properties } = read;
-  const input = { meeting: path, properties, notePaths, matching, speakers, projects, ...owner };
+  const { selfName } = owner;
+  const selfEmails = ownerAddressesInUse({ selfEmails: owner.selfEmails, people, selfName });
+  const input = {
+    meeting: path,
+    properties,
+    notePaths,
+    matching,
+    speakers,
+    projects,
+    selfName,
+    selfEmails,
+  };
   return { ...planMeetingLinks(input), properties };
 }
 

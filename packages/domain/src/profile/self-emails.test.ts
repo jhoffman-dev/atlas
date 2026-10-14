@@ -148,13 +148,31 @@ describe('selfEmailsFromText', () => {
 });
 
 describe('selfEmailsSettingsChanges', () => {
-  it('writes the addresses under selfEmails alone, never the alias', () => {
+  it('writes the addresses under selfEmails, and removes the alias in the same change', () => {
     expect(selfEmailsSettingsChanges(['mara.quill@example.com'])).toEqual({
       selfEmails: ['mara.quill@example.com'],
+      granola_self_emails: null,
     });
   });
 
-  it('removes the key for none, rather than writing an empty list', () => {
-    expect(selfEmailsSettingsChanges([])).toEqual({ selfEmails: null });
+  it('removes both keys for none, rather than writing an empty list', () => {
+    expect(selfEmailsSettingsChanges([])).toEqual({ selfEmails: null, granola_self_emails: null });
+  });
+});
+
+/** #173 review: one Unicode form for every address read, from the settings or as typed. */
+describe('the owner’s addresses, in one Unicode form', () => {
+  const NFD = 're\u0301n@example.com';
+  const NFC = 'r\u00e9n@example.com';
+
+  it('reads an address the settings hold decomposed as composed', () => {
+    expect(NFD).not.toBe(NFC);
+    expect(parseSelfEmails({ selfEmails: [NFD] }).emails).toEqual([NFC]);
+    expect(parseSelfEmails({ selfEmails: NFD }).emails).toEqual([NFC]);
+    expect(parseSelfEmails({ granola_self_emails: [NFD] }).emails).toEqual([NFC]);
+  });
+
+  it('reads an address typed decomposed as composed, and both forms as one', () => {
+    expect(selfEmailsFromText(`${NFD}, ${NFC}`)).toEqual({ ok: true, emails: [NFC] });
   });
 });

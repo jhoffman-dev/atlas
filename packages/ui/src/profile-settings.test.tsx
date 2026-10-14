@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfileSettings } from './profile-settings.tsx';
 import type { SelfEmailsView } from './self-emails-form.tsx';
@@ -30,7 +30,7 @@ function renderWith({
   const handlers = {
     onName: vi.fn(),
     onPreferredName: vi.fn(),
-    onSaveEmails: vi.fn<(emails: string) => boolean>(() => true),
+    onSaveEmails: vi.fn<(emails: string) => Promise<boolean>>(async () => true),
   };
   const draw = (view: SelfEmailsView) => (
     <ProfileSettings
@@ -146,9 +146,61 @@ describe('ProfileSettings: your emails', () => {
     expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com');
   });
 
+  it('lets the addresses in use from Granola’s key be cleared, saving none', async () => {
+    const { onSaveEmails } = renderWith({ emails: { inherited: 'mara@example.com' } });
+    await userEvent.clear(emailsField());
+    // Nothing is kept here, but Granola's key is in use: saving none removes it.
+    expect(saveEmails()).toHaveProperty('disabled', false);
+    await userEvent.click(saveEmails());
+    expect(onSaveEmails).toHaveBeenCalledWith('');
+  });
+
+  it('holds what was typed until the write settles, and keeps it when the write fails', async () => {
+    const { onSaveEmails, redraw } = renderWith({ emails: { kept: 'mara@example.com' } });
+    let settle: (kept: boolean) => void = () => undefined;
+    onSaveEmails.mockImplementation(() => new Promise<boolean>((resolve) => (settle = resolve)));
+    await userEvent.clear(emailsField());
+    await userEvent.type(emailsField(), 'mq@example.org');
+    await userEvent.click(saveEmails());
+    // Under way, and the settings read back as they were: the field still holds what was sent.
+    redraw({ kept: 'mara@example.com' });
+    expect(emailsField().value).toBe('mq@example.org');
+
+    await act(async () => settle(false));
+    expect(emailsField().value).toBe('mq@example.org');
+  });
+
+  it('holds an untouched field’s addresses while they are saved, whatever is read meanwhile', async () => {
+    const { onSaveEmails, redraw } = renderWith({ emails: { inherited: 'mara@example.com' } });
+    let settle: (kept: boolean) => void = () => undefined;
+    onSaveEmails.mockImplementation(() => new Promise<boolean>((resolve) => (settle = resolve)));
+    await userEvent.click(saveEmails());
+    expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com');
+    // Another edit lands while the write is under way: the field keeps what was sent.
+    redraw({ inherited: 'tobias.fenn@example.com' });
+    expect(emailsField().value).toBe('mara@example.com');
+
+    await act(async () => settle(false));
+    expect(emailsField().value).toBe('mara@example.com');
+  });
+
+  it('shows what the settings keep once the write settles as kept', async () => {
+    const { onSaveEmails, redraw } = renderWith({ emails: { kept: 'mara@example.com' } });
+    let settle: (kept: boolean) => void = () => undefined;
+    onSaveEmails.mockImplementation(() => new Promise<boolean>((resolve) => (settle = resolve)));
+    await userEvent.clear(emailsField());
+    await userEvent.type(emailsField(), 'MQ@example.org');
+    await userEvent.click(saveEmails());
+    redraw({ kept: 'mq@example.org' });
+    expect(emailsField().value).toBe('MQ@example.org');
+
+    await act(async () => settle(true));
+    expect(emailsField().value).toBe('mq@example.org');
+  });
+
   it('keeps what was typed, and says why, when the addresses are refused', async () => {
     const { onSaveEmails, redraw } = renderWith({ emails: { kept: 'mara@example.com' } });
-    onSaveEmails.mockReturnValue(false);
+    onSaveEmails.mockResolvedValue(false);
     await userEvent.clear(emailsField());
     await userEvent.type(emailsField(), 'mara@example.com and mq');
     await userEvent.click(saveEmails());

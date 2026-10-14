@@ -20,12 +20,20 @@ export interface SelfEmailsSetting {
    * are read, and none while they cannot be, so nothing is guessed meanwhile.
    */
   readonly emails: readonly string[];
+  /**
+   * Whether this vault's settings note has answered (read, or found
+   * unreadable): until then `emails` is a stand-in, and nothing that asks who
+   * the owner is should act on it.
+   */
+  readonly settled: boolean;
   readonly view: SelfEmailsView;
   /**
-   * Keeps the addresses typed as `selfEmails`; false, with the reason in the
-   * view, when what was typed is not all addresses, and then nothing is kept.
+   * Keeps the addresses typed as `selfEmails`, settling once the write has:
+   * true when they were kept; false when what was typed is not all addresses
+   * (the reason in the view, and nothing written) or the write failed (the
+   * reason in `problem`).
    */
-  readonly save: (typed: string) => boolean;
+  readonly save: (typed: string) => Promise<boolean>;
   /** Why the last save failed, or why the settings note cannot be read. */
   readonly problem: string | null;
 }
@@ -37,6 +45,9 @@ interface Said<T> {
 }
 
 const listed = (emails: readonly string[]) => emails.join(', ');
+
+/** None, as one value: a fresh `[]` each render would change everything that depends on it. */
+const NO_EMAILS: readonly string[] = Object.freeze([]);
 
 /** Why the addresses the settings hold could not be read, as the card says it; null when they were. */
 function unreadableOf(read: SelfEmails | null): string | null {
@@ -116,7 +127,8 @@ export function useSelfEmailsSetting({
   const kept = read?.source === 'selfEmails' ? read.emails : [];
   const inherited = read?.source === 'granola_self_emails' ? read.emails : [];
   return {
-    emails: read?.emails ?? [],
+    emails: read?.emails ?? NO_EMAILS,
+    settled: setting.answered,
     view: {
       kept: listed(kept),
       inherited: inherited.length === 0 ? null : listed(inherited),
@@ -126,15 +138,14 @@ export function useSelfEmailsSetting({
       disabled: !setting.loaded,
     },
     problem: setting.problem ?? setting.unreadable,
-    save: (typed) => {
+    save: async (typed) => {
       if (vaultKey === null) return false;
       const reading = selfEmailsFromText(typed);
       setRefused(reading.ok ? null : { vault: vaultKey, value: reading.problem });
-      if (reading.ok) {
-        const source = reading.emails.length === 0 ? null : 'selfEmails';
-        setting.save({ emails: reading.emails, source, problem: null });
-      }
-      return reading.ok;
+      if (!reading.ok) return false;
+      const source = reading.emails.length === 0 ? null : 'selfEmails';
+      const failed = await setting.write({ emails: reading.emails, source, problem: null });
+      return failed === null;
     },
   };
 }

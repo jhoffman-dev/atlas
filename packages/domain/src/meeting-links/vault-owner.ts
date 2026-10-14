@@ -1,4 +1,5 @@
 import type { MeetingAttendee } from '../meetings/meeting-header.ts';
+import { comparableAddress } from '../profile/email-addresses.ts';
 import { vocabularyKey } from '../terms/spelling.ts';
 import type { DirectoryPerson } from './attendee-matching.ts';
 
@@ -23,11 +24,14 @@ export function sameName(left: string, right: string): boolean {
   return nameForms(left).some((form) => wanted.has(form));
 }
 
-/** An address as compared: the part in `<…>` when written as a mail client copies it, case folded. */
-function addressKey(email: string): string {
+/** An address as written: the part in `<…>` when written as a mail client copies it, composed and case folded. */
+function writtenAddress(email: string): string {
   const bracketed = /<([^<>]+)>\s*$/.exec(email)?.[1] ?? email;
   return bracketed.normalize('NFC').trim().toLowerCase();
 }
+
+/** An address as compared: as written, its domain in ASCII ({@link comparableAddress}). */
+const addressKey = (email: string): string => comparableAddress(writtenAddress(email));
 
 /** Whether a person's note is the owner's: its name or an alias is the profile's. */
 export function isOwnerNote(person: DirectoryPerson, selfName: string | null): boolean {
@@ -38,16 +42,16 @@ export function isOwnerNote(person: DirectoryPerson, selfName: string | null): b
 
 /**
  * The addresses on the vault owner's own Person note: the person whose name —
- * or alias — is the profile's. Only ever offered for the person to keep as
- * `selfEmails`: an address is never taken as theirs because a note of their
- * name holds it (ADR-0024 amendment).
+ * or alias — is the profile's. Offered for the person to keep as
+ * `selfEmails`, and read as theirs only while the vault keeps none
+ * ({@link ownerAddressesInUse}).
  */
 export function ownerAddresses(
   people: readonly DirectoryPerson[],
   selfName: string | null,
 ): string[] {
   const mine = people.filter((person) => isOwnerNote(person, selfName));
-  const addresses = mine.flatMap(({ emails }) => emails.map(addressKey));
+  const addresses = mine.flatMap(({ emails }) => emails.map(writtenAddress));
   return [...new Set(addresses)].filter((email) => email !== '');
 }
 
@@ -69,4 +73,43 @@ export function isOwnerAttendee({
   if (attendee.email === null) return false;
   const address = addressKey(attendee.email);
   return selfEmails.some((each) => addressKey(each) === address);
+}
+
+/**
+ * The addresses that are the vault's owner (ADR-0024 amendment): the vault's
+ * `selfEmails` (or Granola's older key in its place) once it holds any, and
+ * then only those; while it holds none, the addresses on the owner's own
+ * Person note, as before the setting existed, so a vault that never set it
+ * links and assigns as it did.
+ */
+export function ownerAddressesInUse({
+  selfEmails,
+  people,
+  selfName,
+}: {
+  selfEmails: readonly string[];
+  people: readonly DirectoryPerson[];
+  selfName: string | null;
+}): readonly string[] {
+  return selfEmails.length > 0 ? selfEmails : ownerAddresses(people, selfName);
+}
+
+/**
+ * The attendees, with any at one of the vault's `selfEmails` read as the
+ * person they are rather than a group: the owner said that address is
+ * theirs, which outweighs the guess a group rule makes from its spelling
+ * (`team@…`). Only `selfEmails` does this: the Person note's addresses are
+ * not the owner's word.
+ */
+export function ownerNotAGroup(
+  attendees: readonly MeetingAttendee[],
+  selfEmails: readonly string[],
+): readonly MeetingAttendee[] {
+  if (selfEmails.length === 0) return attendees;
+  const mine = new Set(selfEmails.map(addressKey));
+  return attendees.map((attendee) =>
+    attendee.group && attendee.email !== null && mine.has(addressKey(attendee.email))
+      ? { ...attendee, group: false }
+      : attendee,
+  );
 }

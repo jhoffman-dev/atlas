@@ -38,7 +38,7 @@ export function addressesOf(value: unknown): AddressesSetting {
   for (const item of value as readonly unknown[]) {
     const text = typeof item === 'string' ? trimBlanks(withPlainSpaces(item)) : null;
     if (item === null || text === '') continue;
-    if (text !== null && isAddress(text)) kept.push(text.toLowerCase());
+    if (text !== null && isAddress(text)) kept.push(asKept(text));
     else refused.push(text ?? nameOfValue(item));
   }
   if (refused.length > 0) return { addresses: [], problem: notAddresses(refused) };
@@ -260,5 +260,45 @@ export function readAddresses(typed: string): AddressesReading {
   const scanner = new AddressScanner(withPlainSpaces(typed));
   scanner.scan();
   if (scanner.refused.length > 0) return { ok: false, problem: notAddresses(scanner.refused) };
-  return { ok: true, emails: [...new Set(scanner.found.map((each) => each.toLowerCase()))] };
+  return { ok: true, emails: [...new Set(scanner.found.map(asKept))] };
+}
+
+/**
+ * An address as it is kept: composed (NFC), as Granola and calendars send
+ * it, and in lower case. One typed decomposed (an é as e and an accent) is
+ * then the same address as the one a meeting lists.
+ */
+const asKept = (address: string) => address.normalize('NFC').toLowerCase();
+
+/** What a domain may not hold for its ASCII form to be read from a URL: it would be read as a URL's other parts. */
+const NOT_A_HOST = /[\s/?#:@[\]\\%\p{Cc}]/u;
+/** Only printable ASCII: a domain already in the form DNS uses. */
+const ASCII = /^[\x20-\x7E]*$/;
+
+/**
+ * A domain in the ASCII (punycode) form DNS uses: `bücher.example` is
+ * `xn--bcher-kva.example`. As the browser and Node both read a URL's host,
+ * so no table of our own is kept. One that has no ASCII form is left as it
+ * is, to be compared as written.
+ */
+function asciiDomain(domain: string): string {
+  if (ASCII.test(domain) || NOT_A_HOST.test(domain)) return domain;
+  try {
+    return new URL(`http://${domain}/`).hostname;
+  } catch {
+    // Not a host a URL can hold (IDNA refuses it): compared as written, never as another domain.
+    return domain;
+  }
+}
+
+/**
+ * An address as two are compared: composed, trimmed, in lower case, and its
+ * domain in its ASCII form, so an address Atlas holds and one a meeting
+ * lists are one however either was typed or sent.
+ */
+export function comparableAddress(email: string): string {
+  const text = asKept(email.trim());
+  const at = text.lastIndexOf('@');
+  if (at === -1) return text;
+  return `${text.slice(0, at)}@${asciiDomain(text.slice(at + 1))}`;
 }

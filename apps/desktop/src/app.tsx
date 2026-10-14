@@ -178,6 +178,7 @@ import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
 import { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 import { useProfileSetting } from './profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from './profile/use-self-emails-setting.ts';
+import { automationsScheduled } from './automations/automations-scheduled.ts';
 import { browserChatSettingsStore } from './chat/chat-settings-store.ts';
 import { claudeStepPorts } from './chat/claude-step-ports.ts';
 import { chatWindowOf } from './chat/chat-window.ts';
@@ -748,6 +749,8 @@ export function App({
   // and their addresses as the vault's settings hold them (#173).
   const ownerName = profileSetting.profile === 'unknown' ? null : profileSetting.profile.name;
   const ownerEmails = selfEmailsSetting.emails;
+  // Whether the settings note has answered for both, so nothing that asks who the owner is acts on a stand-in.
+  const ownerKnown = profileSetting.settled && selfEmailsSetting.settled;
   const claudeStep = useMemo(
     () =>
       claudeStepPorts({
@@ -996,8 +999,9 @@ export function App({
     // Only the Mac that runs the automations writes into meeting files (U-29).
     active: sync.automationsHere,
     indexReady: indexStatus.kind === 'ready',
-    selfName: profileSetting.profile === 'unknown' ? null : profileSetting.profile.name,
-    selfEmails: selfEmailsSetting.emails,
+    selfName: ownerName,
+    selfEmails: ownerEmails,
+    ownerKnown,
     onWritten: settleArchive,
   });
   const archive = useArchive({
@@ -1087,8 +1091,12 @@ export function App({
     activity: activityLog,
     onSettled: settleArchive,
     live: automationsOpen,
-    // A synced vault runs its automations on one Mac only (U-29); null until this Mac knows.
-    scheduled: sync.thisMac === null || sync.settings === null ? null : sync.automationsHere,
+    // A synced vault runs its automations on one Mac only (U-29), once it and the owner are known.
+    scheduled: automationsScheduled({
+      automationsHere: sync.automationsHere,
+      macKnown: sync.thisMac !== null && sync.settings !== null,
+      ownerKnown,
+    }),
     // A rule a note sets off hears of it here (P29-01).
     changes: noteChanges,
   });

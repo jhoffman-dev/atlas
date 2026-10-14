@@ -170,12 +170,32 @@ test('addresses Settings → Granola kept are in use, and saving keeps them as s
 
   await card.getByRole('button', { name: 'Save emails' }).click();
 
-  // The Granola key stays where it is: selfEmails is read first from now on.
+  // Moved in one save: selfEmails holds them, and the Granola key is gone.
   await expectFile(vault, '.atlas/settings.md').toBe(
-    '---\ngranola_self_emails:\n  - mara.quill@example.com\nselfEmails:\n  - mara.quill@example.com\n---\n',
+    '---\nselfEmails:\n  - mara.quill@example.com\n---\n',
   );
   await expect(card.getByText(/In use from granola_self_emails/)).toHaveCount(0);
   await expect(card.getByRole('button', { name: 'Save emails' })).toBeDisabled();
+});
+
+test('clearing addresses Settings → Granola kept removes them, leaving none in use', async ({
+  page,
+}) => {
+  const { vault } = await openVault(
+    page,
+    '---\nprofileName: Mara Quill\ngranola_self_emails:\n  - mara.quill@example.com\n---\n',
+  );
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const card = profileCard(page);
+  const field = card.getByLabel('Your emails', { exact: true });
+  await expect(field).toHaveValue('mara.quill@example.com');
+
+  await field.fill('');
+  await card.getByRole('button', { name: 'Save emails' }).click();
+
+  await expectFile(vault, '.atlas/settings.md').toBe('---\nprofileName: Mara Quill\n---\n');
+  await expect(field).toHaveValue('');
+  await expect(card.getByText(/In use from granola_self_emails/)).toHaveCount(0);
 });
 
 test('addresses in the settings that are not all addresses are said unreadable, never shown as kept', async ({

@@ -33,7 +33,7 @@ export function ProfileSettings({
   onName: (name: string) => void;
   onPreferredName: (preferredName: string) => void;
   /** The addresses as typed; the application reads them, and answers whether it kept them. */
-  onSaveEmails: (emails: string) => boolean;
+  onSaveEmails: (emails: string) => Promise<boolean>;
 }) {
   return (
     <SettingsCard id="settings-profile" icon="person" title="Profile">

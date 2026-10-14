@@ -24,7 +24,7 @@ export async function loadSelfEmails(args: {
   return parseSelfEmails(await readVaultSettings(args));
 }
 
-/** Keeps the owner's addresses as `selfEmails`; none removes it. Granola's older key is left as it is. */
+/** Keeps the owner's addresses as `selfEmails`, removing Granola's older key in the same write; none removes both. */
 export async function saveSelfEmails({
   settings,
   emails,

@@ -25,6 +25,15 @@ function shownOf({ kept, inherited, suggested }: SelfEmailsView): string {
   return inherited ?? suggested ?? '';
 }
 
+/**
+ * Whether Save has anything to do: what the field shows differs from what is
+ * kept, or the addresses in use are Granola's key's, which saving moves here
+ * (or, with the field cleared, removes).
+ */
+function canSave(emails: string, view: SelfEmailsView): boolean {
+  return emails !== view.kept || view.inherited !== null;
+}
+
 /** Where untouched addresses in the field come from, when they are not kept here yet. */
 function originOf({ kept, inherited, suggested }: SelfEmailsView): string | null {
   if (kept !== '') return null;
@@ -36,25 +45,30 @@ function originOf({ kept, inherited, suggested }: SelfEmailsView): string | null
 
 /**
  * Your emails: the addresses that are the person in a meeting (ADR-0024
- * amendment). Typed as text; the application reads it, and answers whether it
- * kept them.
+ * amendment). Typed as text; the application reads it, writes it, and
+ * answers once the write has settled whether it kept them.
  */
 export function SelfEmailsForm({
   view,
   onSave,
 }: {
   view: SelfEmailsView;
-  onSave: (emails: string) => boolean;
+  onSave: (emails: string) => Promise<boolean>;
 }) {
   // What the person has typed; null while the field is untouched, which then
   // shows what is kept, in use, or suggested, as each is read.
   const [typed, setTyped] = useState<string | null>(null);
   const emails = typed ?? shownOf(view);
   const origin = typed === null ? originOf(view) : null;
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    // Kept: the field shows what the settings now hold. Refused: what was typed stays, to mend.
-    if (onSave(emails)) setTyped(null);
+    const sent = emails;
+    // Held in the field while the write is under way, whatever the settings are read as meanwhile.
+    setTyped(sent);
+    const kept = await onSave(sent);
+    // Kept: the field shows what the settings now hold, unless more was typed meanwhile.
+    // Refused or failed: what was typed stays, to mend or try again.
+    if (kept) setTyped((now) => (now === sent ? null : now));
   };
 
   return (
@@ -64,7 +78,11 @@ export function SelfEmailsForm({
         of them is you, and in a Granola meeting you own, “me” is written as <b>You</b>. Put one on
         each line, or separate them with commas; <code>Name &lt;address&gt;</code> works too.
       </p>
-      <form className="secrets__form" aria-label="Set your emails" onSubmit={submit}>
+      <form
+        className="secrets__form"
+        aria-label="Set your emails"
+        onSubmit={(event) => void submit(event)}
+      >
         <textarea
           className="field field--block secrets__field profile__emails"
           aria-label="Your emails"
@@ -79,7 +97,7 @@ export function SelfEmailsForm({
         <button
           className="btn btn--tinted btn--sm"
           type="submit"
-          disabled={view.disabled || emails === view.kept}
+          disabled={view.disabled || !canSave(emails, view)}
         >
           Save emails
         </button>

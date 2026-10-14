@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createSettingsWriter } from '../settings/index.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
 import { jsonMarkdown, vaultWith } from '../testing/settings-vault.ts';
@@ -75,25 +75,45 @@ describe('saveSelfEmails', () => {
     expect(written[PATH]).toContain('Mine.');
   });
 
-  it('leaves the Granola alias where it is, and removes selfEmails for none', async () => {
+  it('moves the Granola alias into selfEmails in one write, and removes both for none', async () => {
     const { fs, written } = vaultWith({
       [PATH]: '---\n{"granola_self_emails":["mara.quill@example.com"]}\n---\n',
     });
     const markdown = jsonMarkdown();
     const settings = createSettingsWriter({ fs, markdown });
+    const writes = vi.spyOn(fs, 'writeTextFile');
 
     await saveSelfEmails({ settings, emails: ['mq@example.org'] });
-    expect(written[PATH]).toContain('"granola_self_emails":["mara.quill@example.com"]');
-    expect((await loadSelfEmails({ fs, markdown })).emails).toEqual(['mq@example.org']);
-
-    // None is the key removed (null to the settings writer), never an empty list.
-    await saveSelfEmails({ settings, emails: [] });
-    expect(written[PATH]).not.toContain('"selfEmails":[');
-    expect(written[PATH]).toContain('"granola_self_emails":["mara.quill@example.com"]');
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(written[PATH]).toContain('"selfEmails":["mq@example.org"]');
+    // The alias removed: null to the settings writer, which the markdown port drops.
+    expect(written[PATH]).toContain('"granola_self_emails":null');
     expect(await loadSelfEmails({ fs, markdown })).toMatchObject({
-      emails: ['mara.quill@example.com'],
-      source: 'granola_self_emails',
+      emails: ['mq@example.org'],
+      source: 'selfEmails',
     });
+
+    // None is the key removed (null to the settings writer), never an empty list,
+    // and no older addresses are left to be read in its place.
+    await saveSelfEmails({ settings, emails: [] });
+    expect(written[PATH]).toContain('"selfEmails":null');
+    expect(await loadSelfEmails({ fs, markdown })).toEqual({
+      emails: [],
+      source: null,
+      problem: null,
+    });
+  });
+
+  it('clears the Granola alias when none is saved while only it holds addresses', async () => {
+    const { fs, written } = vaultWith({
+      [PATH]:
+        '---\n{"profileName":"Mara Quill","granola_self_emails":["mara.quill@example.com"]}\n---\n',
+    });
+    const markdown = jsonMarkdown();
+    await saveSelfEmails({ settings: createSettingsWriter({ fs, markdown }), emails: [] });
+    expect(written[PATH]).toContain('"granola_self_emails":null');
+    expect(written[PATH]).toContain('"profileName":"Mara Quill"');
+    expect((await loadSelfEmails({ fs, markdown })).emails).toEqual([]);
   });
 
   it('passes on a write the host refuses', async () => {

@@ -481,6 +481,15 @@ describe('what the model is told', () => {
     expect(data[2]!.text).toBe('Larkspur Pay');
   });
 
+  it('lists an attendee at one of the vault’s selfEmails as the owner, though a group rule made it a group (#173)', () => {
+    const data = schema.dataFor(
+      about(GEMINI, { ...VAULT, selfEmails: ['platform-team@example.com'] }),
+    );
+
+    expect(data[0]!.text).toContain('- platform-team: the vault’s owner');
+    expect(data[0]!.text).not.toContain('a group address');
+  });
+
   it('leaves out the hints and the vocabulary when there are none, and says when the profile has no name', () => {
     const bare = {
       ...GEMINI,

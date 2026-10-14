@@ -99,11 +99,47 @@ describe('useSelfEmailsSetting', () => {
     expect(hook.result.current.view).toMatchObject({ kept: '', inherited: 'mara@example.com' });
 
     act(() => void hook.result.current.save('mara@example.com'));
-    await waitFor(() => expect(vault.file.text).toContain('selfEmails:\n  - mara@example.com'));
-    // The Granola key stays where it is; selfEmails now holds the addresses, and wins.
-    expect(vault.file.text).toContain('granola_self_emails:\n  - mara@example.com');
+    // Moved in one write: selfEmails holds the addresses, and the Granola key is gone.
+    await waitFor(() =>
+      expect(vault.file.text).toBe('---\nselfEmails:\n  - mara@example.com\n---\n'),
+    );
     await waitFor(() => expect(hook.result.current.view.kept).toBe('mara@example.com'));
     expect(hook.result.current.view.inherited).toBeNull();
+  });
+
+  it('removes the Granola key too when the field is cleared while only it holds addresses', async () => {
+    const vault = vaultWith(
+      '---\nprofileName: Mara Quill\ngranola_self_emails:\n  - mara@example.com\n---\n',
+    );
+    const hook = render(vault);
+    await waitFor(() => expect(hook.result.current.view.inherited).toBe('mara@example.com'));
+
+    let kept = false;
+    await act(async () => {
+      kept = await hook.result.current.save('');
+    });
+    expect(kept).toBe(true);
+    expect(vault.file.text).toBe('---\nprofileName: Mara Quill\n---\n');
+    await waitFor(() => expect(hook.result.current.view.inherited).toBeNull());
+    expect(hook.result.current.emails).toEqual([]);
+  });
+
+  it('is unsettled until the settings note answers, and hands out one empty list meanwhile', async () => {
+    const vault = vaultWith('---\nprofileName: Mara Quill\n---\n');
+    const hook = render(vault);
+    const before = hook.result.current.emails;
+    expect(hook.result.current.settled).toBe(false);
+    // The same empty list each render: what is memoised on it is not made again for nothing.
+    hook.rerender({ changeKey: '0' });
+    expect(hook.result.current.settled).toBe(false);
+    expect(hook.result.current.emails).toBe(before);
+    await waitFor(() => expect(hook.result.current.settled).toBe(true));
+  });
+
+  it('is settled, with no address, once the settings note is found unreadable', async () => {
+    const hook = render(vaultWith(null));
+    await waitFor(() => expect(hook.result.current.settled).toBe(true));
+    expect(hook.result.current.emails).toEqual([]);
   });
 
   it('removes selfEmails when every address is taken out', async () => {
@@ -121,8 +157,8 @@ describe('useSelfEmailsSetting', () => {
     await waitFor(() => expect(hook.result.current.view.kept).toBe('mara@example.com'));
     const before = vault.file.text;
     let kept = true;
-    act(() => {
-      kept = hook.result.current.save('mq@example.com, Mara Quill');
+    await act(async () => {
+      kept = await hook.result.current.save('mq@example.com, Mara Quill');
     });
     expect(kept).toBe(false);
     expect(hook.result.current.view.problem).toBe(
@@ -132,12 +168,12 @@ describe('useSelfEmailsSetting', () => {
     expect(vault.file.text).toBe(before);
     expect(hook.result.current.emails).toEqual(['mara@example.com']);
 
-    act(() => {
-      kept = hook.result.current.save('Mara Quill <MQ@example.com>');
+    await act(async () => {
+      kept = await hook.result.current.save('Mara Quill <MQ@example.com>');
     });
     expect(kept).toBe(true);
     expect(hook.result.current.view.problem).toBeNull();
-    await waitFor(() => expect(vault.file.text).toContain('selfEmails:\n  - mq@example.com'));
+    expect(vault.file.text).toContain('selfEmails:\n  - mq@example.com');
   });
 
   it('reads addresses the settings hold that are not all addresses as none, and says why', async () => {
