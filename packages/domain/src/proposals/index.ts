@@ -32,12 +32,13 @@ export type {
   ProposalState,
 } from './proposal.ts';
 export { PROPOSAL_TYPE_FILES } from './proposal-types.ts';
-export { applyProposal, newNotePath } from './apply-proposal.ts';
+export { applyNoteProposal, applyProposal, newNotePath } from './apply-proposal.ts';
 export type {
   LinkTarget,
   ProposalApplication,
   ProposalVault,
   ProposalWrite,
+  ProposedNote,
 } from './apply-proposal.ts';
 export { editedPayload, payloadFields, propertyFromText, propertyText } from './proposal-edit.ts';
 export type { PayloadFields } from './proposal-edit.ts';

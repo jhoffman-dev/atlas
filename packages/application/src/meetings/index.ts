@@ -19,3 +19,5 @@ export type {
   MeetingCorrectionPorts,
   MeetingTermsCorrection,
 } from './meeting-corrections.ts';
+export { makeTaskFromMeeting, undoMadeTask } from './make-task-from-meeting.ts';
+export type { MadeTask, MeetingItemTask, TaskMeeting } from './make-task-from-meeting.ts';

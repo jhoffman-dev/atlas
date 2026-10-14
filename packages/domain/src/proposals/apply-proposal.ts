@@ -79,8 +79,16 @@ const CITING_KINDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up'
  */
 export function applyProposal(proposal: ProposalNote, vault: ProposalVault): ProposalApplication {
   if (proposal.state !== 'open') return refused(`It was already ${proposal.state}.`);
-  return proposal.kind === 'link' ? applyLink(proposal.payload, vault) : applyNote(proposal, vault);
+  return proposal.kind === 'link'
+    ? applyLink(proposal.payload, vault)
+    : applyNoteProposal(proposal, vault);
 }
+
+/** A note to make, as a note proposal has it: what it is, what it holds, and the block it cites. */
+export type ProposedNote = Pick<
+  ProposalNote & { readonly kind: NoteProposalKind },
+  'kind' | 'payload' | 'source'
+>;
 
 /**
  * The kinds whose note is a record of this proposal's own — a task, a
@@ -91,8 +99,13 @@ export function applyProposal(proposal: ProposalNote, vault: ProposalVault): Pro
  */
 const OWN_RECORDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up', 'decision']);
 
-function applyNote(
-  proposal: ProposalNote & { readonly kind: NoteProposalKind },
+/**
+ * What making a proposed note writes, or why it may not be made: the note of
+ * its kind, and its `linkFrom` joined. Accepting a note proposal is this; so
+ * is making a task from a meeting's action item without one (#177).
+ */
+export function applyNoteProposal(
+  proposal: ProposedNote,
   { notePaths, target, heldTypes }: ProposalVault,
 ): ProposalApplication {
   const { payload, kind, source } = proposal;
@@ -150,10 +163,7 @@ function applyNote(
  * a link to nothing would show as waiting on nobody — and the card's Edit can
  * point it at the right person, or at their name as text.
  */
-function waitingOnGone(
-  { payload }: ProposalNote & { readonly kind: NoteProposalKind },
-  notePaths: readonly VaultPath[],
-): string | null {
+function waitingOnGone({ payload }: ProposedNote, notePaths: readonly VaultPath[]): string | null {
   const value = payload.properties[TASK_KEYS.waitingOn];
   if (typeof value !== 'string') return null;
   const missing = linkTargets(value).find(

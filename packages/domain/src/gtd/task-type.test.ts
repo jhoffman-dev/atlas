@@ -103,7 +103,7 @@ describe('taskTypeChange', () => {
     expect(taskTypeChange(TASK_TYPE_FILE.type)).toBeNull();
   });
 
-  it('is nothing to do for a GTD type without the meeting keys: those come on opening (#177), not with the move', () => {
+  it('is nothing to do for a GTD type without the meeting keys: they are not the move to GTD’s (#177)', () => {
     const withoutMeetingKeys: ObjectType = {
       ...TASK_TYPE_FILE.type,
       properties: TASK_TYPE_FILE.type.properties.filter(

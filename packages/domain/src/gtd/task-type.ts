@@ -1,3 +1,4 @@
+import { MEETING_ITEM_TASK_PROPERTIES } from '../meetings/meeting-extraction-properties.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { FILED_UNDER, type BuiltInTypeFile } from '../types/para.ts';
 import type { ObjectType, PropertyDef } from '../types/property-def.ts';
@@ -46,13 +47,19 @@ const TASK_PROPERTIES: readonly PropertyDef[] = [
   plain(TASK_KEYS.source, 'text', 'Source'),
 ];
 
-/** The Task type, as written into a vault that has none. */
+/**
+ * The Task type, as written into a vault that has none: GTD's keys, and the
+ * keys a task made from a meeting's action item carries (#177). A vault's
+ * own Task type is offered those with meeting post-processing's setup (#191),
+ * not with the move to GTD, so a vault already on GTD is not offered the move
+ * again for them.
+ */
 export const TASK_TYPE_FILE: BuiltInTypeFile = {
   type: {
     name: TASK_TYPE,
     label: 'Task',
     icon: 'task',
-    properties: [GTD_STATUS_PROPERTY, ...TASK_PROPERTIES],
+    properties: [GTD_STATUS_PROPERTY, ...TASK_PROPERTIES, ...MEETING_ITEM_TASK_PROPERTIES],
   },
   body: [
     '# Task',
