@@ -63,11 +63,13 @@ export function sinceOf({
  * What became of one listed note. `written` and `held` (already in the
  * vault) are settled; so is `refused` (the mapper said no, which only a
  * mapper fix changes) and `skipped` (granolaFailureEffect's `skip`: a 404,
- * a 403, any other refusal, an answer Atlas could not read — each would
- * fail the same way on every pull). Sync now's full listing tries both
- * again. `failed` is granolaFailureEffect's `retry`, a failure that may pass
- * by itself — network, timeout, 408, a 429 past its retries, a 5xx, a page
- * of a transcript — and must be listed again.
+ * a 403, a 413 for a page of a transcript, any other refusal, an answer
+ * Atlas could not read — each would fail the same way on every pull). Sync
+ * now's full listing tries both again. `failed` is granolaFailureEffect's
+ * `retry`, a failure that may pass by itself — network, timeout, 408, a 429
+ * past its retries, a 5xx, a 413 for a whole transcript (read in pages next
+ * time) — and must be listed again. A page of a transcript is judged by its
+ * status like any other answer.
  */
 export type GranolaNoteOutcome = 'written' | 'held' | 'refused' | 'skipped' | 'failed';
 
