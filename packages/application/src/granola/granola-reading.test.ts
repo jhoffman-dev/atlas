@@ -276,6 +276,22 @@ describe('readGranolaNote', () => {
     expect(pages).toBe(2);
   });
 
+  it('calls a transcript whose pages come round again malformed on the page they do', async () => {
+    const granola = fakeGranola({ notes });
+    granola.pageTranscript(id, [[]]);
+    const cursors = ['A', 'B', 'A', 'B'];
+    let pages = 0;
+    granola.port.getTranscriptPage = async () => ({
+      transcript: [],
+      cursor: cursors[pages++] ?? null,
+    });
+
+    await expect(readGranolaNote(readerOf(granola.port), id)).rejects.toMatchObject({
+      failure: { kind: 'malformed', transcriptPage: true },
+    });
+    expect(pages).toBe(3);
+  });
+
   it('passes on a failure other than 413 for the note itself', async () => {
     const granola = fakeGranola({ notes });
     granola.fail(`note:${id}`, { kind: 'api_refused', status: 404, message: 'gone' });

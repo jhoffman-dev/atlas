@@ -145,6 +145,7 @@ async function readTranscriptPages(
   id: string,
 ): Promise<readonly unknown[] | null> {
   const turns: unknown[] = [];
+  const followed = new Set<string>();
   let characters = 0;
   let cursor: string | null = null;
   for (let pages = 1; ; pages += 1) {
@@ -160,8 +161,9 @@ async function readTranscriptPages(
     characters += transcriptCharacters(page.transcript);
     if (transcriptOverLimit({ characters, pages })) return null;
     if (page.cursor === null) return turns;
-    if (page.cursor === from)
+    if (followed.has(page.cursor))
       throw malformed('Granola sent the same page of a transcript again', true);
+    followed.add(page.cursor);
     cursor = page.cursor;
   }
 }
