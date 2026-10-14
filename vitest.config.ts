@@ -103,6 +103,13 @@ export default defineConfig({
           functions: 90,
           branches: 85,
         },
+        // Pulls Granola's notes and writes them into the vault by itself, and reads a third
+        // party's answers into the app's types (P28-11). The key is the host's, tested in Rust.
+        'packages/{application,adapters}/src/granola/**': {
+          lines: 90,
+          functions: 90,
+          branches: 85,
+        },
       },
     },
   },

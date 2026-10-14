@@ -7,8 +7,14 @@
 export const GRANOLA_FAILURE_KINDS = [
   /** No API key is held on this Mac for the vault. */
   'no_key',
+  /** The host would not send the request: no vault open, or not the one named. */
+  'invalid',
+  /** The Keychain would not give the host the key. */
+  'keychain',
   'unreachable',
   'timeout',
+  /** Granola's answer is larger than the host will read. */
+  'too_large',
   /** Granola answered, but not in the shape its API documents. */
   'malformed',
   /** Granola answered a request with an error status; `status` is it. */
@@ -49,14 +55,15 @@ export function isGranolaFailureKind(value: unknown): value is GranolaFailureKin
 /**
  * What a failure means for the pull (ADR-0034's watermark rule):
  *
- * - `stop` when there is no key or Granola refused it (401): every later
- *   request would be refused too.
+ * - `stop` when there is no key, the Keychain will not give it, Granola
+ *   refused it (401), or the host will not send for this vault: every later
+ *   request would fail the same way.
  * - `retry` only for a failure that may pass by itself — the network, a
  *   timeout, 408, 429, a 5xx, or a 413 for a whole transcript (the next pull
  *   reads it in pages) — which holds the watermark so the next pull lists
  *   the note again.
  * - `skip` for the rest — 404, 403, any other refusal, an answer Atlas could
- *   not read, a 413 for a page — which would fail the same way on every
+ *   not read or would not read for its size, a 413 for a page — which would fail the same way on every
  *   pull. It settles the note (logged, the watermark not held); Sync now's
  *   full listing tries it again, once the key or Granola has changed.
  *
@@ -80,11 +87,14 @@ function statusEffect(status: number | undefined, transcriptPage: boolean): Gran
 export function granolaFailureEffect(failure: GranolaFailure): GranolaFailureEffect {
   switch (failure.kind) {
     case 'no_key':
+    case 'invalid':
+    case 'keychain':
       return 'stop';
     case 'unreachable':
     case 'timeout':
       return 'retry';
     case 'malformed':
+    case 'too_large':
       return 'skip';
     case 'api_refused':
       if (failure.status === 401) return 'stop';
@@ -100,6 +110,18 @@ const OUTCOME: Readonly<Record<GranolaFailureEffect, string>> = {
   retry: 'Atlas tries again on the next pull.',
   skip: 'It was skipped; Sync now tries it again.',
 };
+
+/**
+ * What a pull did that the host would not send for, or whose key the Keychain
+ * would not give: it stopped this pull, and the next one asks again.
+ */
+const STOPPED_THIS_PULL = 'Atlas stops pulling; the next pull asks again.';
+
+/** What a pull did whose list of notes failed: nothing was skipped, and the next one lists again. */
+const LISTING_FAILED = 'The notes could not be listed; the next pull lists them again.';
+
+/** Where a pull met a failure: listing the notes, or reading one of them. */
+export type GranolaFailureContext = 'note' | 'listing';
 
 /** What went wrong, and what the person can do about it (null for nothing). */
 interface Cause {
@@ -156,6 +178,15 @@ function causeOf(failure: GranolaFailure): Cause {
       return refusal(failure.status, failure.transcriptPage === true);
     case 'no_key':
       return { problem: 'No Granola API key is set on this Mac.', remedy: MAKE_A_KEY };
+    case 'invalid':
+      return { problem: `Atlas could not ask Granola: ${failure.message}.`, remedy: null };
+    case 'keychain':
+      return {
+        problem: `The Keychain did not give Atlas the Granola API key: ${failure.message}.`,
+        remedy: 'Unlock the Keychain, or paste the key again in Settings → Granola.',
+      };
+    case 'too_large':
+      return { problem: 'Granola answered with more than Atlas will read.', remedy: null };
     case 'unreachable':
       return {
         problem: `Granola could not be reached: ${failure.message}.`,
@@ -176,9 +207,24 @@ function causeOf(failure: GranolaFailure): Cause {
   }
 }
 
-/** The person's problem and its fix, for any failure, ending with what the pull did about it. */
-export function explainGranolaFailure(failure: GranolaFailure): GranolaProblem {
+/** What the pull did about the failure, met where it was. */
+function outcomeOf(failure: GranolaFailure, during: GranolaFailureContext): string {
+  if (failure.kind === 'invalid' || failure.kind === 'keychain') return STOPPED_THIS_PULL;
+  const effect = granolaFailureEffect(failure);
+  if (during === 'listing' && effect !== 'stop') return LISTING_FAILED;
+  return OUTCOME[effect];
+}
+
+/**
+ * The person's problem and its fix, for any failure, ending with what the
+ * pull did about it: about a note, or — `listing` — about the list of notes,
+ * which no failure skips.
+ */
+export function explainGranolaFailure(
+  failure: GranolaFailure,
+  during: GranolaFailureContext = 'note',
+): GranolaProblem {
   const { problem, remedy } = causeOf(failure);
-  const outcome = OUTCOME[granolaFailureEffect(failure)];
+  const outcome = outcomeOf(failure, during);
   return { problem, fix: remedy === null ? outcome : `${remedy} ${outcome}` };
 }
