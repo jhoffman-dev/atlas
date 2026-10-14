@@ -108,6 +108,60 @@ describe('listGranolaNotes', () => {
 
     expect(listed.unreadable).toEqual([odd('not_odd1'), odd(null), odd(null, 'other')]);
   });
+
+  it('calls a list whose cursor comes back from further back malformed, on the page it does', async () => {
+    const granola = fakeGranola();
+    const cursors = ['A', 'B', 'C', 'B', 'D'];
+    let page = 0;
+    granola.port.listNotes = async () => ({
+      notes: [],
+      unreadable: [],
+      cursor: cursors[page++] ?? null,
+    });
+    await expect(listGranolaNotes(readerOf(granola.port), null)).rejects.toMatchObject({
+      failure: { kind: 'malformed', message: 'Granola sent the same page of notes again' },
+    });
+    expect(page).toBe(4);
+  });
+
+  it('reads a list whose cursor never repeats to its end', async () => {
+    const granola = fakeGranola();
+    const cursors = ['A', 'B', 'C'];
+    let page = 0;
+    granola.port.listNotes = async () => ({
+      notes: [],
+      unreadable: [],
+      cursor: cursors[page++] ?? null,
+    });
+    await expect(listGranolaNotes(readerOf(granola.port), null)).resolves.toEqual({
+      notes: [],
+      unreadable: [],
+    });
+    expect(page).toBe(4);
+  });
+
+  it('takes a note read on any page of the listing as readable, whichever page came first', async () => {
+    const [first, second] = notes;
+    const odd = (id: string) => ({ id, reason: 'its updated_at is not text' });
+    for (const unreadableFirst of [true, false]) {
+      const granola = fakeGranola();
+      const pages = [
+        { notes: [second!], unreadable: [odd(first!.id), odd('not_odd1')] },
+        { notes: [first!], unreadable: [] },
+      ];
+      if (!unreadableFirst) pages.reverse();
+      let page = 0;
+      granola.port.listNotes = async () => {
+        page += 1;
+        return { ...pages[page - 1]!, cursor: page === 1 ? 'next' : null };
+      };
+
+      const listed = await listGranolaNotes(readerOf(granola.port), null);
+
+      expect(listed.notes.map((note) => note.id).sort()).toEqual([first!.id, second!.id].sort());
+      expect(listed.unreadable).toEqual([odd('not_odd1')]);
+    }
+  });
 });
 
 describe('readGranolaNote', () => {

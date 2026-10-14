@@ -804,6 +804,33 @@ describe('pulling Granola into a vault', () => {
     expect(lines[0]).toEqual([OTHER_VAULT.absolutePath, skippedLine('not_odd0000000001')]);
   });
 
+  it('does not hold back a note the listing read elsewhere from being said once it is only unreadable', async () => {
+    const records = memoryRecords({ watermark: '2026-10-13T12:00:00.000Z' });
+    const { puller, granola, api } = pullFixture({ notes: [HELD], records });
+    const lines = linesByVault(api.activity);
+    const odd = { id: HELD.id, reason: 'its updated_at is not text' };
+    let readable = true;
+    granola.port.listNotes = async () => ({
+      notes: readable ? [HELD] : [],
+      unreadable: [odd],
+      cursor: null,
+    });
+    const pullOf = () => puller.pull({ vault: VAULT.absolutePath, mode: 'periodic' });
+
+    // Read and unreadable in one listing: it is read, so neither skipped nor said.
+    const first = await pullOf();
+    expect(first.skipped).toEqual([]);
+    expect(lines).toEqual([]);
+
+    // Listed only unreadable later in the session: said, as a note never said before.
+    readable = false;
+    await pullOf();
+    expect(lines[0]).toEqual([
+      VAULT.absolutePath,
+      `Granola: “${HELD.id}”: Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.`,
+    ]);
+  });
+
   it('says a list that failed outright was not skipped, and that the next pull lists again', async () => {
     const { pull, granola, api } = pullFixture();
     granola.fail('list', {
@@ -1090,6 +1117,26 @@ describe('pulling Granola into a vault', () => {
         watermark: '2026-10-13T15:00:00.000Z',
       });
       expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
+    });
+
+    it('keeps the refused key and Granola’s failure when Activity fails at the end', async () => {
+      const { pull, granola, api } = pullFixture();
+      granola.fail('list', refused(401));
+      Object.assign(api.activity, {
+        inVault: () => ({
+          record: () => {
+            throw new Error('Activity is full');
+          },
+        }),
+      });
+
+      const report = await pull();
+
+      expect(report).toMatchObject({
+        ended: 'failed',
+        failure: refused(401),
+        keyRefused: true,
+      });
     });
 
     it('is a failed report when the pull’s own record cannot be read', async () => {

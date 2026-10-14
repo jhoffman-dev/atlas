@@ -205,12 +205,14 @@ const noNotesYet = (): Tally => ({
 
 /**
  * What a pull has done, kept outside it, so a fault at any point reports
- * what came before: the notes as far as they went, and the watermark the
- * record holds (null until it has been read).
+ * what came before: the notes as far as they went, the watermark the record
+ * holds (null until it has been read), and Granola's failure that ended the
+ * pull (null until one has).
  */
 interface Progress {
   readonly tally: Tally;
   watermark: string | null;
+  failure: GranolaFailure | null;
 }
 
 /** A pull asked for, with what it must not say twice in the vault's Activity. */
@@ -257,7 +259,7 @@ async function pullGranolaMeetings(
   deps: GranolaPullDeps,
   request: PullRequest,
 ): Promise<GranolaPullReport> {
-  const progress: Progress = { tally: noNotesYet(), watermark: null };
+  const progress: Progress = { tally: noNotesYet(), watermark: null, failure: null };
   try {
     return await pullAndReport(deps, request, progress);
   } catch (cause) {
@@ -284,6 +286,7 @@ async function pullAndReport(
         }),
       )
     : endedBy('not-synced');
+  progress.failure = ending.failure;
   progress.watermark = keepWatermark({ deps, vault, ports, tally, ending, before });
   const report = reportOf({ vault, mode, tally, ending, watermark: progress.watermark });
   const line =
@@ -304,17 +307,18 @@ async function pullAndReport(
  * The report of a pull a fault ended outside what a pull handles — a port
  * that could not be had, a record that could not be read or kept — said in
  * Activity too, with what the pull had done before it: the meetings already
- * written stay written, and the watermark is the one the record holds.
+ * written stay written, the watermark is the one the record holds, and
+ * Granola's failure, a refused key among them, is still the report's.
  * Should Activity fail as well, the report says so, since nothing else can.
  */
 function faultReport(
   deps: GranolaPullDeps,
   { vault, mode }: PullRequest,
   cause: unknown,
-  { tally, watermark }: Progress,
+  { tally, watermark, failure }: Progress,
 ): GranolaPullReport {
   const problem = messageWithoutPaths(cause);
-  const ending: Ending = { ended: 'failed', failure: null, problem };
+  const ending: Ending = { ended: 'failed', failure, problem };
   const report = reportOf({ vault, mode, tally, ending, watermark });
   const line = granolaPullReport({ mode, ended: 'failed', counts: countsOf(report), problem });
   try {

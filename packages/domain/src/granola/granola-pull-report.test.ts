@@ -251,7 +251,7 @@ describe('unreadableSummaryProblem', () => {
     expect(shown('a\u0085b\u009fc\u0080d\u007fe')).toBe('a b c d e');
   });
 
-  it('drops the bidi and zero-width characters that would reorder or hide what Activity shows', () => {
+  it('makes the bidi and zero-width characters that would reorder or hide what Activity shows a space', () => {
     const shown = (id: string) => unreadableSummaryProblem({ id, reason: 'r' }).id;
     for (const hidden of [
       '\u200e',
@@ -272,15 +272,41 @@ describe('unreadableSummaryProblem', () => {
       '\ufeff',
       '\u061c',
     ]) {
-      expect(shown(`not_${hidden}evil`)).toBe('not_evil');
+      expect(shown(`not_${hidden}evil`)).toBe('not_ evil');
     }
   });
 
-  it('cuts by characters, never through an emoji, and mends half of one sent alone', () => {
+  it('cuts by characters, never through an emoji, and makes half of one sent alone a space', () => {
     const shown = (id: string) => unreadableSummaryProblem({ id, reason: 'r' }).id;
     expect(shown(`${'a'.repeat(39)}🙂tail`)).toBe(`${'a'.repeat(39)}🙂…`);
     expect(shown('🙂'.repeat(40))).toBe('🙂'.repeat(40));
-    expect(shown('a\ud83db\ude42c')).toBe('a\ufffdb\ufffdc');
+    expect(shown('a\ud83db\ude42c')).toBe('a b c');
+  });
+
+  it('shows letters, marks, numbers, punctuation, symbols and the plain space as they are', () => {
+    const shown = (id: string) => unreadableSummaryProblem({ id, reason: 'r' }).id;
+    expect(shown('not_Ab9 é-ü€+ß字')).toBe('not_Ab9 é-ü€+ß字');
+  });
+
+  it('makes every other character a space, the default-ignorable ones among them, and collapses runs', () => {
+    const shown = (id: string) => unreadableSummaryProblem({ id, reason: 'r' }).id;
+    for (const hidden of [
+      '\u00a0',
+      '\u3000',
+      '\u2028',
+      '\u00ad',
+      '\u180e',
+      '\u034f',
+      '\ufe0f',
+      '\u3164',
+      '\ue000',
+      '\u{e0041}',
+      '\u{e0100}',
+      '\u0378',
+    ]) {
+      expect(shown(`not_${hidden}evil`)).toBe('not_ evil');
+    }
+    expect(shown('a \u200b\u00ad \u{e0041}\u{e0042}b')).toBe('a b');
   });
 });
 

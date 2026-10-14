@@ -77,22 +77,24 @@ export const GRANOLA_KEPT_SLOWING_DOWN = `Granola asked Atlas to slow down for $
 /** The most of a listed id a line shows: an id that is not one may be anything, at any length. */
 const SHOWN_ID_LENGTH = 40;
 
-/* eslint-disable no-control-regex -- these name the characters a line of Activity must not hold */
-/** C0 and C1 controls and DEL: each shown as a space, so the words either side stay apart. */
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g;
-/** Characters that show nothing but reorder or join what is around them: bidi marks, embeddings, overrides and isolates, and zero-width ones. */
-const INVISIBLE = /[\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
-/** Half a surrogate pair with no other half: no character at all. */
-const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
-/* eslint-enable no-control-regex */
+/**
+ * Any character outside letters, marks, numbers, punctuation, symbols and the
+ * plain space (U+0020), and any default-ignorable one (which shows nothing,
+ * though some are marks or letters): controls, other spaces and line breaks,
+ * format characters (bidi marks, zero-width ones, Unicode tags), lone
+ * surrogates, private use and unassigned code points.
+ */
+const NOT_SHOWN = /[^\p{L}\p{M}\p{N}\p{P}\p{S} ]|\p{Default_Ignorable_Code_Point}/gu;
 
-/** A listed id as a line may show it: nothing that moves, hides or breaks the text, and cut by characters, never through one. */
+/**
+ * A listed id as a line may show it: every character not shown as itself
+ * (see {@link NOT_SHOWN}) made a space, runs of spaces collapsed to one, and
+ * the result cut to {@link SHOWN_ID_LENGTH} code points, never through a
+ * surrogate pair.
+ */
 function shownId(id: string | null): string {
   if (id === null) return 'no id';
-  const printable = id
-    .replace(CONTROL, ' ')
-    .replace(INVISIBLE, '')
-    .replace(LONE_SURROGATE, '\ufffd');
+  const printable = id.replace(NOT_SHOWN, ' ').replace(/ {2,}/g, ' ');
   const characters = Array.from(printable);
   return characters.length > SHOWN_ID_LENGTH
     ? `${characters.slice(0, SHOWN_ID_LENGTH).join('')}…`
