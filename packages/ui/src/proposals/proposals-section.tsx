@@ -29,8 +29,12 @@ export interface ProposalsSectionProps {
   readonly contents: ProposalsContents | null;
   readonly error: string | null;
   readonly notice: ProposalNotice | null;
-  /** The proposal being answered, so it is not answered twice; or `undo` while an accept is undone. */
-  readonly busy: VaultPath | 'undo' | null;
+  /**
+   * `undo` while an accept is being undone, which holds the answers until it
+   * is; null otherwise. An answer itself holds nothing: its proposal leaves
+   * the list at once, and is written behind it (#166).
+   */
+  readonly busy: 'undo' | null;
   /** Why answering a proposal was refused, by its path. */
   readonly problems: ReadonlyMap<VaultPath, string>;
   /** Accepts a proposal — with its payload as edited, when it was. */

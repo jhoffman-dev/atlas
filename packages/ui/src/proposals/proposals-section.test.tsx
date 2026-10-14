@@ -173,8 +173,8 @@ describe('ProposalsSection', () => {
     expect(within(card(/^Link: /)).queryByRole('alert')).toBeNull();
   });
 
-  it('holds every answer while one is being made', () => {
-    page({ busy: TASK.path });
+  it('holds every answer while an accept is being undone', () => {
+    page({ busy: 'undo' });
     for (const name of ['Accept', 'Edit', 'Reject']) {
       const buttons = screen.getAllByRole('button', { name });
       expect(buttons).toHaveLength(2);
