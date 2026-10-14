@@ -265,12 +265,15 @@ note just stops being listed, and Atlas deletes nothing.
   how large a transcript the inline route returns before a `413`.
 - **Status.** Proposed; accepted when the pull lands (P28-11).
 
-## Amendment, 2026-10-14: one source for the owner's addresses (ADR-0024, ADR-0035, ADR-0036)
+## Amendment, 2026-10-14: one source for the owner's addresses (ADR-0024, ADR-0036)
 
 The owner's addresses are the vault setting `selfEmails` (ADR-0024, amended);
 `granola_self_emails` is read as an alias while it is empty. The n8n
 workflow's OPTIONS must carry the same addresses, byte for byte, as the app.
+This amendment takes effect when ADR-0036 is accepted.
+
+## Amendment, 2026-10-14: a Mac that is not named says meetings are waiting (ADR-0035)
+
 "A meeting is settled when sync reaches that Mac" stays true: a Mac that is
 not named shows that meetings are waiting and can be told to process them
-(ADR-0035). **These amendments take effect when ADR-0035 and ADR-0036 are
-accepted.**
+(ADR-0035). This amendment takes effect when ADR-0035 is accepted.

@@ -67,49 +67,71 @@ waiting for the named Mac, with a one-click "Process here" that names this Mac
 (the existing claim).** No Mac takes the automations over by itself in this
 phase.
 
-Three parts:
+Four parts:
 
 1. **A Mac that is not named says so.** The Inbox page shows a prominent
    banner line, "N meetings waiting for <Mac>", with a **"Process here"**
    button. Activity gets a warning once per sync while it holds, "N meetings
    are waiting for <Mac> to process them". Today the drop is silent. The
-   banner is shown only on a Mac that is not named, never on the named one.
+   waiting count is shown only on a Mac that is not named. The **named** Mac
+   shows one line instead when its own step is failing (for example "Claude
+   is unavailable on <Mac>: summaries and tasks are pending"), so a failing
+   step is never silent either.
 2. **"Process here" is the existing claim.** It writes `automationsMac` (this
    Mac's id and name) through the settings writer Settings → Sync already
-   uses. It also **reruns the missed-arrivals catch-up**: the Claude step's
-   catch-up (`missedArrivals`, ADR-0028) is once per vault opened, tracked in
-   `use-automations.ts` (`caughtUp`), and the import's catch-up likewise, so
-   a Mac that claims mid-session would otherwise catch up on nothing until the
-   next open. Claiming resets that state for this vault and runs both
-   catch-ups at once. The other Mac reads the new value on its next sync and
-   stops (`runsAutomationsHere`).
-3. **What "waiting" counts, and when it is judged.**
-   - It counts **real arrivals only**: a file under `Inbox/Meetings/` with no
-     import outcome stamp, **excluding** sync-conflict copies
+   uses. The other Mac reads the new value on its next sync and stops
+   (`runsAutomationsHere`). The button is **disabled** while this Mac's sync
+   is paused, is failing, or has not completed a pull since this app launched
+   or this Mac last woke (part 4); the banner says which. Otherwise a Mac that
+   cannot push would claim in settings it cannot share, and both Macs would
+   believe they are named. Claiming also **catches up** (below).
+3. **What "waiting" counts.** The sum of two things, shown together:
+   - **Unimported meetings**: files under `Inbox/Meetings/` with no import
+     outcome stamp, **excluding** sync-conflict copies
      (`… (conflict from <Mac>).md`, recognised by `conflict-copy.ts`, which
      the import never judges, ADR-0027) and **excluding** files that cannot be
      read. A conflict copy is the person's to merge; counting it would make
      the banner permanent, and a claim cannot clear it.
-   - It is judged only when **both gates** hold, so a Mac does not claim a
-     file the named Mac has already stamped and not yet synced:
-     **Gate 1, a pull completed after the file arrived**: the last completed
-     sync pull on this Mac finished later than the file's modified time here.
-     **Gate 2, the Mac has woken since**: that pull also finished later than
-     the last time this Mac woke or resumed (a wake/resume signal, new in this
-     ADR; the host reports it as the window regaining focus after a sleep, or
-     the system's resume event, whichever the ticket finds the host can
-     deliver). The existing "synced this session" flag
-     (`use-granola-pull.ts`, `syncedThisSession`) is **not enough for
-     either gate**: it turns true once and stays true across sleeps, which is
-     exactly when the named Mac's stamp is in flight. Until both gates hold
-     the banner says nothing about counts rather than guessing. A vault that
-     does not sync is unchanged: it has one Mac.
+   - **Imported meetings whose post-processing has not completed**: the
+     summary or the tasks are still pending in the rule's handled ledger
+     (ADR-0036). This is what makes a named Mac whose Claude is unavailable
+     visible: it stamps every meeting, so the first count alone would stay at
+     zero while no summary or task is ever written.
+4. **Every Mac, named or not, acts only on fresh sync state (D1).** A Mac runs
+   the import and the Claude step only after **a pull that completed since
+   this app launched or since this Mac last woke**, and only if **it is still
+   the named Mac after that pull**. If B claims while A sleeps, A wakes,
+   pulls, sees it is no longer named, and runs nothing; the importer acts on
+   no meeting from that pull. The same two conditions judge the waiting count:
+   - **Gate 1, a pull completed after the file arrived**: the last completed
+     pull on this Mac finished later than the file's modified time here.
+   - **Gate 2, the Mac has launched or woken since**: that pull also finished
+     later than the last launch or wake/resume of this Mac. The wake signal is
+     new in this ADR and **unproven** (see Unknown, below); no fixed wait
+     stands in for it.
+
+   The existing "synced this session" flag (`use-granola-pull.ts`,
+   `syncedThisSession`) is **not enough for either gate**: it turns true once
+   and stays true across sleeps, which is exactly when the named Mac's stamp
+   is in flight. Until both gates hold the banner says nothing about counts
+   rather than guessing. A vault that does not sync is unchanged: it has one
+   Mac.
+
+**Catch-up on a claim.** The import's catch-up needs no change:
+`use-meeting-import.ts` already clears its `caughtUp` while this Mac is not
+the importer and reruns the catch-up when it becomes the importer, so a claim
+settles every unstamped file at once. The Claude step's catch-up
+(`missedArrivals`, ADR-0028; `caughtUp` in `use-automations.ts`) is once per
+vault opened and is **not** reset today. This record specifies the reset: it
+clears when `scheduled` goes **false to true** for this vault, and the
+catch-up reruns. That covers the button and a move made in Settings → Sync
+alike; it is not tied to the button.
 
 **This amends no accepted statement in a way that changes who writes.**
 ADR-0025's "A Mac connecting to a vault never takes the automations from
 another Mac" stays true: a person's click is not the Mac taking anything. The
 amendments are to the silence (ADR-0025, ADR-0027, ADR-0034, ADR-0028 each
-carry a pointer), and they take effect when this record is accepted.
+carry a pointer). This amendment takes effect when ADR-0035 and ADR-0036 are accepted.
 
 ### Automatic hand-over: considered and deferred
 
@@ -118,13 +140,13 @@ after a meeting had waited ten minutes. It is **not** taken in this phase. The
 review and the adversarial pass found holes that a future design must solve
 before it is reconsidered:
 
-| Hole                         | What goes wrong                                                                                                                                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Conflict-copy ping-pong (H3) | A conflict copy of a meeting or of `.atlas/settings.md` is an "unstamped file" that never gets a stamp; two Macs each see work waiting, each takes over, each syncs a settings conflict copy, forever. |
-| Pull interval (H4)           | "Pull completed" does not mean "the other Mac's stamp has been pushed and pulled": the pull interval and the named Mac's own push timing can both exceed a fixed wait, which would be a guess.         |
-| Paused sync (H5)             | With sync paused or failing, no pull completes, so the rule never fires; or one Mac pulled before pausing and fires on stale data.                                                                     |
-| Wake races (H7)              | A Mac that has just woken pulls, sees waiting work, and takes over in the minute before the named Mac (also just woken) stamps it. Both run the model.                                                 |
-| Claude unavailable (H6)      | A Mac that takes over but has no Claude Code login makes meetings wait longer than before, and the original Mac, which had it, stands down.                                                            |
+| Hole                         | What goes wrong                                                                                                                                                                                                                                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conflict-copy ping-pong (H3) | Under the old automatic trigger (an unstamped file in `Inbox/Meetings/`), sync-conflict copies of meetings and unreadable files, which the import never stamps, counted as work waiting. Two open Macs then took the automations from each other on every pull.                                                              |
+| Pull interval (H4)           | A fixed 10-minute wait is shorter than the configurable pull interval (5 to 60 minutes). An **awake** named Mac that has not yet pulled a meeting written on the other Mac loses the automations whenever that meeting reaches the other Mac first.                                                                          |
+| Paused sync (H5)             | A paused Mac keeps writing Granola files and claims the automations in a settings write it cannot push, so both Macs believe they are named. Part 2 covers the button by disabling it while sync is paused, failing or has not pulled.                                                                                       |
+| Wake races (H7)              | The stale named Mac, on wake, runs its Granola and sync timers before the pull that would demote it, and the importer acts on meetings from that same pull. Part 4 covers it: nothing runs until a pull has completed since the wake and this Mac is still named.                                                            |
+| Claude unavailable (H6)      | A named Mac whose Claude is unavailable stamps every meeting, so nothing counted as waiting and summaries and tasks went missing silently. Part 3 covers it by counting imported meetings whose post-processing is pending, and part 1 by the named Mac's own line. A Mac that took over without Claude would worsen it too. |
 
 A future design must also say how a claim is undone, how a take-over is
 withheld from a Mac without Claude, and how the settings file's own conflict
@@ -177,22 +199,25 @@ Easier:
 
 Harder, and what it costs:
 
-- **It is still one click on the right Mac.** It is the workflow he disliked,
-  one step shorter and no longer silent. Meetings still wait until he clicks
-  or the named Mac wakes. If that proves too slow, automatic hand-over is the
+- **It is still one click.** The click is on the Mac in front of him, so he
+  never has to go to another Mac, which is his requirement. Meetings still
+  wait until he clicks or the named Mac wakes and pulls. If that proves too slow, automatic hand-over is the
   next record, with the holes above to solve.
-- **A wrong count is possible.** "Waiting" relies on the two gates and on the
-  stamp's absence. A named Mac that stamped a file but has not pushed shows as
+- **A wrong count is possible.** "Waiting" relies on the two gates, on the
+  stamp's absence and on the ledger. A named Mac that stamped a file but has not pushed shows as
   waiting on the other Mac until the pull after it. Pressing "Process here"
   then is harmless in the steady state (deterministic steps, ADR-0027) and a
   possible conflict copy of a rule's log if a Claude run was in flight on both;
   the ledger's recovery rebuilds from its entries and Activity warns. Rare,
   bounded and visible.
-- **The wake/resume signal is new host work.** Whether the host can deliver a
-  reliable signal on every Mac is **not yet proven**; the ticket finds out. If
-  it cannot, gate 2 falls back to a fixed delay after the first pull following
-  a long gap in activity, and the banner says "may be waiting" rather than a
-  count.
+- **The wake/resume signal is new host work, and unproven.** Whether the host
+  can deliver a reliable signal on every Mac is **not known**; the ticket
+  finds out. If it cannot, what gate 2 does instead is **an unknown with no
+  value chosen here**; a fixed wait is not reintroduced (see H4).
+- **The named Mac now waits too.** After launch or wake it runs no import and
+  no Claude step until a pull completes, and not at all if that pull shows it
+  is no longer named. That delays work by up to one pull interval; it is the
+  cost of closing the stale-named-Mac race.
 - **A Mac that merely pulled a Granola meeting writes an unstamped file**
   (the Granola pull runs on every Mac, ADR-0034). Such files are counted once
   both gates hold, which is intended.
@@ -207,13 +232,14 @@ Harder, and what it costs:
 - **Unknown, to be settled in the tickets (I1-I3):** how the settings write
   and the first read behave when `.atlas/settings.md` cannot be read (the
   rule must do nothing, not guess); what the banner says on a Mac whose gates
-  have not held yet; the wake/resume signal above.
+  have not held yet; the wake/resume signal above, and what gate 2 does if
+  the host cannot deliver it.
 - **Status.** Proposed; accepted when the banner, the claim's catch-up and the
-  gates have landed (Phase 1 of the meeting post-processing plan).
+  gates have landed, and the wake signal is proven (Phase 1 of the meeting post-processing plan).
 
 ### Defaults taken
 
 **Q2**, not answered by the maintainer, is taken as: a visible banner and a
-one-click claim, **no automatic hand-over**. Overridden by what he did say
-only in part: a workflow that needs a particular Mac open is still a click
-away from the Mac he is on, and no longer silent.
+one-click claim, **no automatic hand-over**. The button meets his stated
+requirement: he never has to go to another Mac. It is one click on the Mac he
+is on, and no longer silent.
