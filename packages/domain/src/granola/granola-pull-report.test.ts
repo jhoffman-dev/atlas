@@ -58,6 +58,34 @@ describe('granolaPullReport', () => {
     expect(tick({ failed: 1 })?.level).toBe('error');
   });
 
+  it('says nothing of a timed pull whose only skips Activity was told of already', () => {
+    const tick = (counts: Partial<GranolaPullCounts>, skippedBefore: number) =>
+      granolaPullReport({
+        mode: 'periodic',
+        ended: 'pulled',
+        counts: counted(counts),
+        problem: null,
+        skippedBefore,
+      });
+    expect(tick({ skipped: 2, held: 4 }, 2)).toBeNull();
+    expect(tick({ skipped: 2 }, 1)?.message).toBe(
+      'Granola: nothing new, 0 already in Atlas, 2 skipped.',
+    );
+    expect(tick({ skipped: 1, written: 1 }, 1)?.message).toBe(
+      'Granola: 1 new, 0 already in Atlas, 1 skipped.',
+    );
+    // A pull asked for always gets its line.
+    expect(
+      granolaPullReport({
+        mode: 'sync-now',
+        ended: 'pulled',
+        counts: counted({ skipped: 1 }),
+        problem: null,
+        skippedBefore: 1,
+      })?.message,
+    ).toBe('Granola: nothing new, 0 already in Atlas, 1 skipped.');
+  });
+
   it('counts a pull asked for, or at startup, even when it found nothing new', () => {
     for (const mode of ['startup', 'sync-now'] as const) {
       expect(
@@ -216,6 +244,43 @@ describe('unreadableSummaryProblem', () => {
 
   it('says there was no id when there was none', () => {
     expect(unreadableSummaryProblem({ id: null, reason: 'r' }).id).toBe('no id');
+  });
+
+  it('makes a C1 control a space, as it does a C0 one', () => {
+    const shown = (id: string) => unreadableSummaryProblem({ id, reason: 'r' }).id;
+    expect(shown('a\u0085b\u009fc\u0080d\u007fe')).toBe('a b c d e');
+  });
+
+  it('drops the bidi and zero-width characters that would reorder or hide what Activity shows', () => {
+    const shown = (id: string) => unreadableSummaryProblem({ id, reason: 'r' }).id;
+    for (const hidden of [
+      '\u200e',
+      '\u200f',
+      '\u202a',
+      '\u202b',
+      '\u202c',
+      '\u202d',
+      '\u202e',
+      '\u2066',
+      '\u2067',
+      '\u2068',
+      '\u2069',
+      '\u200b',
+      '\u200c',
+      '\u200d',
+      '\u2060',
+      '\ufeff',
+      '\u061c',
+    ]) {
+      expect(shown(`not_${hidden}evil`)).toBe('not_evil');
+    }
+  });
+
+  it('cuts by characters, never through an emoji, and mends half of one sent alone', () => {
+    const shown = (id: string) => unreadableSummaryProblem({ id, reason: 'r' }).id;
+    expect(shown(`${'a'.repeat(39)}🙂tail`)).toBe(`${'a'.repeat(39)}🙂…`);
+    expect(shown('🙂'.repeat(40))).toBe('🙂'.repeat(40));
+    expect(shown('a\ud83db\ude42c')).toBe('a\ufffdb\ufffdc');
   });
 });
 

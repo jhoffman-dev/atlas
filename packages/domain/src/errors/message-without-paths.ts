@@ -4,9 +4,22 @@
  * automation runner and the Activity log strip paths by one rule.
  */
 
-/** An error's own words, for a refusal whose cause the caller can act on. */
+/** The words for a thrown value that cannot be turned into any. */
+export const UNDESCRIBED_ERROR = 'an error Atlas could not put into words';
+
+/**
+ * An error's own words, for a refusal whose cause the caller can act on.
+ * Never throws: anything may be thrown, and some things — an object with no
+ * prototype, one whose `toString` or `message` throws, a hostile proxy —
+ * cannot be made text. Those are described as {@link UNDESCRIBED_ERROR}, so
+ * whatever reports the error still does.
+ */
 export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  try {
+    return error instanceof Error ? String(error.message) : String(error);
+  } catch {
+    return UNDESCRIBED_ERROR;
+  }
 }
 
 /**

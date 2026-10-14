@@ -36,9 +36,10 @@ function timeZoneOf(value: unknown): string {
   return zone === '' ? DEFAULT_GRANOLA_TIME_ZONE : zone;
 }
 
+/** The addresses a setting lists; one written as text rather than a list is a list of that one. */
 function addressesOf(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) return [];
-  return value
+  const listed: readonly unknown[] = Array.isArray(value) ? value : [value];
+  return listed
     .filter((each): each is string => typeof each === 'string')
     .map((each) => each.trim())
     .filter((each) => each !== '');

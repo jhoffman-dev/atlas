@@ -79,9 +79,16 @@ describe('parseGranolaSettings', () => {
         [GRANOLA_GROUP_ADDRESSES_KEY]: [' eng@example.com ', '', 4, null, 'ops@example.com'],
       }).groupAddresses,
     ).toEqual(['eng@example.com', 'ops@example.com']);
+  });
+
+  it('reads one address written as text, not a list, as a list of that one', () => {
     expect(
-      parseGranolaSettings({ [GRANOLA_GROUP_ADDRESSES_KEY]: 'eng@example.com' }).groupAddresses,
-    ).toEqual([]);
+      parseGranolaSettings({ [GRANOLA_GROUP_ADDRESSES_KEY]: ' eng@example.com ' }).groupAddresses,
+    ).toEqual(['eng@example.com']);
+    expect(
+      parseGranolaSettings({ [GRANOLA_SELF_EMAILS_KEY]: 'mara@example.com' }).selfEmails,
+    ).toEqual(['mara@example.com']);
+    expect(parseGranolaSettings({ [GRANOLA_SELF_EMAILS_KEY]: '  ' }).selfEmails).toEqual([]);
   });
 
   it('keeps the person’s own addresses that are text, trimmed, and drops the rest', () => {
@@ -90,9 +97,6 @@ describe('parseGranolaSettings', () => {
         [GRANOLA_SELF_EMAILS_KEY]: [' mara@example.com ', '', 4, null, 'mq@example.com'],
       }).selfEmails,
     ).toEqual(['mara@example.com', 'mq@example.com']);
-    expect(
-      parseGranolaSettings({ [GRANOLA_SELF_EMAILS_KEY]: 'mara@example.com' }).selfEmails,
-    ).toEqual([]);
   });
 
   it('reads no other setting as the person’s own addresses', () => {

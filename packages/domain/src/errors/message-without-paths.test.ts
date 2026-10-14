@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { messageWithoutPaths } from './message-without-paths.ts';
+import { messageOf, messageWithoutPaths, UNDESCRIBED_ERROR } from './message-without-paths.ts';
 
 const stripped = (message: string) => messageWithoutPaths(new Error(message));
 
@@ -144,6 +144,52 @@ describe('messageWithoutPaths over generated paths', () => {
       const kept = stripped(message);
       expect(kept, message).not.toMatch(/Zq\d/);
       expect(kept, message).toBe(`${before}${open}<path>${close}${after}`);
+    }
+  });
+});
+
+describe('messageOf', () => {
+  it('is an error’s message, and any other thrown value as text', () => {
+    expect(messageOf(new Error('disk full'))).toBe('disk full');
+    expect(messageOf('plain words')).toBe('plain words');
+    expect(messageOf(42)).toBe('42');
+    expect(messageOf(Symbol('odd'))).toBe('Symbol(odd)');
+    expect(messageOf(undefined)).toBe('undefined');
+  });
+
+  it('never throws, whatever was thrown', () => {
+    const hostile = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error('trap');
+        },
+        get: () => {
+          throw new Error('trap');
+        },
+      },
+    );
+    const throwingMessage = new Error('hidden');
+    Object.defineProperty(throwingMessage, 'message', {
+      get: () => {
+        throw new Error('no message');
+      },
+    });
+    const thrown: unknown[] = [
+      Object.create(null),
+      {
+        toString: () => {
+          throw new Error('no words');
+        },
+      },
+      { [Symbol.toPrimitive]: () => ({}) },
+      throwingMessage,
+      Object.assign(new Error('x'), { message: Object.create(null) as unknown }),
+      hostile,
+    ];
+    for (const value of thrown) {
+      expect(messageOf(value)).toBe(UNDESCRIBED_ERROR);
+      expect(messageWithoutPaths(value)).toBe(UNDESCRIBED_ERROR);
     }
   });
 });
