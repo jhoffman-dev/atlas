@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
@@ -51,6 +51,7 @@ const PROPOSALS: NonNullable<InboxPageProps['proposals']> = {
   onAccept: vi.fn(),
   onReject: vi.fn(),
   onUndo: vi.fn(),
+  onDismissNotice: vi.fn(),
   onOpen: vi.fn(),
   onOpenSource: vi.fn(),
 };
@@ -450,5 +451,34 @@ describe('InboxPage — clarifying a task on its row', () => {
   it('offers no undo when nothing was clarified', () => {
     page({ onUndo: vi.fn() });
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+});
+
+describe('InboxPage — the undo bar goes by itself (#165)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('dismisses “Clarified …” and its Undo after 20 seconds', () => {
+    vi.useFakeTimers();
+    const onDismissLastAction = vi.fn();
+    page({ lastAction: { title: 'Call the bank' }, onUndo: vi.fn(), onDismissLastAction });
+
+    act(() => vi.advanceTimersByTime(19_900));
+    expect(onDismissLastAction).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(200));
+    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits while the pointer is on it', () => {
+    vi.useFakeTimers();
+    const onDismissLastAction = vi.fn();
+    page({ lastAction: { title: 'Call the bank' }, onUndo: vi.fn(), onDismissLastAction });
+    const said = screen.getByRole('status');
+
+    fireEvent.pointerEnter(said);
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(onDismissLastAction).not.toHaveBeenCalled();
+    fireEvent.pointerLeave(said);
+    act(() => vi.advanceTimersByTime(20_100));
+    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type ProposalNote, type VaultPath } from '@atlas/domain';
 import { ProposalsSection, type ProposalsSectionProps } from './proposals-section.tsx';
@@ -41,6 +41,7 @@ function page(props: Partial<ProposalsSectionProps> = {}) {
     onAccept: vi.fn<(path: VaultPath, payload?: unknown) => void>(),
     onReject: vi.fn<(path: VaultPath) => void>(),
     onUndo: vi.fn(),
+    onDismissNotice: vi.fn(),
     onOpen: vi.fn<(path: VaultPath) => void>(),
     onOpenSource: vi.fn<(link: string) => void>(),
   };
@@ -284,5 +285,56 @@ describe('ProposalsSection', () => {
   it('says why the folder could not be read', () => {
     page({ error: 'The vault could not be read.' });
     expect(screen.getByRole('alert').textContent).toBe('The vault could not be read.');
+  });
+});
+
+describe('ProposalsSection — the notice goes by itself (#165)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const ACCEPTED = {
+    text: 'Accepted: Send Mara the payroll file.',
+    opens: null,
+    undoable: true,
+  };
+
+  it('dismisses the notice, and with it the undo, after 20 seconds', () => {
+    vi.useFakeTimers();
+    const handlers = page({ notice: ACCEPTED });
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(19_900));
+    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(200));
+    expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits while the pointer is on it, then gives the full time again', () => {
+    vi.useFakeTimers();
+    const handlers = page({ notice: ACCEPTED });
+    const notice = screen.getByRole('status');
+
+    act(() => vi.advanceTimersByTime(15_000));
+    fireEvent.pointerEnter(notice);
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
+
+    fireEvent.pointerLeave(notice);
+    act(() => vi.advanceTimersByTime(19_900));
+    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(200));
+    expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits while the focus is on its Undo, as a keyboard reaches it', () => {
+    vi.useFakeTimers();
+    const handlers = page({ notice: ACCEPTED });
+    act(() => screen.getByRole('button', { name: 'Undo' }).focus());
+
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(handlers.onDismissNotice).not.toHaveBeenCalled();
+
+    act(() => screen.getByRole('button', { name: 'Undo' }).blur());
+    act(() => vi.advanceTimersByTime(20_100));
+    expect(handlers.onDismissNotice).toHaveBeenCalledTimes(1);
   });
 });

@@ -270,6 +270,22 @@ describe('useInbox — undo', () => {
     expect(onSettled).toHaveBeenCalledTimes(2);
   });
 
+  it('takes nothing back once the bar offering Undo has gone (#165)', async () => {
+    const { hook, files, onSettled } = inbox();
+    await act(() =>
+      hook.result.current.clarify({ path: CALL, clarification: { status: 'backlog' } }),
+    );
+    const clarified = files.get(CALL);
+    expect(hook.result.current.lastAction).toEqual({ title: 'Call the bank' });
+
+    act(() => hook.result.current.dismissLastAction());
+    expect(hook.result.current.lastAction).toBeNull();
+
+    await act(() => hook.result.current.undo());
+    expect(files.get(CALL)).toBe(clarified);
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+
   it('says why above the list when the note was changed since, and leaves it', async () => {
     const { hook, files } = inbox();
     await act(() =>

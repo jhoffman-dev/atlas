@@ -259,6 +259,23 @@ describe('useProposals', () => {
   });
 });
 
+describe('useProposals — the undo lasts as long as its notice (#165)', () => {
+  it('takes nothing back once the notice offering Undo has gone', async () => {
+    const { hook, files } = render();
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+
+    act(() => hook.result.current.section.onDismissNotice());
+    expect(hook.result.current.section.notice).toBeNull();
+
+    act(() => hook.result.current.section.onUndo());
+    await act(() => new Promise((settle) => setTimeout(settle, 20)));
+    expect(files.has(TASK)).toBe(true);
+    expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
+  });
+});
+
 describe('useProposals — adversarial: another vault opened after an accept', () => {
   // The hook holds the last accept for its Undo, and the notice offering it,
   // across a change of `ports` — which is what opening another vault is. The
