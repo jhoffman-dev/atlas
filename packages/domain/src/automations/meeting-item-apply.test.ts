@@ -61,7 +61,10 @@ const MEETING_TEXT = [
   '',
   '## Transcript',
   '',
-  ...TURNS.flatMap(([id, speaker, words]) => [`**${speaker}** [10:0${id.at(-1)}:00] ${words} ^${id}`, '']),
+  ...TURNS.flatMap(([id, speaker, words]) => [
+    `**${speaker}** [10:0${id.at(-1)}:00] ${words} ^${id}`,
+    '',
+  ]),
 ].join('\n');
 
 const meeting = (
@@ -108,7 +111,10 @@ const item = (fields: Record<string, unknown> = {}) => ({
   ...fields,
 });
 
-function proposalsFor(items: readonly unknown[], context: AnswerContext): readonly CheckedProposal[] {
+function proposalsFor(
+  items: readonly unknown[],
+  context: AnswerContext,
+): readonly CheckedProposal[] {
   const reading = schema.read(JSON.stringify({ items }), context);
   if (!reading.ok) throw new Error(reading.problem);
   expect(reading.dropped).toEqual([]);
@@ -246,15 +252,18 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
       fields: { kind: 'follow-up', source_block: 't0003' },
       caps: ['unnamed-speaker'],
     },
-  ])('keeps the owner’s item a proposal, even at medium, when capped: $cell', ({ fields, caps }) => {
-    for (const confidence of ['high', 'medium']) {
-      expect(decideOne({ ...fields, confidence })).toEqual({
-        outcome: 'proposal',
-        because: 'capped',
-        caps,
-      });
-    }
-  });
+  ])(
+    'keeps the owner’s item a proposal, even at medium, when capped: $cell',
+    ({ fields, caps }) => {
+      for (const confidence of ['high', 'medium']) {
+        expect(decideOne({ ...fields, confidence })).toEqual({
+          outcome: 'proposal',
+          because: 'capped',
+          caps,
+        });
+      }
+    },
+  );
 
   it('names every cap an item has, not just the first', () => {
     expect(decideOne({ owner: 'We', kind: 'waiting', source_block: 't0002' })).toEqual({
@@ -433,7 +442,11 @@ describe('the identity key, atlas_item: primary meeting + cited block + resolved
       SELF_KEY,
       atlasItemKey({ meeting: IDENTITY, block: 't0004', owner: 'self' }),
       atlasItemKey({ meeting: IDENTITY, block: 't0001', owner: 'tobias fenn' }),
-      atlasItemKey({ meeting: { ...IDENTITY, externalId: 'granola-9e2f' }, block: 't0001', owner: 'self' }),
+      atlasItemKey({
+        meeting: { ...IDENTITY, externalId: 'granola-9e2f' },
+        block: 't0001',
+        owner: 'self',
+      }),
       atlasItemKey({ meeting: { ...IDENTITY, provider: 'gemini' }, block: 't0001', owner: 'self' }),
     ];
 
@@ -441,14 +454,20 @@ describe('the identity key, atlas_item: primary meeting + cited block + resolved
   });
 
   it('cannot be forged by moving text between its parts', () => {
-    expect(atlasItemKey({ meeting: { provider: 'a', externalId: 'b\nc' }, block: 'd', owner: 'self' })).not.toBe(
+    expect(
+      atlasItemKey({ meeting: { provider: 'a', externalId: 'b\nc' }, block: 'd', owner: 'self' }),
+    ).not.toBe(
       atlasItemKey({ meeting: { provider: 'a', externalId: 'b' }, block: 'c\nd', owner: 'self' }),
     );
   });
 
   it('ignores the spaces around an external id, as the meeting’s identity does', () => {
     expect(
-      atlasItemKey({ meeting: { ...IDENTITY, externalId: ' granola-5c1d ' }, block: 't0001', owner: 'self' }),
+      atlasItemKey({
+        meeting: { ...IDENTITY, externalId: ' granola-5c1d ' },
+        block: 't0001',
+        owner: 'self',
+      }),
     ).toBe(SELF_KEY);
   });
 
@@ -481,6 +500,7 @@ describe('an item already made is skipped', () => {
     '[[Renewal review#^t0001]]',
     '[[Inbox/Meetings/Renewal review.md#^t0001]]',
     '[[renewal review#^t0001|the contract]]',
+    ' [[Renewal review#^t0001]]\n',
   ])('skips an item when a task linked to the meeting already cites its block (%s)', (source) => {
     expect(decideOne({}, { run: { linkedTaskSources: [source] } })).toEqual({
       outcome: 'skipped',
@@ -504,7 +524,10 @@ describe('an item already made is skipped', () => {
     const decided = decide([item(), item({ title: 'Book the signing call' })]);
 
     expect(decided.items.map(({ decision }) => decision.outcome)).toEqual(['task', 'proposal']);
-    expect(decided.items[1]!.decision).toEqual({ outcome: 'proposal', because: 'turn-already-a-task' });
+    expect(decided.items[1]!.decision).toEqual({
+      outcome: 'proposal',
+      because: 'turn-already-a-task',
+    });
   });
 
   it('decides the same on a rerun: the made one is skipped, the other is still a proposal', () => {
@@ -534,7 +557,8 @@ describe('what the decision is handed', () => {
 
   it('keeps a proposal no meeting item made a proposal', () => {
     const [proposal] = proposalsFor([item()], { notes: [meeting()], vault: VAULT });
-    const { meetingItem: _, ...plain } = proposal!;
+    const { meetingItem, ...plain } = proposal!;
+    expect(meetingItem).toBeDefined();
 
     expect(
       decideMeetingItems({ proposals: [plain], vault: VAULT, run: RUN }).items[0]!.decision,

@@ -97,6 +97,7 @@ describe('whose an action item is', () => {
       why: 'Yours, from Platform weekly sync.',
       distinguishedBy: 'self',
       sharedAcrossRules: true,
+      meetingItem: { owner: 'self', ownerKey: 'self', caps: [] },
     });
   });
 

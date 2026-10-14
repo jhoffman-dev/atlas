@@ -8,6 +8,7 @@
  * after it was answered and archived, since a rejection is an answer too.
  */
 
+import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { NewProposal } from '../proposals/new-proposal.ts';
 import { digestOf } from '../sources/merge.ts';
 import type { CheckedProposal } from './proposal-schema.ts';
@@ -41,6 +42,28 @@ export function claudeProposalId({
   const scope = proposal.sharedAcrossRules ? '' : rule;
   const what = [scope, proposal.kind, title, proposal.distinguishedBy, cited, block].join('\n');
   return `claude-${digestOf(`a${what}`)}${digestOf(`b${what}`)}`;
+}
+
+/**
+ * What a task made from a meeting's action item is known by, its
+ * `atlas_item` (ADR-0036): the meeting (provider and id, of the primary,
+ * first-imported copy), the transcript block the item cites and whose it is
+ * (as the item's proposal is distinguished by). Never the title, whose
+ * wording changes from one answer to the next, so a retitled item is the
+ * same item. Two hashes, as for {@link claudeProposalId}.
+ */
+export function atlasItemKey({
+  meeting,
+  block,
+  owner,
+}: {
+  meeting: MeetingIdentity;
+  block: string;
+  owner: string;
+}): string {
+  // JSON, so no spelling of one part can be taken for another's.
+  const what = JSON.stringify([meeting.provider, meeting.externalId.trim(), block, owner]);
+  return `item-${digestOf(`a${what}`)}${digestOf(`b${what}`)}`;
 }
 
 /**

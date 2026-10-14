@@ -24,8 +24,12 @@ import { isSelfSpeaker, isUnnamedSpeaker } from '../meetings/transcript.ts';
 import { vocabularyKey } from '../terms/spelling.ts';
 
 export type ItemOwner =
-  /** The vault's owner: the item is theirs to do. `doubt` is set when that rests on a reading. */
-  | { readonly kind: 'self'; readonly doubt?: string }
+  /**
+   * The vault's owner: the item is theirs to do. `doubt` is set when that
+   * rests on a reading, and `shared` says which: "we", or the owner named
+   * with others.
+   */
+  | { readonly kind: 'self'; readonly doubt?: string; readonly shared?: 'we' | 'with-others' }
   /** Someone the vault has exactly one Person note for. */
   | { readonly kind: 'person'; readonly name: string; readonly person: DirectoryPerson }
   /**
@@ -214,6 +218,7 @@ function ownerIn(written: string, directory: OwnerDirectory): ItemOwner {
     return {
       kind: 'self',
       doubt: 'Claude wrote “We”, which may be you or others, so check whose it is.',
+      shared: 'we',
     };
   }
   if (isSelf(owner, directory)) return { kind: 'self' };
@@ -233,6 +238,7 @@ function jointOwner(parts: readonly string[], whole: string, directory: OwnerDir
     return {
       kind: 'self',
       doubt: `Claude named you and ${named} for this, and an item has one owner: it is yours, so check who else is on it.`,
+      shared: 'with-others',
     };
   }
   return { kind: 'ambiguous', name: whole, candidates: parts };
