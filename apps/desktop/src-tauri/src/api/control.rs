@@ -5,6 +5,7 @@
 //! other tools where to knock. No Tauri here: what a request is forwarded to is
 //! passed in.
 
+use std::collections::HashSet;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,6 +35,9 @@ pub struct ApiControl {
     token: SharedToken,
     broker: Arc<Broker>,
     router_ready: RouterReady,
+    /// The routers listening now, by the id each named. `router_ready` is
+    /// whether this is non-empty, kept beside it so the gate reads one flag.
+    listening_routers: Mutex<HashSet<String>>,
     inner: Mutex<Inner>,
 }
 
@@ -52,6 +56,7 @@ impl ApiControl {
             broker: Arc::default(),
             // Not until the webview says so: it loads after the app starts.
             router_ready: Arc::new(AtomicBool::new(false)),
+            listening_routers: Mutex::default(),
             inner: Mutex::new(Inner {
                 file,
                 running: None,
@@ -177,9 +182,37 @@ impl ApiControl {
         Ok(inner.file.token.clone())
     }
 
-    /// The webview's router started or stopped listening for requests.
-    pub fn set_router_ready(&self, ready: bool) {
-        self.router_ready.store(ready, Ordering::SeqCst);
+    /// A router in the webview started or stopped listening for requests. The
+    /// API is ready while any of them listens, so one stopping never takes
+    /// readiness from another — whatever order the two calls arrive in. (Under
+    /// React StrictMode the abandoned first router says it stopped after the
+    /// second has said it listens: #158.)
+    pub fn set_router_ready(&self, listener: &str, ready: bool) {
+        let mut listening = self.listening_routers();
+        if ready {
+            listening.insert(listener.to_string());
+        } else {
+            listening.remove(listener);
+        }
+        // Under the lock, so the flag follows the set in the order it changed.
+        self.router_ready
+            .store(!listening.is_empty(), Ordering::SeqCst);
+    }
+
+    /// The page went away, and every router in it: nothing listens until the
+    /// next page says so.
+    pub fn forget_routers(&self) {
+        let mut listening = self.listening_routers();
+        listening.clear();
+        self.router_ready.store(false, Ordering::SeqCst);
+    }
+
+    fn listening_routers(&self) -> MutexGuard<'_, HashSet<String>> {
+        // Each change is one insert, remove or clear, so a panic elsewhere
+        // cannot leave the set half-updated.
+        self.listening_routers
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// The app's answer to a forwarded request. An id nobody is waiting on —
@@ -216,7 +249,7 @@ mod tests {
 
     /// A router that is listening and answers with the path it was asked for.
     fn echo(control: &Arc<ApiControl>) -> Forward {
-        control.set_router_ready(true);
+        control.set_router_ready("echo", true);
         let control = Arc::downgrade(control);
         Arc::new(move |request| {
             if let Some(control) = control.upgrade() {
@@ -478,14 +511,52 @@ mod tests {
     fn a_listener_stopping_leaves_the_api_ready_while_another_listens() {
         let (_dir, control) = loaded();
 
-        control.set_router_ready(true);
-        control.set_router_ready(true);
-        control.set_router_ready(false);
+        control.set_router_ready("first", true);
+        control.set_router_ready("second", true);
+        control.set_router_ready("first", false);
 
         assert!(
             router_is_ready(&control),
             "the live listener lost its readiness"
         );
+        control.set_router_ready("second", false);
+        assert!(!router_is_ready(&control), "ready with nothing listening");
+    }
+
+    #[test]
+    fn is_not_ready_until_a_router_listens() {
+        let (_dir, control) = loaded();
+        assert!(!router_is_ready(&control));
+        control.set_router_ready("never-listened", false);
+        assert!(!router_is_ready(&control));
+    }
+
+    /// A router saying it listens twice is still one router: its one stop
+    /// leaves nothing listening.
+    #[test]
+    fn a_router_that_says_it_listens_twice_stops_once() {
+        let (_dir, control) = loaded();
+        control.set_router_ready("only", true);
+        control.set_router_ready("only", true);
+        control.set_router_ready("only", false);
+        assert!(!router_is_ready(&control));
+    }
+
+    #[test]
+    fn a_page_load_forgets_every_router() {
+        let (_dir, control) = loaded();
+        control.set_router_ready("first", true);
+        control.set_router_ready("second", true);
+
+        control.forget_routers();
+        assert!(!router_is_ready(&control));
+
+        // A router from the gone page saying late that it stopped changes
+        // nothing, and the new page's router makes the API ready again.
+        control.set_router_ready("first", false);
+        assert!(!router_is_ready(&control), "a gone page's router came back");
+        control.set_router_ready("next-page", true);
+        assert!(router_is_ready(&control));
     }
 
     #[test]

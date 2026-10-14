@@ -90,17 +90,33 @@ describe('tauriApiBridge', () => {
     await tauriApiBridge.serve(async () => ANSWER);
 
     expect(order).toEqual(['listen', 'api_router_ready']);
-    expect(invoke).toHaveBeenCalledWith('api_router_ready', { ready: true });
+    expect(invoke).toHaveBeenCalledWith('api_router_ready', {
+      listener: expect.any(String),
+      ready: true,
+    });
   });
 
-  it('tells the host the router is gone when it stops', async () => {
+  it('tells the host the router it named is gone when it stops', async () => {
     const stop = await tauriApiBridge.serve(async () => ANSWER);
+    const [, started] = invoke.mock.lastCall as [string, { listener: string }];
     invoke.mockClear();
 
     stop();
 
-    expect(invoke).toHaveBeenCalledWith('api_router_ready', { ready: false });
+    expect(invoke).toHaveBeenCalledWith('api_router_ready', {
+      listener: started.listener,
+      ready: false,
+    });
     expect(unlisten).toHaveBeenCalledOnce();
+  });
+
+  it('names each listener differently, so the host can tell them apart', async () => {
+    await tauriApiBridge.serve(async () => ANSWER);
+    await tauriApiBridge.serve(async () => ANSWER);
+
+    const named = invoke.mock.calls.map(([, args]) => (args as { listener: string }).listener);
+    expect(named).toHaveLength(2);
+    expect(new Set(named).size).toBe(2);
   });
 
   it('stops listening and fails when the host cannot be told it is ready', async () => {
