@@ -4,7 +4,7 @@
  * only while the Inbox shows, run only from the preview, and every run and
  * undo said in Activity.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath } from '@atlas/domain';
 import {
@@ -24,8 +24,11 @@ const FILES: Record<string, string> = {
   'tasks/Ship it.md': '---\ntype: task\nstatus: done\n---\n',
 };
 
-function setup({ open = true }: { open?: boolean } = {}) {
-  const memory = memoryVault(FILES);
+function setup({
+  open = true,
+  files = FILES,
+}: { open?: boolean; files?: Record<string, string> } = {}) {
+  const memory = memoryVault(files);
   const fs = fakeVaultFs({
     ...memory.fs,
     readNotes: async (paths) =>
@@ -108,5 +111,57 @@ describe('useTaskMigration', () => {
     expect(files.get('tasks/Draft the memo.md')).toBe(
       '---\ntype: task\nstatus: someday\n---\n\nWords.\n',
     );
+  });
+});
+
+describe('useTaskMigration — the undo is offered once (#163)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** Runs the move, then closes the app: what the vault holds is what the next launch reads. */
+  async function movedThenClosed(): Promise<Record<string, string>> {
+    const first = setup();
+    await waitFor(() => expect(first.hook.result.current?.preview?.tasks).toHaveLength(2));
+    act(() => first.hook.result.current?.onRun());
+    await waitFor(() => expect(first.hook.result.current?.canUndo).toBe(true));
+    first.hook.unmount();
+    return Object.fromEntries(first.files);
+  }
+
+  /** The next launch, once everything it reads at start has been read. */
+  async function relaunched(files: Record<string, string>) {
+    const next = setup({ files });
+    await act(() => new Promise((settle) => setTimeout(settle, 20)));
+    return next.hook.result.current;
+  }
+
+  it('still offers the undo after a restart within the week', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 8, 9, 30));
+    const files = await movedThenClosed();
+
+    vi.setSystemTime(new Date(2026, 9, 14, 18, 0));
+    expect((await relaunched(files))?.canUndo).toBe(true);
+  });
+
+  it('stops offering the undo a week after the move, and does not offer it again', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 8, 9, 30));
+    const files = await movedThenClosed();
+
+    vi.setSystemTime(new Date(2026, 9, 15, 9, 30));
+    expect(await relaunched(files)).toBeNull();
+  });
+
+  it('stops offering the undo once dismissed, and it stays gone after a restart', async () => {
+    const { hook, files } = setup();
+    await waitFor(() => expect(hook.result.current?.preview?.tasks).toHaveLength(2));
+    act(() => hook.result.current?.onRun());
+    await waitFor(() => expect(hook.result.current?.canUndo).toBe(true));
+
+    act(() => hook.result.current?.onDismiss());
+    await waitFor(() => expect(hook.result.current).toBeNull());
+    hook.unmount();
+
+    expect(await relaunched(Object.fromEntries(files))).toBeNull();
   });
 });
