@@ -233,3 +233,30 @@ test('a rule a note sets off archives a new standup once the meeting import lets
   expect(await vault.exists(KICKOFF)).toBe(true);
   expect(await vault.exists(BROKEN)).toBe(true);
 });
+
+test('the "After a meeting" preset: its apply and model shown, written with its prompt (#179)', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await vault.mkdir('.atlas/types');
+  await vault.write('.atlas/types/meeting.md', shipped('.atlas/types/meeting.md'));
+  await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await page.getByRole('button', { name: 'Automations', exact: true }).click();
+  const screen = page.getByRole('article', { name: 'Automations' });
+
+  await screen.getByRole('button', { name: 'After a meeting' }).click();
+  const editor = screen.getByRole('region', { name: 'Automation' });
+  await expect(editor.getByRole('combobox', { name: 'What becomes a task' })).toHaveValue('mine');
+  const model = editor.getByRole('textbox', { name: 'Model' });
+  await expect(model).toHaveAttribute('placeholder', 'claude-sonnet-5-5');
+  await model.fill('claude-opus-5-5');
+  await editor.getByRole('button', { name: 'Create automation' }).click();
+
+  const rule = '.atlas/automations/After a meeting.md';
+  await expectFile(vault, rule).toContain('which: FROM meeting WHERE date >= @-14d\n');
+  await expectFile(vault, rule).toContain('\napply: mine\nmodel: claude-opus-5-5\n');
+  await expectFile(vault, '.atlas/prompts/after-a-meeting.md').toContain('## Who owns an item');
+});

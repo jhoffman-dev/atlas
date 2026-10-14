@@ -192,6 +192,15 @@ describe('a meeting read in parts (P29-05)', () => {
     expect(cut!.shown).toBeLessThan(CLAUDE_ASKS_PER_RUN * CLAUDE_NOTE_CHARACTERS);
   });
 
+  it('stops at the step’s own budget when it is given one, leaving room for a reduce ask (#179)', () => {
+    const endless = meetingOf(700);
+
+    const plan = claudeAsks([endless], { inParts: true, asks: 9 });
+
+    expect(plan.asks).toHaveLength(9);
+    expect(plan.cut.map((cut) => cut.path)).toEqual([MEETING]);
+  });
+
   it('gives every note its ask before a long meeting takes the rest', () => {
     const others = Array.from({ length: 4 }, (_, at) =>
       meetingOf(2, createVaultPath(`Meetings/Short ${at}.md`)),
