@@ -13,9 +13,9 @@ import {
   type GranolaKeyStatus,
   type GranolaPort,
   type GranolaPullReport,
+  type QueryResult,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
-import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
 import { GranolaSettingsCard } from './granola-settings-card.tsx';
 import { useGranola, type GranolaSettingState } from './use-granola.ts';
@@ -53,18 +53,23 @@ const PULLED: GranolaPullReport = {
 
 const SETTINGS = '.atlas/settings.md';
 
-/** A vault whose settings note and Person notes are held in memory, the settings written back as the host would. */
+/**
+ * The index's answer to the link directory's query for one Person note,
+ * Mara Quill's, with her two addresses. A fake rather than the SQLite test
+ * index: this file runs in jsdom, where `node:sqlite` cannot be bundled.
+ */
+const MARA = 'People/Mara Quill.md';
+const linkDirectory = async (): Promise<QueryResult> => ({
+  columns: ['path', 'title', 'type', 'key', 'value'],
+  rows: [
+    [MARA, 'Mara Quill', 'person', 'email', 'mara.quill@example.com'],
+    [MARA, 'Mara Quill', 'person', 'other_emails', 'mq@example.com'],
+  ],
+  truncated: false,
+});
+
+/** A vault whose settings note and Person note are held in memory, the settings written back as the host would. */
 function vaultWith(settings = '---\nprofileName: Mara Quill\n---\n') {
-  const person = [
-    '---',
-    'type: person',
-    'email: mara.quill@example.com',
-    'other_emails:',
-    '  - mq@example.com',
-    '---',
-    '',
-  ].join('\n');
-  const files: Record<string, string> = { 'People/Mara Quill.md': person };
   const file = { text: settings, modified: 1 };
   const fs = fakeVaultFs({
     readNotes: async (paths) =>
@@ -78,8 +83,10 @@ function vaultWith(settings = '---\nprofileName: Mara Quill\n---\n') {
       return file.modified;
     },
   });
-  const query = atlasQueryIndex({ files, markdown: remarkMarkdown });
-  return { file, ports: { fs, markdown: remarkMarkdown, index: { ...fakeIndexPort(), query } } };
+  return {
+    file,
+    ports: { fs, markdown: remarkMarkdown, index: { ...fakeIndexPort(), query: linkDirectory } },
+  };
 }
 
 const settingsOf = (vault = vaultWith()) => ({
