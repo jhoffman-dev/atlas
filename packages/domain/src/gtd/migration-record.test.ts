@@ -6,6 +6,7 @@ import {
   MigrationRecordError,
   migrationRecordText,
   parseMigrationRecord,
+  recordGoneOnFrom,
   recordHasWorkLeft,
   undoStillOffered,
   type MigrationRecord,
@@ -107,6 +108,21 @@ describe('undoStillOffered (#163)', () => {
   it('keeps the dismissal and the latest run through the file', () => {
     const kept = { ...RECORD, lastRunAt: '2026-10-09T10:00:00', undoDismissed: true };
     expect(parseMigrationRecord(migrationRecordText(kept))).toEqual(kept);
+  });
+});
+
+describe('recordGoneOnFrom (#163)', () => {
+  it('goes on from a run cut off partway, or one that left files to move', () => {
+    const cutOff = { ...RECORD, finished: false, left: [] };
+    expect(recordGoneOnFrom(cutOff)).toBe(cutOff);
+    expect(recordGoneOnFrom(RECORD)).toBe(RECORD);
+  });
+
+  it('starts afresh after a run that is over: none, finished with nothing left, or dismissed', () => {
+    expect(recordGoneOnFrom(null)).toBeNull();
+    expect(recordGoneOnFrom({ ...RECORD, left: [] })).toBeNull();
+    expect(recordGoneOnFrom({ ...RECORD, undoDismissed: true })).toBeNull();
+    expect(recordGoneOnFrom({ ...RECORD, finished: false, undoDismissed: true })).toBeNull();
   });
 });
 

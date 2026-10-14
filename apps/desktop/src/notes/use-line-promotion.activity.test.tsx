@@ -47,6 +47,15 @@ function promoting({
 const TEXT = async () => ({ text: '- [ ] Order chairs\n', modified: 1 });
 
 describe('Make task, and the Activity log', () => {
+  it('keeps one notice object across renders, so its bar keeps its time (review)', async () => {
+    const { hook, promote } = promoting({ dirty: true, read: TEXT });
+    await promote();
+    await waitFor(() => expect(hook.result.current?.notice).not.toBeNull());
+    const shown = hook.result.current?.notice;
+    hook.rerender();
+    expect(hook.result.current?.notice).toBe(shown);
+  });
+
   it('says a refusal on the page and records nothing', async () => {
     const { activity, hook, promote } = promoting({ dirty: true, read: TEXT });
     await promote();

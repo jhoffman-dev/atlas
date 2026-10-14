@@ -73,3 +73,44 @@ describe('PromotionBanner — goes by itself (#165)', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('PromotionBanner — a refusal stays until read (review)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('keeps a refusal, with nothing to undo, up until it is dismissed', () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <PromotionBanner
+        notice={{
+          message: 'The line has changed since it was read, so it was left as it is.',
+          onOpen: null,
+          onUndo: null,
+          onDismiss,
+        }}
+      />,
+    );
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(onDismiss).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives a new notice in the same words its full time again', () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    const notice = {
+      message: '“Order chairs” is a task now.',
+      onOpen: vi.fn(),
+      onUndo: vi.fn(),
+      onDismiss,
+    };
+    const { rerender } = render(<PromotionBanner notice={notice} />);
+    act(() => vi.advanceTimersByTime(15_000));
+    rerender(<PromotionBanner notice={{ ...notice }} />);
+    act(() => vi.advanceTimersByTime(15_000));
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(5_100));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+});

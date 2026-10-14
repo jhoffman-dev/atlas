@@ -221,7 +221,7 @@ describe('GET /v1/inbox', () => {
     expect(api.writes).toEqual([]);
   });
 
-  it('pages past a full page by offset, saying where the next starts and how many wait (#167)', async () => {
+  it('pages past a full page by cursor, saying where the next starts and how many wait (#167)', async () => {
     const files = {
       'Inbox/A.md': 'a\n',
       'Inbox/B.md': 'b\n',
@@ -231,18 +231,19 @@ describe('GET /v1/inbox', () => {
       files,
       index: { query: atlasQueryIndex({ markdown: fakeMarkdown(), files }) },
     });
-    const page = (offset?: string) =>
+    const page = (cursor?: string) =>
       api.send({
         method: 'GET',
         path: '/v1/inbox',
-        query: { limit: '2', ...(offset !== undefined && { offset }) },
+        query: { limit: '2', ...(cursor !== undefined && { cursor }) },
       });
     const paths = (body: Record<string, unknown>) =>
       (body['items'] as { path: string }[]).map((item) => item.path);
 
     const first = bodyOf(await page());
-    expect(first).toMatchObject({ truncated: true, next: 2, total: 3 });
-    const second = bodyOf(await page('2'));
+    expect(first).toMatchObject({ truncated: true, total: 3 });
+    expect(typeof first['next']).toBe('string');
+    const second = bodyOf(await page(String(first['next'])));
     expect(second).toMatchObject({ truncated: false, next: null, total: 3 });
     expect([...paths(first), ...paths(second)].sort()).toEqual([
       'Inbox/A.md',
@@ -252,8 +253,8 @@ describe('GET /v1/inbox', () => {
   });
 
   it('adversarial: an agent that files each page before asking for "next" still reaches every note (#167)', async () => {
-    // The tool tells an agent to pass "next" as "offset". Filing what a page
-    // listed shifts every later note up by that many, so the offset skips them.
+    // Filing what a page listed shifts every later note up by that many, so a
+    // position ("offset") would skip them: "next" is a cursor, read on from (A2).
     const files: Record<string, string> = {
       'Inbox/A.md': 'a\n',
       'Inbox/B.md': 'b\n',
@@ -265,32 +266,84 @@ describe('GET /v1/inbox', () => {
       files,
       index: { query: (sql, parameters) => query(sql, parameters) },
     });
-    const page = async (offset: number) =>
+    const page = async (cursor: string | undefined) =>
       bodyOf(
         await api.send({
           method: 'GET',
           path: '/v1/inbox',
-          query: { limit: '1', offset: String(offset) },
+          query: { limit: '1', ...(cursor !== undefined && { cursor }) },
         }),
-      ) as { items: { path: string }[]; next: number | null; total: number };
+      ) as { items: { path: string }[]; next: string | null; total: number };
 
     const seen: string[] = [];
-    let offset: number | null = 0;
-    while (offset !== null) {
-      const body = await page(offset);
+    let cursor: string | null | undefined = undefined;
+    while (cursor !== null) {
+      const body = await page(cursor);
       seen.push(...body.items.map((item) => item.path));
       // Filed: gone from the Inbox, as POST /v1/inbox/process leaves it.
       for (const item of body.items) delete files[item.path];
       query = atlasQueryIndex({ markdown: fakeMarkdown(), files, modified });
-      offset = body.next;
+      cursor = body.next;
     }
 
     expect(seen).toEqual(['Inbox/A.md', 'Inbox/B.md', 'Inbox/C.md']);
   });
 
-  it('refuses a limit or an offset that is not a whole number', async () => {
+  it('neither skips nor repeats a note edited between two pages (A2, #167)', async () => {
+    // Editing a note moves it to the top: listed already, it is not listed again on a later page.
+    const files: Record<string, string> = {
+      'Inbox/A.md': 'a\n',
+      'Inbox/B.md': 'b\n',
+      'Inbox/C.md': 'c\n',
+      'Inbox/D.md': 'd\n',
+    };
+    const modified: Record<string, number> = {
+      'Inbox/A.md': 4,
+      'Inbox/B.md': 3,
+      'Inbox/C.md': 2,
+      'Inbox/D.md': 1,
+    };
+    let query = atlasQueryIndex({ markdown: fakeMarkdown(), files, modified });
+    const api = apiFixture({
+      files,
+      index: { query: (sql, parameters) => query(sql, parameters) },
+    });
+    const page = async (cursor?: string) =>
+      bodyOf(
+        await api.send({
+          method: 'GET',
+          path: '/v1/inbox',
+          query: { limit: '2', ...(cursor !== undefined && { cursor }) },
+        }),
+      ) as { items: { path: string }[]; next: string | null };
+
+    const first = await page();
+    expect(first.items.map((item) => item.path)).toEqual(['Inbox/A.md', 'Inbox/B.md']);
+    modified['Inbox/B.md'] = 9;
+    query = atlasQueryIndex({ markdown: fakeMarkdown(), files, modified });
+    const second = await page(first.next ?? undefined);
+
+    expect(second.items.map((item) => item.path)).toEqual(['Inbox/C.md', 'Inbox/D.md']);
+    expect(second.next).toBeNull();
+  });
+
+  it('refuses a cursor it did not hand out', async () => {
     const api = apiFixture({ files: {} });
-    for (const query of [{ limit: '0' }, { limit: 'all' }, { offset: '-1' }]) {
+    for (const cursor of [
+      'not base64!',
+      btoa('Inbox/A.md'),
+      btoa('[1.5,"Inbox/A.md"]'),
+      btoa('[1,"../A.md"]'),
+    ]) {
+      expect(codeOf(await api.send({ method: 'GET', path: '/v1/inbox', query: { cursor } }))).toBe(
+        'invalid',
+      );
+    }
+  });
+
+  it('refuses a limit that is not a whole number from 1 to 500', async () => {
+    const api = apiFixture({ files: {} });
+    for (const query of [{ limit: '0' }, { limit: 'all' }, { limit: '501' }]) {
       expect(codeOf(await api.send({ method: 'GET', path: '/v1/inbox', query }))).toBe('invalid');
     }
   });

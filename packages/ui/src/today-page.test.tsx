@@ -334,6 +334,28 @@ describe('TodayPage', () => {
     }
   });
 
+  it('gives the next action its full 20 seconds, even said in the same words (review)', () => {
+    vi.useFakeTimers();
+    try {
+      const onDismiss = vi.fn();
+      const deferred = {
+        title: 'Call the bank',
+        action: { kind: 'defer', days: 1 } as const,
+        onUndo: vi.fn(),
+        onDismiss,
+      };
+      const view = page({ notice: deferred });
+      act(() => vi.advanceTimersByTime(15_000));
+      view.rerender({ notice: { ...deferred, action: { kind: 'defer', days: 1 } } });
+      act(() => vi.advanceTimersByTime(15_000));
+      expect(onDismiss).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(5_100));
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('shows the read’s failure in place of the sections, and waits while there is none yet', () => {
     const { rerender } = page({ today: null });
     expect(screen.getByText('Reading the day…')).toBeDefined();
