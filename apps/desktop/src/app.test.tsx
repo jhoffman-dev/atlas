@@ -7,6 +7,7 @@ import {
   VaultAccessError,
   memoryActivityStore,
   fakeGoogleCalendar,
+  fakeGranola,
   failed,
   memorySyncFiles,
   scriptedFolders,
@@ -130,6 +131,11 @@ const fakeIndexPorts = (vault: VaultPorts): IndexPorts => ({
 
 /** Google Calendar with no sign-in, as on a Mac that never connected. */
 const googleCalendar = fakeGoogleCalendar().port;
+/** Granola with no key held: nothing in these tests pulls. */
+const granola = {
+  port: { ...fakeGranola().port, status: async () => ({ hasKey: false, lastRefusal: null }) },
+  records: { read: () => ({ watermark: null, lastPullAt: null }), write: () => {} },
+};
 
 /** Nothing in these tests fetches; a source that did would say so by throwing. */
 const sources: SourcePorts = {
@@ -244,6 +250,7 @@ const renderApp = (
       activity={activityIn(activity)}
       sync={noSync}
       googleCalendar={googleCalendar}
+      granola={granola}
       globalCapture={globalCapture.ports}
     />,
   );
@@ -697,6 +704,7 @@ describe('the palettes and the shortcuts around them', () => {
         activity={activityIn()}
         sync={noSync}
         googleCalendar={googleCalendar}
+        granola={granola}
         globalCapture={fakeGlobalCapture().ports}
       />,
     );
@@ -940,6 +948,7 @@ describe('the Activity log, adversarial (U-28)', () => {
         activity={activityIn(activity)}
         sync={noSync}
         googleCalendar={googleCalendar}
+        granola={granola}
         globalCapture={fakeGlobalCapture().ports}
       />,
     );

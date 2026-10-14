@@ -35,6 +35,7 @@ export {
   transcriptOverLimit,
 } from './granola-transcript.ts';
 export {
+  granolaCountsLine,
   granolaFailureWords,
   granolaLateArrivalReport,
   granolaNoteReport,

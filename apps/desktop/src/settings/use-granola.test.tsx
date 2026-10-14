@@ -1,0 +1,206 @@
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from 'vitest';
+import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
+import { createVaultPath } from '@atlas/domain';
+import {
+  fakeGranola,
+  GranolaError,
+  type GranolaKeyStatus,
+  type GranolaPort,
+  type GranolaPullReport,
+} from '@atlas/application';
+import type { GranolaPullController } from '../granola/use-granola-pull.ts';
+import { GranolaSettingsCard } from './granola-settings-card.tsx';
+import { useGranola, type GranolaSettingState } from './use-granola.ts';
+
+const VAULT = '/Users/mara/Vault';
+const KEY = 'grn_fictional0123456789';
+const ACCEPTED: GranolaKeyStatus = { hasKey: true, lastRefusal: null };
+const REFUSED: GranolaKeyStatus = { hasKey: true, lastRefusal: 401 };
+
+const PULLED: GranolaPullReport = {
+  vault: VAULT,
+  mode: 'sync-now',
+  ended: 'pulled',
+  written: [
+    'Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md',
+    'Inbox/Meetings/2026-10-06 Tobias one on one.md',
+    'Inbox/Meetings/2026-10-07 Platform sync.md',
+  ].map(createVaultPath),
+  held: 12,
+  refused: [
+    {
+      id: 'not_1',
+      title: 'Untitled call',
+      url: 'https://notes.granola.ai/d/not_1',
+      problem: 'The meeting has no date',
+    },
+  ],
+  skipped: [],
+  failed: [],
+  failure: null,
+  problem: null,
+  keyRefused: false,
+  watermark: '2026-10-13T17:00:00.000Z',
+};
+
+/** The window's puller as the card sees it, with a key held and nothing pulled. */
+function pullWith(overrides: Partial<GranolaPullController> = {}): GranolaPullController {
+  return {
+    key: ACCEPTED,
+    keyProblem: null,
+    ready: true,
+    pulling: false,
+    report: null,
+    lastPullAt: null,
+    toast: null,
+    dismissToast: () => {},
+    syncNow: vi.fn(),
+    knowKey: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderGranola({
+  port = fakeGranola().port,
+  pull = pullWith(),
+  open = async () => {},
+}: {
+  port?: GranolaPort;
+  pull?: GranolaPullController;
+  open?: (url: string) => Promise<void>;
+} = {}) {
+  return renderHook(() => useGranola({ port, pull, vault: VAULT, links: { open } }));
+}
+
+describe('useGranola', () => {
+  it('says whether a key is held, and Granola’s last word on it', () => {
+    const view = (pull: GranolaPullController) => renderGranola({ pull }).result.current.view;
+    expect(view(pullWith({ key: null })).keyState).toBe('checking');
+    expect(view(pullWith({ key: { hasKey: false, lastRefusal: null } })).keyState).toBe('none');
+    expect(view(pullWith({ key: ACCEPTED })).keyState).toBe('set');
+    expect(view(pullWith({ key: REFUSED })).keyState).toBe('refused');
+  });
+
+  it('hands the key to the host, says Granola accepted it, and tells the puller', async () => {
+    const granola = fakeGranola();
+    const setKey = vi.spyOn(granola.port, 'setKey');
+    const pull = pullWith();
+    const hook = renderGranola({ port: granola.port, pull });
+
+    act(() => hook.result.current.saveKey(KEY));
+
+    await waitFor(() => expect(hook.result.current.view.keyState).toBe('accepted'));
+    expect(setKey).toHaveBeenCalledWith({ vault: VAULT, key: KEY });
+    expect(pull.knowKey).toHaveBeenCalledWith(ACCEPTED);
+    expect(JSON.stringify(hook.result.current)).not.toContain(KEY);
+  });
+
+  it('says Granola refused a key it was just given', async () => {
+    let known: GranolaKeyStatus = ACCEPTED;
+    const port = { ...fakeGranola().port, setKey: async () => REFUSED };
+    const hook = renderHook(() => {
+      const pull = pullWith({ key: known, knowKey: (status) => (known = status) });
+      return useGranola({ port, pull, vault: VAULT, links: { open: async () => {} } });
+    });
+    act(() => hook.result.current.saveKey(KEY));
+    await waitFor(() => expect(hook.result.current.view.pending).toBe(false));
+    hook.rerender();
+    expect(hook.result.current.view.keyState).toBe('refused');
+  });
+
+  it('says why a key could not be kept', async () => {
+    const port = {
+      ...fakeGranola().port,
+      setKey: async () => {
+        throw new GranolaError({ kind: 'keychain', message: 'the Keychain is locked' });
+      },
+    };
+    const hook = renderGranola({ port });
+    act(() => hook.result.current.saveKey(KEY));
+    await waitFor(() =>
+      expect(hook.result.current.view.problem).toContain('The Keychain did not give Atlas'),
+    );
+    expect(hook.result.current.view.pending).toBe(false);
+  });
+
+  it('says what the last pull did, and lists the meetings it did not write', () => {
+    const { view } = renderGranola({
+      pull: pullWith({ report: PULLED, lastPullAt: Date.UTC(2026, 9, 13, 16, 40) }),
+    }).result.current;
+    expect(view.lastPull).toBe('3 new, 12 already in Atlas, 1 refused');
+    expect(view.lastPullAt).not.toBeNull();
+    expect(view.notes).toEqual([
+      {
+        id: 'not_1',
+        title: 'Untitled call',
+        url: 'https://notes.granola.ai/d/not_1',
+        problem: 'The meeting has no date',
+      },
+    ]);
+    expect(view.problem).toBeNull();
+  });
+
+  it('shows why the last pull stopped, on the card', () => {
+    const problem = 'Granola refused the API key. Create one in Granola…';
+    const { view } = renderGranola({
+      pull: pullWith({ report: { ...PULLED, ended: 'stopped', written: [], problem } }),
+    }).result.current;
+    expect(view.problem).toBe(problem);
+    expect(view.lastPull).toBeNull();
+  });
+
+  it('waits while the vault has not synced this session', () => {
+    expect(renderGranola({ pull: pullWith({ ready: false }) }).result.current.view.waiting).toBe(
+      true,
+    );
+  });
+
+  it('says why a meeting could not be opened in Granola', async () => {
+    const hook = renderGranola({
+      open: async () => {
+        throw new Error('only http and https links open');
+      },
+    });
+    act(() => hook.result.current.openNote('https://notes.granola.ai/d/not_1'));
+    await waitFor(() =>
+      expect(hook.result.current.view.problem).toBe('only http and https links open'),
+    );
+  });
+});
+
+describe('GranolaSettingsCard', () => {
+  it('keeps no key once it is saved: what the card is drawn from holds whether one is, never it', async () => {
+    const granola = fakeGranola();
+    const drawn: GranolaSettingState[] = [];
+    function Harness() {
+      const [key, setKey] = useState<GranolaKeyStatus | null>({ hasKey: false, lastRefusal: null });
+      const setting = useGranola({
+        port: granola.port,
+        pull: pullWith({ key, knowKey: setKey }),
+        vault: VAULT,
+        links: { open: async () => {} },
+      });
+      drawn.push(setting);
+      return <GranolaSettingsCard setting={setting} />;
+    }
+    render(<Harness />);
+    const card = screen.getByRole('region', { name: 'Granola' });
+
+    await userEvent.type(within(card).getByLabelText('Granola API key'), KEY);
+    await userEvent.click(within(card).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(within(card).getByTestId('granola-key').textContent).toBe('Key accepted'),
+    );
+    expect(within(card).getByLabelText<HTMLInputElement>('Granola API key').value).toBe('');
+    expect(within(card).getByRole('button', { name: 'Sync now' })).toHaveProperty(
+      'disabled',
+      false,
+    );
+    expect(drawn.length).toBeGreaterThan(1);
+    for (const setting of drawn) expect(JSON.stringify(setting)).not.toContain(KEY);
+  });
+});

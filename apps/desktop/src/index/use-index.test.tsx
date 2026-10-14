@@ -80,6 +80,30 @@ describe('useIndex while a vault is being indexed (#135)', () => {
   });
 });
 
+describe('useIndex: whether a refresh caught up (ADR-0034)', () => {
+  it('says true once the index holds the files, and false when it could not read them', async () => {
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const ports = vaultOf(2);
+    const { result } = renderHook(() => useIndex({ ports, vaultKey: VAULT, activity, changes }));
+    await waitFor(() => expect(result.current.status.kind).toBe('ready'));
+    let caughtUp: boolean | null = null;
+    await act(async () => {
+      caughtUp = await result.current.refresh();
+    });
+    expect(caughtUp).toBe(true);
+
+    ports.fs.listNotes = async () => {
+      throw new Error('the disk went away');
+    };
+    await act(async () => {
+      caughtUp = await result.current.refresh();
+    });
+    expect(caughtUp).toBe(false);
+    expect(result.current.status.kind).toBe('failed');
+  });
+});
+
 describe('useIndex, asked to refresh while a build is running (#135)', () => {
   it('keeps saying how far the build has got', async () => {
     const ports = vaultOf(INDEX_BATCH_SIZE * 2);
@@ -94,7 +118,7 @@ describe('useIndex, asked to refresh while a build is running (#135)', () => {
     await waitFor(() => expect(result.current.progress.current()).toEqual(halfway));
 
     // What a save does, through the watcher, while the build is still going.
-    let refreshed = Promise.resolve();
+    let refreshed: Promise<unknown> = Promise.resolve();
     act(() => {
       refreshed = result.current.refresh();
     });

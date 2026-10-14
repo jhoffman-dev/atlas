@@ -89,6 +89,8 @@ export { SourcePanel } from './source-panel.tsx';
 export { SecretsSettings } from './secrets-settings.tsx';
 export type { SecretRow, SecretSave } from './secrets-settings.tsx';
 export { GoogleCalendarSettings } from './google-calendar-settings.tsx';
+export { GranolaSettings } from './granola-settings.tsx';
+export type { GranolaKeyState, GranolaNoteLine, GranolaView } from './granola-settings.tsx';
 export type {
   GoogleCalendarChoice,
   GoogleCalendarPhase,

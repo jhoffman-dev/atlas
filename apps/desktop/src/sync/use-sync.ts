@@ -72,6 +72,11 @@ export interface SyncController {
    * settings give to another in the moment before it has read them.
    */
   readonly automationsHere: boolean;
+  /**
+   * The vaults that may take in files from elsewhere (ADR-0034): each has had
+   * a sync pull from GitHub in this session of the app, or does not sync.
+   */
+  readonly syncedThisSession: ReadonlySet<string>;
   /** Why setting up failed, to show beside the form. */
   readonly problem: string | null;
   /** The person's GitHub repositories, for the picker. */
@@ -105,7 +110,8 @@ export function useSync(options: SyncOptions): SyncController {
   const git = useMemo(() => (vaultKey === null ? null : host.git(vaultKey)), [host, vaultKey]);
   const files = useMemo(() => (vaultKey === null ? null : host.files(vaultKey)), [host, vaultKey]);
   const exclusive = useExclusive(options.clock, vaultKey);
-  const shared = { ...options, git, files, thisMac, setPhase, exclusive };
+  const { syncedThisSession, markSynced } = useSyncedThisSession();
+  const shared = { ...options, git, files, thisMac, setPhase, markSynced, exclusive };
   const { run, check, lastSyncAt, lastCheckAt } = useSyncRuns({ ...shared, setBehind });
   useInspection({
     ...shared,
@@ -138,6 +144,7 @@ export function useSync(options: SyncOptions): SyncController {
     settings: settings.value,
     paused,
     behind,
+    syncedThisSession,
     automationsHere:
       thisMac !== null &&
       settings.value !== null &&
@@ -179,6 +186,17 @@ function useThisMac(port: ThisMacPort): ThisMac | null {
     };
   }, [port]);
   return mac;
+}
+
+/** The vaults this session has synced, or found not to sync; never forgotten until the app quits. */
+function useSyncedThisSession() {
+  const [syncedThisSession, setSynced] = useState<ReadonlySet<string>>(() => new Set());
+  const markSynced = useCallback(
+    (vault: string) =>
+      setSynced((known) => (known.has(vault) ? known : new Set([...known, vault]))),
+    [],
+  );
+  return { syncedThisSession, markSynced };
 }
 
 /** The pause switch for the open vault, on this Mac. */
