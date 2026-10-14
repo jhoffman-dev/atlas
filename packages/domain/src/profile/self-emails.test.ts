@@ -105,9 +105,11 @@ describe('parseSelfEmails', () => {
   });
 
   it('says why an alias that is read could not be, and reads no address', () => {
-    expect(parseSelfEmails({ [GRANOLA_SELF_EMAILS_KEY]: 'mara.quill@example.com, Mara' })).toEqual(
-      { emails: [], source: 'granola_self_emails', problem: 'Not an email address: “Mara”.' },
-    );
+    expect(parseSelfEmails({ [GRANOLA_SELF_EMAILS_KEY]: 'mara.quill@example.com, Mara' })).toEqual({
+      emails: [],
+      source: 'granola_self_emails',
+      problem: 'Not an email address: “Mara”.',
+    });
   });
 
   it('refuses an address with an invisible character in it rather than cleaning it into another', () => {

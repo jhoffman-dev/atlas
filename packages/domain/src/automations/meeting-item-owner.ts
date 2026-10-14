@@ -11,12 +11,7 @@
  */
 
 import { matchAttendees, type DirectoryPerson } from '../meeting-links/attendee-matching.ts';
-import {
-  isOwnerAttendee,
-  isOwnerNote,
-  ownerAddresses,
-  sameName,
-} from '../meeting-links/vault-owner.ts';
+import { isOwnerAttendee, isOwnerNote, sameName } from '../meeting-links/vault-owner.ts';
 import type { MeetingAttendee } from '../meetings/meeting-header.ts';
 import { isSelfSpeaker, isUnnamedSpeaker } from '../meetings/transcript.ts';
 import { vocabularyKey } from '../terms/spelling.ts';
@@ -43,6 +38,8 @@ export interface OwnerDirectory {
   readonly people: readonly DirectoryPerson[];
   /** The vault owner's name, from their profile. */
   readonly selfName: string | null;
+  /** The vault owner's own addresses, the vault's `selfEmails`: an attendee at one is them. */
+  readonly selfEmails: readonly string[];
 }
 
 /** Words a model writes for the vault's owner besides `You`. */
@@ -124,12 +121,11 @@ function isOwnersFirstName(name: string, { attendees, selfName }: OwnerDirectory
 
 /** Whether a single owner, with no and/&, is the vault's owner. */
 function isSelf(owner: { name: string; email: string | null }, directory: OwnerDirectory): boolean {
-  const { people, selfName } = directory;
+  const { selfName, selfEmails } = directory;
   const { name, email } = owner;
   if (email === null && (isSelfSpeaker(name) || SELF_WORDS.test(name))) return true;
   if (selfName !== null && sameName(name, selfName)) return true;
   if (email === null && isOwnersFirstName(name, directory)) return true;
-  const selfEmails = ownerAddresses(people, selfName);
   // Only an attendee that is the one it could be: two of a first name are neither.
   const listed = attendeesNamed(owner, directory).filter((each) => !each.group);
   const attendee = (listed.length === 1 ? listed[0] : undefined) ?? { name, email, group: false };
@@ -148,8 +144,8 @@ function ownerOf(written: string): { name: string; email: string | null } {
 /**
  * Whose an item is, from the owner its answer wrote. `You` (as a transcript
  * writes the owner), the profile's name in its common spellings, its first
- * name when no other attendee has it, or any address the owner's own Person
- * note holds is the owner; "we" is the owner's too, to check. Any other name
+ * name when no other attendee has it, or any of the vault's `selfEmails` is
+ * the owner; "we" is the owner's too, to check. Any other name
  * or address is matched as an attendee is (`matchAttendees`): one person is
  * that person; a first name two attendees share, or several Person notes, is
  * ambiguous; a group, "everyone", blank, or what a provider calls a speaker
@@ -197,7 +193,7 @@ function otherOwner(
   owner: { name: string; email: string | null },
   directory: OwnerDirectory,
 ): ItemOwner {
-  const { people, selfName } = directory;
+  const { people, selfName, selfEmails } = directory;
   const named = attendeesNamed(owner, directory);
   // A group took nothing on: a list is not who an item waits on.
   if (named.length > 0 && named.every((each) => each.group)) return { kind: 'unknown' };
@@ -206,7 +202,7 @@ function otherOwner(
     return { kind: 'ambiguous', name: owner.name, candidates: listed.map((each) => each.name) };
   }
   const attendee = listed[0] ?? { name: owner.name, email: owner.email, group: false };
-  if (isOwnerAttendee({ attendee, selfName, selfEmails: ownerAddresses(people, selfName) })) {
+  if (isOwnerAttendee({ attendee, selfName, selfEmails })) {
     return { kind: 'self' };
   }
   const matching = matchAttendees([attendee], people, []);

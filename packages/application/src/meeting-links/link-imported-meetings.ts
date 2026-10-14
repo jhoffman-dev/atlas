@@ -36,6 +36,7 @@ export function createMeetingLinker({
   activity,
   openVault,
   selfName,
+  selfEmails,
   onWritten,
 }: {
   ports: () => MeetingLinkPorts;
@@ -44,6 +45,8 @@ export function createMeetingLinker({
   openVault: () => string | null;
   /** The vault owner's name, from their profile, as it is now. */
   selfName: () => string | null;
+  /** The vault owner's own addresses, its `selfEmails`, as they are now. */
+  selfEmails: () => readonly string[];
   /** Told when linking wrote a note, so the tree and the index read it again. */
   onWritten: () => void;
 }): MeetingLinker {
@@ -58,6 +61,7 @@ export function createMeetingLinker({
           path,
           today: clock.today(),
           selfName: selfName(),
+          selfEmails: selfEmails(),
           vocabulary: reading.vocabulary,
         });
         const { linked, proposed, left, unproposed } = run;

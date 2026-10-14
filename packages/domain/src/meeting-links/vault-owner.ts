@@ -37,9 +37,10 @@ export function isOwnerNote(person: DirectoryPerson, selfName: string | null): b
 }
 
 /**
- * The addresses the vault owner has, read from their own Person note: the
- * person whose name — or alias — is the profile's. A profile holds no
- * address, but the owner's note usually does.
+ * The addresses on the vault owner's own Person note: the person whose name —
+ * or alias — is the profile's. Only ever offered for the person to keep as
+ * `selfEmails`: an address is never taken as theirs because a note of their
+ * name holds it (ADR-0024 amendment).
  */
 export function ownerAddresses(
   people: readonly DirectoryPerson[],
@@ -53,7 +54,7 @@ export function ownerAddresses(
 /**
  * Whether an attendee is the vault's owner: their name is the profile's in
  * any common spelling (`Last, First`, case, spacing), or their address is
- * one the owner's note holds. Never proposed as someone new.
+ * one of the vault's `selfEmails`. Never proposed as someone new.
  */
 export function isOwnerAttendee({
   attendee,
@@ -65,5 +66,7 @@ export function isOwnerAttendee({
   selfEmails: readonly string[];
 }): boolean {
   if (selfName !== null && sameName(attendee.name, selfName)) return true;
-  return attendee.email !== null && selfEmails.includes(addressKey(attendee.email));
+  if (attendee.email === null) return false;
+  const address = addressKey(attendee.email);
+  return selfEmails.some((each) => addressKey(each) === address);
 }

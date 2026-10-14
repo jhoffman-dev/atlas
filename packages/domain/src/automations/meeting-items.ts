@@ -362,6 +362,7 @@ function ownedTask({
     attendees: cited.meeting.meeting?.attendees ?? [],
     people: context.vault?.people ?? [],
     selfName: context.vault?.selfName ?? null,
+    selfEmails: context.vault?.selfEmails ?? [],
   };
   const owner = itemOwner(item.owner, directory);
   return { owner, task: taskOf({ owner, item, cited, context, directory }) };
@@ -498,7 +499,12 @@ function meetingData(context: AnswerContext): PromptData[] {
 
 function peopleLines(note: AnsweredNote, { vault }: AnswerContext): string {
   const self = vault?.selfName ?? null;
-  const directory = { attendees: [], people: vault?.people ?? [], selfName: self };
+  const directory = {
+    attendees: [],
+    people: vault?.people ?? [],
+    selfName: self,
+    selfEmails: vault?.selfEmails ?? [],
+  };
   const attendees = (note.meeting?.attendees ?? []).map((attendee) => {
     if (attendee.group) return `- ${attendee.name}: a group address, not a person`;
     const owner = itemOwner(attendee.name, { ...directory, attendees: [attendee] });

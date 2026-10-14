@@ -48,6 +48,7 @@ const person = (name: string, emails: string[] = []): DirectoryPerson => ({
 /** Mara owns the vault; Tobias has a Person note; Lena has none. */
 const VAULT: AnswerVault = {
   selfName: 'Mara Quill',
+  selfEmails: [],
   people: [person('Mara Quill', ['mara.quill@example.com']), person('Tobias Fenn')],
   notePaths: [GEMINI.path, GRANOLA.path, createVaultPath('People/Tobias Fenn.md')],
   terms: ['Larkspur Pay'],

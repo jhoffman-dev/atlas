@@ -236,6 +236,34 @@ describe('itemOwner, by the vault’s own addresses', () => {
     });
   });
 
+  it('knows the owner by an address an attendee list holds twice, under two names', () => {
+    const twice = {
+      ...NO_OWNER_NOTE,
+      attendees: [
+        { name: 'mq', email: 'mara.quill@example.com', group: false },
+        { name: 'M. Quill', email: 'mara.quill@example.com', group: false },
+      ],
+    };
+
+    expect(itemOwner('mara.quill@example.com', twice)).toEqual({ kind: 'self' });
+    // Without the address set, two attendees of one address are a guess between them.
+    expect(itemOwner('mara.quill@example.com', { ...twice, selfEmails: [] })).toMatchObject({
+      kind: 'ambiguous',
+    });
+  });
+
+  it('knows the owner as the attendee of the name written, when that attendee is at an address of theirs', () => {
+    const listed = {
+      ...NO_OWNER_NOTE,
+      attendees: [{ name: 'Mara Q', email: 'mara.quill@example.com', group: false }],
+    };
+
+    expect(itemOwner('Mara Q <mq@other.example>', listed)).toEqual({ kind: 'self' });
+    expect(itemOwner('Mara Q <mq@other.example>', { ...listed, selfEmails: [] })).toMatchObject({
+      kind: 'named',
+    });
+  });
+
   it('knows the owner by name alone, with no address set', () => {
     const named = { ...NO_OWNER_NOTE, selfName: 'Mara Quill', selfEmails: [] };
 

@@ -1,9 +1,11 @@
 import { CommitField } from './commit-field.tsx';
+import { SelfEmailsForm, type SelfEmailsView } from './self-emails-form.tsx';
 import { SettingsCard } from './settings-card.tsx';
 
 /**
  * Settings → Profile: who uses this vault. Claude in Atlas writes this name
- * wherever a note needs the person's, and writes a placeholder without one.
+ * wherever a note needs the person's, and writes a placeholder without one;
+ * their addresses are how Atlas knows them in a meeting.
  */
 export function ProfileSettings({
   name,
@@ -11,8 +13,10 @@ export function ProfileSettings({
   placeholder,
   problem,
   disabled,
+  emails,
   onName,
   onPreferredName,
+  onSaveEmails,
 }: {
   /** The full name; '' when none is set. */
   name: string;
@@ -24,8 +28,12 @@ export function ProfileSettings({
   problem: string | null;
   /** The names are not read yet, or cannot be: neither field can be changed. */
   disabled: boolean;
+  /** The person's own addresses, as the vault's settings keep them. */
+  emails: SelfEmailsView;
   onName: (name: string) => void;
   onPreferredName: (preferredName: string) => void;
+  /** The addresses as typed; the application reads them, and answers whether it kept them. */
+  onSaveEmails: (emails: string) => boolean;
 }) {
   return (
     <SettingsCard id="settings-profile" icon="person" title="Profile">
@@ -67,6 +75,7 @@ export function ProfileSettings({
           onCommit={onPreferredName}
         />
       </div>
+      <SelfEmailsForm view={emails} onSave={onSaveEmails} />
       {problem !== null && (
         <p className="settings__problem" role="alert">
           {problem}

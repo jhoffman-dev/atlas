@@ -6,14 +6,11 @@ import { useState } from 'react';
 import { createVaultPath } from '@atlas/domain';
 import {
   fakeGranola,
-  fakeIndexPort,
   fakeVaultFs,
   GranolaError,
-  recordingActivity,
   type GranolaKeyStatus,
   type GranolaPort,
   type GranolaPullReport,
-  type QueryResult,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
@@ -53,22 +50,7 @@ const PULLED: GranolaPullReport = {
 
 const SETTINGS = '.atlas/settings.md';
 
-/**
- * The index's answer to the link directory's query for one Person note,
- * Mara Quill's, with her two addresses. A fake rather than the SQLite test
- * index: this file runs in jsdom, where `node:sqlite` cannot be bundled.
- */
-const MARA = 'People/Mara Quill.md';
-const linkDirectory = async (): Promise<QueryResult> => ({
-  columns: ['path', 'title', 'type', 'key', 'value'],
-  rows: [
-    [MARA, 'Mara Quill', 'person', 'email', 'mara.quill@example.com'],
-    [MARA, 'Mara Quill', 'person', 'other_emails', 'mq@example.com'],
-  ],
-  truncated: false,
-});
-
-/** A vault whose settings note and Person note are held in memory, the settings written back as the host would. */
+/** A vault whose settings note is held in memory, written back as the host would. */
 function vaultWith(settings = '---\nprofileName: Mara Quill\n---\n') {
   const file = { text: settings, modified: 1 };
   const fs = fakeVaultFs({
@@ -85,16 +67,11 @@ function vaultWith(settings = '---\nprofileName: Mara Quill\n---\n') {
   });
   return {
     file,
-    ports: { fs, markdown: remarkMarkdown, index: { ...fakeIndexPort(), query: linkDirectory } },
+    ports: { fs, markdown: remarkMarkdown },
   };
 }
 
-const settingsOf = (vault = vaultWith()) => ({
-  ...vault.ports,
-  changeKey: '0',
-  active: true,
-  activity: recordingActivity(),
-});
+const settingsOf = (vault = vaultWith()) => ({ ...vault.ports, changeKey: '0' });
 
 /** The window's puller as the card sees it, with a key held and nothing pulled. */
 function pullWith(overrides: Partial<GranolaPullController> = {}): GranolaPullController {
@@ -282,7 +259,7 @@ describe('GranolaSettingsCard', () => {
   });
 });
 
-describe('useGranola: the person’s own addresses in Granola', () => {
+describe('useGranola: the settings it maps by', () => {
   const render = (vault = vaultWith()) => {
     const settings = settingsOf(vault);
     const port = fakeGranola().port;
@@ -297,115 +274,31 @@ describe('useGranola: the person’s own addresses in Granola', () => {
     );
   };
 
-  it('offers the Person note’s addresses while none are kept, and keeps them only once saved', async () => {
-    const vault = vaultWith();
-    const hook = render(vault);
-    await waitFor(() =>
-      expect(hook.result.current.view.suggestedEmails).toBe(
-        'mara.quill@example.com, mq@example.com',
-      ),
-    );
-    expect(hook.result.current.view.selfEmails).toBe('');
-    expect(vault.file.text).not.toContain('granola_self_emails');
-
-    act(() =>
-      hook.result.current.saveEmails('mara.quill@example.com; MQ@example.com mq@example.com'),
-    );
-    await waitFor(() =>
-      expect(vault.file.text).toContain(
-        'granola_self_emails:\n  - mara.quill@example.com\n  - mq@example.com',
-      ),
-    );
-    expect(vault.file.text).toContain('profileName: Mara Quill');
-    await waitFor(() =>
-      expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com, mq@example.com'),
-    );
-  });
-
-  it('shows the addresses the vault keeps', async () => {
-    const hook = render(
-      vaultWith('---\nprofileName: Mara Quill\ngranola_self_emails:\n  - mara@example.com\n---\n'),
-    );
-    await waitFor(() => expect(hook.result.current.view.selfEmails).toBe('mara@example.com'));
-  });
-
-  it('removes the setting when every address is taken out', async () => {
-    const vault = vaultWith('---\ngranola_self_emails:\n  - mara@example.com\n---\n');
-    const hook = render(vault);
-    await waitFor(() => expect(hook.result.current.view.selfEmails).toBe('mara@example.com'));
-    act(() => hook.result.current.saveEmails('  '));
-    await waitFor(() => expect(vault.file.text).not.toContain('granola_self_emails'));
-  });
-
-  it('refuses, and keeps nothing of, addresses typed with words that are not addresses', async () => {
-    const vault = vaultWith('---\ngranola_self_emails:\n  - mara@example.com\n---\n');
-    const hook = render(vault);
-    await waitFor(() => expect(hook.result.current.view.selfEmails).toBe('mara@example.com'));
-    const before = vault.file.text;
-    let kept = true;
-    act(() => {
-      kept = hook.result.current.saveEmails('mq@example.com, Mara Quill');
-    });
-    expect(kept).toBe(false);
-    expect(hook.result.current.view.emailsProblem).toBe(
-      'Not an email address: “Mara”, “Quill”. Nothing was saved.',
-    );
-    await act(async () => undefined);
-    expect(vault.file.text).toBe(before);
-    expect(hook.result.current.view.selfEmails).toBe('mara@example.com');
-
-    act(() => {
-      kept = hook.result.current.saveEmails('Mara Quill <MQ@example.com>');
-    });
-    expect(kept).toBe(true);
-    expect(hook.result.current.view.emailsProblem).toBeNull();
-    await waitFor(() =>
-      expect(vault.file.text).toContain('granola_self_emails:\n  - mq@example.com'),
-    );
-  });
-  it('reads addresses the settings hold that are not all addresses as none, and says why', async () => {
-    const vault = vaultWith(
-      '---\nprofileName: Mara Quill\ngranola_self_emails: mara.quill@example.com, Mara\n---\n',
-    );
-    const hook = render(vault);
-    await waitFor(() =>
-      expect(hook.result.current.view.emailsUnreadable).toBe(
-        'Your emails in settings could not be read: Not an email address: “Mara”.',
-      ),
-    );
-    expect(hook.result.current.view.selfEmails).toBe('');
-
-    act(() => void hook.result.current.saveEmails('mara.quill@example.com'));
-    // Saved over what could not be read: the card stops saying so at once, not once it is read again.
-    expect(hook.result.current.view.emailsUnreadable).toBeNull();
-    await waitFor(() =>
-      expect(vault.file.text).toContain('granola_self_emails:\n  - mara.quill@example.com'),
-    );
-    await waitFor(() => expect(hook.result.current.view.emailsUnreadable).toBeNull());
-    expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com');
-  });
-
-  it('reads a hand-written line of addresses in the settings as the field reads them', async () => {
-    const hook = render(
-      vaultWith('---\ngranola_self_emails: Mara.Quill@example.com; mq@example.com\n---\n'),
-    );
-    await waitFor(() =>
-      expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com, mq@example.com'),
-    );
-    expect(hook.result.current.view.emailsUnreadable).toBeNull();
-  });
-
-  it('says the group addresses could not be read, beside the person’s own', async () => {
+  it('says which addresses could not be read, the owner’s and the groups’, as a pull maps by none of them (#157)', async () => {
     const hook = render(
       vaultWith(
-        '---\ngranola_self_emails:\n  - not one\ngranola_group_addresses:\n  - eng@example..com\n---\n',
+        '---\nselfEmails:\n  - not one\ngranola_group_addresses:\n  - eng@example..com\n---\n',
       ),
     );
     await waitFor(() =>
-      expect(hook.result.current.view.emailsUnreadable).toBe(
+      expect(hook.result.current.view.addressesUnreadable).toBe(
         'Your emails in settings could not be read: Not an email address: “not one”. ' +
           'The group addresses in settings could not be read: Not an email address: “eng@example..com”.',
       ),
     );
+  });
+
+  it('says why the settings note could not be read', async () => {
+    const vault = vaultWith();
+    const refusing = {
+      ...vault,
+      ports: {
+        ...vault.ports,
+        fs: { ...vault.ports.fs, readNotes: () => Promise.reject(new Error('permission denied')) },
+      },
+    };
+    const hook = render(refusing);
+    await waitFor(() => expect(hook.result.current.view.problem).toBe('permission denied'));
+    expect(hook.result.current.view.addressesUnreadable).toBeNull();
   });
 });

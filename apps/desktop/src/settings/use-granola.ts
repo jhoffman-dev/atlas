@@ -1,20 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  granolaCountsLine,
-  granolaFailureWords,
-  granolaSelfEmailsFromText,
-  type GranolaSettings,
-} from '@atlas/domain';
+import { granolaCountsLine, granolaFailureWords, type GranolaSettings } from '@atlas/domain';
 import {
   GranolaError,
   loadGranolaSettings,
-  saveGranolaSelfEmails,
-  suggestGranolaSelfEmails,
-  type ActivityLog,
   type ExternalLinkPort,
   type GranolaPort,
   type GranolaPullReport,
-  type IndexPort,
   type MarkdownPort,
   type VaultFsPort,
 } from '@atlas/application';
@@ -22,8 +13,6 @@ import type { GranolaKeyState, GranolaNoteLine, GranolaView } from '@atlas/ui';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
 import { errorMessage } from '../query/error-message.ts';
 import { clockTime } from '../sync/sync-view.ts';
-import { useVaultSetting } from './use-vault-setting.ts';
-import { vaultSettingsWriter } from './vault-settings-writer.ts';
 
 /** Settings → Granola as the card draws it, and what it can ask for. */
 export interface GranolaSettingState {
@@ -33,12 +22,6 @@ export interface GranolaSettingState {
   readonly forgetKey: () => void;
   readonly syncNow: () => void;
   readonly openNote: (url: string) => void;
-  /**
-   * Keeps the addresses typed as the person's own in Granola, in the vault's
-   * settings; false, with the reason on the card, when what was typed is not
-   * all addresses, and then nothing is kept.
-   */
-  readonly saveEmails: (emails: string) => boolean;
 }
 
 /** Something said about one vault, kept with the vault it was said of. */
@@ -82,22 +65,24 @@ function pullProblemOf(report: GranolaPullReport | null): string | null {
   return report?.ended === 'stopped' || report?.ended === 'failed' ? report.problem : null;
 }
 
-/** The person's own addresses as the vault's settings keep them, and why any could not be read. */
-interface KeptEmails {
-  readonly emails: readonly string[];
-  readonly unreadable: string | null;
+/** What the vault's settings say of Granola that the card shows: why some could not be read. */
+interface SettingsRead {
+  /**
+   * Why the owner's or the group addresses could not be read: they are then
+   * read as none, and a pull writes its meetings by none (#157).
+   */
+  readonly addressesUnreadable: string | null;
+  /** Why the settings note itself could not be read. */
+  readonly problem: string | null;
 }
 
-/**
- * The addresses Settings holds, and why a setting of addresses could not be
- * read: it then holds none, and the card says so rather than showing what it
- * holds as though it were kept.
- */
-function keptEmailsOf({
-  selfEmails,
+const NOTHING_UNREADABLE: SettingsRead = { addressesUnreadable: null, problem: null };
+
+/** Why the addresses Granola maps by could not be read, in the card's words; null when they were. */
+function addressesUnreadableOf({
   selfEmailsProblem,
   groupAddressesProblem,
-}: GranolaSettings): KeptEmails {
+}: GranolaSettings): string | null {
   const unreadable = [
     selfEmailsProblem === null
       ? null
@@ -106,76 +91,47 @@ function keptEmailsOf({
       ? null
       : `The group addresses in settings could not be read: ${groupAddressesProblem}`,
   ].filter((each) => each !== null);
-  return { emails: selfEmails, unreadable: unreadable.length === 0 ? null : unreadable.join(' ') };
+  return unreadable.length === 0 ? null : unreadable.join(' ');
 }
 
-/**
- * The person's own addresses in Granola, kept in the vault's settings so
- * every Mac maps a meeting alike (ADR-0034), and those of their Person note
- * to offer while none are kept — looked up only while Settings is open.
- */
-function useSelfEmails({
+/** The vault's Granola settings, read again whenever its files change, for what the card says of them. */
+function useSettingsRead({
   fs,
   markdown,
-  index,
   vault,
   changeKey,
-  active,
-  activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
-  index: IndexPort;
   vault: string | null;
   changeKey: string;
-  active: boolean;
-  activity: Pick<ActivityLog, 'inOpenVault'>;
-}) {
-  const load = useCallback(
-    async (): Promise<KeptEmails> => keptEmailsOf(await loadGranolaSettings({ fs, markdown })),
-    [fs, markdown],
-  );
-  const store = useCallback(
-    ({ emails }: KeptEmails) =>
-      saveGranolaSelfEmails({ settings: vaultSettingsWriter({ fs, markdown }), emails }),
-    [fs, markdown],
-  );
-  const setting = useVaultSetting({ load, store, vaultKey: vault, changeKey, activity });
-  const [suggested, setSuggested] = useState<Said<readonly string[]> | null>(null);
+}): SettingsRead {
+  const [said, setSaid] = useState<Said<SettingsRead> | null>(null);
   useEffect(() => {
-    if (vault === null || !active) return;
+    if (vault === null) return;
     let live = true;
-    suggestGranolaSelfEmails({ fs, markdown, index }).then(
-      (emails) => live && setSuggested({ vault, value: emails }),
-      // Only a suggestion: with none, the field starts empty for the person to fill.
-      (cause: unknown) => console.error('The Person note’s addresses could not be read:', cause),
+    loadGranolaSettings({ fs, markdown }).then(
+      (read) =>
+        live &&
+        setSaid({
+          vault,
+          value: { addressesUnreadable: addressesUnreadableOf(read), problem: null },
+        }),
+      (cause: unknown) =>
+        live &&
+        setSaid({ vault, value: { addressesUnreadable: null, problem: errorMessage(cause) } }),
     );
     return () => {
       live = false;
     };
-  }, [fs, markdown, index, vault, changeKey, active]);
-  const offered = suggested?.vault === vault ? suggested.value : [];
-  const [refused, setRefused] = useState<Said<string> | null>(null);
-  return {
-    kept: (setting.value?.emails ?? []).join(', '),
-    unreadable: setting.value?.unreadable ?? null,
-    suggested: offered.length === 0 ? null : offered.join(', '),
-    problem: setting.problem ?? setting.unreadable,
-    refused: refused !== null && refused.vault === vault ? refused.value : null,
-    save: (emails: string) => {
-      if (vault === null) return false;
-      const read = granolaSelfEmailsFromText(emails);
-      setRefused(read.ok ? null : { vault, value: read.problem });
-      if (read.ok) setting.save({ emails: read.emails, unreadable: null });
-      return read.ok;
-    },
-  };
+  }, [fs, markdown, vault, changeKey]);
+  return said?.vault === vault ? said.value : NOTHING_UNREADABLE;
 }
 
 /**
  * Settings → Granola: the key, which passes through `saveKey` to the host and
- * is never kept in React state, the person's own addresses, and the pull's
- * state from the window's one puller. "Key accepted" is said only of a key
+ * is never kept in React state, and the pull's state from the window's one
+ * puller. "Key accepted" is said only of a key
  * Granola has just checked.
  */
 export function useGranola({
@@ -192,14 +148,9 @@ export function useGranola({
   links: ExternalLinkPort;
   fs: VaultFsPort;
   markdown: MarkdownPort;
-  index: IndexPort;
   changeKey: string;
-  /** True while Settings is open: the Person note's addresses are looked up only then. */
-  active: boolean;
-  /** Where a save of the vault's setting that fails is recorded. */
-  activity: Pick<ActivityLog, 'inOpenVault'>;
 }): GranolaSettingState {
-  const emails = useSelfEmails({ ...settings, vault });
+  const read = useSettingsRead({ ...settings, vault });
   const [pending, setPending] = useState(false);
   const [accepted, setAccepted] = useState<string | null>(null);
   const [problem, setProblem] = useState<Said<string> | null>(null);
@@ -239,11 +190,8 @@ export function useGranola({
       lastPull: lastPullOf(report),
       lastPullAt: pull.lastPullAt === null ? null : clockTime(pull.lastPullAt),
       notes: report === null ? [] : notesOf(report),
-      selfEmails: emails.kept,
-      suggestedEmails: emails.suggested,
-      emailsProblem: emails.refused,
-      emailsUnreadable: emails.unreadable,
-      problem: said ?? pull.keyProblem ?? emails.problem ?? pullProblemOf(report),
+      addressesUnreadable: read.addressesUnreadable,
+      problem: said ?? pull.keyProblem ?? read.problem ?? pullProblemOf(report),
       pending,
     },
     saveKey: (key) => {
@@ -253,7 +201,6 @@ export function useGranola({
       if (vault !== null) change(vault, () => port.forgetKey({ vault }));
     },
     syncNow: pull.syncNow,
-    saveEmails: emails.save,
     openNote: (url) => {
       links.open(url).catch((cause: unknown) => {
         if (vault !== null) setProblem({ vault, value: errorMessage(cause) });

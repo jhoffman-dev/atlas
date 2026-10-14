@@ -38,6 +38,7 @@ rule tested**. Each entry gets its own threshold in `vitest.config.ts` as it lan
 | `tools/notion-import/*.ts`  | The Notion imports: meetings and a whole workspace into a vault, re-runnable.                | 28, #79 |
 | `application/proposals`     | Accepting a proposal writes notes, archives it, and undo takes them back.                    | 29      |
 | `application/meeting-links` | Writes a meeting's people and companies, and proposals, by itself; undone.                   | 29      |
+| `application/profile`       | Reads who the vault's owner is, by name and address: whose a meeting's tasks are.            | #173    |
 | `*/google-calendar`         | Connects your Google account and reads its answers; tokens stay in Rust.                     | 31      |
 | `domain/granola`            | Granola's watermark, pacing and backoff: a wrong rule drops meetings.                        | 28      |
 | `*/granola`                 | Writes files into your vault from outside it; turns Granola's JSON into domain types.        | 28      |

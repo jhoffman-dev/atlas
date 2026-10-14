@@ -121,3 +121,81 @@ test('changing the preferred name leaves a full name Atlas cannot show as it was
     '---\nprofileName:\n  - Ada\n  - Lovelace\nprofilePreferredName: Ada\n---\n',
   );
 });
+
+/** #173: the owner's addresses are kept beside the name, as `selfEmails`. */
+const profileCard = (page: Page) =>
+  page.getByRole('dialog', { name: 'Settings' }).getByRole('region', { name: 'Profile' });
+
+test('your emails are kept in the vault’s settings, beside your name, once saved', async ({
+  page,
+}) => {
+  const { vault } = await openVault(page, '---\nprofileName: Mara Quill\n---\n');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const card = profileCard(page);
+  const field = card.getByLabel('Your emails', { exact: true });
+  await expect(field).toHaveValue('');
+
+  // Something that is not an address is named, and nothing is kept; what was typed stays.
+  await field.fill('mara.quill@example.com, Mara');
+  await card.getByRole('button', { name: 'Save emails' }).click();
+  await expect(card.getByRole('alert', { name: 'Your emails were not saved' })).toHaveText(
+    'Not an email address: “Mara”. Nothing was saved.',
+  );
+  await expect(field).toHaveValue('mara.quill@example.com, Mara');
+  await expect(card.getByRole('button', { name: 'Save emails' })).toBeEnabled();
+
+  await field.fill('Mara Quill <Mara.Quill@example.com>\nmq@example.com');
+  await card.getByRole('button', { name: 'Save emails' }).click();
+
+  await expectFile(vault, '.atlas/settings.md').toBe(
+    '---\nprofileName: Mara Quill\nselfEmails:\n  - mara.quill@example.com\n  - mq@example.com\n---\n',
+  );
+  await expect(field).toHaveValue('mara.quill@example.com, mq@example.com');
+  await expect(card.getByRole('button', { name: 'Save emails' })).toBeDisabled();
+  await expect(card.getByRole('alert', { name: 'Your emails were not saved' })).toHaveCount(0);
+});
+
+test('addresses Settings → Granola kept are in use, and saving keeps them as selfEmails', async ({
+  page,
+}) => {
+  const { vault } = await openVault(
+    page,
+    '---\ngranola_self_emails:\n  - mara.quill@example.com\n---\n',
+  );
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const card = profileCard(page);
+  const field = card.getByLabel('Your emails', { exact: true });
+  await expect(field).toHaveValue('mara.quill@example.com');
+  await expect(card.getByText(/In use from granola_self_emails/)).toBeVisible();
+
+  await card.getByRole('button', { name: 'Save emails' }).click();
+
+  // The Granola key stays where it is: selfEmails is read first from now on.
+  await expectFile(vault, '.atlas/settings.md').toBe(
+    '---\ngranola_self_emails:\n  - mara.quill@example.com\nselfEmails:\n  - mara.quill@example.com\n---\n',
+  );
+  await expect(card.getByText(/In use from granola_self_emails/)).toHaveCount(0);
+  await expect(card.getByRole('button', { name: 'Save emails' })).toBeDisabled();
+});
+
+test('addresses in the settings that are not all addresses are said unreadable, never shown as kept', async ({
+  page,
+}) => {
+  const { vault } = await openVault(page, '---\nselfEmails: mara.quill@example.com, Mara\n---\n');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const card = profileCard(page);
+  const unreadable = card.getByRole('alert', { name: 'Your emails in settings could not be read' });
+  await expect(unreadable).toHaveText(
+    'Your emails in settings could not be read: Not an email address: “Mara”.',
+  );
+  const field = card.getByLabel('Your emails', { exact: true });
+  await expect(field).toHaveValue('');
+
+  await field.fill('mara.quill@example.com\nMara Quill <MQ@example.com>');
+  await card.getByRole('button', { name: 'Save emails' }).click();
+  await expectFile(vault, '.atlas/settings.md').toContain(
+    'selfEmails:\n  - mara.quill@example.com\n  - mq@example.com\n',
+  );
+  await expect(field).toHaveValue('mara.quill@example.com, mq@example.com');
+  await expect(unreadable).toHaveCount(0);
+});

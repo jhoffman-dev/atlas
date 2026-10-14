@@ -29,13 +29,11 @@ export {
   DEFAULT_GRANOLA_TIME_ZONE,
   GRANOLA_GROUP_ADDRESSES_KEY,
   GRANOLA_PERIODIC_KEY,
-  GRANOLA_SELF_EMAILS_KEY,
   GRANOLA_TIME_ZONE_KEY,
   GRANOLA_WEBHOOK_KEY,
-  granolaSelfEmailsFromText,
   parseGranolaSettings,
 } from './granola-settings.ts';
-export type { GranolaSelfEmailsReading, GranolaSettings } from './granola-settings.ts';
+export type { GranolaSettings } from './granola-settings.ts';
 export type {
   GranolaNote,
   GranolaNoteSummary,

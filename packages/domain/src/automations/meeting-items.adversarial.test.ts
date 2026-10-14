@@ -33,6 +33,7 @@ const DIRECTORY: OwnerDirectory = {
   ],
   people: [MARA, TOBIAS, person('Tobias Reed', { emails: ['tobias.reed@example.com'] })],
   selfName: 'Mara Quill',
+  selfEmails: [],
 };
 
 const MEETING = createVaultPath('Meetings/Platform weekly sync.md');
@@ -57,7 +58,13 @@ const CONTEXT: AnswerContext = {
       },
     },
   ],
-  vault: { selfName: 'Mara Quill', people: DIRECTORY.people, notePaths: [MEETING], terms: [] },
+  vault: {
+    selfName: 'Mara Quill',
+    selfEmails: [],
+    people: DIRECTORY.people,
+    notePaths: [MEETING],
+    terms: [],
+  },
 };
 
 /** The one proposal an answer of one high-confidence task owned by `owner` makes. */

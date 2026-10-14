@@ -62,6 +62,8 @@ export const MAX_PROPOSALS_PER_ANSWER = 25;
 export interface AnswerVault {
   /** The vault owner's name, from their profile; null when it holds none. */
   readonly selfName: string | null;
+  /** The vault owner's own addresses, the vault's `selfEmails`; none when it holds none. */
+  readonly selfEmails: readonly string[];
   /** The vault's people, as attendees are matched against them. */
   readonly people: readonly DirectoryPerson[];
   /** Every note in the vault: what a link to one of them is spelt against. */

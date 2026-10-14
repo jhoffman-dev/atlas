@@ -86,8 +86,9 @@ describe('saveSelfEmails', () => {
     expect(written[PATH]).toContain('"granola_self_emails":["mara.quill@example.com"]');
     expect((await loadSelfEmails({ fs, markdown })).emails).toEqual(['mq@example.org']);
 
+    // None is the key removed (null to the settings writer), never an empty list.
     await saveSelfEmails({ settings, emails: [] });
-    expect(written[PATH]).not.toContain('selfEmails"');
+    expect(written[PATH]).not.toContain('"selfEmails":[');
     expect(written[PATH]).toContain('"granola_self_emails":["mara.quill@example.com"]');
     expect(await loadSelfEmails({ fs, markdown })).toMatchObject({
       emails: ['mara.quill@example.com'],

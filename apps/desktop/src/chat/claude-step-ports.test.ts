@@ -34,6 +34,7 @@ function setUp(start: ChatSettings) {
     toolboxes: { reading: () => ({ specs: [], run: async () => ({}) as never }) },
     vault: () => '/vaults/home',
     selfName: () => 'Mara Quill',
+    selfEmails: () => [],
   });
   return { step, store, vaults };
 }
