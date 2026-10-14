@@ -639,3 +639,15 @@ bullets above, this wins._
   defence stays structural: the step cannot edit, only propose or create.
 - `Inbox/Proposals/` grows; accepted and rejected proposals are archived by
   the existing Archive, so the folder holds only open ones.
+
+### Addendum (2026-10-14): one declared step may write (ADR-0036)
+
+"A Claude step never edits a note" (above) has one proposed exception.
+ADR-0036 lets the "After a meeting" rule's step write a **marked, bounded,
+digest-guarded summary block** at the top of a meeting, and make a **task for
+the owner's own action item** at medium confidence or above, without a
+proposal. Both are declared on the rule, undone by Undo last run, and refused
+over the person's edits. Everything else a step produces stays a proposal.
+The handled ledger's extra key for a meeting becomes the transcript's digest
+instead of the whole file's. See ADR-0036; until it is accepted, this record's
+text stands.

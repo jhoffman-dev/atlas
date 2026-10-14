@@ -167,3 +167,14 @@ Atlas offers no automatic fix. Removing the line is the person's call.
   `Sync conflicts/atlas/`. The automations stay with the Mac that copy
   names. If the vault already has Atlas's own `.gitignore` block, it stays
   as it is; if it does not, the block is added.
+
+## Amendment: the automations can follow the person (ADR-0035, 2026-10-14)
+
+"A Mac connecting to a vault never takes the automations from another Mac"
+(above) was about set-up and still holds there. ADR-0035 (proposed) adds an
+exception after set-up: a Mac that is not named takes the automations over by
+itself when a meeting under `Inbox/Meetings/` has waited ten minutes after a
+completed sync pull on that Mac, and says in Activity and the Inbox that
+meetings are waiting when it is not the named Mac. One Mac still runs them at
+a time. See ADR-0035 for the reasons, the failure it can cause (a conflict
+copy of a rule's log, rare) and how it is undone.

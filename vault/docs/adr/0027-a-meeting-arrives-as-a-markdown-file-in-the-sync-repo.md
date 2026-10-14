@@ -648,3 +648,31 @@ mapping:
 - **`source_url`**: a link back to the meeting in the provider's app.
   Named in `meeting-import-v1.md` now, and in the schema and contract test
   with the mapper (P28-09).
+
+## Amendment: a copy can come from another provider, and the Mac can change (ADR-0035, ADR-0036, 2026-10-14)
+
+Two statements above change. Both records are proposed; this amendment takes
+effect when they are accepted.
+
+- **"A file whose `provider` + `external_id` the vault already holds is not a
+  second meeting."** That is no longer the only way two files are one meeting.
+  A file from a **different provider** on the same date is also a copy when
+  the rule in ADR-0036 matches it: overlapping time windows, and attendee
+  emails that overlap (Jaccard 0.5 or more, the owner and group addresses left
+  out). The rule, its starting thresholds and the spike (S1) that fixes them
+  before anything is archived are in ADR-0036; they are not repeated here.
+  What happens to a match is unchanged from "Which copy is kept" above: the
+  original is the one already imported, else the existing order; the copy is
+  archived, stamped `duplicate` and linked with `atlas_duplicate_of`; nothing
+  runs on it. Holders still come from reading the files, not the index. A copy
+  that is a conflict copy, `duplicate` or `error` is not a candidate.
+- **"Only the Mac that runs the automations writes stamps."** Still true at
+  any moment. Which Mac that is can now change by itself: ADR-0035 lets a Mac
+  that is not named take the automations over when a meeting has waited ten
+  minutes after a completed sync pull, and has a Mac that is not named say so.
+  The window in which "each Mac reads the setting on its own next sync" is
+  the same one this record already described, and the same outcome: the
+  import's steps reach the same results from the same files.
+
+Meetings already imported as two originals are not touched on arrival; the
+sweep in ADR-0036 handles them.
