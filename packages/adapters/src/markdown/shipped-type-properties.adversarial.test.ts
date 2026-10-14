@@ -8,6 +8,9 @@ import {
   createVaultPath,
   parentVaultPath,
   parseShippedPropertiesRecord,
+  PROPERTIES_NOT_A_MAP,
+  PROPERTIES_NOT_ADDABLE_AS_LINES,
+  SHIPPED_PROPERTIES_RECORD_PATH,
   shippedPropertiesRecordText,
   splitFrontmatter,
   type VaultEntry,
@@ -128,8 +131,65 @@ describe('#162 migration, on a type file whose `properties` is not a map', () =>
   });
 });
 
+describe('#162 migration, on a type file it cannot add a line to', () => {
+  it('leaves a list of properties alone, settles nothing, and says why', async () => {
+    const listed = ['---', 'name: meeting', 'properties:', '  - title', '---', ''].join('\n');
+    const v = memoryHost({ '.atlas/types/meeting.md': listed });
+
+    const { properties } = await ensureBuiltInTypes(v);
+
+    expect(v.text('.atlas/types/meeting.md')).toBe(listed);
+    expect(v.files.has(SHIPPED_PROPERTIES_RECORD_PATH)).toBe(false);
+    expect(properties.skipped).toEqual([
+      { path: '.atlas/types/meeting.md', label: 'Meeting', reason: PROPERTIES_NOT_A_MAP },
+    ]);
+  });
+
+  it('leaves an inline map alone, settles nothing, and says why', async () => {
+    const inline = ['---', 'name: daily', 'properties: {date: date}', '---', ''].join('\n');
+    const v = memoryHost({ '.atlas/types/daily.md': inline });
+
+    const { properties } = await ensureBuiltInTypes(v);
+
+    expect(v.text('.atlas/types/daily.md')).toBe(inline);
+    expect(v.files.has(SHIPPED_PROPERTIES_RECORD_PATH)).toBe(false);
+    expect(properties.skipped).toEqual([
+      { path: '.atlas/types/daily.md', label: 'daily', reason: PROPERTIES_NOT_ADDABLE_AS_LINES },
+    ]);
+  });
+
+  it('adds to a file with 4-space indents, comments and folded text as lines only', async () => {
+    const indented = [
+      '---',
+      'name: daily',
+      'properties: # mine',
+      '    date:',
+      '        kind: date # the day',
+      '        label: >-',
+      '            The',
+      '            day',
+      '---',
+      '',
+    ].join('\n');
+    const v = memoryHost({ '.atlas/types/daily.md': indented });
+
+    const { properties } = await ensureBuiltInTypes(v);
+
+    const head = indented.slice(0, indented.indexOf('---\n', 4));
+    const written = v.text('.atlas/types/daily.md');
+    expect(properties.gained.map((gained) => gained.path)).toEqual(['.atlas/types/daily.md']);
+    expect(written.startsWith(head)).toBe(true);
+    expect(written.slice(head.length)).toMatch(/^ {4}\w+:/);
+    expect(written.endsWith('---\n')).toBe(true);
+  });
+});
+
 describe('#162 migration, on two type files that both name the Meeting type', () => {
-  it('gives tasks to the Meeting type Accept and the Claude step read, not to another file', async () => {
+  // accept-proposal.ts:249, claude-step.ts:513 and linked-sections.ts:82 take
+  // the FIRST type whose folded name is `meeting`, and which file that is the
+  // migration cannot know: it changes neither, settles nothing, and asks for
+  // them to be merged — and the Inbox offers no change to either.
+  it('changes neither file, settles nothing, and asks for the two to be merged', async () => {
     // Mara Quill's vault, synced between two Macs: her Meeting type and the
     // sync's conflict copy of it, both `name: meeting`.
     const meeting = (label: string) =>
@@ -141,13 +201,22 @@ describe('#162 migration, on two type files that both name the Meeting type', ()
       '.atlas/types/meeting 2.md': meeting('Meeting (conflict copy)'),
     });
 
-    await ensureBuiltInTypes(v);
+    const ensured = await ensureBuiltInTypes(v);
 
-    // accept-proposal.ts:249, claude-step.ts:513 and linked-sections.ts:82 take
-    // the FIRST type whose folded name is `meeting`; Accept links through its `tasks`.
+    expect(v.text('.atlas/types/meeting.md')).toBe(meeting('Meeting'));
+    expect(v.text('.atlas/types/meeting 2.md')).toBe(meeting('Meeting (conflict copy)'));
+    expect(v.files.has(SHIPPED_PROPERTIES_RECORD_PATH)).toBe(false);
+    expect(ensured.properties.skipped).toEqual([
+      expect.objectContaining({
+        label: 'Meeting',
+        reason: expect.stringContaining('two files say they are the Meeting type: merge them'),
+      }),
+    ]);
+    expect(ensured.offer.extensions).toEqual([]);
     const types = await loadObjectTypes(v);
-    const read = types.find((type) => type.name.trim().toLowerCase() === 'meeting');
-    expect(read?.properties.map((property) => property.key)).toContain('tasks');
+    for (const type of types) {
+      expect(type.properties.map((property) => property.key)).not.toContain('tasks');
+    }
   });
 });
 

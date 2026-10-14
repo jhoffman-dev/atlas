@@ -4,6 +4,7 @@ import { MEETING_EXTRACTION_PROPERTIES } from '../meetings/meeting-extraction-pr
 import { MEETING_IMPORT_PROPERTIES } from '../meetings/meeting-import-properties.ts';
 import { PROPOSAL_TYPE_FILES } from '../proposals/proposal-types.ts';
 import { BLOCK_TYPE_FILE } from '../timeblocks/block-type.ts';
+import { humanizeKey } from '../page/property-label.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { listed } from './para.ts';
@@ -83,6 +84,43 @@ export function declaredPropertyKeys(frontmatter: Readonly<Record<string, unknow
 }
 
 /**
+ * The keys a type file declares, when more can be added beside them: its
+ * `properties` is a map, or there is none yet. Null when it is something else —
+ * a list, a sentence — which is the person's own, and adding Atlas's keys would
+ * mean writing over it.
+ */
+export function addablePropertyKeys(
+  frontmatter: Readonly<Record<string, unknown>>,
+): Set<string> | null {
+  const declared = frontmatter['properties'];
+  if (declared !== undefined && declared !== null && !isObject(declared)) return null;
+  return declaredPropertyKeys(frontmatter);
+}
+
+/** A built-in type whose shipped properties were not added, and why; it is not settled. */
+export interface ShippedPropertiesSkip<Type extends ObjectType = ObjectType> {
+  /** The type's files: more than one when several say they are it. */
+  readonly types: readonly Type[];
+  readonly label: string;
+  readonly reason: string;
+}
+
+/** What adding the shipped properties would do to a vault's types. */
+export interface ShippedPropertiesPlan<Type extends ObjectType = ObjectType> {
+  readonly changes: readonly ShippedPropertiesChange<Type>[];
+  /** Types left alone: their files cannot be added to without the person's hand. */
+  readonly skipped: readonly ShippedPropertiesSkip<Type>[];
+}
+
+/** Why a type whose `properties` is not a map is left alone. */
+export const PROPERTIES_NOT_A_MAP =
+  'its `properties` is not a map of keys, so Atlas cannot add to it without writing over what is there.';
+
+/** Why a type whose `properties` cannot gain a line without another changing is left alone. */
+export const PROPERTIES_NOT_ADDABLE_AS_LINES =
+  'its `properties` is written so that adding to it would change lines it has — as one inline `{…}` map, say — so Atlas left the file as it is.';
+
+/**
  * The vault's own built-in types whose shipped keys are not all settled, each
  * with the keys its file lacks, after its own. Additive only: a key the file
  * declares is left as it is, whatever its shape — or even if Atlas cannot read
@@ -90,28 +128,60 @@ export function declaredPropertyKeys(frontmatter: Readonly<Record<string, unknow
  * with every shipped key settled is not listed, so a vault already migrated is
  * left alone.
  *
+ * A type is skipped, neither changed nor settled, when its file's `properties`
+ * is not a map (`declaredKeys` answers null), or when two files say they are
+ * that type — a sync's conflict copy, say: which one a feature reads is not
+ * the plan's to choose, so the person is asked to merge them.
+ *
  * `declaredKeys` says which keys a type's file declares, taken from the file
  * rather than from the properties Atlas could parse out of it.
  */
 export function shippedPropertiesPlan<Type extends ObjectType>(
   types: readonly Type[],
   record: ShippedPropertiesRecord,
-  declaredKeys: (type: Type) => ReadonlySet<string>,
-): ShippedPropertiesChange<Type>[] {
-  const byName = new Map(types.map((type) => [folded(type.name), type]));
-  return [...byName].flatMap(([name, type]) => {
+  declaredKeys: (type: Type) => ReadonlySet<string> | null,
+): ShippedPropertiesPlan<Type> {
+  const changes: ShippedPropertiesChange<Type>[] = [];
+  const skipped: ShippedPropertiesSkip<Type>[] = [];
+  for (const [name, files] of byFoldedName(types)) {
     const shipped = SHIPPED.get(name) ?? [];
     const settled = new Set(keysRecorded(record.settled, name));
-    if (shipped.every((property) => settled.has(property.key))) return [];
+    if (shipped.every((property) => settled.has(property.key))) continue;
+    const [type, ...others] = files as [Type, ...Type[]];
+    const label = humanizeKey(name);
+    if (others.length > 0) {
+      skipped.push({ types: files, label, reason: duplicatedReason(files.length, label) });
+      continue;
+    }
     const has = declaredKeys(type);
+    if (has === null) {
+      skipped.push({ types: files, label, reason: PROPERTIES_NOT_A_MAP });
+      continue;
+    }
     const added = shipped.filter(
       (property) => !has.has(property.key) && !settled.has(property.key),
     );
-    return [
-      { before: type, after: { ...type, properties: [...type.properties, ...added] }, added },
-    ];
-  });
+    changes.push({
+      before: type,
+      after: { ...type, properties: [...type.properties, ...added] },
+      added,
+    });
+  }
+  return { changes, skipped };
 }
+
+/** The types by their folded name, each name's files in the order given. */
+function byFoldedName<Type extends ObjectType>(types: readonly Type[]): Map<string, Type[]> {
+  const grouped = new Map<string, Type[]>();
+  for (const type of types) {
+    const name = folded(type.name);
+    grouped.set(name, [...(grouped.get(name) ?? []), type]);
+  }
+  return grouped;
+}
+
+const duplicatedReason = (count: number, label: string) =>
+  `${count === 2 ? 'two' : count} files say they are the ${label} type: merge them into one, and Atlas will add its properties to it.`;
 
 /**
  * The record once `changes` are done: each type's shipped keys settled — the
@@ -156,6 +226,20 @@ export function shippedPropertiesLine({
   return `Added ${listed(added)} to the ${label} type, which was written before Atlas shipped ${them}.`;
 }
 
+/**
+ * What Activity says of a built-in type left alone on opening:
+ * "Atlas did not add its built-in properties to the Meeting type: two files say they are the Meeting type: …"
+ */
+export function shippedPropertiesSkippedLine({
+  label,
+  reason,
+}: {
+  label: string;
+  reason: string;
+}): string {
+  return `Atlas did not add its built-in properties to the ${label} type: ${reason}`;
+}
+
 /** A record that cannot be trusted: its file is not one Atlas wrote. */
 export class ShippedPropertiesRecordError extends Error {
   constructor(reason: string) {
@@ -190,7 +274,9 @@ export function shippedPropertiesRecordText(record: ShippedPropertiesRecord): st
 }
 
 /** Reads a record back; a file any tool could have written is trusted only as keys by type. */
-export function parseShippedPropertiesRecord(text: string): ShippedPropertiesRecord {
+export function parseShippedPropertiesRecord(written: string): ShippedPropertiesRecord {
+  // Another tool, or a sync on Windows, may have turned its line endings to CRLF.
+  const text = written.replace(/\r\n/g, '\n');
   const opening = text.indexOf(OPENING);
   const start = opening + OPENING.length;
   const end = opening === -1 ? -1 : text.indexOf(`\n${FENCE}`, start);

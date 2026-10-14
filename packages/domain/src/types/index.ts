@@ -80,15 +80,24 @@ export {
 } from './para.ts';
 export type { BuiltInTypeFile, BuiltInTypePlan, TypeExtension } from './para.ts';
 export {
+  addablePropertyKeys,
   declaredPropertyKeys,
   keysRecorded,
   NO_SHIPPED_PROPERTIES_RECORD,
   parseShippedPropertiesRecord,
+  PROPERTIES_NOT_A_MAP,
+  PROPERTIES_NOT_ADDABLE_AS_LINES,
   recordSettling,
   SHIPPED_PROPERTIES_RECORD_PATH,
   ShippedPropertiesRecordError,
   shippedPropertiesLine,
   shippedPropertiesPlan,
   shippedPropertiesRecordText,
+  shippedPropertiesSkippedLine,
 } from './shipped-properties.ts';
-export type { ShippedPropertiesChange, ShippedPropertiesRecord } from './shipped-properties.ts';
+export type {
+  ShippedPropertiesChange,
+  ShippedPropertiesPlan,
+  ShippedPropertiesRecord,
+  ShippedPropertiesSkip,
+} from './shipped-properties.ts';

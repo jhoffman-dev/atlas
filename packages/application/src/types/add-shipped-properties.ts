@@ -1,8 +1,10 @@
 import {
-  declaredPropertyKeys,
+  addablePropertyKeys,
   NO_SHIPPED_PROPERTIES_RECORD,
   parentVaultPath,
   parseShippedPropertiesRecord,
+  PROPERTIES_NOT_ADDABLE_AS_LINES,
+  propertySpec,
   recordSettling,
   SHIPPED_PROPERTIES_RECORD_PATH,
   shippedPropertiesPlan,
@@ -14,8 +16,8 @@ import {
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
+import { findVaultEntry } from '../vault/find-entry.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
-import { saveObjectType } from './edit-types.ts';
 import { loadObjectTypes, type DefinedType } from './load-types.ts';
 
 /** A built-in type file that gained properties Atlas ships, for Activity to say so. */
@@ -33,8 +35,17 @@ export interface ShippedPropertiesFailure {
   readonly reason: string;
 }
 
+/** A built-in type left alone, and why: it is not settled, so it is looked at again next time. */
+export interface ShippedPropertiesSkipped {
+  /** Its file — the first of them, when several say they are the type. */
+  readonly path: VaultPath;
+  readonly label: string;
+  readonly reason: string;
+}
+
 export interface ShippedPropertiesAdded {
   readonly gained: readonly ShippedPropertiesGained[];
+  readonly skipped: readonly ShippedPropertiesSkipped[];
   readonly failed: readonly ShippedPropertiesFailure[];
 }
 
@@ -51,33 +62,45 @@ interface TypePorts {
  * including those a complete file already had, so a key the person removes
  * later stays removed.
  *
- * Each file is changed by the type editor's byte-preserving write: only the
- * properties added are written, after the file's own, and its body and every
- * key it had stay as they were. A type whose file could not be written is not
- * settled, so it is tried again the next time the vault opens. A record that
- * cannot be read stops it before anything is written.
+ * Each file gains only lines: the properties added are put in after the last
+ * of its own, at their indentation, and every line it had — its body, its
+ * comments, how its values are written — stays byte for byte. A file that
+ * cannot be added to that way (an inline `{…}` map, `properties` that is a
+ * list), and a type two files claim, is left alone and said so. A type left
+ * alone, or whose file could not be written, is not settled, so it is looked
+ * at again the next time the vault opens. A record that cannot be read — its
+ * folder failing to list included — stops it before anything is written.
  */
 export async function addShippedProperties(ports: TypePorts): Promise<ShippedPropertiesAdded> {
   let found: Awaited<ReturnType<typeof readRecord>>;
   try {
     found = await readRecord(ports.fs);
   } catch (cause) {
-    return { gained: [], failed: [{ name: 'any type', reason: reasonOf(cause) }] };
+    return {
+      gained: [],
+      skipped: [],
+      failed: [{ name: 'any type', reason: reasonOf(cause) }],
+    };
   }
   const record = found?.record ?? NO_SHIPPED_PROPERTIES_RECORD;
   const types = await loadObjectTypes(ports);
   const declared = await declaredKeysByPath(ports, types);
-  const changes = shippedPropertiesPlan(
-    types,
-    record,
-    (type) => declared.get(type.path) ?? new Set(),
-  );
-  const complete = changes.filter((change) => change.added.length === 0);
+  const plan = shippedPropertiesPlan(types, record, (type) => declared.get(type.path) ?? null);
+  const complete = plan.changes.filter((change) => change.added.length === 0);
 
-  const { written, failed } = await writeChanges(
+  const writes = await writeChanges(
     ports,
-    changes.filter((change) => change.added.length > 0),
+    plan.changes.filter((change) => change.added.length > 0),
   );
+  const { written, failed } = writes;
+  const skipped = [
+    ...plan.skipped.map(({ types: files, label, reason }) => ({
+      path: files[0]!.path,
+      label,
+      reason,
+    })),
+    ...writes.skipped,
+  ];
   const settled = [...written, ...complete];
   if (settled.length > 0) {
     try {
@@ -91,59 +114,84 @@ export async function addShippedProperties(ports: TypePorts): Promise<ShippedPro
     label: before.label,
     added: added.map((property) => property.label),
   }));
-  return { gained, failed };
+  return { gained, skipped, failed };
 }
 
-/** The keys each type file declares, read from the file itself. */
+/** The keys each type file declares, read from the file itself; null where they are not a map. */
 async function declaredKeysByPath(
   { fs, markdown }: TypePorts,
   types: readonly DefinedType[],
-): Promise<Map<VaultPath, Set<string>>> {
+): Promise<Map<VaultPath, Set<string> | null>> {
   const files = types.length === 0 ? [] : await fs.readNotes(types.map((type) => type.path));
   return new Map(
     files.map((file) => [
       file.path as VaultPath,
-      declaredPropertyKeys(markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter)),
+      addablePropertyKeys(markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter)),
     ]),
   );
 }
 
-/** Writes each type's change, carrying on past one that fails. */
+/** Writes each type's change, carrying on past one that fails or is left alone. */
 async function writeChanges(
-  { fs, markdown }: TypePorts,
+  ports: TypePorts,
   changes: readonly ShippedPropertiesChange<DefinedType>[],
 ) {
   const written: ShippedPropertiesChange<DefinedType>[] = [];
+  const skipped: ShippedPropertiesSkipped[] = [];
   const failed: ShippedPropertiesFailure[] = [];
   for (const change of changes) {
-    const { before, after } = change;
+    const { before } = change;
     try {
-      await saveObjectType({ fs, markdown, path: before.path, before, type: after });
-      written.push(change);
+      if (await addLines(ports, change)) written.push(change);
+      else {
+        skipped.push({
+          path: before.path,
+          label: before.label,
+          reason: PROPERTIES_NOT_ADDABLE_AS_LINES,
+        });
+      }
     } catch (cause) {
       failed.push({ name: before.label, reason: reasonOf(cause) });
     }
   }
-  return { written, failed };
+  return { written, skipped, failed };
 }
 
-/** The record as it is on disk, with when it was read; null when there is none. */
+/**
+ * Puts the properties a change adds into its file as lines after the file's
+ * own, refused if the file moved on since it was read; false, with nothing
+ * written, when they cannot be added without changing a line it has.
+ */
+async function addLines(
+  { fs, markdown }: TypePorts,
+  { before, added }: ShippedPropertiesChange<DefinedType>,
+): Promise<boolean> {
+  const { text, modified } = await fs.readTextFile(before.path);
+  const { frontmatter, body } = splitFrontmatter(text);
+  const entries = Object.fromEntries(
+    added.map((property) => [property.key, propertySpec(property)]),
+  );
+  const written =
+    frontmatter === null ? null : markdown.addToFrontmatterMap(frontmatter, 'properties', entries);
+  if (written === null) return false;
+  await fs.writeTextFile({
+    path: before.path,
+    contents: written + body,
+    expectedModified: modified,
+  });
+  return true;
+}
+
+/**
+ * The record as it is on disk, with when it was read; null when there is none.
+ * A folder on the way to it that cannot be listed is a failure, never "none".
+ */
 async function readRecord(
   fs: VaultFsPort,
 ): Promise<{ record: ShippedPropertiesRecord; modified: number } | null> {
-  if (!(await recordExists(fs))) return null;
+  if ((await findVaultEntry(fs, SHIPPED_PROPERTIES_RECORD_PATH)) === null) return null;
   const { text, modified } = await fs.readTextFile(SHIPPED_PROPERTIES_RECORD_PATH);
   return { record: parseShippedPropertiesRecord(text), modified };
-}
-
-async function recordExists(fs: VaultFsPort): Promise<boolean> {
-  try {
-    const entries = await fs.listDirectory(parentVaultPath(SHIPPED_PROPERTIES_RECORD_PATH));
-    return entries.some((entry) => entry.path === SHIPPED_PROPERTIES_RECORD_PATH);
-  } catch {
-    // No migrations folder: nothing has been migrated in this vault.
-    return false;
-  }
 }
 
 /** Writes the record over the one read — refused if it changed since — or makes it. */

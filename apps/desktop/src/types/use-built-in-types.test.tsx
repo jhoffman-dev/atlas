@@ -26,7 +26,7 @@ const TASK = [
   '',
 ].join('\n');
 
-function setup(files: Record<string, string>) {
+function setup(files: Record<string, string>, { strict = false } = {}) {
   const memory = memoryVault(files);
   const fs = fakeVaultFs({
     ...memory.fs,
@@ -38,8 +38,10 @@ function setup(files: Record<string, string>) {
   });
   const onChanged = vi.fn();
   const activity = recordingActivity();
-  const hook = renderHook(() =>
-    useBuiltInTypes({ fs, markdown: remarkMarkdown, vaultKey: '/vault', activity, onChanged }),
+  const hook = renderHook(
+    () =>
+      useBuiltInTypes({ fs, markdown: remarkMarkdown, vaultKey: '/vault', activity, onChanged }),
+    { reactStrictMode: strict },
   );
   return { files: memory.files, hook, onChanged, activity };
 }
@@ -259,5 +261,34 @@ describe('useBuiltInTypes', () => {
       /^Atlas could not add its built-in properties to any type: .*cannot be read/,
     );
     expect(files.get('.atlas/types/meeting.md')).toBe(OLDER_MEETING);
+  });
+
+  it('reports the properties added once, and no failure, when StrictMode runs the effect twice', async () => {
+    const { files, activity } = setup(
+      { '.atlas/types/meeting.md': OLDER_MEETING },
+      { strict: true },
+    );
+    await waitFor(() => expect(activity.reports).toHaveLength(1));
+    expect(activity.reports[0]).toMatchObject({
+      level: 'info',
+      message:
+        'Added Tasks and Decisions to the Meeting type, which was written before Atlas shipped them.',
+    });
+    expect(files.get('.atlas/types/meeting.md')).toContain('  decisions:\n');
+  });
+
+  it('warns in Activity, and writes nothing, on a Meeting type whose properties are a list', async () => {
+    const listed = '---\nname: meeting\nproperties:\n  - title\n  - attendees\n---\n';
+    const { files, activity } = setup({ '.atlas/types/meeting.md': listed });
+    await waitFor(() => expect(activity.reports).toHaveLength(1));
+    expect(activity.reports[0]).toMatchObject({
+      level: 'warning',
+      message: expect.stringMatching(
+        /^Atlas did not add its built-in properties to the Meeting type: its `properties` is not a map/,
+      ),
+      subject: { kind: 'note', path: '.atlas/types/meeting.md' },
+    });
+    expect(files.get('.atlas/types/meeting.md')).toBe(listed);
+    expect(files.has('.atlas/migrations/type-properties.md')).toBe(false);
   });
 });

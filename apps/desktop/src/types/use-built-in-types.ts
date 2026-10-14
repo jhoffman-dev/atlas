@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { noteTitle, shippedPropertiesLine, typeSetupLines, type VaultPath } from '@atlas/domain';
+import {
+  noteTitle,
+  shippedPropertiesLine,
+  shippedPropertiesSkippedLine,
+  typeSetupLines,
+  type VaultPath,
+} from '@atlas/domain';
 import {
   acceptTypeSetup,
   ensureBuiltInTypes,
@@ -80,12 +86,20 @@ export function useBuiltInTypes({
 
   // Nothing silent either: each type that gained properties it predates (#162).
   const announceProperties = useCallback(
-    ({ gained, failed }: ShippedPropertiesAdded) => {
+    ({ gained, skipped, failed }: ShippedPropertiesAdded) => {
       for (const { path, label, added } of gained) {
         activity.record({
           level: 'info',
           kind: 'app',
           message: shippedPropertiesLine({ label, added }),
+          subject: { kind: 'note', path },
+        });
+      }
+      for (const { path, label, reason } of skipped) {
+        activity.record({
+          level: 'warning',
+          kind: 'app',
+          message: shippedPropertiesSkippedLine({ label, reason }),
           subject: { kind: 'note', path },
         });
       }
@@ -105,7 +119,7 @@ export function useBuiltInTypes({
     setOffer(NOTHING_OFFERED);
     if (vaultKey === null) return;
     let cancelled = false;
-    ensureBuiltInTypes({ fs, markdown })
+    ensureBuiltInTypes({ fs, markdown, vault: vaultKey })
       .then((ensured) => {
         if (cancelled) return;
         report(ensured.failed);

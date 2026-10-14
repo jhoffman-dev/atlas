@@ -37,6 +37,22 @@ function jsonFrontmatter(): MarkdownPort {
       }
       return `---\n${JSON.stringify(next)}\n---\n`;
     },
+    // As the port promises: added to a map, or to none yet; never over anything else.
+    addToFrontmatterMap: (frontmatter, key, entries) => {
+      const next = read(frontmatter);
+      const held = next[key];
+      if (
+        held !== undefined &&
+        held !== null &&
+        (typeof held !== 'object' || Array.isArray(held))
+      ) {
+        return null;
+      }
+      const map = (held ?? {}) as Record<string, unknown>;
+      if (Object.keys(entries).some((entry) => Object.hasOwn(map, entry))) return null;
+      next[key] = { ...map, ...entries };
+      return `---\n${JSON.stringify(next)}\n---\n`;
+    },
   };
 }
 
@@ -304,7 +320,7 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     const again = await ensureBuiltInTypes(v);
 
     expect(v.files).toEqual(once);
-    expect(again.properties).toEqual({ gained: [], failed: [] });
+    expect(again.properties).toEqual({ gained: [], skipped: [], failed: [] });
   });
 
   it('never puts back a property the person took off after it was added', async () => {
@@ -349,7 +365,7 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     const ensured = await ensureBuiltInTypes(v);
 
     for (const [path, text] of Object.entries(theirs)) expect(v.files.get(path)).toBe(text);
-    expect(ensured.properties).toEqual({ gained: [], failed: [] });
+    expect(ensured.properties).toEqual({ gained: [], skipped: [], failed: [] });
     expect(v.files.has(RECORD)).toBe(false);
   });
 
@@ -379,7 +395,7 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
 
     const opened = await ensureBuiltInTypes(v);
 
-    expect(opened.properties).toEqual({ gained: [], failed: [] });
+    expect(opened.properties).toEqual({ gained: [], skipped: [], failed: [] });
     expect(v.files.get('.atlas/types/meeting.md')).toBe(complete);
     const record = v.files.get(RECORD) ?? '';
     expect(record).toContain(`"settled":{"meeting":${JSON.stringify(Object.keys(shipped))}}`);
@@ -617,5 +633,28 @@ describe('acceptTypeSetup', () => {
       'decisions',
     ]);
     expect(relationTypes(widened?.properties[0] ?? { target: null })).toEqual(['project', 'area']);
+  });
+});
+
+describe('ensureBuiltInTypes, called again while it runs', () => {
+  const MEETING = note({ name: 'meeting', label: 'Meeting', properties: { title: 'text' } });
+
+  it('answers a second call for the same vault with the run under way', async () => {
+    const v = vault({ '.atlas/types/meeting.md': MEETING });
+    const first = ensureBuiltInTypes({ ...v, vault: '/mara' });
+    const second = ensureBuiltInTypes({ ...v, vault: '/mara' });
+    expect(second).toBe(first);
+    expect((await first).properties.gained).toHaveLength(1);
+  });
+
+  it('runs again for another vault, and once the run is over', async () => {
+    const v = vault({ '.atlas/types/meeting.md': MEETING });
+    const mara = ensureBuiltInTypes({ ...v, vault: '/mara' });
+    const tobias = ensureBuiltInTypes({ ...v, vault: '/tobias' });
+    expect(tobias).not.toBe(mara);
+    await Promise.all([mara, tobias]);
+    const later = ensureBuiltInTypes({ ...v, vault: '/mara' });
+    expect(later).not.toBe(mara);
+    expect((await later).properties).toEqual({ gained: [], skipped: [], failed: [] });
   });
 });

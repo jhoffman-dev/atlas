@@ -77,8 +77,32 @@ interface TypePorts {
  * types. The Proposal, Decision and Daily types are only ever offered, and the
  * host refuses to write over a file that is there, readable or not. See
  * {@link acceptTypeSetup}.
+ *
+ * One run at a time per vault: a call while one is under way for the same
+ * vault — React's StrictMode running an effect twice, say — is answered by
+ * that run, rather than racing it to the same files and reporting the write
+ * the other made as a failure. `vault` names the vault the host has open.
  */
-export async function ensureBuiltInTypes(ports: TypePorts): Promise<BuiltInTypesEnsured> {
+export function ensureBuiltInTypes(
+  ports: TypePorts & { readonly vault?: string },
+): Promise<BuiltInTypesEnsured> {
+  const vault = ports.vault ?? null;
+  const running = underWay.get(ports.fs);
+  if (running !== undefined && running.vault === vault) return running.run;
+  const run = setUpTypes(ports).finally(() => {
+    if (underWay.get(ports.fs)?.run === run) underWay.delete(ports.fs);
+  });
+  underWay.set(ports.fs, { vault, run });
+  return run;
+}
+
+/** The run setting a vault's types up, by the host it goes through. */
+const underWay = new WeakMap<
+  VaultFsPort,
+  { readonly vault: string | null; readonly run: Promise<BuiltInTypesEnsured> }
+>();
+
+async function setUpTypes(ports: TypePorts): Promise<BuiltInTypesEnsured> {
   const properties = await addShippedProperties(ports);
   const { para, offer } = setupPlan(await loadObjectTypes(ports));
   if (!para.filesByProject) return { created: [], properties, offer, failed: [] };

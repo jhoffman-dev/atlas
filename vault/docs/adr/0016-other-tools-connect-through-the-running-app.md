@@ -550,15 +550,25 @@ types that are not PARA's: **Meeting, Proposal, Decision, Daily and Block**
   described above (ADR-0029 for Task).
 - **Additive, once, and the person's keys win.** A key the file declares —
   judged from the file's own keys, even one Atlas cannot read — is never
-  changed; its body, keys and their order stay as they are (the type editor's
-  byte-preserving write). Each type found with its shipped keys is recorded as
+  changed. The keys added are lines put in after the last of the file's
+  `properties`, at its indentation; every line the file had stays byte for
+  byte, and a result that is not exactly that is not written. Each type found
+  with its shipped keys is recorded as
   settled in `.atlas/migrations/type-properties.md`, whether or not anything
   was written, so a key the person removes later stays removed, on either Mac;
   the Inbox offers it back instead.
+- **Left alone when it cannot be added to as lines.** A type whose
+  `properties` is a list or a sentence, or an inline `{…}` map, and a type two
+  files claim (a sync's conflict copy), is not changed and not settled, and
+  Activity warns which and why — for two files, to merge them. Accept and the
+  Claude step read whichever claiming file comes first, so the Inbox offers
+  neither of them anything either.
 - **Never silent.** Each type changed is an info line in Activity naming what
   it gained; a type that could not be written is a warning and is tried again
-  on the next open. A record that cannot be read stops it before anything is
-  written.
+  on the next open. A record that cannot be read — its folder failing to list
+  included, which is never taken for "no record" — stops it before anything is
+  written. One run at a time per vault: an open while one is under way (React
+  StrictMode's second effect) shares it.
 
 ## Amendment: tasks follow GTD, and the migration stays in the app (P30-02, 2026-10-08)
 

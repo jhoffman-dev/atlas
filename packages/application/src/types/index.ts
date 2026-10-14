@@ -37,5 +37,6 @@ export type {
   ShippedPropertiesAdded,
   ShippedPropertiesFailure,
   ShippedPropertiesGained,
+  ShippedPropertiesSkipped,
 } from './add-shipped-properties.ts';
 export { linkedTypeProblems } from './linked-types.ts';
