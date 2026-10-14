@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { atlasQueryIndex } from '../testing/query-index.ts';
 import { jsonMarkdown, vaultWith } from '../testing/settings-vault.ts';
-import { loadGranolaSettings } from './granola-settings.ts';
+import {
+  loadGranolaSettings,
+  saveGranolaSelfEmails,
+  suggestGranolaSelfEmails,
+} from './granola-settings.ts';
 
 const SETTINGS = '.atlas/settings.md';
 
@@ -16,6 +21,18 @@ describe('loadGranolaSettings', () => {
       periodic: false,
       groupAddresses: ['eng@example.com'],
       selfEmails: ['mara.quill@example.com'],
+      groupAddressesProblem: null,
+      selfEmailsProblem: null,
+    });
+  });
+
+  it('says why addresses the settings note holds could not be read, and reads them as none', async () => {
+    const { fs } = vaultWith({
+      [SETTINGS]: '---\n{"granola_self_emails":"mara.quill@example.com, Mara"}\n---\n',
+    });
+    expect(await loadGranolaSettings({ fs, markdown: jsonMarkdown() })).toMatchObject({
+      selfEmails: [],
+      selfEmailsProblem: 'Not an email address: “Mara”.',
     });
   });
 
@@ -35,6 +52,50 @@ describe('loadGranolaSettings', () => {
       periodic: true,
       groupAddresses: [],
       selfEmails: [],
+      groupAddressesProblem: null,
+      selfEmailsProblem: null,
     });
+  });
+});
+
+describe('suggestGranolaSelfEmails', () => {
+  const markdown = jsonMarkdown();
+  const person = (fields: Record<string, unknown>) =>
+    `---\n${JSON.stringify({ type: 'person', ...fields })}\n---\n\nbody\n`;
+  const index = atlasQueryIndex({
+    markdown,
+    files: {
+      'People/Mara Quill.md': person({
+        email: 'Mara.Quill@example.com',
+        other_emails: ['mara@example.com'],
+      }),
+      'People/Tobias Fenn.md': person({ email: 'tobias.fenn@example.com' }),
+    },
+  });
+
+  it('offers the addresses of the Person note the profile names', async () => {
+    const { fs } = vaultWith({ [SETTINGS]: '---\n{"profileName":"Mara Quill"}\n---\n' });
+    expect(await suggestGranolaSelfEmails({ fs, markdown, index: { query: index } })).toEqual([
+      'mara.quill@example.com',
+      'mara@example.com',
+    ]);
+  });
+
+  it('offers none when the profile names no one', async () => {
+    const { fs } = vaultWith({});
+    expect(await suggestGranolaSelfEmails({ fs, markdown, index: { query: index } })).toEqual([]);
+  });
+});
+
+describe('saveGranolaSelfEmails', () => {
+  it('saves the addresses as a list, and none as no setting', async () => {
+    const saved: Record<string, unknown>[] = [];
+    const settings = { save: async (changes: Record<string, unknown>) => void saved.push(changes) };
+    await saveGranolaSelfEmails({ settings, emails: ['mara.quill@example.com'] });
+    await saveGranolaSelfEmails({ settings, emails: [] });
+    expect(saved).toEqual([
+      { granola_self_emails: ['mara.quill@example.com'] },
+      { granola_self_emails: null },
+    ]);
   });
 });

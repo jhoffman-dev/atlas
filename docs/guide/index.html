@@ -147,6 +147,7 @@ td:first-child { white-space: nowrap; }
     <a href="#people">People and mentions</a>
     <a href="#linked-pages">Linked pages</a>
     <a href="#meetings">Meetings</a>
+    <a href="#granola">Meetings from Granola</a>
     <a href="#terms">Terms</a>
     <a href="#proposals">Proposals in the Inbox</a>
     <a href="#tags">Tags</a>
@@ -1093,6 +1094,7 @@ ORDER BY phase</pre>
       <h2>Meetings</h2>
       <p class="sub">Your meeting notes come into the vault by themselves. A meeting is a note of the <b>Meeting</b> type, one markdown file per meeting, with the transcript split into turns you can link to and quote.</p>
       <h3>How a meeting arrives</h3>
+      <p>Gemini's meetings come as below. Granola's are pulled by Atlas itself — see <a href="#granola">Meetings from Granola</a>.</p>
       <ol class="steps">
         <li>The meeting ends and Google Meet's “Notes by Gemini” email lands, as it always has.</li>
         <li>n8n, on your work computer, reads the email and sends the meeting two places from the same step: to Notion's Meeting Notes, as before, and to Atlas's <a href="#connect">Local API</a> (<code>POST /v1/meetings</code>) on the Mac.</li>
@@ -1167,7 +1169,7 @@ ORDER BY phase</pre>
       <div class="note"><b>Your own vault's types.</b> Matching reads <code>email</code>, <code>other_emails</code> and <code>aliases</code> on a person, and <code>domains</code>, <code>site</code> and <code>aliases</code> on a company, whether or not your types declare them. The vault in the Atlas repository declares <b>Other emails</b> and <b>Email domains</b>; add them to yours in <a href="#edit-type">Edit type</a> (multi-select) to fill them in from the properties panel.</div>
       <h3>What's in a meeting file</h3>
       <div class="grid2">
-        <div class="card"><h4>At the top (frontmatter)</h4><p><code>title</code>, <code>date</code>, <code>start</code> (and <code>end</code> when known), <code>kind</code> (Notion's Category: Standup, Retro, 1:1…), <code>provider</code> (<code>gemini</code>, earlier <code>granola</code>), the provider's own id, and <code>attendees</code> — each a name and email. A list address like <code>platform-team@…</code> is kept as an attendee marked <code>group: true</code>, and never becomes a Person.</p></div>
+        <div class="card"><h4>At the top (frontmatter)</h4><p><code>title</code>, <code>date</code>, <code>start</code> (and <code>end</code> when known), <code>kind</code> (Notion's Category: Standup, Retro, 1:1…), <code>provider</code> (<code>gemini</code> or <code>granola</code>), the provider's own id, and <code>attendees</code> — each a name and email. A list address like <code>platform-team@…</code> is kept as an attendee marked <code>group: true</code>, and never becomes a Person.</p></div>
         <div class="card"><h4>The sections, in this order</h4><p><b>Summary</b>, <b>Notes</b> (Gemini's Details), <b>Provider next steps</b>, <b>Transcript</b>. Any can be missing; there's never a section that isn't one of these four.</p></div>
       </div>
       <ul>
@@ -1199,6 +1201,43 @@ ORDER BY phase</pre>
       <h3>Built in</h3>
       <p><b>Meeting</b> is a <a href="#edit-type">built-in type</a>: <b>Delete</b> is turned off for it — <i>“Meeting is built in — imported meetings are notes of it — so it cannot be deleted. Its properties are yours to change.”</i></p>
       <div class="note"><b>What's coming.</b> A meeting file waits in <code>Inbox/Meetings</code> and shows on the <a href="#para">Inbox page</a>, where it can be filed under a project or an area. Misheard names are already <a href="#meeting-corrections">put right</a> as it arrives. Next (phase 29): linking a meeting to its people, companies and project; and pulling tasks and notes out of it, with you deciding what becomes a task. The plan is on the <a href="https://github.com/jhoffman-dev/atlas/issues/41">roadmap issue</a>.</div>
+    </section>
+
+    <section id="granola">
+      <h2>Meetings from Granola</h2>
+      <p class="sub">Meetings you record in Granola come into the vault by themselves, as files in <code>Inbox/Meetings</code>, the same as Gemini's. Atlas asks Granola for them with an API key; nothing else is needed.</p>
+      <h3>Set it up</h3>
+      <ol class="steps">
+        <li><b>Make a key in Granola.</b> In the Granola app: <b>Settings → Connectors → API keys → Create new key</b>, with <i>Personal notes</i> (and <i>Public notes</i> if you want meetings others share with you). It needs a Business or Enterprise plan. Granola shows the key once; copy it.</li>
+        <li><b>Paste it into Atlas.</b> <b>Settings</b> (<kbd>⌘,</kbd>) → <b>Granola</b>. Paste the key into <i>Granola API key</i> and press <b>Save</b>. Atlas keeps it in this Mac's Keychain, never in the vault, and asks Granola about it once: Settings says <i>Key accepted</i>, or <i>Granola refused this key</i>.</li>
+        <li><b>Check <i>Your emails</i>.</b> In a meeting you own, Granola calls you “me”. Atlas writes that as <b>You</b> when the meeting's owner is one of these addresses, and as the owner's name otherwise (so a meeting someone shared with you isn't put in your mouth). Until you save some, the field offers the addresses on your Person note — the one <a href="#profile">Settings → Profile</a> names — with <i>From your Person note</i>; press <b>Save emails</b> to keep them. The field takes several lines: put one address on each line, or separate them with commas or semicolons. A pasted <i>Mara Quill &lt;mara.quill@example.com&gt;</i> or <i>"Quill, Mara" &lt;mara.quill@example.com&gt;</i> keeps just the address (the name may sit on the line above it), and addresses are kept in lower case. If something you typed isn't an address — a stray word, or an invisible character a copy brought with it — the card names it and saves nothing until you fix it. More than 10 KB of text is refused without being read. They're kept in the vault's settings (<code>granola_self_emails</code>), so every Mac writes a meeting the same way.</li>
+        <li><b>That's it.</b> Once the key is accepted, Atlas pulls your meetings straight away. The first pull looks at every meeting Granola has and brings in the ones the vault doesn't already have.</li>
+      </ol>
+      <p>Each Mac that should pull needs the key pasted on it. Meetings come in on whichever Mac is in front of you; the import, linking and corrections then run on the Mac that runs your <a href="#automations">automations</a>, as for any meeting.</p>
+      <h3>When it pulls</h3>
+      <ul>
+        <li><b>As the vault opens</b> — but only after Atlas has <a href="#sync">synced</a> the vault and caught up with what that sync brought in. That way a meeting another Mac already imported is found where it is now, and isn't written a second time. Each later sync that brings files in does the same: a pull, timed or Sync now, waits until Atlas has caught up with them — and with any sync that lands while it waits — but gives up after two minutes on any one of them. A vault that doesn't sync doesn't wait. Until then Settings says <i>Atlas pulls from Granola once this vault has synced</i>.</li>
+        <li><b>Every 15 minutes</b> while the vault is open. To turn this off, add <code>granola_periodic: false</code> to the vault's settings note (<code>.atlas/settings.md</code>).</li>
+        <li><b>When you press Sync now</b> in Settings → Granola. Sync now always looks at every meeting Granola has, so it finds one the timed pulls missed.</li>
+      </ul>
+      <p>Settings shows <i>Pulling from Granola…</i> while it works, then what the last pull did and when — for example <i>3 new, 12 already in Atlas, 1 refused at 9:40 AM</i>. <b>Details</b> lists each meeting that wasn't written and why, with <b>Open in Granola</b> to see it there. A pull is also a line in <a href="#activity">Activity</a>, under <b>Meetings</b> — except a timed pull that found nothing new and nothing wrong, which would only be noise.</p>
+      <p>A meeting Atlas already has is never fetched or changed again — even if you edit it in Granola later. A meeting deleted in Granola stays in Atlas.</p>
+      <h3>When something goes wrong</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">You see</th><th scope="col">What it means</th></tr></thead>
+          <tbody>
+            <tr><td><i>No key on this Mac</i>, and Sync now greyed out</td><td>Paste a key, as above.</td></tr>
+            <tr><td><i>Granola refused this key</i>, and a notice once</td><td>The key has expired or was deleted. Make a new one in Granola and paste it. Atlas stops pulling on its own until it has a key Granola accepts; Sync now still tries.</td></tr>
+            <tr><td>A notice after Sync now, such as <i>Granola could not be reached</i></td><td>Check the connection and press Sync now again. A pull that fails by itself (on open or on the timer) says so in Settings and Activity only, and the next pull tries again.</td></tr>
+            <tr><td><i>1 refused</i> or <i>1 skipped</i></td><td>Open <b>Details</b>. Atlas couldn't read that meeting, or Granola wouldn't give it. Sync now tries it again.</td></tr>
+            <tr><td><i>Your emails in settings could not be read</i></td><td>The settings note holds something under <code>granola_self_emails</code> (or <code>granola_group_addresses</code>) that isn't all addresses — usually a hand edit. Until it's fixed Atlas reads it as no addresses at all, and the card names what it couldn't read. Type your addresses into <i>Your emails</i> and press <b>Save emails</b>, or fix the note.</td></tr>
+            <tr><td><i>Waiting for the index timed out</i> in Activity</td><td>A pull waited two minutes for Atlas to catch up with what a sync brought in, and gave up without writing anything. The next sync, or opening the vault again, tries again.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>To stop pulling on this Mac, press <b>Forget key…</b>, then <b>Forget key</b>. The meetings already in the vault stay.</p>
+      <p class="muted">Meeting times are written in the vault's time zone for Granola, <code>granola_time_zone</code> in the settings note (Los Angeles when it says nothing), and list addresses that don't look like one can be named in <code>granola_group_addresses</code> — so every Mac writes a meeting the same way.</p>
     </section>
 
     <section id="terms">

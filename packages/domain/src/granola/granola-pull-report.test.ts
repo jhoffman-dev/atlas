@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GRANOLA_KEPT_SLOWING_DOWN,
   granolaFailureWords,
+  granolaIndexWaitReport,
   granolaLateArrivalReport,
   granolaNoteReport,
   granolaPullReport,
@@ -320,5 +321,17 @@ describe('granolaLateArrivalReport', () => {
       ),
     });
     expect(granolaLateArrivalReport(3).message).toMatch(/^Granola: 3 meetings .* had them:/);
+  });
+});
+
+describe('granolaIndexWaitReport', () => {
+  it('says the pull did not start because waiting for the index timed out, and what tries again', () => {
+    expect(granolaIndexWaitReport()).toEqual({
+      level: 'warning',
+      kind: 'meeting',
+      message:
+        'Granola: the pull did not start: waiting for the index timed out. The next sync, or opening the vault again, tries again.',
+      subject: null,
+    });
   });
 });

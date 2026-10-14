@@ -49,6 +49,8 @@ import {
   type ExternalLinkPort,
   type GlobalCapturePort,
   type GoogleCalendarPort,
+  type GranolaPort,
+  type GranolaPullRecords,
   type PageSnapshotPort,
 } from '@atlas/application';
 import {
@@ -74,6 +76,7 @@ import {
   NewViewDialog,
   NewArtifactDialog,
   NoteNamesProvider,
+  Toast,
   type AppInfoState,
 } from '@atlas/ui';
 import { useVault, type VaultPorts } from './vault/use-vault.ts';
@@ -152,6 +155,9 @@ import type { SourcePorts } from './sources/source-ports.ts';
 import { SecretsSettingsCard } from './settings/secrets-settings-card.tsx';
 import { GoogleCalendarSettingsCard } from './settings/google-calendar-settings-card.tsx';
 import { useGoogleCalendar } from './settings/use-google-calendar.ts';
+import { GranolaSettingsCard } from './settings/granola-settings-card.tsx';
+import { useGranola } from './settings/use-granola.ts';
+import { useGranolaPull } from './granola/use-granola-pull.ts';
 import { useSecrets } from './settings/use-secrets.ts';
 import { useQuickAdd } from './quick-add/use-quick-add.ts';
 import { useQuickAddSetting } from './quick-add/use-quick-add-setting.ts';
@@ -244,6 +250,7 @@ export function App({
   activity: activityPorts,
   sync: syncPorts,
   googleCalendar,
+  granola: granolaPorts,
   globalCapture: globalCapturePorts,
 }: {
   appInfo: AppInfoPort;
@@ -265,6 +272,8 @@ export function App({
   sync: SyncHostPorts;
   /** Google Calendar, signed in to by the host, which keeps the tokens (ADR-0030). */
   googleCalendar: GoogleCalendarPort;
+  /** Granola, through the host, which keeps the key (ADR-0034), and this Mac's record of each vault's pulls. */
+  granola: { port: GranolaPort; records: GranolaPullRecords };
   /** The shortcut that opens quick capture from any app, registered by the host (#81). */
   globalCapture: { port: GlobalCapturePort; store: GlobalCaptureStore };
 }) {
@@ -328,6 +337,7 @@ export function App({
     progress: indexProgress,
     rebuild,
     refresh,
+    catchUp: catchUpIndex,
   } = useIndex({
     ports: index,
     vaultKey: location?.absolutePath ?? null,
@@ -399,6 +409,22 @@ export function App({
   useEffect(() => {
     settleSync.current = sync.settle;
   }, [sync.settle]);
+  // Granola's meetings (ADR-0034): on open once sync has pulled, every 15 minutes, and on Sync now.
+  const granolaPull = useGranolaPull({
+    granola: granolaPorts.port,
+    records: granolaPorts.records,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    index: index.index,
+    vaultKey,
+    changeKey: indexKey,
+    syncedThisSession: sync.syncedThisSession,
+    syncPulls: sync.syncPulls,
+    catchUpIndex,
+    clock: localClock,
+    activity: activityLog,
+    onWrote: onChanged,
+  });
 
   const thumbnails = useThumbnailQueue({ notes, snapshot, editors, types, onChanged });
   const thumbnailsNow = useThumbnailsNow(thumbnails);
@@ -1112,6 +1138,18 @@ export function App({
     active: overlay === 'settings',
     activity: activityLog,
   });
+  const granolaSetting = useGranola({
+    port: granolaPorts.port,
+    pull: granolaPull,
+    vault: vaultKey,
+    links,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    index: index.index,
+    changeKey: indexKey,
+    active: overlay === 'settings',
+    activity: activityLog,
+  });
   const quickAddPorts = useMemo(
     () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),
     [vault.fs, notes.markdown, index.index],
@@ -1371,6 +1409,9 @@ export function App({
       stranded={stranded}
     />
   );
+  const granolaToast = granolaPull.toast !== null && (
+    <Toast message={granolaPull.toast} onDismiss={granolaPull.dismissToast} />
+  );
 
   return (
     <NoteNamesProvider value={names}>
@@ -1507,7 +1548,12 @@ export function App({
               />
             </>
           }
-          notices={notices}
+          notices={
+            <>
+              {notices}
+              {granolaToast}
+            </>
+          }
           main={
             location === null ? (
               <VaultEmptyState
@@ -1794,6 +1840,7 @@ export function App({
                 {location !== null && (
                   <GoogleCalendarSettingsCard setting={googleCalendarSetting} />
                 )}
+                {location !== null && <GranolaSettingsCard setting={granolaSetting} />}
                 <ClaudeSettingsCard chat={chat} />
                 {location !== null && <SyncSettingsCard sync={sync} vaultName={location.name} />}
               </SettingsPanel>

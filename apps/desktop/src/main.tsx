@@ -7,6 +7,7 @@ import {
   resolveExternalLinks,
   resolveGlobalCapture,
   resolveGoogleCalendar,
+  resolveGranola,
   resolveIndexPorts,
   resolveLocalApiPorts,
   resolveChatPorts,
@@ -40,6 +41,7 @@ createRoot(root).render(
       activity={resolveActivityPorts()}
       sync={resolveSyncPorts()}
       googleCalendar={resolveGoogleCalendar()}
+      granola={resolveGranola()}
       globalCapture={resolveGlobalCapture()}
     />
   </StrictMode>,

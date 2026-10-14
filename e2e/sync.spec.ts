@@ -75,7 +75,7 @@ test('sets up sync with a private repository, then keeps both versions of a note
   await laptop.commitAndPush('Atlas sync from Laptop 2026-09-28 10:00');
   await vault.write('Welcome.md', '# Welcome\n\nFrom the studio.\n');
 
-  await page.getByRole('button', { name: 'Sync now' }).click();
+  await syncCard(page).getByRole('button', { name: 'Sync now' }).click();
   const warning = syncCard(page).getByRole('status');
   await expect(warning).toContainText('Both Macs changed a file');
   await expect(warning).toContainText('Welcome (conflict from Laptop).md');

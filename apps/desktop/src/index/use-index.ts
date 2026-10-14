@@ -96,8 +96,16 @@ export function useIndex({
 }): {
   status: IndexStatus;
   progress: IndexProgressStore;
-  refresh: () => Promise<void>;
-  rebuild: () => Promise<void>;
+  /** Resolves true once the index holds the files as they were when it was asked, false when it does not. */
+  refresh: () => Promise<boolean>;
+  rebuild: () => Promise<boolean>;
+  /**
+   * Resolves true once the index holds every change that has asked for a
+   * refresh so far, without reading the vault again to get there: it waits
+   * for the last build or refresh already asked, and asks for one only when
+   * none has been, or the last did not hold the files.
+   */
+  catchUp: () => Promise<boolean>;
 } {
   const [status, setStatus] = useState<IndexStatus>({ kind: 'idle' });
   const [progress] = useState(createIndexProgress);
@@ -123,8 +131,8 @@ export function useIndex({
   );
 
   const run = useCallback(
-    async ({ fromScratch }: { fromScratch: boolean }) => {
-      if (vaultKey === null || open.current !== vaultKey) return;
+    async ({ fromScratch }: { fromScratch: boolean }): Promise<boolean> => {
+      if (vaultKey === null || open.current !== vaultKey) return false;
       // Another vault's syncs are not this one's: its count starts again, and so
       // does what the window says of how far it has got.
       if (waiting.current.vault !== vaultKey) waiting.current = { vault: vaultKey, count: 0 };
@@ -148,19 +156,32 @@ export function useIndex({
           })
           .finally(() => (asked.count -= 1));
         // Dropped: the vault closed while it waited, and the one open now has its own.
-        if (stats === null) return;
+        if (stats === null) return false;
         revision.current += 1;
         // Not "ready" while a sync queued behind this one is still to write:
         // whatever reads the index on "ready" would read it half written (#135).
         if (settles()) {
           setStatus({ kind: 'ready', notes: stats.notes, revision: revision.current });
         }
+        return true;
       } catch (cause) {
         // A sync still to come has the last word; this failure is in the Activity log.
         if (settles()) setStatus({ kind: 'failed', message: message(cause) });
+        return false;
       }
     },
     [syncer, vaultKey, progress],
+  );
+
+  /** The last sync asked of the open vault: it settles after every one asked before it. */
+  const lastAsked = useRef<{ vault: string; held: Promise<boolean> } | null>(null);
+  const ask = useCallback(
+    (fromScratch: boolean) => {
+      const held = run({ fromScratch });
+      if (vaultKey !== null) lastAsked.current = { vault: vaultKey, held };
+      return held;
+    },
+    [run, vaultKey],
   );
 
   useEffect(() => {
@@ -168,13 +189,20 @@ export function useIndex({
       setStatus({ kind: 'idle' });
       return;
     }
-    void run({ fromScratch: false });
-  }, [vaultKey, run]);
+    void ask(false);
+  }, [vaultKey, ask]);
+
+  const catchUp = useCallback(async () => {
+    const last = lastAsked.current;
+    if (last?.vault === vaultKey && (await last.held)) return true;
+    return ask(false);
+  }, [vaultKey, ask]);
 
   return {
     status,
     progress,
-    refresh: useCallback(() => run({ fromScratch: false }), [run]),
-    rebuild: useCallback(() => run({ fromScratch: true }), [run]),
+    refresh: useCallback(() => ask(false), [ask]),
+    rebuild: useCallback(() => ask(true), [ask]),
+    catchUp,
   };
 }

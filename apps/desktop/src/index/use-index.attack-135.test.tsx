@@ -61,7 +61,7 @@ describe('useIndex, attacked (#135)', () => {
     await waitFor(() => expect(puts()).toBe(1));
 
     // A change on disk while the vault is first indexed: the watcher asks for a refresh.
-    let refreshed = Promise.resolve();
+    let refreshed: Promise<unknown> = Promise.resolve();
     act(() => {
       refreshed = result.current.refresh();
     });

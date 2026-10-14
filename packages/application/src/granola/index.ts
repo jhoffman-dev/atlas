@@ -5,7 +5,11 @@ export type {
   GranolaPullPorts,
   GranolaPullReport,
 } from './pull-granola-meetings.ts';
-export { loadGranolaSettings } from './granola-settings.ts';
+export {
+  loadGranolaSettings,
+  saveGranolaSelfEmails,
+  suggestGranolaSelfEmails,
+} from './granola-settings.ts';
 export type { Wait } from './granola-requests.ts';
 export { GranolaError } from './ports.ts';
 export type {

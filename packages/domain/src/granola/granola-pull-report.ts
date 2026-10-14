@@ -47,7 +47,14 @@ export interface GranolaPullCounts {
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
-function countsLine({ written, held, refused, skipped, failed }: GranolaPullCounts): string {
+/** What a pull did, in a few words: "3 new, 12 already in Atlas, 1 refused". */
+export function granolaCountsLine({
+  written,
+  held,
+  refused,
+  skipped,
+  failed,
+}: GranolaPullCounts): string {
   return [
     written === 0 ? 'nothing new' : `${written} new`,
     `${held} already in Atlas`,
@@ -167,7 +174,7 @@ export function granolaPullReport({
     case 'not-synced':
       return null;
     case 'pulled':
-      return meetingLine(levelOf(counts), `${countsLine(counts)}.`);
+      return meetingLine(levelOf(counts), `${granolaCountsLine(counts)}.`);
     case 'vault-changed':
       return meetingLine(
         'warning',
@@ -216,5 +223,17 @@ export function granolaLateArrivalReport(count: number): ActivityReport {
   return meetingLine(
     'warning',
     `${plural(count, 'meeting')} came by the pull more than ${hours} hours after Granola had ${count === 1 ? 'it' : 'them'}: the webhook may be off. Check it in Granola → Settings → Connectors → Webhooks, and the workflow in n8n.`,
+  );
+}
+
+/**
+ * A pull that waited for the index to catch up with what sync brought in,
+ * and gave up: it did not start, so nothing was written. The next sync asks
+ * the index again, and a pull follows it.
+ */
+export function granolaIndexWaitReport(): ActivityReport {
+  return meetingLine(
+    'warning',
+    'the pull did not start: waiting for the index timed out. The next sync, or opening the vault again, tries again.',
   );
 }

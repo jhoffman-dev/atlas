@@ -81,6 +81,11 @@ export interface RunContext {
   readonly onPulled: () => void;
   readonly setPhase: (phase: SyncPhase) => void;
   readonly setBehind: (behind: number) => void;
+  /**
+   * Says a sync of the vault has pulled from GitHub in this session, and
+   * whether it brought other Macs' files in.
+   */
+  readonly markSynced: (vault: string, broughtIn?: boolean) => void;
   readonly exclusive: Exclusive;
 }
 
@@ -90,7 +95,7 @@ export interface RunContext {
  */
 export function useSyncRuns(context: RunContext) {
   const { git, files, thisMac, vaultKey, fs, clock, activity, flushAll } = context;
-  const { setPhase, setBehind, exclusive } = context;
+  const { setPhase, setBehind, markSynced, exclusive } = context;
   const lastSyncAt = useRef<number | null>(null);
   const lastCheckAt = useRef<number | null>(null);
   const openVault = useRef(vaultKey);
@@ -119,10 +124,13 @@ export function useSyncRuns(context: RunContext) {
     return exclusive.start('sync', () =>
       syncNow({ ports, mac: thisMac.name, clock })
         .then((report) => {
+          const broughtIn = report.pulled || report.conflicts.length > 0;
+          // Pulled whether or not the vault is still open: the session has synced it.
+          markSynced(vaultKey, broughtIn);
           if (!current()) return report;
           setBehind(0);
           setPhase({ kind: 'synced', report });
-          if (report.pulled || report.conflicts.length > 0) pulled.current();
+          if (broughtIn) pulled.current();
           return report;
         })
         .catch((cause: unknown) => {
@@ -141,6 +149,7 @@ export function useSyncRuns(context: RunContext) {
     activity,
     setPhase,
     setBehind,
+    markSynced,
     exclusive,
   ]);
 
@@ -180,6 +189,7 @@ export function useInspection({
   setSetup,
   setPhase,
   setBehind,
+  markSynced,
   run,
   paused,
 }: {
@@ -193,6 +203,8 @@ export function useInspection({
   setSetup: (setup: SyncSetup | null) => void;
   setPhase: (phase: SyncPhase) => void;
   setBehind: (behind: number) => void;
+  /** Says the vault has nothing to wait for from GitHub, when it does not sync. */
+  markSynced: (vault: string) => void;
   run: () => Promise<SyncReport | null>;
   /** Whether sync is paused on this Mac as the vault opens: then it does not pull on open. */
   paused: () => boolean;
@@ -212,7 +224,10 @@ export function useInspection({
         if (!live) return;
         setSetup(setup);
         setPhase(phaseOf(setup));
-        if (setup.kind !== 'set-up') return;
+        if (setup.kind !== 'set-up') {
+          markSynced(vaultKey);
+          return;
+        }
         setBehind(setup.behind);
         if (!pausedNow.current()) void runOnOpen.current();
       })
@@ -222,7 +237,19 @@ export function useInspection({
     return () => {
       live = false;
     };
-  }, [git, folders, fs, markdown, vaultKey, thisMac, clock, setSetup, setPhase, setBehind]);
+  }, [
+    git,
+    folders,
+    fs,
+    markdown,
+    vaultKey,
+    thisMac,
+    clock,
+    setSetup,
+    setPhase,
+    setBehind,
+    markSynced,
+  ]);
 }
 
 /** What the vault's sync state reads as, once how it stands is known. */

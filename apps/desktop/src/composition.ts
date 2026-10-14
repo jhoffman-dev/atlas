@@ -12,6 +12,7 @@ import {
   tauriHttp,
   tauriSecrets,
   tauriGoogleCalendar,
+  tauriGranola,
   tauriSqliteSource,
   tauriPageSnapshot,
   tauriIndex,
@@ -37,6 +38,8 @@ import type {
   ExternalLinkPort,
   GlobalCapturePort,
   GoogleCalendarPort,
+  GranolaPort,
+  GranolaPullRecords,
   PageSnapshotPort,
 } from '@atlas/application';
 import type { VaultPorts } from './vault/use-vault.ts';
@@ -49,6 +52,7 @@ import type { OnHost } from './vault/bound-to-vault.ts';
 import type { ChatPorts } from './chat/use-chat.ts';
 import { browserMacId } from './sync/browser-mac-id.ts';
 import { browserSyncPause } from './sync/browser-sync-pause.ts';
+import { browserGranolaPullRecords } from './granola/browser-granola-store.ts';
 import type { SyncHostPorts } from './sync/use-sync.ts';
 import {
   browserGlobalCaptureStore,
@@ -93,6 +97,11 @@ export function resolveSourcePorts(): SourcePorts {
 /** Google Calendar, through the host's sign-in (ADR-0030). */
 export function resolveGoogleCalendar(): GoogleCalendarPort {
   return tauriGoogleCalendar;
+}
+
+/** Granola, through the host's pinned module (ADR-0034), and where this Mac keeps each vault's pull record. */
+export function resolveGranola(): { port: GranolaPort; records: GranolaPullRecords } {
+  return { port: tauriGranola, records: browserGranolaPullRecords };
 }
 
 /** The global capture shortcut: registered by the host, chosen and kept on this Mac (#81). */

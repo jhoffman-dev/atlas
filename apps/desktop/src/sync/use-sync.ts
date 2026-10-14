@@ -72,6 +72,16 @@ export interface SyncController {
    * settings give to another in the moment before it has read them.
    */
   readonly automationsHere: boolean;
+  /**
+   * The vaults that may take in files from elsewhere (ADR-0034): each has had
+   * a sync pull from GitHub in this session of the app, or does not sync.
+   */
+  readonly syncedThisSession: ReadonlySet<string>;
+  /**
+   * How many syncs in this session of the app have brought other Macs' files
+   * into each vault: each one leaves the index to catch up with them.
+   */
+  readonly syncPulls: ReadonlyMap<string, number>;
   /** Why setting up failed, to show beside the form. */
   readonly problem: string | null;
   /** The person's GitHub repositories, for the picker. */
@@ -105,7 +115,8 @@ export function useSync(options: SyncOptions): SyncController {
   const git = useMemo(() => (vaultKey === null ? null : host.git(vaultKey)), [host, vaultKey]);
   const files = useMemo(() => (vaultKey === null ? null : host.files(vaultKey)), [host, vaultKey]);
   const exclusive = useExclusive(options.clock, vaultKey);
-  const shared = { ...options, git, files, thisMac, setPhase, exclusive };
+  const { syncedThisSession, syncPulls, markSynced } = useSyncedThisSession();
+  const shared = { ...options, git, files, thisMac, setPhase, markSynced, exclusive };
   const { run, check, lastSyncAt, lastCheckAt } = useSyncRuns({ ...shared, setBehind });
   useInspection({
     ...shared,
@@ -138,6 +149,8 @@ export function useSync(options: SyncOptions): SyncController {
     settings: settings.value,
     paused,
     behind,
+    syncedThisSession,
+    syncPulls,
     automationsHere:
       thisMac !== null &&
       settings.value !== null &&
@@ -179,6 +192,20 @@ function useThisMac(port: ThisMacPort): ThisMac | null {
     };
   }, [port]);
   return mac;
+}
+
+/**
+ * The vaults this session has synced, or found not to sync, and how many of
+ * those syncs brought files in; never forgotten until the app quits.
+ */
+function useSyncedThisSession() {
+  const [syncedThisSession, setSynced] = useState<ReadonlySet<string>>(() => new Set());
+  const [syncPulls, setSyncPulls] = useState<ReadonlyMap<string, number>>(() => new Map());
+  const markSynced = useCallback((vault: string, broughtIn = false) => {
+    setSynced((known) => (known.has(vault) ? known : new Set([...known, vault])));
+    if (broughtIn) setSyncPulls((known) => new Map(known).set(vault, (known.get(vault) ?? 0) + 1));
+  }, []);
+  return { syncedThisSession, syncPulls, markSynced };
 }
 
 /** The pause switch for the open vault, on this Mac. */

@@ -718,3 +718,69 @@ describe('useSync, after the second A29-01 review', () => {
     expect(notice).toContain('idea (conflict from Laptop).md');
   });
 });
+
+describe('useSync: what the session has synced (ADR-0034)', () => {
+  it('names a vault once a sync of it has pulled from GitHub, and not before', async () => {
+    let finishFetch: (result: GitResult) => void = () => {};
+    const { hook } = setUpHook({
+      gitOverrides: { fetch: () => new Promise((resolve) => (finishFetch = resolve)) },
+    });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('syncing'));
+    expect(hook.result.current.syncedThisSession.has('/Users/j/Notes')).toBe(false);
+
+    finishFetch(OK);
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect([...hook.result.current.syncedThisSession]).toEqual(['/Users/j/Notes']);
+  });
+
+  it('counts each sync of a vault that brought files in, and none that brought nothing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const model = modelGit();
+    model.state.onGitHub = 1;
+    const { hook, called, clock } = setUpHook({ script: model.script });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect([...hook.result.current.syncPulls]).toEqual([['/Users/j/Notes', 1]]);
+
+    // A sync that finds nothing new on GitHub brings nothing in.
+    act(() => hook.result.current.syncNow());
+    await waitFor(() => expect(called('fetch').length).toBeGreaterThan(1));
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(hook.result.current.syncPulls.get('/Users/j/Notes')).toBe(1);
+
+    model.state.onGitHub = 2;
+    await wait(clock, 60_000);
+    await waitFor(() => expect(hook.result.current.syncPulls.get('/Users/j/Notes')).toBe(2));
+  });
+
+  it('does not name a vault whose sync failed', async () => {
+    const { hook } = setUpHook({
+      script: { fetch: failed('fatal: Could not resolve host: github.com') },
+    });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('failed'));
+    expect(hook.result.current.syncedThisSession.size).toBe(0);
+  });
+
+  it('does not name a synced vault paused on this Mac until a sync runs', async () => {
+    const { hook } = setUpHook({ paused: true });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('ready'));
+    expect(hook.result.current.syncedThisSession.size).toBe(0);
+
+    act(() => hook.result.current.syncNow());
+    await waitFor(() =>
+      expect(hook.result.current.syncedThisSession.has('/Users/j/Notes')).toBe(true),
+    );
+  });
+
+  it('names a vault that does not sync, or cannot, as soon as that is known', async () => {
+    const notSetUp = setUpHook({ script: { topLevel: NOT_A_REPO } });
+    await waitFor(() => expect(notSetUp.hook.result.current.phase.kind).toBe('not-set-up'));
+    expect([...notSetUp.hook.result.current.syncedThisSession]).toEqual(['/Users/j/Notes']);
+
+    const refused = setUpHook({
+      script: { topLevel: said('/code\n') },
+      parentTop: said('/code\n'),
+    });
+    await waitFor(() => expect(refused.hook.result.current.phase.kind).toBe('refused'));
+    expect([...refused.hook.result.current.syncedThisSession]).toEqual(['/Users/j/Notes']);
+  });
+});

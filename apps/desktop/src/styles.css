@@ -13531,3 +13531,31 @@ form.inbox__clarify {
   display: grid;
   font-size: var(--text-small);
 }
+
+/* Settings → Granola: the person's addresses, one on each line, grow downwards, never out of the card. */
+.granola__emails {
+  resize: vertical;
+}
+
+/* Settings → Granola: the meetings the last pull did not write. */
+.granola__details summary {
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+.granola__notes {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+
+.granola__note {
+  align-items: start;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}

@@ -7,6 +7,7 @@ import {
   VaultAccessError,
   memoryActivityStore,
   fakeGoogleCalendar,
+  fakeGranola,
   failed,
   memorySyncFiles,
   scriptedFolders,
@@ -130,6 +131,11 @@ const fakeIndexPorts = (vault: VaultPorts): IndexPorts => ({
 
 /** Google Calendar with no sign-in, as on a Mac that never connected. */
 const googleCalendar = fakeGoogleCalendar().port;
+/** Granola with no key held: nothing in these tests pulls. */
+const granola = {
+  port: { ...fakeGranola().port, status: async () => ({ hasKey: false, lastRefusal: null }) },
+  records: { read: () => ({ watermark: null, lastPullAt: null }), write: () => {} },
+};
 
 /** Nothing in these tests fetches; a source that did would say so by throwing. */
 const sources: SourcePorts = {
@@ -244,6 +250,7 @@ const renderApp = (
       activity={activityIn(activity)}
       sync={noSync}
       googleCalendar={googleCalendar}
+      granola={granola}
       globalCapture={globalCapture.ports}
     />,
   );
@@ -697,6 +704,7 @@ describe('the palettes and the shortcuts around them', () => {
         activity={activityIn()}
         sync={noSync}
         googleCalendar={googleCalendar}
+        granola={granola}
         globalCapture={fakeGlobalCapture().ports}
       />,
     );
@@ -940,6 +948,7 @@ describe('the Activity log, adversarial (U-28)', () => {
         activity={activityIn(activity)}
         sync={noSync}
         googleCalendar={googleCalendar}
+        granola={granola}
         globalCapture={fakeGlobalCapture().ports}
       />,
     );
@@ -985,5 +994,74 @@ describe('the Activity log, adversarial (U-28)', () => {
       .filter((line) => line.includes('"level":"error"'));
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('Could not save a setting.');
+  });
+});
+
+describe('opening a vault while its index is still being built (ADR-0034)', () => {
+  it('reads the vault into the index once: the catch-up Granola waits on waits for the build', async () => {
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('todo.md', 'file')] },
+      files: { 'todo.md': '# Todo\n' },
+    });
+    const ports = fakeIndexPorts(vault);
+    let syncs = 0;
+    let finishBuild = () => {};
+    const building = new Promise<void>((resolve) => (finishBuild = resolve));
+    const index = {
+      ...ports,
+      index: {
+        ...ports.index,
+        // Every sync of the index opens it first; the build, the first, is held.
+        open: async () => {
+          syncs += 1;
+          if (syncs === 1) await building;
+          return { fresh: false };
+        },
+      },
+    };
+    // Sync is not set up, so the vault is ready for Granola, and its catch-up asked, as soon as sync has looked.
+    let looked = false;
+    const sync = {
+      ...noSync,
+      git: () => {
+        const git = noSync.git();
+        return {
+          ...git,
+          topLevel: async () => {
+            const answer = await git.topLevel();
+            looked = true;
+            return answer;
+          },
+        };
+      },
+    };
+    render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={index}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={sync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    await vi.waitFor(() => expect(looked).toBe(true));
+    // The catch-up is asked while the build is still under way.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(syncs).toBe(1);
+
+    act(() => finishBuild());
+    expect(await screen.findByText('0 notes indexed')).toBeDefined();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(syncs).toBe(1);
   });
 });
