@@ -1,4 +1,5 @@
 import type { AutomationRule } from './automation-rule.ts';
+import { SHARED_STEP_BUDGET, type ClaudeStepBudget } from './claude-step-budget.ts';
 import { lastScheduleMark, type LogEntry, type RunTrigger } from './run-log.ts';
 import { isDue, localTimeMs, localTimeOf, nextRunAfter, type LocalTime } from './schedule.ts';
 
@@ -76,35 +77,79 @@ const HOUR_MS = 3_600_000;
  * changed nothing — every note it heard already as it leaves them, or open
  * with unsaved typing — spends nothing. A run is let start while under the
  * cap, so one may take it past by its own asks (at most ten).
+ *
+ * A step with an hourly allowance of its own (`budget.asksPerHour`, #179)
+ * counts its asks against that allowance alone, and everything else the rule
+ * spends against the shared runs; it is held while either is spent.
  */
-export function noteRunsHeldUntil(entries: readonly LogEntry[], now: LocalTime): LocalTime | null {
+export function noteRunsHeldUntil(
+  entries: readonly LogEntry[],
+  now: LocalTime,
+  budget: ClaudeStepBudget = SHARED_STEP_BUDGET,
+): LocalTime | null {
   const end = localTimeMs(now);
   if (end === null) return null;
-  const counted = entries
-    .flatMap((entry) => {
-      const at = localTimeMs(entry.at);
-      return at === null || at <= end - HOUR_MS || at > end
-        ? []
-        : Array.from({ length: spentBy(entry) }, () => at);
-    })
-    .sort((a, b) => a - b);
-  if (counted.length < NOTE_RUNS_PER_HOUR) return null;
-  // Once this one is an hour old, one fewer than the most is left in the hour.
-  return localTimeOf(counted[counted.length - NOTE_RUNS_PER_HOUR]! + HOUR_MS);
+  const inHour = entries.flatMap((entry) => {
+    const at = localTimeMs(entry.at);
+    return at === null || at <= end - HOUR_MS || at > end ? [] : [{ at, entry }];
+  });
+  const { asksPerHour } = budget;
+  if (asksPerHour === null) {
+    return heldUntil(
+      spendTimes(inHour, (entry) => runsSpentBy(entry) + asksSpentBy(entry)),
+      NOTE_RUNS_PER_HOUR,
+    );
+  }
+  return latest(
+    heldUntil(spendTimes(inHour, runsSpentBy), NOTE_RUNS_PER_HOUR),
+    heldUntil(spendTimes(inHour, asksSpentBy), asksPerHour),
+  );
 }
 
-/** What an entry spent of the hour's cap. */
-function spentBy(entry: LogEntry): number {
+/** Each spend's moment, once for each it spent, oldest first. */
+function spendTimes(
+  inHour: readonly { at: number; entry: LogEntry }[],
+  spent: (entry: LogEntry) => number,
+): number[] {
+  return inHour
+    .flatMap(({ at, entry }) => Array.from({ length: spent(entry) }, () => at))
+    .sort((a, b) => a - b);
+}
+
+/** Until when `most` spends in the hour hold a rule back; null while fewer were spent. */
+function heldUntil(times: readonly number[], most: number): LocalTime | null {
+  if (times.length < most) return null;
+  // Once this one is an hour old, one fewer than the most is left in the hour.
+  return localTimeOf(times[times.length - most]! + HOUR_MS);
+}
+
+function latest(a: LocalTime | null, b: LocalTime | null): LocalTime | null {
+  if (a === null) return b;
+  return b === null || a >= b ? a : b;
+}
+
+/** What an entry asked the model: a Claude step's asks. */
+function asksSpentBy(entry: LogEntry): number {
   if (entry.kind !== 'run' && entry.kind !== 'failed') return 0;
-  if (entry.claude !== undefined) return entry.claude.asks ?? 0;
+  return entry.claude?.asks ?? 0;
+}
+
+/** What an entry spent of the shared runs besides asks: a note run that changed a note, or failed. */
+function runsSpentBy(entry: LogEntry): number {
+  if (entry.kind !== 'run' && entry.kind !== 'failed') return 0;
+  if (entry.claude !== undefined) return 0;
   if (entry.kind === 'failed') return entry.trigger === 'note' ? 1 : 0;
   return entry.trigger === 'note' && entry.done.length > 0 ? 1 : 0;
 }
 
 /** What a rule held back until `until` by {@link noteRunsHeldUntil} says. */
-export function noteRunsCappedProblem(until: LocalTime): string {
-  return (
-    `It has used its ${NOTE_RUNS_PER_HOUR} runs, or questions put to Claude, for the last hour, the most a rule may. ` +
-    `It runs on what changed meanwhile at ${until.slice(11, 16)}.`
-  );
+export function noteRunsCappedProblem(
+  until: LocalTime,
+  budget: ClaudeStepBudget = SHARED_STEP_BUDGET,
+): string {
+  const spent =
+    budget.asksPerHour === null
+      ? `It has used its ${NOTE_RUNS_PER_HOUR} runs, or questions put to Claude, for the last hour, the most a rule may.`
+      : `It has asked Claude ${budget.asksPerHour} times, or used its ${NOTE_RUNS_PER_HOUR} runs, in the last hour, the most this step may.`;
+  return `${spent} It runs on what changed meanwhile at ${until.slice(11, 16)}.`;
 }

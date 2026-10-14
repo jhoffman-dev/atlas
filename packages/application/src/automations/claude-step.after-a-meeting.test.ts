@@ -89,7 +89,14 @@ function setUp({ meetings = 1, rounds = meetings }: { meetings?: number; rounds?
   const vault = automationVault({ notes, today: TODAY, types: TYPES, claude });
   const activity = recordingActivity();
   const byHand = (rule: AutomationRule) =>
-    runAutomation({ ports: vault.ports, rule, clock: CLOCK, guard: GUARD, activity, trigger: 'hand' });
+    runAutomation({
+      ports: vault.ports,
+      rule,
+      clock: CLOCK,
+      guard: GUARD,
+      activity,
+      trigger: 'hand',
+    });
   const arrived = (rule: AutomationRule, path: string) => {
     const change: NoteChange = {
       kind: 'added',
@@ -166,7 +173,7 @@ describe('the declared step’s asks in one run', () => {
 
     expect(failed).toBeInstanceOf(ClaudeStepFailed);
     expect((failed as ClaudeStepFailed).message).toBe(
-      'It would ask Claude an 11th time; one run asks at most 10 times.',
+      'It would ask Claude more than 10 times; one run asks at most 10.',
     );
     expect((failed as ClaudeStepFailed).claude.asks).toBe(10);
     expect(asked()).toHaveLength(10);
@@ -177,18 +184,15 @@ describe('the declared step’s asks in one run', () => {
 describe('the declared step’s hourly allowance', () => {
   /** A rule's log holding `count` runs this hour that each asked Claude `asks` times. */
   const askedBefore = (rule: AutomationRule, count: number, asks = 1) => {
-    const entries = Array.from(
-      { length: count },
-      (_, at): LogEntry => ({
-        kind: 'run',
-        at: `${TODAY}T08:${String(10 + at).padStart(2, '0')}:00`,
-        trigger: 'note',
-        done: [],
-        left: [],
-        capped: false,
-        claude: { model: DECLARED_STEP_MODEL, ms: 10, asks },
-      }),
-    );
+    const entries = Array.from({ length: count }, (_, at): LogEntry => ({
+      kind: 'run',
+      at: `${TODAY}T08:${String(10 + at).padStart(2, '0')}:00`,
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      claude: { model: DECLARED_STEP_MODEL, ms: 10, asks },
+    }));
     return [logPathFor(rule.id), newLogText(rule.name, entries)] as const;
   };
 
@@ -232,7 +236,9 @@ describe('the declared step’s hourly allowance', () => {
 });
 
 describe('the "After a meeting" preset saved into a fresh vault', () => {
-  const PRESET: AutomationDraft = AUTOMATION_PRESETS.find((each) => each.name === 'After a meeting')!;
+  const PRESET: AutomationDraft = AUTOMATION_PRESETS.find(
+    (each) => each.name === 'After a meeting',
+  )!;
   const SHIPPED = builtInPromptAt(AFTER_A_MEETING_PROMPT)!.contents;
 
   it('writes its prompt once, and the rule reads back as the preset', async () => {
@@ -247,7 +253,11 @@ describe('the "After a meeting" preset saved into a fresh vault', () => {
 
     expect(vault.files.get(AFTER_A_MEETING_PROMPT)).toBe(SHIPPED);
     expect(vault.log.filter((line) => line.includes(AFTER_A_MEETING_PROMPT))).toHaveLength(1);
-    expect(rule).toMatchObject({ name: 'After a meeting', which: PRESET.which, action: PRESET.action });
+    expect(rule).toMatchObject({
+      name: 'After a meeting',
+      which: PRESET.which,
+      action: PRESET.action,
+    });
     expect(loaded.broken).toEqual([]);
   });
 });

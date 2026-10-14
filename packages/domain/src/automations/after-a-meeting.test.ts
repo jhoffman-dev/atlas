@@ -19,6 +19,7 @@ import {
 import {
   claudeAskRefusal,
   claudeStepBudget,
+  claudeStepDefaultModel,
   claudeStepModel,
   DECLARED_STEP_ASKS_PER_HOUR,
   DECLARED_STEP_ASKS_PER_RUN,
@@ -195,6 +196,14 @@ describe('which model the step asks', () => {
   it('is the chat’s for any other step that names none, as before', () => {
     expect(claudeStepModel(step, 'claude-opus-5-5')).toBe('claude-opus-5-5');
   });
+
+  it('says the default the editor shows: Sonnet for the declared step, none of its own for another', () => {
+    expect(claudeStepDefaultModel({ ...step, apply: 'mine' })).toBe(DECLARED_STEP_MODEL);
+    expect(claudeStepDefaultModel({ ...step, apply: 'mine', model: 'claude-x' })).toBe(
+      DECLARED_STEP_MODEL,
+    );
+    expect(claudeStepDefaultModel(step)).toBeNull();
+  });
 });
 
 describe('the declared step’s own ask budget', () => {
@@ -217,10 +226,11 @@ describe('the declared step’s own ask budget', () => {
   it('refuses the 11th ask in a run, and not the 10th', () => {
     expect(claudeAskRefusal(declared, 9)).toBeNull();
     expect(claudeAskRefusal(declared, 10)).toBe(
-      'It would ask Claude an 11th time; one run asks at most 10 times.',
+      'It would ask Claude more than 10 times; one run asks at most 10.',
     );
+    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null }, 2)).toBeNull();
     expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null }, 3)).toBe(
-      'It would ask Claude a 4th time; one run asks at most 3 times.',
+      'It would ask Claude more than 3 times; one run asks at most 3.',
     );
   });
 });
@@ -276,6 +286,19 @@ describe('the declared step’s hourly allowance', () => {
     expect(noteRunsHeldUntil(times(NOTE_RUNS_PER_HOUR, failed), NOW, declared)).not.toBeNull();
   });
 
+  it('when both are spent, waits for the later of the two to free up', () => {
+    // Twenty failed runs from 50 minutes ago free the shared cap at 12:10 at the earliest.
+    const runs = Array.from({ length: NOTE_RUNS_PER_HOUR }, () => failed(50));
+    // Thirty asks from 20 minutes ago free the step's allowance at 12:40.
+    const asks = Array.from({ length: DECLARED_STEP_ASKS_PER_HOUR }, () => asked(20));
+    expect(noteRunsHeldUntil([...runs, ...asks], NOW, declared)).toBe('2026-10-14T12:40:00');
+    const lateRuns = Array.from({ length: NOTE_RUNS_PER_HOUR }, () => failed(20));
+    const earlyAsks = Array.from({ length: DECLARED_STEP_ASKS_PER_HOUR }, () => asked(50));
+    expect(noteRunsHeldUntil([...lateRuns, ...earlyAsks], NOW, declared)).toBe(
+      '2026-10-14T12:40:00',
+    );
+  });
+
   it('says both limits when the step is held', () => {
     expect(noteRunsCappedProblem('2026-10-14T12:10:00', declared)).toBe(
       `It has asked Claude ${DECLARED_STEP_ASKS_PER_HOUR} times, or used its ${NOTE_RUNS_PER_HOUR} runs, ` +
@@ -310,7 +333,11 @@ describe('the ready-made "After a meeting" rule', () => {
   });
 
   it('takes meetings by a moving date the query language reads', () => {
-    const meeting = parseObjectType({ name: 'meeting', label: 'Meeting', properties: { date: 'date' } });
+    const meeting = parseObjectType({
+      name: 'meeting',
+      label: 'Meeting',
+      properties: { date: 'date' },
+    });
     expect(() => checkAtlasQuery(parseAtlasQuery(preset.which), [meeting])).not.toThrow();
   });
 

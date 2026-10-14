@@ -69,10 +69,23 @@ export {
   claudeActionFields,
   isPromptPath,
   describeClaudeAction,
+  outputHasItems,
   PROMPTS_DIRECTORY,
   readClaudeAction,
+  withClaudeChoices,
 } from './claude-step.ts';
-export type { ClaudeAction, ClaudeOutput } from './claude-step.ts';
+export type { ClaudeAction, ClaudeApply, ClaudeOutput } from './claude-step.ts';
+export {
+  claudeAskRefusal,
+  claudeStepBudget,
+  claudeStepDefaultModel,
+  claudeStepModel,
+  DECLARED_STEP_ASKS_PER_HOUR,
+  DECLARED_STEP_ASKS_PER_RUN,
+  DECLARED_STEP_MODEL,
+  SHARED_STEP_BUDGET,
+} from './claude-step-budget.ts';
+export type { ClaudeStepBudget } from './claude-step-budget.ts';
 export {
   answerJson,
   checkDraft,
@@ -98,6 +111,7 @@ export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-it
 export { itemOwner } from './meeting-item-owner.ts';
 export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
 export {
+  AFTER_A_MEETING_PROMPT,
   BUILT_IN_PROMPTS,
   builtInPromptAt,
   MEETING_EXTRACTION_PROMPT,

@@ -1,8 +1,11 @@
 import {
   answeredMeetingOf,
   CLAUDE_STEP_QUESTION,
+  claudeAskRefusal,
   claudeAsks,
   claudeNewProposal,
+  claudeStepBudget,
+  claudeStepModel,
   claudeStepSystem,
   claudeSystemProblem,
   claudeWriteRefusal,
@@ -61,7 +64,8 @@ export const MAX_PROPOSALS_PER_RUN = MAX_PROPOSALS_PER_ANSWER;
 
 /**
  * What a rule's Claude step reaches (P29-03): the provider and model chosen
- * in Settings → Claude as they are when it runs, the read tools the chat's
+ * in Settings → Claude as they are when it runs (the model, unless the rule
+ * or its step's default names another), the read tools the chat's
  * toolbox is built from, and the clock and timer it is timed by.
  */
 export interface ClaudeStepPorts {
@@ -159,10 +163,15 @@ interface StepArgs extends ProposalWritePorts {
  * is written, so one that does not read fails the run with nothing made. An
  * item such an output leaves out of an answer it keeps is in the run's record,
  * as is how many times it asked.
+ *
+ * It asks the model its rule names, else its default (`claudeStepModel`: Sonnet
+ * for the declared step, #179), and never more often than its budget lets one
+ * run (`claudeStepBudget`): an ask past it fails the run with nothing written.
  */
 export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> {
   const { ports, action } = args;
-  const model = ports.model();
+  const model = claudeStepModel(action, ports.model());
+  const budget = claudeStepBudget(action);
   const started = ports.clock.now();
   let cut: readonly NoteCut[] = [];
   let asked = 0;
@@ -196,21 +205,26 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   if (typeof prompt !== 'string') return fail(prompt.problem);
   const notes = await readAnswered(args, args.paths);
   const inParts = output.kind === 'proposals' && output.schema.readsInParts;
-  const plan = claudeAsks(notes, { inParts });
+  const plan = claudeAsks(notes, { inParts, asks: budget.asksPerRun });
   cut = plan.cut;
   const signal = ports.deadline(CLAUDE_RUN_TIMEOUT_MS);
   const asking = { ...args, provider, model, prompt, output, fail, signal };
+  const counted = () => {
+    const refused = claudeAskRefusal(budget, asked);
+    if (refused !== null) fail(refused);
+    asked += 1;
+  };
   if (output.kind === 'proposals')
     warnings.push(...(await missingRelations(args, notes, output.schema)));
   try {
     const { planned, proposed } =
       output.kind === 'note'
-        ? await planNoteAnswer({ ...asking, output, notes, counted: () => (asked += 1) })
+        ? await planNoteAnswer({ ...asking, output, notes, counted })
         : await planProposalAnswers({
             ...asking,
             schema: output.schema,
             asks: plan.asks,
-            counted: () => (asked += 1),
+            counted,
             dropped,
             adjusted,
           });

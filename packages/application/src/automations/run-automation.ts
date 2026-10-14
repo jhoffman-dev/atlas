@@ -1,5 +1,6 @@
 import {
   automationEntryReport,
+  claudeStepBudget,
   leftHandledNotes,
   messageWithoutPaths,
   noteRunsHeldUntil,
@@ -145,10 +146,13 @@ async function runOnHeard(
   const handled = await handledAmong({ index: run.ports.index, log, versions: triggering });
   const went = leftHandledNotes(run.changes, handled);
   const versions = unhandledVersions(triggering, handled);
-  const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
+  const budget = claudeStepBudget(run.rule.action);
+  const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow(), budget);
   if (versions.length === 0 || heldUntil !== null) {
     await recordGone(run, went);
-    if (versions.length > 0 && heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
+    if (versions.length > 0 && heldUntil !== null) {
+      throw new NoteRunsCappedError(heldUntil, budget);
+    }
     return null;
   }
   const aim: Aim = (ports, today) => planForVersions({ ports, rule: run.rule, versions, today });
@@ -191,8 +195,9 @@ export async function runOnMissedArrivals(run: AutomationRun): Promise<LogEntry 
       handled,
     });
     if (versions.length === 0) return null;
-    const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
-    if (heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
+    const budget = claudeStepBudget(rule.action);
+    const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow(), budget);
+    if (heldUntil !== null) throw new NoteRunsCappedError(heldUntil, budget);
     const aim: Aim = (ports, today) => planForVersions({ ports, rule, versions, today });
     return runOnce({ run, trigger: 'note', aim, quiet: true });
   };

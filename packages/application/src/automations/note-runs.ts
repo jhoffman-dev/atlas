@@ -9,6 +9,7 @@ import {
   unhandledVersions,
   type AutomationPlan,
   type AutomationRule,
+  type ClaudeStepBudget,
   type DoneAction,
   type HandledLedger,
   type LogEntry,
@@ -254,12 +255,16 @@ export async function writtenBy({
 
 /**
  * A rule notes set off that has run as often in the last hour as one may
- * (`NOTE_RUNS_PER_HOUR`). It is held back until `until`, when the hour
- * allows another run; what it heard meanwhile is run on then.
+ * (`NOTE_RUNS_PER_HOUR`), or whose step has asked Claude as often as its own
+ * allowance lets it (`budget`, #179). It is held back until `until`, when the
+ * hour allows another run; what it heard meanwhile is run on then.
  */
 export class NoteRunsCappedError extends Error {
-  constructor(readonly until: LocalTime) {
-    super(noteRunsCappedProblem(until));
+  constructor(
+    readonly until: LocalTime,
+    budget: ClaudeStepBudget,
+  ) {
+    super(noteRunsCappedProblem(until, budget));
     this.name = 'NoteRunsCappedError';
   }
 }
