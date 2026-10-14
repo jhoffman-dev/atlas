@@ -996,3 +996,72 @@ describe('the Activity log, adversarial (U-28)', () => {
     expect(errors[0]).toContain('Could not save a setting.');
   });
 });
+
+describe('opening a vault while its index is still being built (ADR-0034)', () => {
+  it('reads the vault into the index once: the catch-up Granola waits on waits for the build', async () => {
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('todo.md', 'file')] },
+      files: { 'todo.md': '# Todo\n' },
+    });
+    const ports = fakeIndexPorts(vault);
+    let syncs = 0;
+    let finishBuild = () => {};
+    const building = new Promise<void>((resolve) => (finishBuild = resolve));
+    const index = {
+      ...ports,
+      index: {
+        ...ports.index,
+        // Every sync of the index opens it first; the build, the first, is held.
+        open: async () => {
+          syncs += 1;
+          if (syncs === 1) await building;
+          return { fresh: false };
+        },
+      },
+    };
+    // Sync is not set up, so the vault is ready for Granola, and its catch-up asked, as soon as sync has looked.
+    let looked = false;
+    const sync = {
+      ...noSync,
+      git: () => {
+        const git = noSync.git();
+        return {
+          ...git,
+          topLevel: async () => {
+            const answer = await git.topLevel();
+            looked = true;
+            return answer;
+          },
+        };
+      },
+    };
+    render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={index}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={sync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    await vi.waitFor(() => expect(looked).toBe(true));
+    // The catch-up is asked while the build is still under way.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(syncs).toBe(1);
+
+    act(() => finishBuild());
+    expect(await screen.findByText('0 notes indexed')).toBeDefined();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(syncs).toBe(1);
+  });
+});

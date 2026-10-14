@@ -337,6 +337,7 @@ export function App({
     progress: indexProgress,
     rebuild,
     refresh,
+    catchUp: catchUpIndex,
   } = useIndex({
     ports: index,
     vaultKey: location?.absolutePath ?? null,
@@ -419,7 +420,7 @@ export function App({
     changeKey: indexKey,
     syncedThisSession: sync.syncedThisSession,
     syncPulls: sync.syncPulls,
-    catchUpIndex: refresh,
+    catchUpIndex,
     clock: localClock,
     activity: activityLog,
     onWrote: onChanged,

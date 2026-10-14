@@ -99,6 +99,13 @@ export function useIndex({
   /** Resolves true once the index holds the files as they were when it was asked, false when it does not. */
   refresh: () => Promise<boolean>;
   rebuild: () => Promise<boolean>;
+  /**
+   * Resolves true once the index holds every change that has asked for a
+   * refresh so far, without reading the vault again to get there: it waits
+   * for the last build or refresh already asked, and asks for one only when
+   * none has been, or the last did not hold the files.
+   */
+  catchUp: () => Promise<boolean>;
 } {
   const [status, setStatus] = useState<IndexStatus>({ kind: 'idle' });
   const [progress] = useState(createIndexProgress);
@@ -166,18 +173,36 @@ export function useIndex({
     [syncer, vaultKey, progress],
   );
 
+  /** The last sync asked of the open vault: it settles after every one asked before it. */
+  const lastAsked = useRef<{ vault: string; held: Promise<boolean> } | null>(null);
+  const ask = useCallback(
+    (fromScratch: boolean) => {
+      const held = run({ fromScratch });
+      if (vaultKey !== null) lastAsked.current = { vault: vaultKey, held };
+      return held;
+    },
+    [run, vaultKey],
+  );
+
   useEffect(() => {
     if (vaultKey === null) {
       setStatus({ kind: 'idle' });
       return;
     }
-    void run({ fromScratch: false });
-  }, [vaultKey, run]);
+    void ask(false);
+  }, [vaultKey, ask]);
+
+  const catchUp = useCallback(async () => {
+    const last = lastAsked.current;
+    if (last?.vault === vaultKey && (await last.held)) return true;
+    return ask(false);
+  }, [vaultKey, ask]);
 
   return {
     status,
     progress,
-    refresh: useCallback(() => run({ fromScratch: false }), [run]),
-    rebuild: useCallback(() => run({ fromScratch: true }), [run]),
+    refresh: useCallback(() => ask(false), [ask]),
+    rebuild: useCallback(() => ask(true), [ask]),
+    catchUp,
   };
 }

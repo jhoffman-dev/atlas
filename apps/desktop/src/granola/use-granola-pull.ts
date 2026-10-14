@@ -39,11 +39,13 @@ export interface GranolaPullOptions {
   /** How many syncs this session have brought other Macs' files into each vault. */
   readonly syncPulls: ReadonlyMap<string, number>;
   /**
-   * Refreshes the index of the open vault; true once it holds the files as
-   * they are now. Until then a meeting the import has moved out of
+   * Brings the index of the open vault up to date; true once it holds the
+   * files as they are now. Until then a meeting the import has moved out of
    * `Inbox/Meetings/` on another Mac is not found where it now is. Asked as
    * the vault opens once it has synced, and again after each sync that
-   * brings files in.
+   * brings files in. It waits for a build or refresh already under way —
+   * the vault's first build, or the one a sync asks as it brings files in —
+   * rather than reading the vault again behind it.
    */
   readonly catchUpIndex: () => Promise<boolean>;
   readonly clock: Pick<Clock, 'now'>;

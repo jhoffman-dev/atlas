@@ -131,6 +131,95 @@ describe('useIndex, asked to refresh while a build is running (#135)', () => {
   });
 });
 
+describe('useIndex, asked to catch up (ADR-0034)', () => {
+  /** A vault whose build holds at its first batch until let through, counting every listing of the vault. */
+  function heldVault() {
+    const ports = vaultOf(INDEX_BATCH_SIZE * 2);
+    let letBuildFinish = () => {};
+    const held = new Promise<void>((resolve) => (letBuildFinish = resolve));
+    let puts = 0;
+    ports.index = { ...ports.index, put: async () => void (++puts === 1 && (await held)) };
+    const listed = { count: 0 };
+    const listNotes = ports.fs.listNotes.bind(ports.fs);
+    ports.fs.listNotes = async (...args) => {
+      listed.count += 1;
+      return listNotes(...args);
+    };
+    return { ports, listed, letBuildFinish };
+  }
+
+  const indexOf = (ports: IndexPorts) => {
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    return renderHook(() => useIndex({ ports, vaultKey: VAULT, activity, changes })).result;
+  };
+
+  it('waits for the build under way rather than reading the vault again behind it', async () => {
+    const { ports, listed, letBuildFinish } = heldVault();
+    const result = indexOf(ports);
+    await waitFor(() => expect(listed.count).toBe(1));
+
+    let caughtUp: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      caughtUp = result.current.catchUp();
+    });
+    let answered: boolean | null = null;
+    void caughtUp.then((held) => (answered = held));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(answered).toBeNull();
+
+    letBuildFinish();
+    await act(async () => {
+      answered = await caughtUp;
+    });
+    expect(answered).toBe(true);
+    expect(listed.count).toBe(1);
+    expect(result.current.status).toMatchObject({ kind: 'ready', revision: 1 });
+  });
+
+  it('waits too for a refresh a change asked for during the build, and asks none of its own', async () => {
+    const { ports, listed, letBuildFinish } = heldVault();
+    const result = indexOf(ports);
+    await waitFor(() => expect(listed.count).toBe(1));
+
+    let caughtUp: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      void result.current.refresh();
+      caughtUp = result.current.catchUp();
+    });
+    letBuildFinish();
+    let answered: boolean | null = null;
+    await act(async () => {
+      answered = await caughtUp;
+    });
+    expect(answered).toBe(true);
+    // The build, and the refresh the change asked for; the catch-up answered from the second.
+    expect(listed.count).toBe(2);
+    expect(result.current.status).toMatchObject({ kind: 'ready', revision: 2 });
+  });
+
+  it('asks for one refresh when the last did not hold the files', async () => {
+    const ports = vaultOf(2);
+    const listNotes = ports.fs.listNotes.bind(ports.fs);
+    let listed = 0;
+    ports.fs.listNotes = async (...args) => {
+      listed += 1;
+      if (listed === 1) throw new Error('the disk went away');
+      return listNotes(...args);
+    };
+    const result = indexOf(ports);
+    await waitFor(() => expect(result.current.status.kind).toBe('failed'));
+
+    let answered: boolean | null = null;
+    await act(async () => {
+      answered = await result.current.catchUp();
+    });
+    expect(answered).toBe(true);
+    expect(listed).toBe(2);
+    expect(result.current.status.kind).toBe('ready');
+  });
+});
+
 describe('IndexProgressPill', () => {
   const progress = (done: number, total: number) => {
     const reached = { done, total };
