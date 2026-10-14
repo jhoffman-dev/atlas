@@ -22,7 +22,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::http::{prepare, read_feed, HttpRequest, Prepared};
-use crate::secrets::{redact, vault_scope, SecretState, SecretStore};
+use crate::secrets::{redact, redact_off_worker, vault_scope, SecretState, SecretStore};
 use crate::vault::{root_for_write, VaultState};
 
 /// A model can take minutes to answer a long question.
@@ -67,12 +67,16 @@ fn prepare_model_request(
 
 /// The answer as the webview may see it: its status, and its body as text
 /// with every secret that went out struck from it.
-fn answer_of(status: u16, body: Vec<u8>, used: &[(String, String)]) -> Result<ModelAnswer, String> {
+async fn answer_of(
+    status: u16,
+    body: Vec<u8>,
+    used: &[(String, String)],
+) -> Result<ModelAnswer, String> {
     let text = String::from_utf8(body)
         .map_err(|_| "the model's API did not answer with text".to_string())?;
     Ok(ModelAnswer {
         status,
-        body: redact(&text, used),
+        body: redact_off_worker(text, used.to_vec()).await,
     })
 }
 
@@ -95,7 +99,7 @@ async fn post(prepared: &Prepared, body: String) -> Result<ModelAnswer, String> 
     let status = response.status().as_u16();
     let bytes = read_feed(response).await?;
     log::info!("model API answered {status}");
-    answer_of(status, bytes, &prepared.used)
+    answer_of(status, bytes, &prepared.used).await
 }
 
 #[tauri::command]
@@ -202,19 +206,19 @@ mod tests {
         assert!(plain.contains("https"), "{plain}");
     }
 
-    #[test]
-    fn the_answer_has_the_key_struck_from_it() {
+    #[tokio::test]
+    async fn the_answer_has_the_key_struck_from_it() {
         let used = vec![("anthropic".to_string(), KEY.to_string())];
         let echoed = format!("{{\"error\":\"bad key {KEY}\"}}");
-        let answer = answer_of(401, echoed.into_bytes(), &used).unwrap();
+        let answer = answer_of(401, echoed.into_bytes(), &used).await.unwrap();
         assert_eq!(answer.status, 401);
         assert!(!answer.body.contains(KEY), "{}", answer.body);
     }
 
-    #[test]
-    fn an_answer_that_is_not_text_is_refused() {
+    #[tokio::test]
+    async fn an_answer_that_is_not_text_is_refused() {
         assert_eq!(
-            answer_of(200, vec![0xff, 0xfe], &[]),
+            answer_of(200, vec![0xff, 0xfe], &[]).await,
             Err::<ModelAnswer, String>("the model's API did not answer with text".into())
         );
     }

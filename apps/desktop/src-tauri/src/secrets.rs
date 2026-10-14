@@ -160,7 +160,12 @@ pub fn describe(parts: &[TemplatePart]) -> String {
 /// Every secret that went into a request is struck from what came back. A
 /// server that echoes its headers — plenty of test endpoints do — would
 /// otherwise write the token into a note, and so into the vault and Git.
-pub use redact::redact;
+pub use redact::{redact, redact_off_worker};
+
+/// The longest secret Atlas keeps, in bytes: a token, never a document. Every
+/// secret sent is looked for in what comes back in many forms, and the cost of
+/// building that search grows with the secret, so it is bounded here.
+pub const LONGEST_SECRET: usize = 1024;
 
 fn names_in(accounts: Vec<String>, scope: &str) -> Vec<String> {
     let prefix = format!("{scope}/");

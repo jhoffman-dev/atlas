@@ -21,7 +21,7 @@ use reqwest::Url;
 use serde::Serialize;
 use tauri::State;
 
-use crate::secrets::{redact, vault_scope, SecretState, SecretStore};
+use crate::secrets::{redact_off_worker, vault_scope, SecretState, SecretStore};
 use crate::vault::{root_for_write, VaultState};
 
 pub use failure::{FailureKind, GranolaFailure};
@@ -215,7 +215,7 @@ impl Session<'_> {
         })?;
         Ok(GranolaAnswer {
             status,
-            body: redact(&text, &sent),
+            body: redact_off_worker(text, sent.into()).await,
         })
     }
 }
