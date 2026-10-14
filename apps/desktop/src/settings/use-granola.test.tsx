@@ -156,6 +156,29 @@ describe('useGranola', () => {
     expect(hook.result.current.view.keyState).toBe('refused');
   });
 
+  it('takes one change of key at a time: a forget asked for while a save runs is refused', async () => {
+    let answer: (status: GranolaKeyStatus) => void = () => {};
+    const forgetKey = vi.fn(async () => ({ hasKey: false, lastRefusal: null }) as const);
+    const port = {
+      ...fakeGranola().port,
+      setKey: () => new Promise<GranolaKeyStatus>((resolve) => (answer = resolve)),
+      forgetKey,
+    };
+    const hook = renderGranola({ port });
+    act(() => {
+      hook.result.current.saveKey(KEY);
+      hook.result.current.forgetKey();
+    });
+    expect(hook.result.current.view.pending).toBe(true);
+    act(() => hook.result.current.forgetKey());
+    expect(forgetKey).not.toHaveBeenCalled();
+
+    await act(async () => answer(ACCEPTED));
+    expect(hook.result.current.view.pending).toBe(false);
+    act(() => hook.result.current.forgetKey());
+    await waitFor(() => expect(forgetKey).toHaveBeenCalledOnce());
+  });
+
   it('says why a key could not be kept', async () => {
     const port = {
       ...fakeGranola().port,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { granolaCountsLine, granolaFailureWords, granolaSelfEmailsFromText } from '@atlas/domain';
 import {
   GranolaError,
@@ -160,8 +160,14 @@ export function useGranola({
   const [problem, setProblem] = useState<Said<string> | null>(null);
   const { knowKey } = pull;
 
+  // Set before the render that disables the buttons, so a second press in between is refused too.
+  const changing = useRef(false);
   const change = useCallback(
     (at: string, ask: () => Promise<{ hasKey: boolean; lastRefusal: 401 | null }>) => {
+      // The host does not order a forget after a save under way, which can take seconds
+      // while Granola checks the key: one change of key at a time.
+      if (changing.current) return;
+      changing.current = true;
       setPending(true);
       setProblem(null);
       ask()
@@ -170,7 +176,10 @@ export function useGranola({
           setAccepted(status.hasKey && status.lastRefusal === null ? at : null);
         })
         .catch((cause: unknown) => setProblem({ vault: at, value: problemOf(cause) }))
-        .finally(() => setPending(false));
+        .finally(() => {
+          changing.current = false;
+          setPending(false);
+        });
     },
     [knowKey],
   );

@@ -267,6 +267,8 @@ function ForgetKey({ pending, onForget }: { pending: boolean; onForget: () => vo
         <button
           className="btn btn--primary btn--sm"
           type="button"
+          // The host does not order a forget after a save under way: the save could undo it.
+          disabled={pending}
           onClick={() => {
             setConfirming(false);
             onForget();

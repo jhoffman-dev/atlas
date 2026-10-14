@@ -27,8 +27,11 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     onOpenNote: vi.fn(),
     onSaveEmails: vi.fn(),
   };
-  render(<GranolaSettings view={view} {...handlers} />);
-  return handlers;
+  const { rerender } = render(<GranolaSettings view={view} {...handlers} />);
+  /** Draws the same card again with the view changed, as the next render would. */
+  const redraw = (changes: Partial<GranolaView>) =>
+    rerender(<GranolaSettings view={{ ...view, ...changes }} {...handlers} />);
+  return { ...handlers, redraw };
 }
 
 const card = () => screen.getByRole('region', { name: 'Granola' });
@@ -156,6 +159,28 @@ describe('GranolaSettings', () => {
     await userEvent.clear(field);
     await userEvent.click(button('Save emails'));
     expect(onSaveEmails).toHaveBeenCalledWith('');
+  });
+
+  it('while a key is being saved, neither another save nor a forget nor Sync now can be pressed', async () => {
+    const { onSaveKey, onForgetKey, onSyncNow } = renderWith({ pending: true });
+    await userEvent.type(keyField(), KEY);
+    expect(button('Save')).toHaveProperty('disabled', true);
+    expect(button('Forget key…')).toHaveProperty('disabled', true);
+    expect(button('Sync now')).toHaveProperty('disabled', true);
+    await userEvent.click(button('Save'));
+    expect(onSaveKey).not.toHaveBeenCalled();
+    expect(onForgetKey).not.toHaveBeenCalled();
+    expect(onSyncNow).not.toHaveBeenCalled();
+  });
+
+  it('cannot confirm a forget once a save has started', async () => {
+    const { onForgetKey, redraw } = renderWith();
+    await userEvent.click(button('Forget key…'));
+    // A save starts with the question still open.
+    redraw({ pending: true });
+    expect(button('Forget key')).toHaveProperty('disabled', true);
+    await userEvent.click(button('Forget key'));
+    expect(onForgetKey).not.toHaveBeenCalled();
   });
 
   it('forgets the key only once that is confirmed', async () => {
