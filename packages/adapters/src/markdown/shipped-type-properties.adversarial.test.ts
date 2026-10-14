@@ -306,3 +306,30 @@ describe('#162 record, as another tool may save it', () => {
     expect(() => parseShippedPropertiesRecord(written.replace(/\n/g, '\r\n'))).not.toThrow();
   });
 });
+
+describe('#162 migration, on a type file whose frontmatter holds a self-referring anchor', () => {
+  // addToFrontmatterMap's read-back check JSON.stringifies the parsed block;
+  // a YAML cycle makes that throw, so the type is reported as failed — with
+  // the JS engine's message — on every vault open, instead of left alone and
+  // said why (or added to).
+  it('does not fail the type with a JSON error', async () => {
+    const meeting = [
+      '---',
+      'name: meeting',
+      'label: Meeting',
+      'extra: &e',
+      '  me: *e',
+      'properties:',
+      '  title: text',
+      '---',
+      '',
+      '# Meeting',
+      '',
+    ].join('\n');
+    const v = memoryHost({ '.atlas/types/meeting.md': meeting });
+
+    const { properties } = await ensureBuiltInTypes(v);
+
+    expect(properties.failed).toEqual([]);
+  });
+});
