@@ -20,6 +20,7 @@ export function fakeClaudeStepPorts({
   stepMs = 250,
   today = '2026-10-11',
   selfName = null,
+  selfEmails = [],
 }: {
   rounds?: readonly ScriptedRound[];
   status?: ProviderStatus;
@@ -28,6 +29,8 @@ export function fakeClaudeStepPorts({
   today?: string;
   /** The vault owner's name, as their profile would hold it. */
   selfName?: string | null;
+  /** The vault owner's own addresses, as its `selfEmails` would hold them. */
+  selfEmails?: readonly string[];
 } = {}): ClaudeStepPorts & {
   readonly model: () => string;
   readonly fake: FakeModel;
@@ -50,6 +53,7 @@ export function fakeClaudeStepPorts({
       today: () => today,
     },
     selfName: () => selfName,
+    selfEmails: () => selfEmails,
     toolboxes: { reading: (tools) => readingToolbox(tools, calls) },
     deadline: () => {
       const controller = new AbortController();

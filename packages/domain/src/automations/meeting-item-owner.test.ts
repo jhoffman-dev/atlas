@@ -23,6 +23,7 @@ const DIRECTORY: OwnerDirectory = {
   ],
   people: [person('Mara Quill'), TOBIAS],
   selfName: 'Mara Quill',
+  selfEmails: [],
 };
 
 describe('itemOwner', () => {
@@ -210,4 +211,156 @@ const OWNED: OwnerDirectory = {
   ],
   people: [person('Mara Quill', { emails: ['mara.quill@example.com'] }), TOBIAS],
   selfName: 'Mara Quill',
+  selfEmails: [],
 };
+
+/** #173: the owner's addresses are the vault's `selfEmails`, with no Person note for the owner. */
+describe('itemOwner, by the vault’s own addresses', () => {
+  /** A vault with no Person note for its owner: only Tobias has one. */
+  const NO_OWNER_NOTE: OwnerDirectory = {
+    attendees: [
+      { name: 'mq', email: 'Mara.Quill@example.com', group: false },
+      { name: 'Tobias Fenn', email: 'tobias.fenn@example.com', group: false },
+    ],
+    people: [TOBIAS],
+    selfName: null,
+    selfEmails: ['mara.quill@example.com'],
+  };
+
+  it('knows the owner by an address alone: written as one, or as the attendee who has it', () => {
+    expect(itemOwner('mara.quill@example.com', NO_OWNER_NOTE)).toEqual({ kind: 'self' });
+    expect(itemOwner('Mara Q <MARA.QUILL@example.com>', NO_OWNER_NOTE)).toEqual({ kind: 'self' });
+    expect(itemOwner('mq', NO_OWNER_NOTE)).toEqual({ kind: 'self' });
+    expect(itemOwner('mara.quill@example.com', { ...NO_OWNER_NOTE, attendees: [] })).toEqual({
+      kind: 'self',
+    });
+  });
+
+  it('knows the owner by an address an attendee list holds twice, under two names', () => {
+    const twice = {
+      ...NO_OWNER_NOTE,
+      attendees: [
+        { name: 'mq', email: 'mara.quill@example.com', group: false },
+        { name: 'M. Quill', email: 'mara.quill@example.com', group: false },
+      ],
+    };
+
+    expect(itemOwner('mara.quill@example.com', twice)).toEqual({ kind: 'self' });
+    // Without the address set, two attendees of one address are a guess between them.
+    expect(itemOwner('mara.quill@example.com', { ...twice, selfEmails: [] })).toMatchObject({
+      kind: 'ambiguous',
+    });
+  });
+
+  it('knows the owner as the attendee of the name written, when that attendee is at an address of theirs', () => {
+    const listed = {
+      ...NO_OWNER_NOTE,
+      attendees: [{ name: 'Mara Q', email: 'mara.quill@example.com', group: false }],
+    };
+
+    expect(itemOwner('Mara Q <mq@other.example>', listed)).toEqual({ kind: 'self' });
+    expect(itemOwner('Mara Q <mq@other.example>', { ...listed, selfEmails: [] })).toMatchObject({
+      kind: 'named',
+    });
+  });
+
+  it('knows the owner by name alone, with no address set', () => {
+    const named = { ...NO_OWNER_NOTE, selfName: 'Mara Quill', selfEmails: [] };
+
+    expect(itemOwner('Mara Quill', named)).toEqual({ kind: 'self' });
+    // No address: the attendee at Mara's address, under another name, is not known to be her.
+    expect(itemOwner('mq', named)).toEqual({ kind: 'named', name: 'mq', inMeeting: true });
+  });
+
+  it('with neither, only the transcript’s own words are the owner', () => {
+    const neither = { ...NO_OWNER_NOTE, selfEmails: [] };
+
+    expect(itemOwner('You', neither)).toEqual({ kind: 'self' });
+    expect(itemOwner('mara.quill@example.com', neither)).toMatchObject({ kind: 'named' });
+    expect(itemOwner('Mara Quill', neither)).toMatchObject({ kind: 'named', inMeeting: false });
+  });
+
+  it('never reads another attendee as the owner for sharing a domain', () => {
+    expect(itemOwner('tobias.fenn@example.com', NO_OWNER_NOTE)).toMatchObject({
+      kind: 'person',
+      person: TOBIAS,
+    });
+  });
+});
+
+/** #173 review: an owner's address ending a sentence, the group rule, and where the owner's addresses come from. */
+describe('itemOwner, by the owner’s addresses as written and as set', () => {
+  const MARA = 'mara.quill@example.com';
+  const directory: OwnerDirectory = {
+    attendees: [
+      { name: 'Mara Quill', email: MARA, group: false },
+      { name: 'Tobias Fenn', email: 'tobias.fenn@example.com', group: false },
+    ],
+    people: [TOBIAS],
+    selfName: null,
+    selfEmails: [MARA],
+  };
+
+  it.each([
+    `${MARA}.`,
+    `${MARA}!`,
+    `(${MARA}).`,
+    `“${MARA}”`,
+    `"${MARA}."`,
+    `[${MARA}]`,
+    `Mara Quill <${MARA}>,`,
+    `Mara Quill <${MARA}>.`,
+  ])('reads %j as the owner’s address', (written) =>
+    expect(itemOwner(written, directory)).toEqual({ kind: 'self' }),
+  );
+
+  it('reads another attendee’s address ending a sentence as theirs, not the owner’s', () => {
+    expect(itemOwner('tobias.fenn@example.com.', directory)).toMatchObject({
+      kind: 'person',
+      person: TOBIAS,
+    });
+  });
+
+  it('reads an attendee at a selfEmails address as the owner, though a group rule made it a group', () => {
+    const grouped = {
+      ...directory,
+      attendees: [{ name: 'Studio', email: 'team@quill.example', group: true }],
+      selfEmails: ['team@quill.example'],
+    };
+
+    expect(itemOwner('Studio', grouped)).toEqual({ kind: 'self' });
+    expect(itemOwner('team@quill.example', grouped)).toEqual({ kind: 'self' });
+    // Without the owner's word for it, a group is still nobody's.
+    expect(itemOwner('Studio', { ...grouped, selfEmails: [] })).toEqual({ kind: 'unknown' });
+  });
+
+  it('never reads a group as the owner for an address only the owner’s Person note holds', () => {
+    const grouped = {
+      attendees: [{ name: 'Studio', email: 'team@quill.example', group: true }],
+      people: [person('Mara Quill', { emails: ['team@quill.example'] })],
+      selfName: 'Mara Quill',
+      selfEmails: [],
+    };
+
+    expect(itemOwner('Studio', grouped)).toEqual({ kind: 'unknown' });
+  });
+
+  describe('where the owner’s addresses come from', () => {
+    /** Two Person notes at the owner's note's address: matching alone cannot tell them apart. */
+    const twoNotes = {
+      attendees: [{ name: 'mq', email: MARA, group: false }],
+      people: [person('Mara Quill', { emails: [MARA] }), person('M Quill', { emails: [MARA] })],
+      selfName: 'Mara Quill',
+    };
+
+    it('reads the owner’s Person note’s addresses as theirs while selfEmails holds none', () => {
+      expect(itemOwner('mq', { ...twoNotes, selfEmails: [] })).toEqual({ kind: 'self' });
+    });
+
+    it('reads only selfEmails once it holds any: the Person note’s addresses no longer count', () => {
+      expect(itemOwner('mq', { ...twoNotes, selfEmails: ['mq@example.org'] })).toMatchObject({
+        kind: 'ambiguous',
+      });
+    });
+  });
+});

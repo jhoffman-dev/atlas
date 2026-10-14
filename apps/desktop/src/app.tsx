@@ -177,6 +177,8 @@ import { paletteArchiveCommands, runPaletteArchiveCommand } from './archive/pale
 import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
 import { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 import { useProfileSetting } from './profile/use-profile-setting.ts';
+import { useSelfEmailsSetting } from './profile/use-self-emails-setting.ts';
+import { automationsScheduled } from './automations/automations-scheduled.ts';
 import { browserChatSettingsStore } from './chat/chat-settings-store.ts';
 import { claudeStepPorts } from './chat/claude-step-ports.ts';
 import { chatWindowOf } from './chat/chat-window.ts';
@@ -734,8 +736,21 @@ export function App({
     changeKey: indexKey,
     activity: activityLog,
   });
-  // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05).
+  const selfEmailsSetting = useSelfEmailsSetting({
+    fs: vault.fs,
+    markdown: notes.markdown,
+    index: index.index,
+    vaultKey,
+    changeKey: indexKey,
+    active: overlay === 'settings',
+    activity: activityLog,
+  });
+  // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05)
+  // and their addresses as the vault's settings hold them (#173).
   const ownerName = profileSetting.profile === 'unknown' ? null : profileSetting.profile.name;
+  const ownerEmails = selfEmailsSetting.emails;
+  // Whether the settings note has answered for both, so nothing that asks who the owner is acts on a stand-in.
+  const ownerKnown = profileSetting.settled && selfEmailsSetting.settled;
   const claudeStep = useMemo(
     () =>
       claudeStepPorts({
@@ -744,8 +759,9 @@ export function App({
         toolboxes,
         vault: () => vaultKey,
         selfName: () => ownerName,
+        selfEmails: () => ownerEmails,
       }),
-    [chatPorts, toolboxes, vaultKey, ownerName],
+    [chatPorts, toolboxes, vaultKey, ownerName, ownerEmails],
   );
   const chat = useChat({
     ports: chatPorts,
@@ -983,7 +999,9 @@ export function App({
     // Only the Mac that runs the automations writes into meeting files (U-29).
     active: sync.automationsHere,
     indexReady: indexStatus.kind === 'ready',
-    selfName: profileSetting.profile === 'unknown' ? null : profileSetting.profile.name,
+    selfName: ownerName,
+    selfEmails: ownerEmails,
+    ownerKnown,
     onWritten: settleArchive,
   });
   const archive = useArchive({
@@ -1073,8 +1091,12 @@ export function App({
     activity: activityLog,
     onSettled: settleArchive,
     live: automationsOpen,
-    // A synced vault runs its automations on one Mac only (U-29); null until this Mac knows.
-    scheduled: sync.thisMac === null || sync.settings === null ? null : sync.automationsHere,
+    // A synced vault runs its automations on one Mac only (U-29), once it and the owner are known.
+    scheduled: automationsScheduled({
+      automationsHere: sync.automationsHere,
+      macKnown: sync.thisMac !== null && sync.settings !== null,
+      ownerKnown,
+    }),
     // A rule a note sets off hears of it here (P29-01).
     changes: noteChanges,
   });
@@ -1145,10 +1167,7 @@ export function App({
     links,
     fs: vault.fs,
     markdown: notes.markdown,
-    index: index.index,
     changeKey: indexKey,
-    active: overlay === 'settings',
-    activity: activityLog,
   });
   const quickAddPorts = useMemo(
     () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),
@@ -1817,7 +1836,9 @@ export function App({
                 onClose={() => hideOverlay('settings')}
                 fallbackFocus={focusFallback}
               >
-                {location !== null && <ProfileSettingsCard setting={profileSetting} />}
+                {location !== null && (
+                  <ProfileSettingsCard setting={profileSetting} emails={selfEmailsSetting} />
+                )}
                 {location === null ? (
                   <IndexSettings index={null} app={app} onRebuild={() => void rebuild()} />
                 ) : (

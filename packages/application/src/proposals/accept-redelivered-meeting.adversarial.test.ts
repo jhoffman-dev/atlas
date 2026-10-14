@@ -53,7 +53,7 @@ async function setUp() {
     openVault: () => VAULT,
     onWritten: () => undefined,
   };
-  const linker = createMeetingLinker({ ...wiring, selfName: () => null });
+  const linker = createMeetingLinker({ ...wiring, selfName: () => null, selfEmails: () => [] });
   const importer = createMeetingImporter({
     ...wiring,
     active: () => true,

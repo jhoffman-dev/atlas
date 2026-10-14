@@ -26,6 +26,7 @@ describe('linking as the import lets a meeting in', () => {
       activity,
       openVault: () => VAULT,
       selfName: () => null,
+      selfEmails: () => [],
       onWritten: () => undefined,
     });
     const importer = createMeetingImporter({
@@ -134,6 +135,7 @@ describe('createMeetingLinker', () => {
       activity,
       openVault,
       selfName: () => null,
+      selfEmails: () => [],
       onWritten,
     });
     return { setup, activity, onWritten, linker };

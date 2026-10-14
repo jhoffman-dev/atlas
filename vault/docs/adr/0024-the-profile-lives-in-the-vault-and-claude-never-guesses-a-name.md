@@ -128,14 +128,17 @@ vault may not have, and, for Granola, on `granola_self_emails` (named
   `.atlas/settings.md`, for the reason this record gave the name: it is about
   the vault's owner, not the Mac, and it syncs. It is **the one source**:
   linking, item ownership, Granola's `me` and the duplicate rule read it.
+  Once it (or its alias) holds addresses it is the only source; while neither
+  does, the addresses on the owner's own Person note still count as theirs,
+  as they did before this amendment (#173).
 - **The person fills it in**, in Settings → Profile and in the setup offer.
   Atlas ships no address and guesses none: not from a username, a path or
   the Person note's name, as the name is never guessed here either. Without it,
-  matching is by name only, as it is today, and the setup says so. **With
+  matching is by name and that Person note, as it is today, and the setup says so. **With
   neither it nor a profile name, ADR-0036's step makes no task and warns in
   the Inbox**; it is never silent.
 - **`granola_self_emails` is read as an alias** while `selfEmails` is empty,
-  and stays where it is.
+  until Settings → Profile saves, which removes it in the same write (#173).
 - **The n8n workflow's OPTIONS must carry the same addresses**, because
   Granola's `me` mapping is compiled into n8n's Code nodes and must stay
   byte-identical to the app's (ADR-0034).

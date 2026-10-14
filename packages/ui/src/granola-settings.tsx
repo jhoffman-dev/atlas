@@ -28,14 +28,8 @@ export interface GranolaView {
   readonly lastPullAt: string | null;
   /** The meetings the last pull did not write. */
   readonly notes: readonly GranolaNoteLine[];
-  /** The person's own addresses in Granola, as the vault's settings keep them, comma-separated; empty for none. */
-  readonly selfEmails: string;
-  /** Addresses from the person's own Person note, offered while none are kept; null when there are none. */
-  readonly suggestedEmails: string | null;
-  /** Why the addresses last typed were not saved: some of it is not an address. */
-  readonly emailsProblem: string | null;
-  /** Why the addresses the vault's settings hold could not be read: they are then read as none. */
-  readonly emailsUnreadable: string | null;
+  /** Why addresses the vault's settings hold could not be read — the owner's or the groups': they are then read as none. */
+  readonly addressesUnreadable: string | null;
   readonly problem: string | null;
   /** A key is being saved or forgotten. */
   readonly pending: boolean;
@@ -67,12 +61,9 @@ export function GranolaSettings({
   onForgetKey,
   onSyncNow,
   onOpenNote,
-  onSaveEmails,
 }: {
   view: GranolaView;
   onSaveKey: (key: string) => void;
-  /** The addresses as typed; the application reads them, and answers whether it kept them. */
-  onSaveEmails: (emails: string) => boolean;
   onForgetKey: () => void;
   onSyncNow: () => void;
   onOpenNote: (url: string) => void;
@@ -107,13 +98,20 @@ export function GranolaSettings({
         </p>
       )}
       <KeyForm hasKey={hasKey} pending={view.pending} onSave={onSaveKey} />
-      <SelfEmailsForm
-        kept={view.selfEmails}
-        suggested={view.suggestedEmails}
-        problem={view.emailsProblem}
-        unreadable={view.emailsUnreadable}
-        onSave={onSaveEmails}
-      />
+      <p className="settings__lede">
+        In a meeting you own, Granola calls you “me”; Atlas writes that as <b>You</b> when the
+        meeting’s owner is one of <i>Your emails</i> in Settings → Profile, and as the owner’s name
+        otherwise.
+      </p>
+      {view.addressesUnreadable !== null && (
+        <p
+          className="settings__problem"
+          role="alert"
+          aria-label="Addresses in settings could not be read"
+        >
+          {view.addressesUnreadable}
+        </p>
+      )}
       {hasKey && view.waiting && (
         <p className="settings__lede">Atlas pulls from Granola once this vault has synced.</p>
       )}
@@ -172,72 +170,6 @@ function KeyForm({
         Save
       </button>
     </form>
-  );
-}
-
-function SelfEmailsForm({
-  kept,
-  suggested,
-  problem,
-  unreadable,
-  onSave,
-}: {
-  kept: string;
-  suggested: string | null;
-  problem: string | null;
-  unreadable: string | null;
-  onSave: (emails: string) => boolean;
-}) {
-  // What the person has typed; null while the field is untouched, which then
-  // shows what is kept, or the Person note's suggestion, as each is read.
-  const [typed, setTyped] = useState<string | null>(null);
-  const emails = typed ?? (kept === '' ? (suggested ?? '') : kept);
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    // Kept: the field shows what the settings now hold. Refused: what was typed stays, to mend.
-    if (onSave(emails)) setTyped(null);
-  };
-
-  return (
-    <>
-      <p className="settings__lede">
-        In a meeting you own, Granola calls you “me”; Atlas writes that as <b>You</b> when the
-        meeting’s owner is one of these addresses, and as the owner’s name otherwise. Put one on
-        each line, or separate them with commas; <code>Name &lt;address&gt;</code> works too.
-      </p>
-      <form className="secrets__form" aria-label="Your emails in Granola" onSubmit={submit}>
-        <textarea
-          className="field field--block secrets__field granola__emails"
-          aria-label="Your emails"
-          placeholder={'you@example.com\nMara Quill <another@example.com>'}
-          rows={3}
-          autoComplete="off"
-          spellCheck={false}
-          value={emails}
-          onChange={(event) => setTyped(event.target.value)}
-        />
-        <button className="btn btn--tinted btn--sm" type="submit" disabled={emails === kept}>
-          Save emails
-        </button>
-      </form>
-      {typed === null && kept === '' && suggested !== null && (
-        <p className="settings__status">From your Person note. Press Save emails to use them.</p>
-      )}
-      {unreadable !== null && (
-        <p
-          className="settings__problem"
-          role="alert"
-          aria-label="Your emails in settings could not be read"
-        >
-          {unreadable}
-        </p>
-      )}
-      {problem !== null && (
-        <p className="settings__problem" role="alert" aria-label="Your emails were not saved">
-          {problem}
-        </p>
-      )}
-    </>
   );
 }
 

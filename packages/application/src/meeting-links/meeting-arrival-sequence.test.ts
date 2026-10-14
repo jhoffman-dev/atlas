@@ -117,6 +117,7 @@ async function setUp() {
     activity,
     openVault: () => VAULT,
     selfName: () => null,
+    selfEmails: () => [],
     onWritten: () => undefined,
   });
   const importer = createMeetingImporter({

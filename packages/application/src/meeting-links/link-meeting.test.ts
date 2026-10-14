@@ -37,6 +37,24 @@ const meeting = (
     MEETING_BODY,
   );
 
+/** A meeting whose summary names nobody and which has no transcript: its attendees alone say who was there. */
+const unspokenMeeting = (attendees: readonly Record<string, unknown>[]) =>
+  jsonLinesNote(
+    {
+      type: 'meeting',
+      atlas_import: 'meeting/v1',
+      atlas_import_outcome: 'imported',
+      title: 'Standup',
+      date: '2026-10-06',
+      start: '09:30',
+      provider: 'gemini',
+      external_id: 'gemini-unspoken',
+      attendees,
+      project: '[[Ledger migration]]',
+    },
+    '\n## Summary\n\nStandup.\n',
+  );
+
 const PEOPLE = {
   'People/Mara Quill.md': jsonLinesNote({
     type: 'person',
@@ -245,6 +263,78 @@ describe('linkMeeting', () => {
       expect(proposalsIn(setup)).toEqual([]);
     },
   );
+
+  it('never proposes an attendee at one of the vault’s selfEmails, with no name or Person note for the owner (#173)', async () => {
+    const files = {
+      [MEETING]: meeting([{ name: 'mq', email: 'MQ@Home.example' }], {
+        project: '[[Ledger migration]]',
+      }),
+    };
+    const owned = vault(files);
+    const unowned = vault(files);
+
+    await linkMeeting({
+      ports: owned.ports,
+      path: vaultPath(MEETING),
+      today: TODAY,
+      selfName: null,
+      selfEmails: ['mq@home.example'],
+    });
+    await link(unowned.ports);
+
+    expect(proposalsIn(owned.setup)).toEqual([]);
+    // With no address set, the same attendee is someone new.
+    expect(proposalsIn(unowned.setup)).toHaveLength(1);
+  });
+
+  it('links an attendee at one of the vault’s selfEmails as the owner, though a group rule made it a group (#173)', async () => {
+    const files = { [MEETING]: unspokenMeeting([{ ...MARA, group: true }]) };
+    const owned = vault(files);
+    const unowned = vault(files);
+
+    const run = await linkMeeting({
+      ports: owned.ports,
+      path: vaultPath(MEETING),
+      today: TODAY,
+      selfName: null,
+      selfEmails: ['mara@larkspur.example'],
+    });
+    await link(unowned.ports);
+
+    expect(run.linked).toContain('People/Mara Quill.md');
+    expect(owned.setup.propertiesOf(MEETING)?.['people']).toEqual(['[[Mara Quill]]']);
+    // Without the owner's word for it, the group stays a group: nobody is linked.
+    expect(unowned.setup.propertiesOf(MEETING)?.['people']).toBeUndefined();
+  });
+
+  describe('where the owner’s addresses come from (#173)', () => {
+    /**
+     * A second note at Mara's address: matching alone cannot say which of the
+     * two `mq` is, and no transcript speaker says either.
+     */
+    const files = {
+      'People/M Quill.md': jsonLinesNote({ type: 'person', email: 'mara@larkspur.example' }),
+      [MEETING]: unspokenMeeting([{ name: 'mq', email: 'mara@larkspur.example' }]),
+    };
+
+    it('reads the owner’s Person note’s addresses as theirs while selfEmails holds none', async () => {
+      const { setup, ports } = vault(files);
+      await linkMeeting({ ports, path: vaultPath(MEETING), today: TODAY, selfName: 'Mara Quill' });
+      expect(proposalsIn(setup)).toEqual([]);
+    });
+
+    it('reads only selfEmails once it holds any, and asks about the attendee the note’s address no longer settles', async () => {
+      const { setup, ports } = vault(files);
+      await linkMeeting({
+        ports,
+        path: vaultPath(MEETING),
+        today: TODAY,
+        selfName: 'Mara Quill',
+        selfEmails: ['mq@home.example'],
+      });
+      expect(proposalsIn(setup).length).toBeGreaterThan(0);
+    });
+  });
 
   it('leaves a meeting with unsaved typing as it is, and says so', async () => {
     const { setup, ports } = vault({ [MEETING]: meeting([MARA]) });

@@ -192,6 +192,19 @@ never read (`Staff Sergeant Rivera` is a person), nor is a dotted
 `first.last@` address (`dana.list@…`). Add any other list address to
 `groupAddresses`, e.g. `['leads@example.com']`.
 
+**Your own addresses (Granola).** A Code node that maps a Granola note
+(`mapGranolaNote($json, OPTIONS)`) also takes `selfEmails`: a note owned by
+one of them has its `me` turns written `You`, any other as the owner's name.
+They must be the same addresses as the vault's `selfEmails` — Atlas →
+Settings → Profile → **Your emails**, or `granola_self_emails` while that is
+empty — written as that field shows them: lower case, in its order.
+`OPTIONS = { timeZone: 'America/Los_Angeles', selfEmails: ['you@example.com'],
+groupAddresses: [] }`. When you change them, change both places: the app and
+n8n write the same meeting into the same bytes only while they agree, and
+otherwise one of the two becomes a sync conflict copy. Nothing checks this
+for you: the workflow lives in your n8n, and its addresses never go into this
+repository.
+
 **Who spoke.** Gemini writes one `Speaker Name: words` line per turn, and its
 speakers are often not on the attendee list (a shared room, a group invite),
 so in a Gemini transcript **every** `Label: words` line is a turn by that

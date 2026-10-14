@@ -79,6 +79,11 @@ export interface ClaudeStepPorts {
    * "someone else's" (P29-05) reads; never guessed (ADR-0024).
    */
   readonly selfName: () => string | null;
+  /**
+   * The vault owner's own addresses, the vault's `selfEmails`, as they are
+   * when the step runs; none when it holds none. Never guessed (ADR-0024).
+   */
+  readonly selfEmails: () => readonly string[];
   readonly clock: Pick<Clock, 'now' | 'today'>;
   /** A signal that aborts once `ms` have passed: the step's time limit. */
   readonly deadline: (ms: number) => AbortSignal;
@@ -548,7 +553,8 @@ async function missingRelations(
 
 /**
  * What the run knows of the vault for an output that reads it: its people and
- * terms from the index, its notes, and its owner's name from their profile.
+ * terms from the index, its notes, and its owner's name and addresses from
+ * the vault's settings.
  */
 async function readVault({
   ports,
@@ -559,6 +565,7 @@ async function readVault({
   const { terms } = await loadTerms({ index });
   return {
     selfName: ports.selfName(),
+    selfEmails: ports.selfEmails(),
     people,
     notePaths,
     terms: terms.map((term) => term.canonical),
