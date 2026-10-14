@@ -866,6 +866,29 @@ async fn a_key_forgotten_while_a_request_is_out_is_let_go_once_eight_other_value
     );
 }
 
+/// A 401 to a request sent before the key was forgotten arrives after it. It
+/// is news about a key no longer kept, so it is not reported as a refusal;
+/// and a key set afterwards starts with none.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_401_that_arrives_after_the_key_was_forgotten_is_not_reported() {
+    let granola = HeldGranola::start("401 Unauthorized").await;
+    let session = leaked_session(granola.origin, KEY);
+
+    let out = tokio::spawn(async move { session().request(NOTES, &no_query()).await });
+    granola.arrived.await.unwrap();
+    session().forget_key().unwrap();
+    granola.release.send(()).unwrap();
+    assert_eq!(out.await.unwrap().unwrap().status, 401);
+
+    assert_eq!(
+        session().status().unwrap(),
+        GranolaStatus {
+            has_key: false,
+            last_refusal: None
+        }
+    );
+}
+
 /// Adversarial (P28-10 round 3, after 0d51773), rewritten for round 4.
 /// `key::save` builds the new key's matcher before the Keychain is asked;
 /// when the Keychain refuses it the key is not kept, and its matcher is held

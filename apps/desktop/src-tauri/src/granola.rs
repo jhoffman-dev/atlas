@@ -119,11 +119,16 @@ fn too_long_to_protect() -> GranolaFailure {
 }
 
 impl Session<'_> {
+    /// A refusal is news about the key kept: with none kept, there is none
+    /// to report, even when an answer to a request sent before the key was
+    /// forgotten arrived after it.
     pub fn status(&self) -> Result<GranolaStatus, GranolaFailure> {
         let has_key = key::load(self.store, self.scope)?.is_some();
         Ok(GranolaStatus {
             has_key,
-            last_refusal: self.state.last_refusal(self.scope),
+            last_refusal: has_key
+                .then(|| self.state.last_refusal(self.scope))
+                .flatten(),
         })
     }
 
