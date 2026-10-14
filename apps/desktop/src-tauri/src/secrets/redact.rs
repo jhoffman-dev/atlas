@@ -48,8 +48,10 @@ const UNCHECKED: &str = "[the response could not be checked for secrets, so it i
 /// and so how long a secret Atlas keeps may be: a value whose matcher will
 /// not build within it is refused when it is saved, and never sent. Every
 /// character may be written several ways, so what fits depends on which
-/// characters they are — some 2.2 KB of printable ASCII in no order, and
-/// 3.7 KB of a signed token's letters, digits, `-`, `_` and `.`.
+/// characters they are — some 2.2 KB of printable ASCII in no order, and a
+/// signed token's letters, digits, `-`, `_` and `.` up to some 2.7 KB. Past
+/// that a token fits or not by its length (how its base64 forms align): one
+/// of 3,000 bytes builds and one of 2,900 does not.
 const MATCHER_SIZE_LIMIT: usize = 12 * 1024 * 1024;
 
 /// A value longer than this is refused without trying to build its matcher.
