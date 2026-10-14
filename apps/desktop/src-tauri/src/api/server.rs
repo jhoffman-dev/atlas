@@ -80,8 +80,8 @@ pub type Forward = Arc<dyn Fn(&ApiRequest) -> Result<(), String> + Send + Sync>;
 /// to the very next request — including one on a connection already open.
 pub type SharedToken = Arc<RwLock<String>>;
 
-/// Whether the webview's router is listening, as it last said. Shared with the
-/// command it says so through.
+/// Whether any router in the webview is listening, as `ApiControl` keeps track
+/// of them. Shared with the command they say so through.
 pub type RouterReady = Arc<AtomicBool>;
 
 /// Everything a request is checked against and handed to.

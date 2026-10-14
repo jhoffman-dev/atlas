@@ -90,17 +90,33 @@ describe('tauriApiBridge', () => {
     await tauriApiBridge.serve(async () => ANSWER);
 
     expect(order).toEqual(['listen', 'api_router_ready']);
-    expect(invoke).toHaveBeenCalledWith('api_router_ready', { ready: true });
+    expect(invoke).toHaveBeenCalledWith('api_router_ready', {
+      listener: expect.any(String),
+      ready: true,
+    });
   });
 
-  it('tells the host the router is gone when it stops', async () => {
+  it('tells the host the router it named is gone when it stops', async () => {
     const stop = await tauriApiBridge.serve(async () => ANSWER);
+    const [, started] = invoke.mock.lastCall as [string, { listener: string }];
     invoke.mockClear();
 
     stop();
 
-    expect(invoke).toHaveBeenCalledWith('api_router_ready', { ready: false });
+    expect(invoke).toHaveBeenCalledWith('api_router_ready', {
+      listener: started.listener,
+      ready: false,
+    });
     expect(unlisten).toHaveBeenCalledOnce();
+  });
+
+  it('names each listener differently, so the host can tell them apart', async () => {
+    await tauriApiBridge.serve(async () => ANSWER);
+    await tauriApiBridge.serve(async () => ANSWER);
+
+    const named = invoke.mock.calls.map(([, args]) => (args as { listener: string }).listener);
+    expect(named).toHaveLength(2);
+    expect(new Set(named).size).toBe(2);
   });
 
   it('stops listening and fails when the host cannot be told it is ready', async () => {
@@ -110,6 +126,49 @@ describe('tauriApiBridge', () => {
 
     expect(unlisten).toHaveBeenCalledOnce();
   });
+
+  /**
+   * React StrictMode starts serving twice and abandons the first: its stop
+   * lands after the second has said it listens. The host below keeps readiness
+   * per listener, as the Rust host does, and answers the `api_router_ready`
+   * calls in the order given rather than the order they were made.
+   */
+  it.each([
+    ['in order', (pending: (() => void)[]) => pending.splice(0).forEach((answer) => answer())],
+    [
+      'out of order',
+      (pending: (() => void)[]) =>
+        pending
+          .splice(0)
+          .reverse()
+          .forEach((answer) => answer()),
+    ],
+  ])(
+    'one listener stopping never clears the readiness of another still listening (%s)',
+    async (_order, answerPending) => {
+      const live = new Set<unknown>();
+      const pending: (() => void)[] = [];
+      invoke.mockImplementation((command: string, args: { listener?: unknown; ready: boolean }) => {
+        if (command !== 'api_router_ready') return Promise.resolve(null);
+        if (args.ready) live.add(args.listener);
+        else live.delete(args.listener);
+        return new Promise<null>((resolve) => pending.push(() => resolve(null)));
+      });
+
+      const first = tauriApiBridge.serve(async () => ANSWER);
+      const second = tauriApiBridge.serve(async () => ANSWER);
+      await settle();
+      answerPending(pending);
+      const stopFirst = await first;
+      await second;
+
+      stopFirst();
+      await settle();
+      answerPending(pending);
+
+      expect(live.size, 'the listener still serving lost its readiness').toBe(1);
+    },
+  );
 
   it('keeps serving when an answer cannot be sent back', async () => {
     const answer = vi.fn(async (request: ApiRequest) => ({ ...ANSWER, id: request.id }));

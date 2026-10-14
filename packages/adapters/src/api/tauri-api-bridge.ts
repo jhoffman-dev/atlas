@@ -13,10 +13,15 @@ import {
  * written out here so the IPC contract test can see it is registered).
  *
  * The host refuses requests at once until it hears `api_router_ready`, since
- * an event sent before anything listens is lost.
+ * an event sent before anything listens is lost. Each `serve` names itself to
+ * the host, which stays ready while any of them listens: one stopping — the
+ * abandoned first mount under React StrictMode, say — never takes readiness
+ * from another, whichever of their calls lands last (#158). The name is random
+ * so that a call from a page already gone cannot match one on the next page.
  */
 export const tauriApiBridge: ApiBridgePort = {
   async serve(answer) {
+    const listener = crypto.randomUUID();
     const unlisten = await listen<ApiRequest>(API_REQUEST_EVENT, (event) => {
       answer(event.payload)
         .then(respond)
@@ -27,13 +32,13 @@ export const tauriApiBridge: ApiBridgePort = {
         });
     });
     try {
-      await routerReady(true);
+      await routerReady(listener, true);
     } catch (error) {
       unlisten();
       throw error;
     }
     return () => {
-      routerReady(false).catch(() => {
+      routerReady(listener, false).catch(() => {
         // The host is going away with the page, or never had the API: either
         // way nothing is left to forward requests here.
       });
@@ -46,6 +51,6 @@ async function respond({ id, status, body }: ApiResponse): Promise<void> {
   await invoke('api_respond', { id, status, body });
 }
 
-async function routerReady(ready: boolean): Promise<void> {
-  await invoke('api_router_ready', { ready });
+async function routerReady(listener: string, ready: boolean): Promise<void> {
+  await invoke('api_router_ready', { listener, ready });
 }

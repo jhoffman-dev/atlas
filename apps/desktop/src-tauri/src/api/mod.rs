@@ -104,12 +104,16 @@ pub fn api_token(state: State<'_, ApiState>) -> Result<String, String> {
     Ok(loaded_control(&state)?.token())
 }
 
-/// The router in the main window started (`true`) or stopped (`false`)
-/// listening. Until it listens, requests are refused at once rather than sent
-/// to nothing.
+/// A router in the main window, named by `listener`, started (`true`) or
+/// stopped (`false`) listening. Until one listens, requests are refused at once
+/// rather than sent to nothing.
 #[tauri::command]
-pub fn api_router_ready(state: State<'_, ApiState>, ready: bool) -> Result<(), String> {
-    loaded_control(&state)?.set_router_ready(ready);
+pub fn api_router_ready(
+    state: State<'_, ApiState>,
+    listener: String,
+    ready: bool,
+) -> Result<(), String> {
+    loaded_control(&state)?.set_router_ready(&listener, ready);
     Ok(())
 }
 
@@ -121,7 +125,7 @@ pub fn forget_router_on_page_load(webview: &Webview, payload: &PageLoadPayload<'
     }
     // Empty before `restore` has run, when there is no router to forget yet.
     if let Some(Ok(control)) = webview.state::<ApiState>().0.get() {
-        control.set_router_ready(false);
+        control.forget_routers();
     }
 }
 
