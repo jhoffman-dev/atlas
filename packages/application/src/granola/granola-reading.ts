@@ -23,7 +23,8 @@ export interface GranolaReader {
 /**
  * More pages of notes (thirty each: 60,000 notes) than anyone keeps; past it,
  * a list whose cursor never ends, and never repeats, is cut off. A cursor
- * that repeats is caught on the page it does.
+ * already followed in this listing, whether the page before's or one from
+ * further back, is caught on the page that sends it again.
  */
 const MAX_LIST_PAGES = 2000;
 
@@ -38,7 +39,11 @@ const malformed = (message: string, transcriptPage = false) =>
 export const unreadableKey = ({ id, reason }: GranolaUnreadableSummary): string =>
   id === null ? `no id: ${reason}` : `id: ${id}`;
 
-/** What the list of notes held: each note once, and those it named in a shape Atlas cannot read, each once too. */
+/**
+ * What the list of notes held: each note once, and those it named in a shape
+ * Atlas cannot read, each once too. A note read on any page of the listing
+ * is not among the unreadable, whichever page came first.
+ */
 export interface GranolaListing {
   readonly notes: readonly GranolaNoteSummary[];
   readonly unreadable: readonly GranolaUnreadableSummary[];
@@ -55,6 +60,7 @@ export async function listGranolaNotes(
 ): Promise<GranolaListing> {
   const listed = new Map<string, GranolaNoteSummary>();
   const unreadable = new Map<string, GranolaUnreadableSummary>();
+  const followed = new Set<string>();
   let cursor: string | null = null;
   for (let page = 0; page < MAX_LIST_PAGES; page += 1) {
     const from: string | null = cursor;
@@ -67,13 +73,21 @@ export async function listGranolaNotes(
       if (!unreadable.has(key)) unreadable.set(key, summary);
     }
     if (read.cursor === null) {
-      return { notes: [...listed.values()], unreadable: [...unreadable.values()] };
+      return { notes: [...listed.values()], unreadable: unreadOnly(unreadable, listed) };
     }
-    if (read.cursor === from) throw malformed('Granola sent the same page of notes again');
+    if (followed.has(read.cursor)) throw malformed('Granola sent the same page of notes again');
+    followed.add(read.cursor);
     cursor = read.cursor;
   }
   throw malformed(`the list of notes ran past ${MAX_LIST_PAGES} pages`);
 }
+
+/** The unreadable listings whose note no page of the listing read. */
+const unreadOnly = (
+  unreadable: ReadonlyMap<string, GranolaUnreadableSummary>,
+  listed: ReadonlyMap<string, GranolaNoteSummary>,
+): GranolaUnreadableSummary[] =>
+  [...unreadable.values()].filter(({ id }) => id === null || !listed.has(id));
 
 const isTooLarge = (error: unknown) =>
   error instanceof GranolaError &&
@@ -131,6 +145,7 @@ async function readTranscriptPages(
   id: string,
 ): Promise<readonly unknown[] | null> {
   const turns: unknown[] = [];
+  const followed = new Set<string>();
   let characters = 0;
   let cursor: string | null = null;
   for (let pages = 1; ; pages += 1) {
@@ -146,8 +161,9 @@ async function readTranscriptPages(
     characters += transcriptCharacters(page.transcript);
     if (transcriptOverLimit({ characters, pages })) return null;
     if (page.cursor === null) return turns;
-    if (page.cursor === from)
+    if (followed.has(page.cursor))
       throw malformed('Granola sent the same page of a transcript again', true);
+    followed.add(page.cursor);
     cursor = page.cursor;
   }
 }
