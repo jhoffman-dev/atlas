@@ -12,9 +12,7 @@
 //! webview, the way `google.rs` fixes Google's endpoints — and GET, the only
 //! method a read-only API has.
 
-use std::collections::hash_map::RandomState;
-use std::collections::{BTreeMap, HashMap};
-use std::hash::BuildHasher;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::{Mutex, MutexGuard};
 
 use reqwest::Url;
@@ -33,10 +31,16 @@ const ORIGIN: &str = "https://public-api.granola.ai";
 /// What the key is called where it is struck from an answer.
 const KEY_NAME: &str = "granola-api-key";
 
-/// Whether this vault has a key on this Mac, and 401 if Granola refused it
-/// since it was set and has not since answered it with a success. A 403 is
-/// a call the key may not make, not a key Granola does not know: it says
-/// nothing about the key. Never a key.
+/// What the key is checked with when it is set: the smallest call there is.
+const CHECK_PATH: &str = "/v1/notes";
+
+/// The status by which Granola says it does not know the key.
+const UNAUTHORIZED: u16 = 401;
+
+/// Whether this vault has a key on this Mac, and 401 if the last answer
+/// Granola gave was a 401. A 403 is a call the key may not make, not a key
+/// Granola does not know: like every other answer, it clears a refusal.
+/// Never a key.
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GranolaStatus {
@@ -52,95 +56,40 @@ pub struct GranolaAnswer {
     pub body: String,
 }
 
-/// Which key a vault's standing is about, by its fingerprint.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-enum Kept {
-    /// No key was set or forgotten in this run: the key kept from an earlier
-    /// one, if any, is the one the next answer was sent with.
-    #[default]
-    Unknown,
-    Nothing,
-    Key(u64),
-}
-
-/// How a vault's key stands in this run of the app.
-#[derive(Debug, Default, Clone, Copy)]
-struct Standing {
-    /// The key Granola's word is taken on. An answer is about the key its
-    /// request carried, so one sent with any other key says nothing of this.
-    kept: Kept,
-    refused: Option<u16>,
-}
-
-/// The host's Granola state: whether each vault's key was refused. Memory
-/// only — a refusal is news about a key, and the Keychain holds only the key.
+/// The host's Granola state: the vaults whose last answer from Granola was a
+/// 401. Each answer that arrives overwrites it, whichever key its request
+/// carried, and setting or forgetting the key clears it. It is a hint for
+/// the person, not a guard: nothing is refused because of it. Memory only —
+/// a refusal is news about a key, and the Keychain holds only the key.
 #[derive(Default)]
 pub struct GranolaState {
-    standings: Mutex<HashMap<String, Standing>>,
-    /// Held while a key is set or forgotten, so that the Keychain and the
-    /// standing change together, one change at a time. Requests never take it.
-    changing: Mutex<()>,
-    /// Keyed afresh in each run, so a fingerprint means nothing outside it.
-    fingerprints: RandomState,
+    refused: Mutex<HashSet<String>>,
 }
 
 impl GranolaState {
-    /// A lock on state whose every write is one whole value, so a thread that
-    /// panicked holding it cannot have left it half-changed (as `GoogleState`).
-    fn standings(&self) -> MutexGuard<'_, HashMap<String, Standing>> {
-        self.standings
+    /// A lock on a set whose every write is one whole insert or remove, so a
+    /// thread that panicked holding it cannot have left it half-changed.
+    fn refused(&self) -> MutexGuard<'_, HashSet<String>> {
+        self.refused
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// Guards nothing but its own holding, so a panic under it is no harm.
-    fn changing(&self) -> MutexGuard<'_, ()> {
-        self.changing
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    fn last_refusal(&self, scope: &str) -> Option<u16> {
+        self.refused().contains(scope).then_some(UNAUTHORIZED)
     }
 
-    fn standing(&self, scope: &str) -> Standing {
-        self.standings().get(scope).copied().unwrap_or_default()
-    }
-
-    fn fingerprint(&self, key: &str) -> Kept {
-        Kept::Key(self.fingerprints.hash_one(key))
-    }
-
-    /// Notes which key is now kept, with no refusal: what Granola said of the
-    /// one before says nothing of this one.
-    fn now_keeping(&self, scope: &str, kept: Kept) {
-        self.stand(
-            scope,
-            Standing {
-                kept,
-                refused: None,
-            },
-        );
-    }
-
-    fn stand(&self, scope: &str, standing: Standing) {
-        self.standings().insert(scope.to_string(), standing);
-    }
-
-    /// Takes Granola's answer to a request sent with `sent` as the word on the
-    /// key, if that is the key kept: 401 refuses it, a success clears that.
-    fn heard(&self, scope: &str, sent: &str, status: u16) {
-        let sent = self.fingerprint(sent);
-        let mut standings = self.standings();
-        let standing = standings.entry(scope.to_string()).or_default();
-        if standing.kept == Kept::Unknown {
-            standing.kept = sent;
+    /// Takes Granola's answer as the latest word on the key.
+    fn heard(&self, scope: &str, status: u16) {
+        if status == UNAUTHORIZED {
+            self.refused().insert(scope.to_string());
+        } else {
+            self.clear(scope);
         }
-        if standing.kept != sent {
-            return;
-        }
-        match status {
-            401 => standing.refused = Some(status),
-            200..=299 => standing.refused = None,
-            _ => {}
-        }
+    }
+
+    fn clear(&self, scope: &str) {
+        self.refused().remove(scope);
     }
 }
 
@@ -174,61 +123,52 @@ impl Session<'_> {
         let has_key = key::load(self.store, self.scope)?.is_some();
         Ok(GranolaStatus {
             has_key,
-            last_refusal: self.state.standing(self.scope).refused,
+            last_refusal: self.state.last_refusal(self.scope),
         })
     }
 
-    /// The new key is noted before it is kept, so a refusal of it heard the
-    /// moment it is kept stands; an answer to the old key, after the note, is
-    /// about a key no longer kept.
-    pub fn set_key(&self, key: &str) -> Result<GranolaStatus, GranolaFailure> {
-        key::check(key)?;
-        let _changing = self.state.changing();
-        let before = self.state.standing(self.scope);
-        self.state
-            .now_keeping(self.scope, self.state.fingerprint(key));
-        key::save(self.store, self.scope, key)
-            .inspect_err(|_| self.settle_after_failure(before))?;
+    /// Keeps the key, then asks Granola once with it, so that a key Granola
+    /// does not know is known at once rather than at the next pull. When
+    /// Granola cannot be reached the key is still kept, and no refusal is
+    /// reported: nothing has been heard about it yet.
+    pub async fn set_key(&self, key: &str) -> Result<GranolaStatus, GranolaFailure> {
+        key::save(self.store, self.scope, key)?;
+        self.state.clear(self.scope);
         log::info!("Granola API key stored");
+        match self.check(key).await {
+            Ok(status) => {
+                self.state.heard(self.scope, status);
+                log::info!("Granola answered {status} to the new key");
+            }
+            Err(failure) => log::warn!(
+                "the new Granola API key could not be checked: {:?}",
+                failure.kind
+            ),
+        }
         Ok(GranolaStatus {
             has_key: true,
-            last_refusal: None,
+            last_refusal: self.state.last_refusal(self.scope),
         })
+    }
+
+    /// Granola's status for the first page of one note, asked with `key`.
+    /// The body is not read for anything, and so is never handed on.
+    async fn check(&self, key: &str) -> Result<u16, GranolaFailure> {
+        let query = BTreeMap::from([("page_size".to_string(), "1".to_string())]);
+        let url = api::call_url(self.origin, CHECK_PATH, &query)?;
+        let (status, _) = api::get(&url, key).await?;
+        Ok(status)
     }
 
     pub fn forget_key(&self) -> Result<GranolaStatus, GranolaFailure> {
-        let _changing = self.state.changing();
-        let before = self.state.standing(self.scope);
-        self.state.now_keeping(self.scope, Kept::Nothing);
-        key::forget(self.store, self.scope).inspect_err(|_| self.settle_after_failure(before))?;
+        key::forget(self.store, self.scope)?;
         forget_matcher(KEY_NAME);
+        self.state.clear(self.scope);
         log::info!("Granola API key removed");
         Ok(GranolaStatus {
             has_key: false,
             last_refusal: None,
         })
-    }
-
-    /// After the Keychain failed to change, the standing is about the key it
-    /// actually holds, read back from it: the standing from before the change
-    /// when that is still the key, refusal and all, and a fresh one when it is
-    /// not. When it cannot be read either, the standing from before is kept:
-    /// a failed change most likely changed nothing.
-    fn settle_after_failure(&self, before: Standing) {
-        let Ok(held) = key::load(self.store, self.scope) else {
-            self.state.stand(self.scope, before);
-            return;
-        };
-        let kept = held.map_or(Kept::Nothing, |key| self.state.fingerprint(&key));
-        let standing = if before.kept == kept {
-            before
-        } else {
-            Standing {
-                kept,
-                refused: None,
-            }
-        };
-        self.state.stand(self.scope, standing);
     }
 
     /// Sends one GET and hands back its answer. A path off the API is refused
@@ -245,7 +185,7 @@ impl Session<'_> {
         let (status, body) = api::get(&url, &sent[0].1)
             .await
             .map_err(|failure| failure.struck_of(&sent))?;
-        self.state.heard(self.scope, &sent[0].1, status);
+        self.state.heard(self.scope, status);
         log::debug!("Granola answered {status}");
         let text = String::from_utf8(body).map_err(|_| {
             GranolaFailure::new(FailureKind::Malformed, "Granola did not answer with text")
@@ -291,7 +231,8 @@ pub async fn granola_status(
     .status()
 }
 
-/// Keeps the key the person pasted, replacing any kept before.
+/// Keeps the key the person pasted, replacing any kept before, and answers
+/// whether Granola refused it when asked once with it.
 #[tauri::command]
 pub async fn granola_set_key(
     vaults: State<'_, VaultState>,
@@ -309,6 +250,7 @@ pub async fn granola_set_key(
         state: &granola,
     }
     .set_key(&key)
+    .await
 }
 
 #[tauri::command]

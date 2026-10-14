@@ -467,10 +467,12 @@ export interface FakeHost {
   /**
    * Granola, as `granola.rs` answers for it: an API key kept per vault, and a
    * GET under `/v1/` answered with what a test served at that path (404 where
-   * nothing was). A 401 marks the key refused and a 2xx clears that, as the
-   * host does; a 403 says nothing about the key. The Keychain item, the
-   * pinned origin and the key struck from every answer are Rust's and tested
-   * there against a fake Granola.
+   * nothing was). The last answer is the word on the key, as the host keeps
+   * it: a 401 marks the key refused and any other answer clears that.
+   * Setting a key clears it and then checks the key with one
+   * `GET /v1/notes?page_size=1`, recorded among the requests, whose answer
+   * stands. The Keychain item, the pinned origin and the key struck from
+   * every answer are Rust's and tested there against a fake Granola.
    */
   readonly granola: {
     serve(path: string, answer: { status: number; body: string }): void;
@@ -633,6 +635,17 @@ export async function installHost(
     hasKey: granolaKeys.has(root),
     lastRefusal: granolaRefusals.get(root) ?? null,
   });
+  /** One GET to the fake Granola, whose answer is the last word on the key. */
+  const granolaGet = (root: string, path: string, query: Record<string, string>) => {
+    granolaRequests.push({ path, query });
+    const answer = granolaAnswers.get(path) ?? { status: 404, body: '{"message":"Not found"}' };
+    if (answer.status === 401) {
+      granolaRefusals.set(root, answer.status);
+    } else {
+      granolaRefusals.delete(root);
+    }
+    return answer;
+  };
   const databases = new Map<string, { columns: string[]; rows: unknown[][] }>();
   const sqliteQueries: { file: string; sql: string }[] = [];
   let offeredDatabase: string | null = null;
@@ -1282,6 +1295,7 @@ export async function installHost(
         }
         granolaKeys.set(root, key);
         granolaRefusals.delete(root);
+        granolaGet(root, '/v1/notes', { page_size: '1' });
         return granolaStatus(root);
       }
       case 'granola_forget_key': {
@@ -1296,14 +1310,7 @@ export async function installHost(
           return { [REJECT]: { kind: 'no_key', message: 'no Granola API key is kept' } };
         }
         const { path, query } = args as { path: string; query: Record<string, string> };
-        granolaRequests.push({ path, query });
-        const answer = granolaAnswers.get(path) ?? { status: 404, body: '{"message":"Not found"}' };
-        if (answer.status === 401) {
-          granolaRefusals.set(root, answer.status);
-        } else if (answer.status >= 200 && answer.status < 300) {
-          granolaRefusals.delete(root);
-        }
-        return answer;
+        return granolaGet(root, path, query);
       }
       case 'sqlite_source_query': {
         const { file, sql } = args as { file: string; sql: string };

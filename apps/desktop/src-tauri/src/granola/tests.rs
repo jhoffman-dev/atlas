@@ -9,7 +9,7 @@ use std::sync::MutexGuard;
 use reqwest::Url;
 
 use super::fake_granola::{FakeGranola, Granola, Reply};
-use super::{FailureKind, GranolaFailure, GranolaState, GranolaStatus, Kept, Session};
+use super::{FailureKind, GranolaFailure, GranolaState, GranolaStatus, Session};
 use crate::secrets::{MemoryStore, SecretStore};
 
 const VAULT: &str = "v1";
@@ -30,11 +30,13 @@ impl Setup {
         }
     }
 
-    /// With the key set in Atlas and honoured by the fake.
+    /// With the key set in Atlas and honoured by the fake, and the request
+    /// that checked it as it was set no longer counted among those heard.
     async fn keyed() -> Self {
         let setup = Self::new().await;
         setup.granola().key = Some(KEY.into());
-        setup.session().set_key(KEY).unwrap();
+        setup.session().set_key(KEY).await.unwrap();
+        setup.granola().heard.clear();
         setup
     }
 
@@ -182,21 +184,29 @@ async fn setting_or_forgetting_the_key_clears_a_refusal() {
     setup.granola().reply = Reply::Status(401);
     setup.session().request(NOTES, &no_query()).await.unwrap();
     assert_eq!(setup.refusal(), Some(401));
-    let status = setup.session().set_key("grn_ANewOne").unwrap();
+    setup.granola().key = Some("grn_ANewOne".into());
+    setup.granola().reply = Reply::Notes;
+    let status = setup.session().set_key("grn_ANewOne").await.unwrap();
     assert_eq!(status.last_refusal, None);
     assert_eq!(setup.refusal(), None);
 
-    setup.granola().key = Some("grn_ANewOne".into());
+    setup.granola().reply = Reply::Status(401);
     setup.session().request(NOTES, &no_query()).await.unwrap();
     assert_eq!(setup.refusal(), Some(401));
     setup.session().forget_key().unwrap();
     assert_eq!(setup.refusal(), None);
 }
 
+/// Every answer is the latest word on the key: one that is not a 401 clears
+/// a refusal, whatever it says otherwise.
 #[tokio::test(flavor = "multi_thread")]
-async fn any_other_status_is_an_answer_and_says_nothing_about_the_key() {
+async fn any_other_status_is_an_answer_and_clears_a_refusal() {
     let setup = Setup::keyed().await;
     for status in [404, 413, 429, 500, 503] {
+        setup.granola().reply = Reply::Status(401);
+        setup.session().request(NOTES, &no_query()).await.unwrap();
+        assert_eq!(setup.refusal(), Some(401), "{status}");
+
         setup.granola().reply = Reply::Status(status);
         let answer = setup.session().request(NOTES, &no_query()).await.unwrap();
         assert_eq!(answer.status, status);
@@ -204,34 +214,8 @@ async fn any_other_status_is_an_answer_and_says_nothing_about_the_key() {
     }
 }
 
-#[test]
-fn an_answer_to_a_key_since_replaced_says_nothing_about_the_new_one() {
-    let state = GranolaState::default();
-    state.now_keeping(VAULT, state.fingerprint("grn_TheOldOne"));
-    state.now_keeping(VAULT, state.fingerprint("grn_TheNewOne"));
-    state.heard(VAULT, "grn_TheOldOne", 401);
-    assert_eq!(state.standing(VAULT).refused, None);
-
-    state.heard(VAULT, "grn_TheNewOne", 401);
-    assert_eq!(state.standing(VAULT).refused, Some(401));
-    state.heard(VAULT, "grn_TheOldOne", 200);
-    assert_eq!(
-        state.standing(VAULT).refused,
-        Some(401),
-        "a success for the old key cleared the new one's refusal"
-    );
-}
-
-#[test]
-fn an_answer_heard_once_the_key_is_forgotten_says_nothing() {
-    let state = GranolaState::default();
-    state.now_keeping(VAULT, Kept::Nothing);
-    state.heard(VAULT, KEY, 401);
-    assert_eq!(state.standing(VAULT).refused, None);
-}
-
-/// No key was set in this run: the one kept from an earlier run is the one
-/// Granola's answers are about.
+/// No key was set in this run: a refusal of the one kept from an earlier run
+/// is heard like any other.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_refusal_of_a_key_kept_from_an_earlier_run_is_kept() {
     let setup = Setup::new().await;
@@ -250,7 +234,7 @@ async fn a_key_that_is_not_granolas_leaves_the_kept_ones_refusal_standing() {
     setup.session().request(NOTES, &no_query()).await.unwrap();
     assert_eq!(setup.refusal(), Some(401));
 
-    setup.session().set_key("not-a-key").unwrap_err();
+    setup.session().set_key("not-a-key").await.unwrap_err();
 
     assert_eq!(setup.refusal(), Some(401));
 }
@@ -271,33 +255,6 @@ impl SecretStore for RefusingStore {
     fn accounts(&self) -> Result<Vec<String>, String> {
         self.0.accounts()
     }
-}
-
-/// The Keychain refused the change, so it still holds the old key, and a
-/// refusal of that key is heard as one.
-#[tokio::test(flavor = "multi_thread")]
-async fn after_the_keychain_refuses_a_change_a_refusal_of_the_key_it_holds_is_kept() {
-    let fake = FakeGranola::start().await;
-    let store = RefusingStore(MemoryStore::default());
-    super::key::save(&store.0, VAULT, KEY).unwrap();
-    let state = GranolaState::default();
-    let session = Session {
-        origin: &fake.origin,
-        store: &store,
-        scope: VAULT,
-        state: &state,
-    };
-
-    let refused_once_changed = |change: Result<GranolaStatus, GranolaFailure>| async {
-        assert_eq!(change.unwrap_err().kind, FailureKind::Keychain);
-        session.request(NOTES, &no_query()).await.unwrap();
-        session.status().unwrap().last_refusal
-    };
-    assert_eq!(
-        refused_once_changed(session.set_key("grn_ANewOne")).await,
-        Some(401)
-    );
-    assert_eq!(refused_once_changed(session.forget_key()).await, Some(401));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -379,7 +336,7 @@ async fn a_granola_that_cannot_be_reached_is_unreachable() {
         scope: VAULT,
         state: &state,
     };
-    session.set_key(KEY).unwrap();
+    session.set_key(KEY).await.unwrap();
     let failure = session.request(NOTES, &no_query()).await.unwrap_err();
     assert_eq!(failure.kind, FailureKind::Unreachable);
 }
@@ -388,7 +345,7 @@ async fn a_granola_that_cannot_be_reached_is_unreachable() {
 async fn a_key_that_is_empty_or_not_granolas_is_refused_and_the_kept_one_stays() {
     let setup = Setup::keyed().await;
     for key in ["", "grn_", "sk-ant-Fict10nal", "Bearer grn_abc", "grn_a b"] {
-        let failure = setup.session().set_key(key).unwrap_err();
+        let failure = setup.session().set_key(key).await.unwrap_err();
         assert_eq!(failure.kind, FailureKind::Invalid, "{key:?}");
     }
     assert!(setup.session().status().unwrap().has_key);
@@ -438,7 +395,10 @@ async fn no_answer_or_failure_handed_to_the_webview_carries_the_key() {
     setup.granola().key = Some(KEY.into());
     setup.granola().echoes = true;
     let session = setup.session();
-    let mut handed = vec![as_handed(session.set_key(KEY)), as_handed(session.status())];
+    let mut handed = vec![
+        as_handed(session.set_key(KEY).await),
+        as_handed(session.status()),
+    ];
     let echoed = session.request(NOTES, &no_query()).await;
     assert!(echoed.as_ref().unwrap().body.contains("authorization"));
     handed.push(as_handed(echoed));
@@ -459,11 +419,11 @@ async fn no_answer_or_failure_handed_to_the_webview_carries_the_key() {
     handed.push(as_handed(
         session.request("/v1/../admin", &no_query()).await,
     ));
-    handed.push(as_handed(session.set_key("not-a-key")));
+    handed.push(as_handed(session.set_key("not-a-key").await));
     handed.push(as_handed(session.forget_key()));
     handed.push(as_handed(session.request(NOTES, &no_query()).await));
 
-    assert_eq!(setup.heard(), 8, "every reply was not exercised");
+    assert_eq!(setup.heard(), 9, "every reply was not exercised");
     for value in &handed {
         assert!(
             !value.contains(KEY),
@@ -572,20 +532,177 @@ async fn the_key_is_struck_from_an_echo_that_escapes_letters_and_digits() {
     }
 }
 
-/// A store whose write of a key holds, once written, until let go: the
-/// moment between `set_key` keeping the new key and noting that it changed.
-struct HeldStore {
-    inner: MemoryStore,
-    written: std::sync::mpsc::SyncSender<()>,
-    let_go: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+/// Setting a key asks Granola once with it — the first page of one note —
+/// and answers with what Granola said: a key it does not know is reported
+/// refused at once, and one it knows clears that.
+#[tokio::test(flavor = "multi_thread")]
+async fn setting_a_key_asks_granola_once_and_answers_whether_it_was_refused() {
+    let setup = Setup::new().await;
+    setup.granola().key = Some(KEY.into());
+
+    let refused = setup.session().set_key("grn_ATypoOfTheKey").await.unwrap();
+    assert_eq!(
+        refused,
+        GranolaStatus {
+            has_key: true,
+            last_refusal: Some(401)
+        }
+    );
+    assert_eq!(setup.refusal(), Some(401));
+
+    let known = setup.session().set_key(KEY).await.unwrap();
+    assert_eq!(
+        known,
+        GranolaStatus {
+            has_key: true,
+            last_refusal: None
+        }
+    );
+    let heard = setup.granola().heard.clone();
+    assert_eq!(heard.len(), 2, "each key was checked once");
+    assert_eq!(heard[1].method, "GET");
+    assert_eq!(heard[1].target, "/v1/notes?page_size=1");
+    assert_eq!(heard[1].authorization, format!("Bearer {KEY}"));
 }
 
-impl SecretStore for HeldStore {
+/// Granola cannot be reached when the key is set: it is kept, and nothing
+/// has been heard about it, so no refusal is reported — not even the last
+/// key's.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_set_while_granola_cannot_be_reached_is_kept_with_no_refusal() {
+    let closed = {
+        let listener = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        Url::parse(&format!(
+            "http://127.0.0.1:{}",
+            listener.local_addr().unwrap().port()
+        ))
+        .unwrap()
+    };
+    let (store, state) = (MemoryStore::default(), GranolaState::default());
+    let session = Session {
+        origin: &closed,
+        store: &store,
+        scope: VAULT,
+        state: &state,
+    };
+    state.heard(VAULT, 401);
+
+    let status = session.set_key(KEY).await.unwrap();
+
+    assert_eq!(
+        status,
+        GranolaStatus {
+            has_key: true,
+            last_refusal: None
+        }
+    );
+    assert_eq!(session.status().unwrap(), status);
+}
+
+/// A Keychain failure changes nothing that was kept, so what Granola last
+/// said stands, and the key is not checked.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_save_or_forget_leaves_the_last_refusal_standing() {
+    let fake = FakeGranola::start().await;
+    let store = RefusingStore(MemoryStore::default());
+    super::key::save(&store.0, VAULT, KEY).unwrap();
+    let state = GranolaState::default();
+    let session = Session {
+        origin: &fake.origin,
+        store: &store,
+        scope: VAULT,
+        state: &state,
+    };
+    state.heard(VAULT, 401);
+
+    let failed_save = session.set_key("grn_ANewOne").await.unwrap_err();
+    assert_eq!(failed_save.kind, FailureKind::Keychain);
+    assert_eq!(session.status().unwrap().last_refusal, Some(401));
+    let failed_forget = session.forget_key().unwrap_err();
+    assert_eq!(failed_forget.kind, FailureKind::Keychain);
+
+    assert_eq!(
+        session.status().unwrap(),
+        GranolaStatus {
+            has_key: true,
+            last_refusal: Some(401)
+        }
+    );
+    assert!(
+        fake.granola.lock().unwrap().heard.is_empty(),
+        "a key was checked"
+    );
+}
+
+/// A Keychain that keeps what it is given and then reports that it failed.
+struct KeepsButFailsStore(MemoryStore);
+
+impl SecretStore for KeepsButFailsStore {
     fn set(&self, account: &str, value: &str) -> Result<(), String> {
-        self.inner.set(account, value)?;
-        let _ = self.written.send(());
-        let _ = self.let_go.lock().unwrap().recv();
-        Ok(())
+        self.0.set(account, value)?;
+        Err("the keychain timed out".into())
+    }
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        self.0.get(account)
+    }
+    fn delete(&self, account: &str) -> Result<(), String> {
+        self.0.delete(account)
+    }
+    fn accounts(&self) -> Result<Vec<String>, String> {
+        self.0.accounts()
+    }
+}
+
+/// Round 3 found that, with the standing tied to which key an answer was
+/// about, a save the Keychain reported failed but kept could pin the old
+/// key's 401 against the new one for the rest of the run. Now the last answer
+/// is the word, whichever key it was about: the failed save clears nothing,
+/// and the next answer — to the key the Keychain did keep — replaces the 401.
+#[tokio::test(flavor = "multi_thread")]
+async fn after_a_save_reported_failed_the_next_answer_is_the_word_on_the_key() {
+    let fake = FakeGranola::start().await;
+    let new = "grn_TheNewKey";
+    fake.granola.lock().unwrap().key = Some(new.into());
+    let store = KeepsButFailsStore(MemoryStore::default());
+    super::key::save(&store.0, VAULT, KEY).unwrap();
+    let state = GranolaState::default();
+    let session = Session {
+        origin: &fake.origin,
+        store: &store,
+        scope: VAULT,
+        state: &state,
+    };
+    state.heard(VAULT, 401);
+
+    assert_eq!(
+        session.set_key(new).await.unwrap_err().kind,
+        FailureKind::Keychain
+    );
+    assert_eq!(session.status().unwrap().last_refusal, Some(401));
+
+    let answer = session.request(NOTES, &no_query()).await.unwrap();
+    assert_eq!(answer.status, 200, "the key the Keychain kept works");
+    assert_eq!(session.status().unwrap().last_refusal, None);
+}
+
+/// A store whose next write, once armed, holds until let go — a Keychain
+/// prompt the person is looking at — and then fails without writing, as when
+/// the prompt is denied.
+struct DeniedStore {
+    inner: MemoryStore,
+    armed: std::sync::atomic::AtomicBool,
+    prompting: std::sync::mpsc::SyncSender<()>,
+    answered: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl SecretStore for DeniedStore {
+    fn set(&self, account: &str, value: &str) -> Result<(), String> {
+        if self.armed.load(std::sync::atomic::Ordering::SeqCst) {
+            let _ = self.prompting.send(());
+            let _ = self.answered.lock().unwrap().recv();
+            return Err("the person denied Keychain access".into());
+        }
+        self.inner.set(account, value)
     }
     fn get(&self, account: &str) -> Result<Option<String>, String> {
         self.inner.get(account)
@@ -598,19 +715,21 @@ impl SecretStore for HeldStore {
     }
 }
 
-/// Adversarial (P28-10): a pull racing `granola_set_key`. `set_key` keeps the
-/// key before it bumps `changes`, so a request in between reads the old
-/// standing, sends the NEW key, and Granola's 401 for it is then wiped by the
-/// bump. The kept key was refused, and status says it was not.
+/// Round 3 found that a 401 heard while a new key's save waited on a Keychain
+/// prompt was set aside as being about another key, and lost when the prompt
+/// was denied. Now it is the last answer, and the denied save clears nothing,
+/// so it stands.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_refusal_of_the_new_key_heard_while_it_is_being_set_is_kept() {
-    let fake = FakeGranola::start().await; // honours no key: every request is 401
-    let (written, was_written) = std::sync::mpsc::sync_channel(1);
-    let (let_go, held) = std::sync::mpsc::channel();
-    let store: &'static HeldStore = Box::leak(Box::new(HeldStore {
+async fn a_refusal_heard_while_a_save_waits_on_the_keychain_stands_when_the_save_fails() {
+    let fake = FakeGranola::start().await;
+    fake.granola.lock().unwrap().key = Some(KEY.into());
+    let (prompting, prompted) = std::sync::mpsc::sync_channel(1);
+    let (answer, answered) = std::sync::mpsc::channel();
+    let store: &'static DeniedStore = Box::leak(Box::new(DeniedStore {
         inner: MemoryStore::default(),
-        written,
-        let_go: std::sync::Mutex::new(held),
+        armed: std::sync::atomic::AtomicBool::new(false),
+        prompting,
+        answered: std::sync::Mutex::new(answered),
     }));
     let state: &'static GranolaState = Box::leak(Box::default());
     let origin: &'static Url = Box::leak(Box::new(fake.origin.clone()));
@@ -620,258 +739,25 @@ async fn a_refusal_of_the_new_key_heard_while_it_is_being_set_is_kept() {
         scope: VAULT,
         state,
     };
+    assert_eq!(session().set_key(KEY).await.unwrap().last_refusal, None);
+    store.armed.store(true, std::sync::atomic::Ordering::SeqCst);
 
-    let setting = std::thread::spawn(move || session().set_key("grn_TheNewKey").unwrap());
-    was_written.recv().unwrap();
-    let answer = session().request(NOTES, &no_query()).await.unwrap();
-    let_go.send(()).unwrap();
-    setting.join().unwrap();
-
-    assert_eq!(answer.status, 401);
-    assert_eq!(
-        fake.granola.lock().unwrap().heard[0].authorization,
-        "Bearer grn_TheNewKey",
-        "the refused request carried the key now kept"
-    );
-    assert_eq!(session().status().unwrap().last_refusal, Some(401));
-}
-
-/// A Keychain whose writes fail while `refusing` is set, whose reads fail
-/// while `unreadable` is, and which keeps a value it then says it failed to
-/// keep while `keeps_but_fails` is.
-#[derive(Default)]
-struct FlakyStore {
-    inner: MemoryStore,
-    refusing: std::sync::atomic::AtomicBool,
-    unreadable: std::sync::atomic::AtomicBool,
-    keeps_but_fails: std::sync::atomic::AtomicBool,
-}
-
-impl FlakyStore {
-    fn is(flag: &std::sync::atomic::AtomicBool) -> bool {
-        flag.load(std::sync::atomic::Ordering::SeqCst)
-    }
-}
-
-impl SecretStore for FlakyStore {
-    fn set(&self, account: &str, value: &str) -> Result<(), String> {
-        if Self::is(&self.refusing) {
-            return Err("the keychain is locked".into());
-        }
-        self.inner.set(account, value)?;
-        if Self::is(&self.keeps_but_fails) {
-            return Err("the keychain timed out".into());
-        }
-        Ok(())
-    }
-    fn get(&self, account: &str) -> Result<Option<String>, String> {
-        if Self::is(&self.unreadable) {
-            return Err("the keychain is locked".into());
-        }
-        self.inner.get(account)
-    }
-    fn delete(&self, account: &str) -> Result<(), String> {
-        if Self::is(&self.refusing) {
-            return Err("the keychain is locked".into());
-        }
-        self.inner.delete(account)
-    }
-    fn accounts(&self) -> Result<Vec<String>, String> {
-        self.inner.accounts()
-    }
-}
-
-/// Adversarial (P28-10 fix). After a Keychain failure the standing is
-/// `Unknown`, and the first answer heard pins `kept` to whatever key that
-/// request carried — even one sent before the key now in the Keychain was set.
-/// The stale 401 then stands against the kept key, and every success of the
-/// kept key is ignored (`kept != sent`) for the rest of the run.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_late_answer_to_an_earlier_key_after_a_keychain_failure_does_not_pin_the_standing() {
-    let fake = FakeGranola::start().await;
-    let store = FlakyStore::default();
-    let state = GranolaState::default();
-    let session = Session {
-        origin: &fake.origin,
-        store: &store,
-        scope: VAULT,
-        state: &state,
-    };
-    let (earlier, kept) = ("grn_TheEarlierKey", "grn_TheKeptKey");
-    fake.granola.lock().unwrap().key = Some(kept.into());
-
-    session.set_key(earlier).unwrap();
-    // A pull goes out with the earlier key and is still waiting on Granola…
-    session.set_key(kept).unwrap();
-    store
-        .refusing
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    assert_eq!(
-        session
-            .set_key("grn_ATypoTheKeychainRefused")
+    let setting = std::thread::spawn(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(session().set_key("grn_TheNewKey"))
             .unwrap_err()
-            .kind,
-        FailureKind::Keychain
-    );
-    store
-        .refusing
-        .store(false, std::sync::atomic::Ordering::SeqCst);
-    // …and Granola's 401 for the earlier key lands now.
-    state.heard(VAULT, earlier, 401);
+    });
+    prompted.recv().unwrap();
+    fake.granola.lock().unwrap().key = Some("grn_RevokedMeanwhile".into());
+    let refused = session().request(NOTES, &no_query()).await.unwrap();
+    answer.send(()).unwrap();
+    assert_eq!(setting.join().unwrap().kind, FailureKind::Keychain);
 
-    let answer = session.request(NOTES, &no_query()).await.unwrap();
-    assert_eq!(answer.status, 200, "the kept key works");
-    assert_eq!(
-        session.status().unwrap().last_refusal,
-        None,
-        "the kept key answered 200, yet it stands refused for a 401 to the earlier key"
-    );
-}
-
-fn flaky_session<'a>(
-    fake: &'a FakeGranola,
-    store: &'a FlakyStore,
-    state: &'a GranolaState,
-) -> Session<'a> {
-    Session {
-        origin: &fake.origin,
-        store,
-        scope: VAULT,
-        state,
-    }
-}
-
-fn set(flag: &std::sync::atomic::AtomicBool, on: bool) {
-    flag.store(on, std::sync::atomic::Ordering::SeqCst);
-}
-
-/// A Keychain failure while setting a key changes nothing that was kept, so
-/// what Granola said of the kept key still stands.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_failed_save_keeps_the_refusal_of_the_key_still_kept() {
-    let fake = FakeGranola::start().await;
-    let (store, state) = (FlakyStore::default(), GranolaState::default());
-    let session = flaky_session(&fake, &store, &state);
-    session.set_key(KEY).unwrap();
-    state.heard(VAULT, KEY, 401);
-
-    set(&store.refusing, true);
-    let failure = session.set_key("grn_ATypoTheKeychainRefused").unwrap_err();
-    set(&store.refusing, false);
-
-    assert_eq!(failure.kind, FailureKind::Keychain);
-    assert_eq!(session.status().unwrap().last_refusal, Some(401));
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn a_failed_forget_keeps_the_refusal_of_the_key_still_kept() {
-    let fake = FakeGranola::start().await;
-    let (store, state) = (FlakyStore::default(), GranolaState::default());
-    let session = flaky_session(&fake, &store, &state);
-    session.set_key(KEY).unwrap();
-    state.heard(VAULT, KEY, 401);
-
-    set(&store.refusing, true);
-    let failure = session.forget_key().unwrap_err();
-    set(&store.refusing, false);
-
-    assert_eq!(failure.kind, FailureKind::Keychain);
-    assert_eq!(
-        session.status().unwrap(),
-        GranolaStatus {
-            has_key: true,
-            last_refusal: Some(401)
-        }
-    );
-}
-
-/// When the Keychain can be neither written nor read, which key it holds is
-/// not known, and the standing is left as it was rather than guessed at.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_failed_save_that_cannot_be_read_back_leaves_the_standing_as_it_was() {
-    let fake = FakeGranola::start().await;
-    let (store, state) = (FlakyStore::default(), GranolaState::default());
-    let session = flaky_session(&fake, &store, &state);
-    session.set_key(KEY).unwrap();
-    state.heard(VAULT, KEY, 401);
-
-    set(&store.refusing, true);
-    set(&store.unreadable, true);
-    session.set_key("grn_ATypoTheKeychainRefused").unwrap_err();
-    set(&store.refusing, false);
-    set(&store.unreadable, false);
-
-    assert_eq!(session.status().unwrap().last_refusal, Some(401));
-    state.heard(VAULT, "grn_AnEarlierKey", 200);
-    assert_eq!(
-        session.status().unwrap().last_refusal,
-        Some(401),
-        "an answer to some other key was taken as the word on the kept one"
-    );
-}
-
-/// A Keychain that kept the new key but reported a failure: the new key is
-/// what is sent from now on, and what Granola said of the old one is not about
-/// it.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_save_reported_failed_that_kept_the_key_stands_for_the_new_key() {
-    let fake = FakeGranola::start().await;
-    let (store, state) = (FlakyStore::default(), GranolaState::default());
-    let session = flaky_session(&fake, &store, &state);
-    let new = "grn_TheNewKey";
-    session.set_key(KEY).unwrap();
-    state.heard(VAULT, KEY, 401);
-
-    set(&store.keeps_but_fails, true);
-    session.set_key(new).unwrap_err();
-    set(&store.keeps_but_fails, false);
-
-    assert_eq!(session.status().unwrap().last_refusal, None);
-    state.heard(VAULT, KEY, 401);
-    assert_eq!(
-        session.status().unwrap().last_refusal,
-        None,
-        "a 401 to the old key stood against the new"
-    );
-    state.heard(VAULT, new, 401);
-    assert_eq!(session.status().unwrap().last_refusal, Some(401));
-}
-
-/// Setting the kept key again, when the Keychain fails, changes nothing, and
-/// Granola's refusal of that key stands.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_failed_save_of_the_key_already_kept_keeps_its_refusal() {
-    let fake = FakeGranola::start().await;
-    let (store, state) = (FlakyStore::default(), GranolaState::default());
-    let session = flaky_session(&fake, &store, &state);
-    session.set_key(KEY).unwrap();
-    state.heard(VAULT, KEY, 401);
-
-    set(&store.refusing, true);
-    session.set_key(KEY).unwrap_err();
-    set(&store.refusing, false);
-
-    assert_eq!(session.status().unwrap().last_refusal, Some(401));
-}
-
-/// A key kept from an earlier run is not known until it is used. A failed
-/// save reads it back, and from then on an answer to any other key is not
-/// taken as the word on it.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_failed_save_learns_the_key_kept_from_an_earlier_run() {
-    let fake = FakeGranola::start().await;
-    let (store, state) = (FlakyStore::default(), GranolaState::default());
-    let session = flaky_session(&fake, &store, &state);
-    super::key::save(&store, VAULT, KEY).unwrap();
-
-    set(&store.refusing, true);
-    session.set_key("grn_ATypoTheKeychainRefused").unwrap_err();
-    set(&store.refusing, false);
-    state.heard(VAULT, "grn_AnEarlierKey", 401);
-
-    assert_eq!(session.status().unwrap().last_refusal, None);
-    state.heard(VAULT, KEY, 401);
-    assert_eq!(session.status().unwrap().last_refusal, Some(401));
+    assert_eq!(refused.status, 401);
+    assert_eq!(session().status().unwrap().last_refusal, Some(401));
 }
 
 /// A key kept before Atlas refused one it could not strike from an answer is
@@ -903,7 +789,7 @@ async fn forgetting_the_key_lets_go_of_its_matcher() {
     let setup = Setup::new().await;
     let key = "grn_ForgottenLarkspurKey";
     setup.granola().key = Some(key.into());
-    setup.session().set_key(key).unwrap();
+    setup.session().set_key(key).await.unwrap();
     setup.session().request(NOTES, &no_query()).await.unwrap();
 
     setup.session().forget_key().unwrap();
