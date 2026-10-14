@@ -1,6 +1,7 @@
 import {
   joinVaultPath,
   mergedRecord,
+  recordGoneOnFrom,
   MIGRATION_RECORD_PATH,
   migrationRecordText,
   parentVaultPath,
@@ -140,12 +141,15 @@ async function create(fs: VaultFsPort, { path, contents }: FileCreation): Promis
 
 /**
  * Writes the run's record before the run changes anything — added to the one
- * a run cut off partway left, so one undo covers both. A record that cannot
- * be read stops the run here: running on would leave changes nothing records.
+ * a run that is not over left, so one undo covers both; in place of one that
+ * is over, so the later run's Undo takes back only what it did (#163) — see
+ * {@link recordGoneOnFrom}. A record that cannot be read stops the run here:
+ * running on would leave changes nothing records.
  */
 async function keepRecord(fs: VaultFsPort, record: MigrationRecord): Promise<void> {
   const earlier = await readMigrationRecord(fs);
-  const contents = migrationRecordText(mergedRecord(earlier?.record ?? null, record));
+  const goneOnFrom = recordGoneOnFrom(earlier?.record ?? null);
+  const contents = migrationRecordText(mergedRecord(goneOnFrom, record));
   if (earlier !== null) {
     await fs.writeTextFile({
       path: MIGRATION_RECORD_PATH,

@@ -128,7 +128,7 @@ export interface ArchiveListQuery {
 
 export interface InboxQuery {
   readonly limit?: number;
-  readonly offset?: number;
+  readonly cursor?: string;
 }
 
 export interface ListNotesQuery {
@@ -377,7 +377,7 @@ export class AtlasClient {
     this.json<{
       items: readonly ApiInboxItem[];
       truncated: boolean;
-      next: number | null;
+      next: string | null;
       total: number;
     }>({
       method: 'GET',

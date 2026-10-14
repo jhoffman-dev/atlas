@@ -28,7 +28,11 @@ export type TodayAction =
   | { readonly kind: 'move'; readonly status: string }
   | { readonly kind: 'defer'; readonly days: number };
 
-/** The last thing done to a task, and the way to undo it. */
+/**
+ * The last thing done to a task, and the way to undo it. Each action is a new
+ * notice object, and one action keeps its object across renders: its bar's
+ * time runs from when it was shown, even when the same words are said again.
+ */
 export interface TodayNotice {
   readonly title: string;
   readonly action: TodayAction;
@@ -179,7 +183,7 @@ function UndoNotice({ notice, busy }: { notice: TodayNotice | null; busy: boolea
 function UndoBar({ notice, busy }: { notice: TodayNotice; busy: boolean }) {
   const hold = useDismissAfter({
     ms: UNDO_BAR_MS,
-    showing: noticeWords(notice),
+    showing: notice,
     onDismiss: notice.onDismiss,
   });
   return (

@@ -50,7 +50,7 @@ export interface InboxPageProps {
   problem: string | null;
   /** Why a row's clarification was refused, shown on that row. */
   refusal?: InboxRefusal | null;
-  /** The last clarification, while it can be taken back. */
+  /** The last clarification, while it can be taken back: a new object for each, kept across renders. */
   lastAction?: { readonly title: string } | null;
   onUndo?: () => void;
   /** Ends the offer to take the last clarification back, once its bar has had its time (#165); with `onUndo`. */
@@ -164,7 +164,7 @@ function LastAction({ lastAction, onUndo, onDismissLastAction, busy }: InboxPage
   if (onUndo === undefined || onDismissLastAction === undefined) return null;
   return (
     <LastActionBar
-      title={lastAction.title}
+      lastAction={lastAction}
       busy={busy}
       onUndo={onUndo}
       onDismiss={onDismissLastAction}
@@ -174,17 +174,19 @@ function LastAction({ lastAction, onUndo, onDismissLastAction, busy }: InboxPage
 
 /** The last clarification, for 20 seconds unless held: its Undo lasts as long as it does. */
 function LastActionBar({
-  title,
+  lastAction,
   busy,
   onUndo,
   onDismiss,
 }: {
-  title: string;
+  lastAction: { readonly title: string };
   busy: boolean;
   onUndo: () => void;
   onDismiss: () => void;
 }) {
-  const hold = useDismissAfter({ ms: UNDO_BAR_MS, showing: title, onDismiss });
+  // Each clarification is its own object, so a second note of the same title gets its own time.
+  const hold = useDismissAfter({ ms: UNDO_BAR_MS, showing: lastAction, onDismiss });
+  const { title } = lastAction;
   return (
     <p className="inbox__done" role="status" {...hold}>
       Clarified “{title}”.

@@ -21,8 +21,9 @@ export interface LinePromotion {
 /**
  * The line under the page bar after a checklist line became a task: what was
  * made, a way to open it, and one Undo that takes back both the task and the
- * line. A refusal says why, with nothing to undo. It goes by itself, and its
- * Undo with it, after 20 seconds unless held (#165).
+ * line. It goes by itself, and its Undo with it, after 20 seconds unless held
+ * (#165). A refusal says why, with nothing to undo, and stays until dismissed.
+ * A new notice is a new object: one kept across renders keeps its time.
  */
 export function PromotionBanner({ notice }: { notice: PromotionNotice | null }) {
   if (notice === null) return null;
@@ -32,8 +33,10 @@ export function PromotionBanner({ notice }: { notice: PromotionNotice | null }) 
 function Banner({ notice }: { notice: PromotionNotice }) {
   const hold = useDismissAfter({
     ms: UNDO_BAR_MS,
-    showing: notice.message,
+    showing: notice,
     onDismiss: notice.onDismiss,
+    // A refusal, or an Undo that failed, offers nothing to take back: it stays until read and dismissed.
+    stays: notice.onUndo === null,
   });
   return (
     <div className="promotion-notice" role="status" {...hold}>

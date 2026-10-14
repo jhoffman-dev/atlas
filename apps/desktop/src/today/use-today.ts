@@ -182,6 +182,23 @@ export function useToday(options: TodayOptions) {
     }));
   }, [undoable, actOn]);
   const dismiss = useCallback(() => setLast(null), []);
+  // One notice per change, kept across renders, so its bar's time runs from when it was shown (#165).
+  const undoNow = useRef(undo);
+  useEffect(() => {
+    undoNow.current = undo;
+  });
+  const notice = useMemo(
+    () =>
+      undoable === null
+        ? null
+        : {
+            title: undoable.title,
+            action: undoable.action,
+            onUndo: () => void undoNow.current(),
+            onDismiss: dismiss,
+          },
+    [undoable, dismiss],
+  );
 
   return {
     /** Whether the vault has tasks, which is when the page's sidebar row shows. */
@@ -192,15 +209,7 @@ export function useToday(options: TodayOptions) {
       busy,
       problem,
       settling: settlingHere,
-      notice:
-        undoable === null
-          ? null
-          : {
-              title: undoable.title,
-              action: undoable.action,
-              onUndo: () => void undo(),
-              onDismiss: dismiss,
-            },
+      notice,
       onDone: done,
       onSetStatus: setStatus,
       onDefer: defer,

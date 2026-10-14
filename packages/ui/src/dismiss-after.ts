@@ -15,16 +15,20 @@ export interface HoldWhileInUse {
  * Dismisses something shown after `ms`. It waits while the pointer is on it
  * or the focus is in it, so what it offers can be reached by mouse and by
  * keyboard alike, and gives its full time again once let go. Something new
- * shown — another `showing` — starts the time afresh.
+ * shown — another `showing`, compared by identity, so the same words said
+ * again are new — starts the time afresh. What `stays` — a failure, which
+ * must be read — is never dismissed by time, only by the person.
  */
 export function useDismissAfter({
   ms,
   showing,
   onDismiss,
+  stays = false,
 }: {
   ms: number;
   showing: unknown;
   onDismiss: () => void;
+  stays?: boolean;
 }): HoldWhileInUse {
   const dismiss = useRef(onDismiss);
   useEffect(() => {
@@ -34,10 +38,10 @@ export function useDismissAfter({
   const [focused, setFocused] = useState(false);
   const held = hovered || focused;
   useEffect(() => {
-    if (held) return;
+    if (held || stays) return;
     const timer = window.setTimeout(() => dismiss.current(), ms);
     return () => window.clearTimeout(timer);
-  }, [showing, held, ms]);
+  }, [showing, held, ms, stays]);
   return {
     onPointerEnter: () => setHovered(true),
     onPointerLeave: () => setHovered(false),

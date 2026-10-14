@@ -18,6 +18,7 @@ export { GTD_VIEW_FILES, NEXT_ACTIONS_QUERY } from './gtd-views.ts';
 export type { GtdViewFile } from './gtd-views.ts';
 export {
   mergedRecord,
+  recordGoneOnFrom,
   MIGRATION_RECORD_PATH,
   MIGRATION_UNDO_OFFER_DAYS,
   MigrationRecordError,
