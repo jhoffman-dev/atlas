@@ -219,7 +219,7 @@ async fn any_other_status_is_an_answer_and_clears_a_refusal() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_refusal_of_a_key_kept_from_an_earlier_run_is_kept() {
     let setup = Setup::new().await;
-    super::key::save(&setup.store, VAULT, KEY).unwrap();
+    super::key::save(&setup.store, VAULT, KEY).await.unwrap();
 
     let answer = setup.session().request(NOTES, &no_query()).await.unwrap();
 
@@ -605,7 +605,7 @@ async fn a_key_set_while_granola_cannot_be_reached_is_kept_with_no_refusal() {
 async fn a_failed_save_or_forget_leaves_the_last_refusal_standing() {
     let fake = FakeGranola::start().await;
     let store = RefusingStore(MemoryStore::default());
-    super::key::save(&store.0, VAULT, KEY).unwrap();
+    super::key::save(&store.0, VAULT, KEY).await.unwrap();
     let state = GranolaState::default();
     let session = Session {
         origin: &fake.origin,
@@ -664,7 +664,7 @@ async fn after_a_save_reported_failed_the_next_answer_is_the_word_on_the_key() {
     let new = "grn_TheNewKey";
     fake.granola.lock().unwrap().key = Some(new.into());
     let store = KeepsButFailsStore(MemoryStore::default());
-    super::key::save(&store.0, VAULT, KEY).unwrap();
+    super::key::save(&store.0, VAULT, KEY).await.unwrap();
     let state = GranolaState::default();
     let session = Session {
         origin: &fake.origin,
@@ -783,19 +783,152 @@ async fn a_key_kept_too_long_to_protect_is_refused_before_anything_is_sent() {
     assert_eq!(setup.heard(), 0, "the key went out");
 }
 
-/// Forgetting the key lets go of the matcher that spells it.
-#[tokio::test(flavor = "multi_thread")]
-async fn forgetting_the_key_lets_go_of_its_matcher() {
-    let setup = Setup::new().await;
-    let key = "grn_ForgottenLarkspurKey";
-    setup.granola().key = Some(key.into());
-    setup.session().set_key(key).await.unwrap();
-    setup.session().request(NOTES, &no_query()).await.unwrap();
+/// A Granola on loopback that takes one request and answers it with
+/// `status` only when released, so that a test can act while it is out.
+struct HeldGranola {
+    origin: &'static Url,
+    arrived: tokio::sync::oneshot::Receiver<()>,
+    release: tokio::sync::oneshot::Sender<()>,
+}
 
-    setup.session().forget_key().unwrap();
+impl HeldGranola {
+    async fn start(status: &'static str) -> Self {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .await
+            .unwrap();
+        let origin: &'static Url = Box::leak(Box::new(
+            Url::parse(&format!(
+                "http://127.0.0.1:{}",
+                listener.local_addr().unwrap().port()
+            ))
+            .unwrap(),
+        ));
+        let (arrived_tx, arrived) = tokio::sync::oneshot::channel();
+        let (release, released) = tokio::sync::oneshot::channel::<()>();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = vec![0; 4096];
+            let _ = socket.read(&mut request).await.unwrap();
+            arrived_tx.send(()).unwrap();
+            released.await.unwrap();
+            let body = r#"{"notes":[],"hasMore":false,"cursor":null}"#;
+            let response = format!(
+                "HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        Self {
+            origin,
+            arrived,
+            release,
+        }
+    }
+}
+
+/// A session over memory that lives as long as the test's spawned tasks.
+fn leaked_session(origin: &'static Url, key: &str) -> impl Fn() -> Session<'static> + Copy {
+    let store: &'static MemoryStore = Box::leak(Box::default());
+    let state: &'static GranolaState = Box::leak(Box::default());
+    store.set("v1:apikey/granola", key).unwrap();
+    move || Session {
+        origin,
+        store,
+        scope: VAULT,
+        state,
+    }
+}
+
+/// Adversarial (P28-10 round 3, after 0d51773), rewritten for round 4. A
+/// pull already out with the key strikes its answer after the key was
+/// forgotten, and that builds or uses the forgotten key's matcher again.
+/// Forgetting never let go of it for good; what holds is the bound: it is
+/// let go once eight other values have been used.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_forgotten_while_a_request_is_out_is_let_go_once_eight_other_values_are_used() {
+    let key = "grn_InFlightForgottenLarkspurKey";
+    let granola = HeldGranola::start("200 OK").await;
+    let session = leaked_session(granola.origin, key);
+
+    let out = tokio::spawn(async move { session().request(NOTES, &no_query()).await });
+    granola.arrived.await.unwrap();
+    session().forget_key().unwrap();
+    granola.release.send(()).unwrap();
+    assert_eq!(out.await.unwrap().unwrap().status, 200);
+
+    crate::secrets::tests::use_eight_other_values();
 
     assert!(
-        !crate::secrets::holds_matcher(super::KEY_NAME, key),
-        "the forgotten key's matcher is still held"
+        !crate::secrets::holds_matcher(key),
+        "the forgotten key's matcher outlived eight others"
     );
+}
+
+/// Adversarial (P28-10 round 3, after 0d51773), rewritten for round 4.
+/// `key::save` builds the new key's matcher before the Keychain is asked;
+/// when the Keychain refuses it the key is not kept, and its matcher is held
+/// until eight other values have been used.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_the_keychain_refused_is_let_go_once_eight_other_values_are_used() {
+    let fake = FakeGranola::start().await;
+    let store = RefusingStore(MemoryStore::default());
+    let state = GranolaState::default();
+    let session = Session {
+        origin: &fake.origin,
+        store: &store,
+        scope: VAULT,
+        state: &state,
+    };
+    let refused = "grn_KeychainRefusedLarkspurKey";
+
+    assert_eq!(
+        session.set_key(refused).await.unwrap_err().kind,
+        FailureKind::Keychain
+    );
+    crate::secrets::tests::use_eight_other_values();
+
+    assert!(
+        !crate::secrets::holds_matcher(refused),
+        "the refused key's matcher outlived eight others"
+    );
+}
+
+/// Setting a key builds its matcher — most of a second for a long one in a
+/// debug build — on a thread kept for it, not on the async worker.
+#[tokio::test]
+async fn setting_a_key_never_stalls_the_worker() {
+    let setup = Setup::new().await;
+    let long = format!(
+        "grn_SetNotYetBuilt{}",
+        crate::secrets::tests::a_signed_token(2_000)
+    );
+
+    let status =
+        crate::secrets::tests::assert_never_stalls_the_worker(setup.session().set_key(&long))
+            .await
+            .unwrap();
+
+    assert!(status.has_key);
+}
+
+/// A request checks the kept key can be struck before it goes, which builds
+/// its matcher when it is not held, on a thread kept for it.
+#[tokio::test]
+async fn a_request_never_stalls_the_worker() {
+    let setup = Setup::new().await;
+    let long = format!(
+        "grn_SentNotYetBuilt{}",
+        crate::secrets::tests::a_signed_token(2_000)
+    );
+    setup.store.set("v1:apikey/granola", &long).unwrap();
+
+    let answer = crate::secrets::tests::assert_never_stalls_the_worker(
+        setup.session().request(NOTES, &no_query()),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(answer.status, 401);
 }

@@ -20,7 +20,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::secrets::{
-    ensure_strikable, forget_matcher, redact_off_worker, vault_scope, SecretState, SecretStore,
+    ensure_strikable_off_worker, redact_off_worker, vault_scope, SecretState, SecretStore,
 };
 use crate::vault::{root_for_write, VaultState};
 
@@ -108,7 +108,7 @@ fn no_key() -> GranolaFailure {
     )
 }
 
-/// A key kept before `key::check` refused one Atlas could not strike from an
+/// A key kept before `key::save` refused one Atlas could not strike from an
 /// answer: sending it and then withholding the answer would already have
 /// given it away, so it is not sent.
 fn too_long_to_protect() -> GranolaFailure {
@@ -132,7 +132,7 @@ impl Session<'_> {
     /// Granola cannot be reached the key is still kept, and no refusal is
     /// reported: nothing has been heard about it yet.
     pub async fn set_key(&self, key: &str) -> Result<GranolaStatus, GranolaFailure> {
-        key::save(self.store, self.scope, key)?;
+        key::save(self.store, self.scope, key).await?;
         self.state.clear(self.scope);
         log::info!("Granola API key stored");
         match self.check(key).await {
@@ -162,7 +162,6 @@ impl Session<'_> {
 
     pub fn forget_key(&self) -> Result<GranolaStatus, GranolaFailure> {
         key::forget(self.store, self.scope)?;
-        forget_matcher(KEY_NAME);
         self.state.clear(self.scope);
         log::info!("Granola API key removed");
         Ok(GranolaStatus {
@@ -180,11 +179,14 @@ impl Session<'_> {
     ) -> Result<GranolaAnswer, GranolaFailure> {
         let url = api::call_url(self.origin, path, query)?;
         let key = key::load(self.store, self.scope)?.ok_or_else(no_key)?;
-        ensure_strikable(KEY_NAME, &key).map_err(|_| too_long_to_protect())?;
-        let sent = [(KEY_NAME.to_string(), key)];
-        let (status, body) = api::get(&url, &sent[0].1)
+        ensure_strikable_off_worker(key.clone())
             .await
-            .map_err(|failure| failure.struck_of(&sent))?;
+            .map_err(|_| too_long_to_protect())?;
+        let sent = [(KEY_NAME.to_string(), key)];
+        let (status, body) = match api::get(&url, &sent[0].1).await {
+            Ok(answer) => answer,
+            Err(failure) => return Err(failure.struck_of(sent.into()).await),
+        };
         self.state.heard(self.scope, status);
         log::debug!("Granola answered {status}");
         let text = String::from_utf8(body).map_err(|_| {

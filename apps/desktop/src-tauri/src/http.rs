@@ -8,6 +8,7 @@
 //! the request leaves, and every value that went out is struck from whatever
 //! comes back — the body and any error alike — so none reaches the webview.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -16,8 +17,8 @@ use serde::Deserialize;
 use tauri::State;
 
 use crate::secrets::{
-    check_bound, check_strikable, describe, fill, redact, redact_off_worker, vault_scope,
-    SecretState, SecretStore, TemplatePart,
+    check_bound, check_strikable, describe, fill, on_blocking_thread, redact, redact_off_worker,
+    vault_scope, SecretState, SecretStore, TemplatePart,
 };
 use crate::vault::{root_for_write, VaultState};
 
@@ -172,6 +173,25 @@ pub(crate) fn prepare(
     })
 }
 
+/// What a request that could not be prepared off the async worker is told.
+pub(crate) const NOT_PREPARED: &str = "the request could not be checked, so nothing was sent";
+
+/// `prepare`, on a thread kept for blocking work: checking that a request's
+/// secrets can be struck builds their matchers, which for a long secret takes
+/// most of a second, and the Keychain may stop for a prompt. A request that
+/// could not be prepared there is not sent.
+pub(crate) async fn prepare_off_worker(
+    store: Arc<dyn SecretStore>,
+    scope: String,
+    request: HttpRequest,
+) -> Result<Prepared, String> {
+    on_blocking_thread(
+        move || prepare(store.as_ref(), Some(&scope), &request),
+        Err(NOT_PREPARED.to_string()),
+    )
+    .await
+}
+
 /// Why an answer could not be read whole.
 #[derive(Debug)]
 pub(crate) enum ReadFailure {
@@ -260,7 +280,7 @@ pub async fn http_get(
     // another vault was opened is refused, never filled from the other's.
     let root = root_for_write(state.root(), Some(&vault))?;
     let scope = vault_scope(&root);
-    let prepared = prepare(secrets.store(), Some(&scope), &request)?;
+    let prepared = prepare_off_worker(secrets.shared(), scope, request).await?;
     send(&prepared).await
 }
 
@@ -269,7 +289,7 @@ pub async fn http_get(
 async fn send(prepared: &Prepared) -> Result<String, String> {
     match fetch(prepared).await {
         Ok(text) => Ok(redact_off_worker(text, prepared.used.clone()).await),
-        Err(error) => Err(redact(&error, &prepared.used)),
+        Err(error) => Err(redact_off_worker(error, prepared.used.clone()).await),
     }
 }
 

@@ -14,6 +14,7 @@
 //! request to any other is refused before anything is sent.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -39,15 +40,20 @@ pub trait SecretStore: Send + Sync {
     fn accounts(&self) -> Result<Vec<String>, String>;
 }
 
-pub struct SecretState(Box<dyn SecretStore>);
+pub struct SecretState(Arc<dyn SecretStore>);
 
 impl SecretState {
     pub fn new(store: Box<dyn SecretStore>) -> Self {
-        Self(store)
+        Self(Arc::from(store))
     }
 
     pub fn store(&self) -> &dyn SecretStore {
         self.0.as_ref()
+    }
+
+    /// The store, for work moved to a thread kept for blocking work.
+    pub fn shared(&self) -> Arc<dyn SecretStore> {
+        Arc::clone(&self.0)
     }
 }
 
@@ -162,7 +168,9 @@ pub use redact::holds_matcher;
 /// Every secret that went into a request is struck from what came back. A
 /// server that echoes its headers — plenty of test endpoints do — would
 /// otherwise write the token into a note, and so into the vault and Git.
-pub use redact::{ensure_strikable, forget_matcher, redact, redact_off_worker};
+pub use redact::{
+    ensure_strikable, ensure_strikable_off_worker, on_blocking_thread, redact, redact_off_worker,
+};
 
 /// Refuses, before anything is sent, a request carrying a secret that could
 /// not be struck from what comes back: one kept before Atlas checked that
@@ -170,7 +178,7 @@ pub use redact::{ensure_strikable, forget_matcher, redact, redact_off_worker};
 /// already have given it away to wherever it went.
 pub fn check_strikable(used: &[(String, String)]) -> Result<(), String> {
     for (name, value) in used {
-        ensure_strikable(name, value).map_err(|_| {
+        ensure_strikable(value).map_err(|_| {
             format!(
                 "the secret {name:?} is too long for Atlas to protect, so nothing was sent — replace it with a shorter one in Settings → Secrets"
             )
@@ -234,15 +242,28 @@ pub async fn secret_set(
     origins: Option<Vec<String>>,
 ) -> Result<(), String> {
     let root = root_for_write(state.root(), Some(&vault))?;
-    let write = SecretWrite {
-        scope: &vault_scope(&root),
-        name: &name,
-        value: Some(&value),
-        origins: origins.as_deref(),
-    };
-    write_secret(secrets.store(), &write, &|name, added| {
-        ask_to_widen(&app, name, added)
-    })?;
+    let scope = vault_scope(&root);
+    let store = secrets.shared();
+    let named = name.clone();
+    // Off the async worker: checking the value can be struck builds its
+    // matcher, which for a long one takes most of a second.
+    on_blocking_thread(
+        move || {
+            let write = SecretWrite {
+                scope: &scope,
+                name: &named,
+                value: Some(&value),
+                origins: origins.as_deref(),
+            };
+            write_secret(store.as_ref(), &write, &|name, added| {
+                ask_to_widen(&app, name, added)
+            })
+        },
+        Err(format!(
+            "the secret {name:?} could not be checked, so it is not kept"
+        )),
+    )
+    .await?;
     // The name only. The value is not logged at any level.
     log::info!("secret {name:?} stored");
     Ok(())

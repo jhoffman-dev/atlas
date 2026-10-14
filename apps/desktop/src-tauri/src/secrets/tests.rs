@@ -1,4 +1,6 @@
+use std::future::Future;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use super::{
     account, binding::bound_origins, describe, entries_in, fill, names_in, redact, remove_secret,
@@ -589,4 +591,65 @@ fn a_secret_echoed_form_encoded_with_plus_for_space_is_struck() {
 fn a_short_secret_strikes_only_itself_and_not_text_its_base64_shares() {
     assert_eq!(struck("Yes", "a"), "Yes");
     assert_eq!(struck("Final", "ab"), "Final");
+}
+
+/// Uses eight values no test keeps. The redactor holds the matchers of the
+/// eight values used most recently, so any value used before these is no
+/// longer among them, whatever other tests use meanwhile.
+pub(crate) fn use_eight_other_values() {
+    for n in 0..8 {
+        super::ensure_strikable(&format!("grn_Displacing{n}")).unwrap();
+    }
+}
+
+/// Runs `work` joined, on one task, with a step that only has to be polled
+/// once more, and checks that step was not kept waiting while `work` ran:
+/// it finishes at once when `work` builds its matchers on another thread,
+/// and only after them when they are built on this one — the async worker
+/// every other command shares.
+pub(crate) async fn assert_never_stalls_the_worker<T>(work: impl Future<Output = T>) -> T {
+    let started = Instant::now();
+    let work = async {
+        let done = work.await;
+        (done, started.elapsed())
+    };
+    let other = async {
+        tokio::task::yield_now().await;
+        started.elapsed()
+    };
+    let ((done, took), waited) = tokio::join!(work, other);
+    assert!(
+        waited * 10 < took && took > Duration::from_millis(5),
+        "another step waited {waited:?} of the {took:?} the work took"
+    );
+    done
+}
+
+/// Adversarial (P28-10 round 3, after 0d51773), rewritten for round 4. The
+/// matcher is built before anything else about the write is checked, and
+/// held whether or not the value is then kept: a write refused for its
+/// origins (or a Keychain that would not take it) leaves a matcher spelling a
+/// value Atlas never kept. That is accepted, within a bound: it is let go
+/// once eight other values have been used.
+#[test]
+fn a_secret_refused_at_saving_is_let_go_once_eight_other_values_are_used() {
+    let store = MemoryStore::default();
+    let (name, value) = ("larkspur-refused-token", "grn_RefusedLarkspurValue");
+
+    let refused = write(
+        &store,
+        name,
+        Some(value),
+        Some(&["http://plain.test"]),
+        true,
+    );
+    assert!(refused.is_err());
+    assert!(store.accounts().unwrap().is_empty(), "the value was kept");
+
+    use_eight_other_values();
+
+    assert!(
+        !super::holds_matcher(value),
+        "the refused value's matcher outlived eight others"
+    );
 }
