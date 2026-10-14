@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { noteTitle, typeSetupLines, type VaultPath } from '@atlas/domain';
+import { noteTitle, shippedPropertiesLine, typeSetupLines, type VaultPath } from '@atlas/domain';
 import {
   acceptTypeSetup,
   ensureBuiltInTypes,
   type ActivityRecorder,
   type MarkdownPort,
+  type ShippedPropertiesAdded,
   type TypeSetupFailure,
   type TypeSetupOffer,
   type VaultFsPort,
@@ -22,9 +23,10 @@ export interface TypesOffer {
 
 /**
  * Makes the vault's types whole for PARA when it opens: a vault that files by
- * project has the PARA types it lacks written in, and anything else — PARA
- * for a vault without it, a change to the vault's own types — is held as an
- * offer, which the Inbox shows (P30-01).
+ * project has the PARA types it lacks written in, each built-in type file
+ * gains the properties Atlas ships that it predates (#162), and anything else
+ * — PARA for a vault without it, PARA's change to the vault's own types — is
+ * held as an offer, which the Inbox shows (P30-01).
  */
 export function useBuiltInTypes({
   fs,
@@ -76,6 +78,29 @@ export function useBuiltInTypes({
     [activity],
   );
 
+  // Nothing silent either: each type that gained properties it predates (#162).
+  const announceProperties = useCallback(
+    ({ gained, failed }: ShippedPropertiesAdded) => {
+      for (const { path, label, added } of gained) {
+        activity.record({
+          level: 'info',
+          kind: 'app',
+          message: shippedPropertiesLine({ label, added }),
+          subject: { kind: 'note', path },
+        });
+      }
+      for (const { name, reason } of failed) {
+        activity.record({
+          level: 'warning',
+          kind: 'app',
+          message: `Atlas could not add its built-in properties to ${name}: ${reason}`,
+          subject: null,
+        });
+      }
+    },
+    [activity],
+  );
+
   useEffect(() => {
     setOffer(NOTHING_OFFERED);
     if (vaultKey === null) return;
@@ -84,9 +109,10 @@ export function useBuiltInTypes({
       .then((ensured) => {
         if (cancelled) return;
         report(ensured.failed);
+        announceProperties(ensured.properties);
         announce(ensured.created);
         setOffer(ensured.offer);
-        if (ensured.created.length > 0) changed.current();
+        if (ensured.created.length + ensured.properties.gained.length > 0) changed.current();
       })
       .catch((cause: unknown) => {
         if (!cancelled) report([{ name: 'PARA', reason: String(cause) }]);
@@ -94,7 +120,7 @@ export function useBuiltInTypes({
     return () => {
       cancelled = true;
     };
-  }, [fs, markdown, vaultKey, report, announce]);
+  }, [fs, markdown, vaultKey, report, announce, announceProperties]);
 
   const accept = useCallback(async () => {
     const done = await acceptTypeSetup({ fs, markdown, offer });

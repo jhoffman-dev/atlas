@@ -22,7 +22,9 @@ const folded = (name: string) => name.trim().toLowerCase();
  * the relations a task or a decision taken from a meeting is linked back
  * through (`tasks`, `decisions`, P29-05).
  * Additive only — a key the Meeting type already has is left as it is — and
- * never written without a yes: it is offered beside PARA's setup.
+ * never written without a yes: it is offered beside PARA's setup. Opening a
+ * vault gives its Meeting type these keys once (#162, `shippedPropertiesPlan`),
+ * so what is offered here is a key the person took off since.
  */
 export function inboxTypePlan<Type extends ObjectType>(
   existing: readonly Type[],

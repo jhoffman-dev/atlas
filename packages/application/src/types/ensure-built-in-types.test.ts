@@ -9,7 +9,7 @@
  * read back whole; how the real writer keeps every byte is the adapters'.
  */
 import { describe, expect, it } from 'vitest';
-import { relationTypes, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import { extensionKeys, relationTypes, splitFrontmatter, type VaultPath } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
@@ -88,15 +88,15 @@ function propertiesOf(v: ReturnType<typeof vault>, path: string): Record<string,
 const WHOLE_PARA = {
   '.atlas/types/project.md': note({
     name: 'project',
-    properties: { status: 'select', area: 'text', due: 'date', summary: 'text' },
+    properties: { status: 'select', area: 'text', due: 'date', description: 'text' },
   }),
-  '.atlas/types/area.md': note({ name: 'area', properties: { summary: 'text' } }),
+  '.atlas/types/area.md': note({ name: 'area', properties: { description: 'text' } }),
   '.atlas/types/resource.md': note({
     name: 'resource',
     properties: {
       project: { kind: 'relation', target: ['project', 'area'] },
       url: 'url',
-      summary: 'text',
+      description: 'text',
     },
   }),
 };
@@ -112,7 +112,7 @@ describe('ensureBuiltInTypes', () => {
     expect(ensured.offer.extensions).toEqual([]);
     // His status and budget stay as he wrote them; the keys PARA's Project ships follow (#162).
     const project = propertiesOf(v, '.atlas/types/project.md');
-    expect(Object.keys(project)).toEqual(['status', 'budget', 'area', 'due', 'summary']);
+    expect(Object.keys(project)).toEqual(['status', 'budget', 'area', 'due', 'description']);
     expect(project['status']).toBe('select');
     expect(project['budget']).toEqual({ kind: 'number', label: 'Budget' });
     const types = await loadObjectTypes(v);
@@ -258,7 +258,10 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
       { path: '.atlas/types/meeting.md', label: 'Meeting', added: ['Tasks', 'Decisions'] },
     ]);
     expect(ensured.properties.failed).toEqual([]);
-    expect(ensured.offer.extensions).toEqual([]);
+    // Only PARA's project is left to ask about: the shipped keys are no longer offered.
+    expect(ensured.offer.extensions.map((extension) => extensionKeys(extension))).toEqual([
+      new Set(['project']),
+    ]);
   });
 
   it('records what it settled in the vault’s migrations, so the other Mac knows', async () => {
@@ -362,6 +365,35 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     expect(v.files.get('.atlas/types/meeting.md')).toBe(OLDER_MEETING);
     expect(ensured.properties.gained).toEqual([]);
     expect(ensured.properties.failed).toHaveLength(1);
+  });
+
+  it('adds to its record when a built-in type turns up later, keeping what it settled', async () => {
+    const v = vault({ '.atlas/types/meeting.md': OLDER_MEETING });
+    await ensureBuiltInTypes(v);
+    v.files.set('.atlas/types/daily.md', note({ name: 'daily', properties: { date: 'date' } }));
+
+    const later = await ensureBuiltInTypes(v);
+
+    expect(later.properties.gained.map((gained) => gained.label)).toEqual(['daily']);
+    const record = v.files.get(RECORD) ?? '';
+    expect(record).toContain('"added":{"meeting":["tasks","decisions"],"daily":["tags"]}');
+    expect(record.match(/# Properties added to built-in types/g)).toHaveLength(1);
+  });
+
+  it('says so when its record cannot be written, and keeps the properties it added', async () => {
+    const v = vault({ '.atlas/types/meeting.md': OLDER_MEETING });
+    const refusing = {
+      ...v.fs,
+      createNote: async () => {
+        throw new Error('read-only vault');
+      },
+    };
+
+    const ensured = await ensureBuiltInTypes({ ...v, fs: refusing });
+
+    expect(ensured.properties.failed).toEqual([{ name: 'its record', reason: 'read-only vault' }]);
+    expect(ensured.properties.gained.map((gained) => gained.label)).toEqual(['Meeting']);
+    expect(Object.keys(propertiesOf(v, '.atlas/types/meeting.md'))).toContain('tasks');
   });
 
   it('settles only the types it could write, so one that failed is tried again next time', async () => {

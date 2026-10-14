@@ -631,6 +631,35 @@ bullets above, this wins._
   is not detected; a compound owner among others (`Tobias and Lena`) is not
   split into two tasks.
 
+### Addendum (2026-10-14, #162): an older Meeting type gains the relations on opening
+
+_Amends "a vault's Meeting type is offered them" above, and ADR-0016's
+narrowing of P30-01 for built-in properties only._
+
+A vault whose `.atlas/types/meeting.md` predates `tasks` and `decisions` had
+every action-item proposal refused at Accept until someone accepted the
+Inbox's offer — which a person who never opened the Inbox page never saw.
+So opening a vault now gives each built-in type file the properties Atlas
+ships on it and the file lacks (`shippedPropertiesPlan`): Meeting the import's
+keys and the two relations; Project, Area, Resource, Proposal, Decision, Daily
+and Block what their shipped files declare.
+
+- **Additive, once.** A key the file has is never changed, whatever its shape;
+  its body, its keys and their order stay as they are (the type editor's
+  byte-preserving write). What was added and settled is recorded in
+  `.atlas/migrations/type-properties.md`, so a key the person takes off
+  afterwards stays off, on either Mac, and the Inbox offers it back instead.
+- **Never silent.** Each type changed is an info line in Activity naming what
+  it gained; a type that could not be written is a warning and is tried again
+  on the next open. A record that cannot be read stops the migration before
+  anything is written.
+- **Not Task.** Its keys come with the move to GTD (ADR-0029), which changes
+  its status and stays the person's to start. PARA's `project` on the vault's
+  own Task and Meeting types also stays an offer.
+- **Accept is still refused** when the relation is missing — a Meeting type
+  the person took `tasks` off, or none at all — with the run's warning above
+  and the refusal naming the relation.
+
 ## Consequences
 
 - A Mac that is not the automations Mac never runs Claude on a meeting; the

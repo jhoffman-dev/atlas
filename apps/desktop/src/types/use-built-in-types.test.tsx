@@ -44,7 +44,45 @@ function setup(files: Record<string, string>) {
   return { files: memory.files, hook, onChanged, activity };
 }
 
-const PROJECT = '---\nname: project\nlabel: Project\n---\n\n# Project\n';
+/** A Project type with every key PARA ships on it, so opening only adds the types beside it. */
+const PROJECT = [
+  '---',
+  'name: project',
+  'label: Project',
+  'properties:',
+  '  status: select',
+  '  area: text',
+  '  due: date',
+  '  description: text',
+  '---',
+  '',
+  '# Project',
+  '',
+].join('\n');
+
+/** A Meeting type from before `tasks` and `decisions` (#162), commented as Mara Quill keeps it. */
+const OLDER_MEETING = [
+  '---',
+  'name: meeting',
+  'label: Meeting',
+  'icon: calendar',
+  'properties:',
+  '  # Set by the import; Mara reads it on the Inbox page.',
+  '  atlas_import_outcome:',
+  '    kind: select',
+  '    label: How it came in',
+  '    options: [imported, error]',
+  '  atlas_import_error: text',
+  '  atlas_duplicate_of:',
+  '    kind: relation',
+  '    target: meeting',
+  '---',
+  '',
+  '# Meeting',
+  '',
+  'Mara’s own words about meetings.',
+  '',
+].join('\n');
 
 describe('useBuiltInTypes', () => {
   it('writes the PARA types a vault that files by project lacks, and says the vault changed', async () => {
@@ -167,5 +205,59 @@ describe('useBuiltInTypes', () => {
         ['info', 'Added the resource type: this vault files by project, and PARA needs it.'],
       ]),
     );
+  });
+
+  it('gives an older Meeting type tasks and decisions on opening, keeping every byte it had', async () => {
+    const { files, onChanged } = setup({ '.atlas/types/meeting.md': OLDER_MEETING });
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(files.get('.atlas/types/meeting.md')).toBe(
+      OLDER_MEETING.replace(
+        '    target: meeting\n',
+        [
+          '    target: meeting',
+          '  tasks:',
+          '    kind: relation',
+          '    target: task',
+          '    many: true',
+          '  decisions:',
+          '    kind: relation',
+          '    target: decision',
+          '    many: true',
+          '',
+        ].join('\n'),
+      ),
+    );
+  });
+
+  it('says in Activity which properties a type gained, and writes nothing on the next open', async () => {
+    const first = setup({ '.atlas/types/meeting.md': OLDER_MEETING });
+    await waitFor(() => expect(first.activity.reports).toHaveLength(1));
+    expect(first.activity.reports[0]).toMatchObject({
+      level: 'info',
+      kind: 'app',
+      message:
+        'Added Tasks and Decisions to the Meeting type, which was written before Atlas shipped them.',
+      subject: { kind: 'note', path: '.atlas/types/meeting.md' },
+    });
+
+    const again = setup(Object.fromEntries(first.files));
+    await waitFor(() => expect(again.hook.result.current).not.toBeNull());
+    expect(again.files).toEqual(first.files);
+    expect(again.activity.reports).toEqual([]);
+    expect(again.onChanged).not.toHaveBeenCalled();
+  });
+
+  it('warns in Activity, and writes nothing, when the record of what it added cannot be read', async () => {
+    const record = '---\natlas: migration\n---\n\nNot a record any more.\n';
+    const { files, activity } = setup({
+      '.atlas/types/meeting.md': OLDER_MEETING,
+      '.atlas/migrations/type-properties.md': record,
+    });
+    await waitFor(() => expect(activity.reports).toHaveLength(1));
+    expect(activity.reports[0]?.level).toBe('warning');
+    expect(activity.reports[0]?.message).toMatch(
+      /^Atlas could not add its built-in properties to any type: .*cannot be read/,
+    );
+    expect(files.get('.atlas/types/meeting.md')).toBe(OLDER_MEETING);
   });
 });

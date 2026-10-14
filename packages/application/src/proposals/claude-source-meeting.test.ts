@@ -172,7 +172,13 @@ describe('a vault whose Meeting type predates `tasks` (#162)', () => {
     const setup = proposalVault(OLDER);
     const path = await propose(setup);
 
-    await ensureBuiltInTypes(setup.ports);
+    const opened = await ensureBuiltInTypes(setup.ports);
+    expect(opened.properties.gained.map((gained) => gained.added)).toEqual([
+      ['Import', 'Import error', 'Duplicate of', 'Tasks', 'Decisions'],
+    ]);
+    // The migration's record is YAML (`atlas: migration`), which this vault's JSON-lines
+    // markdown cannot read; Accept reads no note under `.atlas/migrations`, so it is left out.
+    setup.fixture.files.delete('.atlas/migrations/type-properties.md');
     await acceptProposalNote({ ports: fresh(setup), path, today: TODAY });
 
     expect(setup.paths()).toContain(TASK);

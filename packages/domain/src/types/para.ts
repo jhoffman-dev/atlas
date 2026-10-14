@@ -276,7 +276,7 @@ function extensionLine({ before, added, widened }: TypeExtension): string {
 }
 
 /** "A", "A and B", "A, B and C". */
-function listed(words: readonly string[]): string {
+export function listed(words: readonly string[]): string {
   if (words.length < 2) return words.join('');
   return `${words.slice(0, -1).join(', ')} and ${words.at(-1) ?? ''}`;
 }

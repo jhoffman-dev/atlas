@@ -14,6 +14,7 @@ import {
 import type { MarkdownPort } from '../notes/ports.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
+import { addShippedProperties, type ShippedPropertiesAdded } from './add-shipped-properties.ts';
 import { saveObjectType } from './edit-types.ts';
 import { loadObjectTypes, TYPES_FOLDER, type DefinedType } from './load-types.ts';
 
@@ -45,7 +46,12 @@ export interface TypeSetupFailure {
 export interface BuiltInTypesEnsured {
   /** The type files written because the vault had none. */
   readonly created: readonly VaultPath[];
-  /** What is offered rather than done: changing a file the vault has is never done on opening. */
+  /** The built-in type files given the properties Atlas ships that they predate (#162). */
+  readonly properties: ShippedPropertiesAdded;
+  /**
+   * What is offered rather than done: anything else that would change a file
+   * the vault has — PARA's `project` on its own types, a shipped key it took off.
+   */
   readonly offer: TypeSetupOffer;
   readonly failed: readonly TypeSetupFailure[];
 }
@@ -60,18 +66,23 @@ interface TypePorts {
  * done without asking (P30-01), and works out what else the Inbox would have
  * the vault's types hold (P29-02, P28-04).
  *
+ * First each built-in type file the vault has gains the properties Atlas
+ * ships on it and the file predates, once (#162, {@link addShippedProperties}):
+ * a feature built on one, such as Accept linking a meeting's task through
+ * `tasks`, would otherwise fail. A key the file has is never changed.
+ *
  * A vault that files by project — it has a Project type — has the Area and
  * Resource types it lacks written in. A vault that has not taken PARA up is
  * only offered them, and so is the change PARA would make to the vault's own
- * types. The Proposal, Decision and Daily types, and the meeting import's keys
- * on the vault's Meeting type, are only ever offered: nothing the vault has is
- * changed here, and the host refuses to write over a file that is there,
- * readable or not. See {@link acceptTypeSetup}.
+ * types. The Proposal, Decision and Daily types are only ever offered, and the
+ * host refuses to write over a file that is there, readable or not. See
+ * {@link acceptTypeSetup}.
  */
 export async function ensureBuiltInTypes(ports: TypePorts): Promise<BuiltInTypesEnsured> {
+  const properties = await addShippedProperties(ports);
   const { para, offer } = setupPlan(await loadObjectTypes(ports));
-  if (!para.filesByProject) return { created: [], offer, failed: [] };
-  return { ...(await writeTypeFiles(ports, para.missing)), offer };
+  if (!para.filesByProject) return { created: [], properties, offer, failed: [] };
+  return { ...(await writeTypeFiles(ports, para.missing)), properties, offer };
 }
 
 /** PARA's plan for the vault's types, and what is offered rather than done. */

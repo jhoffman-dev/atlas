@@ -20,7 +20,7 @@ const property = (key: string, kind: PropertyDef['kind'], label: string): Proper
 /**
  * What the meeting import writes into a file (ADR-0027), as the Meeting type
  * declares it, so a query can name it and the properties panel shows it.
- * The import works without them; a vault's Meeting type is offered them.
+ * The import works without them; a vault's Meeting type gains them on opening (#162).
  */
 export const MEETING_IMPORT_PROPERTIES: readonly PropertyDef[] = [
   { ...property(IMPORT_OUTCOME_KEY, 'select', 'Import'), options: [...IMPORT_OUTCOMES] },
