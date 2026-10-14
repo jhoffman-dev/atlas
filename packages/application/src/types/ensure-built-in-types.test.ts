@@ -1,10 +1,11 @@
 /**
  * Opening a vault that files by project writes the PARA types it has no file
- * for, and gives each built-in type file the vault has the properties Atlas
- * ships on it that the file predates (#162) — once, never changing a key the
- * file has; anything else — PARA for a vault that has not taken it up, PARA's
- * `project` on the vault's own types, the Inbox's Proposal and Decision types
- * and the Daily type — is offered, and made only when accepted. Over a vault in
+ * for, and gives each of Atlas's own built-in type files (Meeting, Proposal,
+ * Decision, Daily, Block) the properties it ships that the file predates
+ * (#162) — once, never changing a key the file has. Anything else — PARA for a
+ * vault that has not taken it up, PARA's `project` and PARA's own types' keys,
+ * the Task type, the Inbox's types a vault lacks — is offered, and made only
+ * when accepted. Over a vault in
  * memory whose frontmatter is JSON, so what each file ends up saying can be
  * read back whole; how the real writer keeps every byte is the adapters'.
  */
@@ -84,25 +85,8 @@ function propertiesOf(v: ReturnType<typeof vault>, path: string): Record<string,
   return (declared ?? {}) as Record<string, unknown>;
 }
 
-/** A vault with every PARA type, each declaring every key PARA ships on it. */
-const WHOLE_PARA = {
-  '.atlas/types/project.md': note({
-    name: 'project',
-    properties: { status: 'select', area: 'text', due: 'date', description: 'text' },
-  }),
-  '.atlas/types/area.md': note({ name: 'area', properties: { description: 'text' } }),
-  '.atlas/types/resource.md': note({
-    name: 'resource',
-    properties: {
-      project: { kind: 'relation', target: ['project', 'area'] },
-      url: 'url',
-      description: 'text',
-    },
-  }),
-};
-
 describe('ensureBuiltInTypes', () => {
-  it('adds the area type to a vault that files by project, keeping what James wrote in its project', async () => {
+  it('adds the area type to a vault that files by project, and leaves the project James wrote alone', async () => {
     const v = vault({ '.atlas/types/project.md': JAMES_PROJECT });
 
     const ensured = await ensureBuiltInTypes(v);
@@ -110,11 +94,7 @@ describe('ensureBuiltInTypes', () => {
     expect(ensured.created).toEqual(['.atlas/types/area.md', '.atlas/types/resource.md']);
     expect(offeredNames(ensured.offer)).toEqual(INBOX_TYPES);
     expect(ensured.offer.extensions).toEqual([]);
-    // His status and budget stay as he wrote them; the keys PARA's Project ships follow (#162).
-    const project = propertiesOf(v, '.atlas/types/project.md');
-    expect(Object.keys(project)).toEqual(['status', 'budget', 'area', 'due', 'description']);
-    expect(project['status']).toBe('select');
-    expect(project['budget']).toEqual({ kind: 'number', label: 'Budget' });
+    expect(v.files.get('.atlas/types/project.md')).toBe(JAMES_PROJECT);
     const types = await loadObjectTypes(v);
     expect(types.map((type) => type.name)).toEqual(['area', 'project', 'resource']);
     const area = v.files.get('.atlas/types/area.md') ?? '';
@@ -130,8 +110,15 @@ describe('ensureBuiltInTypes', () => {
     expect(v.files).toEqual(before);
   });
 
-  it('writes nothing to a vault that has every PARA type and property', async () => {
-    const v = vault(WHOLE_PARA);
+  it('writes nothing to a vault that has every PARA type', async () => {
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/area.md': note({ name: 'area' }),
+      '.atlas/types/resource.md': note({
+        name: 'resource',
+        properties: { project: { kind: 'relation', target: ['project', 'area'] } },
+      }),
+    });
     const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
     expect(ensured.created).toEqual([]);
@@ -142,7 +129,12 @@ describe('ensureBuiltInTypes', () => {
 
   it('offers nothing to a vault that has every type the Inbox and PARA use', async () => {
     const v = vault({
-      ...WHOLE_PARA,
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/area.md': note({ name: 'area' }),
+      '.atlas/types/resource.md': note({
+        name: 'resource',
+        properties: { project: { kind: 'relation', target: ['project', 'area'] } },
+      }),
       '.atlas/types/proposal.md': note({ name: 'proposal' }),
       '.atlas/types/decision.md': note({ name: 'Decision' }),
       '.atlas/types/daily.md': note({ name: 'daily' }),
@@ -343,15 +335,96 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     ]);
   });
 
-  it('leaves a type of the vault’s own alone, and the Task type to the GTD move', async () => {
+  it('leaves a type of the vault’s own alone, and PARA’s and Task’s, which stay an offer', async () => {
     const recipe = note({ name: 'recipe', properties: { serves: 'number' } });
-    const v = vault({ '.atlas/types/recipe.md': recipe, '.atlas/types/task.md': JAMES_TASK });
+    const theirs = {
+      '.atlas/types/recipe.md': recipe,
+      '.atlas/types/task.md': JAMES_TASK,
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/resource.md': note({ name: 'resource', properties: { shelf: 'text' } }),
+      '.atlas/types/area.md': note({ name: 'area' }),
+    };
+    const v = vault(theirs);
 
     const ensured = await ensureBuiltInTypes(v);
 
-    expect(v.files.get('.atlas/types/recipe.md')).toBe(recipe);
-    expect(v.files.get('.atlas/types/task.md')).toBe(JAMES_TASK);
-    expect(ensured.properties.gained).toEqual([]);
+    for (const [path, text] of Object.entries(theirs)) expect(v.files.get(path)).toBe(text);
+    expect(ensured.properties).toEqual({ gained: [], failed: [] });
+    expect(v.files.has(RECORD)).toBe(false);
+  });
+
+  it('never touches a vault’s own Resource type, even where the vault files by project', async () => {
+    const resource = note({ name: 'resource', label: 'Reference', properties: { shelf: 'text' } });
+    const v = vault({
+      '.atlas/types/project.md': JAMES_PROJECT,
+      '.atlas/types/resource.md': resource,
+    });
+
+    await ensureBuiltInTypes(v);
+
+    expect(v.files.get('.atlas/types/resource.md')).toBe(resource);
+    expect(v.files.get('.atlas/types/project.md')).toBe(JAMES_PROJECT);
+  });
+
+  it('settles a Meeting type found complete, so a key taken off afterwards stays off', async () => {
+    const shipped = {
+      atlas_import_outcome: 'select',
+      atlas_import_error: 'text',
+      atlas_duplicate_of: { kind: 'relation', target: 'meeting' },
+      tasks: { kind: 'relation', target: 'task', many: true },
+      decisions: { kind: 'relation', target: 'decision', many: true },
+    };
+    const complete = note({ name: 'meeting', label: 'Meeting', properties: shipped });
+    const v = vault({ '.atlas/types/meeting.md': complete });
+
+    const opened = await ensureBuiltInTypes(v);
+
+    expect(opened.properties).toEqual({ gained: [], failed: [] });
+    expect(v.files.get('.atlas/types/meeting.md')).toBe(complete);
+    const record = v.files.get(RECORD) ?? '';
+    expect(record).toContain(`"settled":{"meeting":${JSON.stringify(Object.keys(shipped))}}`);
+    expect(record).toContain('"added":{}');
+
+    const rest = Object.fromEntries(Object.entries(shipped).filter(([key]) => key !== 'tasks'));
+    const without = note({ name: 'meeting', label: 'Meeting', properties: rest });
+    v.files.set('.atlas/types/meeting.md', without);
+    const reopened = await ensureBuiltInTypes(v);
+
+    expect(reopened.properties.gained).toEqual([]);
+    expect(v.files.get('.atlas/types/meeting.md')).toBe(without);
+  });
+
+  it('does not report a key as added when the file declares it in a shape Atlas cannot read', async () => {
+    const unread = note({
+      name: 'meeting',
+      label: 'Meeting',
+      properties: { tasks: { kind: 'relation' } },
+    });
+    const v = vault({ '.atlas/types/meeting.md': unread });
+
+    const ensured = await ensureBuiltInTypes(v);
+
+    expect(propertiesOf(v, '.atlas/types/meeting.md')['tasks']).toEqual({ kind: 'relation' });
+    expect(ensured.properties.gained.map((gained) => gained.added)).toEqual([
+      ['Import', 'Import error', 'Duplicate of', 'Decisions'],
+    ]);
+    expect(v.files.get(RECORD) ?? '').toContain('"added":{"meeting":["atlas_import_outcome"');
+    expect(v.files.get(RECORD) ?? '').not.toMatch(/"added":\{"meeting":\[[^\]]*"tasks"/);
+  });
+
+  it('is not thrown by a type named `constructor`, in the vault or in its record', async () => {
+    const odd = note({ name: 'constructor', properties: { serves: 'number' } });
+    const v = vault({
+      '.atlas/types/constructor.md': odd,
+      '.atlas/types/meeting.md': OLDER_MEETING,
+      [RECORD]: '---\natlas: migration\n---\n\n```json\n{"settled":{"constructor":["x"]}}\n```\n',
+    });
+
+    const ensured = await ensureBuiltInTypes(v);
+
+    expect(v.files.get('.atlas/types/constructor.md')).toBe(odd);
+    expect(ensured.properties.failed).toEqual([]);
+    expect(ensured.properties.gained.map((gained) => gained.label)).toEqual(['Meeting']);
   });
 
   it('writes nothing when its record cannot be read, and says so', async () => {

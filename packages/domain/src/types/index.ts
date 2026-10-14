@@ -80,6 +80,8 @@ export {
 } from './para.ts';
 export type { BuiltInTypeFile, BuiltInTypePlan, TypeExtension } from './para.ts';
 export {
+  declaredPropertyKeys,
+  keysRecorded,
   NO_SHIPPED_PROPERTIES_RECORD,
   parseShippedPropertiesRecord,
   recordSettling,

@@ -6,22 +6,25 @@ import { PROPOSAL_TYPE_FILES } from '../proposals/proposal-types.ts';
 import { BLOCK_TYPE_FILE } from '../timeblocks/block-type.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
-import { listed, PARA_TYPE_FILES } from './para.ts';
+import { listed } from './para.ts';
 import type { ObjectType, PropertyDef } from './property-def.ts';
 
 /**
- * The properties Atlas ships on each built-in type a vault may already have a
- * file for, by the type's name (#162). A file written before Atlas shipped one
- * of them lacks it, and a feature built on it fails — Accept on a meeting's
- * action item, for one, links through the Meeting type's `tasks`.
+ * The properties Atlas ships on its own built-in types, by the type's name
+ * (#162, ADR-0016's amendment of 2026-10-14). A file written before Atlas
+ * shipped one of them lacks it, and a feature built on it fails — Accept on a
+ * meeting's action item, for one, links through the Meeting type's `tasks`.
+ *
+ * Only Atlas's own types are here: Meeting, Proposal, Decision, Daily and
+ * Block. Project, Area and Resource are PARA's, and Task's keys come with the
+ * move to GTD (ADR-0029): a vault may have shaped them its own way, so what
+ * they would gain stays an offer, never done without a yes.
  *
  * Meeting is here though Atlas writes no Meeting file: the import writes its
  * keys (ADR-0027) and meeting extraction links through its relations (P29-05).
- * Task is not: its keys come with the move to GTD (ADR-0029), which changes
- * its status too and is the person's to start.
  */
 const SHIPPED: ReadonlyMap<string, readonly PropertyDef[]> = new Map([
-  ...[...PARA_TYPE_FILES, ...PROPOSAL_TYPE_FILES, DAILY_TYPE_FILE, BLOCK_TYPE_FILE].map(
+  ...[...PROPOSAL_TYPE_FILES, DAILY_TYPE_FILE, BLOCK_TYPE_FILE].map(
     (file) => [file.type.name, file.type.properties] as const,
   ),
   [MEETING_TYPE, [...MEETING_IMPORT_PROPERTIES, ...MEETING_EXTRACTION_PROPERTIES]],
@@ -46,36 +49,64 @@ export const SHIPPED_PROPERTIES_RECORD_PATH: VaultPath = createVaultPath(
   `${ATLAS_DIRECTORY}/migrations/type-properties.md`,
 );
 
-/** A built-in type of the vault's that lacks shipped keys not yet settled, and what it gains. */
+/**
+ * A built-in type of the vault's whose shipped keys are not all settled yet.
+ * `added` is what its file lacks and gains; empty when the file has them all,
+ * and the type is only to be recorded as settled.
+ */
 export interface ShippedPropertiesChange<Type extends ObjectType = ObjectType> {
   readonly before: Type;
   readonly after: ObjectType;
-  /** The shipped properties its file lacks. */
   readonly added: readonly PropertyDef[];
 }
 
 /** A vault's type name as the disk compares its file's: in any case. */
 const folded = (name: string) => name.trim().toLowerCase();
 
+/** The keys a record holds for a type: its own entry, never one the object inherits. */
+export function keysRecorded(
+  byType: Readonly<Record<string, readonly string[]>>,
+  name: string,
+): readonly string[] {
+  return Object.hasOwn(byType, name) ? (byType[name] ?? []) : [];
+}
+
+/** The keys a type file's `properties` declares, as the file writes them — whether or not Atlas can read each. */
+export function declaredPropertyKeys(frontmatter: Readonly<Record<string, unknown>>): Set<string> {
+  const declared = frontmatter['properties'];
+  if (!isObject(declared)) return new Set();
+  return new Set(
+    Object.keys(declared)
+      .map((key) => key.trim())
+      .filter((key) => key !== ''),
+  );
+}
+
 /**
- * The vault's built-in types whose files lack shipped keys not yet settled,
- * each gaining them after its own. Additive only: a key the file has is left
- * as it is, whatever its shape, and a settled key is never added again — the
- * person took it off. A type that lacks nothing is left, and so is the record:
- * opening a vault whose types are whole writes nothing.
+ * The vault's own built-in types whose shipped keys are not all settled, each
+ * with the keys its file lacks, after its own. Additive only: a key the file
+ * declares is left as it is, whatever its shape — or even if Atlas cannot read
+ * it — and a settled key is never added again, the person took it off. A type
+ * with every shipped key settled is not listed, so a vault already migrated is
+ * left alone.
+ *
+ * `declaredKeys` says which keys a type's file declares, taken from the file
+ * rather than from the properties Atlas could parse out of it.
  */
 export function shippedPropertiesPlan<Type extends ObjectType>(
   types: readonly Type[],
   record: ShippedPropertiesRecord,
+  declaredKeys: (type: Type) => ReadonlySet<string>,
 ): ShippedPropertiesChange<Type>[] {
   const byName = new Map(types.map((type) => [folded(type.name), type]));
   return [...byName].flatMap(([name, type]) => {
-    const settled = new Set(record.settled[name] ?? []);
-    const has = new Set(type.properties.map((property) => property.key));
-    const added = (SHIPPED.get(name) ?? []).filter(
+    const shipped = SHIPPED.get(name) ?? [];
+    const settled = new Set(keysRecorded(record.settled, name));
+    if (shipped.every((property) => settled.has(property.key))) return [];
+    const has = declaredKeys(type);
+    const added = shipped.filter(
       (property) => !has.has(property.key) && !settled.has(property.key),
     );
-    if (added.length === 0) return [];
     return [
       { before: type, after: { ...type, properties: [...type.properties, ...added] }, added },
     ];
@@ -83,9 +114,8 @@ export function shippedPropertiesPlan<Type extends ObjectType>(
 }
 
 /**
- * The record once `changes` are written: each changed type's shipped keys
- * settled — the ones it had as well as the ones it gained — and what was
- * added kept.
+ * The record once `changes` are done: each type's shipped keys settled — the
+ * ones it had as well as the ones it gained — and what was added kept.
  */
 export function recordSettling(
   record: ShippedPropertiesRecord,
@@ -96,16 +126,18 @@ export function recordSettling(
   for (const change of changes) {
     const name = folded(change.before.name);
     const shipped = (SHIPPED.get(name) ?? []).map((property) => property.key);
-    settled[name] = union(settled[name], shipped);
-    added[name] = union(
-      added[name],
-      change.added.map((property) => property.key),
-    );
+    settled[name] = union(keysRecorded(settled, name), shipped);
+    if (change.added.length > 0) {
+      added[name] = union(
+        keysRecorded(added, name),
+        change.added.map((property) => property.key),
+      );
+    }
   }
   return { settled, added };
 }
 
-const union = (first: readonly string[] = [], second: readonly string[]): string[] => [
+const union = (first: readonly string[], second: readonly string[]): string[] => [
   ...new Set([...first, ...second]),
 ];
 

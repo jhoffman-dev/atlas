@@ -536,6 +536,30 @@ every vault that opened put a Project, an Area and a Resource into vaults
 that never asked for them. Accepting works the change out again from the
 type files as they are then, so an edit made while the offer waited is kept.
 
+**Amended 2026-10-14 (#162): Atlas's own built-in types gain what Atlas ships on
+them, on opening.** This changes the narrowing above for one set of types, and
+no other. A Meeting type written before `tasks` and `decisions` shipped had
+every action-item proposal refused at Accept until someone accepted the Inbox's
+offer, which a person who never opened the Inbox page never saw. So opening a
+vault now adds the properties a type file lacks, once, to Atlas's own built-in
+types that are not PARA's: **Meeting, Proposal, Decision, Daily and Block**
+(`shippedPropertiesPlan`).
+
+- **Project, Area, Resource and Task are never changed without a yes.** A vault
+  shapes these its own way, and PARA's and GTD's keys on them stay the offer
+  described above (ADR-0029 for Task).
+- **Additive, once, and the person's keys win.** A key the file declares —
+  judged from the file's own keys, even one Atlas cannot read — is never
+  changed; its body, keys and their order stay as they are (the type editor's
+  byte-preserving write). Each type found with its shipped keys is recorded as
+  settled in `.atlas/migrations/type-properties.md`, whether or not anything
+  was written, so a key the person removes later stays removed, on either Mac;
+  the Inbox offers it back instead.
+- **Never silent.** Each type changed is an info line in Activity naming what
+  it gained; a type that could not be written is a warning and is tried again
+  on the next open. A record that cannot be read stops it before anything is
+  written.
+
 ## Amendment: tasks follow GTD, and the migration stays in the app (P30-02, 2026-10-08)
 
 ADR-0029 gives tasks eight statuses. What the API does about it:

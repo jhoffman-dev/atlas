@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ObjectType, PropertyDef } from './property-def.ts';
 import {
+  declaredPropertyKeys,
+  keysRecorded,
   NO_SHIPPED_PROPERTIES_RECORD,
   parseShippedPropertiesRecord,
   recordSettling,
@@ -34,16 +36,18 @@ const MEETING_KEYS = [
   'decisions',
 ];
 
+const parsedKeys = (found: ObjectType) => new Set(found.properties.map((added) => added.key));
+
+const plan = (types: readonly ObjectType[], record = NO_SHIPPED_PROPERTIES_RECORD) =>
+  shippedPropertiesPlan(types, record, parsedKeys);
+
 const addedKeys = (types: readonly ObjectType[], record = NO_SHIPPED_PROPERTIES_RECORD) =>
-  shippedPropertiesPlan(types, record).map((change) => [
-    change.before.name,
-    change.added.map((added) => added.key),
-  ]);
+  plan(types, record).map((change) => [change.before.name, change.added.map((added) => added.key)]);
 
 describe('shippedPropertiesPlan', () => {
   it('gives a Meeting type the keys it lacks, after its own', () => {
     const meeting = type('meeting', ['title', 'atlas_import_outcome']);
-    const [change] = shippedPropertiesPlan([meeting], NO_SHIPPED_PROPERTIES_RECORD);
+    const [change] = plan([meeting]);
     expect(change?.after.properties.map((added) => added.key)).toEqual([
       'title',
       'atlas_import_outcome',
@@ -57,7 +61,7 @@ describe('shippedPropertiesPlan', () => {
   it('keeps a key the type has, whatever its shape', () => {
     const tasks = { ...property('tasks', 'number'), label: 'How many' };
     const meeting: ObjectType = { name: 'meeting', label: 'Meeting', properties: [tasks] };
-    const [change] = shippedPropertiesPlan([meeting], NO_SHIPPED_PROPERTIES_RECORD);
+    const [change] = plan([meeting]);
     expect(change?.after.properties[0]).toBe(tasks);
     expect(change?.added.map((added) => added.key)).not.toContain('tasks');
   });
@@ -76,26 +80,70 @@ describe('shippedPropertiesPlan', () => {
     expect(addedKeys([type(' Daily ', ['date'])])).toEqual([[' Daily ', ['tags']]]);
   });
 
-  it('leaves a type that lacks nothing, a type of the vault’s own, and Task', () => {
-    expect(
-      addedKeys([type('meeting', MEETING_KEYS), type('recipe'), type('task', ['status'])]),
-    ).toEqual([]);
+  it('lists a complete type with nothing added, so it can be settled; a type of the vault’s own, PARA’s and Task are not listed', () => {
+    const complete = type('meeting', MEETING_KEYS);
+    const others = [type('recipe'), type('task', ['status']), type('project'), type('Area')];
+    expect(addedKeys([complete, ...others])).toEqual([['meeting', []]]);
   });
 
-  it('covers every built-in type Atlas ships a file for', () => {
-    const names = ['project', 'area', 'resource', 'proposal', 'decision', 'daily', 'block'];
+  it('does not list a type whose shipped keys are all settled', () => {
+    const record = { settled: { meeting: MEETING_KEYS }, added: {} };
+    expect(addedKeys([type('meeting', MEETING_KEYS)], record)).toEqual([]);
+  });
+
+  it('counts a key the file declares as there even when Atlas could not read it', () => {
+    const unread = (found: ObjectType) => new Set([...parsedKeys(found), 'tasks']);
+    const [change] = shippedPropertiesPlan([type('meeting')], NO_SHIPPED_PROPERTIES_RECORD, unread);
+    expect(change?.added.map((added) => added.key)).not.toContain('tasks');
+    expect(change?.added.map((added) => added.key)).toContain('decisions');
+  });
+
+  it('is not thrown by a type named like an Object.prototype member', () => {
+    expect(addedKeys([type('constructor'), type('__proto__'), type('toString')])).toEqual([]);
+  });
+
+  it('covers every built-in type of Atlas’s own that it ships properties for, and no PARA type', () => {
+    const names = ['proposal', 'decision', 'daily', 'block'];
     const planned = addedKeys(names.map((name) => type(name)));
     expect(planned.map(([name]) => name)).toEqual(names);
     for (const [, keys] of planned) expect(keys).not.toHaveLength(0);
   });
 });
 
+describe('keysRecorded', () => {
+  it('reads an entry the record has, and nothing for a name it only inherits', () => {
+    expect(keysRecorded({ meeting: ['tasks'] }, 'meeting')).toEqual(['tasks']);
+    expect(keysRecorded({}, 'constructor')).toEqual([]);
+    expect(keysRecorded({}, 'toString')).toEqual([]);
+    expect(keysRecorded({ constructor: ['x'] }, 'constructor')).toEqual(['x']);
+  });
+});
+
+describe('declaredPropertyKeys', () => {
+  it('lists the keys a type file declares, trimmed, whatever each one’s shape', () => {
+    const declared = declaredPropertyKeys({
+      properties: { tasks: 'unheard-of', ' tags ': { kind: 'text' }, '': 'text' },
+    });
+    expect([...declared]).toEqual(['tasks', 'tags']);
+  });
+
+  it('lists nothing for a file whose properties are not a map', () => {
+    expect(declaredPropertyKeys({ properties: ['tasks'] })).toEqual(new Set());
+    expect(declaredPropertyKeys({})).toEqual(new Set());
+  });
+});
+
 describe('recordSettling', () => {
+  it('settles a complete type without recording anything as added', () => {
+    const changes = plan([type('meeting', MEETING_KEYS)]);
+    expect(recordSettling(NO_SHIPPED_PROPERTIES_RECORD, changes)).toEqual({
+      settled: { meeting: MEETING_KEYS },
+      added: {},
+    });
+  });
+
   it('settles every shipped key of a changed type, the ones it had too, and keeps what was added', () => {
-    const changes = shippedPropertiesPlan(
-      [type('Meeting', ['atlas_import_outcome'])],
-      NO_SHIPPED_PROPERTIES_RECORD,
-    );
+    const changes = plan([type('Meeting', ['atlas_import_outcome'])]);
     const record = recordSettling({ settled: { daily: ['date'] }, added: {} }, changes);
     expect(record).toEqual({
       settled: { daily: ['date'], meeting: MEETING_KEYS },
@@ -105,7 +153,7 @@ describe('recordSettling', () => {
 
   it('adds to what an earlier run settled and added, without repeating a key', () => {
     const earlier = { settled: { meeting: ['tasks'] }, added: { meeting: ['tasks'] } };
-    const changes = shippedPropertiesPlan([type('meeting', ['tasks'])], earlier);
+    const changes = plan([type('meeting', ['tasks'])], earlier);
     const record = recordSettling(earlier, changes);
     expect(record.settled['meeting']).toEqual([
       'tasks',
