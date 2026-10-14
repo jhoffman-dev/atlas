@@ -15,6 +15,9 @@ mod model_process;
 mod navigation;
 mod opener;
 mod secrets;
+// SPIKE #172: public for its example (`examples/wake_spike.rs`).
+#[doc(hidden)]
+pub mod sleep_clock;
 mod sqlite_source;
 // Public for its integration test, which pictures a real page on the main thread.
 #[doc(hidden)]
@@ -51,6 +54,7 @@ pub fn run() {
         .manage(global_capture::GlobalCaptureState::default())
         .invoke_handler(tauri::generate_handler![
             report_error,
+            sleep_clock::host_asleep_ms,
             activity::activity_append,
             activity::activity_read,
             activity::activity_replace,
@@ -140,6 +144,17 @@ pub fn run() {
                 )?;
             }
             api::restore(app.handle());
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::Emitter;
+                let handle = app.handle().clone();
+                sleep_clock::observe_power(move |event| {
+                    log::info!("host power: {event:?}");
+                    if let Err(cause) = handle.emit("host-power", format!("{event:?}")) {
+                        log::error!("host power event not sent: {cause}");
+                    }
+                });
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
