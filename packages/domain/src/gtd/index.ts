@@ -19,10 +19,12 @@ export type { GtdViewFile } from './gtd-views.ts';
 export {
   mergedRecord,
   MIGRATION_RECORD_PATH,
+  MIGRATION_UNDO_OFFER_DAYS,
   MigrationRecordError,
   migrationRecordText,
   parseMigrationRecord,
   recordHasWorkLeft,
+  undoStillOffered,
 } from './migration-record.ts';
 export type { MigrationRecord, RecordedFile } from './migration-record.ts';
 export {

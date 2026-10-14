@@ -12,7 +12,12 @@ import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { readMigrationRecord } from './migration-record-file.ts';
-import { runTaskMigration, undoTaskMigration, type MigrationPanes } from './run-task-migration.ts';
+import {
+  dismissMigrationUndo,
+  runTaskMigration,
+  undoTaskMigration,
+  type MigrationPanes,
+} from './run-task-migration.ts';
 import {
   type TaskMigrationPorts,
   hasMigrationWork,
@@ -383,6 +388,31 @@ describe('undoing the migration', () => {
     ]);
 
     await undoTaskMigration({ fs: ports.fs, panes: closedPanes });
+    expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
+  });
+});
+
+describe('dismissing the undo offer (#163)', () => {
+  it('marks the record dismissed and keeps it, so the run can still be read from it', async () => {
+    const { ports, files } = vault();
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    const before = (await readMigrationRecord(ports.fs))?.record;
+
+    await dismissMigrationUndo(ports.fs);
+
+    const after = (await readMigrationRecord(ports.fs))?.record;
+    expect(after).toEqual({ ...before, undoDismissed: true });
+    expect(files.has(MIGRATION_RECORD_PATH)).toBe(true);
+  });
+
+  it('does nothing in a vault that was never moved', async () => {
+    const { ports, files } = vault();
+    await dismissMigrationUndo(ports.fs);
     expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
   });
 });

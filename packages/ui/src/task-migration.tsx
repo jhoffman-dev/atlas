@@ -50,6 +50,8 @@ export interface TaskMigrationProps {
   readonly onRun: () => void;
   readonly onClose: () => void;
   readonly onUndo: () => void;
+  /** Ends the offer to undo, and what the last run said, for good (#163). */
+  readonly onDismiss: () => void;
 }
 
 const tasks = (count: number) => (count === 1 ? '1 task' : `${count} tasks`);
@@ -61,7 +63,8 @@ const statusText = (value: string) => (value === '' ? '(none)' : optionLabel(val
  * The offer to move the vault's tasks to GTD's eight statuses (P30-02): one
  * line until asked, then the whole preview — every task old → new, the
  * mapping, editable, and what else changes — and nothing is written until
- * the person says so. Once run, it can be undone from here.
+ * the person says so. Once run, it can be undone from here, for a while:
+ * the offer goes when dismissed or once its week is up (#163).
  */
 export function TaskMigration(props: TaskMigrationProps) {
   const { preview, open, result, problem, canUndo } = props;
@@ -87,6 +90,16 @@ export function TaskMigration(props: TaskMigrationProps) {
           disabled={props.busy}
         >
           Undo the move to GTD
+        </button>
+      )}
+      {(canUndo || result !== null) && !open && (
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          onClick={props.onDismiss}
+          disabled={props.busy}
+        >
+          Dismiss
         </button>
       )}
     </section>

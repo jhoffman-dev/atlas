@@ -1,4 +1,5 @@
 import { splitFrontmatter } from '../markdown/markdown-document.ts';
+import { daysBetween } from '../timeline/timeline.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { foldedVaultPath } from '../vault/vault-spelling.ts';
 import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
@@ -40,6 +41,27 @@ export interface MigrationRecord {
   readonly finished?: boolean;
   /** The files the last finished run left as they were — unsaved typing, a refusal — still to move. */
   readonly left?: readonly VaultPath[];
+  /** When the latest run began, once a run has gone on from one cut off partway; `at` until then. */
+  readonly lastRunAt?: string;
+  /** Whether the person dismissed the Inbox's offer to undo the move. */
+  readonly undoDismissed?: boolean;
+}
+
+/** How many days after a run began the Inbox offers to undo it (#163). */
+export const MIGRATION_UNDO_OFFER_DAYS = 7;
+
+/**
+ * Whether the Inbox still offers to undo the move on `today` (#163). The
+ * offer is made once: it ends when dismissed, or a week after the latest run
+ * began, and is not made again until another run. The record itself stays,
+ * so a run cut off partway is still known by it.
+ */
+export function undoStillOffered(record: MigrationRecord, today: string): boolean {
+  if (record.undoDismissed === true) return false;
+  const ranOn = (record.lastRunAt ?? record.at).slice(0, 10);
+  // A run whose day cannot be read has no week to measure, so its offer has ended.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ranOn)) return false;
+  return daysBetween(ranOn, today) < MIGRATION_UNDO_OFFER_DAYS;
 }
 
 /**
@@ -81,6 +103,8 @@ export function migrationRecordText(record: MigrationRecord): string {
       files: record.files,
       finished: record.finished === true,
       left: record.left ?? [],
+      ...(record.lastRunAt !== undefined && { lastRunAt: record.lastRunAt }),
+      ...(record.undoDismissed === true && { undoDismissed: true }),
     }),
     FENCE,
     '',
@@ -111,6 +135,8 @@ export function parseMigrationRecord(text: string): MigrationRecord {
     files: parsed['files'].map(recordedFile),
     finished: parsed['finished'] === true,
     left: Array.isArray(parsed['left']) ? parsed['left'].map(leftPath) : [],
+    ...(typeof parsed['lastRunAt'] === 'string' && { lastRunAt: parsed['lastRunAt'] }),
+    ...(parsed['undoDismissed'] === true && { undoDismissed: true }),
   };
 }
 
@@ -166,6 +192,7 @@ function recordedFile(raw: unknown): RecordedFile {
  * the second run found is what undo must give back, or that change is lost.
  * A file the second run made — the first run's was deleted since — is
  * recorded as made by the second, so undo takes it away while still as made.
+ * The later run is offered for undo afresh, as a run of its own is.
  */
 export function mergedRecord(
   earlier: MigrationRecord | null,
@@ -178,6 +205,7 @@ export function mergedRecord(
   }
   return {
     at: earlier.at,
+    lastRunAt: later.at,
     files: [...files.values()],
     ...(later.finished === undefined ? {} : { finished: later.finished }),
     ...(later.left === undefined ? {} : { left: later.left }),

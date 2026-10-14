@@ -7,6 +7,7 @@ import {
   migrationRecordText,
   parseMigrationRecord,
   recordHasWorkLeft,
+  undoStillOffered,
   type MigrationRecord,
 } from './migration-record.ts';
 
@@ -77,6 +78,38 @@ describe('the migration record', () => {
   });
 });
 
+describe('undoStillOffered (#163)', () => {
+  it('offers the undo for a week from the day the run began, and not after', () => {
+    expect(undoStillOffered(RECORD, '2026-10-08')).toBe(true);
+    expect(undoStillOffered(RECORD, '2026-10-14')).toBe(true);
+    expect(undoStillOffered(RECORD, '2026-10-15')).toBe(false);
+    expect(undoStillOffered(RECORD, '2027-01-01')).toBe(false);
+  });
+
+  it('offers it on a day before the run, as a Mac in an earlier timezone sees a synced record', () => {
+    expect(undoStillOffered(RECORD, '2026-10-07')).toBe(true);
+  });
+
+  it('ends once dismissed, whatever the day', () => {
+    expect(undoStillOffered({ ...RECORD, undoDismissed: true }, '2026-10-08')).toBe(false);
+  });
+
+  it('measures the week from the latest run, once one went on from a run cut off partway', () => {
+    const later = { ...RECORD, lastRunAt: '2026-10-20T08:00:00' };
+    expect(undoStillOffered(later, '2026-10-26')).toBe(true);
+    expect(undoStillOffered(later, '2026-10-27')).toBe(false);
+  });
+
+  it('has ended for a record whose day cannot be read', () => {
+    expect(undoStillOffered({ ...RECORD, at: 'some time' }, '2026-10-08')).toBe(false);
+  });
+
+  it('keeps the dismissal and the latest run through the file', () => {
+    const kept = { ...RECORD, lastRunAt: '2026-10-09T10:00:00', undoDismissed: true };
+    expect(parseMigrationRecord(migrationRecordText(kept))).toEqual(kept);
+  });
+});
+
 describe('recordHasWorkLeft', () => {
   it('is true while the last run stopped partway or left a file, and false once it moved everything', () => {
     expect(recordHasWorkLeft(RECORD)).toBe(true);
@@ -130,6 +163,16 @@ describe('mergedRecord', () => {
     const made = RECORD.files[1]!;
     const again = { kind: 'created' as const, path: made.path, contents: 'made again\n' };
     expect(mergedRecord(RECORD, { at: 'later', files: [again] }).files[1]).toEqual(again);
+  });
+
+  it('offers the later run for undo afresh: a dismissal of the first does not carry over (#163)', () => {
+    const merged = mergedRecord(
+      { ...RECORD, undoDismissed: true },
+      { at: '2026-10-20T08:00:00', files: [] },
+    );
+    expect(merged.at).toBe(RECORD.at);
+    expect(merged.lastRunAt).toBe('2026-10-20T08:00:00');
+    expect(undoStillOffered(merged, '2026-10-21')).toBe(true);
   });
 
   it('keeps a file the first run made as made', () => {

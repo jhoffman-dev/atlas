@@ -177,6 +177,21 @@ async function finishRecord(fs: VaultFsPort, left: readonly LeftFile[]): Promise
   });
 }
 
+/**
+ * Ends the Inbox's offer to undo the move (#163), in the record, so neither a
+ * restart nor the other Mac offers it again. The record stays: it still says
+ * whether a run has work left. Nothing to do when there is no record.
+ */
+export async function dismissMigrationUndo(fs: VaultFsPort): Promise<void> {
+  const kept = await readMigrationRecord(fs);
+  if (kept === null || kept.record.undoDismissed === true) return;
+  await fs.writeTextFile({
+    path: MIGRATION_RECORD_PATH,
+    contents: migrationRecordText({ ...kept.record, undoDismissed: true }),
+    expectedModified: kept.modified,
+  });
+}
+
 /** What an undo did: each file put back or taken away, and each left as it is. */
 export interface TaskMigrationUndo {
   readonly restored: readonly VaultPath[];

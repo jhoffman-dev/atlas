@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GTD_STATUSES, isGtdStatus, noteTitle, type GtdStatus } from '@atlas/domain';
 import {
+  GTD_STATUSES,
+  isGtdStatus,
+  noteTitle,
+  undoStillOffered,
+  type GtdStatus,
+} from '@atlas/domain';
+import {
+  dismissMigrationUndo,
   hasMigrationWork,
   previewTaskMigration,
   readMigrationRecord,
@@ -14,7 +21,7 @@ import {
   type TaskMigrationPreview,
 } from '@atlas/application';
 import type { TaskMigrationPreviewData, TaskMigrationProps } from '@atlas/ui';
-import { localClock, localDayOf } from '../today.ts';
+import { localClock, localDayOf, localToday } from '../today.ts';
 
 const files = (count: number) => (count === 1 ? '1 file' : `${count} files`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -47,7 +54,8 @@ function previewData(preview: TaskMigrationPreview): TaskMigrationPreviewData {
  * page: what the move would do is read while the page shows, and nothing is
  * written until the person runs it from the preview. A run and an undo are
  * each said in Activity, with every file left as it was and why — nothing
- * about a migration that rewrites every task is silent.
+ * about a migration that rewrites every task is silent. The undo is offered
+ * once (#163): for a week after the run, until dismissed.
  */
 export function useTaskMigration({
   ports,
@@ -106,7 +114,8 @@ export function useTaskMigration({
       });
     readMigrationRecord(migrationPorts.fs)
       .then((record) => {
-        if (!cancelled) setCanUndo(record !== null);
+        if (!cancelled)
+          setCanUndo(record !== null && undoStillOffered(record.record, localToday()));
       })
       .catch((cause: unknown) => {
         if (!cancelled)
@@ -184,6 +193,17 @@ export function useTaskMigration({
     });
   }, [settle, ports.fs, ports.editors, activity, reportLeft]);
 
+  const dismiss = useCallback(() => {
+    // Gone at once, as asked; the record is told so the offer stays gone after a restart.
+    setCanUndo(false);
+    setResult(null);
+    dismissMigrationUndo(ports.fs).catch((cause: unknown) => {
+      const message = `The undo could not be dismissed for good: ${reasonOf(cause)}`;
+      setProblem(message);
+      activity.record({ level: 'error', kind: 'app', message, subject: null });
+    });
+  }, [ports.fs, activity]);
+
   const choose = useCallback(({ from, to }: { from: string; to: string }) => {
     if (!isGtdStatus(to)) return;
     setChosen((was) => new Map([...was, [from, to]]));
@@ -205,5 +225,6 @@ export function useTaskMigration({
       else setDismissed(true);
     },
     onUndo: undo,
+    onDismiss: dismiss,
   };
 }
