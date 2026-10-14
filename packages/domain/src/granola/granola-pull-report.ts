@@ -84,11 +84,26 @@ export const GRANOLA_KEPT_SLOWING_DOWN = `Granola asked Atlas to slow down for $
 /** The most of a listed id a line shows: an id that is not one may be anything, at any length. */
 const SHOWN_ID_LENGTH = 40;
 
+/* eslint-disable no-control-regex -- these name the characters a line of Activity must not hold */
+/** C0 and C1 controls and DEL: each shown as a space, so the words either side stay apart. */
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g;
+/** Characters that show nothing but reorder or join what is around them: bidi marks, embeddings, overrides and isolates, and zero-width ones. */
+const INVISIBLE = /[\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+/** Half a surrogate pair with no other half: no character at all. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+/* eslint-enable no-control-regex */
+
+/** A listed id as a line may show it: nothing that moves, hides or breaks the text, and cut by characters, never through one. */
 function shownId(id: string | null): string {
   if (id === null) return 'no id';
-  // eslint-disable-next-line no-control-regex -- a line of Activity holds no control characters
-  const printable = id.replace(/[\u0000-\u001f\u007f]/g, ' ');
-  return printable.length > SHOWN_ID_LENGTH ? `${printable.slice(0, SHOWN_ID_LENGTH)}…` : printable;
+  const printable = id
+    .replace(CONTROL, ' ')
+    .replace(INVISIBLE, '')
+    .replace(LONE_SURROGATE, '\ufffd');
+  const characters = Array.from(printable);
+  return characters.length > SHOWN_ID_LENGTH
+    ? `${characters.slice(0, SHOWN_ID_LENGTH).join('')}…`
+    : printable;
 }
 
 /** A listed note the pull left out, as a skipped note: its id, cut short, and why. */
@@ -104,11 +119,20 @@ export function unreadableSummaryProblem({
   };
 }
 
-/** A pull on the timer that found nothing to write or report: a line every 15 minutes would bury the rest. */
-const isQuietTick = (mode: GranolaPullMode, ended: GranolaPullEnd, counts: GranolaPullCounts) =>
+/**
+ * A pull on the timer that found nothing to write or report, beyond skips
+ * Activity has already been told of: a line every 15 minutes would bury the
+ * rest.
+ */
+const isQuietTick = (
+  mode: GranolaPullMode,
+  ended: GranolaPullEnd,
+  counts: GranolaPullCounts,
+  skippedBefore: number,
+) =>
   mode === 'periodic' &&
   ended === 'pulled' &&
-  counts.written + counts.refused + counts.skipped + counts.failed === 0;
+  counts.written + counts.refused + (counts.skipped - skippedBefore) + counts.failed === 0;
 
 const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
 
@@ -124,21 +148,25 @@ const meetingLine = (level: ActivityLevel, message: string): ActivityReport => (
 /**
  * The one line a pull gets in Activity, with its counts; null for a pull
  * that did not start because the vault has not been synced yet, which is
- * waiting, not failing, and for a timed pull that found nothing new.
+ * waiting, not failing, and for a timed pull that found nothing new but
+ * skips already said.
  */
 export function granolaPullReport({
   mode,
   ended,
   counts,
   problem,
+  skippedBefore = 0,
 }: {
   readonly mode: GranolaPullMode;
   readonly ended: GranolaPullEnd;
   readonly counts: GranolaPullCounts;
   /** Why a pull `stopped` or `failed`, in the person's words. */
   readonly problem: string | null;
+  /** Of the skipped notes, those an earlier pull this session already said in Activity. */
+  readonly skippedBefore?: number;
 }): ActivityReport | null {
-  if (isQuietTick(mode, ended, counts)) return null;
+  if (isQuietTick(mode, ended, counts, skippedBefore)) return null;
   const before = counts.written > 0 ? ` ${counts.written} new before it did.` : '';
   switch (ended) {
     case 'not-synced':

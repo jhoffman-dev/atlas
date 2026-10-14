@@ -84,9 +84,29 @@ describe('listGranolaNotes', () => {
       cursor: String((page += 1)),
     });
     await expect(listGranolaNotes(readerOf(granola.port), null)).rejects.toMatchObject({
-      failure: { kind: 'malformed', message: 'the list of notes ran past 200 pages' },
+      failure: { kind: 'malformed', message: 'the list of notes ran past 2000 pages' },
     });
-    expect(page).toBe(200);
+    expect(page).toBe(2000);
+  });
+
+  it('names a note listed unreadable on two pages once', async () => {
+    const granola = fakeGranola();
+    const odd = (id: string | null, reason = 'its updated_at is not text') => ({ id, reason });
+    let page = 0;
+    granola.port.listNotes = async () => {
+      page += 1;
+      return page === 1
+        ? { notes: [], unreadable: [odd('not_odd1'), odd(null), odd('not_odd1')], cursor: 'next' }
+        : {
+            notes: [],
+            unreadable: [odd('not_odd1', 'its title is not text'), odd(null), odd(null, 'other')],
+            cursor: null,
+          };
+    };
+
+    const listed = await listGranolaNotes(readerOf(granola.port), null);
+
+    expect(listed.unreadable).toEqual([odd('not_odd1'), odd(null), odd(null, 'other')]);
   });
 });
 

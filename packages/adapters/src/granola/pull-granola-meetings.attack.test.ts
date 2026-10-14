@@ -14,7 +14,7 @@ import {
   type GranolaPullRecords,
 } from '@atlas/application';
 import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
-import { TRANSCRIPT_LIMIT, type GranolaNote } from '@atlas/domain';
+import { TRANSCRIPT_LIMIT, unreadableSummaryProblem, type GranolaNote } from '@atlas/domain';
 import { remarkMarkdown } from '../markdown/markdown-port.ts';
 
 const invoke = vi.fn();
@@ -209,5 +209,73 @@ describe('Granola pull: attacks', () => {
     // is written: a 5 MB+ meeting file lands in the synced vault.
     expect(report.refused.map(({ id }) => id).sort()).toEqual([inline.id, paged.id].sort());
     expect(report.written).toEqual([]);
+  });
+
+  it('never rejects, and frees the vault, when a port throws a value that cannot be put into words', async () => {
+    // A port that rejects with something other than an Error: here a null-prototype object,
+    // which String() cannot convert. The fault lands in faultReport, whose own
+    // messageWithoutPaths(cause) throws, so the "never rejects" pull rejects.
+    const { puller } = pullFixture({
+      records: {
+        ...memoryRecords(),
+        read: () => {
+          throw Object.create(null) as unknown;
+        },
+      },
+    });
+
+    const timed = puller.pull({ vault: VAULT, mode: 'periodic' });
+    const syncNow = puller.pull({ vault: VAULT, mode: 'sync-now' });
+
+    // Today: rejects with "TypeError: Cannot convert object to primitive value".
+    await expect(timed).resolves.toMatchObject({ ended: 'failed' });
+    // Today: the flight is never cleared, so every later pull of the vault is handed the
+    // same rejected promise until the app restarts, and the queued Sync now never settles.
+    expect(puller.pull({ vault: VAULT, mode: 'startup' })).not.toBe(timed);
+    const settled = await Promise.race([
+      syncNow.then(
+        () => 'settled',
+        () => 'settled',
+      ),
+      new Promise((resolve) => setTimeout(() => resolve('hangs'), 100)),
+    ]);
+    expect(settled).toBe('settled');
+  });
+
+  it('reports the meetings it wrote when a fault comes after they were written', async () => {
+    // The watermark cannot be kept (localStorage full: QuotaExceededError) after the note is
+    // written. faultReport starts from nothing, so the report and Activity say no meeting
+    // came, though one is in the vault.
+    const note = granolaNote('not_quota00000001', {
+      title: 'Quota',
+      updatedAt: '2026-10-13T10:00:00Z',
+    });
+    const { puller, meetingFiles, api } = pullFixture({
+      notes: [note],
+      records: {
+        ...memoryRecords(),
+        write: () => {
+          throw new Error('QuotaExceededError: the quota has been exceeded');
+        },
+      },
+    });
+
+    const report = await puller.pull({ vault: VAULT, mode: 'sync-now' });
+
+    expect(meetingFiles()).toEqual(['Inbox/Meetings/2026-10-06 Quota.md']);
+    expect(report.ended).toBe('failed');
+    // Today: written is [] and the line is "Granola: the pull failed. QuotaExceededError: …"
+    // with no word of the meeting it brought.
+    expect(report.written).toEqual(['Inbox/Meetings/2026-10-06 Quota.md']);
+    expect(api.activity.reports.at(-1)?.message).toMatch(/1 new before it did/);
+  });
+
+  it('shows an unreadable id with no control character, no bidi override and no half an emoji', () => {
+    // shownId strips C0 controls and DEL only; C1 controls (U+0085 NEL), bidi overrides
+    // (U+202E) and a cut through a surrogate pair reach Activity and the report.
+    const controls = unreadableSummaryProblem({ id: 'not_‮evil\u0085x', reason: 'r' }).id;
+    expect(controls).not.toMatch(/[\u0080-\u009f‪-‮⁦-⁩]/);
+    const emoji = unreadableSummaryProblem({ id: `${'a'.repeat(39)}🙂tail`, reason: 'r' }).id;
+    expect(emoji).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/);
   });
 });

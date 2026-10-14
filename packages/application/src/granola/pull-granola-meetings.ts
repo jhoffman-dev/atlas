@@ -25,6 +25,7 @@ import {
   type GranolaPullEnd,
   type GranolaPullMode,
   type GranolaSettings,
+  type GranolaUnreadableSummary,
   type VaultPath,
 } from '@atlas/domain';
 import type { ActivityLog, ActivityRecorder } from '../activity/ports.ts';
@@ -34,6 +35,7 @@ import type { Clock } from '../ports.ts';
 import {
   listGranolaNotes,
   readGranolaNote,
+  unreadableKey,
   type GranolaListing,
   type GranolaNoteRead,
   type GranolaReader,
@@ -102,7 +104,9 @@ export interface GranolaPuller {
    * Pulls the vault, one pull of it at a time. Asked for while one runs:
    * that one's report, except Sync now during a startup or timed pull, which
    * runs right after it (once, however often it is pressed meanwhile) so the
-   * person gets the full listing they asked for. Never rejects.
+   * person gets the full listing they asked for. Never rejects. A listed
+   * note it cannot read is said in the vault's Activity once in a session
+   * of the app, and counted as skipped on every pull.
    */
   pull(args: { vault: string; mode: GranolaPullMode }): Promise<GranolaPullReport>;
 }
@@ -128,16 +132,30 @@ interface VaultFlights {
  */
 export function createGranolaPuller(deps: GranolaPullDeps): GranolaPuller {
   const flights = new Map<string, VaultFlights>();
+  const saidUnreadable = new Map<string, Set<string>>();
+
+  /** The unreadable notes Activity has been told of in this vault, in this session of the app. */
+  const saidUnreadableIn = (vault: string): Set<string> => {
+    const said = saidUnreadable.get(vault) ?? new Set<string>();
+    saidUnreadable.set(vault, said);
+    return said;
+  };
 
   const start = (vault: string, mode: GranolaPullMode): Promise<GranolaPullReport> => {
-    const report = pullGranolaMeetings(deps, { vault, mode });
+    const report = pullGranolaMeetings(deps, {
+      vault,
+      mode,
+      saidUnreadable: saidUnreadableIn(vault),
+    });
     const state: VaultFlights = { running: { mode, report }, queued: null };
     flights.set(vault, state);
-    // The first to hear the pull end, so the queued Sync now starts before any caller can ask again.
-    void report.then(() => {
+    // The first to hear the pull end, however it ends, so the vault is freed and the
+    // queued Sync now starts before any caller can ask again.
+    const ended = () => {
       flights.delete(vault);
       state.queued?.begin();
-    });
+    };
+    void report.then(ended, ended);
     return report;
   };
 
@@ -167,9 +185,40 @@ interface Tally {
   held: number;
   readonly refused: GranolaNoteProblem[];
   readonly skipped: GranolaNoteProblem[];
+  /** Of the skipped, the unreadable notes an earlier pull this session already said in Activity. */
+  skippedBefore: number;
   readonly failed: GranolaNoteProblem[];
   /** Notes fetched one after another that each ended in Granola's 429. */
   slowDownsInARow: number;
+}
+
+const noNotesYet = (): Tally => ({
+  results: [],
+  written: [],
+  held: 0,
+  refused: [],
+  skipped: [],
+  skippedBefore: 0,
+  failed: [],
+  slowDownsInARow: 0,
+});
+
+/**
+ * What a pull has done, kept outside it, so a fault at any point reports
+ * what came before: the notes as far as they went, and the watermark the
+ * record holds (null until it has been read).
+ */
+interface Progress {
+  readonly tally: Tally;
+  watermark: string | null;
+}
+
+/** A pull asked for, with what it must not say twice in the vault's Activity. */
+interface PullRequest {
+  readonly vault: string;
+  readonly mode: GranolaPullMode;
+  /** Keys of the unreadable notes said in this vault's Activity this session; a pull adds those it says. */
+  readonly saidUnreadable: Set<string>;
 }
 
 /** One pull, under way. */
@@ -181,6 +230,7 @@ interface PullRun extends GranolaReader {
   /** The vault's settings, the mapper's options among them. */
   readonly settings: GranolaSettings;
   readonly tally: Tally;
+  readonly saidUnreadable: Set<string>;
 }
 
 /** How a pull ended, and why. */
@@ -188,40 +238,45 @@ interface Ending {
   readonly ended: GranolaPullEnd;
   readonly failure: GranolaFailure | null;
   readonly problem: string | null;
+  /** False for a pull that did nothing at all, of which Activity is told nothing. */
+  readonly began?: false;
 }
 
 const endedBy = (ended: GranolaPullEnd): Ending => ({ ended, failure: null, problem: null });
 
+/**
+ * A pull whose vault was no longer open when it was to begin — a Sync now
+ * that waited its turn while another vault was opened, say. It asked
+ * Granola nothing and wrote nothing, so it has nothing to say in the vault
+ * it never pulled.
+ */
+const NEVER_BEGAN: Ending = { ...endedBy('vault-changed'), began: false };
+
 /** One pull, which never rejects: a fault anywhere, in a port or a dependency, is a `failed` report. */
 async function pullGranolaMeetings(
   deps: GranolaPullDeps,
-  request: { vault: string; mode: GranolaPullMode },
+  request: PullRequest,
 ): Promise<GranolaPullReport> {
+  const progress: Progress = { tally: noNotesYet(), watermark: null };
   try {
-    return await pullAndReport(deps, request);
+    return await pullAndReport(deps, request, progress);
   } catch (cause) {
-    return faultReport(deps, request, cause);
+    return faultReport(deps, request, cause, progress);
   }
 }
 
 async function pullAndReport(
   deps: GranolaPullDeps,
-  { vault, mode }: { vault: string; mode: GranolaPullMode },
+  { vault, mode, saidUnreadable }: PullRequest,
+  progress: Progress,
 ): Promise<GranolaPullReport> {
+  const { tally } = progress;
   const ports = deps.ports();
   const recorder = deps.activity.inVault(vault);
-  const tally: Tally = {
-    results: [],
-    written: [],
-    held: 0,
-    refused: [],
-    skipped: [],
-    failed: [],
-    slowDownsInARow: 0,
-  };
   const before = ports.records.read(vault).watermark;
+  progress.watermark = before;
   const ending = deps.syncedThisSession(vault)
-    ? await pullInto({ deps, vault, mode, ports, recorder, tally }, before).catch(
+    ? await pullInto({ deps, vault, mode, ports, recorder, tally, saidUnreadable }, before).catch(
         (cause: unknown): Ending => ({
           ended: 'failed',
           failure: null,
@@ -229,44 +284,38 @@ async function pullAndReport(
         }),
       )
     : endedBy('not-synced');
-  const watermark = keepWatermark({ deps, vault, ports, tally, ending, before });
-  const report = reportOf({ vault, mode, tally, ending, watermark });
-  const line = granolaPullReport({
-    mode,
-    ended: ending.ended,
-    counts: countsOf(report),
-    problem: ending.problem,
-  });
+  progress.watermark = keepWatermark({ deps, vault, ports, tally, ending, before });
+  const report = reportOf({ vault, mode, tally, ending, watermark: progress.watermark });
+  const line =
+    ending.began === false
+      ? null
+      : granolaPullReport({
+          mode,
+          ended: ending.ended,
+          counts: countsOf(report),
+          problem: ending.problem,
+          skippedBefore: tally.skippedBefore,
+        });
   if (line !== null) recorder.record(line);
   return report;
 }
 
 /**
  * The report of a pull a fault ended outside what a pull handles — a port
- * that could not be had, a record that could not be read — said in Activity
- * too. Should Activity fail as well, the report says so, since nothing else
- * can.
+ * that could not be had, a record that could not be read or kept — said in
+ * Activity too, with what the pull had done before it: the meetings already
+ * written stay written, and the watermark is the one the record holds.
+ * Should Activity fail as well, the report says so, since nothing else can.
  */
 function faultReport(
   deps: GranolaPullDeps,
-  { vault, mode }: { vault: string; mode: GranolaPullMode },
+  { vault, mode }: PullRequest,
   cause: unknown,
+  { tally, watermark }: Progress,
 ): GranolaPullReport {
   const problem = messageWithoutPaths(cause);
-  const report: GranolaPullReport = {
-    vault,
-    mode,
-    ended: 'failed',
-    written: [],
-    held: 0,
-    refused: [],
-    skipped: [],
-    failed: [],
-    failure: null,
-    problem,
-    keyRefused: false,
-    watermark: null,
-  };
+  const ending: Ending = { ended: 'failed', failure: null, problem };
+  const report = reportOf({ vault, mode, tally, ending, watermark });
   const line = granolaPullReport({ mode, ended: 'failed', counts: countsOf(report), problem });
   try {
     if (line !== null) deps.activity.inVault(vault).record(line);
@@ -286,6 +335,7 @@ async function pullInto(
     ports,
     recorder,
     tally,
+    saidUnreadable,
   }: {
     deps: GranolaPullDeps;
     vault: string;
@@ -293,11 +343,12 @@ async function pullInto(
     ports: GranolaPullPorts;
     recorder: ActivityRecorder;
     tally: Tally;
+    saidUnreadable: Set<string>;
   },
   before: string | null,
 ): Promise<Ending> {
   const stillOpen = () => deps.openVault() === vault;
-  if (!stillOpen()) return endedBy('vault-changed');
+  if (!stillOpen()) return NEVER_BEGAN;
   const run: PullRun = {
     vault,
     mode,
@@ -308,6 +359,7 @@ async function pullInto(
     stillOpen,
     settings: await loadGranolaSettings(ports),
     tally,
+    saidUnreadable,
   };
   const since = sinceOf({ watermark: before, mode });
   let listing: GranolaListing;
@@ -316,7 +368,7 @@ async function pullInto(
   } catch (error) {
     return endingOf(run, failureOf(error), 'failed', 'listing');
   }
-  for (const summary of listing.unreadable) leaveOut(run, unreadableSummaryProblem(summary));
+  for (const summary of listing.unreadable) leaveOut(run, summary);
   for (const summary of listing.notes) {
     const ending = await takeIn(run, summary);
     if (ending !== null) return ending;
@@ -429,10 +481,21 @@ async function write(
   }
 }
 
-/** A listed note the pull could not read, counted as skipped; its time unknown, it has no say in the watermark. */
-function leaveOut(run: PullRun, problem: GranolaNoteProblem): void {
+/**
+ * A listed note the pull could not read, counted as skipped; its time
+ * unknown, it has no say in the watermark. It comes back on every pull until
+ * Granola mends it, so Activity is told of it once in a session of the app.
+ */
+function leaveOut(run: PullRun, summary: GranolaUnreadableSummary): void {
+  const problem = unreadableSummaryProblem(summary);
   run.tally.skipped.push(problem);
+  const key = unreadableKey(summary);
+  if (run.saidUnreadable.has(key)) {
+    run.tally.skippedBefore += 1;
+    return;
+  }
   run.recorder.record(granolaNoteReport('skipped', problem));
+  run.saidUnreadable.add(key);
 }
 
 /** Counts what became of a note, and says in Activity why one was not written. */

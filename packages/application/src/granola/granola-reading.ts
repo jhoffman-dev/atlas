@@ -20,13 +20,25 @@ export interface GranolaReader {
   readonly send: GranolaSend;
 }
 
-/** More pages of notes (thirty each: 6,000 notes) than anyone keeps; past it, a list that never ends is cut off. */
-const MAX_LIST_PAGES = 200;
+/**
+ * More pages of notes (thirty each: 60,000 notes) than anyone keeps; past it,
+ * a list whose cursor never ends, and never repeats, is cut off. A cursor
+ * that repeats is caught on the page it does.
+ */
+const MAX_LIST_PAGES = 2000;
 
 const malformed = (message: string, transcriptPage = false) =>
   new GranolaError({ kind: 'malformed', message, ...(transcriptPage && { transcriptPage }) });
 
-/** What the list of notes held: each note once, and those it named in a shape Atlas cannot read. */
+/**
+ * Which unreadable listings are the same note: one id, listed twice, is one
+ * note. With no id to tell them apart, those left out for the same reason
+ * are taken as one.
+ */
+export const unreadableKey = ({ id, reason }: GranolaUnreadableSummary): string =>
+  id === null ? `no id: ${reason}` : `id: ${id}`;
+
+/** What the list of notes held: each note once, and those it named in a shape Atlas cannot read, each once too. */
 export interface GranolaListing {
   readonly notes: readonly GranolaNoteSummary[];
   readonly unreadable: readonly GranolaUnreadableSummary[];
@@ -42,7 +54,7 @@ export async function listGranolaNotes(
   updatedAfter: string | null,
 ): Promise<GranolaListing> {
   const listed = new Map<string, GranolaNoteSummary>();
-  const unreadable: GranolaUnreadableSummary[] = [];
+  const unreadable = new Map<string, GranolaUnreadableSummary>();
   let cursor: string | null = null;
   for (let page = 0; page < MAX_LIST_PAGES; page += 1) {
     const from: string | null = cursor;
@@ -50,8 +62,13 @@ export async function listGranolaNotes(
       granola.listNotes({ vault, updatedAfter, cursor: from }),
     );
     for (const note of read.notes) listed.set(note.id, note);
-    for (const summary of read.unreadable) unreadable.push(summary);
-    if (read.cursor === null) return { notes: [...listed.values()], unreadable };
+    for (const summary of read.unreadable) {
+      const key = unreadableKey(summary);
+      if (!unreadable.has(key)) unreadable.set(key, summary);
+    }
+    if (read.cursor === null) {
+      return { notes: [...listed.values()], unreadable: [...unreadable.values()] };
+    }
     if (read.cursor === from) throw malformed('Granola sent the same page of notes again');
     cursor = read.cursor;
   }

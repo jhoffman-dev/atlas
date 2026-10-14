@@ -20,6 +20,7 @@ import {
   mapGranolaNote,
   splitFrontmatter,
   TRANSCRIPT_LIMIT,
+  type ActivityReport,
   type GranolaFailure,
   type GranolaNote,
 } from '@atlas/domain';
@@ -154,6 +155,17 @@ const refused = (status: number): GranolaFailure => ({
   status,
   message: `Granola answered ${status}`,
 });
+
+/** Every line Activity is told from here on, with the vault it was told in. */
+function linesByVault(activity: { inVault: unknown }): (readonly [string, string])[] {
+  const lines: (readonly [string, string])[] = [];
+  Object.assign(activity, {
+    inVault: (vault: string) => ({
+      record: (report: ActivityReport) => void lines.push([vault, report.message]),
+    }),
+  });
+  return lines;
+}
 
 const frontmatterOf = (text: string | undefined) =>
   remarkMarkdown.frontmatterProperties(splitFrontmatter(text ?? '').frontmatter);
@@ -422,6 +434,76 @@ describe('pulling Granola into a vault', () => {
     expect(granola.count('list')).toBe(3);
   });
 
+  it('runs a Sync now queued while another vault is opened to nothing, and says nothing of it in the old vault', async () => {
+    const records = memoryRecords({ watermark: '2026-10-13T12:00:00.000Z' });
+    const { puller, granola, api } = pullFixture({ notes: [NEW_1, NEW_2], records });
+    const lines = linesByVault(api.activity);
+    const getNote = granola.port.getNote;
+    granola.port.getNote = async (args) => {
+      const note = await getNote(args);
+      api.open = OTHER_VAULT;
+      return note;
+    };
+
+    const timed = puller.pull({ vault: VAULT.absolutePath, mode: 'periodic' });
+    const syncNow = puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+
+    expect(await timed).toMatchObject({ ended: 'vault-changed', mode: 'periodic' });
+    expect(await syncNow).toMatchObject({
+      ended: 'vault-changed',
+      mode: 'sync-now',
+      written: [],
+      held: 0,
+      watermark: '2026-10-13T12:00:00.000Z',
+    });
+    // Sync now asked Granola nothing: the one listing is the timed pull's.
+    expect(granola.count('list')).toBe(1);
+    // One line, the timed pull's, which did run; none for the Sync now that never did.
+    expect(lines).toEqual([
+      [
+        VAULT.absolutePath,
+        'Granola: the pull stopped when another vault was opened. The next pull in this vault goes on.',
+      ],
+    ]);
+    // The vault is free: a pull of it once it is open again runs.
+    api.open = VAULT;
+    granola.port.getNote = getNote;
+    expect(await puller.pull({ vault: VAULT.absolutePath, mode: 'startup' })).toMatchObject({
+      ended: 'pulled',
+    });
+  });
+
+  it('runs a Sync now queued behind a pull that a fault ended, and gives it its own report', async () => {
+    let reads = 0;
+    const kept = memoryRecords();
+    const records = {
+      ...kept,
+      read: (vault: string) => {
+        reads += 1;
+        if (reads === 1) throw new Error('storage is gone');
+        return kept.read(vault);
+      },
+    };
+    const { puller, granola, messages } = pullFixture({ notes: [NEW_1], records });
+
+    const startup = puller.pull({ vault: VAULT.absolutePath, mode: 'startup' });
+    const syncNow = puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+
+    expect(await startup).toMatchObject({ ended: 'failed', problem: 'storage is gone' });
+    const report = await syncNow;
+    expect(report).not.toBe(await startup);
+    expect(report).toMatchObject({
+      ended: 'pulled',
+      mode: 'sync-now',
+      written: ['Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md'],
+    });
+    expect(granola.count('list')).toBe(1);
+    expect(messages()).toEqual([
+      'Granola: the pull failed. Storage is gone.',
+      'Granola: 1 new, 0 already in Atlas.',
+    ]);
+  });
+
   it('does not start until the vault has been synced in this session, and says nothing', async () => {
     const { pull, granola, api, records } = pullFixture({ synced: false });
 
@@ -550,14 +632,15 @@ describe('pulling Granola into a vault', () => {
     });
   });
 
-  it('asks Granola nothing for a vault that is no longer open', async () => {
-    const { pull, api, granola } = pullFixture();
+  it('asks Granola nothing for a vault that is no longer open, and says nothing of it', async () => {
+    const { pull, api, granola, messages } = pullFixture();
     api.open = OTHER_VAULT;
 
     const report = await pull();
 
     expect(report.ended).toBe('vault-changed');
     expect(granola.calls).toEqual([]);
+    expect(messages()).toEqual([]);
   });
 
   it('fails the pull on a fault that is not Granola’s, keeping the watermark', async () => {
@@ -669,6 +752,56 @@ describe('pulling Granola into a vault', () => {
       ],
       ['warning', 'Granola: 1 new, 0 already in Atlas, 1 skipped.'],
     ]);
+  });
+
+  it('tells Activity of a note it cannot read once in a session of the app, in each vault', async () => {
+    const records = memoryRecords({ watermark: '2026-10-13T12:00:00.000Z' });
+    const { puller, granola, api } = pullFixture({ notes: [HELD], records });
+    const lines = linesByVault(api.activity);
+    const odd = (id: string) => ({ id, reason: 'its updated_at is not text' });
+    let unreadable = [odd('not_odd0000000001'), odd('not_odd0000000001')];
+    const listNotes = granola.port.listNotes;
+    granola.port.listNotes = async (args) => ({ ...(await listNotes(args)), unreadable });
+    const pullOf = (mode: 'periodic' | 'sync-now', vault = VAULT.absolutePath) =>
+      puller.pull({ vault, mode });
+    const skippedLine = (id: string) =>
+      `Granola: “${id}”: Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.`;
+
+    // The first timed pull says it, once though it was listed twice, and counts it.
+    const first = await pullOf('periodic');
+    expect(first.skipped.map(({ id }) => id)).toEqual(['not_odd0000000001']);
+    expect(lines).toEqual([
+      [VAULT.absolutePath, skippedLine('not_odd0000000001')],
+      [VAULT.absolutePath, 'Granola: nothing new, 1 already in Atlas, 1 skipped.'],
+    ]);
+
+    // The next timed pull, whose only skip was said already, is quiet; its report still counts it.
+    lines.length = 0;
+    const second = await pullOf('periodic');
+    expect(second.skipped.map(({ id }) => id)).toEqual(['not_odd0000000001']);
+    expect(lines).toEqual([]);
+
+    // A note newly unreadable is said; the old one is not said again.
+    unreadable = [odd('not_odd0000000001'), odd('not_odd0000000002')];
+    await pullOf('periodic');
+    expect(lines).toEqual([
+      [VAULT.absolutePath, skippedLine('not_odd0000000002')],
+      [VAULT.absolutePath, 'Granola: nothing new, 1 already in Atlas, 2 skipped.'],
+    ]);
+
+    // Sync now gets its line, counting both, and says neither note again.
+    lines.length = 0;
+    await pullOf('sync-now');
+    expect(lines).toEqual([
+      [VAULT.absolutePath, 'Granola: nothing new, 1 already in Atlas, 2 skipped.'],
+    ]);
+
+    // Another vault has its own Activity, and is told.
+    lines.length = 0;
+    api.open = OTHER_VAULT;
+    unreadable = [odd('not_odd0000000001')];
+    await pullOf('periodic', OTHER_VAULT.absolutePath);
+    expect(lines[0]).toEqual([OTHER_VAULT.absolutePath, skippedLine('not_odd0000000001')]);
   });
 
   it('says a list that failed outright was not skipped, and that the next pull lists again', async () => {
@@ -900,6 +1033,63 @@ describe('pulling Granola into a vault', () => {
         ended: 'failed',
         problem: 'no vault is wired yet; Activity could not record it either: Activity is closed',
       });
+    });
+
+    it('keeps what the pull did when the watermark cannot be kept, and does not claim it moved', async () => {
+      const kept = memoryRecords({ watermark: '2026-10-10T00:00:00.000Z' });
+      const records = {
+        ...kept,
+        write: () => {
+          throw new Error('the quota is full');
+        },
+      };
+      const { pull, granola, meetingFiles, messages } = pullFixture({ records });
+      const listNotes = granola.port.listNotes;
+      granola.port.listNotes = async (args) => ({
+        ...(await listNotes(args)),
+        unreadable: [{ id: 'not_odd0000000001', reason: 'its title is not text' }],
+      });
+
+      const report = await pull('sync-now');
+
+      expect(meetingFiles()).toContain('Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md');
+      expect(report).toMatchObject({
+        ended: 'failed',
+        problem: 'the quota is full',
+        held: 2,
+        skipped: [expect.objectContaining({ id: 'not_odd0000000001' })],
+        // The watermark the record still holds: the one the pull could not move.
+        watermark: '2026-10-10T00:00:00.000Z',
+      });
+      expect(report.written).toEqual([
+        'Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md',
+        'Inbox/Meetings/2026-10-06 Tobias one on one.md',
+      ]);
+      expect(kept.current().watermark).toBe('2026-10-10T00:00:00.000Z');
+      expect(messages().at(-1)).toBe(
+        'Granola: the pull failed. The quota is full. 2 new before it did.',
+      );
+    });
+
+    it('reports the watermark it moved when Activity fails only at the end', async () => {
+      const records = memoryRecords({ watermark: '2026-10-10T00:00:00.000Z' });
+      const { pull, api } = pullFixture({ notes: [NEW_1], records });
+      Object.assign(api.activity, {
+        inVault: () => ({
+          record: (line: ActivityReport) => {
+            if (line.message.startsWith('Granola: 1 new')) throw new Error('Activity is full');
+          },
+        }),
+      });
+
+      const report = await pull();
+
+      expect(report).toMatchObject({
+        ended: 'failed',
+        written: ['Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md'],
+        watermark: '2026-10-13T15:00:00.000Z',
+      });
+      expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
     });
 
     it('is a failed report when the pull’s own record cannot be read', async () => {
