@@ -64,6 +64,9 @@ export type ClaudeApply = 'mine';
 /** The longest model id a rule may name: an id, not a sentence. */
 const MAX_MODEL_LENGTH = 100;
 
+/** What a model id is written in: letters, digits, and `.`, `_`, `:`, `@`, `/`, `-`, `[`, `]`. */
+const MODEL_ID = /^[A-Za-z0-9._:@/[\]-]+$/;
+
 const NEVER_EDITS =
   'A Claude step never edits a note: it writes proposals for you to accept, or one new note.';
 
@@ -128,17 +131,21 @@ function applyNeedsItems(): string {
 /**
  * The model a rule names, null for none, or why it cannot be one. The host
  * passes it as `--model`'s value and refuses one that reads as a flag, so
- * that is refused here first, with anything that is not one plain id.
+ * that is refused here first, with anything that is not one plain id: only
+ * the characters a model id or alias is written in (`claude-sonnet-5-5`,
+ * `claude-opus-5-5[1m]`, a provider's `vendor/model:tag`), so no control,
+ * format or invisible character reaches the host looking like a valid id.
  */
 function readModel(value: unknown): string | null | Refusal {
   if (value === undefined || value === null) return null;
-  const written = typeof value === 'string' ? value.trim() : null;
+  // Only plain spaces and line ends are trimmed: an invisible character at either end is refused.
+  const written = typeof value === 'string' ? value.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '') : null;
   if (written === '') return null;
   const plain =
     written !== null &&
     written.length <= MAX_MODEL_LENGTH &&
     !written.startsWith('-') &&
-    !/\s/.test(written);
+    MODEL_ID.test(written);
   return plain
     ? written
     : {

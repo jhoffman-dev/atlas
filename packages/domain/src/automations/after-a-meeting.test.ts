@@ -4,7 +4,12 @@ import { checkAtlasQuery } from '../query-language/check.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { CLAUDE_ASKS_PER_RUN } from './answered-note.ts';
-import { NOTE_RUNS_PER_HOUR, noteRunsCappedProblem, noteRunsHeldUntil } from './automation-due.ts';
+import {
+  asksSpentInHour,
+  NOTE_RUNS_PER_HOUR,
+  noteRunsCappedProblem,
+  noteRunsHeldUntil,
+} from './automation-due.ts';
 import {
   automationFrontmatter,
   draftProblem,
@@ -18,12 +23,14 @@ import {
 } from './built-in-prompts.ts';
 import {
   claudeAskRefusal,
+  claudeRunAsks,
   claudeStepBudget,
   claudeStepDefaultModel,
   claudeStepModel,
   DECLARED_STEP_ASKS_PER_HOUR,
   DECLARED_STEP_ASKS_PER_RUN,
   DECLARED_STEP_MODEL,
+  sharesAskAllowance,
 } from './claude-step-budget.ts';
 import { withClaudeChoices, type ClaudeAction } from './claude-step.ts';
 import { AUTOMATION_PRESETS } from './presets.ts';
@@ -140,6 +147,20 @@ describe('model: on a rule’s Claude step', () => {
     expect(problemOf({ ...RULE, model: 'c'.repeat(100) })).toBeNull();
   });
 
+  it('takes only what an id is written in, and refuses any control, format or invisible character', () => {
+    for (const model of ['claude-sonnet-5-5', 'vendor/model:tag', 'model@2026-10-01', 'a_b.c']) {
+      expect(problemOf({ ...RULE, model })).toBeNull();
+    }
+    // A byte-order mark or no-break space at an end is no plain space: refused, not trimmed away.
+    for (const invisible of ['﻿', ' ', '‮', '‍', '\u0007', '\u007F']) {
+      expect(problemOf({ ...RULE, model: `claude-sonnet-5-5${invisible}` })).toMatch(/model:/);
+      expect(problemOf({ ...RULE, model: `${invisible}claude-sonnet-5-5` })).toMatch(/model:/);
+    }
+    for (const model of ['claude;rm', 'claude$HOME', 'claude"x', 'cláude', '-claude']) {
+      expect(problemOf({ ...RULE, model })).toMatch(/model:/);
+    }
+  });
+
   it('round-trips with and without model', () => {
     const named = roundTrip({ ...RULE, model: 'claude-opus-5-5' });
     expect(named.written).toMatchObject({ model: 'claude-opus-5-5' });
@@ -214,11 +235,15 @@ describe('the declared step’s own ask budget', () => {
   it('is 10 asks a run and 30 an hour, apart from the shared cap', () => {
     expect(DECLARED_STEP_ASKS_PER_RUN).toBe(10);
     expect(DECLARED_STEP_ASKS_PER_HOUR).toBe(30);
-    expect(declared).toEqual({ asksPerRun: 10, asksPerHour: 30 });
+    expect(declared).toEqual({ asksPerRun: 10, asksPerHour: 30, reservedPerRun: 1 });
   });
 
   it('is the shared budget for any other step or action', () => {
-    expect(shared).toEqual({ asksPerRun: CLAUDE_ASKS_PER_RUN, asksPerHour: null });
+    expect(shared).toEqual({
+      asksPerRun: CLAUDE_ASKS_PER_RUN,
+      asksPerHour: null,
+      reservedPerRun: 0,
+    });
     expect(claudeStepBudget({ kind: 'archive' })).toEqual(shared);
     expect(claudeStepBudget({ kind: 'set', values: { status: 'done' } })).toEqual(shared);
   });
@@ -228,8 +253,8 @@ describe('the declared step’s own ask budget', () => {
     expect(claudeAskRefusal(declared, 10)).toBe(
       'It would ask Claude more than 10 times; one run asks at most 10.',
     );
-    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null }, 2)).toBeNull();
-    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null }, 3)).toBe(
+    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null, reservedPerRun: 0 }, 2)).toBeNull();
+    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null, reservedPerRun: 0 }, 3)).toBe(
       'It would ask Claude more than 3 times; one run asks at most 3.',
     );
   });
@@ -299,11 +324,79 @@ describe('the declared step’s hourly allowance', () => {
     );
   });
 
-  it('says both limits when the step is held', () => {
+  it('says both limits when the step is held, and that the allowance is shared', () => {
     expect(noteRunsCappedProblem('2026-10-14T12:10:00', declared)).toBe(
-      `It has asked Claude ${DECLARED_STEP_ASKS_PER_HOUR} times, or used its ${NOTE_RUNS_PER_HOUR} runs, ` +
-        'in the last hour, the most this step may. It runs on what changed meanwhile at 12:10.',
+      `Claude has been asked ${DECLARED_STEP_ASKS_PER_HOUR} times in the last hour by the rules ` +
+        'that make your own action items into tasks, the most they may together, ' +
+        `or it has used its ${NOTE_RUNS_PER_HOUR} runs. It runs on what changed meanwhile at 12:10.`,
     );
+  });
+
+  it('is one allowance for the vault: another declared rule’s asks count against it', () => {
+    const mine = times(15, asked);
+    const theirs = times(15, asked);
+    expect(noteRunsHeldUntil(mine, NOW, declared)).toBeNull();
+    expect(noteRunsHeldUntil(mine, NOW, declared, [...mine, ...theirs.slice(1)])).toBeNull();
+    expect(noteRunsHeldUntil(mine, NOW, declared, [...mine, ...theirs])).toBe(
+      '2026-10-14T12:10:00',
+    );
+    // The shared runs stay the rule's own: another rule's failed runs do not hold it.
+    const othersFailed = times(NOTE_RUNS_PER_HOUR, failed);
+    expect(noteRunsHeldUntil([], NOW, declared, othersFailed)).toBeNull();
+  });
+
+  it('counts the asks in the hour, from every entry it is given', () => {
+    expect(asksSpentInHour([asked(50, 25), asked(40, 4), failed(30)], NOW)).toBe(29);
+    expect(asksSpentInHour([{ ...asked(0, 7), at: '2026-10-14T11:00:00' }], NOW)).toBe(0);
+    expect(asksSpentInHour([asked(10, 3)], 'not a time')).toBe(0);
+  });
+});
+
+describe('what one run of the declared step may ask', () => {
+  const step = actionOf(RULE);
+  const declared = claudeStepBudget({ ...step, apply: 'mine' });
+  const shared = claudeStepBudget(step);
+
+  it('plans its parts with one ask kept back for the reduce: at most 9 of its 10', () => {
+    expect(claudeRunAsks(declared)).toEqual({ most: 10, parts: 9 });
+    expect(claudeRunAsks(declared, 20)).toEqual({ most: 10, parts: 9 });
+    expect(claudeRunAsks(shared)).toEqual({
+      most: CLAUDE_ASKS_PER_RUN,
+      parts: CLAUDE_ASKS_PER_RUN,
+    });
+  });
+
+  it('never asks past what the hour has left: a run starting at 29 makes one', () => {
+    expect(claudeRunAsks(declared, 21)).toEqual({ most: 9, parts: 9 });
+    expect(claudeRunAsks(declared, 25)).toEqual({ most: 5, parts: 5 });
+    expect(claudeRunAsks(declared, 29)).toEqual({ most: 1, parts: 1 });
+    expect(claudeRunAsks(declared, 30)).toEqual({ most: 0, parts: 0 });
+    expect(claudeRunAsks(declared, 45)).toEqual({ most: 0, parts: 0 });
+    // A step without an allowance of its own is bounded by its run alone.
+    expect(claudeRunAsks(shared, 45)).toEqual({
+      most: CLAUDE_ASKS_PER_RUN,
+      parts: CLAUDE_ASKS_PER_RUN,
+    });
+  });
+
+  it('refuses the 31st ask of the hour inside a run, saying the allowance is shared', () => {
+    expect(claudeAskRefusal(declared, 0, 29)).toBeNull();
+    expect(claudeAskRefusal(declared, 1, 29)).toBe(
+      `It would ask Claude more than ${DECLARED_STEP_ASKS_PER_HOUR} times in an hour; the rules ` +
+        `that make your own action items into tasks ask at most ${DECLARED_STEP_ASKS_PER_HOUR} an hour together.`,
+    );
+    expect(claudeAskRefusal(declared, 0, 30)).toMatch(/more than 30 times in an hour/);
+    // With the hour to spare, the run's own limit is what refuses.
+    expect(claudeAskRefusal(declared, 10, 20)).toBe(
+      'It would ask Claude more than 10 times; one run asks at most 10.',
+    );
+    expect(claudeAskRefusal(shared, 9, 45)).toBeNull();
+  });
+
+  it('is shared by every rule that says apply: mine, and no other', () => {
+    expect(sharesAskAllowance({ ...step, apply: 'mine' })).toBe(true);
+    expect(sharesAskAllowance(step)).toBe(false);
+    expect(sharesAskAllowance({ kind: 'archive' })).toBe(false);
   });
 });
 
@@ -329,7 +422,11 @@ describe('the ready-made "After a meeting" rule', () => {
   it('asks Sonnet, with its own budget', () => {
     if (preset.action.kind !== 'claude') throw new Error('not a Claude step');
     expect(claudeStepModel(preset.action, 'claude-opus-5-5')).toBe(DECLARED_STEP_MODEL);
-    expect(claudeStepBudget(preset.action)).toEqual({ asksPerRun: 10, asksPerHour: 30 });
+    expect(claudeStepBudget(preset.action)).toEqual({
+      asksPerRun: 10,
+      asksPerHour: 30,
+      reservedPerRun: 1,
+    });
   });
 
   it('takes meetings by a moving date the query language reads', () => {

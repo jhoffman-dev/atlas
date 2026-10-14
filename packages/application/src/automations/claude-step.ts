@@ -4,6 +4,7 @@ import {
   claudeAskRefusal,
   claudeAsks,
   claudeNewProposal,
+  claudeRunAsks,
   claudeStepBudget,
   claudeStepModel,
   claudeStepSystem,
@@ -135,6 +136,11 @@ interface StepArgs extends ProposalWritePorts {
   readonly rule: string;
   /** The rule and run, as each proposal's `made_by` says it. */
   readonly madeBy: string;
+  /**
+   * The asks the step's hourly allowance had spent in the hour before the
+   * run, when it has one (#179): the run asks no more than is left. 0 if none.
+   */
+  readonly askedThisHour?: number;
 }
 
 /**
@@ -166,12 +172,15 @@ interface StepArgs extends ProposalWritePorts {
  *
  * It asks the model its rule names, else its default (`claudeStepModel`: Sonnet
  * for the declared step, #179), and never more often than its budget lets one
- * run (`claudeStepBudget`): an ask past it fails the run with nothing written.
+ * run, nor than its hourly allowance has left (`claudeRunAsks`): an ask past
+ * either fails the run with nothing written. The declared step plans its
+ * notes' parts with one ask kept back, for the reduce (#184).
  */
 export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> {
   const { ports, action } = args;
   const model = claudeStepModel(action, ports.model());
   const budget = claudeStepBudget(action);
+  const { askedThisHour = 0 } = args;
   const started = ports.clock.now();
   let cut: readonly NoteCut[] = [];
   let asked = 0;
@@ -205,12 +214,12 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   if (typeof prompt !== 'string') return fail(prompt.problem);
   const notes = await readAnswered(args, args.paths);
   const inParts = output.kind === 'proposals' && output.schema.readsInParts;
-  const plan = claudeAsks(notes, { inParts, asks: budget.asksPerRun });
+  const plan = claudeAsks(notes, { inParts, asks: claudeRunAsks(budget, askedThisHour).parts });
   cut = plan.cut;
   const signal = ports.deadline(CLAUDE_RUN_TIMEOUT_MS);
   const asking = { ...args, provider, model, prompt, output, fail, signal };
   const counted = () => {
-    const refused = claudeAskRefusal(budget, asked);
+    const refused = claudeAskRefusal(budget, asked, askedThisHour);
     if (refused !== null) fail(refused);
     asked += 1;
   };

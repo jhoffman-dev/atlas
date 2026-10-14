@@ -29,7 +29,10 @@ const fileWithModel = (yamlModel: string) =>
     '',
   ].join('\n');
 const readBack = (text: string) =>
-  parseAutomationRule(PATH, remarkMarkdown.frontmatterProperties(splitFrontmatter(text).frontmatter));
+  parseAutomationRule(
+    PATH,
+    remarkMarkdown.frontmatterProperties(splitFrontmatter(text).frontmatter),
+  );
 
 describe('model: refuses what is not one plain id (adversarial, #179)', () => {
   it.each([

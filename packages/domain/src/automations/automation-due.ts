@@ -79,20 +79,21 @@ const HOUR_MS = 3_600_000;
  * cap, so one may take it past by its own asks (at most ten).
  *
  * A step with an hourly allowance of its own (`budget.asksPerHour`, #179)
- * counts its asks against that allowance alone, and everything else the rule
- * spends against the shared runs; it is held while either is spent.
+ * counts asks against that allowance alone, and everything else the rule
+ * spends against the shared runs; it is held while either is spent. The
+ * allowance is one for the vault, shared by every rule whose step has it
+ * (`sharesAskAllowance`): its asks are counted over `allowanceEntries`, every
+ * such rule's log, and default to the rule's own.
  */
 export function noteRunsHeldUntil(
   entries: readonly LogEntry[],
   now: LocalTime,
   budget: ClaudeStepBudget = SHARED_STEP_BUDGET,
+  allowanceEntries: readonly LogEntry[] = entries,
 ): LocalTime | null {
   const end = localTimeMs(now);
   if (end === null) return null;
-  const inHour = entries.flatMap((entry) => {
-    const at = localTimeMs(entry.at);
-    return at === null || at <= end - HOUR_MS || at > end ? [] : [{ at, entry }];
-  });
+  const inHour = inHourUpTo(entries, end);
   const { asksPerHour } = budget;
   if (asksPerHour === null) {
     return heldUntil(
@@ -102,8 +103,26 @@ export function noteRunsHeldUntil(
   }
   return latest(
     heldUntil(spendTimes(inHour, runsSpentBy), NOTE_RUNS_PER_HOUR),
-    heldUntil(spendTimes(inHour, asksSpentBy), asksPerHour),
+    heldUntil(spendTimes(inHourUpTo(allowanceEntries, end), asksSpentBy), asksPerHour),
   );
+}
+
+/**
+ * How many times `entries` asked Claude in the hour up to `now` (#179): what
+ * a step with an allowance of its own has spent of it before a run.
+ */
+export function asksSpentInHour(entries: readonly LogEntry[], now: LocalTime): number {
+  const end = localTimeMs(now);
+  if (end === null) return 0;
+  return spendTimes(inHourUpTo(entries, end), asksSpentBy).length;
+}
+
+/** The entries in the hour up to `end`, each with its moment. */
+function inHourUpTo(entries: readonly LogEntry[], end: number): { at: number; entry: LogEntry }[] {
+  return entries.flatMap((entry) => {
+    const at = localTimeMs(entry.at);
+    return at === null || at <= end - HOUR_MS || at > end ? [] : [{ at, entry }];
+  });
 }
 
 /** Each spend's moment, once for each it spent, oldest first. */
@@ -150,6 +169,6 @@ export function noteRunsCappedProblem(
   const spent =
     budget.asksPerHour === null
       ? `It has used its ${NOTE_RUNS_PER_HOUR} runs, or questions put to Claude, for the last hour, the most a rule may.`
-      : `It has asked Claude ${budget.asksPerHour} times, or used its ${NOTE_RUNS_PER_HOUR} runs, in the last hour, the most this step may.`;
+      : `Claude has been asked ${budget.asksPerHour} times in the last hour by the rules that make your own action items into tasks, the most they may together, or it has used its ${NOTE_RUNS_PER_HOUR} runs.`;
   return `${spent} It runs on what changed meanwhile at ${until.slice(11, 16)}.`;
 }

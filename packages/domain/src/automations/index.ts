@@ -77,6 +77,7 @@ export {
 export type { ClaudeAction, ClaudeApply, ClaudeOutput } from './claude-step.ts';
 export {
   claudeAskRefusal,
+  claudeRunAsks,
   claudeStepBudget,
   claudeStepDefaultModel,
   claudeStepModel,
@@ -84,8 +85,9 @@ export {
   DECLARED_STEP_ASKS_PER_RUN,
   DECLARED_STEP_MODEL,
   SHARED_STEP_BUDGET,
+  sharesAskAllowance,
 } from './claude-step-budget.ts';
-export type { ClaudeStepBudget } from './claude-step-budget.ts';
+export type { ClaudeRunAsks, ClaudeStepBudget } from './claude-step-budget.ts';
 export {
   answerJson,
   checkDraft,
@@ -139,6 +141,7 @@ export {
 export type { AnsweredMeeting, ClaudeAsks, NoteCut, NoteSkipped } from './answered-note.ts';
 export type { NoteAnswer, NoteAnswerValue } from './note-answer.ts';
 export {
+  asksSpentInHour,
   backoffMinutes,
   dueTrigger,
   nextRunOf,
