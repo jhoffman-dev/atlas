@@ -636,24 +636,44 @@ async fn a_refusal_of_the_new_key_heard_while_it_is_being_set_is_kept() {
     assert_eq!(session().status().unwrap().last_refusal, Some(401));
 }
 
-/// A Keychain whose writes fail while `refusing` is set.
+/// A Keychain whose writes fail while `refusing` is set, whose reads fail
+/// while `unreadable` is, and which keeps a value it then says it failed to
+/// keep while `keeps_but_fails` is.
 #[derive(Default)]
 struct FlakyStore {
     inner: MemoryStore,
     refusing: std::sync::atomic::AtomicBool,
+    unreadable: std::sync::atomic::AtomicBool,
+    keeps_but_fails: std::sync::atomic::AtomicBool,
+}
+
+impl FlakyStore {
+    fn is(flag: &std::sync::atomic::AtomicBool) -> bool {
+        flag.load(std::sync::atomic::Ordering::SeqCst)
+    }
 }
 
 impl SecretStore for FlakyStore {
     fn set(&self, account: &str, value: &str) -> Result<(), String> {
-        if self.refusing.load(std::sync::atomic::Ordering::SeqCst) {
+        if Self::is(&self.refusing) {
             return Err("the keychain is locked".into());
         }
-        self.inner.set(account, value)
+        self.inner.set(account, value)?;
+        if Self::is(&self.keeps_but_fails) {
+            return Err("the keychain timed out".into());
+        }
+        Ok(())
     }
     fn get(&self, account: &str) -> Result<Option<String>, String> {
+        if Self::is(&self.unreadable) {
+            return Err("the keychain is locked".into());
+        }
         self.inner.get(account)
     }
     fn delete(&self, account: &str) -> Result<(), String> {
+        if Self::is(&self.refusing) {
+            return Err("the keychain is locked".into());
+        }
         self.inner.delete(account)
     }
     fn accounts(&self) -> Result<Vec<String>, String> {
@@ -683,12 +703,19 @@ async fn a_late_answer_to_an_earlier_key_after_a_keychain_failure_does_not_pin_t
     session.set_key(earlier).unwrap();
     // A pull goes out with the earlier key and is still waiting on Granola…
     session.set_key(kept).unwrap();
-    store.refusing.store(true, std::sync::atomic::Ordering::SeqCst);
+    store
+        .refusing
+        .store(true, std::sync::atomic::Ordering::SeqCst);
     assert_eq!(
-        session.set_key("grn_ATypoTheKeychainRefused").unwrap_err().kind,
+        session
+            .set_key("grn_ATypoTheKeychainRefused")
+            .unwrap_err()
+            .kind,
         FailureKind::Keychain
     );
-    store.refusing.store(false, std::sync::atomic::Ordering::SeqCst);
+    store
+        .refusing
+        .store(false, std::sync::atomic::Ordering::SeqCst);
     // …and Granola's 401 for the earlier key lands now.
     state.heard(VAULT, earlier, 401);
 
@@ -699,4 +726,150 @@ async fn a_late_answer_to_an_earlier_key_after_a_keychain_failure_does_not_pin_t
         None,
         "the kept key answered 200, yet it stands refused for a 401 to the earlier key"
     );
+}
+
+fn flaky_session<'a>(
+    fake: &'a FakeGranola,
+    store: &'a FlakyStore,
+    state: &'a GranolaState,
+) -> Session<'a> {
+    Session {
+        origin: &fake.origin,
+        store,
+        scope: VAULT,
+        state,
+    }
+}
+
+fn set(flag: &std::sync::atomic::AtomicBool, on: bool) {
+    flag.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// A Keychain failure while setting a key changes nothing that was kept, so
+/// what Granola said of the kept key still stands.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_save_keeps_the_refusal_of_the_key_still_kept() {
+    let fake = FakeGranola::start().await;
+    let (store, state) = (FlakyStore::default(), GranolaState::default());
+    let session = flaky_session(&fake, &store, &state);
+    session.set_key(KEY).unwrap();
+    state.heard(VAULT, KEY, 401);
+
+    set(&store.refusing, true);
+    let failure = session.set_key("grn_ATypoTheKeychainRefused").unwrap_err();
+    set(&store.refusing, false);
+
+    assert_eq!(failure.kind, FailureKind::Keychain);
+    assert_eq!(session.status().unwrap().last_refusal, Some(401));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_forget_keeps_the_refusal_of_the_key_still_kept() {
+    let fake = FakeGranola::start().await;
+    let (store, state) = (FlakyStore::default(), GranolaState::default());
+    let session = flaky_session(&fake, &store, &state);
+    session.set_key(KEY).unwrap();
+    state.heard(VAULT, KEY, 401);
+
+    set(&store.refusing, true);
+    let failure = session.forget_key().unwrap_err();
+    set(&store.refusing, false);
+
+    assert_eq!(failure.kind, FailureKind::Keychain);
+    assert_eq!(
+        session.status().unwrap(),
+        GranolaStatus {
+            has_key: true,
+            last_refusal: Some(401)
+        }
+    );
+}
+
+/// When the Keychain can be neither written nor read, which key it holds is
+/// not known, and the standing is left as it was rather than guessed at.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_save_that_cannot_be_read_back_leaves_the_standing_as_it_was() {
+    let fake = FakeGranola::start().await;
+    let (store, state) = (FlakyStore::default(), GranolaState::default());
+    let session = flaky_session(&fake, &store, &state);
+    session.set_key(KEY).unwrap();
+    state.heard(VAULT, KEY, 401);
+
+    set(&store.refusing, true);
+    set(&store.unreadable, true);
+    session.set_key("grn_ATypoTheKeychainRefused").unwrap_err();
+    set(&store.refusing, false);
+    set(&store.unreadable, false);
+
+    assert_eq!(session.status().unwrap().last_refusal, Some(401));
+    state.heard(VAULT, "grn_AnEarlierKey", 200);
+    assert_eq!(
+        session.status().unwrap().last_refusal,
+        Some(401),
+        "an answer to some other key was taken as the word on the kept one"
+    );
+}
+
+/// A Keychain that kept the new key but reported a failure: the new key is
+/// what is sent from now on, and what Granola said of the old one is not about
+/// it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_save_reported_failed_that_kept_the_key_stands_for_the_new_key() {
+    let fake = FakeGranola::start().await;
+    let (store, state) = (FlakyStore::default(), GranolaState::default());
+    let session = flaky_session(&fake, &store, &state);
+    let new = "grn_TheNewKey";
+    session.set_key(KEY).unwrap();
+    state.heard(VAULT, KEY, 401);
+
+    set(&store.keeps_but_fails, true);
+    session.set_key(new).unwrap_err();
+    set(&store.keeps_but_fails, false);
+
+    assert_eq!(session.status().unwrap().last_refusal, None);
+    state.heard(VAULT, KEY, 401);
+    assert_eq!(
+        session.status().unwrap().last_refusal,
+        None,
+        "a 401 to the old key stood against the new"
+    );
+    state.heard(VAULT, new, 401);
+    assert_eq!(session.status().unwrap().last_refusal, Some(401));
+}
+
+/// Setting the kept key again, when the Keychain fails, changes nothing, and
+/// Granola's refusal of that key stands.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_save_of_the_key_already_kept_keeps_its_refusal() {
+    let fake = FakeGranola::start().await;
+    let (store, state) = (FlakyStore::default(), GranolaState::default());
+    let session = flaky_session(&fake, &store, &state);
+    session.set_key(KEY).unwrap();
+    state.heard(VAULT, KEY, 401);
+
+    set(&store.refusing, true);
+    session.set_key(KEY).unwrap_err();
+    set(&store.refusing, false);
+
+    assert_eq!(session.status().unwrap().last_refusal, Some(401));
+}
+
+/// A key kept from an earlier run is not known until it is used. A failed
+/// save reads it back, and from then on an answer to any other key is not
+/// taken as the word on it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_save_learns_the_key_kept_from_an_earlier_run() {
+    let fake = FakeGranola::start().await;
+    let (store, state) = (FlakyStore::default(), GranolaState::default());
+    let session = flaky_session(&fake, &store, &state);
+    super::key::save(&store, VAULT, KEY).unwrap();
+
+    set(&store.refusing, true);
+    session.set_key("grn_ATypoTheKeychainRefused").unwrap_err();
+    set(&store.refusing, false);
+    state.heard(VAULT, "grn_AnEarlierKey", 401);
+
+    assert_eq!(session.status().unwrap().last_refusal, None);
+    state.heard(VAULT, KEY, 401);
+    assert_eq!(session.status().unwrap().last_refusal, Some(401));
 }
