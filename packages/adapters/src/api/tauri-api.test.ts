@@ -111,6 +111,49 @@ describe('tauriApiBridge', () => {
     expect(unlisten).toHaveBeenCalledOnce();
   });
 
+  /**
+   * React StrictMode starts serving twice and abandons the first: its stop
+   * lands after the second has said it listens. The host below keeps readiness
+   * per listener, as the Rust host does, and answers the `api_router_ready`
+   * calls in the order given rather than the order they were made.
+   */
+  it.each([
+    ['in order', (pending: (() => void)[]) => pending.splice(0).forEach((answer) => answer())],
+    [
+      'out of order',
+      (pending: (() => void)[]) =>
+        pending
+          .splice(0)
+          .reverse()
+          .forEach((answer) => answer()),
+    ],
+  ])(
+    'one listener stopping never clears the readiness of another still listening (%s)',
+    async (_order, answerPending) => {
+      const live = new Set<unknown>();
+      const pending: (() => void)[] = [];
+      invoke.mockImplementation((command: string, args: { listener?: unknown; ready: boolean }) => {
+        if (command !== 'api_router_ready') return Promise.resolve(null);
+        if (args.ready) live.add(args.listener);
+        else live.delete(args.listener);
+        return new Promise<null>((resolve) => pending.push(() => resolve(null)));
+      });
+
+      const first = tauriApiBridge.serve(async () => ANSWER);
+      const second = tauriApiBridge.serve(async () => ANSWER);
+      await settle();
+      answerPending(pending);
+      const stopFirst = await first;
+      await second;
+
+      stopFirst();
+      await settle();
+      answerPending(pending);
+
+      expect(live.size, 'the listener still serving lost its readiness').toBe(1);
+    },
+  );
+
   it('keeps serving when an answer cannot be sent back', async () => {
     const answer = vi.fn(async (request: ApiRequest) => ({ ...ANSWER, id: request.id }));
     await tauriApiBridge.serve(answer);

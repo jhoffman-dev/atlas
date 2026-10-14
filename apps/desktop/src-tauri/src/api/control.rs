@@ -467,6 +467,27 @@ mod tests {
             .starts_with("HTTP/1.1 200"));
     }
 
+    fn router_is_ready(control: &ApiControl) -> bool {
+        control.router_ready.load(Ordering::SeqCst)
+    }
+
+    /// React StrictMode mounts the router twice: the abandoned first listener
+    /// says it stopped after the second has said it listens. That must not
+    /// leave the API refusing everything while the second is still listening.
+    #[test]
+    fn a_listener_stopping_leaves_the_api_ready_while_another_listens() {
+        let (_dir, control) = loaded();
+
+        control.set_router_ready(true);
+        control.set_router_ready(true);
+        control.set_router_ready(false);
+
+        assert!(
+            router_is_ready(&control),
+            "the live listener lost its readiness"
+        );
+    }
+
     #[test]
     fn stays_off_when_left_off() {
         let (_dir, control) = loaded();

@@ -386,7 +386,8 @@ export interface FakeHost {
   /**
    * The local API, as the Rust host would drive it: `send` emits `api-request`
    * and settles with what the app answered through `api_respond`. Refused while
-   * the API is off, as the real server is not listening then.
+   * the API is off, as the real server is not listening then, and waits (then
+   * fails) while no router has said it listens, as the server refuses then.
    */
   readonly api: {
     send(call: ApiCall): Promise<ApiAnswer>;
@@ -572,6 +573,11 @@ export async function installHost(
   // server itself — authentication, the Host and Origin checks, the port — is
   // Rust's and is tested there; this answers the commands the app calls.
   const api = { enabled: false, token: 'token-1', rotations: 0, file: '/stub/api.json' };
+  /**
+   * The routers that said they listen (`api_router_ready`), by the id each
+   * named. The real host refuses every request while this is empty (#158).
+   */
+  const routerListeners = new Set<unknown>();
   const apiStatus = () => ({
     enabled: api.enabled,
     port: api.enabled ? STUB_API_PORT : null,
@@ -1442,8 +1448,12 @@ export async function installHost(
         api.rotations += 1;
         api.token = `token-${api.rotations + 1}`;
         return api.token;
-      case 'api_router_ready':
+      case 'api_router_ready': {
+        const { listener, ready } = args as { listener: unknown; ready: boolean };
+        if (ready) routerListeners.add(listener);
+        else routerListeners.delete(listener);
         return null;
+      }
       case 'global_capture_status':
         return { shortcut: globalShortcut, registered: globalShortcut !== null, problem: null };
       case 'global_capture_set':
@@ -1586,6 +1596,12 @@ export async function installHost(
     api: {
       async send(call) {
         if (!api.enabled) throw new Error('the local API is off, so nothing is listening');
+        // The real host answers "Atlas is still starting" until a router listens.
+        await expect
+          .poll(() => routerListeners.size, {
+            message: 'Atlas is still starting: no router said it listens',
+          })
+          .toBeGreaterThan(0);
         nextRequest += 1;
         const id = `e2e-${nextRequest}`;
         const answered = new Promise<ApiAnswer>((resolve, reject) => {
