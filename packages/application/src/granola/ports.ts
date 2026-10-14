@@ -73,7 +73,9 @@ export interface GranolaPullRecord {
 /**
  * This Mac's record of its pulls, per vault (ADR-0034): kept off the vault,
  * since the vault syncs and a write on every pull would be noise in it and
- * a conflict between Macs. Losing it costs one full listing.
+ * a conflict between Macs. Losing it costs one full listing, so neither
+ * method throws: a record that cannot be read is read as none, and one that
+ * cannot be kept is left as it was.
  */
 export interface GranolaPullRecords {
   read(vault: string): GranolaPullRecord;
