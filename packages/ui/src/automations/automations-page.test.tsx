@@ -408,4 +408,65 @@ describe('AutomationEditor', () => {
     render(<Editor log={[]} />);
     expect(screen.getByText('It has not run yet.')).toBeTruthy();
   });
+
+  describe('a Claude step’s apply and model (#179)', () => {
+    const AFTER = AUTOMATION_PRESETS.find((each) => each.name === 'After a meeting')!;
+    const outputs = { claudeOutputs: ['proposals', 'meeting-items'] };
+
+    it('shows the "After a meeting" step making your own items into tasks, with Sonnet by default', () => {
+      render(<Editor start={AFTER} {...outputs} />);
+      const apply = screen.getByLabelText('What becomes a task') as HTMLSelectElement;
+      expect(apply.value).toBe('mine');
+      expect([...apply.options].map((option) => option.textContent)).toEqual([
+        'Nothing: every item is a proposal',
+        'My own action items',
+      ]);
+      const model = screen.getByLabelText('Model') as HTMLInputElement;
+      expect(model.value).toBe('');
+      expect(model.placeholder).toBe('claude-sonnet-5-5');
+    });
+
+    it('names a model, and clears it back to the default', async () => {
+      const onChange = vi.fn();
+      render(<Editor start={AFTER} onChange={onChange} {...outputs} />);
+      const model = screen.getByLabelText('Model');
+
+      await userEvent.type(model, 'claude-opus-5-5');
+      expect(onChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          action: expect.objectContaining({ apply: 'mine', model: 'claude-opus-5-5' }),
+        }),
+      );
+      await userEvent.clear(model);
+      const cleared = onChange.mock.lastCall![0] as AutomationDraft;
+      expect(cleared.action).not.toHaveProperty('model');
+      expect(cleared.action).toMatchObject({ apply: 'mine' });
+    });
+
+    it('turns apply off, leaving every item a proposal and the chat’s model the default', async () => {
+      const onChange = vi.fn();
+      render(<Editor start={AFTER} onChange={onChange} {...outputs} />);
+
+      await userEvent.selectOptions(screen.getByLabelText('What becomes a task'), '');
+
+      const off = onChange.mock.lastCall![0] as AutomationDraft;
+      expect(off.action).not.toHaveProperty('apply');
+      expect(off.action).toMatchObject({ output: { kind: 'proposals', schema: 'meeting-items' } });
+      expect((screen.getByLabelText('Model') as HTMLInputElement).placeholder).toBe(
+        'The chat’s model',
+      );
+    });
+
+    it('offers apply only for an output with action items, unless the rule already says it', async () => {
+      render(<Editor start={AFTER} {...outputs} />);
+      const writes = screen.getByLabelText('What Claude writes');
+
+      await userEvent.selectOptions(writes, 'proposals');
+      // Still shown: the rule says apply: mine, which this output cannot do, and it must be fixable here.
+      await userEvent.selectOptions(screen.getByLabelText('What becomes a task'), '');
+      expect(screen.queryByLabelText('What becomes a task')).toBeNull();
+      await userEvent.selectOptions(writes, 'meeting-items');
+      expect(screen.getByLabelText('What becomes a task')).toBeTruthy();
+    });
+  });
 });
