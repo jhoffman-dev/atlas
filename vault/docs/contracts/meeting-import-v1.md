@@ -9,9 +9,11 @@ Something outside Atlas — today an n8n workflow reading Google Meet's "Notes
 by Gemini" emails, earlier Granola — writes **one markdown file per meeting**
 and commits it to the vault's sync repository at
 `Inbox/Meetings/<YYYY-MM-DD> <title>.md`. Atlas pulls it in like any other
-note and checks it against this contract. Atlas holds no provider login and
-no provider-specific parser: turning a provider's layout into this one is the
-mapping's job.
+note and checks it against this contract. Atlas holds no provider login and no provider-specific parser, with one
+exception: Granola, whose API Atlas polls itself with a personal key (ADR-0034).
+Even then the parsing is the shared mapping's job, not the app's: it runs the
+same mapping in the app and writes the same file, so nothing below depends on
+which of the two wrote it.
 
 - **This page** is the contract in words.
 - **`meeting-import-v1.schema.json`**, beside it, is a JSON Schema (draft
@@ -100,6 +102,7 @@ number, and an id of digits is a number to every reader. A value of the wrong ki
 | `provider`          | yes      | Who wrote it up, lowercase: `gemini`, `granola`, or the next one.                                                                              |
 | `external_id`       | yes      | The provider's own id for the meeting (the Notion "Source ID"), as text. `provider` + `external_id` is what makes a second copy a duplicate.   |
 | `transcript_clock`  | no       | What the transcript's times count: `elapsed` (time since the recording started — Gemini) or `wall` (time of day — Granola). Default `elapsed`. |
+| `source_url`        | no       | A link back to the meeting in the provider's own app (Granola's `web_url`), `https://`. Atlas does not read it. Lands with P28-09.             |
 | `attendees`         | no       | A list of `{ name, email?, group? }`. See below.                                                                                               |
 
 `null` (a key written with no value, `end:`) is the same as leaving the key
@@ -222,6 +225,13 @@ paragraph and cite nothing. Atlas refuses a line inside a turn that starts
   note, a next step or a heading may carry one (Atlas adds them when
   something cites a block), but never one a turn or any other block has.
 
+A provider that gives its turns already structured (Granola's API does:
+speaker, text, start and end instants) is written as these same blocks
+directly. The mapping does not render the turns to text and read them back,
+which would make a name holding `:` ambiguous. A `*` or a newline in a name
+cannot be written in a speaker (`**Name**`), structured or not, so the mapping
+replaces them. The file is the same either way.
+
 Every block in the section must be a turn: the provider's date line, its
 `### 00:09:44` section markers and its `### Transcription ended after …` line
 are dropped by the mapping (the section time moves into each turn as `~`).
@@ -243,10 +253,18 @@ meeting transcript" links, and the transcript's own date and end lines.
 | Granola: `**[14:14:22] You:** text`                     | `**You** [14:14:22] text ^tNNNN`, `transcript_clock: wall` |
 | Granola: `**[14:14:40] Remote Speaker:** text`          | `**Unknown** [14:14:40] text ^tNNNN`                       |
 | Granola: next steps with an owner and a confidence      | `- [Owner] Title: description (confidence: high)`          |
+| Granola API: note `id`                                  | `external_id`, `provider: granola`                         |
+| Granola API: turn `name`, else `me` (the note's owner)  | `**Name**`, else owner (`**You**` if vault's person)       |
+| Granola API: turn `start_time`, an instant              | `[hh:mm:ss]` in the vault's zone, `wall`                   |
+| Granola API: `web_url`                                  | `source_url` (lands with P28-09)                           |
 | Notion Meeting Notes: Category / Source / Source ID     | `kind` / `provider` / `external_id`                        |
+
+The Granola API rows describe the mapping Atlas runs when it pulls Granola
+(ADR-0034); it lands with P28-09.
 
 ## Versions
 
 `atlas_import: meeting/v1` is this page. A change that would refuse a file
 v1 accepts, or read one differently, is v2, with a page and a schema of its
-own; Atlas reads both.
+own; Atlas reads both. Naming `source_url` is not such a change: v1 already
+allowed keys it does not name, and what it accepts and refuses is the same.
