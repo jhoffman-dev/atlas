@@ -2,11 +2,26 @@
 //!
 //! A server that echoes its request rarely echoes it byte for byte. It builds a
 //! `next` link from the query it was sent, percent-encoding some characters and
-//! not others, in upper or lower case; it quotes a header in JSON, escaping `"`
-//! and `\`, or every character; it hands back a whole header — `Bearer <key>`,
-//! the credentials of a Basic one — as base64. Each of those forms is looked
-//! for, character by character, so a value written in any mixture of them is
-//! still found.
+//! not others, in upper or lower case, and sometimes twice; it form-encodes a
+//! space as `+`; it quotes a header in JSON, escaping `"` and `\`, or every
+//! character; it hands back a whole header — `Bearer <key>`, the credentials of
+//! a Basic one — as base64. Each character of a secret is looked for as itself,
+//! as `%XX` or `%25XX` in either case of hex, as a JSON `\uXXXX` or short
+//! escape, and a space as `+`, so a value written in any mixture of those is
+//! still found; so is its base64, in both alphabets, padded or not, at each of
+//! the three alignments it can sit at.
+//!
+//! What is deliberately not looked for, and why that is acceptable:
+//!
+//! - hex, HTML entities, `\x` and `\u{…}` escapes, a case-folded or
+//!   NFD-normalised copy, base64 wrapped across lines, base64 of the
+//!   percent-encoded value, and an echo cut short.
+//!
+//! Each is a server going out of its way to transform what it was sent, and
+//! every form added makes every secret's matcher larger and slower. The
+//! redactor is defence in depth: what keeps a secret safe is that it is only
+//! ever sent where it is pinned or bound to go (ADR-0017), so a server that
+//! could echo it in one of these forms is one the person chose to give it to.
 //!
 //! Every match of every secret is collected before anything is replaced, and
 //! matches that overlap are struck as one span: replacing a shorter secret first
@@ -14,8 +29,14 @@
 //! clear.
 
 use std::cmp::Reverse;
+use std::collections::hash_map::RandomState;
+use std::collections::HashMap;
+use std::hash::BuildHasher;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use base64::engine::general_purpose::{GeneralPurpose, STANDARD_NO_PAD, URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::{
+    GeneralPurpose, STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD,
+};
 use base64::Engine;
 use regex::{Regex, RegexBuilder};
 
@@ -23,17 +44,21 @@ use regex::{Regex, RegexBuilder};
 /// better than something that might hold a secret.
 const UNCHECKED: &str = "[the response could not be checked for secrets, so it is not shown]";
 
-/// Room for the pattern of a secret of some 12,000 characters, every one of
-/// which may be written several ways. The regex crate's default (10 MiB) holds
-/// about 2,000, and past the limit an answer is handed back unchecked.
-const MATCHER_SIZE_LIMIT: usize = 64 * 1024 * 1024;
+/// Room for the pattern of the longest secret Atlas keeps (`LONGEST_SECRET`
+/// bytes, every character of which may be written several ways), whose
+/// largest takes some 8.5 MiB, with a margin. It bounds what one build costs.
+const MATCHER_SIZE_LIMIT: usize = 12 * 1024 * 1024;
+
+/// A secret shorter than this is not looked for as base64: the base64 of one
+/// or two bytes is a character or two, which ordinary text is full of.
+const SHORTEST_FOR_BASE64: usize = 8;
 
 /// Replaces every secret that went into a request wherever it appears in what
 /// came back, in any of the forms described above.
 pub fn redact(text: &str, used: &[(String, String)]) -> String {
     let mut found: Vec<(usize, usize, &str)> = Vec::new();
     for (name, value) in used.iter().filter(|(_, value)| !value.is_empty()) {
-        let Ok(matcher) = matcher(value) else {
+        let Ok(matcher) = matchers().for_secret(name, value, matcher) else {
             return UNCHECKED.to_string();
         };
         found.extend(
@@ -43,6 +68,64 @@ pub fn redact(text: &str, used: &[(String, String)]) -> String {
         );
     }
     strike(text, found)
+}
+
+/// `redact`, on a thread kept for blocking work. Matching a long secret
+/// against a large answer built to resemble it takes seconds — two, for a
+/// 1,024-byte secret and 16 MB — and on an async worker that would stall
+/// every other command, and the local API server, for as long.
+pub async fn redact_off_worker(text: String, used: Vec<(String, String)>) -> String {
+    tauri::async_runtime::spawn_blocking(move || redact(&text, &used))
+        .await
+        .unwrap_or_else(|_| UNCHECKED.to_string())
+}
+
+/// The matchers built in this run, one per secret name.
+fn matchers() -> &'static Matchers {
+    static MATCHERS: OnceLock<Matchers> = OnceLock::new();
+    MATCHERS.get_or_init(Matchers::default)
+}
+
+/// Each secret's matcher, built once and reused while its value is unchanged.
+/// An entry is the matcher with a fingerprint of the value it was built for,
+/// so a changed value rebuilds it and the matcher for the value it replaced is
+/// dropped. The value itself is not kept.
+#[derive(Default)]
+struct Matchers {
+    by_name: Mutex<HashMap<String, (u64, Regex)>>,
+    /// Keyed afresh in each run, so a fingerprint means nothing outside it.
+    fingerprints: RandomState,
+}
+
+impl Matchers {
+    /// Every write is one whole entry, so a thread that panicked holding the
+    /// lock cannot have left it half-changed.
+    fn by_name(&self) -> MutexGuard<'_, HashMap<String, (u64, Regex)>> {
+        self.by_name
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// The matcher for `value`, built with `build` only when the one held for
+    /// `name` was built for some other value or none is held. The build runs
+    /// outside the lock, so one secret's build never holds up another's match.
+    fn for_secret(
+        &self,
+        name: &str,
+        value: &str,
+        build: impl FnOnce(&str) -> Result<Regex, regex::Error>,
+    ) -> Result<Regex, regex::Error> {
+        let fingerprint = self.fingerprints.hash_one(value);
+        if let Some((held, matcher)) = self.by_name().get(name) {
+            if *held == fingerprint {
+                return Ok(matcher.clone());
+            }
+        }
+        let built = build(value)?;
+        self.by_name()
+            .insert(name.to_string(), (fingerprint, built.clone()));
+        Ok(built)
+    }
 }
 
 /// Replaces each span, merging any that overlap into one. The earliest, longest
@@ -69,22 +152,30 @@ fn strike(text: &str, mut found: Vec<(usize, usize, &str)>) -> String {
     struck
 }
 
-/// One secret in any of its forms: as it is, and as base64 (standard and
-/// URL-safe), each of which may itself be percent-encoded or JSON-escaped.
-/// Longer forms come first, so that where two match at the same place the
-/// whole of the secret is struck.
+/// One secret in any of its forms, each of which may itself be escaped.
 fn matcher(value: &str) -> Result<Regex, regex::Error> {
-    let mut forms = vec![value.to_string()];
-    for engine in [STANDARD_NO_PAD, URL_SAFE_NO_PAD] {
-        forms.push(engine.encode(value));
-        forms.extend(base64_cores(&engine, value));
-    }
-    forms.sort_by_key(|form| Reverse(form.len()));
-    forms.dedup();
-    let alternatives: Vec<String> = forms.iter().map(|form| spelled(form)).collect();
+    let alternatives: Vec<String> = forms(value).iter().map(|form| spelled(form)).collect();
     RegexBuilder::new(&alternatives.join("|"))
         .size_limit(MATCHER_SIZE_LIMIT)
         .build()
+}
+
+/// The text a secret is sent as: as it is, and, when it is long enough to
+/// tell from ordinary text, as base64 (standard and URL-safe, padded and not).
+/// Each once, and longer forms first, so that where two match at the same
+/// place the whole of the secret is struck.
+fn forms(value: &str) -> Vec<String> {
+    let mut forms = vec![value.to_string()];
+    if value.chars().count() >= SHORTEST_FOR_BASE64 {
+        forms.extend([STANDARD, URL_SAFE].map(|engine| engine.encode(value)));
+        for engine in [STANDARD_NO_PAD, URL_SAFE_NO_PAD] {
+            forms.push(engine.encode(value));
+            forms.extend(base64_cores(&engine, value));
+        }
+    }
+    forms.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+    forms.dedup();
+    forms
 }
 
 /// The base64 text the value always encodes to, wherever it sits in what was
@@ -117,16 +208,21 @@ fn spelled(text: &str) -> String {
         .collect()
 }
 
-/// The ways one character is written: itself, percent-encoded in either case,
-/// and JSON-escaped.
+/// The ways one character is written: itself, percent-encoded once or twice in
+/// either case, JSON-escaped, and a space form-encoded as `+`.
 fn escapes_of(c: char) -> Vec<String> {
     let mut bytes = [0u8; 4];
+    // `%25` is the `%` itself encoded again, as it is when a URL is put inside
+    // another URL's query.
     let percent: String = c
         .encode_utf8(&mut bytes)
         .bytes()
-        .map(|byte| format!("%{byte:02X}"))
+        .map(|byte| format!("%(?:25)?{byte:02X}"))
         .collect();
     let mut forms = vec![regex::escape(&c.to_string()), format!("(?i:{percent})")];
+    if c == ' ' {
+        forms.push(regex::escape("+"));
+    }
     if let Some(short) = json_short_escape(c) {
         forms.push(regex::escape(short));
     }
@@ -149,5 +245,100 @@ fn json_short_escape(c: char) -> Option<&'static str> {
         '\u{8}' => Some("\\b"),
         '\u{c}' => Some("\\f"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+    use std::time::{Duration, Instant};
+
+    use super::{forms, matcher, Matchers, MATCHER_SIZE_LIMIT};
+    use crate::secrets::LONGEST_SECRET;
+
+    /// Builds with `matcher`, counting each build.
+    fn counted<'a>(
+        builds: &'a Cell<usize>,
+    ) -> impl FnOnce(&str) -> Result<regex::Regex, regex::Error> + 'a {
+        move |value| {
+            builds.set(builds.get() + 1);
+            matcher(value)
+        }
+    }
+
+    #[test]
+    fn a_secret_is_built_once_and_its_matcher_reused() {
+        let (matchers, builds) = (Matchers::default(), Cell::new(0));
+
+        let first = matchers
+            .for_secret("key", "grn_FirstValue", counted(&builds))
+            .unwrap();
+        let again = matchers
+            .for_secret("key", "grn_FirstValue", counted(&builds))
+            .unwrap();
+
+        assert_eq!(builds.get(), 1);
+        assert_eq!(first.as_str(), again.as_str());
+    }
+
+    #[test]
+    fn a_changed_value_is_rebuilt_and_the_matcher_it_replaced_dropped() {
+        let (matchers, builds) = (Matchers::default(), Cell::new(0));
+        matchers
+            .for_secret("key", "grn_FirstValue", counted(&builds))
+            .unwrap();
+
+        let changed = matchers
+            .for_secret("key", "grn_OtherValue", counted(&builds))
+            .unwrap();
+
+        assert_eq!(builds.get(), 2);
+        assert!(changed.is_match("grn_OtherValue"));
+        assert!(!changed.is_match("grn_FirstValue"));
+        assert_eq!(
+            matchers.by_name().len(),
+            1,
+            "the replaced value's matcher is still held"
+        );
+    }
+
+    /// A secret with no `+`, `/` or `?` in its base64 reads the same in both
+    /// alphabets, so most of its forms come twice; each is looked for once.
+    #[test]
+    fn each_form_is_looked_for_once_and_the_longest_first() {
+        let made = forms("grn_Larkspur");
+
+        let mut unique = made.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), made.len(), "{made:?}");
+        assert!(
+            made.windows(2).all(|pair| pair[0].len() >= pair[1].len()),
+            "{made:?}"
+        );
+    }
+
+    /// The size limit is what bounds a build: the longest secret Atlas keeps,
+    /// of the characters whose pattern is largest, fits within it, and one
+    /// four times as long is refused by it rather than built at whatever cost.
+    #[test]
+    fn building_a_matcher_is_bounded_by_the_size_limit() {
+        let longest = super::super::tests::the_costliest_secret_atlas_keeps();
+        assert_eq!(longest.len(), LONGEST_SECRET);
+
+        let started = Instant::now();
+        matcher(&longest).expect("the longest secret Atlas keeps fits the limit");
+        let took = started.elapsed();
+
+        // Some 70 ms in a release build and well under a second in a debug
+        // one; ten seconds is a hang, not a slow machine.
+        assert!(took < Duration::from_secs(10), "{took:?}");
+        match matcher(&longest.repeat(4)) {
+            Err(regex::Error::CompiledTooBig(limit)) => assert_eq!(limit, MATCHER_SIZE_LIMIT),
+            other => panic!(
+                "a secret four times the longest was built: {:?}",
+                other.map(|_| ())
+            ),
+        }
     }
 }

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::{
     account, binding::bound_origins, describe, entries_in, fill, names_in, redact, remove_secret,
-    vault_scope, write_secret, MemoryStore, SecretStore, SecretWrite, TemplatePart,
+    vault_scope, write_secret, MemoryStore, SecretStore, SecretWrite, TemplatePart, LONGEST_SECRET,
 };
 
 fn text(text: &str) -> TemplatePart {
@@ -182,6 +182,20 @@ fn a_secret_echoed_as_base64_is_struck() {
         redacted.starts_with("std=[secret key removed]"),
         "{redacted}"
     );
+}
+
+/// The padding is struck with the rest, in both alphabets, rather than left
+/// beside the strike to say how long the secret was.
+#[test]
+fn a_secret_echoed_as_padded_base64_is_struck_with_its_padding() {
+    let secret = "hunter2-token~";
+    for echo in ["aHVudGVyMi10b2tlbn4=", "aHVudGVyMi10b2tlbn4%3D"] {
+        assert_eq!(
+            struck(&format!("sent={echo};"), secret),
+            "sent=[secret key removed];",
+            "{echo}"
+        );
+    }
 }
 
 /// A secret sent inside a longer value — `Bearer <key>`, `user:<key>` — sits at
@@ -425,24 +439,124 @@ fn text_that_only_resembles_a_secret_is_left_alone() {
     assert_eq!(struck("aB3-dE6", "aB3+dE6"), "aB3-dE6");
 }
 
-/// Every character of a secret may be escaped, so its pattern grows with it; a
-/// long one, a signed token or a service account's key, is still looked for
-/// rather than the answer withheld as unchecked.
+/// Every character of a secret may be escaped, so its pattern grows with it;
+/// the longest secret Atlas keeps, of the printable characters whose pattern
+/// is largest, is still looked for rather than the answer withheld as
+/// unchecked.
 #[test]
-fn a_long_secret_is_struck_rather_than_the_answer_withheld() {
-    let secret: String = (0..4000)
-        .map(|at| char::from(b'a' + (at % 26) as u8))
-        .collect();
+fn the_longest_secret_atlas_keeps_is_struck_rather_than_the_answer_withheld() {
+    let secret = the_costliest_secret_atlas_keeps();
     assert_eq!(
         struck(&format!("echo={secret};"), &secret),
         "echo=[secret key removed];"
     );
 }
 
-/// A one-byte secret, one byte into a base64 group, holds no whole character
-/// of its own; nothing is looked for there, rather than the empty text found
-/// between every two characters.
+/// `LONGEST_SECRET` bytes of every printable ASCII character in no order:
+/// the secret whose matcher was measured to be the largest.
+pub(super) fn the_costliest_secret_atlas_keeps() -> String {
+    let printable: Vec<char> = (b' '..=b'~').map(char::from).collect();
+    let mut seed = 1u64;
+    (0..LONGEST_SECRET)
+        .map(|_| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            printable[(seed >> 33) as usize % printable.len()]
+        })
+        .collect()
+}
+
 #[test]
-fn a_one_character_secret_strikes_only_itself() {
+fn a_secret_longer_than_atlas_keeps_is_refused_and_not_stored() {
+    let store = MemoryStore::default();
+    let longest = "k".repeat(LONGEST_SECRET);
+    let longer = format!("{longest}k");
+
+    let refused = write(&store, "k", Some(&longer), Some(&["https://a.test"]), false);
+
+    assert_eq!(
+        refused.unwrap_err(),
+        "the secret \"k\" is too long to keep: a secret may be at most 1024 bytes"
+    );
+    assert_eq!(store.accounts().unwrap(), Vec::<String>::new());
+    write(
+        &store,
+        "k",
+        Some(&longest),
+        Some(&["https://a.test"]),
+        false,
+    )
+    .unwrap();
+    assert_eq!(store.get("v1/k").unwrap(), Some(longest));
+}
+
+/// Base64 is looked for from eight characters on: shorter, its text is too
+/// little to tell from the rest of an answer.
+#[test]
+fn a_secret_is_looked_for_as_base64_from_eight_characters_on() {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    let (seven, eight) = ("pin-123", "pin-1234");
+
+    assert_eq!(
+        struck(&STANDARD.encode(seven), seven),
+        STANDARD.encode(seven)
+    );
+    assert_eq!(
+        struck(&STANDARD.encode(eight), eight),
+        "[secret key removed]"
+    );
+}
+
+/// A secret too short to be told from text by its base64 is looked for as
+/// itself and its escapes only.
+#[test]
+fn a_one_character_secret_is_struck_where_it_appears() {
     assert_eq!(struck("a-b", "a"), "[secret key removed]-b");
+}
+
+/// Adversarial (P28-10 fix). A server that puts the request URL inside
+/// another URL's query — `return_to`, `login_url`, `redirect` — encodes it
+/// twice, so a `+` the secret held reaches the answer as `%252B`. Each
+/// character is matched as itself, `%XX` or `\uXXXX`, never `%25XX`, so the
+/// letters and digits match and the rest do not: the whole secret is in the
+/// answer, two URL decodes from the clear.
+#[test]
+fn a_secret_echoed_percent_encoded_twice_is_struck() {
+    let secret = "aB3+dE6/gH9=";
+    let echo = r#"{"login_url":"https://feeds.example/login?return_to=https%3A%2F%2Ffeeds.example%2Fcal%3Ftoken%3DaB3%252BdE6%252FgH9%253D"}"#;
+
+    let redacted = struck(echo, secret);
+
+    assert!(
+        redacted.contains("[secret key removed]"),
+        "the secret survives as aB3%252BdE6%252FgH9%253D: {redacted}"
+    );
+}
+
+/// Adversarial (P28-10 fix). A server that rebuilds a `next` link with form
+/// encoding (Python's `urlencode`, Java's `URLEncoder`) writes a space as `+`.
+/// A secret holding a space is matched against ` `, `%20` and ` ` only.
+#[test]
+fn a_secret_echoed_form_encoded_with_plus_for_space_is_struck() {
+    let secret = "correct horse battery staple";
+
+    let redacted = struck(
+        "next=/feed?page=2&pass=correct+horse+battery+staple",
+        secret,
+    );
+
+    assert_eq!(redacted, "next=/feed?page=2&pass=[secret key removed]");
+}
+
+/// Adversarial (P28-10 fix). The base64 "cores" of a one- or two-byte secret
+/// are one or two characters long, and are struck wherever they occur in the
+/// answer: a secret of `a` strikes every `Y`, one of `ab` every `Fi`. Text
+/// that is not the secret in any form is changed, and the answer the webview
+/// reads is corrupted.
+#[test]
+fn a_short_secret_strikes_only_itself_and_not_text_its_base64_shares() {
+    assert_eq!(struck("Yes", "a"), "Yes");
+    assert_eq!(struck("Final", "ab"), "Final");
 }

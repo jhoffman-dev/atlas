@@ -21,7 +21,7 @@ use reqwest::Url;
 use serde::Serialize;
 use tauri::State;
 
-use crate::secrets::{redact, vault_scope, SecretState, SecretStore};
+use crate::secrets::{redact_off_worker, vault_scope, SecretState, SecretStore};
 use crate::vault::{root_for_write, VaultState};
 
 pub use failure::{FailureKind, GranolaFailure};
@@ -109,13 +109,17 @@ impl GranolaState {
     /// Notes which key is now kept, with no refusal: what Granola said of the
     /// one before says nothing of this one.
     fn now_keeping(&self, scope: &str, kept: Kept) {
-        self.standings().insert(
-            scope.to_string(),
+        self.stand(
+            scope,
             Standing {
                 kept,
                 refused: None,
             },
         );
+    }
+
+    fn stand(&self, scope: &str, standing: Standing) {
+        self.standings().insert(scope.to_string(), standing);
     }
 
     /// Takes Granola's answer to a request sent with `sent` as the word on the
@@ -168,9 +172,11 @@ impl Session<'_> {
     pub fn set_key(&self, key: &str) -> Result<GranolaStatus, GranolaFailure> {
         key::check(key)?;
         let _changing = self.state.changing();
+        let before = self.state.standing(self.scope);
         self.state
             .now_keeping(self.scope, self.state.fingerprint(key));
-        key::save(self.store, self.scope, key).inspect_err(|_| self.no_longer_known())?;
+        key::save(self.store, self.scope, key)
+            .inspect_err(|_| self.settle_after_failure(before))?;
         log::info!("Granola API key stored");
         Ok(GranolaStatus {
             has_key: true,
@@ -180,8 +186,9 @@ impl Session<'_> {
 
     pub fn forget_key(&self) -> Result<GranolaStatus, GranolaFailure> {
         let _changing = self.state.changing();
+        let before = self.state.standing(self.scope);
         self.state.now_keeping(self.scope, Kept::Nothing);
-        key::forget(self.store, self.scope).inspect_err(|_| self.no_longer_known())?;
+        key::forget(self.store, self.scope).inspect_err(|_| self.settle_after_failure(before))?;
         log::info!("Granola API key removed");
         Ok(GranolaStatus {
             has_key: false,
@@ -189,10 +196,26 @@ impl Session<'_> {
         })
     }
 
-    /// After the Keychain failed to change, which key it holds is not known;
-    /// the next answer heard says.
-    fn no_longer_known(&self) {
-        self.state.now_keeping(self.scope, Kept::Unknown);
+    /// After the Keychain failed to change, the standing is about the key it
+    /// actually holds, read back from it: the standing from before the change
+    /// when that is still the key, refusal and all, and a fresh one when it is
+    /// not. When it cannot be read either, the standing from before is kept:
+    /// a failed change most likely changed nothing.
+    fn settle_after_failure(&self, before: Standing) {
+        let Ok(held) = key::load(self.store, self.scope) else {
+            self.state.stand(self.scope, before);
+            return;
+        };
+        let kept = held.map_or(Kept::Nothing, |key| self.state.fingerprint(&key));
+        let standing = if before.kept == kept {
+            before
+        } else {
+            Standing {
+                kept,
+                refused: None,
+            }
+        };
+        self.state.stand(self.scope, standing);
     }
 
     /// Sends one GET and hands back its answer. A path off the API is refused
@@ -215,7 +238,7 @@ impl Session<'_> {
         })?;
         Ok(GranolaAnswer {
             status,
-            body: redact(&text, &sent),
+            body: redact_off_worker(text, sent.into()).await,
         })
     }
 }

@@ -24,7 +24,7 @@ use tauri::State;
 use tokio::sync::Notify;
 
 use crate::opener::open_web_link;
-use crate::secrets::{redact, vault_scope, SecretState, SecretStore};
+use crate::secrets::{redact_off_worker, vault_scope, SecretState, SecretStore};
 use crate::vault::{root_for_write, VaultState};
 
 pub use api::{ApiCall, GoogleAnswer};
@@ -449,7 +449,7 @@ impl Session<'_> {
         let sent = [("google-access-token".to_string(), access)];
         Ok(GoogleAnswer {
             status,
-            body: redact(&text, &sent),
+            body: redact_off_worker(text, sent.into()).await,
         })
     }
 

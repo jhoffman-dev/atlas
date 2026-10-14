@@ -16,7 +16,8 @@ use serde::Deserialize;
 use tauri::State;
 
 use crate::secrets::{
-    check_bound, describe, fill, redact, vault_scope, SecretState, SecretStore, TemplatePart,
+    check_bound, describe, fill, redact, redact_off_worker, vault_scope, SecretState, SecretStore,
+    TemplatePart,
 };
 use crate::vault::{root_for_write, VaultState};
 
@@ -265,10 +266,10 @@ pub async fn http_get(
 /// Fetches, and strikes every secret that went out from what comes back —
 /// the text and any error alike — before it can reach the webview.
 async fn send(prepared: &Prepared) -> Result<String, String> {
-    fetch(prepared)
-        .await
-        .map(|text| redact(&text, &prepared.used))
-        .map_err(|error| redact(&error, &prepared.used))
+    match fetch(prepared).await {
+        Ok(text) => Ok(redact_off_worker(text, prepared.used.clone()).await),
+        Err(error) => Err(redact(&error, &prepared.used)),
+    }
 }
 
 #[cfg(test)]

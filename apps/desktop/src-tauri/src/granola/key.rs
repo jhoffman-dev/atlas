@@ -7,7 +7,7 @@
 //! secrets.
 
 use super::failure::{FailureKind, GranolaFailure};
-use crate::secrets::{apikey_account, SecretStore};
+use crate::secrets::{apikey_account, SecretStore, LONGEST_SECRET};
 
 const PROVIDER: &str = "granola";
 
@@ -25,6 +25,12 @@ fn keychain(error: String) -> GranolaFailure {
 /// person: a Granola key, and nothing that could break the header it is
 /// written into. The key is never quoted back.
 pub fn check(key: &str) -> Result<(), GranolaFailure> {
+    if key.len() > LONGEST_SECRET {
+        return Err(GranolaFailure::new(
+            FailureKind::Invalid,
+            format!("that is too long to be a Granola API key: a key may be at most {LONGEST_SECRET} characters"),
+        ));
+    }
     let usable = key.len() > KEY_PREFIX.len()
         && key.starts_with(KEY_PREFIX)
         && key.bytes().all(|byte| byte.is_ascii_graphic());
@@ -61,7 +67,7 @@ pub fn forget(store: &dyn SecretStore, scope: &str) -> Result<(), GranolaFailure
 mod tests {
     use super::{check, forget, load, save};
     use crate::granola::failure::FailureKind;
-    use crate::secrets::{entries_in, MemoryStore, SecretStore};
+    use crate::secrets::{entries_in, MemoryStore, SecretStore, LONGEST_SECRET};
 
     const KEY: &str = "grn_Fict10nalKey";
 
@@ -87,6 +93,21 @@ mod tests {
         let store = MemoryStore::default();
         save(&store, "v1", KEY).unwrap();
         assert!(entries_in(&store, "v1").unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_key_longer_than_atlas_keeps_is_refused_and_not_kept() {
+        let store = MemoryStore::default();
+        let longest = format!("grn_{}", "k".repeat(LONGEST_SECRET - 4));
+        let longer = format!("{longest}k");
+
+        let failure = save(&store, "v1", &longer).unwrap_err();
+
+        assert_eq!(failure.kind, FailureKind::Invalid);
+        assert!(failure.message.contains("too long"), "{}", failure.message);
+        assert!(store.accounts().unwrap().is_empty());
+        save(&store, "v1", &longest).unwrap();
+        assert_eq!(load(&store, "v1").unwrap(), Some(longest));
     }
 
     #[test]
