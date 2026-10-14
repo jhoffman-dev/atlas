@@ -119,19 +119,26 @@ git has none; that names a Mac, not a person, and is left as it is.
 ADR-0036 (proposed) needs to know which attendee is the vault's owner by
 address, not only by name: to decide whose action items a task is made for,
 and to leave the owner out of the attendee overlap that finds a meeting
-recorded twice. Today that rests on the profile name, on a Person note for the
-owner that a vault may not have, and, for Granola, on `granola_self_emails`.
+recorded twice. **This amendment takes effect when ADR-0036 is accepted.**
+Today that rests on the profile name, on a Person note for the owner that a
+vault may not have, and, for Granola, on `granola_self_emails` (named
+`selfEmails` in ADR-0034).
 
 - **`selfEmails` joins `profileName` and `profilePreferredName`** in
   `.atlas/settings.md`, for the reason this record gave the name: it is about
-  the vault's owner, not the Mac, and it syncs. One reader serves linking,
-  item ownership, Granola's `me` and the duplicate rule.
+  the vault's owner, not the Mac, and it syncs. It is **the one source**:
+  linking, item ownership, Granola's `me` and the duplicate rule read it.
 - **The person fills it in**, in Settings → Profile and in the setup offer.
   Atlas ships no address and guesses none: not from a username, a path or
   the Person note's name, as the name is never guessed here either. Without it,
-  matching is by name only, as it is today, and the setup says so.
+  matching is by name only, as it is today, and the setup says so. **With
+  neither it nor a profile name, ADR-0036's step makes no task and warns in
+  the Inbox**; it is never silent.
 - **`granola_self_emails` is read as an alias** while `selfEmails` is empty,
   and stays where it is.
+- **The n8n workflow's OPTIONS must carry the same addresses**, because
+  Granola's `me` mapping is compiled into n8n's Code nodes and must stay
+  byte-identical to the app's (ADR-0034).
 - **Not settled here:** how the addresses are cleaned and limited, and whether
   the API and MCP expose them. The first follows the name's rules
   (`cleanProfileName`) unless the ticket finds a reason not to; the second is

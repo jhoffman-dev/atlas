@@ -168,13 +168,14 @@ Atlas offers no automatic fix. Removing the line is the person's call.
   names. If the vault already has Atlas's own `.gitignore` block, it stays
   as it is; if it does not, the block is added.
 
-## Amendment: the automations can follow the person (ADR-0035, 2026-10-14)
+## Amendment: a Mac that is not named says meetings are waiting (ADR-0035, 2026-10-14)
 
-"A Mac connecting to a vault never takes the automations from another Mac"
-(above) was about set-up and still holds there. ADR-0035 (proposed) adds an
-exception after set-up: a Mac that is not named takes the automations over by
-itself when a meeting under `Inbox/Meetings/` has waited ten minutes after a
-completed sync pull on that Mac, and says in Activity and the Inbox that
-meetings are waiting when it is not the named Mac. One Mac still runs them at
-a time. See ADR-0035 for the reasons, the failure it can cause (a conflict
-copy of a rule's log, rare) and how it is undone.
+ADR-0035 (proposed) does **not** change who takes the automations: "A Mac
+connecting to a vault never takes the automations from another Mac" (above)
+stands, and no Mac takes them by itself (automatic hand-over was considered
+and deferred, with the holes a future design must solve, in ADR-0035). What
+changes is the silence. A Mac that is not named shows a banner on the Inbox,
+"N meetings waiting for <Mac>", and a warning in Activity, with a one-click
+"Process here" that writes this Mac's id and name as `automationsMac` (the
+same write Settings → Sync makes) and reruns the missed-arrivals catch-up.
+**This amendment takes effect when ADR-0035 is accepted.**
