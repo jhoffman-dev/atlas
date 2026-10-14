@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PromotionBanner } from './promotion-notice.tsx';
 
@@ -43,5 +43,33 @@ describe('PromotionBanner', () => {
   it('is nothing when there is nothing to say', () => {
     const { container } = render(<PromotionBanner notice={null} />);
     expect(container.childElementCount).toBe(0);
+  });
+});
+
+describe('PromotionBanner — goes by itself (#165)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('dismisses itself, and its Undo, after 20 seconds unless the pointer is on it', () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <PromotionBanner
+        notice={{
+          message: '“Order chairs” is a task now.',
+          onOpen: vi.fn(),
+          onUndo: vi.fn(),
+          onDismiss,
+        }}
+      />,
+    );
+    fireEvent.pointerEnter(screen.getByRole('status'));
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    fireEvent.pointerLeave(screen.getByRole('status'));
+    act(() => vi.advanceTimersByTime(19_900));
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(200));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
