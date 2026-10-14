@@ -23,6 +23,7 @@ const DIRECTORY: OwnerDirectory = {
   ],
   people: [person('Mara Quill'), TOBIAS],
   selfName: 'Mara Quill',
+  selfEmails: [],
 };
 
 describe('itemOwner', () => {
@@ -210,4 +211,51 @@ const OWNED: OwnerDirectory = {
   ],
   people: [person('Mara Quill', { emails: ['mara.quill@example.com'] }), TOBIAS],
   selfName: 'Mara Quill',
+  selfEmails: [],
 };
+
+/** #173: the owner's addresses are the vault's `selfEmails`, with no Person note for the owner. */
+describe('itemOwner, by the vault’s own addresses', () => {
+  /** A vault with no Person note for its owner: only Tobias has one. */
+  const NO_OWNER_NOTE: OwnerDirectory = {
+    attendees: [
+      { name: 'mq', email: 'Mara.Quill@example.com', group: false },
+      { name: 'Tobias Fenn', email: 'tobias.fenn@example.com', group: false },
+    ],
+    people: [TOBIAS],
+    selfName: null,
+    selfEmails: ['mara.quill@example.com'],
+  };
+
+  it('knows the owner by an address alone: written as one, or as the attendee who has it', () => {
+    expect(itemOwner('mara.quill@example.com', NO_OWNER_NOTE)).toEqual({ kind: 'self' });
+    expect(itemOwner('Mara Q <MARA.QUILL@example.com>', NO_OWNER_NOTE)).toEqual({ kind: 'self' });
+    expect(itemOwner('mq', NO_OWNER_NOTE)).toEqual({ kind: 'self' });
+    expect(itemOwner('mara.quill@example.com', { ...NO_OWNER_NOTE, attendees: [] })).toEqual({
+      kind: 'self',
+    });
+  });
+
+  it('knows the owner by name alone, with no address set', () => {
+    const named = { ...NO_OWNER_NOTE, selfName: 'Mara Quill', selfEmails: [] };
+
+    expect(itemOwner('Mara Quill', named)).toEqual({ kind: 'self' });
+    // No address: the attendee at Mara's address, under another name, is not known to be her.
+    expect(itemOwner('mq', named)).toEqual({ kind: 'named', name: 'mq', inMeeting: true });
+  });
+
+  it('with neither, only the transcript’s own words are the owner', () => {
+    const neither = { ...NO_OWNER_NOTE, selfEmails: [] };
+
+    expect(itemOwner('You', neither)).toEqual({ kind: 'self' });
+    expect(itemOwner('mara.quill@example.com', neither)).toMatchObject({ kind: 'named' });
+    expect(itemOwner('Mara Quill', neither)).toMatchObject({ kind: 'named', inMeeting: false });
+  });
+
+  it('never reads another attendee as the owner for sharing a domain', () => {
+    expect(itemOwner('tobias.fenn@example.com', NO_OWNER_NOTE)).toMatchObject({
+      kind: 'person',
+      person: TOBIAS,
+    });
+  });
+});

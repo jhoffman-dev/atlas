@@ -154,12 +154,19 @@ const FROM_CALL = says(
   item({ kind: 'task', title: 'Go through the renewal', owner: 'Unknown', source_block: 't0002' }),
 );
 
-function setUp(rounds: readonly ScriptedRound[], notes: Record<string, string> = NOTES) {
+/** Who the vault's owner is, as their profile says: Mara, by name. */
+const MARA_BY_NAME = { selfName: 'Mara Quill', selfEmails: [] };
+
+function setUp(
+  rounds: readonly ScriptedRound[],
+  notes: Record<string, string> = NOTES,
+  owner: { selfName: string | null; selfEmails: readonly string[] } = MARA_BY_NAME,
+) {
   const claude = fakeClaudeStepPorts({
     rounds,
     model: 'claude-opus-5-5',
     today: TODAY,
-    selfName: 'Mara Quill',
+    ...owner,
   });
   const vault = automationVault({ notes: { ...notes }, today: TODAY, types: TYPES, claude });
   const activity = recordingActivity();
@@ -273,6 +280,29 @@ describe('meeting extraction over the Gemini fixture', () => {
     expect(told).toContain(
       '<vault_data about="the right spellings of names and terms">\nLarkspur Pay\n</vault_data>',
     );
+  });
+
+  it('knows the owner by the vault’s selfEmails alone, with no profile name and no Person note (#173)', async () => {
+    const noOwnerNote = Object.fromEntries(
+      Object.entries(NOTES).filter(([path]) => path !== 'People/Mara Quill.md'),
+    );
+    const byAddress = setUp([FROM_SYNC], noOwnerNote, {
+      selfName: null,
+      selfEmails: ['mara.quill@example.com'],
+    });
+    const byNeither = setUp([FROM_SYNC], noOwnerNote, { selfName: null, selfEmails: [] });
+
+    await byAddress.run(SYNC_ONLY);
+    await byNeither.run(SYNC_ONLY);
+
+    expect(byAddress.asked()[0]!.system).toContain('- Mara Quill: the vault’s owner\n');
+    expect((await byAddress.proposals()).get('Write the rollout note')!.proposal).toMatchObject({
+      payload: { properties: { status: 'inbox' } },
+    });
+    expect(byNeither.asked()[0]!.system).not.toContain('the vault’s owner\n');
+    expect((await byNeither.proposals()).get('Write the rollout note')!.proposal).toMatchObject({
+      payload: { properties: { status: 'waiting', waiting_on: 'Mara Quill' } },
+    });
   });
 
   it('accepting the owner’s task makes it in the Inbox, citing the turn and linked from the meeting', async () => {

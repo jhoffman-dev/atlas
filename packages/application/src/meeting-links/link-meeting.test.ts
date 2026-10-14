@@ -246,6 +246,29 @@ describe('linkMeeting', () => {
     },
   );
 
+  it('never proposes an attendee at one of the vault’s selfEmails, with no name or Person note for the owner (#173)', async () => {
+    const files = {
+      [MEETING]: meeting([{ name: 'mq', email: 'MQ@Home.example' }], {
+        project: '[[Ledger migration]]',
+      }),
+    };
+    const owned = vault(files);
+    const unowned = vault(files);
+
+    await linkMeeting({
+      ports: owned.ports,
+      path: vaultPath(MEETING),
+      today: TODAY,
+      selfName: null,
+      selfEmails: ['mq@home.example'],
+    });
+    await link(unowned.ports);
+
+    expect(proposalsIn(owned.setup)).toEqual([]);
+    // With no address set, the same attendee is someone new.
+    expect(proposalsIn(unowned.setup)).toHaveLength(1);
+  });
+
   it('leaves a meeting with unsaved typing as it is, and says so', async () => {
     const { setup, ports } = vault({ [MEETING]: meeting([MARA]) });
     setup.dirty.add(MEETING);

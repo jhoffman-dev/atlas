@@ -918,6 +918,45 @@ describe('pulling Granola into a vault', () => {
     expect(written).toBe(mapGranolaNote(NEW_1, { ...OPTIONS, selfEmails: [] }).content);
   });
 
+  it('maps `me` by the vault’s selfEmails into the same bytes as by the alias it replaces (#173)', async () => {
+    const byAlias = pullFixture({ notes: [NEW_1] });
+    const bySetting = pullFixture({
+      notes: [NEW_1],
+      files: {
+        ...VAULT_FILES,
+        '.atlas/settings.md': SETTINGS.replace('granola_self_emails:', 'selfEmails:'),
+      },
+    });
+
+    const aliasReport = await byAlias.pull();
+    const settingReport = await bySetting.pull();
+
+    const aliasText = byAlias.api.files.get(aliasReport.written[0] ?? '')?.text ?? '';
+    const settingText = bySetting.api.files.get(settingReport.written[0] ?? '')?.text ?? '';
+    expect(aliasText).toContain('**You** [13:00:00] Morning, Tobias.');
+    expect(settingText).toBe(aliasText);
+    expect(aliasText).toBe(mapGranolaNote(NEW_1, OPTIONS).content);
+  });
+
+  it('maps by selfEmails alone when both are set, the alias left out (#173)', async () => {
+    const settings = SETTINGS.replace(
+      'granola_self_emails:\n  - mara.quill@example.com\n',
+      'selfEmails:\n  - mq@example.org\ngranola_self_emails:\n  - mara.quill@example.com\n',
+    );
+    const { pull, api } = pullFixture({
+      notes: [NEW_1],
+      files: { ...VAULT_FILES, '.atlas/settings.md': settings },
+    });
+
+    const report = await pull();
+
+    const written = api.files.get(report.written[0] ?? '')?.text ?? '';
+    expect(written).not.toContain('**You**');
+    expect(written).toBe(
+      mapGranolaNote(NEW_1, { ...OPTIONS, selfEmails: ['mq@example.org'] }).content,
+    );
+  });
+
   it('stops a pull the Keychain would not give the key for, saying the next pull asks again', async () => {
     const { pull, granola, api } = pullFixture({ notes: [NEW_1, NEW_2] });
     granola.fail(`note:${NEW_1.id}`, { kind: 'keychain', message: 'the Keychain is locked' });

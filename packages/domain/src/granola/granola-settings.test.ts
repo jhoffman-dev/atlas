@@ -44,6 +44,21 @@ describe('parseGranolaSettings', () => {
     expect(DEFAULT_GRANOLA_TIME_ZONE).toBe('America/Los_Angeles');
   });
 
+  it('reads the owner’s addresses from selfEmails, and granola_self_emails only while that is empty (#173)', () => {
+    const alias = ['mara.quill@example.com'];
+    expect(parseGranolaSettings({ [GRANOLA_SELF_EMAILS_KEY]: alias }).selfEmails).toEqual(alias);
+    expect(
+      parseGranolaSettings({ selfEmails: ['mq@example.org'], [GRANOLA_SELF_EMAILS_KEY]: alias }),
+    ).toMatchObject({ selfEmails: ['mq@example.org'], selfEmailsProblem: null });
+    expect(
+      parseGranolaSettings({ selfEmails: [], [GRANOLA_SELF_EMAILS_KEY]: alias }).selfEmails,
+    ).toEqual(alias);
+    expect(parseGranolaSettings({ selfEmails: 'Mara' })).toMatchObject({
+      selfEmails: [],
+      selfEmailsProblem: 'Not an email address: “Mara”.',
+    });
+  });
+
   it('keys are the ones the vault’s settings note spells', () => {
     expect([
       GRANOLA_TIME_ZONE_KEY,
