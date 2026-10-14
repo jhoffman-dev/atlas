@@ -11,6 +11,13 @@ const PACE_WINDOW_MS = 1_000;
 
 /** Retries after a 429 before the note counts as failed in transport. */
 export const RETRIES = 5;
+
+/**
+ * Notes in a row that may fail with a 429, past their retries, before the
+ * pull gives up: Granola is saying no to everything, and asking for each
+ * note left would take half a minute apiece for nothing.
+ */
+export const SLOW_DOWNS_IN_A_ROW = 3;
 const FIRST_BACKOFF_MS = 1_000;
 
 /**

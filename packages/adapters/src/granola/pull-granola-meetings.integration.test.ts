@@ -36,8 +36,10 @@ const SETTINGS = [
   '---',
   'profileName: Mara Quill',
   'granola_time_zone: America/New_York',
-  'meeting_group_addresses:',
+  'granola_group_addresses:',
   '  - platform-team@example.com',
+  'granola_self_emails:',
+  '  - mara.quill@example.com',
   '---',
   '',
   '# Settings',
@@ -363,16 +365,61 @@ describe('pulling Granola into a vault', () => {
     });
   });
 
-  it('answers a pull asked for while one runs with that one’s report', async () => {
+  it('answers a startup or timed pull asked for while one runs with that one’s report', async () => {
     const { puller, granola } = pullFixture();
     const first = puller.pull({ vault: VAULT.absolutePath, mode: 'startup' });
-    const second = puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+    const second = puller.pull({ vault: VAULT.absolutePath, mode: 'periodic' });
 
     expect(await second).toBe(await first);
     expect(granola.count('list')).toBe(1);
 
-    await puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+    await puller.pull({ vault: VAULT.absolutePath, mode: 'periodic' });
     expect(granola.count('list')).toBe(2);
+  });
+
+  it('runs Sync now pressed during a timed pull right after it, once however often it is pressed', async () => {
+    const records = memoryRecords({ watermark: '2026-10-13T12:00:00.000Z' });
+    const { puller, granola } = pullFixture({ records });
+    const timed = puller.pull({ vault: VAULT.absolutePath, mode: 'periodic' });
+    const syncNow = puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+    const pressedAgain = puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+    const timedAgain = puller.pull({ vault: VAULT.absolutePath, mode: 'periodic' });
+
+    expect(pressedAgain).toBe(syncNow);
+    expect(await timedAgain).toBe(await timed);
+    const report = await syncNow;
+    expect(report.mode).toBe('sync-now');
+    expect((await timed).mode).toBe('periodic');
+    // The timed pull from the watermark less a day, then Sync now's full listing, and no more.
+    expect(granola.calls.filter(({ call }) => call === 'list')).toEqual([
+      { call: 'list', updatedAfter: '2026-10-12T12:00:00.000Z', cursor: null },
+      { call: 'list', updatedAfter: null, cursor: null },
+    ]);
+    // The full listing reached the Notion-era note, older than the window: all four held.
+    expect((await timed).held).toBe(1);
+    expect(report.held).toBe(4);
+    expect(report.written).toEqual([]);
+  });
+
+  it('shares a Sync now that runs with Sync now pressed again, and with a timed pull', async () => {
+    const { puller, granola } = pullFixture();
+    const syncNow = puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+    expect(puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' })).toBe(syncNow);
+    expect(puller.pull({ vault: VAULT.absolutePath, mode: 'periodic' })).toBe(syncNow);
+    await syncNow;
+    expect(granola.count('list')).toBe(1);
+  });
+
+  it('starts nothing more once the queued Sync now has run', async () => {
+    const { puller, granola } = pullFixture();
+    const timed = puller.pull({ vault: VAULT.absolutePath, mode: 'startup' });
+    const syncNow = puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+    await Promise.all([timed, syncNow]);
+    expect(granola.count('list')).toBe(2);
+
+    const later = await puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+    expect(later).not.toBe(await syncNow);
+    expect(granola.count('list')).toBe(3);
   });
 
   it('does not start until the vault has been synced in this session, and says nothing', async () => {
@@ -563,5 +610,311 @@ describe('pulling Granola into a vault', () => {
       throw new GranolaError({ kind: 'invalid', message: 'that vault is not open' });
     };
     expect((await listing.pull()).ended).toBe('vault-changed');
+  });
+
+  it('never keeps a watermark later than now, though a note says it changed in the future', async () => {
+    const records = memoryRecords();
+    const ahead = granolaNote('not_aaaaaaaaaaaaa7', {
+      title: 'From a fast clock',
+      updatedAt: new Date(START + 72 * HOUR).toISOString(),
+    });
+    const { pull } = pullFixture({ notes: [NEW_1, ahead], records });
+
+    const report = await pull();
+
+    expect(report.written).toHaveLength(2);
+    expect(report.watermark).toBe(new Date(START).toISOString());
+    expect(records.current().watermark).toBe(new Date(START).toISOString());
+  });
+
+  it('lists everything, rather than fail, from a kept watermark a day before which is no date', async () => {
+    const records = memoryRecords({ watermark: '-271821-04-20T00:00:00.000Z' });
+    const { pull, granola } = pullFixture({ records });
+
+    const report = await pull('periodic');
+
+    expect(report.ended).toBe('pulled');
+    expect(granola.calls[0]).toEqual({ call: 'list', updatedAfter: null, cursor: null });
+    expect(report.written).toHaveLength(2);
+  });
+
+  it('leaves out a listed note it cannot read, says so without its content, and takes the rest', async () => {
+    const records = memoryRecords();
+    const { pull, granola, api, meetingFiles } = pullFixture({ notes: [NEW_1], records });
+    const listNotes = granola.port.listNotes;
+    granola.port.listNotes = async (args) => ({
+      ...(await listNotes(args)),
+      unreadable: [{ id: 'not_odd0000000001', reason: 'its updated_at is not text' }],
+    });
+
+    const report = await pull();
+
+    expect(report.ended).toBe('pulled');
+    expect(meetingFiles()).toContain('Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md');
+    expect(report.skipped).toEqual([
+      {
+        id: 'not_odd0000000001',
+        title: null,
+        url: null,
+        problem:
+          'Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.',
+      },
+    ]);
+    // The note it could not read has no say in the watermark.
+    expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
+    expect(api.activity.reports.map(({ level, message }) => [level, message])).toEqual([
+      [
+        'warning',
+        'Granola: “not_odd0000000001”: Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.',
+      ],
+      ['warning', 'Granola: 1 new, 0 already in Atlas, 1 skipped.'],
+    ]);
+  });
+
+  it('says a list that failed outright was not skipped, and that the next pull lists again', async () => {
+    const { pull, granola, api } = pullFixture();
+    granola.fail('list', {
+      kind: 'malformed',
+      message: 'the list of notes is not one Atlas can read',
+    });
+
+    const report = await pull();
+
+    expect(report.ended).toBe('failed');
+    expect(report.problem).toBe(
+      'Granola answered in a way Atlas does not understand: the list of notes is not one Atlas can read. The notes could not be listed; the next pull lists them again.',
+    );
+    expect(api.activity.reports.map(({ message }) => message).join('\n')).not.toMatch(/skipped/);
+  });
+
+  it('refuses a note whose inline transcript is past the limit, and links it in Granola', async () => {
+    const records = memoryRecords();
+    const giant = granolaNote('not_aaaaaaaaaaaaa8', {
+      title: 'All-day offsite',
+      updatedAt: '2026-10-13T15:00:00Z',
+      transcript: [
+        granolaTurn('x'.repeat(TRANSCRIPT_LIMIT.characters + 1), '2026-10-06T17:00:00Z'),
+      ],
+    });
+    const { pull, granola, api, meetingFiles } = pullFixture({ notes: [giant], records });
+
+    const report = await pull();
+
+    expect(report.written).toEqual([]);
+    expect(report.refused).toEqual([
+      expect.objectContaining({ id: giant.id, url: `https://notes.granola.ai/d/${giant.id}` }),
+    ]);
+    expect(granola.count('note', giant.id)).toBe(1);
+    expect(meetingFiles()).toEqual(['Inbox/Meetings/2026-10-06 From the Notion export.md']);
+    expect(api.activity.reports[0]?.message).toMatch(
+      /^Granola: “All-day offsite” was not written: its transcript is longer than Atlas takes .* Open it in Granola: https:\/\/notes\.granola\.ai\/d\/not_aaaaaaaaaaaaa8$/,
+    );
+    expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
+  });
+
+  it('links a note whose paged transcript is past the limit in Granola too', async () => {
+    const { pull, granola, api } = pullFixture({ notes: [NEW_1] });
+    const long = 'x'.repeat(TRANSCRIPT_LIMIT.characters + 1);
+    granola.pageTranscript(NEW_1.id, [[granolaTurn(long, '2026-10-06T17:00:00Z')]]);
+
+    const report = await pull();
+
+    expect(report.refused[0]?.url).toBe(`https://notes.granola.ai/d/${NEW_1.id}`);
+    expect(api.activity.reports[0]?.message).toMatch(
+      /Open it in Granola: https:\/\/notes\.granola\.ai\/d\/not_aaaaaaaaaaaaa1$/,
+    );
+  });
+
+  it('writes no line for a timed pull that found nothing new, and one for any other pull', async () => {
+    const records = memoryRecords({ watermark: '2026-10-13T12:00:00.000Z' });
+    const quiet = pullFixture({ notes: [HELD], records });
+
+    const report = await quiet.pull('periodic');
+
+    expect(report).toMatchObject({ ended: 'pulled', held: 1, written: [] });
+    expect(quiet.messages()).toEqual([]);
+    expect(records.current().lastPullAt).toBe(START);
+
+    await quiet.pull('startup');
+    await quiet.pull('sync-now');
+    expect(quiet.messages()).toEqual([
+      'Granola: nothing new, 1 already in Atlas.',
+      'Granola: nothing new, 1 already in Atlas.',
+    ]);
+  });
+
+  it('takes the person’s own addresses from the setting alone: with none, `me` is the owner’s name', async () => {
+    const settings = SETTINGS.replace('granola_self_emails:\n  - mara.quill@example.com\n', '');
+    const { pull, api } = pullFixture({
+      notes: [NEW_1],
+      files: { ...VAULT_FILES, '.atlas/settings.md': settings },
+    });
+
+    const report = await pull();
+
+    const written = api.files.get(report.written[0] ?? '')?.text ?? '';
+    expect(written).toContain('**Mara Quill** [13:00:00] Morning, Tobias.');
+    expect(written).not.toContain('**You**');
+    expect(written).toBe(mapGranolaNote(NEW_1, { ...OPTIONS, selfEmails: [] }).content);
+  });
+
+  it('stops a pull the Keychain would not give the key for, saying the next pull asks again', async () => {
+    const { pull, granola, api } = pullFixture({ notes: [NEW_1, NEW_2] });
+    granola.fail(`note:${NEW_1.id}`, { kind: 'keychain', message: 'the Keychain is locked' });
+
+    const report = await pull();
+
+    expect(report.ended).toBe('stopped');
+    expect(granola.count('note', NEW_2.id)).toBe(0);
+    expect(api.activity.reports.at(-1)?.message).toBe(
+      'Granola: the pull stopped. The Keychain did not give Atlas the Granola API key: the Keychain is locked. Unlock the Keychain, or paste the key again in Settings → Granola. Atlas stops pulling; the next pull asks again.',
+    );
+  });
+
+  describe('when Granola keeps asking Atlas to slow down', () => {
+    const notes = [1, 2, 3, 4].map((at) =>
+      granolaNote(`not_cccccccccccc0${at}`, {
+        title: `Standup ${at}`,
+        updatedAt: `2026-10-13T1${at}:00:00Z`,
+      }),
+    );
+    const slowDowns = () => Array.from({ length: 6 }, () => refused(429));
+
+    it('ends the pull failed after three notes in a row, holding the watermark, and says why', async () => {
+      const records = memoryRecords({ watermark: '2026-10-12T00:00:00.000Z' });
+      const { pull, granola, api, waits } = pullFixture({ notes, records });
+      for (const note of notes) granola.fail(`note:${note.id}`, ...slowDowns());
+
+      const report = await pull();
+
+      expect(report).toMatchObject({
+        ended: 'failed',
+        failure: { kind: 'api_refused', status: 429 },
+        watermark: '2026-10-12T00:00:00.000Z',
+        written: [],
+      });
+      expect(report.failed.map(({ id }) => id)).toEqual(notes.slice(0, 3).map(({ id }) => id));
+      expect(granola.count('note', notes[3]!.id)).toBe(0);
+      expect(records.current()).toEqual({
+        watermark: '2026-10-12T00:00:00.000Z',
+        lastPullAt: null,
+      });
+      // Each of the three waited out its own backoff: 1 + 2 + 4 + 8 + 16 seconds.
+      expect(waits.filter((wait) => wait >= 1_000)).toHaveLength(15);
+      expect(api.activity.reports.at(-1)).toEqual(
+        expect.objectContaining({
+          level: 'error',
+          message:
+            'Granola: the pull failed. Granola asked Atlas to slow down for 3 notes in a row, so Atlas stopped this pull. The next pull tries those notes again.',
+        }),
+      );
+    });
+
+    it('goes on when a note between them comes through', async () => {
+      const { pull, granola } = pullFixture({ notes });
+      for (const note of [notes[0]!, notes[1]!, notes[3]!]) {
+        granola.fail(`note:${note.id}`, ...slowDowns());
+      }
+
+      const report = await pull();
+
+      expect(report.ended).toBe('pulled');
+      expect(report.failed).toHaveLength(3);
+      expect(report.written).toHaveLength(1);
+    });
+
+    it('counts only notes refused with 429 in a row, not other failures', async () => {
+      const { pull, granola } = pullFixture({ notes });
+      granola.fail(`note:${notes[0]!.id}`, ...slowDowns());
+      granola.fail(`note:${notes[1]!.id}`, ...slowDowns());
+      granola.fail(`note:${notes[2]!.id}`, refused(503));
+      granola.fail(`note:${notes[3]!.id}`, ...slowDowns());
+
+      const report = await pull();
+
+      expect(report.ended).toBe('pulled');
+      expect(report.failed).toHaveLength(4);
+    });
+  });
+
+  describe('a fault outside the pull itself', () => {
+    it('is a failed report, said in Activity, when the ports cannot be had', async () => {
+      const api = apiFixture({ files: VAULT_FILES, markdown: remarkMarkdown });
+      const puller = createGranolaPuller({
+        ports: () => {
+          throw new Error('no vault is wired yet');
+        },
+        clock: { now: () => START },
+        wait: async () => {},
+        activity: api.activity,
+        openVault: () => VAULT.absolutePath,
+        syncedThisSession: () => true,
+      });
+
+      const report = await puller.pull({ vault: VAULT.absolutePath, mode: 'startup' });
+
+      expect(report).toEqual({
+        vault: VAULT.absolutePath,
+        mode: 'startup',
+        ended: 'failed',
+        written: [],
+        held: 0,
+        refused: [],
+        skipped: [],
+        failed: [],
+        failure: null,
+        problem: 'no vault is wired yet',
+        keyRefused: false,
+        watermark: null,
+      });
+      expect(api.activity.reports.map(({ message }) => message)).toEqual([
+        'Granola: the pull failed. No vault is wired yet.',
+      ]);
+      // The puller is free for the next pull.
+      await expect(
+        puller.pull({ vault: VAULT.absolutePath, mode: 'startup' }),
+      ).resolves.toMatchObject({ ended: 'failed' });
+    });
+
+    it('is a failed report that says so when Activity cannot be had either', async () => {
+      const puller = createGranolaPuller({
+        ports: () => {
+          throw new Error('no vault is wired yet');
+        },
+        clock: { now: () => START },
+        wait: async () => {},
+        activity: {
+          inVault: () => {
+            throw new Error('Activity is closed');
+          },
+        } as never,
+        openVault: () => VAULT.absolutePath,
+        syncedThisSession: () => {
+          throw new Error('unreachable');
+        },
+      });
+
+      const report = await puller.pull({ vault: VAULT.absolutePath, mode: 'sync-now' });
+
+      expect(report).toMatchObject({
+        ended: 'failed',
+        problem: 'no vault is wired yet; Activity could not record it either: Activity is closed',
+      });
+    });
+
+    it('is a failed report when the pull’s own record cannot be read', async () => {
+      const { puller } = pullFixture({
+        records: {
+          read: () => {
+            throw new Error('storage is gone');
+          },
+          write: () => {},
+          current: () => ({ watermark: null, lastPullAt: null }),
+        },
+      });
+      await expect(
+        puller.pull({ vault: VAULT.absolutePath, mode: 'startup' }),
+      ).resolves.toMatchObject({ ended: 'failed', problem: 'storage is gone' });
+    });
   });
 });

@@ -3,6 +3,7 @@ import {
   transcriptOverLimit,
   type GranolaNote,
   type GranolaNoteSummary,
+  type GranolaUnreadableSummary,
 } from '@atlas/domain';
 import type { GranolaSend } from './granola-requests.ts';
 import {
@@ -19,11 +20,17 @@ export interface GranolaReader {
   readonly send: GranolaSend;
 }
 
-/** Far more pages of notes (thirty each) than anyone keeps; past it, a list that never ends is cut off. */
-const MAX_LIST_PAGES = 1_000;
+/** More pages of notes (thirty each: 6,000 notes) than anyone keeps; past it, a list that never ends is cut off. */
+const MAX_LIST_PAGES = 200;
 
 const malformed = (message: string, transcriptPage = false) =>
   new GranolaError({ kind: 'malformed', message, ...(transcriptPage && { transcriptPage }) });
+
+/** What the list of notes held: each note once, and those it named in a shape Atlas cannot read. */
+export interface GranolaListing {
+  readonly notes: readonly GranolaNoteSummary[];
+  readonly unreadable: readonly GranolaUnreadableSummary[];
+}
 
 /**
  * Every note listed since `updatedAfter` (every note when null), each once.
@@ -33,8 +40,9 @@ const malformed = (message: string, transcriptPage = false) =>
 export async function listGranolaNotes(
   { granola, vault, send }: GranolaReader,
   updatedAfter: string | null,
-): Promise<readonly GranolaNoteSummary[]> {
+): Promise<GranolaListing> {
   const listed = new Map<string, GranolaNoteSummary>();
+  const unreadable: GranolaUnreadableSummary[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_LIST_PAGES; page += 1) {
     const from: string | null = cursor;
@@ -42,7 +50,8 @@ export async function listGranolaNotes(
       granola.listNotes({ vault, updatedAfter, cursor: from }),
     );
     for (const note of read.notes) listed.set(note.id, note);
-    if (read.cursor === null) return [...listed.values()];
+    for (const summary of read.unreadable) unreadable.push(summary);
+    if (read.cursor === null) return { notes: [...listed.values()], unreadable };
     if (read.cursor === from) throw malformed('Granola sent the same page of notes again');
     cursor = read.cursor;
   }
@@ -55,23 +64,42 @@ const isTooLarge = (error: unknown) =>
   error.failure.status === 413;
 
 /**
- * A note with its transcript; null when the transcript is past the domain's
- * limit. One too large for Granola to send inline (413) is read a page at a
- * time from its own endpoint.
+ * A note as read: with its transcript, or — `tooLong` — without it, the
+ * transcript being past the domain's limit. Either way the note is there to
+ * name, and to link to in Granola.
  */
-export async function readGranolaNote(
-  reader: GranolaReader,
-  id: string,
-): Promise<GranolaNote | null> {
+export type GranolaNoteRead =
+  | { readonly tooLong: false; readonly note: GranolaNote }
+  | { readonly tooLong: true; readonly note: GranolaNote & { readonly transcript: null } };
+
+const transcriptTooLong = (note: GranolaNote): GranolaNoteRead => ({
+  tooLong: true,
+  note: { ...note, transcript: null },
+});
+
+/** Whether a transcript sent in one answer is past the limit: one page, however long. */
+const inlineOverLimit = (transcript: readonly unknown[] | null) =>
+  transcript !== null &&
+  transcriptOverLimit({ characters: transcriptCharacters(transcript), pages: 1 });
+
+/**
+ * A note with its transcript, held to the domain's limit whether Granola
+ * sent it inline or in pages. One too large for Granola to send inline (413)
+ * is read a page at a time from its own endpoint.
+ */
+export async function readGranolaNote(reader: GranolaReader, id: string): Promise<GranolaNoteRead> {
   const { granola, vault, send } = reader;
   try {
-    return await send(() => granola.getNote({ vault, id, transcript: true }));
+    const note = await send(() => granola.getNote({ vault, id, transcript: true }));
+    return inlineOverLimit(note.transcript) ? transcriptTooLong(note) : { tooLong: false, note };
   } catch (error) {
     if (!isTooLarge(error)) throw error;
   }
   const note = await send(() => granola.getNote({ vault, id, transcript: false }));
   const transcript = await readTranscriptPages(reader, id);
-  return transcript === null ? null : { ...note, transcript };
+  return transcript === null
+    ? transcriptTooLong(note)
+    : { tooLong: false, note: { ...note, transcript } };
 }
 
 /** A failure reading a page of a transcript, marked as one. */

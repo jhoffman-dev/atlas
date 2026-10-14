@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GRANOLA_KEPT_SLOWING_DOWN,
   granolaFailureWords,
   granolaLateArrivalReport,
   granolaNoteReport,
   granolaPullReport,
+  unreadableSummaryProblem,
   type GranolaNoteProblem,
   type GranolaPullCounts,
 } from './granola-pull-report.ts';
@@ -12,7 +14,7 @@ const NONE: GranolaPullCounts = { written: 0, held: 0, refused: 0, skipped: 0, f
 const counted = (counts: Partial<GranolaPullCounts>) => ({ ...NONE, ...counts });
 
 const pulled = (counts: Partial<GranolaPullCounts>) =>
-  granolaPullReport({ ended: 'pulled', counts: counted(counts), problem: null });
+  granolaPullReport({ mode: 'startup', ended: 'pulled', counts: counted(counts), problem: null });
 
 describe('granolaPullReport', () => {
   it('counts what was written and what the vault already held', () => {
@@ -40,12 +42,63 @@ describe('granolaPullReport', () => {
     });
   });
 
+  it('says nothing of a timed pull that found nothing new, though the vault held some', () => {
+    const tick = (counts: Partial<GranolaPullCounts>) =>
+      granolaPullReport({
+        mode: 'periodic',
+        ended: 'pulled',
+        counts: counted(counts),
+        problem: null,
+      });
+    expect(tick({})).toBeNull();
+    expect(tick({ held: 12 })).toBeNull();
+    expect(tick({ written: 1 })?.message).toBe('Granola: 1 new, 0 already in Atlas.');
+    expect(tick({ refused: 1 })?.level).toBe('warning');
+    expect(tick({ skipped: 1 })?.level).toBe('warning');
+    expect(tick({ failed: 1 })?.level).toBe('error');
+  });
+
+  it('counts a pull asked for, or at startup, even when it found nothing new', () => {
+    for (const mode of ['startup', 'sync-now'] as const) {
+      expect(
+        granolaPullReport({ mode, ended: 'pulled', counts: counted({ held: 3 }), problem: null })
+          ?.message,
+      ).toBe('Granola: nothing new, 3 already in Atlas.');
+    }
+  });
+
+  it('says why a timed pull failed, whatever it counted', () => {
+    expect(
+      granolaPullReport({ mode: 'periodic', ended: 'failed', counts: NONE, problem: 'broke' }),
+    ).toMatchObject({ level: 'error', message: 'Granola: the pull failed. Broke.' });
+    expect(
+      granolaPullReport({ mode: 'periodic', ended: 'vault-changed', counts: NONE, problem: null })
+        ?.level,
+    ).toBe('warning');
+  });
+
+  it('says why a pull Granola kept slowing down gave up', () => {
+    expect(
+      granolaPullReport({
+        mode: 'periodic',
+        ended: 'failed',
+        counts: counted({ failed: 3 }),
+        problem: GRANOLA_KEPT_SLOWING_DOWN,
+      })?.message,
+    ).toBe(
+      'Granola: the pull failed. Granola asked Atlas to slow down for 3 notes in a row, so Atlas stopped this pull. The next pull tries those notes again.',
+    );
+  });
+
   it('says nothing of a pull that waits for the vault’s first sync', () => {
-    expect(granolaPullReport({ ended: 'not-synced', counts: NONE, problem: null })).toBeNull();
+    expect(
+      granolaPullReport({ mode: 'startup', ended: 'not-synced', counts: NONE, problem: null }),
+    ).toBeNull();
   });
 
   it('says why a pull stopped, with the fix, and what it wrote first', () => {
     const report = granolaPullReport({
+      mode: 'startup',
       ended: 'stopped',
       counts: counted({ written: 1 }),
       problem: granolaFailureWords({
@@ -63,6 +116,7 @@ describe('granolaPullReport', () => {
   it('says why a pull failed, with a problem that has no fix', () => {
     expect(
       granolaPullReport({
+        mode: 'startup',
         ended: 'failed',
         counts: NONE,
         problem: granolaFailureWords({ kind: 'invalid', message: 'no vault is open' }),
@@ -71,16 +125,21 @@ describe('granolaPullReport', () => {
       'Granola: the pull failed. Atlas could not ask Granola: no vault is open. Atlas stops pulling; the next pull asks again.',
     );
     expect(
-      granolaPullReport({ ended: 'failed', counts: NONE, problem: 'the index is not ready' })
-        ?.message,
+      granolaPullReport({
+        mode: 'startup',
+        ended: 'failed',
+        counts: NONE,
+        problem: 'the index is not ready',
+      })?.message,
     ).toBe('Granola: the pull failed. The index is not ready.');
-    expect(granolaPullReport({ ended: 'failed', counts: NONE, problem: null })?.message).toBe(
-      'Granola: the pull failed.',
-    );
+    expect(
+      granolaPullReport({ mode: 'startup', ended: 'failed', counts: NONE, problem: null })?.message,
+    ).toBe('Granola: the pull failed.');
   });
 
   it('warns that a pull ended when another vault was opened', () => {
     const report = granolaPullReport({
+      mode: 'startup',
       ended: 'vault-changed',
       counts: counted({ written: 2 }),
       problem: null,
@@ -133,6 +192,30 @@ describe('granolaNoteReport', () => {
       message:
         'Granola: “Larkspur Payroll renewal” could not be read; the next pull tries it again. Granola asked Atlas to slow down.',
     });
+  });
+});
+
+describe('unreadableSummaryProblem', () => {
+  it('names a listed note it cannot read by its id, with why, and nothing else', () => {
+    expect(
+      unreadableSummaryProblem({ id: 'not_odd0000000001', reason: 'its updated_at is not text' }),
+    ).toEqual({
+      id: 'not_odd0000000001',
+      title: null,
+      url: null,
+      problem:
+        'Granola listed a note Atlas cannot read (its updated_at is not text); it was left out of this pull.',
+    });
+  });
+
+  it('cuts a long id short, and makes a control character a space', () => {
+    const { id } = unreadableSummaryProblem({ id: `a\nb${'x'.repeat(100)}`, reason: 'r' });
+    expect(id).toBe(`a b${'x'.repeat(37)}…`);
+    expect(unreadableSummaryProblem({ id: 'x'.repeat(40), reason: 'r' }).id).toBe('x'.repeat(40));
+  });
+
+  it('says there was no id when there was none', () => {
+    expect(unreadableSummaryProblem({ id: null, reason: 'r' }).id).toBe('no id');
   });
 });
 

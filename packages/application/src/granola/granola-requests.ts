@@ -1,4 +1,4 @@
-import { backoff, paceOf, REQUESTS_PER_SECOND } from '@atlas/domain';
+import { backoff, paceOf, REQUESTS_PER_SECOND, type GranolaFailure } from '@atlas/domain';
 import type { Clock } from '../ports.ts';
 import { GranolaError } from './ports.ts';
 
@@ -8,10 +8,9 @@ export type Wait = (milliseconds: number) => Promise<void>;
 /** Sends one request to Granola, paced, and asked again while Granola says to slow down. */
 export type GranolaSend = <T>(request: () => Promise<T>) => Promise<T>;
 
-const isSlowDown = (error: unknown) =>
-  error instanceof GranolaError &&
-  error.failure.kind === 'api_refused' &&
-  error.failure.status === 429;
+/** Granola's 429: too many requests. */
+export const isSlowDown = (failure: GranolaFailure) =>
+  failure.kind === 'api_refused' && failure.status === 429;
 
 /**
  * One pull's requests, kept under Granola's rate limit by the domain's pace,
@@ -41,7 +40,8 @@ export function pacedRequests({
       try {
         return await request();
       } catch (error) {
-        const delay = isSlowDown(error) ? backoff(attempt) : null;
+        const slowDown = error instanceof GranolaError && isSlowDown(error.failure);
+        const delay = slowDown ? backoff(attempt) : null;
         if (delay === null) throw error;
         await wait(delay);
       }

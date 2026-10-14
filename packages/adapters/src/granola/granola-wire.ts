@@ -1,4 +1,4 @@
-import type { GranolaNote, GranolaNoteSummary } from '@atlas/domain';
+import type { GranolaNote, GranolaNoteSummary, GranolaUnreadableSummary } from '@atlas/domain';
 import type { GranolaKeyStatus, GranolaNotesPage, GranolaTranscriptPage } from '@atlas/application';
 
 /*
@@ -42,21 +42,38 @@ function nextCursor(body: JsonRecord): string | null | undefined {
   return typeof cursor === 'string' && cursor !== '' ? cursor : undefined;
 }
 
-function summaryOf(value: unknown): GranolaNoteSummary | null {
-  if (!isRecord(value)) return null;
+/** A listed note read, or why it could not be: never what it says. */
+type Listed =
+  { readonly note: GranolaNoteSummary } | { readonly unreadable: GranolaUnreadableSummary };
+
+function listedOf(value: unknown): Listed {
+  if (!isRecord(value)) return { unreadable: { id: null, reason: 'it is not a note' } };
   const { id, title, updated_at: updatedAt } = value;
-  if (!isNoteId(id) || !isTextOrNull(title) || typeof updatedAt !== 'string') return null;
-  return { ...value, id, title, updated_at: updatedAt };
+  const unreadable = (reason: string): Listed => ({
+    unreadable: { id: typeof id === 'string' ? id : null, reason },
+  });
+  if (!isNoteId(id)) return unreadable('its id is not a Granola note id');
+  if (!isTextOrNull(title)) return unreadable('its title is not text');
+  if (typeof updatedAt !== 'string') return unreadable('its updated_at is not text');
+  return { note: { ...value, id, title, updated_at: updatedAt } };
 }
 
-/** A page of `GET /v1/notes`; null when any note in it is not one. */
+/**
+ * A page of `GET /v1/notes`; null when the page itself is not one. A note in
+ * it that is not as documented is set aside as unreadable, and the rest of
+ * the page kept: one odd note must not cost the pull every other.
+ */
 export function notesPageOf(body: unknown): GranolaNotesPage | null {
   if (!isRecord(body) || !Array.isArray(body['notes'])) return null;
   const cursor = nextCursor(body);
   if (cursor === undefined) return null;
-  const notes = body['notes'].map(summaryOf);
-  if (notes.some((note) => note === null)) return null;
-  return { notes: notes.filter((note) => note !== null), cursor };
+  const notes: GranolaNoteSummary[] = [];
+  const unreadable: GranolaUnreadableSummary[] = [];
+  for (const listed of body['notes'].map(listedOf)) {
+    if ('note' in listed) notes.push(listed.note);
+    else unreadable.push(listed.unreadable);
+  }
+  return { notes, unreadable, cursor };
 }
 
 /** The note `GET /v1/notes/{id}` answered for `id`; null when it is not that note. */

@@ -27,3 +27,14 @@ export interface GranolaNote {
   readonly transcript: readonly unknown[] | null;
   readonly [field: string]: unknown;
 }
+
+/**
+ * A note the list named in a shape the API does not document — an id that is
+ * not one, a title that is not text, no `updated_at` — left out of the pull.
+ * Never the note's content: only its id, when it is text, and why.
+ */
+export interface GranolaUnreadableSummary {
+  readonly id: string | null;
+  /** What about it is not as documented, in fixed words. */
+  readonly reason: string;
+}
