@@ -210,6 +210,12 @@ export function useInbox(options: InboxOptions) {
     [act, activity, last, notePaths, onSettled, ports],
   );
 
+  // The undo lasts as long as the bar offering it (#165): once that has gone, so has the undo.
+  const dismissLastAction = useCallback(
+    () => setSaid((before) => (before === null ? null : { ...before, last: null })),
+    [],
+  );
+
   const statuses = useMemo(() => clarifyVocabulary(types).statuses, [types]);
   return {
     contents: shown?.contents ?? null,
@@ -227,6 +233,7 @@ export function useInbox(options: InboxOptions) {
     lastAction: last === null ? null : { title: last.title },
     clarify,
     undo,
+    dismissLastAction,
   };
 }
 

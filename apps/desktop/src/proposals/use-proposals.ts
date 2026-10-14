@@ -168,9 +168,25 @@ export function useProposals({ ports, clock, indexKey, onSettled, activity }: Pr
     });
   }, [answer, ports]);
 
+  // The undo lasts as long as the notice offering it (#165): once that has gone, so has the undo.
+  const onDismissNotice = useCallback(() => {
+    lastAccepted.current = null;
+    setNotice(null);
+  }, []);
+
   const section = useMemo<ProposalsSectionState>(
-    () => ({ contents, error, notice, busy, problems, onAccept, onReject, onUndo }),
-    [contents, error, notice, busy, problems, onAccept, onReject, onUndo],
+    () => ({
+      contents,
+      error,
+      notice,
+      busy,
+      problems,
+      onAccept,
+      onReject,
+      onUndo,
+      onDismissNotice,
+    }),
+    [contents, error, notice, busy, problems, onAccept, onReject, onUndo, onDismissNotice],
   );
   return { section, count: contents?.open.length ?? null };
 }

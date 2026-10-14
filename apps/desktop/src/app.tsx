@@ -1659,6 +1659,7 @@ export function App({
                     refusal: inbox.refusal,
                     lastAction: inbox.lastAction,
                     onUndo: () => void inbox.undo(),
+                    onDismissLastAction: inbox.dismissLastAction,
                     typesOffer:
                       typesOffer === null
                         ? null

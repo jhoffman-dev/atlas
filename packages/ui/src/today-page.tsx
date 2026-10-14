@@ -14,6 +14,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import type { TodayReport } from '@atlas/application';
+import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
@@ -171,8 +172,18 @@ const statusLabel = (status: string) => (isGtdStatus(status) ? GTD_STATUS_LABELS
 
 function UndoNotice({ notice, busy }: { notice: TodayNotice | null; busy: boolean }) {
   if (notice === null) return null;
+  return <UndoBar notice={notice} busy={busy} />;
+}
+
+/** The last action, for 20 seconds unless held: its Undo lasts as long as it does (#165). */
+function UndoBar({ notice, busy }: { notice: TodayNotice; busy: boolean }) {
+  const hold = useDismissAfter({
+    ms: UNDO_BAR_MS,
+    showing: noticeWords(notice),
+    onDismiss: notice.onDismiss,
+  });
   return (
-    <div className="today__notice" role="status">
+    <div className="today__notice" role="status" {...hold}>
       <p className="today__notice-text">{noticeWords(notice)}</p>
       <button
         type="button"

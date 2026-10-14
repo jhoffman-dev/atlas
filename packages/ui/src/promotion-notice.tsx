@@ -1,3 +1,4 @@
+import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import type { PromoteLine } from './editor/promote-line.ts';
 
 /** What the page says after a checklist line was made a task, or a try at it failed. */
@@ -20,12 +21,22 @@ export interface LinePromotion {
 /**
  * The line under the page bar after a checklist line became a task: what was
  * made, a way to open it, and one Undo that takes back both the task and the
- * line. A refusal says why, with nothing to undo.
+ * line. A refusal says why, with nothing to undo. It goes by itself, and its
+ * Undo with it, after 20 seconds unless held (#165).
  */
 export function PromotionBanner({ notice }: { notice: PromotionNotice | null }) {
   if (notice === null) return null;
+  return <Banner notice={notice} />;
+}
+
+function Banner({ notice }: { notice: PromotionNotice }) {
+  const hold = useDismissAfter({
+    ms: UNDO_BAR_MS,
+    showing: notice.message,
+    onDismiss: notice.onDismiss,
+  });
   return (
-    <div className="promotion-notice" role="status">
+    <div className="promotion-notice" role="status" {...hold}>
       <p className="promotion-notice__text">{notice.message}</p>
       {notice.onOpen !== null && (
         <button type="button" className="btn btn--ghost btn--sm" onClick={notice.onOpen}>

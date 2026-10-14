@@ -1,4 +1,5 @@
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
+import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
@@ -48,6 +49,8 @@ export interface InboxPageProps {
   /** The last clarification, while it can be taken back. */
   lastAction?: { readonly title: string } | null;
   onUndo?: () => void;
+  /** Ends the offer to take the last clarification back, once its bar has had its time (#165); with `onUndo`. */
+  onDismissLastAction?: () => void;
   typesOffer?: InboxTypesOffer | null;
   /** Moving the vault's tasks to GTD's eight statuses, previewed first (P30-02). */
   taskMigration?: TaskMigrationProps | null;
@@ -152,11 +155,35 @@ function leftRefusal({ contents, refusal }: InboxPageProps): string | null {
   return listed ? null : refusal.reason;
 }
 
-function LastAction({ lastAction, onUndo, busy }: InboxPageProps) {
-  if (lastAction === null || lastAction === undefined || onUndo === undefined) return null;
+function LastAction({ lastAction, onUndo, onDismissLastAction, busy }: InboxPageProps) {
+  if (lastAction === null || lastAction === undefined) return null;
+  if (onUndo === undefined || onDismissLastAction === undefined) return null;
   return (
-    <p className="inbox__done" role="status">
-      Clarified “{lastAction.title}”.
+    <LastActionBar
+      title={lastAction.title}
+      busy={busy}
+      onUndo={onUndo}
+      onDismiss={onDismissLastAction}
+    />
+  );
+}
+
+/** The last clarification, for 20 seconds unless held: its Undo lasts as long as it does. */
+function LastActionBar({
+  title,
+  busy,
+  onUndo,
+  onDismiss,
+}: {
+  title: string;
+  busy: boolean;
+  onUndo: () => void;
+  onDismiss: () => void;
+}) {
+  const hold = useDismissAfter({ ms: UNDO_BAR_MS, showing: title, onDismiss });
+  return (
+    <p className="inbox__done" role="status" {...hold}>
+      Clarified “{title}”.
       <button type="button" className="btn btn--ghost btn--sm" disabled={busy} onClick={onUndo}>
         Undo
       </button>

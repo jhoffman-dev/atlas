@@ -441,7 +441,7 @@ describe('InboxPage — clarifying a task on its row', () => {
 
   it('offers to take the last clarification back', async () => {
     const onUndo = vi.fn();
-    page({ lastAction: { title: 'Call the bank' }, onUndo });
+    page({ lastAction: { title: 'Call the bank' }, onUndo, onDismissLastAction: vi.fn() });
     const said = screen.getByRole('status');
     expect(said.textContent).toContain('Clarified “Call the bank”.');
     await userEvent.click(within(said).getByRole('button', { name: 'Undo' }));

@@ -1,4 +1,5 @@
 import { proposalHeadline, type ProposalNote, type VaultPath } from '@atlas/domain';
+import { UNDO_BAR_MS, useDismissAfter } from '../dismiss-after.ts';
 import { Icon } from '../icon.tsx';
 import { ProposalCard } from './proposal-card.tsx';
 
@@ -36,6 +37,8 @@ export interface ProposalsSectionProps {
   readonly onAccept: (path: VaultPath, payload?: unknown) => void;
   readonly onReject: (path: VaultPath) => void;
   readonly onUndo: () => void;
+  /** Takes the notice away — and the Undo it offered — once it has had its time (#165). */
+  readonly onDismissNotice: () => void;
   readonly onOpen: (path: VaultPath) => void;
   /** Opens the block a proposal cites, given as its link. */
   readonly onOpenSource: (link: string) => void;
@@ -80,14 +83,21 @@ function describe(contents: ProposalsContents | null): string | null {
   return `${count} open ${count === 1 ? 'proposal' : 'proposals'} · nothing is written until you accept`;
 }
 
+/** What the last answer did, for 20 seconds unless held: its Undo lasts as long as it does. */
 function Notice({
   notice,
   busy,
   onOpen,
   onUndo,
+  onDismissNotice,
 }: ProposalsSectionProps & { notice: ProposalNotice }) {
+  const hold = useDismissAfter({
+    ms: UNDO_BAR_MS,
+    showing: notice.text,
+    onDismiss: onDismissNotice,
+  });
   return (
-    <div className="proposals__notice" role="status">
+    <div className="proposals__notice" role="status" {...hold}>
       <span>{notice.text}</span>
       {notice.opens !== null && (
         <button
