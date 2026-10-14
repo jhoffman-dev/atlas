@@ -6,6 +6,7 @@ import {
   GRANOLA_SELF_EMAILS_KEY,
   GRANOLA_TIME_ZONE_KEY,
   GRANOLA_WEBHOOK_KEY,
+  granolaSelfEmailsFromText,
   parseGranolaSettings,
 } from './granola-settings.ts';
 
@@ -103,5 +104,19 @@ describe('parseGranolaSettings', () => {
         profileName: 'Mara Quill',
       }),
     ).toMatchObject({ groupAddresses: [], selfEmails: [] });
+  });
+});
+
+describe('granolaSelfEmailsFromText', () => {
+  it('reads addresses however they were separated, each once whatever its case, in order', () => {
+    expect(
+      granolaSelfEmailsFromText(
+        ' mara.quill@example.com, MQ@example.com;\nmara.quill@EXAMPLE.com  mq@example.com ',
+      ),
+    ).toEqual(['mara.quill@example.com', 'MQ@example.com']);
+  });
+
+  it('reads nothing typed as no addresses', () => {
+    expect(granolaSelfEmailsFromText('  ,; \n')).toEqual([]);
   });
 });

@@ -1210,6 +1210,7 @@ ORDER BY phase</pre>
       <ol class="steps">
         <li><b>Make a key in Granola.</b> In the Granola app: <b>Settings → Connectors → API keys → Create new key</b>, with <i>Personal notes</i> (and <i>Public notes</i> if you want meetings others share with you). It needs a Business or Enterprise plan. Granola shows the key once; copy it.</li>
         <li><b>Paste it into Atlas.</b> <b>Settings</b> (<kbd>⌘,</kbd>) → <b>Granola</b>. Paste the key into <i>Granola API key</i> and press <b>Save</b>. Atlas keeps it in this Mac's Keychain, never in the vault, and asks Granola about it once: Settings says <i>Key accepted</i>, or <i>Granola refused this key</i>.</li>
+        <li><b>Check <i>Your emails</i>.</b> In a meeting you own, Granola calls you “me”. Atlas writes that as <b>You</b> when the meeting's owner is one of these addresses, and as the owner's name otherwise (so a meeting someone shared with you isn't put in your mouth). Until you save some, the field offers the addresses on your Person note — the one <a href="#profile">Settings → Profile</a> names — with <i>From your Person note</i>; press <b>Save emails</b> to keep them. They're kept in the vault's settings (<code>granola_self_emails</code>), so every Mac writes a meeting the same way.</li>
         <li><b>That's it.</b> Once the key is accepted, Atlas pulls your meetings straight away. The first pull looks at every meeting Granola has and brings in the ones the vault doesn't already have.</li>
       </ol>
       <p>Each Mac that should pull needs the key pasted on it. Meetings come in on whichever Mac is in front of you; the import, linking and corrections then run on the Mac that runs your <a href="#automations">automations</a>, as for any meeting.</p>
@@ -1234,7 +1235,7 @@ ORDER BY phase</pre>
         </table>
       </div>
       <p>To stop pulling on this Mac, press <b>Forget key…</b>, then <b>Forget key</b>. The meetings already in the vault stay.</p>
-      <p class="muted">Meeting times are written in the vault's time zone for Granola, <code>granola_time_zone</code> in the settings note (Los Angeles when it says nothing), so every Mac writes a meeting the same way.</p>
+      <p class="muted">Meeting times are written in the vault's time zone for Granola, <code>granola_time_zone</code> in the settings note (Los Angeles when it says nothing), and list addresses that don't look like one can be named in <code>granola_group_addresses</code> — so every Mac writes a meeting the same way.</p>
     </section>
 
     <section id="terms">

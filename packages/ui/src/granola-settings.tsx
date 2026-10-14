@@ -28,6 +28,10 @@ export interface GranolaView {
   readonly lastPullAt: string | null;
   /** The meetings the last pull did not write. */
   readonly notes: readonly GranolaNoteLine[];
+  /** The person's own addresses in Granola, as the vault's settings keep them, comma-separated; empty for none. */
+  readonly selfEmails: string;
+  /** Addresses from the person's own Person note, offered while none are kept; null when there are none. */
+  readonly suggestedEmails: string | null;
   readonly problem: string | null;
   /** A key is being saved or forgotten. */
   readonly pending: boolean;
@@ -59,9 +63,12 @@ export function GranolaSettings({
   onForgetKey,
   onSyncNow,
   onOpenNote,
+  onSaveEmails,
 }: {
   view: GranolaView;
   onSaveKey: (key: string) => void;
+  /** The addresses as typed; the application reads them. */
+  onSaveEmails: (emails: string) => void;
   onForgetKey: () => void;
   onSyncNow: () => void;
   onOpenNote: (url: string) => void;
@@ -96,6 +103,13 @@ export function GranolaSettings({
         </p>
       )}
       <KeyForm hasKey={hasKey} pending={view.pending} onSave={onSaveKey} />
+      <SelfEmailsForm
+        // Started again once the settings or the Person note are read, so what they hold shows.
+        key={`${view.selfEmails}|${view.suggestedEmails ?? ''}`}
+        kept={view.selfEmails}
+        suggested={view.suggestedEmails}
+        onSave={onSaveEmails}
+      />
       {hasKey && view.waiting && (
         <p className="settings__lede">Atlas pulls from Granola once this vault has synced.</p>
       )}
@@ -154,6 +168,49 @@ function KeyForm({
         Save
       </button>
     </form>
+  );
+}
+
+function SelfEmailsForm({
+  kept,
+  suggested,
+  onSave,
+}: {
+  kept: string;
+  suggested: string | null;
+  onSave: (emails: string) => void;
+}) {
+  const offered = kept === '' ? (suggested ?? '') : kept;
+  const [emails, setEmails] = useState(offered);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSave(emails);
+  };
+
+  return (
+    <>
+      <p className="settings__lede">
+        In a meeting you own, Granola calls you “me”; Atlas writes that as <b>You</b> when the
+        meeting’s owner is one of these addresses, and as the owner’s name otherwise.
+      </p>
+      <form className="secrets__form" aria-label="Your emails in Granola" onSubmit={submit}>
+        <input
+          className="field secrets__field"
+          aria-label="Your emails"
+          placeholder="you@example.com, another@example.com"
+          autoComplete="off"
+          spellCheck={false}
+          value={emails}
+          onChange={(event) => setEmails(event.target.value)}
+        />
+        <button className="btn btn--tinted btn--sm" type="submit" disabled={emails === kept}>
+          Save emails
+        </button>
+      </form>
+      {kept === '' && suggested !== null && (
+        <p className="settings__status">From your Person note. Press Save emails to use them.</p>
+      )}
+    </>
   );
 }
 

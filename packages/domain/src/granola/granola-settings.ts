@@ -58,3 +58,21 @@ export function parseGranolaSettings(settings: Readonly<Record<string, unknown>>
     selfEmails: addressesOf(settings[GRANOLA_SELF_EMAILS_KEY]),
   };
 }
+
+/**
+ * The addresses typed into Settings → Granola, one list however they were
+ * separated (commas, semicolons, spaces or lines), each once whatever its
+ * case, in the order typed.
+ */
+export function granolaSelfEmailsFromText(text: string): string[] {
+  const seen = new Set<string>();
+  return text
+    .split(/[\s,;]+/)
+    .filter((each) => each !== '')
+    .filter((each) => {
+      const key = each.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}

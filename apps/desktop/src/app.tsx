@@ -1141,6 +1141,12 @@ export function App({
     pull: granolaPull,
     vault: vaultKey,
     links,
+    fs: vault.fs,
+    markdown: notes.markdown,
+    index: index.index,
+    changeKey: indexKey,
+    active: overlay === 'settings',
+    activity: activityLog,
   });
   const quickAddPorts = useMemo(
     () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),

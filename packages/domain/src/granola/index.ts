@@ -32,6 +32,7 @@ export {
   GRANOLA_SELF_EMAILS_KEY,
   GRANOLA_TIME_ZONE_KEY,
   GRANOLA_WEBHOOK_KEY,
+  granolaSelfEmailsFromText,
   parseGranolaSettings,
 } from './granola-settings.ts';
 export type { GranolaSettings } from './granola-settings.ts';

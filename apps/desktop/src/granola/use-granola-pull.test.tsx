@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import type { GranolaFailure, GranolaNote } from '@atlas/domain';
+import { explainGranolaFailure, type GranolaFailure, type GranolaNote } from '@atlas/domain';
 import {
   fakeGranola,
   fakeIndexPort,
@@ -254,7 +254,7 @@ describe('useGranolaPull', () => {
     await waitFor(() => expect(hook.result.current.toast).not.toBeNull());
     expect(hook.result.current.toast).toBe(hook.result.current.report?.problem);
     expect(hook.result.current.toast).toContain('Granola could not be reached');
-    expect(hook.result.current.toast).toContain('Atlas tries again on the next pull.');
+    expect(hook.result.current.toast).toContain(explainGranolaFailure(UNREACHABLE).problem);
 
     act(() => hook.result.current.dismissToast());
     expect(hook.result.current.toast).toBeNull();

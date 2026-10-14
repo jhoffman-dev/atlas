@@ -141,3 +141,17 @@ test('a Sync now that fails says why as a toast', async ({ page }) => {
   await expect(toast).toContainText('Granola is having trouble (status 503).');
   await expect(card(page).getByRole('alert')).toContainText('Granola is having trouble');
 });
+
+test('your emails in Granola are kept in the vault’s settings once saved', async ({ page }) => {
+  const { vault } = await openSettings(page);
+  const field = card(page).getByLabel('Your emails', { exact: true });
+  await expect(field).toHaveValue('');
+
+  await field.fill('mara.quill@example.com, mq@example.com');
+  await card(page).getByRole('button', { name: 'Save emails' }).click();
+
+  await expectFile(vault, '.atlas/settings.md').toContain(
+    'granola_self_emails:\n  - mara.quill@example.com\n  - mq@example.com',
+  );
+  await expect(card(page).getByRole('button', { name: 'Save emails' })).toBeDisabled();
+});

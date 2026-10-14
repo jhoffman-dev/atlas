@@ -6,11 +6,16 @@ import { useState } from 'react';
 import { createVaultPath } from '@atlas/domain';
 import {
   fakeGranola,
+  fakeIndexPort,
+  fakeVaultFs,
   GranolaError,
+  recordingActivity,
   type GranolaKeyStatus,
   type GranolaPort,
   type GranolaPullReport,
 } from '@atlas/application';
+import { remarkMarkdown } from '@atlas/adapters';
+import { atlasQueryIndex } from '@atlas/application/testing/sqlite';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
 import { GranolaSettingsCard } from './granola-settings-card.tsx';
 import { useGranola, type GranolaSettingState } from './use-granola.ts';
@@ -46,6 +51,44 @@ const PULLED: GranolaPullReport = {
   watermark: '2026-10-13T17:00:00.000Z',
 };
 
+const SETTINGS = '.atlas/settings.md';
+
+/** A vault whose settings note and Person notes are held in memory, the settings written back as the host would. */
+function vaultWith(settings = '---\nprofileName: Mara Quill\n---\n') {
+  const person = [
+    '---',
+    'type: person',
+    'email: mara.quill@example.com',
+    'other_emails:',
+    '  - mq@example.com',
+    '---',
+    '',
+  ].join('\n');
+  const files: Record<string, string> = { 'People/Mara Quill.md': person };
+  const file = { text: settings, modified: 1 };
+  const fs = fakeVaultFs({
+    readNotes: async (paths) =>
+      paths.includes(SETTINGS)
+        ? [{ path: SETTINGS, text: file.text, modified: file.modified, size: 1 }]
+        : [],
+    readTextFile: async () => ({ text: file.text, modified: file.modified }),
+    writeTextFile: async ({ contents }) => {
+      file.text = contents;
+      file.modified += 1;
+      return file.modified;
+    },
+  });
+  const query = atlasQueryIndex({ files, markdown: remarkMarkdown });
+  return { file, ports: { fs, markdown: remarkMarkdown, index: { ...fakeIndexPort(), query } } };
+}
+
+const settingsOf = (vault = vaultWith()) => ({
+  ...vault.ports,
+  changeKey: '0',
+  active: true,
+  activity: recordingActivity(),
+});
+
 /** The window's puller as the card sees it, with a key held and nothing pulled. */
 function pullWith(overrides: Partial<GranolaPullController> = {}): GranolaPullController {
   return {
@@ -72,7 +115,8 @@ function renderGranola({
   pull?: GranolaPullController;
   open?: (url: string) => Promise<void>;
 } = {}) {
-  return renderHook(() => useGranola({ port, pull, vault: VAULT, links: { open } }));
+  const settings = settingsOf();
+  return renderHook(() => useGranola({ port, pull, vault: VAULT, links: { open }, ...settings }));
 }
 
 describe('useGranola', () => {
@@ -101,9 +145,10 @@ describe('useGranola', () => {
   it('says Granola refused a key it was just given', async () => {
     let known: GranolaKeyStatus = ACCEPTED;
     const port = { ...fakeGranola().port, setKey: async () => REFUSED };
+    const settings = settingsOf();
     const hook = renderHook(() => {
       const pull = pullWith({ key: known, knowKey: (status) => (known = status) });
-      return useGranola({ port, pull, vault: VAULT, links: { open: async () => {} } });
+      return useGranola({ port, pull, vault: VAULT, links: { open: async () => {} }, ...settings });
     });
     act(() => hook.result.current.saveKey(KEY));
     await waitFor(() => expect(hook.result.current.view.pending).toBe(false));
@@ -175,6 +220,7 @@ describe('GranolaSettingsCard', () => {
   it('keeps no key once it is saved: what the card is drawn from holds whether one is, never it', async () => {
     const granola = fakeGranola();
     const drawn: GranolaSettingState[] = [];
+    const settings = settingsOf();
     function Harness() {
       const [key, setKey] = useState<GranolaKeyStatus | null>({ hasKey: false, lastRefusal: null });
       const setting = useGranola({
@@ -182,6 +228,7 @@ describe('GranolaSettingsCard', () => {
         pull: pullWith({ key, knowKey: setKey }),
         vault: VAULT,
         links: { open: async () => {} },
+        ...settings,
       });
       drawn.push(setting);
       return <GranolaSettingsCard setting={setting} />;
@@ -202,5 +249,61 @@ describe('GranolaSettingsCard', () => {
     );
     expect(drawn.length).toBeGreaterThan(1);
     for (const setting of drawn) expect(JSON.stringify(setting)).not.toContain(KEY);
+  });
+});
+
+describe('useGranola: the person’s own addresses in Granola', () => {
+  const render = (vault = vaultWith()) => {
+    const settings = settingsOf(vault);
+    const port = fakeGranola().port;
+    return renderHook(() =>
+      useGranola({
+        port,
+        pull: pullWith(),
+        vault: VAULT,
+        links: { open: async () => {} },
+        ...settings,
+      }),
+    );
+  };
+
+  it('offers the Person note’s addresses while none are kept, and keeps them only once saved', async () => {
+    const vault = vaultWith();
+    const hook = render(vault);
+    await waitFor(() =>
+      expect(hook.result.current.view.suggestedEmails).toBe(
+        'mara.quill@example.com, mq@example.com',
+      ),
+    );
+    expect(hook.result.current.view.selfEmails).toBe('');
+    expect(vault.file.text).not.toContain('granola_self_emails');
+
+    act(() =>
+      hook.result.current.saveEmails('mara.quill@example.com; MQ@example.com mq@example.com'),
+    );
+    await waitFor(() =>
+      expect(vault.file.text).toContain(
+        'granola_self_emails:\n  - mara.quill@example.com\n  - MQ@example.com',
+      ),
+    );
+    expect(vault.file.text).toContain('profileName: Mara Quill');
+    await waitFor(() =>
+      expect(hook.result.current.view.selfEmails).toBe('mara.quill@example.com, MQ@example.com'),
+    );
+  });
+
+  it('shows the addresses the vault keeps', async () => {
+    const hook = render(
+      vaultWith('---\nprofileName: Mara Quill\ngranola_self_emails:\n  - mara@example.com\n---\n'),
+    );
+    await waitFor(() => expect(hook.result.current.view.selfEmails).toBe('mara@example.com'));
+  });
+
+  it('removes the setting when every address is taken out', async () => {
+    const vault = vaultWith('---\ngranola_self_emails:\n  - mara@example.com\n---\n');
+    const hook = render(vault);
+    await waitFor(() => expect(hook.result.current.view.selfEmails).toBe('mara@example.com'));
+    act(() => hook.result.current.saveEmails('  '));
+    await waitFor(() => expect(vault.file.text).not.toContain('granola_self_emails'));
   });
 });

@@ -14,6 +14,8 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     lastPull: null,
     lastPullAt: null,
     notes: [],
+    selfEmails: '',
+    suggestedEmails: null,
     problem: null,
     pending: false,
     ...overrides,
@@ -23,6 +25,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     onForgetKey: vi.fn(),
     onSyncNow: vi.fn(),
     onOpenNote: vi.fn(),
+    onSaveEmails: vi.fn(),
   };
   render(<GranolaSettings view={view} {...handlers} />);
   return handlers;
@@ -127,6 +130,32 @@ describe('GranolaSettings', () => {
   it('shows why the last pull failed', () => {
     renderWith({ problem: 'Granola could not be reached: offline. Check the connection.' });
     expect(within(card()).getByRole('alert').textContent).toContain('Granola could not be reached');
+  });
+
+  it('offers the Person note’s addresses while none are kept, and saves what is in the field', async () => {
+    const { onSaveEmails } = renderWith({ suggestedEmails: 'mara.quill@example.com' });
+    const field = within(card()).getByLabelText<HTMLInputElement>('Your emails');
+    expect(field.value).toBe('mara.quill@example.com');
+    expect(card().textContent).toContain('From your Person note.');
+
+    await userEvent.type(field, ', mq@example.com');
+    await userEvent.click(button('Save emails'));
+    expect(onSaveEmails).toHaveBeenCalledWith('mara.quill@example.com, mq@example.com');
+  });
+
+  it('shows the addresses kept, and saves nothing until they change', async () => {
+    const { onSaveEmails } = renderWith({
+      selfEmails: 'mara@example.com',
+      suggestedEmails: 'mara.quill@example.com',
+    });
+    const field = within(card()).getByLabelText<HTMLInputElement>('Your emails');
+    expect(field.value).toBe('mara@example.com');
+    expect(card().textContent).not.toContain('From your Person note.');
+    expect(button('Save emails')).toHaveProperty('disabled', true);
+
+    await userEvent.clear(field);
+    await userEvent.click(button('Save emails'));
+    expect(onSaveEmails).toHaveBeenCalledWith('');
   });
 
   it('forgets the key only once that is confirmed', async () => {
