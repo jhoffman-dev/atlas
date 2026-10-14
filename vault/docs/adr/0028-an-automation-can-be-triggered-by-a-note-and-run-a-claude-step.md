@@ -658,7 +658,8 @@ text stands.
   digest. The ledger entry also holds the step's stored answer, reused by
   every retry.
 - **The caps.** That step has its own ask budget (10 asks per run, reduce
-  included) and its own hourly allowance (30 asks), apart from the rule's 20
+  included) and one hourly allowance of 30 asks shared by every rule that
+  declares it, apart from each rule's 20
   runs an hour, and defaults to a cheaper model with `model:` to override.
 - **"A Mac that is not the automations Mac never runs Claude on a meeting;
   the meeting waits until that Mac is awake and has pulled"** stays true.

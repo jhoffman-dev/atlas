@@ -87,8 +87,9 @@ read in parts as `meeting-items` is, plus one "reduce" ask over the parts'
 summaries. **The step's own budget, stated once:** at most **10 asks per run
 in all, the reduce ask included** (so at most 9 parts; a longer transcript is
 cut between turns and the log says so), and one 10-minute deadline. It has
-its **own hourly allowance of 30 asks**, counted apart from the 20 runs an
-hour that ADR-0028's rules share, so a backlog cannot spend the shared cap or
+its **own hourly allowance of 30 asks**, one allowance for the whole vault
+shared by every rule that declares the step (amended with #179), counted
+apart from the 20 runs an hour that ADR-0028's rules share, so a backlog cannot spend the shared cap or
 be starved by it. Both numbers are constants.
 
 **The model's answer is kept and reused.** The answer to a meeting, parsed and
@@ -320,7 +321,7 @@ the maintainer's vault was answered under the old key.
 | The meeting is edited, or typed in, while the step runs                        | The write is refused (`expectedModified`, or the pane's unsaved state). The tasks stay; the summary and the `tasks` relation are retried from the stored answer, with no new ask and no new tasks.                                                                                                                               |
 | A false match archives a real meeting                                          | The copy is archived, not deleted; Activity names the reasons; **unarchiving a copy this rule archived restamps it `imported` and removes its `atlas_duplicate_of`**, so the step runs on it like any arrival (ADR-0027's "unarchive carries the stamp" gets this exception). The spike sets thresholds first.                   |
 | Copies arrive on two Macs between syncs                                        | Each is let in on its Mac; after the sync both are originals and the sweep lists the pair. Only one Mac is named at a time (ADR-0035 adds no automatic hand-over), so this needs the person to claim on one Mac between syncs: rare. Tasks key on the primary, first-imported copy; tasks already made from both are not merged. |
-| 28 waiting meetings and 600 old ones when the rule is saved                    | The rule hears meetings written after its own file (ADR-0028); the 14-day `which` bounds the rest; the backfill makes proposals, not tasks; the per-run cap of 10 asks and the step's own hourly allowance of 30 asks hold.                                                                                                      |
+| 28 waiting meetings and 600 old ones when the rule is saved                    | The rule hears meetings written after its own file (ADR-0028); the 14-day `which` bounds the rest; the backfill makes proposals, not tasks; the per-run cap of 10 asks and the vault-wide hourly allowance of 30 asks for the step hold.                                                                                         |
 
 ## Alternatives considered
 
