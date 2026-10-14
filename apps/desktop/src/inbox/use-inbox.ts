@@ -4,6 +4,7 @@ import {
   createVaultPath,
   FILED_UNDER_TYPES,
   filingRefusal,
+  INBOX_LIST_LIMIT,
   noteTitle,
   PERSON_TYPE,
   tasksStartInInbox,
@@ -80,11 +81,12 @@ export function useInbox(options: InboxOptions) {
   const running = useRef(false);
   const unmadeMeanwhile = useRef<Pick<Result, 'problem' | 'refusal'> | null>(null);
   const startInInbox = tasksStartInInbox(types);
+  const { limit, showMore } = usePagesShown(vaultKey);
 
   useEffect(() => {
     if (!fresh) return;
     let cancelled = false;
-    listInbox({ index: ports.index, tasksStartInInbox: startInInbox })
+    listInbox({ index: ports.index, limit, tasksStartInInbox: startInInbox })
       .then((contents) => {
         if (!cancelled) setListing({ vaultKey, contents, error: null });
       })
@@ -94,7 +96,7 @@ export function useInbox(options: InboxOptions) {
     return () => {
       cancelled = true;
     };
-  }, [ports.index, indexKey, fresh, vaultKey, startInInbox]);
+  }, [ports.index, indexKey, fresh, vaultKey, startInInbox, limit]);
 
   useEffect(() => {
     if (!open || !fresh) return;
@@ -234,6 +236,8 @@ export function useInbox(options: InboxOptions) {
     clarify,
     undo,
     dismissLastAction,
+    /** Lists the next page of what waits (#167). */
+    showMore,
   };
 }
 
@@ -281,6 +285,17 @@ async function readChoices(
     filing: projects.filter((note) => filingRefusal({ path: at(note), type: note.type }) === null),
     people: people.filter((note) => waitingOnRefusal({ path: at(note), type: note.type }) === null),
   };
+}
+
+/**
+ * How many of what waits the page lists: a page more each time more are asked
+ * for (#167), and one page again in another vault.
+ */
+function usePagesShown(vaultKey: string | null) {
+  const [shown, setShown] = useState({ vaultKey, pages: 1 });
+  const pages = shown.vaultKey === vaultKey ? shown.pages : 1;
+  const showMore = useCallback(() => setShown({ vaultKey, pages: pages + 1 }), [vaultKey, pages]);
+  return { limit: pages * INBOX_LIST_LIMIT, showMore };
 }
 
 /**

@@ -1,21 +1,36 @@
-import { createVaultPath, InvalidVaultPathError, type VaultPath } from '@atlas/domain';
+import {
+  createVaultPath,
+  INBOX_LIST_LIMIT,
+  InvalidVaultPathError,
+  type VaultPath,
+} from '@atlas/domain';
 import { listVaultInbox } from '../inbox/list-inbox.ts';
 import { FilingRefusedError, processInboxItems } from '../inbox/process-inbox.ts';
 import { ApiError } from './api-error.ts';
 import { moveBatch } from './archive.ts';
-import { bodyObject, requiredString } from './fields.ts';
+import { bodyObject, countOf, offsetOf, requiredString } from './fields.ts';
 import { isApiNotePath } from './paths.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
 /**
  * The notes waiting in the Inbox to be filed, as its page lists them (P30-01):
- * newest first, each with what the meeting import made of it. Notes of the
- * proposal type are not among them — they are answered through the proposals
- * routes, never filed. Reads the index and writes nothing.
+ * newest first, each with what the meeting import made of it, a page at a
+ * time with how many wait in all (#167). Notes of the proposal type are not
+ * among them — they are answered through the proposals routes, never filed.
+ * Reads the index and writes nothing.
  */
 export async function inboxRoute(request: VaultRequest): Promise<RouteResult> {
-  const { items, truncated } = await listVaultInbox(request);
-  return { status: 200, body: { items, truncated } };
+  const limit = countOf(request.query['limit'], {
+    field: 'limit',
+    fallback: INBOX_LIST_LIMIT,
+    max: INBOX_LIST_LIMIT,
+  });
+  const offset = offsetOf(request.query['offset']);
+  const { items, truncated, total } = await listVaultInbox({ ...request, page: { limit, offset } });
+  return {
+    status: 200,
+    body: { items, truncated, next: truncated ? offset + items.length : null, total },
+  };
 }
 
 /**

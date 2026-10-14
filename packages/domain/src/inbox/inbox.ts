@@ -212,6 +212,17 @@ function waitingArms(tasksStartInInbox: boolean): string[] {
   return tasksStartInInbox ? [inFolder, atInbox, withNoStatus] : [inFolder, atInbox];
 }
 
+/** The notes that wait, in a statement's `FROM … WHERE`: no proposal, and only notes in user space. */
+function waitingNotes(tasksStartInInbox: boolean): string[] {
+  return [`WITH waiting(path) AS (`, waitingArms(tasksStartInInbox).join('\nUNION\n'), `)`];
+}
+
+const WAITING_FILES = [
+  `FROM waiting JOIN files ON files.path = waiting.path`,
+  `WHERE NOT ${isOfType('files.path', PROPOSAL_TYPE)}`,
+  `  AND ${userSpaceNoteSql('files.path')}`,
+];
+
 /**
  * The Inbox's notes, asked of the index: newest first, so what just arrived
  * is on top, then by title so the list never reshuffles. Notes of the
@@ -219,21 +230,23 @@ function waitingArms(tasksStartInInbox: boolean): string[] {
  * answered in its Proposals section, never filed — and any other note is
  * listed, one dropped into `Inbox/Proposals` included. Each note carries
  * what the meeting import wrote into it, and what it says as a task. Which
- * notes wait is {@link waitingArms}' rule.
+ * notes wait is {@link waitingArms}' rule. A page at a time: `limit` from
+ * `offset` (#167).
  */
 export function compileInboxQuery({
   limit = INBOX_LIST_LIMIT,
+  offset = 0,
   tasksStartInInbox = false,
 }: {
   limit?: number;
+  /** How many of the newest to pass over: where this page starts. */
+  offset?: number;
   /** Whether the vault's Task type has the Inbox status (`tasksStartInInbox`). */
   tasksStartInInbox?: boolean;
 } = {}): CompiledQuery {
   return {
     sql: [
-      `${INBOX_QUERY_MARK} WITH waiting(path) AS (`,
-      waitingArms(tasksStartInInbox).join('\nUNION\n'),
-      `)`,
+      `${INBOX_QUERY_MARK} ${waitingNotes(tasksStartInInbox).join('\n')}`,
       `SELECT files.path AS "path", files.title AS "title",`,
       `  ${firstValue('type')} AS "type",`,
       // A stamp with its value cleared is a stamp still, as the import reads it.
@@ -246,13 +259,27 @@ export function compileInboxQuery({
       `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOnNames",`,
       `  ${firstDay(TASK_KEYS.defer)} AS "defer",`,
       `  ${firstDay(TASK_KEYS.due)} AS "due"`,
-      `FROM waiting JOIN files ON files.path = waiting.path`,
-      `WHERE NOT ${isOfType('files.path', PROPOSAL_TYPE)}`,
-      `  AND ${userSpaceNoteSql('files.path')}`,
+      ...WAITING_FILES,
       `ORDER BY files.modified DESC, lower(files.title), files.path`,
-      `LIMIT ?`,
+      `LIMIT ? OFFSET ?`,
     ].join('\n'),
-    parameters: [Math.max(1, Math.floor(limit))],
+    parameters: [Math.max(1, Math.floor(limit)), Math.max(0, Math.floor(offset))],
+  };
+}
+
+/** How many notes wait in the Inbox, as {@link compileInboxQuery} would list them all (#167). */
+export function compileInboxCountQuery({
+  tasksStartInInbox = false,
+}: {
+  tasksStartInInbox?: boolean;
+} = {}): CompiledQuery {
+  return {
+    sql: [
+      `${INBOX_QUERY_MARK} ${waitingNotes(tasksStartInInbox).join('\n')}`,
+      `SELECT count(*) AS "total"`,
+      ...WAITING_FILES,
+    ].join('\n'),
+    parameters: [],
   };
 }
 

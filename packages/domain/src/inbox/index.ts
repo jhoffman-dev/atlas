@@ -1,4 +1,5 @@
 export {
+  compileInboxCountQuery,
   compileInboxQuery,
   filedUnderStamp,
   filingFolder,

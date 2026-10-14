@@ -18,7 +18,6 @@ import {
   createVaultPath,
   INBOX_LIST_LIMIT,
   INBOX_QUERY_COLUMNS,
-  INBOX_QUERY_MARK,
   TASK_TYPE_FILE,
   WAITING_NEEDS_SOMEONE,
   type ObjectType,
@@ -258,8 +257,8 @@ describe('useInbox — more than one page (#167)', () => {
     const waiting = Array.from({ length: INBOX_LIST_LIMIT + 3 }, (_, n) => `Task ${n}`);
     const index = fakeIndexPort({
       query: async (sql, parameters = []) => {
-        if (!sql.startsWith(INBOX_QUERY_MARK)) {
-          return { columns: ['count'], rows: [[waiting.length]], truncated: false };
+        if (sql.includes('count(*) AS "total"')) {
+          return { columns: ['total'], rows: [[waiting.length]], truncated: false };
         }
         const [limit = 0] = parameters.slice(-2) as number[];
         const [offset = 0] = parameters.slice(-1) as number[];

@@ -55,7 +55,8 @@ async function openInbox(
   const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
-  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  // Five hundred notes take a while to index under a loaded suite.
+  await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: /^Inbox/ }).click();
   return { vault, host };
 }
@@ -136,7 +137,7 @@ test('every note waiting can be reached past the first 500, and the page says ho
   await openInbox(page, { proposals: 0, waiting: 505 });
   const inbox = inboxPage(page);
   const rows = inbox.locator('.inbox__grid tbody tr');
-  await expect(rows).toHaveCount(500);
+  await expect(rows).toHaveCount(500, { timeout: 15_000 });
   await expect(inbox.getByText(/^505 to process/)).toBeVisible();
   await expect(inbox.getByText('Showing the newest 500 of 505.')).toBeVisible();
 

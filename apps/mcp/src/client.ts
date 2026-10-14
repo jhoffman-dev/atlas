@@ -126,6 +126,11 @@ export interface ArchiveListQuery {
   readonly offset?: number;
 }
 
+export interface InboxQuery {
+  readonly limit?: number;
+  readonly offset?: number;
+}
+
 export interface ListNotesQuery {
   readonly folder?: string;
   readonly type?: string;
@@ -368,10 +373,16 @@ export class AtlasClient {
       path: '/v1/meetings',
       query: { ...query, includeArchived: includeArchived === true ? 'true' : undefined },
     });
-  inbox = () =>
-    this.json<{ items: readonly ApiInboxItem[]; truncated: boolean }>({
+  inbox = (query: InboxQuery = {}) =>
+    this.json<{
+      items: readonly ApiInboxItem[];
+      truncated: boolean;
+      next: number | null;
+      total: number;
+    }>({
       method: 'GET',
       path: '/v1/inbox',
+      query: { ...query },
     });
 
   processInbox = (body: ApiProcessInboxBody) =>

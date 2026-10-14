@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { compileInboxQuery } from './inbox.ts';
+import { compileInboxCountQuery, compileInboxQuery } from './inbox.ts';
 
 /**
  * The Inbox's statement run for real against SQLite, over the index's own
@@ -41,13 +41,16 @@ function inboxIndex(notes: readonly IndexedNote[]) {
     for (const [key, day] of note.dates ?? []) date.run(note.path, key, day, day);
     for (const [key, dst] of note.links ?? []) link.run(note.path, key, dst);
   }
-  return (limit?: number, tasksStartInInbox = false) => {
-    const { sql, parameters } = compileInboxQuery({
-      ...(limit !== undefined && { limit }),
-      tasksStartInInbox,
-    });
-    return database.prepare(sql).all(...parameters);
-  };
+  const run = ({ sql, parameters }: { sql: string; parameters: readonly (string | number)[] }) =>
+    database.prepare(sql).all(...parameters);
+  return Object.assign(
+    (limit?: number, tasksStartInInbox = false) =>
+      run(compileInboxQuery({ ...(limit !== undefined && { limit }), tasksStartInInbox })),
+    {
+      page: (limit: number, offset: number) => run(compileInboxQuery({ limit, offset })),
+      count: (tasksStartInInbox = false) => run(compileInboxCountQuery({ tasksStartInInbox })),
+    },
+  );
 }
 
 const inbox = inboxIndex([
@@ -117,6 +120,18 @@ describe('compileInboxQuery', () => {
 
   it('stops at the limit', () => {
     expect(inbox(1)).toHaveLength(1);
+  });
+
+  it('starts a page past the ones before it, in the same order (#167)', () => {
+    expect(named(inbox.page(2, 1))).toEqual([
+      { path: 'Inbox/Call the bank.md', title: 'Call the bank', type: 'task' },
+      { path: 'Inbox/Idea.md', title: 'Idea', type: null },
+    ]);
+    expect(inbox.page(2, 3)).toEqual([]);
+  });
+
+  it('counts what it would list, proposals, hidden and archived notes aside (#167)', () => {
+    expect(inbox.count()).toEqual([{ total: 3 }]);
   });
 });
 

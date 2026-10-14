@@ -83,6 +83,7 @@ function page(overrides: Partial<InboxPageProps> = {}) {
     filing: FILING,
     people: PEOPLE,
     onOpen: vi.fn(),
+    onShowMore: vi.fn(),
     onClarify: vi.fn(async () => true),
     busy: false,
     problem: null,
@@ -156,7 +157,7 @@ describe('InboxPage', () => {
   });
 
   it('says when nothing is waiting', () => {
-    page({ contents: { items: [], truncated: false } });
+    page({ contents: { items: [], truncated: false, total: 0 } });
     expect(screen.getByText(/Nothing is waiting/)).toBeDefined();
     expect(screen.queryByRole('table')).toBeNull();
   });
@@ -208,6 +209,7 @@ describe('InboxPage', () => {
           }),
         ],
         truncated: false,
+        total: 3,
       },
     });
     expect(within(rowOf('New')).getByText('Waiting to be imported')).toBeDefined();
@@ -364,6 +366,7 @@ describe('InboxPage — clarifying a task on its row', () => {
       contents: {
         items: [item('Tasks/Chase.md', 'Chase', 'task', '', { task: held })],
         truncated: false,
+        total: 1,
       },
     });
     expect((control('Status of Chase') as HTMLSelectElement).value).toBe('waiting');

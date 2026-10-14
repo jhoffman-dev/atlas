@@ -18,6 +18,8 @@ export interface InboxContents {
   readonly items: readonly InboxItem[];
   /** More are waiting than are listed. */
   readonly truncated: boolean;
+  /** How many wait in all, listed or not (#167). */
+  readonly total: number;
 }
 
 /** The offer to set the vault's types up for PARA and the Inbox, with what each gains. */
@@ -38,6 +40,8 @@ export interface InboxPageProps {
   /** The statuses a row may give a task: the ones the vault's Task type declares. GTD's eight unless said. */
   statuses?: readonly GtdStatus[];
   onOpen: (path: VaultPath) => void;
+  /** Lists the next page of what waits, once more wait than are listed (#167). */
+  onShowMore: () => void;
   /** Clarifies a note — a task's status, project, wait and dates, or a note's filing (#112). */
   onClarify: ClarifyInboxItem;
   /** While a note is being written, so it is not asked for twice. */
@@ -117,10 +121,10 @@ export function InboxPage(props: InboxPageProps) {
 
 function describe(contents: InboxContents | null, proposals: number): string | null {
   if (contents === null) return null;
-  const count = contents.items.length;
   const toAnswer = proposals === 0 ? '' : ` · ${proposals} to answer`;
-  if (count === 0) return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
-  return `${count}${contents.truncated ? '+' : ''} to process · clarify each task, file each note${toAnswer}`;
+  if (contents.total === 0)
+    return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
+  return `${contents.total} to process · clarify each task, file each note${toAnswer}`;
 }
 
 function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
@@ -198,6 +202,7 @@ function InboxList({
   people = [],
   statuses,
   onOpen,
+  onShowMore,
   onClarify,
   busy,
   refusal = null,
@@ -243,7 +248,12 @@ function InboxList({
         </table>
         {contents.truncated && (
           <footer className="table__footer">
-            <span className="table__count">More are waiting; process these to see them.</span>
+            <span className="table__count">
+              Showing the newest {contents.items.length} of {contents.total}.
+            </span>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={onShowMore}>
+              Show more
+            </button>
           </footer>
         )}
       </div>
