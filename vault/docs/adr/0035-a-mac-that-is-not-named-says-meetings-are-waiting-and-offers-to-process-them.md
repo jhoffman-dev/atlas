@@ -210,10 +210,9 @@ Harder, and what it costs:
   possible conflict copy of a rule's log if a Claude run was in flight on both;
   the ledger's recovery rebuilds from its entries and Activity warns. Rare,
   bounded and visible.
-- **The wake/resume signal is new host work, and unproven.** Whether the host
-  can deliver a reliable signal on every Mac is **not known**; the ticket
-  finds out. If it cannot, what gate 2 does instead is **an unknown with no
-  value chosen here**; a fixed wait is not reintroduced (see H4).
+- **The wake/resume signal is new host work.** _(Amended 2026-10-14, #172,
+  #174: the signal is the host's time asleep since boot, below; no fixed
+  wait is reintroduced, see H4.)_
 - **The named Mac now waits too.** After launch or wake it runs no import and
   no Claude step until a pull completes, and not at all if that pull shows it
   is no longer named. That delays work by up to one pull interval; it is the
@@ -232,8 +231,13 @@ Harder, and what it costs:
 - **Unknown, to be settled in the tickets (I1-I3):** how the settings write
   and the first read behave when `.atlas/settings.md` cannot be read (the
   rule must do nothing, not guess); what the banner says on a Mac whose gates
-  have not held yet; the wake/resume signal above, and what gate 2 does if
-  the host cannot deliver it.
+  have not held yet. _(Amended 2026-10-14, #172, #174: settings that cannot
+  be read after a pull name no Mac, so nothing runs. Gate 2's signal is the
+  host's time asleep since boot (`CLOCK_MONOTONIC_RAW − CLOCK_UPTIME_RAW`),
+  read at the moment of each decision. A pull counts only if it started at
+  the current reading. The did-wake notification is not used for
+  correctness, because dark wakes post none. Proven on one Apple-silicon Mac
+  without a real sleep; the #172 recipe confirms it on each Mac.)_
 - **Status.** Proposed; accepted when the banner, the claim's catch-up and the
   gates have landed, and the wake signal is proven (Phase 1 of the meeting post-processing plan).
 
