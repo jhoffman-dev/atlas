@@ -11408,6 +11408,18 @@ form.inbox__clarify {
   padding-bottom: 96px;
 }
 
+/* The Inbox scrolls as a whole (#164). Filled to the panel like a view's
+   table, its list was what gave way to whatever stood above it — a page of
+   proposals squeezed it into a box a row or two high. Here the list takes the
+   height of its rows, and the panel scrolls past the proposals to reach them. */
+.page--wide.inbox {
+  height: auto;
+}
+
+.page--wide.inbox .table {
+  flex: none;
+}
+
 .inbox__day {
   align-items: center;
   color: var(--ink-3);
