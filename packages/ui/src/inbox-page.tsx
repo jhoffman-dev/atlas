@@ -54,6 +54,8 @@ export interface InboxPageProps {
   problem: string | null;
   /** Why each row's clarification was refused, shown on that row, until it is clarified again. */
   refusals?: readonly InboxRefusal[];
+  /** Why each imported meeting's summary still waits, by path; a meeting not in it waits for none (#186). */
+  summaryPending?: ReadonlyMap<string, string>;
   /** The last clarification, while it can be taken back: a new object for each, kept across renders. */
   lastAction?: { readonly title: string } | null;
   onUndo?: () => void;
@@ -220,6 +222,7 @@ function InboxList({
   onClarify,
   busy,
   refusals = NO_REFUSALS,
+  summaryPending,
 }: InboxPageProps) {
   if (error !== null) {
     return (
@@ -258,6 +261,7 @@ function InboxList({
             onClarify={onClarify}
             busy={busy}
             refusals={refusals}
+            {...(summaryPending !== undefined && { summaryPending })}
           />
         </table>
         {contents.truncated && (

@@ -1,4 +1,5 @@
 import {
+  digestOf,
   foldedVaultPath,
   lastUndoableRun,
   loggedActionProblem,
@@ -10,7 +11,13 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import { unarchiveNotes } from '../archive/archive-notes.ts';
-import { changeProperties, type PropertyChange, type PropertyOutcome } from './apply-changes.ts';
+import { MeetingSummaryRefused, undoMeetingSummary } from '../meetings/write-meeting-summary.ts';
+import {
+  changeProperties,
+  UNSAVED_TYPING,
+  type PropertyChange,
+  type PropertyOutcome,
+} from './apply-changes.ts';
 import { appendForRun, reported } from './automation-activity.ts';
 import { readRuleLog } from './automation-log.ts';
 import { archiveRecord, type AutomationPorts, type AutomationRun } from './run-automation.ts';
@@ -58,12 +65,13 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
   });
   let archived: PropertyOutcome = { done: [], left: [] };
   let restored: PropertyOutcome = { done: [], left: [] };
+  let summaries: PropertyOutcome = { done: [], left: [] };
   const entry = (): LogEntry => ({
     kind: 'undo',
     at,
     of: last.at,
-    done: [...archived.done, ...restored.done],
-    left: [...refused, ...archived.left, ...restored.left],
+    done: [...archived.done, ...restored.done, ...summaries.done],
+    left: [...refused, ...archived.left, ...restored.left, ...summaries.left],
   });
   try {
     archived = await putBack({ ports, run: last, done: trusted });
@@ -73,6 +81,7 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
       kind: 'restored',
       today: clock.today(),
     });
+    summaries = await takeBackSummaries({ ports, done: trusted });
   } finally {
     // As a run does: what the undo changed is logged however it ends, in the rule's own vault.
     await appendForRun({ fs: run.ports.fs, run, entry: entry() });
@@ -146,4 +155,66 @@ function restoringChanges(done: readonly DoneAction[]): PropertyChange[] {
       ? [{ path: action.path, key: action.key, expect: action.after, to: action.before }]
       : [],
   );
+}
+
+const CHANGED_SINCE = 'It was changed since the run made it, so it was kept.';
+const NOT_THERE = 'It is no longer where the run made it, so it was left.';
+
+/**
+ * Takes back what the declared step wrote (#185): each task it made, to the
+ * Trash, while it is still exactly as made; then each meeting's summary
+ * block and keys, while the block is still the one written, with the links
+ * to the tasks trashed. A task changed since stays, and so does its link; a
+ * block edited since stays, and so does the meeting.
+ */
+async function takeBackSummaries({
+  ports,
+  done,
+}: {
+  ports: UndoPorts;
+  done: readonly DoneAction[];
+}): Promise<PropertyOutcome> {
+  const tasks = done.flatMap((action) =>
+    action.kind === 'created' && action.digest !== undefined ? [action] : [],
+  );
+  const meetings = done.flatMap((action) => (action.kind === 'summarised' ? [action] : []));
+  const did: DoneAction[] = [];
+  const left: PassedOver[] = [];
+  for (const { path, digest } of tasks) {
+    const problem = await unchangedTaskProblem(ports, path, digest!);
+    if (problem !== null) {
+      left.push({ path, reason: problem });
+      continue;
+    }
+    await ports.fs.trashEntry({ path });
+    did.push({ kind: 'trashed', path });
+  }
+  const trashed = did.map((action) => ('path' in action ? action.path : action.to));
+  for (const { path, digest } of meetings) {
+    try {
+      await undoMeetingSummary(ports, {
+        meeting: path,
+        digest,
+        trashed,
+        notePaths: ports.notePaths,
+      });
+      did.push({ kind: 'unsummarised', path });
+    } catch (cause) {
+      if (!(cause instanceof MeetingSummaryRefused)) throw cause;
+      left.push({ path, reason: cause.message });
+    }
+  }
+  return { done: did, left };
+}
+
+/** Why a task the run made is not to be trashed: typed in, changed since, or gone; null when it is as made. */
+async function unchangedTaskProblem(
+  ports: UndoPorts,
+  path: VaultPath,
+  digest: string,
+): Promise<string | null> {
+  if (ports.editors.state(path) === 'dirty') return UNSAVED_TYPING;
+  const [file] = await ports.fs.readNotes([path]);
+  if (file === undefined) return NOT_THERE;
+  return digestOf(file.text) === digest ? null : CHANGED_SINCE;
 }

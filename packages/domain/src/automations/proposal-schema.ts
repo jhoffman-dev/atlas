@@ -95,6 +95,37 @@ export interface DroppedItem {
   readonly reason: string;
 }
 
+/** What an answer says of its note besides its list (`meeting-digest`, #184). */
+export interface AnsweredSummary {
+  /** What the note was for and what came of it: a paragraph. */
+  readonly summary: string;
+  readonly keyPoints: readonly string[];
+  readonly openQuestions: readonly string[];
+}
+
+/**
+ * An answer's summary, read: kept, dropped with why — the answer's list is
+ * kept either way — or absent, an answer given before its schema summarised.
+ */
+export type SummaryReading =
+  | { readonly kind: 'read'; readonly value: AnsweredSummary }
+  | { readonly kind: 'dropped'; readonly problem: string }
+  | { readonly kind: 'absent' };
+
+/**
+ * What a schema's answer says besides its list: the keys, what each is, and
+ * how they are read. A summary that does not read is dropped, never the
+ * answer: its list is what the run acts on.
+ */
+export interface AnswerSummarySchema {
+  /** The answer's keys besides the list's. */
+  readonly keys: readonly string[];
+  /** What they are, told to the model before the list, as `"key": what, …`. */
+  readonly shape: string;
+  /** The summary the answer's keys hold, or why it is dropped. */
+  readonly read: (answer: Readonly<Record<string, unknown>>) => SummaryReading;
+}
+
 /** What a schema's item proposes, before the shared rules have checked it. */
 export interface ProposalDraft {
   readonly kind: NoteProposalKind;
@@ -252,6 +283,12 @@ export interface ProposalSchema<Item> {
   readonly readsInParts?: boolean;
   /** What the model is told beside the notes of one ask, as data. */
   readonly dataFor?: (context: AnswerContext) => readonly PromptData[];
+  /**
+   * What the answer says of its note besides the list, for a schema whose
+   * answer also summarises it (`meeting-digest`, #184). Left out, the answer
+   * is the list alone.
+   */
+  readonly summary?: AnswerSummarySchema;
 }
 
 /** Told to the model so a refusal is rare; the checks hold either way. */
@@ -273,6 +310,8 @@ export interface RegisteredProposalSchema {
   /** The relations of a meeting its proposals join on Accept. */
   readonly meetingRelations: readonly string[];
   readonly dataFor: (context: AnswerContext) => readonly PromptData[];
+  /** Whether its answer also summarises its note: every reading then says what of. */
+  readonly summarises: boolean;
 }
 
 /** An answer read: its proposals, and the items left out of it. */
@@ -283,6 +322,8 @@ export type AnswerReading =
       readonly dropped: readonly DroppedItem[];
       /** Items kept with a fault put right, and what was put right. */
       readonly adjusted: readonly DroppedItem[];
+      /** For a schema that summarises: its summary, read. */
+      readonly summary?: SummaryReading;
     }
   | { readonly ok: false; readonly problem: string };
 
@@ -297,20 +338,32 @@ export function registerProposalSchema<Item>(
   }
   return {
     name: schema.name,
-    instructions: [
-      `Answer with JSON only, and nothing around it: { "${schema.key}": [ … ] }, at most ${MAX_PROPOSALS_PER_ANSWER} items.`,
-      `Each item is ${schema.itemShape}`,
-      schema.citation ?? DEFAULT_CITATION,
-      PLAIN_TEXT,
-      `If there is nothing to propose, answer { "${schema.key}": [] }.`,
-    ].join('\n'),
+    instructions: answerInstructions(schema),
     read: (answer, context) => readAnswer({ schema, answer, context }),
     readsVault: schema.readsVault === true,
     readsInParts: schema.readsInParts === true,
     handledKeyOf: schema.handledKeyOf ?? null,
     meetingRelations: schema.meetingRelations ?? [],
     dataFor: (context) => schema.dataFor?.(context) ?? [],
+    summarises: schema.summary !== undefined,
   };
+}
+
+/** What the model is told its answer must be: the list, and before it any summary the schema asks for. */
+function answerInstructions<Item>(schema: ProposalSchema<Item>): string {
+  const { summary } = schema;
+  const besides =
+    summary === undefined ? '' : `${summary.keys.map((key) => `"${key}": …`).join(', ')}, `;
+  const empty =
+    summary === undefined ? `{ "${schema.key}": [] }` : `the rest with "${schema.key}": []`;
+  return [
+    `Answer with JSON only, and nothing around it: { ${besides}"${schema.key}": [ … ] }, at most ${MAX_PROPOSALS_PER_ANSWER} items.`,
+    ...(summary === undefined ? [] : [summary.shape]),
+    `Each item is ${schema.itemShape}`,
+    schema.citation ?? DEFAULT_CITATION,
+    PLAIN_TEXT,
+    `If there is nothing to propose, answer ${empty}.`,
+  ].join('\n');
 }
 
 function readAnswer<Item>({
@@ -328,7 +381,11 @@ function readAnswer<Item>({
   if (!isRecord(parsed.value) || !Array.isArray(list)) {
     return refused(`It is not { "${schema.key}": [ … ] }.`);
   }
-  const extra = unknownKeyProblem(parsed.value, [schema.key], 'The answer');
+  const extra = unknownKeyProblem(
+    parsed.value,
+    [schema.key, ...(schema.summary?.keys ?? [])],
+    'The answer',
+  );
   if (extra !== null) return refused(extra);
   if (list.length > MAX_PROPOSALS_PER_ANSWER) {
     return refused(
@@ -355,7 +412,14 @@ function readAnswer<Item>({
       return refused(`It made more than ${MAX_PROPOSALS_PER_ANSWER} proposals in one run.`);
     }
   }
-  return { ok: true, value: inNoteOrder(schema, checked, context), dropped, adjusted };
+  const summary = schema.summary?.read(parsed.value);
+  return {
+    ok: true,
+    value: inNoteOrder(schema, checked, context),
+    dropped,
+    adjusted,
+    ...(summary !== undefined && { summary }),
+  };
 }
 
 /** The proposals in the order of the note they cite, when the schema can say where each falls; else as listed. */

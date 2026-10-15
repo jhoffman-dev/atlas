@@ -39,6 +39,15 @@ const isSetValue = (prior: PriorValue): boolean =>
  * null when the rule could have done it.
  */
 export function loggedActionProblem(action: AutomationAction, line: DoneAction): string | null {
+  const declared = action.kind === 'claude' && action.apply === 'mine';
+  if (line.kind === 'summarised') {
+    if (!declared) return 'Only the rule that makes your own action items writes a summary.';
+    return isAtlasNote(line.path) ? 'Atlas keeps its own files as they are.' : null;
+  }
+  // The declared step's own tasks are logged with what it wrote, and trashed only while unchanged (#185).
+  if (line.kind === 'created' && declared && line.digest !== undefined) {
+    return isAtlasNote(line.path) ? 'Atlas keeps its own files as they are.' : null;
+  }
   if (line.kind === 'proposed' || line.kind === 'created') {
     return 'What a Claude step made is answered in the Inbox, or kept or deleted by you; undo leaves it.';
   }

@@ -133,10 +133,23 @@ const OWNERS_BOOK = {
   confidence: 'medium',
 };
 
+/** The step's answer as it is asked for it (#184): a summary of the meeting, and its items. */
 const answer = (...items: unknown[]) => [
-  { type: 'text' as const, text: JSON.stringify({ items }) },
+  {
+    type: 'text' as const,
+    text: JSON.stringify({
+      summary: 'The renewal is on track; the contract goes out this week.',
+      key_points: [],
+      open_questions: [],
+      items,
+    }),
+  },
 ];
 const TWO_MINE_ONE_TOBIAS = answer(OWNERS_SEND, TOBIAS_FLAG, OWNERS_BOOK);
+/** What a rule that only proposes (`meeting-items`) is answered: the items alone. */
+const itemsOnly = (...items: unknown[]) => [
+  { type: 'text' as const, text: JSON.stringify({ items }) },
+];
 
 function setUp({
   rounds = [TWO_MINE_ONE_TOBIAS],
@@ -221,8 +234,8 @@ describe('a meeting that arrives after the rule', () => {
     expect(proposals).toHaveLength(1);
     expect(vault.files.get(proposals[0]!)).toContain('Flag the new cache');
     expect(entry).toMatchObject({ kind: 'run', claude: { asks: 1 } });
-    expect(activity.reports.map((report) => report.message).join('\n')).toContain(
-      'Made 2 tasks from 2026-10-14 Renewal review, 1 proposal.',
+    expect(activity.reports.map((report) => report.message).join('\n')).toMatch(
+      /Summary written by claude-sonnet-5-5 in \d+ s for 2026-10-14 Renewal review; 2 tasks made, 3 items listed, 1 proposal\./,
     );
   });
 
@@ -263,7 +276,11 @@ describe('a meeting that arrives after the rule', () => {
     ]);
     expect(notesIn(PROPOSALS)).toEqual(proposals);
     expect(vault.properties(MEETING)['tasks']).toHaveLength(2);
-    expect(entry).toMatchObject({ kind: 'run', done: [] });
+    // Nothing made: only the summary, of the corrected words, written again in place (#185).
+    expect(entry).toMatchObject({
+      kind: 'run',
+      done: [{ kind: 'summarised', path: MEETING }],
+    });
   });
 
   it('reuses the answer it kept when a task could not be made, asking nothing on the retry', async () => {
@@ -357,7 +374,7 @@ const proposeOnly = (vault: ReturnType<typeof setUp>['vault']) =>
 describe('a leftover proposal for an item already made', () => {
   it('is refused on Accept as already made, and archived, making no second task', async () => {
     const { vault, arrived, notesIn, tasks } = setUp({
-      rounds: [TWO_MINE_ONE_TOBIAS, TWO_MINE_ONE_TOBIAS],
+      rounds: [TWO_MINE_ONE_TOBIAS, itemsOnly(OWNERS_SEND, TOBIAS_FLAG, OWNERS_BOOK)],
     });
     await arrived();
     // A rule that only proposes reads the same meeting: the owner's items come back as proposals.
@@ -381,7 +398,10 @@ describe('a leftover proposal for an item already made', () => {
 
   it('is accepted as before when its item was made a task under another title', async () => {
     const { vault, arrived, notesIn, tasks } = setUp({
-      rounds: [TWO_MINE_ONE_TOBIAS, answer({ ...OWNERS_SEND, title: 'Post the renewal contract' })],
+      rounds: [
+        TWO_MINE_ONE_TOBIAS,
+        itemsOnly({ ...OWNERS_SEND, title: 'Post the renewal contract' }),
+      ],
     });
     await arrived();
     await proposeOnly(vault);

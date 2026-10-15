@@ -210,6 +210,9 @@ describe('ensureBuiltInTypes', () => {
       'atlas_duplicate_of',
       'tasks',
       'decisions',
+      'atlas_summary_digest',
+      'atlas_summary_of',
+      'atlas_summary_model',
     ]);
     const [extension] = ensured.offer.extensions;
     expect(ensured.offer.extensions).toHaveLength(1);
@@ -284,6 +287,9 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
       'atlas_duplicate_of',
       'tasks',
       'decisions',
+      'atlas_summary_digest',
+      'atlas_summary_of',
+      'atlas_summary_model',
     ]);
     expect(properties['atlas_import_outcome']).toEqual({
       kind: 'select',
@@ -299,7 +305,11 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     const decisions = meeting?.properties.find((property) => property.key === 'decisions');
     expect(relationTypes(decisions ?? { target: null })).toEqual(['decision']);
     expect(ensured.properties.gained).toEqual([
-      { path: '.atlas/types/meeting.md', label: 'Meeting', added: ['Tasks', 'Decisions'] },
+      {
+        path: '.atlas/types/meeting.md',
+        label: 'Meeting',
+        added: ['Tasks', 'Decisions', 'Summary digest', 'Summary of', 'Summary model'],
+      },
     ]);
     expect(ensured.properties.failed).toEqual([]);
     // Only PARA's project is left to ask about: the shipped keys are no longer offered.
@@ -315,7 +325,9 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
 
     const record = v.files.get(RECORD) ?? '';
     expect(record).toMatch(/^---\natlas: migration\n---\n/);
-    expect(record).toContain('"added":{"meeting":["tasks","decisions"]}');
+    expect(record).toContain(
+      '"added":{"meeting":["tasks","decisions","atlas_summary_digest","atlas_summary_of","atlas_summary_model"]}',
+    );
   });
 
   it('leaves a property the person changed as it is, even where it differs from what Atlas ships', async () => {
@@ -344,8 +356,13 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
       'atlas_import_error',
       'atlas_duplicate_of',
       'decisions',
+      'atlas_summary_digest',
+      'atlas_summary_of',
+      'atlas_summary_model',
     ]);
-    expect(ensured.properties.gained.map((gained) => gained.added)).toEqual([['Decisions']]);
+    expect(ensured.properties.gained.map((gained) => gained.added)).toEqual([
+      ['Decisions', 'Summary digest', 'Summary of', 'Summary model'],
+    ]);
   });
 
   it('changes nothing when the vault is opened again', async () => {
@@ -425,6 +442,9 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
       atlas_duplicate_of: { kind: 'relation', target: 'meeting' },
       tasks: { kind: 'relation', target: 'task', many: true },
       decisions: { kind: 'relation', target: 'decision', many: true },
+      atlas_summary_digest: 'text',
+      atlas_summary_of: 'text',
+      atlas_summary_model: 'text',
     };
     const complete = note({ name: 'meeting', label: 'Meeting', properties: shipped });
     const v = vault({ '.atlas/types/meeting.md': complete });
@@ -458,7 +478,15 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
 
     expect(propertiesOf(v, '.atlas/types/meeting.md')['tasks']).toEqual({ kind: 'relation' });
     expect(ensured.properties.gained.map((gained) => gained.added)).toEqual([
-      ['Import', 'Import error', 'Duplicate of', 'Decisions'],
+      [
+        'Import',
+        'Import error',
+        'Duplicate of',
+        'Decisions',
+        'Summary digest',
+        'Summary of',
+        'Summary model',
+      ],
     ]);
     expect(v.files.get(RECORD) ?? '').toContain('"added":{"meeting":["atlas_import_outcome"');
     expect(v.files.get(RECORD) ?? '').not.toMatch(/"added":\{"meeting":\[[^\]]*"tasks"/);
@@ -501,7 +529,9 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
 
     expect(later.properties.gained.map((gained) => gained.label)).toEqual(['daily']);
     const record = v.files.get(RECORD) ?? '';
-    expect(record).toContain('"added":{"meeting":["tasks","decisions"],"daily":["tags"]}');
+    expect(record).toContain(
+      '"added":{"meeting":["tasks","decisions","atlas_summary_digest","atlas_summary_of","atlas_summary_model"],"daily":["tags"]}',
+    );
     expect(record.match(/# Properties added to built-in types/g)).toHaveLength(1);
   });
 
@@ -665,6 +695,9 @@ describe('acceptTypeSetup', () => {
       'atlas_duplicate_of',
       'tasks',
       'decisions',
+      'atlas_summary_digest',
+      'atlas_summary_of',
+      'atlas_summary_model',
     ]);
     expect(relationTypes(widened?.properties[0] ?? { target: null })).toEqual(['project', 'area']);
   });

@@ -124,6 +124,12 @@ function doneLine(action: DoneAction): LogLineView {
       return { kind: 'done', text: `Proposed ${noteTitle(action.path)} (${action.path})` };
     case 'created':
       return { kind: 'done', text: `Made ${noteTitle(action.path)} (${action.path})` };
+    case 'summarised':
+      return { kind: 'done', text: `Wrote the summary at the top of ${noteTitle(action.path)}` };
+    case 'trashed':
+      return { kind: 'done', text: `Trashed ${noteTitle(action.path)} (${action.path})` };
+    case 'unsummarised':
+      return { kind: 'done', text: `Took the summary off ${noteTitle(action.path)}` };
   }
 }
 

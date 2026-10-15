@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { newLogText, placeSummary, renderSummaryBlock, type LogEntry } from '@atlas/domain';
 import { apiFixture, bodyOf, codeOf } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 import { atlasQueryIndex } from '../testing/query-index.ts';
@@ -87,6 +88,8 @@ describe('GET /v1/meetings', () => {
       importOutcome: 'imported',
       importError: null,
       duplicateOf: null,
+      // No rule in this vault writes summaries.
+      summary: 'none',
     });
     expect((body['meetings'] as unknown[])[1]).toMatchObject({
       title: '2026-10-02 Vendor call',
@@ -214,5 +217,124 @@ describe('GET /v1/meetings: adversarial, round 3', () => {
       path: 'Inbox/Meetings/2026-10-06 Standup.md',
       importOutcome: 'imported',
     });
+  });
+});
+
+describe('GET /v1/meetings: where each summary stands (#186)', () => {
+  const TRANSCRIPT = '\n## Transcript\n\n**Mara Quill** [00:00:01] Shall we ship it? ^t0001\n';
+  const BLOCK = renderSummaryBlock({
+    model: 'claude-sonnet-5-5',
+    date: '2026-09-22',
+    summary: 'Larkspur Payroll agreed to ship the cache behind a flag.',
+    keyPoints: [],
+    decisions: [],
+    actionItems: [],
+    openQuestions: [],
+  }).text;
+  const placed = placeSummary(TRANSCRIPT, BLOCK, { recorded: null });
+  if (!placed.ok) throw new Error('not placed');
+  const file = (fields: Record<string, unknown>, body: string) =>
+    `---\n${JSON.stringify({
+      type: 'meeting',
+      atlas_import: 'meeting/v1',
+      provider: 'granola',
+      atlas_import_outcome: 'imported',
+      ...fields,
+    })}\n---\n${body}`;
+  const AFTER = jsonNote({
+    atlas: 'automation',
+    enabled: true,
+    id: 'after',
+    name: 'After a meeting',
+    when: 'a meeting is created',
+    which: 'FROM meeting',
+    do: 'claude',
+    prompt: '.atlas/prompts/after-a-meeting.md',
+    output: 'meeting-items',
+    apply: 'mine',
+  });
+  const FAILED: LogEntry = {
+    kind: 'failed',
+    at: '2026-09-22T08:00:00',
+    trigger: 'note',
+    problem: 'Claude Code is not logged in. Fix: run claude /login',
+  };
+  const MEETINGS = {
+    'Meetings/2026/09/2026-09-21 Written.md': file(
+      { external_id: 'w', date: '2026-09-21', atlas_summary_digest: placed.digest },
+      placed.body,
+    ),
+    'Meetings/2026/09/2026-09-20 Edited.md': file(
+      { external_id: 'e', date: '2026-09-20', atlas_summary_digest: placed.digest },
+      placed.body.replace('flag.', 'flag!'),
+    ),
+    'Meetings/2026/09/2026-09-19 Waiting.md': file(
+      { external_id: 'p', date: '2026-09-19' },
+      TRANSCRIPT,
+    ),
+    'Meetings/2026/09/2026-09-18 No transcript.md': file(
+      { external_id: 'n', date: '2026-09-18' },
+      '\n## Summary\n\nShort.\n',
+    ),
+    'Meetings/2026/08/2026-08-01 Long ago.md': file(
+      { external_id: 'o', date: '2026-08-01' },
+      TRANSCRIPT,
+    ),
+  };
+
+  const send = (files: Record<string, string>) => {
+    const markdown = jsonMarkdown();
+    return apiFixture({
+      files,
+      markdown,
+      index: { query: atlasQueryIndex({ files, markdown }) },
+    }).send({ method: 'GET', path: '/v1/meetings' });
+  };
+  const summaries = (body: Record<string, unknown>) =>
+    Object.fromEntries(
+      (body['meetings'] as { path: string; summary: unknown; summaryPendingWhy?: unknown }[]).map(
+        (each) => [each.path, [each.summary, each.summaryPendingWhy]],
+      ),
+    );
+
+  it('says written, edited, pending and none, and why a pending one waits', async () => {
+    const body = bodyOf(
+      await send({
+        ...MEETINGS,
+        '.atlas/automations/After a meeting.md': AFTER,
+        '.atlas/automations/log/after.md': newLogText('After a meeting', [FAILED]),
+      }),
+    );
+    expect(summaries(body)).toEqual({
+      'Meetings/2026/09/2026-09-21 Written.md': ['written', undefined],
+      'Meetings/2026/09/2026-09-20 Edited.md': ['edited', undefined],
+      'Meetings/2026/09/2026-09-19 Waiting.md': [
+        'pending',
+        'Claude Code is not logged in. Fix: run claude /login',
+      ],
+      'Meetings/2026/09/2026-09-18 No transcript.md': ['none', undefined],
+      // Older than the 14 days the rule reaches.
+      'Meetings/2026/08/2026-08-01 Long ago.md': ['none', undefined],
+    });
+  });
+
+  it('says a pending summary waits for the rule when its last run did not fail', async () => {
+    const body = bodyOf(
+      await send({ ...MEETINGS, '.atlas/automations/After a meeting.md': AFTER }),
+    );
+    expect(summaries(body)['Meetings/2026/09/2026-09-19 Waiting.md']).toEqual([
+      'pending',
+      'waiting for “After a meeting” to run',
+    ]);
+  });
+
+  it('says none for a meeting no rule will summarise, the rule being off', async () => {
+    const off = AFTER.replace('"enabled":true', '"enabled":false');
+    const body = bodyOf(await send({ ...MEETINGS, '.atlas/automations/After a meeting.md': off }));
+    expect(summaries(body)['Meetings/2026/09/2026-09-19 Waiting.md']).toEqual(['none', undefined]);
+    expect(summaries(body)['Meetings/2026/09/2026-09-21 Written.md']).toEqual([
+      'written',
+      undefined,
+    ]);
   });
 });

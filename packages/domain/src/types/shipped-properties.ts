@@ -1,6 +1,7 @@
 import { DAILY_TYPE_FILE } from '../daily/daily-note.ts';
 import { MEETING_TYPE } from '../meetings/meeting-header.ts';
 import { MEETING_EXTRACTION_PROPERTIES } from '../meetings/meeting-extraction-properties.ts';
+import { MEETING_SUMMARY_PROPERTIES } from '../meetings/meeting-summary-block.ts';
 import { MEETING_IMPORT_PROPERTIES } from '../meetings/meeting-import-properties.ts';
 import { PROPOSAL_TYPE_FILES } from '../proposals/proposal-types.ts';
 import { BLOCK_TYPE_FILE } from '../timeblocks/block-type.ts';
@@ -28,7 +29,10 @@ const SHIPPED: ReadonlyMap<string, readonly PropertyDef[]> = new Map([
   ...[...PROPOSAL_TYPE_FILES, DAILY_TYPE_FILE, BLOCK_TYPE_FILE].map(
     (file) => [file.type.name, file.type.properties] as const,
   ),
-  [MEETING_TYPE, [...MEETING_IMPORT_PROPERTIES, ...MEETING_EXTRACTION_PROPERTIES]],
+  [
+    MEETING_TYPE,
+    [...MEETING_IMPORT_PROPERTIES, ...MEETING_EXTRACTION_PROPERTIES, ...MEETING_SUMMARY_PROPERTIES],
+  ],
 ]);
 
 /**

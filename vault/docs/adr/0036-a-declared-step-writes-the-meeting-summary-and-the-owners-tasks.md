@@ -324,6 +324,34 @@ the maintainer's vault was answered under the old key.
 | Copies arrive on two Macs between syncs                                        | Each is let in on its Mac; after the sync both are originals and the sweep lists the pair. Only one Mac is named at a time (ADR-0035 adds no automatic hand-over), so this needs the person to claim on one Mac between syncs: rare. Tasks key on the primary, first-imported copy; tasks already made from both are not merged. |
 | 28 waiting meetings and 600 old ones when the rule is saved                    | The rule hears meetings written after its own file (ADR-0028); the 14-day `which` bounds the rest; the backfill makes proposals, not tasks; the per-run cap of 10 asks and the vault-wide hourly allowance of 30 asks for the step hold.                                                                                         |
 
+### Amended 2026-10-15 (#183-#186)
+
+- **What the block lists.** Besides the summary, the key points and the
+  action items, the block lists the meeting's **Decisions** (the answer's
+  `decision` items, by title) and up to four **Open questions** (a new
+  optional `open_questions` key of `meeting-digest`), as the maintainer asked
+  on 2026-10-15: what he needs at a glance. The cut order when the block is
+  too long: open questions, action items past the third ("and N more"),
+  decisions past the second, key points past the second, then the summary.
+- **The closing marker stands outside the callout**, on its own line after
+  a blank one, not as the callout's last line as the example above shows:
+  inside the quote, the editor reads the whole callout as opaque code.
+- **A rule saved with `output: meeting-items` and `apply: mine`** (the #179
+  preset, and the maintainer's vault) is read as `meeting-digest`: the
+  declared step always summarises. Its file is not rewritten, since when it
+  was saved is what tells an arrival from a backfill.
+- **The reduce is planned per meeting.** A meeting read in parts takes its
+  reduce ask out of the same 10, so a run never starts parts it cannot merge;
+  the budget's separate `reservedPerRun` is gone.
+- **A refused block is kept, not proposed.** An edited, broken or removed
+  block is left as the person has it and the run says so (Activity, the
+  rule's log, the meeting's summary state `edited`); the tasks are still
+  joined. The "Replace the summary" proposal is a follow-up, not built here.
+- **With unsaved typing in the meeting**, no task is made from it either
+  (`makeTaskFromMeeting` refuses, as Accept does): the run fails, keeps its
+  answer, and the retry makes the tasks and writes the summary without
+  asking again.
+
 ## Alternatives considered
 
 - **Keep proposals only (the status quo, ADR-0028).** Honours "AI proposes,

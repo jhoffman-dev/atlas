@@ -67,6 +67,7 @@ const NOTE_OUTPUT = 'note';
 const OUTPUT_LABELS: Readonly<Record<string, string>> = {
   proposals: 'Proposals in the Inbox',
   'meeting-items': 'A meeting’s actions and decisions, as proposals',
+  'meeting-digest': 'A summary at the top of the meeting, with its actions and decisions',
   [NOTE_OUTPUT]: 'One new note',
 };
 

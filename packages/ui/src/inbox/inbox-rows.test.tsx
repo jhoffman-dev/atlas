@@ -58,3 +58,27 @@ describe('InboxRows — a row kept from the last render (#217)', () => {
     expect(screen.getByRole('alert').textContent).toBe('the disk is full');
   });
 });
+
+describe('InboxRows — a meeting whose summary still waits (#186)', () => {
+  const meeting: InboxItem = {
+    path: createVaultPath('Meetings/2026/10/2026-10-14 Larkspur Payroll sync.md'),
+    title: '2026-10-14 Larkspur Payroll sync',
+    type: 'meeting',
+    arrivedIn: '',
+    importOutcome: 'imported',
+    importError: null,
+    task: null,
+  };
+
+  it('says on its row that the summary is pending, and why', () => {
+    const why = 'Claude Code is not logged in. Fix: run claude /login';
+    render(<InboxPage {...props([meeting])} summaryPending={new Map([[meeting.path, why]])} />);
+    expect(screen.getByText(`Summary pending: ${why}`)).toBeDefined();
+  });
+
+  it('says nothing of a summary for a meeting that waits for none', () => {
+    const view = render(<InboxPage {...props([meeting])} summaryPending={new Map()} />);
+    expect(screen.getByRole('button', { name: meeting.title })).toBeDefined();
+    expect(view.container.textContent).not.toContain('Summary pending');
+  });
+});

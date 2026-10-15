@@ -8,19 +8,32 @@ import {
   claudeRunAsks,
   claudeStepBudget,
   claudeStepModel,
+  claudeStepOutput,
   claudeStepSystem,
   claudeSystemProblem,
   claudeWriteRefusal,
   createVaultPath,
+  DIGEST_REDUCE_INSTRUCTIONS,
+  DIGEST_REDUCE_PROMPT,
+  digestReduceData,
   isPromptPath,
   MAX_PROPOSALS_PER_ANSWER,
-  messageWithoutPaths,
   MEETING_TYPE,
+  meetingSummaryOf,
+  messageWithoutPaths,
   NOTE_ANSWER_INSTRUCTIONS,
+  noteTitle,
+  partSummaries,
   proposalSchemaNamed,
+  readDigestReduce,
   readNoteAnswer,
+  reducePartMark,
+  renderSummaryBlock,
   splitFrontmatter,
+  summarisedAlready,
+  transcriptDigestOf,
   truncated,
+  withoutSummaryBlock,
   type AnsweredNote,
   type AnswerReading,
   type AnswerVault,
@@ -38,6 +51,8 @@ import {
   type RegisteredProposalSchema,
   type StoredAnswer,
   type StoredAnswerDraft,
+  type SummaryOutcome,
+  type SummaryReading,
   type VaultPath,
 } from '@atlas/domain';
 import { ModelProviderError, type ModelProvider, type ProviderStatus } from '../chat/ports.ts';
@@ -53,6 +68,7 @@ import { planProposals, type ProposalWritePorts } from '../proposals/write-propo
 import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
 import { readMadeItems } from '../meetings/made-items.ts';
+import { MeetingSummaryRefused, writeMeetingSummary } from '../meetings/write-meeting-summary.ts';
 import { HeldForPullError } from './fresh-pull-hold.ts';
 import {
   decideForMeeting,
@@ -220,8 +236,8 @@ interface StepArgs extends ProposalWritePorts {
  * It asks the model its rule names, else its default (`claudeStepModel`: Sonnet
  * for the declared step, #179), and never more often than its budget lets one
  * run, nor than its hourly allowance has left (`claudeRunAsks`): an ask past
- * either fails the run with nothing written. The declared step plans its
- * notes' parts with one ask kept back, for the reduce (#184).
+ * either fails the run with nothing written. An output that summarises
+ * plans one reduce for each meeting it reads in parts, out of the same asks (#184).
  *
  * The declared step (`apply: mine`, ADR-0036) makes the owner's own action
  * items into tasks, linked both ways, without a click: which ones is decided
@@ -271,9 +287,21 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   if (!status.ready) return fail(fixIt(status));
   const prompt = await readPrompt(args.fs, createVaultPath(action.prompt));
   if (typeof prompt !== 'string') return fail(prompt.problem);
-  const notes = await readAnswered(args, args.paths);
+  const read = await readAnswered(args, args.paths);
+  // Only the declared step writes a summary (ADR-0036): any other rule is told so, and asks for none.
+  const named = output.kind === 'proposals' && output.schema.summarises;
+  const summarises = named && action.apply === 'mine';
+  if (named && !summarises) warnings.push(SUMMARY_ONLY_DECLARED);
+  const { notes, summarised } = summarises
+    ? toSummarise(read)
+    : { notes: read.notes, summarised: [] };
   const inParts = output.kind === 'proposals' && output.schema.readsInParts;
-  const plan = claudeAsks(notes, { inParts, asks: claudeRunAsks(budget, askedThisHour).parts });
+  // A summarising output plans one reduce for each meeting read in parts, out of the same asks (#184).
+  const plan = claudeAsks(notes, {
+    inParts,
+    asks: claudeRunAsks(budget, askedThisHour),
+    reduces: summarises,
+  });
   cut = plan.cut;
   const signal = ports.deadline(CLAUDE_RUN_TIMEOUT_MS);
   const asking = { ...args, provider, model, prompt, output, fail, signal };
@@ -298,13 +326,25 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
             adjusted,
             toStore,
           });
-    const { planned, proposed, tasks = [] } = answered;
+    const { planned, proposed, tasks = [], summaries = [] } = answered;
     // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
     alreadyMade = Math.max(0, proposed - planned.length);
     await args.beforeWrite?.();
-    const done = await writeAll({ args, tasks, planned, claudeRun, stored: toStore });
-    meetings = (answered.meetings ?? []).map((meeting) => tallyOf(meeting, tasks, planned));
-    return { done, left: plan.skipped, claude: claudeRun() };
+    const written = await writeAll({
+      args,
+      tasks,
+      planned,
+      summaries: action.apply === 'mine' ? summaries : [],
+      model,
+      read: read.files,
+      warnings,
+      claudeRun,
+      stored: toStore,
+    });
+    meetings = (answered.meetings ?? []).map((meeting) =>
+      tallyOf(meeting, tasks, planned, summaries, written.summaries),
+    );
+    return { done: written.done, left: [...plan.skipped, ...summarised], claude: claudeRun() };
   } catch (error) {
     if (error instanceof ClaudeStepFailed || error instanceof HeldForPullError) throw error;
     // Anything else after the model was asked (the index, the disk) still cost an ask: on record, then raised.
@@ -315,18 +355,55 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   }
 }
 
-/** What the declared step made of one meeting it read: its tasks, and its proposals written. */
+/**
+ * What the declared step made of one meeting it read: its tasks, its
+ * proposals written, and — when it summarises — what its summary lists and
+ * what became of it.
+ */
 function tallyOf(
   meeting: VaultPath,
   tasks: readonly PlannedTask[],
   planned: readonly PlannedNote[],
+  summaries: readonly PlannedSummary[],
+  outcomes: ReadonlyMap<VaultPath, SummaryOutcome>,
 ): MeetingTally {
+  const summary = summaries.find((each) => each.meeting === meeting);
+  const outcome = outcomes.get(meeting);
   return {
     path: meeting,
     tasks: tasks.filter((task) => task.meeting.path === meeting).length,
     proposals: planned.filter((note) => note.meeting === meeting).length,
+    ...(summary !== undefined &&
+      outcome !== undefined && { listed: summary.listed, summary: outcome }),
   };
 }
+
+/** What the run says when a rule that is not the declared step names a summarising output. */
+const SUMMARY_ONLY_DECLARED =
+  'Only a rule that says apply: mine writes a meeting’s summary; this one wrote none.';
+
+/**
+ * The meetings a summarising run asks about, each shown without the summary
+ * block it wrote (the model never summarises its own summary), and those it
+ * leaves: a meeting whose summary is of the words it holds now is skipped
+ * without asking (#185).
+ */
+function toSummarise(read: ReadNotes): { notes: AnsweredNote[]; summarised: NoteSkipped[] } {
+  const notes: AnsweredNote[] = [];
+  const summarised: NoteSkipped[] = [];
+  for (const note of read.notes) {
+    const properties = read.files.get(note.path)?.properties ?? {};
+    if (summarisedAlready(properties, note.text)) {
+      summarised.push({ path: note.path, reason: SUMMARISED_ALREADY });
+    } else {
+      notes.push({ ...note, text: withoutSummaryBlock(note.text) });
+    }
+  }
+  return { notes, summarised };
+}
+
+const SUMMARISED_ALREADY =
+  'Its summary is of the words it holds now, so Claude was not asked about it again.';
 
 /**
  * What the chat panel shows when the provider cannot be used, in one line.
@@ -358,6 +435,18 @@ async function readPrompt(
     : body;
 }
 
+/** The notes a run read, and each one's file as it was read: when, and its properties. */
+interface ReadNotes {
+  readonly notes: readonly AnsweredNote[];
+  readonly files: ReadonlyMap<VaultPath, ReadFile>;
+}
+
+/** A note's file as the run read it: a write to it later is refused if it changed since. */
+interface ReadFile {
+  readonly modified: number;
+  readonly properties: Readonly<Record<string, unknown>>;
+}
+
 /**
  * The notes as they are on disk, each said to be a meeting — and which —
  * when its own frontmatter says so: the run's word, which no answer changes.
@@ -365,17 +454,17 @@ async function readPrompt(
 async function readAnswered(
   { fs, markdown }: Pick<ProposalWritePorts, 'fs' | 'markdown'>,
   paths: readonly VaultPath[],
-): Promise<AnsweredNote[]> {
-  const files = await fs.readNotes(paths);
-  return files.map((file) => {
+): Promise<ReadNotes> {
+  const read = await fs.readNotes(paths);
+  const files = new Map<VaultPath, ReadFile>();
+  const notes = read.map((file) => {
+    const path = createVaultPath(file.path);
     const properties = markdown.frontmatterProperties(splitFrontmatter(file.text).frontmatter);
+    files.set(path, { modified: file.modified, properties });
     const meeting = answeredMeetingOf(properties);
-    return {
-      path: createVaultPath(file.path),
-      text: file.text,
-      ...(meeting !== undefined && { meeting }),
-    };
+    return { path, text: file.text, ...(meeting !== undefined && { meeting }) };
   });
+  return { notes, files };
 }
 
 /** What every ask of one run shares: the step's arguments, and what it read before asking. */
@@ -478,7 +567,8 @@ type StepOutput =
     };
 
 /** The rule's output as a run reads it, or why it cannot be run: a schema no longer registered, a folder no step writes in. */
-function outputOf({ output }: ClaudeAction): StepOutput | string {
+function outputOf(action: ClaudeAction): StepOutput | string {
+  const output = claudeStepOutput(action);
   if (output.kind === 'note') {
     const refusal = claudeWriteRefusal(output.folder);
     if (refusal !== null) return refusal;
@@ -505,6 +595,21 @@ interface AnswerPlanned {
   readonly tasks?: readonly PlannedTask[];
   /** For the declared step: each meeting it read, in order, for the log to say what it made of each. */
   readonly meetings?: readonly VaultPath[];
+  /** For the declared step whose output summarises: each meeting's summary, and what it lists. */
+  readonly summaries?: readonly PlannedSummary[];
+}
+
+/** A meeting's summary as planned, before anything is written (#185). */
+interface PlannedSummary {
+  readonly meeting: VaultPath;
+  /** The block to write at its top; null when the answer's summary did not read. */
+  readonly block: string | null;
+  /** The digest of the transcript it is of. */
+  readonly summaryOf: string | null;
+  /** How many action items it lists. */
+  readonly listed: number;
+  /** Tasks made before for its items: its `tasks` joins them, if it does not yet. */
+  readonly madeBefore: readonly VaultPath[];
 }
 
 /** Asks once for the rule's one new note, and plans it: nothing is written yet. */
@@ -557,7 +662,15 @@ async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanne
   const declared = asking.action.apply === 'mine';
   const decided = declared
     ? await decideOwnersItems(asking, answered, vault)
-    : answered.map(({ path, proposals }) => ({ meeting: path, tasks: [], proposals }));
+    : answered.map(({ path, proposals }) => ({
+        meeting: path,
+        tasks: [],
+        proposals,
+        noTasksBecause: null,
+        listed: [],
+        decisions: [],
+        madeBefore: [],
+      }));
   const meetingOf = new Map<string, VaultPath>();
   const drafted = cappedForRun(
     decided.flatMap(({ meeting, proposals }) =>
@@ -590,14 +703,59 @@ async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanne
     ...(declared && {
       tasks: decided.flatMap(({ tasks }) => tasks),
       meetings: decided.map(({ meeting }) => meeting),
+      summaries: plannedSummaries(asking, answered, decided),
     }),
   };
 }
 
-/** The proposals the answers about one note hold. */
+/**
+ * Each meeting's summary block, with what the decisions made of its items,
+ * for an output that summarises: rendered now, so what was cut to fit, and a
+ * summary that did not read, are in the run's record.
+ */
+function plannedSummaries(
+  asking: ProposalAsking,
+  answered: readonly NoteAnswered[],
+  decided: readonly MeetingDecided[],
+): PlannedSummary[] {
+  return decided.flatMap(({ meeting, listed, decisions, madeBefore }) => {
+    const note = answered.find(({ path }) => path === meeting);
+    const summary = note?.summary;
+    if (summary === undefined) return [];
+    const title = `The summary of ${noteTitle(meeting)}`;
+    const text = asking.read.find(({ path }) => path === meeting)?.text ?? '';
+    if (summary.kind !== 'read') {
+      const reason = summary.kind === 'dropped' ? summary.problem : 'It has no "summary".';
+      asking.dropped.push({ title, reason });
+    }
+    const rendered =
+      summary.kind === 'read'
+        ? renderSummaryBlock({
+            model: asking.model,
+            date: asking.ports.clock.today(),
+            ...summary.value,
+            decisions,
+            actionItems: listed,
+          })
+        : null;
+    asking.adjusted.push(...(rendered?.cut ?? []).map((reason) => ({ title, reason })));
+    return [
+      {
+        meeting,
+        block: rendered?.text ?? null,
+        summaryOf: transcriptDigestOf(text),
+        listed: listed.length,
+        madeBefore,
+      },
+    ];
+  });
+}
+
+/** The proposals the answers about one note hold, and its summary when the output summarises. */
 interface NoteAnswered {
   readonly path: VaultPath;
   readonly proposals: readonly CheckedProposal[];
+  readonly summary?: SummaryReading;
 }
 
 /**
@@ -622,15 +780,18 @@ async function readAnswers(
     const kept = key === null ? null : (asking.storedAnswer?.(key) ?? null);
     const reused = kept === null ? null : rereadKept(asking, group.asks, kept, vault);
     if (reused !== null) {
-      answered.push({ path: group.path, proposals: reused });
+      answered.push({ path: group.path, ...reused });
       continue;
     }
     const answers: string[] = [];
+    const parts = group.asks.map((notes) => askedTurnsDigest(notes));
     const proposals: CheckedProposal[] = [];
+    const summaries: SummaryReading[] = [];
+    let data: readonly PromptData[] = [];
     for (const notes of group.asks) {
       at += 1;
       const context = { notes, ...(vault !== undefined && { vault }) };
-      const data = asking.schema.dataFor(context);
+      data = asking.schema.dataFor(context);
       const answer = await askModel({ ...asking, notes, data, counted: asking.counted });
       const reading = asking.schema.read(answer, context);
       if (!reading.ok) {
@@ -638,18 +799,57 @@ async function readAnswers(
         return asking.fail(unreadWords(`${part}${reading.problem}`));
       }
       proposals.push(...keptItems(asking, reading));
+      summaries.push(reading.summary ?? { kind: 'absent' });
       answers.push(answer);
     }
+    const merged = await reduceParts(asking, summaries, data);
     if (key !== null) {
       asking.toStore.push({
         key,
-        answers,
-        parts: group.asks.map((notes) => askedTurnsDigest(notes)),
+        answers: merged === null ? answers : [...answers, merged.answer],
+        parts: merged === null ? parts : [...parts, reducePartMark(parts)],
       });
     }
-    answered.push({ path: group.path, proposals });
+    answered.push({
+      path: group.path,
+      proposals,
+      ...summaryOf(asking, summaries, merged?.reading ?? null),
+    });
   }
   return answered;
+}
+
+/**
+ * A long meeting's parts' summaries merged by one more ask (#184): only for
+ * an output that summarises, a meeting read in more than one part, and parts
+ * whose summaries all read. Null when no reduce is asked. The answer is kept
+ * with the parts', so a retry asks it no more than them.
+ */
+async function reduceParts(
+  asking: ProposalAsking,
+  summaries: readonly SummaryReading[],
+  partData: readonly PromptData[],
+): Promise<{ answer: string; reading: SummaryReading } | null> {
+  const parts = summaries.length > 1 ? partSummaries(summaries) : null;
+  if (!asking.schema.summarises || asking.action.apply !== 'mine' || parts === null) return null;
+  const answer = await askModel({
+    ...asking,
+    prompt: DIGEST_REDUCE_PROMPT,
+    output: { ...asking.output, instructions: DIGEST_REDUCE_INSTRUCTIONS },
+    notes: [],
+    data: digestReduceData(parts, partData),
+    counted: asking.counted,
+  });
+  return { answer, reading: readDigestReduce(answer) };
+}
+
+/** A meeting's one summary from its parts' and its reduce's, for an output that summarises. */
+function summaryOf(
+  { schema }: ProposalAsking,
+  parts: readonly SummaryReading[],
+  reduced: SummaryReading | null,
+): { summary?: SummaryReading } {
+  return schema.summarises ? { summary: meetingSummaryOf(parts, reduced) } : {};
 }
 
 /** The key a meeting's words are known by, as the schema names them; null for a note it names none. */
@@ -668,17 +868,31 @@ function rereadKept(
   asks: readonly (readonly AnsweredNote[])[],
   kept: Pick<StoredAnswer, 'answers' | 'parts'>,
   vault: AnswerVault | undefined,
-): CheckedProposal[] | null {
+): Omit<NoteAnswered, 'path'> | null {
+  const parts = asks.map((notes) => askedTurnsDigest(notes));
+  const reduceMark = kept.parts.length === asks.length + 1 ? kept.parts.at(-1) : undefined;
   const sameTurns =
-    kept.parts.length === asks.length &&
-    kept.answers.length === asks.length &&
-    asks.every((notes, at) => askedTurnsDigest(notes) === kept.parts[at]);
+    (kept.parts.length === asks.length ||
+      (asking.schema.summarises && reduceMark === reducePartMark(parts))) &&
+    kept.answers.length === kept.parts.length &&
+    parts.every((digest, at) => digest === kept.parts[at]);
   if (!sameTurns) return null;
   const readings = asks.map((notes, at) =>
     asking.schema.read(kept.answers[at]!, { notes, ...(vault !== undefined && { vault }) }),
   );
   if (readings.some((reading) => !reading.ok)) return null;
-  return readings.flatMap((reading) => (reading.ok ? keptItems(asking, reading) : []));
+  const summaries = readings.map((reading) =>
+    reading.ok && reading.summary !== undefined ? reading.summary : ({ kind: 'absent' } as const),
+  );
+  // A reduce owed and not kept: the parts are asked again, with it.
+  const reduceOwed =
+    asking.schema.summarises && asks.length > 1 && partSummaries(summaries) !== null;
+  if (reduceOwed && reduceMark === undefined) return null;
+  const reduced = reduceMark === undefined ? null : readDigestReduce(kept.answers.at(-1)!);
+  return {
+    proposals: readings.flatMap((reading) => (reading.ok ? keptItems(asking, reading) : [])),
+    ...summaryOf(asking, summaries, reduced),
+  };
 }
 
 /** An answer's proposals, with what it left out and put right added to the run's record. */
@@ -805,47 +1019,102 @@ async function readVault({
 }
 
 /**
- * Makes the owner's tasks, then writes each planned note. A task that cannot
- * be made, or a note the disk refuses, stops the run with those already made
- * reported — they stay — so the log names everything the step left behind. A
- * task refused in words (the meeting was edited, or is being typed in) fails
- * the run plainly; any other fault is raised once the run is on record.
+ * Makes the owner's tasks, then writes each planned note, then — for the
+ * declared step whose output summarises — writes each meeting's summary and
+ * `tasks` in one write (#185), last, so no summary lists a task that does
+ * not exist. A task that cannot be made, a note the disk refuses, or a
+ * meeting write refused stops the run with those already made reported —
+ * they stay — so the log names everything the step left behind. A refusal in
+ * words (the meeting was edited, or is being typed in) fails the run plainly
+ * and keeps the answers, so the retry writes from them without asking; any
+ * other fault is raised once the run is on record.
  */
 async function writeAll({
   args,
   tasks,
   planned,
+  summaries,
+  model,
+  read,
+  warnings,
   claudeRun,
   stored,
 }: {
   args: StepArgs;
   tasks: readonly PlannedTask[];
   planned: readonly PlannedNote[];
+  /** The summaries to write: none, unless the declared step's output summarises. */
+  summaries: readonly PlannedSummary[];
+  model: string;
+  /** Each note's file as the run read it. */
+  read: ReadonlyMap<VaultPath, ReadFile>;
+  /** Gains what the person should know: a summary left as they have it. */
+  warnings: string[];
   claudeRun: () => ClaudeRunInfo;
   stored: readonly StoredAnswerDraft[];
-}): Promise<DoneAction[]> {
+}): Promise<{ done: DoneAction[]; summaries: Map<VaultPath, SummaryOutcome> }> {
   let made: DoneAction[];
+  // Each meeting's summary write joins its tasks; with none to write, each task joins as Accept's does.
+  const joinsMeeting = summaries.length === 0;
   try {
     made = await makeOwnersTasks({
       ports: args,
       tasks,
       notePaths: args.notePaths,
       today: args.ports.clock.today(),
+      joinsMeeting,
     });
   } catch (error) {
     if (!(error instanceof OwnersTasksStopped)) throw error;
     const cause = error.refused ? {} : { cause: error.reason };
     throw new ClaudeStepFailed(error.message, claudeRun(), { made: error.made, stored, ...cause });
   }
+  const tasksMade = made.length;
+  const taskPaths = made.flatMap((action) => (action.kind === 'created' ? [action.path] : []));
   for (const note of planned) {
     try {
       await args.fs.createNote({ path: note.path, contents: note.contents });
     } catch (cause) {
-      const notes = made.length - tasks.length;
+      const notes = made.length - tasksMade;
       const said = `Made ${notes} of ${planned.length} notes, then the write failed: ${messageWithoutPaths(cause)}`;
       throw new ClaudeStepFailed(said, claudeRun(), { made, cause, stored });
     }
     made = [...made, note.made];
   }
-  return made;
+  const outcomes = new Map<VaultPath, SummaryOutcome>();
+  const notePaths = [...args.notePaths, ...taskPaths];
+  for (const summary of summaries) {
+    // Tasks are made in the planned order, one path each.
+    const madeNow = taskPaths.filter((_, at) => tasks[at]?.meeting.path === summary.meeting);
+    try {
+      const written = await writeMeetingSummary(args, {
+        meeting: summary.meeting,
+        modified: read.get(summary.meeting)?.modified ?? Number.NaN,
+        block: summary.block,
+        summaryOf: summary.summaryOf,
+        model,
+        tasks: [...summary.madeBefore, ...madeNow],
+        notePaths,
+      });
+      outcomes.set(
+        summary.meeting,
+        summary.block === null ? 'dropped' : written.digest === null ? 'kept' : 'written',
+      );
+      if (written.kept !== null)
+        warnings.push(`${noteTitle(summary.meeting)}: ${written.kept.reason}`);
+      if (written.digest !== null) {
+        made = [...made, { kind: 'summarised', path: summary.meeting, digest: written.digest }];
+      }
+    } catch (cause) {
+      if (!(cause instanceof MeetingSummaryRefused)) {
+        throw new ClaudeStepFailed(messageWithoutPaths(cause), claudeRun(), {
+          made,
+          cause,
+          stored,
+        });
+      }
+      throw new ClaudeStepFailed(cause.message, claudeRun(), { made, stored });
+    }
+  }
+  return { done: made, summaries: outcomes };
 }

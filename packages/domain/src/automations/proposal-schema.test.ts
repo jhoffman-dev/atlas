@@ -328,7 +328,7 @@ describe('a new kind of proposal (the extension point P29-05 plugs into)', () =>
   });
 
   it('is named among the schemas only once added to the registry', () => {
-    expect(Object.keys(PROPOSAL_SCHEMAS)).toEqual(['proposals', 'meeting-items']);
+    expect(Object.keys(PROPOSAL_SCHEMAS)).toEqual(['proposals', 'meeting-items', 'meeting-digest']);
     expect(proposalSchemaNamed('meeting-notes')).toBeNull();
     expect(proposalSchemaNamed('constructor')).toBeNull();
   });

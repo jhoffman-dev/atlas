@@ -5,9 +5,16 @@ import {
   MEETING_LIST_LIMIT,
   MeetingMappingError,
   readEventTime,
+  createVaultPath,
   type MeetingFields,
 } from '@atlas/domain';
-import { MeetingPathsTakenError, receiveMeeting } from '../meetings/index.ts';
+import {
+  MeetingPathsTakenError,
+  readMeetingSummaryStates,
+  receiveMeeting,
+  type MeetingSummaryStates,
+} from '../meetings/index.ts';
+import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError, messageWithoutPaths } from './api-error.ts';
 import type { ApiMeeting } from './contract.ts';
 import {
@@ -50,7 +57,11 @@ export async function meetingsRoute(request: VaultRequest): Promise<RouteResult>
     );
   });
   const truncated = found.rows.length > limit;
-  const meetings = found.rows.slice(0, limit).map(toApiMeeting);
+  const listed = found.rows.slice(0, limit).map(toApiMeeting);
+  const summaries = await summaryStatesOf(request, listed);
+  // The index and the files answer for the vault open now: one read after a switch is another vault's.
+  request.assertStillOpen();
+  const meetings = listed.map((meeting) => withSummary(meeting, summaries));
   return {
     status: 200,
     body: { meetings, truncated, next: truncated ? offset + meetings.length : null },
@@ -66,11 +77,46 @@ function sinceOf(raw: string | undefined): string | null {
   return raw;
 }
 
+/** Where each listed meeting's summary stands, read from its file and the vault's rules; reads only. */
+async function summaryStatesOf(
+  request: VaultRequest,
+  meetings: readonly ListedMeeting[],
+): Promise<MeetingSummaryStates> {
+  const paths = meetings.flatMap(({ path }) => (path === '' ? [] : [createVaultPath(path)]));
+  if (paths.length === 0) return { states: new Map(), pendingWhy: '' };
+  return readMeetingSummaryStates({
+    fs: request.fs,
+    markdown: request.markdown,
+    notePaths: await listVaultNotes({ fs: request.fs }),
+    paths,
+    today: request.clock.today(),
+  });
+}
+
+/** A meeting with where its summary stands; `none` for one whose file could not be read. */
+function withSummary(
+  meeting: ListedMeeting,
+  { states, pendingWhy }: MeetingSummaryStates,
+): ApiMeeting {
+  const state =
+    meeting.path === '' ? 'none' : (states.get(createVaultPath(meeting.path)) ?? 'none');
+  const { archived, ...rest } = meeting;
+  return {
+    ...rest,
+    summary: state,
+    ...(state === 'pending' && pendingWhy !== '' && { summaryPendingWhy: pendingWhy }),
+    ...(archived === true && { archived }),
+  };
+}
+
+/** A meeting as the index lists it, before its summary is read. */
+type ListedMeeting = Omit<ApiMeeting, 'summary' | 'summaryPendingWhy'>;
+
 /** A row of the list, in `MEETING_LIST_COLUMNS` order, as the API answers it. */
-function toApiMeeting(row: readonly unknown[]): ApiMeeting {
+function toApiMeeting(row: readonly unknown[]): ListedMeeting {
   const text = (column: number): string | null => textOrNull(row[column]);
   const path = text(0) ?? '';
-  const meeting: ApiMeeting = {
+  const meeting: ListedMeeting = {
     path,
     title: text(1) ?? '',
     date: text(2),

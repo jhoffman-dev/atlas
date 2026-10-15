@@ -134,6 +134,11 @@ export function automationVault({
       }
       log.push(`move ${move.from} -> ${move.to}`);
     },
+    trashEntry: async ({ path: at }) => {
+      if (!files.delete(at)) throw new VaultAccessError('no such entry');
+      modified.delete(at);
+      log.push(`trash ${at}`);
+    },
     writeTextFile: async ({ path: at, contents, expectedModified }) => {
       if (expectedModified !== null && modified.get(at) !== expectedModified) {
         throw new VaultAccessError('the note changed on disk');

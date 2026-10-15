@@ -451,7 +451,7 @@ describe('AutomationEditor', () => {
 
       const off = onChange.mock.lastCall![0] as AutomationDraft;
       expect(off.action).not.toHaveProperty('apply');
-      expect(off.action).toMatchObject({ output: { kind: 'proposals', schema: 'meeting-items' } });
+      expect(off.action).toMatchObject({ output: { kind: 'proposals', schema: 'meeting-digest' } });
       expect((screen.getByLabelText('Model') as HTMLInputElement).placeholder).toBe(
         'The chat’s model',
       );

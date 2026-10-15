@@ -1572,6 +1572,15 @@ ul.sidebar__sections {
   border-color: var(--accent-text);
 }
 
+/* A comment on its own, kept but not read: the markers round a meeting's summary (#186). */
+.raw-block--comment {
+  background: none;
+  border-color: transparent;
+  font-size: 11px;
+  opacity: 0.55;
+  padding: 0 4px;
+}
+
 /* ---- wiki links ---- */
 
 .wikilink {
