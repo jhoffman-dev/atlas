@@ -112,6 +112,22 @@ export type {
 } from './proposal-schema.ts';
 export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
 export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
+export {
+  compileProjectOptionsQuery,
+  MAX_PROJECT_CHOICES,
+  PROJECT_CHOICE_KEY,
+  projectChoiceData,
+  projectChoiceOutcome,
+  projectOptionsOf,
+  readProjectChoice,
+  surestProjectChoice,
+} from './meeting-project-choice.ts';
+export type {
+  ChoosingMeeting,
+  ProjectChoice,
+  ProjectChoiceOutcome,
+  ProjectOption,
+} from './meeting-project-choice.ts';
 export { itemOwner } from './meeting-item-owner.ts';
 export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
 export { compileMadeItemsQuery, linkedTaskOwner, madeTaskFor } from './made-items.ts';
@@ -209,5 +225,5 @@ export type {
   NoteTrigger,
   NoteVersionRef,
 } from './note-trigger.ts';
-export { loggedActionProblem, unarchiveProblem } from './undo-check.ts';
+export { claudeFiledNoteProblem, loggedActionProblem, unarchiveProblem } from './undo-check.ts';
 export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';

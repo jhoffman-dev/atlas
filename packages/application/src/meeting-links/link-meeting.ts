@@ -2,21 +2,26 @@ import {
   attendeesOf,
   isMeetingType,
   linkedEntities,
+  linkedNotes,
   matchAttendees,
   matchSpeakers,
   messageWithoutPaths,
+  MEETING_PROJECT_KEY,
   namedSpeakers,
   ownerAddressesInUse,
   ownerNotAGroup,
+  participantOwnerOf,
   planMeetingLinks,
   rankProjects,
   splitFrontmatter,
+  type AttendeeMatching,
   type DirectoryPerson,
   type DoneAction,
   type MeetingLinkPlan,
   type PassedOver,
   type PassedOverAttendee,
   type PriorValue,
+  type ProjectSuggestion,
   type TranscriptTurn,
   type VaultPath,
   type Vocabulary,
@@ -29,6 +34,7 @@ import { writeProposals } from '../proposals/write-proposals.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { loadLinkDirectory, loadProjectTies } from './link-directory.ts';
+import { seriesProjectFor } from './meeting-series-source.ts';
 
 /** What linking a meeting reaches: the vault, its index, the markdown port and the panes. */
 export type MeetingLinkPorts = Pick<ArchivePorts, 'fs' | 'index' | 'markdown' | 'editors'>;
@@ -38,6 +44,8 @@ export interface MeetingLinkRun {
   readonly meeting: VaultPath;
   /** The people and companies it linked. */
   readonly linked: readonly VaultPath[];
+  /** The project it filed the meeting under, and why (#227); null when it filed it under none. */
+  readonly filed: ProjectSuggestion | null;
   /** Each relation it set, with what it held before and after: what an undo puts back. */
   readonly done: readonly DoneAction[];
   /** Each proposal it wrote into the Inbox. */
@@ -60,15 +68,16 @@ export class MeetingLinkRefusedError extends Error {
 
 /**
  * Links the meeting at `path` to its people, companies and likely project
- * (P29-04): a deterministic step, which the "after a meeting" pipeline runs
+ * (P29-04) — filing it under that project when its twin or series surely
+ * says it and its `project` holds nothing (#227): a deterministic step, which the "after a meeting" pipeline runs
  * and which runs on its own as each meeting is imported until then.
  *
  * Its attendees are matched against the vault's people and companies, and
  * its transcript's named speakers against its people (`planMeetingLinks`
  * says how) — the speakers as the vocabulary corrects them (P28-06), whether
  * or not the meeting's words have been corrected yet, so the order of the two
- * steps does not change who is linked. What is sure is added to the meeting's `people` and `companies`
- * — the only keys it writes — recording what each held before, so
+ * steps does not change who is linked. What is sure is added to the meeting's `people` and `companies`,
+ * and its `project` set — the only keys it writes — recording what each held before, so
  * {@link undoMeetingLink} can put it back. A meeting with unsaved typing, or
  * changed since it was read, is left as it is, and said. What is unsure is
  * written as proposals in the Inbox, each once, however often this runs.
@@ -100,7 +109,10 @@ export async function linkMeeting({
   const plan = await planFor({ ports, path, owner: { selfName, selfEmails }, vocabulary });
   const linked = await changeProperties({
     ports,
-    changes: relationChanges(path, plan.properties, plan.changes),
+    changes: [
+      ...relationChanges(path, plan.properties, plan.changes),
+      ...filingChanges(path, plan),
+    ],
     kind: 'set',
     today,
   });
@@ -113,6 +125,7 @@ export async function linkMeeting({
   return {
     meeting: path,
     linked: Object.entries(plan.added).flatMap(([key, paths]) => (set.has(key) ? paths : [])),
+    filed: set.has(MEETING_PROJECT_KEY) ? (plan.filing?.suggestion ?? null) : null,
     done: linked.done,
     proposed: proposals.written,
     left: [...unreadable, ...linked.left, ...proposals.left],
@@ -148,6 +161,15 @@ async function planFor({
   const { properties } = read;
   const { selfName } = owner;
   const selfEmails = ownerAddressesInUse({ selfEmails: owner.selfEmails, people, selfName });
+  const seriesProject = await seriesProjectOf({
+    ports,
+    path,
+    properties,
+    matching,
+    speakers,
+    owner,
+    people,
+  });
   const input = {
     meeting: path,
     properties,
@@ -155,10 +177,44 @@ async function planFor({
     matching,
     speakers,
     projects,
+    seriesProject,
     selfName,
     selfEmails,
   };
   return { ...planMeetingLinks(input), properties };
+}
+
+/**
+ * What the meeting's twin or series says it is filed under (#227), with who
+ * it is about to be linked to as its people; not asked of a meeting whose
+ * `project` holds anything, which is never filed again.
+ */
+async function seriesProjectOf({
+  ports,
+  path,
+  properties,
+  matching,
+  speakers,
+  owner,
+  people,
+}: {
+  ports: MeetingLinkPorts;
+  path: VaultPath;
+  properties: Readonly<Record<string, unknown>>;
+  matching: AttendeeMatching;
+  speakers: readonly DirectoryPerson[];
+  owner: { selfName: string | null; selfEmails: readonly string[] };
+  people: readonly DirectoryPerson[];
+}): Promise<ProjectSuggestion | null> {
+  if (linkedNotes(properties[MEETING_PROJECT_KEY]).length > 0) return null;
+  const linked = [...matching.linked.map(({ person }) => person), ...speakers];
+  return seriesProjectFor({
+    index: ports.index,
+    path,
+    properties,
+    people: linked.map((person) => person.path),
+    owner: participantOwnerOf({ people, ...owner }),
+  });
 }
 
 interface MeetingRead {
@@ -230,6 +286,22 @@ function relationChanges(
     expect: priorOf(properties, key),
     to: { value: [...value] },
   }));
+}
+
+/** The meeting's `project` set to what its twin or series surely says, only while it still holds what was read. */
+function filingChanges(
+  path: VaultPath,
+  plan: MeetingLinkPlan & Pick<MeetingRead, 'properties'>,
+): PropertyChange[] {
+  if (plan.filing === null) return [];
+  return [
+    {
+      path,
+      key: MEETING_PROJECT_KEY,
+      expect: priorOf(plan.properties, MEETING_PROJECT_KEY),
+      to: { value: plan.filing.link },
+    },
+  ];
 }
 
 function priorOf(properties: Readonly<Record<string, unknown>>, key: string): PriorValue {

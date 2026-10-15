@@ -1,4 +1,5 @@
 import {
+  claudeFiledNoteProblem,
   foldedVaultPath,
   lastUndoableRun,
   loggedActionProblem,
@@ -50,12 +51,13 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
   const at = clock.localNow();
 
   const refused: PassedOver[] = [];
-  const trusted = last.done.filter((line) => {
+  const logged = last.done.filter((line) => {
     const problem = loggedActionProblem(rule.action, line);
     if (problem !== null)
       refused.push({ path: 'path' in line ? line.path : line.to, reason: problem });
     return problem === null;
   });
+  const trusted = rule.action.kind === 'claude' ? await onMeetings(ports, logged, refused) : logged;
   let archived: PropertyOutcome = { done: [], left: [] };
   let restored: PropertyOutcome = { done: [], left: [] };
   const entry = (): LogEntry => ({
@@ -123,6 +125,27 @@ async function putBack({
         });
   const record = archiveRecord(outcome, 'unarchived');
   return { done: record.done, left: [...left, ...record.left] };
+}
+
+/**
+ * Of a Claude step's lines, those whose note is a meeting now: the step files
+ * only meetings, so a line naming another note — a log anyone can write says
+ * it — is refused and named ({@link claudeFiledNoteProblem}). A note gone
+ * since is left to the restore, which says so.
+ */
+async function onMeetings(
+  ports: UndoPorts,
+  lines: readonly DoneAction[],
+  refused: PassedOver[],
+): Promise<DoneAction[]> {
+  const paths = lines.flatMap((line) => (line.kind === 'set' ? [line.path] : []));
+  const notes = paths.length === 0 ? new Map() : await stampsOf(ports, paths);
+  return lines.filter((line) => {
+    const properties = line.kind === 'set' ? notes.get(line.path) : undefined;
+    const problem = properties === undefined ? null : claudeFiledNoteProblem(properties);
+    if (problem !== null && line.kind === 'set') refused.push({ path: line.path, reason: problem });
+    return problem === null;
+  });
 }
 
 /** Each note's frontmatter, as its archive stamp is read from. */

@@ -173,6 +173,7 @@ import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useParaMigration } from './para/use-para-migration.ts';
 import { useVaultTidy } from './vault/use-vault-tidy.ts';
+import { useMeetingProjects } from './meetings/use-meeting-projects.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { useMeetingImport } from './meetings/use-meeting-import.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
@@ -1066,6 +1067,16 @@ export function App({
     activity: activityLog,
     onChanged: settleArchive,
   });
+  // Filing the meetings with no project as their series is, previewed there too (#227).
+  const meetingProjects = useMeetingProjects({
+    ports: archivePorts,
+    vaultKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: inboxOpen,
+    owner: { selfName: ownerName, selfEmails: ownerEmails },
+    activity: activityLog,
+    onChanged: settleArchive,
+  });
   // The weekly review (P30-07): its Archive is the app's, for a project.
   const review = useWeeklyReview({
     ports: archivePorts,
@@ -1731,6 +1742,7 @@ export function App({
                     taskMigration,
                     paraMigration,
                     vaultTidy,
+                    meetingProjects,
                     view:
                       inboxView === null
                         ? null

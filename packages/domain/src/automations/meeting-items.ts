@@ -38,6 +38,7 @@ import { truncated } from './answer-limits.ts';
 import { ownerNotAGroup, sameName } from '../meeting-links/vault-owner.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
 import { itemOwner, type ItemOwner, type OwnerDirectory } from './meeting-item-owner.ts';
+import { projectChoiceData } from './meeting-project-choice.ts';
 import type { MeetingItemCap, MeetingItemClaim } from './meeting-item-apply.ts';
 import {
   citedBlockProblem,
@@ -542,6 +543,7 @@ function meetingData(context: AnswerContext): PromptData[] {
     ...(terms.length > 0
       ? [{ about: 'the right spellings of names and terms', text: terms.join('\n') }]
       : []),
+    ...projectChoiceData({ notes: context.notes, options: context.vault?.projects ?? [] }),
   ];
 }
 
@@ -602,6 +604,7 @@ export const MEETING_ITEMS: ProposalSchema<MeetingItem> = {
   readsVault: true,
   readsInParts: true,
   dataFor: meetingData,
+  choosesProject: true,
 };
 
 /** Where in the meeting's transcript a cited turn falls: the order the proposals are taken in. */

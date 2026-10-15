@@ -47,6 +47,13 @@ import {
 } from './answer-limits.ts';
 import { claudeWriteRefusal } from './claude-write-folder.ts';
 import type { MeetingItemClaim } from './meeting-item-apply.ts';
+import {
+  PROJECT_CHOICE_INSTRUCTIONS,
+  PROJECT_CHOICE_KEY,
+  readProjectChoice,
+  type ProjectChoice,
+  type ProjectOption,
+} from './meeting-project-choice.ts';
 import { setKeyProblem } from './property-key.ts';
 import { remoteResourceProblem } from './remote-resources.ts';
 
@@ -71,6 +78,12 @@ export interface AnswerVault {
   readonly notePaths: readonly VaultPath[];
   /** The right spellings the Terms page keeps. */
   readonly terms: readonly string[];
+  /**
+   * The open projects and areas a meeting with none may be filed under, for
+   * a schema that chooses one ({@link ProposalSchema.choosesProject}); read
+   * only for the step that acts on the choice (#227).
+   */
+  readonly projects?: readonly ProjectOption[];
 }
 
 /** What an answer is checked against. */
@@ -252,6 +265,13 @@ export interface ProposalSchema<Item> {
   readonly readsInParts?: boolean;
   /** What the model is told beside the notes of one ask, as data. */
   readonly dataFor?: (context: AnswerContext) => readonly PromptData[];
+  /**
+   * Whether the answer may choose, beside its list, the project a meeting
+   * with none is filed under (#227): read against the projects the ask
+   * showed, and a choice that does not read is left out and said, never the
+   * cause of refusing the answer.
+   */
+  readonly choosesProject?: boolean;
 }
 
 /** Told to the model so a refusal is rare; the checks hold either way. */
@@ -283,6 +303,8 @@ export type AnswerReading =
       readonly dropped: readonly DroppedItem[];
       /** Items kept with a fault put right, and what was put right. */
       readonly adjusted: readonly DroppedItem[];
+      /** The project it chose for the meeting, for a schema that chooses one; null when it chose none. */
+      readonly project?: ProjectChoice | null;
     }
   | { readonly ok: false; readonly problem: string };
 
@@ -300,6 +322,7 @@ export function registerProposalSchema<Item>(
     instructions: [
       `Answer with JSON only, and nothing around it: { "${schema.key}": [ … ] }, at most ${MAX_PROPOSALS_PER_ANSWER} items.`,
       `Each item is ${schema.itemShape}`,
+      ...(schema.choosesProject === true ? [PROJECT_CHOICE_INSTRUCTIONS] : []),
       schema.citation ?? DEFAULT_CITATION,
       PLAIN_TEXT,
       `If there is nothing to propose, answer { "${schema.key}": [] }.`,
@@ -328,7 +351,8 @@ function readAnswer<Item>({
   if (!isRecord(parsed.value) || !Array.isArray(list)) {
     return refused(`It is not { "${schema.key}": [ … ] }.`);
   }
-  const extra = unknownKeyProblem(parsed.value, [schema.key], 'The answer');
+  const keys = schema.choosesProject === true ? [schema.key, PROJECT_CHOICE_KEY] : [schema.key];
+  const extra = unknownKeyProblem(parsed.value, keys, 'The answer');
   if (extra !== null) return refused(extra);
   if (list.length > MAX_PROPOSALS_PER_ANSWER) {
     return refused(
@@ -355,7 +379,24 @@ function readAnswer<Item>({
       return refused(`It made more than ${MAX_PROPOSALS_PER_ANSWER} proposals in one run.`);
     }
   }
-  return { ok: true, value: inNoteOrder(schema, checked, context), dropped, adjusted };
+  const project = schema.choosesProject === true ? projectOf(parsed.value, context, dropped) : {};
+  return { ok: true, value: inNoteOrder(schema, checked, context), dropped, adjusted, ...project };
+}
+
+/** The answer's choice of project; one that does not read is added to `dropped`, and no choice. */
+function projectOf(
+  answer: Readonly<Record<string, unknown>>,
+  context: AnswerContext,
+  dropped: DroppedItem[],
+): { project: ProjectChoice | null } {
+  const reading = readProjectChoice({
+    value: answer[PROJECT_CHOICE_KEY],
+    notes: context.notes,
+    options: context.vault?.projects ?? [],
+  });
+  if (reading.ok) return { project: reading.value };
+  dropped.push({ title: 'its project', reason: reading.problem });
+  return { project: null };
 }
 
 /** The proposals in the order of the note they cite, when the schema can say where each falls; else as listed. */

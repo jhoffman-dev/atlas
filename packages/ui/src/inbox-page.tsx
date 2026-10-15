@@ -1,3 +1,4 @@
+import { Fragment, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
@@ -11,6 +12,7 @@ import {
   type ProposalsSectionProps,
 } from './proposals/proposals-section.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
+import { MeetingProjects, type MeetingProjectsProps } from './meeting-projects.tsx';
 import { ParaMigration, type ParaMigrationProps } from './para-migration.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
@@ -66,6 +68,8 @@ export interface InboxPageProps {
   paraMigration?: ParaMigrationProps | null;
   /** Moving loose notes and old meetings to their home folders, once, previewed first (#214). */
   vaultTidy?: VaultTidyProps | null;
+  /** Filing the meetings that have no project as their series is, previewed first (#227). */
+  meetingProjects?: MeetingProjectsProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
   view?: { readonly title: string; readonly onOpen: () => void } | null;
   /** What Claude or an automation proposed, answered here rather than filed (P29-02). */
@@ -89,6 +93,7 @@ export function InboxPage(props: InboxPageProps) {
   const migration = props.taskMigration ?? null;
   const paraMigration = props.paraMigration ?? null;
   const tidy = props.vaultTidy ?? null;
+  const meetingProjects = props.meetingProjects ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
   return (
@@ -113,10 +118,15 @@ export function InboxPage(props: InboxPageProps) {
               ),
             })}
           />
-          {offer !== null && <TypesOffer {...offer} />}
-          {migration !== null && <TaskMigration {...migration} />}
-          {paraMigration !== null && <ParaMigration {...paraMigration} />}
-          {tidy !== null && <VaultTidy {...tidy} />}
+          <Offers
+            offers={[
+              ['types', offer && <TypesOffer {...offer} />],
+              ['tasks', migration && <TaskMigration {...migration} />],
+              ['para', paraMigration && <ParaMigration {...paraMigration} />],
+              ['tidy', tidy && <VaultTidy {...tidy} />],
+              ['meetings', meetingProjects && <MeetingProjects {...meetingProjects} />],
+            ]}
+          />
           {problem !== null && (
             <p className="table__error" role="alert">
               {problem}
@@ -129,6 +139,30 @@ export function InboxPage(props: InboxPageProps) {
       </div>
     </>
   );
+}
+
+/**
+ * The Inbox's offers, each read on its own and shown once it is (#227). One
+ * read after the others goes below those already shown: arriving above them
+ * would move what is under the person's pointer as they reach for it. Offers
+ * read together keep the order given.
+ */
+function Offers({ offers }: { offers: readonly (readonly [string, ReactNode])[] }) {
+  const shown = offers.filter(([, offer]) => offer !== null);
+  const [order, setOrder] = useState<readonly string[]>(() => shown.map(([key]) => key));
+  const next = inArrivalOrder(
+    order,
+    shown.map(([key]) => key),
+  );
+  if (next.join('\n') !== order.join('\n')) setOrder(next);
+  const byKey = new Map(shown);
+  return next.map((key) => <Fragment key={key}>{byKey.get(key)}</Fragment>);
+}
+
+/** The offers shown before, in their order, then each newly shown one, in the order given. */
+function inArrivalOrder(before: readonly string[], shown: readonly string[]): readonly string[] {
+  const kept = before.filter((key) => shown.includes(key));
+  return [...kept, ...shown.filter((key) => !kept.includes(key))];
 }
 
 function describe(contents: InboxContents | null, proposals: number): string | null {

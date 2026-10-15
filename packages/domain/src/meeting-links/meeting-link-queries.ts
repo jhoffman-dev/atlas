@@ -9,6 +9,7 @@ import { createVaultPath } from '../vault/vault-path.ts';
 import { userSpaceNoteSql } from '../vault/vault-visibility.ts';
 import type { DirectoryCompany, DirectoryPerson } from './attendee-matching.ts';
 import { MEETING_LINK_KEYS, MEETING_PROJECT_KEY } from './meeting-link-keys.ts';
+import { CLOSED_PROJECT_STATUSES } from './meeting-series.ts';
 
 /** Rows per page of the directory: the host hands back at most 5,000 at once. */
 export const LINK_DIRECTORY_PAGE_SIZE = 5000;
@@ -28,9 +29,6 @@ const DIRECTORY_KEYS = [
   COMPANY_DOMAINS_KEY,
   COMPANY_SITE_KEY,
 ] as const;
-
-/** A project's statuses that say it is over: it is never proposed. */
-const CLOSED_PROJECT_STATUSES = ['done', 'cancelled', 'dropped'] as const;
 
 /**
  * One page of the people and companies a meeting's attendees are matched
