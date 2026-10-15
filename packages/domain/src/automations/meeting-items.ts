@@ -366,6 +366,7 @@ function ownedItem({
     people: context.vault?.people ?? [],
     selfName: context.vault?.selfName ?? null,
     selfEmails: context.vault?.selfEmails ?? [],
+    speakers: meetingTurnsOf(cited.meeting.text).map((turn) => turn.writtenSpeaker),
   };
   const owner = itemOwner(item.owner, directory);
   return { owner, caps: capsOf({ owner, item, turn: cited.turn, directory }), context };
@@ -547,6 +548,7 @@ function peopleLines(note: AnsweredNote, { vault }: AnswerContext): string {
     people: vault?.people ?? [],
     selfName: self,
     selfEmails: vault?.selfEmails ?? [],
+    speakers: [],
   };
   // An attendee at one of the owner's addresses is them, whatever a group rule made of it.
   const listed = ownerNotAGroup(note.meeting?.attendees ?? [], directory.selfEmails);

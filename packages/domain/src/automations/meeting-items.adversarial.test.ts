@@ -34,6 +34,7 @@ const DIRECTORY: OwnerDirectory = {
   people: [MARA, TOBIAS, person('Tobias Reed', { emails: ['tobias.reed@example.com'] })],
   selfName: 'Mara Quill',
   selfEmails: [],
+  speakers: [],
 };
 
 const MEETING = createVaultPath('Meetings/Platform weekly sync.md');

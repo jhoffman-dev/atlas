@@ -165,7 +165,7 @@ describe('a rerun after a new answer, with items in another order', () => {
     confidence: 'high',
   };
   const run = {
-    madeItems: [made],
+    madeItems: [{ key: made, title: 'Send the renewal contract' }],
     linkedTasks: [{ source: '[[Vendor sync#^t0001]]', owner: 'self' }],
   };
 
@@ -184,5 +184,34 @@ describe('a rerun after a new answer, with items in another order', () => {
     // Actual: { 'Book the signing call': 'skipped', 'Send the renewal contract': 'proposal' } —
     // the new item is dropped without even a proposal, and the made task is re-proposed.
     expect(byTitle(reordered)).toEqual(byTitle(inOrder));
+  });
+
+  it('proposes an item the new answer has on that turn when the made one is not in it', () => {
+    const decided = decide([bookCall], note, VAULT, run);
+
+    expect(decided.items[0]!.decision).toEqual({
+      outcome: 'proposal',
+      because: 'turn-already-a-task',
+    });
+  });
+
+  it('knows the made task by its title whatever its case, spacing or punctuation', () => {
+    const decided = decide(
+      [bookCall, { ...sendContract, title: 'send the  renewal, contract.' }],
+      note,
+      VAULT,
+      run,
+    );
+
+    expect(decided.items.map(({ decision }) => decision.outcome)).toEqual(['proposal', 'skipped']);
+  });
+
+  it('skips the made task once: a second item of its title on the turn is a proposal', () => {
+    const decided = decide([sendContract, sendContract], note, VAULT, run);
+
+    expect(decided.items.map(({ decision }) => decision)).toEqual([
+      { outcome: 'skipped', because: 'already-made', atlasItem: made },
+      { outcome: 'proposal', because: 'turn-already-a-task' },
+    ]);
   });
 });

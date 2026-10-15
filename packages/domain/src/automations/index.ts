@@ -119,6 +119,7 @@ export {
 } from './meeting-item-apply.ts';
 export type {
   LinkedTask,
+  MadeItem,
   MeetingItemCap,
   MeetingItemClaim,
   MeetingItemDecision,

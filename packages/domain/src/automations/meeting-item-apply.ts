@@ -9,13 +9,15 @@
  * nothing caps, at medium confidence or above, from a meeting that arrived
  * after the rule (not a backfill), in a vault that says who its owner is.
  * Everything else stays a proposal, as before. An item a task already stands
- * for is skipped.
+ * for is skipped; another item on the turn that task was made from is a
+ * proposal.
  */
 
 import { sameMeetingIdentity, type MeetingIdentity } from '../meetings/meeting-holding.ts';
 import { ownerAddressesInUse } from '../meeting-links/vault-owner.ts';
 import { TASK_KEYS } from '../gtd/gtd-status.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
+import { vocabularyKey } from '../terms/spelling.ts';
 import {
   PROPOSAL_CONFIDENCES,
   type NotePayload,
@@ -61,10 +63,21 @@ export interface MeetingItemsRun {
    * proposals rather than be keyed on another recording's turns.
    */
   readonly primaryMeeting?: MeetingIdentity;
-  /** The `atlas_item` of every task, in the vault and the Archive. */
-  readonly madeItems: readonly string[];
+  /** Every task made from an item, in the vault and the Archive: its `atlas_item` and its title. */
+  readonly madeItems: readonly MadeItem[];
   /** Every task already linked to the meeting. */
   readonly linkedTasks: readonly LinkedTask[];
+}
+
+/**
+ * A task made from an item before. Its key is the turn and the owner, so the
+ * title tells which of the owner's items on that turn it was.
+ */
+export interface MadeItem {
+  /** Its `atlas_item`. */
+  readonly key: string;
+  /** Its title, as the task now holds it. */
+  readonly title: string;
 }
 
 /** A task already linked to the meeting, as far as skipping an item goes. */
@@ -212,15 +225,45 @@ function ownersTask({
     return proposed('copy-of-another-recording');
   }
   const atlasItem = atlasItemKey({ meeting, block: proposal.cites.block, owner });
+  const made = run.madeItems.filter(({ key }) => key === atlasItem);
+  if (made.length > 0) return madeBefore({ proposal, made, claimed, atlasItem });
   if (claimed.has(atlasItem)) return proposed('turn-already-a-task');
   claimed.add(atlasItem);
-  if (run.madeItems.includes(atlasItem)) {
-    return { outcome: 'skipped', because: 'already-made', atlasItem };
-  }
   if (citedByLinkedTask(proposal, owner, run.linkedTasks)) {
     return { outcome: 'skipped', because: 'block-cited', atlasItem };
   }
   return { outcome: 'task', atlasItem, payload: taskPayload(proposal.payload, run.today) };
+}
+
+/**
+ * An item on a turn a task was already made from: skipped when it is that
+ * task — the same title, whatever the answer's order — and otherwise a
+ * proposal, so an item the new answer adds to the turn is never lost.
+ */
+function madeBefore({
+  proposal,
+  made,
+  claimed,
+  atlasItem,
+}: {
+  proposal: CheckedProposal;
+  made: readonly MadeItem[];
+  claimed: Set<string>;
+  atlasItem: string;
+}): MeetingItemDecision {
+  const title = titleKey(proposal.payload.title);
+  if (claimed.has(atlasItem) || !made.some((each) => titleKey(each.title) === title)) {
+    return proposed('turn-already-a-task');
+  }
+  claimed.add(atlasItem);
+  return { outcome: 'skipped', because: 'already-made', atlasItem };
+}
+
+/** A title as two are compared: case, spacing and punctuation aside. */
+function titleKey(title: string): string {
+  return vocabularyKey(title)
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
+    .trim();
 }
 
 function atLeast(confidence: ProposalConfidence, floor: ProposalConfidence): boolean {

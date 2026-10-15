@@ -294,9 +294,20 @@ describe('the speaker decides; the model’s “You” is a hint', () => {
     });
   });
 
-  it('takes a first name the owner alone has, as the speaker, for the owner', () => {
-    expect(decideOne({ source_block: 't0005', title: 'Check the figures' })).toMatchObject({
-      outcome: 'task',
+  it('takes a first name the owner alone has, as the speaker, for the owner, when the transcript has no other label for them', () => {
+    const text = MEETING_TEXT.replace(/\*\*(?:You|Mara Quill)\*\*/g, '**Tobias Fenn**');
+    const note = { ...meeting(), text };
+
+    expect(
+      decideOne({ source_block: 't0005', title: 'Check the figures' }, { note }),
+    ).toMatchObject({ outcome: 'task' });
+  });
+
+  it('caps a turn of a first-name label beside the owner’s own “You”: that speaker is someone else', () => {
+    expect(decideOne({ source_block: 't0005', title: 'Check the figures' })).toEqual({
+      outcome: 'proposal',
+      because: 'capped',
+      caps: ['spoken-by-another'],
     });
   });
 
@@ -514,7 +525,9 @@ describe('the identity key, atlas_item: primary meeting + cited block + resolved
 
 describe('an item already made is skipped', () => {
   it('skips an item whose atlas_item a task already holds, in the vault or the Archive', () => {
-    expect(decideOne({}, { run: { madeItems: [SELF_KEY] } })).toEqual({
+    const made = { key: SELF_KEY, title: 'Send the renewal contract' };
+
+    expect(decideOne({}, { run: { madeItems: [made] } })).toEqual({
       outcome: 'skipped',
       because: 'already-made',
       atlasItem: SELF_KEY,
@@ -569,7 +582,7 @@ describe('an item already made is skipped', () => {
   it('decides the same on a rerun: the made one is skipped, the other is still a proposal', () => {
     const decided = decide([item(), item({ title: 'Book the signing call' })], {
       run: {
-        madeItems: [SELF_KEY],
+        madeItems: [{ key: SELF_KEY, title: 'Send the renewal contract' }],
         linkedTasks: [{ source: '[[Renewal review#^t0001]]', owner: 'self' }],
       },
     });

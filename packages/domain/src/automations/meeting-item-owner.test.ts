@@ -24,6 +24,7 @@ const DIRECTORY: OwnerDirectory = {
   people: [person('Mara Quill'), TOBIAS],
   selfName: 'Mara Quill',
   selfEmails: [],
+  speakers: [],
 };
 
 describe('itemOwner', () => {
@@ -212,6 +213,7 @@ const OWNED: OwnerDirectory = {
   people: [person('Mara Quill', { emails: ['mara.quill@example.com'] }), TOBIAS],
   selfName: 'Mara Quill',
   selfEmails: [],
+  speakers: [],
 };
 
 /** #173: the owner's addresses are the vault's `selfEmails`, with no Person note for the owner. */
@@ -225,6 +227,7 @@ describe('itemOwner, by the vault’s own addresses', () => {
     people: [TOBIAS],
     selfName: null,
     selfEmails: ['mara.quill@example.com'],
+    speakers: [],
   };
 
   it('knows the owner by an address alone: written as one, or as the attendee who has it', () => {
@@ -299,6 +302,7 @@ describe('itemOwner, by the owner’s addresses as written and as set', () => {
     people: [TOBIAS],
     selfName: null,
     selfEmails: [MARA],
+    speakers: [],
   };
 
   it.each([
@@ -340,6 +344,7 @@ describe('itemOwner, by the owner’s addresses as written and as set', () => {
       people: [person('Mara Quill', { emails: ['team@quill.example'] })],
       selfName: 'Mara Quill',
       selfEmails: [],
+      speakers: [],
     };
 
     expect(itemOwner('Studio', grouped)).toEqual({ kind: 'unknown' });
@@ -351,6 +356,7 @@ describe('itemOwner, by the owner’s addresses as written and as set', () => {
       attendees: [{ name: 'mq', email: MARA, group: false }],
       people: [person('Mara Quill', { emails: [MARA] }), person('M Quill', { emails: [MARA] })],
       selfName: 'Mara Quill',
+      speakers: [],
     };
 
     it('reads the owner’s Person note’s addresses as theirs while selfEmails holds none', () => {
@@ -362,5 +368,83 @@ describe('itemOwner, by the owner’s addresses as written and as set', () => {
         kind: 'ambiguous',
       });
     });
+  });
+});
+
+describe('itemOwner, with the transcript’s speakers: a guest who shares the owner’s first name', () => {
+  const MARA_LIND = person('Mara Lind', {
+    emails: ['mara.lind@vendor.example'],
+    aliases: ['Mara'],
+  });
+  const spoken = (...speakers: string[]): OwnerDirectory => ({ ...OWNED, speakers });
+
+  it('reads a one-word label beside the owner’s “You” as someone else, not the owner', () => {
+    expect(itemOwner('Mara', spoken('You', 'Mara', 'Tobias Fenn'))).toEqual({
+      kind: 'named',
+      name: 'Mara',
+      inMeeting: true,
+    });
+  });
+
+  it('reads it as someone else once the owner’s name is a label too, as their attendee entry spells it', () => {
+    const byAddress: OwnerDirectory = {
+      ...spoken('Quill, Mara', 'Mara', 'Tobias Fenn'),
+      attendees: [{ name: 'Quill, Mara', email: 'mara.quill@example.com', group: false }],
+      people: [TOBIAS],
+      selfName: null,
+      selfEmails: ['mara.quill@example.com'],
+    };
+
+    expect(itemOwner('Mara', byAddress)).toMatchObject({ kind: 'named', name: 'Mara' });
+    expect(itemOwner('Quill, Mara', byAddress)).toEqual({ kind: 'self' });
+  });
+
+  it('still reads the owner’s first name as theirs when the transcript has no other label for them', () => {
+    expect(itemOwner('Mara', spoken('Mara', 'Tobias Fenn'))).toEqual({ kind: 'self' });
+  });
+
+  it.each([
+    ['beside the owner’s own label', ['Mara Quill', 'Mara Lind', 'Tobias Fenn']],
+    ['with no label for the owner', ['Mara Lind', 'Tobias Fenn']],
+  ])('does not guess the owner for a first name another speaker has (%s)', (_, speakers) => {
+    expect(itemOwner('Mara', spoken(...speakers))).toEqual({
+      kind: 'ambiguous',
+      name: 'Mara',
+      candidates: ['Mara Quill', 'Mara Lind'],
+    });
+  });
+
+  it('reads the first name as the Person note that has it as an alias before the owner’s first name', () => {
+    const aliased = { ...spoken(), people: [...OWNED.people, MARA_LIND] };
+
+    expect(itemOwner('Mara', aliased)).toEqual({
+      kind: 'person',
+      name: 'Mara Lind',
+      person: MARA_LIND,
+    });
+  });
+
+  it('reads the first name as the owner when the alias is on the owner’s own note', () => {
+    const own = person('Mara Quill', { emails: ['mara.quill@example.com'], aliases: ['Mara'] });
+
+    expect(itemOwner('Mara', { ...spoken(), people: [own, TOBIAS] })).toEqual({ kind: 'self' });
+  });
+
+  it('reads a first-name-only profile as the owner, but not a label of that name beside “You”', () => {
+    const firstOnly: OwnerDirectory = {
+      ...spoken('You', 'Mara'),
+      selfName: 'Mara',
+      selfEmails: ['mara.quill@example.com'],
+    };
+
+    expect(itemOwner('Mara', firstOnly)).toMatchObject({ kind: 'named', name: 'Mara' });
+    expect(itemOwner('You', firstOnly)).toEqual({ kind: 'self' });
+    expect(itemOwner('Mara', { ...firstOnly, speakers: ['Mara', 'Tobias Fenn'] })).toEqual({
+      kind: 'self',
+    });
+  });
+
+  it('never counts a speaker the provider could not name', () => {
+    expect(itemOwner('Mara', spoken('You', 'Speaker 2', 'Unknown'))).toEqual({ kind: 'self' });
   });
 });
