@@ -76,4 +76,26 @@ describe('countNotesByType', () => {
     expect(counts.size).toBe(0);
     expect(notesOfType).not.toHaveBeenCalled();
   });
+
+  it('does not count a Project set to PARA archive, though its file has not moved (#213)', async () => {
+    const index = fakeIndexPort({
+      notesOfType: async () => [
+        { path: 'Atlas.md', title: 'Atlas' },
+        { path: 'Garden.md', title: 'Garden' },
+        { path: 'Old Plan.md', title: 'Old Plan' },
+      ],
+      query: async () => ({
+        columns: ['path', 'para'],
+        rows: [
+          ['Garden.md', 'area'],
+          ['Old Plan.md', 'archive'],
+        ],
+        truncated: false,
+      }),
+    });
+
+    const counts = await countNotesByType({ index, types: [type('project')] });
+
+    expect(counts.get('project')).toBe(2);
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath, type PropertyDef } from '@atlas/domain';
+import { createVaultPath, PROJECT_TYPE_FILE, type PropertyDef } from '@atlas/domain';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { quickAddNote } from './quick-add-note.ts';
 
@@ -107,5 +107,62 @@ describe('quickAddNote', () => {
         notePaths: [],
       }),
     ).rejects.toThrow('disk full');
+  });
+});
+
+/** #213: a new Project starts as a project, unless its template or its fields say otherwise. */
+describe('quickAddNote, of a Project with PARA', () => {
+  async function made({
+    values = {},
+    template = null,
+  }: {
+    values?: Record<string, string>;
+    template?: string | null;
+  }) {
+    const { fs, created } = recordingFs();
+    await quickAddNote({
+      today: '2026-10-08',
+      fs,
+      markdown: fakeMarkdown(),
+      type: PROJECT_TYPE_FILE.type,
+      name: 'Garden',
+      values,
+      template,
+      beside: null,
+      notePaths: [],
+    });
+    return created[0]?.contents ?? '';
+  }
+
+  it('shows PARA = Project on a new project', async () => {
+    expect(await made({})).toContain('para: project');
+  });
+
+  it('keeps the PARA the fields give it: New area… makes an area', async () => {
+    const contents = await made({ values: { para: 'area' } });
+    expect(contents).toContain('para: area');
+    expect(contents).not.toContain('para: project');
+  });
+
+  it('keeps the PARA its template says', async () => {
+    const contents = await made({ template: '---\ntype: project\npara: resource\n---\n\n' });
+    expect(contents).toContain('para: resource');
+    expect(contents).not.toContain('para: project');
+  });
+
+  it('gives no PARA to a Project type that does not declare it', async () => {
+    const { fs, created } = recordingFs();
+    await quickAddNote({
+      today: '2026-10-08',
+      fs,
+      markdown: fakeMarkdown(),
+      type: PROJECT,
+      name: 'Garden',
+      values: {},
+      template: null,
+      beside: null,
+      notePaths: [],
+    });
+    expect(created[0]?.contents).not.toContain('para');
   });
 });

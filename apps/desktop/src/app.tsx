@@ -170,6 +170,7 @@ import { useToday } from './today/use-today.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
+import { useParaMigration } from './para/use-para-migration.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { useMeetingImport } from './meetings/use-meeting-import.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
@@ -1037,6 +1038,15 @@ export function App({
     activity: activityLog,
     onChanged: typesChanged,
   });
+  // Moving Area and Resource notes onto the one Project type, previewed from the Inbox page (#213).
+  const paraMigration = useParaMigration({
+    ports: archivePorts,
+    vaultKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: inboxOpen,
+    activity: activityLog,
+    onChanged: typesChanged,
+  });
   // The weekly review (P30-07): its Archive is the app's, for a project.
   const review = useWeeklyReview({
     ports: archivePorts,
@@ -1694,6 +1704,7 @@ export function App({
                             onDismiss: typesOffer.dismiss,
                           },
                     taskMigration,
+                    paraMigration,
                     view:
                       inboxView === null
                         ? null

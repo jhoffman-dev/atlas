@@ -7,7 +7,6 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   createVault,
   expectFile,
-  expectParaTypeRows,
   installHost,
   sidebarSection,
   type FakeHost,
@@ -84,7 +83,6 @@ async function open(
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  await expectParaTypeRows(page, vault);
   return Object.assign(vault, { host });
 }
 

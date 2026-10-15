@@ -46,7 +46,7 @@ function setup(files: Record<string, string>, { strict = false } = {}) {
   return { files: memory.files, hook, onChanged, activity };
 }
 
-/** A Project type with every key PARA ships on it, so opening only adds the types beside it. */
+/** A Project type from before PARA was its property (#213): no `para`, and an `area` of its own. */
 const PROJECT = [
   '---',
   'name: project',
@@ -87,28 +87,40 @@ const OLDER_MEETING = [
 ].join('\n');
 
 describe('useBuiltInTypes', () => {
-  it('writes the PARA types a vault that files by project lacks, and says the vault changed', async () => {
-    const { files, onChanged } = setup({ '.atlas/types/project.md': PROJECT });
-    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
-    expect([...files.keys()].sort()).toEqual([
-      '.atlas/types/area.md',
+  it('writes no Area or Resource type into a vault that files by project (#213), and offers PARA instead', async () => {
+    const { files, hook, onChanged, activity } = setup({ '.atlas/types/project.md': PROJECT });
+    await waitFor(() => expect(hook.result.current?.lines).toContain('Project gains PARA.'));
+    expect([...files.keys()].filter((path) => path.startsWith('.atlas/types/'))).toEqual([
       '.atlas/types/project.md',
-      '.atlas/types/resource.md',
     ]);
-    expect(files.get('.atlas/types/resource.md')).toContain(
-      '  project:\n    kind: relation\n    target:\n      - project\n      - area\n',
-    );
     expect(files.get('.atlas/types/project.md')).toBe(PROJECT);
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(activity.reports).toEqual([]);
   });
 
-  it('says in Activity which types it wrote without asking', async () => {
-    const { activity } = setup({ '.atlas/types/project.md': PROJECT });
-    await waitFor(() => expect(activity.reports).toHaveLength(2));
-    expect(activity.reports.map(({ level, kind, subject }) => ({ level, kind, subject }))).toEqual([
-      { level: 'info', kind: 'app', subject: { kind: 'note', path: '.atlas/types/area.md' } },
-      { level: 'info', kind: 'app', subject: { kind: 'note', path: '.atlas/types/resource.md' } },
-    ]);
-    expect(activity.reports[0]?.message).toContain('Added the area type');
+  it('gives the Project type PARA when the offer is accepted, after every line James wrote', async () => {
+    const { files, hook } = setup({ '.atlas/types/project.md': PROJECT });
+    await waitFor(() => expect(hook.result.current?.lines).toContain('Project gains PARA.'));
+
+    await act(() => hook.result.current?.accept() ?? Promise.resolve());
+
+    expect(files.get('.atlas/types/project.md')).toBe(
+      PROJECT.replace(
+        '  description: text\n',
+        [
+          '  description: text',
+          '  para:',
+          '    kind: select',
+          '    label: PARA',
+          '    options:',
+          '      - project',
+          '      - area',
+          '      - resource',
+          '      - archive',
+          '',
+        ].join('\n'),
+      ),
+    );
   });
 
   it('says nothing in Activity when it only offers', async () => {
@@ -121,7 +133,7 @@ describe('useBuiltInTypes', () => {
     const { files, hook, onChanged } = setup({ '.atlas/types/task.md': TASK });
     await waitFor(() =>
       expect(hook.result.current?.lines).toEqual([
-        'Adds the Project, Area, Resource, Proposal, Decision and Daily types.',
+        'Adds the Project, Proposal, Decision and Daily types.',
         'Task gains Project, linking project or area notes.',
       ]),
     );
@@ -131,12 +143,10 @@ describe('useBuiltInTypes', () => {
     await act(() => hook.result.current?.accept() ?? Promise.resolve());
 
     expect([...files.keys()].sort()).toEqual([
-      '.atlas/types/area.md',
       '.atlas/types/daily.md',
       '.atlas/types/decision.md',
       '.atlas/types/project.md',
       '.atlas/types/proposal.md',
-      '.atlas/types/resource.md',
       '.atlas/types/task.md',
     ]);
     // Everything James wrote is still there, as he wrote it; Project is added after it.
@@ -182,31 +192,29 @@ describe('useBuiltInTypes', () => {
     const broken = '---\n: : not yaml\n---\n';
     const { files, hook, activity } = setup({
       '.atlas/types/task.md': TASK,
-      '.atlas/types/area.md': broken,
+      '.atlas/types/project.md': broken,
     });
     await waitFor(() => expect(hook.result.current).not.toBeNull());
 
     await act(() => hook.result.current?.accept() ?? Promise.resolve());
 
     expect(activity.reports.map((report) => report.message)).toEqual([
-      'The Area type could not be set up for PARA: already there',
+      'The Project type could not be set up for PARA: already there',
     ]);
-    expect(files.get('.atlas/types/area.md')).toBe(broken);
-    expect(files.has('.atlas/types/resource.md')).toBe(true);
+    expect(files.get('.atlas/types/project.md')).toBe(broken);
+    expect(files.has('.atlas/types/proposal.md')).toBe(true);
   });
 
-  it('records a type it could not write in the Activity log', async () => {
-    const { activity } = setup({
+  it('writes no PARA type on opening, even beside a type file it cannot read (#213)', async () => {
+    const broken = '---\n: : not yaml\n---\n';
+    const { files, hook, activity } = setup({
       '.atlas/types/project.md': PROJECT,
-      '.atlas/types/area.md': '---\n: : not yaml\n---\n',
+      '.atlas/types/area.md': broken,
     });
-    // The failure is a warning; the Resource type it did write is the info line beside it.
-    await waitFor(() =>
-      expect(activity.reports.map(({ level, message }) => [level, message])).toEqual([
-        ['warning', 'The Area type could not be set up for PARA: already there'],
-        ['info', 'Added the resource type: this vault files by project, and PARA needs it.'],
-      ]),
-    );
+    await waitFor(() => expect(hook.result.current).not.toBeNull());
+    expect(files.get('.atlas/types/area.md')).toBe(broken);
+    expect(files.has('.atlas/types/resource.md')).toBe(false);
+    expect(activity.reports).toEqual([]);
   });
 
   it('gives an older Meeting type tasks and decisions on opening, keeping every byte it had', async () => {

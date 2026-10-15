@@ -73,7 +73,7 @@ export async function createPerson({
   notePaths,
 }: {
   fs: VaultFsPort;
-  markdown: Pick<MarkdownPort, 'updateFrontmatter'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
   name: string;
   types: readonly ObjectType[];
   templates: readonly NoteTemplate[];

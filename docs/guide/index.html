@@ -307,6 +307,7 @@ pnpm tauri:dev</pre>
         <div class="card"><h4>Several at once</h4><p>In a table view, <b>Select</b>, tick the rows, then <b>Archive N notes</b> — see <a href="#views">Views</a>.</p></div>
       </div>
       <ul>
+        <li><b>A project, an area or a resource is archived where it stands.</b> On a Project note, <b>Archive</b> in the page's <b>…</b> menu sets its <a href="#para">PARA</a> to <b>Archive</b>, and <b>Unarchive</b> sets it back to <b>Project</b>. The file doesn't move and nothing else in it changes. Setting PARA by hand does the same. Everything below is how every other note is archived.</li>
         <li>It moves to <code>Archive/</code> at the path it had — <code>Projects/Plan.md</code> becomes <code>Archive/Projects/Plan.md</code>, numbered if that is taken — and gets <code>archived: &lt;today&gt;</code> and <code>archivedFrom: &lt;where it was&gt;</code> in its properties. Nothing else in the file changes.</li>
         <li>If the note already had its own <code>archived</code> or <code>archivedFrom</code> property, it is kept aside and given back, exactly as written, when the note comes out.</li>
         <li><b>Links:</b> archiving one note offers <b>Update N links</b>, as a move does. Archiving several updates the links to them by itself.</li>
@@ -318,6 +319,7 @@ pnpm tauri:dev</pre>
       <ul>
         <li>In Pages the whole Archive is one <b>Archive</b> row; click it to open the Archive page rather than a long folder.</li>
         <li>Archived notes are left out of views and type counts, search, the graph, <code>[[</code> suggestions and note pickers, the Tags page's counts, and the <b>Links</b> panel's links in and unlinked mentions.</li>
+        <li>A project note with PARA = Archive is left out of the Project type's views and query blocks, note pickers, a board's project groups, the sidebar's Project count and the weekly review. Search and the graph still find it, and it isn't listed on the Archive page: find it with <b>Include archived</b> on a Project view.</li>
         <li>To reach them anyway: <b>Include archived</b> in search (<kbd>⌘K</kbd>) and on a view's toolbar, and the <b>Archived</b> switch on the graph. On a view it turns itself off when you go to another view; search starts without it each time.</li>
         <li>Renaming a tag still changes it in archived notes, so they read right when they come back.</li>
       </ul>
@@ -338,28 +340,48 @@ pnpm tauri:dev</pre>
 
     <section id="para">
       <h2>PARA and the Inbox</h2>
-      <p class="sub">Atlas follows PARA: everything is filed under a <b>Project</b> or an <b>Area</b>, reference is kept as <b>Resources</b>, and finished things go to the <a href="#archive">Archive</a>. Whatever you capture lands in the <b>Inbox</b> first, to be filed when you process it.</p>
+      <p class="sub">Atlas follows PARA: everything is filed under a <b>Project</b> or an <b>Area</b>, reference is kept as <b>Resources</b>, and finished things go to the <b>Archive</b>. All four are one <b>Project</b> type, told apart by its <b>PARA</b> property. Whatever you capture lands in the <b>Inbox</b> first, to be filed when you process it.</p>
       <div class="grid2">
-        <div class="card"><h4>Project</h4><p>Something with an end — <i>Atlas 1.0</i>, <i>Move house</i>. Status, the area it's part of, a due date, a summary.</p></div>
-        <div class="card"><h4>Area</h4><p>A responsibility with no end date — <i>Garden</i>, <i>Health</i>, a team. Projects and notes are filed under it just as under a project.</p></div>
-        <div class="card"><h4>Resource</h4><p>Reference worth keeping — an article, a manual, a how-to — with a link and a summary, filed under a project or an area.</p></div>
-        <div class="card"><h4>Archive</h4><p>Done or no longer needed. One move, never deleted, and it can come back — see <a href="#archive">Archive</a>.</p></div>
+        <div class="card"><h4>PARA = Project</h4><p>Something with an end — <i>Atlas 1.0</i>, <i>Move house</i>. Status, the area it's part of, a due date, a summary.</p></div>
+        <div class="card"><h4>PARA = Area</h4><p>A responsibility with no end date — <i>Garden</i>, <i>Health</i>, a team. Projects and notes are filed under it just as under a project.</p></div>
+        <div class="card"><h4>PARA = Resource</h4><p>Reference worth keeping — an article, a manual, a how-to — kept as a project note of its own.</p></div>
+        <div class="card"><h4>PARA = Archive</h4><p>Done or no longer needed. Out of the way where it stands, never deleted, and back the moment PARA is set back.</p></div>
       </div>
+      <h3>Set where a project stands</h3>
+      <ul>
+        <li><b>A new project shows PARA = Project.</b> Make it from the type's <b>New</b>, the add button or a picker's <b>New project…</b>. A project note with no PARA at all, or one Atlas can't read, counts as a project.</li>
+        <li><b>Change PARA</b> in the note's properties to <b>Area</b> or <b>Resource</b>, and it moves to the Areas or Resources group in every picker. Its type stays Project, its file stays where it is, and links to it keep working.</li>
+        <li><b>PARA = Archive</b> puts it away — out of the type's views, pickers and the sidebar's Project count, and out of the weekly review. Set it back to <b>Project</b> (or <b>Area</b>, or <b>Resource</b>) and it's back. The page's <b>…</b> menu does the same: <b>Archive</b> sets PARA to Archive, <b>Unarchive</b> sets it to Project. See <a href="#archive">Archive</a>.</li>
+        <li><b>Area</b> on a project links the area it's part of; its picker lists only areas. It's optional — a project saves without one.</li>
+      </ul>
       <h3>Every note can be filed</h3>
       <ul>
-        <li>A <b>Project</b> property on a task, a meeting or a resource links a project <i>or</i> an area. Its picker lists both, under a <b>Project</b> and an <b>Area</b> heading, with <b>New project…</b> and <b>New area…</b> at the end. A person, a company or any other note is never offered.</li>
+        <li>A <b>Project</b> property on a task or a meeting links a project <i>or</i> an area. Its picker lists both, under a <b>Projects</b> and an <b>Areas</b> heading, with <b>New project…</b> and <b>New area…</b> at the end — <b>New area…</b> makes a project note with PARA = Area. A resource or an archived one is never offered, and nor is a person, a company or any other note.</li>
         <li>A note with no type can be filed too: processing it gives it <code>project</code> all the same.</li>
         <li>Linking the wrong kind of note — a person in a task's <b>Project</b>, typed by hand — shows <i>“Project links to a project or area, not a person”</i> under the property. A link to a note not written yet, or to one with no type, is left alone.</li>
         <li>Any relation can point at several types this way: in the type's file write <code>target: [project, area]</code>. <b>Edit type</b> shows the first under <b>Points at</b> and the others under <b>And at</b>; switching <b>Several notes</b> keeps them, while choosing another type in <b>Points at</b> points it at that one alone.</li>
+        <li><code>project</code>, <code>area</code> and <code>resource</code> in a relation's target are PARA values: they point at project notes whose PARA says that. <code>target: [project, area, resource]</code> lists all three groups; <code>target: area</code>, as Project's own <b>Area</b> has, lists only areas.</li>
       </ul>
       <h3>The types are set up for you</h3>
       <ul>
-        <li><b>A vault that has a Project type</b> gets the <b>Area</b> and <b>Resource</b> types it's missing when it opens, written into <code>.atlas/types</code>, and each one written is a line in <a href="#activity">Activity</a>. A type you already have is never replaced, and a property you added to Project stays exactly as you wrote it.</li>
-        <li><b>A vault without a Project type</b> isn't given PARA's types on its own: it hasn't taken PARA up, so they're offered instead (below).</li>
-        <li><b>Atlas's own types gain what Atlas ships on them.</b> Opening a vault adds the keys Atlas ships to its built-in <b>Meeting</b>, <b>Proposal</b>, <b>Decision</b>, <b>Daily</b> and <b>Block</b> types when a file written earlier lacks them — a Meeting from before <i>Tasks</i> and <i>Decisions</i>, say, which would otherwise refuse to link an action item. Each type changed is a line in <a href="#activity">Activity</a>, and a record is kept in <code>.atlas/migrations/type-properties.md</code>. A key you already have is never touched — the new keys are lines added after your own, and every line you wrote stays exactly as it was — and one you remove later stays removed. A type Atlas can't add to that way — its properties written as a list, or on one line as <code>{…}</code>, or two files that both say they are the Meeting type (a sync's conflict copy) — is left alone, with a warning in Activity saying why; merge the two files and the next open adds the keys. <b>Project</b>, <b>Area</b>, <b>Resource</b> and <b>Task</b> keys are never added on their own: they stay an offer (below).</li>
-        <li><b>Anything more is offered, not done.</b> On the Inbox page a box lists it — <i>“Adds the Project, Area and Resource types.”</i> for a vault without them, <i>“Task gains Project, linking project or area notes.”</i> for a Task type with no project yet, <i>“Meeting's Project will link project or area notes.”</i> for one that links projects only. <b>Add to the types</b> makes those changes against the type files as they are at that moment — an edit you made while the box waited is kept — and keeps everything else in each file byte for byte; <b>Not now</b> puts the box away until the vault is opened again.</li>
+        <li><b>PARA is one type, Project.</b> A vault without one isn't given it on its own: it hasn't taken PARA up, so it's offered instead (below). Atlas no longer writes <b>Area</b> or <b>Resource</b> types.</li>
+        <li><b>A Project type written before PARA was a property</b> is offered it: <i>“Project gains Area, linking area notes. Project gains PARA.”</i> — each only if your type has no property of that name. A property you added to Project stays exactly as you wrote it.</li>
+        <li><b>Atlas's own types gain what Atlas ships on them.</b> Opening a vault adds the keys Atlas ships to its built-in <b>Meeting</b>, <b>Proposal</b>, <b>Decision</b>, <b>Daily</b> and <b>Block</b> types when a file written earlier lacks them — a Meeting from before <i>Tasks</i> and <i>Decisions</i>, say, which would otherwise refuse to link an action item. Each type changed is a line in <a href="#activity">Activity</a>, and a record is kept in <code>.atlas/migrations/type-properties.md</code>. A key you already have is never touched — the new keys are lines added after your own, and every line you wrote stays exactly as it was — and one you remove later stays removed. A type Atlas can't add to that way — its properties written as a list, or on one line as <code>{…}</code>, or two files that both say they are the Meeting type (a sync's conflict copy) — is left alone, with a warning in Activity saying why; merge the two files and the next open adds the keys. <b>Project</b> and <b>Task</b> keys are never added on their own: they stay an offer (below).</li>
+        <li><b>Anything more is offered, not done.</b> On the Inbox page a box lists it — <i>“Adds the Project type.”</i> for a vault without one, <i>“Task gains Project, linking project or area notes.”</i> for a Task type with no project yet, <i>“Meeting's Project will link project or area notes.”</i> for one that links projects only. <b>Add to the types</b> makes those changes against the type files as they are at that moment — an edit you made while the box waited is kept — and keeps everything else in each file byte for byte; <b>Not now</b> puts the box away until the vault is opened again.</li>
         <li><b>The Inbox's own types are offered the same way.</b> A vault without them is offered <i>“Adds the Proposal, Decision and Daily types.”</i> — <a href="#proposals">proposals</a> are notes of the first two, and <a href="#daily">today's note</a> of Daily. Nothing is written until you press <b>Add to the types</b>. (A Meeting type missing what the <a href="#meeting-import">meeting import</a> writes isn't offered it: Atlas adds those keys itself, above.)</li>
-        <li>Area and Resource are <a href="#types">built in</a>, like Project: they can't be deleted, and their properties are yours to change.</li>
+        <li>Project is <a href="#types">built in</a>: it can't be deleted, and its properties are yours to change. Area and Resource types you already have aren't built in any more — delete them once their notes have moved.</li>
+      </ul>
+      <h3>Move Area and Resource notes onto the Project type</h3>
+      <p>A vault from before PARA was a property has notes of the Area and Resource types. The Inbox page offers to move them: <i>“Projects, areas and resources are one Project type now, with a PARA property. 12 notes would move onto it.”</i></p>
+      <ol class="steps">
+        <li>Press <b>Preview the move</b>. It lists every note that would move and what it becomes — <i>Garden: Area → Project, PARA Area</i> — and what the Project type gains, if anything.</li>
+        <li>Press <b>Move 12 notes</b>, or <b>Cancel</b>. <b>Not now</b> puts the offer away until the vault is opened again.</li>
+      </ol>
+      <ul>
+        <li>Each Area note becomes <code>type: project</code> with <code>para: area</code>, each Resource note <code>para: resource</code>. A project, area or resource whose file is already in <code>Archive/</code> gets <code>para: archive</code> and stays where it is.</li>
+        <li>Only <code>type</code> and <code>para</code> are written. No file moves, every other property and every line of text stays byte for byte, and a property you added is never removed.</li>
+        <li>A note open with unsaved typing, or changed since the preview read it, is left as it was; the run says so in <a href="#activity">Activity</a>, one line for the move and one for each note left. Run it again later and it moves what's left; with nothing left the offer isn't shown.</li>
+        <li>Your Area and Resource type files stay until you delete them.</li>
       </ul>
       <h3>Capture goes to the Inbox</h3>
       <ul>
@@ -412,7 +434,7 @@ pnpm tauri:dev</pre>
       <h3>Options for select properties</h3>
       <p>Rename, reorder, colour and remove options — for example a project's statuses <code>planned, active, paused, done</code>. (A task's eight <a href="#tasks">GTD statuses</a> are moved to all at once, from the Inbox.) Renaming an option asks <i>“N notes use ‘review’…”</i> and offers to update them. Order sets the order of a board's columns and lanes, and of a table's groups. The <b>Done option</b> decides which status a ticked checkbox sets.</p>
       <h3>Built-in types</h3>
-      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Area</b>, <b>Resource</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b>, <b>Decision</b>, <b>Block</b> and <b>Daily</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
+      <p><b>Person</b>, <b>Task</b>, <b>Project</b>, <b>Artifact</b>, <b>Meeting</b>, <b>Company</b>, <b>Term</b>, <b>Proposal</b>, <b>Decision</b>, <b>Block</b> and <b>Daily</b> are marked <b>Built in</b>: Atlas's own features depend on them. On <b>Edit type</b> their <b>Delete</b> button is turned off, with the reason beside it — for example <i>“Person is built in — @ mentions find people by it — so it cannot be deleted. Its properties are yours to change.”</i> Their properties stay yours to edit. Their files in <code>.atlas/types</code> can't be deleted or renamed from Pages either, whatever the file is called: <i>“Atlas’s built-in types stay — its features depend on them.”</i></p>
       <p>A type you made has <b>Delete &lt;Type&gt;…</b> at the foot of <b>Edit type</b>; it asks first, as deleting any note does, and puts the type's file in the Trash.</p>
       <h3>Projects</h3>
       <p>Atlas ships a <b>Project</b> type (status: planned, active, paused, done; owner; due; summary). Every task has a <code>project</code> relation — to a project or an area, once your types are set up for <a href="#para">PARA</a> — and the <b>Projects</b> view is a board grouped by project.</p>
@@ -1045,7 +1067,7 @@ ORDER BY phase</pre>
           <tbody>
             <tr><td><b>Person</b></td><td><b>Meetings</b> they were in · <b>Waiting for</b> — tasks at Waiting whose <i>Waiting on</i> is them · <b>Open tasks</b> linked with them · <b>Decisions</b> · <b>Linked notes</b> — everything else linked with them</td></tr>
             <tr><td><b>Company</b></td><td><b>People</b> linked with it — by their <i>Company</i>, or by the company's own <i>Employees</i> or <i>CEO</i> · <b>Meetings</b> held with it · <b>Waiting for</b> — what you wait on from those people · <b>Open tasks</b> linked with it or about those people · <b>Projects</b> · <b>Decisions</b> · <b>Linked notes</b></td></tr>
-            <tr><td><b>Project</b>, <b>Area</b></td><td><b>Waiting for</b> · <b>Open tasks</b> filed under it · an area's <b>Projects</b> · <b>Meetings</b> · <b>Decisions</b> · <b>Linked notes</b></td></tr>
+            <tr><td><b>Project</b>, <b>Area</b></td><td><b>Waiting for</b> · <b>Open tasks</b> filed under it · an area's <b>Projects</b> · <b>Meetings</b> · <b>Decisions</b> · <b>Linked notes</b> (an area's own sections are an Area-type note's; a project note with PARA = Area shows a project's for now)</td></tr>
             <tr><td><b>Meeting</b></td><td><b>People</b> with their company · <b>Companies</b> · <b>Tasks</b> and <b>Decisions</b> linked with it — the ones that came from it among them</td></tr>
             <tr><td><b>Task</b>, <b>Decision</b></td><td><b>Meetings</b> linked with it — the one it came from among them</td></tr>
           </tbody>

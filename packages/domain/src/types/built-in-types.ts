@@ -8,23 +8,23 @@ import { DECISION_TYPE, PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import { BLOCK_TYPE } from '../timeblocks/block-type.ts';
 import { vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { TYPES_DIRECTORY } from '../vault/vault-visibility.ts';
-import { AREA_TYPE, RESOURCE_TYPE } from './para.ts';
 
 /**
  * The types a feature of Atlas is built on, and what would stop working
  * without each. Their properties are the vault's to change; the type itself
  * stays, or the feature would be left pointing at nothing (U-20).
+ *
+ * Area and Resource are not among them since PARA became a property of the
+ * Project type (#213): a vault's files of them stay until it removes them.
  */
 const BUILT_IN_TYPES: ReadonlyMap<string, string> = new Map([
   [PERSON_TYPE, '@ mentions find people by it'],
   ['task', 'capture and the board make tasks of it'],
-  ['project', 'artifacts and tasks are filed under projects'],
+  ['project', 'PARA is its notes: artifacts and tasks are filed under projects and areas'],
   [ARTIFACT_TYPE, 'saved artifacts are notes of it'],
   [MEETING_TYPE, 'imported meetings are notes of it'],
   [COMPANY_TYPE, 'meetings and terms point at companies'],
   [TERM_TYPE, 'the Terms page lists its notes, and Atlas spells names by them'],
-  [AREA_TYPE, 'the Inbox files notes under areas as well as projects'],
-  [RESOURCE_TYPE, 'reference is kept as resources, filed under a project or an area'],
   [PROPOSAL_TYPE, 'what Claude proposes waits in the Inbox as notes of it'],
   [DECISION_TYPE, 'accepted decision proposals are notes of it'],
   [BLOCK_TYPE, 'timeblocks on the calendar are notes of it'],

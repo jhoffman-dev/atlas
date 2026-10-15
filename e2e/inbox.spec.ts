@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
 
 /**
- * P30-01: PARA. Opening a vault writes the PARA types it lacks and leaves the
- * ones it has alone; capture lands in the Inbox; the Inbox files a note under
+ * P30-01: PARA, as #213 has it — one Project type, offered, never written
+ * over the vault's own; capture lands in the Inbox; the Inbox files a note under
  * a project or an area — into that project's folder, linked — and offers
  * nothing else to file it under.
  */
@@ -80,14 +80,44 @@ async function capture(page: Page, line: string) {
   await page.keyboard.press('Escape');
 }
 
-test('opening a vault adds the Area type it lacks, and leaves the project type James wrote', async ({
+test('opening a vault writes no Area or Resource type, and only offers PARA on the project type James wrote (#213)', async ({
   page,
 }) => {
   const vault = await openParaVault(page);
+  await goTo(page)
+    .getByRole('button', { name: /^Inbox/ })
+    .click();
 
-  await expectFile(vault, '.atlas/types/area.md').toContain('name: area');
-  await expectFile(vault, '.atlas/types/resource.md').toContain('name: resource');
+  const offer = inboxPage(page).getByRole('complementary', {
+    name: 'Set your types up for the Inbox',
+  });
+  await expect(offer).toContainText('Project gains Area, linking area notes. Project gains PARA.');
+  expect(await vault.exists('.atlas/types/area.md')).toBe(false);
+  expect(await vault.exists('.atlas/types/resource.md')).toBe(false);
   expect(await vault.read('.atlas/types/project.md')).toBe(PROJECT_TYPE);
+});
+
+test('the Inbox offers to move Area notes onto the Project type, and moves them only when asked (#213)', async ({
+  page,
+}) => {
+  const vault = await openParaVault(page);
+  await goTo(page)
+    .getByRole('button', { name: /^Inbox/ })
+    .click();
+
+  const move = inboxPage(page).getByRole('region', { name: 'Move notes onto the Project type' });
+  await expect(move).toContainText('1 note would move onto it.');
+  await move.getByRole('button', { name: 'Preview the move' }).click();
+  await expect(move.getByRole('list', { name: 'Notes that move' })).toHaveText(
+    'Garden: Area → Project, PARA Area',
+  );
+  expect(await vault.read('Areas/Garden.md')).toBe(note(['type: area'], 'Beds and seeds.'));
+
+  await move.getByRole('button', { name: 'Move 1 note' }).click();
+  await expectFile(vault, 'Areas/Garden.md').toBe(
+    note(['type: project', 'para: area'], 'Beds and seeds.'),
+  );
+  await expect(move).toContainText('Moved 1 note onto the Project type, with PARA set.');
 });
 
 test('a captured task waits in the Inbox, and Process files it under its project and links it', async ({

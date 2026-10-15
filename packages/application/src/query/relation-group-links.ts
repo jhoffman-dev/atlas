@@ -13,7 +13,7 @@ export async function relationGroupLinks({
   targets,
   names,
 }: {
-  index: Pick<IndexPort, 'notesOfType'>;
+  index: Pick<IndexPort, 'notesOfType' | 'query'>;
   /** The types the relation points at (`relationTypes`). */
   targets: readonly string[];
   /** Links a note the way it is found, not by the title it may give itself. */

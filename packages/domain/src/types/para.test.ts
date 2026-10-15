@@ -3,6 +3,7 @@ import { isBuiltInType, typeDeleteRefusal } from './built-in-types.ts';
 import {
   AREA_TYPE,
   builtInTypePlan,
+  PARA_KEY,
   PARA_TYPE_FILES,
   RESOURCE_TYPE,
   typeSetupLines,
@@ -25,9 +26,9 @@ const RESOURCE = type({
 const names = (files: readonly { type: ObjectType }[]) => files.map((file) => file.type.name);
 
 describe('builtInTypePlan', () => {
-  it('names every PARA type a vault without types lacks, and only offers them', () => {
+  it('names the one PARA type a vault without types lacks, and only offers it (#213)', () => {
     const plan = builtInTypePlan([]);
-    expect(names(plan.missing)).toEqual(['project', 'area', 'resource']);
+    expect(names(plan.missing)).toEqual(['project']);
     expect(plan.filesByProject).toBe(false);
   });
 
@@ -44,15 +45,42 @@ describe('builtInTypePlan', () => {
     expect(builtInTypePlan([AREA]).filesByProject).toBe(false);
   });
 
-  it('adds the area type to a vault that has projects but no areas', () => {
-    const plan = builtInTypePlan([PROJECT, RESOURCE]);
-    expect(names(plan.missing)).toEqual([AREA_TYPE]);
+  it('writes no Area or Resource type into a vault that has projects: PARA is a property now (#213)', () => {
+    expect(builtInTypePlan([PROJECT]).missing).toEqual([]);
+    expect(builtInTypePlan([PROJECT, RESOURCE]).missing).toEqual([]);
   });
 
-  it('never touches a project the vault has: a property James added stays', () => {
-    const plan = builtInTypePlan([PROJECT, AREA, RESOURCE]);
-    expect(plan.missing).toEqual([]);
-    expect(plan.extensions.map((extension) => extension.before.name)).not.toContain('project');
+  it('offers a Project type without them PARA and Area, after what the vault has (#213)', () => {
+    const [extension] = builtInTypePlan([PROJECT, AREA, RESOURCE]).extensions;
+    expect(extension?.before).toBe(PROJECT);
+    expect(extension?.added.map((property) => property.key)).toEqual([PARA_KEY, 'area']);
+    expect(extension?.widened).toEqual([]);
+    expect(extension?.after.properties.map((property) => property.key)).toEqual([
+      'status',
+      'budget',
+      PARA_KEY,
+      'area',
+    ]);
+    const para = extension?.after.properties.find((property) => property.key === PARA_KEY);
+    expect(para).toMatchObject({ kind: 'select', label: 'PARA', required: false });
+    expect(para?.options).toEqual(['project', 'area', 'resource', 'archive']);
+    const area = extension?.after.properties.find((property) => property.key === 'area');
+    expect(area).toMatchObject({ kind: 'relation', required: false, target: AREA_TYPE });
+  });
+
+  it('never touches a key the Project type has: one James wrote his own way stays', () => {
+    const own = type({
+      name: 'project',
+      properties: { para: 'text', area: { kind: 'relation', target: 'company' } },
+    });
+    expect(builtInTypePlan([own]).extensions).toEqual([]);
+    const half = type({ name: 'project', properties: { para: 'text' } });
+    expect(builtInTypePlan([half]).extensions[0]?.added.map((p) => p.key)).toEqual(['area']);
+  });
+
+  it('offers nothing on a Project type two files claim', () => {
+    const copy = type({ name: 'Project', label: 'Project (conflict copy)' });
+    expect(builtInTypePlan([PROJECT, copy]).extensions).toEqual([]);
   });
 
   it('matches a type by name in any case, so a second file is not written beside it', () => {
@@ -125,6 +153,7 @@ describe('typeSetupLines', () => {
     });
     const plan = builtInTypePlan([PROJECT, AREA, RESOURCE, task, meeting]);
     expect(typeSetupLines({ types: plan.missing, extensions: plan.extensions })).toEqual([
+      'project gains Area, linking area notes. project gains PARA.',
       'Task gains Project, linking project or area notes.',
       "Meeting's Project will link project or area notes.",
     ]);
@@ -134,18 +163,20 @@ describe('typeSetupLines', () => {
     const task = type({ name: 'task', label: 'Task' });
     const plan = builtInTypePlan([task]);
     expect(typeSetupLines({ types: plan.missing, extensions: plan.extensions })).toEqual([
-      'Adds the Project, Area and Resource types.',
+      'Adds the Project type.',
       'Task gains Project, linking project or area notes.',
-    ]);
-    expect(typeSetupLines({ types: plan.missing.slice(1, 2), extensions: [] })).toEqual([
-      'Adds the Area type.',
     ]);
   });
 });
 
-describe('Area and Resource are built in', () => {
-  it.each([AREA_TYPE, RESOURCE_TYPE])('%s cannot be deleted', (name) => {
-    expect(isBuiltInType(name)).toBe(true);
-    expect(typeDeleteRefusal({ name, label: name })).toContain('cannot be deleted');
+describe('Area and Resource are no longer built in (#213)', () => {
+  it.each([AREA_TYPE, RESOURCE_TYPE])('%s can be deleted once its notes have moved', (name) => {
+    expect(isBuiltInType(name)).toBe(false);
+    expect(typeDeleteRefusal({ name, label: name })).toBeNull();
+  });
+
+  it('keeps Project built in: PARA is its notes', () => {
+    expect(isBuiltInType('Project')).toBe(true);
+    expect(typeDeleteRefusal({ name: 'project', label: 'Project' })).toContain('cannot be deleted');
   });
 });

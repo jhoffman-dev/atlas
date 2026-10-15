@@ -66,19 +66,53 @@ export {
   typeDeleteRefusal,
 } from './built-in-types.ts';
 export {
+  ARCHIVED_PARA,
+  AREA_PROPERTY,
   AREA_TYPE,
   builtInTypePlan,
+  DEFAULT_PARA,
   extensionKeys,
   extensionWithin,
   FILED_UNDER,
   FILED_UNDER_KEY,
   FILED_UNDER_TYPES,
+  PARA_KEY,
+  PARA_PROPERTY,
   PARA_TYPE_FILES,
+  PARA_VALUES,
   PROJECT_TYPE,
+  PROJECT_TYPE_FILE,
   RESOURCE_TYPE,
   typeSetupLines,
 } from './para.ts';
-export type { BuiltInTypeFile, BuiltInTypePlan, TypeExtension } from './para.ts';
+export type { BuiltInTypeFile, BuiltInTypePlan, ParaValue, TypeExtension } from './para.ts';
+export {
+  compileParaValuesQuery,
+  isParaArchived,
+  isParaNote,
+  isParaTarget,
+  outsideParaArchiveSql,
+  PARA_VALUES_QUERY_COLUMNS,
+  PARA_VALUES_QUERY_MARK,
+  paraArchiveToggle,
+  paraChoices,
+  paraDefaultFor,
+  paraOf,
+  paraProjectSql,
+  paraValueNamed,
+  paraValuesTargeted,
+  relatedNoteKind,
+  relationGroupLabel,
+} from './para-value.ts';
+export type { ParaArchiveToggle, ParaChoice } from './para-value.ts';
+export {
+  compileParaCandidatesQuery,
+  PARA_CANDIDATES_QUERY_MARK,
+  paraMigrationLine,
+  paraMoveLine,
+  paraNoteMove,
+} from './para-migration.ts';
+export type { ParaNoteMove } from './para-migration.ts';
 export {
   addablePropertyKeys,
   declaredPropertyKeys,

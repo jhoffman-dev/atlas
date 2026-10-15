@@ -31,7 +31,8 @@ export interface TypeSetupOffer {
   readonly types: readonly BuiltInTypeFile[];
   /**
    * The vault's own types that would gain a `project` linking a project or an
-   * area, and its Meeting type the keys the meeting import writes.
+   * area, its Project type the `para` and `area` it predates (#213), and its
+   * Meeting type the keys the meeting import writes.
    */
   readonly extensions: readonly PendingTypeExtension[];
 }
@@ -44,8 +45,6 @@ export interface TypeSetupFailure {
 
 /** What opening a vault did to its types, and what it leaves to be asked. */
 export interface BuiltInTypesEnsured {
-  /** The type files written because the vault had none. */
-  readonly created: readonly VaultPath[];
   /** The built-in type files given the properties Atlas ships that they predate (#162). */
   readonly properties: ShippedPropertiesAdded;
   /**
@@ -53,7 +52,6 @@ export interface BuiltInTypesEnsured {
    * the vault has — PARA's `project` on its own types, a shipped key it took off.
    */
   readonly offer: TypeSetupOffer;
-  readonly failed: readonly TypeSetupFailure[];
 }
 
 interface TypePorts {
@@ -62,20 +60,22 @@ interface TypePorts {
 }
 
 /**
- * Makes a vault's types whole for PARA as it opens, as far as that can be
- * done without asking (P30-01), and works out what else the Inbox would have
- * the vault's types hold (P29-02, P28-04).
+ * Makes a vault's built-in types whole as it opens, as far as that can be
+ * done without asking, and works out what PARA (P30-01, #213) and the Inbox
+ * (P29-02, P28-04) would have the vault's types hold.
  *
  * First each built-in type file the vault has gains the properties Atlas
  * ships on it and the file predates, once (#162, {@link addShippedProperties}):
  * a feature built on one, such as Accept linking a meeting's task through
  * `tasks`, would otherwise fail. A key the file has is never changed.
  *
- * A vault that files by project — it has a Project type — has the Area and
- * Resource types it lacks written in. A vault that has not taken PARA up is
- * only offered them, and so is the change PARA would make to the vault's own
- * types. The Proposal, Decision and Daily types are only ever offered, and the
- * host refuses to write over a file that is there, readable or not. See
+ * PARA is one Project type (#213). A vault without one has not taken PARA
+ * up, and is only offered it; so is the change PARA would make to the
+ * vault's own types, its Project type's `para` and `area` among them.
+ * Nothing of PARA's is written without a yes: the Area and Resource types a
+ * vault with projects was once given on opening are PARA values now. The
+ * Proposal, Decision and Daily types are only ever offered, and the host
+ * refuses to write over a file that is there, readable or not. See
  * {@link acceptTypeSetup}.
  *
  * One run at a time per vault: a call while one is under way for the same
@@ -104,26 +104,24 @@ const underWay = new WeakMap<
 
 async function setUpTypes(ports: TypePorts): Promise<BuiltInTypesEnsured> {
   const properties = await addShippedProperties(ports);
-  const { para, offer } = setupPlan(await loadObjectTypes(ports));
-  if (!para.filesByProject) return { created: [], properties, offer, failed: [] };
-  return { ...(await writeTypeFiles(ports, para.missing)), properties, offer };
+  return { properties, offer: setupOffer(await loadObjectTypes(ports)) };
 }
 
-/** PARA's plan for the vault's types, and what is offered rather than done. */
-function setupPlan(types: readonly DefinedType[]) {
+/** What is offered rather than done to the vault's types. */
+function setupOffer(types: readonly DefinedType[]): TypeSetupOffer {
   const para = builtInTypePlan(types);
   const inbox = inboxTypePlan(types);
-  const offer: TypeSetupOffer = {
+  return {
     types: [...(para.filesByProject ? [] : para.missing), ...inbox.missing, ...daily(types)],
     extensions: combinedExtensions(para.extensions, inbox.extensions),
   };
-  return { para, offer };
 }
 
 /**
  * Does what {@link ensureBuiltInTypes} offered, once the person said yes:
- * writes the PARA types offered, then gives the vault's own types a `project`
- * that can point at a project or an area.
+ * writes the PARA type offered, then gives the vault's own types what they
+ * lack: a `project` that can point at a project or an area, and on the
+ * Project type `para` and `area`.
  *
  * The offer says which types; what each gets is worked out again from the
  * type files as they are now, since they may have been edited while it

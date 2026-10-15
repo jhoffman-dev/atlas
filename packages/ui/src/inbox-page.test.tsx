@@ -122,7 +122,7 @@ describe('InboxPage', () => {
     page();
     const picker = screen.getByRole('combobox', { name: 'File Idea under' });
     const groups = [...picker.querySelectorAll('optgroup')];
-    expect(groups.map((group) => group.label)).toEqual(['Project', 'Area']);
+    expect(groups.map((group) => group.label)).toEqual(['Projects', 'Areas']);
     expect(
       within(picker)
         .getAllByRole('option')

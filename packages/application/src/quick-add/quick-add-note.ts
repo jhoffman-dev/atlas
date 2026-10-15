@@ -1,5 +1,6 @@
 import {
   NEW_NOTE_CONTENTS,
+  paraDefaultFor,
   quickAddFolder,
   quickAddProperties,
   splitFrontmatter,
@@ -62,7 +63,8 @@ export async function quickAddNote({
 /**
  * What a note added from the add button starts as: the type's template, or
  * an empty note of the type, with the fields filled in written into its
- * frontmatter through the byte-preserving write.
+ * frontmatter through the byte-preserving write. A new Project starts as a
+ * project (#213) unless its template or its fields say otherwise.
  */
 export function quickAddContents({
   markdown,
@@ -70,15 +72,17 @@ export function quickAddContents({
   values,
   template,
 }: {
-  markdown: Pick<MarkdownPort, 'updateFrontmatter'>;
+  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'updateFrontmatter'>;
   type: Pick<ObjectType, 'name' | 'properties'>;
   values: Readonly<Record<string, string>>;
   template: string | null;
 }): string {
   const { frontmatter, body } = splitFrontmatter(template ?? NEW_NOTE_CONTENTS);
-  const changed = markdown.updateFrontmatter(
-    frontmatter,
-    quickAddProperties({ type, fields: type.properties, values }),
-  );
+  const filled = quickAddProperties({ type, fields: type.properties, values });
+  const starting = { ...markdown.frontmatterProperties(frontmatter), ...filled };
+  const changed = markdown.updateFrontmatter(frontmatter, {
+    ...filled,
+    ...paraDefaultFor({ type, starting }),
+  });
   return changed + body;
 }

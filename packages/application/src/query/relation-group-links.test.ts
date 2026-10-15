@@ -10,11 +10,15 @@ const NOTES = [
   { path: '.atlas/templates/Project.md', title: 'Project' },
 ];
 
+/** An index holding no PARA values (#213): every Project note reads as a project. */
+const query = async () => ({ columns: [], rows: [], truncated: false });
+
 describe('relationGroupLinks', () => {
   it('links every note of the target type, leaving out archived notes and templates', async () => {
     const asked: string[] = [];
     const links = await relationGroupLinks({
       index: {
+        query,
         notesOfType: async (type) => {
           asked.push(type);
           return NOTES;
@@ -31,6 +35,7 @@ describe('relationGroupLinks', () => {
   it('links the notes of every type a relation points at, a type at a time (P30-01)', async () => {
     const links = await relationGroupLinks({
       index: {
+        query,
         notesOfType: async (type) =>
           type === 'area'
             ? [{ path: 'Areas/Garden.md', title: 'Garden' }]
@@ -45,7 +50,7 @@ describe('relationGroupLinks', () => {
   it('fails as the index fails, rather than offering no columns as if there were none', async () => {
     await expect(
       relationGroupLinks({
-        index: { notesOfType: () => Promise.reject(new Error('index not ready')) },
+        index: { query, notesOfType: () => Promise.reject(new Error('index not ready')) },
         targets: ['project'],
         names: noteNames(null),
       }),

@@ -42,6 +42,7 @@ export async function createRelatedNote({
   fs,
   markdown,
   type,
+  values = {},
   name,
   beside,
   notePaths,
@@ -52,6 +53,8 @@ export async function createRelatedNote({
   /** `YYYY-MM-DD`, from the injected clock: the task rules date by it. */
   today: string;
   type: ObjectType;
+  /** What it starts with besides its type: a new area's `para` (#213). */
+  values?: Readonly<Record<string, string>>;
   name: string;
   /** The note whose relation is being set. */
   beside: VaultPath | null;
@@ -67,7 +70,7 @@ export async function createRelatedNote({
     markdown,
     type,
     name: cleaned,
-    values: {},
+    values,
     template: template === null ? null : await readTemplate({ fs, template }),
     beside,
     notePaths,

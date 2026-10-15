@@ -29,6 +29,23 @@ const DECISION = parseObjectType({
   },
 });
 const PROPOSAL = parseObjectType({ name: 'proposal', properties: {} });
+/** The Area and Resource types as Atlas wrote them before PARA became a property (#213). */
+const AREA = parseObjectType({ name: 'area', label: 'Area', properties: { description: 'text' } });
+const RESOURCE = parseObjectType({
+  name: 'resource',
+  label: 'Resource',
+  properties: {
+    project: { kind: 'relation', target: ['project', 'area'] },
+    url: 'url',
+    description: 'text',
+  },
+});
+/** PARA's types as a vault set up before #213 has them: Project, and Area and Resource beside it. */
+const PARA_TYPES: readonly ObjectType[] = [
+  ...PARA_TYPE_FILES.map((file) => file.type),
+  AREA,
+  RESOURCE,
+];
 
 /** A vault as Atlas sets one up: GTD tasks, PARA, meetings and decisions. */
 const TYPES: readonly ObjectType[] = [
@@ -38,7 +55,7 @@ const TYPES: readonly ObjectType[] = [
   DECISION,
   PROPOSAL,
   TASK_TYPE_FILE.type,
-  ...PARA_TYPE_FILES.map((file) => file.type),
+  ...PARA_TYPES,
 ];
 
 const PAGE_TYPES = ['person', 'company', 'project', 'area', 'meeting', 'task', 'decision'];
@@ -279,7 +296,7 @@ describe('linkedSectionPlans, in a vault whose types are its own', () => {
       name: 'decision',
       properties: { initiative: { kind: 'relation', target: 'project' } },
     });
-    const types = [task, decision, ...PARA_TYPE_FILES.map((file) => file.type)];
+    const types = [task, decision, ...PARA_TYPES];
     const notes = section(linkedSectionPlans('project', types), 'notes');
     expect(notes.query).toContain(
       'FROM task, project, area, resource WHERE CONNECTED TO this AND NOT (type = task AND project = this) SORT',

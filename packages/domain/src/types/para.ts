@@ -9,11 +9,54 @@ import {
 /**
  * PARA in Atlas: Projects and Areas are what everything is filed under,
  * Resources are reference kept for them, and the Archive is where finished
- * things go (U-22). These are the types that structure stands on.
+ * things go (U-22). One type holds all four (#213, ADR-0037): a Project
+ * note's `para` says which it is, so moving one between them — into the
+ * Archive and back out included — is a value, never a change of type.
+ *
+ * `area` and `resource` were types of their own before (P30-01). A vault may
+ * still have notes of them; they are read as the PARA value they name, and
+ * moving them onto the Project type is offered (`paraNoteChanges`).
  */
 export const PROJECT_TYPE = 'project';
 export const AREA_TYPE = 'area';
 export const RESOURCE_TYPE = 'resource';
+
+/** The key a Project note keeps its place in PARA under. */
+export const PARA_KEY = 'para';
+
+/** Where a Project note stands in PARA. */
+export type ParaValue = 'project' | 'area' | 'resource' | 'archive';
+
+/** The four, in the order PARA reads them and pickers group them. */
+export const PARA_VALUES: readonly ParaValue[] = ['project', 'area', 'resource', 'archive'];
+
+/** What a Project note with no `para` — or one Atlas cannot read — is. */
+export const DEFAULT_PARA: ParaValue = 'project';
+
+/** The value that puts a Project note away: archived without moving its file. */
+export const ARCHIVED_PARA: ParaValue = 'archive';
+
+/** `para` on the Project type: optional, so nothing a person saves is refused for want of it. */
+export const PARA_PROPERTY: PropertyDef = {
+  key: PARA_KEY,
+  kind: 'select',
+  label: 'PARA',
+  required: false,
+  options: PARA_VALUES,
+  target: null,
+  many: false,
+};
+
+/** `area` on the Project type: the area a project is part of, optional. */
+export const AREA_PROPERTY: PropertyDef = {
+  key: 'area',
+  kind: 'relation',
+  label: 'Area',
+  required: false,
+  options: [],
+  target: AREA_TYPE,
+  many: false,
+};
 
 /** The property a note is filed under a project or an area by. */
 export const FILED_UNDER_KEY = 'project';
@@ -50,73 +93,45 @@ export interface BuiltInTypeFile {
   readonly body: string;
 }
 
-/** The PARA types, as written into a vault that lacks them. */
-export const PARA_TYPE_FILES: readonly BuiltInTypeFile[] = [
-  {
-    type: {
-      name: PROJECT_TYPE,
-      label: 'Project',
-      icon: 'board',
-      properties: [
-        {
-          key: 'status',
-          kind: 'select',
-          label: 'Status',
-          required: false,
-          options: ['planned', 'active', 'paused', 'done'],
-          target: null,
-          many: false,
-          done: 'done',
-        },
-        {
-          key: 'area',
-          kind: 'relation',
-          label: 'Area',
-          required: false,
-          options: [],
-          target: AREA_TYPE,
-          many: false,
-        },
-        {
-          key: 'due',
-          kind: 'date',
-          label: 'Due',
-          required: false,
-          options: [],
-          target: null,
-          many: false,
-        },
-        SUMMARY,
-      ],
-    },
-    body: '# Project\n\nSomething with an end: tasks, meetings and notes are filed under it.\n',
+/**
+ * The PARA type, as written into a vault that lacks it: Project, whose `para`
+ * makes it a project, an area, a resource or archived (#213).
+ */
+export const PROJECT_TYPE_FILE: BuiltInTypeFile = {
+  type: {
+    name: PROJECT_TYPE,
+    label: 'Project',
+    icon: 'board',
+    properties: [
+      PARA_PROPERTY,
+      {
+        key: 'status',
+        kind: 'select',
+        label: 'Status',
+        required: false,
+        options: ['planned', 'active', 'paused', 'done'],
+        target: null,
+        many: false,
+        done: 'done',
+      },
+      AREA_PROPERTY,
+      {
+        key: 'due',
+        kind: 'date',
+        label: 'Due',
+        required: false,
+        options: [],
+        target: null,
+        many: false,
+      },
+      SUMMARY,
+    ],
   },
-  {
-    type: { name: AREA_TYPE, label: 'Area', icon: 'folder', properties: [SUMMARY] },
-    body: '# Area\n\nA responsibility with no end date — Health, Home, a team. Projects and notes are filed under it.\n',
-  },
-  {
-    type: {
-      name: RESOURCE_TYPE,
-      label: 'Resource',
-      icon: 'doc',
-      properties: [
-        FILED_UNDER,
-        {
-          key: 'url',
-          kind: 'url',
-          label: 'Link',
-          required: false,
-          options: [],
-          target: null,
-          many: false,
-        },
-        SUMMARY,
-      ],
-    },
-    body: '# Resource\n\nReference worth keeping — an article, a manual, a how-to — filed under a project or an area.\n',
-  },
-];
+  body: '# Project\n\nA project, an area, a resource or archived — its PARA says which. Tasks, meetings and notes are filed under projects and areas.\n',
+};
+
+/** The PARA types, as written into a vault that lacks them: the one Project type. */
+export const PARA_TYPE_FILES: readonly BuiltInTypeFile[] = [PROJECT_TYPE_FILE];
 
 /**
  * The built-in types notes are filed by, when the vault has them: each gains
@@ -182,7 +197,8 @@ export interface BuiltInTypePlan<Type extends ObjectType = ObjectType> {
 const folded = (name: string) => name.trim().toLowerCase();
 
 /**
- * What the vault's types lack for PARA: the PARA types it has no file for,
+ * What the vault's types lack for PARA: the PARA types it has no file for;
+ * on its Project type, the `para` and `area` it was written without (#213);
  * and the filed types without a `project` that can point at a project or an
  * area. Additive only — nothing the vault has is changed or taken away. A
  * property the vault already has under the key is left as it is, unless it is
@@ -197,14 +213,43 @@ export function builtInTypePlan<Type extends ObjectType>(
 ): BuiltInTypePlan<Type> {
   const byName = new Map(existing.map((type) => [folded(type.name), type]));
   const missing = PARA_TYPE_FILES.filter((file) => !byName.has(file.type.name));
-  const extensions = FILED_TYPES.flatMap((name) => {
-    const claimed = existing.filter((type) => folded(type.name) === name).length;
-    const type = byName.get(name);
-    // Two files claiming a type: which one a feature reads is not the offer's to pick.
-    const extension = type === undefined || claimed > 1 ? null : filedUnder(type);
+  const project = onlyTypeNamed(existing, PROJECT_TYPE);
+  const projectExtension = project === null ? null : withParaKeys(project);
+  const filed = FILED_TYPES.flatMap((name) => {
+    const type = onlyTypeNamed(existing, name);
+    const extension = type === null ? null : filedUnder(type);
     return extension === null ? [] : [extension];
   });
-  return { missing, filesByProject: byName.has(PROJECT_TYPE), extensions };
+  return {
+    missing,
+    filesByProject: byName.has(PROJECT_TYPE),
+    extensions: [...(projectExtension === null ? [] : [projectExtension]), ...filed],
+  };
+}
+
+/**
+ * The vault's type of `name`, in any case — or null when it has none, or two
+ * files claim it: which one a feature reads is not the offer's to pick.
+ */
+function onlyTypeNamed<Type extends ObjectType>(
+  existing: readonly Type[],
+  name: string,
+): Type | null {
+  const claiming = existing.filter((type) => folded(type.name) === name);
+  return claiming.length === 1 ? (claiming[0] ?? null) : null;
+}
+
+/** What a Project type lacks of `para` and `area`, or null when it has both keys, in whatever shape. */
+function withParaKeys<Type extends ObjectType>(type: Type): TypeExtension<Type> | null {
+  const has = new Set(type.properties.map((property) => property.key));
+  const added = [PARA_PROPERTY, AREA_PROPERTY].filter((property) => !has.has(property.key));
+  if (added.length === 0) return null;
+  return {
+    before: type,
+    after: { ...type, properties: [...type.properties, ...added] },
+    added,
+    widened: [],
+  };
 }
 
 /** What `type` lacks to be filed under a project or an area, or null when nothing. */

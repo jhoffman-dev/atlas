@@ -11,6 +11,8 @@ import { aggregateFunction, type AggregateKind } from './aggregate.ts';
 import { InvalidQueryError } from './invalid-query-error.ts';
 import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { outsideArchiveSql } from '../archive/archive.ts';
+import { PROJECT_TYPE } from '../types/para.ts';
+import { outsideParaArchiveSql } from '../types/para-value.ts';
 
 export { InvalidQueryError };
 
@@ -167,7 +169,7 @@ export function compileViewQuery(
   const parameters: (string | number)[] = [];
   const conditions = [
     OUTSIDE_ATLAS,
-    ...(reach.includeArchived === true ? [] : [OUTSIDE_ARCHIVE]),
+    ...(reach.includeArchived === true ? [] : archivedLeftOut(query.type, table)),
     ...query.filters.map((filter) => condition(filter, parameters)),
   ];
 
@@ -210,6 +212,16 @@ const OUTSIDE_ATLAS = outsideAtlasSql('"path"');
 
 /** Leaves out what is archived, the same way — see `outsideArchiveSql`. */
 const OUTSIDE_ARCHIVE = outsideArchiveSql('"path"');
+
+/**
+ * The conditions that leave archived notes out of a view over `type`: the
+ * Archive folder's, and — over Project notes — the ones whose PARA is
+ * archive, which are archived where they stand (#213).
+ */
+function archivedLeftOut(type: string, table: string): string[] {
+  if (type.trim().toLowerCase() !== PROJECT_TYPE) return [OUTSIDE_ARCHIVE];
+  return [OUTSIDE_ARCHIVE, outsideParaArchiveSql(`${table}."path"`)];
+}
 
 /** A missing property groups under the empty string rather than vanishing. */
 function groupExpression(key: string): string {

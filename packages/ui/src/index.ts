@@ -172,6 +172,8 @@ export { WeeklyReviewPage } from './weekly-review-page.tsx';
 export type { WeeklyReviewPageProps } from './weekly-review-page.tsx';
 export { TodayPage } from './today-page.tsx';
 export type { TodayAction, TodayNotice, TodayPageProps } from './today-page.tsx';
+export { ParaMigration } from './para-migration.tsx';
+export type { ParaMigrationPreviewData, ParaMigrationProps } from './para-migration.tsx';
 export { TaskMigration } from './task-migration.tsx';
 export type {
   TaskMigrationMapping,

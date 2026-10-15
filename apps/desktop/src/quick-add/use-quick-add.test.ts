@@ -57,7 +57,12 @@ function setup({
   const setting: QuickAddSetting = { configured, save: () => {}, problem: null };
   // Held still across renders, as the app memoises them.
   const args = {
-    ports: { fs, markdown: remarkMarkdown, index: { notesOfType }, store },
+    ports: {
+      fs,
+      markdown: remarkMarkdown,
+      index: { notesOfType, query: async () => ({ columns: [], rows: [], truncated: false }) },
+      store,
+    },
     setting,
     types: [TASK, PROJECT],
     templates: [TASK_TEMPLATE],

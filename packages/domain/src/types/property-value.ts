@@ -1,5 +1,7 @@
 import { splitWikiLinks } from '../markdown/wikilink.ts';
 import { isDateLike } from '../index/property-value.ts';
+import { PROJECT_TYPE } from './para.ts';
+import { isParaTarget } from './para-value.ts';
 import { relationTypes, relationTypesText, type PropertyDef } from './property-def.ts';
 
 /**
@@ -83,6 +85,8 @@ export function relationTypeRefusal({
 }): string | null {
   const allowed = relationTypes(def);
   if (linkedType === null || allowed.length === 0 || allowed.includes(linkedType)) return null;
+  // Projects, areas and resources are all Project notes since #213: its `para` says which.
+  if (linkedType.trim().toLowerCase() === PROJECT_TYPE && allowed.some(isParaTarget)) return null;
   return `${def.label} links to a ${relationTypesText(def)}, not a ${linkedType}`;
 }
 

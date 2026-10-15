@@ -8,7 +8,6 @@ import { dragWithPointer } from './drag.ts';
 import {
   createVault,
   expectFile,
-  expectParaTypeRows,
   installHost,
   sidebarSection,
   type FakeHost,
@@ -66,7 +65,6 @@ async function openVaultWithHost(page: Page): Promise<{ vault: FakeVault; host: 
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  await expectParaTypeRows(page, vault);
   return { vault, host };
 }
 
