@@ -1,4 +1,4 @@
-import { resolveWikiLinkTarget, wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
+import { createWikiLinkResolver, wikiLinkTargetWith } from '../markdown/resolve-wikilink.ts';
 import { splitWikiLinks, type WikiLink } from '../markdown/wikilink.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { isWikiLink } from './property-value.ts';
@@ -45,13 +45,10 @@ const bareName = (target: string): string =>
  */
 export function noteNames(notes: readonly NamedNote[] | null): NoteNames {
   const titles = new Map((notes ?? []).map((note) => [note.path, note.title]));
-  const paths = [...titles.keys()];
-  // A table resolves the same few links row after row.
-  const resolved = new Map<string, VaultPath | null>();
-  const resolve = (target: string): VaultPath | null => {
-    if (!resolved.has(target)) resolved.set(target, resolveWikiLinkTarget(target, paths));
-    return resolved.get(target) ?? null;
-  };
+  // Indexed once, not searched per link: a picker works out the link to every
+  // note it offers, on every keystroke in the note it sits in (#217).
+  const resolve = createWikiLinkResolver([...titles.keys()]);
+  const links = new Map<VaultPath, string>();
 
   const name = (link: WikiLink): LinkedName => {
     const path = notes === null ? null : resolve(link.target);
@@ -69,7 +66,13 @@ export function noteNames(notes: readonly NamedNote[] | null): NoteNames {
       const [piece] = splitWikiLinks(link.trim());
       return piece?.kind === 'wikiLink' ? name(piece).path : null;
     },
-    linkTo: (path) => `[[${wikiLinkTargetFor(path, paths)}]]`,
+    linkTo: (path) => {
+      const known = links.get(path);
+      if (known !== undefined) return known;
+      const link = `[[${wikiLinkTargetWith(path, resolve)}]]`;
+      links.set(path, link);
+      return link;
+    },
   };
 }
 

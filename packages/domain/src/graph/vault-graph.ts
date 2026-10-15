@@ -1,5 +1,5 @@
 import { humanizeKey } from '../page/property-label.ts';
-import { resolveWikiLinkTarget } from '../markdown/resolve-wikilink.ts';
+import { createWikiLinkResolver } from '../markdown/resolve-wikilink.ts';
 import { splitWikiLinks } from '../markdown/wikilink.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { isTemplateNote } from '../vault/vault-visibility.ts';
@@ -73,7 +73,8 @@ export function buildVaultGraph({
   // index built before it was hidden still holds: a link to it would open it.
   const vaultNotes = notes.filter((note) => !isTemplateNote(note.path));
   const known = new Map(vaultNotes.map((note) => [note.path, note]));
-  const paths = [...known.keys()].map(createVaultPath);
+  // Indexed once: every relation in the vault is resolved against the same notes (#217).
+  const resolve = createWikiLinkResolver([...known.keys()].map(createVaultPath));
   const edges = new Map<string, GraphEdge>();
 
   const add = (edge: Omit<GraphEdge, 'id'>) => {
@@ -93,7 +94,7 @@ export function buildVaultGraph({
   }
   for (const relation of relations) {
     for (const target of relationTargetsOf(relation.value)) {
-      const resolved = resolveWikiLinkTarget(target, paths);
+      const resolved = resolve(target);
       if (resolved === null) continue;
       const label = humanizeKey(relation.key);
       add({ source: relation.source as VaultPath, target: resolved, kind: 'relation', label });

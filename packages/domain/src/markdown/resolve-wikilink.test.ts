@@ -6,6 +6,7 @@ import {
   resolveWikiLinkTarget,
   wikiLinkNewNotePath,
   wikiLinkTargetFor,
+  wikiLinkTargetWith,
 } from './resolve-wikilink.ts';
 
 const notes = (...paths: string[]) => paths.map(createVaultPath);
@@ -214,5 +215,26 @@ describe('a link never opens a template (issue #15)', () => {
     const both = notes('.atlas/templates/Company.md', 'Clients/Deep/Company.md');
     expect(resolveWikiLinkTarget('Company', both)).toBe('Clients/Deep/Company.md');
     expect(createWikiLinkResolver(both)('company')).toBe('Clients/Deep/Company.md');
+  });
+});
+
+describe('wikiLinkTargetWith (#217)', () => {
+  // Namesakes at several depths, in two cases, with accents spelled both ways, and a template.
+  const vault = notes(
+    'Larkspur.md',
+    'Clients/Larkspur.md',
+    'Clients/larkspur payroll.md',
+    'Archive/Larkspur Payroll.md',
+    'People/Zoë Marlow.md',
+    'Old/Zoë Marlow.md',
+    '.atlas/templates/Larkspur.md',
+    'Notes/Tobias Fenn.md',
+  );
+
+  it('writes the same link as wikiLinkTargetFor, from a resolver indexed once', () => {
+    const resolve = createWikiLinkResolver(vault);
+    for (const path of vault) {
+      expect(wikiLinkTargetWith(path, resolve), path).toBe(wikiLinkTargetFor(path, vault));
+    }
   });
 });
