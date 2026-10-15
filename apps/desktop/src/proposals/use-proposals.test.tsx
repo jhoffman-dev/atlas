@@ -205,6 +205,46 @@ describe('useProposals', () => {
     });
   });
 
+  it('lets go of a chosen proposal once Accept answers it alone, so Undo brings it back unticked', async () => {
+    const { hook } = render();
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    act(() => hook.result.current.section.onUndo());
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+
+    expect(hook.result.current.section.selection.selected.size).toBe(0);
+  });
+
+  it('lets go of a chosen proposal once Reject answers it alone', async () => {
+    const { hook, files } = render();
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+
+    act(() => hook.result.current.section.onReject(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    // Put back by hand — out of the Archive, open again — it comes back unticked.
+    files.delete(`Archive/${PROPOSAL}`);
+    files.set(PROPOSAL, { text: PROPOSAL_TEXT, modified: 99 });
+    hook.rerender({ indexKey: 'v2' });
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+
+    expect(hook.result.current.section.selection.selected.size).toBe(0);
+  });
+
+  it('keeps a proposal chosen when Accept could not answer it', async () => {
+    const { hook } = render({ [PROPOSAL]: GONE_TEXT });
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.problems.size).toBe(1));
+
+    expect([...hook.result.current.section.selection.selected]).toEqual([PROPOSAL]);
+  });
+
   it('says on the proposal why an accept was refused, and writes nothing', async () => {
     const { hook, files } = render({ [PROPOSAL]: GONE_TEXT });
     await waitFor(() => expect(hook.result.current.count).toBe(1));
