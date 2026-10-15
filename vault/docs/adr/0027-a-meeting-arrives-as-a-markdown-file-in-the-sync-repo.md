@@ -687,3 +687,28 @@ Three statements above change. Both records are proposed. This amendment takes e
 
 Meetings already imported as two originals are not touched on arrival; the
 sweep in ADR-0036 handles them.
+
+## Amendment: meetings arrive in their month, and waiting is a state (ADR-0038, #214, 2026-10-14)
+
+- **Where.** The mapping writes `Meetings/<YYYY>/<MM>/<YYYY-MM-DD> <title>.md`
+  (and the second copy's `… (<provider> <hash>).md` beside it), the month
+  from the meeting's `date`. `Inbox/Meetings/` is still read as a place
+  meeting files land: an n8n workflow not re-imported keeps writing there,
+  and every file in it is still the import's, as below.
+- **Whose.** In a month folder under `Meetings`, a file is the import's when
+  it declares `atlas_import` or already carries `atlas_import_outcome`
+  (`isMeetingArrival`). Everything above about "a file under
+  `Inbox/Meetings/` with no outcome" holds for such a file there: it is
+  pending, not in play to rules until it is let in, and judged on every look.
+  A meeting made by hand in its month declares nothing: the import never
+  looks at it, and it is in play from the start. A folder of meetings filed
+  some other way, `Meetings/From Notion`, is not a month folder and is not
+  where meeting files land.
+- **Which copy is kept** is unchanged, and still decided by what the files
+  say: provider + `external_id`, the one already imported first.
+- **Waiting in the Inbox** is no longer the folder. A meeting waits while it
+  declares `atlas_import`, was stamped by the import or is arriving in its
+  month, is out of the Archive, and has no `project` — wherever it lives.
+  Processing it writes the link and moves nothing.
+- **The index** asks for the stamps, and for which notes declare the
+  contract, only where meeting files land: both folders.
