@@ -178,6 +178,8 @@ export function useProposals({
         try {
           const done = await withGiveUpRecorded(named, run);
           if (vault !== openVault.current) return;
+          // Answered, it is chosen no more: back on the list after an Undo, it comes back unticked.
+          afterBatch({ answered: [path], failed: [] });
           say({ notice: done.notice, undo: done.accepted });
         } catch (cause) {
           if (vault !== openVault.current) return;
@@ -186,7 +188,7 @@ export function useProposals({
         }
       });
     },
-    [activity, answered, fs, queue, say],
+    [activity, afterBatch, answered, fs, queue, say],
   );
 
   const onAccept = useCallback(
