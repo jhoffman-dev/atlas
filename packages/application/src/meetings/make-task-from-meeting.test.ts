@@ -10,7 +10,6 @@ import {
   resolveWikiLinkTarget,
   type MeetingIdentity,
 } from '@atlas/domain';
-import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 import { MEETING_BODY } from '../testing/meeting-files.ts';
 import {
   jsonLinesNote,
@@ -263,13 +262,13 @@ describe('makeTaskFromMeeting — the meeting it is made from', () => {
 });
 
 describe('makeTaskFromMeeting — the task rules (ADR-0029)', () => {
-  it('refuses a task Waiting with nobody before anything is written', async () => {
+  it('makes a task Waiting with nobody to wait on, as the task rules now allow (#202)', async () => {
     const setup = vault();
-    const waiting = item({ properties: { status: 'waiting', waiting_on: '' } });
-    const made = make(setup, waiting);
+    await make(setup, item({ properties: { status: 'waiting' } }));
 
-    await expect(made).rejects.toBeInstanceOf(TaskRuleRefusedError);
-    await expectNothingWritten(setup, made, /[Ww]aiting/);
+    expect(setup.propertiesOf(TASK)).toMatchObject({ type: 'task', status: 'waiting' });
+    expect(setup.propertiesOf(TASK)).not.toHaveProperty('waiting_on');
+    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
   });
 
   it('refuses a task waiting on a person who is not a note any more, writing nothing', async () => {
