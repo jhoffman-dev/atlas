@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createVaultPath,
   digestOf,
+  meetingTranscriptOf,
   logPathFor,
   MAX_PROPOSALS_PER_ANSWER,
   MEETING_EXTRACTION_PROMPT,
@@ -127,8 +128,8 @@ const rule = (which: string): AutomationRule => ({
 const SYNC_ONLY = rule('FROM meeting WHERE provider = gemini');
 const BOTH = rule('FROM meeting');
 
-/** What extraction knows the Gemini meeting by, whatever its frontmatter: its identity and its words. */
-const SYNC_KEY = `meeting:gemini:gemini-7f3a9c21:body:${digestOf(splitFrontmatter(GEMINI).body)}`;
+/** What extraction knows the Gemini meeting by, whatever its frontmatter: its identity and what was said. */
+const SYNC_KEY = `meeting:gemini:gemini-7f3a9c21:transcript:${digestOf(meetingTranscriptOf(GEMINI) ?? '')}`;
 
 const item = (fields: Record<string, unknown>) => ({ confidence: 'high', owner: '', ...fields });
 const says = (...items: unknown[]): ModelEvent[] => [

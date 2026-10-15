@@ -28,6 +28,11 @@ export function meetingTurnsOf(text: string): readonly TranscriptTurn[] {
   return parseTranscript(section.text, { selfName: null, firstLine: section.firstLine }).turns;
 }
 
+/** The words under the note's Transcript heading, every byte as written; null when it has none. */
+export function meetingTranscriptOf(text: string): string | null {
+  return sectionOf(text, 'transcript')?.text ?? null;
+}
+
 /** The provider's own next steps, as its section lists them. */
 export function providerNextStepsOf(text: string): readonly ProviderNextStep[] {
   const section = sectionOf(text, 'nextSteps');

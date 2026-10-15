@@ -10,7 +10,7 @@ export type {
 export type { MeetingImportError } from './meeting-import-error.ts';
 export type { ProviderNextStep, StepConfidence } from './next-steps.ts';
 export { isSelfSpeaker, isUnnamedSpeaker, parseTranscript } from './transcript.ts';
-export { meetingTurnsOf, providerNextStepsOf } from './meeting-turns.ts';
+export { meetingTranscriptOf, meetingTurnsOf, providerNextStepsOf } from './meeting-turns.ts';
 export type { ParsedTranscript, TranscriptTurn, TurnSpeaker, TurnTime } from './transcript.ts';
 export {
   DUPLICATE_OF_KEY,

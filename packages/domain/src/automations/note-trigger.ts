@@ -45,8 +45,8 @@ export interface NoteVersionRef {
    * digest. A handled version is recognised by any of them, wherever it is
    * and whatever else changed, so a key must be unique to the thing answered:
    * it MUST include the note's identity, as
-   * `meeting:<provider>:<external_id>:body:<digest>` does, and never be a
-   * bare body digest, which two notes can share. A key that is empty or has
+   * `meeting:<provider>:<external_id>:transcript:<digest>` does, and never be a
+   * bare digest, which two notes can share. A key that is empty or has
    * no `:` with something on each side is ignored (`isSchemaKey`).
    */
   readonly keys?: readonly string[];
