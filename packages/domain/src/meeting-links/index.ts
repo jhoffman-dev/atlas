@@ -35,4 +35,11 @@ export { meetingLinkReport } from './meeting-link-report.ts';
 export type { MeetingLinkHappening } from './meeting-link-report.ts';
 export { projectConfidence, rankProjects } from './project-ranking.ts';
 export type { ProjectTie, RankedProject } from './project-ranking.ts';
-export { isOwnerAttendee, isOwnerNote, ownerAddresses, sameName } from './vault-owner.ts';
+export {
+  isOwnerAttendee,
+  isOwnerNote,
+  ownerAddresses,
+  ownerAddressesInUse,
+  ownerNotAGroup,
+  sameName,
+} from './vault-owner.ts';

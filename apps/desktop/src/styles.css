@@ -13532,8 +13532,8 @@ form.inbox__clarify {
   font-size: var(--text-small);
 }
 
-/* Settings → Granola: the person's addresses, one on each line, grow downwards, never out of the card. */
-.granola__emails {
+/* Settings → Profile: the person's addresses, one on each line, grow downwards, never out of the card. */
+.profile__emails {
   resize: vertical;
 }
 

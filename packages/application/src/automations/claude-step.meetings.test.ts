@@ -117,7 +117,7 @@ async function setUp(rounds: readonly ScriptedRound[] = [TWO]) {
     openVault: () => VAULT,
     onWritten: () => undefined,
   };
-  const linker = createMeetingLinker({ ...wiring, selfName: () => null });
+  const linker = createMeetingLinker({ ...wiring, selfName: () => null, selfEmails: () => [] });
   const importer = createMeetingImporter({
     ...wiring,
     active: () => true,

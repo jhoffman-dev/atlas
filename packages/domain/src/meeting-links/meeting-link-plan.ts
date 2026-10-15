@@ -40,7 +40,7 @@ export interface MeetingLinkInput {
   readonly projects: readonly RankedProject[];
   /** The vault owner's name, from their profile: never proposed as someone new. */
   readonly selfName: string | null;
-  /** The addresses their own Person note holds (`ownerAddresses`): an attendee at one is them. */
+  /** The vault owner's own addresses, the vault's `selfEmails`: an attendee at one is them. */
   readonly selfEmails?: readonly string[];
 }
 
@@ -183,7 +183,7 @@ function proposalsFor(input: MeetingLinkInput, peopleAfter: ReadonlySet<VaultPat
   return { proposals, passedOver };
 }
 
-/** Whether an attendee is the vault's owner, by their profile's name or their own note's addresses: never proposed. */
+/** Whether an attendee is the vault's owner, by their profile's name or the vault's `selfEmails`: never proposed. */
 function isOwner(input: MeetingLinkInput, attendee: MeetingAttendee): boolean {
   return isOwnerAttendee({
     attendee,

@@ -22,6 +22,12 @@ export interface ProfileSetting {
   readonly profile: ProfileState;
   /** Whether `profile` is what this vault's settings say, rather than unknown until they are read. */
   readonly loaded: boolean;
+  /**
+   * Whether this vault's settings note has answered (read, or found
+   * unreadable): until then the name is not known, and nothing that asks who
+   * the owner is should act.
+   */
+  readonly settled: boolean;
   /** Changes the fields given, and writes only those that changed. */
   readonly save: (change: ProfileChange) => void;
   /** Why the last save failed, or why the settings note cannot be read. */
@@ -57,6 +63,7 @@ export function useProfileSetting({
   const {
     value,
     loaded,
+    answered,
     save: saveValue,
     problem,
     unreadable,
@@ -74,6 +81,7 @@ export function useProfileSetting({
   return {
     profile: loaded ? (value ?? EMPTY_PROFILE) : 'unknown',
     loaded,
+    settled: answered,
     save,
     problem: problem ?? unreadable,
   };

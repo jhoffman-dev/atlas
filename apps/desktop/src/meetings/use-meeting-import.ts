@@ -35,6 +35,8 @@ export function useMeetingImport({
   active,
   indexReady,
   selfName,
+  selfEmails,
+  ownerKnown,
   onWritten,
 }: {
   changes: NoteChanges;
@@ -52,11 +54,21 @@ export function useMeetingImport({
   indexReady: boolean;
   /** The vault owner's name, from their profile: an attendee of that name is never proposed as someone new. */
   selfName: string | null;
+  /** The vault owner's own addresses, its `selfEmails`: an attendee at one is never proposed as someone new. */
+  selfEmails: readonly string[];
+  /**
+   * Whether the vault's settings have answered for the owner's name and
+   * addresses. Until they have, nothing is imported: a meeting linked with
+   * neither would propose its own owner as someone new.
+   */
+  ownerKnown: boolean;
   /** Re-reads the tree and the index once the import has written or moved a note. */
   onWritten: () => void;
 }): void {
-  const latest = useRef({ ports, onWritten, vaultKey, active, selfName });
-  latest.current = { ports, onWritten, vaultKey, active, selfName };
+  // Imports only once the owner is known, as if this Mac did not import until then.
+  const importing = active && ownerKnown;
+  const latest = useRef({ ports, onWritten, vaultKey, active: importing, selfName, selfEmails });
+  latest.current = { ports, onWritten, vaultKey, active: importing, selfName, selfEmails };
   const [importer, setImporter] = useState<MeetingImporter | null>(null);
 
   useEffect(() => {
@@ -66,6 +78,7 @@ export function useMeetingImport({
       activity,
       openVault: () => latest.current.vaultKey,
       selfName: () => latest.current.selfName,
+      selfEmails: () => latest.current.selfEmails,
       onWritten: () => latest.current.onWritten(),
     });
     const made = createMeetingImporter({
@@ -99,10 +112,10 @@ export function useMeetingImport({
   // Once per vault, per spell as the importing Mac, once its index is ready.
   const caughtUp = useRef<string | null>(null);
   useEffect(() => {
-    if (!active || vaultKey === null) caughtUp.current = null;
-    if (importer === null || !active || !readyHere || vaultKey === null) return;
+    if (!importing || vaultKey === null) caughtUp.current = null;
+    if (importer === null || !importing || !readyHere || vaultKey === null) return;
     if (caughtUp.current === vaultKey) return;
     caughtUp.current = vaultKey;
     void importer.catchUp(vaultKey);
-  }, [importer, active, readyHere, vaultKey]);
+  }, [importer, importing, readyHere, vaultKey]);
 }

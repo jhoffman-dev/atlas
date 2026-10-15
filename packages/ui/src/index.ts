@@ -142,6 +142,7 @@ export { QuickAddPopover } from './quick-add-popover.tsx';
 export type { QuickAddRequest } from './quick-add-popover.tsx';
 export { QuickAddSettings } from './quick-add-settings.tsx';
 export { ProfileSettings } from './profile-settings.tsx';
+export type { SelfEmailsView } from './self-emails-form.tsx';
 export type { QuickAddRow } from './quick-add-settings.tsx';
 export { Toast } from './toast.tsx';
 export { sidebarGlyph } from './icon.tsx';

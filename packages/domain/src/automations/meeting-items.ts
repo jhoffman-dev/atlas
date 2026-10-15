@@ -31,7 +31,7 @@ import { PROPOSAL_CONFIDENCES, type ProposalConfidence } from '../proposals/prop
 import { TAGS_KEY } from '../tags/note-tags.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { truncated } from './answer-limits.ts';
-import { sameName } from '../meeting-links/vault-owner.ts';
+import { ownerNotAGroup, sameName } from '../meeting-links/vault-owner.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
 import { itemOwner, type ItemOwner, type OwnerDirectory } from './meeting-item-owner.ts';
 import {
@@ -362,6 +362,7 @@ function ownedTask({
     attendees: cited.meeting.meeting?.attendees ?? [],
     people: context.vault?.people ?? [],
     selfName: context.vault?.selfName ?? null,
+    selfEmails: context.vault?.selfEmails ?? [],
   };
   const owner = itemOwner(item.owner, directory);
   return { owner, task: taskOf({ owner, item, cited, context, directory }) };
@@ -498,8 +499,15 @@ function meetingData(context: AnswerContext): PromptData[] {
 
 function peopleLines(note: AnsweredNote, { vault }: AnswerContext): string {
   const self = vault?.selfName ?? null;
-  const directory = { attendees: [], people: vault?.people ?? [], selfName: self };
-  const attendees = (note.meeting?.attendees ?? []).map((attendee) => {
+  const directory = {
+    attendees: [],
+    people: vault?.people ?? [],
+    selfName: self,
+    selfEmails: vault?.selfEmails ?? [],
+  };
+  // An attendee at one of the owner's addresses is them, whatever a group rule made of it.
+  const listed = ownerNotAGroup(note.meeting?.attendees ?? [], directory.selfEmails);
+  const attendees = listed.map((attendee) => {
     if (attendee.group) return `- ${attendee.name}: a group address, not a person`;
     const owner = itemOwner(attendee.name, { ...directory, attendees: [attendee] });
     return `- ${attendee.name}${owner.kind === 'self' ? ': the vault’s owner' : ''}`;

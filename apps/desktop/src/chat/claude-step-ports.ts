@@ -29,6 +29,7 @@ export function claudeStepPorts({
   toolboxes,
   vault,
   selfName,
+  selfEmails,
 }: {
   ports: ChatPorts;
   store: ChatSettingsStore;
@@ -36,12 +37,15 @@ export function claudeStepPorts({
   vault: () => string | null;
   /** The vault owner's name from their profile, read as each run starts; null when it holds none. */
   selfName: () => string | null;
+  /** The vault owner's own addresses, its `selfEmails`, read as each run starts; none when it holds none. */
+  selfEmails: () => readonly string[];
 }): ClaudeStepPorts {
   return {
     provider: () => chosenProvider({ settings: store.read(), ports, vault }),
     model: () => chatModelOrDefault(store.read().model),
     toolboxes,
     selfName,
+    selfEmails,
     clock: localClock,
     deadline: (ms) => AbortSignal.timeout(ms),
   };

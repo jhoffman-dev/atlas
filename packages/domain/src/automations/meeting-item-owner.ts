@@ -14,10 +14,12 @@ import { matchAttendees, type DirectoryPerson } from '../meeting-links/attendee-
 import {
   isOwnerAttendee,
   isOwnerNote,
-  ownerAddresses,
+  ownerAddressesInUse,
+  ownerNotAGroup,
   sameName,
 } from '../meeting-links/vault-owner.ts';
 import type { MeetingAttendee } from '../meetings/meeting-header.ts';
+import { comparableAddress } from '../profile/email-addresses.ts';
 import { isSelfSpeaker, isUnnamedSpeaker } from '../meetings/transcript.ts';
 import { vocabularyKey } from '../terms/spelling.ts';
 
@@ -43,6 +45,8 @@ export interface OwnerDirectory {
   readonly people: readonly DirectoryPerson[];
   /** The vault owner's name, from their profile. */
   readonly selfName: string | null;
+  /** The vault owner's own addresses, the vault's `selfEmails`: an attendee at one is them. */
+  readonly selfEmails: readonly string[];
 }
 
 /** Words a model writes for the vault's owner besides `You`. */
@@ -76,9 +80,32 @@ function lastSegment(target: string): string {
   return (target.split('/').pop() ?? '').replace(/\.md$/i, '').trim();
 }
 
-/** An owner written as an address: bare, or the way a mail client copies it. Null when it is a name. */
+/** The full stop or other mark a sentence ends an owner with: no part of an address. */
+const SENTENCE_END = /[.,;:!?]+$/;
+/** Quotes and brackets around an owner, as a model writes `(mara@…)` or `“mara@…”`. */
+const OPENING = /^["'“‘([]+/;
+const CLOSING = /["'”’)\]]+$/;
+
+/**
+ * The owner without the sentence's end or the quotes and brackets around it,
+ * however they nest (`(mara@example.com).`): each pass takes something off,
+ * so it ends.
+ */
+function unwrapped(written: string): string {
+  let text = written.trim();
+  for (let before = ''; text !== before;) {
+    before = text;
+    text = text.replace(SENTENCE_END, '').replace(OPENING, '').replace(CLOSING, '').trim();
+  }
+  return text;
+}
+
+/**
+ * An owner written as an address: bare, or the way a mail client copies it,
+ * either one perhaps ending a sentence or in quotes or brackets. Null when it is a name.
+ */
 function addressOf(written: string): { name: string; email: string } | null {
-  const text = written.trim();
+  const text = unwrapped(written);
   const bracketed = /^(.*?)\s*<([^<>]+)>$/.exec(text);
   const email = (bracketed?.[2] ?? text).trim();
   if (!ADDRESS.test(email)) return null;
@@ -86,7 +113,6 @@ function addressOf(written: string): { name: string; email: string } | null {
   return { name: name === '' ? email : name, email };
 }
 
-const lower = (text: string): string => text.normalize('NFC').trim().toLowerCase();
 const firstNameOf = (name: string): string => {
   const [last = '', first = ''] = name.includes(',') ? name.split(',') : [];
   return vocabularyKey((name.includes(',') ? first.trim() || last : name).split(/\s+/)[0] ?? '');
@@ -100,7 +126,8 @@ function attendeesNamed(owner: { name: string; email: string | null }, directory
   const all = directory.attendees;
   if (owner.email !== null) {
     const addressed = all.filter(
-      (each) => each.email !== null && lower(each.email) === lower(owner.email!),
+      (each) =>
+        each.email !== null && comparableAddress(each.email) === comparableAddress(owner.email!),
     );
     if (addressed.length > 0) return addressed;
   }
@@ -124,12 +151,11 @@ function isOwnersFirstName(name: string, { attendees, selfName }: OwnerDirectory
 
 /** Whether a single owner, with no and/&, is the vault's owner. */
 function isSelf(owner: { name: string; email: string | null }, directory: OwnerDirectory): boolean {
-  const { people, selfName } = directory;
+  const { selfName, selfEmails } = directory;
   const { name, email } = owner;
   if (email === null && (isSelfSpeaker(name) || SELF_WORDS.test(name))) return true;
   if (selfName !== null && sameName(name, selfName)) return true;
   if (email === null && isOwnersFirstName(name, directory)) return true;
-  const selfEmails = ownerAddresses(people, selfName);
   // Only an attendee that is the one it could be: two of a first name are neither.
   const listed = attendeesNamed(owner, directory).filter((each) => !each.group);
   const attendee = (listed.length === 1 ? listed[0] : undefined) ?? { name, email, group: false };
@@ -148,8 +174,8 @@ function ownerOf(written: string): { name: string; email: string | null } {
 /**
  * Whose an item is, from the owner its answer wrote. `You` (as a transcript
  * writes the owner), the profile's name in its common spellings, its first
- * name when no other attendee has it, or any address the owner's own Person
- * note holds is the owner; "we" is the owner's too, to check. Any other name
+ * name when no other attendee has it, or any of the vault's `selfEmails` is
+ * the owner; "we" is the owner's too, to check. Any other name
  * or address is matched as an attendee is (`matchAttendees`): one person is
  * that person; a first name two attendees share, or several Person notes, is
  * ambiguous; a group, "everyone", blank, or what a provider calls a speaker
@@ -158,6 +184,26 @@ function ownerOf(written: string): { name: string; email: string | null } {
  * otherwise.
  */
 export function itemOwner(written: string, directory: OwnerDirectory): ItemOwner {
+  return ownerIn(written, asTheOwnerSaid(directory));
+}
+
+/**
+ * The directory as the owner is found in it (ADR-0024 amendment): an
+ * attendee at one of the vault's `selfEmails` is the owner even when a group
+ * rule read their address as a group's, and with no `selfEmails` the
+ * owner's own Person note's addresses are theirs, as before the setting.
+ */
+function asTheOwnerSaid(directory: OwnerDirectory): OwnerDirectory {
+  const { attendees, people, selfName, selfEmails } = directory;
+  return {
+    attendees: ownerNotAGroup(attendees, selfEmails),
+    people,
+    selfName,
+    selfEmails: ownerAddressesInUse({ selfEmails, people, selfName }),
+  };
+}
+
+function ownerIn(written: string, directory: OwnerDirectory): ItemOwner {
   const whole = tidyOwner(written);
   const joint = jointOwners(whole);
   if (joint !== null) return jointOwner(joint, whole, directory);
@@ -180,7 +226,7 @@ function jointOwners(whole: string): string[] | null {
 }
 
 function jointOwner(parts: readonly string[], whole: string, directory: OwnerDirectory): ItemOwner {
-  const owners = parts.map((part) => ({ part, owner: itemOwner(part, directory) }));
+  const owners = parts.map((part) => ({ part, owner: ownerIn(part, directory) }));
   const others = owners.filter(({ owner }) => owner.kind !== 'self').map(({ part }) => part);
   if (others.length < owners.length) {
     const named = others.length === 0 ? 'others' : others.join(' and ');
@@ -197,7 +243,7 @@ function otherOwner(
   owner: { name: string; email: string | null },
   directory: OwnerDirectory,
 ): ItemOwner {
-  const { people, selfName } = directory;
+  const { people, selfName, selfEmails } = directory;
   const named = attendeesNamed(owner, directory);
   // A group took nothing on: a list is not who an item waits on.
   if (named.length > 0 && named.every((each) => each.group)) return { kind: 'unknown' };
@@ -206,7 +252,7 @@ function otherOwner(
     return { kind: 'ambiguous', name: owner.name, candidates: listed.map((each) => each.name) };
   }
   const attendee = listed[0] ?? { name: owner.name, email: owner.email, group: false };
-  if (isOwnerAttendee({ attendee, selfName, selfEmails: ownerAddresses(people, selfName) })) {
+  if (isOwnerAttendee({ attendee, selfName, selfEmails })) {
     return { kind: 'self' };
   }
   const matching = matchAttendees([attendee], people, []);

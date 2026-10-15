@@ -130,7 +130,7 @@ async function setUp(
     openVault: () => VAULT,
     onWritten: () => undefined,
   };
-  const linker = createMeetingLinker({ ...wiring, selfName: () => null });
+  const linker = createMeetingLinker({ ...wiring, selfName: () => null, selfEmails: () => [] });
   const importer = createMeetingImporter({
     ...wiring,
     active: () => true,
@@ -321,6 +321,69 @@ describe('a meeting let in just before Atlas was quit, its rule not yet run', ()
 
     await expect(catchUp()).rejects.toBeInstanceOf(NoteRunsCappedError);
     expect(asked()).toHaveLength(0);
+  });
+
+  it('is held by the vault’s one ask allowance when another declared rule spent it (#179)', async () => {
+    const declared: AutomationRule = {
+      ...ON_CREATED,
+      action: {
+        kind: 'claude',
+        prompt: createVaultPath(PROMPT),
+        tools: [],
+        output: { kind: 'proposals', schema: 'meeting-items' },
+        apply: 'mine',
+      },
+    };
+    const other = '.atlas/automations/After a client call.md';
+    const otherRule = jsonNote(
+      {
+        atlas: 'automation',
+        id: 'After a client call',
+        name: 'After a client call',
+        enabled: true,
+        when: 'a meeting is created',
+        which: 'FROM meeting',
+        do: 'claude',
+        prompt: PROMPT,
+        tools: [],
+        output: 'meeting-items',
+        apply: 'mine',
+      },
+      '',
+    );
+    const askedAt = (count: number): LogEntry[] =>
+      Array.from({ length: count }, (_, at) => ({
+        kind: 'run',
+        at: `${TODAY}T08:${String(10 + at).padStart(2, '0')}:00`,
+        trigger: 'note',
+        done: [],
+        left: [],
+        capped: false,
+        claude: { model: 'claude-sonnet-5-5', ms: 10, asks: 1 },
+      }));
+    const caughtUpWith = async (othersAsks: number) => {
+      const set = await setUp([[{ type: 'text', text: JSON.stringify({ items: [] }) }]], {
+        notes: { [other]: otherRule },
+      });
+      await set.arrive();
+      await set.relaunch();
+      set.vault.files.set(logPathFor(declared.id), newLogText(declared.name, askedAt(10)));
+      set.vault.files.set(
+        logPathFor('After a client call'),
+        newLogText('After a client call', askedAt(othersAsks)),
+      );
+      const outcome = await set.catchUp(declared).catch((cause: unknown) => cause);
+      return { outcome, asked: set.asked() };
+    };
+
+    // Ten of its own and nineteen of the other's leave one ask: it runs.
+    const under = await caughtUpWith(19);
+    expect(under.outcome).toMatchObject({ kind: 'run', claude: { asks: 1 } });
+    expect(under.asked).toHaveLength(1);
+    // Ten and twenty spend the thirty the two share: held, asking nothing.
+    const spent = await caughtUpWith(20);
+    expect(spent.outcome).toBeInstanceOf(NoteRunsCappedError);
+    expect(spent.asked).toHaveLength(0);
   });
 
   it('is nothing to a rule that is off, or that runs only when a meeting is changed', async () => {

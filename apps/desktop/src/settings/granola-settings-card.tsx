@@ -10,7 +10,6 @@ export function GranolaSettingsCard({ setting }: { setting: GranolaSettingState 
       onForgetKey={setting.forgetKey}
       onSyncNow={setting.syncNow}
       onOpenNote={setting.openNote}
-      onSaveEmails={setting.saveEmails}
     />
   );
 }

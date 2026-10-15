@@ -15,10 +15,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     lastPull: null,
     lastPullAt: null,
     notes: [],
-    selfEmails: '',
-    suggestedEmails: null,
-    emailsProblem: null,
-    emailsUnreadable: null,
+    addressesUnreadable: null,
     problem: null,
     pending: false,
     ...overrides,
@@ -28,7 +25,6 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     onForgetKey: vi.fn(),
     onSyncNow: vi.fn(),
     onOpenNote: vi.fn(),
-    onSaveEmails: vi.fn<(emails: string) => boolean>(() => true),
   };
   const { rerender } = render(<GranolaSettings view={view} {...handlers} />);
   /** Draws the same card again with the view changed, as the next render would. */
@@ -40,17 +36,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
 const card = () => screen.getByRole('region', { name: 'Granola' });
 const keyField = () => within(card()).getByLabelText<HTMLInputElement>('Granola API key');
 
-const emailsField = () => within(card()).getByLabelText<HTMLInputElement>('Your emails');
-
 describe('GranolaSettings, attacked', () => {
-  it('ATTACK: addresses being typed are not wiped when the Person note’s suggestion arrives', async () => {
-    const { redraw } = renderWith({ selfEmails: '', suggestedEmails: null });
-    await userEvent.type(emailsField(), 'mq@example.com');
-    // The Person note lookup, started as Settings opened, lands now.
-    redraw({ selfEmails: '', suggestedEmails: 'mara.quill@example.com' });
-    expect(emailsField().value).toBe('mq@example.com');
-  });
-
   it('probe: the key never reaches the DOM once handed on, nor while a save is pending', async () => {
     const { onSaveKey, redraw } = renderWith({ keyState: 'none' });
     await userEvent.type(keyField(), `  ${KEY}  {Enter}`);
