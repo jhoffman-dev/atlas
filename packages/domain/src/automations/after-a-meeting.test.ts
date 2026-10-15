@@ -101,7 +101,7 @@ describe('apply: on a rule’s Claude step', () => {
   it('refuses apply: mine on a step whose output has no action items to apply', () => {
     const wanted =
       'apply: mine makes your own action items out of a meeting into tasks; ' +
-      'it needs output: meeting-items.';
+      'it needs output: meeting-items or output: meeting-digest.';
     expect(problemOf({ ...RULE, apply: 'mine', output: 'proposals' })).toBe(wanted);
     expect(problemOf({ ...RULE, apply: 'mine', output: 'note', folder: 'Briefs' })).toBe(wanted);
   });
@@ -235,15 +235,11 @@ describe('the declared step’s own ask budget', () => {
   it('is 10 asks a run and 30 an hour, apart from the shared cap', () => {
     expect(DECLARED_STEP_ASKS_PER_RUN).toBe(10);
     expect(DECLARED_STEP_ASKS_PER_HOUR).toBe(30);
-    expect(declared).toEqual({ asksPerRun: 10, asksPerHour: 30, reservedPerRun: 1 });
+    expect(declared).toEqual({ asksPerRun: 10, asksPerHour: 30 });
   });
 
   it('is the shared budget for any other step or action', () => {
-    expect(shared).toEqual({
-      asksPerRun: CLAUDE_ASKS_PER_RUN,
-      asksPerHour: null,
-      reservedPerRun: 0,
-    });
+    expect(shared).toEqual({ asksPerRun: CLAUDE_ASKS_PER_RUN, asksPerHour: null });
     expect(claudeStepBudget({ kind: 'archive' })).toEqual(shared);
     expect(claudeStepBudget({ kind: 'set', values: { status: 'done' } })).toEqual(shared);
   });
@@ -253,8 +249,8 @@ describe('the declared step’s own ask budget', () => {
     expect(claudeAskRefusal(declared, 10)).toBe(
       'It would ask Claude more than 10 times; one run asks at most 10.',
     );
-    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null, reservedPerRun: 0 }, 2)).toBeNull();
-    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null, reservedPerRun: 0 }, 3)).toBe(
+    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null }, 2)).toBeNull();
+    expect(claudeAskRefusal({ asksPerRun: 3, asksPerHour: null }, 3)).toBe(
       'It would ask Claude more than 3 times; one run asks at most 3.',
     );
   });
@@ -357,26 +353,20 @@ describe('what one run of the declared step may ask', () => {
   const declared = claudeStepBudget({ ...step, apply: 'mine' });
   const shared = claudeStepBudget(step);
 
-  it('plans its parts with one ask kept back for the reduce: at most 9 of its 10', () => {
-    expect(claudeRunAsks(declared)).toEqual({ most: 10, parts: 9 });
-    expect(claudeRunAsks(declared, 20)).toEqual({ most: 10, parts: 9 });
-    expect(claudeRunAsks(shared)).toEqual({
-      most: CLAUDE_ASKS_PER_RUN,
-      parts: CLAUDE_ASKS_PER_RUN,
-    });
+  it('asks at most its 10 a run, the reduce among them (planned per meeting by claudeAsks, #184)', () => {
+    expect(claudeRunAsks(declared)).toBe(10);
+    expect(claudeRunAsks(declared, 20)).toBe(10);
+    expect(claudeRunAsks(shared)).toBe(CLAUDE_ASKS_PER_RUN);
   });
 
   it('never asks past what the hour has left: a run starting at 29 makes one', () => {
-    expect(claudeRunAsks(declared, 21)).toEqual({ most: 9, parts: 9 });
-    expect(claudeRunAsks(declared, 25)).toEqual({ most: 5, parts: 5 });
-    expect(claudeRunAsks(declared, 29)).toEqual({ most: 1, parts: 1 });
-    expect(claudeRunAsks(declared, 30)).toEqual({ most: 0, parts: 0 });
-    expect(claudeRunAsks(declared, 45)).toEqual({ most: 0, parts: 0 });
+    expect(claudeRunAsks(declared, 21)).toBe(9);
+    expect(claudeRunAsks(declared, 25)).toBe(5);
+    expect(claudeRunAsks(declared, 29)).toBe(1);
+    expect(claudeRunAsks(declared, 30)).toBe(0);
+    expect(claudeRunAsks(declared, 45)).toBe(0);
     // A step without an allowance of its own is bounded by its run alone.
-    expect(claudeRunAsks(shared, 45)).toEqual({
-      most: CLAUDE_ASKS_PER_RUN,
-      parts: CLAUDE_ASKS_PER_RUN,
-    });
+    expect(claudeRunAsks(shared, 45)).toBe(CLAUDE_ASKS_PER_RUN);
   });
 
   it('refuses the 31st ask of the hour inside a run, saying the allowance is shared', () => {
@@ -413,7 +403,7 @@ describe('the ready-made "After a meeting" rule', () => {
       kind: 'claude',
       prompt: '.atlas/prompts/after-a-meeting.md',
       tools: [],
-      output: { kind: 'proposals', schema: 'meeting-items' },
+      output: { kind: 'proposals', schema: 'meeting-digest' },
       apply: 'mine',
     });
     expect(preset.action).not.toHaveProperty('model');
@@ -422,11 +412,7 @@ describe('the ready-made "After a meeting" rule', () => {
   it('asks Sonnet, with its own budget', () => {
     if (preset.action.kind !== 'claude') throw new Error('not a Claude step');
     expect(claudeStepModel(preset.action, 'claude-opus-5-5')).toBe(DECLARED_STEP_MODEL);
-    expect(claudeStepBudget(preset.action)).toEqual({
-      asksPerRun: 10,
-      asksPerHour: 30,
-      reservedPerRun: 1,
-    });
+    expect(claudeStepBudget(preset.action)).toEqual({ asksPerRun: 10, asksPerHour: 30 });
   });
 
   it('takes meetings by a moving date the query language reads', () => {
@@ -440,7 +426,7 @@ describe('the ready-made "After a meeting" rule', () => {
 
   it('round-trips through its file', () => {
     const written = automationFrontmatter(preset);
-    expect(written).toMatchObject({ apply: 'mine', model: null, output: 'meeting-items' });
+    expect(written).toMatchObject({ apply: 'mine', model: null, output: 'meeting-digest' });
     expect(read(written)).toMatchObject({ rule: { action: preset.action } });
   });
 

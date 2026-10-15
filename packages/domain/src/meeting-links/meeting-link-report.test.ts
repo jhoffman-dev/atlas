@@ -36,4 +36,21 @@ describe('meetingLinkReport', () => {
       '2026-10-06 Standup: linked no one new; left 2026-10-06 Standup: It has unsaved typing.',
     );
   });
+
+  it('says the project it filed the meeting under, and why in a few words (#227)', () => {
+    const filed = (via: 'twin' | 'series') =>
+      meetingLinkReport({
+        meeting: MEETING,
+        linked: [],
+        filed: { title: 'Ledger', via },
+        proposed: 0,
+        left: [],
+      }).message;
+    expect(filed('series')).toBe(
+      '2026-10-06 Standup: linked no one new; filed under Ledger, as the rest of its series is.',
+    );
+    expect(filed('twin')).toBe(
+      '2026-10-06 Standup: linked no one new; filed under Ledger, as its copy from the other notetaker is.',
+    );
+  });
 });

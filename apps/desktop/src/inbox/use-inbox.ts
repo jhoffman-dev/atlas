@@ -36,6 +36,7 @@ import { errorMessage } from '../query/error-message.ts';
 import { withoutLeaving, type LeavingRow, type ReadMoment } from './leaving-rows.ts';
 import { keptWhereSame } from './kept-where-same.ts';
 import { notesAfterOwnMoves } from './own-moves.ts';
+import { useSummaryPending } from './use-summary-pending.ts';
 
 export interface InboxOptions {
   readonly ports: ArchivePorts;
@@ -266,6 +267,16 @@ export function useInbox(options: InboxOptions) {
     [],
   );
 
+  const summaryPending = useSummaryPending({
+    ports,
+    notePaths,
+    vaultKey,
+    items: contents?.items ?? null,
+    open,
+    clock,
+    indexKey,
+  });
+
   const statuses = useMemo(() => clarifyVocabulary(types).statuses, [types]);
   // One object per clarification, not one per render: its bar's time is kept by it (#165).
   const lastAction = useMemo(() => (last === null ? null : { title: last.title }), [last]);
@@ -282,6 +293,8 @@ export function useInbox(options: InboxOptions) {
     problem: told?.problem ?? null,
     /** Why each row's last clarification was refused or left unfinished, until that row is clarified again. */
     refusals: told?.refusals ?? NO_REFUSALS,
+    /** Why each imported meeting listed still waits for its summary, by path (#186). */
+    summaryPending,
     /** The last clarification, while it can be taken back. */
     lastAction,
     clarify,

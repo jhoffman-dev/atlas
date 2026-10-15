@@ -176,7 +176,16 @@ describe('a vault whose Meeting type predates `tasks` (#162)', () => {
 
     const opened = await ensureBuiltInTypes(setup.ports);
     expect(opened.properties.gained.map((gained) => gained.added)).toEqual([
-      ['Import', 'Import error', 'Duplicate of', 'Tasks', 'Decisions'],
+      [
+        'Import',
+        'Import error',
+        'Duplicate of',
+        'Tasks',
+        'Decisions',
+        'Summary digest',
+        'Summary of',
+        'Summary model',
+      ],
     ]);
     // The migration's record is YAML (`atlas: migration`), which this vault's JSON-lines
     // markdown cannot read; Accept reads no note under `.atlas/migrations`, so it is left out.

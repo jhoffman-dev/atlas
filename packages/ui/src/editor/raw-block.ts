@@ -22,10 +22,23 @@ export const RawBlock = Node.create({
   },
 
   renderHTML({ node }) {
+    const markdown = String(node.attrs['markdown'] ?? '');
     return [
       'pre',
-      { 'data-raw-block': '', class: 'raw-block', title: 'Not editable yet — saved unchanged' },
-      String(node.attrs['markdown'] ?? ''),
+      {
+        'data-raw-block': '',
+        class: isComment(markdown) ? 'raw-block raw-block--comment' : 'raw-block',
+        title: 'Not editable yet — saved unchanged',
+      },
+      markdown,
     ];
   },
 });
+
+/**
+ * Whether a raw block is one HTML comment and nothing else — a marker Atlas
+ * writes around a meeting's summary (#186), say — which nobody reads: it is
+ * drawn small and muted rather than as a block of source.
+ */
+const isComment = (markdown: string): boolean =>
+  /^<!--(?:(?!-->)[\s\S])*-->$/.test(markdown.trim());

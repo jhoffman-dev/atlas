@@ -153,7 +153,10 @@ heading).
 Any other `## ` heading, a section written twice, or one out of order is
 refused, and so is a section's name at another level (`# Transcript`,
 `### Notes`): it would otherwise be read as no section at all. Text before
-the first section (a `# Title`, say) is allowed and left alone; deeper
+the first section (a `# Title`, say) is allowed and left alone; Atlas puts
+its own summary there once the meeting is let in (ADR-0036): a callout
+between `<!-- atlas:summary v1 -->` and `<!-- /atlas:summary -->`, which a
+provider never writes; deeper
 headings that name no section, and anything inside fenced code, belong to
 the section they are in.
 

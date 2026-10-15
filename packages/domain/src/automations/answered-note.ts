@@ -4,12 +4,14 @@
  * check of an answer both cut a note here, the same way.
  */
 
+import { MEETING_PROJECT_KEY } from '../meeting-links/meeting-link-keys.ts';
 import { attendeesOf } from '../meeting-links/meeting-link-plan.ts';
 import { importOutcomeOf } from '../meetings/meeting-arrival.ts';
 import { isMeetingType, type MeetingAttendee } from '../meetings/meeting-header.ts';
 import { unclosedFence } from '../meetings/meeting-lines.ts';
 import { meetingSectionBounds, meetingTurnsOf } from '../meetings/meeting-turns.ts';
 import { digestOf } from '../sources/merge.ts';
+import { linkedNotes } from '../types/relation-links.ts';
 import { truncated } from './answer-limits.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
@@ -31,6 +33,8 @@ export interface AnsweredMeeting {
   readonly attendees?: readonly MeetingAttendee[];
   /** The day it was held (`YYYY-MM-DD`), when its frontmatter says: what a due date is judged near. */
   readonly date?: string;
+  /** Set when its `project` holds anything: a meeting filed already is never offered another (#227). */
+  readonly filed?: true;
 }
 
 /** A note the run was about, as it was read: what a proposal may cite. */
@@ -90,6 +94,7 @@ export function answeredMeetingOf(
     identity: letIn ? { provider, externalId } : null,
     attendees: attendeesOf(properties),
     ...(date !== undefined && { date }),
+    ...(linkedNotes(properties[MEETING_PROJECT_KEY]).length > 0 && { filed: true }),
   };
 }
 
@@ -165,6 +170,11 @@ export const CLAUDE_ASKS_PER_RUN = 10;
 /** What a run asks the model: each ask's notes as it is shown them, and what no ask shows. */
 export interface ClaudeAsks {
   readonly asks: readonly (readonly AnsweredNote[])[];
+  /**
+   * The reduce asks the plan keeps room for, past `asks`: one for each note
+   * read in more than one part, when the output merges its parts (#184).
+   */
+  readonly reduces: number;
   /** The notes some of which no ask shows. */
   readonly cut: readonly NoteCut[];
   /** The notes no ask is made about, and why: there was nothing in them to cite. */
@@ -187,31 +197,43 @@ export interface NoteSkipped {
  * whole turns as fit, after the last two turns of the part before, quoted for
  * context and not citable — up to `asks` a run, {@link CLAUDE_ASKS_PER_RUN}
  * unless the step's budget says fewer. Past that the rest of a meeting is not
- * read, and is reported as cut.
+ * read, and is reported as cut. With `reduces` (an output that merges a long
+ * meeting's parts in one more ask, #184), a note read in more than one part
+ * takes that ask out of the same `asks`, so the parts and the reduces fit
+ * together.
  */
 export function claudeAsks(
   notes: readonly AnsweredNote[],
-  { inParts, asks: most = CLAUDE_ASKS_PER_RUN }: { inParts: boolean; asks?: number },
+  {
+    inParts,
+    asks: most = CLAUDE_ASKS_PER_RUN,
+    reduces = false,
+  }: { inParts: boolean; asks?: number; reduces?: boolean },
 ): ClaudeAsks {
-  if (!inParts) return { asks: [notes], cut: cutNotes(notes), skipped: [] };
+  if (!inParts) return { asks: [notes], reduces: 0, cut: cutNotes(notes), skipped: [] };
   const skipped = notes
     .filter((note) => meetingTurnsOf(note.text).length === 0)
     .map(skippedWithout);
   const read = notes.filter((note) => !skipped.some(({ path }) => path === note.path));
   let spare = Math.max(0, most - read.length);
+  let merged = 0;
   const asks: AnsweredNote[][] = [];
   const cut: NoteCut[] = [];
   for (const note of read) {
     const { parts, head, unfit } = meetingParts(note, CLAUDE_NOTE_CHARACTERS);
-    const taken = parts.slice(0, 1 + spare);
-    spare -= taken.length - 1;
+    // A second part costs its own ask and, merged, the reduce's too.
+    const more = Math.min(parts.length - 1, reduces ? Math.max(0, spare - 1) : spare);
+    const taken = parts.slice(0, 1 + more);
+    const reduce = reduces && more > 0 ? 1 : 0;
+    spare -= more + reduce;
+    merged += reduce;
     asks.push(...taken.map((part) => [{ ...note, text: part.text }]));
     const characters = head + taken.reduce((sum, part) => sum + part.read, 0);
     if (taken.length < parts.length || unfit) {
       cut.push({ path: note.path, shown: characters, of: note.text.length });
     }
   }
-  return { asks, cut, skipped };
+  return { asks, reduces: merged, cut, skipped };
 }
 
 /**

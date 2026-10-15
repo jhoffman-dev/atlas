@@ -194,6 +194,30 @@ describe('undoing a Claude step', () => {
       }),
     ).toBe('This rule asks Claude; it never archived a note or set a property.');
   });
+
+  it('undoes the declared step’s filing of a meeting under a project, and nothing else it could set (#227)', () => {
+    const declared = { ...action, apply: 'mine' as const };
+    const filed = {
+      kind: 'set' as const,
+      path: createVaultPath('Inbox/Meetings/2026-10-06 Standup.md'),
+      key: 'project',
+      before: { absent: true as const },
+      after: { value: '[[Ledger]]' },
+    };
+    expect(loggedActionProblem(declared, filed)).toBeNull();
+    expect(loggedActionProblem(action, filed)).toBe(
+      'This rule asks Claude; it never archived a note or set a property.',
+    );
+    expect(loggedActionProblem(declared, { ...filed, key: 'status' })).toBe(
+      'This rule does not set “status”.',
+    );
+    expect(loggedActionProblem(declared, { ...filed, after: { value: { nested: true } } })).toMatch(
+      /no property of a note holds/,
+    );
+    expect(
+      loggedActionProblem(declared, { ...filed, path: createVaultPath('.atlas/settings.md') }),
+    ).toBe('Atlas keeps its own files as they are.');
+  });
 });
 
 describe('a Claude step in Activity', () => {

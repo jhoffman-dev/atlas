@@ -1,5 +1,6 @@
 import type { AutomationDraft } from './automation-rule.ts';
 import { AFTER_A_MEETING_PROMPT, MEETING_EXTRACTION_PROMPT } from './built-in-prompts.ts';
+import { MEETING_DIGEST_OUTPUT } from './meeting-digest.ts';
 import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
 
 /**
@@ -15,7 +16,9 @@ import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
  * The third is "After a meeting" (#179, ADR-0036): the declared step, which
  * says `apply: mine` so the owner's own action items may become tasks, asks
  * Sonnet on its own ask budget, and takes meetings of the last 14 days, so
- * turning it on cannot reach back through every meeting the vault holds.
+ * turning it on cannot reach back through every meeting the vault holds. Its
+ * answer is a `meeting-digest` (#184): the summary written at the top of the
+ * meeting with the action items.
  */
 export const AUTOMATION_PRESETS: readonly AutomationDraft[] = [
   {
@@ -49,7 +52,7 @@ export const AUTOMATION_PRESETS: readonly AutomationDraft[] = [
       kind: 'claude',
       prompt: AFTER_A_MEETING_PROMPT,
       tools: [],
-      output: { kind: 'proposals', schema: MEETING_ITEMS_OUTPUT },
+      output: { kind: 'proposals', schema: MEETING_DIGEST_OUTPUT },
       apply: 'mine',
     },
   },

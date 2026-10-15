@@ -320,7 +320,12 @@ describe('a meeting read in parts (P29-05)', () => {
   });
 
   it('asks nothing about no notes', () => {
-    expect(claudeAsks([], { inParts: true })).toEqual({ asks: [], cut: [], skipped: [] });
+    expect(claudeAsks([], { inParts: true })).toEqual({
+      asks: [],
+      reduces: 0,
+      cut: [],
+      skipped: [],
+    });
   });
 });
 
