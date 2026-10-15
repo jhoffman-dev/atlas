@@ -133,6 +133,15 @@ describe('SyncSettings', () => {
     expect(paused.onPause).toHaveBeenCalledWith(false);
   });
 
+  it('says automations wait while sync is paused on the Mac that runs them (ADR-0035 part 4)', () => {
+    show({ paused: true, automationsHere: true });
+    expect(screen.getByText(/Automations on this Mac wait too/)).toBeDefined();
+    cleanup();
+    show({ paused: true, automationsHere: false });
+    expect(screen.getByText(/Nothing is sent or brought in/)).toBeDefined();
+    expect(screen.queryByText(/Automations on this Mac wait too/)).toBeNull();
+  });
+
   it('lists what stays on this Mac unsynced, and why', () => {
     show({ notSynced: ['Projects/site/', 'Attachments/talk.mov'] });
     const list = screen.getByText('Staying on this Mac, not synced').closest('div');

@@ -26,6 +26,7 @@ import { listVaultNotes } from '../vault/read-vault.ts';
 import { changeProperties, type PropertyOutcome } from './apply-changes.ts';
 import { withHandledKeys } from './handled-keys.ts';
 import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
+import { holdUnlessFresh, type FreshPullCheck } from './fresh-pull-hold.ts';
 import { heldEntries } from '../index/refresh-index.ts';
 import { appendForRun, reported } from './automation-activity.ts';
 import { readRuleLog } from './automation-log.ts';
@@ -58,6 +59,14 @@ export interface AutomationRun {
   readonly guard: VaultGuard;
   /** Where the run's summary, or why it stopped, is said (U-28). */
   readonly activity: ActivityLog;
+  /**
+   * The gates of a fresh pull (ADR-0035 part 4). A run that waits on them
+   * (`gatedByFreshPull`: a Claude step the person did not start) asks them
+   * right before it asks Claude and again before each write, and is held —
+   * rejecting with `HeldForPullError`, having written nothing — while they
+   * are shut. Left out, nothing waits.
+   */
+  readonly freshPull?: FreshPullCheck;
 }
 
 /**
@@ -147,7 +156,7 @@ async function runOnHeard(
   const versions = unhandledVersions(triggering, handled);
   const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
   if (versions.length === 0 || heldUntil !== null) {
-    await recordGone(run, went);
+    await recordGone(run, went, 'note');
     if (versions.length > 0 && heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
     return null;
   }
@@ -225,9 +234,19 @@ export async function recordNewsLetGo({
   return entry;
 }
 
-/** Writes down notes a rule had handled that were deleted, in an entry of their own; none, nothing. */
-async function recordGone(run: AutomationRun, went: readonly VaultPath[]): Promise<void> {
+/**
+ * Writes down notes a rule had handled that were deleted, in an entry of
+ * their own; none, nothing. Held, like any write of a gated run, while the
+ * gates are shut — unless `trigger` is null: the run has made something
+ * already, and its record is written whatever the gates say.
+ */
+async function recordGone(
+  run: AutomationRun,
+  went: readonly VaultPath[],
+  trigger: RunTrigger | null,
+): Promise<void> {
   if (went.length === 0) return;
+  if (trigger !== null) await holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger });
   const entry: LogEntry = {
     kind: 'run',
     at: run.clock.localNow(),
@@ -270,7 +289,13 @@ async function runOnce({
   stillInVault(guard);
   const fs = guardedFs(run.ports.fs, guard);
   const ports = { ...run.ports, fs, notePaths: await listVaultNotes({ fs }) };
-  const log = (entry: LogEntry) => appendForRun({ fs: run.ports.fs, run, entry });
+  /** Writes the run's entry, whatever the gates say: for what the run has already made. */
+  const append = (entry: LogEntry) => appendForRun({ fs: run.ports.fs, run, entry });
+  /** Writes the run's entry once the gates allow it, when the run has made nothing yet. */
+  const log = async (entry: LogEntry, paths: readonly string[] = []) => {
+    await holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths });
+    await append(entry);
+  };
   let target: RuleTarget;
   try {
     target = await aim(ports, today);
@@ -278,7 +303,7 @@ async function runOnce({
     if (!(cause instanceof AtlasQueryError)) throw cause;
     const failed: LogEntry = { kind: 'failed', at, trigger, problem: messageWithoutPaths(cause) };
     // A query that does not read still heard which notes went: the history is the rule's either way.
-    await recordGone(run, went);
+    await recordGone(run, went, trigger);
     await log(failed);
     return failed;
   }
@@ -286,11 +311,11 @@ async function runOnce({
   stillInVault(guard);
   const { plan } = target;
   if (quiet && plan.paths.length === 0 && plan.passedOver.length === 0) {
-    await recordGone(run, went);
+    await recordGone(run, went, trigger);
     return null;
   }
   if (plan.action.kind === 'claude' && plan.paths.length > 0) {
-    const asked = { run, ports, target, action: plan.action, at, trigger, went, log };
+    const asked = { run, ports, target, action: plan.action, at, trigger, went, log, append };
     return askClaude(asked);
   }
   let applied: PropertyOutcome = { done: [], left: [] };
@@ -329,6 +354,12 @@ async function runOnce({
  * half-written run made is on record, and the proposals it made are not made
  * twice. Past the notes one Claude run reads, the log says so and the rest
  * wait for a run by hand.
+ *
+ * A run that waits on the gates of a fresh pull (ADR-0035 part 4) asks them
+ * of its notes before it asks Claude, again once Claude has answered and
+ * before the first write, and again before it logs a failure that made
+ * nothing: shut at any of these, it is held for the next pull with nothing
+ * written. Once it has made something, what it made is logged regardless.
  */
 async function askClaude({
   run,
@@ -339,6 +370,7 @@ async function askClaude({
   trigger,
   went,
   log,
+  append,
 }: {
   run: AutomationRun;
   ports: AutomationPorts & { notePaths: readonly VaultPath[] };
@@ -347,9 +379,13 @@ async function askClaude({
   at: string;
   trigger: RunTrigger;
   went: readonly VaultPath[];
-  log: (entry: LogEntry) => Promise<void>;
+  log: (entry: LogEntry, paths?: readonly string[]) => Promise<void>;
+  append: (entry: LogEntry) => Promise<void>;
 }): Promise<LogEntry> {
   const { plan } = target;
+  const hold = () =>
+    holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths: plan.paths });
+  await hold();
   try {
     const { done, left, claude } = await runClaudeStep({
       ports: ports.claude,
@@ -361,6 +397,7 @@ async function askClaude({
       notePaths: ports.notePaths,
       rule: run.rule.id,
       madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
+      beforeWrite: hold,
     });
     const entry: LogEntry = {
       kind: 'run',
@@ -373,7 +410,7 @@ async function askClaude({
       ...(went.length > 0 && { went }),
       claude,
     };
-    await log(entry);
+    await (done.length > 0 ? append(entry) : log(entry, plan.paths));
     return entry;
   } catch (cause) {
     if (!(cause instanceof ClaudeStepFailed)) throw cause;
@@ -386,8 +423,10 @@ async function askClaude({
       claude: cause.claude,
       ...(cause.made.length > 0 && { done: cause.made }),
     };
-    await recordGone(run, went);
-    await log(failed);
+    const madeSome = cause.made.length > 0;
+    if (!madeSome) await hold();
+    await recordGone(run, went, madeSome ? null : trigger);
+    await append(failed);
     // Stopped by something other than the answer — a disk that refused — is raised once it is on record.
     if (cause.interruption !== undefined) throw cause.interruption;
     return failed;

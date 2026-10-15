@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { createVaultPath } from '../vault/vault-path.ts';
 import {
-  actsOnPulledFiles,
   ASLEEP_READING_SLACK_MS,
+  freshPullVerdict,
+  freshPullWaitReport,
+  gatedByFreshPull,
+  pullEndEffect,
   pulledAfterArrival,
   pulledSinceLastSleep,
+  standingAfterPull,
+  type FreshPullShut,
   type PullStanding,
 } from './pull-freshness.ts';
 
@@ -133,105 +139,245 @@ describe('pulledAfterArrival (gate 1, ADR-0035 part 4)', () => {
   });
 });
 
-describe('actsOnPulledFiles: the import and the Claude step (ADR-0035 part 4)', () => {
+describe('pullEndEffect: what a run of git leaves the session knowing (ADR-0035 part 4)', () => {
+  it('a sync that completes completes a pull', () => {
+    expect(pullEndEffect({ kind: 'synced' })).toBe('completes');
+  });
+
+  it('a look that finds nothing to bring in completes a pull: the files hold what GitHub had', () => {
+    expect(pullEndEffect({ kind: 'looked', behind: 0 })).toBe('completes');
+  });
+
+  it('a look that finds other Macs’ changes voids what was known, however few', () => {
+    expect(pullEndEffect({ kind: 'looked', behind: 1 })).toBe('voids');
+    expect(pullEndEffect({ kind: 'looked', behind: 40 })).toBe('voids');
+  });
+
+  it('a sync that fails voids what was known: it may have brought files in first', () => {
+    expect(pullEndEffect({ kind: 'sync-failed' })).toBe('voids');
+  });
+
+  it('a look that fails changed no file, and keeps what was known', () => {
+    expect(pullEndEffect({ kind: 'look-failed' })).toBe('keeps');
+  });
+});
+
+describe('standingAfterPull', () => {
+  it('records the counter as the pull started, when it finished, and whether the settings it left name this Mac', () => {
+    expect(
+      standingAfterPull({
+        startedAsleepMs: 5,
+        finishedAt: FINISHED_AT,
+        settings: 'names-this-mac',
+      }),
+    ).toEqual({ kind: 'pulled', startedAsleepMs: 5, finishedAt: FINISHED_AT, namedAfter: true });
+    expect(
+      standingAfterPull({
+        startedAsleepMs: 5,
+        finishedAt: FINISHED_AT,
+        settings: 'names-another-mac',
+      }),
+    ).toMatchObject({ kind: 'pulled', namedAfter: false });
+  });
+
+  it('counts for nothing a pull whose start could not be placed against a sleep', () => {
+    expect(
+      standingAfterPull({
+        startedAsleepMs: null,
+        finishedAt: FINISHED_AT,
+        settings: 'names-this-mac',
+      }),
+    ).toBeNull();
+  });
+
+  it('is settings-unreadable when the settings it left cannot be read: not the same as naming no Mac', () => {
+    expect(
+      standingAfterPull({ startedAsleepMs: 0, finishedAt: FINISHED_AT, settings: 'unreadable' }),
+    ).toEqual({ kind: 'settings-unreadable' });
+  });
+});
+
+describe('freshPullVerdict: the gates the import and the Claude step pass (ADR-0035 part 4)', () => {
   const awake = 457_335_000;
+  /** Every gate open: a fresh pull, named after it and now, sync running, nothing modified since. */
+  const open: Parameters<typeof freshPullVerdict>[0] = {
+    standing: pulled(awake),
+    asleepNowMs: awake,
+    settingsNow: 'names-this-mac',
+    paused: false,
+    arrivedAt: FINISHED_AT - 1,
+  };
   const cases: {
     name: string;
-    standing: PullStanding | null;
-    asleepNowMs: number | null;
-    namedNow: boolean;
-    acts: boolean;
+    facts: Partial<typeof open> & object;
+    shut: FreshPullShut | null;
   }[] = [
+    { name: 'every gate open', facts: {}, shut: null },
+    { name: 'a step on no one file', facts: { arrivedAt: null }, shut: null },
+    { name: 'no pull yet this session', facts: { standing: null }, shut: 'no-pull' },
+    { name: 'a pull under way', facts: { standing: { kind: 'pulling' } }, shut: 'pulling' },
     {
-      name: 'no pull yet this session',
-      standing: null,
-      asleepNowMs: awake,
-      namedNow: true,
-      acts: false,
+      name: 'the settings the pull brought name another Mac',
+      facts: { standing: pulled(awake, { namedAfter: false }) },
+      shut: 'not-named',
     },
     {
-      name: 'a pull under way',
-      standing: { kind: 'pulling' },
-      asleepNowMs: awake,
-      namedNow: true,
-      acts: false,
+      name: 'the settings now name another Mac',
+      facts: { settingsNow: 'names-another-mac' },
+      shut: 'not-named',
     },
     {
-      name: 'fresh pull, named after it and now',
-      standing: pulled(awake),
-      asleepNowMs: awake,
-      namedNow: true,
-      acts: true,
+      name: 'the settings cannot be read now',
+      facts: { settingsNow: 'unreadable' },
+      shut: 'settings-unreadable',
     },
     {
-      name: 'fresh pull, but the settings it brought name another Mac',
-      standing: pulled(awake, { namedAfter: false }),
-      asleepNowMs: awake,
-      namedNow: true,
-      acts: false,
+      name: 'the settings the pull left cannot be read',
+      facts: { standing: { kind: 'settings-unreadable' } },
+      shut: 'settings-unreadable',
+    },
+    { name: 'sync paused on this Mac', facts: { paused: true }, shut: 'paused' },
+    {
+      name: 'slept since the pull started',
+      facts: { asleepNowMs: awake + 60_000 },
+      shut: 'slept',
+    },
+    { name: 'the counter cannot be read', facts: { asleepNowMs: null }, shut: 'slept' },
+    {
+      name: 'the file was modified here as the pull completed',
+      facts: { arrivedAt: FINISHED_AT },
+      shut: 'arrived-after-pull',
     },
     {
-      name: 'fresh pull, named after it, but the settings now name another Mac',
-      standing: pulled(awake),
-      asleepNowMs: awake,
-      namedNow: false,
-      acts: false,
-    },
-    {
-      name: 'named, but slept since the pull started',
-      standing: pulled(awake),
-      asleepNowMs: awake + 60_000,
-      namedNow: true,
-      acts: false,
-    },
-    {
-      name: 'named, counter unreadable',
-      standing: pulled(awake),
-      asleepNowMs: null,
-      namedNow: true,
-      acts: false,
+      name: 'the file was modified here after the pull completed',
+      facts: { arrivedAt: FINISHED_AT + 5_000 },
+      shut: 'arrived-after-pull',
     },
     {
       name: 'a vault that does not sync, named',
-      standing: { kind: 'not-synced' },
-      asleepNowMs: null,
-      namedNow: true,
-      acts: true,
+      facts: { standing: { kind: 'not-synced' }, asleepNowMs: null, arrivedAt: FINISHED_AT * 2 },
+      shut: null,
+    },
+    {
+      name: 'a vault that does not sync, whatever the pause switch held for it',
+      facts: { standing: { kind: 'not-synced' }, paused: true },
+      shut: null,
     },
     {
       name: 'a vault that does not sync, its settings naming another Mac',
-      standing: { kind: 'not-synced' },
-      asleepNowMs: awake,
-      namedNow: false,
-      acts: false,
+      facts: { standing: { kind: 'not-synced' }, settingsNow: 'names-another-mac' },
+      shut: 'not-named',
+    },
+    {
+      name: 'a vault that does not sync, its settings unreadable',
+      facts: { standing: { kind: 'not-synced' }, settingsNow: 'unreadable' },
+      shut: 'settings-unreadable',
     },
   ];
 
-  for (const { name, acts, ...facts } of cases) {
-    it(`${acts ? 'acts' : 'does not act'}: ${name}`, () => {
-      expect(actsOnPulledFiles(facts)).toBe(acts);
+  for (const { name, facts, shut } of cases) {
+    it(`${shut === null ? 'is open' : `is shut (${shut})`}: ${name}`, () => {
+      expect(freshPullVerdict({ ...open, ...facts })).toEqual(
+        shut === null ? { open: true } : { open: false, shut },
+      );
     });
   }
 
+  it('says paused before waiting for a pull: a paused Mac pulls nothing, so the pause is what to undo', () => {
+    expect(freshPullVerdict({ ...open, standing: null, paused: true })).toEqual({
+      open: false,
+      shut: 'paused',
+    });
+  });
+
+  it('takes settings that were not read as unreadable, wherever they would count', () => {
+    expect(freshPullVerdict({ ...open, settingsNow: null })).toEqual({
+      open: false,
+      shut: 'settings-unreadable',
+    });
+    expect(
+      freshPullVerdict({ ...open, standing: { kind: 'not-synced' }, settingsNow: null }),
+    ).toEqual({ open: false, shut: 'settings-unreadable' });
+  });
+
+  it('needs no settings while the standing shuts the gates by itself', () => {
+    expect(freshPullVerdict({ ...open, standing: null, settingsNow: null })).toEqual({
+      open: false,
+      shut: 'no-pull',
+    });
+  });
+
   it('runs nothing on a Mac another claimed while it slept: it wakes, pulls, and is not named', () => {
     const laptop = fakeMac();
+    const facts = { ...open, arrivedAt: null };
     // The laptop was named and pulled before it slept.
     const beforeSleep = pulled(laptop.read());
     expect(
-      actsOnPulledFiles({ standing: beforeSleep, asleepNowMs: laptop.read(), namedNow: true }),
-    ).toBe(true);
+      freshPullVerdict({ ...facts, standing: beforeSleep, asleepNowMs: laptop.read() }),
+    ).toEqual({ open: true });
     // The studio claims while it sleeps; it wakes still holding the old settings.
     laptop.sleep(20 * 60_000);
     expect(
-      actsOnPulledFiles({ standing: beforeSleep, asleepNowMs: laptop.read(), namedNow: true }),
+      freshPullVerdict({ ...facts, standing: beforeSleep, asleepNowMs: laptop.read() }).open,
     ).toBe(false);
     // The pull after the wake brings the claim in.
     const afterWake = pulled(laptop.read(), { namedAfter: false });
-    expect(
-      actsOnPulledFiles({ standing: afterWake, asleepNowMs: laptop.read(), namedNow: true }),
-    ).toBe(false);
-    expect(
-      actsOnPulledFiles({ standing: afterWake, asleepNowMs: laptop.read(), namedNow: false }),
-    ).toBe(false);
+    expect(freshPullVerdict({ ...facts, standing: afterWake, asleepNowMs: laptop.read() })).toEqual(
+      { open: false, shut: 'not-named' },
+    );
+  });
+});
+
+describe('gatedByFreshPull: which rules wait on the gates', () => {
+  const claude = {
+    action: {
+      kind: 'claude' as const,
+      prompt: createVaultPath('.atlas/prompts/actions.md'),
+      tools: [],
+      output: { kind: 'proposals' as const, schema: 'proposals' },
+    },
+  };
+
+  it('gates a Claude step whatever sets it off but the person', () => {
+    for (const trigger of ['note', 'schedule', 'open'] as const) {
+      expect(gatedByFreshPull({ rule: claude, trigger })).toBe(true);
+    }
+    expect(gatedByFreshPull({ rule: claude, trigger: 'hand' })).toBe(false);
+  });
+
+  it('never gates a rule that only sets values or archives: it is the same on any Mac', () => {
+    for (const trigger of ['note', 'schedule', 'open', 'hand'] as const) {
+      expect(gatedByFreshPull({ rule: { action: { kind: 'archive' } }, trigger })).toBe(false);
+      expect(gatedByFreshPull({ rule: { action: { kind: 'set', values: {} } }, trigger })).toBe(
+        false,
+      );
+    }
+  });
+});
+
+describe('freshPullWaitReport', () => {
+  it('says automations wait while sync is paused', () => {
+    expect(freshPullWaitReport('paused')).toMatchObject({
+      kind: 'sync',
+      message: expect.stringMatching(/paused on this Mac, so automations wait/),
+    });
+  });
+
+  it('warns that nothing runs while the settings cannot be read', () => {
+    expect(freshPullWaitReport('settings-unreadable')).toMatchObject({
+      level: 'warning',
+      message: expect.stringMatching(/cannot be read, so nothing runs/),
+    });
+  });
+
+  it('says nothing of a wait that passes by itself', () => {
+    const passing: FreshPullShut[] = [
+      'no-pull',
+      'pulling',
+      'slept',
+      'arrived-after-pull',
+      'not-named',
+    ];
+    for (const why of passing) expect(freshPullWaitReport(why)).toBeNull();
   });
 });

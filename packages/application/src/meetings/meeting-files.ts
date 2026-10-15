@@ -42,6 +42,34 @@ export interface ImportContext {
   readonly beforeLetIn?: BeforeLetIn;
   /** The spellings a meeting let in is corrected by, read from the index once a run. */
   vocabulary: Vocabulary | null;
+  /** Asked right before each file's writes: see `MayWriteMeeting`. Left out, every write may go ahead. */
+  readonly mayWrite?: MayWriteMeeting;
+  /** When each file was last modified as this run first read it: what gate 1 judges it by. */
+  readonly arrived: Map<string, number>;
+}
+
+/**
+ * Whether the import may write into a file now (ADR-0035 part 4), asked
+ * right before its first write and again before its stamp, with when the
+ * file was last modified as the run first read it — so the run's own writes
+ * before the stamp do not count against it. False holds the file, unwritten
+ * and unsaid, for the catch-up after the next pull.
+ */
+export type MayWriteMeeting = (path: VaultPath, arrivedAt: number) => Promise<boolean>;
+
+/**
+ * Whether the run may write into a file now. A file this run has not read
+ * yet — another holder of a meeting — is read for when it was last modified,
+ * and that is what it is judged by from then on.
+ */
+export async function mayWriteInto(context: ImportContext, path: VaultPath): Promise<boolean> {
+  if (context.mayWrite === undefined) return true;
+  let arrivedAt = context.arrived.get(path);
+  if (arrivedAt === undefined) {
+    arrivedAt = (await context.ports.fs.readTextFile(path)).modified;
+    context.arrived.set(path, arrivedAt);
+  }
+  return context.mayWrite(path, arrivedAt);
 }
 
 /**
@@ -191,11 +219,15 @@ export async function holdingAt(
  *
  * The run's vocabulary is read before `beforeLetIn` and handed to it, so the
  * speakers are read by the same spellings the stamp write corrects by.
+ *
+ * Null when the gates shut before `beforeLetIn` or before the stamp
+ * (`mayWriteInto`): the meeting is left unstamped, and unsaid, for the next pull.
  */
 export async function letIn(
   context: ImportContext,
   path: VaultPath,
-): Promise<MeetingImportHappening> {
+): Promise<MeetingImportHappening | null> {
+  if (!(await mayWriteInto(context, path))) return null;
   const vocabulary = await importVocabulary(context);
   // Before the read, so the file is read as it will be stamped: the follow-up may have written to it.
   const went = await context.beforeLetIn?.(path, { vocabulary });
@@ -214,6 +246,8 @@ export async function letIn(
     text,
     vocabulary,
   });
+  // Asked again: the follow-up may have taken long enough for a sleep, or a pull to start.
+  if (!(await mayWriteInto(context, path))) return null;
   const unsaved = await writeInto(context, {
     path,
     modified,
@@ -245,12 +279,16 @@ async function importVocabulary(context: ImportContext): Promise<Vocabulary> {
  * settled: one whose move fails stays unstamped, and is archived when it is
  * next looked at. A `duplicate` stamp under `Inbox/Meetings/` then only ever
  * means the person brought the copy back, and it is left alone. A copy
- * being typed in is not moved, and said so.
+ * being typed in is not moved, and said so. Null when the gates are shut
+ * (`mayWriteInto`): the copy is left where it is, and unsaid, for the next
+ * pull. Once moved it is marked: the mark finishes the move, and a copy
+ * moved but unmarked would be met by no later look.
  */
 export async function archiveCopy(
   context: ImportContext,
   { path, original }: { path: VaultPath; original: VaultPath },
-): Promise<MeetingImportHappening> {
+): Promise<MeetingImportHappening | null> {
+  if (!(await mayWriteInto(context, path))) return null;
   context.settled.add(path);
   if (context.ports.editors.state(path) === 'dirty') {
     return { kind: 'failed', path, problem: UNSAVED };

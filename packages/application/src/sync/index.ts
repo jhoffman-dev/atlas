@@ -13,7 +13,14 @@ export type {
   TreeRev,
   UnsavedWorkPort,
 } from './ports.ts';
-export { SyncError } from './git-steps.ts';
+export { programWasMissing, SyncError } from './git-steps.ts';
+export { createFreshPullGate } from './fresh-pull-gate.ts';
+export type {
+  Arrival,
+  FreshPullGate,
+  FreshPullGatePorts,
+  FreshPullHere,
+} from './fresh-pull-gate.ts';
 export { syncNow } from './sync-now.ts';
 export type { SyncPorts } from './sync-now.ts';
 export { setUpSync } from './set-up-sync.ts';
@@ -21,7 +28,7 @@ export type { SetUpMac, SetUpSyncPorts, SyncRemoteChoice } from './set-up-sync.t
 export { inspectSync } from './inspect-sync.ts';
 export type { SyncSetup } from './inspect-sync.ts';
 export { openVaultFromGitHub } from './open-from-github.ts';
-export { loadSyncSettings, saveSyncSettings, settingsNameThisMac } from './sync-settings.ts';
+export { automationsSettingsReading, loadSyncSettings, saveSyncSettings } from './sync-settings.ts';
 export type { SyncSettings } from './sync-settings.ts';
 export { checkRemote } from './check-remote.ts';
 export { listGitHubRepositories } from './list-repositories.ts';

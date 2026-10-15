@@ -2,7 +2,7 @@
 /**
  * Adversarial (#174, ADR-0035 part 4): the real gate (`usePulledFiles`) wired
  * to the real import hook (`useMeetingImport`), driven the way the sync hook
- * drives it — `pulls.caughtUp` at the counter reading taken as the pull or
+ * drives it — `pulls.ended` at the counter reading taken as the pull or
  * look started — with the host's sleep counter faked (`fakeSleepClock`).
  */
 import { describe, expect, it } from 'vitest';
@@ -110,8 +110,9 @@ function wire({
         fs: vault.fs,
         markdown: remarkMarkdown,
         thisMacId: THIS_MAC,
-        namedNow: true,
+        paused: () => false,
         clock: pullClock,
+        activity,
       });
       useMeetingImport({
         changes,
@@ -137,7 +138,7 @@ function wire({
     const startedAsleepMs = await pulls.readAsleep();
     await act(async () => {
       pulls.started(VAULT);
-      await pulls.caughtUp(VAULT, startedAsleepMs);
+      await pulls.ended(VAULT, { kind: 'synced' }, startedAsleepMs);
     });
   };
   return { hook, changes, pullCompletes, activity };

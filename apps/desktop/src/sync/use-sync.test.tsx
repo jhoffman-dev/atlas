@@ -8,6 +8,7 @@ import {
   fakeVaultFs,
   memorySyncFiles,
   OK,
+  ProgramMissingError,
   recordingActivity,
   said,
   scriptedFolders,
@@ -891,20 +892,52 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
     expect(await acts(hook)).toBe(false);
   });
 
-  it('runs nothing when the settings cannot be read after the pull, and says so', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('runs nothing when the settings cannot be read after the pull, and says so in Activity', async () => {
     const { settings, fs } = settingsFile(SET_UP);
     const fetch = heldFetch();
-    const { hook } = setUpHook({ script: modelGit().script, fs, beforeFetch: fetch.beforeFetch });
+    const { hook, options } = setUpHook({
+      script: modelGit().script,
+      fs,
+      beforeFetch: fetch.beforeFetch,
+    });
     await waitFor(() => expect(hook.result.current.automationsHere).toBe(true));
     settings.frontmatter = 'automationsMac: [mac-studio';
     fetch.release();
     await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(hook.result.current.pulledFiles.standing).toEqual({ kind: 'settings-unreadable' });
     expect(await acts(hook)).toBe(false);
-    expect(error).toHaveBeenCalledWith(
-      'The vault’s settings could not be read after a pull:',
-      expect.anything(),
+    const reports = (options.activity as ReturnType<typeof recordingActivity>).reports;
+    expect(reports.map((report) => report.message)).toContainEqual(
+      expect.stringMatching(/settings \(\.atlas\/settings\.md\) cannot be read, so nothing runs/),
     );
+  });
+
+  it('runs nothing while sync is paused on this Mac, and says automations wait', async () => {
+    const { hook, options, pauses } = setUpHook({ script: modelGit().script });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(true);
+    act(() => hook.result.current.setPaused(true));
+    expect(pauses.get(VAULT)).toBe(true);
+    expect(await acts(hook)).toBe(false);
+    const reports = (options.activity as ReturnType<typeof recordingActivity>).reports;
+    expect(reports.map((report) => report.message)).toContainEqual(
+      expect.stringMatching(/paused on this Mac, so automations wait/),
+    );
+    act(() => hook.result.current.setPaused(false));
+    expect(await acts(hook)).toBe(true);
+  });
+
+  it('acts as before on a vault on a Mac without git: it cannot sync here', async () => {
+    const { hook } = setUpHook({
+      script: {
+        topLevel: () => {
+          throw new ProgramMissingError('git');
+        },
+      },
+    });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('failed'));
+    expect(hook.result.current.pulledFiles.standing).toEqual({ kind: 'not-synced' });
+    expect(await acts(hook)).toBe(true);
   });
 
   it('acts on nothing while the counter cannot be read, and says so', async () => {
@@ -976,6 +1009,25 @@ describe('useSync: acting only on what a fresh pull brought (ADR-0035 part 4)', 
     await wait(clock, 60_000);
     await waitFor(async () => expect(await acts(hook)).toBe(true));
     expect(called('merge').length).toBe(merges);
+  });
+
+  it('keeps what it knew when a look at GitHub fails: the look changed no file', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const model = modelGit();
+    const online = model.script.fetch as () => GitResult;
+    let offline = false;
+    const script: GitScript = {
+      ...model.script,
+      fetch: () => (offline ? failed('fatal: unable to access GitHub', 128) : online()),
+    };
+    const { hook, clock } = setUpHook({ script });
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('synced'));
+    expect(await acts(hook)).toBe(true);
+    offline = true;
+    await wait(clock, 60_000);
+    await waitFor(() => expect(hook.result.current.phase.kind).toBe('failed'));
+    expect(hook.result.current.pulledFiles.standing).toMatchObject({ kind: 'pulled' });
+    expect(await acts(hook)).toBe(true);
   });
 
   it('acts on nothing once a look finds other Macs’ changes, until the sync brings them in', async () => {

@@ -7,6 +7,7 @@ import {
   digestOf,
   logPathFor,
   movedPath,
+  parseRunLog,
   type EntryMove,
   type PullStanding,
   type VaultEntry,
@@ -23,6 +24,7 @@ import { remarkMarkdown } from '@atlas/adapters';
 import {
   HELD_NEWS,
   queueByRule,
+  SCHEDULE_TICK_MS,
   useAutomations,
   type AutomationsOptions,
 } from './use-automations.ts';
@@ -449,5 +451,152 @@ describe('adversarial #174: a Claude step the Mac slept through', () => {
     expect(claude.fake.requests).toHaveLength(1);
     expect(atSleep).not.toBeNull();
     expect(vault.files).toEqual(atSleep);
+  });
+});
+
+describe('useAutomations: a Claude step the clock or opening sets off waits for fresh sync state (#174)', () => {
+  const ASK = '.atlas/automations/Brief.md';
+  const askText = (when: string) =>
+    [
+      '---',
+      'atlas: automation',
+      'name: Brief',
+      'enabled: true',
+      `when: ${when}`,
+      'which: FROM meeting',
+      'do: claude',
+      'prompt: .atlas/prompts/actions.md',
+      'output: proposals',
+      '---',
+      '',
+    ].join('\n');
+  /** The rule ran on its schedule yesterday, so today's 08:00 is due at 09:00. */
+  const ranYesterday = appendLogEntry({
+    text: null,
+    ruleName: 'Brief',
+    now: Date.parse('2026-10-07T08:00:00Z'),
+    entry: {
+      kind: 'run',
+      at: '2026-10-07T08:00:00',
+      trigger: 'schedule',
+      done: [],
+      left: [],
+      capped: false,
+    },
+  });
+  const PULLED: PullStanding = {
+    kind: 'pulled',
+    startedAsleepMs: 0,
+    finishedAt: 1,
+    namedAfter: true,
+  };
+
+  const open = (when: string, extra: Record<string, string> = {}) => {
+    const vault = memoryVault(
+      {
+        [ASK]: askText(when),
+        '.atlas/prompts/actions.md': 'List the action items.\n',
+        [MEETING]: LET_IN,
+        ...extra,
+      },
+      { [ASK]: 100, [MEETING]: 200 },
+    );
+    const gate = { open: false };
+    // One answer, and a sound one: a second run would find no answer left, and a failed one would pause the rule.
+    const claude = fakeClaudeStepPorts({
+      rounds: [[{ type: 'text', text: JSON.stringify({ proposals: [] }) }]],
+    });
+    // The rule's query, run by the clock or by hand, finds the one meeting.
+    const index = {
+      ...vault.ports.index,
+      query: async (sql: string, parameters: readonly (string | number | null)[]) =>
+        sql.startsWith('/* meetings */')
+          ? vault.ports.index.query(sql, parameters)
+          : {
+              columns: ['path', 'title', 'type'],
+              rows: [[MEETING, MEETING, 'meeting']],
+              truncated: false,
+            },
+    };
+    const options: AutomationsOptions = {
+      ports: { ...vault.ports, index, claude },
+      clock,
+      vaultKey: VAULT,
+      indexKey: '1',
+      indexReady: true,
+      activity: recordingActivity(),
+      onSettled: vi.fn(),
+      scheduled: true,
+      pulledFiles: { standing: null, acts: async () => gate.open },
+    };
+    const hook = renderHook((props: AutomationsOptions) => useAutomations(props), {
+      initialProps: options,
+    });
+    /** A pull completes, and the gates open. */
+    const pullCompletes = async (finishedAt: number) => {
+      gate.open = true;
+      hook.rerender({
+        ...options,
+        pulledFiles: { standing: { ...PULLED, finishedAt }, acts: async () => gate.open },
+      });
+      await settle();
+    };
+    return { claude, hook, pullCompletes, gate, vault, options };
+  };
+
+  it('holds a rule that runs on opening while the gates are shut, and runs it once a pull completes', async () => {
+    const { claude, pullCompletes, vault } = open('on app open');
+    await settle();
+    expect(claude.fake.requests).toHaveLength(0);
+
+    await pullCompletes(2);
+    expect(claude.fake.requests).toHaveLength(1);
+    // Run once: the next pull does not run it again.
+    await pullCompletes(3);
+    expect(claude.fake.requests).toHaveLength(1);
+    // Its log holds the one run on opening.
+    const runs = parseRunLog(vault.files[logPathFor('Brief')] ?? '');
+    expect(runs.filter((entry) => 'trigger' in entry && entry.trigger === 'open')).toHaveLength(1);
+  });
+
+  it('does not so much as start a held rule while the gates stay shut, minute after minute', async () => {
+    const { claude, options, vault } = open('daily at 08:00', {
+      [logPathFor('Brief')]: ranYesterday,
+    });
+    await settle();
+    const settled = vi.mocked(options.onSettled).mock.calls.length;
+    const listed = vi.spyOn(vault.ports.fs, 'listNotes');
+
+    for (let minute = 0; minute < 3; minute += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SCHEDULE_TICK_MS);
+      });
+      await settle();
+    }
+
+    expect(claude.fake.requests).toHaveLength(0);
+    expect(listed).not.toHaveBeenCalled();
+    expect(vi.mocked(options.onSettled).mock.calls.length).toBe(settled);
+  });
+
+  it('holds a schedule that comes due while the gates are shut, and runs it at the next pull', async () => {
+    const { claude, pullCompletes } = open('daily at 08:00', {
+      [logPathFor('Brief')]: ranYesterday,
+    });
+    await settle();
+    expect(claude.fake.requests).toHaveLength(0);
+
+    await pullCompletes(2);
+    expect(claude.fake.requests).toHaveLength(1);
+  });
+
+  it('runs it by hand whatever the gates say: the person started it', async () => {
+    const { claude, hook } = open('manually');
+    await settle();
+    await act(async () => {
+      const ran = hook.result.current.listing!.automations[0]!.rule;
+      await hook.result.current.runNow(ran);
+    });
+    expect(claude.fake.requests).toHaveLength(1);
   });
 });

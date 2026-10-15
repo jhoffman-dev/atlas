@@ -1,0 +1,293 @@
+import { describe, expect, it } from 'vitest';
+import type { PullStanding } from '@atlas/domain';
+import { recordingActivity } from '../testing/fake-activity.ts';
+import { fakeSleepClock } from '../testing/fake-git.ts';
+import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
+import { createFreshPullGate } from './fresh-pull-gate.ts';
+import { withPrograms } from './git-steps.ts';
+import { ProgramMissingError } from './ports.ts';
+
+const VAULT = '/Users/j/Notes';
+const THIS_MAC = 'mac-studio';
+const NAMED = `---\nsync: github\nautomationsMac: ${THIS_MAC}\nautomationsMacName: Studio\n---\n`;
+
+/**
+ * The gate on a vault whose settings note the test can change, as a pull
+ * would, and whose other notes were last modified when `modified` says. The
+ * host's counter is faked; the wall clock is the test's.
+ */
+function gateOn({ settings = NAMED as string | null, paused = false } = {}) {
+  const vault = { settings, paused, modified: new Map<string, number>(), now: 1_000 };
+  const sleep = fakeSleepClock();
+  const activity = recordingActivity();
+  const told: (PullStanding | null)[] = [];
+  const fs = fakeVaultFs({
+    readNotes: async (paths) =>
+      paths.flatMap((path) => {
+        if (path === '.atlas/settings.md') {
+          return vault.settings === null
+            ? []
+            : [{ path, text: vault.settings, modified: 1, size: 1 }];
+        }
+        const modified = vault.modified.get(path);
+        return modified === undefined ? [] : [{ path, text: '', modified, size: 1 }];
+      }),
+  });
+  const gate = createFreshPullGate({
+    ports: {
+      sleepClock: sleep.port,
+      fs,
+      // Frontmatter with an unclosed list does not read, as YAML would not.
+      markdown: {
+        ...fakeMarkdown(),
+        frontmatterProblem: (frontmatter) => (frontmatter?.includes('[') ? 'unclosed list' : null),
+      },
+      clock: { now: () => vault.now },
+      activity,
+    },
+    here: { thisMacId: () => THIS_MAC, paused: () => vault.paused },
+    onStanding: (_, standing) => void told.push(standing),
+  });
+  gate.opened(VAULT);
+  gate.inspected(VAULT, true);
+  /** A sync or a look, started and ended with the Mac awake. */
+  const runs = async (end: Parameters<typeof gate.ended>[1]) => {
+    const startedAsleepMs = await gate.readAsleep();
+    if (end.kind === 'synced' || end.kind === 'sync-failed') gate.started(VAULT);
+    await gate.ended(VAULT, end, startedAsleepMs);
+  };
+  const said = () => activity.reports.map((report) => report.message);
+  return { gate, vault, sleep, runs, said, told };
+}
+
+describe('createFreshPullGate: what sync tells it (ADR-0035 part 4)', () => {
+  it('acts on nothing before a pull completes, nor while one is under way', async () => {
+    const { gate } = gateOn();
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'no-pull' });
+    gate.started(VAULT);
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'pulling' });
+  });
+
+  it('opens once a sync completes, and records when it did and the counter as it began', async () => {
+    const { gate, runs, told } = gateOn();
+    await runs({ kind: 'synced' });
+    expect(gate.standing(VAULT)).toEqual({
+      kind: 'pulled',
+      startedAsleepMs: 457_335_000,
+      finishedAt: 1_000,
+      namedAfter: true,
+    });
+    expect(told.at(-1)).toEqual(gate.standing(VAULT));
+    expect(await gate.acts(VAULT)).toBe(true);
+  });
+
+  it('takes a look that finds nothing new as a completed pull', async () => {
+    const { gate, runs } = gateOn();
+    await runs({ kind: 'looked', behind: 0 });
+    expect(await gate.acts(VAULT)).toBe(true);
+  });
+
+  it('voids what it knew once a look finds other Macs’ changes, until a sync brings them in', async () => {
+    const { gate, runs } = gateOn();
+    await runs({ kind: 'synced' });
+    await runs({ kind: 'looked', behind: 2 });
+    expect(gate.standing(VAULT)).toBeNull();
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'no-pull' });
+    await runs({ kind: 'synced' });
+    expect(await gate.acts(VAULT)).toBe(true);
+  });
+
+  it('voids what it knew once a sync fails: it may have brought files in first', async () => {
+    const { gate, runs } = gateOn();
+    await runs({ kind: 'synced' });
+    await runs({ kind: 'sync-failed' });
+    expect(await gate.acts(VAULT)).toBe(false);
+  });
+
+  it('keeps what it knew when a look fails: it changed no file', async () => {
+    const { gate, runs } = gateOn();
+    await runs({ kind: 'synced' });
+    await runs({ kind: 'look-failed' });
+    expect(await gate.acts(VAULT)).toBe(true);
+  });
+
+  it('acts on nothing after a sleep, until a pull started after the wake completes', async () => {
+    const { gate, runs, sleep } = gateOn();
+    await runs({ kind: 'synced' });
+    sleep.sleep(8 * 60 * 60_000);
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'slept' });
+    await runs({ kind: 'looked', behind: 0 });
+    expect(await gate.acts(VAULT)).toBe(true);
+  });
+
+  it('counts for nothing a pull whose start could not be placed against a sleep', async () => {
+    const { gate, sleep } = gateOn();
+    sleep.unreadable();
+    const startedAsleepMs = await gate.readAsleep();
+    expect(startedAsleepMs).toBeNull();
+    await gate.ended(VAULT, { kind: 'synced' }, startedAsleepMs);
+    sleep.unreadable(false);
+    expect(gate.standing(VAULT)).toBeNull();
+  });
+
+  it('re-judges against a pull that started while the facts were being read', async () => {
+    const { gate, runs, sleep } = gateOn();
+    await runs({ kind: 'synced' });
+    const port = sleep.port.asleepMs;
+    sleep.port.asleepMs = async () => {
+      gate.started(VAULT);
+      return port();
+    };
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'pulling' });
+  });
+});
+
+describe('createFreshPullGate: the settings (ADR-0035 part 4, "Unknown")', () => {
+  it('runs nothing when the settings a pull brought name another Mac', async () => {
+    const { gate, vault, runs } = gateOn();
+    vault.settings = '---\nsync: github\nautomationsMac: mac-laptop\n---\n';
+    await runs({ kind: 'synced' });
+    expect(gate.standing(VAULT)).toMatchObject({ namedAfter: false });
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'not-named' });
+  });
+
+  it('runs nothing when the settings now name another Mac, though the pull’s named this one', async () => {
+    const { gate, vault, runs } = gateOn();
+    await runs({ kind: 'synced' });
+    vault.settings = '---\nsync: github\nautomationsMac: mac-laptop\n---\n';
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'not-named' });
+  });
+
+  it('runs nothing, and says why once, when the settings a pull left cannot be read', async () => {
+    const { gate, vault, runs, said } = gateOn();
+    vault.settings = '---\nautomationsMac: [mac-studio\n---\n';
+    await runs({ kind: 'synced' });
+    expect(gate.standing(VAULT)).toEqual({ kind: 'settings-unreadable' });
+    for (let look = 0; look < 3; look += 1) {
+      expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'settings-unreadable' });
+      await runs({ kind: 'looked', behind: 0 });
+    }
+    expect(said().filter((line) => line.includes('settings'))).toHaveLength(1);
+  });
+
+  it('takes a settings note missing after a pull as unreadable, not as naming no Mac', async () => {
+    const { gate, vault, runs } = gateOn();
+    vault.settings = null;
+    await runs({ kind: 'synced' });
+    expect(gate.standing(VAULT)).toEqual({ kind: 'settings-unreadable' });
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'settings-unreadable' });
+  });
+
+  it('takes a settings note gone since the pull as unreadable', async () => {
+    const { gate, vault, runs } = gateOn();
+    await runs({ kind: 'synced' });
+    vault.settings = null;
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'settings-unreadable' });
+  });
+
+  it('says it again once the gates have opened and shut again for it', async () => {
+    const { gate, vault, runs, said } = gateOn();
+    vault.settings = '---\nautomationsMac: [\n---\n';
+    await runs({ kind: 'synced' });
+    await gate.verdict(VAULT);
+    vault.settings = NAMED;
+    await runs({ kind: 'synced' });
+    expect(await gate.acts(VAULT)).toBe(true);
+    vault.settings = '---\nautomationsMac: [\n---\n';
+    await runs({ kind: 'synced' });
+    await gate.verdict(VAULT);
+    expect(said().filter((line) => line.includes('settings'))).toHaveLength(2);
+  });
+});
+
+describe('createFreshPullGate: paused sync (ADR-0035 part 4)', () => {
+  it('runs nothing while sync is paused on this Mac, and says so once', async () => {
+    const { gate, vault, runs, said } = gateOn();
+    await runs({ kind: 'synced' });
+    vault.paused = true;
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'paused' });
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'paused' });
+    expect(said()).toEqual([expect.stringMatching(/paused on this Mac, so automations wait/)]);
+  });
+
+  it('says paused, not waiting for a pull, on a Mac that opened the vault paused', async () => {
+    const { gate } = gateOn({ paused: true });
+    expect(await gate.verdict(VAULT)).toEqual({ open: false, shut: 'paused' });
+  });
+
+  it('is not taken as paused before the vault is known to sync', async () => {
+    const { gate } = gateOn({ paused: true });
+    gate.opened('/Users/j/Work');
+    expect(await gate.verdict('/Users/j/Work')).toEqual({ open: false, shut: 'no-pull' });
+  });
+});
+
+describe('createFreshPullGate: a vault that does not sync', () => {
+  it('acts as before, never reading the counter for it', async () => {
+    const { gate, sleep } = gateOn({ paused: true });
+    gate.inspected(VAULT, false);
+    sleep.unreadable();
+    expect(await gate.acts(VAULT, { modifiedAt: Number.MAX_SAFE_INTEGER })).toBe(true);
+    expect(sleep.reads()).toBe(0);
+  });
+
+  it('is what a vault becomes whose inspection found no git on this Mac', async () => {
+    const { gate } = gateOn();
+    const missing = await withPrograms(() => Promise.reject(new ProgramMissingError('git'))).catch(
+      (cause: unknown) => cause,
+    );
+    gate.inspectionFailed(VAULT, missing);
+    expect(gate.standing(VAULT)).toEqual({ kind: 'not-synced' });
+    expect(await gate.acts(VAULT)).toBe(true);
+  });
+
+  it('is not what an inspection that failed for another reason leaves', async () => {
+    const { gate } = gateOn();
+    gate.inspectionFailed(VAULT, new Error('fatal: not a git repository'));
+    expect(gate.standing(VAULT)).toBeNull();
+  });
+
+  it('waits, once set up to sync, for its first pull', async () => {
+    const { gate } = gateOn();
+    gate.inspected(VAULT, false);
+    gate.inspected(VAULT, true);
+    expect(gate.standing(VAULT)).toBeNull();
+    expect(await gate.acts(VAULT)).toBe(false);
+  });
+});
+
+describe('createFreshPullGate: gate 1 (a pull completed after the file arrived)', () => {
+  it('acts on a file modified before the pull completed, and not on one modified as or after it', async () => {
+    const { gate, vault, runs } = gateOn();
+    vault.now = 5_000;
+    await runs({ kind: 'synced' });
+    expect(await gate.acts(VAULT, { modifiedAt: 4_999 })).toBe(true);
+    expect(await gate.verdict(VAULT, { modifiedAt: 5_000 })).toEqual({
+      open: false,
+      shut: 'arrived-after-pull',
+    });
+  });
+
+  it('reads the notes’ modified times, and judges by the latest of them', async () => {
+    const { gate, vault, runs } = gateOn();
+    vault.now = 5_000;
+    vault.modified.set('Inbox/Meetings/a.md', 1_000).set('Inbox/Meetings/b.md', 6_000);
+    await runs({ kind: 'synced' });
+    expect(await gate.acts(VAULT, { paths: ['Inbox/Meetings/a.md'] })).toBe(true);
+    expect(await gate.acts(VAULT, { paths: ['Inbox/Meetings/a.md', 'Inbox/Meetings/b.md'] })).toBe(
+      false,
+    );
+  });
+});
+
+describe('createFreshPullGate: one vault at a time', () => {
+  it('forgets the last vault’s pull when another opens, and ignores news of it', async () => {
+    const { gate, runs } = gateOn();
+    await runs({ kind: 'synced' });
+    gate.opened('/Users/j/Work');
+    expect(gate.standing(VAULT)).toBeNull();
+    expect(await gate.acts(VAULT)).toBe(false);
+    gate.started(VAULT);
+    expect(gate.standing('/Users/j/Work')).toBeNull();
+  });
+});

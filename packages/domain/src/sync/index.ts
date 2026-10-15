@@ -95,12 +95,22 @@ export {
 } from './sync-rules.ts';
 export type { RepositoryPlace } from './sync-rules.ts';
 export {
-  actsOnPulledFiles,
   ASLEEP_READING_SLACK_MS,
+  freshPullVerdict,
+  freshPullWaitReport,
+  gatedByFreshPull,
   pulledAfterArrival,
   pulledSinceLastSleep,
+  pullEndEffect,
+  standingAfterPull,
 } from './pull-freshness.ts';
-export type { PullStanding } from './pull-freshness.ts';
+export type {
+  FreshPullShut,
+  FreshPullVerdict,
+  PullEnd,
+  PullStanding,
+  SettingsReading,
+} from './pull-freshness.ts';
 export { syncActivityMessage, syncBadge, syncStanding } from './sync-state.ts';
 export type {
   ConflictCopy,

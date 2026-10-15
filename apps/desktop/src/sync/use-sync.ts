@@ -87,8 +87,9 @@ export interface SyncController {
   readonly syncPulls: ReadonlyMap<string, number>;
   /**
    * Whether this Mac may act on what sync brought into the open vault
-   * (ADR-0035 part 4): a pull started since it last slept has completed, and
-   * the settings name it, as read after that pull and as held now.
+   * (ADR-0035 part 4): sync is not paused here, a pull started since it last
+   * slept has completed after the files to act on arrived, and the settings
+   * can be read and name it, as read after that pull and as read now.
    */
   readonly pulledFiles: PulledFilesGate;
   /** Why setting up failed, to show beside the form. */
@@ -135,8 +136,9 @@ export function useSync(options: SyncOptions): SyncController {
     fs: options.fs,
     markdown: options.markdown,
     thisMacId: thisMac?.id ?? null,
-    namedNow: automationsHere,
+    paused: (vault) => host.pause.read(vault),
     clock: options.clock,
+    activity: options.activity,
   });
   const shared = { ...options, git, files, thisMac, setPhase, markSynced, exclusive, pulls };
   const { run, check, lastSyncAt, lastCheckAt } = useSyncRuns({ ...shared, setBehind });

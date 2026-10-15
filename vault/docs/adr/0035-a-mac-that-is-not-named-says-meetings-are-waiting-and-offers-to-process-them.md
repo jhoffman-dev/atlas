@@ -117,6 +117,41 @@ Four parts:
    rather than guessing. A vault that does not sync is unchanged: it has one
    Mac.
 
+   _(Amended 2026-10-14, #174.)_ How the gates are applied:
+   - **Both gates judge the import and the Claude step**, not only the
+     waiting count. The import applies gate 1 **per file**: a meeting file
+     modified here after the last completed pull finished is not imported
+     until the next pull completes, and so is not heard by a Claude step
+     either. A Claude step applies gate 1 to the notes it reads.
+   - **Asked again right before every write.** The import asks before each
+     file's first write and again before its stamp, judging the file by when
+     it was modified as the run first read it. The Claude step asks before it
+     asks Claude, and again after the model's turn, before it writes its
+     proposals, notes, tasks, log or ledger. Shut at any of these, nothing is
+     written for that file or run, nothing is said, and it is held for the
+     next pull. Once a run has written something, its log records it.
+   - **What counts as a pull.** A sync that completes, and a look at GitHub
+     that finds nothing to bring in, complete a pull. A sync that fails, or a
+     look that finds other Macs' changes, voids it. A look that fails changes
+     nothing.
+   - **Settings that cannot be read run nothing.** In a vault that syncs,
+     `.atlas/settings.md` missing, unreadable (permissions, I/O, invalid
+     UTF-8) or with frontmatter that does not parse, after a pull or when read
+     before acting, shuts the gates. Activity says so once. A readable note
+     that names no Mac still names every Mac.
+   - **Paused sync shuts the gates.** While sync is paused on this Mac,
+     nothing is imported and no Claude step runs. Settings → Sync and
+     Activity say that automations wait.
+   - **Clock and on-open Claude rules are gated too**, at fire time and before
+     each write. A schedule that comes due while the gates are shut runs once
+     a pull completes; a rule run by hand is not gated.
+   - **A vault that is not a git repository**, including one on a Mac without
+     git, counts as not syncing, so the import runs without waiting.
+   - **A file the import cannot settle** (a conflict copy, an unreadable
+     file, a failed write) is said in Activity once a session, and again only
+     if its content changes. Without this, the catch-up after every pull
+     would repeat the line each time.
+
 **Catch-up on a claim.** The import's catch-up needs no change:
 `use-meeting-import.ts` already clears its `caughtUp` while this Mac is not
 the importer and reruns the catch-up when it becomes the importer, so a claim

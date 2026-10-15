@@ -22,9 +22,10 @@ import type { PulledFilesGate } from '../sync/use-pulled-files.ts';
  *
  * Only on the Mac that runs the vault's automations (`active`), so two Macs
  * never write the same file, and only on fresh sync state: each run asks the
- * gates of ADR-0035 part 4 as its turn comes. It catches up after each pull
- * completes there, which settles whatever it dropped while they were shut,
- * and when this Mac takes the automations over.
+ * gates of ADR-0035 part 4 as its turn comes, and again for each file right
+ * before each write. It catches up after each pull completes there, which
+ * settles whatever it dropped while they were shut, and when this Mac takes
+ * the automations over.
  *
  * One importer for the window, so its queue is not lost. The ports, the open
  * vault, `active` and what to do after a write change more often — the ports
@@ -82,6 +83,9 @@ export function useMeetingImport({
       activity,
       openVault: () => latest.current.vaultKey,
       active: (vault) => latest.current.active && latest.current.acts(vault),
+      // And again for each file, as it arrived, right before each write.
+      mayWrite: async (vault, _path, arrivedAt) =>
+        latest.current.active && (await latest.current.acts(vault, { modifiedAt: arrivedAt })),
       onWritten: () => latest.current.onWritten(),
       // Linked before the stamp: see `createMeetingLinker`.
       beforeLetIn: async (vault, path, reading) => {

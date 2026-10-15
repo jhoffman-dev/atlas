@@ -7,6 +7,7 @@ import {
   runsAutomationsHere,
   SYNC_INTERVAL_KEY,
   SYNC_PUSH_DELAY_KEY,
+  type SettingsReading,
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { readVaultSettings, type SettingsWriter } from '../settings/index.ts';
@@ -27,6 +28,8 @@ export interface SyncSettings {
 export async function loadSyncSettings(args: {
   fs: Pick<VaultFsPort, 'readNotes'>;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
+  /** Whether a missing settings note is refused as unreadable (see `readVaultSettings`). */
+  required?: boolean;
 }): Promise<SyncSettings> {
   const settings = await readVaultSettings(args);
   return {
@@ -38,21 +41,34 @@ export async function loadSyncSettings(args: {
 }
 
 /**
- * Whether the vault's settings, read from the file now, name this Mac to run
- * its automations (ADR-0035 part 4): asked once each pull has completed, so
- * a claim another Mac made is seen before anything acts on what the pull
- * brought. Rejects when the settings cannot be read.
+ * What the vault's settings note, read from the file now, says of who runs
+ * the automations (ADR-0035 part 4): read once each pull has completed, so a
+ * claim another Mac made is seen before anything acts on what the pull
+ * brought, and again right before each act. In a vault that syncs the file
+ * must be there; one missing, or that cannot be read — its frontmatter, its
+ * permissions, bytes that are not UTF-8 — is `unreadable`, and nothing runs.
  */
-export async function settingsNameThisMac({
+export async function automationsSettingsReading({
   thisMacId,
+  syncs,
   ...files
 }: {
   fs: Pick<VaultFsPort, 'readNotes'>;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
   thisMacId: string;
-}): Promise<boolean> {
-  const { automationsMac } = await loadSyncSettings(files);
-  return runsAutomationsHere({ automationsMac, thisMacId });
+  /** Whether the vault syncs: then a missing settings note is unreadable, not silent. */
+  syncs: boolean;
+}): Promise<SettingsReading> {
+  let automationsMac: string | null;
+  try {
+    ({ automationsMac } = await loadSyncSettings({ ...files, required: syncs }));
+  } catch {
+    // Said by the gates, in Activity, once: what could not be read is the vault's to fix.
+    return 'unreadable';
+  }
+  return runsAutomationsHere({ automationsMac, thisMacId })
+    ? 'names-this-mac'
+    : 'names-another-mac';
 }
 
 export async function saveSyncSettings({

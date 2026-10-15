@@ -10,13 +10,15 @@ import type { Clock } from '../ports.ts';
 import type { ActivityLog } from '../activity/ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { appendToRuleLog } from './automation-log.ts';
+import { HeldForPullError } from './fresh-pull-hold.ts';
 import { VaultChangedError } from './vault-guard.ts';
 
 /**
  * Carries out a run or an undo, and says in the Activity log how it went:
  * the summary its rule's log was given, or why it stopped. A run cut off by
  * another vault opening is not the rule's failure, and the log open now is
- * that other vault's, so it is not recorded.
+ * that other vault's, so it is not recorded; nor is one held for the next
+ * pull, which did nothing and runs again then.
  */
 export async function reported<Entry extends LogEntry | null>({
   activity,
@@ -35,7 +37,7 @@ export async function reported<Entry extends LogEntry | null>({
   try {
     entry = await carryOut();
   } catch (cause) {
-    if (!(cause instanceof VaultChangedError)) {
+    if (!(cause instanceof VaultChangedError) && !(cause instanceof HeldForPullError)) {
       recorder.record(automationFailedReport({ rule, doing, problem: messageWithoutPaths(cause) }));
     }
     throw cause;

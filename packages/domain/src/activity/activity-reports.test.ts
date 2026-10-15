@@ -10,6 +10,7 @@ import {
   indexFailedReport,
   indexInWindowReport,
   indexRebuiltReport,
+  leavesFileUnsettled,
   meetingImportReport,
   meetingImportStoppedReport,
   noticeReport,
@@ -559,5 +560,29 @@ describe('meetingImportStoppedReport', () => {
       message: 'Meetings that arrived could not be imported. The vault was closed.',
       subject: null,
     });
+  });
+});
+
+describe('leavesFileUnsettled: what the import says once a session (#174)', () => {
+  const at = p('Inbox/Meetings/2026-10-14 Standup.md');
+
+  it('is true of a file every catch-up meets again as it was', () => {
+    const unsettled = [
+      { kind: 'conflict', path: at },
+      { kind: 'failed', path: at, problem: 'cannot read' },
+      { kind: 'invalid', path: at, problem: 'no id', unmarked: 'its frontmatter cannot be read' },
+      { kind: 'duplicate', path: at, of: at, archivedTo: null, problem: 'the move failed' },
+    ] as const;
+    for (const happening of unsettled) expect(leavesFileUnsettled(happening)).toBe(true);
+  });
+
+  it('is false of a file the import settled, or marked with its problem', () => {
+    const settled = [
+      { kind: 'arrived', path: at },
+      { kind: 'fixed', path: at },
+      { kind: 'invalid', path: at, problem: 'no id', unmarked: null },
+      { kind: 'duplicate', path: at, of: at, archivedTo: p('Archive/x.md'), problem: null },
+    ] as const;
+    for (const happening of settled) expect(leavesFileUnsettled(happening)).toBe(false);
   });
 });

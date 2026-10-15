@@ -35,8 +35,8 @@ export interface SetUpContext {
   readonly setSetup: (setup: SyncSetup | null) => void;
   readonly setPhase: (phase: SyncPhase) => void;
   readonly exclusive: Exclusive;
-  /** Told once the vault syncs: nothing acts on its files until its first sync or look completes. */
-  readonly pulls: Pick<PullRecorder, 'unknown'>;
+  /** Told how the vault stands once set up: one that now syncs waits for its first sync or look. */
+  readonly pulls: Pick<PullRecorder, 'inspected'>;
 }
 
 /**
@@ -65,7 +65,7 @@ export function useSetUp(context: SetUpContext) {
       const reread = () => inspectSync({ git, folders, fs, markdown, vaultRoot: vaultKey });
       // A vault that syncs now waits, like any other, for its first sync or look to complete.
       const settle = (setup: SyncSetup) => {
-        if (setup.kind === 'set-up') pulls.unknown(vaultKey);
+        pulls.inspected(vaultKey, setup.kind === 'set-up');
         setSetup(setup);
       };
       const setUpNow = () =>

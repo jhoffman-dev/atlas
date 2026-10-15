@@ -1,0 +1,197 @@
+import {
+  freshPullVerdict,
+  freshPullWaitReport,
+  pullEndEffect,
+  standingAfterPull,
+  type FreshPullShut,
+  type FreshPullVerdict,
+  type PullEnd,
+  type PullStanding,
+} from '@atlas/domain';
+import type { ActivityLog } from '../activity/ports.ts';
+import type { MarkdownPort } from '../notes/ports.ts';
+import type { Clock } from '../ports.ts';
+import type { VaultFsPort } from '../vault/ports.ts';
+import { programWasMissing } from './git-steps.ts';
+import type { SleepClockPort } from './ports.ts';
+import { automationsSettingsReading } from './sync-settings.ts';
+
+/**
+ * What is about to be acted on, for gate 1: one file, by when it was last
+ * modified as it was first read — a write the act itself makes before its
+ * last one does not move it — or notes, whose times are read now.
+ */
+export type Arrival = { readonly modifiedAt: number } | { readonly paths: readonly string[] };
+
+/**
+ * The gates of ADR-0035 part 4 for the open vault, and the one record they
+ * judge by: what this session knows of its last pull. Sync tells it as each
+ * pull and look starts and ends; the meeting import and a rule's Claude step
+ * ask it right before each act and again before each write.
+ */
+export interface FreshPullGate {
+  /** The vault's last pull as this session knows it; null when none has completed since it opened, or it is not open. */
+  standing(vault: string): PullStanding | null;
+  /** A vault opened (or none): what was known of the last one is forgotten, and it waits for a pull of its own. */
+  opened(vault: string | null): void;
+  /** Reads the host's sleep counter as a pull or a look starts; null when it cannot be read, which counts for nothing. */
+  readAsleep(): Promise<number | null>;
+  /** A pull of the vault has started: nothing acts on its files until it completes. */
+  started(vault: string): void;
+  /**
+   * A sync or a look at GitHub has ended, having started at this reading of
+   * the counter: see `pullEndEffect` for what that leaves known. A pull that
+   * completed has the settings it left read now.
+   */
+  ended(vault: string, end: PullEnd, startedAsleepMs: number | null): Promise<void>;
+  /**
+   * How the vault stands with sync, as read when it opened or once it was
+   * set up: one that does not sync has nothing to wait for; one that now
+   * syncs waits for its first sync or look to complete.
+   */
+  inspected(vault: string, syncs: boolean): void;
+  /**
+   * Reading how the vault stands failed. When git is not on this Mac, the
+   * vault cannot sync here, and is judged as one that does not; otherwise
+   * nothing acts until a pull completes.
+   */
+  inspectionFailed(vault: string, cause: unknown): void;
+  /** Whether this Mac may act on the vault's files now, and if not, why; says in Activity, once, a wait the person can end. */
+  verdict(vault: string, arrival?: Arrival): Promise<FreshPullVerdict>;
+  /** Whether this Mac may act on the vault's files now. */
+  acts(vault: string, arrival?: Arrival): Promise<boolean>;
+}
+
+export interface FreshPullGatePorts {
+  readonly sleepClock: SleepClockPort;
+  /** The open vault's files: its settings note, and the notes about to be acted on. */
+  readonly fs: Pick<VaultFsPort, 'readNotes'>;
+  readonly markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
+  readonly clock: Pick<Clock, 'now'>;
+  readonly activity: Pick<ActivityLog, 'inVault'>;
+}
+
+/** What the gate reads of this Mac as it decides. */
+export interface FreshPullHere {
+  /** This Mac's id; null until it is known, when nothing acts. */
+  readonly thisMacId: () => string | null;
+  /** Whether sync is paused on this Mac for the vault. */
+  readonly paused: (vault: string) => boolean;
+}
+
+/** One vault's record: whether it is known to sync, its standing, and the wait last said in Activity. */
+interface VaultRecord {
+  readonly vault: string | null;
+  readonly syncs: boolean;
+  readonly standing: PullStanding | null;
+  readonly said: FreshPullShut | null;
+}
+
+const NOT_SYNCED: PullStanding = { kind: 'not-synced' };
+const PULLING: PullStanding = { kind: 'pulling' };
+
+/**
+ * The gates for the vault open now (ADR-0035 part 4). Kept for that vault
+ * and forgotten when another opens: a vault opened again waits for a pull of
+ * its own. `onStanding` is told each time the standing changes, for whatever
+ * waits on a pull.
+ */
+export function createFreshPullGate({
+  ports,
+  here,
+  onStanding = () => undefined,
+}: {
+  ports: FreshPullGatePorts;
+  here: FreshPullHere;
+  onStanding?: (vault: string, standing: PullStanding | null) => void;
+}): FreshPullGate {
+  let record: VaultRecord = { vault: null, syncs: false, standing: null, said: null };
+
+  const standingOf = (vault: string) => (record.vault === vault ? record.standing : null);
+  const stand = (vault: string, standing: PullStanding | null) => {
+    if (record.vault !== vault) return;
+    record = { ...record, standing };
+    onStanding(vault, standing);
+  };
+  const readAsleep = () => ports.sleepClock.asleepMs().catch(() => null);
+
+  const settingsNow = async (standing: PullStanding | null) => {
+    const thisMacId = here.thisMacId();
+    // Read only where the standing lets the settings count: a vault that syncs must have them.
+    if (thisMacId === null || (standing?.kind !== 'pulled' && standing?.kind !== 'not-synced')) {
+      return null;
+    }
+    const syncs = standing.kind === 'pulled';
+    return automationsSettingsReading({ ...ports, thisMacId, syncs });
+  };
+
+  /** The latest time the files about to be acted on were modified here; null for none, or none there to read. */
+  const arrivedAt = async (arrival: Arrival | undefined): Promise<number | null> => {
+    if (arrival === undefined) return null;
+    if ('modifiedAt' in arrival) return arrival.modifiedAt;
+    const notes = await ports.fs.readNotes(arrival.paths);
+    return notes.length === 0 ? null : Math.max(...notes.map((note) => note.modified));
+  };
+
+  /** Says in Activity a wait the person can end, once until the gates open again. */
+  const say = (vault: string, verdict: FreshPullVerdict) => {
+    if (record.vault !== vault) return;
+    if (verdict.open) {
+      record = { ...record, said: null };
+      return;
+    }
+    const report = freshPullWaitReport(verdict.shut);
+    if (report === null || record.said === verdict.shut) return;
+    record = { ...record, said: verdict.shut };
+    ports.activity.inVault(vault).record(report);
+  };
+
+  const verdict = async (vault: string, arrival?: Arrival): Promise<FreshPullVerdict> => {
+    const standing = standingOf(vault);
+    const pulled = standing?.kind === 'pulled';
+    const facts = {
+      standing,
+      settingsNow: await settingsNow(standing),
+      asleepNowMs: pulled ? await readAsleep() : null,
+      arrivedAt: pulled ? await arrivedAt(arrival) : null,
+      paused: record.vault === vault && record.syncs && here.paused(vault),
+    };
+    // A pull started or ended while the facts were read: they are judged against it instead.
+    if (standingOf(vault) !== standing) return verdict(vault, arrival);
+    const judged = freshPullVerdict(facts);
+    say(vault, judged);
+    return judged;
+  };
+
+  const inspected = (vault: string, syncs: boolean) => {
+    if (record.vault !== vault) return;
+    record = { ...record, syncs };
+    if (!syncs) stand(vault, NOT_SYNCED);
+    else if (record.standing?.kind === 'not-synced') stand(vault, null);
+  };
+
+  return {
+    standing: standingOf,
+    opened: (vault) => {
+      if (record.vault !== vault) record = { vault, syncs: false, standing: null, said: null };
+    },
+    readAsleep,
+    started: (vault) => stand(vault, PULLING),
+    ended: async (vault, end, startedAsleepMs) => {
+      const effect = pullEndEffect(end);
+      if (effect === 'keeps') return;
+      if (effect === 'voids') return stand(vault, null);
+      const finishedAt = ports.clock.now();
+      const thisMacId = here.thisMacId();
+      if (startedAsleepMs === null || thisMacId === null) return stand(vault, null);
+      const settings = await automationsSettingsReading({ ...ports, thisMacId, syncs: true });
+      stand(vault, standingAfterPull({ startedAsleepMs, finishedAt, settings }));
+    },
+    inspected,
+    inspectionFailed: (vault, cause) => {
+      if (programWasMissing(cause)) inspected(vault, false);
+    },
+    verdict,
+    acts: async (vault, arrival) => (await verdict(vault, arrival)).open,
+  };
+}

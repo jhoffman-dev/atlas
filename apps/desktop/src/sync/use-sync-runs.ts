@@ -130,7 +130,7 @@ export function useSyncRuns(context: RunContext) {
       return syncNow({ ports, mac: thisMac.name, clock })
         .then(async (report) => {
           // Before anything hears of what it brought: the settings it brought decide who acts on it.
-          await pulls.caughtUp(vaultKey, startedAsleepMs);
+          await pulls.ended(vaultKey, { kind: 'synced' }, startedAsleepMs);
           const broughtIn = report.pulled || report.conflicts.length > 0;
           // Pulled whether or not the vault is still open: the session has synced it.
           markSynced(vaultKey, broughtIn);
@@ -140,9 +140,9 @@ export function useSyncRuns(context: RunContext) {
           if (broughtIn) pulled.current();
           return report;
         })
-        .catch((cause: unknown) => {
+        .catch(async (cause: unknown) => {
           // It may have brought files in before it failed: what they hold is not known.
-          pulls.unknown(vaultKey);
+          await pulls.ended(vaultKey, { kind: 'sync-failed' }, startedAsleepMs);
           if (current()) setPhase({ kind: 'failed', reason: errorMessage(cause), at: clock.now() });
           return null;
         });
@@ -187,14 +187,7 @@ export function useSyncRuns(context: RunContext) {
   return { run, check, lastSyncAt, lastCheckAt };
 }
 
-/**
- * Looks at GitHub, and tells the gates what it found. A look that finds
- * nothing to bring in leaves the files holding what GitHub had as it began,
- * as a pull would have: after a wake, it is what reopens the gates when no
- * other Mac has changed anything. One that finds other Macs' changes leaves
- * the files short of them until a sync brings them in. One that fails
- * changed no file, and leaves what the gates knew as it was.
- */
+/** Looks at GitHub, and tells the gates what it found, or that it failed (see `pullEndEffect`). */
 async function lookAtGitHub({
   git,
   vault,
@@ -205,9 +198,14 @@ async function lookAtGitHub({
   pulls: PullRecorder;
 }): Promise<{ behind: number; ahead: number }> {
   const startedAsleepMs = await pulls.readAsleep();
-  const found = await checkRemote({ git });
-  if (found.behind > 0) pulls.unknown(vault);
-  else await pulls.caughtUp(vault, startedAsleepMs);
+  let found: { behind: number; ahead: number };
+  try {
+    found = await checkRemote({ git });
+  } catch (cause) {
+    await pulls.ended(vault, { kind: 'look-failed' }, startedAsleepMs);
+    throw cause;
+  }
+  await pulls.ended(vault, { kind: 'looked', behind: found.behind }, startedAsleepMs);
   return found;
 }
 
@@ -240,7 +238,7 @@ export function useInspection({
   setBehind: (behind: number) => void;
   /** Says the vault has nothing to wait for from GitHub, when it does not sync. */
   markSynced: (vault: string) => void;
-  pulls: Pick<PullRecorder, 'notSynced'>;
+  pulls: Pick<PullRecorder, 'inspected' | 'inspectionFailed'>;
   run: () => Promise<SyncReport | null>;
   /** Whether sync is paused on this Mac as the vault opens: then it does not pull on open. */
   paused: () => boolean;
@@ -260,8 +258,8 @@ export function useInspection({
         if (!live) return;
         setSetup(setup);
         setPhase(phaseOf(setup));
+        pulls.inspected(vaultKey, setup.kind === 'set-up');
         if (setup.kind !== 'set-up') {
-          pulls.notSynced(vaultKey);
           markSynced(vaultKey);
           return;
         }
@@ -269,7 +267,10 @@ export function useInspection({
         if (!pausedNow.current()) void runOnOpen.current();
       })
       .catch((cause: unknown) => {
-        if (live) setPhase({ kind: 'failed', reason: errorMessage(cause), at: clock.now() });
+        if (!live) return;
+        // Git not on this Mac: the vault cannot sync here, and its files wait for no pull.
+        pulls.inspectionFailed(vaultKey, cause);
+        setPhase({ kind: 'failed', reason: errorMessage(cause), at: clock.now() });
       });
     return () => {
       live = false;
