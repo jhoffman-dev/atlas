@@ -74,6 +74,8 @@ describe('writeMeetingSummary', () => {
       replaced: null,
       kept: null,
       joined: [TASK],
+      filed: null,
+      projectLeft: null,
     });
     expect(at.properties()).toMatchObject({
       atlas_summary_digest: written.digest,
@@ -87,7 +89,14 @@ describe('writeMeetingSummary', () => {
   it('writes the tasks alone when there is no block to write', async () => {
     const at = setUp();
     const written = await at.write({ block: null });
-    expect(written).toEqual({ digest: null, replaced: null, kept: null, joined: [TASK] });
+    expect(written).toEqual({
+      digest: null,
+      replaced: null,
+      kept: null,
+      joined: [TASK],
+      filed: null,
+      projectLeft: null,
+    });
     expect(at.properties()).not.toHaveProperty('atlas_summary_digest');
     expect(at.properties()['tasks']).toEqual(['[[Send the file]]']);
   });

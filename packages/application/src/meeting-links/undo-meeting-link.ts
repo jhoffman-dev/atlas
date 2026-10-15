@@ -1,5 +1,5 @@
 import {
-  MEETING_LINK_KEYS,
+  MEETING_LINK_WRITTEN_KEYS,
   messageWithoutPaths,
   PROPOSAL_ID_KEY,
   readProposal,
@@ -25,7 +25,7 @@ const ANSWERED = 'It was answered since, so it was left as it is.';
  * it set goes back to what it held — unless it has changed since, which is
  * left and said — and each proposal it wrote that is still open where it
  * was written goes to the Trash. Only what linking
- * declares it writes is put back: `people` and `companies` of that meeting.
+ * declares it writes is put back: `people`, `companies` and `project` of that meeting.
  */
 export async function undoMeetingLink({
   ports,
@@ -51,7 +51,7 @@ export async function undoMeetingLink({
 /** The change that puts one line back, or none for a line linking never writes. */
 function restoringChange(meeting: VaultPath, line: DoneAction): PropertyChange[] {
   if (line.kind !== 'set' || line.path !== meeting) return [];
-  if (!(MEETING_LINK_KEYS as readonly string[]).includes(line.key)) return [];
+  if (!(MEETING_LINK_WRITTEN_KEYS as readonly string[]).includes(line.key)) return [];
   return [{ path: line.path, key: line.key, expect: line.after, to: line.before }];
 }
 

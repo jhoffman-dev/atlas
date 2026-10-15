@@ -1,5 +1,6 @@
 import {
   digestOf,
+  claudeFiledNoteProblem,
   foldedVaultPath,
   lastUndoableRun,
   loggedActionProblem,
@@ -63,15 +64,16 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
   const at = clock.localNow();
 
   const refused: PassedOver[] = [];
-  const trusted = last.done.filter((line) => {
+  const logged = last.done.filter((line) => {
     const problem = loggedActionProblem(rule.action, line);
     if (problem !== null)
       refused.push({ path: 'path' in line ? line.path : line.to, reason: problem });
     return problem === null;
   });
+  const trusted = rule.action.kind === 'claude' ? await onMeetings(ports, logged, refused) : logged;
   let archived: PropertyOutcome = { done: [], left: [] };
   let restored: PropertyOutcome = { done: [], left: [] };
-  let summaries: PropertyOutcome = { done: [], left: [] };
+  let summaries: SummariesTakenBack = { done: [], left: [], handled: new Set() };
   const entry = (): LogEntry => ({
     kind: 'undo',
     at,
@@ -81,13 +83,15 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
   });
   try {
     archived = await putBack({ ports, run: last, done: trusted });
+    const sets = restoringChanges(trusted);
+    summaries = await takeBackSummaries({ ports, run: last, done: trusted, sets });
+    // What a meeting's own write took back is not restored again; the rest, and what it left, is.
     restored = await changeProperties({
       ports,
-      changes: restoringChanges(trusted),
+      changes: sets.filter((change) => !summaries.handled.has(change)),
       kind: 'restored',
       today: clock.today(),
     });
-    summaries = await takeBackSummaries({ ports, run: last, done: trusted });
   } finally {
     // As a run does: what the undo changed is logged however it ends, in the rule's own vault.
     await appendForRun({ fs: run.ports.fs, run, entry: entry() });
@@ -140,6 +144,27 @@ async function putBack({
   return { done: record.done, left: [...left, ...record.left] };
 }
 
+/**
+ * Of a Claude step's lines, those whose note is a meeting now: the step files
+ * only meetings, so a line naming another note — a log anyone can write says
+ * it — is refused and named ({@link claudeFiledNoteProblem}). A note gone
+ * since is left to the restore, which says so.
+ */
+async function onMeetings(
+  ports: UndoPorts,
+  lines: readonly DoneAction[],
+  refused: PassedOver[],
+): Promise<DoneAction[]> {
+  const paths = lines.flatMap((line) => (line.kind === 'set' ? [line.path] : []));
+  const notes = paths.length === 0 ? new Map() : await stampsOf(ports, paths);
+  return lines.filter((line) => {
+    const properties = line.kind === 'set' ? notes.get(line.path) : undefined;
+    const problem = properties === undefined ? null : claudeFiledNoteProblem(properties);
+    if (problem !== null && line.kind === 'set') refused.push({ path: line.path, reason: problem });
+    return problem === null;
+  });
+}
+
 /** Each note's frontmatter, as its archive stamp is read from. */
 async function stampsOf(
   ports: UndoPorts,
@@ -161,6 +186,11 @@ function restoringChanges(done: readonly DoneAction[]): PropertyChange[] {
       ? [{ path: action.path, key: action.key, expect: action.after, to: action.before }]
       : [],
   );
+}
+
+/** What taking back the meetings' writes did, and which `project` lines it dealt with. */
+interface SummariesTakenBack extends PropertyOutcome {
+  readonly handled: ReadonlySet<PropertyChange>;
 }
 
 const CHANGED_SINCE = 'It was changed since the run made it, so it was kept.';
@@ -187,11 +217,14 @@ async function takeBackSummaries({
   ports,
   run,
   done,
+  sets,
 }: {
   ports: UndoPorts;
   run: Run;
   done: readonly DoneAction[];
-}): Promise<PropertyOutcome> {
+  /** The `project` lines to put back: a meeting's own are taken in its one write. */
+  sets: readonly PropertyChange[];
+}): Promise<SummariesTakenBack> {
   const summaries = new Map<VaultPath, SummaryToTakeBack>();
   for (const action of done) {
     if (action.kind === 'summarised') summaries.set(action.path, action);
@@ -199,11 +232,22 @@ async function takeBackSummaries({
   const { made, left } = await madeTasks({ ports, run, done, meetings: [...summaries.keys()] });
   const meetings = [...new Set([...summaries.keys(), ...made.map(({ meeting }) => meeting)])];
   const did: DoneAction[] = [];
+  const handled = new Set<PropertyChange>();
   for (const meeting of meetings) {
     const trashing = made.filter((task) => task.meeting === meeting).map(({ path }) => path);
     const summary = summaries.get(meeting) ?? null;
+    const project = sets.find((change) => change.path === meeting) ?? null;
     try {
-      await undoMeetingSummary(ports, { meeting, summary, trashing, notePaths: ports.notePaths });
+      const undone = await undoMeetingSummary(ports, {
+        meeting,
+        summary,
+        trashing,
+        notePaths: ports.notePaths,
+        project,
+      });
+      if (project !== null) handled.add(project);
+      if (undone.restored !== null) did.push(undone.restored);
+      if (undone.projectLeft !== null) left.push({ path: meeting, reason: undone.projectLeft });
     } catch (cause) {
       if (!(cause instanceof MeetingSummaryRefused)) throw cause;
       if (summary !== null) left.push({ path: meeting, reason: cause.message });
@@ -216,7 +260,7 @@ async function takeBackSummaries({
     }
     if (summary !== null) did.push({ kind: 'unsummarised', path: meeting });
   }
-  return { done: did, left };
+  return { done: did, left, handled };
 }
 
 /**

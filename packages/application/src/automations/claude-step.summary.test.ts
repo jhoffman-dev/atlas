@@ -732,3 +732,98 @@ describe('a run log someone else wrote into (A25-01)', () => {
     expect(task).toBeDefined();
   });
 });
+
+describe('a meeting filed under a project in the run that summarises it (#227, #171)', () => {
+  const LEDGER = {
+    path: 'Projects/Ledger.md',
+    confidence: 'high',
+    why: 'Its people run the ledger.',
+  };
+  const withLedger = {
+    ...NOTES,
+    'Projects/Ledger.md': jsonNote({ type: 'project', status: 'active' }),
+  };
+
+  it('writes the summary, the tasks and the project in one write, and the rerun after the words change replaces the block and leaves the project', async () => {
+    const at = setUp(
+      [
+        digest({ project: LEDGER }),
+        digest({ summary: 'They moved the date to Monday.', items: [] }),
+      ],
+      withLedger,
+    );
+
+    await at.run();
+
+    expect(at.writesToMeeting()).toBe(1);
+    expect(at.properties()).toMatchObject({
+      atlas_summary_digest: blockOf(at.body()).digest,
+      tasks: ['[[Write the rollout note]]'],
+      project: '[[Ledger]]',
+    });
+    const [ran] = at.entries();
+    expect(ran?.kind === 'run' && ran.done).toEqual(
+      expect.arrayContaining([
+        {
+          kind: 'set',
+          path: SYNC,
+          key: 'project',
+          before: { absent: true },
+          after: { value: '[[Ledger]]' },
+        },
+      ]),
+    );
+    expect(ran?.kind === 'run' && ran.claude?.warnings).toBeUndefined();
+
+    at.vault.files.set(SYNC, at.meeting().replace('Friday works.', 'Monday works.'));
+    await at.run();
+
+    expect(blockOf(at.body()).text).toContain('> They moved the date to Monday.');
+    expect(at.body().match(/atlas:summary v1/g)).toHaveLength(1);
+    expect(at.properties()['project']).toBe('[[Ledger]]');
+  });
+
+  it('is taken back, all three, in one write by Undo last run', async () => {
+    const at = setUp([digest({ project: LEDGER })], withLedger);
+    await at.run();
+    const writes = at.writesToMeeting();
+
+    const undone = (await at.undo()) as Extract<LogEntry, { kind: 'undo' }> | null;
+
+    expect(at.writesToMeeting()).toBe(writes + 1);
+    expect(at.body().includes('atlas:summary')).toBe(false);
+    expect(at.properties()).not.toHaveProperty('project');
+    expect(at.properties()).not.toHaveProperty('atlas_summary_digest');
+    expect(at.properties()['tasks'] ?? []).toEqual([]);
+    expect(at.tasks()).toEqual([]);
+    expect(undone?.done).toEqual(
+      expect.arrayContaining([
+        {
+          kind: 'restored',
+          path: SYNC,
+          key: 'project',
+          before: { value: '[[Ledger]]' },
+          after: { absent: true },
+        },
+        { kind: 'unsummarised', path: SYNC },
+      ]),
+    );
+  });
+
+  it('restores the prior summary and clears the project, when the run replaced a summary', async () => {
+    const at = setUp(
+      [digest(), digest({ summary: 'They moved the date to Monday.', items: [], project: LEDGER })],
+      withLedger,
+    );
+    await at.run();
+    const first = blockOf(at.body()).text;
+    at.vault.files.set(SYNC, at.meeting().replace('Friday works.', 'Monday works.'));
+    await at.run();
+    expect(at.properties()['project']).toBe('[[Ledger]]');
+
+    await at.undo();
+
+    expect(blockOf(at.body()).text).toBe(first);
+    expect(at.properties()).not.toHaveProperty('project');
+  });
+});

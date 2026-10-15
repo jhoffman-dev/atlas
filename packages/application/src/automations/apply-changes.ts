@@ -74,7 +74,7 @@ const PLAIN_KEY = /^[\p{L}_][\p{L}\p{N}_-]*(?: [\p{L}\p{N}_-]+)*$/u;
  * it (`status:`) goes back as that key, empty — writing null would take it
  * out, and the log would claim a restore that did not happen.
  */
-function restoredValue(key: string, to: PriorValue): unknown {
+export function restoredValue(key: string, to: PriorValue): unknown {
   if ('absent' in to) return null;
   if (to.value !== null) return to.value;
   return new KeyAsWritten(`${PLAIN_KEY.test(key) ? key : JSON.stringify(key)}:\n`);
@@ -131,6 +131,6 @@ async function changeNote({
   return { done, left };
 }
 
-function priorOf(properties: Readonly<Record<string, unknown>>, key: string): PriorValue {
+export function priorOf(properties: Readonly<Record<string, unknown>>, key: string): PriorValue {
   return Object.hasOwn(properties, key) ? { value: properties[key] } : { absent: true };
 }

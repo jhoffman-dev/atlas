@@ -190,6 +190,30 @@ describe('the meeting-digest output', () => {
   });
 });
 
+describe('the answer that summarises and chooses a project (#227, #171)', () => {
+  const LEDGER = createVaultPath('Projects/Ledger.md');
+  const CHOOSING: AnswerContext = {
+    ...CONTEXT,
+    vault: {
+      ...VAULT,
+      projects: [{ path: LEDGER, title: 'Ledger', para: 'project' }],
+    },
+  };
+  const choice = { path: LEDGER, confidence: 'high', why: 'Its people run the ledger.' };
+
+  it('accepts an answer carrying a summary and a project, and reads both', () => {
+    const reading = digest.read(answer({ project: choice }), CHOOSING);
+    if (!reading.ok) throw new Error(reading.problem);
+    expect(reading.summary?.kind).toBe('read');
+    expect(reading.project).toMatchObject({ project: LEDGER, confidence: 'high' });
+  });
+
+  it('tells the model of the summary keys and of the project', () => {
+    expect(digest.instructions).toContain('"summary": …');
+    expect(digest.instructions).toContain('"project"');
+  });
+});
+
 describe('the reduce', () => {
   const part = (summary: string): SummaryReading => ({
     kind: 'read',

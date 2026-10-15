@@ -4,12 +4,14 @@
  * check of an answer both cut a note here, the same way.
  */
 
+import { MEETING_PROJECT_KEY } from '../meeting-links/meeting-link-keys.ts';
 import { attendeesOf } from '../meeting-links/meeting-link-plan.ts';
 import { importOutcomeOf } from '../meetings/meeting-arrival.ts';
 import { isMeetingType, type MeetingAttendee } from '../meetings/meeting-header.ts';
 import { unclosedFence } from '../meetings/meeting-lines.ts';
 import { meetingSectionBounds, meetingTurnsOf } from '../meetings/meeting-turns.ts';
 import { digestOf } from '../sources/merge.ts';
+import { linkedNotes } from '../types/relation-links.ts';
 import { truncated } from './answer-limits.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
@@ -31,6 +33,8 @@ export interface AnsweredMeeting {
   readonly attendees?: readonly MeetingAttendee[];
   /** The day it was held (`YYYY-MM-DD`), when its frontmatter says: what a due date is judged near. */
   readonly date?: string;
+  /** Set when its `project` holds anything: a meeting filed already is never offered another (#227). */
+  readonly filed?: true;
 }
 
 /** A note the run was about, as it was read: what a proposal may cite. */
@@ -90,6 +94,7 @@ export function answeredMeetingOf(
     identity: letIn ? { provider, externalId } : null,
     attendees: attendeesOf(properties),
     ...(date !== undefined && { date }),
+    ...(linkedNotes(properties[MEETING_PROJECT_KEY]).length > 0 && { filed: true }),
   };
 }
 

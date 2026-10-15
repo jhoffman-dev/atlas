@@ -6,13 +6,16 @@ import {
   restoreSummary,
   SUMMARY_DIGEST_KEY,
   SUMMARY_MODEL_KEY,
+  stillAsLeft,
   SUMMARY_OF_KEY,
   tasksJoined,
   tasksParted,
+  type DoneAction,
   type ReplacedSummary,
   type SummaryRefusal,
   type VaultPath,
 } from '@atlas/domain';
+import { priorOf, restoredValue, type PropertyChange } from '../automations/apply-changes.ts';
 import { ProposalRefused } from '../chat/proposals.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { readLinkNote, type NoteWritePorts } from '../proposals/proposal-writes.ts';
@@ -32,7 +35,12 @@ export interface MeetingSummaryWrite {
   readonly tasks: readonly VaultPath[];
   /** Every note in the vault, the tasks included: what a link to a task is spelt against. */
   readonly notePaths: readonly VaultPath[];
+  /** The project to file the meeting under, in this same write (#227); null when it is not to be filed. */
+  readonly project?: PropertyChange | null;
 }
+
+/** A property a run set or an undo put back, as the log says it. */
+type PropertyLine = Extract<DoneAction, { key: string }>;
 
 /** What the write did to the meeting. */
 export interface MeetingSummaryWritten {
@@ -44,6 +52,10 @@ export interface MeetingSummaryWritten {
   readonly kept: { readonly refusal: SummaryRefusal; readonly reason: string } | null;
   /** The tasks it joined into the meeting's `tasks`. */
   readonly joined: readonly VaultPath[];
+  /** The `project` it set, as the run's log says it; null when none was set. */
+  readonly filed: PropertyLine | null;
+  /** Why the project was not set, when it was left: the meeting's `project` changed since it was read. */
+  readonly projectLeft: string | null;
 }
 
 /**
@@ -104,7 +116,12 @@ export async function writeMeetingSummary(
           [SUMMARY_MODEL_KEY]: write.model,
         }
       : {};
-  const values = { ...summary, ...(tasks !== null && { [MEETING_TASKS_KEY]: tasks }) };
+  const project = projectFiling(properties, write.project ?? null);
+  const values = {
+    ...summary,
+    ...(tasks !== null && { [MEETING_TASKS_KEY]: tasks }),
+    ...project.values,
+  };
   const written: MeetingSummaryWritten = {
     digest: placed?.ok === true ? placed.digest : null,
     replaced:
@@ -117,6 +134,8 @@ export async function writeMeetingSummary(
         : null,
     kept: placed === null || placed.ok ? null : { refusal: placed.refusal, reason: placed.reason },
     joined: tasks === null ? [] : write.tasks,
+    filed: project.filed,
+    projectLeft: project.left,
   };
   if (Object.keys(values).length === 0) return written;
   await stamped(
@@ -132,6 +151,25 @@ export async function writeMeetingSummary(
   return written;
 }
 
+/** The `project` to set with the summary, decided against the meeting as it is being written. */
+function projectFiling(
+  properties: Readonly<Record<string, unknown>>,
+  change: PropertyChange | null,
+): { values: Record<string, unknown>; filed: PropertyLine | null; left: string | null } {
+  const none = { values: {}, filed: null, left: null };
+  if (change === null) return none;
+  const before = priorOf(properties, change.key);
+  if (change.expect !== null && !stillAsLeft(before, change.expect)) {
+    return { ...none, left: `Its ${change.key} has changed since, so it was left as it is.` };
+  }
+  if (stillAsLeft(before, change.to)) return none;
+  return {
+    values: { [change.key]: restoredValue(change.key, change.to) },
+    filed: { kind: 'set', path: change.path, key: change.key, before, after: change.to },
+    left: null,
+  };
+}
+
 const textOrNull = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 /** What a run wrote of a meeting's summary, as its log says: the block's digest, and what it replaced. */
@@ -144,7 +182,8 @@ export interface SummaryToTakeBack {
  * Takes a run's writes back off a meeting, in one write (#185, Undo last
  * run): the block while it is still the one written — out, or back to the
  * summary it replaced, with that one's keys — and the links to the tasks the
- * undo is to trash. Written before any task is trashed, so a refusal leaves
+ * undo is to trash, and the `project` the run filled, while it is still the
+ * run's. Written before any task is trashed, so a refusal leaves
  * the meeting and its tasks as they are and no link names a trashed note.
  *
  * Rejects with {@link MeetingSummaryRefused}, writing nothing, when the block
@@ -158,6 +197,7 @@ export async function undoMeetingSummary(
     summary,
     trashing,
     notePaths,
+    project = null,
   }: {
     meeting: VaultPath;
     /** What the run wrote of the summary; null when it wrote none (it only joined tasks). */
@@ -166,8 +206,10 @@ export async function undoMeetingSummary(
     trashing: readonly VaultPath[];
     /** Every note the links were spelt against, the tasks included. */
     notePaths: readonly VaultPath[];
+    /** The `project` the run filled the meeting under, to clear in this same write (#227). */
+    project?: PropertyChange | null;
   },
-): Promise<void> {
+): Promise<MeetingSummaryUndone> {
   const link = await readMeeting(ports, meeting, UNDOING);
   const taken = summary === null ? null : summaryTakenBack(link.document.body, summary);
   if (taken !== null && !taken.ok) throw new MeetingSummaryRefused(taken.reason);
@@ -175,11 +217,16 @@ export async function undoMeetingSummary(
     trashing.length === 0
       ? undefined
       : tasksParted({ value: link.target.value, tasks: trashing, notePaths });
+  const properties = ports.markdown.frontmatterProperties(link.document.frontmatter);
+  const filing = projectFiling(properties, project);
   const values = {
     ...(taken === null ? {} : taken.keys),
     ...(tasks !== undefined && { [MEETING_TASKS_KEY]: tasks }),
+    ...filing.values,
   };
-  if (Object.keys(values).length === 0) return;
+  const restored = filing.filed === null ? null : { ...filing.filed, kind: 'restored' as const };
+  const undone = { restored, projectLeft: filing.left };
+  if (Object.keys(values).length === 0) return undone;
   await stamped(
     ports,
     {
@@ -190,6 +237,15 @@ export async function undoMeetingSummary(
     },
     UNDOING,
   );
+  return undone;
+}
+
+/** What taking a run's writes off a meeting did besides the summary and the links. */
+export interface MeetingSummaryUndone {
+  /** The `project` put back, as the undo's log says it; null when none was. */
+  readonly restored: PropertyLine | null;
+  /** Why `project` was left, when it was: it changed since the run set it. */
+  readonly projectLeft: string | null;
 }
 
 /** The body and keys with the run's block taken out, or put back to the one it replaced. */

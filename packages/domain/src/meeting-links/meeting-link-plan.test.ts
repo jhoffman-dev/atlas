@@ -14,6 +14,7 @@ import {
   planMeetingLinks,
   type MeetingLinkInput,
 } from './meeting-link-plan.ts';
+import type { ProjectSuggestion } from './meeting-series.ts';
 import type { RankedProject } from './project-ranking.ts';
 
 const MEETING = createVaultPath('Inbox/Meetings/2026-10-06 Standup.md');
@@ -72,6 +73,7 @@ function plan({
   properties = {},
   speakers = [],
   projects = [],
+  seriesProject = null,
   selfName = null,
   selfEmails = [],
   meeting = MEETING,
@@ -82,6 +84,7 @@ function plan({
   properties?: Record<string, unknown>;
   speakers?: DirectoryPerson[];
   projects?: RankedProject[];
+  seriesProject?: ProjectSuggestion | null;
   selfName?: string | null;
   selfEmails?: string[];
   meeting?: VaultPath;
@@ -95,6 +98,7 @@ function plan({
     matching: matchAttendees(attendees, directoryPeople, directoryCompanies),
     speakers,
     projects,
+    seriesProject,
     selfName,
     selfEmails,
   };
@@ -431,5 +435,63 @@ describe('namedSpeakers', () => {
         turn({ kind: 'named', name: 'Toby' }),
       ]),
     ).toEqual(['Mara Quill', 'Toby']);
+  });
+});
+
+describe('planMeetingLinks: filing a meeting from its series (#227)', () => {
+  const series = (confidence: ProjectSuggestion['confidence']): ProjectSuggestion => ({
+    project: PAYRUN.project,
+    title: 'Payrun',
+    confidence,
+    via: 'series',
+    reason: 'Same series as 2026-09-29 Standup: 5 of its last 6 were filed under Payrun.',
+  });
+
+  it('files a meeting with no project under what its series surely says, and proposes no project', () => {
+    const planned = plan({ attendees: [mara], projects: [LEDGER], seriesProject: series('high') });
+    expect(planned.filing).toEqual({
+      project: PAYRUN.project,
+      link: '[[Payrun]]',
+      suggestion: series('high'),
+    });
+    expect(planned.proposals).toEqual([]);
+  });
+
+  it('proposes what its series says when that is not sure, in place of the tied project', () => {
+    const planned = plan({
+      attendees: [mara],
+      projects: [LEDGER],
+      seriesProject: series('medium'),
+    });
+    expect(planned.filing).toBeNull();
+    const [proposal] = planned.proposals;
+    expect(proposal).toMatchObject({
+      kind: 'link',
+      confidence: 'medium',
+      id: `meeting links:${MEETING}:project`,
+      reason: series('medium').reason,
+      payload: { note: MEETING, property: 'project', link: '[[Payrun]]' },
+    });
+  });
+
+  it('never files over a project already set, nor proposes another', () => {
+    for (const project of ['[[Ledger migration]]', ['[[Ledger migration]]'], 'not a link']) {
+      const planned = plan({
+        attendees: [mara],
+        properties: { project },
+        seriesProject: series('high'),
+      });
+      expect(planned.filing).toBeNull();
+      expect(planned.proposals).toEqual([]);
+    }
+  });
+
+  it('files a meeting whose project is there but empty', () => {
+    const planned = plan({
+      attendees: [mara],
+      properties: { project: '' },
+      seriesProject: series('high'),
+    });
+    expect(planned.filing?.link).toBe('[[Payrun]]');
   });
 });
