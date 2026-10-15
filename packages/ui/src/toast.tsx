@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useDismissAfter } from './dismiss-after.ts';
 
 /** How long a toast stays before it goes by itself. */
 const TOAST_MS = 6000;
@@ -19,31 +19,9 @@ export function Toast({
   action?: { readonly label: string; readonly onClick: () => void };
   onDismiss: () => void;
 }) {
-  const dismiss = useRef(onDismiss);
-  useEffect(() => {
-    dismiss.current = onDismiss;
-  });
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const held = hovered || focused;
-  // A new message, or being let go, restarts the time it has.
-  useEffect(() => {
-    if (held) return;
-    const timer = window.setTimeout(() => dismiss.current(), TOAST_MS);
-    return () => window.clearTimeout(timer);
-  }, [message, held]);
-
+  const hold = useDismissAfter({ ms: TOAST_MS, showing: message, onDismiss });
   return (
-    <div
-      className="toast"
-      role="status"
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
-      }}
-    >
+    <div className="toast" role="status" {...hold}>
       <span className="toast__message">{message}</span>
       {action !== undefined && (
         <button

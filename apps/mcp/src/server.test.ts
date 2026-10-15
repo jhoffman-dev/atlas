@@ -515,6 +515,13 @@ describe('tools/call → REST', () => {
     ['atlas_meetings', {}, 'GET', '/v1/meetings', null],
     ['atlas_inbox', {}, 'GET', '/v1/inbox', null],
     [
+      'atlas_inbox',
+      { limit: 100, cursor: 'WzEsIkluYm94L0EubWQiXQ==' },
+      'GET',
+      '/v1/inbox?limit=100&cursor=WzEsIkluYm94L0EubWQiXQ%3D%3D',
+      null,
+    ],
+    [
       'atlas_meetings',
       { since: '2026-10-01', limit: 10, offset: 20, includeArchived: true },
       'GET',

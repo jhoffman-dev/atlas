@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, todayLists, type ReviewTask } from '@atlas/domain';
 import type { TodayReport } from '@atlas/application';
@@ -313,6 +313,49 @@ describe('TodayPage', () => {
     expect(onUndo).toHaveBeenCalledTimes(1);
     await userEvent.click(notice.getByRole('button', { name: 'Dismiss' }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the last action go by itself after 20 seconds, unless the focus is on it (#165)', () => {
+    vi.useFakeTimers();
+    try {
+      const onDismiss = vi.fn();
+      page({
+        notice: { title: 'Call the bank', action: { kind: 'done' }, onUndo: vi.fn(), onDismiss },
+      });
+      act(() => within(screen.getByRole('status')).getByRole('button', { name: 'Undo' }).focus());
+      act(() => vi.advanceTimersByTime(120_000));
+      expect(onDismiss).not.toHaveBeenCalled();
+
+      fireEvent.blur(within(screen.getByRole('status')).getByRole('button', { name: 'Undo' }));
+      act(() => vi.advanceTimersByTime(19_900));
+      expect(onDismiss).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(200));
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives the next action its full 20 seconds, even said in the same words (review)', () => {
+    vi.useFakeTimers();
+    try {
+      const onDismiss = vi.fn();
+      const deferred = {
+        title: 'Call the bank',
+        action: { kind: 'defer', days: 1 } as const,
+        onUndo: vi.fn(),
+        onDismiss,
+      };
+      const view = page({ notice: deferred });
+      act(() => vi.advanceTimersByTime(15_000));
+      view.rerender({ notice: { ...deferred, action: { kind: 'defer', days: 1 } } });
+      act(() => vi.advanceTimersByTime(15_000));
+      expect(onDismiss).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(5_100));
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows the read’s failure in place of the sections, and waits while there is none yet', () => {

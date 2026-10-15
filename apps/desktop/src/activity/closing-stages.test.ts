@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { closingInStages } from './closing-stages.ts';
 
 function fakeClosing() {
@@ -19,12 +19,12 @@ describe('closingInStages', () => {
     const { handlers, port } = fakeClosing();
     const stages = closingInStages(port);
     const order: string[] = [];
-    let finishSync = () => {};
+    const finishSync: { now: (() => void) | null } = { now: null };
     await stages.last.beforeClose(async () => void order.push('flush log'));
     await stages.first.beforeClose(
       () =>
         new Promise<void>((resolve) => {
-          finishSync = () => {
+          finishSync.now = () => {
             order.push('sync');
             resolve();
           };
@@ -32,11 +32,38 @@ describe('closingInStages', () => {
     );
     expect(handlers).toHaveLength(1);
     const closing = handlers[0]?.();
-    await Promise.resolve();
+    // The sync has begun, and the log waits for it.
+    await vi.waitUntil(() => finishSync.now !== null);
     expect(order).toEqual([]);
-    finishSync();
+    finishSync.now?.();
     await closing;
     expect(order).toEqual(['sync', 'flush log']);
+  });
+
+  it('writes what is still being written before the sync, and the sync before the log', async () => {
+    const { handlers, port } = fakeClosing();
+    const stages = closingInStages(port);
+    const order: string[] = [];
+    const finishAnswers: { now: (() => void) | null } = { now: null };
+    await stages.last.beforeClose(async () => void order.push('flush log'));
+    await stages.first.beforeClose(async () => void order.push('sync'));
+    await stages.writes.beforeClose(
+      () =>
+        new Promise<void>((resolve) => {
+          finishAnswers.now = () => {
+            order.push('answers');
+            resolve();
+          };
+        }),
+    );
+    expect(handlers).toHaveLength(1);
+    const closing = handlers[0]?.();
+    await vi.waitUntil(() => finishAnswers.now !== null);
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(order).toEqual([]);
+    finishAnswers.now?.();
+    await closing;
+    expect(order).toEqual(['answers', 'sync', 'flush log']);
   });
 
   it('still runs the last stage when a first task fails, and forgets a task that stops', async () => {

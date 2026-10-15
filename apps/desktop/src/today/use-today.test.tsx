@@ -176,6 +176,15 @@ describe('useToday', () => {
     expect(activity.reports).toEqual([]);
   });
 
+  it('keeps one notice object across renders, so its bar keeps its time (review)', async () => {
+    const { result, rerender } = setUp();
+    await act(async () => result.current.page.onDone(ROW));
+    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    const shown = result.current.page.notice;
+    rerender();
+    expect(result.current.page.notice).toBe(shown);
+  });
+
   it('undoes the last action, giving the file back as it was', async () => {
     const { result, text, onSettled } = setUp();
     await act(async () => result.current.page.onDone(ROW));

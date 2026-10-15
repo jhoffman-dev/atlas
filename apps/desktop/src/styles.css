@@ -11408,6 +11408,18 @@ form.inbox__clarify {
   padding-bottom: 96px;
 }
 
+/* The Inbox scrolls as a whole (#164). Filled to the panel like a view's
+   table, its list was what gave way to whatever stood above it — a page of
+   proposals squeezed it into a box a row or two high. Here the list takes the
+   height of its rows, and the panel scrolls past the proposals to reach them. */
+.page--wide.inbox {
+  height: auto;
+}
+
+.page--wide.inbox .table {
+  flex: none;
+}
+
 .inbox__day {
   align-items: center;
   color: var(--ink-3);
@@ -13344,6 +13356,28 @@ form.inbox__clarify {
 .proposals__empty {
   color: var(--ink-2);
   padding: var(--space-5) 0;
+}
+
+/* Choosing several to answer at once (#168): Select all, then what the chosen can have done. */
+.proposals__choose {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.proposals__choose .selection-bar {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.proposals__all {
+  align-items: center;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: var(--text-small);
+  gap: 6px;
 }
 
 .proposals__list {

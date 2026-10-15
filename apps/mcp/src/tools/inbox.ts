@@ -1,8 +1,8 @@
 /** The Inbox: what waits there, clarifying a task, and filing a note under a project or an area. */
 
 import { z } from 'zod';
-import { defineTool } from './define.ts';
-import { noInput, notePath } from './inputs.ts';
+import { defineTool, definedOnly } from './define.ts';
+import { limit, notePath } from './inputs.ts';
 
 export const inbox = defineTool({
   name: 'atlas_inbox',
@@ -10,7 +10,10 @@ export const inbox = defineTool({
   description:
     'What waits in the Inbox, as its page lists it, newest first: every note in Inbox/, and ' +
     'every task whose status is inbox wherever it lives (imported into Tasks/, say): ' +
-    '{ items: [{ path, title, type, arrivedIn, importOutcome, importError, task }], truncated }. ' +
+    '{ items: [{ path, title, type, arrivedIn, importOutcome, importError, task }], truncated, ' +
+    'next, total }, 500 at a time. total is how many wait in all; when "next" is not null, ' +
+    'pass it as "cursor" for the next page — filing what a page listed before asking for the ' +
+    'next one skips nothing. ' +
     'task is null for a note that is not a task, else what it says already: { status, project, ' +
     'waitingOn, waitingOnNames, defer, due } — project and waitingOn are paths. A task given ' +
     'another status has left the list, with or without a project. arrivedIn is the folder of ' +
@@ -20,9 +23,12 @@ export const inbox = defineTool({
     'note. Proposals are not listed: they are answered with atlas_proposals, ' +
     'atlas_accept_proposal and atlas_reject_proposal, never filed. Clarify a task with ' +
     'atlas_clarify_inbox_item; file any other note with atlas_process_inbox_item. Read-only.',
-  inputSchema: noInput,
+  inputSchema: z.object({
+    limit: limit.max(500).optional(),
+    cursor: z.string().optional().describe('The "next" value from the previous page.'),
+  }),
   annotations: { readOnlyHint: true },
-  call: (client) => client.inbox(),
+  call: (client, input) => client.inbox(definedOnly(input)),
 });
 
 export const processInboxItem = defineTool({

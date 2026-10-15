@@ -1,4 +1,5 @@
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
+import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
@@ -17,6 +18,8 @@ export interface InboxContents {
   readonly items: readonly InboxItem[];
   /** More are waiting than are listed. */
   readonly truncated: boolean;
+  /** How many wait in all, listed or not (#167). */
+  readonly total: number;
 }
 
 /** The offer to set the vault's types up for PARA and the Inbox, with what each gains. */
@@ -37,6 +40,8 @@ export interface InboxPageProps {
   /** The statuses a row may give a task: the ones the vault's Task type declares. GTD's eight unless said. */
   statuses?: readonly GtdStatus[];
   onOpen: (path: VaultPath) => void;
+  /** Lists the next page of what waits, once more wait than are listed (#167). */
+  onShowMore: () => void;
   /** Clarifies a note — a task's status, project, wait and dates, or a note's filing (#112). */
   onClarify: ClarifyInboxItem;
   /** While a note is being written, so it is not asked for twice. */
@@ -45,9 +50,11 @@ export interface InboxPageProps {
   problem: string | null;
   /** Why a row's clarification was refused, shown on that row. */
   refusal?: InboxRefusal | null;
-  /** The last clarification, while it can be taken back. */
+  /** The last clarification, while it can be taken back: a new object for each, kept across renders. */
   lastAction?: { readonly title: string } | null;
   onUndo?: () => void;
+  /** Ends the offer to take the last clarification back, once its bar has had its time (#165); with `onUndo`. */
+  onDismissLastAction?: () => void;
   typesOffer?: InboxTypesOffer | null;
   /** Moving the vault's tasks to GTD's eight statuses, previewed first (P30-02). */
   taskMigration?: TaskMigrationProps | null;
@@ -114,10 +121,10 @@ export function InboxPage(props: InboxPageProps) {
 
 function describe(contents: InboxContents | null, proposals: number): string | null {
   if (contents === null) return null;
-  const count = contents.items.length;
   const toAnswer = proposals === 0 ? '' : ` · ${proposals} to answer`;
-  if (count === 0) return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
-  return `${count}${contents.truncated ? '+' : ''} to process · clarify each task, file each note${toAnswer}`;
+  if (contents.total === 0)
+    return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
+  return `${contents.total} to process · clarify each task, file each note${toAnswer}`;
 }
 
 function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
@@ -152,11 +159,37 @@ function leftRefusal({ contents, refusal }: InboxPageProps): string | null {
   return listed ? null : refusal.reason;
 }
 
-function LastAction({ lastAction, onUndo, busy }: InboxPageProps) {
-  if (lastAction === null || lastAction === undefined || onUndo === undefined) return null;
+function LastAction({ lastAction, onUndo, onDismissLastAction, busy }: InboxPageProps) {
+  if (lastAction === null || lastAction === undefined) return null;
+  if (onUndo === undefined || onDismissLastAction === undefined) return null;
   return (
-    <p className="inbox__done" role="status">
-      Clarified “{lastAction.title}”.
+    <LastActionBar
+      lastAction={lastAction}
+      busy={busy}
+      onUndo={onUndo}
+      onDismiss={onDismissLastAction}
+    />
+  );
+}
+
+/** The last clarification, for 20 seconds unless held: its Undo lasts as long as it does. */
+function LastActionBar({
+  lastAction,
+  busy,
+  onUndo,
+  onDismiss,
+}: {
+  lastAction: { readonly title: string };
+  busy: boolean;
+  onUndo: () => void;
+  onDismiss: () => void;
+}) {
+  // Each clarification is its own object, so a second note of the same title gets its own time.
+  const hold = useDismissAfter({ ms: UNDO_BAR_MS, showing: lastAction, onDismiss });
+  const { title } = lastAction;
+  return (
+    <p className="inbox__done" role="status" {...hold}>
+      Clarified “{title}”.
       <button type="button" className="btn btn--ghost btn--sm" disabled={busy} onClick={onUndo}>
         Undo
       </button>
@@ -171,6 +204,7 @@ function InboxList({
   people = [],
   statuses,
   onOpen,
+  onShowMore,
   onClarify,
   busy,
   refusal = null,
@@ -216,7 +250,12 @@ function InboxList({
         </table>
         {contents.truncated && (
           <footer className="table__footer">
-            <span className="table__count">More are waiting; process these to see them.</span>
+            <span className="table__count">
+              Showing the newest {contents.items.length} of {contents.total}.
+            </span>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={onShowMore}>
+              Show more
+            </button>
           </footer>
         )}
       </div>

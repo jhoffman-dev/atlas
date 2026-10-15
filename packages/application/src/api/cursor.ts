@@ -1,4 +1,4 @@
-import { createVaultPath, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type InboxKey, type VaultPath } from '@atlas/domain';
 import { ApiError } from './api-error.ts';
 import { isApiNotePath } from './paths.ts';
 
@@ -10,7 +10,22 @@ import { isApiNotePath } from './paths.ts';
  */
 
 export function encodeCursor(path: VaultPath): string {
-  return btoa(String.fromCodePoint(...new TextEncoder().encode(path)));
+  return encodedText(path);
+}
+
+function encodedText(text: string): string {
+  return btoa(String.fromCodePoint(...new TextEncoder().encode(text)));
+}
+
+/** The text a cursor carries, or null when it is not base64 of UTF-8. */
+function decodedText(cursor: string): string | null {
+  try {
+    const bytes = Uint8Array.from(atob(cursor), (character) => character.codePointAt(0) ?? 0);
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    // Not base64, or not UTF-8: both mean the same to the caller.
+    return null;
+  }
 }
 
 /**
@@ -26,16 +41,55 @@ export function decodeCursor(cursor: string): VaultPath {
 }
 
 function decodedPath(cursor: string): VaultPath | null {
+  const text = decodedText(cursor);
+  return text === null ? null : spelledPath(text);
+}
+
+/** The path `text` is, spelled as handed out — `a//b.md` is none, though it names `a/b.md` — or null. */
+function spelledPath(text: unknown): VaultPath | null {
+  if (typeof text !== 'string') return null;
   try {
-    const bytes = Uint8Array.from(atob(cursor), (character) => character.codePointAt(0) ?? 0);
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     const path = createVaultPath(text);
-    // A path is handed out as it is spelled; `a//b.md` is no cursor, though it names `a/b.md`.
     return path === text ? path : null;
   } catch {
-    // Not base64, not UTF-8, or not a vault path: all mean the same to the caller.
+    // Not a vault path: no cursor this API handed out.
     return null;
   }
+}
+
+/*
+ * The Inbox is newest first, not in path order (#167), so its cursor is where
+ * the last note listed stands in that order — when it last changed, and its
+ * path — read on from without counting, so filing or editing notes between
+ * two pages skips and repeats none.
+ */
+
+export function encodeInboxCursor({ modified, path }: InboxKey): string {
+  return encodedText(JSON.stringify([modified, path]));
+}
+
+/** The place in the Inbox a cursor carries; `invalid` when it is not one this API handed out. */
+export function decodeInboxCursor(cursor: string): InboxKey {
+  const key = decodedInboxKey(cursor);
+  if (key === null || !isApiNotePath(key.path)) throw notHandedOut();
+  return key;
+}
+
+function decodedInboxKey(cursor: string): InboxKey | null {
+  const text = decodedText(cursor);
+  if (text === null) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Not JSON: no cursor this API handed out.
+    return null;
+  }
+  if (!Array.isArray(parsed) || parsed.length !== 2) return null;
+  const [modified, raw] = parsed as unknown[];
+  const path = spelledPath(raw);
+  if (!Number.isSafeInteger(modified) || path === null) return null;
+  return { modified: modified as number, path };
 }
 
 function notHandedOut(): ApiError {

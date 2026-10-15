@@ -487,7 +487,12 @@ is held to the Archive's limits above, with one change to where a note goes:
   So is a proposal (a note of type `proposal`, wherever it is): it is
   answered through the proposals routes, never filed. `GET /v1/inbox` (MCP
   `atlas_inbox`) reads what waits to be filed, as the Inbox page lists it —
-  proposals aside — and writes nothing.
+  proposals aside — and writes nothing. It pages (#167) by `limit` and a
+  `cursor`, with a `total`: not by `offset`, as `/v1/archive` does, because
+  a caller triaging the Inbox files what each page listed before asking for
+  the next, and every note after them would move up past an offset. The
+  Inbox is newest first, not path order, so its cursor is the last note's
+  place in that order — its modified time and its path.
 - **The destination is fixed by the note's name and the project's own path.**
   The caller chooses the project, not the place: a note lands in the
   project's folder — beside the project's note, named as it, or the folder it

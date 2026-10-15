@@ -1,5 +1,8 @@
+import { useEffect, useRef, type RefObject } from 'react';
 import { proposalHeadline, type ProposalNote, type VaultPath } from '@atlas/domain';
+import { UNDO_BAR_MS, useDismissAfter } from '../dismiss-after.ts';
 import { Icon } from '../icon.tsx';
+import { SelectAllBox, SelectionBar, type RowSelection } from '../row-selection.tsx';
 import { ProposalCard } from './proposal-card.tsx';
 
 /** What the Inbox's Proposals section lists, once the folder has been read. */
@@ -21,6 +24,8 @@ export interface ProposalNotice {
   readonly opens: { readonly path: VaultPath; readonly title: string } | null;
   /** Whether the answer can be taken back from the notice. */
   readonly undoable: boolean;
+  /** Whether it says something failed: then it stays until dismissed, rather than going by itself. */
+  readonly failed: boolean;
 }
 
 export interface ProposalsSectionProps {
@@ -28,14 +33,29 @@ export interface ProposalsSectionProps {
   readonly contents: ProposalsContents | null;
   readonly error: string | null;
   readonly notice: ProposalNotice | null;
-  /** The proposal being answered, so it is not answered twice; or `undo` while an accept is undone. */
-  readonly busy: VaultPath | 'undo' | null;
+  /**
+   * `undo` while an accept is being undone, which holds the answers until it
+   * is; null otherwise. An answer itself holds nothing: its proposal leaves
+   * the list at once, and is written behind it (#166).
+   */
+  readonly busy: 'undo' | null;
   /** Why answering a proposal was refused, by its path. */
   readonly problems: ReadonlyMap<VaultPath, string>;
+  /** Whether answers are still being written: the section stays while they are, though none is left to answer. */
+  readonly answering?: boolean;
   /** Accepts a proposal — with its payload as edited, when it was. */
   readonly onAccept: (path: VaultPath, payload?: unknown) => void;
   readonly onReject: (path: VaultPath) => void;
+  /** Which open proposals are chosen, to answer together (#168). */
+  readonly selection: RowSelection;
+  readonly onClearSelection: () => void;
+  /** Accepts each of these as Accept would one, in turn; one Undo takes them all back. */
+  readonly onAcceptMany: (paths: readonly VaultPath[]) => void;
+  /** Rejects each of these as Reject would one, in turn. */
+  readonly onRejectMany: (paths: readonly VaultPath[]) => void;
   readonly onUndo: () => void;
+  /** Takes the notice away — and the Undo it offered — once it has had its time (#165), or when asked. */
+  readonly onDismissNotice: () => void;
   readonly onOpen: (path: VaultPath) => void;
   /** Opens the block a proposal cites, given as its link. */
   readonly onOpenSource: (link: string) => void;
@@ -46,17 +66,20 @@ export interface ProposalsSectionProps {
  * (P29-02, P30-01): what Claude or an automation suggested, each with the
  * line it came from, to accept, edit first, or reject. Nothing it proposes is
  * written until it is accepted. Proposals wait in the Inbox but are answered
- * here, never filed with the notes beside them.
+ * here, never filed with the notes beside them. Several can be chosen —
+ * Shift-click for a run of them — and accepted or rejected together (#168).
  */
 export function ProposalsSection(props: ProposalsSectionProps) {
+  const { heading, list, keepingFocus } = useFocusKeptOnAnswer(props.contents);
   return (
     <section className="proposals" aria-label="Proposals">
-      <h2 className="proposals__heading">
+      <h2 className="proposals__heading" tabIndex={-1} ref={heading}>
         <Icon name="spark" size={16} /> Proposals
       </h2>
       <p className="proposals__summary">{describe(props.contents)}</p>
       {props.notice !== null && <Notice {...props} notice={props.notice} />}
-      <ProposalList {...props} />
+      <Chosen {...props} />
+      <ProposalList {...props} list={list} keepingFocus={keepingFocus} />
       {props.contents !== null && props.contents.stranded.length > 0 && (
         <Stranded stranded={props.contents.stranded} onOpen={props.onOpen} />
       )}
@@ -67,9 +90,14 @@ export function ProposalsSection(props: ProposalsSectionProps) {
   );
 }
 
-/** Whether the section has anything to show: something to answer, to look at, or to undo. */
-export function proposalsToShow({ contents, error, notice }: ProposalsSectionProps): boolean {
-  if (error !== null || notice !== null) return true;
+/** Whether the section has anything to show: something to answer, to look at, to undo, or being written. */
+export function proposalsToShow({
+  contents,
+  error,
+  notice,
+  answering = false,
+}: ProposalsSectionProps): boolean {
+  if (error !== null || notice !== null || answering) return true;
   if (contents === null) return false;
   return contents.open.length + contents.stranded.length + contents.unreadable.length > 0;
 }
@@ -80,14 +108,25 @@ function describe(contents: ProposalsContents | null): string | null {
   return `${count} open ${count === 1 ? 'proposal' : 'proposals'} · nothing is written until you accept`;
 }
 
+/**
+ * What the last answer did, for 20 seconds unless held: its Undo lasts as
+ * long as it does. A failure stays until dismissed, so it is read.
+ */
 function Notice({
   notice,
   busy,
   onOpen,
   onUndo,
+  onDismissNotice,
 }: ProposalsSectionProps & { notice: ProposalNotice }) {
+  const hold = useDismissAfter({
+    ms: UNDO_BAR_MS,
+    showing: notice,
+    onDismiss: onDismissNotice,
+    stays: notice.failed,
+  });
   return (
-    <div className="proposals__notice" role="status">
+    <div className="proposals__notice" role="status" {...hold}>
       <span>{notice.text}</span>
       {notice.opens !== null && (
         <button
@@ -103,11 +142,27 @@ function Notice({
           Undo
         </button>
       )}
+      <button
+        type="button"
+        className="btn btn--ghost btn--sm"
+        aria-label="Dismiss"
+        onClick={onDismissNotice}
+      >
+        ×
+      </button>
     </div>
   );
 }
 
-function ProposalList(props: ProposalsSectionProps) {
+function ProposalList({
+  list,
+  keepingFocus,
+  ...props
+}: ProposalsSectionProps & {
+  list: RefObject<HTMLUListElement | null>;
+  /** Gives an answer from card `at`, its focus kept in the list once the card has left. */
+  keepingFocus: (at: number, answer: () => void) => void;
+}) {
   const { contents, error } = props;
   if (error !== null) {
     return (
@@ -124,17 +179,25 @@ function ProposalList(props: ProposalsSectionProps) {
       </p>
     );
   }
+  const order = contents.open.map((proposal) => proposal.path);
   return (
-    <ul className="proposals__list" aria-label="Open proposals">
-      {contents.open.map((proposal) => (
+    <ul className="proposals__list" aria-label="Open proposals" ref={list}>
+      {contents.open.map((proposal, at) => (
         <li key={proposal.path}>
           <ProposalCard
             proposal={proposal}
+            {...(order.length > 1 && {
+              selection: {
+                checked: props.selection.selected.has(proposal.path),
+                onChange: ({ shift }: { shift: boolean }) =>
+                  props.selection.onToggle(proposal.path, shift ? { order } : undefined),
+              },
+            })}
             reason={contents.reasons?.get(proposal.path) ?? null}
             busy={props.busy !== null}
             problem={props.problems.get(proposal.path) ?? null}
-            onAccept={(payload) => props.onAccept(proposal.path, payload)}
-            onReject={() => props.onReject(proposal.path)}
+            onAccept={(payload) => keepingFocus(at, () => props.onAccept(proposal.path, payload))}
+            onReject={() => keepingFocus(at, () => props.onReject(proposal.path))}
             onOpen={() => props.onOpen(proposal.path)}
             onOpenSource={props.onOpenSource}
           />
@@ -142,6 +205,69 @@ function ProposalList(props: ProposalsSectionProps) {
       ))}
     </ul>
   );
+}
+
+/** Choosing every open proposal, and what can be done to the chosen ones together. */
+function Chosen({
+  contents,
+  selection,
+  busy,
+  onAcceptMany,
+  onRejectMany,
+  onClearSelection,
+}: ProposalsSectionProps) {
+  const open = contents?.open ?? [];
+  if (open.length < 2) return null;
+  const paths = open.map((proposal) => proposal.path);
+  const chosen = paths.filter((path) => selection.selected.has(path));
+  const many = chosen.length === 1 ? 'proposal' : `${chosen.length} proposals`;
+  return (
+    <div className="proposals__choose">
+      <label className="proposals__all">
+        <SelectAllBox paths={paths} selection={selection} />
+        <span aria-hidden="true">Select all</span>
+      </label>
+      <SelectionBar
+        count={chosen.length}
+        actions={[
+          { label: `Accept ${many}`, onRun: () => onAcceptMany(chosen), disabled: busy !== null },
+          { label: `Reject ${many}`, onRun: () => onRejectMany(chosen), disabled: busy !== null },
+        ]}
+        onClear={onClearSelection}
+        label="Chosen proposals"
+      />
+    </div>
+  );
+}
+
+/**
+ * An answered card leaves the list at once (#166), and the focus on its
+ * button would fall to the page: it goes instead to the card that took its
+ * place — the next, or the one before when it was the last — or, with none
+ * left, to the section's heading, so the next answer is a key away.
+ */
+function useFocusKeptOnAnswer(contents: ProposalsContents | null) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const answeredAt = useRef<number | null>(null);
+  useEffect(() => {
+    const at = answeredAt.current;
+    if (at === null) return;
+    const focused = document.activeElement;
+    // Only focus that was lost with the card: never taken from wherever the person moved it.
+    if (focused !== null && focused !== document.body && focused.isConnected) return;
+    answeredAt.current = null;
+    const cards = list.current?.children ?? [];
+    const card = cards[Math.min(at, cards.length - 1)];
+    const action = card?.querySelector<HTMLElement>('button');
+    (action ?? heading.current)?.focus();
+  }, [contents]);
+  const keepingFocus = (at: number, answer: () => void) => {
+    const focused = document.activeElement;
+    answeredAt.current = focused !== null && list.current?.contains(focused) === true ? at : null;
+    answer();
+  };
+  return { heading, list, keepingFocus };
 }
 
 /** Proposals answered but never filed away: said so, with each a click from its note. */

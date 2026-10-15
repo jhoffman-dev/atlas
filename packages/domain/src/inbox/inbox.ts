@@ -129,7 +129,19 @@ export const INBOX_QUERY_COLUMNS = [
   'waitingOnNames',
   'defer',
   'due',
+  'modified',
 ] as const;
+
+/**
+ * Where a note stands in the Inbox's order (#167): newest first, then by
+ * path. A page is read on from the last note listed, by this, never by
+ * position — so filing or editing notes between pages skips and repeats none.
+ */
+export interface InboxKey {
+  /** When the note last changed, in milliseconds, as the index holds it. */
+  readonly modified: number;
+  readonly path: VaultPath;
+}
 
 /*
  * Every subquery below finds a note's own rows by its path. `+p.key` keeps
@@ -212,28 +224,51 @@ function waitingArms(tasksStartInInbox: boolean): string[] {
   return tasksStartInInbox ? [inFolder, atInbox, withNoStatus] : [inFolder, atInbox];
 }
 
+/** The notes that wait, in a statement's `FROM … WHERE`: no proposal, and only notes in user space. */
+function waitingNotes(tasksStartInInbox: boolean): string[] {
+  return [`WITH waiting(path) AS (`, waitingArms(tasksStartInInbox).join('\nUNION\n'), `)`];
+}
+
+const WAITING_FILES = [
+  `FROM waiting JOIN files ON files.path = waiting.path`,
+  `WHERE NOT ${isOfType('files.path', PROPOSAL_TYPE)}`,
+  `  AND ${userSpaceNoteSql('files.path')}`,
+];
+
 /**
  * The Inbox's notes, asked of the index: newest first, so what just arrived
- * is on top, then by title so the list never reshuffles. Notes of the
+ * is on top, then by path so the list never reshuffles. Notes of the
  * proposal type are left out, wherever in the Inbox they are — they are
  * answered in its Proposals section, never filed — and any other note is
  * listed, one dropped into `Inbox/Proposals` included. Each note carries
- * what the meeting import wrote into it, and what it says as a task. Which
- * notes wait is {@link waitingArms}' rule.
+ * what the meeting import wrote into it, what it says as a task, and its
+ * {@link InboxKey}. Which notes wait is {@link waitingArms}' rule.
+ *
+ * A page at a time (#167): `limit` of the notes after `after`, and none past
+ * `through` — both {@link InboxKey}s, so a page starts where the last one
+ * ended however the notes before it have moved.
  */
 export function compileInboxQuery({
   limit = INBOX_LIST_LIMIT,
+  after = null,
+  through = null,
   tasksStartInInbox = false,
 }: {
   limit?: number;
+  /** The last note of the page before: this page lists only notes after it. */
+  after?: InboxKey | null;
+  /** The last note to list: none after it is. */
+  through?: InboxKey | null;
   /** Whether the vault's Task type has the Inbox status (`tasksStartInInbox`). */
   tasksStartInInbox?: boolean;
 } = {}): CompiledQuery {
+  const bounds = [
+    ...(after === null ? [] : [AFTER_KEY]),
+    ...(through === null ? [] : [THROUGH_KEY]),
+  ];
   return {
     sql: [
-      `${INBOX_QUERY_MARK} WITH waiting(path) AS (`,
-      waitingArms(tasksStartInInbox).join('\nUNION\n'),
-      `)`,
+      `${INBOX_QUERY_MARK} ${waitingNotes(tasksStartInInbox).join('\n')}`,
       `SELECT files.path AS "path", files.title AS "title",`,
       `  ${firstValue('type')} AS "type",`,
       // A stamp with its value cleared is a stamp still, as the import reads it.
@@ -245,14 +280,46 @@ export function compileInboxQuery({
       `  ${firstLinked(TASK_KEYS.waitingOn)} AS "waitingOn",`,
       `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOnNames",`,
       `  ${firstDay(TASK_KEYS.defer)} AS "defer",`,
-      `  ${firstDay(TASK_KEYS.due)} AS "due"`,
-      `FROM waiting JOIN files ON files.path = waiting.path`,
-      `WHERE NOT ${isOfType('files.path', PROPOSAL_TYPE)}`,
-      `  AND ${userSpaceNoteSql('files.path')}`,
-      `ORDER BY files.modified DESC, lower(files.title), files.path`,
+      `  ${firstDay(TASK_KEYS.due)} AS "due",`,
+      `  files.modified AS "modified"`,
+      ...WAITING_FILES,
+      ...bounds,
+      `ORDER BY files.modified DESC, files.path`,
       `LIMIT ?`,
     ].join('\n'),
-    parameters: [Math.max(1, Math.floor(limit))],
+    parameters: [
+      ...(after === null ? [] : keyParameters(after)),
+      ...(through === null ? [] : keyParameters(through)),
+      Math.max(1, Math.floor(limit)),
+    ],
+  };
+}
+
+/** Notes after a key, in the Inbox's order: older, or as old and later by path. */
+const AFTER_KEY = `  AND (files.modified < ? OR (files.modified = ? AND files.path > ?))`;
+/** Notes up to a key, in the Inbox's order: newer, or as old and not later by path. */
+const THROUGH_KEY = `  AND (files.modified > ? OR (files.modified = ? AND files.path <= ?))`;
+
+const keyParameters = ({ modified, path }: InboxKey) => [modified, modified, path];
+
+/** Where a row of {@link compileInboxQuery} stands in the Inbox's order. */
+export function inboxKeyOf(row: { path: VaultPath; modified?: unknown }): InboxKey {
+  return { modified: Number(row.modified ?? 0), path: row.path };
+}
+
+/** How many notes wait in the Inbox, as {@link compileInboxQuery} would list them all (#167). */
+export function compileInboxCountQuery({
+  tasksStartInInbox = false,
+}: {
+  tasksStartInInbox?: boolean;
+} = {}): CompiledQuery {
+  return {
+    sql: [
+      `${INBOX_QUERY_MARK} ${waitingNotes(tasksStartInInbox).join('\n')}`,
+      `SELECT count(*) AS "total"`,
+      ...WAITING_FILES,
+    ].join('\n'),
+    parameters: [],
   };
 }
 
