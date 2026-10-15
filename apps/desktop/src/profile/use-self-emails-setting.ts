@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   loadSelfEmails,
   saveSelfEmails,
@@ -51,6 +51,19 @@ const listed = (emails: readonly string[]) => emails.join(', ');
 
 /** None, as one value: a fresh `[]` each render would change everything that depends on it. */
 const NO_EMAILS: readonly string[] = Object.freeze([]);
+
+/**
+ * The same list for as long as it holds the same addresses: they are read
+ * again on every vault change, and a new array each time would make the
+ * owner look changed to everything keyed on them (#231).
+ */
+function useSameWhileUnchanged(emails: readonly string[]): readonly string[] {
+  const spelled = JSON.stringify(emails);
+  return useMemo(
+    () => (spelled === '[]' ? NO_EMAILS : Object.freeze(JSON.parse(spelled) as string[])),
+    [spelled],
+  );
+}
 
 /** Why the addresses the settings hold could not be read, as the card says it; null when they were. */
 function unreadableOf(read: SelfEmails | null): string | null {
@@ -151,8 +164,9 @@ export function useSelfEmailsSetting({
   const fromPersonNote =
     read !== null && read.problem === null && read.emails.length === 0 ? personNote : NO_EMAILS;
   const emails = read === null ? NO_EMAILS : read.emails.length > 0 ? read.emails : fromPersonNote;
+  const inUse = useSameWhileUnchanged(emails ?? NO_EMAILS);
   return {
-    emails: emails ?? NO_EMAILS,
+    emails: inUse,
     // Before the index is built nothing that reads the owner's addresses runs on it, so it is not waited for.
     settled: setting.answered && (emails !== null || !indexReady),
     view: {

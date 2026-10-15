@@ -242,4 +242,63 @@ describe('useSelfEmailsSetting', () => {
     expect(hook.result.current.emails).toEqual([]);
     expect(hook.result.current.view.disabled).toBe(true);
   });
+
+  /*
+   * #231: every vault change reads the addresses again. Handed out as a new
+   * array each time, the owner looked changed to everything keyed on it —
+   * the meeting cleanup's preview, the meeting import, the Claude step — and
+   * each filing set all of it off again, so Inbox filings fell tens of
+   * seconds behind the page.
+   */
+  it('hands out the same addresses, unchanged, after a vault change that leaves the Person note’s as they were', async () => {
+    const vault = vaultWith();
+    let lookups = 0;
+    const hook = render({
+      ...vault,
+      index: { ...vault.index, query: (...asked) => ((lookups += 1), linkDirectory(...asked)) },
+    });
+    await waitFor(() =>
+      expect(hook.result.current.emails).toEqual(['mara.quill@example.com', 'mq@example.com']),
+    );
+    const first = hook.result.current.emails;
+    const before = lookups;
+
+    hook.rerender({ changeKey: '1' });
+    await waitFor(() => expect(lookups).toBeGreaterThan(before));
+    await act(async () => undefined);
+
+    expect(hook.result.current.emails).toBe(first);
+  });
+
+  it('hands out the same addresses, unchanged, after a vault change that leaves the kept ones as they were', async () => {
+    const vault = vaultWith('---\nselfEmails:\n  - mara@example.com\n---\n');
+    let reads = 0;
+    const readNotes = vault.fs.readNotes;
+    const hook = render({
+      ...vault,
+      fs: { ...vault.fs, readNotes: (paths) => ((reads += 1), readNotes(paths)) },
+    });
+    await waitFor(() => expect(hook.result.current.emails).toEqual(['mara@example.com']));
+    const first = hook.result.current.emails;
+    const before = reads;
+
+    hook.rerender({ changeKey: '1' });
+    await waitFor(() => expect(reads).toBeGreaterThan(before));
+    await act(async () => undefined);
+
+    expect(hook.result.current.emails).toBe(first);
+  });
+
+  it('hands out the new addresses once they change', async () => {
+    const vault = vaultWith('---\nselfEmails:\n  - mara@example.com\n---\n');
+    const hook = render(vault);
+    await waitFor(() => expect(hook.result.current.emails).toEqual(['mara@example.com']));
+
+    vault.file.text = '---\nselfEmails:\n  - mara@example.com\n  - mq@example.com\n---\n';
+    hook.rerender({ changeKey: '1' });
+
+    await waitFor(() =>
+      expect(hook.result.current.emails).toEqual(['mara@example.com', 'mq@example.com']),
+    );
+  });
 });
