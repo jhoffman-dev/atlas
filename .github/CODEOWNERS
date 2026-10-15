@@ -1,0 +1,5 @@
+# The workflow and the scripts it runs decide what `gate` means, so a change to
+# either asks for the owner's review. This only binds once "Require review from
+# Code Owners" is turned on in the "Protect main" ruleset.
+/.github/ @jhoffman-dev
+/tools/ci/ @jhoffman-dev

@@ -165,7 +165,10 @@ works, and pass code that does not.
 **CI splits the slow work across machines** (`.github/workflows/gate.yml`): the
 unit tests over three Linux shards whose coverage the `coverage` job merges and
 holds to the thresholds, the e2e suite over four macOS shards, Rust on a fifth
-Mac. `gate` is still the one required check. A pull request that touches only
+Mac. The shard counts are set once, in the workflow's `env`. `gate` is the one
+check to require, and **nothing requires it yet**: the "Protect main" ruleset has
+no required status check until James adds `gate` to it, so until then a red run
+does not block a merge. A pull request that touches only
 documentation, as `tools/ci/docs-only.ts` defines it, runs `static` alone. A
 failed e2e shard uploads its HTML report as `playwright-report-<n>` (no traces:
 tracing every test cost a third more time). To run one shard here:

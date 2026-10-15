@@ -10,6 +10,7 @@ coverage/
 src-tauri/gen/
 test-results/
 playwright-report/
+.vitest/
 
 # Local Claude Code state (worktrees, the guide, settings.local.json) stays
 # untracked; the project agents are committed so every machine runs them.
