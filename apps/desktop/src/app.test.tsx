@@ -9,6 +9,7 @@ import {
   fakeGoogleCalendar,
   fakeGranola,
   failed,
+  fakeSleepClock,
   memorySyncFiles,
   scriptedFolders,
   scriptedGit,
@@ -200,6 +201,7 @@ const noSync = {
   github: { listRepositories: async () => ({ code: 0, stdout: '[]', stderr: '' }) },
   pause: { read: () => false, write: () => {} },
   thisMac: { name: async () => 'Test Mac', id: async () => 'mac-test' },
+  sleepClock: fakeSleepClock().port,
 };
 
 /**

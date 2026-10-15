@@ -23,14 +23,24 @@ export async function readVaultSettings({
   fs,
   markdown,
   path = SETTINGS,
+  required = false,
 }: {
   fs: Pick<VaultFsPort, 'readNotes'>;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
   /** Another copy of the settings note to read — one a sync conflict saved aside. */
   path?: VaultPath;
+  /**
+   * Whether the file must be there, as in a vault that syncs, whose settings
+   * name the Mac that runs its automations: then a missing one is refused as
+   * unreadable rather than read as saying nothing (ADR-0035).
+   */
+  required?: boolean;
 }): Promise<Readonly<Record<string, unknown>>> {
-  // `readNotes` leaves out a file that is not there, where a read would throw.
+  // `readNotes` leaves out a file that is not there, or cannot be read as text, where a read would throw.
   const [file] = await fs.readNotes([path]);
+  if (file === undefined && required) {
+    throw new Error(`${VAULT_SETTINGS_PATH} is not there, or cannot be read as text.`);
+  }
   if (file === undefined) return {};
   const { frontmatter } = splitFrontmatter(file.text);
   refuseUnreadable(markdown, frontmatter);

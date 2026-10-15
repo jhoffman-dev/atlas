@@ -117,6 +117,41 @@ Four parts:
    rather than guessing. A vault that does not sync is unchanged: it has one
    Mac.
 
+   _(Amended 2026-10-14, #174.)_ How the gates are applied:
+   - **Both gates judge the import and the Claude step**, not only the
+     waiting count. The import applies gate 1 **per file**: a meeting file
+     modified here after the last completed pull finished is not imported
+     until the next pull completes, and so is not heard by a Claude step
+     either. A Claude step applies gate 1 to the notes it reads.
+   - **Asked again right before every write.** The import asks before each
+     file's first write and again before its stamp, judging the file by when
+     it was modified as the run first read it. The Claude step asks before it
+     asks Claude, and again after the model's turn, before it writes its
+     proposals, notes, tasks, log or ledger. Shut at any of these, nothing is
+     written for that file or run, nothing is said, and it is held for the
+     next pull. Once a run has written something, its log records it.
+   - **What counts as a pull.** A sync that completes, and a look at GitHub
+     that finds nothing to bring in, complete a pull. A sync that fails, or a
+     look that finds other Macs' changes, voids it. A look that fails changes
+     nothing.
+   - **Settings that cannot be read run nothing.** In a vault that syncs,
+     `.atlas/settings.md` missing, unreadable (permissions, I/O, invalid
+     UTF-8) or with frontmatter that does not parse, after a pull or when read
+     before acting, shuts the gates. Activity says so once. A readable note
+     that names no Mac still names every Mac.
+   - **Paused sync shuts the gates.** While sync is paused on this Mac,
+     nothing is imported and no Claude step runs. Settings → Sync and
+     Activity say that automations wait.
+   - **Clock and on-open Claude rules are gated too**, at fire time and before
+     each write. A schedule that comes due while the gates are shut runs once
+     a pull completes; a rule run by hand is not gated.
+   - **A vault that is not a git repository**, including one on a Mac without
+     git, counts as not syncing, so the import runs without waiting.
+   - **A file the import cannot settle** (a conflict copy, an unreadable
+     file, a failed write) is said in Activity once a session, and again only
+     if its content changes. Without this, the catch-up after every pull
+     would repeat the line each time.
+
 **Catch-up on a claim.** The import's catch-up needs no change:
 `use-meeting-import.ts` already clears its `caughtUp` while this Mac is not
 the importer and reruns the catch-up when it becomes the importer, so a claim
@@ -210,10 +245,9 @@ Harder, and what it costs:
   possible conflict copy of a rule's log if a Claude run was in flight on both;
   the ledger's recovery rebuilds from its entries and Activity warns. Rare,
   bounded and visible.
-- **The wake/resume signal is new host work, and unproven.** Whether the host
-  can deliver a reliable signal on every Mac is **not known**; the ticket
-  finds out. If it cannot, what gate 2 does instead is **an unknown with no
-  value chosen here**; a fixed wait is not reintroduced (see H4).
+- **The wake/resume signal is new host work.** _(Amended 2026-10-14, #172,
+  #174: the signal is the host's time asleep since boot, below; no fixed
+  wait is reintroduced, see H4.)_
 - **The named Mac now waits too.** After launch or wake it runs no import and
   no Claude step until a pull completes, and not at all if that pull shows it
   is no longer named. That delays work by up to one pull interval; it is the
@@ -232,8 +266,13 @@ Harder, and what it costs:
 - **Unknown, to be settled in the tickets (I1-I3):** how the settings write
   and the first read behave when `.atlas/settings.md` cannot be read (the
   rule must do nothing, not guess); what the banner says on a Mac whose gates
-  have not held yet; the wake/resume signal above, and what gate 2 does if
-  the host cannot deliver it.
+  have not held yet. _(Amended 2026-10-14, #172, #174: settings that cannot
+  be read after a pull name no Mac, so nothing runs. Gate 2's signal is the
+  host's time asleep since boot (`CLOCK_MONOTONIC_RAW − CLOCK_UPTIME_RAW`),
+  read at the moment of each decision. A pull counts only if it started at
+  the current reading. The did-wake notification is not used for
+  correctness, because dark wakes post none. Proven on one Apple-silicon Mac
+  without a real sleep; the #172 recipe confirms it on each Mac.)_
 - **Status.** Proposed; accepted when the banner, the claim's catch-up and the
   gates have landed, and the wake signal is proven (Phase 1 of the meeting post-processing plan).
 

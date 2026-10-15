@@ -996,12 +996,14 @@ export function App({
     clock: localClock,
     activity: activityLog,
     vaultKey,
-    // Only the Mac that runs the automations writes into meeting files (U-29).
+    // Only the Mac that runs the automations writes into meeting files (U-29),
+    // and only on fresh sync state (ADR-0035 part 4).
     active: sync.automationsHere,
     indexReady: indexStatus.kind === 'ready',
     selfName: ownerName,
     selfEmails: ownerEmails,
     ownerKnown,
+    pulledFiles: sync.pulledFiles,
     onWritten: settleArchive,
   });
   const archive = useArchive({
@@ -1100,6 +1102,8 @@ export function App({
     }),
     // A rule a note sets off hears of it here (P29-01).
     changes: noteChanges,
+    // Its Claude step runs only on fresh sync state (ADR-0035 part 4).
+    pulledFiles: sync.pulledFiles,
   });
   const { watchingSince: automationsSince, pauses: automationPauses } = automations;
   useEffect(

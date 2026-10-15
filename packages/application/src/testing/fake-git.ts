@@ -4,6 +4,7 @@ import type {
   GitPort,
   GitResult,
   SyncFileName,
+  SleepClockPort,
   SyncFilesPort,
 } from '../sync/ports.ts';
 import type { VaultFsPort, VaultLocation } from '../vault/ports.ts';
@@ -183,6 +184,30 @@ export function memorySyncFiles(initial: Partial<Record<SyncFileName, string>> =
     },
   };
   return { port, files };
+}
+
+/**
+ * The host's sleep counter (#172): how long the Mac has slept since it
+ * booted, moved only by a test sleeping it. `unreadable` makes every read
+ * fail, as the host's would off macOS.
+ */
+export function fakeSleepClock(asleepMs = 457_335_000) {
+  let asleep = asleepMs;
+  let readable = true;
+  let reads = 0;
+  const port: SleepClockPort = {
+    asleepMs: async () => {
+      reads += 1;
+      if (!readable) throw new Error('the clocks could not be read');
+      return asleep;
+    },
+  };
+  return {
+    port,
+    sleep: (ms: number) => void (asleep += ms),
+    unreadable: (yes = true) => void (readable = !yes),
+    reads: () => reads,
+  };
 }
 
 type Answer = GitResult | ((...args: never[]) => GitResult);

@@ -45,6 +45,7 @@ import { loadObjectTypes } from '../types/load-types.ts';
 import { planProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
+import { HeldForPullError } from './fresh-pull-hold.ts';
 
 /**
  * How long a whole run may take, every ask of it together, before it is
@@ -146,6 +147,13 @@ interface StepArgs extends ProposalWritePorts {
    * run, when it has one (#179): the run asks no more than is left. 0 if none.
    */
   readonly askedThisHour?: number;
+  /**
+   * Asked once every answer is read and planned, right before the first
+   * write; it rejects to stop the run with nothing written — the gates of
+   * ADR-0035 part 4, shut since the model was asked. Its error is raised as
+   * it is, not as the step's failure.
+   */
+  readonly beforeWrite?: () => Promise<void>;
 }
 
 /**
@@ -244,10 +252,11 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
           });
     // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
     alreadyMade = Math.max(0, proposed - planned.length);
+    await args.beforeWrite?.();
     const done = await writePlanned({ fs: args.fs, planned, claudeRun });
     return { done, left: plan.skipped, claude: claudeRun() };
   } catch (error) {
-    if (error instanceof ClaudeStepFailed) throw error;
+    if (error instanceof ClaudeStepFailed || error instanceof HeldForPullError) throw error;
     // Anything else after the model was asked (the index, the disk) still cost an ask: on record, then raised.
     throw new ClaudeStepFailed(messageWithoutPaths(error), claudeRun(), { cause: error });
   }

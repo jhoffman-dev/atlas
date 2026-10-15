@@ -293,6 +293,28 @@ export type MeetingImportHappening =
   /** The other Mac's version of a meeting file both changed: the person's to compare, never a copy to archive. */
   | { readonly kind: 'conflict'; readonly path: VaultPath };
 
+/**
+ * Whether what happened leaves the file as it was, so every catch-up meets it
+ * again: a sync conflict's copy, a file that could not be read or written, a
+ * problem that could not be marked in it, a copy that could not be moved.
+ * The import says such a file once a session, and again only when it changes
+ * (#174): the catch-up runs after every pull, and a line a minute about the
+ * same file says nothing new.
+ */
+export function leavesFileUnsettled(happening: MeetingImportHappening): boolean {
+  switch (happening.kind) {
+    case 'conflict':
+    case 'failed':
+      return true;
+    case 'invalid':
+      return happening.unmarked !== null;
+    case 'duplicate':
+      return happening.archivedTo === null;
+    default:
+      return false;
+  }
+}
+
 /** One line per meeting file the import looked at and did something about. */
 export function meetingImportReport(happening: MeetingImportHappening): ActivityReport {
   const title = noteTitle(happening.path);

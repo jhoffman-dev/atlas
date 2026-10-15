@@ -14,6 +14,7 @@ import {
   type VaultFsPort,
 } from '@atlas/application';
 import { errorMessage } from '../query/error-message.ts';
+import type { PullRecorder } from './use-pulled-files.ts';
 
 /** This Mac: its name, and the id it keeps for itself. */
 export interface ThisMac {
@@ -87,6 +88,8 @@ export interface RunContext {
    */
   readonly markSynced: (vault: string, broughtIn?: boolean) => void;
   readonly exclusive: Exclusive;
+  /** Told as each pull and look starts and ends, for the gates of ADR-0035 part 4. */
+  readonly pulls: PullRecorder;
 }
 
 /**
@@ -95,7 +98,7 @@ export interface RunContext {
  */
 export function useSyncRuns(context: RunContext) {
   const { git, files, thisMac, vaultKey, fs, clock, activity, flushAll } = context;
-  const { setPhase, setBehind, markSynced, exclusive } = context;
+  const { setPhase, setBehind, markSynced, exclusive, pulls } = context;
   const lastSyncAt = useRef<number | null>(null);
   const lastCheckAt = useRef<number | null>(null);
   const openVault = useRef(vaultKey);
@@ -121,9 +124,13 @@ export function useSyncRuns(context: RunContext) {
     setPhase({ kind: 'syncing' });
     const ports = { git, fs, files, unsaved: { flushAll }, activity: activity.inVault(vaultKey) };
     const current = () => openVault.current === vaultKey;
-    return exclusive.start('sync', () =>
-      syncNow({ ports, mac: thisMac.name, clock })
-        .then((report) => {
+    return exclusive.start('sync', async () => {
+      pulls.started(vaultKey);
+      const startedAsleepMs = await pulls.readAsleep();
+      return syncNow({ ports, mac: thisMac.name, clock })
+        .then(async (report) => {
+          // Before anything hears of what it brought: the settings it brought decide who acts on it.
+          await pulls.ended(vaultKey, { kind: 'synced' }, startedAsleepMs);
           const broughtIn = report.pulled || report.conflicts.length > 0;
           // Pulled whether or not the vault is still open: the session has synced it.
           markSynced(vaultKey, broughtIn);
@@ -133,11 +140,13 @@ export function useSyncRuns(context: RunContext) {
           if (broughtIn) pulled.current();
           return report;
         })
-        .catch((cause: unknown) => {
+        .catch(async (cause: unknown) => {
+          // It may have brought files in before it failed: what they hold is not known.
+          await pulls.ended(vaultKey, { kind: 'sync-failed' }, startedAsleepMs);
           if (current()) setPhase({ kind: 'failed', reason: errorMessage(cause), at: clock.now() });
           return null;
-        }),
-    );
+        });
+    });
   }, [
     git,
     files,
@@ -151,6 +160,7 @@ export function useSyncRuns(context: RunContext) {
     setBehind,
     markSynced,
     exclusive,
+    pulls,
   ]);
 
   /**
@@ -164,7 +174,7 @@ export function useSyncRuns(context: RunContext) {
     lastCheckAt.current = clock.now();
     const current = () => openVault.current === vaultKey;
     const found = await exclusive
-      .start('check', () => checkRemote({ git }))
+      .start('check', () => lookAtGitHub({ git, vault: vaultKey, pulls }))
       .catch((cause: unknown) => {
         if (current()) setPhase({ kind: 'failed', reason: errorMessage(cause), at: clock.now() });
         return nothing;
@@ -172,9 +182,31 @@ export function useSyncRuns(context: RunContext) {
     if (!current()) return nothing;
     setBehind(found.behind);
     return found;
-  }, [git, vaultKey, clock, setPhase, setBehind, exclusive]);
+  }, [git, vaultKey, clock, setPhase, setBehind, exclusive, pulls]);
 
   return { run, check, lastSyncAt, lastCheckAt };
+}
+
+/** Looks at GitHub, and tells the gates what it found, or that it failed (see `pullEndEffect`). */
+async function lookAtGitHub({
+  git,
+  vault,
+  pulls,
+}: {
+  git: GitPort;
+  vault: string;
+  pulls: PullRecorder;
+}): Promise<{ behind: number; ahead: number }> {
+  const startedAsleepMs = await pulls.readAsleep();
+  let found: { behind: number; ahead: number };
+  try {
+    found = await checkRemote({ git });
+  } catch (cause) {
+    await pulls.ended(vault, { kind: 'look-failed' }, startedAsleepMs);
+    throw cause;
+  }
+  await pulls.ended(vault, { kind: 'looked', behind: found.behind }, startedAsleepMs);
+  return found;
 }
 
 /** Reads how the vault stands with sync as it opens, and pulls if it syncs. */
@@ -190,6 +222,7 @@ export function useInspection({
   setPhase,
   setBehind,
   markSynced,
+  pulls,
   run,
   paused,
 }: {
@@ -205,6 +238,7 @@ export function useInspection({
   setBehind: (behind: number) => void;
   /** Says the vault has nothing to wait for from GitHub, when it does not sync. */
   markSynced: (vault: string) => void;
+  pulls: Pick<PullRecorder, 'inspected' | 'inspectionFailed'>;
   run: () => Promise<SyncReport | null>;
   /** Whether sync is paused on this Mac as the vault opens: then it does not pull on open. */
   paused: () => boolean;
@@ -224,6 +258,7 @@ export function useInspection({
         if (!live) return;
         setSetup(setup);
         setPhase(phaseOf(setup));
+        pulls.inspected(vaultKey, setup.kind === 'set-up');
         if (setup.kind !== 'set-up') {
           markSynced(vaultKey);
           return;
@@ -232,7 +267,10 @@ export function useInspection({
         if (!pausedNow.current()) void runOnOpen.current();
       })
       .catch((cause: unknown) => {
-        if (live) setPhase({ kind: 'failed', reason: errorMessage(cause), at: clock.now() });
+        if (!live) return;
+        // Git not on this Mac: the vault cannot sync here, and its files wait for no pull.
+        pulls.inspectionFailed(vaultKey, cause);
+        setPhase({ kind: 'failed', reason: errorMessage(cause), at: clock.now() });
       });
     return () => {
       live = false;
@@ -249,6 +287,7 @@ export function useInspection({
     setPhase,
     setBehind,
     markSynced,
+    pulls,
   ]);
 }
 

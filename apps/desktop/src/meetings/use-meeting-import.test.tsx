@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { createVaultPath, digestOf, type NoteChange } from '@atlas/domain';
+import { createVaultPath, digestOf, type NoteChange, type PullStanding } from '@atlas/domain';
 import {
   createNoteChanges,
   fakeIndexPort,
@@ -27,6 +27,19 @@ const ARRIVED: NoteChange = {
   type: 'meeting',
   digest: digestOf(BROKEN_TEXT),
 };
+
+/** The gates of ADR-0035 part 4, as a vault that does not sync has them: always open. */
+const NOT_SYNCED: Gate = { standing: { kind: 'not-synced' }, acts: async () => true };
+
+type Gate = { standing: PullStanding | null; acts: (vault: string) => Promise<boolean> };
+
+/** A pull that completed, which the gates judge by: a new one each time, as each pull leaves. */
+const pulled = (): PullStanding => ({
+  kind: 'pulled',
+  startedAsleepMs: 0,
+  finishedAt: 1,
+  namedAfter: true,
+});
 
 const folder = (path: string, name: string) => ({
   kind: 'directory' as const,
@@ -64,10 +77,21 @@ const portsOver = (written: string[]): MeetingImportPorts => ({
   },
 });
 
+/** What each render of the hook is handed. */
+interface Props {
+  ports: MeetingImportPorts;
+  active: boolean;
+  indexReady: boolean;
+  vaultKey: string | null;
+  pulledFiles?: Gate;
+  ownerKnown?: boolean;
+}
+
 function render(initial: {
   active: boolean;
   indexReady: boolean;
   vaultKey?: string | null;
+  pulledFiles?: Gate;
   ownerKnown?: boolean;
 }) {
   const changes = createNoteChanges({ onError: () => undefined });
@@ -76,7 +100,8 @@ function render(initial: {
   const onWritten = vi.fn();
   const clock = { today: () => '2026-10-08' };
   const hook = renderHook(
-    ({ ports, active, indexReady, vaultKey, ownerKnown }) =>
+    // Left out of a rerender, the gate is a vault that does not sync, and the owner is known.
+    ({ ports, active, indexReady, vaultKey, pulledFiles = NOT_SYNCED, ownerKnown = true }: Props) =>
       useMeetingImport({
         changes,
         ports,
@@ -88,15 +113,17 @@ function render(initial: {
         ownerKnown,
         active,
         indexReady,
+        pulledFiles,
         onWritten,
       }),
     {
       initialProps: {
         ports: portsOver(written),
         vaultKey: VAULT as string | null,
+        pulledFiles: NOT_SYNCED,
         ownerKnown: true,
         ...initial,
-      },
+      } as Props,
     },
   );
   return { ...hook, changes, activity, written, onWritten };
@@ -112,6 +139,7 @@ describe('useMeetingImport', () => {
       active: true,
       indexReady: false,
       vaultKey: VAULT,
+      pulledFiles: NOT_SYNCED,
       ownerKnown: true,
     });
     changes.publish({ vault: VAULT, changes: [ARRIVED] });
@@ -132,44 +160,20 @@ describe('useMeetingImport', () => {
 
   it('catches up once the index is ready, and again when this Mac takes the automations over', async () => {
     const { rerender, written } = render({ active: true, indexReady: false });
+    const props = {
+      ports: portsOver(written),
+      vaultKey: VAULT,
+      pulledFiles: NOT_SYNCED,
+      ownerKnown: true,
+    };
     expect(written).toEqual([]);
 
-    rerender({
-      ports: portsOver(written),
-      active: true,
-      indexReady: true,
-      vaultKey: VAULT,
-      ownerKnown: true,
-    });
+    rerender({ ...props, active: true, indexReady: true });
     await waitFor(() => expect(written).toEqual([BROKEN]));
-    rerender({
-      ports: portsOver(written),
-      active: true,
-      indexReady: false,
-      vaultKey: VAULT,
-      ownerKnown: true,
-    });
-    rerender({
-      ports: portsOver(written),
-      active: true,
-      indexReady: true,
-      vaultKey: VAULT,
-      ownerKnown: true,
-    });
-    rerender({
-      ports: portsOver(written),
-      active: false,
-      indexReady: true,
-      vaultKey: VAULT,
-      ownerKnown: true,
-    });
-    rerender({
-      ports: portsOver(written),
-      active: true,
-      indexReady: true,
-      vaultKey: VAULT,
-      ownerKnown: true,
-    });
+    rerender({ ...props, active: true, indexReady: false });
+    rerender({ ...props, active: true, indexReady: true });
+    rerender({ ...props, active: false, indexReady: true });
+    rerender({ ...props, active: true, indexReady: true });
 
     await waitFor(() => expect(written).toEqual([BROKEN, BROKEN]));
   });
@@ -217,6 +221,98 @@ describe('useMeetingImport', () => {
   });
 });
 
+describe('useMeetingImport: only on fresh sync state (ADR-0035 part 4)', () => {
+  it('imports nothing before a pull has completed, and catches up once one has', async () => {
+    const shut = { standing: null, acts: vi.fn(async () => false) };
+    const { rerender, changes, written } = render({
+      active: true,
+      indexReady: false,
+      pulledFiles: shut,
+    });
+    const props = { ports: portsOver(written), vaultKey: VAULT, active: true, indexReady: true };
+    rerender({ ...props, pulledFiles: shut });
+    await settled();
+    // No catch-up is started with no pull to judge it by.
+    expect(shut.acts).not.toHaveBeenCalled();
+    changes.publish({ vault: VAULT, changes: [ARRIVED] });
+    await settled();
+    expect(shut.acts).toHaveBeenCalledOnce();
+    expect(written).toEqual([]);
+
+    const pulling = { standing: { kind: 'pulling' } as const, acts: vi.fn(async () => false) };
+    rerender({ ...props, pulledFiles: pulling });
+    await settled();
+    expect(pulling.acts).not.toHaveBeenCalled();
+
+    rerender({ ...props, pulledFiles: { standing: pulled(), acts: async () => true } });
+    await waitFor(() => expect(written).toEqual([BROKEN]));
+  });
+
+  it('drops what it hears while the gates are shut, and settles it in the catch-up after the next pull', async () => {
+    const first: Gate = { standing: pulled(), acts: async () => true };
+    const { rerender, changes, written } = render({
+      active: true,
+      indexReady: false,
+      pulledFiles: first,
+    });
+    const props = { ports: portsOver(written), vaultKey: VAULT, active: true, indexReady: true };
+    rerender({ ...props, pulledFiles: first });
+    await waitFor(() => expect(written).toEqual([BROKEN]));
+
+    // The Mac slept: the same pull no longer counts.
+    rerender({ ...props, pulledFiles: { ...first, acts: async () => false } });
+    changes.publish({ vault: VAULT, changes: [ARRIVED] });
+    await settled();
+    expect(written).toEqual([BROKEN]);
+
+    rerender({ ...props, pulledFiles: { standing: pulled(), acts: async () => true } });
+    await waitFor(() => expect(written).toEqual([BROKEN, BROKEN]));
+  });
+
+  it('asks the gates about the vault the news is from', async () => {
+    const asked: string[] = [];
+    const { changes, written } = render({
+      active: true,
+      indexReady: false,
+      pulledFiles: {
+        standing: pulled(),
+        acts: async (vault) => {
+          asked.push(vault);
+          return false;
+        },
+      },
+    });
+    changes.publish({ vault: VAULT, changes: [ARRIVED] });
+    await settled();
+    expect(asked).toEqual([VAULT]);
+    expect(written).toEqual([]);
+  });
+
+  it('does not ask the gates on a Mac that does not run the automations', async () => {
+    const acts = vi.fn(async () => true);
+    const { changes, written } = render({
+      active: false,
+      indexReady: true,
+      pulledFiles: { standing: pulled(), acts },
+    });
+    changes.publish({ vault: VAULT, changes: [ARRIVED] });
+    await settled();
+    expect(acts).not.toHaveBeenCalled();
+    expect(written).toEqual([]);
+  });
+
+  it('catches up in each vault opened, though neither syncs', async () => {
+    const { rerender, written } = render({ active: true, indexReady: false });
+    const props = { ports: portsOver(written), active: true, pulledFiles: NOT_SYNCED };
+    rerender({ ...props, vaultKey: VAULT, indexReady: true });
+    await waitFor(() => expect(written).toEqual([BROKEN]));
+    const other = '/Users/j/Second Vault';
+    rerender({ ...props, vaultKey: other, indexReady: false });
+    rerender({ ...props, vaultKey: other, indexReady: true });
+    await waitFor(() => expect(written).toEqual([BROKEN, BROKEN]));
+  });
+});
+
 describe('useMeetingImport: adversarial, round 3', () => {
   /**
    * The window passes `indexReady: indexStatus.kind === 'ready'`, and the
@@ -258,6 +354,7 @@ describe('useMeetingImport: adversarial, round 3', () => {
           ownerKnown: true,
           active: true,
           indexReady: status.kind === 'ready',
+          pulledFiles: NOT_SYNCED,
           onWritten: () => undefined,
         });
       },

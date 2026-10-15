@@ -19,6 +19,8 @@ export {
 export type { AutomationPorts, AutomationRun } from './run-automation.ts';
 export { undoLastRun } from './undo-last-run.ts';
 export { AutomationRefusedError, createAutomation, updateAutomation } from './save-automation.ts';
+export { HeldForPullError } from './fresh-pull-hold.ts';
+export type { FreshPullCheck } from './fresh-pull-hold.ts';
 export { guardedFs, stillInVault, VaultChangedError } from './vault-guard.ts';
 export type { VaultGuard } from './vault-guard.ts';
 export { CLAUDE_RUN_TIMEOUT_MS, ClaudeStepFailed, runClaudeStep } from './claude-step.ts';

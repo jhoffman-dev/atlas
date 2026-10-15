@@ -19,8 +19,8 @@ import {
 
 /** Why a sync, or setting one up, stopped — in words to show the person as they are. */
 export class SyncError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause: unknown }) {
+    super(message, options);
     this.name = 'SyncError';
   }
 }
@@ -37,10 +37,18 @@ export async function withPrograms<Result>(work: () => Promise<Result>): Promise
     return await work();
   } catch (cause) {
     if (cause instanceof ProgramMissingError) {
-      throw new SyncError(missingProgramMessage(cause.program));
+      throw new SyncError(missingProgramMessage(cause.program), { cause });
     }
     throw cause;
   }
+}
+
+/** Whether what stopped the work was git or gh not being found on this Mac, however it was said since. */
+export function programWasMissing(cause: unknown): boolean {
+  for (let at: unknown = cause; at instanceof Error; at = at.cause) {
+    if (at instanceof ProgramMissingError) return true;
+  }
+  return false;
 }
 
 export async function readStatus(git: GitPort): Promise<GitStatus> {

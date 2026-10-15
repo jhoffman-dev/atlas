@@ -15,6 +15,7 @@ mod model_process;
 mod navigation;
 mod opener;
 mod secrets;
+mod sleep_clock;
 mod sqlite_source;
 // Public for its integration test, which pictures a real page on the main thread.
 #[doc(hidden)]
@@ -65,6 +66,7 @@ pub fn run() {
             git_process::git_folder_on_disk,
             git_process::gh_repo_create,
             git_process::this_mac_name,
+            sleep_clock::host_asleep_ms,
             git_process::git_sync_file_read,
             git_process::git_sync_file_write,
             git_process::gh_repo_list,
