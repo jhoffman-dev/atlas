@@ -200,7 +200,7 @@ test('a filter added from the toolbar applies at once, and is written when saved
   await page.getByRole('button', { name: 'Filter' }).click();
   await page.getByRole('combobox', { name: 'Property' }).selectOption('status');
   await page.getByRole('combobox', { name: 'Condition' }).selectOption('isNot');
-  await page.getByRole('textbox', { name: 'Value' }).fill('done');
+  await page.getByRole('combobox', { name: 'Value' }).fill('done');
   await page.getByRole('button', { name: 'Add filter' }).click();
 
   await expect(page.getByRole('button', { name: 'second', exact: true })).toHaveCount(0);

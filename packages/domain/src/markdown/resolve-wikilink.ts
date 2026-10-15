@@ -140,8 +140,16 @@ export function linkTakeover(path: VaultPath, notes: readonly VaultPath[]): Vaul
  * would open another note of the same name (or none at all).
  */
 export function wikiLinkTargetFor(path: VaultPath, notes: readonly VaultPath[]): string {
+  return wikiLinkTargetWith(path, (target) => resolveWikiLinkTarget(target, notes));
+}
+
+/** `wikiLinkTargetFor`, deciding with a resolver already built (`createWikiLinkResolver`). */
+export function wikiLinkTargetWith(
+  path: VaultPath,
+  resolve: (target: string) => VaultPath | null,
+): string {
   const name = withoutExtension(vaultPathName(path));
-  return resolveWikiLinkTarget(name, notes) === path ? name : withoutExtension(path);
+  return resolve(name) === path ? name : withoutExtension(path);
 }
 
 /** The path a new note would take if this link were followed and nothing matched. */
