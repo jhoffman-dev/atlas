@@ -1,6 +1,7 @@
 import type { ActivityReport } from '../activity/activity-event.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
+import type { ProjectSuggestion } from './meeting-series.ts';
 
 /** What linking one meeting did, as Activity says it. */
 export interface MeetingLinkHappening {
@@ -13,13 +14,22 @@ export interface MeetingLinkHappening {
   readonly left: readonly { readonly path: VaultPath; readonly reason: string }[];
   /** Why none of its proposals could be written, when the Inbox could not be; the links stand. */
   readonly unproposed?: string | null;
+  /** The project it was filed under, from its twin or its series (#227); null when none. */
+  readonly filed?: Pick<ProjectSuggestion, 'title' | 'via'> | null;
 }
+
+/** Why a meeting was filed, in the few words an Activity line has room for. */
+const FILED_BECAUSE: Readonly<Record<ProjectSuggestion['via'], string>> = {
+  twin: 'as its copy from the other notetaker is',
+  series: 'as the rest of its series is',
+};
 
 /** One Activity line per meeting linked: who it linked, what it proposed, and what it could not do. */
 export function meetingLinkReport(happening: MeetingLinkHappening): ActivityReport {
-  const { meeting, linked, proposed, left, unproposed = null } = happening;
+  const { meeting, linked, proposed, left, unproposed = null, filed = null } = happening;
   const parts = [
     linked.length > 0 ? `linked ${linked.map(noteTitle).join(', ')}` : 'linked no one new',
+    ...(filed === null ? [] : [`filed under ${filed.title}, ${FILED_BECAUSE[filed.via]}`]),
     ...(proposed > 0 ? [`proposed ${proposed} in the Inbox`] : []),
     ...left.map(({ path, reason }) => `left ${noteTitle(path)}: ${reason.replace(/\.$/, '')}`),
     ...(unproposed === null

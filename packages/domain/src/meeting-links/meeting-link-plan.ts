@@ -23,6 +23,7 @@ import {
   MEETING_PEOPLE_KEY,
   MEETING_PROJECT_KEY,
 } from './meeting-link-keys.ts';
+import type { ProjectSuggestion } from './meeting-series.ts';
 import { projectConfidence, type RankedProject } from './project-ranking.ts';
 import { isOwnerAttendee } from './vault-owner.ts';
 
@@ -38,6 +39,8 @@ export interface MeetingLinkInput {
   readonly speakers: readonly DirectoryPerson[];
   /** The open projects its people and companies are tied to, likeliest first. */
   readonly projects: readonly RankedProject[];
+  /** What its twin or its series says it is filed under (#227); null or left out when nothing does. */
+  readonly seriesProject?: ProjectSuggestion | null;
   /** The vault owner's name, from their profile: never proposed as someone new. */
   readonly selfName: string | null;
   /** The vault owner's own addresses, the vault's `selfEmails`: an attendee at one is them. */
@@ -59,6 +62,16 @@ export interface MeetingLinkPlan {
   readonly passedOver: readonly PassedOverAttendee[];
   /** Relations it would have added to but left, holding something other than links, and why. */
   readonly unreadable: readonly { readonly key: string; readonly reason: string }[];
+  /** The project it is filed under, sure from its twin or its series (#227); null when it is not. */
+  readonly filing: MeetingFiling | null;
+}
+
+/** A project a meeting is filed under without asking: its `project` as written, and why. */
+export interface MeetingFiling {
+  readonly project: VaultPath;
+  /** The link its `project` is set to. */
+  readonly link: string;
+  readonly suggestion: ProjectSuggestion;
 }
 
 /**
@@ -88,7 +101,8 @@ export function linkedEntities(
  * attendee several people could be as a link to each, to accept the right
  * one; and, when the meeting has no project, the likeliest open project. A
  * group address and the vault's owner are never proposed. A company only a
- * domain's name points at is proposed too, never written.
+ * domain's name points at is proposed too, never written. A meeting with no
+ * project whose twin or series surely says one is filed under it (#227).
  *
  * A proposal is known by what it is for, not by where the meeting happens to
  * be: a person by their address alone (so rejecting them once covers every
@@ -122,14 +136,32 @@ export function planMeetingLinks(input: MeetingLinkInput): MeetingLinkPlan {
     gaining[key] = paths;
   }
   const peopleAfter = new Set([...peopleNow, ...added[MEETING_PEOPLE_KEY]]);
-  const proposing = proposalsFor(input, peopleAfter);
+  const filing = filingOf(input);
+  const proposing = proposalsFor(input, peopleAfter, filing);
   return {
     changes,
     added: gaining,
     proposals: proposing.proposals,
     passedOver: proposing.passedOver,
     unreadable,
+    filing,
   };
+}
+
+/**
+ * The project a meeting is filed under without a click (#227): only what its
+ * twin or its series says at high confidence, and only into a `project` that
+ * holds nothing — one already set, by hand or before, is never written over.
+ */
+function filingOf(input: MeetingLinkInput): MeetingFiling | null {
+  const suggestion = input.seriesProject ?? null;
+  if (suggestion?.confidence !== 'high' || isFiled(input)) return null;
+  return { project: suggestion.project, link: linkTo(input, suggestion.project), suggestion };
+}
+
+/** Whether the meeting's `project` holds anything at all. */
+function isFiled(input: MeetingLinkInput): boolean {
+  return linkedNotes(input.properties[MEETING_PROJECT_KEY]).length > 0;
 }
 
 /** Whether a relation's value is links Atlas can add to: none yet, one, or a list of them. */
@@ -162,7 +194,11 @@ export function attendeesOf(properties: Readonly<Record<string, unknown>>): Meet
   });
 }
 
-function proposalsFor(input: MeetingLinkInput, peopleAfter: ReadonlySet<VaultPath>) {
+function proposalsFor(
+  input: MeetingLinkInput,
+  peopleAfter: ReadonlySet<VaultPath>,
+  filing: MeetingFiling | null,
+) {
   const passedOver: PassedOverAttendee[] = [];
   const proposals: NewProposal[] = [];
   for (const unknown of input.matching.unknown) {
@@ -178,7 +214,7 @@ function proposalsFor(input: MeetingLinkInput, peopleAfter: ReadonlySet<VaultPat
     proposals.push(...ambiguousProposals(input, ambiguous));
   }
   proposals.push(...input.matching.guessedCompanies.map((guess) => companyProposal(input, guess)));
-  const project = projectProposal(input);
+  const project = filing === null ? projectProposal(input) : null;
   if (project !== null) proposals.push(project);
   return { proposals, passedOver };
 }
@@ -266,12 +302,18 @@ function emailDomainOf({ email }: MeetingAttendee): string {
   return emailDomain(email) ?? 'a domain';
 }
 
-/** The likeliest open project, proposed once for a meeting that has none. */
+/**
+ * The likeliest open project, proposed once for a meeting that has none:
+ * what its twin or series says when that is not sure enough to set (#227),
+ * else the project most of its people and companies are tied to.
+ */
 function projectProposal(input: MeetingLinkInput): NewProposal | null {
+  if (isFiled(input)) return null;
+  const series = input.seriesProject ?? null;
+  if (series !== null) return seriesProposal(input, series);
   const [first, ...rest] = input.projects;
   const confidence = projectConfidence(input.projects);
   if (first === undefined || confidence === null) return null;
-  if (linkedNotes(input.properties[MEETING_PROJECT_KEY]).length > 0) return null;
   const others = rest.slice(0, 3).map(({ project }) => linkTo(input, project));
   const tied =
     first.entities.length === 1
@@ -289,6 +331,20 @@ function projectProposal(input: MeetingLinkInput): NewProposal | null {
       ...(others.length > 0 ? [`Also likely: ${others.join(', ')}.`] : []),
     ].join(' '),
     payload: linkPayload(input, MEETING_PROJECT_KEY, first.project),
+  };
+}
+
+/** What a meeting's twin or series says, proposed for a person to confirm. */
+function seriesProposal(input: MeetingLinkInput, series: ProjectSuggestion): NewProposal {
+  return {
+    kind: 'link',
+    confidence: series.confidence,
+    source: linkTo(input, input.meeting),
+    madeBy: MEETING_LINKS_MAKER,
+    id: proposalId(input, 'project'),
+    name: `${series.title} for ${meetingTitle(input)}`,
+    reason: series.reason,
+    payload: linkPayload(input, MEETING_PROJECT_KEY, series.project),
   };
 }
 
@@ -346,9 +402,33 @@ function linkTo(input: MeetingLinkInput, path: VaultPath): string {
 
 /** What a proposal about this meeting is for: by its identity, which filing does not change; by path when it has none. */
 function proposalId(input: MeetingLinkInput, what: string): string {
-  const meeting = identityOf(input);
-  const of = meeting === null ? input.meeting : `${meeting.provider}/${meeting.externalId}`;
+  return meetingProposalId({ meeting: input.meeting, identity: identityOf(input), what });
+}
+
+function meetingProposalId({
+  meeting,
+  identity,
+  what,
+}: {
+  meeting: VaultPath;
+  identity: MeetingIdentity | null;
+  what: string;
+}): string {
+  const of =
+    identity === null ? meeting : `${identity.provider.trim()}/${identity.externalId.trim()}`;
   return `${MEETING_LINKS_MAKER}:${of}:${what}`;
+}
+
+/**
+ * What the one proposal of a meeting's project is known by, whoever makes it
+ * — linking from its series or a Claude step's choice (#227) — so a meeting
+ * waits on one such proposal in the Inbox, never two.
+ */
+export function meetingProjectProposalId(
+  meeting: VaultPath,
+  identity: MeetingIdentity | null,
+): string {
+  return meetingProposalId({ meeting, identity, what: 'project' });
 }
 
 function meetingTitle(input: MeetingLinkInput): string {

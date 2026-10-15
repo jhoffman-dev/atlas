@@ -64,9 +64,16 @@ export function createMeetingLinker({
           selfEmails: selfEmails(),
           vocabulary: reading.vocabulary,
         });
-        const { linked, proposed, left, unproposed } = run;
+        const { linked, filed, proposed, left, unproposed } = run;
         recorder.record(
-          meetingLinkReport({ meeting: path, linked, proposed: proposed.length, left, unproposed }),
+          meetingLinkReport({
+            meeting: path,
+            linked,
+            filed,
+            proposed: proposed.length,
+            left,
+            unproposed,
+          }),
         );
         runs.push(run);
       } catch (cause) {

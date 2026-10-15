@@ -445,6 +445,7 @@ describe('undoMeetingLink', () => {
           after: { value: [] },
         },
       ],
+      filed: null,
       proposed: [],
       left: [],
       passedOver: [],
