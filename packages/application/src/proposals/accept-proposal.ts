@@ -233,7 +233,7 @@ async function refuseAlreadyMade(
     source: item.source,
     owner: linkedTaskOwner(item.properties),
     title: item.title,
-    madeItems: await readMadeItems(ports.index),
+    madeItems: await readMadeItems(ports),
   });
   if (made === null) return;
   await stampProposal(ports, file, { state: 'rejected', [ANSWERED_VIA_KEY]: via });

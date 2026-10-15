@@ -258,7 +258,7 @@ function meetingParts(note: AnsweredNote, room: number): NoteParts {
     const read = fits ? note.text.length : shownStart(note, room).length;
     return { parts: [{ text: note.text, read }], head: 0, unfit: !fits };
   };
-  if (note.meeting === undefined || note.text.length <= room) return whole();
+  if (note.meeting === undefined) return whole();
   const head = headOf(note.text, room / 2);
   if (head === null) return whole();
   const turns = note.text
@@ -266,8 +266,10 @@ function meetingParts(note: AnsweredNote, room: number): NoteParts {
     .split(TURN_GAP)
     .map((turn) => turn.replace(/^[\r\n]+|[\r\n]+$/g, ''))
     .filter((turn) => turn.trim() !== '');
-  const runs = runsThatFit(turns, room - head.text.length - PART_MARK_ROOM - CONTEXT_ROOM);
+  const headRoom = Math.max(head.text.length, HEAD_ROOM);
+  const runs = runsThatFit(turns, room - headRoom - PART_MARK_ROOM - CONTEXT_ROOM);
   if (runs.runs.length === 0) return whole();
+  if (runs.runs.length === 1 && !runs.unfit && note.text.length <= room) return whole();
   const parts = runs.runs.map((run, at) => ({
     text: partText({ head: head.text, run, before: runs.runs[at - 1], at, of: runs.runs.length }),
     read: run.reduce((sum, turn) => sum + turn.length, 0),
@@ -299,6 +301,14 @@ function headOf(text: string, budget: number): { text: string; end: number } | n
   const closed = fence === null ? kept : `${kept.replace(/\n+$/, '')}\n${fence}`;
   return { text: `${before}${closed}\n… (notes cut)\n\n${rest}`, end: transcript.textStart - 1 };
 }
+
+/**
+ * Room kept in each part for its head however long the head is, up to this:
+ * a part is then the same turns whatever is written around the transcript, so
+ * a `tasks` join or an edited Summary never moves a part's bounds and a kept
+ * answer is reused. A longer head takes its own length, and moves them.
+ */
+const HEAD_ROOM = 3_000;
 
 /** Room kept in a head for the line saying its Notes were cut, and a fence closed. */
 const NOTES_CUT_ROOM = 100;

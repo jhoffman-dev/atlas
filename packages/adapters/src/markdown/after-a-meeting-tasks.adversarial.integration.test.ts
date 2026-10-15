@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptProposalNote,
   fakeClaudeStepPorts,
-  HeldForPullError,
   recordingActivity,
   runAutomation,
   runOnNoteChanges,
@@ -20,9 +19,7 @@ import {
   builtInPromptAt,
   createVaultPath,
   digestOf,
-  logPathFor,
   parseObjectType,
-  parseRunLog,
   type AutomationRule,
   type NoteChange,
 } from '@atlas/domain';
@@ -195,11 +192,16 @@ function setUp({
 
 describe('adversarial: the owner’s items on a retry (#180)', () => {
   it('loses the owner’s item when Run now comes while the index still lists a task the failed run took back', async () => {
-    const { vault, arrived, runNow, tasks, notesIn } = setUp({ rounds: [TWO_MINE_ONE_TOBIAS, TWO_MINE_ONE_TOBIAS] });
+    const { vault, arrived, runNow, tasks } = setUp({
+      rounds: [TWO_MINE_ONE_TOBIAS, TWO_MINE_ONE_TOBIAS],
+    });
     const query = vault.ports.index.query;
     let stale: Awaited<ReturnType<typeof query>> | null = null;
     vault.ports.fs.trashEntry = async ({ path }) => {
-      stale = await query((await import('@atlas/domain')).compileMadeItemsQuery().sql, (await import('@atlas/domain')).compileMadeItemsQuery().parameters as never);
+      stale = await query(
+        (await import('@atlas/domain')).compileMadeItemsQuery().sql,
+        (await import('@atlas/domain')).compileMadeItemsQuery().parameters as never,
+      );
       vault.files.delete(path);
     };
     const create = vault.ports.fs.createNote;
@@ -208,7 +210,11 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
       await create(write);
       if (!edited && write.path === 'Book the review room.md') {
         edited = true;
-        await vault.ports.fs.writeTextFile({ path: MEETING as never, contents: vault.files.get(MEETING)! + '\n## Notes\n\nmine\n', expectedModified: null });
+        await vault.ports.fs.writeTextFile({
+          path: MEETING as never,
+          contents: vault.files.get(MEETING)! + '\n## Notes\n\nmine\n',
+          expectedModified: null,
+        });
       }
     };
     await arrived();
@@ -219,16 +225,45 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
   });
 
   it('makes a second task for one item: a plain retry of a long meeting re-asks, and Accept takes the reworded item as new', async () => {
-    const filler = Array.from({ length: 300 }, (_, i) =>
-      `**Tobias Fenn** [~00:${String(10 + (i % 50)).padStart(2, '0')}:00] We went over line ${i} of the renewal schedule in some detail today. ^t${String(i + 10).padStart(4, '0')}\n`);
-    const long = [...TRANSCRIPT, ...filler, '**Mara Quill** [~00:59:00] I’ll write up the pricing memo. ^t0999', ''];
-    const MEMO = { kind: 'task', title: 'Write up the pricing memo', owner: 'You', source_block: 't0999', confidence: 'high' };
+    const filler = Array.from(
+      { length: 300 },
+      (_, i) =>
+        `**Tobias Fenn** [~00:${String(10 + (i % 50)).padStart(2, '0')}:00] We went over line ${i} of the renewal schedule in some detail today. ^t${String(i + 10).padStart(4, '0')}\n`,
+    );
+    const long = [
+      ...TRANSCRIPT,
+      ...filler,
+      '**Mara Quill** [~00:59:00] I’ll write up the pricing memo. ^t0999',
+      '',
+    ];
+    const MEMO = {
+      kind: 'task',
+      title: 'Write up the pricing memo',
+      owner: 'You',
+      source_block: 't0999',
+      confidence: 'high',
+    };
     const SECOND = 'Meetings/2026-10-14 Vendor sync.md';
-    const second = meetingFile().replace('Renewal review', 'Vendor sync').replace('granola-5c1d', 'granola-7e2f')
+    const second = meetingFile()
+      .replace('Renewal review', 'Vendor sync')
+      .replace('granola-5c1d', 'granola-7e2f')
       .replace('send the renewal contract by Friday', 'chase the vendor invoice');
-    const CHASE = { kind: 'task', title: 'Chase the vendor invoice', owner: 'You', source_block: 't0001', confidence: 'high' };
+    const CHASE = {
+      kind: 'task',
+      title: 'Chase the vendor invoice',
+      owner: 'You',
+      source_block: 't0001',
+      confidence: 'high',
+    };
     const { vault, runNow, tasks, asked, notesIn } = setUp({
-      rounds: [answer(OWNERS_SEND, TOBIAS_FLAG), answer(MEMO), answer(CHASE), answer(OWNERS_SEND, TOBIAS_FLAG), answer({ ...MEMO, title: 'Draft the pricing memo' }), answer(CHASE)],
+      rounds: [
+        answer(OWNERS_SEND, TOBIAS_FLAG),
+        answer(MEMO),
+        answer(CHASE),
+        answer(OWNERS_SEND, TOBIAS_FLAG),
+        answer({ ...MEMO, title: 'Draft the pricing memo' }),
+        answer(CHASE),
+      ],
     });
     vault.files.set(MEETING, meetingFile(long));
     vault.files.set(SECOND, second);
@@ -244,9 +279,17 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
     await runNow().catch(() => undefined);
     const firstAsked = asked();
     await runNow();
-    const leftover = notesIn(PROPOSALS).find((at) => vault.files.get(at)!.includes('Draft the pricing memo'));
+    // The retry reuses the answers the failed run kept: nothing is asked again.
+    expect(asked()).toBe(firstAsked);
+    const leftover = notesIn(PROPOSALS).find((at) =>
+      vault.files.get(at)!.includes('Draft the pricing memo'),
+    );
     if (leftover !== undefined) {
-      await acceptProposalNote({ ports: vault.ports, path: createVaultPath(leftover), today: TODAY }).catch(() => undefined);
+      await acceptProposalNote({
+        ports: vault.ports,
+        path: createVaultPath(leftover),
+        today: TODAY,
+      }).catch(() => undefined);
     }
     // One item (block t0999, the owner's) must be one task.
     expect(tasks().filter((t) => t.includes('pricing memo'))).toHaveLength(1);

@@ -232,9 +232,9 @@ describe('the most proposals one run makes', () => {
           item({ kind: 'task', title: `Job ${turn} ${at}`, owner: 'You', source_block: turn }),
         ),
       );
-    const { run, vault, asked } = setUp([full('t0003'), full('t0060'), full('t0124')], {
+    const { run, vault, asked } = setUp([full('t0003'), full('t0060'), full('t0109')], {
       ...NOTES,
-      [SYNC]: longMeeting(120),
+      [SYNC]: longMeeting(105),
     });
 
     await run(SYNC_ONLY);

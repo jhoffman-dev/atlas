@@ -715,7 +715,7 @@ async function decideOwnersItems(
   answered: readonly NoteAnswered[],
   vault: AnswerVault | undefined,
 ): Promise<MeetingDecided[]> {
-  const made = await readMadeItems(asking.index);
+  const made = await readMadeItems(asking);
   const owner = {
     selfName: vault?.selfName ?? null,
     selfEmails: vault?.selfEmails ?? [],

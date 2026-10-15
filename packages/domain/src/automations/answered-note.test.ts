@@ -176,6 +176,29 @@ describe('a meeting read in parts (P29-05)', () => {
     expect(cites(parts[1]!, `t${String(last).padStart(4, '0')}`)).toBe(false);
   });
 
+  it('cuts a meeting into the same parts whatever is written around its transcript (#180)', () => {
+    const long = meetingOf(120);
+    const edited = {
+      ...long,
+      text: long.text
+        .replace(
+          'type: meeting\n',
+          `type: meeting\ntasks:\n${"  - '[[A task made from it]]'\n".repeat(12)}`,
+        )
+        .replace(
+          'We ship on Friday.\n',
+          `We ship on Friday.\n\n${'More said after. '.repeat(80)}\n`,
+        ),
+    };
+    expect(edited.text.length - long.text.length).toBeGreaterThan(1_500);
+
+    const digests = (note: AnsweredNote) =>
+      claudeAsks([note], { inParts: true }).asks.map((ask) => askedTurnsDigest(ask));
+
+    expect(digests(long).length).toBeGreaterThan(2);
+    expect(digests(edited)).toEqual(digests(long));
+  });
+
   it('stops at the most asks one run makes, and says how much of the meeting no ask showed', () => {
     const endless = meetingOf(700);
 
