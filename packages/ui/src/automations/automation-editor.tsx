@@ -1,5 +1,14 @@
 import type { ReactNode } from 'react';
-import type { AutomationAction, AutomationDraft, NoteEvent, Schedule } from '@atlas/domain';
+import {
+  claudeStepDefaultModel,
+  outputHasItems,
+  withClaudeChoices,
+  type AutomationAction,
+  type AutomationDraft,
+  type ClaudeAction,
+  type NoteEvent,
+  type Schedule,
+} from '@atlas/domain';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { Toggle } from '../toggle.tsx';
 import type { DryRunView, LogEntryView } from './automation-views.ts';
@@ -387,6 +396,7 @@ function ClaudeFields({ draft, onChange, claudeTools, claudeOutputs }: ActionPro
           />
         </label>
       )}
+      <ClaudeChoices action={action} onChange={(next) => onChange({ ...draft, action: next })} />
       <fieldset className="automation-editor__tools">
         <legend>Tools Claude may use</legend>
         {claudeTools.map((tool) => (
@@ -408,6 +418,67 @@ function ClaudeFields({ draft, onChange, claudeTools, claudeOutputs }: ActionPro
         ))}
       </fieldset>
     </div>
+  );
+}
+
+const APPLIES = [
+  { value: '', label: 'Nothing: every item is a proposal' },
+  { value: 'mine', label: 'My own action items' },
+] as const;
+
+/**
+ * What of a meeting's items becomes a task without a click (#179), offered
+ * for an output that has items, or while the rule says it so it can be taken
+ * out; and the model it asks, blank for its default.
+ */
+function ClaudeChoices({
+  action,
+  onChange,
+}: {
+  action: ClaudeAction;
+  onChange: (action: ClaudeAction) => void;
+}) {
+  const apply = action.apply ?? null;
+  const model = action.model ?? '';
+  return (
+    <>
+      {(outputHasItems(action.output) || apply !== null) && (
+        <label className="automation-editor__inline">
+          Make into tasks
+          <select
+            className="field automation-editor__small"
+            aria-label="What becomes a task"
+            value={apply ?? ''}
+            onChange={(event) =>
+              onChange(
+                withClaudeChoices(action, {
+                  apply: event.target.value === 'mine' ? 'mine' : null,
+                  model,
+                }),
+              )
+            }
+          >
+            {APPLIES.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="automation-editor__inline">
+        Model
+        <input
+          className="field automation-editor__small"
+          aria-label="Model"
+          placeholder={claudeStepDefaultModel(action) ?? 'The chat’s model'}
+          value={model}
+          onChange={(event) =>
+            onChange(withClaudeChoices(action, { apply, model: event.target.value }))
+          }
+        />
+      </label>
+    </>
   );
 }
 

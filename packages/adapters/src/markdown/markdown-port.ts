@@ -1,6 +1,7 @@
 import type { MarkdownPort } from '@atlas/application';
 import { parseMarkdownBody, serializeMarkdownBody, parseBodyToMdast } from './markdown-blocks.ts';
 import { frontmatterProblem, parseFrontmatterProperties } from './frontmatter.ts';
+import { addToFrontmatterMap } from './frontmatter-add.ts';
 import { frontmatterKeyTexts, updateFrontmatter } from './frontmatter-write.ts';
 import { plainTextOf } from './plain-text.ts';
 import { readRawParts } from './raw-parts.ts';
@@ -16,5 +17,6 @@ export const remarkMarkdown: MarkdownPort = {
   plainText: (body) => plainTextOf(parseBodyToMdast(body)),
   textRanges: (body) => textRangesOf(parseBodyToMdast(body)),
   updateFrontmatter,
+  addToFrontmatterMap,
   rawParts: readRawParts,
 };

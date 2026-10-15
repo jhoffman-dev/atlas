@@ -21,8 +21,8 @@ const relation = (key: string, label: string, target: string): PropertyDef => ({
 /**
  * What meeting extraction links back into a meeting (P29-05, ADR-0028): the
  * tasks and the decisions taken from it. Accept adds a link only through a
- * relation the Meeting type declares, so a vault's Meeting type is offered
- * these as it is offered the import's keys.
+ * relation the Meeting type declares, so a vault's Meeting type gains these
+ * on opening, as it gains the import's keys (#162).
  */
 export const MEETING_EXTRACTION_PROPERTIES: readonly PropertyDef[] = [
   relation(MEETING_TASKS_KEY, 'Tasks', TASK_TYPE),

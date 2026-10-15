@@ -184,19 +184,20 @@ export interface NoteSkipped {
  * a meeting too long for one ask is read in parts: each its frontmatter and
  * the sections before its transcript (the notes trimmed to fit), then as many
  * whole turns as fit, after the last two turns of the part before, quoted for
- * context and not citable — up to {@link CLAUDE_ASKS_PER_RUN} asks a run.
- * Past that the rest of a meeting is not read, and is reported as cut.
+ * context and not citable — up to `asks` a run, {@link CLAUDE_ASKS_PER_RUN}
+ * unless the step's budget says fewer. Past that the rest of a meeting is not
+ * read, and is reported as cut.
  */
 export function claudeAsks(
   notes: readonly AnsweredNote[],
-  { inParts }: { inParts: boolean },
+  { inParts, asks: most = CLAUDE_ASKS_PER_RUN }: { inParts: boolean; asks?: number },
 ): ClaudeAsks {
   if (!inParts) return { asks: [notes], cut: cutNotes(notes), skipped: [] };
   const skipped = notes
     .filter((note) => meetingTurnsOf(note.text).length === 0)
     .map(skippedWithout);
   const read = notes.filter((note) => !skipped.some(({ path }) => path === note.path));
-  let spare = Math.max(0, CLAUDE_ASKS_PER_RUN - read.length);
+  let spare = Math.max(0, most - read.length);
   const asks: AnsweredNote[][] = [];
   const cut: NoteCut[] = [];
   for (const note of read) {

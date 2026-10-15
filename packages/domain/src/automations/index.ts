@@ -69,10 +69,25 @@ export {
   claudeActionFields,
   isPromptPath,
   describeClaudeAction,
+  outputHasItems,
   PROMPTS_DIRECTORY,
   readClaudeAction,
+  withClaudeChoices,
 } from './claude-step.ts';
-export type { ClaudeAction, ClaudeOutput } from './claude-step.ts';
+export type { ClaudeAction, ClaudeApply, ClaudeOutput } from './claude-step.ts';
+export {
+  claudeAskRefusal,
+  claudeRunAsks,
+  claudeStepBudget,
+  claudeStepDefaultModel,
+  claudeStepModel,
+  DECLARED_STEP_ASKS_PER_HOUR,
+  DECLARED_STEP_ASKS_PER_RUN,
+  DECLARED_STEP_MODEL,
+  SHARED_STEP_BUDGET,
+  sharesAskAllowance,
+} from './claude-step-budget.ts';
+export type { ClaudeRunAsks, ClaudeStepBudget } from './claude-step-budget.ts';
 export {
   answerJson,
   checkDraft,
@@ -112,6 +127,7 @@ export type {
   ProposedBecause,
 } from './meeting-item-apply.ts';
 export {
+  AFTER_A_MEETING_PROMPT,
   BUILT_IN_PROMPTS,
   builtInPromptAt,
   MEETING_EXTRACTION_PROMPT,
@@ -139,6 +155,7 @@ export {
 export type { AnsweredMeeting, ClaudeAsks, NoteCut, NoteSkipped } from './answered-note.ts';
 export type { NoteAnswer, NoteAnswerValue } from './note-answer.ts';
 export {
+  asksSpentInHour,
   backoffMinutes,
   dueTrigger,
   nextRunOf,

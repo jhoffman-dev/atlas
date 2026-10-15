@@ -58,6 +58,34 @@ const IMPORT_KEYS = {
   atlas_duplicate_of: { kind: 'relation', label: 'Duplicate of', target: 'meeting' },
 };
 
+/**
+ * A vault opened since #162 whose Meeting keys were settled, then taken off
+ * on purpose: opening it again leaves them off, so the Inbox offers them.
+ */
+const SETTLED = {
+  '.atlas/migrations/type-properties.md': [
+    '---',
+    'atlas: migration',
+    '---',
+    '',
+    '```json',
+    JSON.stringify({
+      settled: {
+        meeting: [
+          'atlas_import_outcome',
+          'atlas_import_error',
+          'atlas_duplicate_of',
+          'tasks',
+          'decisions',
+        ],
+      },
+      added: {},
+    }),
+    '```',
+    '',
+  ].join('\n'),
+};
+
 const meetingProperties = (text: string, markdown: MarkdownPort) =>
   Object.keys(
     (markdown.frontmatterProperties(splitFrontmatter(text).frontmatter)['properties'] ??
@@ -68,6 +96,7 @@ describe('acceptTypeSetup, with PARA and the Inbox both changing the Meeting typ
   it('does not write PARA’s project onto Meeting when the offer shown only gave it the import keys', async () => {
     // Shown: "Meeting gains Import, Import error and Duplicate of." — it already files by project.
     const v = vault({
+      ...SETTLED,
       '.atlas/types/project.md': PROJECT,
       '.atlas/types/meeting.md': note({
         name: 'meeting',
@@ -92,6 +121,7 @@ describe('acceptTypeSetup, with PARA and the Inbox both changing the Meeting typ
   it('does not write the import keys onto Meeting when the offer shown only gave it PARA’s project', async () => {
     // Shown: "Meeting gains Project, linking project or area notes." — it already has the import keys.
     const v = vault({
+      ...SETTLED,
       '.atlas/types/project.md': PROJECT,
       '.atlas/types/meeting.md': note({
         name: 'meeting',

@@ -12,6 +12,11 @@
  * read tools; the output names a proposal schema, or `note` with the folder
  * the one new note goes in under `folder:`. A Claude step never edits a note
  * — an output that would is refused here, before the rule can be saved.
+ *
+ * Two keys are optional (#179, ADR-0036). `apply: mine` makes the step the
+ * declared one: the owner's own action items out of a meeting may become
+ * tasks without a click, and it has its own ask budget and default model
+ * (`claude-step-budget.ts`). `model:` names the model it asks.
  */
 
 import { isChatReadTool, CHAT_READ_TOOLS, type ChatReadTool } from '../chat/read-tool-names.ts';
@@ -44,7 +49,23 @@ export interface ClaudeAction {
    */
   readonly tools: readonly string[];
   readonly output: ClaudeOutput;
+  /**
+   * `mine`: the declared step (ADR-0036), whose owner's own action items may
+   * become tasks. Left out, every item is a proposal.
+   */
+  readonly apply?: ClaudeApply;
+  /** The model it asks; left out, the default (`claudeStepModel`). */
+  readonly model?: string;
 }
+
+/** What a step may apply without a click: the owner's own action items. */
+export type ClaudeApply = 'mine';
+
+/** The longest model id a rule may name: an id, not a sentence. */
+const MAX_MODEL_LENGTH = 100;
+
+/** What a model id is written in: letters, digits, and `.`, `_`, `:`, `@`, `/`, `-`, `[`, `]`. */
+const MODEL_ID = /^[A-Za-z0-9._:@/[\]-]+$/;
 
 const NEVER_EDITS =
   'A Claude step never edits a note: it writes proposals for you to accept, or one new note.';
@@ -59,7 +80,78 @@ export function readClaudeAction(
   if (typeof tools === 'string') return tools;
   const output = readOutput(frontmatter);
   if (typeof output === 'string') return output;
-  return { kind: 'claude', prompt: prompt.path, tools, output };
+  const apply = readApply(frontmatter['apply'], output);
+  if (isRefusal(apply)) return apply.problem;
+  const model = readModel(frontmatter['model']);
+  if (isRefusal(model)) return model.problem;
+  return {
+    kind: 'claude',
+    prompt: prompt.path,
+    tools,
+    output,
+    ...(apply !== null && { apply }),
+    ...(model !== null && { model }),
+  };
+}
+
+/** Why a key cannot be read; set apart from text, which is a key's value. */
+interface Refusal {
+  readonly problem: string;
+}
+
+function isRefusal(read: string | null | Refusal): read is Refusal {
+  return typeof read === 'object' && read !== null;
+}
+
+/** The apply a rule says, null for none, or why it cannot be one. */
+function readApply(value: unknown, output: ClaudeOutput): ClaudeApply | null | Refusal {
+  const written = typeof value === 'string' ? value.trim().toLowerCase() : value;
+  if (written === undefined || written === null || written === '') return null;
+  if (written !== 'mine') {
+    return {
+      problem:
+        'Write apply: mine to make your own action items into tasks, or leave it out for proposals only.',
+    };
+  }
+  return outputHasItems(output) ? 'mine' : { problem: applyNeedsItems() };
+}
+
+/** Whether a step's answer is a meeting's action items, which `apply` acts on. */
+export function outputHasItems(output: ClaudeOutput): boolean {
+  return output.kind === 'proposals' && PROPOSAL_SCHEMAS[output.schema]?.readsInParts === true;
+}
+
+function applyNeedsItems(): string {
+  const named = Object.values(PROPOSAL_SCHEMAS)
+    .filter((schema) => schema.readsInParts)
+    .map((schema) => `output: ${schema.name}`);
+  return `apply: mine makes your own action items out of a meeting into tasks; it needs ${named.join(' or ')}.`;
+}
+
+/**
+ * The model a rule names, null for none, or why it cannot be one. The host
+ * passes it as `--model`'s value and refuses one that reads as a flag, so
+ * that is refused here first, with anything that is not one plain id: only
+ * the characters a model id or alias is written in (`claude-sonnet-5-5`,
+ * `claude-opus-5-5[1m]`, a provider's `vendor/model:tag`), so no control,
+ * format or invisible character reaches the host looking like a valid id.
+ */
+function readModel(value: unknown): string | null | Refusal {
+  if (value === undefined || value === null) return null;
+  // Only plain spaces and line ends are trimmed: an invisible character at either end is refused.
+  const written = typeof value === 'string' ? value.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '') : null;
+  if (written === '') return null;
+  const plain =
+    written !== null &&
+    written.length <= MAX_MODEL_LENGTH &&
+    !written.startsWith('-') &&
+    MODEL_ID.test(written);
+  return plain
+    ? written
+    : {
+        problem:
+          'Write model: as one model’s id, like claude-sonnet-5-5, or leave it out for the default.',
+      };
 }
 
 function readPrompt(value: unknown): { path: VaultPath } | string {
@@ -134,6 +226,27 @@ export function claudeActionFields(action: ClaudeAction | null): Record<string, 
     tools: action === null ? null : [...action.tools],
     output: action === null ? null : outputName(action.output),
     folder: action?.output.kind === 'note' ? action.output.folder : null,
+    apply: action?.apply ?? null,
+    model: action?.model ?? null,
+  };
+}
+
+/**
+ * The step with the editor's apply and model: none, or a blank model, each
+ * the key left out, as a file that does not write it is read. The model is
+ * kept as typed; the rule's own reading says what is wrong with it.
+ */
+export function withClaudeChoices(
+  action: ClaudeAction,
+  { apply, model }: { apply: ClaudeApply | null; model: string },
+): ClaudeAction {
+  return {
+    kind: 'claude',
+    prompt: action.prompt,
+    tools: action.tools,
+    output: action.output,
+    ...(apply !== null && { apply }),
+    ...(model !== '' && { model }),
   };
 }
 

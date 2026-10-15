@@ -53,6 +53,7 @@ function fakeMarkdown(): MarkdownPort {
     parseBody: () => ({ blocks: [], doc: { type: 'doc', content: [] } }) as never,
     serializeBody: ({ originalBody }) => originalBody,
     rawParts: () => [],
+    addToFrontmatterMap: () => null,
   } as MarkdownPort;
 }
 

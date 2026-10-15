@@ -22,15 +22,22 @@ const folded = (name: string) => name.trim().toLowerCase();
  * the relations a task or a decision taken from a meeting is linked back
  * through (`tasks`, `decisions`, P29-05).
  * Additive only — a key the Meeting type already has is left as it is — and
- * never written without a yes: it is offered beside PARA's setup.
+ * never written without a yes: it is offered beside PARA's setup. Opening a
+ * vault gives its Meeting type these keys once (#162, `shippedPropertiesPlan`),
+ * so what is offered here is a key the person took off since.
+ *
+ * Nothing is offered on a Meeting type two files claim: the offer would
+ * extend one of them, and Accept and the Claude step read whichever comes
+ * first, which need not be it. Opening the vault asks for them to be merged.
  */
 export function inboxTypePlan<Type extends ObjectType>(
   existing: readonly Type[],
 ): InboxTypePlan<Type> {
   const byName = new Map(existing.map((type) => [folded(type.name), type]));
   const missing = PROPOSAL_TYPE_FILES.filter((file) => !byName.has(file.type.name));
-  const meeting = byName.get(MEETING_TYPE);
-  const extension = meeting === undefined ? null : withImportKeys(meeting);
+  const meetings = existing.filter((type) => folded(type.name) === MEETING_TYPE);
+  const [meeting] = meetings;
+  const extension = meeting === undefined || meetings.length > 1 ? null : withImportKeys(meeting);
   return { missing, extensions: extension === null ? [] : [extension] };
 }
 

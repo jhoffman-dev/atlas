@@ -15,6 +15,7 @@ import {
   type ProposalDraft,
 } from '@atlas/domain';
 import { processInboxItems } from '../inbox/process-inbox.ts';
+import { ensureBuiltInTypes } from '../types/ensure-built-in-types.ts';
 import { MEETING_BODY } from '../testing/meeting-files.ts';
 import {
   jsonLinesMarkdown,
@@ -146,5 +147,41 @@ describe('a Claude step’s task that links back to its meeting', () => {
 
     expect(setup.paths()).not.toContain(TASK);
     expect(setup.propertiesOf(MEETING)?.['tasks']).toBeUndefined();
+  });
+});
+
+describe('a vault whose Meeting type predates `tasks` (#162)', () => {
+  const OLDER = {
+    ...VAULT,
+    '.atlas/types/meeting.md': jsonLinesNote(
+      { name: 'meeting', label: 'Meeting', properties: { title: 'text' } },
+      '\n# Meeting\n\nMara’s notes on meetings.\n',
+    ),
+  };
+
+  it('is refused at Accept while the type lacks the relation', async () => {
+    const setup = proposalVault(OLDER);
+    const path = await propose(setup);
+
+    await expect(acceptProposalNote({ ports: fresh(setup), path, today: TODAY })).rejects.toThrow(
+      /has no relation called tasks to link through/,
+    );
+  });
+
+  it('accepts once the vault has been opened, linking the task back into the meeting', async () => {
+    const setup = proposalVault(OLDER);
+    const path = await propose(setup);
+
+    const opened = await ensureBuiltInTypes(setup.ports);
+    expect(opened.properties.gained.map((gained) => gained.added)).toEqual([
+      ['Import', 'Import error', 'Duplicate of', 'Tasks', 'Decisions'],
+    ]);
+    // The migration's record is YAML (`atlas: migration`), which this vault's JSON-lines
+    // markdown cannot read; Accept reads no note under `.atlas/migrations`, so it is left out.
+    setup.fixture.files.delete('.atlas/migrations/type-properties.md');
+    await acceptProposalNote({ ports: fresh(setup), path, today: TODAY });
+
+    expect(setup.paths()).toContain(TASK);
+    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
   });
 });
