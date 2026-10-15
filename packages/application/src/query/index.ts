@@ -3,6 +3,7 @@ export type { ViewResult } from './run-view.ts';
 export { cardMoveChanges, movesToDone } from './card-move.ts';
 export type { CardPlacement } from './card-move.ts';
 export { relationGroupLinks } from './relation-group-links.ts';
+export { loadFilterChoiceSources } from './filter-choice-sources.ts';
 export {
   propertyChange,
   setNoteProperties,

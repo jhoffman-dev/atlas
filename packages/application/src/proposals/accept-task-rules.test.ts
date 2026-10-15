@@ -28,7 +28,7 @@ describe('accepting a proposal that makes a finished task', () => {
       today: '2026-10-08',
     });
 
-    const made = setup.propertiesOf('Pay rent.md');
+    const made = setup.propertiesOf('Tasks/2026/10/Pay rent.md');
     expect(made).toMatchObject({
       type: 'task',
       status: 'next-action',

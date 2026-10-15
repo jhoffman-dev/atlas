@@ -80,14 +80,14 @@ test('a new project is a project, links an area, and archives and restores by it
   const vault = await openParaVault(page);
   await expect(projectType(page)).toHaveAccessibleName('Project, 3 notes');
 
-  // Create: the type's own New makes a project, and it says so.
+  // Create: the type's own New makes a project in its home folder, and it says so (#214).
   await projectType(page).click();
   await page
     .getByRole('article', { name: 'Project', exact: true })
     .getByRole('button', { name: 'New project', exact: true })
     .click();
   await expect(page.getByRole('article', { name: 'New Project' })).toBeVisible();
-  await expectFile(vault, 'New Project.md').toContain('para: project');
+  await expectFile(vault, 'Projects/New Project.md').toContain('para: project');
   await expect(properties(page).getByRole('combobox', { name: 'PARA' })).toHaveValue('project');
 
   // Set Area: its picker offers areas only, and it is optional.
@@ -96,17 +96,17 @@ test('a new project is a project, links an area, and archives and restores by it
   expect(await area.locator('option').allTextContents()).not.toContain('Atlas');
   expect(await area.locator('option').allTextContents()).not.toContain('Manual');
   await area.selectOption({ label: 'Garden' });
-  await expectFile(vault, 'New Project.md').toContain('area: "[[Garden]]"');
+  await expectFile(vault, 'Projects/New Project.md').toContain('area: "[[Garden]]"');
   await expect(projectType(page)).toHaveAccessibleName('Project, 4 notes');
 
-  // Archive: PARA becomes archive, and the file stays where it is.
+  // Archive: PARA becomes archive, and the file stays in Projects/ where it is.
   await pageMenu(page, 'Archive');
-  await expectFile(vault, 'New Project.md').toContain('para: archive');
-  await expectFile(vault, 'New Project.md').toContain('para_before_archive: project');
+  await expectFile(vault, 'Projects/New Project.md').toContain('para: archive');
+  await expectFile(vault, 'Projects/New Project.md').toContain('para_before_archive: project');
   expect(await vault.exists('Archive/New Project.md')).toBe(false);
-  await expectFile(vault, 'New Project.md').toContain('area: "[[Garden]]"');
+  await expectFile(vault, 'Projects/New Project.md').toContain('area: "[[Garden]]"');
   // The host's watcher reports the app's own write, as it reports any other.
-  await emitVaultChanged(page, ['New Project.md']);
+  await emitVaultChanged(page, ['Projects/New Project.md']);
   await expect(projectType(page)).toHaveAccessibleName('Project, 3 notes');
 
   // An archived project is not offered to a task; a resource never is; areas are.
@@ -125,13 +125,14 @@ test('a new project is a project, links an area, and archives and restores by it
   ).toEqual(['Projects', 'Areas']);
 
   // Restore: Unarchive sets PARA back to project, and it is offered again.
+  await page.getByRole('treeitem', { name: 'Projects', exact: true }).click();
   await page.getByRole('treeitem', { name: 'New Project', exact: true }).click();
   await expect(page.getByRole('article', { name: 'New Project' })).toBeVisible();
   await pageMenu(page, 'Unarchive');
-  await expectFile(vault, 'New Project.md').toContain('para: project');
-  await expectFile(vault, 'New Project.md').not.toContain('para_before_archive');
+  await expectFile(vault, 'Projects/New Project.md').toContain('para: project');
+  await expectFile(vault, 'Projects/New Project.md').not.toContain('para_before_archive');
   expect(await vault.exists('Archive/New Project.md')).toBe(false);
-  await emitVaultChanged(page, ['New Project.md']);
+  await emitVaultChanged(page, ['Projects/New Project.md']);
   await expect(projectType(page)).toHaveAccessibleName('Project, 4 notes');
 
   await page.getByRole('treeitem', { name: 'Call the bank', exact: true }).click();

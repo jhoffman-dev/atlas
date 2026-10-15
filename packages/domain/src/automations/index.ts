@@ -62,6 +62,7 @@ export type {
   LogEntry,
   LoggedVersion,
   MeetingTally,
+  MovedVersion,
   PriorValue,
   RunTrigger,
 } from './run-log.ts';
@@ -191,6 +192,7 @@ export type {
 export {
   handledVersions,
   leftHandledNotes,
+  movedHandledNotes,
   missedArrivals,
   noteTriggerHears,
   noteTriggerQueryProblem,

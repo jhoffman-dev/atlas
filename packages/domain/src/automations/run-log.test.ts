@@ -145,6 +145,32 @@ describe('parseRunLog', () => {
     expect(parseRunLog(edited)[0]).not.toHaveProperty('went');
   });
 
+  it('reads back the notes a run says moved, with where and as what (#214)', () => {
+    const followed: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      went: [p('Inbox/Meetings/Standup.md')],
+      moved: [
+        {
+          from: p('Inbox/Meetings/Standup.md'),
+          path: p('Meetings/2026/10/Standup.md'),
+          digest: '9c8b7a6d',
+        },
+      ],
+    };
+    const text = newLogText('Mark', [followed]);
+    expect(text).toContain(
+      '- moved `"Inbox/Meetings/Standup.md"` to `"Meetings/2026/10/Standup.md"` at `"9c8b7a6d"`',
+    );
+    expect(parseRunLog(text)).toEqual([followed]);
+    const edited = text.replace('`"Meetings/2026/10/Standup.md"`', '`{broken`');
+    expect(parseRunLog(edited)[0]).not.toHaveProperty('moved');
+  });
+
   it('leaves out a version line edited into one that does not read', () => {
     const text = [
       '## 2026-10-08 09:00:00 · Ran when a note appeared or changed',
@@ -316,5 +342,35 @@ describe('lastRunOf, attacked (P29-01 round 2)', () => {
 
     // The page and the API show the last run: the archive at 09:00, not "Nothing to do." at 09:05.
     expect(lastRunOf([ran, gone])).toBe(ran);
+  });
+
+  it('does not take a note moved since — written down as moved — for the rule’s last run', () => {
+    const ran: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:00:00',
+      trigger: 'note',
+      done: [
+        {
+          kind: 'set',
+          path: p('Tasks/A.md'),
+          key: 'flagged',
+          before: { absent: true },
+          after: { value: true },
+        },
+      ],
+      left: [],
+      capped: false,
+    };
+    const followed: LogEntry = {
+      kind: 'run',
+      at: '2026-10-08T09:05:00',
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+      went: [p('Tasks/A.md')],
+      moved: [{ from: p('Tasks/A.md'), path: p('Tasks/2026/10/A.md'), digest: '1a2b3c4d' }],
+    };
+    expect(lastRunOf([ran, followed])).toBe(ran);
   });
 });

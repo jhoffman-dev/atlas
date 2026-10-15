@@ -31,6 +31,10 @@ async function open(page: Page, files: Record<string, string>): Promise<FakeVaul
   return vault;
 }
 
+/** A new meeting is made in the meeting type's home for today (#214). */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const NEW_MEETING = `Meetings/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}/New Meeting.md`;
+
 const properties = (page: Page) => page.getByRole('region', { name: 'Properties' });
 
 async function openNote(page: Page, name: string) {
@@ -144,16 +148,20 @@ test('a relation to several tasks, set up in the type editor, links two and keep
   await tasks.selectOption({ label: 'Write report' });
   // The add control stays, and offers what is not linked yet.
   await tasks.selectOption({ label: 'Book flights' });
-  await expectFile(vault, 'New Meeting.md').toMatch(
+  await expectFile(vault, NEW_MEETING).toMatch(
     /\ntasks:\n {2}- "\[\[Write report\]\]"\n {2}- "\[\[Book flights\]\]"\n/,
   );
 
   await openNote(page, 'Write report');
+  // Back to the meeting through the sidebar, down its home folder a level at a time.
+  for (const folder of NEW_MEETING.split('/').slice(0, -1)) {
+    await page.getByRole('treeitem', { name: folder, exact: true }).click();
+  }
   await openNote(page, 'New Meeting');
   const chips = properties(page).getByRole('list', { name: 'Tasks' }).getByRole('listitem');
   await expect(chips).toHaveText(['Write report', 'Book flights']);
 
   await properties(page).getByRole('button', { name: 'Remove Write report from Tasks' }).click();
-  await expectFile(vault, 'New Meeting.md').toMatch(/\ntasks:\n {2}- "\[\[Book flights\]\]"\n/);
+  await expectFile(vault, NEW_MEETING).toMatch(/\ntasks:\n {2}- "\[\[Book flights\]\]"\n/);
   await expect(chips).toHaveText(['Book flights']);
 });

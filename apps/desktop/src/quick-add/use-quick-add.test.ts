@@ -5,6 +5,7 @@ import { createVaultPath, type FabAnchor, type ObjectType } from '@atlas/domain'
 import { fakeVaultFs, type NoteTemplate } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { FabAnchorStore } from '@atlas/ui';
+import { localToday } from '../today.ts';
 import { useQuickAdd } from './use-quick-add.ts';
 import type { QuickAddSetting } from './use-quick-add-setting.ts';
 
@@ -33,6 +34,9 @@ const TASK: ObjectType = {
   ],
 };
 const PROJECT: ObjectType = { name: 'project', label: 'Project', properties: [] };
+/** Where a new task lands: its type's home folder for this month (#214). */
+const taskHome = () => `Tasks/${localToday().slice(0, 4)}/${localToday().slice(5, 7)}`;
+
 const TASK_TEMPLATE: NoteTemplate = {
   path: createVaultPath('.atlas/templates/Task.md'),
   name: 'Task',
@@ -118,18 +122,21 @@ describe('useQuickAdd', () => {
       }),
     );
 
-    expect(created[0]?.path).toBe('Plant bulbs.md');
+    expect(created[0]?.path).toBe(`${taskHome()}/Plant bulbs.md`);
     expect(created[0]?.contents).toContain('status: doing');
     expect(hide).toHaveBeenCalledWith('quick-add');
-    expect(onCreated).toHaveBeenCalledWith({ path: 'Plant bulbs.md', open: false });
-    expect(hook.result.current.added).toEqual({ label: 'Task', path: 'Plant bulbs.md' });
+    expect(onCreated).toHaveBeenCalledWith({ path: `${taskHome()}/Plant bulbs.md`, open: false });
+    expect(hook.result.current.added).toEqual({
+      label: 'Task',
+      path: `${taskHome()}/Plant bulbs.md`,
+    });
   });
 
   it('offers no toast when the note is opened instead', async () => {
     const { hook, onCreated } = setup();
     act(() => hook.result.current.pick('task'));
     await act(() => hook.result.current.add({ name: 'X', values: {}, open: true }));
-    expect(onCreated).toHaveBeenCalledWith({ path: 'X.md', open: true });
+    expect(onCreated).toHaveBeenCalledWith({ path: `${taskHome()}/X.md`, open: true });
     expect(hook.result.current.added).toBeNull();
   });
 

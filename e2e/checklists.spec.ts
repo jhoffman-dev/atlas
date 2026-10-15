@@ -41,6 +41,10 @@ const BOARD = [
   '',
 ].join('\n');
 
+// A promoted line is a task, made in the task type's home for today (#214).
+const TODAY = new Date().toLocaleDateString('en-CA');
+const [YEAR, MONTH] = [TODAY.slice(0, 4), TODAY.slice(5, 7)];
+
 const PLAN = note(
   ['type: task', 'status: in-progress', 'project: "[[Larkspur launch]]"'],
   [
@@ -93,7 +97,7 @@ test('promoting a line makes the task, links it back, and one Undo takes back bo
   await page.getByLabel('Note', { exact: true }).getByText('Order chairs', { exact: true }).click();
   await page.getByRole('button', { name: 'Make this line a task' }).click();
 
-  const made = 'tasks/Order chairs.md';
+  const made = `Tasks/${YEAR}/${MONTH}/Order chairs.md`;
   await expectFile(vault, made).toMatch(/source: "\[\[Plan the launch#\^[a-z0-9]{6}\]\]"/);
   const task = await vault.read(made);
   expect(task).toContain('type: task\n');

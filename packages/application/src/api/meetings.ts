@@ -79,7 +79,12 @@ function toApiMeeting(row: readonly unknown[]): ApiMeeting {
     kind: text(5),
     provider: text(6),
     externalId: text(7),
-    importOutcome: importStanding({ path, stamped: Boolean(row[11]), stamp: row[8] }),
+    importOutcome: importStanding({
+      path,
+      stamped: Boolean(row[11]),
+      stamp: row[8],
+      declared: Boolean(row[12]),
+    }),
     importError: text(9),
     duplicateOf: text(10),
   };

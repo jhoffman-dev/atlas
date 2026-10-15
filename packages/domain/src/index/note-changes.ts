@@ -1,6 +1,6 @@
 import { isArchiveMove } from '../archive/archive.ts';
 import { isProcessMove } from '../inbox/inbox.ts';
-import { isMeetingInboxPath, type ImportOutcome } from '../meetings/meeting-arrival.ts';
+import { isMeetingArrival, type ImportOutcome } from '../meetings/meeting-arrival.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 
 /**
@@ -18,6 +18,11 @@ export interface NoteVersion {
    * not in play until the import has let it in.
    */
   readonly importOutcome?: ImportOutcome;
+  /**
+   * It declares the meeting import's contract (`atlas_import`): where meeting
+   * files land, such a note is the import's until it is let in (#214).
+   */
+  readonly importDeclared?: true;
   /**
    * Where meeting files land only: this note's arrival has been heard, or is
    * not to be (#92). Set once the import has let it in; kept when its stamp is
@@ -71,7 +76,7 @@ export function noteChangesBetween(
         ...noteChange('changed', path, version),
         before: earlier.digest,
         ...(earlier.importOutcome !== undefined && { beforeImportOutcome: earlier.importOutcome }),
-        ...(isMeetingInboxPath(path) &&
+        ...(isMeetingArrival({ path, ...earlier }) &&
           arrivalHeardOf(earlier) && { beforeArrivalHeard: true as const }),
       });
     }
@@ -107,7 +112,7 @@ const arrivalHeardOf = (version: NoteVersion): boolean =>
   version.arrivalHeard === true || version.importOutcome === 'imported';
 
 function arrivalHeardAfter(change: NoteChange, arrived: ReadonlySet<string>): boolean {
-  if (!isMeetingInboxPath(change.path)) return false;
+  if (!isMeetingArrival(change)) return false;
   // A new file made where another was is a new note: it is heard when the import lets it in.
   if (change.kind === 'changed') {
     const heardBefore =
@@ -124,6 +129,8 @@ export interface UnpairedChanges {
   readonly arrived: ReadonlySet<string>;
   /** Paths a note left — deleted, moved, renamed or archived — whether or not a new one is there now. */
   readonly left: ReadonlySet<string>;
+  /** Each note that moved, renamed or was archived or put back: the change where it is now, by the path it left. */
+  readonly moved: ReadonlyMap<string, NoteChange>;
 }
 
 /**
@@ -156,12 +163,14 @@ export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges
   const arrived = new Set(changes.filter((change) => change.kind === 'added'));
   const left = new Set([...gone].map((change) => change.path));
   const renewed = new Set<string>();
+  const moved = new Map<string, NoteChange>();
   const pairOff = (pairs: (went: Departure, came: NoteChange) => boolean) => {
     for (const came of arrived) {
       const removed = [...gone].find((each) => pairs(each, came));
       if (removed !== undefined) {
         gone.delete(removed);
         arrived.delete(came);
+        moved.set(removed.path, came);
         continue;
       }
       const replaced = [...replaceable].find((each) => pairs(departureOf(each), came));
@@ -170,19 +179,23 @@ export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges
       arrived.delete(came);
       renewed.add(replaced.path);
       left.add(replaced.path);
+      moved.set(replaced.path, came);
     }
   };
   pairOff((went, came) => isArchiveMove(createVaultPath(went.path), createVaultPath(came.path)));
   pairOff((went, came) => isProcessMove(createVaultPath(went.path), createVaultPath(came.path)));
   pairOff((went, came) => went.digest === came.digest && nameOf(went.path) === nameOf(came.path));
   pairOff((went, came) => went.digest === came.digest);
-  return { arrived: new Set([...[...arrived].map((change) => change.path), ...renewed]), left };
+  return {
+    arrived: new Set([...[...arrived].map((change) => change.path), ...renewed]),
+    left,
+    moved,
+  };
 }
 
 /** Whether a changed note may be one a new note took the place of: see {@link unpairedChanges}. */
 const mayHaveBeenReplaced = (change: NoteChange): boolean =>
-  change.kind === 'changed' &&
-  !(isMeetingInboxPath(change.path) && change.importOutcome !== undefined);
+  change.kind === 'changed' && !(isMeetingArrival(change) && change.importOutcome !== undefined);
 
 /** A note that went from a path: its path, and its bytes as they were when known. */
 interface Departure {
@@ -208,6 +221,11 @@ function noteChange(kind: NoteChangeKind, path: string, version: NoteVersion): N
   return { kind, path, ...versionOf(version) };
 }
 
-function versionOf({ type, digest, importOutcome }: NoteVersion): NoteVersion {
-  return { type, digest, ...(importOutcome !== undefined && { importOutcome }) };
+function versionOf({ type, digest, importOutcome, importDeclared }: NoteVersion): NoteVersion {
+  return {
+    type,
+    digest,
+    ...(importOutcome !== undefined && { importOutcome }),
+    ...(importDeclared === true && { importDeclared }),
+  };
 }

@@ -37,6 +37,7 @@ import {
 import {
   carryOut,
   heldToTaskRules,
+  proposalHomeFolder,
   readLinkNote,
   takeBackAll,
   takenBack,
@@ -166,7 +167,16 @@ async function writeAccepted(
   const joins = relationChanged(proposal);
   const link = joins === null ? null : await readLinkNote(ports, joins);
   const heldTypes = await typesHeldAtNewNote(ports, { proposal, notePaths });
-  const applied = applyProposal(proposal, { notePaths, target: link?.target ?? null, heldTypes });
+  const homeFolder =
+    proposal.kind === 'link'
+      ? null
+      : await proposalHomeFolder(ports, { kind: proposal.kind, payload: proposal.payload, today });
+  const applied = applyProposal(proposal, {
+    notePaths,
+    target: link?.target ?? null,
+    heldTypes,
+    homeFolder,
+  });
   if (!applied.ok) throw new ProposalRefused(applied.problem);
 
   const ruled = applied.writes.map((write) => heldToTaskRules(ports, { write, link, today }));

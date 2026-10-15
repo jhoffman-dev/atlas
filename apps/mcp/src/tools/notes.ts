@@ -16,9 +16,10 @@ export const listNotes = defineTool({
   title: 'List notes',
   description:
     'List notes in the Atlas vault, optionally only those in a folder, of a type, or about a ' +
-    'day ("date": named for it, or with that "date" property, as a meeting is). Returns ' +
-    '{ notes: [{ path, title, type, modified }], next }. When "next" is not null, call again with ' +
-    'it as "cursor" for the next page. To find notes by their words, use atlas_search instead; to ' +
+    'day ("date": named for it, or with that "date" property, as a meeting is), a page at a time ' +
+    '(at most 500). Returns { notes: [{ path, title, type, modified }], next, total }: total is ' +
+    'how many match in all. When "next" is not null, call again with it as "cursor" for the next ' +
+    'page. To find notes by their words, use atlas_search instead; to ' +
     'filter by property values, use atlas_query.',
   inputSchema: z.object({
     folder: z.string().optional().describe('Vault-relative folder, e.g. "Projects".'),
@@ -128,11 +129,16 @@ export const backlinks = defineTool({
   name: 'atlas_backlinks',
   title: 'Backlinks',
   description:
-    'List the notes that link to this one, by [[wiki link]] or relation property. Returns ' +
-    '{ backlinks: [{ path, title, type, modified }] }.',
-  inputSchema: z.object({ path: notePath }),
+    'List the notes that link to this one, by [[wiki link]] or relation property, a page at a ' +
+    'time (at most 500). Returns { backlinks: [{ path, title, type, modified }], next, total }. ' +
+    'When "next" is not null, call again with it as "cursor" for the next page.',
+  inputSchema: z.object({
+    path: notePath,
+    limit: limit.optional(),
+    cursor: z.string().optional().describe('The "next" value from the previous page.'),
+  }),
   annotations: READ_ONLY,
-  call: (client, { path }) => client.backlinks(path),
+  call: (client, { path, ...page }) => client.backlinks(path, definedOnly(page)),
 });
 
 export const exportNote = defineTool({

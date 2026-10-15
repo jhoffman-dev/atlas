@@ -1,16 +1,19 @@
-import { useState, type ReactNode } from 'react';
 import { Popover } from '@base-ui/react/popover';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
+  comparesWholeValue,
   describeFilter,
   FILTER_OPERATORS,
   filterOperatorWords,
   filterValueFrom,
   operatorTakesValue,
+  type FilterChoice,
   type FilterOperator,
   type PropertyKind,
   type QueryFilter,
   type QuerySort,
 } from '@atlas/domain';
+import { FilterValueBox } from './filter-value-box.tsx';
 import { Icon, type IconName } from './icon.tsx';
 import type { OverlaySlot } from './overlay-slot.ts';
 
@@ -20,10 +23,17 @@ export interface ViewField {
   readonly label: string;
   /** The declared kind, which decides whether a typed filter value is a number. */
   readonly kind?: PropertyKind;
+  /** The values a filter on it offers (`filterChoices`): a status's options, a relation's notes. */
+  readonly choices?: readonly FilterChoice[];
 }
+
+const NO_CHOICES: readonly FilterChoice[] = [];
 
 const labelOf = (fields: readonly ViewField[], key: string) =>
   fields.find((field) => field.key === key)?.label ?? key;
+
+const choicesOf = (fields: readonly ViewField[], key: string) =>
+  fields.find((field) => field.key === key)?.choices ?? NO_CHOICES;
 
 /**
  * A toolbar button that opens a small panel under it. Focus and dismissal are
@@ -67,22 +77,35 @@ export function ToolbarPopover({
   );
 }
 
+/**
+ * Asks for a property's choices, which can be costly to gather (a relation's
+ * notes): called when a value box opens on it, or a filter on it is listed.
+ */
+export type WantChoices = (key: string) => void;
+
 /** What the view is filtered by, and a way to add to it. Each change redraws the view; saving it is the toolbar's. */
 export function FilterPopover({
   fields,
   filters,
   onChange,
+  onWantChoices,
   slot,
 }: {
   fields: readonly ViewField[];
   filters: readonly QueryFilter[];
   onChange: (filters: readonly QueryFilter[]) => void;
+  onWantChoices?: WantChoices | undefined;
   slot?: OverlaySlot | undefined;
 }) {
   return (
     <ToolbarPopover icon="filter" label="Filter" active={filters.length} slot={slot}>
       <p className="view-popover__title">Filters</p>
-      <FilterList fields={fields} filters={filters} onChange={onChange} />
+      <FilterList
+        fields={fields}
+        filters={filters}
+        onChange={onChange}
+        onWantChoices={onWantChoices}
+      />
     </ToolbarPopover>
   );
 }
@@ -96,14 +119,22 @@ export function FilterList({
   fields,
   filters,
   onChange,
+  onWantChoices,
   empty = 'Nothing filtered: every note of the type is here.',
 }: {
   fields: readonly ViewField[];
   filters: readonly QueryFilter[];
   onChange: (filters: readonly QueryFilter[]) => void;
+  /** Given when choices are gathered only once wanted. */
+  onWantChoices?: WantChoices | undefined;
   /** What an empty list says. */
   empty?: string;
 }) {
+  // Each filter reads by its choice's label: "Project is Larkspur launch".
+  useEffect(() => {
+    for (const filter of filters) onWantChoices?.(filter.key);
+  }, [filters, onWantChoices]);
+
   return (
     <>
       {filters.length === 0 ? (
@@ -111,7 +142,11 @@ export function FilterList({
       ) : (
         <ul className="view-popover__list">
           {filters.map((filter, at) => {
-            const sentence = describeFilter({ filter, label: labelOf(fields, filter.key) });
+            const sentence = describeFilter({
+              filter,
+              label: labelOf(fields, filter.key),
+              choices: choicesOf(fields, filter.key),
+            });
             return (
               <li key={`${filter.key}-${at}`} className="view-popover__row">
                 <span className="view-popover__text">{sentence}</span>
@@ -124,7 +159,11 @@ export function FilterList({
           })}
         </ul>
       )}
-      <AddFilter fields={fields} onAdd={(filter) => onChange([...filters, filter])} />
+      <AddFilter
+        fields={fields}
+        onAdd={(filter) => onChange([...filters, filter])}
+        onWantChoices={onWantChoices}
+      />
     </>
   );
 }
@@ -132,16 +171,30 @@ export function FilterList({
 function AddFilter({
   fields,
   onAdd,
+  onWantChoices,
 }: {
   fields: readonly ViewField[];
   onAdd: (filter: QueryFilter) => void;
+  onWantChoices: WantChoices | undefined;
 }) {
   const [key, setKey] = useState(fields[0]?.key ?? '');
   const [operator, setOperator] = useState<FilterOperator>('is');
   const [typed, setTyped] = useState('');
+  // The choice last picked, while the box still reads as it: two notes can share a title.
+  const [picked, setPicked] = useState<FilterChoice | null>(null);
+  const field = fields.find((candidate) => candidate.key === key);
+  const choices = field?.choices ?? NO_CHOICES;
   const takesValue = operatorTakesValue(operator);
-  const value = filterValueFrom(typed, fields.find((field) => field.key === key)?.kind);
+  // A text search looks for the words as typed, not for a picked note's link.
+  const value =
+    picked !== null && picked.label === typed && comparesWholeValue(operator)
+      ? picked.value
+      : filterValueFrom(typed, field?.kind, choices, operator);
   const ready = key !== '' && (!takesValue || value !== null);
+  const retype = (next: string) => {
+    setTyped(next);
+    setPicked(null);
+  };
 
   return (
     <form
@@ -150,10 +203,18 @@ function AddFilter({
         event.preventDefault();
         if (!ready) return;
         onAdd(takesValue ? { key, operator, value } : { key, operator });
-        setTyped('');
+        retype('');
       }}
     >
-      <select aria-label="Property" value={key} onChange={(event) => setKey(event.target.value)}>
+      <select
+        aria-label="Property"
+        value={key}
+        onChange={(event) => {
+          setKey(event.target.value);
+          // A value of one property means nothing for another.
+          retype('');
+        }}
+      >
         {fields.map((field) => (
           <option key={field.key} value={field.key}>
             {field.label}
@@ -172,11 +233,16 @@ function AddFilter({
         ))}
       </select>
       {takesValue && (
-        <input
-          aria-label="Value"
-          placeholder="Value"
-          value={typed}
-          onChange={(event) => setTyped(event.target.value)}
+        <FilterValueBox
+          kind={field?.kind}
+          choices={choices}
+          typed={typed}
+          onOpen={() => onWantChoices?.(key)}
+          onType={retype}
+          onPick={(choice) => {
+            setTyped(choice.label);
+            setPicked(choice);
+          }}
         />
       )}
       <button type="submit" className="view-popover__submit" disabled={!ready}>

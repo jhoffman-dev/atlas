@@ -37,12 +37,12 @@ describe('POST /v1/inbox/clarify', () => {
 
     expect(response.status).toBe(200);
     expect(bodyOf(response)).toEqual({
-      path: 'Projects/Atlas/Call Sam.md',
+      path: 'Tasks/2026/09/Call Sam.md',
       movedFrom: 'Inbox/Call Sam.md',
       failed: [],
       linksUpdated: 0,
     });
-    expect(api.files.get('Projects/Atlas/Call Sam.md')?.text).toBe(
+    expect(api.files.get('Tasks/2026/09/Call Sam.md')?.text).toBe(
       '---\ntype: task\nstatus: waiting\nwaiting_on: [[Mara Quill]]\nproject: [[Atlas]]\n---\n\nAbout the  *lease*.\n',
     );
     expect(api.files.has('Inbox/Call Sam.md')).toBe(false);

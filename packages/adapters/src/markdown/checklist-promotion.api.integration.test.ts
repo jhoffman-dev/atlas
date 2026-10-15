@@ -52,12 +52,12 @@ const noteOf = (response: ApiResponse, key: 'note' | 'task') =>
   bodyOf(response)[key] as { path: string; body: string; properties: Record<string, unknown> };
 
 describe('POST /v1/notes/{path}/promote', () => {
-  it('makes the line a task beside its note, linked both ways, and answers both', async () => {
+  it('makes the line a task in Tasks/<year>/<month> as the vault spells it, linked both ways, and answers both', async () => {
     const api = vault();
     const response = await api.send(promote({ text: 'Ring Mara Quill' }));
     expect(response.status).toBe(201);
     const task = noteOf(response, 'task');
-    expect(task.path).toBe('tasks/Ring Mara Quill.md');
+    expect(task.path).toBe('tasks/2026/09/Ring Mara Quill.md');
     expect(task.properties).toMatchObject({ type: 'task', status: 'inbox' });
     expect(String(task.properties['source'])).toMatch(/^\[\[Plan the launch#\^[a-z0-9]{6}\]\]$/);
     const id = /\^([a-z0-9]{6})/.exec(String(task.properties['source']))?.[1] ?? '';

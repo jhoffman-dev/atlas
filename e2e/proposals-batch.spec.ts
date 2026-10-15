@@ -36,6 +36,10 @@ const proposal = (title: string) =>
     '',
   ].join('\n');
 
+/** An accepted task is made in the task type's home for today (#214). */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const TASKS = `Tasks/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}`;
+
 const TITLES = ['Call Larkspur Payroll', 'Send Tobias the file', 'Book the room', 'Draft the memo'];
 
 async function openProposals(page: Page): Promise<FakeVault> {
@@ -82,7 +86,7 @@ test('a run chosen with Shift-click is accepted together, and one Undo takes it 
   const notice = page.getByRole('status').filter({ hasText: 'Accepted 3 proposals.' });
   await expect(notice).toBeVisible();
   for (const title of run) {
-    await expectFile(vault, `${title}.md`).toContain('type: task');
+    await expectFile(vault, `${TASKS}/${title}.md`).toContain('type: task');
     await expectFile(vault, `Archive/Inbox/Proposals/${title}.md`).toContain('state: accepted');
   }
 
@@ -93,7 +97,8 @@ test('a run chosen with Shift-click is accepted together, and one Undo takes it 
   ).toBeVisible();
   await expect(cards(page)).toHaveCount(4);
   for (const title of run) {
-    await expect.poll(() => vault.exists(`${title}.md`)).toBe(false);
+    await expect.poll(() => vault.exists(`${TASKS}/${title}.md`)).toBe(false);
+    expect(await vault.exists(`${title}.md`)).toBe(false);
     await expectFile(vault, `Inbox/Proposals/${title}.md`).toContain('state: open');
   }
 });
@@ -112,5 +117,6 @@ test('Select all, then Reject, files every one in the Archive as rejected (#168)
   for (const title of TITLES) {
     await expectFile(vault, `Archive/Inbox/Proposals/${title}.md`).toContain('state: rejected');
     expect(await vault.exists(`${title}.md`)).toBe(false);
+    expect(await vault.exists(`${TASKS}/${title}.md`)).toBe(false);
   }
 });

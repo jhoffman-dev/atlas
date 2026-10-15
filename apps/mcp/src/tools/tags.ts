@@ -34,7 +34,7 @@ export const taggedNotes = defineTool({
   title: 'Notes with a tag',
   description:
     'The notes using a tag or any tag nested under it, in path order: ' +
-    '{ tag, notes: [{ path, title, uses }], next }. When "next" is not null, call again with it ' +
+    '{ tag, notes: [{ path, title, uses }], next, total }, at most 500 a page. When "next" is not null, call again with it ' +
     'as "cursor" for the next page. Fails with "not_found" when no note uses the tag.',
   inputSchema: z.object({
     tag,

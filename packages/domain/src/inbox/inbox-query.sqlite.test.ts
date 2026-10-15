@@ -268,3 +268,73 @@ describe('compileInboxQuery — tasks, wherever they live', () => {
     });
   });
 });
+
+// #214: a meeting waits by what it says, wherever it lives — its month's folder, say.
+describe('compileInboxQuery — meetings by their import state (#214)', () => {
+  const contract = ['atlas_import', 'meeting/v1'] as const;
+  const letIn = ['atlas_import_outcome', 'imported'] as const;
+  const meetings = inboxIndex([
+    {
+      path: 'Meetings/2026/10/2026-10-06 Standup.md',
+      title: 'Standup',
+      modified: 9,
+      type: 'meeting',
+      props: [contract, letIn],
+    },
+    {
+      path: 'Meetings/2026/10/2026-10-07 Arriving.md',
+      title: 'Arriving',
+      modified: 8,
+      type: 'meeting',
+      props: [contract],
+    },
+    {
+      path: 'Meetings/2026/10/2026-10-05 Filed.md',
+      title: 'Filed',
+      modified: 7,
+      type: 'meeting',
+      props: [contract, letIn, ['project', '[[Atlas]]']],
+    },
+    {
+      path: 'Meetings/2026/10/By hand.md',
+      title: 'By hand',
+      modified: 6,
+      type: 'meeting',
+    },
+    {
+      path: 'Projects/Atlas/Moved by hand.md',
+      title: 'Moved by hand',
+      modified: 5,
+      type: 'meeting',
+      props: [contract, letIn],
+    },
+    {
+      path: 'Meetings/From Notion/Filed from the start.md',
+      title: 'Filed from the start',
+      modified: 4,
+      type: 'meeting',
+      props: [contract],
+    },
+    {
+      path: 'Archive/Meetings/2026/10/Copy.md',
+      title: 'Copy',
+      modified: 3,
+      type: 'meeting',
+      props: [contract, ['atlas_import_outcome', 'duplicate']],
+    },
+  ]);
+
+  it('lists every meeting the import brought in that is not filed under a project, wherever it is', () => {
+    expect(meetings().map((row) => row['path'])).toEqual([
+      'Meetings/2026/10/2026-10-06 Standup.md',
+      'Meetings/2026/10/2026-10-07 Arriving.md',
+      'Projects/Atlas/Moved by hand.md',
+    ]);
+    expect(meetings.count()).toEqual([{ total: 3 }]);
+  });
+
+  it('says which of them declare the import’s contract, so a waiting one reads as pending', () => {
+    const arriving = meetings().find((row) => row['title'] === 'Arriving');
+    expect(arriving).toMatchObject({ importStamped: 0, importDeclared: 1 });
+  });
+});

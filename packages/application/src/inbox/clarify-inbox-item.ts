@@ -66,7 +66,9 @@ export interface ClarifyRequest {
  * Clarifies one note waiting in the Inbox (#112): everything its row decided
  * — status, who it waits on, defer, due, contexts — is written in one
  * byte-preserving save held to the task rules, and a note in the `Inbox`
- * folder given a project is then filed under it, as Process files it.
+ * folder given a project is then filed under it, as Process files it: out to
+ * its home folder, linked (#214). A task or a meeting elsewhere given a
+ * project is only linked, where it is.
  *
  * Everything is judged before anything is written: a refusal — a project
  * that cannot be filed under, a person who is not one — throws {@link ClarifyRefusedError} and leaves the vault as it
@@ -107,6 +109,7 @@ export async function clarifyInboxItem(request: ClarifyRequest): Promise<Clarify
           paths: [path],
           notePaths,
           project: plan.fileUnder,
+          today,
           updateLinks: true,
           unsavedTyping,
         });

@@ -3,8 +3,8 @@ import {
   importErrorText,
   joinVaultPath,
   mapMeeting,
-  MEETING_INBOX,
   MeetingMappingError,
+  parentVaultPath,
   vaultPathName,
   type MappingOptions,
   type MeetingFields,
@@ -16,7 +16,7 @@ import { ensureFolder } from '../vault/create-folder.ts';
 import { holdingAt, meetingHoldersIn, type HolderPorts } from './meeting-files.ts';
 import { validateMeetingFile } from './meeting-reading.ts';
 
-/** What became of a meeting sent from outside: written into the Inbox, or already in the vault. */
+/** What became of a meeting sent from outside: written into its month's folder, or already in the vault. */
 export interface MeetingReceipt {
   /** The new file's path, or the note that already holds the meeting. */
   readonly path: VaultPath;
@@ -30,9 +30,9 @@ export class MeetingPathsTakenError extends Error {
 
 /**
  * Takes in a meeting another program sends (#93): mapped by the rules n8n's
- * workflow maps by, checked against meeting/v1, and written into
- * `Inbox/Meetings/`, where the import settles it as it settles any arrival
- * (P28-04) — this writes no stamp of its own.
+ * workflow maps by, checked against meeting/v1, and written into its month's
+ * folder, `Meetings/2026/10/` (#214), where the import settles it as it
+ * settles any arrival (P28-04) — this writes no stamp of its own.
  *
  * A meeting the vault already holds, by the import's own rule, is not
  * written again. The index lags what was written a moment ago, so a file
@@ -56,7 +56,8 @@ export async function receiveMeeting({
   const file = checkedMeeting(ports, mapMeeting(fields, options));
   const held = await heldInVault(ports, file);
   if (held !== null) return { path: held, outcome: 'in-vault' };
-  const folder = await ensureFolder({ fs: ports.fs, folder: createVaultPath(MEETING_INBOX) });
+  const month = parentVaultPath(createVaultPath(file.path));
+  const folder = await ensureFolder({ fs: ports.fs, folder: month });
   for (const path of [file.path, file.collisionPath]) {
     const placed = joinVaultPath(folder, vaultPathName(createVaultPath(path)));
     const receipt = await writeUnlessTaken(ports, { path: placed, file });

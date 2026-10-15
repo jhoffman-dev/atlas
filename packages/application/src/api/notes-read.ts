@@ -15,17 +15,24 @@ import { notePathOf, readNote, summariesOf, toApiNote } from './note-io.ts';
 import { folderFrom, isApiNotePath } from './paths.ts';
 import type { RouteResult, VaultRequest } from './vault-request.ts';
 
-const PAGE = { fallback: 100, max: 500 };
+/**
+ * How many notes one page of a list holds: every list of notes the API
+ * answers is paged and capped, with how many there are in all (#214), so a
+ * caller — Claude in the chat, an MCP client — never reads a whole folder
+ * of thousands in one answer.
+ */
+export const NOTE_PAGE = { fallback: 100, max: 500 };
 
 /**
- * A page of notes, in path order, with a cursor for the next page.
+ * A page of notes, in path order, with a cursor for the next page and how
+ * many match in all.
  *
  * Paged by the last path handed out rather than by position, so a note created
  * or removed between two pages moves nothing that has not been read yet.
  */
 export async function listNotes(request: VaultRequest): Promise<RouteResult> {
   const { query } = request;
-  const limit = countOf(query['limit'], { field: 'limit', ...PAGE });
+  const limit = countOf(query['limit'], { field: 'limit', ...NOTE_PAGE });
   const inFolder = folderFilter(query['folder']);
   const ofType = await typeFilter(request, query['type']);
   const onDay = await dayFilter(request, query['date']);
@@ -39,7 +46,10 @@ export async function listNotes(request: VaultRequest): Promise<RouteResult> {
     cursor: query['cursor'],
     limit,
   });
-  return { status: 200, body: { notes: await summariesOf(request, page), next } };
+  return {
+    status: 200,
+    body: { notes: await summariesOf(request, page), next, total: notes.length },
+  };
 }
 
 export async function readNoteRoute(request: VaultRequest): Promise<RouteResult> {
@@ -70,11 +80,30 @@ async function notFoundWithNearest(
   );
 }
 
+/**
+ * A page of the notes that link to this one, in path order, with a cursor and
+ * how many link in all: a note everything links to has thousands (#214).
+ */
 export async function backlinksRoute(request: VaultRequest): Promise<RouteResult> {
+  const { query } = request;
+  const limit = countOf(query['limit'], { field: 'limit', ...NOTE_PAGE });
   const path = await notePathOf(request);
   await readNote(request, path);
-  const linking = (await request.index.backlinks(path)).map(createVaultPath).filter(isApiNotePath);
-  return { status: 200, body: { backlinks: await summariesOf(request, linking) } };
+  // The index may still hold a note that has gone since: it is not counted, nor listed.
+  const there = new Set<string>(await listVaultNotes({ fs: request.fs }));
+  const linking = (await request.index.backlinks(path))
+    .map(createVaultPath)
+    .filter((each) => isApiNotePath(each) && there.has(each));
+  const { page, next } = pageAfter({
+    items: linking,
+    pathOf: (each) => each,
+    cursor: query['cursor'],
+    limit,
+  });
+  return {
+    status: 200,
+    body: { backlinks: await summariesOf(request, page), next, total: linking.length },
+  };
 }
 
 function folderFilter(raw: string | undefined): (path: VaultPath) => boolean {

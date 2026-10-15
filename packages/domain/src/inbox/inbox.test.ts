@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import {
   filedUnderStamp,
-  filingFolder,
   filingRefusal,
   inboxItem,
   isInInbox,
@@ -104,73 +103,40 @@ describe('filingRefusal', () => {
   });
 });
 
-describe('filing under a project whose folder is somewhere a note cannot stay filed', () => {
-  it.each([
-    ['Inbox.md', 'the Inbox'],
-    ['INBOX.md', 'the Inbox'],
-    ['Archive.md', 'the Archive'],
-    ['archive.md', 'the Archive'],
-  ])('refuses %s, whose folder is %s', (at, place) => {
-    expect(filingRefusal({ path: path(at), type: 'project' })).toContain(`Its folder is ${place}`);
-  });
+// #214: filing only links, so a project's own folder no longer matters.
+describe('filing under a project wherever its note is kept', () => {
+  it.each([['Inbox.md'], ['Archive.md'], ['node_modules.md'], ['Projects/Inbox.md']])(
+    'files under a project at %s: nothing lands in its folder',
+    (at) => {
+      expect(filingRefusal({ path: path(at), type: 'project' })).toBeNull();
+    },
+  );
 
-  it('refuses one whose folder Atlas hides', () => {
-    expect(filingRefusal({ path: path('node_modules.md'), type: 'area' })).toBe(
-      'Its folder is one Atlas does not show.',
-    );
-  });
-
-  it('files under a project merely named like those folders, elsewhere', () => {
-    expect(filingRefusal({ path: path('Projects/Inbox.md'), type: 'project' })).toBeNull();
-    expect(filingRefusal({ path: path('Areas/Archive.md'), type: 'area' })).toBeNull();
-  });
-});
-
-describe('filing under a project kept deep in the vault', () => {
-  it('refuses one whose folder would be deeper than the vault is read', () => {
-    const folders = (count: number) => Array.from({ length: count }, (_, at) => `f${at}`).join('/');
-    expect(filingRefusal({ path: path(`${folders(32)}/Deep.md`), type: 'project' })).toContain(
-      'too many folders deep',
-    );
-    expect(filingRefusal({ path: path(`${folders(31)}/Deep.md`), type: 'project' })).toBeNull();
-  });
-});
-
-describe('filingFolder', () => {
-  it('is a folder named as the project, beside its note', () => {
-    expect(filingFolder(path('Projects/Atlas.md'))).toBe('Projects/Atlas');
-    expect(filingFolder(path('Garden.md'))).toBe('Garden');
-  });
-
-  it('is the project’s own folder in any case, as the disk compares names', () => {
-    expect(filingFolder(path('Areas/HOME/home.md'))).toBe('Areas/HOME');
-  });
-
-  it('is the project’s own folder when the project is that folder’s note', () => {
-    expect(filingFolder(path('Projects/Atlas/Atlas.md'))).toBe('Projects/Atlas');
-    expect(filingFolder(path('Areas/home/Home.md'))).toBe('Areas/home');
+  it('files under a project kept deeper than the vault is read for a note filed beside it', () => {
+    const folders = Array.from({ length: 32 }, (_, at) => `f${at}`).join('/');
+    expect(filingRefusal({ path: path(`${folders}/Deep.md`), type: 'project' })).toBeNull();
   });
 });
 
 describe('processDestination', () => {
-  it('files the note under the project by its own name, leaving the Inbox folders behind', () => {
+  it('files a note out of the Inbox into its home folder by its own name, leaving the Inbox folders behind', () => {
     expect(
       processDestination({
         path: path('Inbox/Meetings/2026-10-01 Standup.md'),
-        project: path('Projects/Atlas.md'),
+        folder: path('Meetings/2026/10'),
         taken: new Set(),
       }),
-    ).toBe('Projects/Atlas/2026-10-01 Standup.md');
+    ).toBe('Meetings/2026/10/2026-10-01 Standup.md');
   });
 
-  it('numbers it when the project already has a note of that name', () => {
+  it('numbers it when its home folder already has a note of that name', () => {
     expect(
       processDestination({
         path: path('Inbox/Notes.md'),
-        project: path('Projects/Atlas.md'),
-        taken: new Set(['projects/atlas/notes.md']),
+        folder: path('Notes/2026'),
+        taken: new Set(['notes/2026/notes.md']),
       }),
-    ).toBe('Projects/Atlas/Notes 2.md');
+    ).toBe('Notes/2026/Notes 2.md');
   });
 });
 

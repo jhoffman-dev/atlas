@@ -73,6 +73,11 @@ export interface ObjectType {
   readonly properties: readonly PropertyDef[];
   /** The glyph the type chose for itself; without one it is guessed from the name. */
   readonly icon?: SidebarIcon;
+  /**
+   * Where its notes live, as the type file writes it — `Tasks/{YYYY}/{MM}` —
+   * when it says; blank when it says they have no home (#214).
+   */
+  readonly folder?: string;
 }
 
 export class InvalidTypeError extends Error {
@@ -111,12 +116,26 @@ export function parseObjectType(frontmatter: Record<string, unknown>): ObjectTyp
   }
 
   const icon = TYPE_ICONS.find((candidate) => candidate === frontmatter['icon']);
+  const folder = parseFolder(frontmatter);
   return {
     name,
     label: String(frontmatter['label'] ?? name),
     properties,
     ...(icon !== undefined && { icon }),
+    ...(folder !== null && { folder }),
   };
+}
+
+/**
+ * The type's `folder:` as text: a key written with nothing in it is blank —
+ * the type has no home — and one holding anything but text is left unread,
+ * so the type keeps the folder it would have had without it.
+ */
+function parseFolder(frontmatter: Record<string, unknown>): string | null {
+  if (!Object.hasOwn(frontmatter, 'folder')) return null;
+  const folder = frontmatter['folder'];
+  if (folder === null) return '';
+  return typeof folder === 'string' ? folder.trim() : null;
 }
 
 function parseProperty(key: string, raw: unknown): PropertyDef | null {

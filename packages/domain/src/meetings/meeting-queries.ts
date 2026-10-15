@@ -2,9 +2,11 @@ import { outsideArchiveSql } from '../archive/archive.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import {
   DUPLICATE_OF_KEY,
+  IMPORT_CONTRACT_KEY,
   IMPORT_ERROR_KEY,
   IMPORT_OUTCOME_KEY,
   importOutcomeOf,
+  meetingLandingSql,
   type ImportOutcome,
 } from './meeting-arrival.ts';
 import { MEETING_TYPE } from './meeting-header.ts';
@@ -63,10 +65,28 @@ export function compileImportOutcomesQuery(page = 0): CompiledQuery {
   return {
     sql: [
       `${MEETING_QUERY_MARK} SELECT path, value_text FROM props`,
-      `WHERE key = ? AND lower(path) LIKE 'inbox/meetings/%'`,
+      `WHERE key = ? AND ${meetingLandingSql('path')}`,
       `ORDER BY path, idx LIMIT ? OFFSET ?`,
     ].join('\n'),
     parameters: [IMPORT_OUTCOME_KEY, IMPORT_OUTCOMES_PAGE, page * IMPORT_OUTCOMES_PAGE],
+  };
+}
+
+/**
+ * One page of the notes where meeting files land that declare the import's
+ * contract (`atlas_import`), by path: which of them are the import's, which
+ * the manifest does not say either (#214). Paged as
+ * {@link compileImportOutcomesQuery} is; each row is one path.
+ */
+export function compileImportDeclarationsQuery(page = 0): CompiledQuery {
+  return {
+    sql: [
+      `${MEETING_QUERY_MARK} SELECT DISTINCT path FROM props`,
+      `WHERE key = ? AND trim(coalesce(value_text, value_json, '')) <> ''`,
+      `  AND ${meetingLandingSql('path')}`,
+      `ORDER BY path LIMIT ? OFFSET ?`,
+    ].join('\n'),
+    parameters: [IMPORT_CONTRACT_KEY, IMPORT_OUTCOMES_PAGE, page * IMPORT_OUTCOMES_PAGE],
   };
 }
 
@@ -100,6 +120,7 @@ export const MEETING_LIST_COLUMNS = [
   IMPORT_ERROR_KEY,
   DUPLICATE_OF_KEY,
   'stamped',
+  'declared',
 ] as const;
 
 /** The most meetings one page lists. */
@@ -128,9 +149,11 @@ export function compileMeetingListQuery({
   const columns = [
     `files.path AS "path"`,
     `${title} AS "title"`,
-    ...MEETING_LIST_COLUMNS.slice(2, -1).map((key) => `${valueOf(key)} AS "${key}"`),
+    ...MEETING_LIST_COLUMNS.slice(2, -2).map((key) => `${valueOf(key)} AS "${key}"`),
     // Whether the import stamped it at all: a stamp with its value cleared is a stamp still.
     `EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND p.key = '${IMPORT_OUTCOME_KEY}') AS "stamped"`,
+    // Whether it declares the import's contract, which makes an unstamped one the import's (#214).
+    `EXISTS (SELECT 1 FROM props AS p WHERE p.path = files.path AND p.key = '${IMPORT_CONTRACT_KEY}' AND trim(coalesce(p.value_text, p.value_json, '')) <> '') AS "declared"`,
   ];
   const conditions = [
     `(${IS_MEETING} OR files.path IN (SELECT path FROM props WHERE key = ?))`,

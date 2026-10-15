@@ -44,7 +44,7 @@ function memoryFs(files: Record<string, string>) {
 }
 
 describe('createRelatedNote — "New company" in a relation picker (issue #15)', () => {
-  it('makes a new note of the type from its template, at the root, named as typed', async () => {
+  it('makes a new note of the type from its template, in its home folder, named as typed', async () => {
     const vault = memoryFs({
       '.atlas/templates/Company.md': COMPANY_TEMPLATE,
       'Sam Rivera.md': '---\ntype: person\n---\n',
@@ -60,8 +60,8 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
       notePaths: vault.notePaths(),
     });
 
-    expect(made).toEqual({ path: 'Larkspur Payroll.md', target: 'Larkspur Payroll' });
-    const contents = vault.store.get('Larkspur Payroll.md') ?? '';
+    expect(made).toEqual({ path: 'Companies/Larkspur Payroll.md', target: 'Larkspur Payroll' });
+    const contents = vault.store.get('Companies/Larkspur Payroll.md') ?? '';
     expect(contents).toContain('type: company');
     expect(contents).toContain('## About');
     // The template is where it was, as it was.
@@ -71,7 +71,7 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
   it('numbers a name that is taken, and links the note it made', async () => {
     const vault = memoryFs({
       '.atlas/templates/Company.md': COMPANY_TEMPLATE,
-      'Acme.md': '---\ntype: company\n---\n',
+      'Companies/Acme.md': '---\ntype: company\n---\n',
     });
 
     const made = await createRelatedNote({
@@ -84,11 +84,11 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
       notePaths: vault.notePaths(),
     });
 
-    expect(made).toEqual({ path: 'Acme 2.md', target: 'Acme 2' });
-    expect(vault.store.get('Acme.md')).toBe('---\ntype: company\n---\n');
+    expect(made).toEqual({ path: 'Companies/Acme 2.md', target: 'Acme 2' });
+    expect(vault.store.get('Companies/Acme.md')).toBe('---\ntype: company\n---\n');
   });
 
-  it('makes the note at the root even when the note in view is a template', async () => {
+  it('makes the note in its home folder even when the note in view is a template', async () => {
     const vault = memoryFs({ '.atlas/templates/Person.md': '---\ntype: person\n---\n' });
 
     const made = await createRelatedNote({
@@ -101,8 +101,8 @@ describe('createRelatedNote — "New company" in a relation picker (issue #15)',
       notePaths: vault.notePaths(),
     });
 
-    expect(made.path).toBe('Larkspur Payroll.md');
-    expect(vault.store.get('Larkspur Payroll.md')).toContain('type: company');
+    expect(made.path).toBe('Companies/Larkspur Payroll.md');
+    expect(vault.store.get('Companies/Larkspur Payroll.md')).toContain('type: company');
   });
 
   it('refuses an empty name rather than making "Untitled"', async () => {

@@ -14,6 +14,10 @@ import { useSavedView } from './use-saved-view.ts';
 import { useViewDrafts } from './use-view-drafts.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory, type TickMemory } from './tick-memory.ts';
+import { localToday } from '../today.ts';
+
+/** Where a new task lands: its type's home folder for this month (#214). */
+const taskHome = () => `Tasks/${localToday().slice(0, 4)}/${localToday().slice(5, 7)}`;
 
 /** Where the hooks under test record what they give up on; these tests do not read it. */
 const ACTIVITY = recordingActivity();
@@ -358,7 +362,7 @@ describe('a view adding a note of its type', () => {
       path = await view.result.current.addNote();
     });
 
-    expect(path).toBe('New task.md');
+    expect(path).toBe(`${taskHome()}/New task.md`);
     expect(created).toHaveLength(1);
     expect(created[0]?.contents).toContain('type: task');
     expect(created[0]?.contents).toContain('status: backlog');
@@ -381,7 +385,8 @@ describe('a view adding a note of its type', () => {
       await settle();
     });
 
-    expect(created.map((note) => note.path)).toEqual(['Standup.md']);
+    // A due day is not the note's `date`, so it is filed by the day it was made.
+    expect(created.map((note) => note.path)).toEqual([`${taskHome()}/Standup.md`]);
     expect(created[0]?.contents).toMatch(/due: '?2026-09-22T14:30'?/);
     expect(created[0]?.contents).toContain('type: task');
     // Not filed in a board column: it was added on a day, not in a column.

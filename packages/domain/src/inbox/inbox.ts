@@ -14,11 +14,14 @@ import {
 } from '../gtd/gtd-status.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
 import {
+  IMPORT_CONTRACT_KEY,
   IMPORT_ERROR_KEY,
   IMPORT_OUTCOME_KEY,
   importStanding,
+  meetingLandingSql,
   type ImportOutcome,
 } from '../meetings/meeting-arrival.ts';
+import { isMeetingType } from '../meetings/meeting-header.ts';
 import { PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import { waitingOnNames } from '../review/review-query.ts';
@@ -30,21 +33,15 @@ import {
   joinVaultPath,
   parentVaultPath,
   vaultPathName,
-  VAULT_ROOT,
   type VaultPath,
 } from '../vault/vault-path.ts';
-import { foldedVaultPath } from '../vault/vault-spelling.ts';
-import {
-  isAtlasNote,
-  isUserSpaceNote,
-  isWithinWalk,
-  userSpaceNoteSql,
-} from '../vault/vault-visibility.ts';
+import { isAtlasNote, userSpaceNoteSql } from '../vault/vault-visibility.ts';
 
 /**
- * Where everything arrives before it is processed: a folder at the root of
- * the vault. Captured tasks land in it, imported meetings in `Inbox/Meetings`
- * (ADR-0027); processing files each one under a project or an area (P30-01).
+ * Where everything captured arrives before it is processed: a folder at the
+ * root of the vault. Captured tasks land in it; processing files each one
+ * under a project or an area (P30-01). An imported meeting arrives in its
+ * month's folder and waits by what it says, not where it is (#214).
  */
 export const INBOX_DIRECTORY = 'Inbox';
 
@@ -131,6 +128,7 @@ export const INBOX_QUERY_COLUMNS = [
   'defer',
   'due',
   'modified',
+  'importDeclared',
 ] as const;
 
 /**
@@ -187,6 +185,10 @@ const CLARIFIED = GTD_STATUSES.filter((status) => status !== NEW_TASK_STATUS)
 const noStatus = (column: string) =>
   `NOT EXISTS (SELECT 1 FROM props AS p WHERE p.path = ${column} AND +p.key = '${TASK_KEYS.status}' AND trim(coalesce(p.value_text, p.value_json, '')) <> '')`;
 
+/** The note at `column` holds something under `key`: an item with anything in it. */
+const holds = (column: string, key: string) =>
+  `EXISTS (SELECT 1 FROM props AS p WHERE p.path = ${column} AND +p.key = '${key}' AND trim(coalesce(p.value_text, p.value_json, '')) <> '')`;
+
 /** In use, and not already counted by the folder: outside `Inbox/` and the Archive. */
 const elsewhere = (column: string) =>
   `NOT ${inInboxFolder(column)} AND ${outsideArchiveSql(column)}`;
@@ -194,9 +196,13 @@ const elsewhere = (column: string) =>
 /**
  * The paths that wait, as the arms of a UNION (#112), each starting from the
  * rows that can qualify so the statement costs what it lists, not what the
- * vault holds. Always: every note in the `Inbox` folder, and every task in
+ * vault holds. Always: every note in the `Inbox` folder, every task in
  * use whose status is Inbox wherever it lives — imported into `Tasks/`, say
- * — found from the `status` rows that say so. Once the vault's tasks start
+ * — found from the `status` rows that say so, and every meeting the import
+ * brought in — it declares `atlas_import`, and the import stamped it or it is
+ * arriving in its month's folder — that is not filed under a project yet,
+ * wherever it lives (#214). One filed from the start, unstamped outside where
+ * meeting files land, never waited. Once the vault's tasks start
  * in the Inbox (`tasksStartInInbox`), status is what says a task was
  * clarified: one in the folder that was given another GTD status has left,
  * with or without a project, and one outside it with no status at all — an
@@ -222,7 +228,18 @@ function waitingArms(tasksStartInInbox: boolean): string[] {
     `  AND ${elsewhere('ty.path')}`,
     `  AND ${noStatus('ty.path')}`,
   ].join('\n');
-  return tasksStartInInbox ? [inFolder, atInbox, withNoStatus] : [inFolder, atInbox];
+  // A meeting the import brought in — stamped by it, or arriving in its month — waits
+  // wherever it lives until it is filed under a project (#214).
+  const meetingToFile = [
+    `SELECT m.path FROM props AS m WHERE m.key = '${IMPORT_CONTRACT_KEY}'`,
+    `  AND trim(coalesce(m.value_text, m.value_json, '')) <> ''`,
+    `  AND ${elsewhere('m.path')}`,
+    `  AND (${meetingLandingSql('m.path')} OR EXISTS (SELECT 1 FROM props AS o WHERE o.path = m.path AND +o.key = '${IMPORT_OUTCOME_KEY}'))`,
+    `  AND NOT ${holds('m.path', FILED_UNDER_KEY)}`,
+  ].join('\n');
+  return tasksStartInInbox
+    ? [inFolder, atInbox, withNoStatus, meetingToFile]
+    : [inFolder, atInbox, meetingToFile];
 }
 
 /** The notes that wait, in a statement's `FROM … WHERE`: no proposal, and only notes in user space. */
@@ -282,7 +299,8 @@ export function compileInboxQuery({
       `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOnNames",`,
       `  ${firstDay(TASK_KEYS.defer)} AS "defer",`,
       `  ${firstDay(TASK_KEYS.due)} AS "due",`,
-      `  files.modified AS "modified"`,
+      `  files.modified AS "modified",`,
+      `  ${holds('files.path', IMPORT_CONTRACT_KEY)} AS "importDeclared"`,
       ...WAITING_FILES,
       ...bounds,
       `ORDER BY files.modified DESC, files.path`,
@@ -331,6 +349,8 @@ export function inboxItem(row: {
   type: unknown;
   /** Whether the note carries `atlas_import_outcome` at all, cleared or not. */
   importStamped?: boolean;
+  /** Whether it declares the meeting import's contract (`atlas_import`). */
+  importDeclared?: boolean;
   importOutcome?: unknown;
   importError?: unknown;
   status?: unknown;
@@ -340,7 +360,7 @@ export function inboxItem(row: {
   defer?: unknown;
   due?: unknown;
 }): InboxItem {
-  const { path, importStamped = false, importOutcome = null } = row;
+  const { path, importStamped = false, importOutcome = null, importDeclared = false } = row;
   const type = textOrNull(row.type);
   // In the Inbox folder, the folder it arrived in; a task living elsewhere arrived in none.
   const within = isInInbox(path) ? parentVaultPath(path).split('/').slice(1).join('/') : '';
@@ -349,7 +369,12 @@ export function inboxItem(row: {
     title: row.title,
     type,
     arrivedIn: within,
-    importOutcome: importStanding({ path, stamped: importStamped, stamp: importOutcome }),
+    importOutcome: importStanding({
+      path,
+      stamped: importStamped,
+      stamp: importOutcome,
+      declared: importDeclared,
+    }),
     importError: textOrNull(row.importError),
     task: type?.toLowerCase() === TASK_TYPE ? inboxTask(row) : null,
   };
@@ -395,7 +420,9 @@ export function isProcessMove(from: VaultPath, to: VaultPath): boolean {
 
 /**
  * Why a note cannot be processed out of the Inbox, or null when it can. A
- * proposal — by its type, wherever it sits — is answered, never filed.
+ * proposal — by its type, wherever it sits — is answered, never filed. A
+ * meeting waits in the Inbox wherever it lives (#214), so it is processed
+ * wherever it is.
  */
 export function processRefusal({
   path,
@@ -405,7 +432,7 @@ export function processRefusal({
   /** The note's `type:`, or null when it has none or cannot be read. */
   type: string | null;
 }): string | null {
-  if (!isInInbox(path)) return 'It is not in the Inbox.';
+  if (!isInInbox(path) && !isMeetingType(type)) return 'It is not in the Inbox.';
   if (type?.trim().toLowerCase() === PROPOSAL_TYPE) {
     return 'A proposal is answered, not filed: accept or reject it.';
   }
@@ -417,11 +444,10 @@ export function processRefusal({
  * Why a note cannot be what Inbox notes are filed under, or null when it can:
  * it has to be a project or an area, and one still in use — not waiting in
  * the Inbox itself, not archived (moved to the Archive, or a Project set to
- * PARA archive where it stands), not one of Atlas's own files — whose folder
- * is somewhere a filed note can stay: in user space, out of the Inbox and the
- * Archive (a project at `Archive.md` files into `Archive/`), and within the
- * walk's depth. A Project is judged as the PARA value it holds (#213): a
- * resource is refused as a note of the Resource type was.
+ * PARA archive where it stands), not one of Atlas's own files. Filing only
+ * links it (#214), so where its own folder is does not matter. A Project is
+ * judged as the PARA value it holds (#213): a resource is refused as a note
+ * of the Resource type was.
  */
 export function filingRefusal({
   path,
@@ -441,58 +467,28 @@ export function filingRefusal({
   if (type === null) return 'Notes are filed under a project or an area, and that note is neither.';
   const standing = paraOf({ type, para });
   if (standing === ARCHIVED_PARA) return ARCHIVED_TARGET;
-  const wrongType = relationTypeRefusal({ def: FILED_UNDER, linkedType: standing ?? type });
-  if (wrongType !== null) return wrongType;
-  return landingRefusal(joinVaultPath(filingFolder(path), 'filed.md'));
+  return relationTypeRefusal({ def: FILED_UNDER, linkedType: standing ?? type });
 }
 
 const ARCHIVED_TARGET = 'That is archived: unarchive it to file notes under it.';
 
-/** Why a note filed at `landing` would not stay filed, or null when it would. */
-function landingRefusal(landing: VaultPath): string | null {
-  if (isInInbox(landing))
-    return 'Its folder is the Inbox: what is filed under it would still be waiting.';
-  if (isArchivedPath(landing))
-    return 'Its folder is the Archive: what is filed under it would be archived.';
-  if (!isUserSpaceNote(landing)) return 'Its folder is one Atlas does not show.';
-  // Its folder is one deeper than the note; past the walk's depth, what is filed would not be read.
-  if (!isWithinWalk(landing)) {
-    return 'It is too many folders deep: filed under it, notes would no longer be read.';
-  }
-  return null;
-}
-
 /**
- * The folder a project's notes are filed in: one named as the project,
- * beside its note — `Projects/Atlas.md` files into `Projects/Atlas/`. A
- * project already kept as a folder's own note, `Projects/Atlas/Atlas.md`,
- * files into that folder.
- */
-export function filingFolder(project: VaultPath): VaultPath {
-  const folder = parentVaultPath(project);
-  const name = vaultPathName(project).replace(MARKDOWN, '');
-  // Compared as the disk compares names: in any case, either Unicode composition.
-  if (folder !== VAULT_ROOT && foldedVaultPath(vaultPathName(folder)) === foldedVaultPath(name)) {
-    return folder;
-  }
-  return joinVaultPath(folder, name);
-}
-
-/**
- * Where an Inbox note goes when it is filed under `project`: in the project's
- * folder under its own name, numbered if that is taken. Only its name goes —
- * `Inbox/Meetings/Standup.md` lands as `Projects/Atlas/Standup.md`.
+ * Where a note in the `Inbox` folder goes when it is filed (#214): `folder`,
+ * its type's home for its day, under its own name, numbered if that is
+ * taken — `Inbox/Meetings/2026-10-01 Standup.md` lands as
+ * `Meetings/2026/10/2026-10-01 Standup.md`. What it is filed under is a link,
+ * never a folder.
  */
 export function processDestination({
   path,
-  project,
+  folder,
   taken,
 }: {
   path: VaultPath;
-  project: VaultPath;
+  folder: VaultPath;
   taken: ReadonlySet<string>;
 }): VaultPath {
-  return freeNotePath(joinVaultPath(filingFolder(project), vaultPathName(path)), taken);
+  return freeNotePath(joinVaultPath(folder, vaultPathName(path)), taken);
 }
 
 /**

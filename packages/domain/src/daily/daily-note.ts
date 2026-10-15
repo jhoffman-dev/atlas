@@ -1,12 +1,12 @@
 import type { BuiltInTypeFile } from '../types/para.ts';
 import type { ObjectType, PropertyDef } from '../types/property-def.ts';
 import { isMarkdownName, noteTitle } from '../vault/vault-entry.ts';
-import type { VaultPath } from '../vault/vault-path.ts';
+import { joinVaultPath, parentVaultPath, VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
 import { foldedVaultPath } from '../vault/vault-spelling.ts';
 
 /**
- * Today's note is a note of this type: one a day, named by its date at the
- * root of the vault. Daily notes imported from Notion carry it already.
+ * Today's note is a note of this type: one a day, named by its date, in the
+ * type's home folder (#214). Daily notes imported from Notion carry it already.
  */
 export const DAILY_TYPE = 'daily';
 
@@ -65,19 +65,43 @@ export function dailyTypeToOffer(existing: readonly ObjectType[]): BuiltInTypeFi
 }
 
 /**
- * The vault's note for `today`, if it has one: at the root, named by the date
- * however the disk spells it — `2026-10-12.md`, `.MD`, `.markdown` — since
- * APFS opens any of them by the other's name. `<date>.md` exactly wins;
- * without it, the first note listed under another spelling is the day's.
+ * The vault's note for `today`, if it has one: in `home`, the Daily type's
+ * folder for the day, or else at the root, where today's note was made before
+ * it had a home (#214) — named by the date however the disk spells it,
+ * `2026-10-12.md`, `.MD`, `.markdown`, since APFS opens any of them by the
+ * other's name. `<date>.md` exactly wins; without it, the first note listed
+ * under another spelling is the day's. A note of that name in any other
+ * folder is some other note.
  */
-export function dailyNoteAmong(today: string, notePaths: readonly VaultPath[]): VaultPath | null {
+export function dailyNoteAmong(
+  today: string,
+  notePaths: readonly VaultPath[],
+  home: VaultPath = VAULT_ROOT,
+): VaultPath | null {
+  const found = dailyNoteIn({ today, notePaths, folder: home });
+  if (found !== null || home === VAULT_ROOT) return found;
+  return dailyNoteIn({ today, notePaths, folder: VAULT_ROOT });
+}
+
+function dailyNoteIn({
+  today,
+  notePaths,
+  folder,
+}: {
+  today: string;
+  notePaths: readonly VaultPath[];
+  folder: VaultPath;
+}): VaultPath | null {
+  const exact = joinVaultPath(folder, `${today}.md`);
+  if (notePaths.includes(exact)) return exact;
   const day = foldedVaultPath(today);
-  const exact = notePaths.find((path) => path === `${today}.md`);
-  if (exact !== undefined) return exact;
+  const within = foldedVaultPath(folder);
   return (
     notePaths.find(
       (path) =>
-        !path.includes('/') && isMarkdownName(path) && foldedVaultPath(noteTitle(path)) === day,
+        foldedVaultPath(parentVaultPath(path)) === within &&
+        isMarkdownName(path) &&
+        foldedVaultPath(noteTitle(path)) === day,
     ) ?? null
   );
 }

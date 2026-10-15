@@ -1,7 +1,12 @@
 import type { ReactNode } from 'react';
 import type { QueryFilter, QuerySort, ViewTab } from '@atlas/domain';
 import { Icon } from './icon.tsx';
-import { FilterPopover, SortPopover, type ViewField } from './view-query-popovers.tsx';
+import {
+  FilterPopover,
+  SortPopover,
+  type ViewField,
+  type WantChoices,
+} from './view-query-popovers.tsx';
 import { ViewTabs, type ViewTabEditing } from './view-tabs.tsx';
 import type { OverlaySlots } from './overlay-slot.ts';
 
@@ -18,6 +23,8 @@ export interface ViewToolbarProps {
   filters: readonly QueryFilter[];
   sorts: readonly QuerySort[];
   onChangeFilters: (filters: readonly QueryFilter[]) => void;
+  /** Asks for a property's filter choices when they are gathered only once wanted. */
+  onWantFilterChoices?: WantChoices;
   onChangeSorts: (sorts: readonly QuerySort[]) => void;
   /** What only this layout needs, ahead of Filter — a calendar's month nav. */
   controls?: ReactNode;
@@ -73,6 +80,7 @@ export function ViewToolbar(props: ViewToolbarProps) {
           fields={props.fields}
           filters={props.filters}
           onChange={props.onChangeFilters}
+          onWantChoices={props.onWantFilterChoices}
           slot={props.popups?.('filter')}
         />
         <SortPopover

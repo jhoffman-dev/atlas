@@ -1,4 +1,5 @@
 import {
+  compileImportDeclarationsQuery,
   compileImportOutcomesQuery,
   compileRelationHoldersQuery,
   createVaultPath,
@@ -8,6 +9,7 @@ import {
   linkedName,
   noteChangesBetween,
   RELATION_NAMES_PER_QUERY,
+  type CompiledQuery,
   type ImportOutcome,
   type NoteChange,
   type NoteVersion,
@@ -161,11 +163,12 @@ export async function refreshIndex({
 
 /**
  * What the index holds of each note, by path, with how the meeting import
- * settled it where meeting files land: the manifest does not say, and a
- * note's stamp is what tells the import's own write from an edit (#92). An
- * empty index is not asked.
+ * settled it where meeting files land, and whether it declares the import's
+ * contract: the manifest says neither, and a note's stamp is what tells the
+ * import's own write from an edit (#92), its declaration whether it is the
+ * import's at all (#214). An empty index is not asked.
  *
- * Stamps are read a page at a time, since the host cuts a result short. A
+ * Both are read a page at a time, since the host cuts a result short. A
  * result it still cut short is no answer, for a stamp missed would read as a
  * meeting that is new; nor is a query that fails. The manifest still stands
  * then, and notes where meetings land are taken as already arrived, which at
@@ -176,26 +179,43 @@ export async function refreshIndex({
 export async function heldEntries(index: IndexPort): Promise<Map<string, IndexEntry>> {
   const entries = await index.manifest();
   if (entries.length === 0) return new Map();
-  const outcomes = await importOutcomesHeld(index);
-  return new Map(
-    entries.map((entry) => {
-      if (outcomes === null) {
-        return [
-          entry.path,
-          isMeetingInboxPath(entry.path) ? { ...entry, arrivalHeard: true } : entry,
-        ];
-      }
-      const importOutcome = outcomes.get(entry.path);
-      return [entry.path, importOutcome === undefined ? entry : { ...entry, importOutcome }];
-    }),
-  );
+  const stamps = await rowsHeld(index, compileImportOutcomesQuery);
+  const declarations =
+    stamps === null ? null : await rowsHeld(index, compileImportDeclarationsQuery);
+  if (stamps === null || declarations === null) {
+    return new Map(
+      entries.map((entry) => [
+        entry.path,
+        isMeetingInboxPath(entry.path) ? { ...entry, arrivalHeard: true } : entry,
+      ]),
+    );
+  }
+  const outcomes = importOutcomesOf(stamps);
+  const declared = new Set(declarations.map(([path]) => String(path)));
+  return new Map(entries.map((entry) => [entry.path, withImportSigns(entry, outcomes, declared)]));
 }
 
-/** The stamps the index holds, by path; null when it cannot be asked. */
-async function importOutcomesHeld(index: IndexPort): Promise<Map<string, ImportOutcome> | null> {
-  const outcomes = new Map<string, ImportOutcome>();
+function withImportSigns(
+  entry: IndexEntry,
+  outcomes: ReadonlyMap<string, ImportOutcome>,
+  declared: ReadonlySet<string>,
+): IndexEntry {
+  const importOutcome = outcomes.get(entry.path);
+  return {
+    ...entry,
+    ...(importOutcome !== undefined && { importOutcome }),
+    ...(declared.has(entry.path) && { importDeclared: true as const }),
+  };
+}
+
+/** Every row of a paged meeting query; null when the index cannot be asked or cuts a page short. */
+async function rowsHeld(
+  index: IndexPort,
+  compile: (page: number) => CompiledQuery,
+): Promise<(readonly unknown[])[] | null> {
+  const rows: (readonly unknown[])[] = [];
   for (let page = 0; ; page++) {
-    const { sql, parameters } = compileImportOutcomesQuery(page);
+    const { sql, parameters } = compile(page);
     let result;
     try {
       result = await index.query(sql, parameters);
@@ -203,10 +223,10 @@ async function importOutcomesHeld(index: IndexPort): Promise<Map<string, ImportO
       // Safe to go without: the caller takes every note where meetings land as already arrived.
       return null;
     }
-    // A list cut short is as unknown as one that failed: what is missing cannot be told from not stamped.
+    // A list cut short is as unknown as one that failed: what is missing cannot be told from not there.
     if (result.truncated) return null;
-    for (const [path, outcome] of importOutcomesOf(result.rows)) outcomes.set(path, outcome);
-    if (result.rows.length < IMPORT_OUTCOMES_PAGE) return outcomes;
+    rows.push(...result.rows);
+    if (result.rows.length < IMPORT_OUTCOMES_PAGE) return rows;
   }
 }
 

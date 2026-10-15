@@ -326,13 +326,13 @@ describe('meeting extraction over the Gemini fixture', () => {
       today: TODAY,
     });
 
-    expect(properties('Write the rollout note.md')).toEqual({
+    expect(properties('Tasks/2026/10/Write the rollout note.md')).toEqual({
       type: 'task',
       status: 'inbox',
       due: '2026-10-02',
       source: '[[Platform weekly sync#^t0003]]',
     });
-    expect(properties('Flag the new cache.md')).toMatchObject({
+    expect(properties('Tasks/2026/10/Flag the new cache.md')).toMatchObject({
       type: 'task',
       status: 'waiting',
       waiting_on: '[[Tobias Fenn]]',
@@ -387,7 +387,7 @@ describe('meeting extraction over the Granola fixture', () => {
       today: TODAY,
     });
 
-    expect(properties('Send the contract.md')).toMatchObject({
+    expect(properties('Tasks/2026/10/Send the contract.md')).toMatchObject({
       status: 'waiting',
       waiting_on: 'Lena Hart',
     });

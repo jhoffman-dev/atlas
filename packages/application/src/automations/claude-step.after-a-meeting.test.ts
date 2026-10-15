@@ -54,8 +54,9 @@ const TYPES = [
 ];
 
 const meetingAt = (at: number): string => `Meetings/2026-10-${String(at).padStart(2, '0')} Sync.md`;
-const meeting = (at: number) =>
-  jsonNote({ ...MEETING_HEADER, external_id: `gemini-${at}` }, MEETING_BODY);
+// Each meeting is one the import let in: in `Meetings`, a contract file is in play only then (#214).
+const LET_IN = { ...MEETING_HEADER, atlas_import_outcome: 'imported' };
+const meeting = (at: number) => jsonNote({ ...LET_IN, external_id: `gemini-${at}` }, MEETING_BODY);
 
 /** A meeting long enough to be read in many parts: `turns` turns of about 400 characters each. */
 const longMeeting = (at: number, turns: number) => {
@@ -63,7 +64,7 @@ const longMeeting = (at: number, turns: number) => {
   for (let id = 3; id < 3 + turns; id += 1) {
     body += `\n**Tobias Fenn** [~00:10:00] Turn ${id}. ${'word '.repeat(75)}^t${String(id).padStart(4, '0')}\n`;
   }
-  return jsonNote({ ...MEETING_HEADER, external_id: `gemini-${at}` }, body);
+  return jsonNote({ ...LET_IN, external_id: `gemini-${at}` }, body);
 };
 
 const STEP: ClaudeAction = {

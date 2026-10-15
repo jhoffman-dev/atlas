@@ -65,7 +65,8 @@ test('a new company from a person’s Company picker is a new note, and the temp
   await name.press('Enter');
 
   await expectFile(vault, 'Sam Rivera.md').toContain('company: "[[Larkspur Payroll]]"');
-  await expectFile(vault, 'Larkspur Payroll.md').toContain('type: company');
+  // Made in the company type's home folder (#214).
+  await expectFile(vault, 'Companies/Larkspur Payroll.md').toContain('type: company');
   expect(await vault.read('.atlas/templates/Company.md')).toBe(COMPANY_TEMPLATE);
   expect(await vault.exists('.atlas/templates/Larkspur Payroll.md')).toBe(false);
 

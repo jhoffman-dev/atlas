@@ -35,6 +35,7 @@ function vault(files: Record<string, string>) {
       paths: paths.map(path),
       notePaths: [...memory.files.keys()].map(path),
       project: path(project),
+      today: '2026-10-01',
     });
   return { files: memory.files, process };
 }

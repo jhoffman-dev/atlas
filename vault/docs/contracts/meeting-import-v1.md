@@ -8,7 +8,8 @@ How a meeting gets into Atlas, whichever notetaker wrote it up (ADR-0027).
 Something outside Atlas — today an n8n workflow reading Google Meet's "Notes
 by Gemini" emails, earlier Granola — writes **one markdown file per meeting**
 and commits it to the vault's sync repository at
-`Inbox/Meetings/<YYYY-MM-DD> <title>.md`. Atlas pulls it in like any other
+`Meetings/<YYYY>/<MM>/<YYYY-MM-DD> <title>.md`, the month's folder for its
+`date` (ADR-0038). Atlas pulls it in like any other
 note and checks it against this contract. Atlas holds no provider login and no provider-specific parser, with one
 exception: Granola, whose API Atlas polls itself with a personal key (ADR-0034).
 Even then the parsing is the shared mapping's job, not the app's: it runs the
@@ -29,6 +30,16 @@ which of the two wrote it.
 
 A file that fails is never deleted or silently fixed: it stays where it
 landed with `atlas_import_error:` set, and shows in the Inbox (P28-04).
+
+**Where a file lands, and when it is the import's** (ADR-0038). In a month's
+folder under `Meetings` — `Meetings/2026/10/` — a file is the import's when it
+declares `atlas_import`; a meeting someone writes there by hand, without it,
+is left alone. A second copy of a meeting goes beside the first as
+`<YYYY-MM-DD> <title> (<provider> <8 hex>).md`. The older
+`Inbox/Meetings/<YYYY-MM-DD> <title>.md` is still read: every file there is
+the import's, as it always was. A meeting waits in the Inbox, wherever it
+is, until it is filed under a project; filing writes `project` and moves
+nothing.
 
 ## An example
 

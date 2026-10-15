@@ -123,7 +123,7 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
  * A statement written by hand, run for real by SQLite over what was indexed.
  *
- * The tables are the real index's (`files`, `props`), and each `v_<type>` view
+ * The tables are the real index's (`files`, `props`, `relations`), and each `v_<type>` view
  * is built the way `rebuild_views` in `src-tauri/src/index.rs` builds it: its
  * own `path`, `title`, `summary` and `modified` (and `progress`, when told
  * to carry it), then a column per declared
@@ -131,17 +131,28 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * from `value_text`, several values joined with ", ". A key the type does not
  * declare is not a column, as in the app. The read-only guard is reduced to
  * "reads only" — the real guard (the authorizer and `readonly`) is the Rust
- * tests' to prove.
+ * tests' to prove. A compiled view that reads `relations` runs here too, with
+ * what it binds.
  */
 function runHandWrittenSql(
   statement: string,
   notes: Iterable<StoredNote>,
   types: ReadonlyMap<string, ViewSpec>,
+  bound: readonly unknown[] = [],
 ): { columns: string[]; rows: unknown[][]; truncated: boolean } {
   if (!/^\s*(SELECT|WITH|PRAGMA)\b/i.test(statement)) {
     throw new Error('only a statement that reads the index can run here');
   }
-  const database = filesAndProps(notes);
+  const stored = [...notes];
+  const database = filesAndProps(stored);
+  database.exec(`CREATE TABLE relations (src TEXT NOT NULL, key TEXT NOT NULL, idx INTEGER NOT NULL,
+                                         target TEXT NOT NULL, name TEXT NOT NULL, dst TEXT);`);
+  const relation = database.prepare('INSERT INTO relations VALUES (?, ?, ?, ?, ?, ?)');
+  for (const note of stored) {
+    for (const row of note.relations ?? []) {
+      relation.run(note.path, row.key, row.index, row.target, row.name, row.path);
+    }
+  }
   for (const [type, spec] of types) {
     if (!IDENTIFIER.test(type)) continue;
     const progress = spec.progress ? ', files.progress AS "progress"' : '';
@@ -171,9 +182,9 @@ function runHandWrittenSql(
   }
   const prepared = database.prepare(statement);
   const columns = prepared.columns().map((column) => column.name);
-  const rows = (prepared.all() as Record<string, unknown>[]).map((row) =>
-    columns.map((column) => row[column] ?? null),
-  );
+  const rows = (
+    prepared.all(...(bound as (string | number | null)[])) as Record<string, unknown>[]
+  ).map((row) => columns.map((column) => row[column] ?? null));
   database.close();
   return { columns, rows, truncated: false };
 }
@@ -975,6 +986,11 @@ export async function installHost(
         // SQL written by hand — the query page, a SQL view or widget — binds
         // nothing, where everything the app compiles binds at least its LIMIT.
         if (bound.length === 0) return runHandWrittenSql(statement, indexed.values(), views);
+        // A view filtered by a link compares by the note it opens, through the
+        // relations table (#212): run for real, as SQL written by hand is.
+        if (statement.includes(' FROM relations AS r WHERE ')) {
+          return runHandWrittenSql(statement, indexed.values(), views, bound);
+        }
 
         // The sidebar asks the properties table directly rather than a type's
         // view: which notes carry `atlas: view`, `atlas: dashboard` or

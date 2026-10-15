@@ -12,8 +12,10 @@ import {
 } from '@atlas/domain';
 import { newNoteTaskRules } from '../gtd/task-rules.ts';
 import { createNote, NoteNameTakenError } from '../notes/create-note.ts';
+import { homeFolderFor } from '../notes/home-folder.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { findTemplateNamed, loadTemplates, readTemplate } from '../types/templates.ts';
+import { ensureFolder } from '../vault/create-folder.ts';
 import { VaultAccessError } from '../vault/ports.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { ApiError } from './api-error.ts';
@@ -32,34 +34,50 @@ import { spelledAsVault } from './vault-spelling.ts';
  * "Untitled", numbered if that is taken in any case — even when it is taken
  * between listing and creating — the way the New note button behaves. The
  * folder is the one the vault has, however the request spelled it (R15-01).
+ * With no folder named, a note whose type has a home folder goes there, as
+ * the app's New does (#214), and any other at the root.
  */
 export async function createNoteRoute(request: VaultRequest): Promise<RouteResult> {
   const fields = bodyObject(request.body);
-  const folder = await folderOf(request, fields);
+  const asked = await folderOf(request, fields);
   const name = optionalString(fields, 'name');
   const properties = optionalRecord(fields, 'properties');
   const body = optionalString(fields, 'body');
   const template = await templateText(request, optionalString(fields, 'template'));
 
-  const named = name === undefined || isUnnamed(name) ? null : namedPath(folder, name);
   const contents = composeNote({
     markdown: request.markdown,
     start: template ?? NEW_NOTE_CONTENTS,
     properties,
     body,
   });
+  const folder = asked ?? (await homeOf(request, contents)) ?? VAULT_ROOT;
+  const named = name === undefined || isUnnamed(name) ? null : namedPath(folder, name);
 
   const path = await createIn(request, { folder, named, contents });
   return answerWithNote(request, { path, status: 201 });
 }
 
-async function folderOf(request: VaultRequest, fields: Fields): Promise<VaultPath> {
+async function folderOf(request: VaultRequest, fields: Fields): Promise<VaultPath | null> {
   const folder = optionalString(fields, 'folder');
-  if (folder === undefined) return VAULT_ROOT;
+  if (folder === undefined) return null;
   const asked = folderFrom(folder, 'folder');
   return asked === VAULT_ROOT
     ? asked
     : spelledAsVault({ fs: request.fs, asked, accepts: isApiFolderPath });
+}
+
+/** The home folder of the note's type, made if it is not there yet; null when it has none. */
+async function homeOf(request: VaultRequest, contents: string): Promise<VaultPath | null> {
+  const home = await homeFolderFor({
+    fs: request.fs,
+    markdown: request.markdown,
+    properties: request.markdown.frontmatterProperties(splitFrontmatter(contents).frontmatter),
+    today: request.clock.today(),
+  });
+  if (home === null) return null;
+  request.assertStillOpen();
+  return ensureFolder({ fs: request.fs, folder: home });
 }
 
 /** Creates the note at the named path, or an Untitled one numbered as `createNote` numbers it. */

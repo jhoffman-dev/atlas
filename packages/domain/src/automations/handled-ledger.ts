@@ -163,12 +163,20 @@ export function isSchemaKey(key: string): boolean {
 const earliestInstant = (local: LocalTime): number =>
   (localTimeMs(local) ?? MAX_UTC_OFFSET_MS) - MAX_UTC_OFFSET_MS;
 
-/** The ledger once a run has happened at `at`: its versions handled, notes gone and notes it archived forgotten. */
+/**
+ * The ledger once a run has happened at `at`: its versions handled, notes gone
+ * and notes it archived forgotten, and notes moved remembered where they are
+ * now — each with what was handled where it was, and the version it moved as.
+ */
 export function recordRun(ledger: HandledLedger, entry: Run, at: number): HandledLedger {
   const paths = new Map(ledger.paths);
   let answered = [...ledger.answered];
   let stored = ledger.stored;
   for (const path of entry.went ?? []) paths.delete(path);
+  for (const { from, path, digest } of entry.moved ?? []) {
+    const before = ledger.paths.get(from)?.digests.filter((each) => each !== digest) ?? [];
+    paths.set(path, { at, digests: [...before, digest].slice(-MAX_DIGESTS_PER_PATH) });
+  }
   for (const { path, digest, wrote, keys = [] } of entry.versions ?? []) {
     const before = paths.get(path)?.digests.filter((each) => each !== digest) ?? [];
     paths.set(path, { at, digests: [...before, digest].slice(-MAX_DIGESTS_PER_PATH) });

@@ -444,7 +444,7 @@ describe('missedArrivals', () => {
   });
 
   it.each([
-    ['a note outside where meetings land', held({ path: p('Meetings/Standup.md') })],
+    ['a note outside where meetings land', held({ path: p('Projects/Standup.md') })],
     ['a meeting the import has not let in', held({ importOutcome: 'refused' })],
     ['a meeting with no import outcome', held({ importOutcome: undefined })],
     ['a note of another type', held({ type: 'task' })],

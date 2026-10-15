@@ -288,7 +288,7 @@ test('a view deleted and made again under its name starts without the old one’
   await page.getByRole('button', { name: 'Filter' }).click();
   await page.getByRole('combobox', { name: 'Property' }).selectOption('status');
   await page.getByRole('combobox', { name: 'Condition' }).selectOption('is');
-  await page.getByRole('textbox', { name: 'Value' }).fill('done');
+  await page.getByRole('combobox', { name: 'Value' }).fill('done');
   await page.getByRole('button', { name: 'Add filter' }).click();
   await page.keyboard.press('Escape');
   const unsaved = page.getByRole('group', { name: 'Unsaved view changes' });

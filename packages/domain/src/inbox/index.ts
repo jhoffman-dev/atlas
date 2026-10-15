@@ -2,7 +2,6 @@ export {
   compileInboxCountQuery,
   compileInboxQuery,
   filedUnderStamp,
-  filingFolder,
   filingRefusal,
   inboxItem,
   inboxKeyOf,

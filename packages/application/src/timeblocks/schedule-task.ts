@@ -10,7 +10,6 @@ import {
   newBlockTimes,
   splitFrontmatter,
   taskLink,
-  VAULT_ROOT,
   type BlockTimes,
   type ObjectType,
   type VaultPath,
@@ -125,7 +124,6 @@ export async function createBlockForTask({
     today,
     name: newBlockName(task.title),
     beside: null,
-    folder: VAULT_ROOT,
     notePaths,
     contents,
   });

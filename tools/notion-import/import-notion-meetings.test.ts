@@ -39,6 +39,12 @@ const CSV_NAME = 'Meeting Notes 5d0c9e2a7b1f4c3e8a6d2b9f0e1c7a54_all.csv';
 const PAGES = 'Meeting Notes 5d0c9e2a7b1f4c3e8a6d2b9f0e1c7a54';
 const MEETINGS = 'Inbox/Meetings';
 
+/** The mapping's two names for a meeting, in the folder this import writes to rather than its month's (#214). */
+const inFolder = ({ path, collisionPath }: { path: string; collisionPath: string }) => ({
+  path: `${MEETINGS}/${path.slice(path.lastIndexOf('/') + 1)}`,
+  collisionPath: `${MEETINGS}/${collisionPath.slice(collisionPath.lastIndexOf('/') + 1)}`,
+});
+
 const schemaFile = new URL(
   '../../vault/docs/contracts/meeting-import-v1.schema.json',
   import.meta.url,
@@ -387,12 +393,14 @@ describe('rows the import refuses, and says why', () => {
   });
 
   it('refuses a meeting when other meetings hold both of its paths, writing over neither', async () => {
-    const paths = meetingPaths({
-      date: '2026-10-06',
-      title: 'Platform weekly sync',
-      provider: 'gemini',
-      externalId: '18c2f4a9e7b3d501',
-    });
+    const paths = inFolder(
+      meetingPaths({
+        date: '2026-10-06',
+        title: 'Platform weekly sync',
+        provider: 'gemini',
+        externalId: '18c2f4a9e7b3d501',
+      }),
+    );
     const other = "---\nprovider: gemini\nexternal_id: 'someone-else'\n---\n";
     await mkdir(join(vault, MEETINGS), { recursive: true });
     await writeFile(join(vault, paths.path), other);
@@ -408,12 +416,14 @@ describe('rows the import refuses, and says why', () => {
   });
 
   it('passes by a file that names the meeting but holds nothing by the import’s rule, writing beside it', async () => {
-    const paths = meetingPaths({
-      date: '2026-10-06',
-      title: 'Platform weekly sync',
-      provider: 'gemini',
-      externalId: '18c2f4a9e7b3d501',
-    });
+    const paths = inFolder(
+      meetingPaths({
+        date: '2026-10-06',
+        title: 'Platform weekly sync',
+        provider: 'gemini',
+        externalId: '18c2f4a9e7b3d501',
+      }),
+    );
     // YAML that does not read holds nothing to the import on arrival (P28-04), so it does not here either.
     const unreadable =
       "---\nprovider: 'gemini'\nexternal_id: '18c2f4a9e7b3d501'\ntitle: [unclosed\n---\n";

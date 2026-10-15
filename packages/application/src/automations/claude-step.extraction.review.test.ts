@@ -223,7 +223,14 @@ describe('a meeting the import did not let in', () => {
       atlas_import_outcome: undefined,
       attendees: [{ name: 'Mara Quill', email: 'mara.quill@example.com' }],
     });
-    const { run, proposals, properties } = setUp([FROM_SYNC], { ...NOTES, [SYNC]: byHand });
+    // Filed before Atlas imported: in `Meetings`, an unstamped contract file would be an arrival
+    // still waiting for the import, not in play at all (#214).
+    const others = Object.fromEntries(Object.entries(NOTES).filter(([path]) => path !== SYNC));
+    const filedBefore = 'Projects/Platform/Platform weekly sync.md';
+    const { run, proposals, properties } = setUp([FROM_SYNC], {
+      ...others,
+      [filedBefore]: byHand,
+    });
 
     const entry = await run(SYNC_ONLY);
 

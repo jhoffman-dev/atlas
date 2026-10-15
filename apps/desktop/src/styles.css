@@ -7903,6 +7903,52 @@ button.props__link-title:focus-visible {
   min-width: 80px;
 }
 
+/*
+ * A filter's value: typed, or picked from what the property can hold (#212).
+ * The list floats under the box rather than pushing "Add filter" down — it
+ * closes as the box loses focus, and a button that moved under the pointer
+ * between press and release would not be clicked.
+ */
+.filter-value {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  position: relative;
+}
+
+.view-popover__add .filter-value__date {
+  flex: 0 0 auto;
+}
+
+.filter-value__list {
+  background: var(--raised);
+  border-radius: 8px;
+  box-shadow: var(--shadow-overlay);
+  left: 0;
+  list-style: none;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 1;
+}
+
+.filter-value__option {
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: var(--text-small);
+  padding: 5px 8px;
+}
+
+.filter-value__option:hover,
+.filter-value__option--on {
+  background: var(--hover);
+}
+
 /* A status as a pill on its ramp: a board column's head, a table's cell. */
 .status-pill {
   --pill: var(--status-backlog);
@@ -11689,42 +11735,50 @@ form.inbox__clarify {
    The offer is one line; its preview opens in place, every task listed. */
 
 .task-migration__offer,
-.task-migration__actions {
+.task-migration__actions,
+.vault-tidy__offer,
+.vault-tidy__actions {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.task-migration__offer p {
+.task-migration__offer p,
+.vault-tidy__offer p {
   flex: 1;
   min-width: 20ch;
 }
 
-.task-migration__preview {
+.task-migration__preview,
+.vault-tidy__preview {
   display: grid;
   gap: var(--space-3);
 }
 
-.task-migration__lines h3 {
+.task-migration__lines h3,
+.vault-tidy__refused h3 {
   font-size: var(--text-small);
   font-weight: 700;
   margin: 0 0 var(--space-1);
 }
 
-.task-migration__lines ul {
+.task-migration__lines ul,
+.vault-tidy__refused ul {
   padding-left: var(--space-4);
 }
 
 .task-migration__mapping,
-.task-migration__tasks table {
+.task-migration__tasks table,
+.vault-tidy__moves table {
   border-collapse: collapse;
   font-size: var(--text-small);
   width: 100%;
 }
 
 .task-migration__mapping th,
-.task-migration__tasks th {
+.task-migration__tasks th,
+.vault-tidy__moves th {
   color: var(--ink-3);
   font-weight: 700;
   text-align: left;
@@ -11733,12 +11787,15 @@ form.inbox__clarify {
 .task-migration__mapping td,
 .task-migration__mapping th,
 .task-migration__tasks td,
-.task-migration__tasks th {
+.task-migration__tasks th,
+.vault-tidy__moves td,
+.vault-tidy__moves th {
   padding: 4px 12px 4px 0;
 }
 
-/* Every task is listed; a long list scrolls inside the offer, not the page. */
-.task-migration__tasks {
+/* Every task, and every move, is listed; a long list scrolls inside the offer, not the page. */
+.task-migration__tasks,
+.vault-tidy__moves {
   max-height: 320px;
   overflow: auto;
 }

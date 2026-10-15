@@ -31,7 +31,7 @@ import { writeProposals } from './write-proposals.ts';
 const TODAY = '2026-10-06';
 const MEETING = 'Inbox/Meetings/2026-10-06 Standup.md';
 const PROJECT = 'Projects/Ledger migration.md';
-const TASK = 'Send Mara the payroll file.md';
+const TASK = 'Tasks/2026/10/Send Mara the payroll file.md';
 
 const meeting = (more: Record<string, unknown> = {}) =>
   jsonLinesNote(
@@ -120,10 +120,12 @@ describe('a Claude step’s task that links back to its meeting', () => {
       paths: [vaultPath(MEETING)],
       notePaths: setup.paths().map(vaultPath),
       project: vaultPath(PROJECT),
+      today: TODAY,
       updateLinks: true,
     });
     const moved = filed.moves[0]?.move.to as string;
-    expect(moved).toMatch(/^Projects\//);
+    // Filed out of the older Inbox/Meetings into the meeting's month (#214).
+    expect(moved).toMatch(/^Meetings\/2026\/10\//);
 
     await acceptProposalNote({ ports: fresh(setup), path, today: TODAY });
 

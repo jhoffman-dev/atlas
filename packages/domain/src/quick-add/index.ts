@@ -13,7 +13,7 @@ export {
 export type { QuickAddChoice } from './quick-add-types.ts';
 export {
   quickAddFields,
-  quickAddFolder,
+  quickAddBeside,
   quickAddProperties,
   quickAddStartValues,
   QUICK_ADD_FIELD_LIMIT,

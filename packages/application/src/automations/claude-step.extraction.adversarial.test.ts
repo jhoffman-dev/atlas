@@ -351,7 +351,7 @@ describe('undoing an accept after another proposal of the same meeting was accep
 
     await undoAcceptedProposal({ ports, accepted: first }).catch((refusal: unknown) => refusal);
 
-    const taskThere = vault.files.has('Write the rollout note.md');
+    const taskThere = vault.files.has('Tasks/2026/10/Write the rollout note.md');
     const listed = (properties(SYNC)['tasks'] as string[]).includes('[[Write the rollout note]]');
     expect(listed).toBe(taskThere);
   });

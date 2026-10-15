@@ -197,10 +197,13 @@ describe('a meeting that arrives after the rule', () => {
 
     const entry = await arrived();
 
-    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(tasks()).toEqual([
+      'Tasks/2026/10/Book the review room.md',
+      'Tasks/2026/10/Send the renewal contract.md',
+    ]);
     for (const [task, block] of [
-      ['Send the renewal contract.md', 't0001'],
-      ['Book the review room.md', 't0003'],
+      ['Tasks/2026/10/Send the renewal contract.md', 't0001'],
+      ['Tasks/2026/10/Book the review room.md', 't0003'],
     ] as const) {
       expect(vault.properties(task)).toMatchObject({
         type: 'task',
@@ -231,7 +234,10 @@ describe('a meeting that arrives after the rule', () => {
     expect(await arrived()).toBeNull();
     await runNow();
 
-    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(tasks()).toEqual([
+      'Tasks/2026/10/Book the review room.md',
+      'Tasks/2026/10/Send the renewal contract.md',
+    ]);
     expect(notesIn(PROPOSALS)).toEqual(proposals);
     expect(asked()).toBe(1);
   });
@@ -251,7 +257,10 @@ describe('a meeting that arrives after the rule', () => {
     const entry = await runNow();
 
     expect(asked()).toBe(2);
-    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(tasks()).toEqual([
+      'Tasks/2026/10/Book the review room.md',
+      'Tasks/2026/10/Send the renewal contract.md',
+    ]);
     expect(notesIn(PROPOSALS)).toEqual(proposals);
     expect(vault.properties(MEETING)['tasks']).toHaveLength(2);
     expect(entry).toMatchObject({ kind: 'run', done: [] });
@@ -262,7 +271,7 @@ describe('a meeting that arrives after the rule', () => {
     const create = vault.ports.fs.createNote;
     let refuseOnce = true;
     vault.ports.fs.createNote = async (write) => {
-      if (write.path === 'Book the review room.md' && refuseOnce) {
+      if (write.path === 'Tasks/2026/10/Book the review room.md' && refuseOnce) {
         refuseOnce = false;
         throw new Error('the disk is full');
       }
@@ -270,17 +279,20 @@ describe('a meeting that arrives after the rule', () => {
     };
 
     await expect(arrived()).rejects.toThrow('the disk is full');
-    expect(tasks()).toEqual(['Send the renewal contract.md']);
+    expect(tasks()).toEqual(['Tasks/2026/10/Send the renewal contract.md']);
     const failed = parseRunLog(vault.files.get(logPathFor(RULE.id))!).at(-1);
     expect(failed).toMatchObject({
       kind: 'failed',
-      done: [{ kind: 'created', path: 'Send the renewal contract.md' }],
+      done: [{ kind: 'created', path: 'Tasks/2026/10/Send the renewal contract.md' }],
     });
 
     await runNow();
 
     expect(asked()).toBe(1);
-    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(tasks()).toEqual([
+      'Tasks/2026/10/Book the review room.md',
+      'Tasks/2026/10/Send the renewal contract.md',
+    ]);
     expect(vault.properties(MEETING)['tasks']).toEqual([
       '[[Send the renewal contract]]',
       '[[Book the review room]]',
@@ -296,7 +308,7 @@ describe('an answer kept for other turns', () => {
     const create = vault.ports.fs.createNote;
     let refuseOnce = true;
     vault.ports.fs.createNote = async (write) => {
-      if (write.path === 'Book the review room.md' && refuseOnce) {
+      if (write.path === 'Tasks/2026/10/Book the review room.md' && refuseOnce) {
         refuseOnce = false;
         throw new Error('the disk is full');
       }
@@ -312,7 +324,10 @@ describe('an answer kept for other turns', () => {
     await runNow();
 
     expect(asked()).toBe(2);
-    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(tasks()).toEqual([
+      'Tasks/2026/10/Book the review room.md',
+      'Tasks/2026/10/Send the renewal contract.md',
+    ]);
   });
 });
 
@@ -356,7 +371,10 @@ describe('a leftover proposal for an item already made', () => {
       acceptProposalNote({ ports: vault.ports, path: createVaultPath(leftover!), today: TODAY }),
     ).rejects.toThrow('is already a task, made from the same item of the meeting');
 
-    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(tasks()).toEqual([
+      'Tasks/2026/10/Book the review room.md',
+      'Tasks/2026/10/Send the renewal contract.md',
+    ]);
     expect(vault.files.has(leftover!)).toBe(false);
     expect(vault.properties(MEETING)['tasks']).toHaveLength(2);
   });
@@ -373,7 +391,7 @@ describe('a leftover proposal for an item already made', () => {
 
     await acceptProposalNote({ ports: vault.ports, path: createVaultPath(other!), today: TODAY });
 
-    expect(tasks()).toContain('Post the renewal contract.md');
+    expect(tasks()).toContain('Tasks/2026/10/Post the renewal contract.md');
   });
 });
 

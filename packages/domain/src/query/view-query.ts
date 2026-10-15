@@ -13,6 +13,10 @@ import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { outsideArchiveSql } from '../archive/archive.ts';
 import { PROJECT_TYPE } from '../types/para.ts';
 import { outsideParaArchiveSql } from '../types/para-value.ts';
+import { foldedLinkName } from '../markdown/resolve-wikilink.ts';
+import { linkTargets } from '../index/relation-rows.ts';
+import { TAGS_KEY } from '../tags/note-tags.ts';
+import { isWikiLink } from '../types/property-value.ts';
 
 export { InvalidQueryError };
 
@@ -155,6 +159,13 @@ export interface QueryReach {
    * tasks lists the tasks in play, not every task ever finished and put away.
    */
   readonly includeArchived?: boolean;
+  /**
+   * The note a link's target opens, so `project is [[Larkspur launch]]` keeps
+   * every note whose project opens that note, however its link is written:
+   * `[[projects/Larkspur launch]]`, `[[larkspur launch]]`, an alias (#212).
+   * Without it a link is compared as the text it is.
+   */
+  readonly resolveLink?: ((target: string) => string | null) | undefined;
 }
 
 export function compileViewQuery(
@@ -170,7 +181,7 @@ export function compileViewQuery(
   const conditions = [
     OUTSIDE_ATLAS,
     ...(reach.includeArchived === true ? [] : archivedLeftOut(query.type, table)),
-    ...query.filters.map((filter) => condition(filter, parameters)),
+    ...query.filters.map((filter) => condition(filter, parameters, reach)),
   ];
 
   const order = ordering(query, shape);
@@ -266,7 +277,11 @@ function ordering(query: ViewQuery, shape: QueryShape): string[] {
   ];
 }
 
-function condition(filter: QueryFilter, parameters: (string | number)[]): string {
+function condition(
+  filter: QueryFilter,
+  parameters: (string | number)[],
+  { resolveLink }: QueryReach,
+): string {
   const column = identifier(filter.key, 'filter column');
 
   if (WITHOUT_VALUE.includes(filter.operator)) {
@@ -278,6 +293,13 @@ function condition(filter: QueryFilter, parameters: (string | number)[]): string
   const value = filter.value;
   if (value === undefined || value === null) {
     throw new InvalidQueryError(`${filter.operator} needs a value`);
+  }
+
+  if (comparesExactly(filter) && typeof value === 'string') {
+    if (resolveLink !== undefined && isWikiLink(value)) {
+      return relationCondition(filter, value, resolveLink, parameters);
+    }
+    if (filter.key === TAGS_KEY) return tagCondition(filter, column, value, parameters);
   }
 
   // A relative date is an expression, not a value, so it takes the place of the
@@ -305,4 +327,47 @@ function condition(filter: QueryFilter, parameters: (string | number)[]): string
     default:
       throw new InvalidQueryError(`unknown operator ${JSON.stringify(filter.operator)}`);
   }
+}
+
+const comparesExactly = (filter: QueryFilter): boolean =>
+  filter.operator === 'is' || filter.operator === 'isNot';
+
+/** Whether a view is filtered by a link (`project is [[…]]`), which compiles by the note it opens. */
+export function filtersByLink(query: ViewQuery): boolean {
+  return query.filters.some((filter) => comparesExactly(filter) && isWikiLink(filter.value ?? ''));
+}
+
+/**
+ * A link compared by the note it opens, from the index's `relations` table,
+ * which keeps where each link a property holds resolves (ADR-0019) — so every
+ * way of writing a link to the note is one value. A link to no note matches
+ * links written the same way, as an Atlas query's does.
+ */
+function relationCondition(
+  filter: QueryFilter,
+  link: string,
+  resolveLink: (target: string) => string | null,
+  parameters: (string | number)[],
+): string {
+  const target = linkTargets(link)[0] ?? '';
+  const path = resolveLink(target);
+  parameters.push(filter.key, path ?? foldedLinkName(target));
+  const test = path === null ? 'r.name = ?' : 'r.dst = ?';
+  const negated = filter.operator === 'isNot' ? 'NOT ' : '';
+  return `${negated}EXISTS (SELECT 1 FROM relations AS r WHERE r.src = "path" AND r.key = ? AND ${test})`;
+}
+
+/**
+ * A tag compared as tags are: `#Errand` and `errand` are one tag (`tagKey`),
+ * so neither its case nor a leading `#` keeps a note out.
+ */
+function tagCondition(
+  filter: QueryFilter,
+  column: string,
+  tag: string,
+  parameters: (string | number)[],
+): string {
+  parameters.push(tag.trim().replace(/^#/, ''));
+  const negated = filter.operator === 'isNot' ? ' NOT' : '';
+  return `${column} IS${negated} ? COLLATE NOCASE`;
 }

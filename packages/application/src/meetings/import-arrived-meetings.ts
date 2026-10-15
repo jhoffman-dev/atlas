@@ -1,11 +1,13 @@
 import {
   createVaultPath,
+  declaresImport,
   digestOf,
   IMPORT_ERROR_KEY,
   IMPORT_OUTCOME_KEY,
   importErrorText,
   importOutcomeOf,
   isConflictCopyPath,
+  isMeetingArrival,
   isMeetingInboxPath,
   leavesFileUnsettled,
   meetingCandidates,
@@ -205,6 +207,9 @@ async function importOne(context: ImportContext, path: VaultPath): Promise<Looke
     if (!(await mayWriteInto(context, path))) return looked([]);
     const reading = readFrontmatter(markdown, splitFrontmatter(text).frontmatter);
     const outcome = importOutcomeOf(reading.properties);
+    // A meeting made by hand in `Meetings` declares no contract: it is a note, not the import's (#214).
+    const importDeclared = declaresImport(reading.properties);
+    if (!isMeetingArrival({ path, importDeclared, importOutcome: outcome })) return looked([]);
     // Settled: and a copy stamped where meetings land was brought back from the Archive by the person.
     if (outcome === 'imported' || outcome === 'duplicate') return looked([]);
     // The other Mac's version of a meeting both changed: the person's to settle, never a copy.

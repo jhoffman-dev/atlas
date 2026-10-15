@@ -32,7 +32,7 @@ const TASK = {
 const PROJECT = { name: 'project', properties: [] };
 
 describe('quickAddNote', () => {
-  it('makes a task from its template, with the fields filled in, beside the note in view', async () => {
+  it('makes a task from its template, with the fields filled in, in its home folder whatever is in view', async () => {
     const { fs, created } = recordingFs();
     const path = await quickAddNote({
       today: '2026-10-08',
@@ -46,7 +46,7 @@ describe('quickAddNote', () => {
       notePaths: [],
     });
 
-    expect(path).toBe('Clients/Renew the passport.md');
+    expect(path).toBe('Tasks/2026/10/Renew the passport.md');
     const contents = created[0]?.contents ?? '';
     expect(contents).toContain('type: task');
     expect(contents).toContain('status: doing');
@@ -70,8 +70,8 @@ describe('quickAddNote', () => {
       notePaths: [],
     });
 
-    // Anything but a task goes at the root, whatever is in view.
-    expect(created[0]?.path).toBe('Garden.md');
+    // A project goes to its type's home folder (#214), whatever is in view.
+    expect(created[0]?.path).toBe('Projects/Garden.md');
     expect(created[0]?.contents).toContain('type: project');
   });
 
@@ -86,10 +86,10 @@ describe('quickAddNote', () => {
       values: {},
       template: null,
       beside: null,
-      notePaths: [createVaultPath('Garden.md')],
+      notePaths: [createVaultPath('Projects/Garden.md')],
     });
-    expect(created[0]?.path).not.toBe('Garden.md');
-    expect(created[0]?.path).toMatch(/^Garden.*\.md$/);
+    expect(created[0]?.path).not.toBe('Projects/Garden.md');
+    expect(created[0]?.path).toMatch(/^Projects\/Garden.*\.md$/);
   });
 
   it('passes on a create the host refuses', async () => {

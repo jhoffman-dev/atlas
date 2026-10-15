@@ -197,6 +197,33 @@ describe('the handled ledger: what a rule remembers once its entries age out', (
     expect(memoryOf(text).hasPath(meetingPath(0))).toBe(false);
   });
 
+  it('remembers a moved note where it is now, with what it handled where it was (#214)', () => {
+    const base: Run = {
+      kind: 'run',
+      at: minute(0),
+      trigger: 'note',
+      done: [],
+      left: [],
+      capped: false,
+    };
+    const handledOnly: Run = {
+      ...base,
+      versions: [{ path: meetingPath(0), digest: 'd0', wrote: false }],
+    };
+    const to = p('Meetings/2026/10/Moved.md');
+    const followed: Run = {
+      ...base,
+      at: minute(1),
+      went: [meetingPath(0)],
+      moved: [{ from: meetingPath(0), path: to, digest: 'd1' }],
+    };
+    const handled = memoryOf(appendAll([handledOnly, followed]));
+
+    expect(handled.hasPath(meetingPath(0))).toBe(false);
+    expect(handled.hasHere({ path: to, digest: 'd0' })).toBe(true);
+    expect(handled.hasHere({ path: to, digest: 'd1' })).toBe(true);
+  });
+
   it('records more than one key for a handled version, and matches a note on any of them', () => {
     const entry = answeredRun(0, {
       versions: [
