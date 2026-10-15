@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { noteTitle, taskTypeOf, type ObjectType, type VaultPath } from '@atlas/domain';
 import {
   promoteChecklistLine,
@@ -109,14 +109,12 @@ export function useLinePromotion({
     [fs, markdown, openNotes, flush, notePaths, taskType, onChanged, activity],
   );
 
+  const shown = path !== null && said?.path === path ? said.notice : null;
+  const notice = useNoticeOf({ said: shown, undo, onOpenNote, dismiss });
   return useMemo(() => {
     if (path === null) return undefined;
-    const shown = said?.path === path ? said.notice : null;
-    return {
-      promote: (line: PromotedLine) => void promote(path, line),
-      notice: shown === null ? null : noticeOf({ said: shown, undo, onOpenNote, dismiss }),
-    };
-  }, [path, said, promote, undo, onOpenNote, dismiss]);
+    return { promote: (line: PromotedLine) => void promote(path, line), notice };
+  }, [path, promote, notice]);
 }
 
 /** What the page says: a message, and the promotion it is about when one was made. */
@@ -125,22 +123,34 @@ interface Said {
   readonly promotion?: Promotion;
 }
 
-function noticeOf({
+/**
+ * The notice for what was said: one object for each thing said, kept across
+ * renders, so its bar's time runs from when it was shown (#165) — however
+ * often the note's paths, and with them the callbacks, change meanwhile.
+ */
+function useNoticeOf({
   said,
   undo,
   onOpenNote,
   dismiss,
 }: {
-  said: Said;
+  said: Said | null;
   undo: (promotion: Promotion) => Promise<void>;
   onOpenNote: (path: VaultPath) => void;
   dismiss: () => void;
-}): PromotionNotice {
-  const { promotion } = said;
-  return {
-    message: said.message,
-    onOpen: promotion === undefined ? null : () => onOpenNote(promotion.task),
-    onUndo: promotion === undefined ? null : () => void undo(promotion),
-    onDismiss: dismiss,
-  };
+}): PromotionNotice | null {
+  const latest = useRef({ undo, onOpenNote });
+  useEffect(() => {
+    latest.current = { undo, onOpenNote };
+  });
+  return useMemo(() => {
+    if (said === null) return null;
+    const { promotion } = said;
+    return {
+      message: said.message,
+      onOpen: promotion === undefined ? null : () => latest.current.onOpenNote(promotion.task),
+      onUndo: promotion === undefined ? null : () => void latest.current.undo(promotion),
+      onDismiss: dismiss,
+    };
+  }, [said, dismiss]);
 }

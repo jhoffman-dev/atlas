@@ -16,6 +16,7 @@ import {
 } from '@atlas/application';
 import {
   createVaultPath,
+  INBOX_LIST_LIMIT,
   INBOX_QUERY_COLUMNS,
   TASK_TYPE_FILE,
   WAITING_NEEDS_SOMEONE,
@@ -178,6 +179,17 @@ describe('useInbox — a vault switch', () => {
     expect(files.get(CALL)).toBe(CAPTURED);
   });
 
+  it('keeps one last-action object across renders, so its bar keeps its time (review)', async () => {
+    const { hook, initial } = inbox();
+    await act(() =>
+      hook.result.current.clarify({ path: CALL, clarification: { status: 'backlog' } }),
+    );
+    const shown = hook.result.current.lastAction;
+    expect(shown).toEqual({ title: 'Call the bank' });
+    hook.rerender({ ...initial });
+    expect(hook.result.current.lastAction).toBe(shown);
+  });
+
   it('forgets the last vault’s refusal and its undo', async () => {
     const { hook, initial } = inbox();
     await act(() =>
@@ -251,6 +263,236 @@ describe('useInbox — clarifying a row', () => {
   });
 });
 
+/**
+ * An index that answers the Inbox's statements over `waiting` as SQLite would
+ * (a jsdom test cannot load SQLite): newest first, then by path; a page after
+ * its `after` key and up to its `through` key; and the count. Every statement
+ * asked is kept, with its parameters.
+ */
+function keysetIndex(waiting: { title: string; modified: number }[]) {
+  const asked: { sql: string; parameters: readonly unknown[] }[] = [];
+  const pathOf = (title: string) => `Inbox/${title}.md`;
+  const order = (a: { title: string; modified: number }, b: { title: string; modified: number }) =>
+    b.modified - a.modified || (pathOf(a.title) < pathOf(b.title) ? -1 : 1);
+  const index = fakeIndexPort({
+    query: async (sql, parameters = []) => {
+      asked.push({ sql, parameters });
+      if (sql.includes('count(*) AS "total"')) {
+        return { columns: ['total'], rows: [[waiting.length]], truncated: false };
+      }
+      const given = [...parameters] as (string | number)[];
+      const take = () => [given.shift(), given.shift(), given.shift()] as [number, number, string];
+      const after = sql.includes('files.path > ?') ? take() : null;
+      const through = sql.includes('files.path <= ?') ? take() : null;
+      const [limit] = given as number[];
+      const rows = [...waiting]
+        .sort(order)
+        .filter(({ title, modified }) => {
+          const path = pathOf(title);
+          const isAfter =
+            after === null || modified < after[0] || (modified === after[0] && path > after[2]);
+          const isThrough =
+            through === null ||
+            modified > through[0] ||
+            (modified === through[0] && path <= through[2]);
+          return isAfter && isThrough;
+        })
+        .slice(0, limit)
+        .map(({ title, modified }) => {
+          const row: unknown[] = INBOX_QUERY_COLUMNS.map(() => null);
+          const put = (column: (typeof INBOX_QUERY_COLUMNS)[number], value: unknown) =>
+            (row[INBOX_QUERY_COLUMNS.indexOf(column)] = value);
+          put('path', pathOf(title));
+          put('title', title);
+          put('type', 'task');
+          put('importStamped', 0);
+          put('status', 'inbox');
+          put('modified', modified);
+          return row;
+        });
+      return { columns: [...INBOX_QUERY_COLUMNS], rows, truncated: false };
+    },
+  });
+  return { index, asked };
+}
+
+/** `count` tasks waiting, the newest first: `Task 0` changed last. */
+const waitingTasks = (count: number) =>
+  Array.from({ length: count }, (_, n) => ({ title: `Task ${n}`, modified: count - n }));
+
+const isPage = (sql: string) => !sql.includes('count(*) AS "total"');
+
+describe('useInbox — more than one page (#167)', () => {
+  it('lists the next page once more are asked for, read on from the last note shown', async () => {
+    const waiting = waitingTasks(INBOX_LIST_LIMIT * 2 + 3);
+    const { index, asked } = keysetIndex(waiting);
+    const { hook, initial } = inbox();
+    hook.rerender({ ...initial, ports: { ...initial.ports, index } });
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT));
+    expect(hook.result.current.contents).toMatchObject({ truncated: true, total: waiting.length });
+
+    asked.length = 0;
+    act(() => hook.result.current.showMore());
+    await waitFor(() =>
+      expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT * 2),
+    );
+    act(() => hook.result.current.showMore());
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(waiting.length));
+
+    expect(hook.result.current.contents?.truncated).toBe(false);
+    expect(hook.result.current.contents?.items.map((item) => item.title)).toEqual(
+      waiting.map((task) => task.title),
+    );
+    // Each Show more read one page, on from the last note shown — never from the top again.
+    const pages = asked.filter(({ sql }) => isPage(sql));
+    expect(pages).toHaveLength(2);
+    for (const { sql, parameters } of pages) {
+      expect(sql).toContain('files.path > ?');
+      expect(parameters.at(-1)).toBe(INBOX_LIST_LIMIT + 1);
+    }
+  });
+
+  it('reads again up to the last note shown, a page at a time, when the index changes', async () => {
+    const waiting = waitingTasks(INBOX_LIST_LIMIT * 2 + 3);
+    const { index, asked } = keysetIndex(waiting);
+    const { hook, initial } = inbox();
+    const at = { ...initial, ports: { ...initial.ports, index } };
+    hook.rerender(at);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT));
+    act(() => hook.result.current.showMore());
+    await waitFor(() =>
+      expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT * 2),
+    );
+
+    // Two of the first page filed meanwhile: the rest shown stay, and nothing past them comes in.
+    waiting.splice(0, 2);
+    asked.length = 0;
+    hook.rerender({ ...at, indexKey: 'ready:2' });
+    await waitFor(() =>
+      expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT * 2 - 2),
+    );
+    expect(hook.result.current.contents?.items[0]?.title).toBe('Task 2');
+    expect(hook.result.current.contents?.items.at(-1)?.title).toBe(
+      `Task ${INBOX_LIST_LIMIT * 2 - 1}`,
+    );
+    expect(hook.result.current.contents).toMatchObject({ truncated: true, total: waiting.length });
+    for (const { parameters } of asked.filter(({ sql }) => isPage(sql))) {
+      expect(parameters.at(-1)).toBe(INBOX_LIST_LIMIT + 1);
+    }
+
+    // Show more then reads on from there, skipping none of the three left.
+    act(() => hook.result.current.showMore());
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(waiting.length));
+    expect(hook.result.current.contents?.items.map((item) => item.title)).toEqual(
+      waiting.map((task) => task.title),
+    );
+  });
+
+  it('starts another vault at its first page', async () => {
+    const waiting = waitingTasks(INBOX_LIST_LIMIT + 3);
+    const { index } = keysetIndex(waiting);
+    const { hook, initial } = inbox();
+    const at = { ...initial, ports: { ...initial.ports, index } };
+    hook.rerender(at);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT));
+    act(() => hook.result.current.showMore());
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(waiting.length));
+
+    const other = keysetIndex(waitingTasks(INBOX_LIST_LIMIT + 3));
+    const b = { ...at, vaultKey: '/vaults/b', ports: { ...at.ports, index: other.index } };
+    hook.rerender(b);
+    hook.rerender({ ...b, indexKey: 'ready:b' });
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT));
+  });
+});
+
+/**
+ * The index of {@link keysetIndex}, its first-page reads and its read-on pages
+ * each held until let go: so a re-read and a Show more can be landed in
+ * either order.
+ */
+function heldIndex(waiting: { title: string; modified: number }[]) {
+  const { index } = keysetIndex(waiting);
+  const gate = () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    return { held, release };
+  };
+  const gates = { firstPage: gate(), readOn: gate() };
+  const holding = { firstPage: false, readOn: false };
+  const query: typeof index.query = async (sql, parameters) => {
+    const firstPage = isPage(sql) && !sql.includes('files.path > ?') && !sql.includes('<= ?');
+    if (firstPage && holding.firstPage) await gates.firstPage.held;
+    if (sql.includes('files.path > ?') && holding.readOn) await gates.readOn.held;
+    return index.query(sql, parameters);
+  };
+  return {
+    index: { ...index, query },
+    hold: (which: keyof typeof holding) => (holding[which] = true),
+    release: async (which: keyof typeof holding) => {
+      holding[which] = false;
+      await act(async () => gates[which].release());
+    },
+  };
+}
+
+describe('useInbox — Show more while the list is being read again (#167)', () => {
+  async function shownFirstPage(waiting: { title: string; modified: number }[]) {
+    const held = heldIndex(waiting);
+    const { hook, initial } = inbox();
+    const at = { ...initial, ports: { ...initial.ports, index: held.index } };
+    hook.rerender(at);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT));
+    return { hook, at, held };
+  }
+  const titles = (hook: { result: { current: ReturnType<typeof useInbox> } }) =>
+    hook.result.current.contents?.items.map((item) => item.title) ?? [];
+
+  it('keeps the page it added when the read begun before it lands after it', async () => {
+    const waiting = waitingTasks(INBOX_LIST_LIMIT * 2 + 3);
+    const { hook, at, held } = await shownFirstPage(waiting);
+
+    held.hold('firstPage');
+    hook.rerender({ ...at, indexKey: 'ready:2' });
+    await act(async () => {});
+    held.hold('readOn');
+    act(() => hook.result.current.showMore());
+    await act(async () => {});
+
+    await held.release('readOn');
+    expect(hook.result.current.contents?.items).toHaveLength(INBOX_LIST_LIMIT * 2);
+    await held.release('firstPage');
+    await act(async () => {});
+
+    expect(titles(hook)).toEqual(waiting.slice(0, INBOX_LIST_LIMIT * 2).map((task) => task.title));
+  });
+
+  it('never brings back the list it was asked from when the read begun before it lands first', async () => {
+    const waiting = waitingTasks(INBOX_LIST_LIMIT * 2 + 3);
+    const { hook, at, held } = await shownFirstPage(waiting);
+
+    // The first task is filed: the index changes, and Show more is asked for before its re-read lands.
+    const [filed] = waiting.splice(0, 1);
+    held.hold('firstPage');
+    hook.rerender({ ...at, indexKey: 'ready:2' });
+    await act(async () => {});
+    held.hold('readOn');
+    act(() => hook.result.current.showMore());
+    await act(async () => {});
+
+    await held.release('firstPage');
+    expect(titles(hook)[0]).toBe('Task 1');
+    await held.release('readOn');
+    await act(async () => {});
+
+    await waitFor(() => expect(titles(hook)).toHaveLength(INBOX_LIST_LIMIT * 2 - 1));
+    expect(titles(hook)).not.toContain(filed?.title);
+    expect(titles(hook)).toEqual(
+      waiting.slice(0, INBOX_LIST_LIMIT * 2 - 1).map((task) => task.title),
+    );
+  });
+});
+
 describe('useInbox — undo', () => {
   it('moves the note back and puts back what it said', async () => {
     const { hook, files, onSettled } = inbox();
@@ -268,6 +510,22 @@ describe('useInbox — undo', () => {
     expect(files.has('Projects/Atlas/Call the bank.md')).toBe(false);
     expect(hook.result.current.lastAction).toBeNull();
     expect(onSettled).toHaveBeenCalledTimes(2);
+  });
+
+  it('takes nothing back once the bar offering Undo has gone (#165)', async () => {
+    const { hook, files, onSettled } = inbox();
+    await act(() =>
+      hook.result.current.clarify({ path: CALL, clarification: { status: 'backlog' } }),
+    );
+    const clarified = files.get(CALL);
+    expect(hook.result.current.lastAction).toEqual({ title: 'Call the bank' });
+
+    act(() => hook.result.current.dismissLastAction());
+    expect(hook.result.current.lastAction).toBeNull();
+
+    await act(() => hook.result.current.undo());
+    expect(files.get(CALL)).toBe(clarified);
+    expect(onSettled).toHaveBeenCalledTimes(1);
   });
 
   it('says why above the list when the note was changed since, and leaves it', async () => {

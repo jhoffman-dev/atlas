@@ -1,4 +1,5 @@
 import { splitFrontmatter } from '../markdown/markdown-document.ts';
+import { daysBetween } from '../timeline/timeline.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { foldedVaultPath } from '../vault/vault-spelling.ts';
 import { ATLAS_DIRECTORY } from '../vault/vault-visibility.ts';
@@ -40,6 +41,33 @@ export interface MigrationRecord {
   readonly finished?: boolean;
   /** The files the last finished run left as they were — unsaved typing, a refusal — still to move. */
   readonly left?: readonly VaultPath[];
+  /** When the latest run began, once a run has gone on from one cut off partway; `at` until then. */
+  readonly lastRunAt?: string;
+  /** Whether the person dismissed the Inbox's offer to undo the move. */
+  readonly undoDismissed?: boolean;
+  /**
+   * Whether an undo was tried and left files to try again — unsaved typing, a
+   * refusal — so the files here are those still to put back, and the move is
+   * not over until they are.
+   */
+  readonly undoUnfinished?: boolean;
+}
+
+/** How many days after a run began the Inbox offers to undo it (#163). */
+export const MIGRATION_UNDO_OFFER_DAYS = 7;
+
+/**
+ * Whether the Inbox still offers to undo the move on `today` (#163). The
+ * offer is made once: it ends when dismissed, or a week after the latest run
+ * began, and is not made again until another run. The record itself stays,
+ * so a run cut off partway is still known by it.
+ */
+export function undoStillOffered(record: MigrationRecord, today: string): boolean {
+  if (record.undoDismissed === true) return false;
+  const ranOn = (record.lastRunAt ?? record.at).slice(0, 10);
+  // A run whose day cannot be read has no week to measure, so its offer has ended.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ranOn)) return false;
+  return daysBetween(ranOn, today) < MIGRATION_UNDO_OFFER_DAYS;
 }
 
 /**
@@ -81,6 +109,9 @@ export function migrationRecordText(record: MigrationRecord): string {
       files: record.files,
       finished: record.finished === true,
       left: record.left ?? [],
+      ...(record.lastRunAt !== undefined && { lastRunAt: record.lastRunAt }),
+      ...(record.undoDismissed === true && { undoDismissed: true }),
+      ...(record.undoUnfinished === true && { undoUnfinished: true }),
     }),
     FENCE,
     '',
@@ -111,6 +142,9 @@ export function parseMigrationRecord(text: string): MigrationRecord {
     files: parsed['files'].map(recordedFile),
     finished: parsed['finished'] === true,
     left: Array.isArray(parsed['left']) ? parsed['left'].map(leftPath) : [],
+    ...(typeof parsed['lastRunAt'] === 'string' && { lastRunAt: parsed['lastRunAt'] }),
+    ...(parsed['undoDismissed'] === true && { undoDismissed: true }),
+    ...(parsed['undoUnfinished'] === true && { undoUnfinished: true }),
   };
 }
 
@@ -156,6 +190,22 @@ function recordedFile(raw: unknown): RecordedFile {
 }
 
 /**
+ * The record a new run goes on from (#163): one cut off partway, or one that
+ * finished with files it could not move yet — that run is not over, so one
+ * undo covers both. A run that finished with nothing left is over, and so is
+ * one whose undo was dismissed: the new run is a run of its own, with its own
+ * record, and its Undo never takes back the run before it. One whose undo left
+ * files to try again is never over — replacing it would lose what those files
+ * were before — so the new run goes on from it, and the next Undo puts them back.
+ */
+export function recordGoneOnFrom(earlier: MigrationRecord | null): MigrationRecord | null {
+  if (earlier?.undoUnfinished === true) return earlier;
+  if (earlier === null || earlier.undoDismissed === true) return null;
+  const over = earlier.finished === true && (earlier.left ?? []).length === 0;
+  return over ? null : earlier;
+}
+
+/**
  * A run that went on after one that stopped partway — on this Mac, or from a
  * record another Mac's partial run synced in: one record for both, so one
  * undo covers both.
@@ -166,6 +216,7 @@ function recordedFile(raw: unknown): RecordedFile {
  * the second run found is what undo must give back, or that change is lost.
  * A file the second run made — the first run's was deleted since — is
  * recorded as made by the second, so undo takes it away while still as made.
+ * The later run is offered for undo afresh, as a run of its own is.
  */
 export function mergedRecord(
   earlier: MigrationRecord | null,
@@ -178,9 +229,11 @@ export function mergedRecord(
   }
   return {
     at: earlier.at,
+    lastRunAt: later.at,
     files: [...files.values()],
     ...(later.finished === undefined ? {} : { finished: later.finished }),
     ...(later.left === undefined ? {} : { left: later.left }),
+    ...(earlier.undoUnfinished === true && { undoUnfinished: true }),
   };
 }
 

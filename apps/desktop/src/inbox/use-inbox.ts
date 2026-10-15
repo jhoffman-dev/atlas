@@ -9,6 +9,7 @@ import {
   tasksStartInInbox,
   waitingOnRefusal,
   type Clarification,
+  type InboxKey,
   type ObjectType,
   type VaultPath,
 } from '@atlas/domain';
@@ -16,6 +17,7 @@ import {
   clarifyInboxItem,
   ClarifyRefusedError,
   listInbox,
+  listInboxThrough,
   notesInUseOfTypes,
   undoClarifyInboxItem,
   type ActivityLog,
@@ -23,8 +25,9 @@ import {
   type ClarifyOutcome,
   type ClarifyUndo,
   type Clock,
+  type InboxListing,
 } from '@atlas/application';
-import type { InboxContents, RelationChoice } from '@atlas/ui';
+import type { RelationChoice } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { errorMessage } from '../query/error-message.ts';
 
@@ -72,7 +75,6 @@ export function useInbox(options: InboxOptions) {
   const settled = useIndexMovedOn({ vaultKey, indexKey });
   // Asked only while it is ready; what it last answered for this vault stays up while it re-reads.
   const fresh = settled && (options.indexReady ?? true);
-  const [listing, setListing] = useState<Listing | null>(null);
   const [choices, setChoices] = useState<Choices | null>(null);
   const [said, setSaid] = useState<Said | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,21 +82,13 @@ export function useInbox(options: InboxOptions) {
   const running = useRef(false);
   const unmadeMeanwhile = useRef<Pick<Result, 'problem' | 'refusal'> | null>(null);
   const startInInbox = tasksStartInInbox(types);
-
-  useEffect(() => {
-    if (!fresh) return;
-    let cancelled = false;
-    listInbox({ index: ports.index, tasksStartInInbox: startInInbox })
-      .then((contents) => {
-        if (!cancelled) setListing({ vaultKey, contents, error: null });
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) setListing({ vaultKey, contents: null, error: errorMessage(cause) });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [ports.index, indexKey, fresh, vaultKey, startInInbox]);
+  const { listing, showMore } = useInboxListing({
+    index: ports.index,
+    vaultKey,
+    indexKey,
+    fresh,
+    tasksStartInInbox: startInInbox,
+  });
 
   useEffect(() => {
     if (!open || !fresh) return;
@@ -210,7 +204,15 @@ export function useInbox(options: InboxOptions) {
     [act, activity, last, notePaths, onSettled, ports],
   );
 
+  // The undo lasts as long as the bar offering it (#165): once that has gone, so has the undo.
+  const dismissLastAction = useCallback(
+    () => setSaid((before) => (before === null ? null : { ...before, last: null })),
+    [],
+  );
+
   const statuses = useMemo(() => clarifyVocabulary(types).statuses, [types]);
+  // One object per clarification, not one per render: its bar's time is kept by it (#165).
+  const lastAction = useMemo(() => (last === null ? null : { title: last.title }), [last]);
   return {
     contents: shown?.contents ?? null,
     /** The statuses a row may give a task: the ones the vault's Task type declares. */
@@ -224,9 +226,12 @@ export function useInbox(options: InboxOptions) {
     /** Why the last clarification was refused or left unfinished, and the row it was for. */
     refusal: told?.refusal ?? null,
     /** The last clarification, while it can be taken back. */
-    lastAction: last === null ? null : { title: last.title },
+    lastAction,
     clarify,
     undo,
+    dismissLastAction,
+    /** Lists the next page of what waits (#167). */
+    showMore,
   };
 }
 
@@ -238,7 +243,7 @@ const STILL_WRITING =
 /** A read of the Inbox, and the vault it was read from. */
 interface Listing {
   readonly vaultKey: string | null;
-  readonly contents: InboxContents | null;
+  readonly contents: InboxListing | null;
   readonly error: string | null;
 }
 
@@ -273,6 +278,93 @@ async function readChoices(
   return {
     filing: projects.filter((note) => filingRefusal({ path: at(note), type: note.type }) === null),
     people: people.filter((note) => waitingOnRefusal({ path: at(note), type: note.type }) === null),
+  };
+}
+
+/**
+ * What waits, as the page lists it: the first page, and a page more each
+ * time more are asked for (#167) — each read on from the last note listed,
+ * never by position and never from the top again, so no read is larger than
+ * a page and filing between pages skips nothing. Read again when the index
+ * changes, it reads up to the last note shown, a page at a time; another
+ * vault starts at its first page.
+ */
+function useInboxListing({
+  index,
+  vaultKey,
+  indexKey,
+  fresh,
+  tasksStartInInbox,
+}: {
+  index: InboxOptions['ports']['index'];
+  vaultKey: string | null;
+  indexKey: string;
+  fresh: boolean;
+  tasksStartInInbox: boolean;
+}) {
+  const [listing, setListing] = useState<Listing | null>(null);
+  // How far down the page has been shown, by the last note listed; nothing past the first page until asked.
+  const reach = useRef<{ vaultKey: string | null; through: InboxKey } | null>(null);
+  // One more each time a read lands in the list, so a page knows whether the list it extends is still up.
+  const landed = useRef(0);
+  const [readAgain, setReadAgain] = useState(0);
+  const land = useCallback((next: Listing) => {
+    landed.current += 1;
+    setListing(next);
+  }, []);
+
+  useEffect(() => {
+    if (!fresh) return;
+    let cancelled = false;
+    const begunFrom = reach.current;
+    const through = begunFrom?.vaultKey === vaultKey ? begunFrom.through : null;
+    const read =
+      through === null
+        ? listInbox({ index, tasksStartInInbox })
+        : listInboxThrough({ index, through, tasksStartInInbox });
+    // Shown further down while this read ran: what it found stops short of that, so read again that far.
+    const reachedPast = () => reach.current !== begunFrom && reach.current?.vaultKey === vaultKey;
+    const settle = (next: Listing) => {
+      if (cancelled) return;
+      if (reachedPast()) setReadAgain((count) => count + 1);
+      else land(next);
+    };
+    read
+      .then((contents) => settle({ vaultKey, contents, error: null }))
+      .catch((cause: unknown) => settle({ vaultKey, contents: null, error: errorMessage(cause) }));
+    return () => {
+      cancelled = true;
+    };
+  }, [index, indexKey, fresh, vaultKey, tasksStartInInbox, readAgain, land]);
+
+  const showMore = useCallback(() => {
+    const shown = listing?.vaultKey === vaultKey ? listing.contents : null;
+    const after = shown?.last ?? null;
+    if (shown === null || !shown.truncated || after === null) return;
+    const begun = landed.current;
+    listInbox({ index, after, tasksStartInInbox })
+      .then((page) => {
+        reach.current = { vaultKey, through: page.last ?? after };
+        // Another read landed meanwhile, so the list is newer than this page: read it again, this far down.
+        if (landed.current !== begun) setReadAgain((count) => count + 1);
+        else land({ vaultKey, contents: followedBy(shown, page), error: null });
+      })
+      .catch((cause: unknown) => {
+        if (landed.current === begun)
+          land({ vaultKey, contents: shown, error: errorMessage(cause) });
+      });
+  }, [listing, vaultKey, index, tasksStartInInbox, land]);
+
+  return { listing, showMore };
+}
+
+/** The list as shown, with the page read on from its last note after it. */
+function followedBy(shown: InboxListing, page: InboxListing): InboxListing {
+  return {
+    items: [...shown.items, ...page.items],
+    truncated: page.truncated,
+    total: page.total,
+    last: page.last ?? shown.last,
   };
 }
 

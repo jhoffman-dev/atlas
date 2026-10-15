@@ -59,6 +59,7 @@ function panel(overrides: Partial<TaskMigrationProps> = {}) {
     onRun: vi.fn(),
     onClose: vi.fn(),
     onUndo: vi.fn(),
+    onDismiss: vi.fn(),
     ...overrides,
   };
   const view = render(<TaskMigration {...props} />);
@@ -145,6 +146,13 @@ describe('TaskMigration', () => {
     expect(screen.getByRole('status').textContent).toBe('Moved tasks to GTD statuses.');
     await userEvent.click(screen.getByRole('button', { name: 'Undo the move to GTD' }));
     expect(props.onUndo).toHaveBeenCalled();
+  });
+
+  it('lets the undo offer be dismissed, so it ends rather than waiting for the week to pass (#163)', async () => {
+    const { props } = panel({ preview: null, result: null, canUndo: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(props.onDismiss).toHaveBeenCalledTimes(1);
+    expect(props.onUndo).not.toHaveBeenCalled();
   });
 
   it('draws nothing when there is nothing to move and nothing to undo', () => {

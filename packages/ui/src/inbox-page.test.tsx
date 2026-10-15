@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
@@ -51,6 +51,7 @@ const PROPOSALS: NonNullable<InboxPageProps['proposals']> = {
   onAccept: vi.fn(),
   onReject: vi.fn(),
   onUndo: vi.fn(),
+  onDismissNotice: vi.fn(),
   onOpen: vi.fn(),
   onOpenSource: vi.fn(),
 };
@@ -62,6 +63,7 @@ const CONTENTS: InboxContents = {
     item('Inbox/Idea.md', 'Idea', null),
   ],
   truncated: false,
+  total: 3,
 };
 
 const FILING: readonly RelationChoice[] = [
@@ -81,13 +83,17 @@ function page(overrides: Partial<InboxPageProps> = {}) {
     filing: FILING,
     people: PEOPLE,
     onOpen: vi.fn(),
+    onShowMore: vi.fn(),
     onClarify: vi.fn(async () => true),
     busy: false,
     problem: null,
     ...overrides,
   };
-  render(<InboxPage {...props} />);
-  return props;
+  const view = render(<InboxPage {...props} />);
+  return {
+    ...props,
+    rerender: (next: Partial<InboxPageProps>) => view.rerender(<InboxPage {...props} {...next} />),
+  };
 }
 
 const rowOf = (title: string) =>
@@ -154,7 +160,7 @@ describe('InboxPage', () => {
   });
 
   it('says when nothing is waiting', () => {
-    page({ contents: { items: [], truncated: false } });
+    page({ contents: { items: [], truncated: false, total: 0 } });
     expect(screen.getByText(/Nothing is waiting/)).toBeDefined();
     expect(screen.queryByRole('table')).toBeNull();
   });
@@ -206,6 +212,7 @@ describe('InboxPage', () => {
           }),
         ],
         truncated: false,
+        total: 3,
       },
     });
     expect(within(rowOf('New')).getByText('Waiting to be imported')).toBeDefined();
@@ -362,6 +369,7 @@ describe('InboxPage — clarifying a task on its row', () => {
       contents: {
         items: [item('Tasks/Chase.md', 'Chase', 'task', '', { task: held })],
         truncated: false,
+        total: 1,
       },
     });
     expect((control('Status of Chase') as HTMLSelectElement).value).toBe('waiting');
@@ -440,7 +448,7 @@ describe('InboxPage — clarifying a task on its row', () => {
 
   it('offers to take the last clarification back', async () => {
     const onUndo = vi.fn();
-    page({ lastAction: { title: 'Call the bank' }, onUndo });
+    page({ lastAction: { title: 'Call the bank' }, onUndo, onDismissLastAction: vi.fn() });
     const said = screen.getByRole('status');
     expect(said.textContent).toContain('Clarified “Call the bank”.');
     await userEvent.click(within(said).getByRole('button', { name: 'Undo' }));
@@ -450,5 +458,77 @@ describe('InboxPage — clarifying a task on its row', () => {
   it('offers no undo when nothing was clarified', () => {
     page({ onUndo: vi.fn() });
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+});
+
+describe('InboxPage — the undo bar goes by itself (#165)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('dismisses “Clarified …” and its Undo after 20 seconds', () => {
+    vi.useFakeTimers();
+    const onDismissLastAction = vi.fn();
+    page({ lastAction: { title: 'Call the bank' }, onUndo: vi.fn(), onDismissLastAction });
+
+    act(() => vi.advanceTimersByTime(19_900));
+    expect(onDismissLastAction).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(200));
+    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits while the pointer is on it', () => {
+    vi.useFakeTimers();
+    const onDismissLastAction = vi.fn();
+    page({ lastAction: { title: 'Call the bank' }, onUndo: vi.fn(), onDismissLastAction });
+    const said = screen.getByRole('status');
+
+    fireEvent.pointerEnter(said);
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(onDismissLastAction).not.toHaveBeenCalled();
+    fireEvent.pointerLeave(said);
+    act(() => vi.advanceTimersByTime(20_100));
+    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('InboxPage — a second clarification of the same title (review)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('gives it the full 20 seconds again', () => {
+    vi.useFakeTimers();
+    const onDismissLastAction = vi.fn();
+    const view = page({
+      lastAction: { title: 'Call the bank' },
+      onUndo: vi.fn(),
+      onDismissLastAction,
+    });
+    act(() => vi.advanceTimersByTime(15_000));
+    view.rerender({ lastAction: { title: 'Call the bank' } });
+    act(() => vi.advanceTimersByTime(15_000));
+    expect(onDismissLastAction).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(5_100));
+    expect(onDismissLastAction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('InboxPage — more waiting than one page (#167)', () => {
+  const FULL: InboxContents = { ...CONTENTS, truncated: true, total: 734 };
+
+  it('says how many wait in all, and how many are shown', () => {
+    page({ contents: FULL, onShowMore: vi.fn() });
+    expect(screen.getByText(/^734 to process/)).toBeTruthy();
+    expect(screen.getByText('Showing the newest 3 of 734.')).toBeTruthy();
+  });
+
+  it('shows more when asked, so every note can be reached', async () => {
+    const onShowMore = vi.fn();
+    page({ contents: FULL, onShowMore });
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(onShowMore).toHaveBeenCalledOnce();
+  });
+
+  it('offers no more once everything is shown', () => {
+    page({ contents: { ...CONTENTS, total: 3 }, onShowMore: vi.fn() });
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    expect(screen.getByText(/^3 to process/)).toBeTruthy();
   });
 });

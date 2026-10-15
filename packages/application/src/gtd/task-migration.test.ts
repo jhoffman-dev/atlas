@@ -12,7 +12,12 @@ import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { readMigrationRecord } from './migration-record-file.ts';
-import { runTaskMigration, undoTaskMigration, type MigrationPanes } from './run-task-migration.ts';
+import {
+  dismissMigrationUndo,
+  runTaskMigration,
+  undoTaskMigration,
+  type MigrationPanes,
+} from './run-task-migration.ts';
 import {
   type TaskMigrationPorts,
   hasMigrationWork,
@@ -384,6 +389,88 @@ describe('undoing the migration', () => {
 
     await undoTaskMigration({ fs: ports.fs, panes: closedPanes });
     expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
+  });
+
+  it('keeps what a partial undo left to put back when the move is run again (#163)', async () => {
+    const { ports, files } = vault();
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    const typing: MigrationPanes = {
+      state: (path) => (path === 'tasks/Call Mara.md' ? 'dirty' : 'closed'),
+      reload: () => {},
+    };
+    await undoTaskMigration({ fs: ports.fs, panes: typing });
+
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock: { localNow: () => '2026-10-09T09:30:00' },
+      preview: await previewTaskMigration(ports),
+    });
+    await undoTaskMigration({ fs: ports.fs, panes: closedPanes });
+
+    expect(files.get('tasks/Call Mara.md')).toBe(FILES['tasks/Call Mara.md']);
+    expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
+  });
+});
+
+describe('dismissing the undo offer (#163)', () => {
+  it('marks the record dismissed and keeps it, so the run can still be read from it', async () => {
+    const { ports, files } = vault();
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    const before = (await readMigrationRecord(ports.fs))?.record;
+
+    await dismissMigrationUndo(ports.fs);
+
+    const after = (await readMigrationRecord(ports.fs))?.record;
+    expect(after).toEqual({ ...before, undoDismissed: true });
+    expect(files.has(MIGRATION_RECORD_PATH)).toBe(true);
+  });
+
+  it('does nothing in a vault that was never moved', async () => {
+    const { ports, files } = vault();
+    await dismissMigrationUndo(ports.fs);
+    expect(new Map(files)).toEqual(new Map(Object.entries(FILES)));
+  });
+});
+
+describe('adversarial: an undo dismissed, then another run (#163)', () => {
+  // Dismissed "for good" on one Mac; the other Mac then moves a task synced in
+  // with an old status. The later run's record is merged into the dismissed one
+  // (dismissal dropped), so the offer comes back and its Undo takes back the
+  // dismissed run's every task as well as the one just moved.
+  it('does not take back the dismissed run when the later run is undone', async () => {
+    const { ports, files } = vault();
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock,
+      preview: await previewTaskMigration(ports),
+    });
+    await dismissMigrationUndo(ports.fs);
+    const movedByFirst = files.get('tasks/Call Mara.md');
+
+    files.set('tasks/Synced in.md', note({ type: 'task', status: 'doing' }));
+    const later = await previewTaskMigration(ports);
+    expect(later.tasks.map((task) => task.title)).toEqual(['Synced in']);
+    await runTaskMigration({
+      ports,
+      panes: closedPanes,
+      clock: { localNow: () => '2026-10-20T09:30:00' },
+      preview: later,
+    });
+
+    await undoTaskMigration({ fs: ports.fs, panes: closedPanes });
+    expect(files.get('tasks/Call Mara.md')).toBe(movedByFirst);
   });
 });
 

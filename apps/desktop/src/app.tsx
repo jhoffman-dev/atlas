@@ -1068,11 +1068,12 @@ export function App({
     indexKey,
     onSettled: settleArchive,
     activity: activityLog,
+    closing: closing.writes,
   });
   const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
   // One Inbox: its count is what waits to be filed and the proposals waiting for an answer.
   const waiting = inboxWaiting({
-    toFile: inbox.contents?.items.length ?? null,
+    toFile: inbox.contents?.total ?? null,
     toAnswer: proposals.count,
   });
   // As with Today, no row that opens nothing: the Inbox shows once the vault
@@ -1672,12 +1673,14 @@ export function App({
                     people: inbox.people,
                     statuses: inbox.statuses,
                     onOpen: openNote,
+                    onShowMore: inbox.showMore,
                     onClarify: inbox.clarify,
                     busy: inbox.busy,
                     problem: inbox.problem,
                     refusal: inbox.refusal,
                     lastAction: inbox.lastAction,
                     onUndo: () => void inbox.undo(),
+                    onDismissLastAction: inbox.dismissLastAction,
                     typesOffer:
                       typesOffer === null
                         ? null

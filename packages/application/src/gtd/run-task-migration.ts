@@ -1,6 +1,7 @@
 import {
   joinVaultPath,
   mergedRecord,
+  recordGoneOnFrom,
   MIGRATION_RECORD_PATH,
   migrationRecordText,
   parentVaultPath,
@@ -140,12 +141,15 @@ async function create(fs: VaultFsPort, { path, contents }: FileCreation): Promis
 
 /**
  * Writes the run's record before the run changes anything — added to the one
- * a run cut off partway left, so one undo covers both. A record that cannot
- * be read stops the run here: running on would leave changes nothing records.
+ * a run that is not over left, so one undo covers both; in place of one that
+ * is over, so the later run's Undo takes back only what it did (#163) — see
+ * {@link recordGoneOnFrom}. A record that cannot be read stops the run here:
+ * running on would leave changes nothing records.
  */
 async function keepRecord(fs: VaultFsPort, record: MigrationRecord): Promise<void> {
   const earlier = await readMigrationRecord(fs);
-  const contents = migrationRecordText(mergedRecord(earlier?.record ?? null, record));
+  const goneOnFrom = recordGoneOnFrom(earlier?.record ?? null);
+  const contents = migrationRecordText(mergedRecord(goneOnFrom, record));
   if (earlier !== null) {
     await fs.writeTextFile({
       path: MIGRATION_RECORD_PATH,
@@ -173,6 +177,21 @@ async function finishRecord(fs: VaultFsPort, left: readonly LeftFile[]): Promise
       finished: true,
       left: left.map((file) => file.path),
     }),
+    expectedModified: kept.modified,
+  });
+}
+
+/**
+ * Ends the Inbox's offer to undo the move (#163), in the record, so neither a
+ * restart nor the other Mac offers it again. The record stays: it still says
+ * whether a run has work left. Nothing to do when there is no record.
+ */
+export async function dismissMigrationUndo(fs: VaultFsPort): Promise<void> {
+  const kept = await readMigrationRecord(fs);
+  if (kept === null || kept.record.undoDismissed === true) return;
+  await fs.writeTextFile({
+    path: MIGRATION_RECORD_PATH,
+    contents: migrationRecordText({ ...kept.record, undoDismissed: true }),
     expectedModified: kept.modified,
   });
 }
@@ -220,7 +239,7 @@ export async function undoTaskMigration({
   } else {
     await fs.writeTextFile({
       path: MIGRATION_RECORD_PATH,
-      contents: migrationRecordText({ ...kept.record, files: retry }),
+      contents: migrationRecordText({ ...kept.record, files: retry, undoUnfinished: true }),
       expectedModified: kept.modified,
     });
   }

@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { compileInboxQuery } from './inbox.ts';
+import { compileInboxCountQuery, compileInboxQuery, type InboxKey } from './inbox.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
 
 /**
  * The Inbox's statement run for real against SQLite, over the index's own
@@ -41,13 +42,17 @@ function inboxIndex(notes: readonly IndexedNote[]) {
     for (const [key, day] of note.dates ?? []) date.run(note.path, key, day, day);
     for (const [key, dst] of note.links ?? []) link.run(note.path, key, dst);
   }
-  return (limit?: number, tasksStartInInbox = false) => {
-    const { sql, parameters } = compileInboxQuery({
-      ...(limit !== undefined && { limit }),
-      tasksStartInInbox,
-    });
-    return database.prepare(sql).all(...parameters);
-  };
+  const run = ({ sql, parameters }: { sql: string; parameters: readonly (string | number)[] }) =>
+    database.prepare(sql).all(...parameters);
+  return Object.assign(
+    (limit?: number, tasksStartInInbox = false) =>
+      run(compileInboxQuery({ ...(limit !== undefined && { limit }), tasksStartInInbox })),
+    {
+      page: (limit: number, bounds: { after?: InboxKey; through?: InboxKey }) =>
+        run(compileInboxQuery({ limit, ...bounds })),
+      count: (tasksStartInInbox = false) => run(compileInboxCountQuery({ tasksStartInInbox })),
+    },
+  );
 }
 
 const inbox = inboxIndex([
@@ -117,6 +122,66 @@ describe('compileInboxQuery', () => {
 
   it('stops at the limit', () => {
     expect(inbox(1)).toHaveLength(1);
+  });
+
+  const key = (modified: number, path: string): InboxKey => ({
+    modified,
+    path: createVaultPath(path),
+  });
+
+  it('starts a page after the last note of the one before, in the same order (#167)', () => {
+    expect(named(inbox.page(2, { after: key(5, 'inbox/Meetings/Standup.md') }))).toEqual([
+      { path: 'Inbox/Call the bank.md', title: 'Call the bank', type: 'task' },
+      { path: 'Inbox/Idea.md', title: 'Idea', type: null },
+    ]);
+    expect(inbox.page(2, { after: key(1, 'Inbox/Idea.md') })).toEqual([]);
+  });
+
+  it('carries each note’s modified time, the key a page is read on from (#167)', () => {
+    expect(inbox().map(({ path, modified }) => [path, modified])).toEqual([
+      ['inbox/Meetings/Standup.md', 5],
+      ['Inbox/Call the bank.md', 3],
+      ['Inbox/Idea.md', 1],
+    ]);
+  });
+
+  it('reads on past a key whose note has gone, and orders notes of one time by path (#167)', () => {
+    const tied = inboxIndex([
+      { path: 'Inbox/B.md', title: 'B', modified: 2 },
+      { path: 'Inbox/A.md', title: 'Z', modified: 2 },
+      { path: 'Inbox/C.md', title: 'C', modified: 2 },
+      { path: 'Inbox/D.md', title: 'D', modified: 1 },
+    ]);
+    expect(named(tied()).map((row) => row.path)).toEqual([
+      'Inbox/A.md',
+      'Inbox/B.md',
+      'Inbox/C.md',
+      'Inbox/D.md',
+    ]);
+    // `Inbox/Ab.md` is listed nowhere: filed since its page was read.
+    expect(named(tied.page(2, { after: key(2, 'Inbox/Ab.md') })).map((row) => row.path)).toEqual([
+      'Inbox/B.md',
+      'Inbox/C.md',
+    ]);
+  });
+
+  it('lists none past `through`, and with `after` lists only what lies between (#167)', () => {
+    expect(named(inbox.page(10, { through: key(3, 'Inbox/Call the bank.md') }))).toEqual([
+      { path: 'inbox/Meetings/Standup.md', title: 'Standup', type: 'meeting' },
+      { path: 'Inbox/Call the bank.md', title: 'Call the bank', type: 'task' },
+    ]);
+    expect(
+      named(
+        inbox.page(10, {
+          after: key(5, 'inbox/Meetings/Standup.md'),
+          through: key(3, 'Inbox/Call the bank.md'),
+        }),
+      ),
+    ).toEqual([{ path: 'Inbox/Call the bank.md', title: 'Call the bank', type: 'task' }]);
+  });
+
+  it('counts what it would list, proposals, hidden and archived notes aside (#167)', () => {
+    expect(inbox.count()).toEqual([{ total: 3 }]);
   });
 });
 
