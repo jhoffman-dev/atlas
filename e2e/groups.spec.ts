@@ -22,6 +22,11 @@ const TASK_TYPE = [
   '',
 ].join('\n');
 
+// A task added from a view goes to the task type's home for today (#214).
+const TODAY = new Date().toLocaleDateString('en-CA');
+const [YEAR, MONTH] = [TODAY.slice(0, 4), TODAY.slice(5, 7)];
+const TASKS = `Tasks/${YEAR}/${MONTH}`;
+
 const view = (name: string, lines: readonly string[]) =>
   [
     '---',
@@ -153,8 +158,8 @@ test('"+ New" at a sub-group’s foot makes a note with both of its values', asy
 
   await page.getByRole('button', { name: 'New task in doing · work' }).click();
 
-  await expectFile(vault, 'New task.md').toContain('status: doing');
-  const written = await vault.read('New task.md');
+  await expectFile(vault, `${TASKS}/New task.md`).toContain('status: doing');
+  const written = await vault.read(`${TASKS}/New task.md`);
   expect(written).toContain('area: work');
   expect(written).toContain('type: task');
 });
@@ -228,6 +233,6 @@ test('"+ New" in a board cell makes a note in its column and lane', async ({ pag
   await input.fill('Paint');
   await input.press('Enter');
 
-  await expectFile(vault, 'Paint.md').toContain('status: done');
-  expect(await vault.read('Paint.md')).toContain('area: home');
+  await expectFile(vault, `${TASKS}/Paint.md`).toContain('status: done');
+  expect(await vault.read(`${TASKS}/Paint.md`)).toContain('area: home');
 });

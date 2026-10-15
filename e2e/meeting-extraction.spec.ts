@@ -117,6 +117,10 @@ async function arrive(page: Page, vault: FakeVault) {
 
 const proposalFor = (title: string) => `Inbox/Proposals/${title}.md`;
 
+/** An accepted task is made in the task type's home for today (#214). */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const TASKS = `Tasks/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}`;
+
 test('a meeting arrives, the extraction rule proposes mine, a waiting-for and a decision, and accepting the task links it to the meeting', async ({
   page,
 }) => {
@@ -182,11 +186,14 @@ test('a meeting arrives, the extraction rule proposes mine, a waiting-for and a 
 
   // Accept the owner's task: it exists at Inbox, cites the turn, and the meeting links it.
   await task.getByRole('button', { name: 'Accept' }).click();
-  const made = 'Write the rollout note.md';
+  const made = `${TASKS}/Write the rollout note.md`;
   await expectFile(vault, made).toContain('status: inbox');
   expect(await vault.read(made)).toContain('type: task');
   expect(await vault.read(made)).toContain(`source: "[[${TITLE}#^t0003]]"`);
-  await expectFile(vault, MEETING).toMatch(/\ntasks:\n {2}- "\[\[Write the rollout note\]\]"\n/);
+  // By path: the proposal of the same name is the shallower namesake, and a bare name would open it.
+  await expectFile(vault, MEETING).toContain(
+    `\ntasks:\n  - "[[${TASKS}/Write the rollout note]]"\n`,
+  );
 });
 
 test('screenshots: the Inbox with extraction proposals and a low-confidence card', async ({

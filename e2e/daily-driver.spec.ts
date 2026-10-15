@@ -10,6 +10,9 @@ import { createVault, expectFile, installHost, type FakeHost, type FakeVault } f
 const NOW = new Date(2026, 9, 12, 12);
 const today = NOW.toLocaleDateString('en-CA');
 
+/** Where a new daily note is made: the daily type's home for its year (#214). */
+const DAILY = `Daily/${today.slice(0, 4)}`;
+
 const TASK_TYPE = ['---', 'name: task', 'properties:', '  due: date', '---', ''].join('\n');
 
 /** A daily note as the Notion import writes it: named by its date, at the root. */
@@ -55,7 +58,7 @@ test.describe("today's note", () => {
     await todaysNote(page);
 
     await expect(page.getByRole('article', { name: today })).toBeVisible();
-    await expectFile(vault, `${today}.md`).toMatch(
+    await expectFile(vault, `${DAILY}/${today}.md`).toMatch(
       /^---\ntype: daily\n---\n\n## What happened\n\n## What is next\n$/,
     );
   });
@@ -71,6 +74,7 @@ test.describe("today's note", () => {
     expect(host.writesTo(`${today}.md`)).toBe(0);
     expect(await vault.read(`${today}.md`)).toBe(IMPORTED);
     expect(await vault.exists(`${today} 2.md`)).toBe(false);
+    expect(await vault.exists(`${DAILY}/${today}.md`)).toBe(false);
   });
 
   test('is a note of the Daily type, which the Inbox offers to add', async ({ page }) => {
