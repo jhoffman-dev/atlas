@@ -31,6 +31,14 @@
  * - went `"Inbox/Meetings/Standup.md"`
  * ```
  *
+ * And a note it had handled that moved — tidied into its month, filed,
+ * renamed — so the note where it is now is the one it handled, not a new one
+ * (#214): its history goes with it, with the version it moved as.
+ *
+ * ```markdown
+ * - moved `"Inbox/Meetings/Standup.md"` to `"Meetings/2026/10/Standup.md"` at `"9c8b7a6d"`
+ * ```
+ *
  * A rule's Claude step (P29-03) writes what it made — never an edit — and
  * which model answered, and how long it took:
  *
@@ -124,6 +132,11 @@ export interface LoggedVersion extends NoteVersionRef {
   readonly wrote: boolean;
 }
 
+/** A note a rule had handled that moved: where from, and the version it is where it is now. */
+export interface MovedVersion extends NoteVersionRef {
+  readonly from: VaultPath;
+}
+
 /** Which model a Claude step asked, and how long it took to answer — or to fail. */
 export interface ClaudeRunInfo {
   readonly model: string;
@@ -183,6 +196,8 @@ export type LogEntry =
       readonly versions?: readonly LoggedVersion[];
       /** For a rule a note sets off: notes it had handled that were deleted, ending their history. */
       readonly went?: readonly VaultPath[];
+      /** For a rule a note sets off: notes it had handled that moved, their history going with them. */
+      readonly moved?: readonly MovedVersion[];
       /** For a Claude step: the model it asked. */
       readonly claude?: ClaudeRunInfo;
     }
@@ -409,6 +424,9 @@ function claudeLines({
   ];
 }
 
+const movedLine = ({ from, path, digest }: MovedVersion): string =>
+  `- moved ${code(from)} to ${code(path)} at ${code(digest)}`;
+
 function versionLine({ path, digest, wrote, keys = [] }: LoggedVersion): string {
   const also = keys.length === 0 ? '' : ` also ${code(keys)}`;
   return `- ${wrote ? 'wrote' : 'triggered by'} ${code(path)} at ${code(digest)}${also}`;
@@ -424,10 +442,12 @@ export function formatLogEntry(entry: LogEntry): string {
       : [];
   const versions = entry.kind === 'run' ? (entry.versions ?? []).map(versionLine) : [];
   const went = entry.kind === 'run' ? (entry.went ?? []).map((path) => `- went ${code(path)}`) : [];
+  const moved = entry.kind === 'run' ? (entry.moved ?? []).map(movedLine) : [];
   const claude = 'claude' in entry && entry.claude !== undefined ? claudeLines(entry.claude) : [];
   const letGo = entry.kind === 'letGo' ? [`- let go ${code(entry.count)}`] : [];
-  if (done.length + left.length + versions.length + went.length + claude.length > 0) {
-    lines.push('', ...done, ...left, ...versions, ...went, ...claude);
+  const memory = [...went, ...moved];
+  if (done.length + left.length + versions.length + memory.length + claude.length > 0) {
+    lines.push('', ...done, ...left, ...versions, ...memory, ...claude);
   }
   if (letGo.length > 0) lines.push('', ...letGo);
   return `${lines.join('\n')}\n`;
@@ -607,6 +627,7 @@ const VERSION_LINE = new RegExp(
   `^- (triggered by|wrote) ${JSON_SPAN} at ${JSON_SPAN}(?: also ${JSON_SPAN})?$`,
 );
 const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
+const MOVED_LINE = new RegExp(`^- moved ${JSON_SPAN} to ${JSON_SPAN} at ${JSON_SPAN}$`);
 const ALREADY_MADE_LINE = new RegExp(`^- already made ${JSON_SPAN}$`);
 const MEETING_LINE = new RegExp(
   `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}$`,
@@ -667,6 +688,7 @@ function parseSection(section: string): LogEntry | null {
     const path = readWent(line);
     return path === null ? [] : [path];
   });
+  const moved = body.flatMap((line) => readMoved(line) ?? []);
   return {
     kind: 'run',
     at,
@@ -675,6 +697,7 @@ function parseSection(section: string): LogEntry | null {
     ...linesOf(body),
     ...(versions.length > 0 && { versions }),
     ...(went.length > 0 && { went }),
+    ...(moved.length > 0 && { moved }),
     ...(claude !== null && { claude }),
   };
 }
@@ -804,6 +827,19 @@ function readWent(line: string): VaultPath | null {
   if (match === null) return null;
   try {
     return pathOf(match[1]!);
+  } catch {
+    // A line edited into JSON that does not read, or a path that is no path, is left out.
+    return null;
+  }
+}
+
+function readMoved(line: string): MovedVersion | null {
+  const match = MOVED_LINE.exec(line);
+  if (match === null) return null;
+  try {
+    const digest = JSON.parse(match[3]!) as unknown;
+    if (typeof digest !== 'string') return null;
+    return { from: pathOf(match[1]!), path: pathOf(match[2]!), digest };
   } catch {
     // A line edited into JSON that does not read, or a path that is no path, is left out.
     return null;
@@ -944,16 +980,16 @@ export function futureMarkOf(entries: readonly LogEntry[], now: LocalTime): Loca
   return ahead.length === 0 ? null : ahead.reduce((latest, at) => (at > latest ? at : latest));
 }
 
-/** Whether a run entry only says notes went: it did, left and handled nothing. */
+/** Whether a run entry only says notes went or moved: it did, left and handled nothing. */
 const isOnlyWent = (entry: Extract<LogEntry, { kind: 'run' }>): boolean =>
-  (entry.went ?? []).length > 0 &&
+  (entry.went ?? []).length + (entry.moved ?? []).length > 0 &&
   entry.done.length === 0 &&
   entry.left.length === 0 &&
   (entry.versions ?? []).length === 0;
 
 /**
  * The newest run, successful or not; null when it has never run. An entry
- * that only says notes went (P29-01) is the rule's memory, not a run.
+ * that only says notes went or moved (P29-01) is the rule's memory, not a run.
  */
 export function lastRunOf(
   entries: readonly LogEntry[],

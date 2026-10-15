@@ -109,9 +109,7 @@ describe('a Claude step’s task that links back to its meeting', () => {
       type: 'task',
       source: '[[2026-10-06 Standup#^t0001]]',
     });
-    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual([
-      '[[Tasks/2026/10/Send Mara the payroll file]]',
-    ]);
+    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
   });
 
   it('finds the meeting where it was filed since, by what it is', async () => {
@@ -132,9 +130,7 @@ describe('a Claude step’s task that links back to its meeting', () => {
     await acceptProposalNote({ ports: fresh(setup), path, today: TODAY });
 
     expect(setup.paths()).toContain(TASK);
-    expect(setup.propertiesOf(moved)?.['tasks']).toEqual([
-      '[[Tasks/2026/10/Send Mara the payroll file]]',
-    ]);
+    expect(setup.propertiesOf(moved)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
   });
 
   it('writes to no other meeting that has landed at the path since', async () => {
@@ -188,8 +184,6 @@ describe('a vault whose Meeting type predates `tasks` (#162)', () => {
     await acceptProposalNote({ ports: fresh(setup), path, today: TODAY });
 
     expect(setup.paths()).toContain(TASK);
-    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual([
-      '[[Tasks/2026/10/Send Mara the payroll file]]',
-    ]);
+    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
   });
 });

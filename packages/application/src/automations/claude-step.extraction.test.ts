@@ -343,8 +343,8 @@ describe('meeting extraction over the Gemini fixture', () => {
       source: '[[Platform weekly sync#^t0003]]',
     });
     expect(properties(SYNC)['tasks']).toEqual([
-      '[[Tasks/2026/10/Write the rollout note]]',
-      '[[Tasks/2026/10/Flag the new cache]]',
+      '[[Write the rollout note]]',
+      '[[Flag the new cache]]',
     ]);
     expect(properties(SYNC)['decisions']).toEqual(['[[Ship the cache behind a flag]]']);
   });
@@ -391,7 +391,7 @@ describe('meeting extraction over the Granola fixture', () => {
       status: 'waiting',
       waiting_on: 'Lena Hart',
     });
-    expect(properties(CALL)['tasks']).toEqual(['[[Tasks/2026/10/Send the contract]]']);
+    expect(properties(CALL)['tasks']).toEqual(['[[Send the contract]]']);
   });
 });
 
@@ -497,8 +497,8 @@ describe('two meetings in one run', () => {
         today: TODAY,
       });
     }
-    expect(properties(SYNC)['tasks']).toEqual(['[[Tasks/2026/10/Write the rollout note]]']);
-    expect(properties(CALL)['tasks']).toEqual(['[[Tasks/2026/10/Review the contract]]']);
+    expect(properties(SYNC)['tasks']).toEqual(['[[Write the rollout note]]']);
+    expect(properties(CALL)['tasks']).toEqual(['[[Review the contract]]']);
   });
 
   it('drops an item that names the other meeting: no answer can file a task under a meeting it was not asked about', async () => {

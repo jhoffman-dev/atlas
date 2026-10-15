@@ -51,7 +51,8 @@ export type LinkUpdatePanes = Pick<OpenEditorsPort, 'state' | 'flush'> & {
 
 /**
  * Every link, in any note, that opened a note the move carried and would no
- * longer open it, and every relative image source the move left pointing at
+ * longer open it — or opened a namesake the move left alone and would now
+ * open a moved note instead — and every relative image source the move left pointing at
  * nothing — counted, so the person can be asked before anything is
  * rewritten. `notePaths` are the vault's notes from before the move; the
  * notes are read where they are now — once, however many `moves` a batch made.

@@ -1,3 +1,5 @@
+import { isArchivedPath } from '../archive/archive.ts';
+import { isProposalPath } from '../proposals/proposal.ts';
 import { createVaultPath, vaultPathName, type VaultPath } from '../vault/vault-path.ts';
 import { isTemplateNote } from '../vault/vault-visibility.ts';
 
@@ -39,9 +41,12 @@ function comparedPart(note: VaultPath, byPath: boolean): string {
  * Finds the note a wiki link points at, the way Obsidian does: a target with a
  * slash is a path, anything else is a filename that may live anywhere in the vault.
  *
- * When several notes share a name the shallowest wins, and ties are broken
- * alphabetically, so the same link always resolves to the same note. A name
- * spelled exactly wins over one matching only once case is folded.
+ * When several notes share a name, a note in use wins over a proposal still
+ * waiting in `Inbox/Proposals`, and either over one in the Archive (#214:
+ * accepting a proposal archives it beside the note it made, under the same
+ * name); among equals the shallowest wins, and ties are broken alphabetically,
+ * so the same link always resolves to the same note. A name spelled exactly
+ * wins over one matching only once case is folded.
  *
  * A template is never a link's target, by name or by path: it declares the
  * type it makes, and a link that opened it had the person rename and fill in
@@ -101,9 +106,17 @@ function groupBy(
 function best(candidates: readonly VaultPath[]): VaultPath | null {
   if (candidates.length === 0) return null;
   return [...candidates].sort((left, right) => {
+    const standing = standingOf(left) - standingOf(right);
+    if (standing !== 0) return standing;
     const depth = left.split('/').length - right.split('/').length;
     return depth !== 0 ? depth : left.localeCompare(right);
   })[0] as VaultPath;
+}
+
+/** How strongly a note answers to its name: in use, then a proposal waiting, then archived. */
+function standingOf(note: VaultPath): number {
+  if (isArchivedPath(note)) return 2;
+  return isProposalPath(note) ? 1 : 0;
 }
 
 /**

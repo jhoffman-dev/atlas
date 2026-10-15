@@ -129,6 +129,8 @@ export interface UnpairedChanges {
   readonly arrived: ReadonlySet<string>;
   /** Paths a note left — deleted, moved, renamed or archived — whether or not a new one is there now. */
   readonly left: ReadonlySet<string>;
+  /** Each note that moved, renamed or was archived or put back: the change where it is now, by the path it left. */
+  readonly moved: ReadonlyMap<string, NoteChange>;
 }
 
 /**
@@ -161,12 +163,14 @@ export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges
   const arrived = new Set(changes.filter((change) => change.kind === 'added'));
   const left = new Set([...gone].map((change) => change.path));
   const renewed = new Set<string>();
+  const moved = new Map<string, NoteChange>();
   const pairOff = (pairs: (went: Departure, came: NoteChange) => boolean) => {
     for (const came of arrived) {
       const removed = [...gone].find((each) => pairs(each, came));
       if (removed !== undefined) {
         gone.delete(removed);
         arrived.delete(came);
+        moved.set(removed.path, came);
         continue;
       }
       const replaced = [...replaceable].find((each) => pairs(departureOf(each), came));
@@ -175,13 +179,18 @@ export function unpairedChanges(changes: readonly NoteChange[]): UnpairedChanges
       arrived.delete(came);
       renewed.add(replaced.path);
       left.add(replaced.path);
+      moved.set(replaced.path, came);
     }
   };
   pairOff((went, came) => isArchiveMove(createVaultPath(went.path), createVaultPath(came.path)));
   pairOff((went, came) => isProcessMove(createVaultPath(went.path), createVaultPath(came.path)));
   pairOff((went, came) => went.digest === came.digest && nameOf(went.path) === nameOf(came.path));
   pairOff((went, came) => went.digest === came.digest);
-  return { arrived: new Set([...[...arrived].map((change) => change.path), ...renewed]), left };
+  return {
+    arrived: new Set([...[...arrived].map((change) => change.path), ...renewed]),
+    left,
+    moved,
+  };
 }
 
 /** Whether a changed note may be one a new note took the place of: see {@link unpairedChanges}. */

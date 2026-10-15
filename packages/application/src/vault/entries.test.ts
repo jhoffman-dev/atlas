@@ -146,8 +146,8 @@ describe('moving a note into a folder', () => {
 
   it('warns when the move changes which of two same-named notes [[Plan]] opens', async () => {
     const vault = memoryVault({
-      folders: ['Archive', 'Deep', 'Deep/Er'],
-      notes: ['Archive/Plan.md', 'Deep/Er/Plan.md'],
+      folders: ['Notes', 'Deep', 'Deep/Er'],
+      notes: ['Notes/Plan.md', 'Deep/Er/Plan.md'],
     });
     const ports = { fs: vault.fs, index: fakeIndexPort(), editors: panes({ log: [] }) };
 

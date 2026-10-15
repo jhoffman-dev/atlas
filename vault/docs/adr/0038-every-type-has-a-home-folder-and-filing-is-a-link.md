@@ -91,7 +91,23 @@ tool that lists it.
    the import. Running it again moves nothing. Activity gets a line, and a
    warning per note left.
 
-6. **The AI never lists a big folder whole.** Every list of notes the API
+6. **A bare link prefers a note in use, and a move never takes a name.**
+   `[[Name]]` opens, among the notes of that name, one in use before a
+   proposal still waiting in `Inbox/Proposals`, and either before one in the
+   Archive; then the shallowest; then the first alphabetically. Every
+   resolver — the editor, the index's link rows, the API — goes through the
+   one rule in `resolveWikiLinkTarget`; the Rust index stores what it was
+   given and resolves nothing. A move — filing, the tidy, any batch — that
+   would make a bare name open the moved note instead of the namesake it
+   opened rewrites those links to the namesake's path (`[[Customers/Acme]]`),
+   in the same pass that re-points links to the moved notes. A rule a note
+   sets off follows a move it hears: its log says where the note went
+   (`- moved … to … at …`), so neither the catch-up on open nor a run by hand
+   takes a tidied meeting for a new one; a meeting moved while the rule was
+   not listening is told by its file name at a path the rule handled and no
+   note holds now.
+
+7. **The AI never lists a big folder whole.** Every list of notes the API
    answers — and so every chat and MCP tool — is paged and capped at 500, and
    the note lists say how many match in all (`total`) and hand out a cursor.
    Backlinks, which had no cap, are paged like the rest.
@@ -100,13 +116,17 @@ tool that lists it.
 
 - Folders stay small: a year of meetings is twelve folders of about a
   hundred. The root holds only what the person put there.
-- A task made from a meeting is linked by path when the proposal note that
-  named it is still the shallower namesake (`[[Tasks/2026/10/Send the
-file]]`): links stay right, if longer. Resolving links past proposals and
-  the Archive would shorten them; that is a follow-up.
+- A task made from a meeting is linked by its name (`[[Send the file]]`),
+  though the proposal that named it waits in, or is archived from,
+  `Inbox/Proposals` under the same name: a note in use wins the name.
+- An archived note keeps its links only while no note in use shares its
+  name; a link meant for the archived one is written by path.
 - Two notes may now share a name in different folders (a new
-  `Companies/Acme.md` beside an older root `Acme.md`). Links are written by
-  path where the name alone would open the other, as they always were.
+  `Companies/Acme.md` beside an older `Customers/Acme.md`). Links are written
+  by path where the name alone would open the other, as they always were, and
+  a move rewrites the links it would otherwise take over. A move made with
+  links left alone (a single move whose offer is declined) still says which
+  note the name opens now.
 - The n8n workflow has to be re-imported to write by month; until then it
   writes to `Inbox/Meetings`, which still works.
 - The tidy's "Not now" lasts until the vault is opened again; a vault with a

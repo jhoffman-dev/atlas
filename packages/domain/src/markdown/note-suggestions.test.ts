@@ -59,9 +59,16 @@ describe('rankNoteSuggestions', () => {
 
   it('resolves against every linkable note, not only the ones offered (A20-05)', () => {
     const offered = rankNoteSuggestions('meet', notes('Notes/Meeting.md'), {
-      linkable: notes('Archive/Meeting.md', 'Notes/Meeting.md'),
+      linkable: notes('Meeting.md', 'Notes/Meeting.md'),
     });
     expect(offered).toEqual([{ path: 'Notes/Meeting.md', target: 'Notes/Meeting' }]);
+  });
+
+  it('offers the bare name when the only namesake is archived (#214)', () => {
+    const offered = rankNoteSuggestions('meet', notes('Notes/Meeting.md'), {
+      linkable: notes('Archive/Meeting.md', 'Notes/Meeting.md'),
+    });
+    expect(offered).toEqual([{ path: 'Notes/Meeting.md', target: 'Meeting' }]);
   });
 
   it('caps the list', () => {

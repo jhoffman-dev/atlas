@@ -677,3 +677,19 @@ text stands.
   next open. The step also runs on every Mac, the named one included, only
   after a pull completed since launch or wake and only if that Mac is still
   named after it.
+
+## Amendment, 2026-10-15: a rule follows a note it handled that moved (ADR-0038, #214)
+
+Since #214, meetings land in `Meetings/<YYYY>/<MM>` as well as `Inbox/Meetings`,
+and the offered tidy moves let-in meetings from one to the other. A move ended
+a note's history (`went`), so the catch-up took a tidied meeting for an arrival
+the rule never ran on and ran a `set` rule on it again.
+
+- A run that hears a note it handled move — paired by the feed as a move,
+  rename, filing, archive or unarchive — writes `- moved `"from"`to`"to"`at`"digest"`` beside `went`: the `handled` record at the old path goes to the
+  new one, with the version it moved as. An entry with only `went` and `moved`
+  is the rule's memory, not a run.
+- The catch-up also passes over a meeting whose file name the rule handled at
+  a path no note holds now: a move it never heard (news let go, a move while
+  it was held). Taking a new meeting of that name for it skips a catch-up; it
+  never runs a rule twice.
