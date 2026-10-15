@@ -895,3 +895,56 @@ describe('whether the Inbox says the owner cannot be told apart (#181)', () => {
     expect(ownerNeededBy([], NOBODY)).toBe(false);
   });
 });
+
+describe('the owner by any name they go by (#226)', () => {
+  const byAlias = meetingOf([
+    ['t0001', 'MQ', 'I’ll send the renewal contract by Friday.'],
+    ['t0002', 'Tobias Fenn', 'I’ll flag the new cache.'],
+  ]);
+  const ownNote = (name: string, aliases: string[], emails: string[] = []): DirectoryPerson => ({
+    ...person(name, emails),
+    aliases,
+  });
+
+  it('makes a task of a turn the transcript gives the owner by an alias of their Person note', () => {
+    const vault = { ...VAULT, people: [...VAULT.people, ownNote('Mara Quill', ['MQ'])] };
+
+    expect(decideOne({ owner: 'You' }, { note: byAlias, vault })).toMatchObject({
+      outcome: 'task',
+    });
+    expect(decideOne({ owner: 'MQ' }, { note: byAlias, vault })).toMatchObject({
+      outcome: 'task',
+    });
+  });
+
+  it('does not take an alias for another speaker when the transcript also names the owner in full', () => {
+    const note = meetingOf([
+      ['t0001', 'Mara Quill', 'Shall we renew?'],
+      ['t0002', 'Tobias Fenn', 'Yes.'],
+      ['t0003', 'MQ', 'Then I’ll send the renewal contract.'],
+    ]);
+    const vault = { ...VAULT, people: [...VAULT.people, ownNote('Mara Quill', ['MQ'])] };
+
+    expect(decideOne({ owner: 'You', source_block: 't0003' }, { note, vault })).toMatchObject({
+      outcome: 'task',
+    });
+  });
+
+  it('knows the owner’s Person note by their address when its name is not the profile’s', () => {
+    const note = meetingOf([['t0001', 'Mara Lind-Quill', 'I’ll send the renewal contract.']]);
+    const vault = {
+      ...VAULT,
+      people: [ownNote('Mara Lind-Quill', [], ['mara.quill@example.com'])],
+    };
+
+    expect(decideOne({ owner: 'You' }, { note, vault })).toMatchObject({ outcome: 'task' });
+  });
+
+  it('reads an alias as someone else without the owner’s Person note to give it', () => {
+    expect(decideOne({ owner: 'You' }, { note: byAlias })).toEqual({
+      outcome: 'proposal',
+      because: 'capped',
+      caps: ['spoken-by-another'],
+    });
+  });
+});
