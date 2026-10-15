@@ -1,5 +1,6 @@
 import {
   answeredMeetingOf,
+  askedTurnsDigest,
   CLAUDE_STEP_QUESTION,
   claudeAskRefusal,
   claudeAsks,
@@ -35,6 +36,7 @@ import {
   type NoteSkipped,
   type PromptData,
   type RegisteredProposalSchema,
+  type StoredAnswer,
   type StoredAnswerDraft,
   type VaultPath,
 } from '@atlas/domain';
@@ -50,12 +52,12 @@ import type { NoteWritePorts } from '../proposals/proposal-writes.ts';
 import { planProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
+import { readMadeItems } from '../meetings/made-items.ts';
 import { HeldForPullError } from './fresh-pull-hold.ts';
 import {
   decideForMeeting,
   makeOwnersTasks,
   OwnersTasksStopped,
-  readMadeItems,
   type MeetingDecided,
   type PlannedTask,
 } from './owners-tasks.ts';
@@ -179,7 +181,7 @@ interface StepArgs extends ProposalWritePorts {
    * its schema knows them by, from a run that read them and could not finish
    * (ADR-0036); null when none are. Reused instead of asking again.
    */
-  readonly storedAnswer?: (key: string) => readonly string[] | null;
+  readonly storedAnswer?: (key: string) => Pick<StoredAnswer, 'answers' | 'parts'> | null;
   /**
    * For the declared step: when the rule's own file was last written, which
    * tells a meeting that arrived since from a backfill (ADR-0036); null when
@@ -601,9 +603,11 @@ interface NoteAnswered {
 /**
  * Asks each of the run's asks in turn and reads every answer, note by note.
  * The declared step first looks for the answers kept for a meeting's words
- * (`storedAnswer`): found, they are read again as the domain reads them now
- * and nothing is asked; a kept answer that no longer reads is asked again.
- * The answers about each meeting it asked are added to `toStore`.
+ * (`storedAnswer`): when this run would ask about the very turns they
+ * answered, they are read again as the domain reads them now and nothing is
+ * asked. Kept answers to other turns — the meeting is cut differently now —
+ * or that no longer read are asked again. The answers about each meeting it
+ * asked are added to `toStore`, with the turns each part showed.
  */
 async function readAnswers(
   asking: ProposalAsking,
@@ -616,8 +620,7 @@ async function readAnswers(
     const note = asking.read.find((each) => each.path === group.path);
     const key = asking.action.apply === 'mine' && note !== undefined ? keyOf(asking, note) : null;
     const kept = key === null ? null : (asking.storedAnswer?.(key) ?? null);
-    const reused =
-      kept === null || note === undefined ? null : rereadKept(asking, note, kept, vault);
+    const reused = kept === null ? null : rereadKept(asking, group.asks, kept, vault);
     if (reused !== null) {
       answered.push({ path: group.path, proposals: reused });
       continue;
@@ -637,7 +640,13 @@ async function readAnswers(
       proposals.push(...keptItems(asking, reading));
       answers.push(answer);
     }
-    if (key !== null) asking.toStore.push({ key, answers });
+    if (key !== null) {
+      asking.toStore.push({
+        key,
+        answers,
+        parts: group.asks.map((notes) => askedTurnsDigest(notes)),
+      });
+    }
     answered.push({ path: group.path, proposals });
   }
   return answered;
@@ -649,21 +658,26 @@ function keyOf({ schema }: ProposalAsking, note: AnsweredNote): string | null {
 }
 
 /**
- * A meeting's kept answers read again, each against the part of the meeting
- * it answered — parts are cut the same way each time — with the vault as it
- * is now; null when one no longer reads, so the meeting is asked again.
+ * A meeting's kept answers read again, each against the part this run would
+ * ask it about, with the vault as it is now — only when those parts show the
+ * very turns the answers were given about. Null otherwise, or when one no
+ * longer reads, so the meeting is asked again rather than read in part.
  */
 function rereadKept(
   asking: ProposalAsking,
-  note: AnsweredNote,
-  kept: readonly string[],
+  asks: readonly (readonly AnsweredNote[])[],
+  kept: Pick<StoredAnswer, 'answers' | 'parts'>,
   vault: AnswerVault | undefined,
 ): CheckedProposal[] | null {
-  const parts = claudeAsks([note], { inParts: true, asks: kept.length }).asks;
-  const readings = parts.map((notes, at) =>
-    asking.schema.read(kept[at] ?? '', { notes, ...(vault !== undefined && { vault }) }),
+  const sameTurns =
+    kept.parts.length === asks.length &&
+    kept.answers.length === asks.length &&
+    asks.every((notes, at) => askedTurnsDigest(notes) === kept.parts[at]);
+  if (!sameTurns) return null;
+  const readings = asks.map((notes, at) =>
+    asking.schema.read(kept.answers[at]!, { notes, ...(vault !== undefined && { vault }) }),
   );
-  if (readings.length === 0 || readings.some((reading) => !reading.ok)) return null;
+  if (readings.some((reading) => !reading.ok)) return null;
   return readings.flatMap((reading) => (reading.ok ? keptItems(asking, reading) : []));
 }
 

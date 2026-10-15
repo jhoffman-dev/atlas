@@ -415,7 +415,7 @@ async function askClaude({
       madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
       beforeWrite: hold,
       askedThisHour: spent,
-      storedAnswer: (key) => storedAnswerFor(ledger, key)?.answers ?? null,
+      storedAnswer: (key) => storedAnswerFor(ledger, key),
       ruleSince: declared ? await savedAt(ports.fs, run.rule.path) : null,
     });
     const entry: LogEntry = {

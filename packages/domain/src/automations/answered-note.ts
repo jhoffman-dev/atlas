@@ -9,6 +9,7 @@ import { importOutcomeOf } from '../meetings/meeting-arrival.ts';
 import { isMeetingType, type MeetingAttendee } from '../meetings/meeting-header.ts';
 import { unclosedFence } from '../meetings/meeting-lines.ts';
 import { meetingSectionBounds, meetingTurnsOf } from '../meetings/meeting-turns.ts';
+import { digestOf } from '../sources/merge.ts';
 import { truncated } from './answer-limits.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
@@ -211,6 +212,16 @@ export function claudeAsks(
     }
   }
   return { asks, cut, skipped };
+}
+
+/**
+ * What one ask showed, as the turns it held: a digest of their ids, in
+ * order. Two asks cut alike from one transcript show the same turns, so an
+ * answer kept from one is read again only against the turns it answered.
+ */
+export function askedTurnsDigest(notes: readonly AnsweredNote[]): string {
+  const turns = notes.map((note) => meetingTurnsOf(note.text).map((turn) => turn.blockId));
+  return digestOf(JSON.stringify([notes.map((note) => note.path), turns]));
 }
 
 function skippedWithout(note: AnsweredNote): NoteSkipped {

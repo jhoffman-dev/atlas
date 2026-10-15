@@ -30,6 +30,9 @@ const MEETING = createVaultPath('Meetings/2026-10-14 Renewal review.md');
 const ANSWER =
   '```json\n{"items":[{"kind":"task","title":"Send the `v2` contract","owner":"You"}]}\n```';
 
+/** What an ask showed, as its turns' digest. */
+const PART = '3c4d5e6f';
+
 const at = (minute: number) => `2026-10-14T09:${String(minute).padStart(2, '0')}:00`;
 const failed = (minute: number): LogEntry => ({
   kind: 'failed',
@@ -60,7 +63,9 @@ const append = (text: string | null, entry: LogEntry, stored?: readonly StoredAn
 
 describe('an answer kept with a failed run', () => {
   it('is read back exactly as the model gave it, by the key of the words it answered', () => {
-    const text = append(null, failed(0), [{ key: KEY, answers: [ANSWER, '{"items":[]}'] }]);
+    const text = append(null, failed(0), [
+      { key: KEY, answers: [ANSWER, '{"items":[]}'], parts: [PART, PART] },
+    ]);
 
     const ledger = readHandledLedger(text);
     expect(ledger?.damaged).toBe(false);
@@ -70,11 +75,11 @@ describe('an answer kept with a failed run', () => {
   });
 
   it('stays through later entries, and is replaced by a newer answer to the same words', () => {
-    let text = append(null, failed(0), [{ key: KEY, answers: ['first'] }]);
+    let text = append(null, failed(0), [{ key: KEY, answers: ['first'], parts: [PART] }]);
     text = append(text, failed(1));
     expect(storedAnswerFor(readHandledLedger(text), KEY)?.answers).toEqual(['first']);
 
-    text = append(text, failed(2), [{ key: KEY, answers: ['second'] }]);
+    text = append(text, failed(2), [{ key: KEY, answers: ['second'], parts: [PART] }]);
 
     const ledger = readHandledLedger(text)!;
     expect(ledger.stored).toHaveLength(1);
@@ -84,8 +89,8 @@ describe('an answer kept with a failed run', () => {
   it('is let go once a run has answered those words, and only those', () => {
     const other = 'meeting:granola:granola-7e2f:transcript:1a2b';
     let text = append(null, failed(0), [
-      { key: KEY, answers: ['kept'] },
-      { key: other, answers: ['other'] },
+      { key: KEY, answers: ['kept'], parts: [PART] },
+      { key: other, answers: ['other'], parts: [PART] },
     ]);
 
     text = append(text, answered(1));
@@ -95,12 +100,27 @@ describe('an answer kept with a failed run', () => {
     expect(storedAnswerFor(ledger, other)?.answers).toEqual(['other']);
   });
 
+  it('keeps what each ask showed beside its answer, and reads back neither without the other', () => {
+    const text = append(null, failed(0), [
+      { key: KEY, answers: ['one', 'two'], parts: ['p1', 'p2'] },
+    ]);
+    const line = text.split('\n').find((each) => each.startsWith('- stored '))!;
+
+    expect(storedAnswerFor(readHandledLedger(text), KEY)?.parts).toEqual(['p1', 'p2']);
+    expect(
+      readHandledLedger(text.replace(line, line.replace('["p1","p2"]', '["p1"]')))?.damaged,
+    ).toBe(true);
+    expect(
+      recordStored(emptyLedger(), [{ key: KEY, answers: ['one'], parts: [] }], 0).stored,
+    ).toEqual([]);
+  });
+
   it('is not kept without answers, or under a key that names no note', () => {
     const ledger = recordStored(
       emptyLedger(),
       [
-        { key: KEY, answers: [] },
-        { key: 'transcript-only', answers: ['an answer'] },
+        { key: KEY, answers: [], parts: [] },
+        { key: 'transcript-only', answers: ['an answer'], parts: [PART] },
       ],
       0,
     );
@@ -109,7 +129,7 @@ describe('an answer kept with a failed run', () => {
   });
 
   it('counts among the records, so a stored line lost or edited is damage', () => {
-    const text = append(null, failed(0), [{ key: KEY, answers: ['kept'] }]);
+    const text = append(null, failed(0), [{ key: KEY, answers: ['kept'], parts: [PART] }]);
     const line = text.split('\n').find((each) => each.startsWith('- stored '))!;
 
     expect(readHandledLedger(text.replace(`${line}\n`, ''))?.damaged).toBe(true);
@@ -127,7 +147,11 @@ describe('how many answers a ledger keeps', () => {
   const stored = (count: number, size = 10) =>
     recordStored(
       emptyLedger(),
-      Array.from({ length: count }, (_, n) => ({ key: `${KEY}${n}`, answers: ['x'.repeat(size)] })),
+      Array.from({ length: count }, (_, n) => ({
+        key: `${KEY}${n}`,
+        answers: ['x'.repeat(size)],
+        parts: [PART],
+      })),
       NOW,
     );
   const dated = (count: number, size = 10) => ({
@@ -136,6 +160,7 @@ describe('how many answers a ledger keeps', () => {
       key: `${KEY}${n}`,
       at: NOW - (count - n) * 1000,
       answers: ['x'.repeat(size)],
+      parts: [PART],
     })),
   });
 
@@ -155,8 +180,25 @@ describe('how many answers a ledger keeps', () => {
     expect(pruned.vouchesFrom).toBeNull();
   });
 
+  it('leaves out one answer too big to keep, and keeps the older ones that fit', () => {
+    const ledger = dated(3, 10);
+    const huge = {
+      key: `${KEY}huge`,
+      at: NOW,
+      answers: ['x'.repeat(STORED_ANSWERS_MAX_BYTES)],
+      parts: [PART],
+    };
+
+    const pruned = pruneLedger({ ...ledger, stored: [...ledger.stored, huge] }, NOW);
+
+    expect(pruned.stored.map(({ key }) => key)).toEqual([`${KEY}0`, `${KEY}1`, `${KEY}2`]);
+  });
+
   it(`forgets one older than ${LEDGER_MAX_AGE_DAYS} days`, () => {
-    const old = { ...stored(1), stored: [{ key: KEY, at: NOW - 91 * DAY_MS, answers: ['x'] }] };
+    const old = {
+      ...stored(1),
+      stored: [{ key: KEY, at: NOW - 91 * DAY_MS, answers: ['x'], parts: [PART] }],
+    };
 
     expect(pruneLedger(old, NOW).stored).toEqual([]);
   });
@@ -195,7 +237,11 @@ describe('a ledger holding answers, pruned to its bytes', () => {
     const NOW = Date.UTC(2026, 9, 14);
     let ledger = recordStored(
       emptyLedger(),
-      Array.from({ length: 5 }, (_, n) => ({ key: `${KEY}${n}`, answers: ['an answer'] })),
+      Array.from({ length: 5 }, (_, n) => ({
+        key: `${KEY}${n}`,
+        answers: ['an answer'],
+        parts: [PART],
+      })),
       NOW,
     );
     for (let n = 0; n < 98; n += 1) {
@@ -225,10 +271,10 @@ describe('a ledger holding answers, pruned to its bytes', () => {
 describe('two ledgers merged', () => {
   it('keep the newer answer to the same words, and every other', () => {
     const other = 'meeting:granola:granola-7e2f:transcript:1a2b';
-    const a = append(null, failed(0), [{ key: KEY, answers: ['older'] }]);
+    const a = append(null, failed(0), [{ key: KEY, answers: ['older'], parts: [PART] }]);
     const b = append(null, failed(1), [
-      { key: KEY, answers: ['newer'] },
-      { key: other, answers: ['other'] },
+      { key: KEY, answers: ['newer'], parts: [PART] },
+      { key: other, answers: ['other'], parts: [PART] },
     ]);
     // The newer ledger first: which wins is decided by when each was kept, not by which is read last.
     const both = `${b}\n${a.slice(a.indexOf('## Handled so far'))}`;

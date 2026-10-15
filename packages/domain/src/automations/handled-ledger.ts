@@ -21,7 +21,7 @@
  * - vouches from `"2026-07-01T00:00:00.000Z"`
  * - handled `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d"]`
  * - answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d","meeting:larkspur:m-1042:transcript:9f8e"]`
- * - stored `"meeting:larkspur:m-1042:transcript:7c6d"` `"2026-10-08T09:05:00.000Z"`: `["{\"items\":[]}"]`
+ * - stored `"meeting:larkspur:m-1042:transcript:7c6d"` `"2026-10-08T09:05:00.000Z"`: `["{\"items\":[]}"]` `["3c4d5e6f"]`
  * ```
  *
  * The comment on the line after the heading is what makes a section the
@@ -85,6 +85,11 @@ export interface StoredAnswer {
   readonly at: number;
   /** Each ask's answer, as the model gave it, in the order asked. */
   readonly answers: readonly string[];
+  /**
+   * What each ask showed, one per answer (`askedTurnsDigest`): an answer is
+   * reused only against the same turns it answered.
+   */
+  readonly parts: readonly string[];
 }
 
 /** A stored answer before the ledger dates it. */
@@ -189,14 +194,22 @@ export function recordStored(
   drafts: readonly StoredAnswerDraft[],
   at: number,
 ): HandledLedger {
-  const kept = drafts.filter(({ key, answers }) => isSchemaKey(key) && answers.length > 0);
+  const kept = drafts.filter(
+    ({ key, answers, parts }) =>
+      isSchemaKey(key) && answers.length > 0 && parts.length === answers.length,
+  );
   if (kept.length === 0) return ledger;
   const keys = new Set(kept.map(({ key }) => key));
   return {
     ...ledger,
     stored: [
       ...ledger.stored.filter(({ key }) => !keys.has(key)),
-      ...kept.map(({ key, answers }) => ({ key, at, answers: [...answers] })),
+      ...kept.map(({ key, answers, parts }) => ({
+        key,
+        at,
+        answers: [...answers],
+        parts: [...parts],
+      })),
     ],
   };
 }
@@ -308,7 +321,8 @@ function pruneStored(ledger: HandledLedger, now: number): HandledLedger {
   let room = STORED_ANSWERS_MAX_BYTES;
   for (const each of newest) {
     const size = utf8Length(storedLine(each)) + 1;
-    if (size > room) break;
+    // One too big to keep is left out; the older ones that fit stay.
+    if (size > room) continue;
     room -= size;
     kept.push(each);
   }
@@ -388,8 +402,8 @@ const handledLine = (path: string, { at, digests }: PathRecord): string =>
   `- handled ${code(path)} ${code(instant(at))}: ${code(digests)}`;
 const answeredLine = ({ path, at, keys }: AnsweredRecord): string =>
   `- answered ${code(path)} ${code(instant(at))}: ${code(keys)}`;
-const storedLine = ({ key, at, answers }: StoredAnswer): string =>
-  `- stored ${code(key)} ${code(instant(at))}: ${code(answers)}`;
+const storedLine = ({ key, at, answers, parts }: StoredAnswer): string =>
+  `- stored ${code(key)} ${code(instant(at))}: ${code(answers)} ${code(parts)}`;
 
 /** The section the log holds, which {@link readHandledLedger} reads back. */
 export function formatLedger(ledger: HandledLedger): string {
@@ -423,7 +437,7 @@ const RECORDS_LINE = new RegExp(`^- records ${JSON_SPAN}$`);
 const VOUCHES_LINE = new RegExp(`^- vouches from ${JSON_SPAN}$`);
 const HANDLED_LINE = new RegExp(`^- handled ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN}$`);
 const ANSWERED_LINE = new RegExp(`^- answered ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN}$`);
-const STORED_LINE = new RegExp(`^- stored ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN}$`);
+const STORED_LINE = new RegExp(`^- stored ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN} ${JSON_SPAN}$`);
 
 /**
  * The ledger a section holds. A line that does not read — a person may have
@@ -512,8 +526,11 @@ function readLine(line: string): ReadLine {
   if (kept !== null) {
     const key = textOf(kept[1]!);
     const answers = stringsOf(kept[3]!);
-    if (!isSchemaKey(key) || answers.length === 0) throw new Error('not a stored answer');
-    return { kind: 'stored', record: { key, at: timeOf(kept[2]!), answers } };
+    const parts = stringsOf(kept[4]!);
+    if (!isSchemaKey(key) || answers.length === 0 || parts.length !== answers.length) {
+      throw new Error('not a stored answer');
+    }
+    return { kind: 'stored', record: { key, at: timeOf(kept[2]!), answers, parts } };
   }
   throw new Error('not a ledger line');
 }

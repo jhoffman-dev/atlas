@@ -5,6 +5,7 @@ import {
   CLAUDE_NOTE_CHARACTERS,
   CLAUDE_ASKS_PER_RUN,
   CLAUDE_TOTAL_NOTE_CHARACTERS,
+  askedTurnsDigest,
   claudeAsks,
   cutNotes,
   shownNotes,
@@ -297,5 +298,30 @@ describe('a meeting read in parts (P29-05)', () => {
 
   it('asks nothing about no notes', () => {
     expect(claudeAsks([], { inParts: true })).toEqual({ asks: [], cut: [], skipped: [] });
+  });
+});
+
+describe('what one ask showed, as a kept answer is matched to it (ADR-0036)', () => {
+  it('is the same for a part cut alike, and differs for another part, or the turns of another note', () => {
+    let text = HEAD;
+    for (let id = 1; id <= 120; id += 1) text += turn(id, 'We ship on Friday. '.repeat(20));
+    const long = asMeeting(text);
+    const first = claudeAsks([long], { inParts: true }).asks;
+    const again = claudeAsks([{ ...long, text: long.text }], { inParts: true }).asks;
+    const elsewhere = { ...first[0]![0]!, path: createVaultPath('Meetings/Other.md') };
+
+    expect(askedTurnsDigest(again[0]!)).toBe(askedTurnsDigest(first[0]!));
+    expect(askedTurnsDigest(first[1]!)).not.toBe(askedTurnsDigest(first[0]!));
+    expect(askedTurnsDigest([elsewhere])).not.toBe(askedTurnsDigest(first[0]!));
+  });
+
+  it('does not change with the frontmatter, so a task linked in does not make a part new', () => {
+    const note = asMeeting(longTranscript('A long last turn.'));
+    const linked = {
+      ...note,
+      text: note.text.replace('type: meeting', 'type: meeting\ntasks: ["[[A]]"]'),
+    };
+
+    expect(askedTurnsDigest([linked])).toBe(askedTurnsDigest([note]));
   });
 });
