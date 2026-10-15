@@ -181,16 +181,30 @@ function choiceProblem(record: Readonly<Record<string, unknown>>): string | null
   );
 }
 
-/** Of a meeting's choices — one per part it was read in — the surest; the first of those as sure. */
+/**
+ * Of a meeting's choices — one per part it was read in — the surest; the
+ * first of those as sure. When its parts chose different projects, Claude is
+ * not sure of any: the surest is medium at most, so it is proposed, never filed.
+ */
 export function surestProjectChoice(
   choices: readonly (ProjectChoice | null)[],
 ): ProjectChoice | null {
   const made = choices.filter((choice): choice is ProjectChoice => choice !== null);
   const rank = (choice: ProjectChoice) => PROPOSAL_CONFIDENCES.indexOf(choice.confidence);
-  return made.reduce<ProjectChoice | null>(
-    (surest, choice) => (surest === null || rank(choice) < rank(surest) ? choice : surest),
+  const surest = made.reduce<ProjectChoice | null>(
+    (best, choice) => (best === null || rank(choice) < rank(best) ? choice : best),
     null,
   );
+  if (surest === null) return null;
+  const elsewhere = [
+    ...new Set(made.filter((choice) => choice.project !== surest.project).map((c) => c.title)),
+  ];
+  if (elsewhere.length === 0) return surest;
+  return {
+    ...surest,
+    confidence: surest.confidence === 'high' ? 'medium' : surest.confidence,
+    why: `${surest.why} Other parts of the meeting chose ${elsewhere.join(', ')}.`,
+  };
 }
 
 /** A meeting Claude chose a project for, as the run read it from its file. */
@@ -206,6 +220,17 @@ export type ProjectChoiceOutcome =
   | { readonly kind: 'file'; readonly link: string }
   | { readonly kind: 'propose'; readonly proposal: NewProposal }
   | { readonly kind: 'none' };
+
+/**
+ * Whether a `project` holds nothing at all — absent, empty, or an empty list:
+ * what a meeting the step files held, as {@link projectChoiceOutcome} files
+ * only one that links nothing, so the only `project` its undo puts back.
+ */
+export function holdsNoProject(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  return Array.isArray(value) && value.every(holdsNoProject);
+}
 
 /**
  * What a choice does (#227): nothing to a meeting filed since; files a

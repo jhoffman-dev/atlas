@@ -22,12 +22,15 @@ const meeting = (path: string, more: Partial<MeetingOnRecord> = {}): MeetingOnRe
   ...more,
 });
 
+const backfill = (meetings: readonly MeetingOnRecord[]) =>
+  planProjectBackfill({ meetings, ownerKnown: true });
+
 const filedOn = (date: string) =>
   meeting(`Meetings/${date} Standup.md`, { date, project: LEDGER, filed: true });
 
 describe('planProjectBackfill', () => {
   it('lists every meeting with nothing in its project, newest first, with what its series says', () => {
-    const rows = planProjectBackfill([
+    const rows = backfill([
       filedOn('2026-09-01'),
       filedOn('2026-09-02'),
       meeting('Meetings/2026-09-03 Standup.md', { date: '2026-09-03' }),
@@ -41,7 +44,7 @@ describe('planProjectBackfill', () => {
   });
 
   it('leaves out a meeting filed under anything — even a closed project — and one in the Archive', () => {
-    const rows = planProjectBackfill([
+    const rows = backfill([
       filedOn('2026-09-01'),
       meeting('Meetings/closed.md', { filed: true, project: null }),
       meeting('Archive/Meetings/old.md'),
@@ -50,7 +53,7 @@ describe('planProjectBackfill', () => {
   });
 
   it('judges each against the vault as it is: one unfiled meeting never votes for another', () => {
-    const rows = planProjectBackfill([
+    const rows = backfill([
       meeting('Meetings/a.md', { date: '2026-09-01' }),
       meeting('Meetings/b.md', { date: '2026-09-02' }),
     ]);
@@ -60,13 +63,13 @@ describe('planProjectBackfill', () => {
 
 describe('isFiledByDefault', () => {
   it('ticks only what is sure', () => {
-    const [sure] = planProjectBackfill([
+    const [sure] = backfill([
       filedOn('2026-09-01'),
       filedOn('2026-09-02'),
       meeting('Meetings/x.md', { date: '2026-09-03' }),
     ]);
-    const [unsure] = planProjectBackfill([filedOn('2026-09-01'), meeting('Meetings/y.md')]);
-    const [none] = planProjectBackfill([meeting('Meetings/z.md')]);
+    const [unsure] = backfill([filedOn('2026-09-01'), meeting('Meetings/y.md')]);
+    const [none] = backfill([meeting('Meetings/z.md')]);
     expect([sure, unsure, none].map((row) => row !== undefined && isFiledByDefault(row))).toEqual([
       true,
       false,

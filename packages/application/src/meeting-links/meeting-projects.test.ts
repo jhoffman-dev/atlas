@@ -127,7 +127,7 @@ describe('a meeting arriving in a known series (#227)', () => {
     expect(proposalsIn(setup)).toEqual([]);
   });
 
-  it('arrives filed as its twin from the other notetaker is', async () => {
+  it('arrives filed as its twin from the other notetaker is: same title and people', async () => {
     const { setup, ports } = vault({
       'Meetings/2026-10-06 Payroll sync.md': meeting({
         title: 'Payroll sync',
@@ -135,11 +135,28 @@ describe('a meeting arriving in a known series (#227)', () => {
         start: '09:36',
         project: '[[Operations]]',
       }),
-      [ARRIVING]: meeting({ title: 'Untitled call', date: '2026-10-06', provider: 'granola' }),
+      [ARRIVING]: meeting({ title: 'Payroll sync', date: '2026-10-06', provider: 'granola' }),
     });
     const run = await arrive(ports);
     expect(setup.propertiesOf(ARRIVING)?.['project']).toBe('[[Operations]]');
     expect(run.filed?.via).toBe('twin');
+  });
+
+  it('only proposes what its series says when the owner cannot be told from the others', async () => {
+    const { setup, ports } = vault({
+      ...LEDGER_SERIES,
+      [ARRIVING]: meeting({ date: '2026-10-06' }),
+    });
+    const run = await linkMeeting({
+      ports,
+      path: vaultPath(ARRIVING),
+      today: TODAY,
+      selfName: null,
+      selfEmails: [],
+    });
+    expect(setup.propertiesOf(ARRIVING)?.['project']).toBeUndefined();
+    expect(run.filed).toBeNull();
+    expect(run.proposed).toHaveLength(1);
   });
 
   it('never writes over a project already set', async () => {

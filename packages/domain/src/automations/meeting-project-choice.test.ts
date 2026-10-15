@@ -129,6 +129,27 @@ describe('surestProjectChoice', () => {
     ).toBe('B');
     expect(surestProjectChoice([null, null])).toBeNull();
   });
+
+  it('files nothing when its parts chose different projects: the surest is proposed, at medium', () => {
+    expect(surestProjectChoice([choice('high', 'Ledger'), choice('high', 'Payrun')])).toEqual({
+      project: createVaultPath('Projects/Ledger.md'),
+      title: 'Ledger',
+      confidence: 'medium',
+      why: 'Because. Other parts of the meeting chose Payrun.',
+    });
+    expect(
+      surestProjectChoice([choice('high', 'Ledger'), choice('low', 'Payrun')])?.confidence,
+    ).toBe('medium');
+    expect(
+      surestProjectChoice([choice('low', 'Ledger'), choice('low', 'Payrun')])?.confidence,
+    ).toBe('low');
+  });
+
+  it('stays sure when every part chose the same project', () => {
+    expect(
+      surestProjectChoice([choice('medium', 'Ledger'), null, choice('high', 'Ledger')]),
+    ).toMatchObject({ title: 'Ledger', confidence: 'high', why: 'Because.' });
+  });
 });
 
 describe('projectChoiceOutcome', () => {
@@ -154,6 +175,8 @@ describe('projectChoiceOutcome', () => {
 
   it('files a meeting under a project Claude is sure of', () => {
     expect(outcome('high')).toEqual({ kind: 'file', link: '[[Ledger]]' });
+    expect(outcome('high', '')).toEqual({ kind: 'file', link: '[[Ledger]]' });
+    expect(outcome('high', [])).toEqual({ kind: 'file', link: '[[Ledger]]' });
   });
 
   it('otherwise proposes it once, under the id linking proposes a meeting’s project by', () => {

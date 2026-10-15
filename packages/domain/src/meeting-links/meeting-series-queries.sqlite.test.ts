@@ -74,6 +74,7 @@ const meetingRows = (rows: Record<string, unknown>[]): SeriesMeetingRow[] =>
 const MEETING = { type: 'meeting', title: 'Larkspur Standup', provider: 'gemini' };
 const OWNER = {
   selfName: 'Mara Quill',
+  names: ['Mara Quill'],
   selfEmails: [],
   notes: [createVaultPath('People/Mara Quill.md')],
 };

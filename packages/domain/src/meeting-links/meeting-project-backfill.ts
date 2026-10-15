@@ -18,14 +18,21 @@ export interface ProjectBackfillRow {
  * judged against the vault as it is: one the backfill files does not vote
  * for another in the same preview, so running it twice proposes the same.
  */
-export function planProjectBackfill(meetings: readonly MeetingOnRecord[]): ProjectBackfillRow[] {
+export function planProjectBackfill({
+  meetings,
+  ownerKnown,
+}: {
+  meetings: readonly MeetingOnRecord[];
+  /** Whether the owner could be left out of who was at each meeting: unsure of every one when not. */
+  ownerKnown: boolean;
+}): ProjectBackfillRow[] {
   return meetings
     .filter((meeting) => !meeting.filed && !isArchivedPath(meeting.path))
     .map((meeting) => ({
       meeting: meeting.path,
       title: meeting.title,
       date: meeting.date,
-      suggestion: suggestMeetingProject({ meeting, others: meetings }),
+      suggestion: suggestMeetingProject({ meeting, others: meetings, ownerKnown }),
     }))
     .sort(
       (left, right) =>

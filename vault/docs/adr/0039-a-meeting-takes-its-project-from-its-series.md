@@ -27,22 +27,44 @@ step never edited a note (ADR-0028), the declared step's own tasks excepted
 
 ## Decision
 
-1. **A deterministic rule, in the domain** (`suggestMeetingProject`), in order:
-   - **The twin**: a meeting from the other provider on the same day, starting
-     within 15 minutes, sharing a person other than the owner or the same
-     title. If it is filed, that project, high.
-   - **The series**: meetings of the same title — letters and digits only,
-     case and accents folded — that share a person other than the owner with
-     it; by title alone when neither lists anyone, which is medium at most.
-     Of the series' 6 days nearest the meeting (either side of it), one vote
-     per project per day; a tie goes to the nearest day.
+1. **A deterministic rule, in the domain** (`suggestMeetingProject`). When it
+   is unsure it does not file: a wrong project written at high confidence is
+   the failure that matters. In order:
+   - **The twin**: a meeting from another provider on the same day, starting
+     **less than** 15 minutes apart, with the **same series title** (letters
+     and digits only, case and accents folded) **and** a person in common
+     other than the owner — or, for a title that is not generic, nobody listed
+     on one side to compare. Never people alone under another title; never a
+     title alone when both list who was there. Of several filed twins, the
+     nearest start is named, and only when **every** one is filed under the
+     same open project; twins filed apart, or under a closed project, give no
+     twin answer, and whatever the series says is then medium at most.
+   - **The series**: meetings of the same series title **and much the same
+     people**: at least half shared of all (Jaccard ≥ 0.5) of the Person notes
+     both link, or else of the attendees both list, owner aside — the same 1:1
+     counterpart, or most of a team, never one colleague two teams share. By
+     title alone only when one side lists nobody, and then medium at most.
+   - A **generic title** — one made only of words such as "1:1", "Standup",
+     "Daily", "Weekly", "Sync", "Team", "Meeting", "Check-in", "Catch up" —
+     never ties two meetings by itself: neither a twin nor a series.
+   - **Voting**: of the series' 6 days nearest the meeting (either side of it),
+     one vote per project per day; a tie goes to the nearest day. A meeting
+     filed under a project now **closed** (done, cancelled, dropped, archived,
+     or no project at all) still holds its day and votes "closed": when closed
+     wins, nothing is suggested, and when the nearest day is closed, the answer
+     is low at most — an older open project is never revived at high.
      **High** when 2 or more days agree, two thirds of them, the nearest
      among them; **medium** on a plain majority or a series of one; **low**
-     on a tie or no majority.
+     on a tie, no majority, or a closed nearest day.
+   - **The owner** is left out of every meeting's people by the profile's name,
+     the vault's `selfEmails`, and every name, alias and address on the
+     owner's own Person note — else every meeting shares a person. When the
+     owner cannot be told at all (no name, address or Person note), every
+     series and twin answer is medium at most: proposed, never filed.
    - Otherwise nothing.
 
-   Only an open project or area votes: never a resource or one archived by
-   its PARA (#213), one in the Archive, or one done, cancelled or dropped.
+   Only an open project or area is suggested: never a resource or one archived
+   by its PARA (#213), one in the Archive, or one done, cancelled or dropped.
    The rule says why in a sentence: "Same series as 2026-10-07 Larkspur
    standup: 5 of its last 6 were filed under Ledger."
 
@@ -57,14 +79,23 @@ step never edited a note (ADR-0028), the declared step's own tasks excepted
    "After a meeting" step is shown the vault's open projects and areas and may
    answer `"project": { "path", "confidence", "why" }` beside its items. A
    path it was not shown is left out and said. High sets `project`, logged as
-   a run's `set` line, which "Undo last run" reverses (only `project`, only
-   for the declared step). Anything less is one Inbox proposal, known by the
-   same id as linking's own, so a meeting waits on one project proposal.
+   a run's `set` line, which "Undo last run" reverses — only `project`, only
+   for the declared step, only on a note that is a meeting when undone, and
+   only back to nothing (absent, empty or `[]`), as the step only fills a
+   `project` that holds nothing; any other line is refused and named, since a
+   log is a note anyone can write (A25-01). Anything less than high is one
+   Inbox proposal, known by the same id as linking's own, so a meeting waits
+   on one project proposal. A meeting read in parts whose parts chose
+   different projects is not filed: the surest choice is proposed, medium at
+   most, naming the others.
 
 4. **A backfill** in the Inbox lists every meeting outside the Archive with no
-   project, with the rule's suggestion and reason, the high ones ticked. It
-   writes only `project`, leaves any meeting filed since the preview, and is
-   undone from the offer.
+   project, with the rule's suggestion and reason, the high ones ticked. When
+   the preview is read again (after a run, or as the page comes back), a row
+   already shown keeps the person's tick; only a new row, or one whose
+   suggested project changed, is ticked by the rule. It writes only
+   `project`, leaves any meeting filed since the preview, and is undone from
+   the offer.
 
 ## Alternatives considered
 
@@ -80,8 +111,13 @@ step never edited a note (ADR-0028), the declared step's own tasks excepted
 ## Consequences
 
 - The constants (15 minutes, 6 days, two thirds) are starting values from the
-  maintainer's vault: 39 of its 79 unfiled meetings come out high, 10 medium,
-  2 low, 28 with nothing.
+  maintainer's vault: 39 of its 79 unfiled meetings came out high, 10 medium,
+  2 low, 28 with nothing. Under the stricter rules above (PR #228 review), 40
+  of 80 are high, 9 medium, 2 low, 29 nothing: every high stayed high, one
+  medium series-of-one match dropped, and one meeting arrived since.
+- The generic-title words, the half-overlap of people and the closed-project
+  vote all lean towards not filing: a meeting left for a person to tick costs
+  a click, one filed under the wrong project costs trust.
 - A meeting filed on arrival has no undo in the app yet: the link run that
   could reverse it is not kept anywhere a person can reach (as for its people
   and companies). Clearing the property is the way back.

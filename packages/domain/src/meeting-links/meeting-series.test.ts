@@ -28,28 +28,24 @@ function meeting(more: Partial<SeriesMeeting> = {}): SeriesMeeting {
     provider: 'gemini',
     participants: [MARA, TOBIAS],
     project: null,
+    filed: more.project !== undefined && more.project !== null,
     ...more,
   };
 }
 
 const suggest = (target: SeriesMeeting, others: readonly SeriesMeeting[]) =>
-  suggestMeetingProject({ meeting: target, others });
+  suggestMeetingProject({ meeting: target, others, ownerKnown: true });
 
 describe('suggestMeetingProject: the twin', () => {
-  it('files a copy as its twin from the other notetaker is filed: same day, close start, same people', () => {
-    const twin = meeting({ date: '2026-10-14', start: '08:06', project: LEDGER, title: 'Sync' });
-    const copy = meeting({
-      date: '2026-10-14',
-      start: '08:00',
-      provider: 'granola',
-      title: 'Untitled',
-    });
+  it('files a copy as its twin from the other notetaker is filed: same day, close start, same title and people', () => {
+    const twin = meeting({ date: '2026-10-14', start: '08:06', project: LEDGER });
+    const copy = meeting({ date: '2026-10-14', start: '08:00', provider: 'granola' });
     expect(suggest(copy, [twin])).toEqual({
       project: LEDGER.path,
       title: 'Ledger',
       confidence: 'high',
       via: 'twin',
-      reason: `The same meeting as gemini’s copy, 2026-10-14 Sync, which is filed under Ledger.`,
+      reason: `The same meeting as gemini’s copy, 2026-10-14 Larkspur Standup, which is filed under Ledger.`,
     });
   });
 
@@ -276,6 +272,7 @@ describe('isOpenFiling', () => {
 describe('meetingParticipants', () => {
   const owner = {
     selfName: 'Mara Quill',
+    names: ['Mara Quill'],
     selfEmails: ['mara@larkspur.example'],
     notes: [p('People/Mara Quill.md')],
   };

@@ -10,6 +10,7 @@ import {
   AFTER_A_MEETING_PROMPT,
   builtInPromptAt,
   createVaultPath,
+  logPathFor,
   parseObjectType,
   type AutomationRule,
   type ClaudeAction,
@@ -105,6 +106,20 @@ describe('the After a meeting step’s project (#227)', () => {
 
     await undoLastRun({ ...run, rule: rule('mine') });
     expect(vault.properties(MEETING)['project']).toBeUndefined();
+  });
+
+  it('never takes `project` off a note that is not a meeting, though its log says the run filed it', async () => {
+    const { vault, run, byHand } = setUp({ round: answer(LEDGER) });
+    await byHand();
+    // A log is a note anyone can write: one line now names a task, really filed under Ledger.
+    const TASK = 'Tasks/Send the Larkspur contract.md';
+    vault.files.set(TASK, jsonNote({ type: 'task', project: '[[Ledger]]' }));
+    const log = logPathFor('After a meeting');
+    vault.files.set(log, vault.files.get(log)!.replaceAll(MEETING, TASK));
+
+    const undone = await undoLastRun({ ...run, rule: rule('mine') });
+    expect(vault.properties(TASK)['project']).toBe('[[Ledger]]');
+    expect(JSON.stringify(undone)).toContain('files only meetings');
   });
 
   it('proposes one it is not sure of, once, in the Inbox', async () => {

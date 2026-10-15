@@ -1,6 +1,7 @@
 import {
   attendeesOf,
   compileSeriesMeetingsQuery,
+  isOwnerKnown,
   compileSeriesParticipantsQuery,
   isArchivedPath,
   MEETING_SERIES_PAGE_SIZE,
@@ -99,8 +100,9 @@ export async function seriesProjectFor({
     provider: textOf(properties['provider']),
     participants: meetingParticipants({ attendees: attendeesOf(properties), people, owner }),
     project: null,
+    filed: false,
   };
-  return suggestMeetingProject({ meeting, others });
+  return suggestMeetingProject({ meeting, others, ownerKnown: isOwnerKnown(owner) });
 }
 
 async function readSeriesMeetings(index: Index): Promise<SeriesMeetingRow[]> {

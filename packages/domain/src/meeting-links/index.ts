@@ -49,9 +49,12 @@ export {
 export type { ProjectBackfillRow } from './meeting-project-backfill.ts';
 export {
   CLOSED_PROJECT_STATUSES,
+  isGenericTitle,
   isOpenFiling,
+  isOwnerKnown,
   meetingParticipants,
   participantOwnerOf,
+  SERIES_PEOPLE_OVERLAP,
   SERIES_WINDOW,
   seriesTitle,
   suggestMeetingProject,

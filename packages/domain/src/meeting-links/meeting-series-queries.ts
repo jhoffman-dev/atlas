@@ -115,11 +115,8 @@ export interface SeriesParticipantRow {
   readonly value: string | null;
 }
 
-/** A meeting the index holds, as the series rule and a backfill read it. */
-export interface MeetingOnRecord extends SeriesMeeting {
-  /** Whether its `project` holds anything, open or not: such a meeting is never filed again. */
-  readonly filed: boolean;
-}
+/** A meeting the index holds, as the series rule and a backfill read it: one `filed` is never filed again. */
+export type MeetingOnRecord = SeriesMeeting;
 
 /**
  * The meetings the rows describe. A meeting with no day is left out: no

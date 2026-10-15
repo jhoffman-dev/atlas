@@ -63,6 +63,8 @@ async function openVault(page: Page, more: Record<string, string> = {}): Promise
   for (const type of ['task', 'meeting', 'person', 'project', 'proposal']) {
     await vault.write(`.atlas/types/${type}.md`, shipped(`.atlas/types/${type}.md`));
   }
+  // The owner, left out of who was at each meeting: unknown, no series would be sure enough to file.
+  await vault.write('.atlas/settings.md', '---\nprofileName: Mara Quill\n---\n');
   await vault.write(
     'People/Tobias Fenn.md',
     '---\ntype: person\nemail: tobias@larkspur.example\n---\n\n# Tobias Fenn\n',

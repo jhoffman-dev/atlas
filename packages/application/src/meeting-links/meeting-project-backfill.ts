@@ -1,4 +1,5 @@
 import {
+  isOwnerKnown,
   linkedNotes,
   MEETING_PROJECT_KEY,
   participantOwnerOf,
@@ -45,11 +46,9 @@ export async function previewProjectBackfill({
   owner: BackfillOwner;
 }): Promise<ProjectBackfillRow[]> {
   const { people } = await loadLinkDirectory({ index: ports.index });
-  const meetings = await loadBackfillMeetings({
-    index: ports.index,
-    owner: participantOwnerOf({ people, ...owner }),
-  });
-  return planProjectBackfill(meetings);
+  const participantOwner = participantOwnerOf({ people, ...owner });
+  const meetings = await loadBackfillMeetings({ index: ports.index, owner: participantOwner });
+  return planProjectBackfill({ meetings, ownerKnown: isOwnerKnown(participantOwner) });
 }
 
 /**

@@ -58,6 +58,8 @@ export function useMeetingProjects({
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would file twice.
   const running = useRef(false);
+  // The rows the last preview showed: a row read again keeps the tick the person left it with.
+  const shown = useRef<ReadonlySet<string>>(new Set());
   // Read as each preview starts; the addresses are compared by what they say, not by the list's identity.
   const latestOwner = useRef(owner);
   latestOwner.current = owner;
@@ -65,6 +67,7 @@ export function useMeetingProjects({
 
   useEffect(() => {
     setRows(null);
+    shown.current = new Set();
     setExpanded(false);
     setDismissed(false);
     setResult(null);
@@ -79,7 +82,9 @@ export function useMeetingProjects({
       .then((read) => {
         if (cancelled) return;
         setRows(read.length === 0 ? null : read);
-        setChosen(new Set(read.filter(isFiledByDefault).map((row) => row.meeting)));
+        const before = shown.current;
+        shown.current = new Set(read.map(rowKey));
+        setChosen((ticked) => ticksAfterPreview({ read, ticked, before }));
       })
       .catch((cause: unknown) => {
         if (!cancelled)
@@ -163,6 +168,29 @@ export function useMeetingProjects({
       setLastRun(null);
     },
   };
+}
+
+/** A row as the person ticked it: its meeting and the project suggested for it. */
+const rowKey = (row: ProjectBackfillRow) => `${row.meeting}\n${row.suggestion?.project ?? ''}`;
+
+/**
+ * What is ticked once a preview is read again — after a run, or as the page
+ * comes back: a row shown before keeps the tick the person left it with; a
+ * new row, or one whose suggested project changed, is ticked only when sure.
+ */
+function ticksAfterPreview({
+  read,
+  ticked,
+  before,
+}: {
+  read: readonly ProjectBackfillRow[];
+  ticked: ReadonlySet<string>;
+  before: ReadonlySet<string>;
+}): ReadonlySet<string> {
+  const chosen = read.filter((row) =>
+    before.has(rowKey(row)) ? ticked.has(row.meeting) : isFiledByDefault(row),
+  );
+  return new Set(chosen.map((row) => row.meeting));
 }
 
 function rowOf(row: ProjectBackfillRow, chosen: ReadonlySet<string>): MeetingProjectRow {
