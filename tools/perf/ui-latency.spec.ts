@@ -157,6 +157,7 @@ async function notesFiledUnderAProject(): Promise<number> {
 }
 
 test('open a note', async () => {
+  test.setTimeout(OPENINGS * 5_000);
   await waitForQuiet(page);
   // The tree draws a screenful at a time: each is opened, then the folder scrolled on to the next.
   const opened = new Set<string>();

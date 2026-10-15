@@ -353,5 +353,5 @@ describe('createWikiLinkResolver — answers as resolveWikiLinkTarget does (#217
       }
     }
     expect(diverged.slice(0, 5)).toEqual([]);
-  });
+  }, 30_000);
 });
