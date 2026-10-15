@@ -12,7 +12,7 @@
  * for is skipped.
  */
 
-import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
+import { sameMeetingIdentity, type MeetingIdentity } from '../meetings/meeting-holding.ts';
 import { ownerAddressesInUse } from '../meeting-links/vault-owner.ts';
 import { TASK_KEYS } from '../gtd/gtd-status.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
@@ -55,12 +55,24 @@ export interface MeetingItemsRun {
   readonly today: string;
   /** Whether the meeting arrived before the rule's own file: a backfill makes proposals only. */
   readonly backfilled: boolean;
-  /** The first-imported copy, when another copy of the meeting exists: tasks are keyed on it. */
+  /**
+   * The first-imported copy, when another copy of the meeting exists: only it
+   * makes tasks. A transcript's block ids are its own, so a copy's items stay
+   * proposals rather than be keyed on another recording's turns.
+   */
   readonly primaryMeeting?: MeetingIdentity;
   /** The `atlas_item` of every task, in the vault and the Archive. */
   readonly madeItems: readonly string[];
-  /** The `source` of every task already linked to the meeting. */
-  readonly linkedTaskSources: readonly string[];
+  /** Every task already linked to the meeting. */
+  readonly linkedTasks: readonly LinkedTask[];
+}
+
+/** A task already linked to the meeting, as far as skipping an item goes. */
+export interface LinkedTask {
+  /** Its `source`: the block link it cites, if any. */
+  readonly source: string;
+  /** Whose it is, as an identity holds it ({@link MeetingItemClaim.ownerKey}): `self` for the owner's own. */
+  readonly owner: string;
 }
 
 /** Why an item stays a proposal. */
@@ -73,7 +85,8 @@ export type ProposedBecause =
   | 'someone-elses'
   | 'owner-undecided'
   | 'below-floor'
-  | 'turn-already-a-task';
+  | 'turn-already-a-task'
+  | 'copy-of-another-recording';
 
 export type MeetingItemDecision =
   /** A task made now: the note to make, and what it is known by. */
@@ -193,15 +206,18 @@ function ownersTask({
   claimed: Set<string>;
   owner: string;
 }): MeetingItemDecision {
-  const meeting = run.primaryMeeting ?? proposal.cites.meeting;
+  const { meeting } = proposal.cites;
   if (meeting === null) return proposed('not-imported');
+  if (run.primaryMeeting !== undefined && !sameMeetingIdentity(run.primaryMeeting, meeting)) {
+    return proposed('copy-of-another-recording');
+  }
   const atlasItem = atlasItemKey({ meeting, block: proposal.cites.block, owner });
   if (claimed.has(atlasItem)) return proposed('turn-already-a-task');
   claimed.add(atlasItem);
   if (run.madeItems.includes(atlasItem)) {
     return { outcome: 'skipped', because: 'already-made', atlasItem };
   }
-  if (citedByLinkedTask(proposal, run.linkedTaskSources)) {
+  if (citedByLinkedTask(proposal, owner, run.linkedTasks)) {
     return { outcome: 'skipped', because: 'block-cited', atlasItem };
   }
   return { outcome: 'task', atlasItem, payload: taskPayload(proposal.payload, run.today) };
@@ -213,13 +229,19 @@ function atLeast(confidence: ProposalConfidence, floor: ProposalConfidence): boo
 }
 
 /**
- * Whether a task linked to the meeting already cites the block the item
- * does — one the person made and linked by hand, or one made before: a link
- * to that block of that meeting, however its target is spelt.
+ * Whether a task of the item's owner, linked to the meeting, already cites
+ * the block the item does — one the person made and linked by hand, or one
+ * made before: a link to that block of that meeting, however its target is
+ * spelt. Someone else's task on the same turn is not the owner's.
  */
-function citedByLinkedTask(proposal: CheckedProposal, sources: readonly string[]): boolean {
+function citedByLinkedTask(
+  proposal: CheckedProposal,
+  owner: string,
+  linkedTasks: readonly LinkedTask[],
+): boolean {
   const { note, block } = proposal.cites;
-  return sources.some((source) => {
+  return linkedTasks.some(({ source, owner: taskOwner }) => {
+    if (taskOwner !== owner) return false;
     const link = readWikiLink(source.trim());
     if (link === null || link.heading !== `#^${block}`) return false;
     return namesNote(link.target, note);

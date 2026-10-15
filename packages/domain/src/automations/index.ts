@@ -118,6 +118,7 @@ export {
   vaultNamesItsOwner,
 } from './meeting-item-apply.ts';
 export type {
+  LinkedTask,
   MeetingItemCap,
   MeetingItemClaim,
   MeetingItemDecision,

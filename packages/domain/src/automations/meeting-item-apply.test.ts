@@ -97,7 +97,7 @@ const RUN: MeetingItemsRun = {
   today: '2026-10-14',
   backfilled: false,
   madeItems: [],
-  linkedTaskSources: [],
+  linkedTasks: [],
 };
 
 const schema = proposalSchemaNamed('meeting-items')!;
@@ -471,13 +471,38 @@ describe('the identity key, atlas_item: primary meeting + cited block + resolved
     ).toBe(SELF_KEY);
   });
 
-  it('keys on the primary, first-imported copy when another copy exists', () => {
-    const primary = { provider: 'gemini', externalId: 'gemini-77aa' };
+  it('keys on the meeting read when it is the primary, first-imported copy', () => {
+    const primary = { ...IDENTITY, externalId: ' granola-5c1d ' };
 
-    expect(decideOne({}, { run: { primaryMeeting: primary } })).toMatchObject({
-      atlasItem: atlasItemKey({ meeting: primary, block: 't0001', owner: 'self' }),
+    expect(decideOne({}, { run: { primaryMeeting: primary } })).toEqual({
+      outcome: 'task',
+      atlasItem: SELF_KEY,
+      payload: expect.anything(),
     });
   });
+
+  const GEMINI: MeetingIdentity = { provider: 'gemini', externalId: 'gemini-77aa' };
+
+  it.each([
+    { order: 'the Gemini copy came first', read: IDENTITY, primary: GEMINI },
+    { order: 'the Granola copy came first', read: GEMINI, primary: IDENTITY },
+  ])(
+    'makes no task from a copy of another recording, only proposals: $order',
+    ({ read, primary }) => {
+      const decided = decide(
+        [item(), item({ source_block: 't0004', title: 'Draft the summary' })],
+        {
+          note: meeting([MARA, TOBIAS], read),
+          run: { primaryMeeting: primary },
+        },
+      );
+
+      expect(decided.items.map(({ decision }) => decision)).toEqual([
+        { outcome: 'proposal', because: 'copy-of-another-recording' },
+        { outcome: 'proposal', because: 'copy-of-another-recording' },
+      ]);
+    },
+  );
 
   it('makes no task from a meeting the import does not vouch for: it has no identity to key on', () => {
     expect(decideOne({}, { note: meeting([MARA, TOBIAS], null) })).toEqual({
@@ -502,7 +527,7 @@ describe('an item already made is skipped', () => {
     '[[renewal review#^t0001|the contract]]',
     ' [[Renewal review#^t0001]]\n',
   ])('skips an item when a task linked to the meeting already cites its block (%s)', (source) => {
-    expect(decideOne({}, { run: { linkedTaskSources: [source] } })).toEqual({
+    expect(decideOne({}, { run: { linkedTasks: [{ source, owner: 'self' }] } })).toEqual({
       outcome: 'skipped',
       because: 'block-cited',
       atlasItem: SELF_KEY,
@@ -515,8 +540,19 @@ describe('an item already made is skipped', () => {
     ['the meeting, not a block', '[[Renewal review]]'],
     ['no link', 'Renewal review ^t0001'],
   ])('makes the task when a linked task cites %s', (_, source) => {
-    expect(decideOne({}, { run: { linkedTaskSources: [source] } })).toMatchObject({
+    expect(decideOne({}, { run: { linkedTasks: [{ source, owner: 'self' }] } })).toMatchObject({
       outcome: 'task',
+    });
+  });
+
+  it('makes the owner’s task when the linked task citing its block is someone else’s', () => {
+    const waitingOnTobias = { source: '[[Renewal review#^t0004]]', owner: 'tobias fenn' };
+
+    expect(
+      decideOne({ source_block: 't0004' }, { run: { linkedTasks: [waitingOnTobias] } }),
+    ).toMatchObject({
+      outcome: 'task',
+      atlasItem: atlasItemKey({ meeting: IDENTITY, block: 't0004', owner: 'self' }),
     });
   });
 
@@ -532,7 +568,10 @@ describe('an item already made is skipped', () => {
 
   it('decides the same on a rerun: the made one is skipped, the other is still a proposal', () => {
     const decided = decide([item(), item({ title: 'Book the signing call' })], {
-      run: { madeItems: [SELF_KEY], linkedTaskSources: ['[[Renewal review#^t0001]]'] },
+      run: {
+        madeItems: [SELF_KEY],
+        linkedTasks: [{ source: '[[Renewal review#^t0001]]', owner: 'self' }],
+      },
     });
 
     expect(decided.items.map(({ decision }) => decision)).toEqual([

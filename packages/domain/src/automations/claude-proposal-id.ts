@@ -46,8 +46,9 @@ export function claudeProposalId({
 
 /**
  * What a task made from a meeting's action item is known by, its
- * `atlas_item` (ADR-0036): the meeting (provider and id, of the primary,
- * first-imported copy), the transcript block the item cites and whose it is
+ * `atlas_item` (ADR-0036): the meeting the item was read from (provider and
+ * id; only the primary, first-imported copy makes tasks, and a block id means
+ * nothing in another copy's transcript), the block it cites and whose it is
  * (as the item's proposal is distinguished by). Never the title, whose
  * wording changes from one answer to the next, so a retitled item is the
  * same item. Two hashes, as for {@link claudeProposalId}.
