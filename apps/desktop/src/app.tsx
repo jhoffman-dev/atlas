@@ -183,7 +183,8 @@ import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
 import { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 import { useProfileSetting } from './profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from './profile/use-self-emails-setting.ts';
-import { vaultOwnerKnown } from './profile/vault-owner-known.ts';
+import { settingsUnreadable, vaultOwnerKnown } from './profile/vault-owner-known.ts';
+import { useSettingsPause } from './profile/use-settings-pause.ts';
 import { automationsScheduled } from './automations/automations-scheduled.ts';
 import { browserChatSettingsStore } from './chat/chat-settings-store.ts';
 import { claudeStepPorts } from './chat/claude-step-ports.ts';
@@ -762,6 +763,9 @@ export function App({
   const ownerEmails = selfEmailsSetting.emails;
   // Whether both were read, so nothing that asks who the owner is acts on a stand-in: an unreadable settings note is not known.
   const ownerKnown = vaultOwnerKnown(profileSetting, selfEmailsSetting);
+  // Meanwhile the import and the automations are held: said on the Inbox and, once each way, in Activity.
+  const settingsProblem = settingsUnreadable(profileSetting);
+  useSettingsPause({ unreadable: settingsProblem, vaultKey, activity: activityLog });
   const claudeStep = useMemo(
     () =>
       claudeStepPorts({
@@ -1754,6 +1758,13 @@ export function App({
                     paraMigration,
                     vaultTidy,
                     meetingCleanup,
+                    settingsUnreadable:
+                      settingsProblem === null
+                        ? null
+                        : {
+                            problem: settingsProblem,
+                            onOpenSettings: () => showOverlay('settings'),
+                          },
                     ownerUnknown:
                       ownerKnown &&
                       automations.listing !== null &&

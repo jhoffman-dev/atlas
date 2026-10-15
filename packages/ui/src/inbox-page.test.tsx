@@ -562,3 +562,29 @@ describe('InboxPage: when Atlas can’t tell which action items are yours (#181)
     expect(notice()).toBeNull();
   });
 });
+
+describe('InboxPage: while the vault’s settings note cannot be read (#226)', () => {
+  const notice = () => screen.queryByRole('alert', { name: 'Meetings and automations are paused' });
+
+  it('says meetings and automations are paused, why, that nothing is lost, and opens Settings', async () => {
+    const onOpenSettings = vi.fn();
+    page({ settingsUnreadable: { problem: 'line 3: a list is not closed', onOpenSettings } });
+
+    expect(notice()?.textContent).toContain('.atlas/settings.md can’t be read');
+    expect(notice()?.textContent).toContain('line 3: a list is not closed');
+    expect(notice()?.textContent).toContain('meetings wait in their folder');
+    expect(notice()?.textContent).toContain('resume once it reads');
+    await userEvent.click(within(notice()!).getByRole('button', { name: 'Open Settings' }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing once it reads', () => {
+    const { rerender } = page({
+      settingsUnreadable: { problem: 'line 3: a list is not closed', onOpenSettings: vi.fn() },
+    });
+    expect(notice()).not.toBeNull();
+
+    rerender({ settingsUnreadable: null });
+    expect(notice()).toBeNull();
+  });
+});
