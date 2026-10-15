@@ -162,6 +162,27 @@ describe('compileAtlasQuery, run against SQLite: which notes', () => {
     expect(titles('FROM task WHERE status = doing INCLUDE ARCHIVED')).toContain('Old');
   });
 
+  it('leaves out a project archived by its PARA, where it stands, unless archived ones are asked for (#213)', () => {
+    const shelved = buildIndex([
+      ...NOTES,
+      { path: 'projects/Shelved.md', frontmatter: { type: 'project', para: 'archive' } },
+      { path: 'projects/Home.md', frontmatter: { type: 'project', para: 'area' } },
+    ]);
+    const listed = (text: string) => {
+      const compiled = compileAtlasQuery(parseAtlasQuery(text), {
+        types: QUERY_TEST_TYPES,
+        resolveLink,
+      });
+      return shelved
+        .prepare(compiled.sql)
+        .all(...compiled.parameters)
+        .map((row) => row['title']);
+    };
+    expect(listed('FROM project')).toContain('Home');
+    expect(listed('FROM project')).not.toContain('Shelved');
+    expect(listed('FROM project INCLUDE ARCHIVED')).toContain('Shelved');
+  });
+
   it('gives each row the type it was listed as', () => {
     const rows = run('FROM task, project WHERE title STARTS WITH a OR title = Plan');
     expect(rows.map((row) => [row['title'], row['type']])).toEqual([

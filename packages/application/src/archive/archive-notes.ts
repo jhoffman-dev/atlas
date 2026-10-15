@@ -82,7 +82,7 @@ interface OwnFrontmatter {
 }
 
 /** What is written into a note's frontmatter where it lands, given what it held. */
-type Stamp = (own: OwnFrontmatter | null) => Unstamp;
+export type Stamp = (own: OwnFrontmatter | null) => Unstamp;
 
 /** Where a batch's notes go and what is written into each where it lands. */
 export interface MoveRule {
@@ -121,8 +121,13 @@ export async function archiveNotes(batch: NoteBatch & { today: string }): Promis
  * back what the stamp covered.
  */
 export async function unarchiveNotes(batch: NoteBatch): Promise<ArchiveOutcome> {
+  return moveAndStampNotes(batch, unarchiveRule(batch));
+}
+
+/** Where unarchiving takes a batch's notes, and what it gives back in each. */
+export function unarchiveRule(batch: NoteBatch): MoveRule {
   const editors = panesFor(batch);
-  return moveAndStampNotes(batch, {
+  return {
     refusal: unarchiveRefusal,
     destination: async ({ path, taken }) => {
       // Where it goes back to is read from what is on screen, not a save behind it.
@@ -134,7 +139,7 @@ export async function unarchiveNotes(batch: NoteBatch): Promise<ArchiveOutcome> 
       return restoreDestination({ path, archivedFrom: recorded, taken });
     },
     stamp: () => (own) => unarchiveStamp(own?.properties ?? {}),
-  });
+  };
 }
 
 /** The Archive folder as the disk spells it, when there is one yet. */
@@ -144,14 +149,15 @@ async function archiveFolderOf(ports: ArchivePorts): Promise<VaultPath | undefin
 }
 
 /** The panes as the batch may use them: ones whose `flush` saves nothing, when typing is left alone. */
-function panesFor(batch: NoteBatch): ArchivePorts['editors'] {
+export function panesFor(batch: NoteBatch): ArchivePorts['editors'] {
   const { editors } = batch.ports;
   if (batch.unsavedTyping !== 'leave') return editors;
   // Deliberately a no-op: each writer checks the pane is still dirty afterwards and leaves the note alone.
   return { ...editors, flush: () => Promise.resolve() };
 }
 
-const UNSAVED_REASON = 'It is open in Atlas with unsaved typing, so it was left where it is.';
+export const UNSAVED_REASON =
+  'It is open in Atlas with unsaved typing, so it was left where it is.';
 
 /**
  * One note after another, so each lands knowing where the ones before it
@@ -299,7 +305,7 @@ async function relocateAndStamp({
  * the note had that block of its own; so a note that had no frontmatter
  * before it was archived has none after it is unarchived.
  */
-async function rewriteFrontmatter({
+export async function rewriteFrontmatter({
   ports,
   path,
   stamp,

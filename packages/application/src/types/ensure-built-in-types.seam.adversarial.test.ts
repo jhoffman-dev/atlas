@@ -51,7 +51,16 @@ function vault(files: Record<string, string>) {
   return { fs, files: memory.files, markdown: jsonFrontmatter() };
 }
 
-const PROJECT = note({ name: 'project', label: 'Project', properties: { status: 'select' } });
+/** A Project type as #213 has it, so the only changes offered are the Meeting type's. */
+const PROJECT = note({
+  name: 'project',
+  label: 'Project',
+  properties: {
+    status: 'select',
+    para: { kind: 'select', label: 'PARA', options: ['project', 'area', 'resource', 'archive'] },
+    area: { kind: 'relation', label: 'Area', target: 'area' },
+  },
+});
 const IMPORT_KEYS = {
   atlas_import_outcome: { kind: 'select', label: 'Import' },
   atlas_import_error: { kind: 'text', label: 'Import error' },

@@ -3,7 +3,6 @@ import {
   createVault,
   expectFile,
   expectSaved,
-  expectParaTypeRows,
   installHost,
   saveNow,
   sidebarSection,
@@ -51,7 +50,6 @@ async function openVault(page: Page, more: Readonly<Record<string, string>> = {}
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  await expectParaTypeRows(page, vault);
   return { vault, host };
 }
 

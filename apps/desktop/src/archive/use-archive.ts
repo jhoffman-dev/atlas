@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { noteLabelForNotice, type MovableEntry, type VaultPath } from '@atlas/domain';
 import {
-  archiveNotes,
+  archiveNotesWithPara,
   listArchive,
-  unarchiveNotes,
+  unarchiveNotesWithPara,
   type ArchiveOutcome,
   type ArchivePorts,
   type Clock,
@@ -13,8 +13,9 @@ import type { ArchiveContents } from '@atlas/ui';
 import { stillChosen, useRowSelection } from './use-row-selection.ts';
 
 /**
- * Archiving and unarchiving, as a pane, a row's menu, a view or the Archive
- * asks for it. Each settles with what the batch did, or null when it did not
+ * Archiving and unarchiving, as a pane, a row's menu, a view, the palette,
+ * the weekly review or the Archive asks for it — a PARA note by its value,
+ * where it stands, every other note by moving it (#213). Each settles with what the batch did, or null when it did not
  * start — nothing asked for, or a batch already under way.
  */
 export interface ArchiveCommands {
@@ -83,8 +84,8 @@ export function useArchive(options: ArchiveOptions) {
       try {
         const outcome =
           kind === 'archive'
-            ? await archiveNotes({ ...batch, today: clock.today() })
-            : await unarchiveNotes(batch);
+            ? await archiveNotesWithPara({ ...batch, today: clock.today() })
+            : await unarchiveNotesWithPara(batch);
         setNotice(outcomeNotice(outcome));
         onSettled();
         const [moved] = outcome.moves;

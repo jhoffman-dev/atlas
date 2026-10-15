@@ -177,6 +177,18 @@ describe('compileReviewTasksQuery', () => {
 });
 
 describe('compileReviewProjectsQuery', () => {
+  it('reads only the Project notes that are projects: not an area, a resource or one archived by PARA (#213)', () => {
+    const paths = projectsOf({
+      'Projects/Atlas.md': { frontmatter: { type: 'project' } },
+      'Projects/Said.md': { frontmatter: { type: 'project', para: 'Project' } },
+      'Projects/Odd.md': { frontmatter: { type: 'project', para: 'someday' } },
+      'Garden.md': { frontmatter: { type: 'project', para: 'area' } },
+      'Manual.md': { frontmatter: { type: 'project', para: 'resource' } },
+      'Old.md': { frontmatter: { type: 'project', para: ' ARCHIVE ' } },
+    }).map((project) => project.path);
+    expect(paths.sort()).toEqual(['Projects/Atlas.md', 'Projects/Odd.md', 'Projects/Said.md']);
+  });
+
   it('reads every project in use with its status, and nothing else', () => {
     expect(
       projectsOf({

@@ -1,4 +1,5 @@
-import { isArchivedPath, isAtlasNote, type ObjectType } from '@atlas/domain';
+import type { ObjectType } from '@atlas/domain';
+import { notesInUseOfType } from '../archive/notes-in-use.ts';
 import type { IndexPort } from '../index/ports.ts';
 
 /**
@@ -21,12 +22,10 @@ export async function countNotesByType({
   const counted = await Promise.all(
     types.map(async (type) => {
       try {
-        const notes = await index.notesOfType(type.name);
         // A template declares its type so notes can be made from it; it is not
-        // one. An archived note was one, and is out of the way now (U-22).
-        const counted = notes.filter(
-          (note) => !isAtlasNote(note.path) && !isArchivedPath(note.path),
-        );
+        // one. An archived note was one, and is out of the way now (U-22) —
+        // a Project set to PARA archive as much as a note moved (#213).
+        const counted = await notesInUseOfType({ index, type: type.name });
         return [type.name, counted.length] as const;
       } catch {
         return [type.name, 0] as const;

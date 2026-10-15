@@ -8,6 +8,8 @@
  */
 
 import { outsideArchiveSql } from '../archive/archive.ts';
+import { PROJECT_TYPE } from '../types/para.ts';
+import { outsideParaArchiveSql } from '../types/para-value.ts';
 import { foldedLinkName } from '../markdown/resolve-wikilink.ts';
 import { tagKey } from '../tags/tag-name.ts';
 import type { ObjectType } from '../types/property-def.ts';
@@ -167,6 +169,16 @@ function cellOf(field: QueryField): Fragment {
   return sql`(SELECT group_concat(v, ', ') FROM (SELECT ${value} AS v ${rows} ORDER BY ${order}))`;
 }
 
+/**
+ * What leaves archived notes out: the Archive folder, and — from Project
+ * notes — the ones whose PARA is archive, archived where they stand (#213).
+ */
+function archivedLeftOut(from: readonly string[]): Fragment[] {
+  const outside = fixed(outsideArchiveSql('n.path'));
+  const fromProjects = from.some((name) => name.trim().toLowerCase() === PROJECT_TYPE);
+  return fromProjects ? [outside, fixed(outsideParaArchiveSql('n.path'))] : [outside];
+}
+
 function conditions(
   query: AtlasQuery,
   field: (ref: FieldRef) => QueryField,
@@ -177,7 +189,7 @@ function conditions(
     [
       sql`EXISTS (SELECT 1 FROM props AS t WHERE t.path = n.path AND t.key = 'type' AND t.value_text IN (${typeList(from)}))`,
       fixed(userSpaceNoteSql('n.path')),
-      ...(query.includeArchived ? [] : [fixed(outsideArchiveSql('n.path'))]),
+      ...(query.includeArchived ? [] : archivedLeftOut(from)),
       ...(query.where === null ? [] : [sql`(${expressionSql(query.where, field, context)})`]),
     ],
     '\n  AND ',

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ARTIFACT_KEYS,
-  archiveRefusal,
   createVaultPath,
-  isArchivedPath,
   isBlockType,
   isFavorite,
   deleteRefusal,
@@ -93,6 +91,7 @@ import { pageHeading } from './page-heading.ts';
 import { localClock, localNow, localToday } from '../today.ts';
 import type { OpenEditors, PaneEditors } from './open-editors.ts';
 import type { StrandedEdits } from '../notes/stranded-edits.ts';
+import { pageArchiveItems } from '../archive/archive-menu.ts';
 import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
 import type { TickMemory } from '../query/tick-memory.ts';
@@ -518,7 +517,11 @@ export function NotePaneContainer({
         path !== null &&
         template === null &&
         deleteRefusal({ path, kind: 'file' }) === null && { onDelete: () => onDelete(path) })}
-      {...archiveItems(context.archive, path)}
+      {...pageArchiveItems({
+        commands: context.archive,
+        path,
+        properties: note.open?.properties ?? null,
+      })}
       {...(onShowInGraph !== undefined &&
         path !== null &&
         template === null && { onShowInGraph: () => onShowInGraph(path) })}
@@ -590,16 +593,6 @@ export function NotePaneContainer({
       }
     />
   );
-}
-
-/** "Archive" for a note that can be archived, "Unarchive" for one that is. */
-function archiveItems(
-  commands: ArchiveCommands,
-  path: VaultPath | null,
-): { onArchive?: () => void; onUnarchive?: () => void } {
-  if (path === null || commands.busy) return {};
-  if (isArchivedPath(path)) return { onUnarchive: () => commands.unarchive([path]) };
-  return archiveRefusal(path) === null ? { onArchive: () => commands.archive([path]) } : {};
 }
 
 /** An artifact's saved copy, under its properties; nothing for any other note. */

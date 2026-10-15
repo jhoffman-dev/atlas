@@ -31,7 +31,7 @@ export interface QuickAdded {
 export interface QuickAddPorts {
   readonly fs: VaultFsPort;
   readonly markdown: MarkdownPort;
-  readonly index: Pick<IndexPort, 'notesOfType'>;
+  readonly index: Pick<IndexPort, 'notesOfType' | 'query'>;
   readonly store: FabAnchorStore;
 }
 
@@ -137,7 +137,7 @@ export function useQuickAdd({
 
 /** The notes each of a type's relations can point at, read when that type is being added. */
 function useRelationChoices(
-  index: Pick<IndexPort, 'notesOfType'>,
+  index: Pick<IndexPort, 'notesOfType' | 'query'>,
   type: ObjectType | null,
 ): Readonly<Record<string, readonly RelationChoice[]>> {
   const [choices, setChoices] = useState<Readonly<Record<string, readonly RelationChoice[]>>>({});

@@ -11,6 +11,7 @@ import {
   type ProposalsSectionProps,
 } from './proposals/proposals-section.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
+import { ParaMigration, type ParaMigrationProps } from './para-migration.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
 
@@ -59,6 +60,8 @@ export interface InboxPageProps {
   typesOffer?: InboxTypesOffer | null;
   /** Moving the vault's tasks to GTD's eight statuses, previewed first (P30-02). */
   taskMigration?: TaskMigrationProps | null;
+  /** Moving the vault's Area and Resource notes onto the Project type, previewed first (#213). */
+  paraMigration?: ParaMigrationProps | null;
   /** Moving loose notes and old meetings to their home folders, once, previewed first (#214). */
   vaultTidy?: VaultTidyProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
@@ -82,6 +85,7 @@ export function InboxPage(props: InboxPageProps) {
   const view = props.view ?? null;
   const offer = props.typesOffer ?? null;
   const migration = props.taskMigration ?? null;
+  const paraMigration = props.paraMigration ?? null;
   const tidy = props.vaultTidy ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
@@ -109,6 +113,7 @@ export function InboxPage(props: InboxPageProps) {
           />
           {offer !== null && <TypesOffer {...offer} />}
           {migration !== null && <TaskMigration {...migration} />}
+          {paraMigration !== null && <ParaMigration {...paraMigration} />}
           {tidy !== null && <VaultTidy {...tidy} />}
           {problem !== null && (
             <p className="table__error" role="alert">

@@ -52,7 +52,7 @@ describe('a relation that points at a project or an area', () => {
   it('offers the notes of both types, each under its own', () => {
     const { select } = picker();
     const groups = [...select.querySelectorAll('optgroup')];
-    expect(groups.map((group) => group.label)).toEqual(['Project', 'Area']);
+    expect(groups.map((group) => group.label)).toEqual(['Projects', 'Areas']);
     expect(groups.map((group) => [...group.children].map((option) => option.textContent))).toEqual([
       ['Atlas'],
       ['Garden', 'Health'],

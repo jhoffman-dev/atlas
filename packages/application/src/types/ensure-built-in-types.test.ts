@@ -72,10 +72,23 @@ function vault(files: Record<string, string>) {
   return { fs, files: memory.files, markdown: jsonFrontmatter() };
 }
 
-const JAMES_PROJECT = note({
+/** A Project type written before PARA was its property (#213), with a property of James's own. */
+const PRE_PARA_PROJECT = note({
   name: 'project',
   label: 'Project',
   properties: { status: 'select', budget: { kind: 'number', label: 'Budget' } },
+});
+
+/** James's Project type as #213 has it — PARA and Area — beside a property of his own. */
+const JAMES_PROJECT = note({
+  name: 'project',
+  label: 'Project',
+  properties: {
+    status: 'select',
+    budget: { kind: 'number', label: 'Budget' },
+    para: { kind: 'select', label: 'PARA', options: ['project', 'area', 'resource', 'archive'] },
+    area: { kind: 'relation', label: 'Area', target: 'area' },
+  },
 });
 
 /** The types always asked about in a vault that lacks them: the Inbox's, and today's note's. */
@@ -102,27 +115,50 @@ function propertiesOf(v: ReturnType<typeof vault>, path: string): Record<string,
 }
 
 describe('ensureBuiltInTypes', () => {
-  it('adds the area type to a vault that files by project, and leaves the project James wrote alone', async () => {
+  it('writes no Area or Resource type into a vault that files by project (#213), and leaves the project James wrote alone', async () => {
     const v = vault({ '.atlas/types/project.md': JAMES_PROJECT });
 
+    const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
 
-    expect(ensured.created).toEqual(['.atlas/types/area.md', '.atlas/types/resource.md']);
+    expect(v.files).toEqual(before);
     expect(offeredNames(ensured.offer)).toEqual(INBOX_TYPES);
     expect(ensured.offer.extensions).toEqual([]);
     expect(v.files.get('.atlas/types/project.md')).toBe(JAMES_PROJECT);
     const types = await loadObjectTypes(v);
-    expect(types.map((type) => type.name)).toEqual(['area', 'project', 'resource']);
-    const area = v.files.get('.atlas/types/area.md') ?? '';
-    expect(splitFrontmatter(area).body).toContain('# Area');
+    expect(types.map((type) => type.name)).toEqual(['project']);
+  });
+
+  it('offers a Project type written before #213 PARA and Area, and writes them only when accepted', async () => {
+    const v = vault({ '.atlas/types/project.md': PRE_PARA_PROJECT });
+
+    const ensured = await ensureBuiltInTypes(v);
+
+    expect(v.files.get('.atlas/types/project.md')).toBe(PRE_PARA_PROJECT);
+    expect(ensured.offer.extensions.map((extension) => [...extensionKeys(extension)])).toEqual([
+      ['para', 'area'],
+    ]);
+    const done = await acceptTypeSetup({ ...v, offer: ensured.offer });
+    expect(done.extended).toEqual(['.atlas/types/project.md']);
+    expect(Object.keys(propertiesOf(v, '.atlas/types/project.md'))).toEqual([
+      'status',
+      'budget',
+      'para',
+      'area',
+    ]);
+    const project = (await loadObjectTypes(v)).find((type) => type.name === 'project');
+    const para = project?.properties.find((property) => property.key === 'para');
+    expect(para).toMatchObject({ kind: 'select', label: 'PARA', required: false });
+    expect(para?.options).toEqual(['project', 'area', 'resource', 'archive']);
+    const area = project?.properties.find((property) => property.key === 'area');
+    expect(area).toMatchObject({ kind: 'relation', required: false, target: 'area' });
   });
 
   it('only offers PARA to a vault that has not taken it up, writing nothing', async () => {
     const v = vault({ 'Notes/Hello.md': 'hello\n' });
     const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
-    expect(ensured.created).toEqual([]);
-    expect(offeredNames(ensured.offer)).toEqual(['project', 'area', 'resource', ...INBOX_TYPES]);
+    expect(offeredNames(ensured.offer)).toEqual(['project', ...INBOX_TYPES]);
     expect(v.files).toEqual(before);
   });
 
@@ -137,8 +173,6 @@ describe('ensureBuiltInTypes', () => {
     });
     const before = new Map(v.files);
     const ensured = await ensureBuiltInTypes(v);
-    expect(ensured.created).toEqual([]);
-    expect(ensured.failed).toEqual([]);
     expect(offeredNames(ensured.offer)).toEqual(INBOX_TYPES);
     expect(v.files).toEqual(before);
   });
@@ -155,12 +189,8 @@ describe('ensureBuiltInTypes', () => {
       '.atlas/types/decision.md': note({ name: 'Decision' }),
       '.atlas/types/daily.md': note({ name: 'daily' }),
     });
-    const { created, offer, failed } = await ensureBuiltInTypes(v);
-    expect({ created, offer, failed }).toEqual({
-      created: [],
-      offer: { types: [], extensions: [] },
-      failed: [],
-    });
+    const { offer } = await ensureBuiltInTypes(v);
+    expect(offer).toEqual({ types: [], extensions: [] });
   });
 
   it('gives a Meeting type the meeting import’s keys it lacks on opening, and only offers PARA’s project', async () => {
@@ -200,20 +230,26 @@ describe('ensureBuiltInTypes', () => {
 
   it('never writes over a type file it cannot read, and says so', async () => {
     const broken = '---\nnot json at all\n---\n';
-    const v = vault({ '.atlas/types/project.md': JAMES_PROJECT, '.atlas/types/area.md': broken });
-    const ensured = await ensureBuiltInTypes({
-      ...v,
-      markdown: {
-        ...v.markdown,
-        frontmatterProperties: (frontmatter) => {
-          if (frontmatter?.includes('not json') === true) throw new Error('unreadable');
-          return v.markdown.frontmatterProperties(frontmatter);
-        },
+    const v = vault({ '.atlas/types/project.md': broken });
+    const markdown: MarkdownPort = {
+      ...v.markdown,
+      frontmatterProperties: (frontmatter) => {
+        if (frontmatter?.includes('not json') === true) throw new Error('unreadable');
+        return v.markdown.frontmatterProperties(frontmatter);
       },
-    });
-    expect(v.files.get('.atlas/types/area.md')).toBe(broken);
-    expect(ensured.failed).toEqual([{ name: 'Area', reason: 'already there' }]);
-    expect(ensured.created).toEqual(['.atlas/types/resource.md']);
+    };
+    const ensured = await ensureBuiltInTypes({ ...v, markdown });
+    expect(offeredNames(ensured.offer)).toContain('project');
+
+    const done = await acceptTypeSetup({ ...v, markdown, offer: ensured.offer });
+
+    expect(v.files.get('.atlas/types/project.md')).toBe(broken);
+    expect(done.failed).toEqual([{ name: 'Project', reason: 'already there' }]);
+    expect(done.created).toEqual([
+      '.atlas/types/proposal.md',
+      '.atlas/types/decision.md',
+      '.atlas/types/daily.md',
+    ]);
   });
 });
 
@@ -515,8 +551,6 @@ describe('acceptTypeSetup', () => {
     expect(done).toEqual({
       created: [
         '.atlas/types/project.md',
-        '.atlas/types/area.md',
-        '.atlas/types/resource.md',
         '.atlas/types/proposal.md',
         '.atlas/types/decision.md',
         '.atlas/types/daily.md',

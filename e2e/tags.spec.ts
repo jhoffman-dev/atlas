@@ -4,7 +4,6 @@ import {
   emitVaultChanged,
   expectFile,
   expectSaved,
-  expectParaTypeRows,
   installHost,
   saveNow,
 } from './host.ts';
@@ -20,7 +19,6 @@ async function openVault(page: Page, files: Record<string, string>) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  await expectParaTypeRows(page, vault);
   return vault;
 }
 

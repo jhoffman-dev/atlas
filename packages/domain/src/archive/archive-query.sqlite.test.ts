@@ -141,3 +141,28 @@ describe('outsideArchiveSql, run against SQLite', () => {
     expect(index.outside()).toEqual(paths.filter((path) => !isArchivedPath(path)).sort());
   });
 });
+
+describe('the Archive lists Projects archived by their value (#213)', () => {
+  const para = archiveIndex([
+    { path: 'Projects/Ledger.md', title: 'Ledger', props: { type: 'project', para: 'Archive' } },
+    { path: 'Projects/Payrun.md', title: 'Payrun', props: { type: 'project', para: 'project' } },
+    { path: 'Tasks/Archive me.md', title: 'Archive me', props: { type: 'task', para: 'archive' } },
+    {
+      path: 'Archive/Projects/Old plan.md',
+      title: 'Old plan',
+      props: { archived: '2026-09-01', archivedFrom: 'Projects/Old plan.md' },
+    },
+  ]);
+
+  it('beside the notes in the Archive folder, so each can be found and brought back', () => {
+    expect(para.archive().map((row) => row['path'])).toEqual([
+      'Archive/Projects/Old plan.md',
+      'Projects/Ledger.md',
+    ]);
+  });
+
+  it('as a search finds them, by title or path', () => {
+    expect(para.archive('ledger').map((row) => row['path'])).toEqual(['Projects/Ledger.md']);
+    expect(para.archive('payrun')).toEqual([]);
+  });
+});

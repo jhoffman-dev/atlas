@@ -3,6 +3,7 @@ import { FINISHED_TASK_STATUS, gtdStatusOf, TASK_KEYS, TASK_TYPE } from '../gtd/
 import { splitWikiLinks, wikiLinkLabel } from '../markdown/wikilink.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import { FILED_UNDER_KEY, PROJECT_TYPE } from '../types/para.ts';
+import { paraProjectSql } from '../types/para-value.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { userSpaceNoteSql } from '../vault/vault-visibility.ts';
 import { MOVING_STATUSES, type ReviewProject, type ReviewTask } from './weekly-review.ts';
@@ -73,7 +74,8 @@ export function compileReviewTasksQuery(): CompiledQuery {
 
 /**
  * The projects the weekly review reads, asked of the index: every project in
- * use, and whether a task in use filed under it is moving. That is asked of
+ * use — a Project note whose PARA is project, not an area, a resource or
+ * archived (#213) — and whether a task in use filed under it is moving. That is asked of
  * the index here rather than worked out from the tasks the review read, which
  * the host's row cap can cut short: a project is never called stalled on the
  * strength of tasks that were not read.
@@ -90,6 +92,7 @@ export function compileReviewProjectsQuery(): CompiledQuery {
       `      AND ${singleText(TASK_KEYS.status, 'r.src')} IN (${moving})) AS "moving"`,
       `FROM files AS f`,
       `WHERE ${inUseOfTypeSql('f.path', '?')}`,
+      `  AND ${paraProjectSql('f.path')}`,
       `ORDER BY f.path`,
     ].join('\n'),
     parameters: [TASK_TYPE, ...MOVING_STATUSES, PROJECT_TYPE],

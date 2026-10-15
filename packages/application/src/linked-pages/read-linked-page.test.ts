@@ -50,6 +50,17 @@ const TYPES: readonly ObjectType[] = [
   }),
   TASK_TYPE_FILE.type,
   ...PARA_TYPE_FILES.map((file) => file.type),
+  // A vault set up before PARA became a property (#213) keeps its Area and Resource types.
+  parseObjectType({ name: 'area', label: 'Area', properties: { description: 'text' } }),
+  parseObjectType({
+    name: 'resource',
+    label: 'Resource',
+    properties: {
+      project: { kind: 'relation', target: ['project', 'area'] },
+      url: 'url',
+      description: 'text',
+    },
+  }),
 ];
 
 /** TODAY, that many days back, as `YYYY-MM-DD`. */

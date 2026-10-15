@@ -18,6 +18,7 @@ import {
   createVaultPath,
   INBOX_LIST_LIMIT,
   INBOX_QUERY_COLUMNS,
+  PARA_VALUES_QUERY_MARK,
   TASK_TYPE_FILE,
   type ObjectType,
 } from '@atlas/domain';
@@ -31,10 +32,15 @@ const FILES = {
   [CALL]: CAPTURED,
 };
 
+/** What the index answers the filing picker's question for the projects' PARA: none hold one. */
+const NO_PARA = { columns: ['path', 'para'], rows: [], truncated: false };
+
 /** An index that lists `titles` as tasks in the Inbox, and says what it was asked. */
 function listingIndex(titles: readonly string[], asked: string[] = []) {
   return fakeIndexPort({
     query: async (sql) => {
+      // The filing picker asks for the projects' PARA (#213): no PARA here, so all are projects.
+      if (sql.startsWith(PARA_VALUES_QUERY_MARK)) return NO_PARA;
       asked.push(sql);
       return {
         columns: [...INBOX_QUERY_COLUMNS],
@@ -292,6 +298,7 @@ function keysetIndex(waiting: { title: string; modified: number }[]) {
     b.modified - a.modified || (pathOf(a.title) < pathOf(b.title) ? -1 : 1);
   const index = fakeIndexPort({
     query: async (sql, parameters = []) => {
+      if (sql.startsWith(PARA_VALUES_QUERY_MARK)) return NO_PARA;
       asked.push({ sql, parameters });
       if (sql.includes('count(*) AS "total"')) {
         return { columns: ['total'], rows: [[waiting.length]], truncated: false };

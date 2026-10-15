@@ -1,6 +1,9 @@
 import {
   archiveRefusal,
+  archivesWhereItStands,
   isArchivedPath,
+  isAtlasNote,
+  isParaArchived,
   notesUnder,
   type MovableEntry,
   type VaultPath,
@@ -56,4 +59,32 @@ export function withCommandBeforeDelete(
   const at = items.findIndex((item) => item.destructive === true);
   if (at === -1) return [...items, command];
   return [...items.slice(0, at), command, ...items.slice(at)];
+}
+
+/**
+ * "Archive" for a note that can be archived, "Unarchive" for one that is —
+ * in the Archive folder, or a Project archived by its value where it stands
+ * (#213). Either goes through the same commands as every other way of
+ * archiving: a PARA note is archived by its `para` and the file stays; every
+ * other note is moved.
+ */
+export function pageArchiveItems({
+  commands,
+  path,
+  properties,
+}: {
+  commands: ArchiveCommands;
+  path: VaultPath | null;
+  /** The note's frontmatter as the pane holds it, or null while it opens. */
+  properties: Readonly<Record<string, unknown>> | null;
+}): { onArchive?: () => void; onUnarchive?: () => void } {
+  if (path === null || commands.busy) return {};
+  const unarchive = { onUnarchive: () => void commands.unarchive([path]) };
+  if (isArchivedPath(path)) return unarchive;
+  // Until the note is read, whether it is PARA's — archived where it stands — is not known.
+  if (properties === null) return {};
+  const para = !isAtlasNote(path);
+  if (para && isParaArchived(properties)) return unarchive;
+  const archivable = archiveRefusal(path) === null || (para && archivesWhereItStands(properties));
+  return archivable ? { onArchive: () => void commands.archive([path]) } : {};
 }
