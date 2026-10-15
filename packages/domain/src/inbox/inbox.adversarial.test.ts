@@ -1,29 +1,46 @@
 /**
- * Adversarial (P30-01): what a note may be filed under, and where that puts
- * it. A project's folder sits beside its note, so a project at the root named
- * as one of the app's own folders would file into that folder.
+ * Adversarial (P30-01, #214): what a note may be filed under. Filing only
+ * links a note, so a project at the root named as one of the app's own
+ * folders is a project like any other — and a note is still never filed
+ * under one of Atlas's own files, or under a project still waiting itself.
  */
 import { describe, expect, it } from 'vitest';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
-import { filingFolder, filingRefusal } from './inbox.ts';
+import { filingRefusal, processRefusal } from './inbox.ts';
 
 const path = (raw: string): VaultPath => createVaultPath(raw);
 
-describe('filingRefusal — a project whose folder is the Inbox or the Archive', () => {
-  it('refuses a project at Inbox.md, whose folder is the Inbox itself', () => {
-    expect(filingRefusal({ path: path('Inbox.md'), type: 'project' })).not.toBeNull();
+describe('filingRefusal — a project named as the Inbox or the Archive', () => {
+  it('files under a project at Inbox.md, which is not in the Inbox', () => {
+    expect(filingRefusal({ path: path('Inbox.md'), type: 'project' })).toBeNull();
   });
 
-  it('refuses an area at archive.md, whose folder is the Archive in any case', () => {
-    expect(filingRefusal({ path: path('archive.md'), type: 'area' })).not.toBeNull();
+  it('still refuses a project inside the Inbox folder, in any case', () => {
+    expect(filingRefusal({ path: path('INBOX/Plan.md'), type: 'project' })).toContain(
+      'still in the Inbox',
+    );
+  });
+
+  it('still refuses a type file, which is one of Atlas’s own', () => {
+    expect(filingRefusal({ path: path('.atlas/types/project.md'), type: 'project' })).toContain(
+      'Atlas’s own files',
+    );
   });
 });
 
-describe('filingFolder — a project kept as its folder’s own note', () => {
-  it('files into that folder when the folder is spelled decomposed and the note composed', () => {
-    // The same name: "Café" as macOS may write a folder (NFD) and a note synced from elsewhere (NFC).
-    const folder = 'Projects/Café';
-    const project = path(`${folder}/Café.md`);
-    expect(filingFolder(project)).toBe(folder);
+describe('processRefusal — a meeting waits wherever it lives (#214)', () => {
+  it('processes a meeting in its month’s folder, and refuses any other note outside the Inbox', () => {
+    const meeting = path('Meetings/2026/10/2026-10-01 Standup.md');
+    expect(processRefusal({ path: meeting, type: 'meeting' })).toBeNull();
+    expect(processRefusal({ path: meeting, type: ' Meeting ' })).toBeNull();
+    expect(processRefusal({ path: path('Notes/Plan.md'), type: null })).toBe(
+      'It is not in the Inbox.',
+    );
+  });
+
+  it('still refuses a proposal, whatever folder it is in', () => {
+    expect(processRefusal({ path: path('Inbox/Proposals/Ask.md'), type: 'proposal' })).toContain(
+      'answered',
+    );
   });
 });

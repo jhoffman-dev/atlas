@@ -82,6 +82,7 @@ const fileUnderProject = (setup: ProposalVault) =>
     paths: [vaultPath(MEETING)],
     notePaths: setup.paths().map(vaultPath),
     project: vaultPath(PROJECT),
+    today: TODAY,
     updateLinks: true,
   });
 
@@ -98,10 +99,12 @@ describe('linking a meeting, adversarially', () => {
       paths: [vaultPath(MEETING)],
       notePaths: setup.paths().map(vaultPath),
       project: vaultPath(PROJECT),
+      today: TODAY,
       updateLinks: true,
     });
     const moved = filed.moves[0]?.move.to as string;
-    expect(moved).toMatch(/^Projects\//);
+    // Filed out of the older Inbox/Meetings into the meeting's month (#214).
+    expect(moved).toMatch(/^Meetings\/2026\/10\//);
 
     await acceptProposalNote({ ports: setup.ports, path: person, today: TODAY });
 

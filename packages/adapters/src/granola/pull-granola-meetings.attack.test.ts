@@ -87,7 +87,9 @@ function pullFixture({
     syncedThisSession: () => true,
   });
   const meetingFiles = () =>
-    [...api.files.keys()].filter((path) => path.startsWith('Inbox/Meetings/')).sort();
+    [...api.files.keys()]
+      .filter((path) => path.startsWith('Inbox/Meetings/') || path.startsWith('Meetings/'))
+      .sort();
   const vaultFiles = () =>
     Object.fromEntries([...api.files].map(([path, { text }]) => [path, text]));
   return { api, granola, records, puller, meetingFiles, vaultFiles };
@@ -119,7 +121,7 @@ describe('Granola pull: attacks', () => {
 
     // Today: the watermark is 2026-10-16T18:00Z, the pull lists from 2026-10-15T18:00Z,
     // and "Fresh" is not listed — nor will it be by any timed pull for three days.
-    expect(report.written).toEqual(['Inbox/Meetings/2026-10-06 Fresh.md']);
+    expect(report.written).toEqual(['Meetings/2026/10/2026-10-06 Fresh.md']);
   });
 
   it('gives Sync now its full listing even when pressed while a timed pull runs', async () => {
@@ -144,7 +146,7 @@ describe('Granola pull: attacks', () => {
 
     // Today: Sync now is answered with the periodic pull's report (mode 'periodic'),
     // no full listing ever runs, and the September meeting stays missing.
-    expect(meetingFiles()).toContain('Inbox/Meetings/2026-10-06 September planning.md');
+    expect(meetingFiles()).toContain('Meetings/2026/10/2026-10-06 September planning.md');
     expect(syncNow.mode).toBe('sync-now');
   });
 
@@ -179,7 +181,7 @@ describe('Granola pull: attacks', () => {
     // Today the whole listing is malformed: the pull fails, "Good" is never written,
     // and every later pull (Sync now included) fails the same way.
     expect(report.ended).toBe('pulled');
-    expect(meetingFiles()).toEqual(['Inbox/Meetings/2026-10-06 Good.md']);
+    expect(meetingFiles()).toEqual(['Meetings/2026/10/2026-10-06 Good.md']);
     // And the failed pull's line tells the person something that is not so.
     expect(api.activity.reports.map((line) => line.message).join('\n')).not.toMatch(
       /It was skipped; Sync now tries it again/,
@@ -262,11 +264,11 @@ describe('Granola pull: attacks', () => {
 
     const report = await puller.pull({ vault: VAULT, mode: 'sync-now' });
 
-    expect(meetingFiles()).toEqual(['Inbox/Meetings/2026-10-06 Quota.md']);
+    expect(meetingFiles()).toEqual(['Meetings/2026/10/2026-10-06 Quota.md']);
     expect(report.ended).toBe('failed');
     // Today: written is [] and the line is "Granola: the pull failed. QuotaExceededError: …"
     // with no word of the meeting it brought.
-    expect(report.written).toEqual(['Inbox/Meetings/2026-10-06 Quota.md']);
+    expect(report.written).toEqual(['Meetings/2026/10/2026-10-06 Quota.md']);
     expect(api.activity.reports.at(-1)?.message).toMatch(/1 new before it did/);
   });
 

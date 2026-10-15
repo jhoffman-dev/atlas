@@ -2,12 +2,15 @@ import {
   NEW_NOTE_CONTENTS,
   newNoteFolder,
   nextAvailableNotePath,
+  splitFrontmatter,
   type VaultPath,
 } from '@atlas/domain';
+import { ensureFolder } from '../vault/create-folder.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { guardTemplateEdit } from '../vault/template-guard.ts';
 import { newNoteTaskRules } from '../gtd/task-rules.ts';
+import { homeFolderFor } from './home-folder.ts';
 import type { MarkdownPort } from './ports.ts';
 
 /**
@@ -36,8 +39,10 @@ interface NewNote {
   name: string;
   /** The note currently open, whose folder the new one joins. */
   beside: VaultPath | null;
-  /** The folder to put it in, which wins over `beside`. */
+  /** The folder to put it in, which wins over its type's home and `beside`. */
   folder?: VaultPath;
+  /** The home folder of its type, for its day, which wins over `beside`; null when it has none. */
+  home?: VaultPath | null;
   notePaths: readonly VaultPath[];
   /** Starting text, when the note comes from a template. */
   contents?: string;
@@ -49,7 +54,8 @@ interface NewNote {
  * Creates a note and reports where it landed.
  *
  * It goes into `folder` when one is named — "New note here" on a folder.
- * Otherwise `newNoteFolder` says: a dashboard or a view with its kind,
+ * Otherwise `newNoteFolder` says: a dashboard or a view with its kind, a
+ * note whose type has a home folder there, dated by its own day (#214),
  * anything else beside the note in view, or at the root. A name
  * already in use is numbered rather than refused, so the button always works —
  * including when another program takes the name after `notePaths` was listed:
@@ -70,12 +76,28 @@ export async function createNote({
   /** `YYYY-MM-DD`: the day a task made already finished is dated. */
   today: string;
 }): Promise<VaultPath> {
+  const properties = note.properties ?? startingProperties(markdown, contents);
+  const home =
+    note.folder === undefined
+      ? await homeFolderFor({ fs: note.fs, markdown, properties, today })
+      : null;
   return createNoteFile({
     ...note,
+    properties,
+    home,
     ...(contents === undefined
       ? {}
       : { contents: newNoteTaskRules({ markdown, contents, today }) }),
   });
+}
+
+/** The frontmatter a note's starting text holds, read as values: none for a blank note. */
+function startingProperties(
+  markdown: Pick<MarkdownPort, 'frontmatterProperties'>,
+  contents: string | undefined,
+): Readonly<Record<string, unknown>> {
+  if (contents === undefined) return {};
+  return markdown.frontmatterProperties(splitFrontmatter(contents).frontmatter);
 }
 
 /**
@@ -87,11 +109,15 @@ export async function createNoteFile({
   name,
   beside,
   folder: named,
+  home = null,
   notePaths,
   contents,
   properties = {},
 }: NewNote): Promise<VaultPath> {
-  const folder = named ?? newNoteFolder({ beside, properties });
+  const chosen = named ?? newNoteFolder({ beside, properties, home });
+  // A home folder is made when it is not there yet, and named as the disk spells it.
+  const folder =
+    named === undefined && chosen === home ? await ensureFolder({ fs, folder: chosen }) : chosen;
   let taken: readonly VaultPath[] = notePaths;
 
   for (let attempt = 1; ; attempt += 1) {

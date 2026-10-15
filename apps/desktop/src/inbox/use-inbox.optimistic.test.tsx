@@ -336,7 +336,7 @@ function burst(files: Record<string, string>, holdPath: VaultPath | null = null)
   return { hook, files: memory.files, release: held.open };
 }
 
-const FILED_PAY = 'Projects/Larkspur/Pay Tobias Fenn.md';
+const FILED_PAY = 'Tasks/2026/10/Pay Tobias Fenn.md';
 
 describe('useInbox — a filing taken back while the queue is busy (#217)', () => {
   const files = {
@@ -355,7 +355,7 @@ describe('useInbox — a filing taken back while the queue is busy (#217)', () =
         clarification: { status: 'next-action', project: PROJECT },
       }),
     );
-    expect(vault.get(CALL)).toContain('[[Projects/Larkspur/Pay Tobias Fenn]]');
+    expect(vault.get(CALL)).toContain('[[Tasks/2026/10/Pay Tobias Fenn]]');
   });
 
   it('knows the note is back where it was, so a filing after re-points the link it holds', async () => {
@@ -396,11 +396,11 @@ describe('useInbox — a filing taken back while the queue is busy (#217)', () =
 
     expect(vault.has(CALL)).toBe(true);
     expect(vault.has(FILED_PAY)).toBe(true);
-    expect(vault.get(CALL)).toContain('[[Projects/Larkspur/Pay Tobias Fenn]]');
+    expect(vault.get(CALL)).toContain('[[Tasks/2026/10/Pay Tobias Fenn]]');
   });
 
   it('knows where a filing that failed after its move left the note', async () => {
-    const FILED_CALL = createVaultPath('Projects/Larkspur/Call Mara Quill.md');
+    const FILED_CALL = createVaultPath('Tasks/2026/10/Call Mara Quill.md');
     const memory = memoryVault(files);
     let readsOfFiled = 0;
     const ports: ArchivePorts = {
@@ -444,7 +444,7 @@ describe('useInbox — a filing taken back while the queue is busy (#217)', () =
 
     expect(memory.files.has(FILED_CALL)).toBe(true);
     // Call's link to Pay followed Pay: the filing of Pay knew Call was filed.
-    expect(memory.files.get(FILED_CALL)).toContain('[[Projects/Larkspur/Pay Tobias Fenn]]');
+    expect(memory.files.get(FILED_CALL)).toContain('[[Tasks/2026/10/Pay Tobias Fenn]]');
     // It moved a note, so the tree and the index are read again.
     expect(options.onSettled).toHaveBeenCalledOnce();
     expect(hook.result.current.refusals).toEqual([
@@ -614,7 +614,7 @@ describe('useInbox — leaving a vault with filings still queued (#217)', () => 
       expect(await outcome).toBe(true);
     });
 
-    expect(memory.files.has('Projects/Larkspur/Call Mara Quill.md')).toBe(true);
+    expect(memory.files.has('Tasks/2026/10/Call Mara Quill.md')).toBe(true);
   });
 });
 
@@ -713,5 +713,82 @@ describe('useInbox — an index sync begun before a filing landed (#217)', () =>
     });
     hook.rerender({ ...first, indexKey: 'ready:3' });
     await waitFor(() => expect(shown()).toEqual([CALL, PAY, SEND]));
+  });
+});
+
+describe('useInbox — a filing by link that moves nothing (#214, #217)', () => {
+  const STANDUP = createVaultPath('Meetings/2026/10/Standup.md');
+  const files = {
+    [PROJECT]: '---\ntype: project\n---\n',
+    [STANDUP]: '---\ntype: meeting\nstatus: inbox\n---\n\nSprint notes.\n',
+    [PAY]: TASK('Pay the invoice.'),
+  };
+
+  function linkedBurst() {
+    const memory = memoryVault(files);
+    const ports: ArchivePorts = {
+      fs: fakeVaultFs({
+        ...memory.fs,
+        readNotes: async (paths) =>
+          paths.flatMap((path) => {
+            const text = memory.files.get(path);
+            return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+          }),
+      }),
+      markdown: fakeMarkdown(),
+      index: listing([STANDUP, PAY]),
+      editors: NO_EDITORS,
+    };
+    const options = optionsFor(ports, [...memory.files.keys()].map(createVaultPath));
+    const hook = renderHook((given: InboxOptions) => useInbox(given), { initialProps: options });
+    return { hook, options, vault: memory.files };
+  }
+
+  it('takes the row off, leaves the note where it is, and reads the index again', async () => {
+    const { hook, options, vault } = linkedBurst();
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(2));
+
+    await act(async () => {
+      expect(
+        await hook.result.current.clarify({
+          path: STANDUP,
+          clarification: { project: PROJECT },
+        }),
+      ).toBe(true);
+    });
+
+    expect(vault.has(STANDUP)).toBe(true);
+    expect(vault.get(STANDUP)).toContain('[[Larkspur]]');
+    expect(hook.result.current.contents?.items.map((item) => item.path)).toEqual([PAY]);
+    expect(options.onSettled).toHaveBeenCalledOnce();
+    expect(hook.result.current.refusals).toEqual([]);
+  });
+
+  it('files the next Inbox note against the same tree, then takes the first back where it stood', async () => {
+    const { hook, vault } = linkedBurst();
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(2));
+
+    await act(async () => {
+      await hook.result.current.clarify({
+        path: STANDUP,
+        clarification: { project: PROJECT },
+      });
+    });
+    expect(hook.result.current.lastAction).toEqual({ title: 'Standup' });
+    await act(async () => {
+      expect(await hook.result.current.undo()).toBe(true);
+    });
+
+    expect(vault.get(STANDUP)).toBe(files[STANDUP]);
+    await act(async () => {
+      expect(
+        await hook.result.current.clarify({
+          path: PAY,
+          clarification: { project: PROJECT },
+        }),
+      ).toBe(true);
+    });
+    expect(vault.has(PAY)).toBe(false);
+    expect(vault.get(STANDUP)).toBe(files[STANDUP]);
   });
 });

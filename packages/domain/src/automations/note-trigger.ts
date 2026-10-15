@@ -18,12 +18,12 @@
 
 import { isArchivedPath } from '../archive/archive.ts';
 import { arrivedPaths, unpairedChanges, type NoteChange } from '../index/note-changes.ts';
-import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
+import { isMeetingArrival } from '../meetings/meeting-arrival.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { QueryTextError } from '../query-language/query-text-error.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { isSchemaKey, ledgerNow, type HandledLedger } from './handled-ledger.ts';
-import { MAX_LOG_ENTRIES, type LogEntry } from './run-log.ts';
+import { MAX_LOG_ENTRIES, type LogEntry, type MovedVersion } from './run-log.ts';
 
 /** What happening to a note sets the rule off. */
 export type NoteEvent = 'created' | 'changed';
@@ -116,7 +116,7 @@ export function triggeringVersions(
 /** What a change is to a rule a note sets off, given the paths new notes arrived at; null when nothing. */
 function noteEventOf(change: NoteChange, arrived: ReadonlySet<string>): NoteEvent | null {
   if (change.kind === 'removed') return null;
-  if (isMeetingInboxPath(change.path)) return eventWhereMeetingsLand(change);
+  if (isMeetingArrival(change)) return eventWhereMeetingsLand(change);
   if (arrived.has(change.path)) return 'created';
   return change.kind === 'changed' ? 'changed' : null;
 }
@@ -155,6 +155,8 @@ export interface HandledVersions {
   readonly hasHere: (version: NoteVersionRef) => boolean;
   /** Whether it handled any version of the note at this path. */
   readonly hasPath: (path: string) => boolean;
+  /** Every path it handled a version of a note at. */
+  readonly paths: () => Iterable<string>;
   /**
    * Milliseconds before which this memory is incomplete (the ledger had to
    * forget); a note last written then cannot be vouched for. Null when it
@@ -217,6 +219,7 @@ export function handledVersions(
     has: (version) => hasHere(version) || isAnswered(version),
     hasHere,
     hasPath: (path) => now.paths.has(path),
+    paths: () => now.paths.keys(),
     vouchesFrom: now.vouchesFrom,
   };
 }
@@ -234,6 +237,26 @@ export function leftHandledNotes(
   return [...left].filter((path) => handled.hasPath(path)).map((path) => createVaultPath(path));
 }
 
+/**
+ * The notes, among one sync's changes, that a note the rule has handled
+ * moved to — filed, tidied into its month, renamed, archived or put back —
+ * each as the version it is there: its history goes with it, so the rule
+ * knows it where it is now and does not take it for a new note (#214).
+ */
+export function movedHandledNotes(
+  changes: readonly NoteChange[],
+  handled: HandledVersions,
+): MovedVersion[] {
+  const { moved } = unpairedChanges(changes);
+  return [...moved]
+    .filter(([from]) => handled.hasPath(from))
+    .map(([from, to]) => ({
+      from: createVaultPath(from),
+      path: createVaultPath(to.path),
+      digest: to.digest,
+    }));
+}
+
 /** The versions not yet handled. */
 export function unhandledVersions(
   versions: readonly NoteVersionRef[],
@@ -246,6 +269,8 @@ export function unhandledVersions(
 export interface HeldNote extends NoteVersionRef {
   readonly type: string | null;
   readonly importOutcome?: string | undefined;
+  /** It declares the meeting import's contract (`atlas_import`). */
+  readonly importDeclared?: true | undefined;
   /** When the file was last written, as the disk says: milliseconds, on the clock the rule's file is dated by. */
   readonly modified: number;
 }
@@ -263,6 +288,13 @@ export interface HeldNote extends NoteVersionRef {
  * someone edits it), and the rule's log holds nothing of it — no version at
  * its path, and not its words. In path order. A trigger that does not run on
  * `created` has none.
+ *
+ * Nor does a meeting the rule handled before it moved. Its log follows a move
+ * it heard (`movedHandledNotes`); one it did not hear — news let go, or a
+ * move made while it was held — is told by its name: a meeting whose file
+ * name the rule handled at a path no note holds now moved from there, as the
+ * feed pairs a move by its name, and arrived where it was. Taking a new
+ * meeting of that name for it only skips a catch-up, never runs a rule twice.
  */
 export function missedArrivals({
   trigger,
@@ -277,18 +309,29 @@ export function missedArrivals({
   since: number;
 }): NoteVersionRef[] {
   if (!trigger.on.includes('created')) return [];
-  return [...notes]
+  const held = [...notes];
+  const movedAway = vacatedNames(handled, held);
+  return held
     .filter(
       (note) =>
-        isMeetingInboxPath(note.path) &&
+        isMeetingArrival(note) &&
         note.importOutcome === 'imported' &&
         note.type === trigger.type &&
         note.modified > Math.max(since, handled.vouchesFrom ?? since) &&
         !handled.hasPath(note.path) &&
-        !handled.has(note),
+        !handled.has(note) &&
+        !movedAway.has(fileNameOf(note.path)),
     )
     .map(({ path, digest, keys }) =>
       keys === undefined ? { path, digest } : { path, digest, keys },
     )
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
+
+/** The file names, as a disk that ignores case compares them, of the paths the rule handled that no note holds now. */
+function vacatedNames(handled: HandledVersions, notes: readonly HeldNote[]): ReadonlySet<string> {
+  const held = new Set<string>(notes.map((note) => note.path));
+  return new Set([...handled.paths()].filter((path) => !held.has(path)).map(fileNameOf));
+}
+
+const fileNameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1).toLowerCase();

@@ -37,6 +37,7 @@ describe('GET /v1/notes', () => {
         { path: 'b.md', title: 'b', type: 'task', modified: expect.any(Number) },
       ],
       next: null,
+      total: 5,
     });
   });
 
@@ -219,6 +220,8 @@ describe('GET /v1/notes/{path}/backlinks', () => {
       backlinks: [
         { path: 'From.md', title: 'From', type: 'project', modified: expect.any(Number) },
       ],
+      next: null,
+      total: 1,
     });
   });
 

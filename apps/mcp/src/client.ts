@@ -14,6 +14,7 @@ import type {
   ApiArchiveBody,
   ApiArchivedNote,
   ApiArchiveOutcome,
+  ApiProcessOutcome,
   ApiArtifactFile,
   ApiArtifactFileBody,
   ApiAtlasQueryBody,
@@ -177,7 +178,7 @@ export class AtlasClient {
   status = () => this.json<ApiStatus>({ method: 'GET', path: '/v1/status' });
 
   listNotes = (query: ListNotesQuery) =>
-    this.json<{ notes: readonly ApiNoteSummary[]; next: string | null }>({
+    this.json<{ notes: readonly ApiNoteSummary[]; next: string | null; total: number }>({
       method: 'GET',
       path: '/v1/notes',
       query: { ...query },
@@ -205,10 +206,11 @@ export class AtlasClient {
   replaceBody = (path: string, body: ApiReplaceBodyBody) =>
     this.json<{ note: ApiNote }>({ method: 'PUT', path: notePath(path, '/body'), body });
 
-  backlinks = (path: string) =>
-    this.json<{ backlinks: readonly ApiNoteSummary[] }>({
+  backlinks = (path: string, query: { limit?: number; cursor?: string } = {}) =>
+    this.json<{ backlinks: readonly ApiNoteSummary[]; next: string | null; total: number }>({
       method: 'GET',
       path: notePath(path, '/backlinks'),
+      query: { ...query },
     });
 
   exportNote = (path: string) =>
@@ -343,7 +345,12 @@ export class AtlasClient {
     this.json<{ tags: readonly ApiTag[] }>({ method: 'GET', path: '/v1/tags', query: { sort } });
 
   taggedNotes = (tag: string, query: { limit?: number; cursor?: string }) =>
-    this.json<{ tag: ApiTag; notes: readonly ApiTaggedNote[]; next: string | null }>({
+    this.json<{
+      tag: ApiTag;
+      notes: readonly ApiTaggedNote[];
+      next: string | null;
+      total: number;
+    }>({
       method: 'GET',
       path: `/v1/tags/${tagSegment(tag)}/notes`,
       query: { ...query },
@@ -388,7 +395,7 @@ export class AtlasClient {
     });
 
   processInbox = (body: ApiProcessInboxBody) =>
-    this.json<ApiArchiveOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
+    this.json<ApiProcessOutcome>({ method: 'POST', path: '/v1/inbox/process', body });
 
   clarifyInbox = (body: ApiClarifyInboxBody) =>
     this.json<ApiClarifyOutcome>({ method: 'POST', path: '/v1/inbox/clarify', body });

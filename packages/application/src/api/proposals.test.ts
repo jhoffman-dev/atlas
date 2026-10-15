@@ -9,7 +9,7 @@ import { apiFixture, bodyOf, codeOf, encoded, OTHER_VAULT, TODAY } from '../test
 import { jsonLinesMarkdown, jsonLinesNote } from '../testing/proposal-vault.ts';
 
 const PROPOSAL = 'Inbox/Proposals/Send the payroll file.md';
-const TASK = 'Send Mara the payroll file.md';
+const TASK = 'Tasks/2026/09/Send Mara the payroll file.md';
 
 const proposal = (more: Record<string, unknown> = {}, body = '') =>
   jsonLinesNote(

@@ -94,7 +94,7 @@ describe('ViewToolbar filter', () => {
       screen.getByRole('combobox', { name: 'Condition' }),
       'greaterThan',
     );
-    await userEvent.type(screen.getByRole('textbox', { name: 'Value' }), '14');
+    await userEvent.type(screen.getByRole('combobox', { name: 'Value' }), '14');
     await userEvent.click(screen.getByRole('button', { name: 'Add filter' }));
 
     expect(props.onChangeFilters).toHaveBeenCalledExactlyOnceWith([
@@ -107,7 +107,7 @@ describe('ViewToolbar filter', () => {
     await userEvent.click(screen.getByRole('button', { name: /Filter/ }));
 
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Property' }), 'status');
-    await userEvent.type(screen.getByRole('textbox', { name: 'Value' }), '007');
+    await userEvent.type(screen.getByRole('combobox', { name: 'Value' }), '007');
     await userEvent.click(screen.getByRole('button', { name: 'Add filter' }));
 
     expect(props.onChangeFilters).toHaveBeenCalledExactlyOnceWith([
@@ -123,7 +123,7 @@ describe('ViewToolbar filter', () => {
     expect((add as HTMLButtonElement).disabled).toBe(true);
 
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Condition' }), 'isEmpty');
-    expect(screen.queryByRole('textbox', { name: 'Value' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Value' })).toBeNull();
     await userEvent.click(add);
     expect(props.onChangeFilters).toHaveBeenCalledExactlyOnceWith([
       { key: 'title', operator: 'isEmpty' },

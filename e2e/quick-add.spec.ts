@@ -28,6 +28,10 @@ const PROJECT_TYPE = ['---', 'name: project', 'label: Project', '---', ''].join(
 
 const TASK_TEMPLATE = ['---', 'type: task', 'status: backlog', 'due:', '---', '', ''].join('\n');
 
+/** What quick add makes goes to its type's home: a task's for today, a project's (#214). */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const TASKS = `Tasks/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}`;
+
 async function openVault(page: Page, { settings }: { settings?: string } = {}) {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
@@ -70,8 +74,8 @@ test('with only Task, the button asks for a task at once and adds it', async ({ 
   await addFromPopover(page, 'Task', 'Renew the passport');
 
   // From the vault's template, with what was filled in.
-  await expectFile(vault, 'Renew the passport.md').toContain('type: task');
-  const written = await vault.read('Renew the passport.md');
+  await expectFile(vault, `${TASKS}/Renew the passport.md`).toContain('type: task');
+  const written = await vault.read(`${TASKS}/Renew the passport.md`);
   expect(written).toContain('status: doing');
   expect(written).toContain('project: "[[Garden]]"');
 
@@ -93,7 +97,7 @@ test('Alt+Cmd+N does what the button does, and Cmd+Enter opens what it adds', as
   await popover.getByRole('textbox', { name: 'Task name' }).fill('Call the bank');
   await popover.getByRole('textbox', { name: 'Task name' }).press('Meta+Enter');
 
-  await expectFile(vault, 'Call the bank.md').toContain('type: task');
+  await expectFile(vault, `${TASKS}/Call the bank.md`).toContain('type: task');
   await expect(page.getByRole('article', { name: 'Call the bank', exact: true })).toBeVisible();
   // Alt+Cmd+N is not also Cmd+N: no blank note was made beside it.
   await expect(page.getByRole('treeitem', { name: 'Untitled', exact: true })).toHaveCount(0);
@@ -121,7 +125,7 @@ test('Task and Project set in Settings: the button opens a dial and adds a proje
   await dial.getByRole('menuitem', { name: 'Project' }).click();
 
   await addFromPopover(page, 'Project', 'Kitchen');
-  await expectFile(vault, 'Kitchen.md').toContain('type: project');
+  await expectFile(vault, 'Projects/Kitchen.md').toContain('type: project');
 });
 
 test('Escape collapses the dial and gives the focus back to the button', async ({ page }) => {

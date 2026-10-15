@@ -23,13 +23,16 @@ export async function runView({
   index,
   query,
   includeArchived = false,
+  resolveLink,
 }: {
   index: IndexPort;
   query: ViewQuery;
   /** Lists archived notes too; they are out of the way unless asked for (U-22). */
   includeArchived?: boolean;
+  /** The note a link opens, so a filter by a link keeps every link to that note (`QueryReach`). */
+  resolveLink?: ((target: string) => string | null) | undefined;
 }): Promise<ViewResult> {
-  const compiled = compileViewQuery(query, {}, { includeArchived });
+  const compiled = compileViewQuery(query, {}, { includeArchived, resolveLink });
   const result = await index.query(compiled.sql, compiled.parameters);
   return { ...result, sql: compiled.sql };
 }

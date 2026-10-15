@@ -13,21 +13,28 @@ export { isSelfSpeaker, isUnnamedSpeaker, parseTranscript } from './transcript.t
 export { meetingTranscriptOf, meetingTurnsOf, providerNextStepsOf } from './meeting-turns.ts';
 export type { ParsedTranscript, TranscriptTurn, TurnSpeaker, TurnTime } from './transcript.ts';
 export {
+  declaresImport,
   DUPLICATE_OF_KEY,
+  IMPORT_CONTRACT_KEY,
   IMPORT_OUTCOME_KEY,
   IMPORT_OUTCOMES,
   importOutcomeOf,
   importStanding,
   IMPORT_ERROR_KEY,
   importErrorText,
+  isInMeetingInboxFolder,
   isInPlay,
+  isMeetingArrival,
   isMeetingInboxPath,
   MEETING_INBOX,
+  meetingLandingSql,
+  MEETINGS_HOME,
   meetingCandidates,
   meetingCopies,
 } from './meeting-arrival.ts';
-export type { ImportOutcome, MeetingCopies } from './meeting-arrival.ts';
+export type { ArrivalSigns, ImportOutcome, MeetingCopies } from './meeting-arrival.ts';
 export {
+  compileImportDeclarationsQuery,
   compileImportOutcomesQuery,
   IMPORT_OUTCOMES_PAGE,
   compileMeetingHoldersQuery,

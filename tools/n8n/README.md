@@ -4,7 +4,10 @@ Your n8n workflow already reads "Notes by Gemini" emails and writes each
 meeting to the Notion Meeting Notes database. This folder adds a **second
 destination** beside Notion: the same meeting, committed as one markdown file
 to the vault's sync repository, `jhoffman-dev/pkm-space`, at
-`Inbox/Meetings/<YYYY-MM-DD> <title>.md`. Atlas pulls that repository every
+`Meetings/<YYYY>/<MM>/<YYYY-MM-DD> <title>.md`, the month's folder for the
+meeting's date (ADR-0038). A workflow imported before that still writes
+`Inbox/Meetings/<YYYY-MM-DD> <title>.md`, which Atlas still reads; re-import
+`meeting-to-atlas.workflow.json` to write by month. Atlas pulls that repository every
 minute, so meetings arrive even while the Mac is asleep (ADR-0027). The
 Notion path is not touched: the Atlas branch runs beside it, from the
 assembled meeting before any Notion step, and nothing in it can stop the run.
@@ -267,7 +270,7 @@ In the inactive copy:
    `pnpm validate:meeting that-file.md` in the Atlas repo. `ok` means Atlas
    will accept it.
 6. Reactivate both commit nodes (leave the Notion writes off), run once more,
-   and look in `pkm-space` on GitHub for `Inbox/Meetings/<date> <title>.md`
+   and look in `pkm-space` on GitHub for `Meetings/<YYYY>/<MM>/<date> <title>.md`
    and a commit `Meeting: <title> (gemini)`. Within a minute of the Mac
    being awake, it is in Atlas's Inbox.
 7. Reactivate the Notion writes. Then, in one sitting, **activate the copy and
@@ -280,7 +283,7 @@ In the inactive copy:
 ## How the workflow avoids writing a meeting twice
 
 The path is deterministic: the same meeting always maps to the same
-`Inbox/Meetings/<date> <title>.md`.
+`Meetings/<YYYY>/<MM>/<date> <title>.md`.
 
 1. **Is the path taken?** (GitHub → File → Get) looks the path up.
    - Not found → its error output goes to **Commit meeting file**, which
@@ -291,7 +294,7 @@ The path is deterministic: the same meeting always maps to the same
      email arriving twice, writes nothing.
    - Different (two meetings with one title on one day, like two `1:1`s) →
      **Is the other path taken?** looks up
-     `Inbox/Meetings/<date> <title> (<provider> <hash>).md`, where the hash
+     `Meetings/<YYYY>/<MM>/<date> <title> (<provider> <hash>).md`, where the hash
      is 8 hex digits of the provider and Source ID (an id may hold characters
      a file name cannot, or be too long; the name stays within 255 bytes and
      keeps the date). Not found → **Commit meeting file (other path)** creates

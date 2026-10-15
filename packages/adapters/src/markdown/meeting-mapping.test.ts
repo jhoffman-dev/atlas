@@ -113,9 +113,9 @@ const GRANOLA: MeetingFields = {
 };
 
 describe('a Gemini meeting', () => {
-  it('becomes a contract file at Inbox/Meetings/<date> <title>.md', () => {
+  it('becomes a contract file at Meetings/<YYYY>/<MM>/<date> <title>.md', () => {
     const { file, meeting } = mapped(GEMINI);
-    expect(file.path).toBe('Inbox/Meetings/2026-10-06 Platform weekly sync.md');
+    expect(file.path).toBe('Meetings/2026/10/2026-10-06 Platform weekly sync.md');
     expect(file.commitMessage).toBe('Meeting: Platform weekly sync (gemini)');
     expect(meeting).toMatchObject({
       title: 'Platform weekly sync',
@@ -881,16 +881,18 @@ describe('the file name', () => {
   const pathOf = (title: string) => mapMeeting({ ...GEMINI, title }).path;
 
   it('takes out what no filesystem or link accepts', () => {
-    expect(pathOf('Chris / James 1:1')).toBe('Inbox/Meetings/2026-10-06 Chris James 1 1.md');
-    expect(pathOf('Sprint #42 [draft] ^x')).toBe('Inbox/Meetings/2026-10-06 Sprint 42 draft x.md');
-    expect(pathOf('...hidden?')).toBe('Inbox/Meetings/2026-10-06 hidden.md');
-    expect(pathOf('///')).toBe('Inbox/Meetings/2026-10-06 Untitled.md');
+    expect(pathOf('Chris / James 1:1')).toBe('Meetings/2026/10/2026-10-06 Chris James 1 1.md');
+    expect(pathOf('Sprint #42 [draft] ^x')).toBe(
+      'Meetings/2026/10/2026-10-06 Sprint 42 draft x.md',
+    );
+    expect(pathOf('...hidden?')).toBe('Meetings/2026/10/2026-10-06 hidden.md');
+    expect(pathOf('///')).toBe('Meetings/2026/10/2026-10-06 Untitled.md');
   });
 
   it('keeps emoji whole and fits a very long title in 255 bytes', () => {
-    expect(pathOf('Launch 🚀 review')).toBe('Inbox/Meetings/2026-10-06 Launch 🚀 review.md');
+    expect(pathOf('Launch 🚀 review')).toBe('Meetings/2026/10/2026-10-06 Launch 🚀 review.md');
     const path = pathOf(`Kickoff ${'🚀'.repeat(100)}`);
-    const name = path.slice('Inbox/Meetings/'.length);
+    const name = path.slice('Meetings/2026/10/'.length);
     expect(new TextEncoder().encode(name).length).toBeLessThanOrEqual(255);
     expect(name).toMatch(/🚀\.md$/);
     expect(
@@ -905,7 +907,7 @@ describe('the file name', () => {
     (title) => {
       const stem = `2026-10-06 ${title}`;
       const vault = noteFileName(fitFileNameStem(stem, '.md'));
-      expect(pathOf(title)).toBe(`Inbox/Meetings/${noteFileName(vault)}`);
+      expect(pathOf(title)).toBe(`Meetings/2026/10/${noteFileName(vault)}`);
     },
   );
 
@@ -916,19 +918,21 @@ describe('the file name', () => {
 
   it('has a second path naming the provider and a short hash of the id, for when another meeting holds the first', () => {
     const { collisionPath } = mapMeeting({ ...GEMINI, title: '1:1' });
-    expect(collisionPath).toMatch(/^Inbox\/Meetings\/2026-10-06 1 1 \(gemini [0-9a-f]{8}\)\.md$/);
+    expect(collisionPath).toMatch(
+      /^Meetings\/2026\/10\/2026-10-06 1 1 \(gemini [0-9a-f]{8}\)\.md$/,
+    );
     expect(mapMeeting({ ...GEMINI, title: '1:1' }).collisionPath).toBe(collisionPath);
     const other = mapMeeting({ ...GEMINI, title: '1:1', sourceId: 'fake-meeting-0002' });
     expect(other.collisionPath).not.toBe(collisionPath);
     const long = mapMeeting({ ...GEMINI, title: 'y'.repeat(400) }).collisionPath;
-    expect(new TextEncoder().encode(long.slice('Inbox/Meetings/'.length)).length).toBe(255);
+    expect(new TextEncoder().encode(long.slice('Meetings/2026/10/'.length)).length).toBe(255);
     expect(long).toMatch(/y \(gemini [0-9a-f]{8}\)\.md$/);
   });
 
   it('fits a long provider name and keeps the date', () => {
     const provider = 'p'.repeat(300);
     const { collisionPath } = mapMeeting({ ...GEMINI, source: provider });
-    const name = collisionPath.slice('Inbox/Meetings/'.length);
+    const name = collisionPath.slice('Meetings/2026/10/'.length);
     expect(new TextEncoder().encode(name).length).toBeLessThanOrEqual(255);
     expect(name).toMatch(/^2026-10-06 Platform weekly sync \(p+ [0-9a-f]{8}\)\.md$/);
   });

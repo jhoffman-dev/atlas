@@ -1,6 +1,6 @@
 import { isArchivedPath } from '../archive/archive.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
-import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
+import { isInMeetingInboxFolder } from '../meetings/meeting-arrival.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import { PERSON_TYPE } from '../people/person.ts';
 import { cleanEntryName } from '../vault/new-note.ts';
@@ -268,13 +268,14 @@ function readLinkPayload(value: Readonly<Record<string, unknown>>): PayloadReadi
  * folder, nor one the vault's walk never reads (`node_modules`, in any case,
  * at any depth), where a note would be invisible. Nor the Archive, which is
  * what is done with, nor the proposals folder, where proposals wait, nor
- * where meeting files land.
+ * `Inbox/Meetings`, where every file that lands is judged as a meeting.
  */
 export function proposedWriteRefusal(path: VaultPath): string | null {
   const refusal = proposedChangeRefusal(path);
   if (refusal !== null) return refusal;
-  // The meeting import judges every note that lands there as a meeting file (ADR-0027).
-  if (isMeetingInboxPath(`${path}/note.md`)) {
+  // The meeting import judges every note that lands there as a meeting file (ADR-0027); in
+  // `Meetings` it judges only a file that declares its contract, which a proposal never writes (#214).
+  if (isInMeetingInboxFolder(`${path}/note.md`)) {
     return `${JSON.stringify(path)} is where meeting files land; a proposal does not write there.`;
   }
   return null;

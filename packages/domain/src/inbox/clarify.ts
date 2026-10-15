@@ -13,6 +13,7 @@ import {
 import { isTaskNote, taskRuleChanges } from '../gtd/task-rules.ts';
 import { TASK_TYPE_FILE, type ClarifyVocabulary } from '../gtd/task-type.ts';
 import { wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
+import { isMeetingType } from '../meetings/meeting-header.ts';
 import { PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import { addDays } from '../timeline/timeline.ts';
 import { relationTypeRefusal } from '../types/property-value.ts';
@@ -202,7 +203,10 @@ export function clarifyPlan({
   const project = clarification.project ?? null;
   const fileUnder = project !== null && isInInbox(path) ? project : null;
   const linksOnly = project !== null && fileUnder === null;
-  if (linksOnly && !task) return { refused: 'It is not in the Inbox.' };
+  // A meeting waits wherever it lives (#214): filing it is its link, as a task's is.
+  if (linksOnly && !task && !isMeetingType(properties['type'])) {
+    return { refused: 'It is not in the Inbox.' };
+  }
   const linked = linksOnly ? filedUnderStamp({ project, notePaths }) : {};
   const changes = { ...made?.changes, ...named.changes, ...linked };
   if (Object.keys(changes).length === 0 && fileUnder === null) {

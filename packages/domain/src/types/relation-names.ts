@@ -45,9 +45,17 @@ const bareName = (target: string): string =>
  */
 export function noteNames(notes: readonly NamedNote[] | null): NoteNames {
   const titles = new Map((notes ?? []).map((note) => [note.path, note.title]));
-  // Indexed once, not searched per link: a picker works out the link to every
-  // note it offers, on every keystroke in the note it sits in (#217).
-  const resolve = createWikiLinkResolver([...titles.keys()]);
+  // Built on first use, then each link is looked up among the notes of its
+  // name rather than the whole vault: a relation's choices link every note
+  // of a type, and this is made again whenever the vault changes (#212).
+  let resolver: ((target: string) => VaultPath | null) | null = null;
+  // A table resolves the same few links row after row.
+  const resolved = new Map<string, VaultPath | null>();
+  const resolve = (target: string): VaultPath | null => {
+    resolver ??= createWikiLinkResolver([...titles.keys()]);
+    if (!resolved.has(target)) resolved.set(target, resolver(target));
+    return resolved.get(target) ?? null;
+  };
   const links = new Map<VaultPath, string>();
 
   const name = (link: WikiLink): LinkedName => {

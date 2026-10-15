@@ -7,6 +7,7 @@ import {
   linkBreakingCharacter,
   linkTakeover,
   nextAvailableNotePath,
+  VAULT_ROOT,
   type VaultPath,
 } from '../../packages/domain/src/index.ts';
 import { dailyNotePath } from '../../packages/application/src/notes/daily-note.ts';
@@ -123,7 +124,7 @@ export function notePaths(input: PlaceInput): (candidate: Candidate) => NotePlac
     if (other !== undefined)
       return { kind: 'refused', reason: `"${other}" is the daily note for ${day} too` };
     days.set(day, candidate.title);
-    const path = dailyNotePath(day);
+    const path = dailyNotePath(day, VAULT_ROOT);
     // The vault's own note for the day, at the app's path or anywhere [[day]] opens it.
     const there = existing.get(foldedVaultPath(path)) ?? linkTakeover(path, notes) ?? undefined;
     if (there !== undefined && pageNotes.has(there)) {
@@ -197,7 +198,7 @@ export function dailyNotesToRead(candidates: readonly Candidate[], input: PlaceI
         mixedOrderColumns: mixedOrderColumns(candidate.database.csv, input.dateOrder),
       });
       if (day === null) return [];
-      const path = dailyNotePath(day);
+      const path = dailyNotePath(day, VAULT_ROOT);
       const there = existing.get(foldedVaultPath(path)) ?? linkTakeover(path, input.vault.paths);
       return there === null || there === undefined ? [] : [there];
     });

@@ -110,7 +110,7 @@ test('adds a number widget through the sheet and draws it', async ({ page }) => 
   );
   const filters = sheet.getByRole('group', { name: 'Filters' });
   await filters.getByRole('combobox', { name: 'Property' }).selectOption('status');
-  await filters.getByRole('textbox', { name: 'Value' }).fill('doing');
+  await filters.getByRole('combobox', { name: 'Value' }).fill('doing');
   await filters.getByRole('button', { name: 'Add filter' }).click();
   // The preview is the widget as the dashboard will draw it.
   await expect(sheet.getByRole('region', { name: 'Doing now' })).toContainText('2');
@@ -145,7 +145,7 @@ test('edits a widget’s title and filter, keeping keys it does not know', async
   const filters = sheet.getByRole('group', { name: 'Filters' });
   await filters.getByRole('combobox', { name: 'Property' }).selectOption('status');
   await filters.getByRole('combobox', { name: 'Condition' }).selectOption('isNot');
-  await filters.getByRole('textbox', { name: 'Value' }).fill('done');
+  await filters.getByRole('combobox', { name: 'Value' }).fill('done');
   await filters.getByRole('button', { name: 'Add filter' }).click();
   await sheet.getByRole('button', { name: 'Save' }).click();
 

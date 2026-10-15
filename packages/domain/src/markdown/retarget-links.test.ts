@@ -89,3 +89,39 @@ describe('retargetLinks', () => {
     });
   });
 });
+
+describe('a moved note that would take a namesake’s links (#214)', () => {
+  const VAULT = paths('Customers/Acme.md', 'Inbox/Acme.md', 'Notes/Call log.md');
+
+  it('writes the link as the path of the note it opened before', () => {
+    expect(
+      retarget(
+        'Spoke to [[Acme|them]] about [[Acme#Renewal]].',
+        'Inbox/Acme.md',
+        'Companies/Acme.md',
+        VAULT,
+      ),
+    ).toEqual({
+      text: 'Spoke to [[Customers/Acme|them]] about [[Customers/Acme#Renewal]].',
+      count: 2,
+    });
+  });
+
+  it('leaves a link alone when the moved note does not win the name', () => {
+    expect(
+      retarget('Spoke to [[Acme]].', 'Inbox/Acme.md', 'Companies/2026/Acme.md', VAULT),
+    ).toEqual({
+      text: 'Spoke to [[Acme]].',
+      count: 0,
+    });
+  });
+
+  it('leaves a link alone that opened nothing before the move', () => {
+    expect(retarget('See [[Acme Robotics]].', 'Inbox/Acme.md', 'Companies/Acme.md', VAULT)).toEqual(
+      {
+        text: 'See [[Acme Robotics]].',
+        count: 0,
+      },
+    );
+  });
+});

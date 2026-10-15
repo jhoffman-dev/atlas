@@ -117,7 +117,7 @@ test('a filter saved as a new view leaves the view it came from as it was', asyn
   await page.getByRole('button', { name: 'Filter' }).click();
   await page.getByRole('combobox', { name: 'Property' }).selectOption('status');
   await page.getByRole('combobox', { name: 'Condition' }).selectOption('is');
-  await page.getByRole('textbox', { name: 'Value' }).fill('doing');
+  await page.getByRole('combobox', { name: 'Value' }).fill('doing');
   await page.getByRole('button', { name: 'Add filter' }).click();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'second', exact: true })).toHaveCount(0);

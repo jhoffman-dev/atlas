@@ -8,6 +8,9 @@ import { dragWithKeyboard, dragWithPointer } from './drag.ts';
  */
 const NOW = new Date(2026, 8, 22, 12);
 
+/** A task added on the calendar goes to the task type's home for the page's today (#214). */
+const TASKS = 'Tasks/2026/09';
+
 const TASK_TYPE = ['---', 'name: task', 'properties:', '  due: date', '---', ''].join('\n');
 
 const CALENDAR = [
@@ -156,7 +159,7 @@ test('clicking an empty slot on the clock adds a note at that time', async ({ pa
   await page.getByRole('textbox', { name: /New card in 2026-09-23 at 14:00/ }).fill('Lunch');
   await page.keyboard.press('Enter');
 
-  await expectFile(vault, 'Lunch.md').toMatch(/due: '?2026-09-23T14:00'?/);
+  await expectFile(vault, `${TASKS}/Lunch.md`).toMatch(/due: '?2026-09-23T14:00'?/);
   await expect(
     page.getByLabel('2026-09-23', { exact: true }).getByRole('button', { name: /Lunch/ }),
   ).toBeVisible();
@@ -175,5 +178,5 @@ test('a keyboard adds a note at an hour: to the day, down the hours, Enter', asy
   await page.getByRole('textbox', { name: /New card in 2026-09-23 at 14:00/ }).fill('Dentist');
   await page.keyboard.press('Enter');
 
-  await expectFile(vault, 'Dentist.md').toMatch(/due: '?2026-09-23T14:00'?/);
+  await expectFile(vault, `${TASKS}/Dentist.md`).toMatch(/due: '?2026-09-23T14:00'?/);
 });

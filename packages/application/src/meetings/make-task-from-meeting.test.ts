@@ -25,7 +25,7 @@ import {
 
 const TODAY = '2026-10-06';
 const MEETING = 'Projects/Ledger/2026-10-06 Standup.md';
-const TASK = 'Send Mara the payroll file.md';
+const TASK = 'Tasks/2026/10/Send Mara the payroll file.md';
 const IDENTITY: MeetingIdentity = { provider: 'gemini', externalId: 'gemini-7f3a9c21' };
 const ITEM_KEY = 'gemini:gemini-7f3a9c21:t0001:self';
 
@@ -145,7 +145,7 @@ describe('makeTaskFromMeeting', () => {
     const setup = vault({ [TASK]: jsonLinesNote({ type: 'task', status: 'archive' }) });
     const made = await make(setup);
 
-    expect(made.task).toBe('Send Mara the payroll file 2.md');
+    expect(made.task).toBe('Tasks/2026/10/Send Mara the payroll file 2.md');
     expect(setup.propertiesOf(TASK)).toEqual({ type: 'task', status: 'archive' });
     expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file 2]]']);
   });
@@ -153,10 +153,10 @@ describe('makeTaskFromMeeting', () => {
 
 describe('makeTaskFromMeeting — a title a wiki link cannot hold', () => {
   it.each([
-    ['Fix bug #123', 'Fix bug 123.md'],
-    ['Re: [Q3] plan', 'Re Q3 plan.md'],
-    ['Notes on [draft]', 'Notes on draft.md'],
-    ['Pick A|B for ^t0001', 'Pick A B for t0001.md'],
+    ['Fix bug #123', 'Tasks/2026/10/Fix bug 123.md'],
+    ['Re: [Q3] plan', 'Tasks/2026/10/Re Q3 plan.md'],
+    ['Notes on [draft]', 'Tasks/2026/10/Notes on draft.md'],
+    ['Pick A|B for ^t0001', 'Tasks/2026/10/Pick A B for t0001.md'],
   ])(
     'names the file of “%s” so the meeting’s link reaches it, keeping the title exact',
     async (title, file) => {

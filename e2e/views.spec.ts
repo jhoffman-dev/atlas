@@ -39,6 +39,10 @@ const BOARD = [
   '',
 ].join('\n');
 
+/** A task made from a view goes to the task type's home for today (#214). */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const TASKS = `Tasks/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}`;
+
 const task = (title: string, status: string, phase: number) =>
   ['---', 'type: task', `status: ${status}`, `phase: ${phase}`, '---', '', `# ${title}`, ''].join(
     '\n',
@@ -200,7 +204,7 @@ test('a filter added from the toolbar applies at once, and is written when saved
   await page.getByRole('button', { name: 'Filter' }).click();
   await page.getByRole('combobox', { name: 'Property' }).selectOption('status');
   await page.getByRole('combobox', { name: 'Condition' }).selectOption('isNot');
-  await page.getByRole('textbox', { name: 'Value' }).fill('done');
+  await page.getByRole('combobox', { name: 'Value' }).fill('done');
   await page.getByRole('button', { name: 'Add filter' }).click();
 
   await expect(page.getByRole('button', { name: 'second', exact: true })).toHaveCount(0);
@@ -228,5 +232,5 @@ test('"New task" makes a task and opens it', async ({ page }) => {
     .click();
 
   await expect(page.getByRole('article', { name: 'New task' })).toBeVisible();
-  await expectFile(vault, 'New task.md').toContain('type: task');
+  await expectFile(vault, `${TASKS}/New task.md`).toContain('type: task');
 });

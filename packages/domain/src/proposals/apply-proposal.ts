@@ -58,6 +58,12 @@ export interface ProposalVault {
    * proposed.
    */
   readonly heldTypes?: readonly string[] | undefined;
+  /**
+   * The home folder of the note's type, for its day (#214): where a record
+   * of its own — a task, a follow-up, a decision — goes when its payload
+   * names no folder. Null, or left out, for the root.
+   */
+  readonly homeFolder?: VaultPath | null | undefined;
 }
 
 export type ProposalApplication =
@@ -107,13 +113,20 @@ const OWN_RECORDS: ReadonlySet<NoteProposalKind> = new Set(['task', 'follow-up',
  */
 export function applyNoteProposal(
   proposal: ProposedNote,
-  { notePaths, target, heldTypes }: ProposalVault,
+  { notePaths, target, heldTypes, homeFolder = null }: ProposalVault,
 ): ProposalApplication {
-  const { payload, kind, source } = proposal;
-  const refusal = payload.folder === null ? null : proposedWriteRefusal(payload.folder);
+  const { kind, source } = proposal;
+  const refusal =
+    proposal.payload.folder === null ? null : proposedWriteRefusal(proposal.payload.folder);
   if (refusal !== null) return refused(refusal);
   const gone = waitingOnGone(proposal, notePaths);
   if (gone !== null) return refused(gone);
+  // A record of its own is never one already there, so it can go to its home; a person or a
+  // project is looked for where the payload says, and a home would miss the one there.
+  const payload =
+    proposal.payload.folder === null && OWN_RECORDS.has(kind)
+      ? { ...proposal.payload, folder: homeFolder }
+      : proposal.payload;
   const wanted = newNotePath(payload);
   const folded = foldedVaultPath(wanted);
   const found = notePaths.find((note) => foldedVaultPath(note) === folded);
