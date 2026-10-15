@@ -1,19 +1,22 @@
 import {
   decideMeetingItems,
+  digestOf,
   linkedTaskOwner,
   linkTargets,
   MEETING_TASKS_KEY,
   messageWithoutPaths,
   resolveWikiLinkTarget,
+  sameItemTitle,
   splitFrontmatter,
+  summaryListing,
   TASK_KEYS,
   type CheckedProposal,
   type DoneAction,
   type LinkedTask,
-  type MadeItem,
   type MeetingItemsDecision,
   type MeetingItemsRun,
   type OwnerSettings,
+  type SummaryActionItem,
   type VaultPath,
 } from '@atlas/domain';
 import { ProposalRefused } from '../chat/proposals.ts';
@@ -23,6 +26,7 @@ import {
   type MeetingItemTask,
   type TaskMeeting,
 } from '../meetings/make-task-from-meeting.ts';
+import type { MadeTaskItem } from '../meetings/made-items.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import type { NoteWritePorts } from '../proposals/proposal-writes.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -45,6 +49,12 @@ export interface MeetingDecided {
   readonly proposals: readonly CheckedProposal[];
   /** Why none of the meeting's items could be a task, when that is the meeting's, not an item's. */
   readonly noTasksBecause: MeetingItemsDecision['noTasksBecause'];
+  /** What its summary lists (#185): the action items, each with whether a task stands for it. */
+  readonly listed: readonly SummaryActionItem[];
+  /** What its summary lists under Decisions. */
+  readonly decisions: readonly string[];
+  /** Tasks made for its items before, which its `tasks` is to join if it does not yet (#185). */
+  readonly madeBefore: readonly VaultPath[];
 }
 
 /**
@@ -67,7 +77,7 @@ export async function decideForMeeting({
   meeting: VaultPath;
   proposals: readonly CheckedProposal[];
   owner: OwnerSettings;
-  made: readonly MadeItem[];
+  made: readonly MadeTaskItem[];
   /** When the rule's file was last written; null when it could not be read. */
   ruleSince: number | null;
   notePaths: readonly VaultPath[];
@@ -88,8 +98,15 @@ export async function decideForMeeting({
   const decision = decideMeetingItems({ proposals, vault: owner, run });
   const tasks: PlannedTask[] = [];
   const rest: CheckedProposal[] = [];
+  const madeBefore: VaultPath[] = [];
   for (const { proposal, decision: each } of decision.items) {
-    if (each.outcome === 'skipped') continue;
+    if (each.outcome === 'skipped') {
+      const task = made.find(
+        ({ key, title }) => key === each.atlasItem && sameItemTitle(title, proposal.payload.title),
+      );
+      if (task !== undefined) madeBefore.push(task.path);
+      continue;
+    }
     if (
       each.outcome === 'proposal' ||
       !isTaskKind(proposal.kind) ||
@@ -111,7 +128,16 @@ export async function decideForMeeting({
       },
     });
   }
-  return { meeting, tasks, proposals: rest, noTasksBecause: decision.noTasksBecause };
+  const { actionItems, decisions } = summaryListing(decision.items);
+  return {
+    meeting,
+    tasks,
+    proposals: rest,
+    noTasksBecause: decision.noTasksBecause,
+    listed: actionItems,
+    decisions,
+    madeBefore,
+  };
 }
 
 const isTaskKind = (kind: string): kind is MeetingItemTask['kind'] =>
@@ -180,25 +206,46 @@ export class OwnersTasksStopped extends Error {
  * Makes each planned task, linked both ways (`makeTaskFromMeeting`, #177),
  * one after another. The vault's notes grow with each, so no two take one
  * name. Rejects with {@link OwnersTasksStopped} when one cannot be made.
+ *
+ * With `joinsMeeting` false, the meetings' `tasks` are left for the caller's
+ * one write to each meeting (#185), and each task is logged with the digest
+ * of what was written, so undo trashes it only while it is unchanged.
  */
 export async function makeOwnersTasks({
   ports,
   tasks,
   notePaths,
   today,
+  joinsMeeting = true,
 }: {
   ports: NoteWritePorts;
   tasks: readonly PlannedTask[];
   notePaths: readonly VaultPath[];
   today: string;
+  joinsMeeting?: boolean;
 }): Promise<DoneAction[]> {
   const made: DoneAction[] = [];
   const paths = [...notePaths];
   for (const { meeting, item } of tasks) {
     try {
-      const { task } = await makeTaskFromMeeting({ ports, meeting, item, notePaths: paths, today });
+      const { task } = await makeTaskFromMeeting({
+        ports,
+        meeting,
+        item,
+        notePaths: paths,
+        today,
+        joinsMeeting,
+      });
       paths.push(task);
-      made.push({ kind: 'created', path: task });
+      made.push(
+        joinsMeeting
+          ? { kind: 'created', path: task }
+          : {
+              kind: 'created',
+              path: task,
+              digest: digestOf((await ports.fs.readTextFile(task)).text),
+            },
+      );
     } catch (reason) {
       throw new OwnersTasksStopped(made, tasks.length, reason);
     }

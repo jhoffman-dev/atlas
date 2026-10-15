@@ -233,6 +233,15 @@ describe('useBuiltInTypes', () => {
           '    kind: relation',
           '    target: decision',
           '    many: true',
+          '  atlas_summary_digest:',
+          '    kind: text',
+          '    label: Summary digest',
+          '  atlas_summary_of:',
+          '    kind: text',
+          '    label: Summary of',
+          '  atlas_summary_model:',
+          '    kind: text',
+          '    label: Summary model',
           '',
         ].join('\n'),
       ),
@@ -246,7 +255,7 @@ describe('useBuiltInTypes', () => {
       level: 'info',
       kind: 'app',
       message:
-        'Added Tasks and Decisions to the Meeting type, which was written before Atlas shipped them.',
+        'Added Tasks, Decisions, Summary digest, Summary of and Summary model to the Meeting type, which was written before Atlas shipped them.',
       subject: { kind: 'note', path: '.atlas/types/meeting.md' },
     });
 
@@ -280,7 +289,7 @@ describe('useBuiltInTypes', () => {
     expect(activity.reports[0]).toMatchObject({
       level: 'info',
       message:
-        'Added Tasks and Decisions to the Meeting type, which was written before Atlas shipped them.',
+        'Added Tasks, Decisions, Summary digest, Summary of and Summary model to the Meeting type, which was written before Atlas shipped them.',
     });
     expect(files.get('.atlas/types/meeting.md')).toContain('  decisions:\n');
   });

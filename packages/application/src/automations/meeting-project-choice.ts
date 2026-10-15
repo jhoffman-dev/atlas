@@ -124,10 +124,11 @@ export async function fileChosenMeetings({
 }): Promise<readonly DoneAction[]> {
   if (changes.length === 0) return [];
   const { done, left } = await changeProperties({ ports, changes, kind: 'set', today });
-  for (const { path, reason } of left) {
-    warnings.push(
-      `Left ${noteTitle(path)} without the project Claude chose: ${messageWithoutPaths(reason)}`,
-    );
-  }
+  for (const { path, reason } of left) warnings.push(projectLeftWords(path, reason));
   return done;
+}
+
+/** What is said of a meeting left without the project Claude chose for it. */
+export function projectLeftWords(meeting: VaultPath, reason: string): string {
+  return `Left ${noteTitle(meeting)} without the project Claude chose: ${messageWithoutPaths(reason)}`;
 }

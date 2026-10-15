@@ -62,8 +62,10 @@ export type {
   LogEntry,
   LoggedVersion,
   MeetingTally,
+  SummaryOutcome,
   MovedVersion,
   PriorValue,
+  ReplacedSummary,
   RunTrigger,
 } from './run-log.ts';
 export {
@@ -83,13 +85,14 @@ export {
   claudeStepBudget,
   claudeStepDefaultModel,
   claudeStepModel,
+  claudeStepOutput,
   DECLARED_STEP_ASKS_PER_HOUR,
   DECLARED_STEP_ASKS_PER_RUN,
   DECLARED_STEP_MODEL,
   SHARED_STEP_BUDGET,
   sharesAskAllowance,
 } from './claude-step-budget.ts';
-export type { ClaudeRunAsks, ClaudeStepBudget } from './claude-step-budget.ts';
+export type { ClaudeStepBudget } from './claude-step-budget.ts';
 export {
   answerJson,
   checkDraft,
@@ -100,7 +103,10 @@ export {
 export type {
   AnswerContext,
   AnsweredNote,
+  AnsweredSummary,
   AnswerReading,
+  AnswerSummarySchema,
+  SummaryReading,
   AnswerVault,
   CheckedProposal,
   DroppedItem,
@@ -112,6 +118,23 @@ export type {
 } from './proposal-schema.ts';
 export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
 export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
+export {
+  DIGEST_REDUCE_INSTRUCTIONS,
+  DIGEST_REDUCE_PROMPT,
+  digestReduceData,
+  MEETING_DIGEST,
+  MEETING_DIGEST_OUTPUT,
+  meetingSummaryOf,
+  partSummaries,
+  readDigestReduce,
+  reducePartMark,
+  summarisedAlready,
+  summaryActionItem,
+  summaryDecisions,
+  summaryListing,
+  transcriptDigestOf,
+} from './meeting-digest.ts';
+export type { ListedOutcome } from './meeting-digest.ts';
 export {
   compileProjectOptionsQuery,
   MAX_PROJECT_CHOICES,
@@ -133,6 +156,7 @@ export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
 export { compileMadeItemsQuery, linkedTaskOwner, madeTaskFor } from './made-items.ts';
 export {
   decideMeetingItems,
+  sameItemTitle,
   TASK_CONFIDENCE_FLOOR,
   vaultNamesItsOwner,
 } from './meeting-item-apply.ts';
@@ -225,5 +249,10 @@ export type {
   NoteTrigger,
   NoteVersionRef,
 } from './note-trigger.ts';
-export { claudeFiledNoteProblem, loggedActionProblem, unarchiveProblem } from './undo-check.ts';
+export {
+  claudeFiledNoteProblem,
+  loggedActionProblem,
+  madeTaskMeeting,
+  unarchiveProblem,
+} from './undo-check.ts';
 export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';

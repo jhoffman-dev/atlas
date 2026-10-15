@@ -6,8 +6,8 @@
  * such rule has (ADR-0028). The declared step — one whose rule says
  * `apply: mine`, the "After a meeting" rule's (ADR-0036) — runs unattended on
  * every meeting, so a backlog can be many asks. It has a budget of its own:
- * at most {@link DECLARED_STEP_ASKS_PER_RUN} asks a run, a reduce ask
- * included (so its parts are planned with one fewer), and an allowance of
+ * at most {@link DECLARED_STEP_ASKS_PER_RUN} asks a run, its reduce asks
+ * included (each planned with the parts it merges, `claudeAsks`), and an allowance of
  * {@link DECLARED_STEP_ASKS_PER_HOUR} asks an hour counted apart from the
  * shared runs, so a backlog neither spends the shared cap nor is starved by
  * it. That allowance is one for the vault, shared by every rule that says
@@ -18,6 +18,8 @@
 import type { AutomationAction } from './automation-rule.ts';
 import { CLAUDE_ASKS_PER_RUN } from './answered-note.ts';
 import type { ClaudeAction } from './claude-step.ts';
+import { MEETING_DIGEST_OUTPUT } from './meeting-digest.ts';
+import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
 
 /** The most asks the declared step makes in one run, the reduce ask included. */
 export const DECLARED_STEP_ASKS_PER_RUN = 10;
@@ -37,21 +39,17 @@ export interface ClaudeStepBudget {
    * when its asks spend the shared runs, as every other step's do.
    */
   readonly asksPerHour: number | null;
-  /** The asks a run keeps back from its notes' parts: the declared step's reduce (#184). */
-  readonly reservedPerRun: number;
 }
 
 /** What every rule's step may spend: its asks count against the shared runs an hour. */
 export const SHARED_STEP_BUDGET: ClaudeStepBudget = {
   asksPerRun: CLAUDE_ASKS_PER_RUN,
   asksPerHour: null,
-  reservedPerRun: 0,
 };
 
 const DECLARED_STEP_BUDGET: ClaudeStepBudget = {
   asksPerRun: DECLARED_STEP_ASKS_PER_RUN,
   asksPerHour: DECLARED_STEP_ASKS_PER_HOUR,
-  reservedPerRun: 1,
 };
 
 function isDeclaredStep(action: AutomationAction): boolean {
@@ -85,24 +83,17 @@ export function claudeStepDefaultModel(action: ClaudeAction): string | null {
   return isDeclaredStep(action) ? DECLARED_STEP_MODEL : null;
 }
 
-/** What one run may ask, once what the hour has spent of its allowance is known. */
-export interface ClaudeRunAsks {
-  /** The most asks it makes: its budget's per run, or what the hour's allowance has left, if fewer. */
-  readonly most: number;
-  /** The most it plans for its notes' parts: `most`, and never past the asks it keeps back. */
-  readonly parts: number;
-}
-
 /**
- * What a run may ask when the step's allowance has had `askedThisHour` asks
- * in the hour up to it: at most its per-run budget, and never past what the
- * hour has left, so a run that starts with one ask left makes one.
+ * The most asks a run may make when the step's allowance has had
+ * `askedThisHour` asks in the hour up to it: at most its per-run budget, and
+ * never past what the hour has left, so a run that starts with one ask left
+ * makes one. A meeting read in parts plans its reduce out of the same asks
+ * (`claudeAsks`), so a run never starts parts it cannot merge.
  */
-export function claudeRunAsks(budget: ClaudeStepBudget, askedThisHour = 0): ClaudeRunAsks {
+export function claudeRunAsks(budget: ClaudeStepBudget, askedThisHour = 0): number {
   const hourLeft =
     budget.asksPerHour === null ? budget.asksPerRun : budget.asksPerHour - askedThisHour;
-  const most = Math.max(0, Math.min(budget.asksPerRun, hourLeft));
-  return { most, parts: Math.min(most, budget.asksPerRun - budget.reservedPerRun) };
+  return Math.max(0, Math.min(budget.asksPerRun, hourLeft));
 }
 
 /**
@@ -115,10 +106,28 @@ export function claudeAskRefusal(
   asked: number,
   askedThisHour = 0,
 ): string | null {
-  const { most } = claudeRunAsks(budget, askedThisHour);
+  const most = claudeRunAsks(budget, askedThisHour);
   if (asked < most) return null;
   if (most < budget.asksPerRun && budget.asksPerHour !== null) {
     return `It would ask Claude more than ${budget.asksPerHour} times in an hour; the rules that make your own action items into tasks ask at most ${budget.asksPerHour} an hour together.`;
   }
   return `It would ask Claude more than ${budget.asksPerRun} times; one run asks at most ${budget.asksPerRun}.`;
+}
+
+/**
+ * The output a step's answer is read as: the one its rule names — except
+ * that the declared step reads a meeting as a digest, its summary and its
+ * items in one answer (#184, ADR-0036). A declared rule saved before the
+ * digest existed names `meeting-items` (#179's preset did), and is read as
+ * `meeting-digest`, so its meetings are summarised without its file being
+ * written again: a rewrite would move when it was saved, and that is what
+ * tells a meeting that arrived since from a backfill.
+ */
+export function claudeStepOutput(action: ClaudeAction): ClaudeAction['output'] {
+  const { output } = action;
+  return isDeclaredStep(action) &&
+    output.kind === 'proposals' &&
+    output.schema === MEETING_ITEMS_OUTPUT
+    ? { kind: 'proposals', schema: MEETING_DIGEST_OUTPUT }
+    : output;
 }

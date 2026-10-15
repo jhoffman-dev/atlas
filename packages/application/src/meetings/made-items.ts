@@ -5,6 +5,7 @@ import {
   noteTitle,
   splitFrontmatter,
   type MadeItem,
+  type VaultPath,
 } from '@atlas/domain';
 import type { IndexPort } from '../index/ports.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
@@ -15,6 +16,11 @@ export interface MadeItemsPorts {
   readonly index: Pick<IndexPort, 'query'>;
   readonly fs: Pick<VaultFsPort, 'readNotes'>;
   readonly markdown: Pick<MarkdownPort, 'frontmatterProperties'>;
+}
+
+/** A task made from an item, and where it is: what a meeting's `tasks` may still have to join (#185). */
+export interface MadeTaskItem extends MadeItem {
+  readonly path: VaultPath;
 }
 
 /** A row of the made-items query: the task's file and the `atlas_item` the index holds for it. */
@@ -30,14 +36,14 @@ interface IndexedMade extends MadeItem {
  * made a moment ago: the declared step reads the meeting's own linked tasks
  * for that.
  */
-export async function readMadeItems(ports: MadeItemsPorts): Promise<MadeItem[]> {
+export async function readMadeItems(ports: MadeItemsPorts): Promise<MadeTaskItem[]> {
   const indexed = await queryMadeItems(ports.index);
   if (indexed.length === 0) return [];
   const files = await ports.fs.readNotes([...new Set(indexed.map(({ path }) => path))]);
   const keysOn = new Map(files.map((file) => [file.path, itemKeysIn(ports.markdown, file.text)]));
   return indexed
     .filter(({ path, key }) => keysOn.get(path)?.has(key) === true)
-    .map(({ key, title }) => ({ key, title }));
+    .map(({ key, title, path }) => ({ key, title, path: createVaultPath(path) }));
 }
 
 async function queryMadeItems(index: Pick<IndexPort, 'query'>): Promise<IndexedMade[]> {

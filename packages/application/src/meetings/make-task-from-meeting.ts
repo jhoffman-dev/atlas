@@ -79,6 +79,7 @@ export async function makeTaskFromMeeting({
   item,
   notePaths,
   today,
+  joinsMeeting = true,
 }: {
   ports: NoteWritePorts;
   meeting: TaskMeeting;
@@ -87,9 +88,15 @@ export async function makeTaskFromMeeting({
   notePaths: readonly VaultPath[];
   /** `YYYY-MM-DD`, from the injected clock: what a task made finished says it was finished. */
   today: string;
+  /**
+   * Whether the meeting's `tasks` is joined here. False when the caller joins
+   * it later, in its own one write to the meeting: the step that writes the
+   * summary (#185, ADR-0036 "One meeting write").
+   */
+  joinsMeeting?: boolean;
 }): Promise<MadeTask> {
   const link = await meetingLetIn(ports, meeting);
-  const proposed = proposedTask({ meeting, item, notePaths });
+  const proposed = proposedTask({ meeting, item, notePaths, joinsMeeting });
   const applied = applyNoteProposal(proposed, {
     notePaths,
     target: link.target,
@@ -153,15 +160,17 @@ const notTheMeeting = (title: string) =>
     `“${title}” is not the meeting this task is for, as the import let it in; nothing was written.`,
   );
 
-/** The task as a note to make: citing its block, joining the meeting's `tasks`, and keyed by its item when it has a key. */
+/** The task as a note to make: citing its block, joining the meeting's `tasks` unless told not to, and keyed by its item when it has a key. */
 function proposedTask({
   meeting,
   item,
   notePaths,
+  joinsMeeting,
 }: {
   meeting: TaskMeeting;
   item: MeetingItemTask;
   notePaths: readonly VaultPath[];
+  joinsMeeting: boolean;
 }): ProposedNote {
   const keyed =
     item.atlasItem === null
@@ -178,7 +187,9 @@ function proposedTask({
       folder: item.folder,
       properties: { ...item.properties, ...keyed },
       body: item.body,
-      linkFrom: { note: meeting.path, property: MEETING_TASKS_KEY, meeting: meeting.identity },
+      linkFrom: joinsMeeting
+        ? { note: meeting.path, property: MEETING_TASKS_KEY, meeting: meeting.identity }
+        : null,
     },
   };
 }

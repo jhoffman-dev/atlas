@@ -1728,6 +1728,7 @@ export function App({
                     busy: inbox.busy,
                     problem: inbox.problem,
                     refusals: inbox.refusals,
+                    summaryPending: inbox.summaryPending,
                     lastAction: inbox.lastAction,
                     onUndo: () => void inbox.undo(),
                     onDismissLastAction: inbox.dismissLastAction,

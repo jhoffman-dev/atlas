@@ -107,13 +107,44 @@ export const LOG_MARKER_VALUE = 'automation-log';
 /** What a property held before a rule set it: a value, or no such key at all. */
 export type PriorValue = { readonly absent: true } | { readonly value: unknown };
 
+/**
+ * The summary a run wrote over (#185): the block as it was, and the keys it
+ * was written with, so undoing the run puts that summary back. Its digest is
+ * the block's own.
+ */
+export interface ReplacedSummary {
+  readonly block: string;
+  readonly of: string | null;
+  readonly model: string | null;
+}
+
 /** One thing a run, or an undo, did to one note. */
 export type DoneAction =
   | { readonly kind: 'archived'; readonly from: VaultPath; readonly to: VaultPath }
   /** A Claude step made a proposal. */
   | { readonly kind: 'proposed'; readonly path: VaultPath }
-  /** A Claude step made the one new note its rule asks for. */
-  | { readonly kind: 'created'; readonly path: VaultPath }
+  /**
+   * A Claude step made the one new note its rule asks for, or the declared
+   * step one of the owner's tasks — with the digest of what it wrote, so undo
+   * trashes it only while it is unchanged (#185).
+   */
+  | { readonly kind: 'created'; readonly path: VaultPath; readonly digest?: string }
+  /**
+   * The declared step wrote a meeting's summary block, whose digest this is,
+   * with its keys and the meeting's `tasks` (#185): undo takes the block out
+   * while it is still this one — or, when it was written over an earlier
+   * summary (`replaced`), puts that one back.
+   */
+  | {
+      readonly kind: 'summarised';
+      readonly path: VaultPath;
+      readonly digest: string;
+      readonly replaced?: ReplacedSummary;
+    }
+  /** Undo trashed a task the declared step made, unchanged since. */
+  | { readonly kind: 'trashed'; readonly path: VaultPath }
+  /** Undo took a meeting's summary block, its keys and its trashed tasks' links back out. */
+  | { readonly kind: 'unsummarised'; readonly path: VaultPath }
   | { readonly kind: 'unarchived'; readonly from: VaultPath; readonly to: VaultPath }
   | {
       readonly kind: 'set' | 'restored';
@@ -179,7 +210,21 @@ export interface MeetingTally {
   readonly tasks: number;
   /** The proposals it made: the rest, less any made before. */
   readonly proposals: number;
+  /** For a step that summarises: the action items its summary lists. */
+  readonly listed?: number;
+  /** For a step that summarises: what became of the meeting's summary. */
+  readonly summary?: SummaryOutcome;
 }
+
+/**
+ * What became of a meeting's summary (#185): written at the top; left as the
+ * person has it (edited, taken out, or not a block Atlas can read); dropped,
+ * its answer not reading; or none to write, the meeting being a backfill of
+ * nothing new.
+ */
+export type SummaryOutcome = 'written' | 'kept' | 'dropped';
+
+const SUMMARY_OUTCOMES: readonly SummaryOutcome[] = ['written', 'kept', 'dropped'];
 
 /** The longest an item's title runs in a log line: it is a model's, and a line is not a note. */
 const MAX_DROPPED_TITLE = 120;
@@ -279,6 +324,15 @@ function actionLine(action: DoneAction): string {
     return `- ${action.kind} ${code(action.from)} → ${code(action.to)}`;
   }
   if (action.kind === 'proposed' || action.kind === 'created') {
+    const at =
+      action.kind === 'created' && action.digest !== undefined ? ` at ${code(action.digest)}` : '';
+    return `- ${action.kind} ${code(action.path)}${at}`;
+  }
+  if (action.kind === 'summarised') {
+    const over = action.replaced === undefined ? '' : ` over ${code(action.replaced)}`;
+    return `- summarised ${code(action.path)} at ${code(action.digest)}${over}`;
+  }
+  if (action.kind === 'trashed' || action.kind === 'unsummarised') {
     return `- ${action.kind} ${code(action.path)}`;
   }
   const change = `${prior(action.before)} → ${prior(action.after)}`;
@@ -297,8 +351,9 @@ export function logEntrySummary(entry: LogEntry): string {
     entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
   const meetings = 'claude' in entry ? (entry.claude?.meetings ?? []) : [];
   const counts =
-    entry.kind === 'run' && meetings.some(({ tasks, proposals }) => tasks + proposals > 0)
-      ? meetingWords(meetings)
+    entry.kind === 'run' &&
+    meetings.some(({ tasks, proposals, summary }) => tasks + proposals > 0 || summary !== undefined)
+      ? meetingWords(meetings, entry.claude)
       : askedForNothing
         ? nothingProposedWords(entry.claude)
         : countDone(entry.done);
@@ -310,15 +365,42 @@ export function logEntrySummary(entry: LogEntry): string {
   return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}${adjustedWords(claude?.adjusted ?? [])}${warningWords(claude?.warnings ?? [])}`;
 }
 
-/** What the declared step says it made of each meeting: "Made 2 tasks from Standup, 1 proposal." */
-function meetingWords(meetings: readonly MeetingTally[]): string {
-  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * What the declared step says it made of each meeting: "Made 2 tasks from
+ * Standup, 1 proposal." — and, when it summarises, "Summary written by
+ * claude-sonnet-5-5 in 41 s for Standup; 2 tasks made, 3 items listed, 1
+ * proposal."
+ */
+function meetingWords(meetings: readonly MeetingTally[], claude?: ClaudeRunInfo): string {
   return meetings
-    .map(
-      ({ path, tasks, proposals }) =>
-        `Made ${count(tasks, 'task', 'tasks')} from ${noteTitle(path)}, ${count(proposals, 'proposal', 'proposals')}.`,
+    .map((tally) =>
+      tally.summary === undefined
+        ? `Made ${count(tally.tasks, 'task', 'tasks')} from ${noteTitle(tally.path)}, ${count(tally.proposals, 'proposal', 'proposals')}.`
+        : summaryWords(tally, claude),
     )
     .join(' ');
+}
+
+function summaryWords(tally: MeetingTally, claude?: ClaudeRunInfo): string {
+  const title = noteTitle(tally.path);
+  const by =
+    claude === undefined
+      ? ''
+      : ` by ${claude.model} in ${Math.max(0, Math.round(claude.ms / 1000))} s`;
+  const head =
+    tally.summary === 'written'
+      ? `Summary written${by} for ${title}`
+      : tally.summary === 'kept'
+        ? `Summary of ${title} left as you have it`
+        : `No summary for ${title}: Claude’s did not read`;
+  const made = [
+    `${count(tally.tasks, 'task', 'tasks')} made`,
+    `${count(tally.listed ?? 0, 'item', 'items')} listed`,
+    count(tally.proposals, 'proposal', 'proposals'),
+  ];
+  return `${head}; ${made.join(', ')}.`;
 }
 
 /** What a run says of what the person should know. */
@@ -386,6 +468,10 @@ function countDone(done: readonly DoneAction[]): string {
     restored > 0 ? `Restored ${notes(restored)}.` : '',
     tally('proposed') > 0 ? `Made ${proposals(tally('proposed'))}.` : '',
     tally('created') > 0 ? `Made ${notes(tally('created'))}.` : '',
+    tally('trashed') > 0 ? `Trashed ${notes(tally('trashed'))}.` : '',
+    tally('unsummarised') > 0
+      ? `Took the summary off ${tally('unsummarised') === 1 ? '1 meeting' : `${tally('unsummarised')} meetings`}.`
+      : '',
   ].filter((part) => part !== '');
   return parts.length === 0 ? 'Nothing to do.' : parts.join(' ');
 }
@@ -404,8 +490,10 @@ function claudeLines({
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
     ...meetings.map(
-      ({ path, tasks, proposals }) =>
-        `- meeting ${code(path)}: tasks ${code(tasks)}, proposals ${code(proposals)}`,
+      ({ path, tasks, proposals, listed, summary }) =>
+        `- meeting ${code(path)}: tasks ${code(tasks)}, proposals ${code(proposals)}${
+          summary === undefined ? '' : `, listed ${code(listed ?? 0)}, summary ${code(summary)}`
+        }`,
     ),
     ...(asks === undefined ? [] : [`- asked ${code(asks)} ${asks === 1 ? 'time' : 'times'}`]),
     ...(alreadyMade > 0 ? [`- already made ${code(alreadyMade)}`] : []),
@@ -612,7 +700,11 @@ const CLAUDE_CAPPED = `Read the first ${CLAUDE_NOTES_PER_RUN} notes, the most on
 const HEADING = /^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) · (.+)$/;
 const PRIOR_SPAN = `(nothing|${JSON_SPAN})`;
 const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_SPAN}$`);
-const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}$`);
+const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}(?: at ${JSON_SPAN})?$`);
+const SUMMARISED_LINE = new RegExp(
+  `^- summarised ${JSON_SPAN} at ${JSON_SPAN}(?: over ${JSON_SPAN})?$`,
+);
+const TOOK_BACK_LINE = new RegExp(`^- (trashed|unsummarised) ${JSON_SPAN}$`);
 const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
 const CUT_LINE = new RegExp(`^- cut ${JSON_SPAN}: read ${JSON_SPAN} of ${JSON_SPAN} characters$`);
 const ASKED_LINE = new RegExp(`^- asked ${JSON_SPAN} times?$`);
@@ -630,7 +722,7 @@ const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
 const MOVED_LINE = new RegExp(`^- moved ${JSON_SPAN} to ${JSON_SPAN} at ${JSON_SPAN}$`);
 const ALREADY_MADE_LINE = new RegExp(`^- already made ${JSON_SPAN}$`);
 const MEETING_LINE = new RegExp(
-  `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}$`,
+  `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}(?:, listed ${JSON_SPAN}, summary ${JSON_SPAN})?$`,
 );
 const LET_GO_LINE = new RegExp(`^- let go ${JSON_SPAN}$`);
 
@@ -764,7 +856,8 @@ function meetingsOf(body: readonly string[]): MeetingTally[] {
         JSON.parse(match[3]!) as unknown,
       ];
       if (!isCount(tasks) || !isCount(proposals)) return [];
-      return [{ path: pathOf(match[1]!), tasks, proposals }];
+      const summarised = summaryOf(match[4], match[5]);
+      return [{ path: pathOf(match[1]!), tasks, proposals, ...summarised }];
     } catch {
       // A line edited into JSON that does not read, or a path that is no path, is left out.
       return [];
@@ -774,6 +867,17 @@ function meetingsOf(body: readonly string[]): MeetingTally[] {
 
 const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0;
+
+/** A meeting line's summary, when it says one that reads; nothing otherwise. */
+function summaryOf(
+  listedJson: string | undefined,
+  summaryJson: string | undefined,
+): { listed: number; summary: SummaryOutcome } | Record<string, never> {
+  if (listedJson === undefined || summaryJson === undefined) return {};
+  const [listed, summary] = [JSON.parse(listedJson) as unknown, JSON.parse(summaryJson) as unknown];
+  const known = SUMMARY_OUTCOMES.find((outcome) => outcome === summary);
+  return isCount(listed) && known !== undefined ? { listed, summary: known } : {};
+}
 
 /** The notes a Claude step read only the start of, from its lines; one that does not read is left out. */
 function cutOf(body: readonly string[]): NoteCut[] {
@@ -889,7 +993,23 @@ function readLine(line: string): DoneAction | PassedOver | null {
     const made = MADE_LINE.exec(line);
     if (made !== null) {
       const path = pathOf(made[2]!);
-      return made[1] === 'proposed' ? { kind: 'proposed', path } : { kind: 'created', path };
+      if (made[1] === 'proposed') return made[3] === undefined ? { kind: 'proposed', path } : null;
+      if (made[3] === undefined) return { kind: 'created', path };
+      const digest = JSON.parse(made[3]) as unknown;
+      return typeof digest === 'string' ? { kind: 'created', path, digest } : null;
+    }
+    const tookBack = TOOK_BACK_LINE.exec(line);
+    if (tookBack !== null) {
+      return { kind: tookBack[1] as 'trashed' | 'unsummarised', path: pathOf(tookBack[2]!) };
+    }
+    const summarised = SUMMARISED_LINE.exec(line);
+    if (summarised !== null) {
+      const digest = JSON.parse(summarised[2]!) as unknown;
+      if (typeof digest !== 'string') return null;
+      const path = pathOf(summarised[1]!);
+      if (summarised[3] === undefined) return { kind: 'summarised', path, digest };
+      const replaced = replacedSummaryOf(JSON.parse(summarised[3]) as unknown);
+      return replaced === null ? null : { kind: 'summarised', path, digest, replaced };
     }
     const set = SET_LINE.exec(line);
     if (set !== null) {
@@ -912,6 +1032,16 @@ function readLine(line: string): DoneAction | PassedOver | null {
   return null;
 }
 
+/** The summary a line says a run wrote over, or null when it is not one a run writes. */
+function replacedSummaryOf(value: unknown): ReplacedSummary | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { block, of, model } = value as Record<string, unknown>;
+  const textOrNull = (each: unknown): each is string | null =>
+    each === null || typeof each === 'string';
+  if (typeof block !== 'string' || !textOrNull(of) || !textOrNull(model)) return null;
+  return { block, of, model };
+}
+
 function pathOf(json: string): VaultPath {
   const value = JSON.parse(json) as unknown;
   if (typeof value !== 'string') throw new Error('not a path');
@@ -929,9 +1059,17 @@ export function stillAsLeft(current: PriorValue, left: PriorValue): boolean {
   return JSON.stringify(current.value) === JSON.stringify(left.value);
 }
 
-/** What undo can put back: a move or a set. What a Claude step made is answered in the Inbox. */
+/**
+ * What undo can put back: a move, a set, a meeting's summary, or a task the
+ * declared step made (logged with its digest) — a run that made tasks and
+ * wrote no summary is still the last run. What a Claude step proposed is
+ * answered in the Inbox.
+ */
 const isUndoable = (action: DoneAction): boolean =>
-  action.kind === 'archived' || action.kind === 'set';
+  action.kind === 'archived' ||
+  action.kind === 'set' ||
+  action.kind === 'summarised' ||
+  (action.kind === 'created' && action.digest !== undefined);
 
 /**
  * The run that "Undo last run" undoes: the newest run that did something

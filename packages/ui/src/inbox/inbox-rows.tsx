@@ -37,6 +37,8 @@ export interface InboxRowsProps {
   busy: boolean;
   /** Why each refused row's last clarification was refused, shown on that row. */
   refusals: readonly InboxRefusal[];
+  /** Why each imported meeting's summary still waits, by path: shown on its row (#186). */
+  summaryPending?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -53,6 +55,7 @@ export function InboxRows({
   onClarify,
   busy,
   refusals,
+  summaryPending,
 }: InboxRowsProps) {
   const triage = useInboxTriage({ items, onClarify });
   const { rowRef, onRowFocus, pick, commit, fileUnder, makeTask } = triage;
@@ -73,6 +76,7 @@ export function InboxRows({
           onOpen={onOpen}
           busy={busy}
           refusal={refusals.find((each) => each.path === item.path)?.reason ?? null}
+          summaryPending={summaryPending?.get(item.path) ?? null}
           actions={actions}
         />
       ))}
@@ -105,6 +109,7 @@ const InboxRow = memo(function InboxRow({
   onOpen,
   busy,
   refusal,
+  summaryPending,
   actions,
 }: {
   item: InboxItem;
@@ -115,6 +120,8 @@ const InboxRow = memo(function InboxRow({
   busy: boolean;
   /** Why this row's last clarification was refused, or null. */
   refusal: string | null;
+  /** Why this meeting's summary still waits; null when it waits for none. */
+  summaryPending: string | null;
   actions: RowActions;
 }) {
   return (
@@ -133,6 +140,11 @@ const InboxRow = memo(function InboxRow({
       <td className="inbox__kind">
         {kindOf(item)}
         <ImportStanding item={item} />
+        {summaryPending !== null && (
+          <span className="inbox__import inbox__summary-pending">
+            Summary pending: {summaryPending}
+          </span>
+        )}
       </td>
       <td className="inbox__actions">
         {item.task === null ? (

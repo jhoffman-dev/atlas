@@ -631,6 +631,16 @@ export interface ApiMeeting {
   readonly importError: string | null;
   /** The meeting this is a second copy of, as `atlas_duplicate_of` links it (`[[…]]`), or null. */
   readonly duplicateOf: string | null;
+  /**
+   * Where the summary Claude writes at the top stands (#186): `written` while
+   * the block is the one it wrote; `edited` once the person changed it or took
+   * it out; `pending` while the "After a meeting" rule has yet to write one;
+   * `none` when no rule will (it is off, the meeting was not let in, has no
+   * transcript, is older than the rule's 14 days, or was answered already).
+   */
+  readonly summary: 'written' | 'pending' | 'edited' | 'none';
+  /** Why a pending summary waits — the rule's last failure, as its log says it — present only when pending. */
+  readonly summaryPendingWhy?: string;
   /** Present, and true, for an archived meeting — only listed with `includeArchived`. */
   readonly archived?: true;
 }

@@ -4,6 +4,7 @@ import { vocabularyKey } from '../terms/spelling.ts';
 import type { Vocabulary } from '../terms/vocabulary.ts';
 import { correctionDigestOf } from './correction-digest.ts';
 import { splitMeetingSections } from './meeting-sections.ts';
+import { summaryBlockSpan } from './meeting-summary-block.ts';
 
 /** The frontmatter list of what the correction changed, or `undone` once it was taken back. */
 export const CORRECTIONS_KEY = 'atlas_corrections';
@@ -35,8 +36,50 @@ export interface MeetingCorrection {
   readonly records: readonly CorrectionRecord[];
   /** How many spellings were put right. */
   readonly count: number;
-  /** The digest of the body before it was corrected. */
+  /** The digest of the corrected body, its summary block left out: what undo checks the body is still. */
+  readonly digest: string;
+  /** The digest of the body before it was corrected, its summary block left out. */
   readonly originalDigest: string;
+}
+
+/**
+ * A meeting's body apart from its summary block (#185): what a correction
+ * reads, records its offsets in and takes its digests of, so Claude's block —
+ * written, rewritten or taken out after the correction, or there before it —
+ * neither moves the record nor is ever corrected itself.
+ */
+interface BodyApart {
+  /** The body without the block. */
+  readonly text: string;
+  /** The block, with the line breaks after it, and where in `text` it stood; null when there is none. */
+  readonly block: { readonly text: string; readonly at: number } | null;
+}
+
+function apartFromSummary(body: string): BodyApart {
+  const span = summaryBlockSpan(body);
+  if (span === null) return { text: body, block: null };
+  return {
+    text: body.slice(0, span.start) + body.slice(span.end),
+    block: { text: body.slice(span.start, span.end), at: span.start },
+  };
+}
+
+/**
+ * `text` with the block put back where it stood, `at` moved by every edit
+ * made before it: each one's `start` in the text the block was taken from,
+ * and how many characters longer it made the text.
+ */
+function withBlockBack(
+  text: string,
+  block: BodyApart['block'],
+  edits: readonly { readonly start: number; readonly grew: number }[],
+): string {
+  if (block === null) return text;
+  const at = edits.reduce(
+    (moved, edit) => (edit.start < block.at ? moved + edit.grew : moved),
+    block.at,
+  );
+  return text.slice(0, at) + block.text + text.slice(at);
 }
 
 /**
@@ -56,6 +99,18 @@ export function correctMeetingBody(
   body: string,
   vocabulary: Pick<Vocabulary, 'entries'> & Partial<Pick<Vocabulary, 'speakers'>>,
 ): MeetingCorrection {
+  const apart = apartFromSummary(body);
+  const changes = sectionChanges(apart.text, vocabulary);
+  const correction = correctionOf(apart.text, changes);
+  const edits = changes.map(({ start, end, to }) => ({ start, grew: to.length - (end - start) }));
+  return { ...correction, body: withBlockBack(correction.body, apart.block, edits) };
+}
+
+/** Each spelling to put right in the body's sections, where it stands in the body. */
+function sectionChanges(
+  body: string,
+  vocabulary: Pick<Vocabulary, 'entries'> & Partial<Pick<Vocabulary, 'speakers'>>,
+): (TermChange & { readonly blockId: string | null })[] {
   const lineStarts = lineStartsOf(body);
   const changes: (TermChange & { readonly blockId: string | null })[] = [];
   for (const section of splitMeetingSections(body, 1).sections) {
@@ -77,7 +132,7 @@ export function correctMeetingBody(
       });
     }
   }
-  return correctionOf(body, changes);
+  return changes;
 }
 
 /** `**Speaker**` at the start of a line, as the transcript's turns are read. */
@@ -153,14 +208,16 @@ function correctionOf(
     corrected += change.to;
     read = change.end;
   }
+  const written = corrected + body.slice(read);
   return {
-    body: corrected + body.slice(read),
+    body: written,
     records: [...records.values()].map((record) => ({
       ...record,
       blocks: [...record.blocks],
       count: record.at.length,
     })),
     count: changes.length,
+    digest: correctionDigestOf(written),
     originalDigest: correctionDigestOf(body),
   };
 }
@@ -218,7 +275,7 @@ export function correctionProperties(correction: MeetingCorrection): Record<stri
       blocks: [...blocks],
       at: [...at],
     })),
-    [CORRECTIONS_DIGEST_KEY]: correctionDigestOf(correction.body),
+    [CORRECTIONS_DIGEST_KEY]: correction.digest,
     [CORRECTIONS_ORIGINAL_DIGEST_KEY]: correction.originalDigest,
   };
 }
@@ -275,7 +332,12 @@ export type CorrectionUndo =
  * (P28-06). Refused — and nothing changed — when the body is not the one the
  * correction wrote, as automation undo refuses a note changed since its run:
  * putting words back into text someone has since edited could undo their
- * edit. A change to the frontmatter alone does not stop it.
+ * edit. A change to the frontmatter alone does not stop it, and nor does
+ * Claude's summary block (#185): the record is of the body without it, so a
+ * block written, rewritten or taken out since stays as it is.
+ *
+ * A record from a build that took the block in is still read: when the body
+ * without its block is not the one recorded, the whole body is tried.
  */
 export function undoMeetingCorrections({
   body,
@@ -286,7 +348,11 @@ export function undoMeetingCorrections({
 }): CorrectionUndo {
   const records = recordedCorrections(properties);
   if (records === null) return refused('This meeting has no corrections to undo.');
-  if (properties[CORRECTIONS_DIGEST_KEY] !== correctionDigestOf(body)) {
+  const recorded = properties[CORRECTIONS_DIGEST_KEY];
+  const apart = apartFromSummary(body);
+  const read: BodyApart =
+    recorded === correctionDigestOf(apart.text) ? apart : { text: body, block: null };
+  if (recorded !== correctionDigestOf(read.text)) {
     return refused(
       'The meeting changed since its words were corrected, so they were left as they are.',
     );
@@ -294,25 +360,33 @@ export function undoMeetingCorrections({
   const spots = records
     .flatMap(({ from, to, at }) => at.map((start) => ({ start, from, to })))
     .sort((left, right) => left.start - right.start);
-  let original = '';
-  let read = 0;
-  for (const { start, from, to } of spots) {
-    if (start < read || body.slice(start, start + to.length) !== to) {
-      return refused(
-        'The corrections recorded on this meeting do not match its words, so nothing was undone.',
-      );
-    }
-    original += body.slice(read, start) + from;
-    read = start + to.length;
-  }
-  const restored = original + body.slice(read);
+  const restored = undoneSpots(read.text, spots);
   // The change list is as editable as the frontmatter it is in: only the original's own digest vouches for it.
-  if (properties[CORRECTIONS_ORIGINAL_DIGEST_KEY] !== correctionDigestOf(restored)) {
+  if (
+    restored === null ||
+    properties[CORRECTIONS_ORIGINAL_DIGEST_KEY] !== correctionDigestOf(restored)
+  ) {
     return refused(
       'The corrections recorded on this meeting do not match its words, so nothing was undone.',
     );
   }
-  return { ok: true, body: restored };
+  const edits = spots.map(({ start, from, to }) => ({ start, grew: from.length - to.length }));
+  return { ok: true, body: withBlockBack(restored, read.block, edits) };
+}
+
+/** `text` with each spot's spelling put back as it was heard; null when one is not in it. */
+function undoneSpots(
+  text: string,
+  spots: readonly { readonly start: number; readonly from: string; readonly to: string }[],
+): string | null {
+  let original = '';
+  let read = 0;
+  for (const { start, from, to } of spots) {
+    if (start < read || text.slice(start, start + to.length) !== to) return null;
+    original += text.slice(read, start) + from;
+    read = start + to.length;
+  }
+  return original + text.slice(read);
 }
 
 const refused = (reason: string): CorrectionUndo => ({ ok: false, reason });

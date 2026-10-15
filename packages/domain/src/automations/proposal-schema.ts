@@ -108,6 +108,37 @@ export interface DroppedItem {
   readonly reason: string;
 }
 
+/** What an answer says of its note besides its list (`meeting-digest`, #184). */
+export interface AnsweredSummary {
+  /** What the note was for and what came of it: a paragraph. */
+  readonly summary: string;
+  readonly keyPoints: readonly string[];
+  readonly openQuestions: readonly string[];
+}
+
+/**
+ * An answer's summary, read: kept, dropped with why — the answer's list is
+ * kept either way — or absent, an answer given before its schema summarised.
+ */
+export type SummaryReading =
+  | { readonly kind: 'read'; readonly value: AnsweredSummary }
+  | { readonly kind: 'dropped'; readonly problem: string }
+  | { readonly kind: 'absent' };
+
+/**
+ * What a schema's answer says besides its list: the keys, what each is, and
+ * how they are read. A summary that does not read is dropped, never the
+ * answer: its list is what the run acts on.
+ */
+export interface AnswerSummarySchema {
+  /** The answer's keys besides the list's. */
+  readonly keys: readonly string[];
+  /** What they are, told to the model before the list, as `"key": what, …`. */
+  readonly shape: string;
+  /** The summary the answer's keys hold, or why it is dropped. */
+  readonly read: (answer: Readonly<Record<string, unknown>>) => SummaryReading;
+}
+
 /** What a schema's item proposes, before the shared rules have checked it. */
 export interface ProposalDraft {
   readonly kind: NoteProposalKind;
@@ -266,6 +297,12 @@ export interface ProposalSchema<Item> {
   /** What the model is told beside the notes of one ask, as data. */
   readonly dataFor?: (context: AnswerContext) => readonly PromptData[];
   /**
+   * What the answer says of its note besides the list, for a schema whose
+   * answer also summarises it (`meeting-digest`, #184). Left out, the answer
+   * is the list alone.
+   */
+  readonly summary?: AnswerSummarySchema;
+  /**
    * Whether the answer may choose, beside its list, the project a meeting
    * with none is filed under (#227): read against the projects the ask
    * showed, and a choice that does not read is left out and said, never the
@@ -293,6 +330,8 @@ export interface RegisteredProposalSchema {
   /** The relations of a meeting its proposals join on Accept. */
   readonly meetingRelations: readonly string[];
   readonly dataFor: (context: AnswerContext) => readonly PromptData[];
+  /** Whether its answer also summarises its note: every reading then says what of. */
+  readonly summarises: boolean;
 }
 
 /** An answer read: its proposals, and the items left out of it. */
@@ -303,6 +342,8 @@ export type AnswerReading =
       readonly dropped: readonly DroppedItem[];
       /** Items kept with a fault put right, and what was put right. */
       readonly adjusted: readonly DroppedItem[];
+      /** For a schema that summarises: its summary, read. */
+      readonly summary?: SummaryReading;
       /** The project it chose for the meeting, for a schema that chooses one; null when it chose none. */
       readonly project?: ProjectChoice | null;
     }
@@ -319,21 +360,33 @@ export function registerProposalSchema<Item>(
   }
   return {
     name: schema.name,
-    instructions: [
-      `Answer with JSON only, and nothing around it: { "${schema.key}": [ … ] }, at most ${MAX_PROPOSALS_PER_ANSWER} items.`,
-      `Each item is ${schema.itemShape}`,
-      ...(schema.choosesProject === true ? [PROJECT_CHOICE_INSTRUCTIONS] : []),
-      schema.citation ?? DEFAULT_CITATION,
-      PLAIN_TEXT,
-      `If there is nothing to propose, answer { "${schema.key}": [] }.`,
-    ].join('\n'),
+    instructions: answerInstructions(schema),
     read: (answer, context) => readAnswer({ schema, answer, context }),
     readsVault: schema.readsVault === true,
     readsInParts: schema.readsInParts === true,
     handledKeyOf: schema.handledKeyOf ?? null,
     meetingRelations: schema.meetingRelations ?? [],
     dataFor: (context) => schema.dataFor?.(context) ?? [],
+    summarises: schema.summary !== undefined,
   };
+}
+
+/** What the model is told its answer must be: the list, and before it any summary the schema asks for. */
+function answerInstructions<Item>(schema: ProposalSchema<Item>): string {
+  const { summary } = schema;
+  const besides =
+    summary === undefined ? '' : `${summary.keys.map((key) => `"${key}": …`).join(', ')}, `;
+  const empty =
+    summary === undefined ? `{ "${schema.key}": [] }` : `the rest with "${schema.key}": []`;
+  return [
+    `Answer with JSON only, and nothing around it: { ${besides}"${schema.key}": [ … ] }, at most ${MAX_PROPOSALS_PER_ANSWER} items.`,
+    ...(summary === undefined ? [] : [summary.shape]),
+    `Each item is ${schema.itemShape}`,
+    ...(schema.choosesProject === true ? [PROJECT_CHOICE_INSTRUCTIONS] : []),
+    schema.citation ?? DEFAULT_CITATION,
+    PLAIN_TEXT,
+    `If there is nothing to propose, answer ${empty}.`,
+  ].join('\n');
 }
 
 function readAnswer<Item>({
@@ -351,7 +404,11 @@ function readAnswer<Item>({
   if (!isRecord(parsed.value) || !Array.isArray(list)) {
     return refused(`It is not { "${schema.key}": [ … ] }.`);
   }
-  const keys = schema.choosesProject === true ? [schema.key, PROJECT_CHOICE_KEY] : [schema.key];
+  const keys = [
+    schema.key,
+    ...(schema.summary?.keys ?? []),
+    ...(schema.choosesProject === true ? [PROJECT_CHOICE_KEY] : []),
+  ];
   const extra = unknownKeyProblem(parsed.value, keys, 'The answer');
   if (extra !== null) return refused(extra);
   if (list.length > MAX_PROPOSALS_PER_ANSWER) {
@@ -379,8 +436,16 @@ function readAnswer<Item>({
       return refused(`It made more than ${MAX_PROPOSALS_PER_ANSWER} proposals in one run.`);
     }
   }
+  const summary = schema.summary?.read(parsed.value);
   const project = schema.choosesProject === true ? projectOf(parsed.value, context, dropped) : {};
-  return { ok: true, value: inNoteOrder(schema, checked, context), dropped, adjusted, ...project };
+  return {
+    ok: true,
+    value: inNoteOrder(schema, checked, context),
+    dropped,
+    adjusted,
+    ...(summary !== undefined && { summary }),
+    ...project,
+  };
 }
 
 /** The answer's choice of project; one that does not read is added to `dropped`, and no choice. */

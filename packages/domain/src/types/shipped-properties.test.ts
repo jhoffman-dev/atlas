@@ -36,6 +36,9 @@ const MEETING_KEYS = [
   'atlas_duplicate_of',
   'tasks',
   'decisions',
+  'atlas_summary_digest',
+  'atlas_summary_of',
+  'atlas_summary_model',
 ];
 
 const parsedKeys = (found: ObjectType) => new Set(found.properties.map((added) => added.key));
@@ -57,6 +60,9 @@ describe('shippedPropertiesPlan', () => {
       'atlas_duplicate_of',
       'tasks',
       'decisions',
+      'atlas_summary_digest',
+      'atlas_summary_of',
+      'atlas_summary_model',
     ]);
   });
 
@@ -75,7 +81,19 @@ describe('shippedPropertiesPlan', () => {
 
   it('adds a key shipped since the type was settled', () => {
     const record = { settled: { meeting: MEETING_KEYS.slice(0, 3) }, added: {} };
-    expect(addedKeys([type('meeting', [])], record)).toEqual([['meeting', ['tasks', 'decisions']]]);
+    expect(addedKeys([type('meeting', [])], record)).toEqual([
+      [
+        'meeting',
+        ['tasks', 'decisions', 'atlas_summary_digest', 'atlas_summary_of', 'atlas_summary_model'],
+      ],
+    ]);
+  });
+
+  it('adds the summary keys (#185) to a Meeting type settled before they shipped', () => {
+    const record = { settled: { meeting: MEETING_KEYS.slice(0, 5) }, added: {} };
+    expect(addedKeys([type('meeting', MEETING_KEYS.slice(0, 5))], record)).toEqual([
+      ['meeting', ['atlas_summary_digest', 'atlas_summary_of', 'atlas_summary_model']],
+    ]);
   });
 
   it('matches a type by name in any case and spacing', () => {
@@ -224,6 +242,9 @@ describe('recordSettling', () => {
       'atlas_import_error',
       'atlas_duplicate_of',
       'decisions',
+      'atlas_summary_digest',
+      'atlas_summary_of',
+      'atlas_summary_model',
     ]);
     expect(record.added['meeting']).toEqual([
       'tasks',
@@ -231,6 +252,9 @@ describe('recordSettling', () => {
       'atlas_import_error',
       'atlas_duplicate_of',
       'decisions',
+      'atlas_summary_digest',
+      'atlas_summary_of',
+      'atlas_summary_model',
     ]);
   });
 });
