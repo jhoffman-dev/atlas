@@ -113,6 +113,22 @@ export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-it
 export { itemOwner } from './meeting-item-owner.ts';
 export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
 export {
+  decideMeetingItems,
+  TASK_CONFIDENCE_FLOOR,
+  vaultNamesItsOwner,
+} from './meeting-item-apply.ts';
+export type {
+  LinkedTask,
+  MadeItem,
+  MeetingItemCap,
+  MeetingItemClaim,
+  MeetingItemDecision,
+  MeetingItemsDecision,
+  MeetingItemsRun,
+  OwnerSettings,
+  ProposedBecause,
+} from './meeting-item-apply.ts';
+export {
   AFTER_A_MEETING_PROMPT,
   BUILT_IN_PROMPTS,
   builtInPromptAt,
@@ -129,7 +145,7 @@ export {
   claudeStepSystem,
 } from './claude-step-prompt.ts';
 export { claudeWriteRefusal } from './claude-write-folder.ts';
-export { claudeNewProposal, claudeProposalId } from './claude-proposal-id.ts';
+export { atlasItemKey, claudeNewProposal, claudeProposalId } from './claude-proposal-id.ts';
 export { leading, MAX_LOGGED_CHARACTERS, truncated } from './answer-limits.ts';
 export {
   answeredMeetingOf,

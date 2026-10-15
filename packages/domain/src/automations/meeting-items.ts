@@ -34,6 +34,7 @@ import { truncated } from './answer-limits.ts';
 import { ownerNotAGroup, sameName } from '../meeting-links/vault-owner.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
 import { itemOwner, type ItemOwner, type OwnerDirectory } from './meeting-item-owner.ts';
+import type { MeetingItemCap, MeetingItemClaim } from './meeting-item-apply.ts';
 import {
   citedBlockProblem,
   isRecord,
@@ -271,6 +272,8 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
     ];
   }
   const due = item.due === null ? {} : { [TASK_KEYS.due]: item.due };
+  const owned = ownedItem({ item, cited, context });
+  const meetingItem = claimOf(owned);
   if (item.kind === 'follow-up') {
     return [
       {
@@ -283,10 +286,12 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
         confidence: unnamed ? 'low' : item.confidence,
         why: `A follow-up from ${from}: yours to chase.${unnamed ? UNNAMED_SPEAKER_WHY : ''}${join.why}`,
         ...join.joins(MEETING_TASKS_KEY),
+        meetingItem,
       },
     ];
   }
-  const { owner, task } = ownedTask({ item, cited, context });
+  const { owner } = owned;
+  const task = taskOf({ ...owned, cited });
   return [
     {
       kind: 'task',
@@ -296,8 +301,20 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
       why: `${task.why}${join.why}`,
       distinguishedBy: ownerKey(owner),
       ...join.joins(MEETING_TASKS_KEY),
+      meetingItem,
     },
   ];
+}
+
+/** What decides whether an action item is made the owner's task: whose it is and what caps it. */
+function claimOf({ owner, caps }: OwnedItem): MeetingItemClaim {
+  const whose =
+    owner.kind === 'self'
+      ? 'self'
+      : owner.kind === 'person' || owner.kind === 'named'
+        ? 'other'
+        : 'undecided';
+  return { owner: whose, ownerKey: ownerKey(owner), caps };
 }
 
 const UNNAMED_SPEAKER_WHY = ' The turn it cites has no named speaker, so check it.';
@@ -327,6 +344,64 @@ function lowestOf(left: ProposalConfidence, right: ProposalConfidence): Proposal
   return order.indexOf(left) >= order.indexOf(right) ? left : right;
 }
 
+/** Whose an action item is, and what caps it. */
+interface OwnedItem {
+  readonly owner: ItemOwner;
+  readonly caps: readonly MeetingItemCap[];
+  readonly context: AnswerContext;
+}
+
+/** Whose an item is, from the owner its answer wrote and the turn it cites. */
+function ownedItem({
+  item,
+  cited,
+  context,
+}: {
+  item: MeetingItem;
+  cited: FoundTurn;
+  context: AnswerContext;
+}): OwnedItem {
+  const directory = {
+    attendees: cited.meeting.meeting?.attendees ?? [],
+    people: context.vault?.people ?? [],
+    selfName: context.vault?.selfName ?? null,
+    selfEmails: context.vault?.selfEmails ?? [],
+    speakers: meetingTurnsOf(cited.meeting.text).map((turn) => turn.writtenSpeaker),
+  };
+  const owner = itemOwner(item.owner, directory);
+  return { owner, caps: capsOf({ owner, item, turn: cited.turn, directory }), context };
+}
+
+/**
+ * What makes whose an item is a reading rather than a fact (ADR-0036): the
+ * cited turn has no named speaker, or was spoken by someone it does not
+ * concern ({@link spokenByAnother}); the owner is "we" or named with others;
+ * the owner's own item was called a waiting-for. Whose it is cannot be
+ * doubted further when nobody, or several people, could be named.
+ */
+function capsOf({
+  owner,
+  item,
+  turn,
+  directory,
+}: {
+  owner: ItemOwner;
+  item: MeetingItem;
+  turn: TranscriptTurn;
+  directory: OwnerDirectory;
+}): MeetingItemCap[] {
+  if (owner.kind === 'unknown' || owner.kind === 'ambiguous') return [];
+  const unnamed = turn.speaker.kind === 'unknown';
+  const self = owner.kind === 'self' ? owner : null;
+  const caps: (MeetingItemCap | false | undefined)[] = [
+    unnamed && 'unnamed-speaker',
+    !unnamed && spokenByAnother({ owner, turn, directory }) && 'spoken-by-another',
+    self?.shared,
+    self !== null && item.kind === 'waiting' && 'mixed-kind',
+  ];
+  return caps.filter((cap): cap is MeetingItemCap => typeof cap === 'string');
+}
+
 /** A task as its owner makes it: where it starts, who it waits on, and what the card says of both. */
 interface OwnedTask {
   readonly properties: Readonly<Record<string, unknown>>;
@@ -349,38 +424,7 @@ const GUESS: ProposalConfidence = 'low';
  * cited turn spoken by a third person makes it medium at most (see
  * {@link spokenByAnother}).
  */
-function ownedTask({
-  item,
-  cited,
-  context,
-}: {
-  item: MeetingItem;
-  cited: FoundTurn;
-  context: AnswerContext;
-}): { owner: ItemOwner; task: OwnedTask } {
-  const directory = {
-    attendees: cited.meeting.meeting?.attendees ?? [],
-    people: context.vault?.people ?? [],
-    selfName: context.vault?.selfName ?? null,
-    selfEmails: context.vault?.selfEmails ?? [],
-  };
-  const owner = itemOwner(item.owner, directory);
-  return { owner, task: taskOf({ owner, item, cited, context, directory }) };
-}
-
-function taskOf({
-  owner,
-  item,
-  cited,
-  context,
-  directory,
-}: {
-  owner: ItemOwner;
-  item: MeetingItem;
-  cited: FoundTurn;
-  context: AnswerContext;
-  directory: OwnerDirectory;
-}): OwnedTask {
+function taskOf({ owner, caps, cited, context }: OwnedItem & { cited: FoundTurn }): OwnedTask {
   const from = noteTitle(cited.meeting.path);
   if (owner.kind === 'unknown' || owner.kind === 'ambiguous') {
     return {
@@ -389,8 +433,8 @@ function taskOf({
       ceiling: GUESS,
     };
   }
-  const guessed = cited.turn.speaker.kind === 'unknown';
-  const another = !guessed && spokenByAnother({ owner, turn: cited.turn, directory });
+  const guessed = caps.includes('unnamed-speaker');
+  const another = caps.includes('spoken-by-another');
   const spoken = guessed
     ? ' The turn it cites has no named speaker, so whose it is is a guess.'
     : another
@@ -398,7 +442,7 @@ function taskOf({
       : '';
   const ceiling = guessed ? GUESS : another ? 'medium' : SURE;
   if (owner.kind === 'self') {
-    const mixed = item.kind === 'waiting';
+    const mixed = caps.includes('mixed-kind');
     const doubt = mixed
       ? ' Claude called it a waiting-for but named you, so check whose it is.'
       : '';
@@ -504,6 +548,7 @@ function peopleLines(note: AnsweredNote, { vault }: AnswerContext): string {
     people: vault?.people ?? [],
     selfName: self,
     selfEmails: vault?.selfEmails ?? [],
+    speakers: [],
   };
   // An attendee at one of the owner's addresses is them, whatever a group rule made of it.
   const listed = ownerNotAGroup(note.meeting?.attendees ?? [], directory.selfEmails);
