@@ -1,9 +1,10 @@
 import { linkTargets } from '../index/relation-rows.ts';
 import { resolveWikiLinkTarget, wikiLinkTargetFor } from '../markdown/resolve-wikilink.ts';
-import { withLink, linkedNotes } from '../types/relation-links.ts';
+import { holdsOnlyText, withLink, linkedNotes } from '../types/relation-links.ts';
 import { fitFileNameStem } from '../vault/file-name-bytes.ts';
 import { TASK_KEYS } from '../gtd/gtd-status.ts';
-import { cleanEntryName, nextAvailableNotePath } from '../vault/new-note.ts';
+import { linkableEntryName, nextAvailableNotePath } from '../vault/new-note.ts';
+import { TITLE_KEY } from '../page/page-title.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { joinVaultPath, VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
 import { foldedVaultPath } from '../vault/vault-spelling.ts';
@@ -139,6 +140,7 @@ export function applyNoteProposal(
   const cites = CITING_KINDS.has(kind) && source !== null;
   const properties = {
     type: PROPOSAL_NOTE_TYPES[kind],
+    ...titleUnsaidBy(wanted, payload.title),
     ...withoutType(payload.properties),
     ...(cites && { source }),
   };
@@ -221,6 +223,11 @@ function applyLink(
   if (target.relation === null) {
     return refused(`${title} has no relation called ${payload.property} to link through.`);
   }
+  if (!holdsOnlyText(target.value)) {
+    return refused(
+      `${title}’s ${payload.property} holds something other than links, which adding one would write over; nothing was written.`,
+    );
+  }
   const held = linkedNotes(target.value);
   if (held.includes(payload.link) || linksSameNote(payload.link, target.value, notePaths)) {
     return refused(`${title} already links ${payload.link} in ${payload.property}.`);
@@ -246,15 +253,25 @@ function linksSameNote(link: string, value: unknown, notePaths: readonly VaultPa
 }
 
 /**
- * Where a note proposal's note goes: its title as a file name, cut to what the
- * disk takes, in its folder or at the top.
+ * Where a note proposal's note goes: its title as a file name a wiki link can
+ * reach, cut to what the disk takes, in its folder or at the top.
  */
 export function newNotePath(payload: NotePayload): VaultPath {
-  const stem = fitFileNameStem(cleanEntryName(payload.title), NOTE_EXTENSION);
+  const stem = fitFileNameStem(linkableEntryName(payload.title), NOTE_EXTENSION);
   return joinVaultPath(payload.folder ?? VAULT_ROOT, `${stem}${NOTE_EXTENSION}`);
 }
 
 const NOTE_EXTENSION = '.md';
+
+/**
+ * The `title` a new note needs when its file name cannot say its title — a
+ * `#` or a bracket made a space so a link reaches it, or a long title cut —
+ * so the page still heads it exactly as proposed. None when the name says it.
+ */
+function titleUnsaidBy(path: VaultPath, title: string): Record<string, string> {
+  const wanted = title.trim();
+  return noteTitle(path) === wanted ? {} : { [TITLE_KEY]: wanted };
+}
 
 /** The payload's properties without a `type`: the kind decides what the note is. */
 function withoutType(properties: Readonly<Record<string, unknown>>): Record<string, unknown> {

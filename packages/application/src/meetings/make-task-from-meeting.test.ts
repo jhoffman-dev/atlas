@@ -4,7 +4,12 @@
  * in memory.
  */
 import { describe, expect, it } from 'vitest';
-import type { MeetingIdentity } from '@atlas/domain';
+import {
+  createVaultPath,
+  linkTargets,
+  resolveWikiLinkTarget,
+  type MeetingIdentity,
+} from '@atlas/domain';
 import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 import { MEETING_BODY } from '../testing/meeting-files.ts';
 import {
@@ -144,6 +149,47 @@ describe('makeTaskFromMeeting', () => {
     expect(made.task).toBe('Send Mara the payroll file 2.md');
     expect(setup.propertiesOf(TASK)).toEqual({ type: 'task', status: 'archive' });
     expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file 2]]']);
+  });
+});
+
+describe('makeTaskFromMeeting — a title a wiki link cannot hold', () => {
+  it.each([
+    ['Fix bug #123', 'Fix bug 123.md'],
+    ['Re: [Q3] plan', 'Re Q3 plan.md'],
+    ['Notes on [draft]', 'Notes on draft.md'],
+    ['Pick A|B for ^t0001', 'Pick A B for t0001.md'],
+  ])(
+    'names the file of “%s” so the meeting’s link reaches it, keeping the title exact',
+    async (title, file) => {
+      const setup = vault();
+      const made = await make(setup, item({ title }));
+
+      expect(made.task).toBe(file);
+      expect(setup.propertiesOf(file)).toMatchObject({ title });
+      const [link] = setup.propertiesOf(MEETING)?.['tasks'] as string[];
+      const [target] = linkTargets(link ?? '');
+      expect(resolveWikiLinkTarget(target ?? '', setup.paths().map(createVaultPath))).toBe(file);
+    },
+  );
+
+  it('gives a task whose file name says its title no `title` of its own', async () => {
+    const setup = vault();
+    await make(setup);
+
+    expect(setup.propertiesOf(TASK)).not.toHaveProperty('title');
+  });
+});
+
+describe('makeTaskFromMeeting — a meeting’s `tasks` holding more than links', () => {
+  it.each([
+    ['a map', { 'Book the room': '[[Book the room]]' }],
+    ['a list holding a map', ['[[Call Ines]]', { link: '[[Book the room]]' }]],
+    ['a nested list', [['[[Book the room]]', '[[Call Ines]]']]],
+    ['a list holding a number', ['[[Call Ines]]', 7]],
+  ])('refuses to join %s, writing nothing', async (_shape, tasks) => {
+    const setup = vault({ [MEETING]: meetingNote({ tasks }) });
+
+    await expectNothingWritten(setup, make(setup), /tasks holds something other than links/);
   });
 });
 
@@ -320,6 +366,28 @@ describe('undoMadeTask', () => {
 
     expect(setup.paths()).toContain(TASK);
     expect(setup.fixture.files.get(MEETING)?.text).toContain('A note.');
+  });
+
+  it('trashes the task before putting the meeting back, leaving the meeting as it is when the Trash refuses', async () => {
+    const setup = vault();
+    const made = await make(setup);
+    const meeting = setup.fixture.files.get(MEETING)?.text;
+    const ports = {
+      ...setup.ports,
+      fs: {
+        ...setup.ports.fs,
+        trashEntry: async () => {
+          throw new Error('Trash is not available');
+        },
+      },
+    };
+
+    await expect(undoMadeTask({ ports, made })).rejects.toThrow(
+      '“Send Mara the payroll file” could not be taken back (Trash is not available), so it and the notes linking it were left as they were.',
+    );
+
+    expect(setup.paths()).toContain(TASK);
+    expect(setup.fixture.files.get(MEETING)?.text).toBe(meeting);
   });
 
   it('takes back nothing while either note has unsaved typing', async () => {

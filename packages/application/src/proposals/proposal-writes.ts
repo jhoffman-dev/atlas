@@ -5,6 +5,7 @@ import {
   joinFrontmatter,
   joinVaultPath,
   messageOf,
+  noteTitle,
   parentVaultPath,
   splitFrontmatter,
   TASK_KEYS,
@@ -235,6 +236,10 @@ export async function takenBack(
  * Takes back what was written, all of it or none: every write is checked
  * before the first is taken back, so a meeting never lists a task that was
  * trashed, nor a task stays after the meeting kept its link.
+ *
+ * The notes made go to the Trash first, and only then are the notes linking
+ * them put back: one the Trash will not take leaves its links as they were,
+ * and the refusal says so.
  */
 export async function takeBackAll(
   ports: NoteWritePorts,
@@ -243,8 +248,16 @@ export async function takeBackAll(
   for (const applied of wrote) {
     await checkUndo({ fs: ports.fs, openNotes: ports.editors, applied });
   }
-  // Last made, first taken back: the link goes before the note it points at.
-  for (const applied of [...wrote].reverse()) {
+  for (const applied of wrote.filter(({ kind }) => kind === 'created')) {
+    await undoProposal({ fs: ports.fs, openNotes: ports.editors, applied }).catch(
+      (cause: unknown) => {
+        throw new ProposalRefused(
+          `“${noteTitle(applied.path)}” could not be taken back (${messageOf(cause)}), so it and the notes linking it were left as they were.`,
+        );
+      },
+    );
+  }
+  for (const applied of wrote.filter(({ kind }) => kind !== 'created').reverse()) {
     await undoProposal({ fs: ports.fs, openNotes: ports.editors, applied });
   }
 }
