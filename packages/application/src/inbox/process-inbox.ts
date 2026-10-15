@@ -1,6 +1,7 @@
 import {
   filedUnderStamp,
   filingRefusal,
+  PARA_KEY,
   processDestination,
   processRefusal,
   splitFrontmatter,
@@ -87,7 +88,11 @@ export async function filingTarget({
   if (found === null) throw new FilingRefusedError('There is no note to file under at that path.');
   const { text } = await ports.fs.readTextFile(found);
   const properties = ports.markdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
-  const refusal = filingRefusal({ path: found, type: noteTypeName(properties) });
+  const refusal = filingRefusal({
+    path: found,
+    type: noteTypeName(properties),
+    para: properties[PARA_KEY],
+  });
   if (refusal !== null) throw new FilingRefusedError(refusal);
   return found;
 }

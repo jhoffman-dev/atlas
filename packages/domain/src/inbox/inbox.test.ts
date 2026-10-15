@@ -49,6 +49,32 @@ describe('processRefusal', () => {
   });
 });
 
+describe('filingRefusal on a Project, by the PARA value it holds (#213)', () => {
+  const archived = 'That is archived: unarchive it to file notes under it.';
+  it('files under a project or an area, and under a PARA Atlas cannot read, as a project', () => {
+    for (const para of [undefined, 'project', 'Area', 'Life admin']) {
+      expect(filingRefusal({ path: path('Projects/Atlas.md'), type: 'project', para })).toBeNull();
+    }
+  });
+
+  it('refuses one archived by its value, as one moved to the Archive', () => {
+    expect(
+      filingRefusal({ path: path('Projects/Atlas.md'), type: 'Project', para: ' archive ' }),
+    ).toBe(archived);
+    expect(filingRefusal({ path: path('Archive/Projects/Atlas.md'), type: 'project' })).toBe(
+      archived,
+    );
+  });
+
+  it('refuses a resource with the words a note of the Resource type had', () => {
+    const before = filingRefusal({ path: path('Manual.md'), type: 'resource' });
+    expect(before).toBe('Project links to a project or area, not a resource');
+    expect(filingRefusal({ path: path('Manual.md'), type: 'project', para: 'Resource' })).toBe(
+      before,
+    );
+  });
+});
+
 describe('filingRefusal', () => {
   it('files under a project or an area', () => {
     expect(filingRefusal({ path: path('Projects/Atlas.md'), type: 'project' })).toBeNull();

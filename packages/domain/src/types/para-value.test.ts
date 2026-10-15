@@ -4,12 +4,15 @@ import {
   isParaArchived,
   isParaNote,
   isParaTarget,
-  paraArchiveToggle,
+  archivesWhereItStands,
+  holdsOwnPara,
+  paraArchiveChanges,
   paraChoices,
   paraDefaultFor,
   paraOf,
   paraValueNamed,
   paraValuesTargeted,
+  paraUnarchiveChanges,
   relatedNoteKind,
   relationGroupLabel,
 } from './para-value.ts';
@@ -80,28 +83,89 @@ describe('isParaNote and paraOf', () => {
 });
 
 describe('archiving a PARA note is a value (#213)', () => {
-  it('archives a Project by setting PARA to archive, whatever it was', () => {
-    for (const para of [undefined, 'project', 'area', 'resource', 'someday']) {
-      expect(paraArchiveToggle({ type: 'project', para })).toEqual({
-        action: 'archive',
+  const archive = (properties: Record<string, unknown>, projectType: string | null = 'project') =>
+    paraArchiveChanges({ properties, projectType });
+
+  it('archives a Project by setting PARA to archive and keeping what it was', () => {
+    for (const [para, before] of [
+      [undefined, 'project'],
+      ['', 'project'],
+      ['project', 'project'],
+      [' Area ', 'area'],
+      ['resource', 'resource'],
+    ] as const) {
+      expect(archive({ type: 'project', para })).toEqual({
         para: 'archive',
+        para_before_archive: before,
       });
     }
   });
 
-  it('unarchives an archived Project by setting PARA back to project', () => {
+  it('has nothing to write on a Project already archived', () => {
     expect(isParaArchived({ type: 'project', para: ' Archive ' })).toBe(true);
-    expect(paraArchiveToggle({ type: 'project', para: 'archive' })).toEqual({
-      action: 'unarchive',
-      para: 'project',
+    expect(archive({ type: 'project', para: 'archive' })).toEqual({});
+  });
+
+  it('archives an Area or Resource note from before #213 as a Project, keeping its kind', () => {
+    expect(archive({ type: 'Area' }, 'Project')).toEqual({
+      type: 'Project',
+      para: 'archive',
+      para_before_archive: 'area',
     });
+    expect(archive({ type: 'resource' })).toEqual({
+      type: 'project',
+      para: 'archive',
+      para_before_archive: 'resource',
+    });
+    // With no Project type to put it on, it is moved as any other note.
+    expect(archive({ type: 'area' }, null)).toBeNull();
+  });
+
+  it('never writes over a `para` that is the person’s own: that note is moved instead', () => {
+    for (const para of ['Life admin', ['area'], { kind: 'area' }, 3]) {
+      expect(holdsOwnPara({ para })).toBe(true);
+      expect(archive({ type: 'project', para })).toBeNull();
+      expect(archive({ type: 'area', para })).toBeNull();
+      expect(archivesWhereItStands({ type: 'project', para })).toBe(false);
+    }
   });
 
   it('leaves every other note to the Archive folder', () => {
-    expect(paraArchiveToggle({ type: 'task', para: 'archive' })).toBeNull();
-    expect(paraArchiveToggle({ type: 'area' })).toBeNull();
-    expect(paraArchiveToggle({})).toBeNull();
+    expect(archive({ type: 'task', para: 'archive' })).toBeNull();
+    expect(archive({})).toBeNull();
+    expect(archivesWhereItStands({ type: 'task' })).toBe(false);
+    expect(archivesWhereItStands({ type: 'project' })).toBe(true);
+    expect(archivesWhereItStands({ type: 'resource' })).toBe(true);
     expect(isParaArchived({ type: 'task', para: 'archive' })).toBe(false);
+  });
+
+  it('unarchives a Project back to the PARA it had, and takes the record off', () => {
+    for (const before of ['project', 'area', 'resource']) {
+      expect(
+        paraUnarchiveChanges({ type: 'project', para: 'archive', para_before_archive: before }),
+      ).toEqual({ para: before, para_before_archive: null });
+    }
+  });
+
+  it('unarchives to Project when nothing readable was kept', () => {
+    for (const before of [undefined, 'archive', 'Life admin', ['area']]) {
+      expect(
+        paraUnarchiveChanges({ type: 'project', para: 'archive', para_before_archive: before }),
+      ).toEqual({ para: 'project', para_before_archive: null });
+    }
+  });
+
+  it('only takes a stale record off a Project that is not archived by its value', () => {
+    expect(
+      paraUnarchiveChanges({ type: 'project', para: 'area', para_before_archive: 'project' }),
+    ).toEqual({ para_before_archive: null });
+    expect(paraUnarchiveChanges({ type: 'project', para: 'area' })).toBeNull();
+  });
+
+  it('writes nothing on unarchiving another note, or one whose `para` is its own', () => {
+    expect(paraUnarchiveChanges({ type: 'area', para: 'archive' })).toBeNull();
+    expect(paraUnarchiveChanges({ type: 'task', para: 'archive' })).toBeNull();
+    expect(paraUnarchiveChanges({ type: 'project', para: 'Life admin' })).toBeNull();
   });
 });
 

@@ -4,12 +4,14 @@ import { isAtlasNote } from '../vault/vault-visibility.ts';
 import {
   ARCHIVED_PARA,
   AREA_TYPE,
+  DEFAULT_PARA,
+  PARA_BEFORE_ARCHIVE_KEY,
   PARA_KEY,
   PROJECT_TYPE,
   RESOURCE_TYPE,
   type ParaValue,
 } from './para.ts';
-import { paraValueNamed } from './para-value.ts';
+import { holdsOwnPara, paraValueNamed } from './para-value.ts';
 
 type Properties = Readonly<Record<string, unknown>>;
 
@@ -55,12 +57,17 @@ export interface ParaNoteMove {
  * nothing:
  *
  * - a note of the Area or Resource type becomes a Project whose `para` names
- *   what it was — or `archive`, when its file is in the Archive;
- * - a Project whose file is in the Archive is given `para: archive`, so it
- *   stays out of the way once the file move is no longer what archives it.
+ *   what it was — or `archive`, when it is archived (its file in the Archive,
+ *   or its `para` already archive), with what it was kept under
+ *   `para_before_archive` so Unarchive gives its kind back;
+ * - a Project whose file is in the Archive is given `para: archive` and what
+ *   its `para` was, so it stays out of the way once the file move is no
+ *   longer what archives it.
  *
- * Only `type` and `para` are written; the file stays where it is. A note
- * Atlas keeps for itself — a template — is never moved.
+ * Only `type`, `para` and `para_before_archive` are written; the file stays
+ * where it is. A note Atlas keeps for itself — a template — is never moved.
+ * A note whose `para` is the person's own is not Atlas's to write over: see
+ * {@link paraMoveRefusal}, asked first.
  */
 export function paraNoteMove({
   path,
@@ -74,18 +81,34 @@ export function paraNoteMove({
 }): ParaNoteMove | null {
   if (isAtlasNote(path)) return null;
   const type = typeOf(properties);
-  const archived = isArchivedPath(path);
+  const held = paraValueNamed(properties[PARA_KEY]);
   const from = {
     fromType: typeof properties['type'] === 'string' ? properties['type'] : '',
     fromPara: writtenPara(properties),
   };
   if (type === AREA_TYPE || type === RESOURCE_TYPE) {
+    const archived = isArchivedPath(path) || held === ARCHIVED_PARA;
     const to: ParaValue = archived ? ARCHIVED_PARA : type;
-    return { ...from, to, changes: { type: projectType, [PARA_KEY]: to } };
+    const kept = archived ? { [PARA_BEFORE_ARCHIVE_KEY]: type } : {};
+    return { ...from, to, changes: { type: projectType, [PARA_KEY]: to, ...kept } };
   }
-  if (type !== PROJECT_TYPE || !archived) return null;
-  if (paraValueNamed(properties[PARA_KEY]) === ARCHIVED_PARA) return null;
-  return { ...from, to: ARCHIVED_PARA, changes: { [PARA_KEY]: ARCHIVED_PARA } };
+  if (type !== PROJECT_TYPE || !isArchivedPath(path)) return null;
+  if (held === ARCHIVED_PARA) return null;
+  return {
+    ...from,
+    to: ARCHIVED_PARA,
+    changes: { [PARA_KEY]: ARCHIVED_PARA, [PARA_BEFORE_ARCHIVE_KEY]: held ?? DEFAULT_PARA },
+  };
+}
+
+/**
+ * Why a note the move would change is left as it is, or null when it is
+ * not: a `para` of the person's own — "Life admin", a list, a map — is never
+ * written over, so its note keeps its type and its `para` alike.
+ */
+export function paraMoveRefusal(properties: Properties): string | null {
+  if (!holdsOwnPara(properties)) return null;
+  return `its PARA “${writtenPara(properties) ?? ''}” is not Project, Area, Resource or Archive, so it is left as it is`;
 }
 
 function writtenPara(properties: Properties): string | null {
@@ -104,6 +127,11 @@ export function paraMoveLine({ title, move }: { title: string; move: ParaNoteMov
 }
 
 const capitalized = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+
+/** "Garden: its PARA “Life admin” is not …, so it is left as it is" — a note's line among those left. */
+export function paraSkipLine({ title, reason }: { title: string; reason: string }): string {
+  return `${title}: ${reason}`;
+}
 
 /**
  * What Activity says once the move ran: "Moved 3 notes onto the Project

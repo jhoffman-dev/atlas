@@ -102,6 +102,7 @@ test('a new project is a project, links an area, and archives and restores by it
   // Archive: PARA becomes archive, and the file stays where it is.
   await pageMenu(page, 'Archive');
   await expectFile(vault, 'New Project.md').toContain('para: archive');
+  await expectFile(vault, 'New Project.md').toContain('para_before_archive: project');
   expect(await vault.exists('Archive/New Project.md')).toBe(false);
   await expectFile(vault, 'New Project.md').toContain('area: "[[Garden]]"');
   // The host's watcher reports the app's own write, as it reports any other.
@@ -128,6 +129,7 @@ test('a new project is a project, links an area, and archives and restores by it
   await expect(page.getByRole('article', { name: 'New Project' })).toBeVisible();
   await pageMenu(page, 'Unarchive');
   await expectFile(vault, 'New Project.md').toContain('para: project');
+  await expectFile(vault, 'New Project.md').not.toContain('para_before_archive');
   expect(await vault.exists('Archive/New Project.md')).toBe(false);
   await emitVaultChanged(page, ['New Project.md']);
   await expect(projectType(page)).toHaveAccessibleName('Project, 4 notes');
@@ -141,4 +143,41 @@ test('a new project is a project, links an area, and archives and restores by it
         .allTextContents(),
     )
     .toContain('New Project');
+});
+
+async function paletteCommand(page: Page, label: string) {
+  await page.keyboard.down('Meta');
+  await page.keyboard.press('k');
+  await page.keyboard.up('Meta');
+  await page.getByRole('searchbox', { name: 'Search the vault' }).fill(label);
+  await page
+    .getByRole('dialog', { name: 'Search notes' })
+    .getByRole('option', { name: new RegExp(label) })
+    .click();
+}
+
+test('an area archived from the palette stays an area: listed in the Archive, and back from there as one', async ({
+  page,
+}) => {
+  const vault = await openParaVault(page);
+  await page.getByRole('treeitem', { name: 'Garden', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Garden' })).toBeVisible();
+
+  // ⌘K → Archive this note archives it by its PARA, keeping that it was an area.
+  await paletteCommand(page, 'Archive this note');
+  await expectFile(vault, 'Garden.md').toContain('para: archive');
+  await expectFile(vault, 'Garden.md').toContain('para_before_archive: area');
+  expect(await vault.exists('Archive/Garden.md')).toBe(false);
+  await emitVaultChanged(page, ['Garden.md']);
+
+  // The Archive page lists it, so it can be found and brought back.
+  await paletteCommand(page, 'Open Archive');
+  const archive = page.getByRole('article', { name: 'Archive' });
+  await expect(archive.getByRole('button', { name: 'Garden', exact: true })).toBeVisible();
+  await archive.getByRole('button', { name: 'Unarchive Garden' }).click();
+
+  // Back an area, not a project: what it was before is given back and the record taken off.
+  await expectFile(vault, 'Garden.md').toContain('para: area');
+  await expectFile(vault, 'Garden.md').not.toContain('para_before_archive');
+  expect(await vault.exists('Archive/Garden.md')).toBe(false);
 });

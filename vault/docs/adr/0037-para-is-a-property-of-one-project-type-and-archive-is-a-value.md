@@ -38,14 +38,31 @@ What was true before this record:
    `archive`. A new project starts as `project`; a Project note with no
    `para`, or one Atlas cannot read, is read as `project`. The rules are in
    the domain (`para-value.ts`).
-2. **Archive is a value for PARA notes.** `para: archive` puts a Project note
-   out of the way where it stands: it leaves views over projects (unless
-   archived notes are asked for), query blocks over projects, relation
-   pickers, a board's project groups, the sidebar's Project count and the
-   weekly review's projects. Setting `para` back brings it back. The page
-   menu's Archive and Unarchive on a Project note set the value (Unarchive
-   sets `project`); the file does not move. Every other note keeps the file
-   move of U-22.
+2. **Archive is a value for PARA notes, and every Archive agrees.** `para:
+archive` puts a Project note out of the way where it stands: it leaves
+   views over projects (unless archived notes are asked for), query blocks
+   over projects, relation pickers, a board's project groups, the sidebar's
+   Project count, the weekly review's projects, the open projects a meeting
+   is linked to, and what Inbox notes may be filed under; the Archive page
+   lists it. Setting `para` back brings it back. Every Archive in the app —
+   page menu, ⌘K palette, a Pages row, a view's selection, the weekly review
+   — goes through one use case (`archiveNotesWithPara`): a PARA note — a
+   Project, or a note of the old Area or Resource type — is archived by its
+   value and the file does not move; every other note keeps the file move of
+   U-22.
+   - **Archiving keeps what PARA was** in `para_before_archive` (written and
+     cleared by Atlas, never required). **Unarchive gives it back** —
+     `project` when nothing readable was kept — and takes the key off.
+   - **Unarchive is one step** whatever archived the note: a note in
+     `Archive/` is moved out, and a Project's `para` is restored in the same
+     write that takes the stamp off.
+   - **An old Area or Resource note becomes a Project when archived**
+     (`type: project`, `para: archive`, `para_before_archive: area`), the
+     one-note form of decision 5: `archive` only means something on the
+     Project type. In a vault with no Project type it is moved instead.
+   - **A `para` that is the person's own** — none of the four values, or a
+     list or a map — is never written over: that note is archived by moving
+     it, and the move onto the Project type leaves it as it is.
 3. **A project may belong to an area.** Project has an optional `area`
    relation whose target is `area`. Nothing becomes required.
 4. **PARA targets resolve to the Project type.** A relation target of
@@ -61,13 +78,20 @@ What was true before this record:
    page, beside the existing type offer, a box lists every Area and Resource
    note — and every Project note in `Archive/` without `para: archive` — and
    what it becomes. Nothing is written until **Move N notes**. Each note
-   gets `type: project` and `para`, or `para: archive` alone, through the
-   byte-preserving frontmatter write, with the host's refusal to write over a
-   file changed since it was read; a note with unsaved typing is left and
-   said so. No file moves, no property the person added is removed, and a
-   second run finds nothing to do. The run is one line in Activity, plus one
-   per note left as it was. The Project type gains PARA in the same run when
-   it lacks it.
+   gets `type: project` and `para`, or `para: archive` alone; one archived
+   (in `Archive/`, or an old Area/Resource note with `para: archive`) also
+   gets `para_before_archive` naming what it was, so its kind survives
+   Unarchive. A note holding a `para` of the person's own is listed as left
+   as it is, with why, and never written. **What the preview showed is what
+   is written:** the preview keeps each note as it read it, and the run
+   writes that note only if the file still reads the same, through the
+   byte-preserving frontmatter write and the host's refusal to write over a
+   file changed since the preview read it; a changed note, or one with
+   unsaved typing, is left and said so. No file moves, no property the
+   person added is removed, and a second run finds nothing to do — nor does
+   a run after notes were archived by their value. The run is one line in
+   Activity, plus one per note left as it was. The Project type gains PARA
+   in the same run when it lacks it.
 6. **Area and Resource stop being Atlas's types.** They are no longer
    written into a vault, offered, or refused deletion. A vault's existing
    type files stay until the person removes them. The Project type's own
@@ -82,24 +106,27 @@ note is archived by its value, not by a move.
 ## Consequences
 
 - Moving a project to an area, a resource or the Archive, and back, is one
-  property change with no file move and no broken links.
+  property change with no file move and no broken links — and back to the
+  value it had, not to `project`.
 - "Archived" now has two meanings. The Archive folder still holds every
-  non-PARA note put away, and is what search, the graph, `[[` suggestions
-  and the Archive page read; a Project set to `archive` is out of views,
-  pickers, counts and the weekly review, but is still found by search and
-  shown on the graph, and is not listed on the Archive page. A follow-up can
-  widen what reads `para`, rule by rule.
-- A Project note already in `Archive/` is still unarchived by moving it out
-  (its menu says Unarchive); once out, its `para: archive` keeps it out of
-  the way until set back.
-- Unarchive sets `project`, not the value the note had before it was
-  archived: nothing records that value, and adding a key for it would write
-  more than the person asked for.
-- The ⌘K palette's Archive and a Pages row's Archive still move the file,
-  for a Project note as for any other; the page menu is the PARA control.
+  non-PARA note put away, and is what search, the graph and `[[`
+  suggestions read; a Project set to `archive` is out of views, pickers,
+  counts, the weekly review, meeting links and Inbox filing, and is listed on
+  the Archive page, but is still found by search and shown on the graph. A
+  follow-up can widen what reads `para`, rule by rule.
+- `para_before_archive` is one more key Atlas writes into a person's note.
+  It is only ever written alongside `para: archive` and taken off on
+  Unarchive, and nothing requires it.
+- The ⌘K palette and a Pages row offer Unarchive only for a note in the
+  Archive folder: they do not read a note's properties, so a Project archived
+  where it stands is brought back from its page menu or the Archive page.
+  Their Archive on such a note says it is already archived.
+- Archiving an old Area or Resource note changes its `type`, which the
+  person did not ask for in so many words; it is the move they would be
+  offered anyway, for that note only, and it is what keeps the note's kind.
 - A project's or an area's linked page still decides its sections by its
   type: an area that is a Project note shows a project's sections.
-- The weekly review's Archive on a stalled project moves the file.
-- The local API and MCP are unchanged by this record (ADR-0016): a client
-  sets `para` like any property. Whether they get an archive-by-value route
-  is for their keeper.
+- The local API and MCP, and an automation's Archive, still move the file
+  (ADR-0016): a client sets `para` like any property. An automation's undo is
+  recorded as file moves, so it keeps them. Whether they get an
+  archive-by-value route is for their keeper.

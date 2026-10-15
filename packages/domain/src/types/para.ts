@@ -24,6 +24,12 @@ export const RESOURCE_TYPE = 'resource';
 /** The key a Project note keeps its place in PARA under. */
 export const PARA_KEY = 'para';
 
+/**
+ * Where archiving a PARA note keeps what its `para` was, for Unarchive to
+ * give back (#213). Atlas writes and clears it; nothing requires it.
+ */
+export const PARA_BEFORE_ARCHIVE_KEY = 'para_before_archive';
+
 /** Where a Project note stands in PARA. */
 export type ParaValue = 'project' | 'area' | 'resource' | 'archive';
 

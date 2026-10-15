@@ -22,7 +22,8 @@ import {
 import { PROPOSAL_TYPE } from '../proposals/proposal.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import { waitingOnNames } from '../review/review-query.ts';
-import { FILED_UNDER, FILED_UNDER_KEY } from '../types/para.ts';
+import { ARCHIVED_PARA, FILED_UNDER, FILED_UNDER_KEY } from '../types/para.ts';
+import { paraOf } from '../types/para-value.ts';
 import { relationTypeRefusal } from '../types/property-value.ts';
 import {
   createVaultPath,
@@ -415,28 +416,37 @@ export function processRefusal({
 /**
  * Why a note cannot be what Inbox notes are filed under, or null when it can:
  * it has to be a project or an area, and one still in use — not waiting in
- * the Inbox itself, not archived, not one of Atlas's own files — whose
- * folder is somewhere a filed note can stay: in user space, out of the Inbox
- * and the Archive (a project at `Archive.md` files into `Archive/`), and
- * within the walk's depth.
+ * the Inbox itself, not archived (moved to the Archive, or a Project set to
+ * PARA archive where it stands), not one of Atlas's own files — whose folder
+ * is somewhere a filed note can stay: in user space, out of the Inbox and the
+ * Archive (a project at `Archive.md` files into `Archive/`), and within the
+ * walk's depth. A Project is judged as the PARA value it holds (#213): a
+ * resource is refused as a note of the Resource type was.
  */
 export function filingRefusal({
   path,
   type,
+  para,
 }: {
   path: VaultPath;
   /** The note's `type:`, or null when it has none. */
   type: string | null;
+  /** The note's `para:`, as written; absent when it has none. */
+  para?: unknown;
 }): string | null {
   if (isAtlasNote(path))
     return 'Notes are filed under a project or an area, not under Atlas’s own files.';
   if (isInInbox(path)) return 'That is still in the Inbox: process it first.';
-  if (isArchivedPath(path)) return 'That is archived: unarchive it to file notes under it.';
+  if (isArchivedPath(path)) return ARCHIVED_TARGET;
   if (type === null) return 'Notes are filed under a project or an area, and that note is neither.';
-  const wrongType = relationTypeRefusal({ def: FILED_UNDER, linkedType: type });
+  const standing = paraOf({ type, para });
+  if (standing === ARCHIVED_PARA) return ARCHIVED_TARGET;
+  const wrongType = relationTypeRefusal({ def: FILED_UNDER, linkedType: standing ?? type });
   if (wrongType !== null) return wrongType;
   return landingRefusal(joinVaultPath(filingFolder(path), 'filed.md'));
 }
+
+const ARCHIVED_TARGET = 'That is archived: unarchive it to file notes under it.';
 
 /** Why a note filed at `landing` would not stay filed, or null when it would. */
 function landingRefusal(landing: VaultPath): string | null {

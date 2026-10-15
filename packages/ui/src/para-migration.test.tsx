@@ -13,6 +13,7 @@ const PREVIEW: ParaMigrationProps['preview'] = {
     { path: 'Work/Garden.md', line: 'Garden: Area → Project, PARA Area' },
     { path: 'Manual.md', line: 'Manual: Resource → Project, PARA Resource' },
   ],
+  skipped: [],
 };
 
 function panel(overrides: Partial<ParaMigrationProps> = {}) {
@@ -60,6 +61,22 @@ describe('ParaMigration', () => {
     expect(props.onRun).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Move 3 notes' }));
     expect(props.onRun).toHaveBeenCalledOnce();
+  });
+
+  it('lists each note left as it is, with why, apart from the notes that move', () => {
+    const line =
+      'Chores: its PARA “Life admin” is not Project, Area, Resource or Archive, so it is left as it is';
+    panel({
+      open: true,
+      preview: { ...PREVIEW, skipped: [{ path: 'Areas/Chores.md', line }] },
+    });
+    const left = screen.getByRole('list', { name: 'Notes left as they are' });
+    expect(
+      within(left)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([line]);
+    expect(screen.getByRole('button', { name: 'Move 3 notes' })).toBeDefined();
   });
 
   it('holds the move while one is under way', () => {

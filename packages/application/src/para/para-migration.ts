@@ -5,11 +5,14 @@ import {
   PARA_KEY,
   PARA_PROPERTY,
   paraMoveLine,
+  paraMoveRefusal,
   paraNoteMove,
+  paraSkipLine,
   PROJECT_TYPE,
   PROJECT_TYPE_FILE,
   splitFrontmatter,
   typeSetupLines,
+  vaultProjectTypeName,
   type TypeExtension,
   type VaultPath,
 } from '@atlas/domain';
@@ -37,14 +40,26 @@ export interface ParaNoteLine {
   readonly line: string;
 }
 
+/** A note that moves, as the preview read it, and the file it is written as. */
+export interface ParaNoteMoveLine extends ParaNoteLine {
+  /** The file as the preview read it: one that differs when the move runs is left as it is. */
+  readonly read: string;
+  /** When the preview read it: the host refuses the write over a file changed since. */
+  readonly modified: number;
+  /** The file as the move writes it: the preview's own reading, with `type` and `para` set. */
+  readonly contents: string;
+}
+
 /**
  * What moving the vault's PARA notes onto the one Project type would do
- * (#213), shown before any of it is done: every note that moves, and what
- * the Project type gains for them.
+ * (#213), shown before any of it is done: every note that moves, what the
+ * Project type gains for them, and each note left as it is and why.
  */
 export interface ParaMigrationPreview {
   readonly typeLines: readonly string[];
-  readonly notes: readonly ParaNoteLine[];
+  readonly notes: readonly ParaNoteMoveLine[];
+  /** Notes the move would change but leaves as they are: "Garden: its PARA “Life admin” is not …". */
+  readonly skipped: readonly ParaNoteLine[];
 }
 
 /** What a run did: each note written, and each left as it was and why. */
@@ -53,26 +68,11 @@ export interface ParaMigrationReport {
   readonly left: readonly LeftFile[];
 }
 
-/** A note's frontmatter as it will be written, and its body as it is. */
-interface NoteEdit {
-  readonly path: VaultPath;
-  /** When it was read: a file changed since is refused rather than overwritten. */
-  readonly modified: number;
-  readonly after: string;
-  readonly body: string;
-}
-
 /** What the Project type needs before the notes are moved onto it. */
 type TypeChange =
   | { readonly kind: 'none' }
   | { readonly kind: 'create' }
   | { readonly kind: 'extend'; readonly extension: TypeExtension<DefinedType> };
-
-interface ParaMigrationPlan {
-  readonly preview: ParaMigrationPreview;
-  readonly type: TypeChange;
-  readonly edits: readonly NoteEdit[];
-}
 
 /** Whether the move has any note left to move: none means the vault's PARA is all one type. */
 export function hasParaMigrationWork(preview: ParaMigrationPreview): boolean {
@@ -83,40 +83,36 @@ export function hasParaMigrationWork(preview: ParaMigrationPreview): boolean {
 export async function previewParaMigration(
   ports: ParaMigrationPorts,
 ): Promise<ParaMigrationPreview> {
-  return (await planParaMigration(ports)).preview;
+  const types = await loadObjectTypes(ports);
+  const projectType = vaultProjectTypeName(types) ?? PROJECT_TYPE;
+  const notes: ParaNoteMoveLine[] = [];
+  const skipped: ParaNoteLine[] = [];
+  for (const note of await readCandidates(ports)) {
+    const move = paraNoteMove({ path: note.path, properties: note.properties, projectType });
+    if (move === null) continue;
+    const title = noteTitle(note.path);
+    const refusal = paraMoveRefusal(note.properties);
+    if (refusal !== null) {
+      skipped.push({ path: note.path, title, line: paraSkipLine({ title, reason: refusal }) });
+      continue;
+    }
+    const after = ports.markdown.updateFrontmatter(note.frontmatter, move.changes);
+    notes.push({
+      path: note.path,
+      title,
+      line: paraMoveLine({ title, move }),
+      read: note.text,
+      modified: note.modified,
+      contents: after + note.body,
+    });
+  }
+  return { typeLines: typeLines(typeChange(projectTypes(types))), notes, skipped };
 }
 
 const folded = (name: string) => name.trim().toLowerCase();
 
-async function planParaMigration(ports: ParaMigrationPorts): Promise<ParaMigrationPlan> {
-  const types = await loadObjectTypes(ports);
-  const projects = types.filter((type) => folded(type.name) === PROJECT_TYPE);
-  const [project] = projects;
-  const projectType = projects.length === 1 && project !== undefined ? project.name : PROJECT_TYPE;
-  const notes = await readCandidates(ports);
-  const moved = notes.flatMap((note) => {
-    const move = paraNoteMove({ path: note.path, properties: note.properties, projectType });
-    if (move === null) return [];
-    const title = noteTitle(note.path);
-    return [
-      {
-        line: { path: note.path, title, line: paraMoveLine({ title, move }) },
-        edit: {
-          path: note.path,
-          modified: note.modified,
-          after: ports.markdown.updateFrontmatter(note.frontmatter, move.changes),
-          body: note.body,
-        },
-      },
-    ];
-  });
-  const type = typeChange(projects);
-  return {
-    preview: { typeLines: typeLines(type), notes: moved.map((move) => move.line) },
-    type,
-    edits: moved.map((move) => move.edit),
-  };
-}
+const projectTypes = (types: readonly DefinedType[]) =>
+  types.filter((type) => folded(type.name) === PROJECT_TYPE);
 
 /**
  * What the Project type needs for the moved notes' PARA to show: the type
@@ -147,6 +143,8 @@ function typeLines(change: TypeChange): readonly string[] {
 
 interface CandidateNote {
   readonly path: VaultPath;
+  /** The whole file, as read, and when. */
+  readonly text: string;
   readonly modified: number;
   readonly frontmatter: string;
   readonly body: string;
@@ -171,6 +169,7 @@ async function readCandidates(ports: ParaMigrationPorts): Promise<CandidateNote[
     return [
       {
         path: createVaultPath(file.path),
+        text: file.text,
         modified: file.modified,
         frontmatter,
         body,
@@ -181,17 +180,17 @@ async function readCandidates(ports: ParaMigrationPorts): Promise<CandidateNote[
 }
 
 /**
- * Carries out a previewed move onto the Project type (#213). What each note
- * gets is worked out again from the files as they are now, and only for the
- * notes the preview showed: one moved since is left alone, and one that
- * arrived since waits for the next preview. Running it again moves nothing.
+ * Carries out a previewed move onto the Project type (#213): each note the
+ * preview showed is written as the preview said, and only if its file is
+ * still as the preview read it — one changed since is left as it was and
+ * reported, and one that arrived since waits for the next preview. Running
+ * it again moves nothing.
  *
  * The Project type is given `para` first — or written, in a vault without
  * one — through the byte-preserving write the type editor uses. Then each
- * note's `type` and `para`, and nothing else, through the host's refusal to
- * write over a file that changed after it was read; a note with unsaved
- * typing in a pane is never written. One that cannot be written is reported
- * and the rest carry on.
+ * note, through the host's refusal to write over a file that changed after it
+ * was read; a note with unsaved typing in a pane is never written. One that
+ * cannot be written is reported and the rest carry on.
  */
 export async function runParaMigration({
   ports,
@@ -202,19 +201,20 @@ export async function runParaMigration({
   panes: MigrationPanes;
   preview: ParaMigrationPreview;
 }): Promise<ParaMigrationReport> {
-  const plan = await planParaMigration(ports);
-  const shown = new Set(preview.notes.map((note) => note.path));
-  const edits = plan.edits.filter((edit) => shown.has(edit.path));
-  if (edits.length === 0) return { written: [], left: [] };
-  const left: LeftFile[] = [...(await changeType(ports, plan.type))];
+  if (preview.notes.length === 0) return { written: [], left: [] };
+  const type = typeChange(projectTypes(await loadObjectTypes(ports)));
+  const left: LeftFile[] = [...(await changeType(ports, type))];
   const written: VaultPath[] = [];
-  for (const edit of edits) {
-    const reason = await writeEdit(ports.fs, panes, edit);
-    if (reason === null) written.push(edit.path);
-    else left.push({ path: edit.path, reason });
+  for (const note of preview.notes) {
+    const reason = await writeNote(ports.fs, panes, note);
+    if (reason === null) written.push(note.path);
+    else left.push({ path: note.path, reason });
   }
   return { written, left };
 }
+
+/** Why a note was left as it was: what the preview read of it is no longer what it says. */
+export const CHANGED_SINCE_PREVIEW = 'It changed since the preview read it.';
 
 /** Gives the Project type what the moved notes need; the type's file, and why, if it could not be. */
 async function changeType(ports: ParaMigrationPorts, change: TypeChange): Promise<LeftFile[]> {
@@ -234,15 +234,16 @@ async function changeType(ports: ParaMigrationPorts, change: TypeChange): Promis
 
 const projectTypePath = () => createVaultPath(`${TYPES_FOLDER}/${PROJECT_TYPE}.md`);
 
-/** Writes one note's edit; why it was not written, or null. */
-async function writeEdit(
+/** Writes one note as the preview said; why it was not written, or null. */
+async function writeNote(
   fs: VaultFsPort,
   panes: MigrationPanes,
-  { path, modified, after, body }: NoteEdit,
+  { path, read, modified, contents }: ParaNoteMoveLine,
 ): Promise<string | null> {
   if (panes.state(path) === 'dirty') return UNSAVED_TYPING;
   try {
-    await fs.writeTextFile({ path, contents: after + body, expectedModified: modified });
+    if ((await fs.readTextFile(path)).text !== read) return CHANGED_SINCE_PREVIEW;
+    await fs.writeTextFile({ path, contents, expectedModified: modified });
   } catch (cause) {
     return reasonOf(cause);
   }

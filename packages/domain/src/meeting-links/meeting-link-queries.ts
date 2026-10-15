@@ -4,6 +4,7 @@ import { PERSON_TYPE } from '../people/person.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import { ALIASES_KEY } from '../terms/term.ts';
 import { PROJECT_TYPE } from '../types/para.ts';
+import { paraFiledUnderSql } from '../types/para-value.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { userSpaceNoteSql } from '../vault/vault-visibility.ts';
 import type { DirectoryCompany, DirectoryPerson } from './attendee-matching.ts';
@@ -125,7 +126,8 @@ export function linkDirectoryOf(rows: readonly LinkDirectoryRow[]): LinkDirector
  * meeting, a task) links both the project in its `project` and them in its
  * `people` or `companies`. The meeting itself is left out, so linking it
  * never makes its own evidence. A project is open while it is outside the
- * Archive and its status is not done, cancelled or dropped. Columns: project,
+ * Archive, its PARA is project or area — not resource, not archive (#213) —
+ * and its status is not done, cancelled or dropped. Columns: project,
  * title, entity. Every value is bound.
  *
  * The other-note ties are read project first — each open project, the notes
@@ -152,6 +154,7 @@ export function compileProjectTiesQuery({
   SELECT files.path AS path, files.title AS title FROM files
    WHERE files.path IN (SELECT path FROM props WHERE key = 'type' AND value_text = ?)
      AND ${userSpaceNoteSql('files.path')} AND ${outsideArchiveSql('files.path')}
+     AND ${paraFiledUnderSql('files.path')}
      AND NOT EXISTS (SELECT 1 FROM props AS state WHERE state.path = files.path
                       AND state.key = 'status' AND lower(state.value_text) IN (${closed}))
 )

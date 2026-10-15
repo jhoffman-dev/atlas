@@ -115,6 +115,30 @@ describe('useArchive', () => {
     expect(files.get('Projects/Plan.md')).toBe(original);
   });
 
+  it('archives a PARA note by its value through the commands every Archive uses (#213)', async () => {
+    // The page menu, the palette, a Pages row, a view and the weekly review all call these commands.
+    const original = '---\ntype: project\npara: area # mine\nowner: Mara Quill\n---\n\n# Garden\n';
+    const { files, hook, options } = setUp({ 'Areas/Garden.md': original });
+
+    let outcome: unknown;
+    act(() => {
+      void hook.result.current.commands.archive([path('Areas/Garden.md')]).then((done) => {
+        outcome = done;
+      });
+    });
+    await waitFor(() => expect(outcome).toBeDefined());
+    expect([...files.keys()]).toEqual(['Areas/Garden.md']);
+    expect(files.get('Areas/Garden.md')).toBe(
+      '---\ntype: project\npara: archive # mine\nowner: Mara Quill\npara_before_archive: area\n---\n\n# Garden\n',
+    );
+    expect(options.offerLinks).not.toHaveBeenCalled();
+
+    act(() => {
+      void hook.result.current.commands.unarchive([path('Areas/Garden.md')]);
+    });
+    await waitFor(() => expect(files.get('Areas/Garden.md')).toBe(original));
+  });
+
   it('takes the frontmatter it added off a note that had none', async () => {
     const original = '# Loose note\n\nNo frontmatter here.\n';
     const { files, hook, options } = setUp({ 'Loose.md': original });

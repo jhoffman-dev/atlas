@@ -1,4 +1,5 @@
 import type { CompiledQuery } from '../query/view-query.ts';
+import { paraArchivedSql } from '../types/para-value.ts';
 import { ARCHIVE_PREFIX, ARCHIVED_FROM_KEY, ARCHIVED_KEY } from './archive.ts';
 
 /** The columns {@link compileArchiveQuery} comes back as, in order. */
@@ -17,7 +18,9 @@ export const ARCHIVE_SEARCH_WORD_LIMIT = 16;
 
 /**
  * The Archive's rows, asked of the index: each archived note's title and the
- * two keys archiving wrote, most recently archived first.
+ * two keys archiving wrote, most recently archived first. Archived notes are
+ * the ones under `Archive/` and the Projects whose PARA is archive, archived
+ * where they stand (#213), so every one can be found and brought back.
  *
  * Every word typed has to appear in the title or the path, in any case and
  * however the disk composed its accents — see {@link caselessGlobs}. The
@@ -48,7 +51,8 @@ export function compileArchiveQuery({
       `  ${propertyText()} AS "archived",`,
       `  ${propertyText()} AS "archivedFrom"`,
       `FROM files`,
-      `WHERE lower(substr(files.path, 1, ${ARCHIVE_PREFIX.length})) = '${ARCHIVE_PREFIX}'`,
+      `WHERE (lower(substr(files.path, 1, ${ARCHIVE_PREFIX.length})) = '${ARCHIVE_PREFIX}'`,
+      `  OR ${paraArchivedSql('files.path')})`,
       ...matching.map((condition) => `  AND (${condition})`),
       `ORDER BY "archived" IS NULL, "archived" DESC, lower(files.title), files.path`,
       `LIMIT ? OFFSET ?`,

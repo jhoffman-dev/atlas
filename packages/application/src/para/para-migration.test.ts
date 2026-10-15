@@ -12,6 +12,7 @@ import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
+import { archiveNotesWithPara, unarchiveNotesWithPara } from '../archive/para-archive.ts';
 import {
   hasParaMigrationWork,
   previewParaMigration,
@@ -173,6 +174,7 @@ describe('runParaMigration', () => {
       type: 'project',
       status: 'done',
       para: 'archive',
+      para_before_archive: 'project',
     });
   });
 
@@ -182,6 +184,7 @@ describe('runParaMigration', () => {
       type: 'project',
       archived: '2026-01-02',
       para: 'archive',
+      para_before_archive: 'area',
     });
     expect([...files.keys()].sort()).toEqual(Object.keys(FILES).sort());
   });
@@ -296,5 +299,55 @@ describe('runParaMigration', () => {
     const report = await runParaMigration({ ports: v.ports, panes: closedPanes, preview });
     expect(report.left).toEqual([{ path: '.atlas/types/project.md', reason: 'Permission denied' }]);
     expect(report.written).toHaveLength(4);
+  });
+});
+
+describe('notes archived by the Archive command, by their value', () => {
+  it('are never offered the move again, archived or brought back', async () => {
+    const v = vault({
+      '.atlas/types/project.md': PROJECT_TYPE,
+      'Projects/Atlas.md': note({ type: 'project', para: 'area' }),
+      'Areas/Garden.md': note({ type: 'area' }),
+    });
+    const batch = (paths: string[]) => ({
+      ports: {
+        ...v.ports,
+        index: fakeIndexPort({ query: v.ports.index.query }),
+        editors: {
+          state: () => 'closed' as const,
+          flush: async () => {},
+          follow: () => {},
+          abandon: () => {},
+          reload: () => {},
+        },
+      },
+      paths: paths.map(createVaultPath),
+      notePaths: [...v.files.keys()].map(createVaultPath),
+    });
+    const before = await previewParaMigration(v.ports);
+    expect(before.notes.map((line) => line.path)).toEqual(['Areas/Garden.md']);
+
+    const archived = await archiveNotesWithPara({
+      ...batch(['Projects/Atlas.md', 'Areas/Garden.md']),
+      today: '2026-10-14',
+    });
+    expect(archived.valued).toEqual(['Projects/Atlas.md', 'Areas/Garden.md']);
+    expect(frontmatterOf(v.files.get('Areas/Garden.md'))).toEqual({
+      type: 'project',
+      para: 'archive',
+      para_before_archive: 'area',
+    });
+    expect((await previewParaMigration(v.ports)).notes).toEqual([]);
+
+    await unarchiveNotesWithPara(batch(['Projects/Atlas.md', 'Areas/Garden.md']));
+    expect(frontmatterOf(v.files.get('Areas/Garden.md'))).toEqual({
+      type: 'project',
+      para: 'area',
+    });
+    expect(frontmatterOf(v.files.get('Projects/Atlas.md'))).toEqual({
+      type: 'project',
+      para: 'area',
+    });
+    expect((await previewParaMigration(v.ports)).notes).toEqual([]);
   });
 });

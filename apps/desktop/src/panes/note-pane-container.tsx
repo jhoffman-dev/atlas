@@ -521,7 +521,6 @@ export function NotePaneContainer({
         commands: context.archive,
         path,
         properties: note.open?.properties ?? null,
-        setProperty: note.setProperty,
       })}
       {...(onShowInGraph !== undefined &&
         path !== null &&

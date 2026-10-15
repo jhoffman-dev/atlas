@@ -1,10 +1,10 @@
 import {
   archiveRefusal,
+  archivesWhereItStands,
   isArchivedPath,
   isAtlasNote,
+  isParaArchived,
   notesUnder,
-  PARA_KEY,
-  paraArchiveToggle,
   type MovableEntry,
   type VaultPath,
 } from '@atlas/domain';
@@ -62,31 +62,29 @@ export function withCommandBeforeDelete(
 }
 
 /**
- * "Archive" for a note that can be archived, "Unarchive" for one that is. A
- * PARA note is archived by its value where it stands (#213): either one
- * sets its `para`, and the file does not move. One already in the Archive
- * folder comes out as any archived note does.
+ * "Archive" for a note that can be archived, "Unarchive" for one that is —
+ * in the Archive folder, or a Project archived by its value where it stands
+ * (#213). Either goes through the same commands as every other way of
+ * archiving: a PARA note is archived by its `para` and the file stays; every
+ * other note is moved.
  */
 export function pageArchiveItems({
   commands,
   path,
   properties,
-  setProperty,
 }: {
   commands: ArchiveCommands;
   path: VaultPath | null;
   /** The note's frontmatter as the pane holds it, or null while it opens. */
   properties: Readonly<Record<string, unknown>> | null;
-  setProperty: (key: string, value: unknown) => void;
 }): { onArchive?: () => void; onUnarchive?: () => void } {
   if (path === null || commands.busy) return {};
-  if (isArchivedPath(path)) return { onUnarchive: () => commands.unarchive([path]) };
+  const unarchive = { onUnarchive: () => void commands.unarchive([path]) };
+  if (isArchivedPath(path)) return unarchive;
   // Until the note is read, whether it is PARA's — archived where it stands — is not known.
   if (properties === null) return {};
-  const toggle = isAtlasNote(path) ? null : paraArchiveToggle(properties);
-  if (toggle !== null) {
-    const setPara = () => setProperty(PARA_KEY, toggle.para);
-    return toggle.action === 'archive' ? { onArchive: setPara } : { onUnarchive: setPara };
-  }
-  return archiveRefusal(path) === null ? { onArchive: () => commands.archive([path]) } : {};
+  const para = !isAtlasNote(path);
+  if (para && isParaArchived(properties)) return unarchive;
+  const archivable = archiveRefusal(path) === null || (para && archivesWhereItStands(properties));
+  return archivable ? { onArchive: () => void commands.archive([path]) } : {};
 }

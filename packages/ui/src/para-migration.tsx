@@ -7,6 +7,8 @@ export interface ParaMigrationPreviewData {
   readonly typeLines: readonly string[];
   /** Every note that moves, each in one line: "Garden: Area → Project, PARA Area". */
   readonly notes: readonly { readonly path: string; readonly line: string }[];
+  /** Every note the move leaves as it is, and why: "Garden: its PARA “Life admin” is not …". */
+  readonly skipped: readonly { readonly path: string; readonly line: string }[];
 }
 
 export interface ParaMigrationProps {
@@ -84,8 +86,9 @@ function Preview(props: ParaMigrationProps & { preview: ParaMigrationPreviewData
   return (
     <div className="task-migration__preview">
       <p>
-        Nothing is changed until you move them. Only each note’s type and PARA are written: its
-        other properties, its text and where its file is stay as they are.
+        Nothing is changed until you move them. Only each note’s type and PARA are written — and,
+        for an archived one, the PARA it had: its other properties, its text and where its file is
+        stay as they are.
       </p>
       <Lines
         heading="The Project type"
@@ -94,6 +97,10 @@ function Preview(props: ParaMigrationProps & { preview: ParaMigrationPreviewData
       <Lines
         heading="Notes that move"
         lines={preview.notes.map((note) => ({ key: note.path, line: note.line }))}
+      />
+      <Lines
+        heading="Notes left as they are"
+        lines={preview.skipped.map((note) => ({ key: note.path, line: note.line }))}
       />
       <div className="task-migration__actions">
         <button type="button" className="btn btn--sm" onClick={onRun} disabled={busy}>

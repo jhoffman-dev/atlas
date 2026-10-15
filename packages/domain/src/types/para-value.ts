@@ -4,6 +4,7 @@ import {
   ARCHIVED_PARA,
   AREA_TYPE,
   DEFAULT_PARA,
+  PARA_BEFORE_ARCHIVE_KEY,
   PARA_KEY,
   PARA_VALUES,
   PROJECT_TYPE,
@@ -47,22 +48,92 @@ export function isParaArchived(properties: Properties): boolean {
   return isParaNote(properties) && paraValueNamed(properties[PARA_KEY]) === ARCHIVED_PARA;
 }
 
-/** What a page menu's Archive or Unarchive does to a PARA note: the `para` it sets. */
-export interface ParaArchiveToggle {
-  readonly action: 'archive' | 'unarchive';
-  readonly para: ParaValue;
+/** What a note's `para` holds: nothing, a PARA value, or something of the person's own. */
+function heldPara(value: unknown): ParaValue | 'none' | 'own' {
+  if (value === undefined || value === null) return 'none';
+  if (typeof value === 'string' && value.trim() === '') return 'none';
+  return paraValueNamed(value) ?? 'own';
 }
 
 /**
- * Archive or Unarchive on a PARA note (#213): archiving sets `para` to
- * archive and unarchiving sets it back to the default, and the file stays
- * where it is. Null for any other note, which the Archive takes by moving it.
+ * Whether a note's `para` is the person's own — a value that is none of
+ * PARA's four, or a list or a map — which Atlas never writes over.
  */
-export function paraArchiveToggle(properties: Properties): ParaArchiveToggle | null {
-  if (!isParaNote(properties)) return null;
-  return isParaArchived(properties)
-    ? { action: 'unarchive', para: DEFAULT_PARA }
-    : { action: 'archive', para: ARCHIVED_PARA };
+export function holdsOwnPara(properties: Properties): boolean {
+  return heldPara(properties[PARA_KEY]) === 'own';
+}
+
+const PARA_KINDS: readonly string[] = [PROJECT_TYPE, AREA_TYPE, RESOURCE_TYPE];
+
+/**
+ * What archiving a PARA note writes into it where it stands (#213) — its
+ * `para` set to archive, and what it was kept under `para_before_archive`
+ * for Unarchive to give back — or null when it is not archived by its value
+ * and the Archive takes it by moving its file: a note of no PARA type, or
+ * one whose `para` is the person's own.
+ *
+ * A note of the Area or Resource type from before #213 is a Project once it
+ * is archived, with what its type was kept: archived is a Project's PARA,
+ * and means nothing on another type. In a vault with no Project type to put
+ * it on (`projectType` null) it is moved instead.
+ *
+ * A Project already archived has nothing to write: no changes at all.
+ */
+export function paraArchiveChanges({
+  properties,
+  projectType,
+}: {
+  properties: Properties;
+  /** The vault's Project type's name, as `type:` is to say it; null when it has none. */
+  projectType: string | null;
+}): Readonly<Record<string, string>> | null {
+  const kind = folded(properties['type']);
+  const held = heldPara(properties[PARA_KEY]);
+  if (!PARA_KINDS.includes(kind) || held === 'own') return null;
+  if (kind === PROJECT_TYPE) {
+    const before = held === 'none' ? DEFAULT_PARA : held;
+    if (before === ARCHIVED_PARA) return {};
+    return { [PARA_KEY]: ARCHIVED_PARA, [PARA_BEFORE_ARCHIVE_KEY]: before };
+  }
+  if (projectType === null) return null;
+  return { type: projectType, [PARA_KEY]: ARCHIVED_PARA, [PARA_BEFORE_ARCHIVE_KEY]: kind };
+}
+
+/**
+ * The vault's Project type's name, as a note's `type:` is to say it: as its
+ * file spells it when one file claims it, `project` when two do — which one
+ * a feature reads is not for a writer to pick — and null when it has none.
+ */
+export function vaultProjectTypeName(types: readonly Pick<ObjectType, 'name'>[]): string | null {
+  const projects = types.filter((type) => folded(type.name) === PROJECT_TYPE);
+  const [project] = projects;
+  if (project === undefined) return null;
+  return projects.length === 1 ? project.name : PROJECT_TYPE;
+}
+
+/** Whether Archive puts this note away by its `para`, where it stands, rather than by moving its file. */
+export function archivesWhereItStands(properties: Properties): boolean {
+  return paraArchiveChanges({ properties, projectType: PROJECT_TYPE }) !== null;
+}
+
+/**
+ * What unarchiving a Project writes into it (#213): its `para` back to what
+ * `para_before_archive` kept — Project when nothing readable was kept — and
+ * that record taken off. A Project whose `para` is not archive has only the
+ * record taken off, if it has one. Null when there is nothing to write: a
+ * note of any other type, or one whose `para` is the person's own.
+ */
+export function paraUnarchiveChanges(
+  properties: Properties,
+): Readonly<Record<string, string | null>> | null {
+  if (folded(properties['type']) !== PROJECT_TYPE) return null;
+  const held = heldPara(properties[PARA_KEY]);
+  if (held === 'own') return null;
+  const recorded = Object.hasOwn(properties, PARA_BEFORE_ARCHIVE_KEY);
+  if (held !== ARCHIVED_PARA) return recorded ? { [PARA_BEFORE_ARCHIVE_KEY]: null } : null;
+  const before = paraValueNamed(properties[PARA_BEFORE_ARCHIVE_KEY]);
+  const restored = before === null || before === ARCHIVED_PARA ? DEFAULT_PARA : before;
+  return { [PARA_KEY]: restored, [PARA_BEFORE_ARCHIVE_KEY]: null };
 }
 
 /** Whether a relation's target is a PARA value, so it resolves to the Project type. */
@@ -159,17 +230,31 @@ export function paraDefaultFor({
 }
 
 /**
- * A SQL condition that leaves out Project notes set to archive, for a
- * statement whose rows carry a note's path in `column` — written qualified
- * (`"v_project"."path"`, `n.path`), since it is compared inside a subquery
- * over `props`. Constants of the app only, so nothing is bound.
+ * A SQL condition that keeps Project notes set to archive — archived where
+ * they stand — for a statement whose rows carry a note's path in `column`,
+ * written qualified (`"v_project"."path"`, `n.path`), since it is compared
+ * inside a subquery over `props`. Constants of the app only, so nothing is bound.
  */
-export function outsideParaArchiveSql(column: string): string {
+export function paraArchivedSql(column: string): string {
   return [
-    `NOT EXISTS (SELECT 1 FROM props AS para_value WHERE para_value.path = ${column}`,
+    `EXISTS (SELECT 1 FROM props AS para_value WHERE para_value.path = ${column}`,
     `  AND para_value.key = '${PARA_KEY}' AND lower(trim(para_value.value_text)) = '${ARCHIVED_PARA}'`,
     `  AND EXISTS (SELECT 1 FROM props AS para_type WHERE para_type.path = ${column}`,
     `    AND para_type.key = 'type' AND lower(trim(para_type.value_text)) = '${PROJECT_TYPE}'))`,
+  ].join('\n');
+}
+
+/** A SQL condition that leaves out Project notes set to archive: see {@link paraArchivedSql}. */
+export function outsideParaArchiveSql(column: string): string {
+  return `NOT ${paraArchivedSql(column)}`;
+}
+
+/** Of the Project notes at `column`, those whose `para` names none of `values`. Constants only. */
+function paraNoneOfSql(column: string, values: readonly ParaValue[]): string {
+  const named = values.map((value) => `'${value}'`).join(', ');
+  return [
+    `NOT EXISTS (SELECT 1 FROM props AS para_value WHERE para_value.path = ${column}`,
+    `  AND para_value.key = '${PARA_KEY}' AND lower(trim(para_value.value_text)) IN (${named}))`,
   ].join('\n');
 }
 
@@ -179,13 +264,19 @@ export function outsideParaArchiveSql(column: string): string {
  * Atlas cannot read, which is the default. Constants only, nothing bound.
  */
 export function paraProjectSql(column: string): string {
-  const others = PARA_VALUES.filter((value) => value !== DEFAULT_PARA)
-    .map((value) => `'${value}'`)
-    .join(', ');
-  return [
-    `NOT EXISTS (SELECT 1 FROM props AS para_value WHERE para_value.path = ${column}`,
-    `  AND para_value.key = '${PARA_KEY}' AND lower(trim(para_value.value_text)) IN (${others}))`,
-  ].join('\n');
+  return paraNoneOfSql(
+    column,
+    PARA_VALUES.filter((value) => value !== DEFAULT_PARA),
+  );
+}
+
+/**
+ * A SQL condition that keeps, of the Project notes at `column`, what notes
+ * are filed under: projects and areas — never a resource or an archived
+ * one. A `para` Atlas cannot read is the default, a project.
+ */
+export function paraFiledUnderSql(column: string): string {
+  return paraNoneOfSql(column, [RESOURCE_TYPE, ARCHIVED_PARA]);
 }
 
 /** What {@link compileParaValuesQuery}'s statement starts with, so a log or a stand-in index can tell it apart. */

@@ -116,7 +116,7 @@ describe('the move onto the Project type, through the real YAML writer', () => {
     expect(files.get('Archive/Projects/Launch.md')).toBe(
       LAUNCH.replace(
         'archivedFrom: Projects/Launch.md\n',
-        'archivedFrom: Projects/Launch.md\npara: archive\n',
+        'archivedFrom: Projects/Launch.md\npara: archive\npara_before_archive: project\n',
       ),
     );
   });
