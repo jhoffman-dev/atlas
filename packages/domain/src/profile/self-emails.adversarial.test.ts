@@ -64,6 +64,7 @@ describe('the owner’s addresses, as every consumer of selfEmails reads them', 
         people: [],
         selfName: null,
         selfEmails: emails,
+        speakers: [],
       }).kind,
     ).toBe('self');
 
@@ -108,6 +109,7 @@ describe('whose an item is, in a vault with neither selfEmails nor granola_self_
       people: [person('Mara Quill'), person('M Quill')],
       selfName: 'Mara Quill',
       selfEmails: [],
+      speakers: [],
     });
     // Before #173 the owner's note's address made this the owner's task; now it is left "ambiguous".
     expect(owner.kind).toBe('self');
@@ -123,6 +125,7 @@ describe('whose an item is, when the model ends the owner’s address with a ful
     people: [],
     selfName: null,
     selfEmails: ['mara.quill@example.com'],
+    speakers: [],
   };
 
   it('reads a bare address with a sentence’s full stop as the owner’s', () => {
@@ -146,6 +149,7 @@ describe('whose an item is, when the owner’s own address reads as a group', ()
     people: [],
     selfName: null,
     selfEmails: [SELF],
+    speakers: [],
   };
 
   it('is the owner’s by name: the owner said that address is theirs', () => {

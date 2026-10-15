@@ -46,6 +46,7 @@ import {
   unknownKeyProblem,
 } from './answer-limits.ts';
 import { claudeWriteRefusal } from './claude-write-folder.ts';
+import type { MeetingItemClaim } from './meeting-item-apply.ts';
 import { setKeyProblem } from './property-key.ts';
 import { remoteResourceProblem } from './remote-resources.ts';
 
@@ -116,6 +117,12 @@ export interface ProposalDraft {
    * two people taking on "Send the notes" in one turn are two proposals.
    */
   readonly distinguishedBy?: string;
+  /**
+   * Whose the meeting action item behind it is, and what caps it, as the
+   * domain read it: what decides whether it is made the owner's task without
+   * a click (ADR-0036, `decideMeetingItems`). Only an action item has one.
+   */
+  readonly meetingItem?: MeetingItemClaim;
 }
 
 /**
@@ -142,6 +149,8 @@ export interface CheckedProposal {
   readonly why: string;
   /** See {@link ProposalDraft.distinguishedBy}; empty when nothing does. */
   readonly distinguishedBy: string;
+  /** See {@link ProposalDraft.meetingItem}. */
+  readonly meetingItem?: MeetingItemClaim;
   /**
    * Whether the proposal is known by what it is and where it came from alone,
    * so that two rules reading one meeting propose it once between them
@@ -476,6 +485,7 @@ export function checkDraft(
       why: draft.why.trim(),
       distinguishedBy: draft.distinguishedBy ?? '',
       sharedAcrossRules: false,
+      ...(draft.meetingItem === undefined ? {} : { meetingItem: draft.meetingItem }),
     },
   };
 }
