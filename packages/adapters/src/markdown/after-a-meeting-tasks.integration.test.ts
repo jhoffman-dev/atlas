@@ -130,7 +130,8 @@ const OWNERS_BOOK = {
   title: 'Book the review room',
   owner: 'You',
   source_block: 't0003',
-  confidence: 'medium',
+  // A task is made only at high (#226).
+  confidence: 'high',
 };
 
 /** The step's answer as it is asked for it (#184): a summary of the meeting, and its items. */
@@ -205,7 +206,7 @@ function setUp({
 }
 
 describe('a meeting that arrives after the rule', () => {
-  it('makes the owner’s two items tasks, linked both ways, and proposes the other person’s', async () => {
+  it('makes the owner’s two items tasks, linked both ways, and leaves the other person’s out (#226)', async () => {
     const { vault, activity, arrived, notesIn, tasks } = setUp();
 
     const entry = await arrived();
@@ -230,12 +231,57 @@ describe('a meeting that arrives after the rule', () => {
       '[[Send the renewal contract]]',
       '[[Book the review room]]',
     ]);
-    const proposals = notesIn(PROPOSALS);
-    expect(proposals).toHaveLength(1);
-    expect(vault.files.get(proposals[0]!)).toContain('Flag the new cache');
+    expect(notesIn(PROPOSALS)).toEqual([]);
     expect(entry).toMatchObject({ kind: 'run', claude: { asks: 1 } });
     expect(activity.reports.map((report) => report.message).join('\n')).toMatch(
-      /Summary written by claude-sonnet-5-5 in \d+ s for 2026-10-14 Renewal review; 2 tasks made, 3 items listed, 1 proposal\./,
+      /Summary written by claude-sonnet-5-5 in \d+ s for 2026-10-14 Renewal review; 2 tasks made, 2 items listed, 0 proposals, left out 1 item\./,
+    );
+  });
+
+  it('gathers the owner’s less certain items and a waiting-for they asked for into one review proposal (#226)', async () => {
+    const asked = {
+      kind: 'waiting',
+      title: 'Flag the new cache',
+      owner: 'Tobias Fenn',
+      source_block: 't0002',
+      confidence: 'high',
+      asked_by_owner: true,
+    };
+    const { vault, arrived, notesIn, tasks } = setUp({
+      rounds: [answer(OWNERS_SEND, asked, { ...OWNERS_BOOK, confidence: 'medium' })],
+    });
+
+    await arrived();
+
+    expect(tasks()).toEqual(['Tasks/2026/10/Send the renewal contract.md']);
+    const proposals = notesIn(PROPOSALS);
+    expect(proposals).toEqual([
+      'Inbox/Proposals/Review what 2026-10-14 Renewal review left for you.md',
+    ]);
+    const review = vault.properties(proposals[0]!);
+    expect(review).toMatchObject({ kind: 'task', state: 'open', confidence: 'medium' });
+    expect(review['payload']).toMatchObject({
+      title: 'Review what 2026-10-14 Renewal review left for you',
+      properties: { status: 'inbox', meeting: '[[2026-10-14 Renewal review]]' },
+    });
+    const body = (review['payload'] as { body: string }).body;
+    expect(body).toContain(
+      '- [ ] Waiting on Tobias Fenn: Flag the new cache [[2026-10-14 Renewal review#^t0002]]',
+    );
+    expect(body).toContain('- [ ] Book the review room [[2026-10-14 Renewal review#^t0003]]');
+  });
+
+  it('makes nothing at all of a meeting with only small talk and ideas', async () => {
+    const idea = { ...OWNERS_BOOK, title: 'Maybe redo the office', confidence: 'low' };
+    const theirs = { ...TOBIAS_FLAG, title: 'Try the new café' };
+    const { arrived, notesIn, tasks, activity } = setUp({ rounds: [answer(idea, theirs)] });
+
+    await arrived();
+
+    expect(tasks()).toEqual([]);
+    expect(notesIn(PROPOSALS)).toEqual([]);
+    expect(activity.reports.map((report) => report.message).join('\n')).toMatch(
+      /Summary written by claude-sonnet-5-5 in \d+ s for 2026-10-14 Renewal review; 0 tasks made, 0 items listed, 0 proposals, left out 2 items\./,
     );
   });
 
@@ -416,23 +462,45 @@ describe('a leftover proposal for an item already made', () => {
 });
 
 describe('a meeting whose items stay proposals', () => {
-  it('makes only proposals of a meeting that arrived before the rule (a backfill)', async () => {
-    const { runNow, notesIn, tasks } = setUp({ ruleAgeDays: -1 });
+  it('makes one review of a meeting that arrived before the rule (a backfill), and no task', async () => {
+    const { vault, runNow, notesIn, tasks } = setUp({ ruleAgeDays: -1 });
 
     await runNow();
 
     expect(tasks()).toEqual([]);
-    expect(notesIn(PROPOSALS)).toHaveLength(3);
+    const proposals = notesIn(PROPOSALS);
+    expect(proposals).toHaveLength(1);
+    const { body } = vault.properties(proposals[0]!)['payload'] as { body: string };
+    expect(body).toContain('Send the renewal contract');
+    expect(body).toContain('Book the review room');
+    expect(body).not.toContain('Flag the new cache');
   });
 
-  it('makes only proposals when the vault does not say who its owner is', async () => {
-    const { vault, arrived, notesIn, tasks } = setUp({ owner: null });
+  it('makes no task when the vault does not say who its owner is, and says why on every run (#181)', async () => {
+    const { vault, arrived, runNow, notesIn, tasks, activity } = setUp({
+      owner: null,
+      rounds: [TWO_MINE_ONE_TOBIAS, TWO_MINE_ONE_TOBIAS],
+    });
 
     await arrived();
 
     expect(tasks()).toEqual([]);
-    expect(notesIn(PROPOSALS)).toHaveLength(3);
+    expect(notesIn(PROPOSALS)).toHaveLength(1);
     expect(vault.properties(MEETING)['tasks']).toBeUndefined();
+    const warned = () =>
+      activity.reports.filter((report) =>
+        report.message.includes('Atlas can’t tell which action items are yours'),
+      ).length;
+    expect(warned()).toBe(1);
+
+    // New words read again: said again.
+    vault.files.set(
+      MEETING,
+      vault.files.get(MEETING)!.replace('flag the new cache', 'flag the new caches'),
+    );
+    await runNow();
+    expect(warned()).toBe(2);
+    expect(tasks()).toEqual([]);
   });
 });
 

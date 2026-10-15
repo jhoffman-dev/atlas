@@ -14,14 +14,17 @@ import { matchAttendees, type DirectoryPerson } from '../meeting-links/attendee-
 import {
   isOwnerAttendee,
   isOwnerNote,
+  isSharedAddress,
   ownerAddressesInUse,
   ownerNotAGroup,
+  sameAddress,
   sameName,
 } from '../meeting-links/vault-owner.ts';
 import type { MeetingAttendee } from '../meetings/meeting-header.ts';
 import { comparableAddress } from '../profile/email-addresses.ts';
 import { isSelfSpeaker, isUnnamedSpeaker } from '../meetings/transcript.ts';
 import { vocabularyKey } from '../terms/spelling.ts';
+import type { VaultPath } from '../vault/vault-path.ts';
 
 export type ItemOwner =
   /**
@@ -56,11 +59,40 @@ export interface OwnerDirectory {
 }
 
 /**
- * The directory as an owner is looked up in it: with the transcript's
- * speakers who are surely not the vault's owner ({@link othersSpeaking}).
+ * The directory as an owner is looked up in it: with every name the owner
+ * goes by, their own Person notes, and the transcript's speakers who are
+ * surely not the vault's owner ({@link othersSpeaking}).
  */
 interface OwnerSearch extends OwnerDirectory {
   readonly othersSpeaking: readonly string[];
+  /**
+   * The profile's name, and each name and alias of the owner's own Person
+   * notes that tells them apart from everyone else in the meeting (#226).
+   */
+  readonly ownerNames: readonly string[];
+  /**
+   * The names and aliases of the owner's own Person notes that another
+   * attendee or speaker also goes by, each with who else has it: such a name
+   * could be either of them.
+   */
+  readonly sharedNames: ReadonlyMap<string, readonly string[]>;
+  /** The owner's own Person notes ({@link ownersNotes}). */
+  readonly ownerNotes: readonly VaultPath[];
+}
+
+/** Whether a name is one the owner goes by, in any common spelling. */
+const isOwnersName = (name: string, { ownerNames }: Pick<OwnerSearch, 'ownerNames'>): boolean =>
+  ownerNames.some((each) => sameName(name, each));
+
+/** Whether an attendee is the owner: by any name they go by, or one of their addresses. */
+function isOwnersAttendee(
+  attendee: MeetingAttendee,
+  search: Pick<OwnerSearch, 'ownerNames' | 'selfEmails'>,
+): boolean {
+  return (
+    isOwnersName(attendee.name, search) ||
+    isOwnerAttendee({ attendee, selfName: null, selfEmails: search.selfEmails })
+  );
 }
 
 /** Words a model writes for the vault's owner besides `You`. */
@@ -177,15 +209,20 @@ function isOwnersFirstName(name: string, search: OwnerSearch): boolean {
  * first name. Until then a one-word label could be the owner's, so only a
  * fuller name the owner does not have counts.
  */
-function othersSpeaking({ speakers, attendees, selfName, selfEmails }: OwnerDirectory): string[] {
+function othersSpeaking({
+  speakers,
+  attendees,
+  ownerNames,
+  selfEmails,
+}: Omit<OwnerSearch, 'othersSpeaking'>): string[] {
   const named = [...new Set(speakers.map((each) => each.trim()))].filter(
     (each) => each !== '' && !isUnnamedSpeaker(each),
   );
   const saysYou = named.some(isSelfSpeaker);
   const ownersNames = [
-    ...(selfName === null ? [] : [selfName]),
+    ...ownerNames,
     ...attendees
-      .filter((attendee) => isOwnerAttendee({ attendee, selfName, selfEmails }))
+      .filter((attendee) => isOwnersAttendee(attendee, { ownerNames, selfEmails }))
       .map((attendee) => attendee.name),
   ];
   const isOwners = (label: string) =>
@@ -209,40 +246,38 @@ function namesSomeoneElse(name: string, search: OwnerSearch): boolean {
     return false;
   }
   if (search.othersSpeaking.some((speaker) => sameName(speaker, name))) return true;
-  const { people, selfName } = search;
-  if (selfName !== null && sameName(name, selfName)) return false;
+  const { people } = search;
+  if (isOwnersName(name, search)) return false;
   const person = matchAttendees([{ name, email: null, group: false }], people, []).linked[0]
     ?.person;
-  return person !== undefined && !isOwnerNote(person, selfName);
+  return person !== undefined && !search.ownerNotes.includes(person.path);
 }
 
 /** The search with nobody in it who is the vault's owner: for a name that is someone else's. */
 function withoutTheOwner(search: OwnerSearch): OwnerSearch {
-  const { attendees, people, selfName, selfEmails } = search;
+  const { attendees, people, ownerNotes } = search;
   return {
     ...search,
-    attendees: attendees.filter((attendee) => !isOwnerAttendee({ attendee, selfName, selfEmails })),
-    people: people.filter((person) => !isOwnerNote(person, selfName)),
+    attendees: attendees.filter((attendee) => !isOwnersAttendee(attendee, search)),
+    people: people.filter((person) => !ownerNotes.includes(person.path)),
     selfName: null,
+    ownerNames: [],
+    sharedNames: new Map(),
+    ownerNotes: [],
     selfEmails: [],
   };
 }
 
 /** Whether a single owner, with no and/&, is the vault's owner. */
 function isSelf(owner: { name: string; email: string | null }, directory: OwnerSearch): boolean {
-  const { selfName, selfEmails } = directory;
   const { name, email } = owner;
   if (email === null && (isSelfSpeaker(name) || SELF_WORDS.test(name))) return true;
-  if (selfName !== null && sameName(name, selfName)) return true;
+  if (isOwnersName(name, directory)) return true;
   if (email === null && isOwnersFirstName(name, directory)) return true;
   // Only an attendee that is the one it could be: two of a first name are neither.
   const listed = attendeesNamed(owner, directory).filter((each) => !each.group);
   const attendee = (listed.length === 1 ? listed[0] : undefined) ?? { name, email, group: false };
-  return isOwnerAttendee({
-    attendee: { ...attendee, email: email ?? attendee.email },
-    selfName,
-    selfEmails,
-  });
+  return isOwnersAttendee({ ...attendee, email: email ?? attendee.email }, directory);
 }
 
 function ownerOf(written: string): { name: string; email: string | null } {
@@ -252,9 +287,10 @@ function ownerOf(written: string): { name: string; email: string | null } {
 
 /**
  * Whose an item is, from the owner its answer wrote. `You` (as a transcript
- * writes the owner), the profile's name in its common spellings, its first
- * name when no other attendee or speaker has it, or any of the vault's
- * `selfEmails` is the owner; "we" is the owner's too, to check. A one-word
+ * writes the owner), any name the owner goes by — the profile's, or a name
+ * or alias of their own Person note (#226) — in its common spellings, the
+ * profile's first name when no other attendee or speaker has it, or any of
+ * the owner's addresses is the owner; "we" is the owner's too, to check. A one-word
  * name the transcript gives another speaker, or a Person note other than the
  * owner's has, is never the owner ({@link namesSomeoneElse}). Any other name
  * or address is matched as an attendee is (`matchAttendees`): one person is
@@ -272,18 +308,101 @@ export function itemOwner(written: string, directory: OwnerDirectory): ItemOwner
  * The directory as the owner is found in it (ADR-0024 amendment): an
  * attendee at one of the vault's `selfEmails` is the owner even when a group
  * rule read their address as a group's, and with no `selfEmails` the
- * owner's own Person note's addresses are theirs, as before the setting.
+ * owner's own Person note's addresses are theirs, as before the setting. The
+ * owner's own Person notes ({@link ownersNotes}) give the
+ * other names and aliases the owner goes by (#226), as a meeting's
+ * participants leave the owner out (#227); one another attendee or speaker
+ * also goes by is not the owner's alone ({@link othersWithName}).
  */
 function asTheOwnerSaid(directory: OwnerDirectory): OwnerSearch {
   const { attendees, people, selfName, selfEmails, speakers } = directory;
+  const addresses = ownerAddressesInUse({ selfEmails, people, selfName });
+  const mine = ownersNotes({ people, selfName, addresses });
+  const listed = ownerNotAGroup(attendees, selfEmails);
+  const ownerNames: string[] = selfName === null || selfName.trim() === '' ? [] : [selfName];
+  const sharedNames = new Map<string, readonly string[]>();
+  for (const name of mine.flatMap((person) => [person.name, ...person.aliases])) {
+    if (name.trim() === '' || ownerNames.some((each) => sameName(each, name))) continue;
+    const others = othersWithName(name, { attendees: listed, speakers, selfName, addresses });
+    if (others.length === 0) ownerNames.push(name);
+    else sharedNames.set(name, others);
+  }
   const said = {
-    attendees: ownerNotAGroup(attendees, selfEmails),
+    attendees: listed,
     people,
     selfName,
-    selfEmails: ownerAddressesInUse({ selfEmails, people, selfName }),
+    selfEmails: addresses,
     speakers,
+    ownerNames,
+    sharedNames,
+    ownerNotes: mine.map((person) => person.path),
   };
   return { ...said, othersSpeaking: othersSpeaking(said) };
+}
+
+/**
+ * The owner's own Person notes: the one the profile names — by its name, or
+ * an alias that is the profile's name. Only with none is a note found by
+ * address, and then only the one note at an address of the owner's that no
+ * other note has: a note never becomes the owner's for sharing one address
+ * with theirs, and a shared mailbox tells nobody apart (#226).
+ */
+function ownersNotes({
+  people,
+  selfName,
+  addresses,
+}: {
+  people: readonly DirectoryPerson[];
+  selfName: string | null;
+  addresses: readonly string[];
+}): readonly DirectoryPerson[] {
+  const named = people.filter((person) => isOwnerNote(person, selfName));
+  if (named.length > 0) return named;
+  const own = addresses.filter((email) => !isSharedAddress(email, people));
+  const addressed = people.filter((person) =>
+    person.emails.some((email) => own.some((each) => sameAddress(each, email))),
+  );
+  return addressed.length === 1 ? addressed : [];
+}
+
+/**
+ * Who else in the meeting goes by a name of the owner's Person note: an
+ * attendee who is not the owner, or a speaker the transcript writes some
+ * other way, whose name — or first name — it is. The speaker written by that
+ * very name is the one in question, so is not counted. Empty when the name is
+ * the owner's alone, as the profile's first name must be ({@link isOwnersFirstName}).
+ */
+function othersWithName(
+  name: string,
+  {
+    attendees,
+    speakers,
+    selfName,
+    addresses,
+  }: {
+    attendees: readonly MeetingAttendee[];
+    speakers: readonly string[];
+    selfName: string | null;
+    addresses: readonly string[];
+  },
+): string[] {
+  const attending = attendees
+    .filter(
+      (attendee) =>
+        !attendee.group && !isOwnerAttendee({ attendee, selfName, selfEmails: addresses }),
+    )
+    .map((attendee) => attendee.name);
+  const speaking = speakers.filter(
+    (label) =>
+      !isSelfSpeaker(label) &&
+      !isUnnamedSpeaker(label) &&
+      !sameName(label, name) &&
+      (selfName === null || !sameName(label, selfName)),
+  );
+  const others = [...new Set([...attending, ...speaking].map((each) => each.trim()))];
+  return others.filter(
+    (other) => sameName(other, name) || firstNameOf(other) === vocabularyKey(name),
+  );
 }
 
 function ownerIn(written: string, directory: OwnerSearch): ItemOwner {
@@ -300,11 +419,21 @@ function ownerIn(written: string, directory: OwnerSearch): ItemOwner {
       shared: 'we',
     };
   }
+  const sharers = owner.email === null ? sharedName(name, directory) : undefined;
+  if (sharers !== undefined) {
+    return { kind: 'ambiguous', name, candidates: [directory.selfName ?? 'you', ...sharers] };
+  }
   if (owner.email === null && namesSomeoneElse(name, directory)) {
     return otherOwner(owner, withoutTheOwner(directory));
   }
   if (isSelf(owner, directory)) return { kind: 'self' };
   return otherOwner(owner, directory);
+}
+
+/** Who else goes by a name of the owner's Person note, when another attendee or speaker has it too. */
+function sharedName(name: string, { sharedNames }: OwnerSearch): readonly string[] | undefined {
+  for (const [shared, others] of sharedNames) if (sameName(name, shared)) return others;
+  return undefined;
 }
 
 function jointOwners(whole: string): string[] | null {
@@ -331,7 +460,7 @@ function otherOwner(
   owner: { name: string; email: string | null },
   directory: OwnerSearch,
 ): ItemOwner {
-  const { people, selfName, selfEmails } = directory;
+  const { people } = directory;
   const named = attendeesNamed(owner, directory);
   // A group took nothing on: a list is not who an item waits on.
   if (named.length > 0 && named.every((each) => each.group)) return { kind: 'unknown' };
@@ -340,13 +469,13 @@ function otherOwner(
     return { kind: 'ambiguous', name: owner.name, candidates: listed.map((each) => each.name) };
   }
   const attendee = listed[0] ?? { name: owner.name, email: owner.email, group: false };
-  if (isOwnerAttendee({ attendee, selfName, selfEmails })) {
+  if (isOwnersAttendee(attendee, directory)) {
     return { kind: 'self' };
   }
   const matching = matchAttendees([attendee], people, []);
   const person = matching.linked[0]?.person;
   if (person !== undefined) {
-    return isOwnerNote(person, selfName)
+    return directory.ownerNotes.includes(person.path)
       ? { kind: 'self' }
       : { kind: 'person', name: person.name, person };
   }

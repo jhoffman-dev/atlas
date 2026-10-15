@@ -394,10 +394,18 @@ describe('what a meeting’s summary is of', () => {
   });
 });
 
-describe('what the summary lists', () => {
+describe('what the summary lists (#185, #226)', () => {
   const reading = readDigest({
     items: [
       ...ITEMS,
+      {
+        kind: 'waiting',
+        title: 'Send the cache numbers',
+        owner: 'Tobias Fenn',
+        source_block: 't0003',
+        confidence: 'high',
+        asked_by_owner: true,
+      },
       {
         kind: 'follow-up',
         title: 'Check Friday still works',
@@ -406,38 +414,63 @@ describe('what the summary lists', () => {
         confidence: 'medium',
       },
       { kind: 'task', title: 'Go through it', owner: '', source_block: 't0004', confidence: 'low' },
+      {
+        kind: 'decision',
+        title: 'Rename the flag',
+        source_block: 't0002',
+        confidence: 'low',
+      },
     ],
   });
-  const decision = decideMeetingItems({
-    proposals: reading.value,
-    vault: VAULT,
-    run: { today: '2026-10-01', backfilled: false, madeItems: [], linkedTasks: [] },
+  const decide = (madeItems: readonly { key: string; title: string }[] = []) =>
+    decideMeetingItems({
+      proposals: reading.value,
+      vault: VAULT,
+      run: { today: '2026-10-01', backfilled: false, madeItems, linkedTasks: [] },
+    });
+  const decision = decide();
+
+  it('lists the owner’s items and what they asked for, never what the decision left out', () => {
+    const left = decision.items
+      .filter(({ decision: each }) => each.outcome === 'left-out')
+      .map(({ proposal }) => proposal.payload.title);
+    expect(left).toEqual(expect.arrayContaining(['Flag the new cache', 'Go through it']));
+
+    const { actionItems, decisions } = summaryListing(decision.items);
+    const titles = actionItems.map(({ title }) => title);
+    expect(titles).toEqual(
+      expect.arrayContaining(['Write the rollout note', 'Send the cache numbers']),
+    );
+    for (const title of left) expect(titles).not.toContain(title);
+    expect(actionItems.find(({ title }) => title === 'Write the rollout note')).toEqual({
+      title: 'Write the rollout note',
+      assignee: 'you',
+      turn: 't0003',
+      taskMade: true,
+    });
+    expect(actionItems.find(({ title }) => title === 'Send the cache numbers')).toEqual({
+      title: 'Send the cache numbers',
+      assignee: 'Tobias Fenn',
+      turn: 't0003',
+      taskMade: false,
+    });
+    expect(decisions).not.toContain('Rename the flag');
   });
 
-  it('lists the action items with who took each on, the owner’s as you, a task marked made', () => {
-    const { actionItems, decisions } = summaryListing(decision.items);
-    expect(actionItems).toEqual([
-      { title: 'Flag the new cache', assignee: 'Tobias Fenn', turn: 't0002', taskMade: false },
-      { title: 'Write the rollout note', assignee: 'you', turn: 't0003', taskMade: true },
-      { title: 'Check Friday still works', assignee: 'you', turn: 't0004', taskMade: false },
-      { title: 'Go through it', assignee: '', turn: 't0004', taskMade: false },
-    ]);
-    expect(decisions).toEqual(['Ship the cache behind a flag']);
+  it('lists a decision the owner took part in, and not one they did not', () => {
+    expect(summaryListing(decision.items).decisions).toEqual(['Ship the cache behind a flag']);
   });
 
   it('marks an item a task already stands for as made', () => {
-    const made = decideMeetingItems({
-      proposals: reading.value,
-      vault: VAULT,
-      run: {
-        today: '2026-10-01',
-        backfilled: false,
-        madeItems: decision.items.flatMap(({ decision: each, proposal }) =>
-          each.outcome === 'task' ? [{ key: each.atlasItem, title: proposal.payload.title }] : [],
-        ),
-        linkedTasks: [],
-      },
-    });
-    expect(summaryListing(made.items).actionItems[1]).toMatchObject({ taskMade: true });
+    const made = decide(
+      decision.items.flatMap(({ decision: each, proposal }) =>
+        each.outcome === 'task' ? [{ key: each.atlasItem, title: proposal.payload.title }] : [],
+      ),
+    );
+    expect(
+      summaryListing(made.items).actionItems.find(
+        ({ title }) => title === 'Write the rollout note',
+      ),
+    ).toMatchObject({ taskMade: true });
   });
 });

@@ -251,8 +251,9 @@ interface StepArgs extends ProposalWritePorts {
  *
  * The declared step (`apply: mine`, ADR-0036) makes the owner's own action
  * items into tasks, linked both ways, without a click: which ones is decided
- * in the domain (`decideMeetingItems`), per meeting, and the rest are
- * proposals as before. The tasks are made first, then the proposals. A run
+ * in the domain (`decideMeetingItems`), per meeting; what the owner should
+ * still see is one review proposal per meeting, and the rest is left out
+ * (#226). The tasks are made first, then the proposals. A run
  * that read a meeting's answers in full and then failed keeps them
  * (`ClaudeStepFailed.stored`), and its retry reuses them rather than asking
  * again; one it made some tasks in names them in `made`, and the retry finds
@@ -340,6 +341,9 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
             toStore,
           });
     const { planned, proposed, tasks = [], summaries = [], filings = [] } = answered;
+    if (answered.meetings?.some(({ noTasksBecause }) => noTasksBecause === 'owner-unknown')) {
+      warnings.push(OWNER_UNKNOWN_WARNING);
+    }
     // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
     alreadyMade = Math.max(0, proposed - planned.length);
     await args.beforeWrite?.();
@@ -370,23 +374,31 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
 }
 
 /**
+ * What the run says, on every run until it is fixed, when the vault does not
+ * say who its owner is (#181): no task can be known to be theirs, so none is made.
+ */
+export const OWNER_UNKNOWN_WARNING =
+  'Atlas can’t tell which action items are yours, so it made no tasks: add your name or emails in Settings → Profile.';
+
+/**
  * What the declared step made of one meeting it read: its tasks, its
- * proposals written, and — when it summarises — what its summary lists and
- * what became of it.
+ * proposals written, what it left out (#226) and — when it summarises — what
+ * its summary lists and what became of it.
  */
 function tallyOf(
-  meeting: VaultPath,
+  { path, leftOut }: MeetingRead,
   tasks: readonly PlannedTask[],
   planned: readonly PlannedNote[],
   summaries: readonly PlannedSummary[],
   outcomes: ReadonlyMap<VaultPath, SummaryOutcome>,
 ): MeetingTally {
-  const summary = summaries.find((each) => each.meeting === meeting);
-  const outcome = outcomes.get(meeting);
+  const summary = summaries.find((each) => each.meeting === path);
+  const outcome = outcomes.get(path);
   return {
-    path: meeting,
-    tasks: tasks.filter((task) => task.meeting.path === meeting).length,
-    proposals: planned.filter((note) => note.meeting === meeting).length,
+    path,
+    tasks: tasks.filter((task) => task.meeting.path === path).length,
+    proposals: planned.filter((note) => note.meeting === path).length,
+    ...(leftOut > 0 && { leftOut }),
     ...(summary !== undefined &&
       outcome !== undefined && { listed: summary.listed, summary: outcome }),
   };
@@ -608,11 +620,18 @@ interface AnswerPlanned {
   /** For the declared step: the owner's tasks to make, before the proposals are written. */
   readonly tasks?: readonly PlannedTask[];
   /** For the declared step: each meeting it read, in order, for the log to say what it made of each. */
-  readonly meetings?: readonly VaultPath[];
+  readonly meetings?: readonly MeetingRead[];
   /** For the declared step whose output summarises: each meeting's summary, and what it lists. */
   readonly summaries?: readonly PlannedSummary[];
   /** For the declared step: the meetings to file under the project Claude was sure of (#227) that have no summary write to join. */
   readonly filings?: readonly PropertyChange[];
+}
+
+/** A meeting the declared step read: how many of its items it left out, and why it could make no task, if it could not. */
+interface MeetingRead {
+  readonly path: VaultPath;
+  readonly leftOut: number;
+  readonly noTasksBecause: MeetingDecided['noTasksBecause'];
 }
 
 /** A meeting's summary as planned, before anything is written (#185). */
@@ -680,12 +699,13 @@ async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanne
     ? await readVault({ ...asking, withProjects: declared })
     : undefined;
   const answered = await readAnswers(asking, vault);
-  const decided = declared
+  const decided: readonly MeetingDecided[] = declared
     ? await decideOwnersItems(asking, answered, vault)
     : answered.map(({ path, proposals }) => ({
         meeting: path,
         tasks: [],
         proposals,
+        leftOut: 0,
         noTasksBecause: null,
         listed: [],
         decisions: [],
@@ -734,7 +754,11 @@ async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanne
     proposed,
     ...(declared && {
       tasks: decided.flatMap(({ tasks }) => tasks),
-      meetings: decided.map(({ meeting }) => meeting),
+      meetings: decided.map(({ meeting, leftOut, noTasksBecause }) => ({
+        path: meeting,
+        leftOut,
+        noTasksBecause,
+      })),
       summaries,
       filings: unsummarised,
     }),

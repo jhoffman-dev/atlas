@@ -16,6 +16,7 @@ import { MeetingProjects, type MeetingProjectsProps } from './meeting-projects.t
 import { ParaMigration, type ParaMigrationProps } from './para-migration.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
+import { MeetingCleanup, type MeetingCleanupProps } from './meeting-cleanup.tsx';
 
 const NO_REFUSALS: readonly InboxRefusal[] = [];
 
@@ -70,6 +71,19 @@ export interface InboxPageProps {
   paraMigration?: ParaMigrationProps | null;
   /** Moving loose notes and old meetings to their home folders, once, previewed first (#214). */
   vaultTidy?: VaultTidyProps | null;
+  /**
+   * Set while a rule would make the owner's tasks from meetings but the vault
+   * does not say who the owner is (#181): no task can be made until it does.
+   */
+  ownerUnknown?: { readonly onOpenSettings: () => void } | null;
+  /**
+   * Set while the vault's settings note cannot be read (#226): who the owner
+   * is is not known, so the meeting import and the automations are held
+   * until it reads. `problem` is why it cannot be read.
+   */
+  settingsUnreadable?: { readonly problem: string; readonly onOpenSettings: () => void } | null;
+  /** The tasks meetings made that today's rules would not have, offered to archive (#226). */
+  meetingCleanup?: MeetingCleanupProps | null;
   /** Filing the meetings that have no project as their series is, previewed first (#227). */
   meetingProjects?: MeetingProjectsProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
@@ -95,6 +109,9 @@ export function InboxPage(props: InboxPageProps) {
   const migration = props.taskMigration ?? null;
   const paraMigration = props.paraMigration ?? null;
   const tidy = props.vaultTidy ?? null;
+  const ownerUnknown = props.ownerUnknown ?? null;
+  const settingsUnreadable = props.settingsUnreadable ?? null;
+  const cleanup = props.meetingCleanup ?? null;
   const meetingProjects = props.meetingProjects ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
@@ -120,12 +137,15 @@ export function InboxPage(props: InboxPageProps) {
               ),
             })}
           />
+          {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
+          {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
           <Offers
             offers={[
               ['types', offer && <TypesOffer {...offer} />],
               ['tasks', migration && <TaskMigration {...migration} />],
               ['para', paraMigration && <ParaMigration {...paraMigration} />],
               ['tidy', tidy && <VaultTidy {...tidy} />],
+              ['cleanup', cleanup && <MeetingCleanup {...cleanup} />],
               ['meetings', meetingProjects && <MeetingProjects {...meetingProjects} />],
             ]}
           />
@@ -173,6 +193,62 @@ function describe(contents: InboxContents | null, proposals: number): string | n
   if (contents.total === 0)
     return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
   return `${contents.total} to process · clarify each task, file each note${toAnswer}`;
+}
+
+/**
+ * Said for as long as it is so (#181): with no name or address to know the
+ * owner by, no meeting's item can be known to be theirs, so none is made a task.
+ */
+function OwnerUnknown({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <aside
+      className="inbox__offer inbox__offer--warning"
+      role="alert"
+      aria-label="Atlas can’t tell which action items are yours"
+    >
+      <Icon name="person" size={16} className="inbox__offer-icon" />
+      <div className="inbox__offer-text">
+        <p>
+          Atlas can’t tell which action items are yours, so meetings make no tasks for you. Add your
+          name or your emails in Settings → Profile.
+        </p>
+      </div>
+      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpenSettings}>
+        Open Settings
+      </button>
+    </aside>
+  );
+}
+
+/**
+ * Said for as long as the vault's settings note cannot be read (#226): the
+ * meeting import and the automations wait, losing nothing, until it reads.
+ */
+function SettingsUnreadable({
+  problem,
+  onOpenSettings,
+}: {
+  problem: string;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <aside
+      className="inbox__offer inbox__offer--warning"
+      role="alert"
+      aria-label="Meetings and automations are paused"
+    >
+      <Icon name="person" size={16} className="inbox__offer-icon" />
+      <div className="inbox__offer-text">
+        <p>
+          Meetings and automations are paused: .atlas/settings.md can’t be read ({problem}). Nothing
+          is lost — meetings wait in their folder — and both resume once it reads.
+        </p>
+      </div>
+      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpenSettings}>
+        Open Settings
+      </button>
+    </aside>
+  );
 }
 
 function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {

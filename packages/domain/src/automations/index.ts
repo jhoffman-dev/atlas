@@ -117,7 +117,24 @@ export type {
   RegisteredProposalSchema,
 } from './proposal-schema.ts';
 export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
-export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
+export {
+  EXCHANGE_TURNS,
+  FOLLOW_UP_TAG,
+  MEETING_ITEMS,
+  MEETING_ITEMS_OUTPUT,
+} from './meeting-items.ts';
+export { meetingReview } from './meeting-review.ts';
+export {
+  CLEANUP_REASON_WORDS,
+  MEETING_ITEM_KEPT_KEY,
+  meetingTasksFailingRules,
+} from './meeting-cleanup.ts';
+export type {
+  CitedMeeting,
+  CleanupCandidate,
+  CleanupReason,
+  MadeMeetingTask,
+} from './meeting-cleanup.ts';
 export {
   DIGEST_REDUCE_INSTRUCTIONS,
   DIGEST_REDUCE_PROMPT,
@@ -156,13 +173,17 @@ export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
 export { compileMadeItemsQuery, linkedTaskOwner, madeTaskFor } from './made-items.ts';
 export {
   decideMeetingItems,
+  ownerNeededBy,
+  REVIEW_CONFIDENCE_FLOOR,
   sameItemTitle,
   TASK_CONFIDENCE_FLOOR,
   vaultNamesItsOwner,
 } from './meeting-item-apply.ts';
 export type {
+  LeftOutBecause,
   LinkedTask,
   MadeItem,
+  MeetingDecisionClaim,
   MeetingItemCap,
   MeetingItemClaim,
   MeetingItemDecision,
@@ -175,6 +196,8 @@ export {
   AFTER_A_MEETING_PROMPT,
   BUILT_IN_PROMPTS,
   builtInPromptAt,
+  outdatedBuiltInPrompt,
+  promptDigest,
   MEETING_EXTRACTION_PROMPT,
 } from './built-in-prompts.ts';
 export type { BuiltInPrompt } from './built-in-prompts.ts';

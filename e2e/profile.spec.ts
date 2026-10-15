@@ -126,7 +126,7 @@ test('changing the preferred name leaves a full name Atlas cannot show as it was
 const profileCard = (page: Page) =>
   page.getByRole('dialog', { name: 'Settings' }).getByRole('region', { name: 'Profile' });
 
-test('your emails are kept in the vault’s settings, beside your name, once saved', async ({
+test('your emails are kept in the vault’s settings, beside your name, as they are typed', async ({
   page,
 }) => {
   const { vault } = await openVault(page, '---\nprofileName: Mara Quill\n---\n');
@@ -137,25 +137,25 @@ test('your emails are kept in the vault’s settings, beside your name, once sav
 
   // Something that is not an address is named, and nothing is kept; what was typed stays.
   await field.fill('mara.quill@example.com, Mara');
-  await card.getByRole('button', { name: 'Save emails' }).click();
+  await field.blur();
   await expect(card.getByRole('alert', { name: 'Your emails were not saved' })).toHaveText(
-    'Not an email address: “Mara”. Nothing was saved.',
+    'Couldn’t save: Not an email address: “Mara”. Nothing was saved.',
   );
   await expect(field).toHaveValue('mara.quill@example.com, Mara');
-  await expect(card.getByRole('button', { name: 'Save emails' })).toBeEnabled();
+  await expect(card.getByRole('button', { name: 'Save emails' })).toHaveCount(0);
 
+  // A pause in typing saves too: no button, no blur.
   await field.fill('Mara Quill <Mara.Quill@example.com>\nmq@example.com');
-  await card.getByRole('button', { name: 'Save emails' }).click();
 
   await expectFile(vault, '.atlas/settings.md').toBe(
     '---\nprofileName: Mara Quill\nselfEmails:\n  - mara.quill@example.com\n  - mq@example.com\n---\n',
   );
   await expect(field).toHaveValue('mara.quill@example.com, mq@example.com');
-  await expect(card.getByRole('button', { name: 'Save emails' })).toBeDisabled();
+  await expect(card.getByRole('status', { name: 'Where your emails stand' })).toHaveText('Saved');
   await expect(card.getByRole('alert', { name: 'Your emails were not saved' })).toHaveCount(0);
 });
 
-test('addresses Settings → Granola kept are in use, and saving keeps them as selfEmails', async ({
+test('addresses Settings → Granola kept are in use, and editing them keeps them as selfEmails', async ({
   page,
 }) => {
   const { vault } = await openVault(
@@ -168,14 +168,15 @@ test('addresses Settings → Granola kept are in use, and saving keeps them as s
   await expect(field).toHaveValue('mara.quill@example.com');
   await expect(card.getByText(/In use from granola_self_emails/)).toBeVisible();
 
-  await card.getByRole('button', { name: 'Save emails' }).click();
+  // An edit moves them; the same address typed differently is still an edit.
+  await field.fill('Mara.Quill@example.com');
+  await field.blur();
 
   // Moved in one save: selfEmails holds them, and the Granola key is gone.
   await expectFile(vault, '.atlas/settings.md').toBe(
     '---\nselfEmails:\n  - mara.quill@example.com\n---\n',
   );
   await expect(card.getByText(/In use from granola_self_emails/)).toHaveCount(0);
-  await expect(card.getByRole('button', { name: 'Save emails' })).toBeDisabled();
 });
 
 test('clearing addresses Settings → Granola kept removes them, leaving none in use', async ({
@@ -191,7 +192,7 @@ test('clearing addresses Settings → Granola kept removes them, leaving none in
   await expect(field).toHaveValue('mara.quill@example.com');
 
   await field.fill('');
-  await card.getByRole('button', { name: 'Save emails' }).click();
+  await field.blur();
 
   await expectFile(vault, '.atlas/settings.md').toBe('---\nprofileName: Mara Quill\n---\n');
   await expect(field).toHaveValue('');
@@ -212,7 +213,7 @@ test('addresses in the settings that are not all addresses are said unreadable, 
   await expect(field).toHaveValue('');
 
   await field.fill('mara.quill@example.com\nMara Quill <MQ@example.com>');
-  await card.getByRole('button', { name: 'Save emails' }).click();
+  await field.blur();
   await expectFile(vault, '.atlas/settings.md').toContain(
     'selfEmails:\n  - mara.quill@example.com\n  - mq@example.com\n',
   );

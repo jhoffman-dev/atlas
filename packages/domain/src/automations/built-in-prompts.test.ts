@@ -2,10 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { splitFrontmatter } from '../markdown/markdown-document.ts';
 import { draftProblem } from './automation-rule.ts';
 import {
+  AFTER_A_MEETING_PROMPT,
   BUILT_IN_PROMPTS,
   builtInPromptAt,
   MEETING_EXTRACTION_PROMPT,
+  outdatedBuiltInPrompt,
+  promptDigest,
 } from './built-in-prompts.ts';
+import {
+  EARLIER_AFTER_A_MEETING,
+  EARLIER_MEETING_EXTRACTION,
+} from './built-in-prompts.earlier.fixture.ts';
 import { isPromptPath } from './claude-step.ts';
 import { AUTOMATION_PRESETS } from './presets.ts';
 import { proposalSchemaNamed } from './proposal-schemas.ts';
@@ -55,5 +62,86 @@ describe('the ready-made meeting extraction rule', () => {
       output: { kind: 'proposals', schema: 'meeting-items' },
     });
     expect(proposalSchemaNamed('meeting-items')).not.toBeNull();
+  });
+});
+
+/** #226: only the owner's real commitments, so the prompts say what is not one. */
+describe('the prompts after #226', () => {
+  const after = builtInPromptAt(AFTER_A_MEETING_PROMPT)!.contents;
+  const extraction = builtInPromptAt(MEETING_EXTRACTION_PROMPT)!.contents;
+
+  it.each([
+    ['After a meeting', after],
+    ['Meeting extraction', extraction],
+  ])('%s gives counter-examples of what is not an item', (_, contents) => {
+    expect(contents).toContain('## Not items');
+    for (const kind of [
+      'work under way',
+      'an idea nobody took on',
+      'a maybe',
+      'a question',
+      'how things work, not a decision',
+      'small talk',
+    ]) {
+      expect(contents).toContain(kind);
+    }
+    expect(contents).toContain('A decision needs an agreement.');
+    expect(contents).toContain('"asked_by_owner": true');
+  });
+
+  it('tells After a meeting that only high becomes a task, and not to list others’ own work', () => {
+    const words = after.replace(/\s+/g, ' ');
+    expect(words).toContain('Only "high" may become a task.');
+    expect(words).toContain(
+      "Another person's own work that the owner did not ask for is not listed at all.",
+    );
+    expect(words).toContain('a decision the owner took no part in');
+  });
+
+  it('uses only made-up names in its examples', () => {
+    const names = [...after.matchAll(/\b[A-Z][a-z]+ [A-Z][a-z]+\b/g)].map(([name]) => name);
+    for (const name of names) {
+      expect([
+        'Mara Quill',
+        'Tobias Fenn',
+        'Larkspur Payroll',
+        'Remote Speaker',
+        'Speaker 2',
+      ]).toContain(name);
+    }
+  });
+});
+
+describe('bringing an untouched prompt up to date (#226)', () => {
+  it.each([
+    [MEETING_EXTRACTION_PROMPT, EARLIER_MEETING_EXTRACTION],
+    [AFTER_A_MEETING_PROMPT, EARLIER_AFTER_A_MEETING],
+  ])('knows the words %s shipped with before', (path, earlier) => {
+    expect(outdatedBuiltInPrompt(path, earlier)).toBe(builtInPromptAt(path));
+  });
+
+  it('leaves the words it ships now, and any edit, as they are', () => {
+    for (const prompt of BUILT_IN_PROMPTS) {
+      expect(outdatedBuiltInPrompt(prompt.path, prompt.contents)).toBeNull();
+    }
+    expect(
+      outdatedBuiltInPrompt(AFTER_A_MEETING_PROMPT, `${EARLIER_AFTER_A_MEETING}\nMine.`),
+    ).toBeNull();
+    expect(
+      outdatedBuiltInPrompt(
+        AFTER_A_MEETING_PROMPT,
+        EARLIER_AFTER_A_MEETING.replace('Read', 'read'),
+      ),
+    ).toBeNull();
+  });
+
+  it('never takes another prompt’s earlier words, or a prompt it does not ship, for its own', () => {
+    expect(outdatedBuiltInPrompt(AFTER_A_MEETING_PROMPT, EARLIER_MEETING_EXTRACTION)).toBeNull();
+    expect(outdatedBuiltInPrompt('.atlas/prompts/mine.md', EARLIER_AFTER_A_MEETING)).toBeNull();
+  });
+
+  it('knows words by two digests and a length', () => {
+    expect(promptDigest('abc')).toMatch(/^[0-9a-f]{16}-3$/);
+    expect(promptDigest('abc')).not.toBe(promptDigest('abd'));
   });
 });

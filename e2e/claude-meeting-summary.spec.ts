@@ -131,7 +131,8 @@ test('a meeting arrives and its summary is written at the top, marked, in one wr
     /\n> \[!summary\] Summary by Claude \(claude-sonnet-5-5, \d{4}-\d{2}-\d{2}\)\n/,
   );
   expect(text).toContain('> - Write the rollout note: you (a task was made)');
-  expect(text).toContain('> - Flag the new cache: Tobias Fenn (turn t0002)');
+  // Someone else's item the owner did not ask for is left out of the summary (#226).
+  expect(text).not.toContain('Flag the new cache');
   expect(text).toContain('> - Who tells the support team?\n\n<!-- /atlas:summary -->\n');
   // Its keys, and the task it made, in the same write.
   expect(text).toMatch(/\natlas_summary_digest: \S+\n/);
@@ -146,7 +147,8 @@ test('a meeting arrives and its summary is written at the top, marked, in one wr
 
   // The meeting shows it as Claude's summary.
   await page.getByRole('button', { name: /^Inbox/ }).click();
-  await page.getByText('2026-09-29 Platform weekly sync').first().click();
+  // The meeting's own row: the review proposal's title names the meeting too (#226).
+  await page.getByRole('button', { name: 'Platform weekly sync', exact: true }).click();
   const callout = page.locator('.callout[data-callout="summary"]');
   await expect(callout).toBeVisible();
   await expect(callout.locator('.callout__title')).toHaveText(

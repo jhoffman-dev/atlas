@@ -4,6 +4,7 @@ import {
   linkedTaskOwner,
   linkTargets,
   MEETING_TASKS_KEY,
+  meetingReview,
   messageWithoutPaths,
   resolveWikiLinkTarget,
   sameItemTitle,
@@ -42,11 +43,18 @@ export interface PlannedTask {
   readonly item: MeetingItemTask;
 }
 
-/** What the declared step decided for one meeting: the tasks to make, and the rest as proposals. */
+/**
+ * What the declared step decided for one meeting: the tasks to make, the one
+ * review proposal of what the owner should still see (#226), and how many
+ * items were left out.
+ */
 export interface MeetingDecided {
   readonly meeting: VaultPath;
   readonly tasks: readonly PlannedTask[];
+  /** The meeting's review, when anything is left to review: never more than one. */
   readonly proposals: readonly CheckedProposal[];
+  /** The items that reach the owner nowhere: not theirs, or not sure enough. */
+  readonly leftOut: number;
   /** Why none of the meeting's items could be a task, when that is the meeting's, not an item's. */
   readonly noTasksBecause: MeetingItemsDecision['noTasksBecause'];
   /** What its summary lists (#185): the action items, each with whether a task stands for it. */
@@ -59,7 +67,8 @@ export interface MeetingDecided {
 
 /**
  * Decides what becomes of one meeting's items (`decideMeetingItems`, #178):
- * the owner's tasks to make, and the proposals. What the run knows beyond
+ * the owner's tasks to make, and the rest the owner should see gathered into
+ * the meeting's one review (`meetingReview`, #226). What the run knows beyond
  * the answer is read from the meeting as it is now — its `tasks`, and when
  * it arrived — never from the model.
  */
@@ -99,12 +108,17 @@ export async function decideForMeeting({
   const tasks: PlannedTask[] = [];
   const rest: CheckedProposal[] = [];
   const madeBefore: VaultPath[] = [];
+  let leftOut = 0;
   for (const { proposal, decision: each } of decision.items) {
     if (each.outcome === 'skipped') {
       const task = made.find(
         ({ key, title }) => key === each.atlasItem && sameItemTitle(title, proposal.payload.title),
       );
       if (task !== undefined) madeBefore.push(task.path);
+      continue;
+    }
+    if (each.outcome === 'left-out') {
+      leftOut += 1;
       continue;
     }
     if (
@@ -128,11 +142,13 @@ export async function decideForMeeting({
       },
     });
   }
+  const review = meetingReview(rest);
   const { actionItems, decisions } = summaryListing(decision.items);
   return {
     meeting,
     tasks,
-    proposals: rest,
+    proposals: review === null ? [] : [review],
+    leftOut,
     noTasksBecause: decision.noTasksBecause,
     listed: actionItems,
     decisions,

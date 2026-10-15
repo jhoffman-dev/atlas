@@ -540,6 +540,55 @@ describe('InboxPage — more waiting than one page (#167)', () => {
   });
 });
 
+describe('InboxPage: when Atlas can’t tell which action items are yours (#181)', () => {
+  const notice = () =>
+    screen.queryByRole('alert', { name: 'Atlas can’t tell which action items are yours' });
+
+  it('says so, and opens Settings', async () => {
+    const onOpenSettings = vi.fn();
+    page({ ownerUnknown: { onOpenSettings } });
+
+    expect(notice()?.textContent).toContain('meetings make no tasks for you');
+    expect(notice()?.textContent).toContain('Settings → Profile');
+    await userEvent.click(within(notice()!).getByRole('button', { name: 'Open Settings' }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing once the owner can be told apart', () => {
+    const { rerender } = page({ ownerUnknown: { onOpenSettings: vi.fn() } });
+    expect(notice()).not.toBeNull();
+
+    rerender({ ownerUnknown: null });
+    expect(notice()).toBeNull();
+  });
+});
+
+describe('InboxPage: while the vault’s settings note cannot be read (#226)', () => {
+  const notice = () => screen.queryByRole('alert', { name: 'Meetings and automations are paused' });
+
+  it('says meetings and automations are paused, why, that nothing is lost, and opens Settings', async () => {
+    const onOpenSettings = vi.fn();
+    page({ settingsUnreadable: { problem: 'line 3: a list is not closed', onOpenSettings } });
+
+    expect(notice()?.textContent).toContain('.atlas/settings.md can’t be read');
+    expect(notice()?.textContent).toContain('line 3: a list is not closed');
+    expect(notice()?.textContent).toContain('meetings wait in their folder');
+    expect(notice()?.textContent).toContain('resume once it reads');
+    await userEvent.click(within(notice()!).getByRole('button', { name: 'Open Settings' }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing once it reads', () => {
+    const { rerender } = page({
+      settingsUnreadable: { problem: 'line 3: a list is not closed', onOpenSettings: vi.fn() },
+    });
+    expect(notice()).not.toBeNull();
+
+    rerender({ settingsUnreadable: null });
+    expect(notice()).toBeNull();
+  });
+});
+
 describe('InboxPage — an offer read late does not move the ones already shown (#227)', () => {
   const TYPES_OFFER: NonNullable<InboxPageProps['typesOffer']> = {
     lines: ['Task gains Project, linking project or area notes.'],

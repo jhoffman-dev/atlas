@@ -97,6 +97,69 @@ describe('a run that wrote a meeting’s summary, in its log', () => {
     );
   });
 
+  describe('the meeting line’s optional parts: listed and summary, then left out', () => {
+    const logWith = (tally: unknown): LogEntry => ({
+      ...RAN,
+      claude: { ...RAN.claude!, meetings: [tally as never] },
+    });
+    const line = (tally: unknown) => {
+      const entry = logWith(tally);
+      return { entry, text: newLogText('After a meeting', [entry]) };
+    };
+
+    it.each([
+      [
+        'all of them',
+        { path: MEETING, tasks: 1, proposals: 1, listed: 3, summary: 'written', leftOut: 4 },
+      ],
+      ['the summary only', { path: MEETING, tasks: 1, proposals: 1, listed: 3, summary: 'kept' }],
+      ['left out only', { path: MEETING, tasks: 1, proposals: 1, leftOut: 4 }],
+      ['none of them', { path: MEETING, tasks: 1, proposals: 1 }],
+    ])('writes %s and reads them back as they were', (_name, tally) => {
+      const { entry, text } = line(tally);
+      expect(parseRunLog(text)).toEqual([entry]);
+    });
+
+    it('writes left out after the summary, and says it in the sentence', () => {
+      const { entry, text } = line({
+        path: MEETING,
+        tasks: 1,
+        proposals: 1,
+        listed: 3,
+        summary: 'written',
+        leftOut: 4,
+      });
+      expect(text).toContain(
+        `proposals \`1\`, listed \`3\`, summary \`"written"\`, left out \`4\``,
+      );
+      expect(logEntrySummary(entry)).toBe(
+        'Summary written by claude-sonnet-5-5 in 41 s for 2026-10-14 Platform weekly sync; 1 task made, 3 items listed, 1 proposal, left out 4 items.',
+      );
+    });
+
+    it('still reads a line as either branch wrote it before they were combined', () => {
+      const [summarised] = parseRunLog(
+        line({ path: MEETING, tasks: 1, proposals: 1, listed: 3, summary: 'written' }).text,
+      );
+      const base = `- meeting \`"${MEETING}"\`: tasks \`1\`, proposals \`1\``;
+      const text = newLogText('After a meeting', [RAN]);
+      const summaryLine = `${base}, listed \`3\`, summary \`"written"\``;
+      const leftOutOnly = text.replace(summaryLine, `${base}, left out \`2\``);
+      expect(summarised).toBeDefined();
+      expect(text).toContain(summaryLine);
+      const [older] = parseRunLog(leftOutOnly);
+      expect(older?.kind === 'run' && older.claude?.meetings).toEqual([
+        { path: MEETING, tasks: 1, proposals: 1, leftOut: 2 },
+      ]);
+    });
+
+    it('leaves out a left-out count that is no count, whole line and all', () => {
+      const { text } = line({ path: MEETING, tasks: 1, proposals: 1, leftOut: 4 });
+      const [entry] = parseRunLog(text.replace('left out `4`', 'left out `-4`'));
+      expect(entry?.kind === 'run' && (entry.claude?.meetings ?? [])).toEqual([]);
+    });
+  });
+
   it('leaves out a line edited into something it never writes', () => {
     const text = newLogText('After a meeting', [RAN])
       .replace('summary `"written"`', 'summary `"rewritten"`')

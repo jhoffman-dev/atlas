@@ -19,6 +19,7 @@ import {
   moveRefusal,
   noteNames,
   noteTitle,
+  ownerNeededBy,
   tagKey,
   ARTIFACT_KINDS,
   ARTIFACT_TYPE,
@@ -173,6 +174,7 @@ import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useParaMigration } from './para/use-para-migration.ts';
 import { useVaultTidy } from './vault/use-vault-tidy.ts';
+import { useMeetingCleanup } from './meetings/use-meeting-cleanup.ts';
 import { useMeetingProjects } from './meetings/use-meeting-projects.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { useMeetingImport } from './meetings/use-meeting-import.ts';
@@ -182,6 +184,8 @@ import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
 import { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 import { useProfileSetting } from './profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from './profile/use-self-emails-setting.ts';
+import { settingsUnreadable, vaultOwnerKnown } from './profile/vault-owner-known.ts';
+import { useSettingsPause } from './profile/use-settings-pause.ts';
 import { automationsScheduled } from './automations/automations-scheduled.ts';
 import { browserChatSettingsStore } from './chat/chat-settings-store.ts';
 import { claudeStepPorts } from './chat/claude-step-ports.ts';
@@ -751,15 +755,18 @@ export function App({
     index: index.index,
     vaultKey,
     changeKey: indexKey,
-    active: overlay === 'settings',
+    indexReady: indexStatus.kind === 'ready',
     activity: activityLog,
   });
   // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05)
   // and their addresses as the vault's settings hold them (#173).
   const ownerName = profileSetting.profile === 'unknown' ? null : profileSetting.profile.name;
   const ownerEmails = selfEmailsSetting.emails;
-  // Whether the settings note has answered for both, so nothing that asks who the owner is acts on a stand-in.
-  const ownerKnown = profileSetting.settled && selfEmailsSetting.settled;
+  // Whether both were read, so nothing that asks who the owner is acts on a stand-in: an unreadable settings note is not known.
+  const ownerKnown = vaultOwnerKnown(profileSetting, selfEmailsSetting);
+  // Meanwhile the import and the automations are held: said on the Inbox and, once each way, in Activity.
+  const settingsProblem = settingsUnreadable(profileSetting);
+  useSettingsPause({ unreadable: settingsProblem, vaultKey, activity: activityLog });
   const claudeStep = useMemo(
     () =>
       claudeStepPorts({
@@ -1066,6 +1073,25 @@ export function App({
     open: inboxOpen,
     activity: activityLog,
     onChanged: settleArchive,
+  });
+  // The tasks meetings made that today's rules would not have, offered to archive there too (#226).
+  const cleanupPorts = useMemo(
+    () => ({ ...archivePorts, index: index.index }),
+    [archivePorts, index.index],
+  );
+  const cleanupOwner = useMemo(
+    () => (ownerKnown ? { selfName: ownerName, selfEmails: ownerEmails } : null),
+    [ownerKnown, ownerName, ownerEmails],
+  );
+  const meetingCleanup = useMeetingCleanup({
+    ports: cleanupPorts,
+    owner: cleanupOwner,
+    vaultKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: inboxOpen,
+    activity: activityLog,
+    onChanged: settleArchive,
+    onOpenTask: (path) => openNote(createVaultPath(path)),
   });
   // Filing the meetings with no project as their series is, previewed there too (#227).
   const meetingProjects = useMeetingProjects({
@@ -1743,6 +1769,23 @@ export function App({
                     taskMigration,
                     paraMigration,
                     vaultTidy,
+                    meetingCleanup,
+                    settingsUnreadable:
+                      settingsProblem === null
+                        ? null
+                        : {
+                            problem: settingsProblem,
+                            onOpenSettings: () => showOverlay('settings'),
+                          },
+                    ownerUnknown:
+                      ownerKnown &&
+                      automations.listing !== null &&
+                      ownerNeededBy(
+                        automations.listing.automations.map(({ rule }) => rule),
+                        { selfName: ownerName, selfEmails: ownerEmails, people: [] },
+                      )
+                        ? { onOpenSettings: () => showOverlay('settings') }
+                        : null,
                     meetingProjects,
                     view:
                       inboxView === null

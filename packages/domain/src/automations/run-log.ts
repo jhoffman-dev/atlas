@@ -210,6 +210,8 @@ export interface MeetingTally {
   readonly tasks: number;
   /** The proposals it made: the rest, less any made before. */
   readonly proposals: number;
+  /** The items it left out as not the owner's, or not sure enough (#226); none when absent. */
+  readonly leftOut?: number;
   /** For a step that summarises: the action items its summary lists. */
   readonly listed?: number;
   /** For a step that summarises: what became of the meeting's summary. */
@@ -352,7 +354,10 @@ export function logEntrySummary(entry: LogEntry): string {
   const meetings = 'claude' in entry ? (entry.claude?.meetings ?? []) : [];
   const counts =
     entry.kind === 'run' &&
-    meetings.some(({ tasks, proposals, summary }) => tasks + proposals > 0 || summary !== undefined)
+    meetings.some(
+      ({ tasks, proposals, leftOut = 0, summary }) =>
+        tasks + proposals + leftOut > 0 || summary !== undefined,
+    )
       ? meetingWords(meetings, entry.claude)
       : askedForNothing
         ? nothingProposedWords(entry.claude)
@@ -377,7 +382,7 @@ function meetingWords(meetings: readonly MeetingTally[], claude?: ClaudeRunInfo)
   return meetings
     .map((tally) =>
       tally.summary === undefined
-        ? `Made ${count(tally.tasks, 'task', 'tasks')} from ${noteTitle(tally.path)}, ${count(tally.proposals, 'proposal', 'proposals')}.`
+        ? `Made ${count(tally.tasks, 'task', 'tasks')} from ${noteTitle(tally.path)}, ${count(tally.proposals, 'proposal', 'proposals')}${leftOutWords(tally)}.`
         : summaryWords(tally, claude),
     )
     .join(' ');
@@ -400,7 +405,12 @@ function summaryWords(tally: MeetingTally, claude?: ClaudeRunInfo): string {
     `${count(tally.listed ?? 0, 'item', 'items')} listed`,
     count(tally.proposals, 'proposal', 'proposals'),
   ];
-  return `${head}; ${made.join(', ')}.`;
+  return `${head}; ${made.join(', ')}${leftOutWords(tally)}.`;
+}
+
+/** ", left out 3 items" when the step left some out as not the owner's or not sure enough. */
+function leftOutWords({ leftOut = 0 }: MeetingTally): string {
+  return leftOut === 0 ? '' : `, left out ${count(leftOut, 'item', 'items')}`;
 }
 
 /** What a run says of what the person should know. */
@@ -490,10 +500,10 @@ function claudeLines({
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
     ...meetings.map(
-      ({ path, tasks, proposals, listed, summary }) =>
+      ({ path, tasks, proposals, listed, summary, leftOut }) =>
         `- meeting ${code(path)}: tasks ${code(tasks)}, proposals ${code(proposals)}${
           summary === undefined ? '' : `, listed ${code(listed ?? 0)}, summary ${code(summary)}`
-        }`,
+        }${leftOut === undefined ? '' : `, left out ${code(leftOut)}`}`,
     ),
     ...(asks === undefined ? [] : [`- asked ${code(asks)} ${asks === 1 ? 'time' : 'times'}`]),
     ...(alreadyMade > 0 ? [`- already made ${code(alreadyMade)}`] : []),
@@ -721,8 +731,12 @@ const VERSION_LINE = new RegExp(
 const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
 const MOVED_LINE = new RegExp(`^- moved ${JSON_SPAN} to ${JSON_SPAN} at ${JSON_SPAN}$`);
 const ALREADY_MADE_LINE = new RegExp(`^- already made ${JSON_SPAN}$`);
+/** A code span capturing what is inside it under a name, so optional parts cannot shift each other's groups. */
+const namedSpan = (name: string): string => `\`(?<${name}>[^\`]*)\``;
 const MEETING_LINE = new RegExp(
-  `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}(?:, listed ${JSON_SPAN}, summary ${JSON_SPAN})?$`,
+  `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}` +
+    `(?:, listed ${namedSpan('listed')}, summary ${namedSpan('summary')})?` +
+    `(?:, left out ${namedSpan('leftOut')})?$`,
 );
 const LET_GO_LINE = new RegExp(`^- let go ${JSON_SPAN}$`);
 
@@ -856,8 +870,21 @@ function meetingsOf(body: readonly string[]): MeetingTally[] {
         JSON.parse(match[3]!) as unknown,
       ];
       if (!isCount(tasks) || !isCount(proposals)) return [];
-      const summarised = summaryOf(match[4], match[5]);
-      return [{ path: pathOf(match[1]!), tasks, proposals, ...summarised }];
+      const summarised = summaryOf(match.groups?.listed, match.groups?.summary);
+      const leftOut =
+        match.groups?.leftOut === undefined
+          ? undefined
+          : (JSON.parse(match.groups.leftOut) as unknown);
+      if (leftOut !== undefined && !isCount(leftOut)) return [];
+      return [
+        {
+          path: pathOf(match[1]!),
+          tasks,
+          proposals,
+          ...summarised,
+          ...(leftOut !== undefined && { leftOut }),
+        },
+      ];
     } catch {
       // A line edited into JSON that does not read, or a path that is no path, is left out.
       return [];

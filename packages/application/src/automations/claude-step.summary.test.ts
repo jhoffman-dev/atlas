@@ -236,7 +236,8 @@ describe('the summary at the top of a meeting', () => {
     expect(block.text).toContain('> - The new cache is ready');
     expect(block.text).toContain('> - Ship the cache behind a flag');
     expect(block.text).toContain('> - Write the rollout note: you (a task was made)');
-    expect(block.text).toContain('> - Flag the new cache: Tobias Fenn (turn t0002)');
+    // Someone else's item the owner did not ask for is left out of the summary too (#226).
+    expect(block.text).not.toContain('Flag the new cache');
     expect(block.text).toContain('> - Who tells the support team?');
     expect(block.text).not.toMatch(/\[\[|- \[ \]/);
     // Its keys, and the task made joined, in the one write.
@@ -260,10 +261,10 @@ describe('the summary at the top of a meeting', () => {
       ]),
     );
     expect(ran?.kind === 'run' && ran.claude?.meetings).toEqual([
-      { path: SYNC, tasks: 1, proposals: 2, listed: 2, summary: 'written' },
+      { path: SYNC, tasks: 1, proposals: 1, listed: 1, summary: 'written', leftOut: 1 },
     ]);
     expect(at.vault.files.get(logPathFor(RULE.id))).toMatch(
-      /Summary written by claude-sonnet-5-5 in \d+ s for Platform weekly sync; 1 task made, 2 items listed, 2 proposals\./,
+      /Summary written by claude-sonnet-5-5 in \d+ s for Platform weekly sync; 1 task made, 1 item listed, 1 proposal, left out 1 item\./,
     );
   });
 

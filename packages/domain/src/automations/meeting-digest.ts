@@ -206,13 +206,20 @@ export function partSummaries(parts: readonly SummaryReading[]): AnsweredSummary
   return read.length === parts.length ? read : null;
 }
 
-/** Who the block says an action item is for, as the decision left it. */
-export type ListedOutcome = 'task' | 'made-before' | 'proposal';
+/**
+ * What became of an action item, as the decision left it. `left-out` is an
+ * item the owner's review never shows (someone else's unasked item, one not
+ * sure enough, a decision they took no part in): the summary lists none.
+ */
+export type ListedOutcome = 'task' | 'made-before' | 'proposal' | 'left-out';
 
 /**
  * What a meeting's summary lists of its answer, as the domain decided each
  * item (`decideMeetingItems`): its action items, in the transcript's order,
- * each with whether a task stands for it, and its decisions.
+ * each with whether a task stands for it, and its decisions. Only what reaches
+ * the owner is listed: their own items (a task or the review) and what they
+ * asked others for (a waiting-for in the review). An item the decision left
+ * out is listed nowhere, an action item or a decision alike (#226).
  */
 export function summaryListing(items: MeetingItemsDecision['items']): {
   readonly actionItems: SummaryActionItem[];
@@ -221,13 +228,23 @@ export function summaryListing(items: MeetingItemsDecision['items']): {
   const outcomeOf = ({
     outcome,
   }: MeetingItemsDecision['items'][number]['decision']): ListedOutcome =>
-    outcome === 'task' ? 'task' : outcome === 'skipped' ? 'made-before' : 'proposal';
+    outcome === 'task'
+      ? 'task'
+      : outcome === 'skipped'
+        ? 'made-before'
+        : outcome === 'left-out'
+          ? 'left-out'
+          : 'proposal';
   return {
     actionItems: items.flatMap(({ proposal, decision }) => {
       const listed = summaryActionItem(proposal, outcomeOf(decision));
       return listed === null ? [] : [listed];
     }),
-    decisions: summaryDecisions(items.map(({ proposal }) => proposal)),
+    decisions: summaryDecisions(
+      items.flatMap(({ proposal, decision }) =>
+        decision.outcome === 'left-out' ? [] : [proposal],
+      ),
+    ),
   };
 }
 
@@ -241,12 +258,13 @@ export function summaryActionItem(
   proposal: Pick<CheckedProposal, 'kind' | 'payload' | 'cites' | 'meetingItem'>,
   outcome: ListedOutcome,
 ): SummaryActionItem | null {
+  if (outcome === 'left-out') return null;
   if (proposal.kind !== 'task' && proposal.kind !== 'follow-up') return null;
   return {
     title: proposal.payload.title,
     assignee: assigneeOf(proposal),
     turn: proposal.cites.block,
-    taskMade: outcome !== 'proposal',
+    taskMade: outcome === 'task' || outcome === 'made-before',
   };
 }
 

@@ -1,4 +1,5 @@
 export { adoptAutomations, needsAdoption } from './adopt-automations.ts';
+export { refreshBuiltInPrompts } from './refresh-prompts.ts';
 export { AutomationLogError, appendToRuleLog, readRuleLog } from './automation-log.ts';
 export type { RuleLog } from './automation-log.ts';
 export { changeProperties, UNSAVED_TYPING } from './apply-changes.ts';
@@ -25,3 +26,10 @@ export { guardedFs, stillInVault, VaultChangedError } from './vault-guard.ts';
 export type { VaultGuard } from './vault-guard.ts';
 export { CLAUDE_RUN_TIMEOUT_MS, ClaudeStepFailed, runClaudeStep } from './claude-step.ts';
 export type { ClaudeStepOutcome, ClaudeStepPorts } from './claude-step.ts';
+export {
+  applyMeetingCleanup,
+  keepMeetingCleanupTasks,
+  meetingCleanupNeedsOwner,
+  previewMeetingCleanup,
+} from './meeting-cleanup.ts';
+export type { CleanupOwner, ListedCleanupTask, MeetingCleanupPorts } from './meeting-cleanup.ts';

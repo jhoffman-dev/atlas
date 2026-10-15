@@ -59,7 +59,6 @@ function render(vault = vaultWith()) {
         index: vault.index,
         vaultKey: VAULT,
         changeKey,
-        active: true,
         activity: recordingActivity(),
       }),
     { initialProps: { changeKey: '0' } },
@@ -67,29 +66,49 @@ function render(vault = vaultWith()) {
 }
 
 describe('useSelfEmailsSetting', () => {
-  it('offers the Person note’s addresses while none are kept, and uses them only once saved', async () => {
+  it('uses the Person note’s addresses while none are kept, with no save (#226), and a saved list over them', async () => {
     const vault = vaultWith();
     const hook = render(vault);
     await waitFor(() =>
       expect(hook.result.current.view.suggested).toBe('mara.quill@example.com, mq@example.com'),
     );
     expect(hook.result.current.view.kept).toBe('');
-    expect(hook.result.current.emails).toEqual([]);
+    expect(hook.result.current.emails).toEqual(['mara.quill@example.com', 'mq@example.com']);
+    expect(hook.result.current.settled).toBe(true);
     expect(vault.file.text).not.toContain('selfEmails');
 
-    act(
-      () => void hook.result.current.save('mara.quill@example.com; MQ@example.com mq@example.com'),
-    );
-    await waitFor(() =>
-      expect(vault.file.text).toContain(
-        'selfEmails:\n  - mara.quill@example.com\n  - mq@example.com',
-      ),
-    );
+    act(() => void hook.result.current.save('Mara Quill <MQ@example.com>'));
+    await waitFor(() => expect(vault.file.text).toContain('selfEmails:\n  - mq@example.com'));
     expect(vault.file.text).toContain('profileName: Mara Quill');
-    await waitFor(() =>
-      expect(hook.result.current.view.kept).toBe('mara.quill@example.com, mq@example.com'),
-    );
+    await waitFor(() => expect(hook.result.current.view.kept).toBe('mq@example.com'));
+    expect(hook.result.current.emails).toEqual(['mq@example.com']);
+    expect(hook.result.current.view.suggested).toBeNull();
+  });
+
+  it('is unsettled while it holds no address until the Person note has been looked up', async () => {
+    let answer: (result: QueryResult) => void = () => undefined;
+    const vault = vaultWith();
+    const hook = render({
+      ...vault,
+      index: { ...vault.index, query: () => new Promise<QueryResult>((done) => (answer = done)) },
+    });
+    await act(async () => undefined);
+    expect(hook.result.current.settled).toBe(false);
+    expect(hook.result.current.emails).toEqual([]);
+
+    await act(async () => answer(await linkDirectory()));
+    await waitFor(() => expect(hook.result.current.settled).toBe(true));
     expect(hook.result.current.emails).toEqual(['mara.quill@example.com', 'mq@example.com']);
+  });
+
+  it('settles with no address when the Person note cannot be looked up', async () => {
+    const vault = vaultWith();
+    const hook = render({
+      ...vault,
+      index: { ...vault.index, query: () => Promise.reject(new Error('index closed')) },
+    });
+    await waitFor(() => expect(hook.result.current.settled).toBe(true));
+    expect(hook.result.current.emails).toEqual([]);
   });
 
   it('uses the Granola key’s addresses while selfEmails keeps none, and says where they come from', async () => {
@@ -121,7 +140,10 @@ describe('useSelfEmailsSetting', () => {
     expect(kept).toBe(true);
     expect(vault.file.text).toBe('---\nprofileName: Mara Quill\n---\n');
     await waitFor(() => expect(hook.result.current.view.inherited).toBeNull());
-    expect(hook.result.current.emails).toEqual([]);
+    // With nothing saved, the Person note's addresses are the owner's again (#226).
+    await waitFor(() =>
+      expect(hook.result.current.emails).toEqual(['mara.quill@example.com', 'mq@example.com']),
+    );
   });
 
   it('is unsettled until the settings note answers, and hands out one empty list meanwhile', async () => {
@@ -219,5 +241,64 @@ describe('useSelfEmailsSetting', () => {
     await waitFor(() => expect(hook.result.current.problem).toContain('could not be read'));
     expect(hook.result.current.emails).toEqual([]);
     expect(hook.result.current.view.disabled).toBe(true);
+  });
+
+  /*
+   * #231: every vault change reads the addresses again. Handed out as a new
+   * array each time, the owner looked changed to everything keyed on it —
+   * the meeting cleanup's preview, the meeting import, the Claude step — and
+   * each filing set all of it off again, so Inbox filings fell tens of
+   * seconds behind the page.
+   */
+  it('hands out the same addresses, unchanged, after a vault change that leaves the Person note’s as they were', async () => {
+    const vault = vaultWith();
+    let lookups = 0;
+    const hook = render({
+      ...vault,
+      index: { ...vault.index, query: (...asked) => ((lookups += 1), linkDirectory(...asked)) },
+    });
+    await waitFor(() =>
+      expect(hook.result.current.emails).toEqual(['mara.quill@example.com', 'mq@example.com']),
+    );
+    const first = hook.result.current.emails;
+    const before = lookups;
+
+    hook.rerender({ changeKey: '1' });
+    await waitFor(() => expect(lookups).toBeGreaterThan(before));
+    await act(async () => undefined);
+
+    expect(hook.result.current.emails).toBe(first);
+  });
+
+  it('hands out the same addresses, unchanged, after a vault change that leaves the kept ones as they were', async () => {
+    const vault = vaultWith('---\nselfEmails:\n  - mara@example.com\n---\n');
+    let reads = 0;
+    const readNotes = vault.fs.readNotes;
+    const hook = render({
+      ...vault,
+      fs: { ...vault.fs, readNotes: (paths) => ((reads += 1), readNotes(paths)) },
+    });
+    await waitFor(() => expect(hook.result.current.emails).toEqual(['mara@example.com']));
+    const first = hook.result.current.emails;
+    const before = reads;
+
+    hook.rerender({ changeKey: '1' });
+    await waitFor(() => expect(reads).toBeGreaterThan(before));
+    await act(async () => undefined);
+
+    expect(hook.result.current.emails).toBe(first);
+  });
+
+  it('hands out the new addresses once they change', async () => {
+    const vault = vaultWith('---\nselfEmails:\n  - mara@example.com\n---\n');
+    const hook = render(vault);
+    await waitFor(() => expect(hook.result.current.emails).toEqual(['mara@example.com']));
+
+    vault.file.text = '---\nselfEmails:\n  - mara@example.com\n  - mq@example.com\n---\n';
+    hook.rerender({ changeKey: '1' });
+
+    await waitFor(() =>
+      expect(hook.result.current.emails).toEqual(['mara@example.com', 'mq@example.com']),
+    );
   });
 });
