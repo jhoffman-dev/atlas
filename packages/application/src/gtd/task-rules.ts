@@ -13,9 +13,9 @@ export class TaskRuleRefusedError extends Error {
 /**
  * A property change held to the GTD task rules (ADR-0029): worked out, like
  * any change given as a rule, against the properties the write starts from,
- * so what the note already says decides — who it waits on, whether it was
- * finished. A refused change throws {@link TaskRuleRefusedError} from inside
- * the write, so nothing is written and the reason reaches whoever asked.
+ * so what the note already says decides whether it was finished. A refused
+ * change throws {@link TaskRuleRefusedError} from inside the write, so
+ * nothing is written and the reason reaches whoever asked.
  */
 export function withTaskRules({
   values,
@@ -38,9 +38,8 @@ type FrontmatterPort = Pick<MarkdownPort, 'frontmatterProperties' | 'updateFront
 
 /**
  * A new note's text held to the task rules (ADR-0029): what it starts with
- * is judged as a change from nothing, so a new task that is Waiting with
- * nobody to wait on is refused with {@link TaskRuleRefusedError}, and one
- * made already in Archive is given today as `completed`. Text with no
+ * is judged as a change from nothing, so one made already in Archive is
+ * given today as `completed`. A refused one throws {@link TaskRuleRefusedError}. Text with no
  * frontmatter, or not a task, is returned as it is.
  */
 export function newNoteTaskRules({

@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { indexablePropertiesOf } from '@atlas/domain';
-import { apiFixture, codeOf } from '../testing/api-fixture.ts';
+import { apiFixture } from '../testing/api-fixture.ts';
 import { jsonMarkdown, jsonNote } from '../testing/json-markdown.ts';
 
 const GTD_TASK_TYPE = jsonNote({
@@ -53,7 +53,7 @@ describe('a status the index reads as Waiting, written another way', () => {
     expect(indexedStatuses('waiting ')).toEqual(['waiting']);
   });
 
-  it('refuses moving a task to `waiting ` (trailing space) with nobody to wait on', async () => {
+  it('writes `waiting ` (trailing space) as `waiting`, with nobody to wait on (#202)', async () => {
     const TASK = jsonNote({ type: 'task', status: 'next-action' });
     const api = vault({ 'Quote from Larkspur.md': TASK });
     const response = await api.send({
@@ -61,7 +61,7 @@ describe('a status the index reads as Waiting, written another way', () => {
       path: '/v1/notes/Quote from Larkspur.md/properties',
       body: { set: { status: 'waiting ' } },
     });
-    expect(codeOf(response)).toBe('invalid');
-    expect(api.files.get('Quote from Larkspur.md')?.text).toBe(TASK);
+    expect(response.status).toBe(200);
+    expect(api.files.get('Quote from Larkspur.md')?.text).toContain('status: waiting\n');
   });
 });

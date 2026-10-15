@@ -516,7 +516,7 @@ export interface ApiClarifyInboxBody {
   readonly status?: string;
   /** The path of a project or an area to file it under. */
   readonly project?: string;
-  /** The path of the person it waits on; Waiting is refused without one. */
+  /** The path of the person it waits on, if anyone: Waiting never needs one (#202). */
   readonly waitingOn?: string | null;
   /** `YYYY-MM-DD`: the day it comes back into view. */
   readonly defer?: string | null;

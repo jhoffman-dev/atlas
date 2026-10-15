@@ -2,27 +2,35 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, type ObjectType } from '@atlas/domain';
-import { fakeIndexPort, fakeVaultFs, recordingActivity } from '@atlas/application';
+import {
+  fakeIndexPort,
+  fakeVaultFs,
+  NoteChangedError,
+  recordingActivity,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { useWeeklyReview, type WeeklyReviewOptions } from './use-weekly-review.ts';
 
 /**
- * The review's writes and the Activity log: a task rule's refusal is shown
- * on the page and never recorded; and a task the review finishes is dated by
- * the review's own clock, the one its sections were read on.
+ * The review's writes and the Activity log: a refusal is shown on the page
+ * and never recorded; Waiting is written with nobody to wait on (#202); and a
+ * task the review finishes is dated by the review's own clock, the one its
+ * sections were read on.
  */
 const TASK = createVaultPath('Tasks/Send Tobias the Larkspur file.md');
 const TEXT = '---\ntype: task\nstatus: next-action\n---\n\n# Send\n';
 const TYPES: readonly ObjectType[] = [{ name: 'task', label: 'Task', properties: [] }];
 const NO_PANE = { setPropertiesIfOpen: async () => false } as unknown as OpenEditors;
 
-function reviewing() {
+function reviewing({ changedOnDisk = false } = {}) {
   const activity = recordingActivity();
   const written: string[] = [];
   const fs = fakeVaultFs({
     readTextFile: async () => ({ text: TEXT, modified: 1 }),
-    writeTextFile: async ({ contents }: { contents: string }) => {
+    writeTextFile: async ({ path, contents }: { path: string; contents: string }) => {
+      // The host refuses a write to a note that changed on disk since it was read.
+      if (changedOnDisk) throw new NoteChangedError(path);
       written.push(contents);
       return 2;
     },
@@ -47,11 +55,20 @@ function reviewing() {
 }
 
 describe('the weekly review’s writes', () => {
-  it('shows a task rule’s refusal and records nothing', async () => {
+  it('shows a refusal and records nothing', async () => {
+    const { activity, hook, written } = reviewing({ changedOnDisk: true });
+    await act(async () => hook.result.current.page.onSetStatus({ path: TASK, status: 'waiting' }));
+    await waitFor(() => expect(hook.result.current.page.problem).toMatch(/changed since/));
+    expect(written).toEqual([]);
+    expect(activity.reports).toEqual([]);
+  });
+
+  it('moves a task to Waiting with nobody to wait on, asking for no one (#202)', async () => {
     const { activity, hook, written } = reviewing();
     await act(async () => hook.result.current.page.onSetStatus({ path: TASK, status: 'waiting' }));
-    await waitFor(() => expect(hook.result.current.page.problem).toMatch(/waiting/i));
-    expect(written).toEqual([]);
+    await waitFor(() => expect(written).toHaveLength(1));
+    expect(written[0]).toMatch(/^status: waiting$/m);
+    expect(hook.result.current.page.problem).toBeNull();
     expect(activity.reports).toEqual([]);
   });
 

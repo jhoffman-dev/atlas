@@ -21,9 +21,9 @@ type Fields = ReturnType<typeof bodyObject>;
  * Clarifies one note waiting in the Inbox, as a row of the Inbox page does
  * (#112): status, who it waits on, defer, due and contexts are written in one
  * byte-preserving save held to the task rules, and a note in the `Inbox`
- * folder given a project is then filed under it. Anything the rules refuse —
- * Waiting with nobody to wait on, a project that is not one — is `invalid`
- * and nothing is written. Never saves someone's typing (ADR-0016): a note
+ * folder given a project is then filed under it. Waiting never needs anyone
+ * to wait on (#202). Anything refused — a status the vault does not declare,
+ * a project that is not one — is `invalid` and nothing is written. Never saves someone's typing (ADR-0016): a note
  * open in Atlas with unsaved edits is `unsaved_in_app`, and one that changed
  * on disk between being read and written is `conflict`. The route decides on
  * any task the API reaches, not only one the Inbox lists — an agent may move a

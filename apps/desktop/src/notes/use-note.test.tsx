@@ -376,13 +376,11 @@ describe('a note open in a pane while something else writes it', () => {
 describe('a task written through a pane is held to its rules (P30-02)', () => {
   const TASK = '---\ntype: task\nstatus: next-action\n---\n\n# Call\n';
 
-  it('refuses Waiting with nobody to wait on, and writes nothing', async () => {
+  it('writes Waiting with nobody to wait on, as a board drag onto an open task does (#202)', async () => {
     const vault = fakeVault(TASK);
     const view = await readyPane(vault);
-    await expect(
-      act(() => view.result.current.setProperties({ status: 'waiting' })),
-    ).rejects.toThrow(/set Waiting on first/);
-    expect(vault.contents()).toBe(TASK);
+    await act(() => view.result.current.setProperties({ status: 'waiting' }));
+    expect(vault.contents()).toBe('---\ntype: task\nstatus: waiting\n---\n\n# Call\n');
   });
 
   it('dates a task finished from its pane', async () => {

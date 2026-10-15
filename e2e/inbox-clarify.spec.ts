@@ -159,14 +159,13 @@ test('a task is clarified to Next Action with a project: one Done sets the statu
   await expect(sidebarInbox(page)).toContainText('4');
 });
 
-test('Waiting asks who on the same row, refuses without one, and writes both together', async ({
+test('Waiting offers who on the same row, needs no one, and writes both together when picked (#202)', async ({
   page,
 }) => {
   const vault = await gtdVault();
   await open(page, vault);
   await openInbox(page);
   const inbox = inboxPage(page);
-  const before = await vault.read('Inbox/Chase the quote.md');
 
   await expect(inbox.getByRole('combobox', { name: 'Who Chase the quote waits on' })).toHaveCount(
     0,
@@ -177,12 +176,6 @@ test('Waiting asks who on the same row, refuses without one, and writes both tog
   const who = inbox.getByRole('combobox', { name: 'Who Chase the quote waits on' });
   await expect(who).toBeVisible();
 
-  await row(page, 'Chase the quote').getByRole('button', { name: 'Done' }).press('Enter');
-  await expect(row(page, 'Chase the quote').getByRole('alert')).toContainText(
-    'A waiting task needs someone to wait on',
-  );
-  expect(await vault.read('Inbox/Chase the quote.md')).toBe(before);
-
   await who.selectOption({ label: 'Mara Quill' });
   await row(page, 'Chase the quote').getByRole('button', { name: 'Done' }).press('Enter');
 
@@ -191,6 +184,17 @@ test('Waiting asks who on the same row, refuses without one, and writes both tog
     /^waiting_on: "?\[\[Mara Quill\]\]"?$/m,
   );
   await expect(row(page, 'Chase the quote')).toHaveCount(0);
+
+  // No one picked: Done writes Waiting alone, and nothing asks who.
+  await inbox
+    .getByRole('combobox', { name: 'Status of Learn the cello' })
+    .selectOption({ label: 'Waiting' });
+  await expect(inbox.getByRole('combobox', { name: 'Who Learn the cello waits on' })).toBeVisible();
+  await row(page, 'Learn the cello').getByRole('button', { name: 'Done' }).press('Enter');
+
+  await expectFile(vault, 'Inbox/Learn the cello.md').toContain('status: waiting');
+  expect(await vault.read('Inbox/Learn the cello.md')).not.toContain('waiting_on');
+  await expect(row(page, 'Learn the cello')).toHaveCount(0);
 });
 
 test('a status alone, with no project, takes a task off the list and leaves its file where it is', async ({

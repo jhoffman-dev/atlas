@@ -6,7 +6,7 @@ import { createVault, expectFile, installHost, type FakeVault } from './host.ts'
 /**
  * #111: the Today page. On a fixed clock, a vault's tasks land in exactly the
  * sections they belong to, with their counts; a tick, a defer and a move each
- * change the page without a reload; and Waiting is refused without a person.
+ * change the page without a reload; and Waiting needs nobody to wait on (#202).
  */
 
 /** 2026-10-13, midday where the test runs. */
@@ -232,7 +232,7 @@ test('deferring a task a day takes it off the page until tomorrow', async ({ pag
   ).toBeFocused();
 });
 
-test('moving a task to Waiting needs a person, and says so', async ({ page }) => {
+test('moving a task to Waiting asks for nobody, and moves it (#202)', async ({ page }) => {
   const vault = await openTodayVault(page);
   await openToday(page);
   const next = section(page, 'Next actions');
@@ -240,15 +240,11 @@ test('moving a task to Waiting needs a person, and says so', async ({ page }) =>
   await next.getByRole('button', { name: 'Move Call the bank to…' }).click();
   await page.getByRole('menu', { name: 'Move Call the bank to' }).getByText('Waiting').click();
 
-  await expect(today(page).getByRole('alert')).toContainText('needs someone to wait on');
-  await expect(itemsIn(page, 'Next actions')).toContainText(['Call the bank']);
-  await expectFile(vault, 'Tasks/Call the bank.md').toContain('status: next-action');
-
-  await next.getByRole('button', { name: 'Move Call the bank to…' }).click();
-  await page.getByRole('menu', { name: 'Move Call the bank to' }).getByText('Someday').click();
-
+  await expectFile(vault, 'Tasks/Call the bank.md').toContain('status: waiting');
+  expect(await vault.read('Tasks/Call the bank.md')).not.toContain('waiting_on');
   await expect(itemsIn(page, 'Next actions')).toHaveText(['Ship the page', 'Sow the beans']);
-  await expectFile(vault, 'Tasks/Call the bank.md').toContain('status: someday');
+  await expect(itemsIn(page, 'Waiting')).toContainText(['Call the bank']);
+  await expect(today(page).getByRole('alert')).toHaveCount(0);
 });
 
 test('a saved view titled Today does not make a second sidebar row', async ({ page }) => {

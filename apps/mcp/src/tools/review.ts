@@ -48,7 +48,7 @@ export const today = defineTool({
     'stalledProjects counts active projects with no next-action or in-progress task (listed ' +
     'by atlas_weekly_review). To act on a task as the page does, use atlas_update_properties: ' +
     'set "status", or set "defer" to a later day (YYYY-MM-DD) to take it off the page until ' +
-    'then. Status waiting is refused unless "waiting_on" names someone. Setting status ' +
+    'then. Status waiting never needs "waiting_on"; set it too only to say who. Setting status ' +
     'archive finishes a task and, for a repeating one (with "recurrence"), ends its series; ' +
     "the page's tick instead rolls a repeating task on to its next due date.",
   inputSchema: noInput,

@@ -6,8 +6,8 @@ import { dragCardTo } from './drag.ts';
  * P30-02: tasks follow GTD's eight statuses (ADR-0029). A vault on the old
  * board's statuses is offered the move from the Inbox, previewed task by
  * task, run, and undone byte for byte; a board drags between the new
- * statuses, refuses Waiting without someone to wait on, and a tick finishes
- * a task with the day.
+ * statuses, Waiting included with nobody to wait on (#202), and a tick
+ * finishes a task with the day.
  */
 
 const note = (frontmatter: string[], body: string) =>
@@ -150,7 +150,7 @@ test('the move to GTD is previewed task by task, run, and undone byte for byte',
   expect(await vault.exists('.atlas/views/Next actions.md')).toBe(false);
 });
 
-test('a board drags a task between the new statuses, and Waiting needs someone', async ({
+test('a board drags a task between the new statuses, and Waiting needs nobody (#202)', async ({
   page,
 }) => {
   const vault = await openVault(page, {
@@ -170,9 +170,13 @@ test('a board drags a task between the new statuses, and Waiting needs someone',
   await dragCardTo(page, 'tasks/Hear from Mara.md', 'waiting');
   await expectFile(vault, 'tasks/Hear from Mara.md').toContain('status: waiting');
 
+  // Nobody in Waiting on: the drag lands, and nothing asks who.
   await dragCardTo(page, 'tasks/Call the bank.md', 'waiting');
-  await expect(page.getByRole('alert')).toContainText('needs someone to wait on');
-  expect(await vault.read('tasks/Call the bank.md')).toContain('status: in-progress');
+  await expectFile(vault, 'tasks/Call the bank.md').toContain('status: waiting');
+  expect(await vault.read('tasks/Call the bank.md')).not.toContain('waiting_on');
+  await expect(page.locator('[data-path="tasks/Call the bank.md"]')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('ticking a task archives it with the day; unticking puts its status back', async ({

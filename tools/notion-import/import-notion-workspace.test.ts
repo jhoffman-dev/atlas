@@ -204,13 +204,14 @@ describe('importing a workspace export', () => {
     });
   });
 
-  it('holds a Waiting task with nobody to wait on in the Inbox, and lists it', async () => {
+  it('imports a Waiting task with nobody to wait on as Waiting, with nothing to say (#202)', async () => {
     const outcome = await run();
-    expect(await properties('Tasks/Ask about the audit.md')).toMatchObject({ status: 'inbox' });
-    const audit = outcome.pages.find((page) => page.title === 'Ask about the audit');
-    expect(audit !== undefined && 'notes' in audit ? audit.notes : []).toEqual([
-      'Waiting with nobody in People: held in the Inbox',
-    ]);
+    const audit = await properties('Tasks/Ask about the audit.md');
+    expect(audit).toMatchObject({ status: 'waiting' });
+    expect(audit).not.toHaveProperty('waiting_on');
+    const page = outcome.pages.find((each) => each.title === 'Ask about the audit');
+    expect(page).toBeDefined();
+    expect(page !== undefined && 'notes' in page ? page.notes : []).toEqual([]);
   });
 
   it('writes every link so it opens a note this run wrote, but for a page not in the export', async () => {

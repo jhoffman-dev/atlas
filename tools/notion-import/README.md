@@ -119,7 +119,7 @@ the rest.
 | Later                     | `someday`                                             |
 | In progress               | `in-progress`                                         |
 | Waiting                   | `waiting`, `waiting_on` the first person in People    |
-| Waiting, nobody in People | `inbox`, listed                                       |
+| Waiting, nobody in People | `waiting`, no `waiting_on`                            |
 | Done                      | `archive`, with `completed` set to the day of the run |
 | anything else             | `inbox`, listed                                       |
 
@@ -231,9 +231,8 @@ says which were (exit 1).
 
 A `warning` line for each type the vault does not declare, then one line per
 page that was created, updated, refused, deleted in Atlas or kept an edit, and a
-`note` line for anything about a page worth saying (a Waiting task held in
-the Inbox, a status it does not know, a related page not in the export, a
-date it could not read). Then what was skipped, the meeting import's own
+`note` line for anything about a page worth saying (a status it does not
+know, a related page not in the export, a date it could not read). Then what was skipped, the meeting import's own
 report, and the totals.
 
 | Line      | Means                                                                                |

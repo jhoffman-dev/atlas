@@ -59,7 +59,7 @@ export const TASK_TYPE_FILE: BuiltInTypeFile = {
     '',
     `Something to do. Its status is one of ${GTD_STATUSES.map((status) => GTD_STATUS_LABELS[status]).join(', ')}:`,
     'a captured task starts in the Inbox, and ticking one off moves it to the Archive with the day it was',
-    'finished. A Waiting task says who it waits on; a deferred one stays out of Next actions until its day.',
+    'finished. A Waiting task may say who it waits on, or not; a deferred one stays out of Next actions until its day.',
     '',
   ].join('\n'),
 };

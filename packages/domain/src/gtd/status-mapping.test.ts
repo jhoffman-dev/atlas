@@ -8,7 +8,6 @@ import {
   statusValueOf,
   taskStatusChanges,
   taskStatusMove,
-  WAITING_HELD,
 } from './status-mapping.ts';
 
 /** P30-02 / ADR-0029: the mapping table old statuses are moved by. */
@@ -89,14 +88,14 @@ describe('taskStatusMove', () => {
 
   it('moves a status, and changes nothing for one already moved — running twice is running once', () => {
     const first = taskStatusMove({ properties: { status: 'doing' }, mapping, lastChanged: DAY });
-    expect(first).toEqual({ from: 'doing', to: 'in-progress', completed: null, held: null });
+    expect(first).toEqual({ from: 'doing', to: 'in-progress', completed: null });
     const after = { status: 'in-progress' };
     expect(taskStatusMove({ properties: after, mapping, lastChanged: DAY })).toBeNull();
   });
 
   it('dates a finished task by the day its file last changed', () => {
     const move = taskStatusMove({ properties: { status: 'done' }, mapping, lastChanged: DAY });
-    expect(move).toEqual({ from: 'done', to: 'archive', completed: DAY, held: null });
+    expect(move).toEqual({ from: 'done', to: 'archive', completed: DAY });
     expect(taskStatusChanges(move!)).toEqual({ status: 'archive', completed: DAY });
   });
 
@@ -107,7 +106,7 @@ describe('taskStatusMove', () => {
 
   it('gives a task with no status the Inbox, and writes no day for one not finished', () => {
     const move = taskStatusMove({ properties: { title: 'x' }, mapping, lastChanged: DAY });
-    expect(move).toEqual({ from: '', to: 'inbox', completed: null, held: null });
+    expect(move).toEqual({ from: '', to: 'inbox', completed: null });
     expect(taskStatusChanges(move!)).toEqual({ status: 'inbox' });
   });
 });
@@ -118,13 +117,13 @@ describe('a task the mapping sends to Waiting', () => {
     chosen: new Map([['blocked', 'waiting']]),
   });
 
-  it('goes to the Inbox, saying why, when nobody is in Waiting on', () => {
+  it('goes to Waiting when nobody is in Waiting on: Waiting never needs someone (#202)', () => {
     const move = taskStatusMove({
       properties: { status: 'blocked' },
       mapping: toWaiting,
       lastChanged: DAY,
     });
-    expect(move).toEqual({ from: 'blocked', to: 'inbox', completed: null, held: WAITING_HELD });
+    expect(move).toEqual({ from: 'blocked', to: 'waiting', completed: null });
   });
 
   it('goes to Waiting when it says who', () => {

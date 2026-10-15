@@ -96,10 +96,9 @@ interface LinkNote {
  * already accepted.
  *
  * What it writes is held to the task rules (ADR-0029) as every write that
- * makes or changes a task is: a task Waiting with nobody is refused with
- * `TaskRuleRefusedError` before anything is written, leaving the proposal
- * open, and one made already finished is dated — or, when it repeats, rolled
- * on to its next date as ticking it done would.
+ * makes or changes a task is: a task Waiting with nobody to wait on is
+ * written as proposed (#202), and one made already finished is dated — or,
+ * when it repeats, rolled on to its next date as ticking it done would.
  */
 export async function acceptProposalNote({
   ports,

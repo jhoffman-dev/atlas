@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath } from '@atlas/domain';
-import { fakeVaultFs, memoryVault, TaskRuleRefusedError } from '@atlas/application';
+import { fakeVaultFs, memoryVault } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';
@@ -24,10 +24,10 @@ function write(values: Readonly<Record<string, unknown>>) {
 }
 
 describe('writeNoteProperties', () => {
-  it('refuses moving a task to Waiting with nobody to wait on, writing nothing', async () => {
+  it('moves a task to Waiting with nobody to wait on, asking for no one (#202)', async () => {
     const { done, files } = write({ status: 'waiting' });
-    await expect(done).rejects.toBeInstanceOf(TaskRuleRefusedError);
-    expect(files.get(PATH)).toBe(TASK);
+    await done;
+    expect(files.get(PATH)).toBe('---\ntype: task\nstatus: waiting\n---\n\n# Call\n');
   });
 
   it('dates a task moved to Archive with today', async () => {

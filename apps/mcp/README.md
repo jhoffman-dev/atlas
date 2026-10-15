@@ -149,8 +149,8 @@ it already says; proposals are listed by `atlas_proposals`, not by it.
 
 `atlas_clarify_inbox_item` is GTD's clarify step for one item, as a row of the
 Inbox page does it: status, `waitingOn`, `defer`, `due` and `contexts` are
-written in one save, held to the task rules — `waiting` is refused unless the
-person is given with it or the task already names one — and `project` files a
+written in one save, held to the task rules — `waiting` never needs
+`waitingOn`; who it waits on is optional — and `project` files a
 note that is in `Inbox/` or links a task that lives elsewhere. A task given a
 status other than `inbox` leaves the Inbox with or without a project.
 

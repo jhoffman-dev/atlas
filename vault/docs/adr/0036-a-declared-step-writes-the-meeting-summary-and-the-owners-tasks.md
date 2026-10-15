@@ -195,8 +195,9 @@ disagree, the item is a proposal, not a task.
   delete over an item he never saw. The first real meetings are the test of
   that choice (see Consequences).
 - **The task lands in `inbox`** (Q3, default), not `next-action`: a task made
-  by a model goes through clarify first (ADR-0029). The task rules hold: Waiting
-  needs `waiting_on`, and the use-case goes through `createNote`.
+  by a model goes through clarify first (ADR-0029). The task rules hold: ~~Waiting
+  needs `waiting_on`,~~ _(Amended 2026-10-14, #202: Waiting never needs
+  `waiting_on`.)_ and the use-case goes through `createNote`.
 - **Others' items** (Q5, default): listed in the summary with the assignee,
   plus proposals as today. Making Waiting tasks for them is a rule setting,
   off.

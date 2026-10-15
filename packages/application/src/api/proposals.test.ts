@@ -150,16 +150,16 @@ describe('POST /v1/proposals/{path}/accept', () => {
     });
   });
 
-  it('refuses a task the task rules refuse as invalid, writing nothing and leaving it open', async () => {
+  it('accepts a task Waiting with nobody to wait on, as proposed (#202)', async () => {
     const waiting = proposal({
       payload: { title: 'Send Mara the payroll file', properties: { status: 'waiting' } },
     });
     const api = vault({ [PROPOSAL]: waiting });
     const response = await api.send(answer(PROPOSAL, 'accept'));
 
-    expect(codeOf(response)).toBe('invalid');
-    expect(api.files.has(TASK)).toBe(false);
-    expect(api.files.get(PROPOSAL)?.text).toBe(waiting);
+    expect(response.status).toBe(200);
+    expect(propertiesOf(api, TASK)).toMatchObject({ type: 'task', status: 'waiting' });
+    expect(propertiesOf(api, TASK)).not.toHaveProperty('waiting_on');
   });
 
   it('makes the task, archives the proposal as accepted, and logs the write', async () => {

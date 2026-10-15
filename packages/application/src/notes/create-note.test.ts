@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { createVaultPath } from '@atlas/domain';
 import { CREATE_ATTEMPTS, createNote, NoteNameTakenError } from './create-note.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
-import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 
 function fakeFs() {
   const created: { path: string; contents: string }[] = [];
@@ -246,10 +245,11 @@ describe('a new task', () => {
     return { made, created };
   };
 
-  it('is refused, making no file, when it is Waiting with nobody to wait on', async () => {
-    const { made, created } = make('---\ntype: task\nstatus: waiting\n---\n\n# x\n');
-    await expect(made).rejects.toBeInstanceOf(TaskRuleRefusedError);
-    expect(created).toEqual([]);
+  it('is made as it is when it is Waiting with nobody to wait on (#202)', async () => {
+    const contents = '---\ntype: task\nstatus: waiting\n---\n\n# x\n';
+    const { made, created } = make(contents);
+    await made;
+    expect(created.map((each) => each.contents)).toEqual([contents]);
   });
 
   it('is dated today when it is made already in Archive', async () => {

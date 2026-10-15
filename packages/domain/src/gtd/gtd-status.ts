@@ -43,7 +43,7 @@ export const FINISHED_TASK_STATUS: GtdStatus = 'archive';
  */
 export const REOPENED_TASK_STATUS: GtdStatus = 'next-action';
 
-/** The status that needs someone to be waiting on. */
+/** The status of a task waiting on something; who it waits on is optional (#202). */
 export const WAITING_STATUS: GtdStatus = 'waiting';
 
 /** The type tasks are notes of. */

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { indexablePropertiesOf } from '../index/property-value.ts';
-import { compileTaskStatusesQuery, compileWaitingOnNobodyQuery } from './status-mapping.ts';
+import { compileTaskStatusesQuery } from './status-mapping.ts';
 
 /** P30-02: the quick look at the statuses tasks hold, run for real against SQLite. */
 function indexOf(notes: Readonly<Record<string, Readonly<Record<string, unknown>>>>) {
@@ -41,33 +41,5 @@ describe('compileTaskStatusesQuery', () => {
 
   it('is empty for a vault with no tasks', () => {
     expect(statuses({ 'e.md': { type: 'project', status: 'done' } })).toEqual([]);
-  });
-});
-
-describe('compileWaitingOnNobodyQuery', () => {
-  const nobody = (notes: Readonly<Record<string, Readonly<Record<string, unknown>>>>) => {
-    const { sql, parameters } = compileWaitingOnNobodyQuery();
-    return (
-      indexOf(notes)
-        .prepare(sql)
-        .all(...parameters) as { path: string }[]
-    ).map((row) => row.path);
-  };
-
-  it('finds a Waiting task with nobody, or only blank names, in Waiting on', () => {
-    expect(nobody({ 'a.md': { type: 'task', status: 'waiting' } })).toEqual(['a.md']);
-    expect(
-      nobody({ 'a.md': { type: 'task', status: ['waiting'], waiting_on: ['', ' '] } }),
-    ).toEqual(['a.md']);
-  });
-
-  it('finds none when each Waiting task says who, or no task is Waiting', () => {
-    expect(
-      nobody({
-        'a.md': { type: 'task', status: 'waiting', waiting_on: '[[Mara Quill]]' },
-        'b.md': { type: 'task', status: 'next-action' },
-        'c.md': { type: 'project', status: 'waiting' },
-      }),
-    ).toEqual([]);
   });
 });

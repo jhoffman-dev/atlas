@@ -162,9 +162,8 @@ describe('undo after a run cut off partway and picked up again', () => {
 });
 
 describe('the migration under the task rules', () => {
-  it('never leaves a task Waiting with nobody to wait on', async () => {
-    // `Waiting`, as typed by hand, is read as GTD's waiting — but nobody is
-    // in `waiting_on`, which every other write refuses (ADR-0029).
+  it('moves a task to Waiting with nobody to wait on, as any write may (#202)', async () => {
+    // `Waiting`, as typed by hand, is read as GTD's waiting and written as it.
     const { ports, files } = vault({
       '.atlas/types/task.md': GTD_TYPE,
       'tasks/Hear back.md': note({ type: 'task', status: 'Waiting' }),
@@ -176,7 +175,8 @@ describe('the migration under the task rules', () => {
       preview: await previewTaskMigration(ports),
     });
     const after = frontmatterOf(files.get('tasks/Hear back.md'));
-    expect(after['status'] === 'waiting' && after['waiting_on'] === undefined).toBe(false);
+    expect(after['status']).toBe('waiting');
+    expect(after['waiting_on']).toBeUndefined();
   });
 });
 
@@ -218,7 +218,7 @@ describe('an automation that sets a task’s status', () => {
     expect(await run({ status: 'archive' })).toMatchObject({ status: 'archive', completed: TODAY });
   });
 
-  it('never sets a task Waiting with nobody to wait on', async () => {
-    expect(await run({ status: 'waiting' })).not.toMatchObject({ status: 'waiting' });
+  it('sets a task Waiting with nobody to wait on (#202)', async () => {
+    expect(await run({ status: 'waiting' })).toMatchObject({ status: 'waiting' });
   });
 });

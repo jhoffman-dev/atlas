@@ -76,7 +76,6 @@ const HOSTILE: [string, unknown][] = [
   ],
   ['waiting on itself', { path: T, status: 'waiting', waitingOn: T }],
   ['waiting on an empty path', { path: T, status: 'waiting', waitingOn: '' }],
-  ['waiting on nobody, said as null', { path: T, status: 'waiting', waitingOn: null }],
   ['a null project', { path: T, project: null }],
   ['a project path that climbs out', { path: T, project: '../Projects/Larkspur Payroll.md' }],
   ['itself as its project', { path: T, project: T }],
@@ -111,5 +110,17 @@ describe('POST /v1/inbox/clarify — hostile bodies', () => {
       body: { path: T, status: 'x'.repeat(1_000_000) },
     });
     expect(JSON.stringify(response.body).length).toBeLessThan(10_000);
+  });
+
+  it('accepts waiting on nobody, said as null: Waiting never needs anyone (#202)', async () => {
+    const api = apiFixture({ files: FILES });
+    const response = await api.send({
+      method: 'POST',
+      path: '/v1/inbox/clarify',
+      body: { path: T, status: 'waiting', waitingOn: null },
+    });
+    expect(response.status).toBe(200);
+    expect(api.files.get(T)?.text).toMatch(/^status: waiting$/m);
+    expect(api.files.get(T)?.text).not.toContain('waiting_on');
   });
 });

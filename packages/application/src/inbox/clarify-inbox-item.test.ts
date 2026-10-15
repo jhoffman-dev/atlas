@@ -4,12 +4,7 @@
  * is afterwards — and that a refusal leaves both as they were.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  createVaultPath,
-  WAITING_NEEDS_SOMEONE,
-  type Clarification,
-  type VaultPath,
-} from '@atlas/domain';
+import { createVaultPath, type Clarification, type VaultPath } from '@atlas/domain';
 import type { ArchivePorts } from '../archive/archive-notes.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeIndexPort, fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
@@ -142,15 +137,15 @@ describe('clarifyInboxItem', () => {
     );
   });
 
-  it('refuses Waiting with nobody to wait on, and writes nothing', async () => {
+  it('writes Waiting with nobody to wait on, asking for no one (#202)', async () => {
     const v = vault(BASE);
 
-    await expect(v.clarify(CALL, { status: 'waiting' })).rejects.toThrow(
-      new ClarifyRefusedError(WAITING_NEEDS_SOMEONE),
-    );
+    await v.clarify(CALL, { status: 'waiting' });
 
-    expect(v.writes).toEqual([]);
-    expect(v.files.get(CALL)).toBe(CAPTURED);
+    expect(v.writes).toEqual([CALL]);
+    expect(v.files.get(CALL)).toBe(
+      '---\ntype: task\nstatus: waiting\n---\n\nAbout the loan.\n\n- [ ] find the letter\n',
+    );
   });
 
   it('gives a single action its status with no project, leaving it where it is', async () => {

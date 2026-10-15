@@ -22,7 +22,10 @@ the notes would strand their values.
 **The built-in Task type's `status` has exactly these options, in this
 order: `inbox, backlog, next-action, in-progress, waiting, someday,
 longterm, archive`, labelled as James writes them.** New tasks are `inbox`.
-`waiting` requires a `waiting_on` relation to a Person. Tasks also gain
+~~`waiting` requires a `waiting_on` relation to a Person.~~ _(Amended 2026-10-14, #202: James decided
+`waiting` is a status like any other and never requires `waiting_on`: "there
+are a million reasons for a ticket to end up there". `waiting_on` stays,
+optional — offered where Waiting is picked, never demanded.)_ Tasks also gain
 `contexts` (multi-select), `defer`, `due`, `estimate` (minutes), `source`
 (a block link) and `project` (relation to Project / Area).
 
@@ -95,7 +98,9 @@ Where the build differs from, or settles, what is written above:
   mapping target, but a task it would send to Waiting with nobody in
   `waiting_on` goes to the Inbox instead, and the preview says why beside it.
   (Refusing Waiting as a target was rejected: a vault's own `blocked` whose
-  tasks do say who they wait on should go there.)
+  tasks do say who they wait on should go there.) _(Amended 2026-10-14, #202: with Waiting no
+  longer needing anyone, a task the mapping sends to Waiting goes there, and
+  an automation that sets Waiting is rewritten like any other.)_
 - **The Task type keeps what the vault has.** Its `status` becomes the eight;
   every other GTD property it has no key for is added; a key it has is left as
   it is, even where GTD would have made it another kind (this repository's
@@ -124,7 +129,8 @@ Where the build differs from, or settles, what is written above:
   note: capture, quick-add, "+" on a board or table, POST /v1/notes, a related
   note, a template) and in chat's proposals. `taskRuleChanges` judges the note
   a change leaves, so a type change that makes a Waiting note a task is
-  refused too. A refusal is each path's own error: `invalid` from the API, the
+  refused too. _(Amended 2026-10-14, #202: no rule refuses a Waiting task now; the rules that
+  remain date a finished task.)_ A refusal is each path's own error: `invalid` from the API, the
   view's or pane's message in the app, a line in an automation's log. Not
   held, by design: Atlas's own files (types, settings), a chat's transcript,
   today's note, notes a source writes from outside data (ADR-0012), and the
@@ -139,7 +145,8 @@ Where the build differs from, or settles, what is written above:
   yes — and the tasks are read — while the Task type is not yet GTD's, the
   record says its last run stopped partway or left files, a GTD view the move
   adds is missing, the index holds a task whose status is not one of the eight
-  (or none), or a task is Waiting with nobody to wait on. It never says no
+  (or none). _(Amended 2026-10-14, #202: it no longer asks after a task Waiting with nobody
+  to wait on.)_ It never says no
   while a preview has work, except for a status written as a one-item list,
   which the index flattens: the rules already read it as its item, and the
   next write of its status rewrites it.

@@ -982,11 +982,8 @@ export async function installHost(
         if (statement.startsWith('/* terms:')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
-        // The Inbox's quick look before reading every task (P30-02): statuses, and Waiting on nobody, run for real.
-        if (
-          statement.startsWith('/* task statuses */') ||
-          statement.startsWith('/* tasks waiting on nobody */')
-        ) {
+        // The Inbox's quick look before reading every task (P30-02): its statuses, run for real.
+        if (statement.startsWith('/* task statuses */')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
         // Linking a meeting (P29-04): its people, companies and likely projects, and the

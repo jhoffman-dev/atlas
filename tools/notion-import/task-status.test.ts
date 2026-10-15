@@ -34,11 +34,11 @@ describe("a Notion task's status, as one of the GTD eight (issue #79)", () => {
     });
   });
 
-  it('Waiting with nobody to wait on is held in the Inbox, and says so', () => {
+  it('Waiting with nobody in People is Waiting on nobody, with nothing to say (#202)', () => {
     expect(state('Waiting')).toMatchObject({
-      status: 'inbox',
+      status: 'waiting',
       waitingOn: null,
-      note: 'Waiting with nobody in People: held in the Inbox',
+      note: null,
     });
   });
 

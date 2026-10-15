@@ -5,7 +5,6 @@ import {
   NEW_TASK_STATUS,
   TASK_KEYS,
   TASK_TYPE,
-  WAITING_STATUS,
   type GtdStatus,
 } from './gtd-status.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
@@ -104,22 +103,15 @@ export interface TaskStatusMove {
   readonly to: GtdStatus;
   /** The day written as `completed`, when it becomes finished and says no day yet. */
   readonly completed: string | null;
-  /** Why it does not go where the mapping sends it, when it does not; null when it does. */
-  readonly held: string | null;
 }
-
-/** Why a task the mapping sends to Waiting goes to the Inbox instead. */
-export const WAITING_HELD =
-  'It would be Waiting, but nobody is in Waiting on, so it goes to the Inbox: set Waiting on, then move it.';
 
 /**
  * What the migration does to one task, or null when it would change nothing.
  *
  * - A task that becomes finished is given the day its file last changed as
  *   `completed`, unless it already says a day.
- * - A task the mapping sends to Waiting with nobody in `waiting_on` goes to
- *   the Inbox instead, and says why: the migration never leaves a task the
- *   rules would refuse (ADR-0029).
+ * - A task the mapping sends to Waiting goes to Waiting, whether or not
+ *   `waiting_on` names anyone: Waiting never needs someone (#202).
  * - A status written as a list — `[next-action]` — is written back as the one
  *   status, even when it names one already: no select holds a list.
  */
@@ -134,12 +126,10 @@ export function taskStatusMove({
   lastChanged: string;
 }): TaskStatusMove | null {
   const from = statusValueOf(properties);
-  const mapped = mappedStatus(mapping, from);
-  const held = mapped === WAITING_STATUS && isBlankValue(properties[TASK_KEYS.waitingOn]);
-  const to = held ? NEW_TASK_STATUS : mapped;
+  const to = mappedStatus(mapping, from);
   if (from === to && !Array.isArray(properties[TASK_KEYS.status])) return null;
   const finishing = to === FINISHED_TASK_STATUS && isBlankValue(properties[TASK_KEYS.completed]);
-  return { from, to, completed: finishing ? lastChanged : null, held: held ? WAITING_HELD : null };
+  return { from, to, completed: finishing ? lastChanged : null };
 }
 
 /** The frontmatter a move writes. */
@@ -169,28 +159,5 @@ export function compileTaskStatusesQuery(typeName: string = TASK_TYPE): Compiled
       `WHERE t.key = 'type' AND lower(trim(t.value_text)) = ?`,
     ].join('\n'),
     parameters: [typeName.trim().toLowerCase()],
-  };
-}
-
-/** What the waiting-on-nobody statement starts with, so a log or a stand-in index can tell it apart. */
-export const WAITING_ON_NOBODY_QUERY_MARK = '/* tasks waiting on nobody */';
-
-/**
- * One task, if any, that is Waiting with nobody in `waiting_on`, asked of the
- * index: a preview moves such a task to the Inbox, so the quick look must see
- * it. Asked only when some task is Waiting at all.
- */
-export function compileWaitingOnNobodyQuery(typeName: string = TASK_TYPE): CompiledQuery {
-  return {
-    sql: [
-      `${WAITING_ON_NOBODY_QUERY_MARK} SELECT t.path AS "path"`,
-      `FROM props AS t`,
-      `WHERE t.key = 'type' AND lower(trim(t.value_text)) = ?`,
-      `  AND EXISTS (SELECT 1 FROM props AS s WHERE s.path = t.path AND s.key = 'status' AND s.value_text = ?)`,
-      `  AND NOT EXISTS (SELECT 1 FROM props AS w WHERE w.path = t.path AND w.key = '${TASK_KEYS.waitingOn}'`,
-      `    AND (coalesce(w.value_text, '') <> '' OR w.value_json IS NOT NULL))`,
-      `LIMIT 1`,
-    ].join('\n'),
-    parameters: [typeName.trim().toLowerCase(), WAITING_STATUS],
   };
 }

@@ -19,7 +19,6 @@ import {
   INBOX_LIST_LIMIT,
   INBOX_QUERY_COLUMNS,
   TASK_TYPE_FILE,
-  WAITING_NEEDS_SOMEONE,
   type ObjectType,
 } from '@atlas/domain';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
@@ -196,7 +195,7 @@ describe('useInbox — a vault switch', () => {
       hook.result.current.clarify({ path: CALL, clarification: { status: 'backlog' } }),
     );
     await act(() =>
-      hook.result.current.clarify({ path: CALL, clarification: { status: 'waiting' } }),
+      hook.result.current.clarify({ path: CALL, clarification: { due: '2026-13-45' } }),
     );
     expect(hook.result.current.lastAction).toEqual({ title: 'Call the bank' });
     expect(hook.result.current.refusal).not.toBeNull();
@@ -243,15 +242,32 @@ describe('useInbox — clarifying a row', () => {
     await act(async () => {
       done = await hook.result.current.clarify({
         path: CALL,
-        clarification: { status: 'waiting' },
+        clarification: { due: '2026-13-45' },
       });
     });
 
     expect(done).toBe(false);
-    expect(hook.result.current.refusal).toEqual({ path: CALL, reason: WAITING_NEEDS_SOMEONE });
+    expect(hook.result.current.refusal).toEqual({
+      path: CALL,
+      reason: '“2026-13-45” is not a day (YYYY-MM-DD).',
+    });
     expect(files.get(CALL)).toBe(before);
     expect(onSettled).toHaveBeenCalledOnce();
     expect(hook.result.current.lastAction).toEqual({ title: 'Call the bank' });
+  });
+
+  it('clarifies a row to Waiting with nobody to wait on, asking for no one (#202)', async () => {
+    const { hook, files } = inbox();
+    let done = false;
+    await act(async () => {
+      done = await hook.result.current.clarify({
+        path: CALL,
+        clarification: { status: 'waiting' },
+      });
+    });
+    expect(done).toBe(true);
+    expect(hook.result.current.refusal).toBeNull();
+    expect(files.get(CALL)).toBe('---\ntype: task\nstatus: waiting\n---\n\nAbout the loan.\n');
   });
 
   it('dates a task finished from the row by the injected clock', async () => {

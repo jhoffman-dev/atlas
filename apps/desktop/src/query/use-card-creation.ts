@@ -78,8 +78,7 @@ export function useCardCreation({
       });
 
       try {
-        // Made as every new note is, so a card added to a Waiting column with
-        // nobody to wait on is refused, and one added to Archive is dated.
+        // Made as every new note is, so a card added to Archive is dated.
         const card = {
           activity,
           write: 'card',

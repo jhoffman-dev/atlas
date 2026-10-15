@@ -1,6 +1,5 @@
 import { splitFrontmatter, taskDeferral, TASK_KEYS } from '@atlas/domain';
 import { describe, expect, it } from 'vitest';
-import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
 import { setNoteProperties, type PropertyChanges } from '../query/set-property.ts';
 import { archiveTaskChange } from '../review/review-actions.ts';
@@ -165,9 +164,9 @@ describe('changeUndoably', () => {
 
   it('passes on a refusal, and a missing task, with nothing written', async () => {
     const vault = vaultWith(NEXT);
-    await expect(vault.change({ [TASK_KEYS.status]: 'waiting' })).rejects.toThrow(
-      TaskRuleRefusedError,
-    );
+    const stale = { status: 'someday', due: null, defer: null } as const;
+    const refused = whileAsRead({ values: { [TASK_KEYS.status]: 'waiting' }, row: stale });
+    await expect(vault.change(refused)).rejects.toThrow(ChangedSinceError);
     expect(vault.text()).toBe(NEXT);
     await expect(
       changeUndoably({

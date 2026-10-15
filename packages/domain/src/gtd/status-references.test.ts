@@ -192,17 +192,31 @@ describe('automationStatusRewrite', () => {
     expect(automationStatusRewrite({ atlas: 'view', which: 'x' }, mapping)).toBeNull();
   });
 
-  it('lists a rule that would set a status nobody knew, or Waiting, or one over mixed types', () => {
+  it('lists a rule that would set a status nobody knew, or one over mixed types', () => {
     const withBlocked = statusMappingFor({
       found: ['done', 'blocked', 'parked'],
       chosen: new Map([['parked', 'waiting']]),
     });
     for (const [which, set] of [
       ['FROM task WHERE status = archive', { status: 'blocked' }],
-      ['FROM task WHERE status = archive', { status: 'parked' }],
       ['FROM task, project WHERE due < @today', { status: 'done' }],
     ] as const) {
       expect(automationStatusRewrite(rule(which, set), withBlocked)).toHaveProperty('problem');
     }
+  });
+
+  it('rewrites a rule that sets a status mapped to Waiting: Waiting never needs anyone (#202)', () => {
+    const withParked = statusMappingFor({
+      found: ['done', 'parked'],
+      chosen: new Map([['parked', 'waiting']]),
+    });
+    const rewrite = automationStatusRewrite(
+      rule('FROM task WHERE status = archive', { status: 'parked' }),
+      withParked,
+    );
+    expect(rewrite).toMatchObject({
+      changes: { set: { status: 'waiting' } },
+      moved: ['sets parked → waiting'],
+    });
   });
 });

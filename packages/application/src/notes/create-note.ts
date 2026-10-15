@@ -56,9 +56,8 @@ interface NewNote {
  * the host refuses, the vault is listed again and the next number is tried.
  *
  * A note whatever its starting text says is made here, so the task rules
- * (ADR-0029) are held here: a new task Waiting with nobody to wait on is
- * refused with `TaskRuleRefusedError` before a file is made, and one made
- * already in Archive is dated today.
+ * (ADR-0029) are held here: one made already in Archive is dated today, and
+ * a new task Waiting with nobody to wait on is made as it is (#202).
  */
 export async function createNote({
   markdown,
