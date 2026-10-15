@@ -65,5 +65,8 @@ export type { CorrectionRecord, CorrectionUndo, MeetingCorrection } from './meet
 export {
   MEETING_DECISIONS_KEY,
   MEETING_EXTRACTION_PROPERTIES,
+  MEETING_ITEM_KEY,
+  MEETING_ITEM_TASK_PROPERTIES,
   MEETING_TASKS_KEY,
+  TASK_MEETING_KEY,
 } from './meeting-extraction-properties.ts';

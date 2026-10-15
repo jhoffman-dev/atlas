@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createVaultPath, VAULT_ROOT } from './vault-path.ts';
 import {
   isUnnamed,
+  linkableEntryName,
   NEW_NOTE_CONTENTS,
   nextAvailableFolderPath,
   nextAvailableNotePath,
@@ -163,6 +164,19 @@ describe('names the disk treats as one are taken (A20-05)', () => {
   it('numbers a folder whose name is taken in another Unicode composition', () => {
     const taken = new Set([nfd]);
     expect(nextAvailableFolderPath({ parent: VAULT_ROOT, name: nfc, taken })).toBe(`${nfc} 2`);
+  });
+});
+
+describe('linkableEntryName', () => {
+  it.each([
+    ['Fix bug #123', 'Fix bug 123'],
+    ['Re: [Q3] plan', 'Re Q3 plan'],
+    ['[[Notes]]', 'Notes'],
+    ['A|B ^t1', 'A B t1'],
+    ['Call Tobias', 'Call Tobias'],
+    ['#[]^', ''],
+  ])('makes “%s” a name a link can reach: “%s”', (name, linkable) => {
+    expect(linkableEntryName(name)).toBe(linkable);
   });
 });
 

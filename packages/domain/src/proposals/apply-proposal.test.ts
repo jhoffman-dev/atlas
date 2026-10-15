@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
-import { applyProposal, type LinkTarget, type ProposalVault } from './apply-proposal.ts';
+import {
+  applyNoteProposal,
+  applyProposal,
+  type LinkTarget,
+  type ProposalVault,
+} from './apply-proposal.ts';
 import { readProposal, type ProposalKind, type ProposalNote } from './proposal.ts';
 
 const SOURCE = '[[2026-10-01 Standup#^t0003]]';
@@ -86,6 +91,33 @@ describe('applyProposal — a task', () => {
   it('cuts a long title to a file name the disk takes, by whole characters', () => {
     const [write] = writesOf(proposal('task', { title: `${'é'.repeat(200)}x` }));
     expect(write?.path).toBe(`${'é'.repeat(126)}.md`); // 252 bytes, and the .md makes 255
+  });
+
+  it.each([
+    ['Fix bug #123', 'Fix bug 123.md'],
+    ['Re: [Q3] plan', 'Re Q3 plan.md'],
+    ['Notes on [draft]', 'Notes on draft.md'],
+    ['Pick A|B ^soon', 'Pick A B soon.md'],
+  ])('names “%s” as a file a link can reach, keeping the title exact', (title, path) => {
+    // As a meeting's item hands it over: a proposal's own title is cleaned as it is read.
+    const applied = applyNoteProposal(
+      {
+        kind: 'task',
+        source: SOURCE,
+        payload: { title, folder: null, properties: {}, body: '', linkFrom: null },
+      },
+      empty,
+    );
+    expect(applied).toMatchObject({
+      ok: true,
+      writes: [{ kind: 'create', path, properties: { title } }],
+    });
+  });
+
+  it('writes no `title` when the file name says it', () => {
+    const [write] = writesOf(proposal('task', { title: ' Call Tobias ' }));
+    expect(write).toMatchObject({ path: 'Call Tobias.md' });
+    expect(write).not.toHaveProperty('properties.title');
   });
 
   it('numbers its name past a note already there, in any case: that is another record, not this task', () => {
@@ -229,6 +261,17 @@ describe('applyProposal — a link', () => {
 
   it('refuses when the note’s type has no such relation', () => {
     expect(problemOf(link, target({ relation: null }))).toMatch(/no relation called companies/);
+  });
+
+  it.each([
+    ['a map', { client: '[[Fenn & Co]]' }, true],
+    ['a list holding a map', ['[[Fenn & Co]]', { link: '[[Ledgerly]]' }], true],
+    ['a nested list', [['[[Fenn & Co]]']], true],
+    ['a map, in a relation holding one note', { client: '[[Fenn & Co]]' }, false],
+  ])('refuses rather than write over a relation holding %s', (_shape, value, many) => {
+    expect(problemOf(link, target({ value, relation: { many } }))).toBe(
+      'Mara Quill’s companies holds something other than links, which adding one would write over; nothing was written.',
+    );
   });
 
   it('refuses when the note already links it, as there is nothing to do', () => {

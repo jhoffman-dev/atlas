@@ -39,6 +39,18 @@ export function cleanEntryName(name: string): string {
   );
 }
 
+/** What `[[`, `]]`, `#`, `^` and `|` mean inside a wiki link: a note named with one cannot be linked. */
+const WIKI_LINK_SYNTAX = /[#^[\]|]/g;
+
+/**
+ * A name a file and a wiki link can both hold: cleaned as {@link cleanEntryName}
+ * is, with the characters a link reads as its own syntax made spaces too.
+ * Empty when nothing usable is left.
+ */
+export function linkableEntryName(name: string): string {
+  return cleanEntryName(name.replace(WIKI_LINK_SYNTAX, ' '));
+}
+
 /**
  * The room a numbered name needs after a title: ` 9999.md`. A title that
  * names a file is cut (`fitFileNameStem`) until its name, numbered past the
