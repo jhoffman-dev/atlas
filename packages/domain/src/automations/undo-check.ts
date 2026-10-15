@@ -12,6 +12,7 @@ import {
   archiveRefusal,
   unarchiveRefusal,
 } from '../archive/archive.ts';
+import { MEETING_PROJECT_KEY } from '../meeting-links/meeting-link-keys.ts';
 import { isAtlasNote } from '../vault/vault-visibility.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 import { setKeyProblem, type AutomationAction } from './automation-rule.ts';
@@ -42,8 +43,7 @@ export function loggedActionProblem(action: AutomationAction, line: DoneAction):
   if (line.kind === 'proposed' || line.kind === 'created') {
     return 'What a Claude step made is answered in the Inbox, or kept or deleted by you; undo leaves it.';
   }
-  if (action.kind === 'claude')
-    return 'This rule asks Claude; it never archived a note or set a property.';
+  if (action.kind === 'claude') return claudeLineProblem(action, line);
   if (line.kind === 'archived') {
     if (action.kind !== 'archive') return 'This rule sets properties; it never archived a note.';
     if (archiveRefusal(line.from) !== null || unarchiveRefusal(line.to) !== null) {
@@ -57,6 +57,25 @@ export function loggedActionProblem(action: AutomationAction, line: DoneAction):
   if (setKeyProblem(line.key) !== null || !Object.hasOwn(action.values, line.key)) {
     return `This rule does not set “${line.key}”.`;
   }
+  if (!isPropertyValue(line.before) || !isSetValue(line.after)) {
+    return `The log gives “${line.key}” a value no property of a note holds.`;
+  }
+  return null;
+}
+
+/**
+ * Why undo will not reverse a line of a Claude step's run: the only thing a
+ * step sets is the project the declared step filed a meeting under (#227),
+ * to a link — anything else it never did.
+ */
+function claudeLineProblem(
+  action: Extract<AutomationAction, { kind: 'claude' }>,
+  line: DoneAction,
+): string | null {
+  const never = 'This rule asks Claude; it never archived a note or set a property.';
+  if (line.kind !== 'set' || action.apply !== 'mine') return never;
+  if (line.key !== MEETING_PROJECT_KEY) return `This rule does not set “${line.key}”.`;
+  if (isAtlasNote(line.path)) return 'Atlas keeps its own files as they are.';
   if (!isPropertyValue(line.before) || !isSetValue(line.after)) {
     return `The log gives “${line.key}” a value no property of a note holds.`;
   }

@@ -20,6 +20,7 @@ import {
   proposalSchemaNamed,
   readNoteAnswer,
   splitFrontmatter,
+  surestProjectChoice,
   truncated,
   type AnsweredNote,
   type AnswerReading,
@@ -34,6 +35,7 @@ import {
   type NewProposal,
   type NoteCut,
   type NoteSkipped,
+  type ProjectChoice,
   type PromptData,
   type RegisteredProposalSchema,
   type StoredAnswer,
@@ -54,6 +56,13 @@ import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
 import { readMadeItems } from '../meetings/made-items.ts';
 import { HeldForPullError } from './fresh-pull-hold.ts';
+import type { PropertyChange } from './apply-changes.ts';
+import {
+  fileChosenMeetings,
+  loadProjectOptions,
+  planProjectChoices,
+  type PlannedFilings,
+} from './meeting-project-choice.ts';
 import {
   decideForMeeting,
   makeOwnersTasks,
@@ -230,7 +239,10 @@ interface StepArgs extends ProposalWritePorts {
  * that read a meeting's answers in full and then failed keeps them
  * (`ClaudeStepFailed.stored`), and its retry reuses them rather than asking
  * again; one it made some tasks in names them in `made`, and the retry finds
- * them by their `atlas_item` and makes only the rest.
+ * them by their `atlas_item` and makes only the rest. It also files a meeting
+ * with no project under the project Claude chose for it, when Claude is sure
+ * — the step's one edit besides the tasks, which "Undo last run" reverses —
+ * and proposes a less sure choice, once (#227, ADR-0039).
  */
 export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> {
   const { ports, action } = args;
@@ -298,11 +310,19 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
             adjusted,
             toStore,
           });
-    const { planned, proposed, tasks = [] } = answered;
+    const { planned, proposed, tasks = [], filings = [] } = answered;
     // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
     alreadyMade = Math.max(0, proposed - planned.length);
     await args.beforeWrite?.();
-    const done = await writeAll({ args, tasks, planned, claudeRun, stored: toStore });
+    const done = await writeAll({
+      args,
+      tasks,
+      planned,
+      filings,
+      warnings,
+      claudeRun,
+      stored: toStore,
+    });
     meetings = (answered.meetings ?? []).map((meeting) => tallyOf(meeting, tasks, planned));
     return { done, left: plan.skipped, claude: claudeRun() };
   } catch (error) {
@@ -505,6 +525,8 @@ interface AnswerPlanned {
   readonly tasks?: readonly PlannedTask[];
   /** For the declared step: each meeting it read, in order, for the log to say what it made of each. */
   readonly meetings?: readonly VaultPath[];
+  /** For the declared step: the meetings to file under the project Claude was sure of (#227). */
+  readonly filings?: readonly PropertyChange[];
 }
 
 /** Asks once for the rule's one new note, and plans it: nothing is written yet. */
@@ -552,23 +574,32 @@ type ProposalAsking = Asking & {
  * the rest are planned as proposals.
  */
 async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanned> {
-  const vault = asking.schema.readsVault ? await readVault(asking) : undefined;
-  const answered = await readAnswers(asking, vault);
   const declared = asking.action.apply === 'mine';
+  const vault = asking.schema.readsVault
+    ? await readVault({ ...asking, withProjects: declared })
+    : undefined;
+  const answered = await readAnswers(asking, vault);
   const decided = declared
     ? await decideOwnersItems(asking, answered, vault)
     : answered.map(({ path, proposals }) => ({ meeting: path, tasks: [], proposals }));
+  const filings = declared ? await planFilings(asking, answered) : NO_FILINGS;
   const meetingOf = new Map<string, VaultPath>();
-  const drafted = cappedForRun(
-    decided.flatMap(({ meeting, proposals }) =>
-      proposals.map((proposal) => {
-        const drafted = claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal });
-        meetingOf.set(drafted.id, meeting);
-        return drafted;
-      }),
+  const drafted = [
+    ...cappedForRun(
+      decided.flatMap(({ meeting, proposals }) =>
+        proposals.map((proposal) => {
+          const drafted = claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal });
+          meetingOf.set(drafted.id, meeting);
+          return drafted;
+        }),
+      ),
+      asking.dropped,
     ),
-    asking.dropped,
-  );
+    ...filings.proposals.map(({ meeting, proposal }) => {
+      meetingOf.set(proposal.id, meeting);
+      return proposal;
+    }),
+  ];
   const { planned, left } = await planProposals({
     fs: asking.fs,
     index: asking.index,
@@ -590,14 +621,31 @@ async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanne
     ...(declared && {
       tasks: decided.flatMap(({ tasks }) => tasks),
       meetings: decided.map(({ meeting }) => meeting),
+      filings: filings.changes,
     }),
   };
 }
 
-/** The proposals the answers about one note hold. */
+const NO_FILINGS: PlannedFilings = { changes: [], proposals: [] };
+
+/** What the declared step does with the project Claude chose for each meeting it read (#227). */
+function planFilings(
+  asking: ProposalAsking,
+  answered: readonly NoteAnswered[],
+): Promise<PlannedFilings> {
+  return planProjectChoices({
+    ports: asking,
+    choices: answered.map(({ path, project }) => ({ meeting: path, choice: project })),
+    notePaths: asking.notePaths,
+    madeBy: asking.madeBy,
+  });
+}
+
+/** The proposals the answers about one note hold, and the project they chose for it. */
 interface NoteAnswered {
   readonly path: VaultPath;
   readonly proposals: readonly CheckedProposal[];
+  readonly project: ProjectChoice | null;
 }
 
 /**
@@ -622,11 +670,12 @@ async function readAnswers(
     const kept = key === null ? null : (asking.storedAnswer?.(key) ?? null);
     const reused = kept === null ? null : rereadKept(asking, group.asks, kept, vault);
     if (reused !== null) {
-      answered.push({ path: group.path, proposals: reused });
+      answered.push({ path: group.path, ...reused });
       continue;
     }
     const answers: string[] = [];
     const proposals: CheckedProposal[] = [];
+    const choices: (ProjectChoice | null)[] = [];
     for (const notes of group.asks) {
       at += 1;
       const context = { notes, ...(vault !== undefined && { vault }) };
@@ -638,6 +687,7 @@ async function readAnswers(
         return asking.fail(unreadWords(`${part}${reading.problem}`));
       }
       proposals.push(...keptItems(asking, reading));
+      choices.push(reading.project ?? null);
       answers.push(answer);
     }
     if (key !== null) {
@@ -647,7 +697,7 @@ async function readAnswers(
         parts: group.asks.map((notes) => askedTurnsDigest(notes)),
       });
     }
-    answered.push({ path: group.path, proposals });
+    answered.push({ path: group.path, proposals, project: surestProjectChoice(choices) });
   }
   return answered;
 }
@@ -668,7 +718,7 @@ function rereadKept(
   asks: readonly (readonly AnsweredNote[])[],
   kept: Pick<StoredAnswer, 'answers' | 'parts'>,
   vault: AnswerVault | undefined,
-): CheckedProposal[] | null {
+): Omit<NoteAnswered, 'path'> | null {
   const sameTurns =
     kept.parts.length === asks.length &&
     kept.answers.length === asks.length &&
@@ -678,7 +728,12 @@ function rereadKept(
     asking.schema.read(kept.answers[at]!, { notes, ...(vault !== undefined && { vault }) }),
   );
   if (readings.some((reading) => !reading.ok)) return null;
-  return readings.flatMap((reading) => (reading.ok ? keptItems(asking, reading) : []));
+  return {
+    proposals: readings.flatMap((reading) => (reading.ok ? keptItems(asking, reading) : [])),
+    project: surestProjectChoice(
+      readings.map((reading) => (reading.ok ? (reading.project ?? null) : null)),
+    ),
+  };
 }
 
 /** An answer's proposals, with what it left out and put right added to the run's record. */
@@ -792,15 +847,21 @@ async function readVault({
   ports,
   index,
   notePaths,
-}: Pick<StepArgs, 'ports' | 'index' | 'notePaths'>): Promise<AnswerVault> {
+  withProjects,
+}: Pick<StepArgs, 'ports' | 'index' | 'notePaths'> & {
+  /** Whether to read the projects a meeting may be filed under: only for the step that files it (#227). */
+  withProjects: boolean;
+}): Promise<AnswerVault> {
   const { people } = await loadLinkDirectory({ index });
   const { terms } = await loadTerms({ index });
+  const projects = withProjects ? await loadProjectOptions({ index }) : null;
   return {
     selfName: ports.selfName(),
     selfEmails: ports.selfEmails(),
     people,
     notePaths,
     terms: terms.map((term) => term.canonical),
+    ...(projects !== null && { projects }),
   };
 }
 
@@ -815,12 +876,17 @@ async function writeAll({
   args,
   tasks,
   planned,
+  filings,
+  warnings,
   claudeRun,
   stored,
 }: {
   args: StepArgs;
   tasks: readonly PlannedTask[];
   planned: readonly PlannedNote[];
+  filings: readonly PropertyChange[];
+  /** Gains a line for each meeting it could not file. */
+  warnings: string[];
   claudeRun: () => ClaudeRunInfo;
   stored: readonly StoredAnswerDraft[];
 }): Promise<DoneAction[]> {
@@ -847,5 +913,9 @@ async function writeAll({
     }
     made = [...made, note.made];
   }
-  return made;
+  const today = args.ports.clock.today();
+  return [
+    ...made,
+    ...(await fileChosenMeetings({ ports: args, changes: filings, today, warnings })),
+  ];
 }
