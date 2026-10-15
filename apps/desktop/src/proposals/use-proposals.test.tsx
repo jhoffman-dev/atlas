@@ -205,6 +205,46 @@ describe('useProposals', () => {
     });
   });
 
+  it('lets go of a chosen proposal once Accept answers it alone, so Undo brings it back unticked', async () => {
+    const { hook } = render();
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+    act(() => hook.result.current.section.onUndo());
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+
+    expect(hook.result.current.section.selection.selected.size).toBe(0);
+  });
+
+  it('lets go of a chosen proposal once Reject answers it alone', async () => {
+    const { hook, files } = render();
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+
+    act(() => hook.result.current.section.onReject(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    // Put back by hand — out of the Archive, open again — it comes back unticked.
+    files.delete(`Archive/${PROPOSAL}`);
+    files.set(PROPOSAL, { text: PROPOSAL_TEXT, modified: 99 });
+    hook.rerender({ indexKey: 'v2' });
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+
+    expect(hook.result.current.section.selection.selected.size).toBe(0);
+  });
+
+  it('keeps a proposal chosen when Accept could not answer it', async () => {
+    const { hook } = render({ [PROPOSAL]: GONE_TEXT });
+    await waitFor(() => expect(hook.result.current.count).toBe(1));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+
+    act(() => hook.result.current.section.onAccept(path(PROPOSAL)));
+    await waitFor(() => expect(hook.result.current.section.problems.size).toBe(1));
+
+    expect([...hook.result.current.section.selection.selected]).toEqual([PROPOSAL]);
+  });
+
   it('says on the proposal why an accept was refused, and writes nothing', async () => {
     const { hook, files } = render({ [PROPOSAL]: GONE_TEXT });
     await waitFor(() => expect(hook.result.current.count).toBe(1));
@@ -455,6 +495,135 @@ describe('useProposals — adversarial: another vault opened after an accept', (
     await waitFor(() => expect(hook.result.current.count).toBe(0));
 
     expect(hook.result.current.section.notice?.undoable ?? false).toBe(false);
+  });
+});
+
+describe('useProposals — answering several at once (#168)', () => {
+  const THREE = {
+    [PROPOSAL]: PROPOSAL_TEXT,
+    [SECOND]: SECOND_TEXT,
+    [THIRD]: SECOND_TEXT.replace('Call Tobias Fenn', 'Book the room'),
+  };
+
+  it('accepts each chosen one as Accept does one, and one Undo takes them all back', async () => {
+    const { hook, files } = render(THREE);
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+    act(() => hook.result.current.section.selection.onToggle(SECOND));
+
+    act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
+    expect(openTitles(hook)).toEqual([THIRD]);
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(true));
+
+    expect(hook.result.current.section.notice?.text).toBe('Accepted 2 proposals.');
+    for (const accepted of [PROPOSAL, SECOND]) {
+      expect(files.get(`Archive/${accepted}`)?.text).toContain('state: accepted');
+      expect(files.get(`Archive/${accepted}`)?.text).toContain('answered_via: app');
+    }
+    expect(files.has(TASK)).toBe(true);
+    expect(files.has(SECOND_TASK)).toBe(true);
+
+    act(() => hook.result.current.section.onUndo());
+    await waitFor(() => expect(hook.result.current.section.notice?.undoable).toBe(false));
+    expect(hook.result.current.section.notice?.text).toBe(
+      'Undone: 2 proposals are back in the Inbox.',
+    );
+    expect(files.has(TASK)).toBe(false);
+    expect(files.has(SECOND_TASK)).toBe(false);
+    expect(files.get(PROPOSAL)?.text).toContain('state: open');
+    expect(files.get(SECOND)?.text).toContain('state: open');
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+    // Answered, they were let go of: back on the list, they are not chosen again.
+    expect(hook.result.current.section.selection.selected.size).toBe(0);
+  });
+
+  it('says on its card why one was refused, keeps it chosen, and still answers the rest', async () => {
+    const { hook, files } = render({ ...THREE, [PROPOSAL]: GONE_TEXT });
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+    act(() => hook.result.current.section.selection.onToggle(SECOND));
+
+    act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
+    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+
+    expect(hook.result.current.section.notice).toEqual({
+      text: 'Accepted 1 proposal. 1 was not: its card says why.',
+      opens: null,
+      undoable: true,
+      failed: false,
+    });
+    expect(hook.result.current.section.problems.get(path(PROPOSAL))).toMatch(
+      /which is not a note any more/,
+    );
+    expect(files.has(SECOND_TASK)).toBe(true);
+    await waitFor(() => expect(openTitles(hook)).toEqual([PROPOSAL, THIRD].sort()));
+    expect([...hook.result.current.section.selection.selected]).toEqual([PROPOSAL]);
+  });
+
+  it('keeps what was chosen while the batch was written, with the ones it could not answer (review)', async () => {
+    const setup = holdingOne({ ...THREE, [PROPOSAL]: GONE_TEXT }, SECOND_TASK);
+    const { hook } = drive(setup, setup.ports);
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+    act(() => hook.result.current.section.selection.onToggle(SECOND));
+    act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
+
+    act(() => hook.result.current.section.selection.onToggle(THIRD));
+    setup.release();
+    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+
+    expect([...hook.result.current.section.selection.selected].sort()).toEqual(
+      [PROPOSAL, THIRD].sort(),
+    );
+  });
+
+  it('chooses again the ones it could not answer, though the choice was cleared meanwhile (review)', async () => {
+    const setup = holdingOne({ ...THREE, [PROPOSAL]: GONE_TEXT }, SECOND_TASK);
+    const { hook } = drive(setup, setup.ports);
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+    act(() => hook.result.current.section.selection.onToggle(PROPOSAL));
+    act(() => hook.result.current.section.selection.onToggle(SECOND));
+    act(() => hook.result.current.section.onAcceptMany([path(PROPOSAL), path(SECOND)]));
+
+    act(() => hook.result.current.section.onClearSelection());
+    setup.release();
+    await waitFor(() => expect(hook.result.current.count).toBe(2));
+    expect([...hook.result.current.section.selection.selected]).toEqual([PROPOSAL]);
+  });
+
+  it('rejects each chosen one, archiving it, with nothing to undo', async () => {
+    const { hook, files } = render(THREE);
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+
+    act(() => hook.result.current.section.onRejectMany([path(PROPOSAL), path(THIRD)]));
+    await waitFor(() => expect(hook.result.current.section.notice).not.toBeNull());
+
+    expect(hook.result.current.section.notice).toEqual({
+      text: 'Rejected 2 proposals.',
+      opens: null,
+      undoable: false,
+      failed: false,
+    });
+    expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: rejected');
+    expect(files.get(`Archive/${THIRD}`)?.text).toContain('state: rejected');
+    expect(openTitles(hook)).toEqual([SECOND]);
+  });
+
+  it('answers once a proposal chosen twice, or already being answered', async () => {
+    const { hook, files } = render(THREE);
+    await waitFor(() => expect(hook.result.current.count).toBe(3));
+
+    act(() => {
+      hook.result.current.section.onAccept(path(PROPOSAL));
+      hook.result.current.section.onRejectMany([path(PROPOSAL), path(SECOND)]);
+    });
+    await waitFor(() => expect(files.has(`Archive/${SECOND}`)).toBe(true));
+    await act(() => new Promise((settle) => setTimeout(settle, 20)));
+
+    expect(files.get(`Archive/${PROPOSAL}`)?.text).toContain('state: accepted');
+    expect(files.get(`Archive/${SECOND}`)?.text).toContain('state: rejected');
+    expect(hook.result.current.section.problems.size).toBe(0);
   });
 });
 

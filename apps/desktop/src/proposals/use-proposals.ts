@@ -15,8 +15,15 @@ import {
   type ProposalPorts,
   type WindowClosingPort,
 } from '@atlas/application';
-import type { ProposalNotice, ProposalsContents, ProposalsSectionProps } from '@atlas/ui';
+import type {
+  ProposalNotice,
+  ProposalsContents,
+  ProposalsSectionProps,
+  RowSelection,
+} from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
+import { useRowSelection } from '../archive/use-row-selection.ts';
+import { answeredNotice, inTurn, undoneNotice, type InTurn } from './answer-many.ts';
 import { useAnswerQueue, useAnswersWrittenBeforeClose } from './answer-queue.ts';
 
 export interface ProposalsOptions {
@@ -60,13 +67,14 @@ function acceptedNotice(accepted: AcceptedProposal): ProposalNotice {
 /** What an answer leaves to say, and the accept it can undo, when it was one. */
 interface Answered {
   readonly notice: ProposalNotice;
-  readonly accepted: AcceptedProposal | null;
+  /** What the notice's Undo takes back: none, one, or a batch (#168). */
+  readonly accepted: readonly AcceptedProposal[];
 }
 
 /** What the section says, and what its notice's Undo takes back: that answer's own, never another's. */
 interface Said {
   readonly notice: ProposalNotice;
-  readonly undo: AcceptedProposal | null;
+  readonly undo: readonly AcceptedProposal[];
 }
 
 /**
@@ -91,7 +99,8 @@ function logOfVaultOpenNow(
  * answered straight away. One that fails puts its card back with why. The
  * proposals are read again once the answers are all written — not once for
  * each — and a read begun while any was being written is not shown, since it
- * may still list one as open.
+ * may still list one as open. Several chosen together are answered in turn,
+ * each as it would be alone, and one Undo takes back every accept (#168).
  */
 export function useProposals({
   ports,
@@ -108,6 +117,7 @@ export function useProposals({
   const [reads, setReads] = useState(0);
   const { said, saidNow, say } = useSaid();
   const answered = useAnsweredPaths();
+  const choosing = useRowSelection('');
   const queue = useAnswerQueue(() => {
     onSettled();
     setReads((count) => count + 1);
@@ -121,6 +131,7 @@ export function useProposals({
   const { fs } = ports;
   const openVault = useRef(fs);
   const { forget } = answered;
+  const { clear: clearChosen, afterBatch } = choosing;
   useEffect(() => {
     openVault.current = fs;
     return () => {
@@ -129,8 +140,9 @@ export function useProposals({
       setListing(null);
       setError(null);
       forget();
+      clearChosen();
     };
-  }, [fs, forget, say]);
+  }, [fs, forget, say, clearChosen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +178,8 @@ export function useProposals({
         try {
           const done = await withGiveUpRecorded(named, run);
           if (vault !== openVault.current) return;
+          // Answered, it is chosen no more: back on the list after an Undo, it comes back unticked.
+          afterBatch({ answered: [path], failed: [] });
           say({ notice: done.notice, undo: done.accepted });
         } catch (cause) {
           if (vault !== openVault.current) return;
@@ -174,7 +188,7 @@ export function useProposals({
         }
       });
     },
-    [activity, answered, fs, queue, say],
+    [activity, afterBatch, answered, fs, queue, say],
   );
 
   const onAccept = useCallback(
@@ -186,7 +200,7 @@ export function useProposals({
           today: clock.today(),
           ...(payload !== undefined && { payload }),
         });
-        return { notice: acceptedNotice(accepted), accepted };
+        return { notice: acceptedNotice(accepted), accepted: [accepted] };
       }),
     [answer, ports, clock],
   );
@@ -195,9 +209,68 @@ export function useProposals({
     (path: VaultPath) =>
       answer(path, async () => {
         const rejected = await rejectProposalNote({ ports, path, today: clock.today() });
-        return { notice: rejectedNotice(path, rejected), accepted: null };
+        return { notice: rejectedNotice(path, rejected), accepted: [] };
       }),
     [answer, ports, clock],
+  );
+
+  /**
+   * Answers each of `paths` in turn, as Accept or Reject would each alone
+   * (#168): those that fail come back to the list, still chosen, with why on
+   * their cards; the notice counts both, and its Undo takes back every accept.
+   * What the person chose while the batch was written stays chosen.
+   */
+  const answerMany = useCallback(
+    (paths: readonly VaultPath[], verb: 'Accepted' | 'Rejected') => {
+      const taken = paths.filter((path) => answered.take(path));
+      if (taken.length === 0) return;
+      setProblems((was) => taken.reduce(without, was));
+      const vault = fs;
+      const today = clock.today();
+      const log = logOfVaultOpenNow(activity);
+      const recorded = <Done>(path: VaultPath, write: () => Promise<Done>) =>
+        withGiveUpRecorded(
+          { activity: log, write: 'proposal', path, refusal: ANSWER_REFUSALS } as const,
+          write,
+        );
+      const settle = (
+        outcome: InTurn<VaultPath, ProposalArchived>,
+        accepted: readonly AcceptedProposal[],
+      ) => {
+        if (vault !== openVault.current) return;
+        for (const { item } of outcome.failed) answered.giveBack(item);
+        setProblems((was) => {
+          const next = new Map(was);
+          for (const { item, reason } of outcome.failed) next.set(item, reason);
+          return next;
+        });
+        const failed = outcome.failed.map(({ item }) => item);
+        afterBatch({ answered: taken.filter((path) => !failed.includes(path)), failed });
+        say({ notice: answeredNotice(verb, outcome), undo: accepted });
+      };
+      queue.enqueue(vault, async () => {
+        if (verb === 'Accepted') {
+          const outcome = await inTurn(taken, (path) =>
+            recorded(path, () => acceptProposalNote({ ports, path, today })),
+          );
+          settle(outcome, outcome.done);
+        } else {
+          const outcome = await inTurn(taken, (path) =>
+            recorded(path, () => rejectProposalNote({ ports, path, today })),
+          );
+          settle(outcome, []);
+        }
+      });
+    },
+    [activity, answered, afterBatch, clock, fs, ports, queue, say],
+  );
+  const onAcceptMany = useCallback(
+    (paths: readonly VaultPath[]) => answerMany(paths, 'Accepted'),
+    [answerMany],
+  );
+  const onRejectMany = useCallback(
+    (paths: readonly VaultPath[]) => answerMany(paths, 'Rejected'),
+    [answerMany],
   );
 
   /**
@@ -208,10 +281,10 @@ export function useProposals({
    */
   const onUndo = useCallback(() => {
     const asked = saidNow.current;
-    const accepted = asked?.undo ?? null;
-    if (asked === null || accepted === null) return;
+    const accepted = asked?.undo ?? [];
+    if (asked === null || accepted.length === 0) return;
     // Still shown while it is undone, but not offered twice.
-    const undoingIt: Said = { notice: asked.notice, undo: null };
+    const undoingIt: Said = { notice: asked.notice, undo: [] };
     say(undoingIt);
     setUndoing(true);
     const vault = fs;
@@ -221,23 +294,15 @@ export function useProposals({
       path: null,
       refusal: ANSWER_REFUSALS,
     } as const;
+    // Last accepted, first taken back, each checked on its own: one changed since stays, and says why.
+    const undoOne = (one: AcceptedProposal) =>
+      withGiveUpRecorded(named, () => undoAcceptedProposal({ ports, accepted: one }));
     queue.enqueue(vault, async () => {
-      let outcome: ProposalNotice;
-      try {
-        await withGiveUpRecorded(named, () => undoAcceptedProposal({ ports, accepted }));
-        outcome = {
-          text: `Undone: ${accepted.headline} is back in the Inbox.`,
-          opens: null,
-          undoable: false,
-          failed: false,
-        };
-      } catch (cause) {
-        outcome = { text: messageOf(cause), opens: null, undoable: false, failed: true };
-      }
+      const outcome = undoneNotice(accepted, await inTurn([...accepted].reverse(), undoOne));
       setUndoing(false);
       if (vault !== openVault.current) return;
       const now = saidNow.current;
-      if (now === null || now === undoingIt) say({ notice: outcome, undo: null });
+      if (now === null || now === undoingIt) say({ notice: outcome, undo: [] });
       else if (outcome.failed) say(besideLater(outcome, now));
     });
   }, [activity, fs, ports, queue, say, saidNow]);
@@ -252,6 +317,7 @@ export function useProposals({
   const busy = undoing ? 'undo' : null;
   const notice = said?.notice ?? null;
   const answering = answered.paths.size > 0;
+  const selection = useShownSelection(choosing.selection, contents);
   const section = useMemo<ProposalsSectionState>(
     () => ({
       contents,
@@ -262,6 +328,10 @@ export function useProposals({
       answering,
       onAccept,
       onReject,
+      selection,
+      onClearSelection: clearChosen,
+      onAcceptMany,
+      onRejectMany,
       onUndo,
       onDismissNotice,
     }),
@@ -274,6 +344,10 @@ export function useProposals({
       answering,
       onAccept,
       onReject,
+      selection,
+      clearChosen,
+      onAcceptMany,
+      onRejectMany,
       onUndo,
       onDismissNotice,
     ],
@@ -331,6 +405,18 @@ function useAnsweredPaths() {
     if (now.current.size > 0) set(new Set());
   }, [set]);
   return useMemo(() => ({ paths, take, giveBack, forget }), [paths, take, giveBack, forget]);
+}
+
+/** The choice as far as it reaches proposals still open on the list: an answered one is chosen no more. */
+function useShownSelection(
+  selection: RowSelection,
+  contents: ProposalsContents | null,
+): RowSelection {
+  return useMemo(() => {
+    const open = new Set<string>(contents?.open.map((proposal) => proposal.path) ?? []);
+    const selected = new Set([...selection.selected].filter((path) => open.has(path)));
+    return { ...selection, selected };
+  }, [selection, contents]);
 }
 
 function contentsOf(read: ProposalListing): ProposalsContents {
