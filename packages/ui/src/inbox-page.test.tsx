@@ -539,3 +539,50 @@ describe('InboxPage — more waiting than one page (#167)', () => {
     expect(screen.getByText(/^3 to process/)).toBeTruthy();
   });
 });
+
+describe('InboxPage — an offer read late does not move the ones already shown (#227)', () => {
+  const TYPES_OFFER: NonNullable<InboxPageProps['typesOffer']> = {
+    lines: ['Task gains Project, linking project or area notes.'],
+    onAccept: vi.fn(),
+    onDismiss: vi.fn(),
+  };
+  const MEETING_PROJECTS: NonNullable<InboxPageProps['meetingProjects']> = {
+    rows: [
+      {
+        path: 'Meetings/2026-10-06 Larkspur standup.md',
+        meeting: '2026-10-06 Larkspur standup',
+        project: 'Ledger',
+        confidence: 'high',
+        reason:
+          'Same series as 2026-10-05 Larkspur standup: 3 of its last 3 were filed under Ledger.',
+        chosen: true,
+      },
+    ],
+    open: false,
+    busy: false,
+    result: null,
+    problem: null,
+    canUndo: false,
+    onOpen: vi.fn(),
+    onToggle: vi.fn(),
+    onRun: vi.fn(),
+    onClose: vi.fn(),
+    onUndo: vi.fn(),
+    onDismiss: vi.fn(),
+  };
+  const typesOffer = () => screen.getByRole('complementary', { name: /Set your types up/ });
+  const meetingOffer = () => screen.getByRole('region', { name: 'File meetings under projects' });
+  const precedes = (first: HTMLElement, second: HTMLElement) =>
+    (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+  it('puts an offer read after another below it, so what is under the pointer stays put', () => {
+    const view = page({ meetingProjects: MEETING_PROJECTS });
+    view.rerender({ meetingProjects: MEETING_PROJECTS, typesOffer: TYPES_OFFER });
+    expect(precedes(meetingOffer(), typesOffer())).toBe(true);
+  });
+
+  it('keeps the usual order for the offers read together', () => {
+    page({ meetingProjects: MEETING_PROJECTS, typesOffer: TYPES_OFFER });
+    expect(precedes(typesOffer(), meetingOffer())).toBe(true);
+  });
+});

@@ -1,3 +1,4 @@
+import { Fragment, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
@@ -117,11 +118,15 @@ export function InboxPage(props: InboxPageProps) {
               ),
             })}
           />
-          {offer !== null && <TypesOffer {...offer} />}
-          {migration !== null && <TaskMigration {...migration} />}
-          {paraMigration !== null && <ParaMigration {...paraMigration} />}
-          {tidy !== null && <VaultTidy {...tidy} />}
-          {meetingProjects !== null && <MeetingProjects {...meetingProjects} />}
+          <Offers
+            offers={[
+              ['types', offer && <TypesOffer {...offer} />],
+              ['tasks', migration && <TaskMigration {...migration} />],
+              ['para', paraMigration && <ParaMigration {...paraMigration} />],
+              ['tidy', tidy && <VaultTidy {...tidy} />],
+              ['meetings', meetingProjects && <MeetingProjects {...meetingProjects} />],
+            ]}
+          />
           {problem !== null && (
             <p className="table__error" role="alert">
               {problem}
@@ -134,6 +139,30 @@ export function InboxPage(props: InboxPageProps) {
       </div>
     </>
   );
+}
+
+/**
+ * The Inbox's offers, each read on its own and shown once it is (#227). One
+ * read after the others goes below those already shown: arriving above them
+ * would move what is under the person's pointer as they reach for it. Offers
+ * read together keep the order given.
+ */
+function Offers({ offers }: { offers: readonly (readonly [string, ReactNode])[] }) {
+  const shown = offers.filter(([, offer]) => offer !== null);
+  const [order, setOrder] = useState<readonly string[]>(() => shown.map(([key]) => key));
+  const next = inArrivalOrder(
+    order,
+    shown.map(([key]) => key),
+  );
+  if (next.join('\n') !== order.join('\n')) setOrder(next);
+  const byKey = new Map(shown);
+  return next.map((key) => <Fragment key={key}>{byKey.get(key)}</Fragment>);
+}
+
+/** The offers shown before, in their order, then each newly shown one, in the order given. */
+function inArrivalOrder(before: readonly string[], shown: readonly string[]): readonly string[] {
+  const kept = before.filter((key) => shown.includes(key));
+  return [...kept, ...shown.filter((key) => !kept.includes(key))];
 }
 
 function describe(contents: InboxContents | null, proposals: number): string | null {
