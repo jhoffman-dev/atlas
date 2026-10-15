@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  acceptProposalNote,
   fakeClaudeStepPorts,
   HeldForPullError,
   recordingActivity,
@@ -284,6 +285,95 @@ describe('a meeting that arrives after the rule', () => {
       '[[Send the renewal contract]]',
       '[[Book the review room]]',
     ]);
+  });
+});
+
+describe('an answer kept for other turns', () => {
+  it('is asked again, not read against turns it never answered', async () => {
+    const { vault, arrived, runNow, tasks, asked } = setUp({
+      rounds: [TWO_MINE_ONE_TOBIAS, TWO_MINE_ONE_TOBIAS],
+    });
+    const create = vault.ports.fs.createNote;
+    let refuseOnce = true;
+    vault.ports.fs.createNote = async (write) => {
+      if (write.path === 'Book the review room.md' && refuseOnce) {
+        refuseOnce = false;
+        throw new Error('the disk is full');
+      }
+      return create(write);
+    };
+    await expect(arrived()).rejects.toThrow('the disk is full');
+    // As if the meeting were cut into parts differently now: the turns the kept answer was given about.
+    const log = logPathFor(RULE.id);
+    const kept = /(- stored .*: `\[.*\]` `\[")([0-9a-f]+)("\]`)/.exec(vault.files.get(log)!);
+    expect(kept).not.toBeNull();
+    vault.files.set(log, vault.files.get(log)!.replace(kept![0], `${kept![1]}0000${kept![3]}`));
+
+    await runNow();
+
+    expect(asked()).toBe(2);
+    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+  });
+});
+
+/** A rule that reads the same meeting and only proposes: what leaves a proposal for an item made since. */
+const PROPOSALS_ONLY: AutomationRule = {
+  ...RULE,
+  id: 'Meeting extraction',
+  name: 'Meeting extraction',
+  action: {
+    kind: 'claude',
+    prompt: AFTER_A_MEETING_PROMPT,
+    tools: [],
+    output: { kind: 'proposals', schema: 'meeting-items' },
+  },
+};
+
+const proposeOnly = (vault: ReturnType<typeof setUp>['vault']) =>
+  runAutomation({
+    ports: vault.ports,
+    rule: PROPOSALS_ONLY,
+    clock: CLOCK,
+    guard: GUARD,
+    activity: recordingActivity(),
+    trigger: 'hand',
+  });
+
+describe('a leftover proposal for an item already made', () => {
+  it('is refused on Accept as already made, and archived, making no second task', async () => {
+    const { vault, arrived, notesIn, tasks } = setUp({
+      rounds: [TWO_MINE_ONE_TOBIAS, TWO_MINE_ONE_TOBIAS],
+    });
+    await arrived();
+    // A rule that only proposes reads the same meeting: the owner's items come back as proposals.
+    await proposeOnly(vault);
+    const leftover = notesIn(PROPOSALS).find((at) =>
+      vault.files.get(at)!.includes('Send the renewal contract'),
+    );
+    expect(leftover).toBeDefined();
+
+    await expect(
+      acceptProposalNote({ ports: vault.ports, path: createVaultPath(leftover!), today: TODAY }),
+    ).rejects.toThrow('is already a task, made from the same item of the meeting');
+
+    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(vault.files.has(leftover!)).toBe(false);
+    expect(vault.properties(MEETING)['tasks']).toHaveLength(2);
+  });
+
+  it('is accepted as before when its item was made a task under another title', async () => {
+    const { vault, arrived, notesIn, tasks } = setUp({
+      rounds: [TWO_MINE_ONE_TOBIAS, answer({ ...OWNERS_SEND, title: 'Post the renewal contract' })],
+    });
+    await arrived();
+    await proposeOnly(vault);
+    const other = notesIn(PROPOSALS).find((at) =>
+      vault.files.get(at)!.includes('Post the renewal contract'),
+    );
+
+    await acceptProposalNote({ ports: vault.ports, path: createVaultPath(other!), today: TODAY });
+
+    expect(tasks()).toContain('Post the renewal contract.md');
   });
 });
 

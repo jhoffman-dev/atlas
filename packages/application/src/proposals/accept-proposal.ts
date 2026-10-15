@@ -2,6 +2,8 @@ import {
   ANSWERED_VIA_KEY,
   applyProposal,
   foldedVaultPath,
+  linkedTaskOwner,
+  madeTaskFor,
   MEETING_TASKS_KEY,
   messageOf,
   newNotePath,
@@ -21,6 +23,7 @@ import {
   type MeetingItemTask,
   type TaskMeeting,
 } from '../meetings/make-task-from-meeting.ts';
+import { readMadeItems } from '../meetings/made-items.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
 import { pointedAtItsMeeting, relationChanged } from './proposal-meeting.ts';
 import {
@@ -102,6 +105,7 @@ export async function acceptProposalNote({
   const asked = payload === undefined ? file.proposal : edited(file.proposal, payload);
   const meeting = await pointedAtItsMeeting({ ports, proposal: asked, notePaths });
   const proposal = spelledAsVault(meeting, notePaths);
+  await refuseAlreadyMade(ports, { file: { ...file, path }, proposal, notePaths, today, via });
   const headline = proposalHeadline(proposal);
   const wrote = await writeAccepted(ports, { proposal, notePaths, today, headline });
   await stampProposal(
@@ -197,6 +201,46 @@ function meetingItemOf(
       atlasItem: null,
     },
   };
+}
+
+/**
+ * Refuses a leftover proposal for a meeting item whose task the declared
+ * step has made already (ADR-0036, "Two sources of truth"): the same item and
+ * title. The proposal is answered — marked rejected, saying who answered —
+ * and archived, and no second task is made.
+ */
+async function refuseAlreadyMade(
+  ports: ProposalPorts,
+  {
+    file,
+    proposal,
+    notePaths,
+    today,
+    via,
+  }: {
+    file: Parameters<typeof stampProposal>[1];
+    proposal: ProposalNote;
+    notePaths: readonly VaultPath[];
+    today: string;
+    via: ProposalAnswerer;
+  },
+): Promise<void> {
+  const fromMeeting = meetingItemOf(proposal, notePaths);
+  if (fromMeeting === null) return;
+  const { meeting, item } = fromMeeting;
+  const made = madeTaskFor({
+    meeting: meeting.identity,
+    source: item.source,
+    owner: linkedTaskOwner(item.properties),
+    title: item.title,
+    madeItems: await readMadeItems(ports.index),
+  });
+  if (made === null) return;
+  await stampProposal(ports, file, { state: 'rejected', [ANSWERED_VIA_KEY]: via });
+  await archiveProposal({ ports, path: file.path, today });
+  throw new ProposalRefused(
+    `“${item.title}” is already a task, made from the same item of the meeting; the proposal was archived and nothing else was written.`,
+  );
 }
 
 /** Marks the proposal open again, with no record of the answer undone. */

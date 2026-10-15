@@ -1,12 +1,9 @@
 import {
-  compileMadeItemsQuery,
-  createVaultPath,
   decideMeetingItems,
   linkedTaskOwner,
   linkTargets,
   MEETING_TASKS_KEY,
   messageWithoutPaths,
-  noteTitle,
   resolveWikiLinkTarget,
   splitFrontmatter,
   TASK_KEYS,
@@ -48,25 +45,6 @@ export interface MeetingDecided {
   readonly proposals: readonly CheckedProposal[];
   /** Why none of the meeting's items could be a task, when that is the meeting's, not an item's. */
   readonly noTasksBecause: MeetingItemsDecision['noTasksBecause'];
-}
-
-/**
- * Every task made from a meeting's item, in the vault and the Archive, as the
- * index holds them now. Read once a run: a task made by this run is known
- * to the decision by its claim, and one the index has not caught up with is
- * found among the meeting's linked tasks.
- */
-export async function readMadeItems(index: Pick<IndexPort, 'query'>): Promise<MadeItem[]> {
-  const { sql, parameters } = compileMadeItemsQuery();
-  const result = await index.query(sql, parameters);
-  const [path, key, title] = ['path', 'key', 'title'].map((name) => result.columns.indexOf(name));
-  return result.rows.flatMap((row) => {
-    const item = row[key!];
-    const at = row[path!];
-    if (typeof item !== 'string' || typeof at !== 'string') return [];
-    const kept = row[title!];
-    return [{ key: item, title: typeof kept === 'string' ? kept : noteTitle(createVaultPath(at)) }];
-  });
 }
 
 /**

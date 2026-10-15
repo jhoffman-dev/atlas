@@ -8,7 +8,10 @@
 import { TASK_KEYS } from '../gtd/gtd-status.ts';
 import { readWikiLink } from '../markdown/wikilink-spans.ts';
 import { MEETING_ITEM_KEY } from '../meetings/meeting-extraction-properties.ts';
+import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
+import { atlasItemKey } from './claude-proposal-id.ts';
+import { sameItemTitle, type MadeItem } from './meeting-item-apply.ts';
 
 /** The property a task made from an item keeps its exact title in, when its file name could not. */
 const TITLE_KEY = 'title';
@@ -45,4 +48,32 @@ export function linkedTaskOwner(properties: Readonly<Record<string, unknown>>): 
 /** A link's target as a person is named: its note's title, without a folder or `.md`. */
 function lastSegment(target: string): string {
   return target.slice(target.lastIndexOf('/') + 1).replace(/\.md$/i, '');
+}
+
+/**
+ * The task already made for a meeting's item, when one is: the same
+ * `atlas_item` — the meeting, the block its source cites, whose it is — and
+ * the same title, as the declared step tells a made item from another on the
+ * same turn. What Accept asks before making a leftover proposal's task twice.
+ */
+export function madeTaskFor({
+  meeting,
+  source,
+  owner,
+  title,
+  madeItems,
+}: {
+  meeting: MeetingIdentity;
+  /** The block link the item cites: `[[2026-10-14 Standup#^t0001]]`. */
+  source: string;
+  /** Whose it is, as an identity holds it (`linkedTaskOwner`). */
+  owner: string;
+  title: string;
+  madeItems: readonly MadeItem[];
+}): MadeItem | null {
+  const link = readWikiLink(source.trim());
+  const block = link?.heading?.startsWith('#^') === true ? link.heading.slice(2) : '';
+  if (block === '') return null;
+  const key = atlasItemKey({ meeting, block, owner });
+  return madeItems.find((made) => made.key === key && sameItemTitle(made.title, title)) ?? null;
 }
