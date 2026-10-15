@@ -638,6 +638,17 @@ describe('what makes a meeting new to a rule that has answered it', () => {
     );
   });
 
+  it('is its transcript: an edit to its Summary or Notes is none, a corrected turn is new words', () => {
+    const transcript = '## Transcript\n\n**You** [00:00:01] Send the file. ^t0001\n';
+    const meetingText = (summary: string, notes: string, said = transcript) =>
+      `---\ntype: meeting\n---\n\n## Summary\n\n${summary}\n\n## Notes\n\n${notes}\n\n${said}`;
+    const first = key(meetingText('Ship it.', ''));
+
+    expect(first).toMatch(/^meeting:gemini:g1:transcript:/);
+    expect(key(meetingText('Ship it on Friday.', 'Call Tobias.'))).toBe(first);
+    expect(key(meetingText('Ship it.', '', transcript.replace('file', 'files')))).not.toBe(first);
+  });
+
   it('is unique to the meeting: two with the same words are two, and one not let in has none', () => {
     const text = '---\ntype: meeting\n---\n\n**You** [00:00:01] Hello. ^t0001\n';
 

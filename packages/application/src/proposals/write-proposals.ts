@@ -32,10 +32,11 @@ export interface ProposalLeft {
   readonly reason: string;
 }
 
-/** A proposal ready to be written: where, and what its note holds. */
+/** A proposal ready to be written: where, what its note holds, and the id it is known by. */
 export interface PlannedProposal {
   readonly path: VaultPath;
   readonly contents: string;
+  readonly id: string;
 }
 
 /** Every proposal decided, before any is written. */
@@ -86,7 +87,7 @@ export async function planProposals({
       const frontmatter = markdown.updateFrontmatter(null, file.properties);
       const path = nextAvailableNotePath({ folder, name: noteTitle(file.path), taken });
       taken.add(path);
-      planned.push({ path, contents: joinFrontmatter(frontmatter, file.body) });
+      planned.push({ path, contents: joinFrontmatter(frontmatter, file.body), id: proposal.id });
     } catch (cause) {
       left.push({ path: file.path, reason: messageWithoutPaths(cause) });
     }

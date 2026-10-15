@@ -7,6 +7,7 @@ import {
   type AutomationRule,
   type HandledLedger,
   type LogEntry,
+  type StoredAnswerDraft,
 } from '@atlas/domain';
 import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
@@ -68,12 +69,15 @@ export async function appendToRuleLog({
   entry,
   now,
   onLedgerRepaired,
+  stored,
 }: {
   fs: VaultFsPort;
   rule: Pick<AutomationRule, 'id' | 'name'>;
   entry: LogEntry;
   now: number;
   onLedgerRepaired?: () => void;
+  /** A Claude step's answers to keep in the ledger (ADR-0036), written in the same write. */
+  stored?: readonly StoredAnswerDraft[];
 }): Promise<void> {
   try {
     const path = logPathFor(rule.id);
@@ -83,6 +87,7 @@ export async function appendToRuleLog({
       ruleName: rule.name,
       entry,
       now,
+      ...(stored !== undefined && { stored }),
     });
     if (log.text === null) {
       await ensureFolder({ fs, folder: parentVaultPath(path) });

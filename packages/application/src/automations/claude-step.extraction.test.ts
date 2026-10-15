@@ -535,13 +535,13 @@ describe('a meeting too long for one ask', () => {
     system.includes(`^t${String(id).padStart(4, '0')}`);
 
   it('is read in parts, each its own ask about whole turns under the meeting’s head, and every part’s items are kept', async () => {
-    const long = longMeeting(120);
+    const long = longMeeting(105);
     expect(long.length).toBeGreaterThan(2 * CLAUDE_NOTE_CHARACTERS);
     const first = says(
       item({ kind: 'task', title: 'Write the rollout note', owner: 'You', source_block: 't0003' }),
     );
     const last = says(
-      item({ kind: 'task', title: 'Close the loop', owner: 'Tobias Fenn', source_block: 't0124' }),
+      item({ kind: 'task', title: 'Close the loop', owner: 'Tobias Fenn', source_block: 't0109' }),
     );
     const { run, proposals, asked, log } = setUp([first, says(), last], { ...NOTES, [SYNC]: long });
 
@@ -553,8 +553,8 @@ describe('a meeting too long for one ask', () => {
       expect(request.system).toContain(`(Part ${at + 1} of 3 of this transcript.`);
     }
     expect(turnIn(asked()[0]!.system, 3)).toBe(true);
-    expect(turnIn(asked()[0]!.system, 124)).toBe(false);
-    expect(turnIn(asked()[2]!.system, 124)).toBe(true);
+    expect(turnIn(asked()[0]!.system, 109)).toBe(false);
+    expect(turnIn(asked()[2]!.system, 109)).toBe(true);
     expect(turnIn(asked()[2]!.system, 3)).toBe(false);
     expect(entry).toMatchObject({ kind: 'run', claude: { asks: 3 } });
     expect(entry.kind === 'run' && entry.claude?.cut).toBeUndefined();
@@ -567,20 +567,20 @@ describe('a meeting too long for one ask', () => {
 
   it('reads a long meeting saved with Windows line endings in parts, and keeps what cites its turns', async () => {
     const last = says(
-      item({ kind: 'task', title: 'Close the loop', owner: 'Tobias Fenn', source_block: 't0124' }),
+      item({ kind: 'task', title: 'Close the loop', owner: 'Tobias Fenn', source_block: 't0109' }),
     );
     const { run, proposals, asked } = setUp([says(), says(), last], {
       ...NOTES,
-      [SYNC]: longMeeting(120, '\r\n'),
+      [SYNC]: longMeeting(105, '\r\n'),
     });
 
     const entry = await run(SYNC_ONLY);
 
     expect(asked()).toHaveLength(3);
-    expect(turnIn(asked()[2]!.system, 124)).toBe(true);
+    expect(turnIn(asked()[2]!.system, 109)).toBe(true);
     expect(entry.kind === 'run' && entry.claude?.cut).toBeUndefined();
     expect((await proposals()).get('Close the loop')!.proposal).toMatchObject({
-      source: '[[Platform weekly sync#^t0124]]',
+      source: '[[Platform weekly sync#^t0109]]',
       payload: { properties: { status: 'waiting', waiting_on: '[[Tobias Fenn]]' } },
     });
   });
@@ -591,7 +591,7 @@ describe('a meeting too long for one ask', () => {
     );
     const { run, proposals, log } = setUp([says(), early, says()], {
       ...NOTES,
-      [SYNC]: longMeeting(120),
+      [SYNC]: longMeeting(105),
     });
 
     await run(SYNC_ONLY);
@@ -608,7 +608,7 @@ describe('a meeting too long for one ask', () => {
     );
     const { run, proposals } = setUp([good, [{ type: 'text', text: 'Sorry, no.' }]], {
       ...NOTES,
-      [SYNC]: longMeeting(120),
+      [SYNC]: longMeeting(105),
     });
 
     const entry = await run(SYNC_ONLY);

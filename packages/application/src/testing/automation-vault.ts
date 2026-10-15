@@ -59,6 +59,7 @@ export function automationVault({
   dirty = [],
   types = TASK_TYPES,
   claude = fakeClaudeStepPorts(),
+  markdown = droppingMarkdown(),
 }: {
   notes: Record<string, string>;
   today: string;
@@ -68,6 +69,8 @@ export function automationVault({
   types?: readonly ObjectType[];
   /** What a Claude step asks; a model with nothing scripted unless given. */
   claude?: ClaudeStepPorts;
+  /** How frontmatter is read and written: JSON unless given — the real YAML port, in an adapters test. */
+  markdown?: MarkdownPort;
 }) {
   const files = new Map(Object.entries(notes));
   const dirs = new Set<string>();
@@ -78,7 +81,6 @@ export function automationVault({
   );
   const unsaved = new Set(dirty);
   const log: string[] = [];
-  const markdown = droppingMarkdown();
   const exists = (at: string) => dirs.has(at) || files.has(at);
 
   const fs = fakeVaultFs({

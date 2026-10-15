@@ -25,7 +25,11 @@ import {
   MEETING_DECISIONS_KEY,
   MEETING_TASKS_KEY,
 } from '../meetings/meeting-extraction-properties.ts';
-import { meetingTurnsOf, providerNextStepsOf } from '../meetings/meeting-turns.ts';
+import {
+  meetingTranscriptOf,
+  meetingTurnsOf,
+  providerNextStepsOf,
+} from '../meetings/meeting-turns.ts';
 import type { TranscriptTurn } from '../meetings/transcript.ts';
 import { PROPOSAL_CONFIDENCES, type ProposalConfidence } from '../proposals/proposal.ts';
 import { TAGS_KEY } from '../tags/note-tags.ts';
@@ -590,7 +594,7 @@ export const MEETING_ITEMS: ProposalSchema<MeetingItem> = {
   meetingRelations: [MEETING_TASKS_KEY, MEETING_DECISIONS_KEY],
   readItem: readMeetingItem,
   sharedAcrossRules: true,
-  handledKeyOf: bodyDigestOf,
+  handledKeyOf: wordsKeyOf,
   dropsUnreadable: true,
   positionOf: turnPosition,
   dropped: droppedItem,
@@ -608,14 +612,20 @@ function turnPosition(cites: ProposalCitation, { notes }: AnswerContext): number
 }
 
 /**
- * What a meeting is, to a rule that has answered it: the words, not the
- * frontmatter. Accepting a proposal writes the meeting's `tasks` or
- * `decisions`; that is Atlas's change, not something said in the meeting, and
- * must not make the meeting new.
+ * What a meeting is, to a rule that has answered it: what was said, its
+ * transcript (ADR-0036, "The ledger's key changes"). Accepting a proposal
+ * writes the meeting's `tasks` or `decisions`, and the person edits its
+ * Summary and Notes; none of that is something said in the meeting, so none
+ * of it makes the meeting new. A transcript corrected is new words. A meeting
+ * with no Transcript section is known by its whole body, as before.
  */
-function bodyDigestOf({ text, meeting }: Pick<AnsweredNote, 'text' | 'meeting'>): string | null {
+function wordsKeyOf({ text, meeting }: Pick<AnsweredNote, 'text' | 'meeting'>): string | null {
   const identity = meeting?.identity;
   // Keys match across paths: only a meeting the import vouches for is unique enough to name.
   if (identity === null || identity === undefined) return null;
-  return `meeting:${identity.provider}:${identity.externalId}:body:${digestOf(splitFrontmatter(text).body)}`;
+  const named = `meeting:${identity.provider}:${identity.externalId}`;
+  const transcript = meetingTranscriptOf(text);
+  return transcript === null
+    ? `${named}:body:${digestOf(splitFrontmatter(text).body)}`
+    : `${named}:transcript:${digestOf(transcript)}`;
 }

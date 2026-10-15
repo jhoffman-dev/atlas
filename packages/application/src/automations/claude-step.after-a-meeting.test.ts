@@ -193,6 +193,7 @@ describe('the declared step’s asks in one run', () => {
         fs: set.vault.ports.fs,
         index: set.vault.ports.index,
         markdown: set.vault.ports.markdown,
+        editors: set.vault.ports.editors,
         notePaths: set.vault.ports.notePaths as readonly VaultPath[],
         rule: RULE.id,
         madeBy: 'After a meeting · 2026-10-14 09:00:00',

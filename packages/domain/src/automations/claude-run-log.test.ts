@@ -326,3 +326,63 @@ describe('a Claude step that read a meeting in parts, and left items out', () =>
     });
   });
 });
+
+describe('what the declared step made of each meeting (ADR-0036)', () => {
+  const STANDUP = createVaultPath('Meetings/2026-10-14 Standup.md');
+  const REVIEW = createVaultPath('Meetings/2026-10-14 Renewal review.md');
+  const made = (
+    meetings: NonNullable<NonNullable<LogEntry & { kind: 'run' }>['claude']>['meetings'],
+  ) =>
+    ({
+      ...RAN,
+      done: [
+        { kind: 'created', path: createVaultPath('Send the renewal contract.md') },
+        { kind: 'created', path: createVaultPath('Book the review room.md') },
+        { kind: 'proposed', path: PROPOSAL },
+      ],
+      claude: { ...RAN.claude!, meetings },
+    }) as LogEntry;
+
+  it('says, meeting by meeting, how many tasks it made and how many it proposed, and reads it back', () => {
+    const entry = made([
+      { path: REVIEW, tasks: 2, proposals: 1 },
+      { path: STANDUP, tasks: 1, proposals: 0 },
+    ]);
+    const text = formatLogEntry(entry);
+
+    expect(text).toContain(
+      '- meeting `"Meetings/2026-10-14 Renewal review.md"`: tasks `2`, proposals `1`',
+    );
+    expect(logEntrySummary(entry)).toBe(
+      'Made 2 tasks from 2026-10-14 Renewal review, 1 proposal. Made 1 task from 2026-10-14 Standup, 0 proposals.',
+    );
+    expect(parseRunLog(newLogText('After a meeting', [entry]))).toEqual([entry]);
+    expect(automationEntryReport(RULE, entry)?.message).toContain(
+      'Made 2 tasks from 2026-10-14 Renewal review, 1 proposal.',
+    );
+  });
+
+  it('says it proposed nothing new when no meeting gave it anything to make', () => {
+    const entry: LogEntry = {
+      ...RAN,
+      done: [],
+      claude: {
+        ...RAN.claude!,
+        alreadyMade: 2,
+        meetings: [{ path: REVIEW, tasks: 0, proposals: 0 }],
+      },
+    };
+
+    expect(logEntrySummary(entry)).toBe('Nothing new to propose (2 already made).');
+    expect(parseRunLog(newLogText('After a meeting', [entry]))).toEqual([entry]);
+  });
+
+  it('leaves out a meeting line edited into something that does not read', () => {
+    const text = newLogText('After a meeting', [
+      made([{ path: REVIEW, tasks: 2, proposals: 1 }]),
+    ]).replace('tasks `2`', 'tasks `two`');
+
+    const [entry] = parseRunLog(text);
+    expect(entry?.kind === 'run' && entry.claude?.meetings).toBeUndefined();
+  });
+});

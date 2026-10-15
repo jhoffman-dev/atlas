@@ -9,6 +9,7 @@ import { importOutcomeOf } from '../meetings/meeting-arrival.ts';
 import { isMeetingType, type MeetingAttendee } from '../meetings/meeting-header.ts';
 import { unclosedFence } from '../meetings/meeting-lines.ts';
 import { meetingSectionBounds, meetingTurnsOf } from '../meetings/meeting-turns.ts';
+import { digestOf } from '../sources/merge.ts';
 import { truncated } from './answer-limits.ts';
 import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
@@ -213,6 +214,16 @@ export function claudeAsks(
   return { asks, cut, skipped };
 }
 
+/**
+ * What one ask showed, as the turns it held: a digest of their ids, in
+ * order. Two asks cut alike from one transcript show the same turns, so an
+ * answer kept from one is read again only against the turns it answered.
+ */
+export function askedTurnsDigest(notes: readonly AnsweredNote[]): string {
+  const turns = notes.map((note) => meetingTurnsOf(note.text).map((turn) => turn.blockId));
+  return digestOf(JSON.stringify([notes.map((note) => note.path), turns]));
+}
+
 function skippedWithout(note: AnsweredNote): NoteSkipped {
   return {
     path: note.path,
@@ -247,7 +258,7 @@ function meetingParts(note: AnsweredNote, room: number): NoteParts {
     const read = fits ? note.text.length : shownStart(note, room).length;
     return { parts: [{ text: note.text, read }], head: 0, unfit: !fits };
   };
-  if (note.meeting === undefined || note.text.length <= room) return whole();
+  if (note.meeting === undefined) return whole();
   const head = headOf(note.text, room / 2);
   if (head === null) return whole();
   const turns = note.text
@@ -255,8 +266,10 @@ function meetingParts(note: AnsweredNote, room: number): NoteParts {
     .split(TURN_GAP)
     .map((turn) => turn.replace(/^[\r\n]+|[\r\n]+$/g, ''))
     .filter((turn) => turn.trim() !== '');
-  const runs = runsThatFit(turns, room - head.text.length - PART_MARK_ROOM - CONTEXT_ROOM);
+  const headRoom = Math.max(head.text.length, HEAD_ROOM);
+  const runs = runsThatFit(turns, room - headRoom - PART_MARK_ROOM - CONTEXT_ROOM);
   if (runs.runs.length === 0) return whole();
+  if (runs.runs.length === 1 && !runs.unfit && note.text.length <= room) return whole();
   const parts = runs.runs.map((run, at) => ({
     text: partText({ head: head.text, run, before: runs.runs[at - 1], at, of: runs.runs.length }),
     read: run.reduce((sum, turn) => sum + turn.length, 0),
@@ -288,6 +301,14 @@ function headOf(text: string, budget: number): { text: string; end: number } | n
   const closed = fence === null ? kept : `${kept.replace(/\n+$/, '')}\n${fence}`;
   return { text: `${before}${closed}\n… (notes cut)\n\n${rest}`, end: transcript.textStart - 1 };
 }
+
+/**
+ * Room kept in each part for its head however long the head is, up to this:
+ * a part is then the same turns whatever is written around the transcript, so
+ * a `tasks` join or an edited Summary never moves a part's bounds and a kept
+ * answer is reused. A longer head takes its own length, and moves them.
+ */
+const HEAD_ROOM = 3_000;
 
 /** Room kept in a head for the line saying its Notes were cut, and a fence closed. */
 const NOTES_CUT_ROOM = 100;

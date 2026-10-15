@@ -251,15 +251,19 @@ function madeBefore({
   claimed: Set<string>;
   atlasItem: string;
 }): MeetingItemDecision {
-  const title = titleKey(proposal.payload.title);
-  if (claimed.has(atlasItem) || !made.some((each) => titleKey(each.title) === title)) {
+  const { title } = proposal.payload;
+  if (claimed.has(atlasItem) || !made.some((each) => sameItemTitle(each.title, title))) {
     return proposed('turn-already-a-task');
   }
   claimed.add(atlasItem);
   return { outcome: 'skipped', because: 'already-made', atlasItem };
 }
 
-/** A title as two are compared: case, spacing and punctuation aside. */
+/** Whether two titles name one item: case, spacing and punctuation aside. */
+export function sameItemTitle(left: string, right: string): boolean {
+  return titleKey(left) === titleKey(right);
+}
+
 function titleKey(title: string): string {
   return vocabularyKey(title)
     .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')

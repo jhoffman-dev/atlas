@@ -20,7 +20,8 @@
  * - records `2`
  * - vouches from `"2026-07-01T00:00:00.000Z"`
  * - handled `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d"]`
- * - answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d","meeting:larkspur:m-1042:body:9f8e"]`
+ * - answered `"Inbox/Meetings/Standup.md"` `"2026-10-08T09:00:00.000Z"`: `["1a2b3c4d","meeting:larkspur:m-1042:transcript:9f8e"]`
+ * - stored `"meeting:larkspur:m-1042:transcript:7c6d"` `"2026-10-08T09:05:00.000Z"`: `["{\"items\":[]}"]` `["3c4d5e6f"]`
  * ```
  *
  * The comment on the line after the heading is what makes a section the
@@ -37,10 +38,14 @@
  *   whether a note last written before it was handled. It is a real instant.
  * - A time in a `handled` or `answered` line is a real UTC instant from the
  *   clock the use-case was handed, so it is comparable with a file's time.
+ * - A `stored` line is a model's answer about a meeting's words, kept by the
+ *   declared step (ADR-0036, "The model's answer is kept and reused") when a
+ *   run that asked could not finish, so its retry asks nothing again. It is
+ *   no record of what was handled: forgetting one only costs an ask.
  *
  * An answered line holds more than one key for the version: its whole-file
  * digest first, then any a rule's schema names it by. A schema key must carry
- * the note's identity — `meeting:<provider>:<external_id>:body:<digest>` —
+ * the note's identity — `meeting:<provider>:<external_id>:transcript:<digest>` —
  * never a bare body digest, which two notes can share; {@link isSchemaKey}
  * is the minimal shape that is kept.
  */
@@ -73,11 +78,29 @@ export interface AnsweredRecord {
   readonly keys: readonly string[];
 }
 
+/** A model's answers about a meeting's words, one per ask, kept until a run that read them finishes. */
+export interface StoredAnswer {
+  /** The words answered, as the schema knows them: `meeting:<provider>:<id>:transcript:<digest>`. */
+  readonly key: string;
+  readonly at: number;
+  /** Each ask's answer, as the model gave it, in the order asked. */
+  readonly answers: readonly string[];
+  /**
+   * What each ask showed, one per answer (`askedTurnsDigest`): an answer is
+   * reused only against the same turns it answered.
+   */
+  readonly parts: readonly string[];
+}
+
+/** A stored answer before the ledger dates it. */
+export type StoredAnswerDraft = Omit<StoredAnswer, 'at'>;
+
 export interface HandledLedger {
   /** Milliseconds since the epoch; null while nothing was ever forgotten. */
   readonly vouchesFrom: number | null;
   readonly paths: ReadonlyMap<string, PathRecord>;
   readonly answered: readonly AnsweredRecord[];
+  readonly stored: readonly StoredAnswer[];
   /** The last entry folded in; null for a ledger not yet written. */
   readonly through: LedgerMark | null;
   /** Whether what was read did not add up (a line lost or unreadable, two ledgers, a version unknown). Never written. */
@@ -93,6 +116,13 @@ export const MAX_DIGESTS_PER_PATH = 5;
 /** Schema keys kept for one answer, and the longest one. */
 const MAX_KEYS_PER_ANSWER = 8;
 const MAX_KEY_LENGTH = 256;
+/**
+ * The most stored answers a ledger keeps, and the most bytes they take: they
+ * wait only for a retry, so they are few, and they never crowd out what was
+ * handled.
+ */
+export const MAX_STORED_ANSWERS = 20;
+export const STORED_ANSWERS_MAX_BYTES = 32 * 1024;
 const DAY_MS = 86_400_000;
 /** The furthest ahead of UTC a wall clock can be (UTC+14). */
 const MAX_UTC_OFFSET_MS = 14 * 3_600_000;
@@ -108,6 +138,7 @@ export const emptyLedger = (): HandledLedger => ({
   vouchesFrom: null,
   paths: new Map(),
   answered: [],
+  stored: [],
   through: null,
   damaged: false,
 });
@@ -115,7 +146,7 @@ export const emptyLedger = (): HandledLedger => ({
 /**
  * Whether a key from a rule's schema may be matched on: non-empty on both
  * sides of a colon, and not long. It must name the thing answered — the
- * note's identity, in the form `meeting:<provider>:<external_id>:body:<digest>`
+ * note's identity, in the form `meeting:<provider>:<external_id>:transcript:<digest>`
  * — because a key is taken as the same note wherever its file now is.
  */
 export function isSchemaKey(key: string): boolean {
@@ -136,6 +167,7 @@ const earliestInstant = (local: LocalTime): number =>
 export function recordRun(ledger: HandledLedger, entry: Run, at: number): HandledLedger {
   const paths = new Map(ledger.paths);
   let answered = [...ledger.answered];
+  let stored = ledger.stored;
   for (const path of entry.went ?? []) paths.delete(path);
   for (const { path, digest, wrote, keys = [] } of entry.versions ?? []) {
     const before = paths.get(path)?.digests.filter((each) => each !== digest) ?? [];
@@ -144,10 +176,47 @@ export function recordRun(ledger: HandledLedger, entry: Run, at: number): Handle
       const schemaKeys = keys.filter(isSchemaKey).slice(0, MAX_KEYS_PER_ANSWER);
       answered = answered.filter((each) => !(each.path === path && each.keys[0] === digest));
       answered.push({ at, path, keys: [digest, ...schemaKeys] });
+      // Words answered are never asked about again: their stored answer has done its work.
+      stored = stored.filter((each) => !schemaKeys.includes(each.key));
     }
   }
   for (const action of entry.done) if (action.kind === 'archived') paths.delete(action.from);
-  return { ...ledger, paths, answered };
+  return { ...ledger, paths, answered, stored };
+}
+
+/**
+ * The ledger keeping the answers a run read and could not finish with, dated
+ * `at`: each replaces one stored for the same words. One whose key is not a
+ * schema key, or that has no answers, is not kept.
+ */
+export function recordStored(
+  ledger: HandledLedger,
+  drafts: readonly StoredAnswerDraft[],
+  at: number,
+): HandledLedger {
+  const kept = drafts.filter(
+    ({ key, answers, parts }) =>
+      isSchemaKey(key) && answers.length > 0 && parts.length === answers.length,
+  );
+  if (kept.length === 0) return ledger;
+  const keys = new Set(kept.map(({ key }) => key));
+  return {
+    ...ledger,
+    stored: [
+      ...ledger.stored.filter(({ key }) => !keys.has(key)),
+      ...kept.map(({ key, answers, parts }) => ({
+        key,
+        at,
+        answers: [...answers],
+        parts: [...parts],
+      })),
+    ],
+  };
+}
+
+/** The answers stored for the words a key names; null when none are. */
+export function storedAnswerFor(ledger: HandledLedger | null, key: string): StoredAnswer | null {
+  return ledger?.stored.find((each) => each.key === key) ?? null;
 }
 
 /** What identifies a log entry as the last one a ledger folded in. */
@@ -234,6 +303,37 @@ export function pruneLedger(
     maxBytes = LEDGER_MAX_BYTES,
   }: { maxRecords?: number; maxBytes?: number } = {},
 ): HandledLedger {
+  return pruneHandled(pruneStored(ledger, now), now, { maxRecords, maxBytes });
+}
+
+/**
+ * The stored answers within their own limits, oldest gone first: by age, by
+ * count and by bytes. Forgetting one moves no floor: it was never a record of
+ * what was handled.
+ */
+function pruneStored(ledger: HandledLedger, now: number): HandledLedger {
+  const cutoff = now - LEDGER_MAX_AGE_DAYS * DAY_MS;
+  const newest = [...ledger.stored]
+    .filter((each) => each.at >= cutoff)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, MAX_STORED_ANSWERS);
+  const kept: StoredAnswer[] = [];
+  let room = STORED_ANSWERS_MAX_BYTES;
+  for (const each of newest) {
+    const size = utf8Length(storedLine(each)) + 1;
+    // One too big to keep is left out; the older ones that fit stay.
+    if (size > room) continue;
+    room -= size;
+    kept.push(each);
+  }
+  return kept.length === ledger.stored.length ? ledger : { ...ledger, stored: kept.reverse() };
+}
+
+function pruneHandled(
+  ledger: HandledLedger,
+  now: number,
+  { maxRecords, maxBytes }: { maxRecords: number; maxBytes: number },
+): HandledLedger {
   const records: Forgettable[] = [
     ...[...ledger.paths].map(([path, record]) => ({
       at: record.at,
@@ -275,12 +375,14 @@ function overBytes(
   maxBytes: number,
   alreadyForgetting: number,
 ): number {
+  // The stored answers stay whatever is forgotten: they are part of what is fixed, and of the count.
+  const stored = ledger.stored.length;
   const fixed = (count: number, vouches: boolean): number =>
     utf8Length(
       formatLedger({ ...ledger, paths: new Map(), answered: [], vouchesFrom: vouches ? 0 : null }),
     ) +
-    String(count).length -
-    1;
+    String(count + stored).length -
+    String(stored).length;
   const room = (vouches: boolean): number => {
     let left = maxBytes - fixed(records.length, vouches);
     let keep = records.length;
@@ -300,10 +402,12 @@ const handledLine = (path: string, { at, digests }: PathRecord): string =>
   `- handled ${code(path)} ${code(instant(at))}: ${code(digests)}`;
 const answeredLine = ({ path, at, keys }: AnsweredRecord): string =>
   `- answered ${code(path)} ${code(instant(at))}: ${code(keys)}`;
+const storedLine = ({ key, at, answers, parts }: StoredAnswer): string =>
+  `- stored ${code(key)} ${code(instant(at))}: ${code(answers)} ${code(parts)}`;
 
 /** The section the log holds, which {@link readHandledLedger} reads back. */
 export function formatLedger(ledger: HandledLedger): string {
-  const records = ledger.paths.size + ledger.answered.length;
+  const records = ledger.paths.size + ledger.answered.length + ledger.stored.length;
   const lines = [
     ...(ledger.through === null
       ? []
@@ -317,18 +421,23 @@ export function formatLedger(ledger: HandledLedger): string {
       .sort(([, a], [, b]) => a.at - b.at)
       .map(([path, r]) => handledLine(path, r)),
     ...[...ledger.answered].sort((a, b) => a.at - b.at).map(answeredLine),
+    ...[...ledger.stored].sort((a, b) => a.at - b.at).map(storedLine),
   ];
   return `${LEDGER_HEADING}\n${LEDGER_MARKER}\n\n${LEDGER_NOTE}\n\n${lines.join('\n')}\n`;
 }
 
 export const isEmptyLedger = (ledger: HandledLedger): boolean =>
-  ledger.vouchesFrom === null && ledger.paths.size === 0 && ledger.answered.length === 0;
+  ledger.vouchesFrom === null &&
+  ledger.paths.size === 0 &&
+  ledger.answered.length === 0 &&
+  ledger.stored.length === 0;
 
 const THROUGH_LINE = new RegExp(`^- through ${JSON_SPAN} ${JSON_SPAN}$`);
 const RECORDS_LINE = new RegExp(`^- records ${JSON_SPAN}$`);
 const VOUCHES_LINE = new RegExp(`^- vouches from ${JSON_SPAN}$`);
 const HANDLED_LINE = new RegExp(`^- handled ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN}$`);
 const ANSWERED_LINE = new RegExp(`^- answered ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN}$`);
+const STORED_LINE = new RegExp(`^- stored ${JSON_SPAN} ${JSON_SPAN}: ${JSON_SPAN} ${JSON_SPAN}$`);
 
 /**
  * The ledger a section holds. A line that does not read — a person may have
@@ -343,6 +452,7 @@ export function parseLedger(section: string): HandledLedger {
   let damaged = false;
   const paths = new Map<string, PathRecord>();
   const answered: AnsweredRecord[] = [];
+  const stored: StoredAnswer[] = [];
   for (const line of section.split('\n').map((each) => each.trim())) {
     if (!line.startsWith('- ')) continue;
     try {
@@ -352,6 +462,9 @@ export function parseLedger(section: string): HandledLedger {
       else if (matched.kind === 'vouches') vouchesFrom = matched.at;
       else if (matched.kind === 'handled') {
         paths.set(matched.path, matched.record);
+        read += 1;
+      } else if (matched.kind === 'stored') {
+        stored.push(matched.record);
         read += 1;
       } else {
         answered.push(matched.record);
@@ -366,6 +479,7 @@ export function parseLedger(section: string): HandledLedger {
     vouchesFrom,
     paths,
     answered,
+    stored,
     through,
     damaged: damaged || through === null || declared !== read,
   };
@@ -376,7 +490,8 @@ type ReadLine =
   | { kind: 'records'; count: number }
   | { kind: 'vouches'; at: number }
   | { kind: 'handled'; path: string; record: PathRecord }
-  | { kind: 'answered'; record: AnsweredRecord };
+  | { kind: 'answered'; record: AnsweredRecord }
+  | { kind: 'stored'; record: StoredAnswer };
 
 function readLine(line: string): ReadLine {
   const through = THROUGH_LINE.exec(line);
@@ -406,6 +521,16 @@ function readLine(line: string): ReadLine {
       keys: [keys[0]!, ...keys.slice(1).filter(isSchemaKey)],
     };
     return { kind: 'answered', record };
+  }
+  const kept = STORED_LINE.exec(line);
+  if (kept !== null) {
+    const key = textOf(kept[1]!);
+    const answers = stringsOf(kept[3]!);
+    const parts = stringsOf(kept[4]!);
+    if (!isSchemaKey(key) || answers.length === 0 || parts.length !== answers.length) {
+      throw new Error('not a stored answer');
+    }
+    return { kind: 'stored', record: { key, at: timeOf(kept[2]!), answers, parts } };
   }
   throw new Error('not a ledger line');
 }
@@ -459,6 +584,7 @@ function mergeLedgers(ledgers: readonly HandledLedger[]): HandledLedger {
   const floors = ledgers.map((ledger) => ledger.vouchesFrom).filter((at) => at !== null);
   const paths = new Map<string, PathRecord>();
   const answered = new Map<string, AnsweredRecord>();
+  const stored = new Map<string, StoredAnswer>();
   for (const ledger of ledgers) {
     for (const [path, record] of ledger.paths) {
       const other = paths.get(path);
@@ -473,11 +599,16 @@ function mergeLedgers(ledgers: readonly HandledLedger[]): HandledLedger {
       }
     }
     for (const record of ledger.answered) answered.set(`${record.path}\n${record.keys[0]}`, record);
+    for (const record of ledger.stored) {
+      const other = stored.get(record.key);
+      if (other === undefined || other.at < record.at) stored.set(record.key, record);
+    }
   }
   return {
     vouchesFrom: floors.length === 0 ? null : Math.max(...floors),
     paths,
     answered: [...answered.values()],
+    stored: [...stored.values()],
     through: earliestMark(ledgers.map((ledger) => ledger.through)),
     damaged: true,
   };
