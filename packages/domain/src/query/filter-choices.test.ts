@@ -7,6 +7,7 @@ import {
   relatedChoices,
   type FilterChoice,
 } from './index.ts';
+import { filterValueFrom } from './filter-words.ts';
 import { GTD_STATUSES } from '../gtd/gtd-status.ts';
 import { noteNames } from '../types/relation-names.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
@@ -142,5 +143,54 @@ describe('relatedChoices', () => {
       { value: '[[a]]', label: 'Larkspur launch' },
       { value: '[[b]]', label: 'Quill audit' },
     ]);
+  });
+});
+
+describe('a label typed exactly as the table shows it (#212)', () => {
+  it('stores that select option, not an earlier option that folds to the same slug', () => {
+    // Two declared options; the table shows them as "Follow up" and "Follow-up".
+    const choices = filterChoices(
+      { key: 'stage', kind: 'select', options: ['follow up', 'follow-up'] },
+      NO_CHOICE_SOURCES,
+    );
+    expect(choices.map((choice) => choice.label)).toEqual(['Follow up', 'Follow-up']);
+
+    expect(filterValueFrom('Follow-up', 'select', choices)).toBe('follow-up');
+  });
+
+  it('stores that relation note, not another note whose title differs only in case', () => {
+    const notes = [
+      { path: createVaultPath('projects/Q3 Plan.md'), title: 'Q3 Plan' },
+      { path: createVaultPath('archive/q3 plan.md'), title: 'q3 plan' },
+    ];
+    const names = noteNames(notes);
+    const choices = relatedChoices(
+      notes.map((note) => names.linkTo(note.path)),
+      names,
+    );
+    // localeCompare sorts the lower-case title first.
+    expect(choices.map((choice) => choice.label)).toEqual(['q3 plan', 'Q3 Plan']);
+
+    // Typed exactly as the table shows the project, Enter without picking from the list.
+    expect(filterValueFrom('Q3 Plan', 'relation', choices)).toBe('[[Q3 Plan]]');
+  });
+});
+
+describe('a tag is never rewritten to another spelling (#212)', () => {
+  const tags = filterChoices(
+    { key: 'tags', kind: 'multiSelect' },
+    { tags: ['Errand', 'follow-up'], related: {} },
+  );
+
+  it('is offered as it is written, and named only by that exact spelling', () => {
+    expect(tags.map((choice) => choice.label)).toEqual(['Errand', 'follow-up']);
+    expect(choiceNamed(tags, 'Errand')?.value).toBe('Errand');
+    expect(choiceNamed(tags, 'errand')).toBeNull();
+    expect(choiceNamed(tags, 'follow up')).toBeNull();
+  });
+
+  it('keeps what was typed for it, case and spaces and all', () => {
+    expect(filterValueFrom('errand', 'multiSelect', tags)).toBe('errand');
+    expect(filterValueFrom('follow up', 'multiSelect', tags)).toBe('follow up');
   });
 });

@@ -15,12 +15,15 @@ export function FilterValueBox({
   kind,
   choices,
   typed,
+  onOpen,
   onType,
   onPick,
 }: {
   kind: PropertyKind | undefined;
   choices: readonly FilterChoice[];
   typed: string;
+  /** The list is opening: what it offers may be gathered only now. */
+  onOpen?: () => void;
   onType: (typed: string) => void;
   onPick: (choice: FilterChoice) => void;
 }) {
@@ -31,6 +34,11 @@ export function FilterValueBox({
   const expanded = open && shown.length > 0;
   const at = Math.min(active, shown.length - 1);
 
+  const openList = () => {
+    onOpen?.();
+    setOpen(true);
+  };
+
   const pick = (choice: FilterChoice) => {
     onPick(choice);
     setOpen(false);
@@ -40,7 +48,7 @@ export function FilterValueBox({
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      setOpen(true);
+      openList();
       const step = event.key === 'ArrowDown' ? 1 : -1;
       setActive(Math.min(Math.max(at + step, 0), shown.length - 1));
     } else if (event.key === 'Enter' && expanded && at >= 0 && !isImeKey(event)) {
@@ -68,11 +76,11 @@ export function FilterValueBox({
         placeholder={choices.length > 0 ? 'Choose or type…' : 'Value'}
         autoComplete="off"
         value={typed}
-        onFocus={() => setOpen(true)}
+        onFocus={openList}
         onBlur={() => setOpen(false)}
         onChange={(event) => {
           onType(event.target.value);
-          setOpen(true);
+          openList();
           setActive(-1);
         }}
         onKeyDown={onKeyDown}

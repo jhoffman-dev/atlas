@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  comparesWholeValue,
   describeFilter,
   FILTER_OPERATORS,
   filterOperatorWords,
@@ -53,6 +54,27 @@ describe('filterValueFrom with the property’s choices (#212)', () => {
     ];
     expect(filterValueFrom('True', 'checkbox', states)).toBe('true');
     expect(filterValueFrom('maybe', 'checkbox', states)).toBeNull();
+  });
+
+  it('names a choice for a whole-value comparison, and keeps the words typed for a text search', () => {
+    expect(filterValueFrom('Next Action', 'select', statuses, 'isNot')).toBe('next-action');
+    expect(
+      filterValueFrom('Tomorrow', 'date', [{ value: '@tomorrow', label: 'Tomorrow' }], 'lessThan'),
+    ).toBe('@tomorrow');
+    expect(filterValueFrom('Next Action', 'select', statuses, 'contains')).toBe('Next Action');
+    expect(filterValueFrom('Next', 'select', statuses, 'startsWith')).toBe('Next');
+    expect(filterValueFrom('tr', 'checkbox', [{ value: 'true', label: 'true' }], 'contains')).toBe(
+      'tr',
+    );
+  });
+});
+
+describe('comparesWholeValue', () => {
+  it('is false only for the operators that search a value’s text', () => {
+    expect(FILTER_OPERATORS.filter((operator) => !comparesWholeValue(operator))).toEqual([
+      'contains',
+      'startsWith',
+    ]);
   });
 });
 

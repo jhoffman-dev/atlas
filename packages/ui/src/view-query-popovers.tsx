@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
 import { Popover } from '@base-ui/react/popover';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
+  comparesWholeValue,
   describeFilter,
   FILTER_OPERATORS,
   filterOperatorWords,
@@ -76,22 +77,35 @@ export function ToolbarPopover({
   );
 }
 
+/**
+ * Asks for a property's choices, which can be costly to gather (a relation's
+ * notes): called when a value box opens on it, or a filter on it is listed.
+ */
+export type WantChoices = (key: string) => void;
+
 /** What the view is filtered by, and a way to add to it. Each change redraws the view; saving it is the toolbar's. */
 export function FilterPopover({
   fields,
   filters,
   onChange,
+  onWantChoices,
   slot,
 }: {
   fields: readonly ViewField[];
   filters: readonly QueryFilter[];
   onChange: (filters: readonly QueryFilter[]) => void;
+  onWantChoices?: WantChoices | undefined;
   slot?: OverlaySlot | undefined;
 }) {
   return (
     <ToolbarPopover icon="filter" label="Filter" active={filters.length} slot={slot}>
       <p className="view-popover__title">Filters</p>
-      <FilterList fields={fields} filters={filters} onChange={onChange} />
+      <FilterList
+        fields={fields}
+        filters={filters}
+        onChange={onChange}
+        onWantChoices={onWantChoices}
+      />
     </ToolbarPopover>
   );
 }
@@ -105,14 +119,22 @@ export function FilterList({
   fields,
   filters,
   onChange,
+  onWantChoices,
   empty = 'Nothing filtered: every note of the type is here.',
 }: {
   fields: readonly ViewField[];
   filters: readonly QueryFilter[];
   onChange: (filters: readonly QueryFilter[]) => void;
+  /** Given when choices are gathered only once wanted. */
+  onWantChoices?: WantChoices | undefined;
   /** What an empty list says. */
   empty?: string;
 }) {
+  // Each filter reads by its choice's label: "Project is Larkspur launch".
+  useEffect(() => {
+    for (const filter of filters) onWantChoices?.(filter.key);
+  }, [filters, onWantChoices]);
+
   return (
     <>
       {filters.length === 0 ? (
@@ -137,7 +159,11 @@ export function FilterList({
           })}
         </ul>
       )}
-      <AddFilter fields={fields} onAdd={(filter) => onChange([...filters, filter])} />
+      <AddFilter
+        fields={fields}
+        onAdd={(filter) => onChange([...filters, filter])}
+        onWantChoices={onWantChoices}
+      />
     </>
   );
 }
@@ -145,9 +171,11 @@ export function FilterList({
 function AddFilter({
   fields,
   onAdd,
+  onWantChoices,
 }: {
   fields: readonly ViewField[];
   onAdd: (filter: QueryFilter) => void;
+  onWantChoices: WantChoices | undefined;
 }) {
   const [key, setKey] = useState(fields[0]?.key ?? '');
   const [operator, setOperator] = useState<FilterOperator>('is');
@@ -157,10 +185,11 @@ function AddFilter({
   const field = fields.find((candidate) => candidate.key === key);
   const choices = field?.choices ?? NO_CHOICES;
   const takesValue = operatorTakesValue(operator);
+  // A text search looks for the words as typed, not for a picked note's link.
   const value =
-    picked !== null && picked.label === typed
+    picked !== null && picked.label === typed && comparesWholeValue(operator)
       ? picked.value
-      : filterValueFrom(typed, field?.kind, choices);
+      : filterValueFrom(typed, field?.kind, choices, operator);
   const ready = key !== '' && (!takesValue || value !== null);
   const retype = (next: string) => {
     setTyped(next);
@@ -208,6 +237,7 @@ function AddFilter({
           kind={field?.kind}
           choices={choices}
           typed={typed}
+          onOpen={() => onWantChoices?.(key)}
           onType={retype}
           onPick={(choice) => {
             setTyped(choice.label);

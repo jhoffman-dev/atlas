@@ -171,6 +171,7 @@ export function ViewHeadToolbar({
       filters={view.query.filters}
       sorts={view.query.sorts}
       onChangeFilters={view.setFilters}
+      onWantFilterChoices={view.wantFilterChoices}
       onChangeSorts={view.setSorts}
       layout={
         <LayoutMenu

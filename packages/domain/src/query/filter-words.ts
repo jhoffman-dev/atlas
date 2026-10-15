@@ -28,14 +28,29 @@ const NUMBER = /^-?\d+(?:\.\d+)?$/;
 /** Kinds whose value can only be one of their choices: a checkbox is true or false. */
 const CHOICES_ONLY: readonly PropertyKind[] = ['checkbox'];
 
+/** Operators that look for text inside a value: what is typed is the text looked for. */
+const TEXT_SEARCHES: readonly FilterOperator[] = ['contains', 'startsWith'];
+
+/**
+ * Whether a filter with this operator compares a whole value, and so stores
+ * the choice a typed or picked value names. `contains` and `startsWith` look
+ * for the text as typed: "Larkspur launch" is found in `[[projects/Larkspur
+ * launch]]` and `[[Larkspur launch|Launch]]`, where the link `[[Larkspur launch]]` is not.
+ */
+export function comparesWholeValue(operator: FilterOperator): boolean {
+  return !TEXT_SEARCHES.includes(operator);
+}
+
 /**
  * What a person typed as a filter's value, as the value to store, by the kind
- * of the property it filters and the values it offers (`filterChoices`).
+ * of the property it filters, the values it offers (`filterChoices`) and the
+ * filter's operator.
  *
  * A table shows a select's option as its label — `next-action` reads "Next
  * Action" — and the index compares with what the file holds, exactly. So text
  * naming a choice, by its label or its value in any spelling, is stored as that
  * choice's value; otherwise "Next Action" would match no task at all (#212).
+ * A text search keeps what was typed (`comparesWholeValue`).
  *
  * The index compares a number column with a number, so `phase is 14` on a
  * number property is stored as 14. Every other column holds text, which never
@@ -47,12 +62,15 @@ export function filterValueFrom(
   typed: string,
   kind?: PropertyKind,
   choices: readonly FilterChoice[] = [],
+  operator: FilterOperator = 'is',
 ): string | number | null {
   const text = typed.trim();
   if (text === '') return null;
-  const named = choiceNamed(choices, text);
-  if (named !== null) return named.value;
-  if (kind !== undefined && CHOICES_ONLY.includes(kind)) return null;
+  if (comparesWholeValue(operator)) {
+    const named = choiceNamed(choices, text);
+    if (named !== null) return named.value;
+    if (kind !== undefined && CHOICES_ONLY.includes(kind)) return null;
+  }
   return kind === 'number' && NUMBER.test(text) ? Number(text) : text;
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   boardGroups,
   drawnLevels,
+  filtersByLink,
   calendarEndKey,
   checklistProgressKey,
   groupChoices,
@@ -117,8 +118,10 @@ export function useSavedView({
   groups: readonly RowGroup[];
   /** What the Group control offers, each with why it cannot be chosen when it cannot. */
   groupChoices: readonly GroupChoice[];
-  /** What the Filter control's value box offers for each property. */
+  /** What the Filter control's value box offers for each property, once wanted. */
   filterChoices: FilterChoicesByKey;
+  /** Asks for a property's filter choices: its value box has opened, or a filter on it is listed. */
+  wantFilterChoices: (key: string) => void;
   error: string | null;
   editCell: (args: { path: string; column: string; value: string }) => void;
   toggleSort: (column: string) => void;
@@ -192,7 +195,12 @@ export function useSavedView({
   });
   const choices = useMemo(() => groupChoices(type), [type]);
   const names = useNoteNames();
-  const filterChoices = useFilterChoices({ type, index, indexKey, names });
+  const { choices: filterChoices, want: wantFilterChoices } = useFilterChoices({
+    type,
+    index,
+    indexKey,
+    names,
+  });
 
   const changeProperties = useChangeProperties({
     editors,
@@ -249,6 +257,7 @@ export function useSavedView({
     groups,
     groupChoices: choices,
     filterChoices,
+    wantFilterChoices,
     error,
     ...viewEdits,
     ...rowWrites,
@@ -409,6 +418,7 @@ function useViewResult({
 }) {
   const [result, setResult] = useState<ViewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const resolveLink = useLinkResolver(query);
 
   useEffect(() => {
     if (query === null) {
@@ -419,7 +429,7 @@ function useViewResult({
 
     let cancelled = false;
     setError(null);
-    runView({ index, query, includeArchived })
+    runView({ index, query, includeArchived, resolveLink })
       .then((found) => {
         if (!cancelled) setResult(found);
       })
@@ -433,9 +443,23 @@ function useViewResult({
     return () => {
       cancelled = true;
     };
-  }, [index, query, indexKey, includeArchived]);
+  }, [index, query, indexKey, includeArchived, resolveLink]);
 
   return { result, error, setError };
+}
+
+/**
+ * The note a link opens, for a view filtered by one (`project is [[…]]`) —
+ * and only for such a view, so no other view runs again each time the
+ * vault's notes are read anew.
+ */
+function useLinkResolver(query: ViewQuery | null): ((target: string) => string | null) | undefined {
+  const names = useNoteNames();
+  const byLink = query !== null && filtersByLink(query);
+  return useMemo(
+    () => (byLink ? (target: string) => names.opens(`[[${target}]]`) : undefined),
+    [byLink, names],
+  );
 }
 
 /**

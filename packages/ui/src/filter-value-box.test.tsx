@@ -160,3 +160,86 @@ describe('the filter value box', () => {
     expect(screen.getByText('Status is not Next Action')).toBeDefined();
   });
 });
+
+describe('a relation filter that is not an exact match', () => {
+  const LAUNCH: ViewField = {
+    key: 'project',
+    label: 'Project',
+    kind: 'relation',
+    choices: [
+      { value: '[[Larkspur launch]]', label: 'Larkspur launch' },
+      { value: '[[Quill audit]]', label: 'Quill audit' },
+    ],
+  };
+
+  function showLaunch() {
+    const onChange = vi.fn<(filters: readonly QueryFilter[]) => void>();
+    render(
+      <FilterPopover
+        fields={[{ key: 'title', label: 'Name' }, LAUNCH]}
+        filters={[]}
+        onChange={onChange}
+      />,
+    );
+    return onChange;
+  }
+
+  it('stores the text typed for "contains", not the link of the note it names', async () => {
+    // As a link, "Larkspur launch" would no longer be found in
+    // `[[projects/Larkspur launch]]` or `[[Larkspur launch|Launch]]`.
+    const onChange = showLaunch();
+    const box = await openOn('project', 'contains');
+    await userEvent.type(box, 'Larkspur launch');
+    await userEvent.click(screen.getByRole('button', { name: 'Add filter' }));
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith([
+      { key: 'project', operator: 'contains', value: 'Larkspur launch' },
+    ]);
+  });
+
+  it('stores the words of a note picked for "starts with", not its link', async () => {
+    const onChange = showLaunch();
+    const box = await openOn('project', 'startsWith');
+    await userEvent.click(box);
+    await userEvent.click(within(screen.getByRole('listbox')).getAllByRole('option')[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Add filter' }));
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith([
+      { key: 'project', operator: 'startsWith', value: 'Larkspur launch' },
+    ]);
+  });
+});
+
+describe('choices gathered only once wanted', () => {
+  function showWanting(filters: readonly QueryFilter[] = []) {
+    const onWantChoices = vi.fn<(key: string) => void>();
+    render(
+      <FilterPopover
+        fields={[{ key: 'title', label: 'Name' }, STATUS, PROJECT]}
+        filters={filters}
+        onChange={vi.fn()}
+        onWantChoices={onWantChoices}
+      />,
+    );
+    return onWantChoices;
+  }
+
+  it('asks for nothing until the Filter control is opened', () => {
+    const onWantChoices = showWanting([{ key: 'project', operator: 'is', value: '[[x]]' }]);
+    expect(onWantChoices).not.toHaveBeenCalled();
+  });
+
+  it('asks for the choices of each filter it lists, so each reads by its label', async () => {
+    const onWantChoices = showWanting([{ key: 'project', operator: 'is', value: '[[x]]' }]);
+    await userEvent.click(screen.getByRole('button', { name: /Filter/ }));
+    expect(onWantChoices).toHaveBeenCalledWith('project');
+  });
+
+  it('asks for a property’s choices when its value box opens', async () => {
+    const onWantChoices = showWanting();
+    const box = await openOn('project');
+    expect(onWantChoices).not.toHaveBeenCalled();
+    await userEvent.click(box);
+    expect(onWantChoices).toHaveBeenCalledExactlyOnceWith('project');
+  });
+});

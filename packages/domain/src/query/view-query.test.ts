@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compileViewQuery,
+  filtersByLink,
   InvalidQueryError,
   viewNameFor,
   type FilterOperator,
@@ -316,5 +317,69 @@ describe('shaping a query', () => {
 
   it('returns rows as before when nothing is shaped', () => {
     expect(shaped({})).toContain('SELECT "path", "title"');
+  });
+});
+
+describe('a filter by a link (#212)', () => {
+  const byProject = (operator: FilterOperator, value: string) =>
+    query({ type: 'task', filters: [{ key: 'project', operator, value }] });
+  const opens = (target: string) =>
+    target === 'Larkspur launch' ? 'projects/Larkspur launch.md' : null;
+
+  it('compares by the note the link opens when links can be resolved', () => {
+    const { sql, parameters } = compileViewQuery(
+      byProject('is', '[[Larkspur launch|Launch]]'),
+      {},
+      {
+        resolveLink: opens,
+      },
+    );
+    expect(sql).toContain(
+      'EXISTS (SELECT 1 FROM relations AS r WHERE r.src = "path" AND r.key = ? AND r.dst = ?)',
+    );
+    expect(parameters.slice(0, 2)).toEqual(['project', 'projects/Larkspur launch.md']);
+  });
+
+  it('is not leaves out the notes linking it; a link to no note compares by its folded name', () => {
+    const { sql, parameters } = compileViewQuery(
+      byProject('isNot', '[[Someday Plan]]'),
+      {},
+      {
+        resolveLink: opens,
+      },
+    );
+    expect(sql).toContain('NOT EXISTS (SELECT 1 FROM relations AS r');
+    expect(sql).toContain('r.name = ?');
+    expect(parameters.slice(0, 2)).toEqual(['project', 'someday plan']);
+  });
+
+  it('compares the text as it is without a resolver, or for a text search', () => {
+    expect(compileViewQuery(byProject('is', '[[Larkspur launch]]')).sql).toContain(
+      '"project" IS ?',
+    );
+    expect(
+      compileViewQuery(byProject('contains', '[[Larkspur launch]]'), {}, { resolveLink: opens })
+        .sql,
+    ).not.toContain('relations');
+  });
+
+  it('is told apart from a view filtered by no link', () => {
+    expect(filtersByLink(byProject('is', '[[Larkspur launch]]'))).toBe(true);
+    expect(filtersByLink(byProject('isNot', '[[Larkspur launch]]'))).toBe(true);
+    expect(filtersByLink(byProject('contains', '[[Larkspur launch]]'))).toBe(false);
+    expect(filtersByLink(byProject('is', 'Larkspur launch'))).toBe(false);
+    expect(filtersByLink(query({ filters: [{ key: 'project', operator: 'isEmpty' }] }))).toBe(
+      false,
+    );
+  });
+});
+
+describe('a filter on tags (#212)', () => {
+  it('compares a tag however it is cased, without its #', () => {
+    const { sql, parameters } = compileViewQuery(
+      query({ type: 'task', filters: [{ key: 'tags', operator: 'isNot', value: '#Errand' }] }),
+    );
+    expect(sql).toContain('"tags" IS NOT ? COLLATE NOCASE');
+    expect(parameters[0]).toBe('Errand');
   });
 });

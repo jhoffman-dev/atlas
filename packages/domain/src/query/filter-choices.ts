@@ -16,6 +16,12 @@ import { RELATIVE_DATE_NAMES } from './view-query.ts';
 export interface FilterChoice {
   readonly value: string;
   readonly label: string;
+  /**
+   * Matched however it is cased, as a tag is (`#Errand` and `#errand` are one
+   * tag), so text typed for it is kept as typed — never rewritten to this
+   * spelling, nor to another tag that differs only in its spaces.
+   */
+  readonly keptAsTyped?: boolean;
 }
 
 /** What the vault knows that a property's choices are drawn from. */
@@ -64,7 +70,7 @@ export function filterChoices(
   },
   sources: FilterChoiceSources,
 ): FilterChoice[] {
-  const tags = property.key === TAGS_PROPERTY ? sources.tags.map(plainChoice) : [];
+  const tags = property.key === TAGS_PROPERTY ? sources.tags.map(tagChoice) : [];
   switch (property.kind) {
     case 'select':
     case 'multiSelect':
@@ -95,7 +101,7 @@ const optionChoice = (option: string): FilterChoice => ({
   label: optionLabel(option),
 });
 
-const plainChoice = (value: string): FilterChoice => ({ value, label: value });
+const tagChoice = (tag: string): FilterChoice => ({ value: tag, label: tag, keptAsTyped: true });
 
 /** The first of each value: a tag a select also declares is offered once. */
 function distinct(choices: readonly FilterChoice[]): FilterChoice[] {
@@ -121,16 +127,20 @@ export function matchingChoices(
 }
 
 /**
- * The choice a typed value names: its value exactly, else its label or value
- * however it is cased or spaced — so "Next Action", "next action" and
- * "next-action" are one status. Null when it names none.
+ * The choice a typed value names: its value exactly, else its label exactly,
+ * else its label or value however it is cased or spaced — so "Next Action",
+ * "next action" and "next-action" are one status, while "Follow-up" typed as
+ * one option reads stays that option when "Follow up" is another. A choice
+ * kept as typed (a tag) is named only by its value exactly. Null when it names none.
  */
 export function choiceNamed(choices: readonly FilterChoice[], typed: string): FilterChoice | null {
   const text = typed.trim();
   const wanted = spelled(text);
+  const rewritable = choices.filter((choice) => choice.keptAsTyped !== true);
   return (
     choices.find((choice) => choice.value === text) ??
-    choices.find(
+    rewritable.find((choice) => choice.label === text) ??
+    rewritable.find(
       (choice) => spelled(choice.label) === wanted || spelled(choice.value) === wanted,
     ) ??
     null

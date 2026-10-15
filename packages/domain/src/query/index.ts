@@ -1,5 +1,6 @@
 export {
   compileViewQuery,
+  filtersByLink,
   viewNameFor,
   GROUP_COUNT_COLUMN,
   GROUP_LABEL_COLUMN,
@@ -47,6 +48,7 @@ export { COLUMN_PREVIEW, columnPreview } from './column-preview.ts';
 export {
   describeFilter,
   filterOperatorWords,
+  comparesWholeValue,
   filterValueFrom,
   operatorTakesValue,
 } from './filter-words.ts';
