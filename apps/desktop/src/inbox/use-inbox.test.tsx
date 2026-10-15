@@ -83,6 +83,7 @@ function inbox(overrides: Partial<InboxOptions> = {}, files: Record<string, stri
     open: true,
     onSettled,
     activity: recordingActivity(),
+    closing: { beforeClose: async () => () => {} },
     ...overrides,
   };
   const hook = renderHook((options: InboxOptions) => useInbox(options), { initialProps: initial });
@@ -204,12 +205,12 @@ describe('useInbox — a vault switch', () => {
       hook.result.current.clarify({ path: CALL, clarification: { due: '2026-13-45' } }),
     );
     expect(hook.result.current.lastAction).toEqual({ title: 'Call the bank' });
-    expect(hook.result.current.refusal).not.toBeNull();
+    expect(hook.result.current.refusals).not.toEqual([]);
 
     hook.rerender({ ...initial, vaultKey: '/vaults/b' });
 
     expect(hook.result.current.lastAction).toBeNull();
-    expect(hook.result.current.refusal).toBeNull();
+    expect(hook.result.current.refusals).toEqual([]);
   });
 });
 
@@ -233,7 +234,7 @@ describe('useInbox — clarifying a row', () => {
       '---\ntype: task\nstatus: waiting\nwaiting_on: [[Mara Quill]]\nproject: [[Atlas]]\n---\n\nAbout the loan.\n',
     );
     expect(onSettled).toHaveBeenCalledOnce();
-    expect(hook.result.current.refusal).toBeNull();
+    expect(hook.result.current.refusals).toEqual([]);
     expect(hook.result.current.lastAction).toEqual({ title: 'Call the bank' });
   });
 
@@ -253,10 +254,12 @@ describe('useInbox — clarifying a row', () => {
     });
 
     expect(done).toBe(false);
-    expect(hook.result.current.refusal).toEqual({
-      path: CALL,
-      reason: '“2026-13-45” is not a day (YYYY-MM-DD).',
-    });
+    expect(hook.result.current.refusals).toEqual([
+      {
+        path: CALL,
+        reason: '“2026-13-45” is not a day (YYYY-MM-DD).',
+      },
+    ]);
     expect(files.get(CALL)).toBe(before);
     expect(onSettled).toHaveBeenCalledOnce();
     expect(hook.result.current.lastAction).toEqual({ title: 'Call the bank' });
@@ -272,7 +275,7 @@ describe('useInbox — clarifying a row', () => {
       });
     });
     expect(done).toBe(true);
-    expect(hook.result.current.refusal).toBeNull();
+    expect(hook.result.current.refusals).toEqual([]);
     expect(files.get(CALL)).toBe('---\ntype: task\nstatus: waiting\n---\n\nAbout the loan.\n');
   });
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Adversarial pass on #112: the Inbox hook when the write under a decision
- * fails, and when two decisions are asked for at once.
+ * fails, and when two decisions are asked for at once (#217).
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
@@ -58,6 +58,7 @@ function inbox(failing: { write?: string } = {}) {
     open: true,
     onSettled,
     activity: recordingActivity(),
+    closing: { beforeClose: async () => () => {} },
   };
   const hook = renderHook((given: InboxOptions) => useInbox(given), { initialProps: options });
   return {
@@ -87,7 +88,7 @@ describe('useInbox — the write under a decision fails', () => {
     });
 
     expect(done).toBe(false);
-    expect(hook.result.current.refusal).toEqual({ path: CALL, reason: 'permission denied' });
+    expect(hook.result.current.refusals).toEqual([{ path: CALL, reason: 'permission denied' }]);
     expect(files.get(CALL)).toBe(CAPTURED);
     expect(hook.result.current.contents?.items.map((item) => item.path)).toContain(CALL);
     expect(hook.result.current.busy).toBe(false);
@@ -97,8 +98,10 @@ describe('useInbox — the write under a decision fails', () => {
 });
 
 describe('useInbox — two decisions asked for in one tick', () => {
-  it('writes the first whole and says the second was not done, rather than dropping it unsaid', async () => {
-    const { hook, files } = inbox();
+  // #217 replaced "the second is not made, and says so": the next row is worked
+  // while the last is still being written, so both are written, in turn.
+  it('writes both, one after the other, and re-reads once for the two', async () => {
+    const { hook, files, onSettled } = inbox();
 
     let outcomes: boolean[] = [];
     await act(async () => {
@@ -108,10 +111,10 @@ describe('useInbox — two decisions asked for in one tick', () => {
       ]);
     });
 
-    expect(outcomes).toEqual([true, false]);
+    expect(outcomes).toEqual([true, true]);
     expect(files.get(CALL)).toContain('status: next-action');
-    expect(files.get(WRITE)).toBe(CAPTURED);
-    // The second row's decision was not written; the row it was made on has to say so.
-    expect(hook.result.current.refusal?.path).toBe(WRITE);
+    expect(files.get(WRITE)).toContain('status: someday');
+    expect(hook.result.current.refusals).toEqual([]);
+    expect(onSettled).toHaveBeenCalledOnce();
   });
 });

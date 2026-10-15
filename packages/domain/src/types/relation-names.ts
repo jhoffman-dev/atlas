@@ -56,6 +56,7 @@ export function noteNames(notes: readonly NamedNote[] | null): NoteNames {
     if (!resolved.has(target)) resolved.set(target, resolver(target));
     return resolved.get(target) ?? null;
   };
+  const links = new Map<VaultPath, string>();
 
   const name = (link: WikiLink): LinkedName => {
     const path = notes === null ? null : resolve(link.target);
@@ -73,7 +74,13 @@ export function noteNames(notes: readonly NamedNote[] | null): NoteNames {
       const [piece] = splitWikiLinks(link.trim());
       return piece?.kind === 'wikiLink' ? name(piece).path : null;
     },
-    linkTo: (path) => `[[${wikiLinkTargetWith(path, resolve)}]]`,
+    linkTo: (path) => {
+      const known = links.get(path);
+      if (known !== undefined) return known;
+      const link = `[[${wikiLinkTargetWith(path, resolve)}]]`;
+      links.set(path, link);
+      return link;
+    },
   };
 }
 

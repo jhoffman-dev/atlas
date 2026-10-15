@@ -36,7 +36,9 @@ async function openPlan(
 
 const chat = (page: Page) => page.getByRole('complementary', { name: 'Claude' });
 
+/** Asks as a person does: once the last answer has finished, since Enter sends nothing until then. */
 async function ask(page: Page, question: string): Promise<void> {
+  await expect(chat(page).getByText('Claude is working…')).toHaveCount(0);
   const box = chat(page).getByRole('textbox', { name: 'Ask Claude' });
   await box.fill(question);
   await box.press('Enter');
@@ -167,6 +169,21 @@ test("Claude finds a day's meeting from a guessed path, and by its day (#211)", 
   expect(listed).toContain('<tool_result name="atlas_list_notes">');
   expect(listed).toContain('Inbox/Meetings/2026-10-14 Mara Tobias 1-1.md');
   expect(listed).not.toContain('2026-10-13 Larkspur Standup');
+});
+
+test('a reply still streaming when the window closes stops there, sending nothing after', async ({
+  page,
+}) => {
+  const { host } = await openPlan(page);
+  // About five hundred pieces: still arriving well after the first is drawn.
+  host.claude.reply('Nimbus answer. '.repeat(400));
+  await page.keyboard.press('Meta+j');
+  await ask(page, 'Tell me everything');
+  await expect(chat(page).getByText(/Nimbus answer\./)).toBeVisible();
+
+  await page.close();
+
+  await host.claude.delivered();
 });
 
 test('when Claude Code is not logged in, the panel says how to fix it', async ({ page }) => {

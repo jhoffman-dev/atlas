@@ -46,6 +46,7 @@ function filing(readProject: () => Promise<{ text: string; modified: number }>) 
       open: false,
       onSettled: () => {},
       activity,
+      closing: { beforeClose: async () => () => {} },
     }),
   );
   const file = () =>
@@ -66,9 +67,9 @@ describe('filing from the Inbox, and the Activity log', () => {
     }));
     await file();
     await waitFor(() =>
-      expect(hook.result.current.refusal?.reason).toMatch(/links to a project or area/),
+      expect(hook.result.current.refusals[0]?.reason).toMatch(/links to a project or area/),
     );
-    expect(hook.result.current.refusal?.path).toBe(NOTE);
+    expect(hook.result.current.refusals[0]?.path).toBe(NOTE);
     expect(activity.reports).toEqual([]);
   });
 
@@ -78,10 +79,12 @@ describe('filing from the Inbox, and the Activity log', () => {
     });
     await file();
     await waitFor(() =>
-      expect(hook.result.current.refusal).toEqual({
-        path: NOTE,
-        reason: 'The disk is not answering.',
-      }),
+      expect(hook.result.current.refusals).toEqual([
+        {
+          path: NOTE,
+          reason: 'The disk is not answering.',
+        },
+      ]),
     );
     expect(activity.reports).toEqual([
       expect.objectContaining({

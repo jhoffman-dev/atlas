@@ -9,6 +9,7 @@ import {
   tasksStartInInbox,
   waitingOnRefusal,
   type Clarification,
+  type EntryMove,
   type InboxKey,
   type ObjectType,
   type VaultPath,
@@ -26,10 +27,15 @@ import {
   type ClarifyUndo,
   type Clock,
   type InboxListing,
+  type WindowClosingPort,
 } from '@atlas/application';
-import type { RelationChoice } from '@atlas/ui';
+import type { InboxRefusal, RelationChoice } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
+import { useAnswerQueue, useAnswersWrittenBeforeClose } from '../proposals/answer-queue.ts';
 import { errorMessage } from '../query/error-message.ts';
+import { withoutLeaving, type LeavingRow, type ReadMoment } from './leaving-rows.ts';
+import { keptWhereSame } from './kept-where-same.ts';
+import { notesAfterOwnMoves } from './own-moves.ts';
 
 export interface InboxOptions {
   readonly ports: ArchivePorts;
@@ -45,10 +51,16 @@ export interface InboxOptions {
   readonly indexReady?: boolean;
   /** Whether the Inbox page is showing, which is when what to file under is read. */
   readonly open: boolean;
-  /** Re-reads the tree and the index once a note has been clarified. */
-  readonly onSettled: () => void;
+  /**
+   * Re-reads the tree and the index once the clarifications asked for are all
+   * written. What it hands back settles once the index holds them — false if
+   * it does not — and nothing handed back means it does at once.
+   */
+  readonly onSettled: () => Promise<boolean> | void;
   /** Where a write the page gives up on is recorded; a refusal is not. */
   readonly activity: Pick<ActivityLog, 'inOpenVault'>;
+  /** The window's close, held until the clarifications still being written are written. */
+  readonly closing: WindowClosingPort;
 }
 
 /** What the row says once a note is clarified: only what could not be done. */
@@ -62,6 +74,13 @@ function outcomeProblem(outcome: ClarifyOutcome): string | null {
  * every task still at Inbox — what a note can be filed under and who a task
  * can wait on, clarifying a row, and taking the last one back. The rules are
  * the use-cases'; this holds what is on screen.
+ *
+ * A clarified row leaves the list at once and is written in the background,
+ * after any still being written (#217), so the next row can be worked
+ * straight away. One that fails comes back with why. The tree and the index
+ * are read again once every clarification asked for is written — not once
+ * for each — and a row that left stays off the list until a read of the
+ * index that has caught up with its write lands.
  *
  * The list is read whatever page is open, so the sidebar's count is right;
  * the projects, areas and people only while the page shows. Everything shown
@@ -77,10 +96,18 @@ export function useInbox(options: InboxOptions) {
   const fresh = settled && (options.indexReady ?? true);
   const [choices, setChoices] = useState<Choices | null>(null);
   const [said, setSaid] = useState<Said | null>(null);
-  const [busy, setBusy] = useState(false);
-  // `busy` reaches the page a render late; two picks in one tick would both see it false.
-  const running = useRef(false);
-  const unmadeMeanwhile = useRef<Pick<Result, 'problem' | 'refusal'> | null>(null);
+  const [undoing, setUndoing] = useState(0);
+  const {
+    actions: writes,
+    leaving,
+    caughtUp,
+  } = useClarifyWrites({
+    onSettled,
+    closing: options.closing,
+    vaultKey,
+    notePaths,
+    indexKey,
+  });
   const startInInbox = tasksStartInInbox(types);
   const { listing, showMore } = useInboxListing({
     index: ports.index,
@@ -88,6 +115,8 @@ export function useInbox(options: InboxOptions) {
     indexKey,
     fresh,
     tasksStartInInbox: startInInbox,
+    moment: writes.moment,
+    caughtUp,
   });
 
   useEffect(() => {
@@ -95,7 +124,17 @@ export function useInbox(options: InboxOptions) {
     let cancelled = false;
     readChoices(ports.index)
       .then((found) => {
-        if (!cancelled) setChoices({ vaultKey, ...found, error: null });
+        if (cancelled) return;
+        // The same projects and people as last time are the same lists, so no row is drawn again for them.
+        setChoices((before) => {
+          const same = before?.vaultKey === vaultKey ? before : null;
+          return {
+            vaultKey,
+            filing: keptWhereSame(same?.filing ?? null, found.filing, byPath),
+            people: keptWhereSame(same?.people ?? null, found.people, byPath),
+            error: null,
+          };
+        });
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
@@ -110,99 +149,116 @@ export function useInbox(options: InboxOptions) {
   const shown = settled && listing?.vaultKey === vaultKey ? listing : null;
   const offered = settled && choices?.vaultKey === vaultKey ? choices : null;
   const told = said?.vaultKey === vaultKey ? said : null;
+  const contents = useMemo(
+    () =>
+      shown?.contents === null || shown?.contents === undefined
+        ? null
+        : withoutLeaving(
+            shown.contents,
+            leaving.vaultKey === vaultKey ? leaving.rows : NO_ROWS,
+            shown.read,
+          ),
+    [shown, leaving, vaultKey],
+  );
 
-  /**
-   * Runs one write at a time, against the vault that was open when it was asked
-   * for. One asked for while another is still being written is not made, and
-   * says so where `unmade` puts it, rather than being dropped unsaid.
-   */
-  const act = useCallback(
-    async (action: () => Promise<Result>, unmade: Pick<Result, 'problem' | 'refusal'>) => {
-      if (!settled) return false;
-      const say = (result: Result) =>
-        // A refused pick leaves the last action as it was: it can still be taken back.
-        setSaid((before) => ({
-          vaultKey,
-          ...result,
-          last:
-            result.last === 'kept'
-              ? before?.vaultKey === vaultKey
-                ? before.last
-                : null
-              : result.last,
-        }));
-      if (running.current) {
-        unmadeMeanwhile.current = unmade;
-        say({ ...unmade, last: 'kept' });
-        return false;
-      }
-      running.current = true;
-      unmadeMeanwhile.current = null;
-      const unmadeSince = () => unmadeMeanwhile.current;
-      setBusy(true);
-      try {
-        const result = await action();
-        const done = result.refusal === null && result.problem === null;
-        // What was not made while this one was being written is still to be said once it lands.
-        const meanwhile = unmadeSince();
-        say(done && meanwhile !== null ? { ...result, ...meanwhile } : result);
-        return done;
-      } finally {
-        running.current = false;
-        setBusy(false);
-      }
-    },
-    [settled, vaultKey],
+  /** Says what a write left, of the vault it was asked in; `kept` leaves the last action to take back. */
+  const say = useCallback(
+    (asked: string | null, result: Result) =>
+      setSaid((before) => {
+        const same = before?.vaultKey === asked ? before : null;
+        const refusals = same?.refusals ?? NO_REFUSALS;
+        return {
+          vaultKey: asked,
+          problem: result.problem,
+          refusals: result.row === undefined ? refusals : withRowSaid(refusals, result.row),
+          last: result.last === 'kept' ? (same?.last ?? null) : result.last,
+        };
+      }),
+    [],
   );
 
   const clarify = useCallback(
-    ({ path, clarification }: { path: VaultPath; clarification: Clarification }) =>
-      act(
-        async () => {
-          const write = clarification.project === undefined ? 'edit' : 'filing';
-          const named = { activity, write, path, refusal: ClarifyRefusedError } as const;
-          try {
-            const outcome = await withGiveUpRecorded(named, () =>
-              clarifyInboxItem({ ports, path, clarification, notePaths, today: clock.today() }),
-            );
-            onSettled();
-            const reason = outcomeProblem(outcome);
-            return {
-              problem: null,
-              refusal: reason === null ? null : { path, reason },
-              last: { title: noteTitle(path), undo: outcome.undo },
-            };
-          } catch (cause) {
-            return { problem: null, refusal: { path, reason: errorMessage(cause) }, last: 'kept' };
-          }
-        },
-        { problem: null, refusal: { path, reason: STILL_WRITING } },
-      ),
-    [act, activity, clock, notePaths, onSettled, ports],
+    ({ path, clarification }: { path: VaultPath; clarification: Clarification }) => {
+      if (!settled) return Promise.resolve(false);
+      // Made a task, a note stays in the Inbox, on a row of its own; anything else leaves it.
+      const leaves = clarification.asTask !== true;
+      const asked = vaultKey;
+      if (leaves) writes.leave(asked, path);
+      const write = clarification.project === undefined ? 'edit' : 'filing';
+      const named = { activity: logOfVaultOpenNow(activity), write, path } as const;
+      return writes.enqueue(ports, asked, async (given) => {
+        try {
+          const outcome = await withGiveUpRecorded({ ...named, refusal: ClarifyRefusedError }, () =>
+            clarifyInboxItem({
+              ports: given.ports,
+              path,
+              clarification,
+              notePaths: given.notePaths,
+              today: clock.today(),
+            }),
+          );
+          const reason = outcomeProblem(outcome);
+          // Clarified but not filed — the move refused, say — the row comes back to say why.
+          if (reason === null && leaves) writes.written(asked, path);
+          else writes.stay(asked, path);
+          say(asked, {
+            problem: null,
+            row: { path, reason },
+            last: { title: noteTitle(path), undo: outcome.undo },
+          });
+          return { done: reason === null, wrote: true };
+        } catch (cause) {
+          writes.stay(asked, path);
+          say(asked, {
+            problem: null,
+            row: { path, reason: errorMessage(cause) },
+            last: 'kept',
+          });
+          return NOT_WRITTEN;
+        }
+      });
+    },
+    [settled, vaultKey, writes, activity, ports, clock, say],
   );
 
   const last = told?.last ?? null;
-  const undo = useCallback(
-    () =>
-      act(
-        async () => {
-          if (last === null) return { problem: null, refusal: null, last: null };
-          const path = last.undo.to;
-          const named = { activity, write: 'edit', path, refusal: ClarifyRefusedError } as const;
-          try {
-            await withGiveUpRecorded(named, () =>
-              undoClarifyInboxItem({ ports, undo: last.undo, notePaths }),
-            );
-            onSettled();
-            return { problem: null, refusal: null, last: null };
-          } catch (cause) {
-            return { problem: errorMessage(cause), refusal: null, last: 'kept' };
-          }
-        },
-        { problem: STILL_WRITING, refusal: null },
-      ),
-    [act, activity, last, notePaths, onSettled, ports],
-  );
+  const undo = useCallback(() => {
+    if (!settled || last === null) return Promise.resolve(false);
+    const asked = vaultKey;
+    const path = last.undo.to;
+    const named = { activity: logOfVaultOpenNow(activity), write: 'edit', path } as const;
+    setUndoing((count) => count + 1);
+    return writes
+      .enqueue(ports, asked, async (given) => {
+        // Pressed twice, or for one already taken back: there is nothing left to take back.
+        if (writes.undone(last.undo)) return NOT_WRITTEN;
+        try {
+          await withGiveUpRecorded({ ...named, refusal: ClarifyRefusedError }, () =>
+            undoClarifyInboxItem({
+              ports: given.ports,
+              undo: last.undo,
+              notePaths: given.notePaths,
+            }),
+          );
+          writes.markUndone(last.undo);
+          setSaid((before) =>
+            before?.vaultKey === asked && before.last === last
+              ? {
+                  ...before,
+                  problem: null,
+                  refusals: withRowSaid(before.refusals, { path: last.undo.from, reason: null }),
+                  last: null,
+                }
+              : before,
+          );
+          return { done: true, wrote: true };
+        } catch (cause) {
+          say(asked, { problem: errorMessage(cause), last: 'kept' });
+          return NOT_WRITTEN;
+        }
+      })
+      .finally(() => setUndoing((count) => count - 1));
+  }, [settled, last, vaultKey, activity, writes, ports, say]);
 
   // The undo lasts as long as the bar offering it (#165): once that has gone, so has the undo.
   const dismissLastAction = useCallback(
@@ -214,17 +270,18 @@ export function useInbox(options: InboxOptions) {
   // One object per clarification, not one per render: its bar's time is kept by it (#165).
   const lastAction = useMemo(() => (last === null ? null : { title: last.title }), [last]);
   return {
-    contents: shown?.contents ?? null,
+    contents,
     /** The statuses a row may give a task: the ones the vault's Task type declares. */
     statuses,
     error: shown?.error ?? offered?.error ?? null,
     filing: offered?.filing ?? NONE,
     people: offered?.people ?? NONE,
-    busy,
+    /** While an undo is being written, so it is not asked for twice. */
+    busy: undoing > 0,
     /** Why the last undo could not be done, or null. */
     problem: told?.problem ?? null,
-    /** Why the last clarification was refused or left unfinished, and the row it was for. */
-    refusal: told?.refusal ?? null,
+    /** Why each row's last clarification was refused or left unfinished, until that row is clarified again. */
+    refusals: told?.refusals ?? NO_REFUSALS,
     /** The last clarification, while it can be taken back. */
     lastAction,
     clarify,
@@ -232,19 +289,215 @@ export function useInbox(options: InboxOptions) {
     dismissLastAction,
     /** Lists the next page of what waits (#167). */
     showMore,
+    /** Settles once every clarification asked for so far is written, or has failed. */
+    written: writes.drained,
   };
 }
 
-const NONE: readonly RelationChoice[] = [];
+/** The refusals said, with one row's said again: its reason now, or none. */
+function withRowSaid(
+  refusals: readonly InboxRefusal[],
+  row: { readonly path: VaultPath; readonly reason: string | null },
+): readonly InboxRefusal[] {
+  const others = refusals.filter((each) => each.path !== row.path);
+  return row.reason === null ? others : [...others, { path: row.path, reason: row.reason }];
+}
 
-const STILL_WRITING =
-  'Another change was still being written, so this one was not made. Try it again.';
+/**
+ * The Activity log of the vault open now, kept for a write that may begin
+ * later: a clarification queued behind others is recorded where it was asked
+ * for, not in whatever vault is open by the time it is written.
+ */
+function logOfVaultOpenNow(
+  activity: Pick<ActivityLog, 'inOpenVault'>,
+): Pick<ActivityLog, 'inOpenVault'> {
+  const recorder = activity.inOpenVault();
+  return { inOpenVault: () => recorder };
+}
+
+/** What one queued write did: whether it was done, and whether it wrote. */
+interface Written {
+  readonly done: boolean;
+  readonly wrote: boolean;
+}
+
+const NOT_WRITTEN: Written = { done: false, wrote: false };
+
+/** What a queued write is handed as it begins: the vault's notes as they stand, and the ports to write through. */
+interface WriteGiven {
+  readonly notePaths: readonly VaultPath[];
+  readonly ports: ArchivePorts;
+}
+
+/** The vault open, its notes and its index's key, as the page last rendered them. */
+interface Seen {
+  readonly vaultKey: string | null;
+  readonly notePaths: readonly VaultPath[];
+  readonly indexKey: string;
+}
+
+/**
+ * The clarifications being written behind the page (#217): one after another,
+ * in the order asked for, as Proposals writes its answers (#166) — and held
+ * to by the window's close. Which rows have left the list before the index
+ * says so, and the moves the tree has not caught up with, are kept here.
+ *
+ * A written row is the index's to show again only once a refresh asked for
+ * after it was written has landed: a sync already under way when it was
+ * written may have read the Inbox before it moved (#217).
+ */
+function useClarifyWrites({
+  onSettled,
+  closing,
+  vaultKey,
+  notePaths,
+  indexKey,
+}: {
+  onSettled: InboxOptions['onSettled'];
+  closing: WindowClosingPort;
+  vaultKey: string | null;
+  notePaths: readonly VaultPath[];
+  indexKey: string;
+}) {
+  const wroteSinceDrained = useRef(false);
+  /** Rows written since the last refresh was asked for, as each is on the page. */
+  const unrefreshed = useRef<LeavingRow[]>([]);
+  /** One more each time a refresh asked for after some writes lands, so the Inbox is read again after it. */
+  const [caughtUp, setCaughtUp] = useState(0);
+  // Read when a write begins or ends, not when it was asked for: the latest the page knows.
+  const latest = useRef<Seen>({ vaultKey, notePaths, indexKey });
+  useEffect(() => {
+    latest.current = { vaultKey, notePaths, indexKey };
+  }, [vaultKey, notePaths, indexKey]);
+  const ownMoves = useRef<{ vaultKey: string | null; moves: readonly EntryMove[] }>({
+    vaultKey: null,
+    moves: [],
+  });
+  const undone = useRef(new WeakSet<ClarifyUndo>());
+  /** One clock for the page's reads and writes, so a read can be told from one begun before a refresh landed. */
+  const moment = useRef(0);
+  const [leaving, setLeaving] = useState<{
+    readonly vaultKey: string | null;
+    readonly rows: readonly LeavingRow[];
+  }>({ vaultKey: null, rows: [] });
+
+  const setRow = useCallback((vaultKey: string | null, path: VaultPath, row: LeavingRow | null) => {
+    setLeaving((before) => {
+      const rows = (before.vaultKey === vaultKey ? before.rows : []).filter(
+        (each) => each.path !== path,
+      );
+      return { vaultKey, rows: row === null ? rows : [...rows, row] };
+    });
+  }, []);
+
+  /** A refresh asked for once `rows` were written has landed: a read begun since, past `askedAt`, answers for them. */
+  const refreshed = useCallback((rows: readonly LeavingRow[], askedAt: string) => {
+    moment.current += 1;
+    const settled = { at: moment.current, indexKey: askedAt };
+    const answered = new Set(rows);
+    setLeaving((before) => ({
+      ...before,
+      rows: before.rows.map((row) => (answered.has(row) ? { ...row, settled } : row)),
+    }));
+    setCaughtUp((count) => count + 1);
+  }, []);
+
+  const queue = useAnswerQueue(() => {
+    if (!wroteSinceDrained.current) return;
+    wroteSinceDrained.current = false;
+    const rows = unrefreshed.current;
+    unrefreshed.current = [];
+    const askedAt = latest.current.indexKey;
+    // Not held: the rows wait for the next refresh asked for after a write.
+    const waitAgain = () => {
+      unrefreshed.current = [...rows, ...unrefreshed.current];
+    };
+    void Promise.resolve(onSettled()).then(
+      (held) => (held === false ? waitAgain() : refreshed(rows, askedAt)),
+      (cause: unknown) => {
+        console.error('The index could not be refreshed after the Inbox was written:', cause);
+        waitAgain();
+      },
+    );
+  });
+  useAnswersWrittenBeforeClose(queue, closing);
+
+  const enqueue = useCallback(
+    (ports: ArchivePorts, asked: string | null, write: (given: WriteGiven) => Promise<Written>) => {
+      let done = false;
+      // The vault's notes as they were when asked, for a write that begins once another vault is open.
+      const askedIn = latest.current.notePaths;
+      queue.enqueue(ports, async () => {
+        const tree = latest.current.vaultKey === asked ? latest.current.notePaths : askedIn;
+        const own = ownMoves.current.vaultKey === asked ? ownMoves.current.moves : [];
+        const known = notesAfterOwnMoves(tree, own);
+        const moving = keepingMoves(ports);
+        try {
+          const result = await write({ notePaths: known.notes, ports: moving.ports });
+          if (result.wrote) wroteSinceDrained.current = true;
+          done = result.done;
+        } finally {
+          // A move made before the write failed is as real as one made by a write that was done.
+          const moved = moving.moved();
+          ownMoves.current = { vaultKey: asked, moves: [...known.unseen, ...moved] };
+          if (moved.length > 0) wroteSinceDrained.current = true;
+        }
+      });
+      // Settles once this write — and the re-read, when it was the last — is done.
+      return queue.drained().then(() => done);
+    },
+    [queue],
+  );
+
+  const actions = useMemo(
+    () => ({
+      enqueue,
+      moment,
+      drained: queue.drained,
+      /** Takes a row off the list while it is written. */
+      leave: (vaultKey: string | null, path: VaultPath) =>
+        setRow(vaultKey, path, { path, settled: null }),
+      /** Its write is done: off the list until a refresh asked for since has landed, and a read after it. */
+      written: (vaultKey: string | null, path: VaultPath) => {
+        const row = { path, settled: null };
+        unrefreshed.current.push(row);
+        setRow(vaultKey, path, row);
+      },
+      /** Its write was refused or failed: the row is back. */
+      stay: (vaultKey: string | null, path: VaultPath) => setRow(vaultKey, path, null),
+      undone: (undo: ClarifyUndo) => undone.current.has(undo),
+      markUndone: (undo: ClarifyUndo) => void undone.current.add(undo),
+    }),
+    [enqueue, queue.drained, setRow],
+  );
+  // Apart from the actions, so a row leaving does not make every row's actions new.
+  return { actions, leaving, caughtUp };
+}
+
+/** `ports`, keeping every move a write makes through them — one made before the write then failed included. */
+function keepingMoves(ports: ArchivePorts): {
+  readonly ports: ArchivePorts;
+  readonly moved: () => readonly EntryMove[];
+} {
+  const moved: EntryMove[] = [];
+  const moveEntry: ArchivePorts['fs']['moveEntry'] = async (move) => {
+    await ports.fs.moveEntry(move);
+    moved.push({ from: move.from, to: move.to });
+  };
+  return { ports: { ...ports, fs: { ...ports.fs, moveEntry } }, moved: () => moved };
+}
+
+const NO_ROWS: readonly LeavingRow[] = [];
+
+const NONE: readonly RelationChoice[] = [];
 
 /** A read of the Inbox, and the vault it was read from. */
 interface Listing {
   readonly vaultKey: string | null;
   readonly contents: InboxListing | null;
   readonly error: string | null;
+  /** When the read began, so a row that left since is kept off what it found. */
+  readonly read: ReadMoment;
 }
 
 /** What a row can be filed under and who it can wait on, and the vault they are in. */
@@ -259,12 +512,23 @@ interface Choices {
 interface Said {
   readonly vaultKey: string | null;
   readonly problem: string | null;
-  readonly refusal: { readonly path: VaultPath; readonly reason: string } | null;
+  /** One for each row whose last clarification was refused or left unfinished. */
+  readonly refusals: readonly InboxRefusal[];
   readonly last: { readonly title: string; readonly undo: ClarifyUndo } | null;
 }
 
-/** What an action leaves to say; `kept` leaves the last clarification to take back as it was. */
-type Result = Omit<Said, 'vaultKey' | 'last'> & { readonly last: Said['last'] | 'kept' };
+/**
+ * What an action leaves to say: `row` says again what one row's clarification
+ * left — why it was refused, or nothing — and every other row keeps what it
+ * was told; `kept` leaves the last clarification to take back as it was.
+ */
+interface Result {
+  readonly problem: string | null;
+  readonly row?: { readonly path: VaultPath; readonly reason: string | null };
+  readonly last: Said['last'] | 'kept';
+}
+
+const NO_REFUSALS: readonly InboxRefusal[] = [];
 
 /** Only what clarifying would accept: never a project still in the Inbox, or an archived person. */
 async function readChoices(
@@ -295,12 +559,18 @@ function useInboxListing({
   indexKey,
   fresh,
   tasksStartInInbox,
+  moment,
+  caughtUp,
 }: {
   index: InboxOptions['ports']['index'];
   vaultKey: string | null;
   indexKey: string;
   fresh: boolean;
   tasksStartInInbox: boolean;
+  /** The page's clock of reads and writes, which each read is stamped from as it begins. */
+  moment: { current: number };
+  /** Changes once a refresh asked for after the page's writes lands: read again, to show what it answers. */
+  caughtUp: number;
 }) {
   const [listing, setListing] = useState<Listing | null>(null);
   // How far down the page has been shown, by the last note listed; nothing past the first page until asked.
@@ -310,7 +580,7 @@ function useInboxListing({
   const [readAgain, setReadAgain] = useState(0);
   const land = useCallback((next: Listing) => {
     landed.current += 1;
-    setListing(next);
+    setListing((before) => ({ ...next, contents: keptRows(before, next) }));
   }, []);
 
   useEffect(() => {
@@ -318,6 +588,8 @@ function useInboxListing({
     let cancelled = false;
     const begunFrom = reach.current;
     const through = begunFrom?.vaultKey === vaultKey ? begunFrom.through : null;
+    moment.current += 1;
+    const begun = { at: moment.current, indexKey };
     const read =
       through === null
         ? listInbox({ index, tasksStartInInbox })
@@ -330,15 +602,19 @@ function useInboxListing({
       else land(next);
     };
     read
-      .then((contents) => settle({ vaultKey, contents, error: null }))
-      .catch((cause: unknown) => settle({ vaultKey, contents: null, error: errorMessage(cause) }));
+      .then((contents) => settle({ vaultKey, contents, error: null, read: begun }))
+      .catch((cause: unknown) =>
+        settle({ vaultKey, contents: null, error: errorMessage(cause), read: begun }),
+      );
     return () => {
       cancelled = true;
     };
-  }, [index, indexKey, fresh, vaultKey, tasksStartInInbox, readAgain, land]);
+  }, [index, indexKey, fresh, vaultKey, tasksStartInInbox, readAgain, land, moment, caughtUp]);
 
   const showMore = useCallback(() => {
     const shown = listing?.vaultKey === vaultKey ? listing.contents : null;
+    // The list is as old as its first page: a row that left since that read stays off it.
+    const read = listing?.read ?? { at: 0, indexKey: '' };
     const after = shown?.last ?? null;
     if (shown === null || !shown.truncated || after === null) return;
     const begun = landed.current;
@@ -347,15 +623,24 @@ function useInboxListing({
         reach.current = { vaultKey, through: page.last ?? after };
         // Another read landed meanwhile, so the list is newer than this page: read it again, this far down.
         if (landed.current !== begun) setReadAgain((count) => count + 1);
-        else land({ vaultKey, contents: followedBy(shown, page), error: null });
+        else land({ vaultKey, contents: followedBy(shown, page), error: null, read });
       })
       .catch((cause: unknown) => {
         if (landed.current === begun)
-          land({ vaultKey, contents: shown, error: errorMessage(cause) });
+          land({ vaultKey, contents: shown, error: errorMessage(cause), read });
       });
   }, [listing, vaultKey, index, tasksStartInInbox, land]);
 
   return { listing, showMore };
+}
+
+const byPath = (each: { readonly path: string }) => each.path;
+
+/** What a read found, keeping the rows the list already shows unchanged, for the same vault. */
+function keptRows(before: Listing | null, next: Listing): InboxListing | null {
+  const shown = before?.vaultKey === next.vaultKey ? (before.contents?.items ?? null) : null;
+  if (next.contents === null || shown === null) return next.contents;
+  return { ...next.contents, items: keptWhereSame(shown, next.contents.items, byPath) };
 }
 
 /** The list as shown, with the page read on from its last note after it. */

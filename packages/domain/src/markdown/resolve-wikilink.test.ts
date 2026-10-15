@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createVaultPath } from '../vault/vault-path.ts';
+import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import {
   createWikiLinkResolver,
   linkTakeover,
   resolveWikiLinkTarget,
   wikiLinkNewNotePath,
   wikiLinkTargetFor,
+  wikiLinkTargetWith,
 } from './resolve-wikilink.ts';
 
 const notes = (...paths: string[]) => paths.map(createVaultPath);
@@ -215,6 +216,151 @@ describe('a link never opens a template (issue #15)', () => {
     expect(resolveWikiLinkTarget('Company', both)).toBe('Clients/Deep/Company.md');
     expect(createWikiLinkResolver(both)('company')).toBe('Clients/Deep/Company.md');
   });
+});
+
+describe('wikiLinkTargetWith (#217)', () => {
+  // Namesakes at several depths, in two cases, with accents spelled both ways, and a template.
+  const vault = notes(
+    'Larkspur.md',
+    'Clients/Larkspur.md',
+    'Clients/larkspur payroll.md',
+    'Archive/Larkspur Payroll.md',
+    'People/Zoë Marlow.md',
+    'Old/Zoë Marlow.md',
+    '.atlas/templates/Larkspur.md',
+    'Notes/Tobias Fenn.md',
+  );
+
+  it('writes the same link as wikiLinkTargetFor, from a resolver indexed once', () => {
+    const resolve = createWikiLinkResolver(vault);
+    for (const path of vault) {
+      expect(wikiLinkTargetWith(path, resolve), path).toBe(wikiLinkTargetFor(path, vault));
+    }
+  });
+});
+
+/** A seeded generator, so a vault that diverges can be made again. */
+function prng(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 2 ** 32;
+  };
+}
+
+const FOLDERS = [
+  '',
+  'Inbox',
+  'Inbox/Proposals',
+  'Archive/Inbox/Proposals',
+  'Tasks/2026/10',
+  'Projects',
+  'Projects/Larkspur',
+  'Archive',
+  'Archive/Old',
+  'People',
+  '.atlas/templates',
+  '.atlas',
+  'Notes/Ä',
+];
+const NAMES = [
+  'Larkspur',
+  'larkspur',
+  'LARKSPUR',
+  'Zoë Marlow',
+  'Zoë Marlow',
+  'zoË marlow',
+  'Tobias Fenn',
+  'Mara Quill',
+  'mara quill',
+  'Straße',
+  'STRASSE',
+  'İstanbul',
+  'i̇stanbul',
+  'Café',
+  'Café',
+  'A.md',
+  'Notes.markdown',
+  'x',
+  'X',
+  ' sp ',
+  'K',
+  'k',
+  'Å',
+  'Å',
+  'Ωhm',
+  'ωhm',
+];
+const EXT = ['.md', '.MD', '.markdown', '.Md'];
+
+function vault(rand: () => number): VaultPath[] {
+  const count = 1 + Math.floor(rand() * 12);
+  const out = new Set<string>();
+  const crowded = rand() < 0.5;
+  for (let i = 0; i < count; i += 1) {
+    const folder = FOLDERS[Math.floor(rand() * FOLDERS.length)]!;
+    // Half the vaults draw from a few names, so namesakes in use, proposed
+    // and archived (#214, #222) meet often enough to test the ranking.
+    const names = crowded ? NAMES.slice(0, 3) : NAMES;
+    const name = names[Math.floor(rand() * names.length)]!;
+    const ext = EXT[Math.floor(rand() * EXT.length)]!;
+    out.add(folder === '' ? `${name}${ext}` : `${folder}/${name}${ext}`);
+  }
+  return [...out].map(createVaultPath);
+}
+
+function targets(notes: readonly VaultPath[]): string[] {
+  const out: string[] = [];
+  for (const note of notes) {
+    const bare = note.replace(/\.(md|markdown)$/i, '');
+    const name = bare.split('/').at(-1)!;
+    out.push(
+      note,
+      bare,
+      name,
+      name.toUpperCase(),
+      name.toLowerCase(),
+      `${name}.md`,
+      `${name}.MD`,
+      ` ${name} `,
+      `./${bare}`,
+      `/${bare}`,
+      bare.normalize('NFD'),
+      name.normalize('NFD'),
+      name.normalize('NFKC'),
+      `${bare}.markdown`,
+      bare.toUpperCase(),
+      `${name}#heading`,
+      `${name}^block`,
+    );
+  }
+  out.push('', '  ', '/', '.md', 'nothing here');
+  return out;
+}
+
+describe('createWikiLinkResolver — answers as resolveWikiLinkTarget does (#217)', () => {
+  it('answers every target the same over 3,000 generated vaults', () => {
+    const rand = prng(217);
+    const diverged: string[] = [];
+    for (let run = 0; run < 3000; run += 1) {
+      const notes = vault(rand);
+      const resolve = createWikiLinkResolver(notes);
+      for (const target of targets(notes)) {
+        const slow = resolveWikiLinkTarget(target, notes);
+        const fast = resolve(target);
+        if (slow !== fast)
+          diverged.push(
+            `${JSON.stringify(target)} in ${JSON.stringify(notes)}: ${slow} vs ${fast}`,
+          );
+      }
+      for (const path of notes) {
+        const a = wikiLinkTargetFor(path, notes);
+        const b = wikiLinkTargetWith(path, resolve);
+        if (a !== b) diverged.push(`linkTo ${path}: ${a} vs ${b}`);
+      }
+    }
+    expect(diverged.slice(0, 5)).toEqual([]);
+  }, 30_000);
 });
 
 describe('a name shared with a proposal or an archived note (#214)', () => {

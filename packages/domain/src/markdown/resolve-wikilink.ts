@@ -156,7 +156,11 @@ export function wikiLinkTargetFor(path: VaultPath, notes: readonly VaultPath[]):
   return wikiLinkTargetWith(path, (target) => resolveWikiLinkTarget(target, notes));
 }
 
-/** `wikiLinkTargetFor`, deciding with a resolver already built (`createWikiLinkResolver`). */
+/**
+ * `wikiLinkTargetFor`, with links resolved by `resolve` — a resolver built
+ * once with {@link createWikiLinkResolver}, for working out the link to every
+ * note a picker offers without searching the vault for each.
+ */
 export function wikiLinkTargetWith(
   path: VaultPath,
   resolve: (target: string) => VaultPath | null,

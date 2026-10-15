@@ -411,6 +411,11 @@ export interface FakeHost {
     reply(...texts: string[]): void;
     loggedIn(yes: boolean): void;
     runs(): readonly { args: readonly string[]; stdin: string }[];
+    /**
+     * Settles once every run's output has reached the page, or stopped
+     * because the window closed; rejects if sending it failed otherwise.
+     */
+    delivered(): Promise<void>;
   };
   /**
    * Google Calendar, as `google.rs` answers for it: a sign-in kept per vault,
@@ -632,21 +637,16 @@ export async function installHost(
   let claudeLoggedIn = true;
   /** git and gh (`git_process.rs`), as a real git against bare repositories on disk. */
   const gitStub = await createGitStub();
+  /** Each run's output still on its way to the page. */
+  const deliveries = new Set<Promise<void>>();
   /** Emits a run's output after its start has been answered, as the host's reader thread does. */
   const emitModel = (payloads: readonly unknown[]) => {
-    setTimeout(() => {
-      void (async () => {
-        for (const payload of payloads) {
-          await page.evaluate(
-            ([item]) =>
-              (
-                window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }
-              ).__atlasEmit('model-process', item),
-            [payload],
-          );
-        }
-      })();
-    }, 0);
+    const delivery = new Promise<void>((started) => setTimeout(started, 0)).then(() =>
+      deliverModelOutput(page, payloads),
+    );
+    deliveries.add(delivery);
+    // Left unawaited, a failure still surfaces as an unhandled rejection.
+    void delivery.finally(() => deliveries.delete(delivery));
   };
   /**
    * A scripted reply as Claude Code 2.x prints it with `--include-partial-messages`
@@ -1642,6 +1642,9 @@ export async function installHost(
         claudeLoggedIn = yes;
       },
       runs: () => [...claudeRuns],
+      delivered: async () => {
+        await Promise.all(deliveries);
+      },
     },
     google: {
       refuseNext: (failure) => {
@@ -1706,6 +1709,41 @@ export async function copiedText(page: Page): Promise<string[]> {
   return page.evaluate(() => [
     ...(window as unknown as { __atlasClipboard: string[] }).__atlasClipboard,
   ]);
+}
+
+/**
+ * Sends a run's output to the page piece by piece, as the host's reader thread
+ * emits it, and stops once the window has closed: the host has nowhere to send
+ * the rest either. A test closes the window when it ends, often with a reply
+ * still arriving — its assertions met by the text before the run's last lines.
+ */
+async function deliverModelOutput(page: Page, payloads: readonly unknown[]): Promise<void> {
+  for (const payload of payloads) {
+    if (page.isClosed()) return;
+    try {
+      await page.evaluate(
+        ([item]) =>
+          (
+            window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }
+          ).__atlasEmit('model-process', item),
+        [payload],
+      );
+    } catch (error) {
+      if (await windowGone(page)) return;
+      throw error;
+    }
+  }
+}
+
+/**
+ * Whether the window has gone, asked of the window itself. Playwright refuses
+ * a call to a closing page before it reports the page closed, and its refusal
+ * is no public error type, so a page that still answers is one whose failure
+ * was real.
+ */
+async function windowGone(page: Page): Promise<boolean> {
+  if (page.isClosed()) return true;
+  return page.evaluate(() => false).catch(() => true);
 }
 
 /** Pretends something outside the app changed these files. */

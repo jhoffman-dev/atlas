@@ -1,7 +1,7 @@
 import { pathAfterMoves, type EntryMove } from '../vault/vault-moves.ts';
 import { noteTitle } from '../vault/vault-entry.ts';
 import { parentVaultPath, VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
-import { resolveWikiLinkTarget } from './resolve-wikilink.ts';
+import { createWikiLinkResolver } from './resolve-wikilink.ts';
 import { imagePathsAcrossMove, retargetImageSources } from './retarget-image-sources.ts';
 import { wikiLinkSpans } from './wikilink-spans.ts';
 
@@ -107,6 +107,21 @@ function codeRanges(text: string): (at: number) => boolean {
   return (at) => code.some((range) => at >= range.start && at < range.end);
 }
 
+const resolvers = new WeakMap<readonly VaultPath[], (target: string) => VaultPath | null>();
+
+/**
+ * The vault's links resolved among `notes`, indexed once per list rather than
+ * searched per link: a move checks every link in every note against the same
+ * two lists, which in a vault of thousands took half a second a move (#217).
+ */
+function resolverOf(notes: readonly VaultPath[]): (target: string) => VaultPath | null {
+  const known = resolvers.get(notes);
+  if (known !== undefined) return known;
+  const resolver = createWikiLinkResolver(notes);
+  resolvers.set(notes, resolver);
+  return resolver;
+}
+
 /**
  * Rewrites the target of each link the editor reads (`wikiLinkSpans`) that the
  * move broke. Only the target's bytes change: the `!`, heading and alias,
@@ -120,10 +135,10 @@ function retargetWikiLinks({ text, before, after, moved }: NotesAcrossMove & { t
   let cursor = 0;
   const pieces: string[] = [];
   for (const { targetStart, targetEnd, link } of wikiLinkSpans(text)) {
-    const opened = resolveWikiLinkTarget(link.target, before);
+    const opened = resolverOf(before)(link.target);
     // Where the note it opened is now: moved, or where it was when a namesake moved.
     const to = opened === null ? undefined : (moved.get(opened) ?? opened);
-    if (to === undefined || resolveWikiLinkTarget(link.target, after) === to) continue;
+    if (to === undefined || resolverOf(after)(link.target) === to) continue;
     count += 1;
     pieces.push(text.slice(cursor, targetStart), targetFor({ written: link.target, to, after }));
     cursor = targetEnd;
@@ -149,7 +164,7 @@ function targetFor({
 }): string {
   const extension = /\.md$/i.test(written.trim()) ? '.md' : '';
   const name = `${noteTitle(to)}${extension}`;
-  if (!written.includes('/') && resolveWikiLinkTarget(name, after) === to) return name;
+  if (!written.includes('/') && resolverOf(after)(name) === to) return name;
   const folder = parentVaultPath(to);
   return folder === VAULT_ROOT ? name : `${folder}/${name}`;
 }
