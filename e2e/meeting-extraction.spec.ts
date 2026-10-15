@@ -190,10 +190,8 @@ test('a meeting arrives, the extraction rule proposes mine, a waiting-for and a 
   await expectFile(vault, made).toContain('status: inbox');
   expect(await vault.read(made)).toContain('type: task');
   expect(await vault.read(made)).toContain(`source: "[[${TITLE}#^t0003]]"`);
-  // By path: the proposal of the same name is the shallower namesake, and a bare name would open it.
-  await expectFile(vault, MEETING).toContain(
-    `\ntasks:\n  - "[[${TASKS}/Write the rollout note]]"\n`,
-  );
+  // A bare name: a note in use outranks its archived proposal of the same name (ADR-0038 decision 6).
+  await expectFile(vault, MEETING).toContain('\ntasks:\n  - "[[Write the rollout note]]"\n');
 });
 
 test('screenshots: the Inbox with extraction proposals and a low-confidence card', async ({
