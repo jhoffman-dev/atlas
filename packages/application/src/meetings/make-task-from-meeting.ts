@@ -17,6 +17,7 @@ import { ProposalRefused, type AppliedProposal } from '../chat/proposals.ts';
 import {
   carryOut,
   heldToTaskRules,
+  proposalHomeFolder,
   readLinkNote,
   takeBackAll,
   type LinkNote,
@@ -88,9 +89,11 @@ export async function makeTaskFromMeeting({
   today: string;
 }): Promise<MadeTask> {
   const link = await meetingLetIn(ports, meeting);
-  const applied = applyNoteProposal(proposedTask({ meeting, item, notePaths }), {
+  const proposed = proposedTask({ meeting, item, notePaths });
+  const applied = applyNoteProposal(proposed, {
     notePaths,
     target: link.target,
+    homeFolder: await proposalHomeFolder(ports, { ...proposed, today }),
   });
   if (!applied.ok) throw new ProposalRefused(applied.problem);
   const ruled = applied.writes.map((write) => heldToTaskRules(ports, { write, link, today }));

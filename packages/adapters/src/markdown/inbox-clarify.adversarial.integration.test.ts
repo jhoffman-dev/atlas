@@ -341,7 +341,7 @@ describe('undo gives the vault back (#112)', () => {
       ...OTHERS,
       ...LINKERS,
       [TASK]: SELF,
-      'Projects/Larkspur Payroll/Call Tobias Fenn.md': 'Already here.\n',
+      'Tasks/2026/10/Call Tobias Fenn.md': 'Already here.\n',
     };
     expect(await filedAndUndone(files)).toEqual(files);
   });
@@ -400,12 +400,8 @@ describe('two decisions at once (#112)', () => {
       vault.clarify(TASK, { status: 'next-action', project }),
       vault.clarify(other, { status: 'someday', project }),
     ]);
-    expect(vault.files.get('Projects/Larkspur Payroll/Call Tobias Fenn.md')).toContain(
-      'status: next-action',
-    );
-    expect(vault.files.get('Projects/Larkspur Payroll/Write to Mara Quill.md')).toContain(
-      'status: someday',
-    );
+    expect(vault.files.get('Tasks/2026/10/Call Tobias Fenn.md')).toContain('status: next-action');
+    expect(vault.files.get('Tasks/2026/10/Write to Mara Quill.md')).toContain('status: someday');
   });
 
   it('refuses, keeping the edit, when the note changed on disk after it was read', async () => {

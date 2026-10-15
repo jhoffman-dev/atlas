@@ -93,13 +93,27 @@ describe('POST /v1/notes', () => {
   it("keeps the template's body when none is given", async () => {
     const api = vault();
     await create(api, { name: 'Call Sam', template: 'Task' });
-    expect(api.files.get('Call Sam.md')?.text).toBe(TASK_TEMPLATE);
+    expect(api.files.get('Tasks/2026/09/Call Sam.md')?.text).toBe(TASK_TEMPLATE);
+  });
+
+  // #214: with no folder named, a typed note goes to its type's home, as the app's New does.
+  it('puts a note whose type has a home folder there when no folder is named, and any other at the root', async () => {
+    const api = vault();
+    await create(api, { name: 'Call Sam', properties: { type: 'task' } });
+    await create(api, { name: 'Loose thought' });
+    await create(api, { name: 'Soup', properties: { type: 'recipe' } });
+
+    expect(api.files.has('Tasks/2026/09/Call Sam.md')).toBe(true);
+    expect(api.files.has('Loose thought.md')).toBe(true);
+    expect(api.files.has('Soup.md')).toBe(true);
   });
 
   it('removes a template property set to null', async () => {
     const api = vault();
     await create(api, { name: 'Call Sam', template: 'Task', properties: { status: null } });
-    expect(api.files.get('Call Sam.md')?.text).toBe('---\ntype: task\n---\n\n## Notes\n');
+    expect(api.files.get('Tasks/2026/09/Call Sam.md')?.text).toBe(
+      '---\ntype: task\n---\n\n## Notes\n',
+    );
   });
 
   it('makes a note from a template kept in a subfolder, or saved as .markdown (ADR-0026)', async () => {
@@ -111,14 +125,14 @@ describe('POST /v1/notes', () => {
     await create(api, { name: 'Ann', template: 'person' });
     await create(api, { name: 'Soup', template: 'Recipe' });
 
-    expect(api.files.get('Ann.md')?.text).toBe('---\ntype: person\n---\n\n## Met\n');
+    expect(api.files.get('People/Ann.md')?.text).toBe('---\ntype: person\n---\n\n## Met\n');
     expect(api.files.get('Soup.md')?.text).toBe('---\ntype: recipe\n---\n\n## Steps\n');
   });
 
   it('takes the template nearer the top of the folder when two share a name', async () => {
     const api = vault({ '.atlas/templates/Old/Task.md': '---\ntype: old\n---\n' });
     await create(api, { name: 'Call Sam', template: 'Task' });
-    expect(api.files.get('Call Sam.md')?.text).toBe(TASK_TEMPLATE);
+    expect(api.files.get('Tasks/2026/09/Call Sam.md')?.text).toBe(TASK_TEMPLATE);
   });
 
   it('finds a template however its name is normalized, as the Mac disk does', async () => {
@@ -324,14 +338,17 @@ describe('POST /v1/notes', () => {
 });
 
 describe('POST /v1/daily', () => {
-  it("makes today's note at the root from the Daily template, answering 201", async () => {
+  it("makes today's note in the Daily home folder from the Daily template, answering 201", async () => {
     const api = vault();
 
     const response = await api.send({ method: 'POST', path: '/v1/daily' });
 
     expect(response.status).toBe(201);
-    expect(api.files.get(`${TODAY}.md`)?.text).toBe(DAILY_TEMPLATE);
-    expect(bodyOf(response)['note']).toMatchObject({ path: `${TODAY}.md`, type: 'daily' });
+    expect(api.files.get(`Daily/2026/${TODAY}.md`)?.text).toBe(DAILY_TEMPLATE);
+    expect(bodyOf(response)['note']).toMatchObject({
+      path: `Daily/2026/${TODAY}.md`,
+      type: 'daily',
+    });
   });
 
   it('answers 200 with the note as it is when it is already there', async () => {

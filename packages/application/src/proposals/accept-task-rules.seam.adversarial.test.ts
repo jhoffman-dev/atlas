@@ -30,11 +30,11 @@ describe('accepting a task proposal is held to the GTD task rules', () => {
   it('accepts a task proposal that makes a task Waiting with nobody to wait on (#202)', async () => {
     const { setup, accepted } = accept({ [PROPOSAL]: proposal('task', { status: 'waiting' }) });
     await accepted;
-    expect(setup.propertiesOf('Chase Tobias.md')).toMatchObject({
+    expect(setup.propertiesOf('Tasks/2026/10/Chase Tobias.md')).toMatchObject({
       type: 'task',
       status: 'waiting',
     });
-    expect(setup.propertiesOf('Chase Tobias.md')).not.toHaveProperty('waiting_on');
+    expect(setup.propertiesOf('Tasks/2026/10/Chase Tobias.md')).not.toHaveProperty('waiting_on');
   });
 
   it('accepts a follow-up proposal edited to Waiting with nobody to wait on (#202)', async () => {
@@ -43,13 +43,15 @@ describe('accepting a task proposal is held to the GTD task rules', () => {
       { title: 'Chase Tobias', properties: { status: 'waiting' } },
     );
     await accepted;
-    expect(setup.propertiesOf('Chase Tobias.md')).toMatchObject({ status: 'waiting' });
+    expect(setup.propertiesOf('Tasks/2026/10/Chase Tobias.md')).toMatchObject({
+      status: 'waiting',
+    });
   });
 
   it('dates a task proposal accepted already finished (Archive) with completed: today', async () => {
     const { setup, accepted } = accept({ [PROPOSAL]: proposal('task', { status: 'archive' }) });
     await accepted;
-    expect(setup.propertiesOf('Chase Tobias.md')).toMatchObject({
+    expect(setup.propertiesOf('Tasks/2026/10/Chase Tobias.md')).toMatchObject({
       type: 'task',
       status: 'archive',
       completed: TODAY,

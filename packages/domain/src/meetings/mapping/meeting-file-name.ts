@@ -1,5 +1,13 @@
-/** Where a meeting arrives in the vault (ADR-0027): `MEETING_INBOX`, which this mapper cannot import. */
-export const MEETINGS_FOLDER = 'Inbox/Meetings';
+/**
+ * Where a meeting arrives in the vault (ADR-0027, #214): `MEETINGS_HOME`, which
+ * this mapper cannot import, in a folder for the meeting's month.
+ */
+export const MEETINGS_FOLDER = 'Meetings';
+
+/** `Meetings/2026/10` for a meeting on `2026-10-14`: the date is the mapping's, already a day. */
+function monthFolder(date: string): string {
+  return `${MEETINGS_FOLDER}/${date.slice(0, 4)}/${date.slice(5, 7)}`;
+}
 
 /** The most bytes a file name may have on macOS (the vault's `MAX_NAME_BYTES`). */
 const MAX_NAME_BYTES = 255;
@@ -80,10 +88,10 @@ export function shortHash(text: string): string {
 
 /** The meeting's two possible paths: the contract's, and one that also names the meeting. */
 export interface MeetingPaths {
-  /** `Inbox/Meetings/<YYYY-MM-DD> <title>.md`. */
+  /** `Meetings/<YYYY>/<MM>/<YYYY-MM-DD> <title>.md`. */
   readonly path: string;
   /**
-   * `Inbox/Meetings/<YYYY-MM-DD> <title> (<provider> <hash>).md`, the hash of
+   * `Meetings/<YYYY>/<MM>/<YYYY-MM-DD> <title> (<provider> <hash>).md`, the hash of
    * provider and id: where a meeting goes when another meeting already holds
    * its plain path — two `1:1`s on one day. Within 255 bytes however long the
    * id, with the date kept. Meant to be this meeting's alone; the workflow
@@ -106,8 +114,9 @@ export function meetingPaths({
   const stem = `${date} ${fileTitle(title) || 'Untitled'}`;
   const hash = shortHash(`${provider}\n${externalId}`);
   const suffix = ` (${provider.slice(0, MAX_SUFFIX_PROVIDER)} ${hash})`;
+  const folder = monthFolder(date);
   return {
-    path: `${MEETINGS_FOLDER}/${fitStem(stem, '.md')}.md`,
-    collisionPath: `${MEETINGS_FOLDER}/${fitStem(stem, `${suffix}.md`)}${suffix}.md`,
+    path: `${folder}/${fitStem(stem, '.md')}.md`,
+    collisionPath: `${folder}/${fitStem(stem, `${suffix}.md`)}${suffix}.md`,
   };
 }

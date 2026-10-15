@@ -223,7 +223,7 @@ describe('useInbox — clarifying a row', () => {
     });
 
     expect(done).toBe(true);
-    expect(files.get('Projects/Atlas/Call the bank.md')).toBe(
+    expect(files.get('Tasks/2026/10/Call the bank.md')).toBe(
       '---\ntype: task\nstatus: waiting\nwaiting_on: [[Mara Quill]]\nproject: [[Atlas]]\n---\n\nAbout the loan.\n',
     );
     expect(onSettled).toHaveBeenCalledOnce();
@@ -519,11 +519,12 @@ describe('useInbox — undo', () => {
       }),
     );
     expect(files.has(CALL)).toBe(false);
+    expect(files.has('Tasks/2026/10/Call the bank.md')).toBe(true);
 
     await act(() => hook.result.current.undo());
 
     expect(files.get(CALL)).toBe(CAPTURED);
-    expect(files.has('Projects/Atlas/Call the bank.md')).toBe(false);
+    expect(files.has('Tasks/2026/10/Call the bank.md')).toBe(false);
     expect(hook.result.current.lastAction).toBeNull();
     expect(onSettled).toHaveBeenCalledTimes(2);
   });

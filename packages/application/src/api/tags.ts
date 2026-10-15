@@ -22,6 +22,7 @@ import type { LinkUpdatePanes } from '../vault/index.ts';
 import { ApiError } from './api-error.ts';
 import type { ApiTag, ApiTaggedNote, ApiTagRenamePreview } from './contract.ts';
 import { pageAfter } from './cursor.ts';
+import { NOTE_PAGE } from './notes-read.ts';
 import { bodyObject, countOf, optionalBoolean, requiredString } from './fields.ts';
 import { decodeSegment, isApiNotePath } from './paths.ts';
 import type { OpenNotes } from './ports.ts';
@@ -35,7 +36,6 @@ import type { RouteResult, VaultRequest } from './vault-request.ts';
  * and a rename's writes are: a tag only a template uses is not one here.
  */
 
-const PAGE = { fallback: 100, max: 500 };
 const SORTS: readonly TagSort[] = ['name', 'frequency'];
 const OUTSIDE_USER_SPACE = 'in .atlas or a hidden folder, which the API cannot write';
 
@@ -49,11 +49,12 @@ export async function tagsRoute(request: VaultRequest): Promise<RouteResult> {
 
 /**
  * `GET /v1/tags/{tag}/notes`: a page of the notes using the tag or one nested
- * under it, in path order, continued from the last path as `/v1/notes` is.
+ * under it, in path order, continued from the last path as `/v1/notes` is,
+ * with how many there are in all.
  */
 export async function taggedNotesRoute(request: VaultRequest): Promise<RouteResult> {
   const { query } = request;
-  const limit = countOf(query['limit'], { field: 'limit', ...PAGE });
+  const limit = countOf(query['limit'], { field: 'limit', ...NOTE_PAGE });
   const tag = await tagOf(request);
 
   const tagged = (await loadTaggedNotes({ index: request.index, key: tag.key })).filter((note) =>
@@ -63,7 +64,10 @@ export async function taggedNotesRoute(request: VaultRequest): Promise<RouteResu
 
   const pathOf = (note: TaggedNote) => note.path;
   const { page, next } = pageAfter({ items: tagged, pathOf, cursor: query['cursor'], limit });
-  return { status: 200, body: { tag: toApiTag(tag), notes: page.map(toApiTaggedNote), next } };
+  return {
+    status: 200,
+    body: { tag: toApiTag(tag), notes: page.map(toApiTaggedNote), next, total: tagged.length },
+  };
 }
 
 /**

@@ -100,9 +100,10 @@ const READ_TOOLS: readonly ReadTool[] = [
     spec: {
       name: 'atlas_list_notes',
       description:
-        'List notes, optionally in a folder, of a type, or about a day: { notes: [{ path, title, ' +
-        'type, modified }], next }. With "date", the notes named for that day or whose "date" ' +
-        "property is that day: the way to find a day's meetings.",
+        'List notes, a page at a time (at most 500), optionally in a folder, of a type, or about ' +
+        'a day: { notes: [{ path, title, type, modified }], next, total }. With "date", the notes ' +
+        'named for that day or whose "date" property is that day: the way to find a day\'s meetings. ' +
+        'Read on with "next" as "cursor".',
       inputSchema: object({
         folder: str('Vault-relative folder, and the folders inside it.'),
         type: str('Only notes of this type.'),
@@ -118,10 +119,19 @@ const READ_TOOLS: readonly ReadTool[] = [
     spec: {
       name: 'atlas_backlinks',
       description:
-        'The notes that link to this one: { backlinks: [{ path, title, type, modified }] }.',
-      inputSchema: object({ path: str("The note's vault path.") }, ['path']),
+        'The notes that link to this one, a page at a time: ' +
+        '{ backlinks: [{ path, title, type, modified }], next, total }. At most 500 a page.',
+      inputSchema: object(
+        {
+          path: str("The note's vault path."),
+          limit: int('At most this many.'),
+          cursor: str('The "next" of the previous page.'),
+        },
+        ['path'],
+      ),
     },
-    request: (input) => get(`/v1/notes/${segment(input, 'path')}/backlinks`),
+    request: (input) =>
+      get(`/v1/notes/${segment(input, 'path')}/backlinks`, query(input, ['limit', 'cursor'])),
   },
   {
     spec: {
@@ -250,13 +260,19 @@ const READ_TOOLS: readonly ReadTool[] = [
     spec: {
       name: 'atlas_tagged_notes',
       description:
-        'The notes using a tag or one nested under it: { tag, notes: [{ path, title }] }.',
+        'The notes using a tag or one nested under it, a page at a time: ' +
+        '{ tag, notes: [{ path, title }], next, total }. At most 500 a page.',
       inputSchema: object(
-        { tag: str('The tag, with or without "#".'), limit: int('At most this many.') },
+        {
+          tag: str('The tag, with or without "#".'),
+          limit: int('At most this many.'),
+          cursor: str('The "next" of the previous page.'),
+        },
         ['tag'],
       ),
     },
-    request: (input) => get(`/v1/tags/${segment(input, 'tag')}/notes`, query(input, ['limit'])),
+    request: (input) =>
+      get(`/v1/tags/${segment(input, 'tag')}/notes`, query(input, ['limit', 'cursor'])),
   },
   {
     spec: {

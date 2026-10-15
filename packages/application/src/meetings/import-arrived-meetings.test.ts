@@ -772,3 +772,56 @@ describe('importArrivedMeetings: adversarial, round 3', () => {
     expect(outcome.happenings).toEqual([]);
   });
 });
+
+// #214: meetings arrive in their month's folder; a file there is the import's only when it says so.
+describe('meetings arriving in their month’s folder (#214)', () => {
+  const MONTH = 'Meetings/2026/10/2026-10-06 Standup.md';
+  const SECOND = 'Meetings/2026/10/2026-10-06 Standup (gemini 1a2b3c4d).md';
+  const BY_HAND = 'Meetings/2026/10/2026-10-06 Whiteboard.md';
+  const NOTION = 'Meetings/From Notion/2026-10-06 Standup.md';
+  const byHand = meeting(meetingHeaderWithout('atlas_import'));
+
+  it('lets in an arrival in its month and archives a second copy at the provider’s path as a duplicate', async () => {
+    const { vault, ports, activity } = setUp({ [MONTH]: meeting(), [SECOND]: meeting() });
+
+    const outcome = await catchUpMeetings({ ports, today: TODAY, activity });
+
+    expect(outcome.happenings.map((happening) => [happening.kind, happening.path]).sort()).toEqual([
+      ['arrived', MONTH],
+      ['duplicate', SECOND],
+    ]);
+    expect(vault.properties(MONTH)).toMatchObject({ atlas_import_outcome: 'imported' });
+  });
+
+  it('archives a copy arriving in a month as a duplicate of the meeting let in from Inbox/Meetings', async () => {
+    const { vault, ports, activity } = setUp({ [STANDUP]: imported(), [MONTH]: meeting() });
+
+    const outcome = await catchUpMeetings({ ports, today: TODAY, activity });
+
+    expect(outcome.happenings.map((happening) => [happening.kind, happening.path])).toEqual([
+      ['duplicate', MONTH],
+    ]);
+    expect(vault.properties(STANDUP)).toMatchObject({ atlas_import_outcome: 'imported' });
+  });
+
+  it('never judges a meeting made by hand in its month, nor one filed elsewhere under Meetings', async () => {
+    const { vault, ports, activity, run, as } = setUp({ [BY_HAND]: byHand, [NOTION]: meeting() });
+
+    const caughtUp = await catchUpMeetings({ ports, today: TODAY, activity });
+    const heard = await run([as('added', BY_HAND), as('added', NOTION)]);
+
+    expect(caughtUp).toEqual({ happenings: [], wrote: false });
+    expect(heard).toEqual({ happenings: [], wrote: false });
+    expect(vault.files.get(BY_HAND)).toBe(byHand);
+    expect(vault.properties(NOTION)).not.toHaveProperty('atlas_import_outcome');
+  });
+
+  it('lets in an arrival the feed reports in its month, by what it declares', async () => {
+    const { vault, run, as } = setUp({ [MONTH]: meeting() });
+
+    const outcome = await run([{ ...as('added', MONTH), importDeclared: true }]);
+
+    expect(outcome.happenings).toEqual([{ kind: 'arrived', path: MONTH }]);
+    expect(vault.properties(MONTH)).toMatchObject({ atlas_import_outcome: 'imported' });
+  });
+});

@@ -272,3 +272,70 @@ describe('a new task', () => {
     }
   });
 });
+
+// #214: a note whose type has a home folder goes there, whatever is in view.
+describe('createNote — a type’s home folder', () => {
+  function typedVault(typeFile: string | null) {
+    const created: string[] = [];
+    const folders: string[] = [];
+    const types = createVaultPath('.atlas/types/task.md');
+    const fs = fakeVaultFs({
+      listDirectory: async (folder) =>
+        folder === '.atlas/types' && typeFile !== null
+          ? [{ kind: 'file', name: 'task.md', path: types }]
+          : [],
+      readNotes: async () =>
+        typeFile === null ? [] : [{ path: types, text: typeFile, modified: 1, size: 1 }],
+      createFolder: async ({ path }) => void folders.push(path),
+      createNote: async ({ path }) => void created.push(path),
+    });
+    return { fs, created, folders };
+  }
+  const TASK = '---\ntype: task\n---\n';
+
+  it('puts a task in its dated home, made on the way, though a note in a folder is in view', async () => {
+    const { fs, created, folders } = typedVault(null);
+    const path = await createNote({
+      markdown: fakeMarkdown(),
+      today: '2026-10-08',
+      fs,
+      name: 'Call Sam',
+      beside: createVaultPath('Clients/Acme.md'),
+      notePaths: [],
+      contents: TASK,
+    });
+
+    expect(path).toBe('Tasks/2026/10/Call Sam.md');
+    expect(created).toEqual(['Tasks/2026/10/Call Sam.md']);
+    expect(folders).toEqual(['Tasks', 'Tasks/2026', 'Tasks/2026/10']);
+  });
+
+  it('follows the folder the type file names', async () => {
+    const { fs } = typedVault('---\nname: task\nfolder: Work/{YYYY}\n---\n');
+    const path = await createNote({
+      markdown: fakeMarkdown(),
+      today: '2026-10-08',
+      fs,
+      name: 'Call Sam',
+      beside: null,
+      notePaths: [],
+      contents: TASK,
+    });
+    expect(path).toBe('Work/2026/Call Sam.md');
+  });
+
+  it('lets a folder chosen on purpose win over the home', async () => {
+    const { fs } = typedVault(null);
+    const path = await createNote({
+      markdown: fakeMarkdown(),
+      today: '2026-10-08',
+      fs,
+      name: 'Call Sam',
+      beside: null,
+      folder: createVaultPath('Clients'),
+      notePaths: [],
+      contents: TASK,
+    });
+    expect(path).toBe('Clients/Call Sam.md');
+  });
+});

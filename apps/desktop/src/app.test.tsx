@@ -656,7 +656,7 @@ describe('creating a note', () => {
     expect(activity.files.get(location.absolutePath) ?? '').not.toContain('"level":"error"');
   });
 
-  it("puts today's note at the root, whatever note is in view", async () => {
+  it("puts today's note in its year's Daily folder, whatever note is in view", async () => {
     const vault = fakeVault({
       remembered: location,
       directories: { '': [entry('Notes', 'directory')], Notes: [entry('Notes/a.md', 'file')] },
@@ -672,7 +672,9 @@ describe('creating a note', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: "Today's note" }));
 
     expect(await screen.findByRole('article', { name: localToday() })).toBeDefined();
-    expect(createNote.mock.calls.map(([args]) => args.path)).toEqual([`${localToday()}.md`]);
+    expect(createNote.mock.calls.map(([args]) => args.path)).toEqual([
+      `Daily/${localToday().slice(0, 4)}/${localToday()}.md`,
+    ]);
   });
 });
 

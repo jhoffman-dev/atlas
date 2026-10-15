@@ -31,7 +31,7 @@ import { writeProposals } from './write-proposals.ts';
 const TODAY = '2026-10-06';
 const MEETING = 'Inbox/Meetings/2026-10-06 Standup.md';
 const PROJECT = 'Projects/Ledger migration.md';
-const TASK = 'Send Mara the payroll file.md';
+const TASK = 'Tasks/2026/10/Send Mara the payroll file.md';
 
 const meeting = (more: Record<string, unknown> = {}) =>
   jsonLinesNote(
@@ -109,7 +109,9 @@ describe('a Claude step’s task that links back to its meeting', () => {
       type: 'task',
       source: '[[2026-10-06 Standup#^t0001]]',
     });
-    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
+    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual([
+      '[[Tasks/2026/10/Send Mara the payroll file]]',
+    ]);
   });
 
   it('finds the meeting where it was filed since, by what it is', async () => {
@@ -120,15 +122,19 @@ describe('a Claude step’s task that links back to its meeting', () => {
       paths: [vaultPath(MEETING)],
       notePaths: setup.paths().map(vaultPath),
       project: vaultPath(PROJECT),
+      today: TODAY,
       updateLinks: true,
     });
     const moved = filed.moves[0]?.move.to as string;
-    expect(moved).toMatch(/^Projects\//);
+    // Filed out of the older Inbox/Meetings into the meeting's month (#214).
+    expect(moved).toMatch(/^Meetings\/2026\/10\//);
 
     await acceptProposalNote({ ports: fresh(setup), path, today: TODAY });
 
     expect(setup.paths()).toContain(TASK);
-    expect(setup.propertiesOf(moved)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
+    expect(setup.propertiesOf(moved)?.['tasks']).toEqual([
+      '[[Tasks/2026/10/Send Mara the payroll file]]',
+    ]);
   });
 
   it('writes to no other meeting that has landed at the path since', async () => {
@@ -182,6 +188,8 @@ describe('a vault whose Meeting type predates `tasks` (#162)', () => {
     await acceptProposalNote({ ports: fresh(setup), path, today: TODAY });
 
     expect(setup.paths()).toContain(TASK);
-    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual(['[[Send Mara the payroll file]]']);
+    expect(setup.propertiesOf(MEETING)?.['tasks']).toEqual([
+      '[[Tasks/2026/10/Send Mara the payroll file]]',
+    ]);
   });
 });

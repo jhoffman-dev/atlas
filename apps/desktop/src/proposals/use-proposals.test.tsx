@@ -26,7 +26,8 @@ const path = (raw: string): VaultPath => createVaultPath(raw);
 /** A window whose close is never watched here. */
 const noClosing = { beforeClose: async () => () => {} };
 const PROPOSAL = 'Inbox/Proposals/Send the file.md';
-const TASK = 'Send Mara the payroll file.md';
+/** A task an accepted proposal makes lands in its type's home folder for the day it was answered (#214). */
+const TASK = 'Tasks/2026/10/Send Mara the payroll file.md';
 
 const PROPOSAL_TEXT = `---
 type: proposal
@@ -318,7 +319,7 @@ const SECOND_TEXT = PROPOSAL_TEXT.replace(
   'title: Send Mara the payroll file',
   'title: Call Tobias Fenn',
 );
-const SECOND_TASK = 'Call Tobias Fenn.md';
+const SECOND_TASK = 'Tasks/2026/10/Call Tobias Fenn.md';
 const THIRD = 'Inbox/Proposals/Book the room.md';
 
 /** A vault whose notes are not made until `release`: an answer caught while it is being written. */
@@ -680,6 +681,7 @@ describe('useProposals — adversarial: a queued answer fails after another vaul
 
     await waitFor(() => expect(logged).toHaveLength(1));
     expect(logged[0]?.vault).toBe('vault A');
+    expect(logged[0]?.message).toContain('The disk is full.');
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createVaultPath, digestOf, IMPORT_OUTCOMES_PAGE } from '@atlas/domain';
+import { createVaultPath, digestOf, IMPORT_OUTCOME_KEY, IMPORT_OUTCOMES_PAGE } from '@atlas/domain';
 import {
   heldEntries,
   INDEX_BATCH_SIZE,
@@ -404,9 +404,10 @@ describe('refreshIndex and relations to notes that come and go (P24 review)', ()
     const fs = fakeVault({ 'a.md': { text: 'alpha', modified: 1 } });
     const { index, asked } = indexHolding([{ path: 'a.md', modified: 1, size: 5 }], ['a.md']);
     await refreshIndex({ fs, index, markdown });
-    // Only the question every refresh of a held index asks: how the import settled each note.
+    // Only the questions every refresh of a held index asks: how the import settled each note,
+    // and which declare its contract (#214).
     expect(asked.filter(([sql]) => String(sql).includes('FROM relations'))).toEqual([]);
-    expect(asked).toHaveLength(1);
+    expect(asked).toHaveLength(2);
   });
 });
 
@@ -610,8 +611,12 @@ describe('heldEntries: the import stamps of the notes the index holds (#92 revie
 
     await heldEntries(index);
 
-    expect(asked).toHaveLength(1);
-    expect(asked[0]).toContain(`lower(path) LIKE 'inbox/meetings/%'`);
+    // The stamps, and which notes declare the contract (#214): each only where meeting files land.
+    expect(asked).toHaveLength(2);
+    for (const sql of asked) {
+      expect(sql).toContain(`lower(path) LIKE 'inbox/meetings/%'`);
+      expect(sql).toContain(`lower(path) GLOB 'meetings/[0-9][0-9][0-9][0-9]/[0-9][0-9]/*'`);
+    }
   });
 
   it('reads every page of stamps, not only the first', async () => {
@@ -621,7 +626,10 @@ describe('heldEntries: the import stamps of the notes the index holds (#92 revie
       'imported',
     ]);
     let pages = 0;
-    index.query = async () => {
+    index.query = async (_sql, parameters) => {
+      // The declarations are asked apart, once the stamps are in (#214).
+      if (parameters?.[0] !== IMPORT_OUTCOME_KEY)
+        return { columns: [], rows: [], truncated: false };
       pages++;
       return {
         columns: [],

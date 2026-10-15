@@ -1,7 +1,8 @@
 /**
  * P30-03 (integration): promoting a checklist line to a task, through the
- * real markdown reader and writer. What is held: the task is made beside the
- * line's note with the frontmatter the line gives it, the line becomes a link
+ * real markdown reader and writer. What is held: the task is made in its
+ * type's home folder, Tasks/<year>/<month> (#214), with the frontmatter the
+ * line gives it, the line becomes a link
  * to it and nothing else in the note changes, one undo gives the note back
  * byte for byte and takes the task away, and a refusal leaves both as they
  * were.
@@ -96,10 +97,10 @@ function promote(
 }
 
 describe('promoting a checklist line', () => {
-  it('makes a task beside the note, sourced at the line and filed where the note is', async () => {
+  it('makes a task in Tasks/<year>/<month>, sourced at the line and filed under the note’s project', async () => {
     const { fs, text } = vault();
     const promotion = await promote(fs);
-    expect(promotion.task).toBe('plans/Order chairs.md');
+    expect(promotion.task).toBe('Tasks/2026/10/Order chairs.md');
     const task = text(promotion.task) ?? '';
     expect(task).toContain('type: task\n');
     expect(task).toContain('status: inbox\n');
@@ -170,7 +171,7 @@ describe('promoting a checklist line', () => {
   });
 
   it('numbers the task when the name is taken, and links the line to the one it made', async () => {
-    const taken = createVaultPath('plans/Order chairs.md');
+    const taken = createVaultPath('Tasks/2026/10/Order chairs.md');
     const { fs, text } = vault({ [source]: PLAN, [taken]: 'Already here.\n' });
     const promotion = await promoteChecklistLine({
       fs,
@@ -182,7 +183,7 @@ describe('promoting a checklist line', () => {
       taskType: TASK_TYPE_FILE.type,
       choice: { source, line: 1, text: 'Order chairs' },
     });
-    expect(promotion.task).toBe('plans/Order chairs 2.md');
+    expect(promotion.task).toBe('Tasks/2026/10/Order chairs 2.md');
     expect(text(taken)).toBe('Already here.\n');
     // The line still reads as it did: the link shows its words.
     expect(text(source)).toContain('- [ ] [[Order chairs 2|Order chairs]] ^');
@@ -205,7 +206,7 @@ describe('promoting a line that holds more than plain words', () => {
     const promotion = await promote(fs, { source: note, line: 0, text: words });
     expect(text(note)).toMatch(
       new RegExp(
-        `^- \\[ \\] \\[\\[${escaped(promotion.task.slice(0, -'.md'.length))}\\]\\] ${escaped(line)} \\^[a-z0-9]{6}\\n- \\[x\\] Book the hall\\n$`,
+        `^- \\[ \\] \\[\\[${escaped(nameOf(promotion.task))}\\]\\] ${escaped(line)} \\^[a-z0-9]{6}\\n- \\[x\\] Book the hall\\n$`,
       ),
     );
     expect(text(promotion.task)).toMatch(new RegExp(`---\\n${escaped(line)}\\n$`));
@@ -397,4 +398,9 @@ describe('the rest of the checklist keeps its bytes', () => {
 
 function escaped(words: string): string {
   return words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** The note's name, as a link to a note no other shares a name with is written. */
+function nameOf(path: string): string {
+  return (path.split('/').at(-1) ?? path).slice(0, -'.md'.length);
 }

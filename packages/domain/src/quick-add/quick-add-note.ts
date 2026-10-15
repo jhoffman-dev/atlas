@@ -1,6 +1,5 @@
 import type { ObjectType, PropertyDef } from '../types/property-def.ts';
-import { newNoteFolder } from '../vault/new-note-folder.ts';
-import { VAULT_ROOT, type VaultPath } from '../vault/vault-path.ts';
+import type { VaultPath } from '../vault/vault-path.ts';
 import { QUICK_ADD_DEFAULT } from './quick-add-types.ts';
 
 /** How many properties quick add asks for beside the title: more is a form, not a quick add. */
@@ -74,20 +73,17 @@ function storedValue(field: PropertyDef, typed: string): unknown {
 }
 
 /**
- * The folder a quick-added note goes in.
- *
- * A task goes where a captured one (Shift+Cmd+N) does — beside the note in
- * view, or at the root — since quick add is capture with a few fields. A
- * type has no folder of its own to send anything else to, so anything else
- * goes at the root, as "New <type>" on a type's table puts it.
+ * The note a quick-added note goes beside when its type has no home folder
+ * (#214): a task goes where a captured one (Shift+Cmd+N) once did — beside
+ * the note in view — since quick add is capture with a few fields; anything
+ * else beside nothing, so at the root, as "New <type>" on a type's table puts it.
  */
-export function quickAddFolder({
+export function quickAddBeside({
   type,
   beside,
 }: {
   type: Pick<ObjectType, 'name'>;
   beside: VaultPath | null;
-}): VaultPath {
-  if (type.name !== QUICK_ADD_DEFAULT) return VAULT_ROOT;
-  return newNoteFolder({ beside, properties: { type: type.name } });
+}): VaultPath | null {
+  return type.name === QUICK_ADD_DEFAULT ? beside : null;
 }

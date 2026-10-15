@@ -144,8 +144,11 @@ function pullFixture({
   });
   const pull = (mode: 'startup' | 'periodic' | 'sync-now' = 'startup') =>
     puller.pull({ vault: VAULT.absolutePath, mode });
+  // Where meetings land: an older mapping's Inbox/Meetings, and the month's folder the pull writes to.
   const meetingFiles = () =>
-    [...api.files.keys()].filter((path) => path.startsWith('Inbox/Meetings/')).sort();
+    [...api.files.keys()]
+      .filter((path) => path.startsWith('Inbox/Meetings/') || path.startsWith('Meetings/'))
+      .sort();
   const messages = () => api.activity.reports.map((report) => report.message);
   return { api, granola, clock, waits, records, puller, pull, meetingFiles, messages };
 }
@@ -186,13 +189,13 @@ describe('pulling Granola into a vault', () => {
       watermark: '2026-10-13T17:00:00.000Z',
     });
     expect(report.written).toEqual([
-      'Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md',
-      'Inbox/Meetings/2026-10-06 Tobias one on one.md',
+      'Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md',
+      'Meetings/2026/10/2026-10-06 Tobias one on one.md',
     ]);
     expect(meetingFiles()).toEqual([
       'Inbox/Meetings/2026-10-06 From the Notion export.md',
-      'Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md',
-      'Inbox/Meetings/2026-10-06 Tobias one on one.md',
+      'Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md',
+      'Meetings/2026/10/2026-10-06 Tobias one on one.md',
     ]);
     expect(records.current()).toEqual({ watermark: '2026-10-13T17:00:00.000Z', lastPullAt: START });
     expect(messages()).toEqual(['Granola: 2 new, 2 already in Atlas.']);
@@ -206,7 +209,7 @@ describe('pulling Granola into a vault', () => {
     const { pull, api } = pullFixture();
     await pull();
 
-    const written = api.files.get('Inbox/Meetings/2026-10-06 Tobias one on one.md')?.text;
+    const written = api.files.get('Meetings/2026/10/2026-10-06 Tobias one on one.md')?.text;
     expect(written).toBe(mapGranolaNote(NEW_2, OPTIONS).content);
     expect(frontmatterOf(written)).toMatchObject({
       start: '13:00',
@@ -242,7 +245,7 @@ describe('pulling Granola into a vault', () => {
 
     expect(report.ended).toBe('pulled');
     expect(report.written).toHaveLength(1);
-    expect(meetingFiles()).toContain('Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md');
+    expect(meetingFiles()).toContain('Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md');
     expect(granola.count('note', NEW_1.id)).toBe(3);
     expect(waits.filter((wait) => wait >= 1_000)).toEqual([1_000, 2_000]);
   });
@@ -263,7 +266,7 @@ describe('pulling Granola into a vault', () => {
         problem: 'Granola asked Atlas to slow down.',
       },
     ]);
-    expect(report.written).toEqual(['Inbox/Meetings/2026-10-06 Tobias one on one.md']);
+    expect(report.written).toEqual(['Meetings/2026/10/2026-10-06 Tobias one on one.md']);
     // Not past the note that failed, though a newer one was written.
     expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
     expect(api.activity.reports.map(({ level }) => level)).toEqual(['error', 'error']);
@@ -272,12 +275,12 @@ describe('pulling Granola into a vault', () => {
     );
 
     const again = await pull();
-    expect(again.written).toEqual(['Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md']);
+    expect(again.written).toEqual(['Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md']);
     expect(again.held).toBe(1);
     expect(meetingFiles()).toEqual([
       'Inbox/Meetings/2026-10-06 From the Notion export.md',
-      'Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md',
-      'Inbox/Meetings/2026-10-06 Tobias one on one.md',
+      'Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md',
+      'Meetings/2026/10/2026-10-06 Tobias one on one.md',
     ]);
   });
 
@@ -368,8 +371,8 @@ describe('pulling Granola into a vault', () => {
     const report = await pull();
 
     expect(report.ended).toBe('vault-changed');
-    expect(report.written).toEqual(['Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md']);
-    expect(api.files.has('Inbox/Meetings/2026-10-06 Tobias one on one.md')).toBe(false);
+    expect(report.written).toEqual(['Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md']);
+    expect(api.files.has('Meetings/2026/10/2026-10-06 Tobias one on one.md')).toBe(false);
     expect(records.current().watermark).toBeNull();
     expect(api.activity.reports.at(-1)).toMatchObject({
       level: 'warning',
@@ -495,7 +498,7 @@ describe('pulling Granola into a vault', () => {
     expect(report).toMatchObject({
       ended: 'pulled',
       mode: 'sync-now',
-      written: ['Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md'],
+      written: ['Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md'],
     });
     expect(granola.count('list')).toBe(1);
     expect(messages()).toEqual([
@@ -668,7 +671,7 @@ describe('pulling Granola into a vault', () => {
       expect.objectContaining({ id: NEW_1.id, url: `https://notes.granola.ai/d/${NEW_1.id}` }),
     ]);
     expect(report.failed[0]?.problem).toMatch(/the disk is full/);
-    expect(report.written).toEqual(['Inbox/Meetings/2026-10-06 Tobias one on one.md']);
+    expect(report.written).toEqual(['Meetings/2026/10/2026-10-06 Tobias one on one.md']);
     expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');
   });
 
@@ -733,7 +736,7 @@ describe('pulling Granola into a vault', () => {
     const report = await pull();
 
     expect(report.ended).toBe('pulled');
-    expect(meetingFiles()).toContain('Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md');
+    expect(meetingFiles()).toContain('Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md');
     expect(report.skipped).toEqual([
       {
         id: 'not_odd0000000001',
@@ -1118,7 +1121,7 @@ describe('pulling Granola into a vault', () => {
 
       const report = await pull('sync-now');
 
-      expect(meetingFiles()).toContain('Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md');
+      expect(meetingFiles()).toContain('Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md');
       expect(report).toMatchObject({
         ended: 'failed',
         problem: 'the quota is full',
@@ -1128,8 +1131,8 @@ describe('pulling Granola into a vault', () => {
         watermark: '2026-10-10T00:00:00.000Z',
       });
       expect(report.written).toEqual([
-        'Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md',
-        'Inbox/Meetings/2026-10-06 Tobias one on one.md',
+        'Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md',
+        'Meetings/2026/10/2026-10-06 Tobias one on one.md',
       ]);
       expect(kept.current().watermark).toBe('2026-10-10T00:00:00.000Z');
       expect(messages().at(-1)).toBe(
@@ -1152,7 +1155,7 @@ describe('pulling Granola into a vault', () => {
 
       expect(report).toMatchObject({
         ended: 'failed',
-        written: ['Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md'],
+        written: ['Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md'],
         watermark: '2026-10-13T15:00:00.000Z',
       });
       expect(records.current().watermark).toBe('2026-10-13T15:00:00.000Z');

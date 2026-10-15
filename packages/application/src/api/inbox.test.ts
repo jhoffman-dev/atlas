@@ -1,8 +1,9 @@
 /**
  * The Inbox's Process through the API (P30-01, ADR-0016's amendment for it):
  * filing notes under a project or an area, held to the Archive's limits — user
- * space only, never over anything, never saving someone's typing — with the
- * destination fixed by the note's name and the project's own path.
+ * space only, never over anything, never saving someone's typing. Filing is a
+ * link (#214): the note gets `project: [[…]]` and goes to its type's home
+ * folder for its day, never into the project's folder.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -23,7 +24,7 @@ const processInbox = (body: unknown) => ({
 });
 
 describe('POST /v1/inbox/process', () => {
-  it('files each note under its project’s folder and links it, the rest of it untouched', async () => {
+  it('links each note to its project and files it in its type’s home folder, the rest of it untouched', async () => {
     const api = apiFixture({
       files: {
         'Projects/Atlas.md': PROJECT,
@@ -42,16 +43,18 @@ describe('POST /v1/inbox/process', () => {
     expect(response.status).toBe(200);
     expect(bodyOf(response)).toEqual({
       moves: [
-        { from: 'Inbox/Call Sam.md', to: 'Projects/Atlas/Call Sam.md' },
-        { from: 'Inbox/Meetings/Standup.md', to: 'Projects/Atlas/Standup.md' },
+        { from: 'Inbox/Call Sam.md', to: 'Tasks/2026/09/Call Sam.md' },
+        { from: 'Inbox/Meetings/Standup.md', to: 'Notes/2026/Standup.md' },
       ],
+      linked: [],
       failed: [],
       linksUpdated: 0,
     });
-    const filed = api.files.get('Projects/Atlas/Call Sam.md')?.text ?? '';
+    const filed = api.files.get('Tasks/2026/09/Call Sam.md')?.text ?? '';
     expect(filed).toContain('project: [[Atlas]]');
     expect(filed.endsWith('\nAbout the  *lease*.\n')).toBe(true);
     expect(api.files.has('Inbox/Call Sam.md')).toBe(false);
+    expect(api.files.get('Notes/2026/Standup.md')?.text).toContain('project: [[Atlas]]');
   });
 
   it('files under an area as readily as a project', async () => {
@@ -60,8 +63,9 @@ describe('POST /v1/inbox/process', () => {
       processInbox({ paths: ['Inbox/Seeds.md'], project: 'Areas/Garden.md' }),
     );
     expect(bodyOf(response)['moves']).toEqual([
-      { from: 'Inbox/Seeds.md', to: 'Areas/Garden/Seeds.md' },
+      { from: 'Inbox/Seeds.md', to: 'Notes/2026/Seeds.md' },
     ]);
+    expect(api.files.get('Notes/2026/Seeds.md')?.text).toContain('project: [[Garden]]');
   });
 
   it('refuses to file under a note that is not a project or an area, and moves nothing', async () => {
@@ -139,7 +143,7 @@ describe('POST /v1/inbox/process', () => {
     const api = apiFixture({
       files: {
         'Projects/Atlas.md': PROJECT,
-        'Projects/Atlas/Call.md': 'older\n',
+        'Notes/2026/Call.md': 'older\n',
         'Inbox/Call.md': 'newer\n',
       },
     });
@@ -147,9 +151,9 @@ describe('POST /v1/inbox/process', () => {
       processInbox({ paths: ['Inbox/Call.md'], project: 'Projects/Atlas.md' }),
     );
     expect(bodyOf(response)['moves']).toEqual([
-      { from: 'Inbox/Call.md', to: 'Projects/Atlas/Call 2.md' },
+      { from: 'Inbox/Call.md', to: 'Notes/2026/Call 2.md' },
     ]);
-    expect(api.files.get('Projects/Atlas/Call.md')?.text).toBe('older\n');
+    expect(api.files.get('Notes/2026/Call.md')?.text).toBe('older\n');
   });
 });
 

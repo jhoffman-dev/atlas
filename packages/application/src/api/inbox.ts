@@ -7,6 +7,7 @@ import {
 import { listVaultInbox } from '../inbox/list-inbox.ts';
 import { FilingRefusedError, processInboxItems } from '../inbox/process-inbox.ts';
 import { ApiError } from './api-error.ts';
+import type { ApiArchiveOutcome } from './contract.ts';
 import { moveBatch } from './archive.ts';
 import { decodeInboxCursor, encodeInboxCursor } from './cursor.ts';
 import { bodyObject, countOf, requiredString } from './fields.ts';
@@ -39,14 +40,23 @@ export async function inboxRoute(request: VaultRequest): Promise<RouteResult> {
 
 /**
  * Files notes from the Inbox under a project or an area, as the Inbox's
- * Process does (P30-01): each moves into the project's folder and gets
- * `project: [[…]]` linking it. `project` must be a project or an area; any
- * other note refuses the whole request before a note moves.
+ * Process does (P30-01): each gets `project: [[…]]` linking it (#214). A
+ * note in the `Inbox` folder moves to its type's home folder for its day; a
+ * meeting waiting in its month's folder stays where it is, and is answered
+ * among `linked`. `project` must be a project or an area; any other note
+ * refuses the whole request before a note moves.
  */
 export async function processInboxRoute(request: VaultRequest): Promise<RouteResult> {
   const project = projectOf(request.body);
+  const today = request.clock.today();
+  let linked: readonly VaultPath[] = [];
   try {
-    return await moveBatch(request, (batch) => processInboxItems({ ...batch, project }));
+    const answer = await moveBatch(request, async (batch) => {
+      const outcome = await processInboxItems({ ...batch, project, today });
+      linked = outcome.linked;
+      return outcome;
+    });
+    return { ...answer, body: { ...(answer.body as ApiArchiveOutcome), linked } };
   } catch (error) {
     if (error instanceof FilingRefusedError) throw new ApiError('invalid', error.message);
     throw error;

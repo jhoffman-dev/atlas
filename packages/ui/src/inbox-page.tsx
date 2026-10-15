@@ -12,6 +12,7 @@ import {
 } from './proposals/proposals-section.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
+import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
 
 /** What the Inbox lists, once it has been read. */
 export interface InboxContents {
@@ -58,6 +59,8 @@ export interface InboxPageProps {
   typesOffer?: InboxTypesOffer | null;
   /** Moving the vault's tasks to GTD's eight statuses, previewed first (P30-02). */
   taskMigration?: TaskMigrationProps | null;
+  /** Moving loose notes and old meetings to their home folders, once, previewed first (#214). */
+  vaultTidy?: VaultTidyProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
   view?: { readonly title: string; readonly onOpen: () => void } | null;
   /** What Claude or an automation proposed, answered here rather than filed (P29-02). */
@@ -67,11 +70,11 @@ export interface InboxPageProps {
 }
 
 /**
- * The Inbox: every note waiting in the `Inbox` folder — captured, imported or
- * dropped there — and every task still at the Inbox status wherever it lives,
- * each a click from opening. A task is clarified on its row (#112); any other
- * note is one choice from being filed under a project or an area, which moves
- * it into that project's folder and links it (P30-01). Proposals wait there too, and are answered in their own
+ * The Inbox: every note waiting in the `Inbox` folder — captured or dropped
+ * there — every task still at the Inbox status and every imported meeting not
+ * filed yet, wherever each lives, each a click from opening. A task is
+ * clarified on its row (#112); any other note is one choice from being filed
+ * under a project or an area, which links it (P30-01, #214). Proposals wait there too, and are answered in their own
  * section rather than filed (P29-02). A meeting the import is waiting on, or
  * could not import, says so on its row (P28-04).
  */
@@ -79,6 +82,7 @@ export function InboxPage(props: InboxPageProps) {
   const view = props.view ?? null;
   const offer = props.typesOffer ?? null;
   const migration = props.taskMigration ?? null;
+  const tidy = props.vaultTidy ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
   return (
@@ -105,6 +109,7 @@ export function InboxPage(props: InboxPageProps) {
           />
           {offer !== null && <TypesOffer {...offer} />}
           {migration !== null && <TaskMigration {...migration} />}
+          {tidy !== null && <VaultTidy {...tidy} />}
           {problem !== null && (
             <p className="table__error" role="alert">
               {problem}

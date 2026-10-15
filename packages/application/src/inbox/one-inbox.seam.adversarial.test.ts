@@ -96,6 +96,7 @@ describe('One Inbox — a proposal moved out of Inbox/Proposals by hand', () => 
       paths: [path(MOVED)],
       notePaths: [...memory.files.keys()].map(path),
       project: path('Projects/Atlas.md'),
+      today: TODAY,
     });
 
     // "A proposal is answered, not filed": it must not become a filed note under Atlas.

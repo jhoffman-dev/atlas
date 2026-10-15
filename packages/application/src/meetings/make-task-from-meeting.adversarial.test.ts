@@ -24,7 +24,7 @@ import {
 
 const TODAY = '2026-10-06';
 const MEETING = 'Projects/Ledger/2026-10-06 Standup.md';
-const TASK = 'Send Mara the payroll file.md';
+const TASK = 'Tasks/2026/10/Send Mara the payroll file.md';
 const IDENTITY: MeetingIdentity = { provider: 'gemini', externalId: 'gemini-7f3a9c21' };
 
 const meetingNote = (more: Record<string, unknown> = {}) =>

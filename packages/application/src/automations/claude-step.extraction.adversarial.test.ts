@@ -345,14 +345,16 @@ describe('undoing an accept after another proposal of the same meeting was accep
       today: TODAY,
     });
     expect(properties(SYNC)['tasks']).toEqual([
-      '[[Write the rollout note]]',
-      '[[Flag the new cache]]',
+      '[[Tasks/2026/10/Write the rollout note]]',
+      '[[Tasks/2026/10/Flag the new cache]]',
     ]);
 
     await undoAcceptedProposal({ ports, accepted: first }).catch((refusal: unknown) => refusal);
 
-    const taskThere = vault.files.has('Write the rollout note.md');
-    const listed = (properties(SYNC)['tasks'] as string[]).includes('[[Write the rollout note]]');
+    const taskThere = vault.files.has('Tasks/2026/10/Write the rollout note.md');
+    const listed = (properties(SYNC)['tasks'] as string[]).includes(
+      '[[Tasks/2026/10/Write the rollout note]]',
+    );
     expect(listed).toBe(taskThere);
   });
 });

@@ -134,8 +134,10 @@ describe('a read answers what a note made from the template starts with', () => 
   async function readThenCreate(text: string) {
     const api = vault({ '.atlas/templates/Odd.md': text });
     const template = templateOf(await read(api, 'Odd'));
-    await create(api, { name: 'Made', template: 'Odd' });
-    const note = bodyOf(await api.send({ method: 'GET', path: `/v1/notes/${encoded('Made.md')}` }));
+    const made = bodyOf(await create(api, { name: 'Made', template: 'Odd' }))['note'] as {
+      path: string;
+    };
+    const note = bodyOf(await api.send({ method: 'GET', path: `/v1/notes/${encoded(made.path)}` }));
     return { template, note: note['note'] as Record<string, unknown> };
   }
 

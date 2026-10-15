@@ -14,7 +14,7 @@ import { rejectProposalNote } from './reject-proposal.ts';
 const TODAY = '2026-10-08';
 const MEETING = 'Inbox/Meetings/2026-10-01 Standup.md';
 const PROPOSAL = 'Inbox/Proposals/Send the payroll file.md';
-const TASK = 'Send Mara the payroll file.md';
+const TASK = 'Tasks/2026/10/Send Mara the payroll file.md';
 
 const taskProposal = (more: Record<string, unknown> = {}) =>
   jsonLinesNote(
@@ -107,7 +107,9 @@ describe('acceptProposalNote — a task', () => {
     const edited = { title: 'Send Mara the Q4 file', properties: { status: 'doing' } };
     await accept(setup, PROPOSAL, edited);
 
-    expect(setup.propertiesOf('Send Mara the Q4 file.md')).toMatchObject({ status: 'doing' });
+    expect(setup.propertiesOf('Tasks/2026/10/Send Mara the Q4 file.md')).toMatchObject({
+      status: 'doing',
+    });
     expect(setup.paths()).not.toContain(TASK);
     expect(setup.propertiesOf(`Archive/${PROPOSAL}`)).toMatchObject({ payload: edited });
   });
@@ -134,9 +136,9 @@ describe('acceptProposalNote — refusals', () => {
     const accepted = await accept(setup);
 
     expect(accepted.wrote).toMatchObject([
-      { kind: 'created', path: 'Send Mara the payroll file 2.md' },
+      { kind: 'created', path: 'Tasks/2026/10/Send Mara the payroll file 2.md' },
     ]);
-    expect(setup.paths()).toContain('Send Mara the payroll file 2.md');
+    expect(setup.paths()).toContain('Tasks/2026/10/Send Mara the payroll file 2.md');
     expect(setup.fixture.files.get(TASK)?.text).toBe('Already made by hand.\n');
   });
 

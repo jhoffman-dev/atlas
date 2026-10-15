@@ -5,7 +5,7 @@ import { createVaultPath } from '../vault/vault-path.ts';
 import { triggeringVersions, type NoteTrigger } from './note-trigger.ts';
 
 /**
- * #62 (note triggers) x #65 (Inbox Process). ADR-0028: "A note moved,
+ * #62 (note triggers) x #65 (Inbox Process), with #214's month folders. ADR-0028: "A note moved,
  * renamed, archived or put back from the Archive is neither created nor
  * changed", and `unpairedChanges` says "filing ... a note is not its
  * arrival". Process is a move *and* a stamp (`project: [[…]]`) done before
@@ -19,16 +19,29 @@ const MEETING_CREATED: NoteTrigger = { kind: 'note', type: 'meeting', on: ['crea
 describe('Processing a meeting out of the Inbox, as the change feed hears it', () => {
   const from = p('Inbox/Meetings/2026-10-01 Larkspur kickoff.md');
   const project = p('Projects/Larkspur Payroll.md');
-  const to = processDestination({ path: from, project, taken: new Set() });
+  const to = processDestination({ path: from, folder: p('Meetings/2026/10'), taken: new Set() });
   // What Process leaves: the same note, moved, with `project:` written into it.
   const stamp = filedUnderStamp({ project, notePaths: [from, project] });
   const changes: NoteChange[] = [
-    { kind: 'removed', path: from, type: 'meeting', digest: 'before-filing' },
-    { kind: 'added', path: to, type: 'meeting', digest: `after-filing:${stamp['project']}` },
+    {
+      kind: 'removed',
+      path: from,
+      type: 'meeting',
+      digest: 'before-filing',
+      importOutcome: 'imported',
+    },
+    {
+      kind: 'added',
+      path: to,
+      type: 'meeting',
+      digest: `after-filing:${stamp['project']}`,
+      importOutcome: 'imported',
+      importDeclared: true,
+    },
   ];
 
   it('is not the arrival of a new note', () => {
-    expect(to).toBe('Projects/Larkspur Payroll/2026-10-01 Larkspur kickoff.md');
+    expect(to).toBe('Meetings/2026/10/2026-10-01 Larkspur kickoff.md');
     expect([...arrivedPaths(changes)]).toEqual([]);
   });
 

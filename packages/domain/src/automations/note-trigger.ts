@@ -18,7 +18,7 @@
 
 import { isArchivedPath } from '../archive/archive.ts';
 import { arrivedPaths, unpairedChanges, type NoteChange } from '../index/note-changes.ts';
-import { isMeetingInboxPath } from '../meetings/meeting-arrival.ts';
+import { isMeetingArrival } from '../meetings/meeting-arrival.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { QueryTextError } from '../query-language/query-text-error.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
@@ -116,7 +116,7 @@ export function triggeringVersions(
 /** What a change is to a rule a note sets off, given the paths new notes arrived at; null when nothing. */
 function noteEventOf(change: NoteChange, arrived: ReadonlySet<string>): NoteEvent | null {
   if (change.kind === 'removed') return null;
-  if (isMeetingInboxPath(change.path)) return eventWhereMeetingsLand(change);
+  if (isMeetingArrival(change)) return eventWhereMeetingsLand(change);
   if (arrived.has(change.path)) return 'created';
   return change.kind === 'changed' ? 'changed' : null;
 }
@@ -246,6 +246,8 @@ export function unhandledVersions(
 export interface HeldNote extends NoteVersionRef {
   readonly type: string | null;
   readonly importOutcome?: string | undefined;
+  /** It declares the meeting import's contract (`atlas_import`). */
+  readonly importDeclared?: true | undefined;
   /** When the file was last written, as the disk says: milliseconds, on the clock the rule's file is dated by. */
   readonly modified: number;
 }
@@ -280,7 +282,7 @@ export function missedArrivals({
   return [...notes]
     .filter(
       (note) =>
-        isMeetingInboxPath(note.path) &&
+        isMeetingArrival(note) &&
         note.importOutcome === 'imported' &&
         note.type === trigger.type &&
         note.modified > Math.max(since, handled.vouchesFrom ?? since) &&
