@@ -67,6 +67,12 @@ describe('chatSystemPrompt', () => {
     expect(prompt).not.toContain('<vault_data kind');
   });
 
+  it('tells the model to read only paths a tool gave it, and how to list a day (#211)', () => {
+    const prompt = chatSystemPrompt({ today: '2026-10-14', context: null, profile: EMPTY_PROFILE });
+    expect(prompt).toContain('never build one from a title');
+    expect(prompt).toContain('call atlas_list_notes with that date');
+  });
+
   it('carries the context when there is one', () => {
     const prompt = chatSystemPrompt({
       today: '2026-09-27',

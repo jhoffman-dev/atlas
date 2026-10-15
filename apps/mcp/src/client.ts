@@ -134,6 +134,8 @@ export interface InboxQuery {
 export interface ListNotesQuery {
   readonly folder?: string;
   readonly type?: string;
+  /** `YYYY-MM-DD`: only the notes about that day. */
+  readonly date?: string;
   readonly limit?: number;
   readonly cursor?: string;
 }

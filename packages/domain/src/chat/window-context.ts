@@ -104,6 +104,9 @@ export function chatSystemPrompt({
     'say you changed or created something — say what you proposed. Only propose a change',
     'when the person asks for one. Leave archived notes out unless the person asks for them.',
     '',
+    'Read a note only by a path a tool gave you; never build one from a title. For the notes',
+    "of one day — today's meetings — call atlas_list_notes with that date.",
+    '',
     ownerSection(profile),
   ];
   if (context !== null) parts.push('', contextSection(context));
