@@ -12,6 +12,17 @@ export function linkedNotes(value: unknown): string[] {
     .filter((item) => item.trim() !== '');
 }
 
+/**
+ * Whether a relation's value is text and nothing else — a link, or a list of
+ * them — so a link added to it keeps everything it held. A map, a nested list
+ * or a number would be written back as words ({@link linkedNotes} reads each
+ * as text), losing what it was.
+ */
+export function holdsOnlyText(value: unknown): boolean {
+  const items = Array.isArray(value) ? value : [value];
+  return items.every((item) => item === null || item === undefined || typeof item === 'string');
+}
+
 /** The relation's value with `link` in it: added to a list, or in place of the one note. */
 export function withLink({
   value,

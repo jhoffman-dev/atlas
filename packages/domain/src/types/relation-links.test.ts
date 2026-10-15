@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkedNotes, withLink, withoutLink } from './relation-links.ts';
+import { holdsOnlyText, linkedNotes, withLink, withoutLink } from './relation-links.ts';
 
 describe('linkedNotes', () => {
   it('reads nothing, one link or a list of them as a list', () => {
@@ -10,6 +10,23 @@ describe('linkedNotes', () => {
       '[[Write report]]',
       '[[Book flights]]',
     ]);
+  });
+});
+
+describe('holdsOnlyText', () => {
+  it('holds a link, a list of them, or nothing yet', () => {
+    expect(holdsOnlyText(undefined)).toBe(true);
+    expect(holdsOnlyText('[[Write report]]')).toBe(true);
+    expect(holdsOnlyText(['[[Write report]]', null, 'Book flights'])).toBe(true);
+  });
+
+  it.each([
+    ['a map', { report: '[[Write report]]' }],
+    ['a list holding a map', ['[[Write report]]', { link: '[[Book flights]]' }]],
+    ['a nested list', [['[[Write report]]']]],
+    ['a number', 7],
+  ])('does not hold %s, which adding a link would turn into words', (_shape, value) => {
+    expect(holdsOnlyText(value)).toBe(false);
   });
 });
 
