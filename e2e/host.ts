@@ -999,10 +999,12 @@ export async function installHost(
         }
         // Linking a meeting (P29-04): its people, companies and likely projects, and the
         // proposals already made — by a link or by a rule's Claude step (P29-03) — over
-        // files, props and relations, run for real.
+        // files, props and relations, run for real. So are the tasks made from a meeting's
+        // items (`atlas_item`, ADR-0036), which Accept and the After a meeting step look up.
         if (
           statement.startsWith('/* meeting links:') ||
-          statement.startsWith('/* proposals: ids */')
+          statement.startsWith('/* proposals: ids */') ||
+          statement.startsWith('/* meeting items: made */')
         ) {
           return runAtlasQuery(statement, bound, indexed.values());
         }
