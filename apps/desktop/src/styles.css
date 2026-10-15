@@ -11524,6 +11524,15 @@ form.inbox__clarify {
   flex: none;
 }
 
+/* Said until it is fixed (#181): the owner cannot be told apart, so no task is made. */
+.inbox__offer--warning {
+  background: color-mix(in srgb, var(--warning) 14%, var(--raised));
+}
+
+.inbox__offer--warning .inbox__offer-icon {
+  color: var(--warning);
+}
+
 .inbox__offer-text {
   flex: 1;
   font-size: var(--text-ui);
@@ -11737,7 +11746,9 @@ form.inbox__clarify {
 .task-migration__offer,
 .task-migration__actions,
 .vault-tidy__offer,
-.vault-tidy__actions {
+.vault-tidy__actions,
+.meeting-cleanup__offer,
+.meeting-cleanup__actions {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -11745,13 +11756,15 @@ form.inbox__clarify {
 }
 
 .task-migration__offer p,
-.vault-tidy__offer p {
+.vault-tidy__offer p,
+.meeting-cleanup__offer p {
   flex: 1;
   min-width: 20ch;
 }
 
 .task-migration__preview,
-.vault-tidy__preview {
+.vault-tidy__preview,
+.meeting-cleanup__preview {
   display: grid;
   gap: var(--space-3);
 }
@@ -11770,7 +11783,8 @@ form.inbox__clarify {
 
 .task-migration__mapping,
 .task-migration__tasks table,
-.vault-tidy__moves table {
+.vault-tidy__moves table,
+.meeting-cleanup__tasks table {
   border-collapse: collapse;
   font-size: var(--text-small);
   width: 100%;
@@ -11778,7 +11792,8 @@ form.inbox__clarify {
 
 .task-migration__mapping th,
 .task-migration__tasks th,
-.vault-tidy__moves th {
+.vault-tidy__moves th,
+.meeting-cleanup__tasks th {
   color: var(--ink-3);
   font-weight: 700;
   text-align: left;
@@ -11789,13 +11804,16 @@ form.inbox__clarify {
 .task-migration__tasks td,
 .task-migration__tasks th,
 .vault-tidy__moves td,
-.vault-tidy__moves th {
+.vault-tidy__moves th,
+.meeting-cleanup__tasks td,
+.meeting-cleanup__tasks th {
   padding: 4px 12px 4px 0;
 }
 
 /* Every task, and every move, is listed; a long list scrolls inside the offer, not the page. */
 .task-migration__tasks,
-.vault-tidy__moves {
+.vault-tidy__moves,
+.meeting-cleanup__tasks {
   max-height: 320px;
   overflow: auto;
 }

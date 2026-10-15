@@ -46,7 +46,7 @@ import {
   unknownKeyProblem,
 } from './answer-limits.ts';
 import { claudeWriteRefusal } from './claude-write-folder.ts';
-import type { MeetingItemClaim } from './meeting-item-apply.ts';
+import type { MeetingDecisionClaim, MeetingItemClaim } from './meeting-item-apply.ts';
 import { setKeyProblem } from './property-key.ts';
 import { remoteResourceProblem } from './remote-resources.ts';
 
@@ -123,6 +123,12 @@ export interface ProposalDraft {
    * a click (ADR-0036, `decideMeetingItems`). Only an action item has one.
    */
   readonly meetingItem?: MeetingItemClaim;
+  /**
+   * What decides whether a meeting's decision reaches the owner at all
+   * (#226): whether they took part in the exchange it cites. Only a
+   * decision has one.
+   */
+  readonly meetingDecision?: MeetingDecisionClaim;
 }
 
 /**
@@ -151,6 +157,8 @@ export interface CheckedProposal {
   readonly distinguishedBy: string;
   /** See {@link ProposalDraft.meetingItem}. */
   readonly meetingItem?: MeetingItemClaim;
+  /** See {@link ProposalDraft.meetingDecision}. */
+  readonly meetingDecision?: MeetingDecisionClaim;
   /**
    * Whether the proposal is known by what it is and where it came from alone,
    * so that two rules reading one meeting propose it once between them
@@ -486,6 +494,7 @@ export function checkDraft(
       distinguishedBy: draft.distinguishedBy ?? '',
       sharedAcrossRules: false,
       ...(draft.meetingItem === undefined ? {} : { meetingItem: draft.meetingItem }),
+      ...(draft.meetingDecision === undefined ? {} : { meetingDecision: draft.meetingDecision }),
     },
   };
 }

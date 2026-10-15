@@ -182,6 +182,8 @@ export type {
   TaskMigrationRow,
 } from './task-migration.tsx';
 export { VaultTidy } from './vault-tidy.tsx';
+export { MeetingCleanup } from './meeting-cleanup.tsx';
+export type { MeetingCleanupProps, MeetingCleanupTask } from './meeting-cleanup.tsx';
 export type {
   VaultTidyMove,
   VaultTidyPreviewData,

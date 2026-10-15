@@ -539,3 +539,26 @@ describe('InboxPage — more waiting than one page (#167)', () => {
     expect(screen.getByText(/^3 to process/)).toBeTruthy();
   });
 });
+
+describe('InboxPage: when Atlas can’t tell which action items are yours (#181)', () => {
+  const notice = () =>
+    screen.queryByRole('alert', { name: 'Atlas can’t tell which action items are yours' });
+
+  it('says so, and opens Settings', async () => {
+    const onOpenSettings = vi.fn();
+    page({ ownerUnknown: { onOpenSettings } });
+
+    expect(notice()?.textContent).toContain('meetings make no tasks for you');
+    expect(notice()?.textContent).toContain('Settings → Profile');
+    await userEvent.click(within(notice()!).getByRole('button', { name: 'Open Settings' }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing once the owner can be told apart', () => {
+    const { rerender } = page({ ownerUnknown: { onOpenSettings: vi.fn() } });
+    expect(notice()).not.toBeNull();
+
+    rerender({ ownerUnknown: null });
+    expect(notice()).toBeNull();
+  });
+});

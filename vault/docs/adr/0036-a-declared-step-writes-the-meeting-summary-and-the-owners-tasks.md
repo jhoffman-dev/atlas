@@ -440,3 +440,55 @@ and any of them is a change of one constant or one setting.
   Without it and without a profile name, no task is made.
 - **Q11**: yes, work meeting text goes through Claude Code unattended (a default, not his answer).
 - **Q12**: decisions stay proposals.
+
+## Amendment: only the owner's real commitments reach them (#226, 2026-10-15)
+
+**Why.** Measured on the maintainer's own vault (two weeks, 189 items the two
+meeting rules made, each labelled against its transcript), only about one in
+five was a real commitment of his. Most were other people's work, correctly
+attributed and still proposed (Q5), and the rest were status updates, ideas
+and topics discussed. He called it a huge time sink. Precision was the
+problem, not who the owner is: his profile name already told him apart.
+
+**What changes.** The step decides more, and shows less:
+
+- **Q4 is now high.** `TASK_CONFIDENCE_FLOOR` is `high`: a task is made only
+  for the owner's own, uncapped item said plainly. A task he never asked for
+  costs him more than one he reviews once.
+- **One review proposal per meeting.** What he should still see — his own
+  items at medium, his items a cap holds back at medium, a waiting-for he
+  asked for, a decision he took part in that the model is sure of — goes into
+  one proposal (`meetingReview`): accepted, it is one Inbox task whose body is
+  a checklist, each line linking its turn. Never one card per item.
+- **Left out** (`left-out`, counted in the log): anything below medium
+  (`REVIEW_CONFIDENCE_FLOOR`), someone else's item he did not ask for (Q5 is
+  reversed: others' items are no longer proposed), an item nobody or several
+  people could be named for, and a decision he took no part in.
+- **Asked for, and took part, are read from the transcript.** The model may say
+  `asked_by_owner`; the domain keeps it only when the owner spoke in the
+  exchange the item cites: the cited turn or one of the `EXCHANGE_TURNS` (6)
+  before it. A decision is kept on the same test. The model's word alone
+  never keeps an item.
+- **The prompts say what is not an item**, with made-up counter-examples. A
+  prompt note still holding an earlier version's exact words (known by digest)
+  is rewritten to the current one when the vault opens on the automations
+  Mac; one the person edited is theirs and is left alone.
+- **No owner, no tasks, said loudly (#181).** With no profile name and no
+  address, nothing is made a task, the run's log warns on each run that reads a
+  meeting, and the Inbox says so until it is fixed.
+- **The owner's addresses need no button.** With no `selfEmails` saved, the
+  owner's Person-note addresses are used everywhere ownership is decided (they
+  already were in item ownership; now also for the Granola mapping and
+  linking), and Settings → Profile says so. The field saves as it is typed.
+- **An offered cleanup** lists the tasks the step made that fail these rules
+  from what the task and its meeting still hold — the cited turn not the
+  owner's, or no owner known — and archives the ones he leaves ticked. How
+  sure the model was is not kept on a task, so one made at medium under the
+  old floor cannot be told apart and is not listed.
+
+**Measured.** See the PR for #226: on the same labelled meetings, re-asked
+with the new prompt and decided by these rules.
+
+**Cost.** Recall: items the model is unsure of, or that are spoken by an
+unnamed speaker, no longer reach the owner. Decisions are the largest loss;
+see the PR's numbers. Reversing any part is one constant or one branch.

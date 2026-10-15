@@ -129,7 +129,8 @@ const OWNERS_BOOK = {
   title: 'Book the review room',
   owner: 'You',
   source_block: 't0003',
-  confidence: 'medium',
+  // A task is made only at high (#226).
+  confidence: 'high',
 };
 
 const answer = (...items: unknown[]) => [

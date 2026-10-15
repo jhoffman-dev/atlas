@@ -179,6 +179,8 @@ export interface MeetingTally {
   readonly tasks: number;
   /** The proposals it made: the rest, less any made before. */
   readonly proposals: number;
+  /** The items it left out as not the owner's, or not sure enough (#226); none when absent. */
+  readonly leftOut?: number;
 }
 
 /** The longest an item's title runs in a log line: it is a model's, and a line is not a note. */
@@ -297,7 +299,8 @@ export function logEntrySummary(entry: LogEntry): string {
     entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
   const meetings = 'claude' in entry ? (entry.claude?.meetings ?? []) : [];
   const counts =
-    entry.kind === 'run' && meetings.some(({ tasks, proposals }) => tasks + proposals > 0)
+    entry.kind === 'run' &&
+    meetings.some(({ tasks, proposals, leftOut = 0 }) => tasks + proposals + leftOut > 0)
       ? meetingWords(meetings)
       : askedForNothing
         ? nothingProposedWords(entry.claude)
@@ -314,10 +317,10 @@ export function logEntrySummary(entry: LogEntry): string {
 function meetingWords(meetings: readonly MeetingTally[]): string {
   const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   return meetings
-    .map(
-      ({ path, tasks, proposals }) =>
-        `Made ${count(tasks, 'task', 'tasks')} from ${noteTitle(path)}, ${count(proposals, 'proposal', 'proposals')}.`,
-    )
+    .map(({ path, tasks, proposals, leftOut = 0 }) => {
+      const left = leftOut === 0 ? '' : `, left out ${count(leftOut, 'item', 'items')}`;
+      return `Made ${count(tasks, 'task', 'tasks')} from ${noteTitle(path)}, ${count(proposals, 'proposal', 'proposals')}${left}.`;
+    })
     .join(' ');
 }
 
@@ -404,8 +407,8 @@ function claudeLines({
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
     ...meetings.map(
-      ({ path, tasks, proposals }) =>
-        `- meeting ${code(path)}: tasks ${code(tasks)}, proposals ${code(proposals)}`,
+      ({ path, tasks, proposals, leftOut }) =>
+        `- meeting ${code(path)}: tasks ${code(tasks)}, proposals ${code(proposals)}${leftOut === undefined ? '' : `, left out ${code(leftOut)}`}`,
     ),
     ...(asks === undefined ? [] : [`- asked ${code(asks)} ${asks === 1 ? 'time' : 'times'}`]),
     ...(alreadyMade > 0 ? [`- already made ${code(alreadyMade)}`] : []),
@@ -630,7 +633,7 @@ const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
 const MOVED_LINE = new RegExp(`^- moved ${JSON_SPAN} to ${JSON_SPAN} at ${JSON_SPAN}$`);
 const ALREADY_MADE_LINE = new RegExp(`^- already made ${JSON_SPAN}$`);
 const MEETING_LINE = new RegExp(
-  `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}$`,
+  `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}(?:, left out ${JSON_SPAN})?$`,
 );
 const LET_GO_LINE = new RegExp(`^- let go ${JSON_SPAN}$`);
 
@@ -763,8 +766,12 @@ function meetingsOf(body: readonly string[]): MeetingTally[] {
         JSON.parse(match[2]!) as unknown,
         JSON.parse(match[3]!) as unknown,
       ];
+      const leftOut = match[4] === undefined ? undefined : (JSON.parse(match[4]) as unknown);
       if (!isCount(tasks) || !isCount(proposals)) return [];
-      return [{ path: pathOf(match[1]!), tasks, proposals }];
+      if (leftOut !== undefined && !isCount(leftOut)) return [];
+      return [
+        { path: pathOf(match[1]!), tasks, proposals, ...(leftOut !== undefined && { leftOut }) },
+      ];
     } catch {
       // A line edited into JSON that does not read, or a path that is no path, is left out.
       return [];

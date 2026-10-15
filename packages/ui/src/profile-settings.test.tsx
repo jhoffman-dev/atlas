@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfileSettings } from './profile-settings.tsx';
-import type { SelfEmailsView } from './self-emails-form.tsx';
+import { SAVE_EMAILS_AFTER_MS, type SelfEmailsView } from './self-emails-form.tsx';
 
 const NO_EMAILS: SelfEmailsView = {
   kept: '',
@@ -44,10 +44,10 @@ function renderWith({
     />
   );
   const view = { ...NO_EMAILS, ...emails };
-  const { rerender } = render(draw(view));
+  const { rerender, unmount } = render(draw(view));
   /** Draws the same card again with the addresses changed, as the next render would. */
   const redraw = (changes: Partial<SelfEmailsView>) => rerender(draw({ ...view, ...changes }));
-  return { ...handlers, redraw };
+  return { ...handlers, redraw, unmount };
 }
 
 const card = () => screen.getByRole('region', { name: 'Profile' });
@@ -108,126 +108,157 @@ describe('ProfileSettings', () => {
 /** #173: the person's own addresses, moved here from Settings → Granola. */
 describe('ProfileSettings: your emails', () => {
   const emailsField = () => within(card()).getByLabelText<HTMLTextAreaElement>('Your emails');
-  const saveEmails = () => within(card()).getByRole('button', { name: 'Save emails' });
+  const state = () =>
+    within(card()).queryByRole('status', { name: 'Where your emails stand' })?.textContent;
+  const failure = () =>
+    within(card()).queryByRole('alert', { name: 'Your emails were not saved' })?.textContent;
 
-  it('offers the Person note’s addresses while none are in use, and saves what is in the field', async () => {
+  /** Typing as a person does, with the clock under the test's hand. */
+  function typist() {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    return userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+  }
+  const rest = () => act(async () => void vi.advanceTimersByTime(SAVE_EMAILS_AFTER_MS));
+  afterEach(() => void vi.useRealTimers());
+
+  it('has no Save button: the field is the whole control (#226)', () => {
+    renderWith({ emails: { kept: 'mara@example.com' } });
+    expect(within(card()).queryByRole('button')).toBeNull();
+    expect(emailsField().tagName).toBe('TEXTAREA');
+  });
+
+  it('shows the Person note’s addresses as in use while none are saved, and saves nothing for them', async () => {
+    const user = typist();
     const { onSaveEmails } = renderWith({ emails: { suggested: 'mara.quill@example.com' } });
     expect(emailsField().value).toBe('mara.quill@example.com');
-    expect(card().textContent).toContain('From your Person note.');
+    expect(state()).toBe('In use from your Person note. Type your own here to use those instead.');
 
-    await userEvent.type(emailsField(), ', mq@example.com');
-    await userEvent.click(saveEmails());
+    await user.click(emailsField());
+    await user.tab();
+    await rest();
+    expect(onSaveEmails).not.toHaveBeenCalled();
+  });
+
+  it('saves once typing pauses, and says Saved', async () => {
+    const user = typist();
+    const { onSaveEmails } = renderWith({ emails: { suggested: 'mara.quill@example.com' } });
+    await user.type(emailsField(), ', mq@example.com');
+    expect(onSaveEmails).not.toHaveBeenCalled();
+
+    await rest();
+    expect(onSaveEmails).toHaveBeenCalledTimes(1);
     expect(onSaveEmails).toHaveBeenCalledWith('mara.quill@example.com, mq@example.com');
+    await waitFor(() => expect(state()).toBe('Saved'));
   });
 
-  it('shows the addresses kept, and saves nothing until they change', async () => {
-    const { onSaveEmails } = renderWith({
-      emails: { kept: 'mara@example.com', suggested: 'mara.quill@example.com' },
-    });
-    expect(emailsField().value).toBe('mara@example.com');
-    expect(card().textContent).not.toContain('From your Person note.');
-    expect(saveEmails()).toHaveProperty('disabled', true);
-
-    await userEvent.clear(emailsField());
-    await userEvent.click(saveEmails());
-    expect(onSaveEmails).toHaveBeenCalledWith('');
-  });
-
-  it('shows the addresses in use from Granola’s key, says so, and lets them be kept here', async () => {
-    const { onSaveEmails } = renderWith({
-      emails: { inherited: 'mara@example.com', suggested: 'mara.quill@example.com' },
-    });
-    expect(emailsField().value).toBe('mara@example.com');
-    expect(card().textContent).toContain('In use from granola_self_emails');
-    expect(card().textContent).not.toContain('From your Person note.');
-    expect(saveEmails()).toHaveProperty('disabled', false);
-
-    await userEvent.click(saveEmails());
+  it('saves on leaving the field, without waiting, and once', async () => {
+    const user = typist();
+    const { onSaveEmails } = renderWith();
+    await user.type(emailsField(), 'mara@example.com');
+    await user.tab();
     expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com');
+
+    await rest();
+    expect(onSaveEmails).toHaveBeenCalledTimes(1);
   });
 
-  it('lets the addresses in use from Granola’s key be cleared, saving none', async () => {
-    const { onSaveEmails } = renderWith({ emails: { inherited: 'mara@example.com' } });
-    await userEvent.clear(emailsField());
-    // Nothing is kept here, but Granola's key is in use: saving none removes it.
-    expect(saveEmails()).toHaveProperty('disabled', false);
-    await userEvent.click(saveEmails());
-    expect(onSaveEmails).toHaveBeenCalledWith('');
+  it('takes the addresses in a field of several lines, a line break kept as typed', async () => {
+    const user = typist();
+    const { onSaveEmails } = renderWith();
+    await user.type(emailsField(), 'mara@example.com{Enter}Mara Quill <mq@example.com>');
+    await user.tab();
+    expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com\nMara Quill <mq@example.com>');
   });
 
-  it('holds what was typed until the write settles, and keeps it when the write fails', async () => {
+  it('keeps what was typed, and says why, when the write fails', async () => {
+    const user = typist();
     const { onSaveEmails, redraw } = renderWith({ emails: { kept: 'mara@example.com' } });
-    let settle: (kept: boolean) => void = () => undefined;
-    onSaveEmails.mockImplementation(() => new Promise<boolean>((resolve) => (settle = resolve)));
-    await userEvent.clear(emailsField());
-    await userEvent.type(emailsField(), 'mq@example.org');
-    await userEvent.click(saveEmails());
-    // Under way, and the settings read back as they were: the field still holds what was sent.
-    redraw({ kept: 'mara@example.com' });
-    expect(emailsField().value).toBe('mq@example.org');
+    onSaveEmails.mockResolvedValue(false);
+    await user.clear(emailsField());
+    await user.type(emailsField(), 'mq@example.org');
+    await user.tab();
+    redraw({ kept: 'mara@example.com', problem: 'The settings note is read-only.' });
 
-    await act(async () => settle(false));
-    expect(emailsField().value).toBe('mq@example.org');
-  });
-
-  it('holds an untouched field’s addresses while they are saved, whatever is read meanwhile', async () => {
-    const { onSaveEmails, redraw } = renderWith({ emails: { inherited: 'mara@example.com' } });
-    let settle: (kept: boolean) => void = () => undefined;
-    onSaveEmails.mockImplementation(() => new Promise<boolean>((resolve) => (settle = resolve)));
-    await userEvent.click(saveEmails());
-    expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com');
-    // Another edit lands while the write is under way: the field keeps what was sent.
-    redraw({ inherited: 'tobias.fenn@example.com' });
-    expect(emailsField().value).toBe('mara@example.com');
-
-    await act(async () => settle(false));
-    expect(emailsField().value).toBe('mara@example.com');
-  });
-
-  it('shows what the settings keep once the write settles as kept', async () => {
-    const { onSaveEmails, redraw } = renderWith({ emails: { kept: 'mara@example.com' } });
-    let settle: (kept: boolean) => void = () => undefined;
-    onSaveEmails.mockImplementation(() => new Promise<boolean>((resolve) => (settle = resolve)));
-    await userEvent.clear(emailsField());
-    await userEvent.type(emailsField(), 'MQ@example.org');
-    await userEvent.click(saveEmails());
-    redraw({ kept: 'mq@example.org' });
-    expect(emailsField().value).toBe('MQ@example.org');
-
-    await act(async () => settle(true));
+    await waitFor(() => expect(failure()).toBe('Couldn’t save: The settings note is read-only.'));
     expect(emailsField().value).toBe('mq@example.org');
   });
 
   it('keeps what was typed, and says why, when the addresses are refused', async () => {
+    const user = typist();
     const { onSaveEmails, redraw } = renderWith({ emails: { kept: 'mara@example.com' } });
     onSaveEmails.mockResolvedValue(false);
-    await userEvent.clear(emailsField());
-    await userEvent.type(emailsField(), 'mara@example.com and mq');
-    await userEvent.click(saveEmails());
+    await user.clear(emailsField());
+    await user.type(emailsField(), 'mara@example.com and mq');
+    await rest();
     expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com and mq');
-    redraw({ problem: 'Not an email address: “and”.' });
+    redraw({ kept: 'mara@example.com', problem: 'Not an email address: “and”.' });
+
+    await waitFor(() => expect(failure()).toBe('Couldn’t save: Not an email address: “and”.'));
     expect(emailsField().value).toBe('mara@example.com and mq');
-    expect(
-      within(card()).getByRole('alert', { name: 'Your emails were not saved' }).textContent,
-    ).toBe('Not an email address: “and”.');
   });
 
-  it('shows what the settings keep once the addresses typed are saved', async () => {
-    const { onSaveEmails, redraw } = renderWith();
-    await userEvent.type(emailsField(), 'Mara Quill <Mara@Example.com>');
-    await userEvent.click(saveEmails());
-    expect(onSaveEmails).toHaveBeenCalledWith('Mara Quill <Mara@Example.com>');
-    redraw({ kept: 'mara@example.com' });
-    expect(emailsField().value).toBe('mara@example.com');
-    expect(saveEmails()).toHaveProperty('disabled', true);
-  });
-
-  it('takes the addresses in a field of several lines, a line break kept as typed', async () => {
+  it('tries again when the same text is left again after a failed save', async () => {
+    const user = typist();
     const { onSaveEmails } = renderWith();
-    expect(emailsField().tagName).toBe('TEXTAREA');
-    await userEvent.type(emailsField(), 'mara@example.com{Enter}Mara Quill <mq@example.com>');
-    await userEvent.click(saveEmails());
-    expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com\nMara Quill <mq@example.com>');
+    onSaveEmails.mockResolvedValueOnce(false);
+    await user.type(emailsField(), 'mq@example.org');
+    await user.tab();
+    await waitFor(() => expect(failure()).toBeDefined());
+    await user.click(emailsField());
+    await user.tab();
+    expect(onSaveEmails).toHaveBeenCalledTimes(2);
+    expect(onSaveEmails).toHaveBeenLastCalledWith('mq@example.org');
+  });
+
+  it('holds what was typed until the write settles, whatever the settings read meanwhile', async () => {
+    const user = typist();
+    const { onSaveEmails, redraw } = renderWith({ emails: { kept: 'mara@example.com' } });
+    let settle: (kept: boolean) => void = () => undefined;
+    onSaveEmails.mockImplementation(() => new Promise<boolean>((resolve) => (settle = resolve)));
+    await user.clear(emailsField());
+    await user.type(emailsField(), 'MQ@example.org');
+    await user.tab();
+    expect(state()).toBe('Saving…');
+    redraw({ kept: 'mara@example.com' });
+    expect(emailsField().value).toBe('MQ@example.org');
+
+    redraw({ kept: 'mq@example.org' });
+    await act(async () => settle(true));
+    expect(emailsField().value).toBe('mq@example.org');
+    expect(state()).toBe('Saved');
+  });
+
+  it('falls back to the Person note’s addresses once emptied and saved', async () => {
+    const user = typist();
+    const { onSaveEmails, redraw } = renderWith({
+      emails: { kept: 'mq@example.org', suggested: null },
+    });
+    await user.clear(emailsField());
+    await user.tab();
+    expect(onSaveEmails).toHaveBeenCalledWith('');
+    // Nothing saved now: the hook hands back the Person note's addresses as in use.
+    redraw({ kept: '', suggested: 'mara.quill@example.com' });
+    await waitFor(() => expect(emailsField().value).toBe('mara.quill@example.com'));
+  });
+
+  it('saves typing not yet saved when Settings closes', async () => {
+    const user = typist();
+    const { onSaveEmails, unmount } = renderWith();
+    await user.type(emailsField(), 'mq@example.org');
+    unmount();
+    expect(onSaveEmails).toHaveBeenCalledWith('mq@example.org');
+  });
+
+  it('shows the addresses in use from Granola’s key, and says so', () => {
+    renderWith({ emails: { inherited: 'mara@example.com', suggested: 'mara.quill@example.com' } });
+    expect(emailsField().value).toBe('mara@example.com');
+    expect(state()).toContain('In use from granola_self_emails');
+  });
+
+  it('says Saved for addresses the settings keep', () => {
+    renderWith({ emails: { kept: 'mara@example.com', suggested: 'mara.quill@example.com' } });
+    expect(emailsField().value).toBe('mara@example.com');
+    expect(state()).toBe('Saved');
   });
 
   it('says the settings’ addresses could not be read, and shows none of them as kept', () => {
@@ -244,35 +275,22 @@ describe('ProfileSettings: your emails', () => {
     expect(emailsField().value).toBe('');
   });
 
-  it('says nothing of the settings’ addresses when they were read', () => {
-    renderWith({ emails: { kept: 'mara@example.com' } });
-    expect(emailsField()).toBeTruthy();
-    expect(
-      within(card()).queryByRole('alert', { name: 'Your emails in settings could not be read' }),
-    ).toBeNull();
-  });
-
-  it('shows the suggestion that arrives while the field is untouched', () => {
+  it('shows the Person note’s addresses that arrive while the field is untouched', () => {
     const { redraw } = renderWith();
     redraw({ suggested: 'mara.quill@example.com' });
     expect(emailsField().value).toBe('mara.quill@example.com');
-    expect(card().textContent).toContain('From your Person note.');
   });
 
-  it('does not wipe addresses being typed when the Person note’s suggestion arrives', async () => {
+  it('does not wipe addresses being typed when the Person note’s arrive', async () => {
+    const user = typist();
     const { redraw } = renderWith();
-    await userEvent.type(emailsField(), 'mq@example.com');
+    await user.type(emailsField(), 'mq@example.com');
     redraw({ suggested: 'mara.quill@example.com' });
     expect(emailsField().value).toBe('mq@example.com');
   });
 
-  it('cannot be changed until the settings are read', async () => {
-    const { onSaveEmails } = renderWith({
-      emails: { disabled: true, suggested: 'mara.quill@example.com' },
-    });
+  it('cannot be changed until the settings are read', () => {
+    renderWith({ emails: { disabled: true, suggested: 'mara.quill@example.com' } });
     expect(emailsField()).toHaveProperty('disabled', true);
-    expect(saveEmails()).toHaveProperty('disabled', true);
-    await userEvent.click(saveEmails());
-    expect(onSaveEmails).not.toHaveBeenCalled();
   });
 });

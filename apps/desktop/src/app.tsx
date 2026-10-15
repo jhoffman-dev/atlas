@@ -19,6 +19,7 @@ import {
   moveRefusal,
   noteNames,
   noteTitle,
+  ownerNeededBy,
   tagKey,
   ARTIFACT_KINDS,
   ARTIFACT_TYPE,
@@ -173,6 +174,7 @@ import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
 import { useParaMigration } from './para/use-para-migration.ts';
 import { useVaultTidy } from './vault/use-vault-tidy.ts';
+import { useMeetingCleanup } from './meetings/use-meeting-cleanup.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { useMeetingImport } from './meetings/use-meeting-import.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
@@ -750,7 +752,7 @@ export function App({
     index: index.index,
     vaultKey,
     changeKey: indexKey,
-    active: overlay === 'settings',
+    indexReady: indexStatus.kind === 'ready',
     activity: activityLog,
   });
   // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05)
@@ -1065,6 +1067,25 @@ export function App({
     open: inboxOpen,
     activity: activityLog,
     onChanged: settleArchive,
+  });
+  // The tasks meetings made that today's rules would not have, offered to archive there too (#226).
+  const cleanupPorts = useMemo(
+    () => ({ ...archivePorts, index: index.index }),
+    [archivePorts, index.index],
+  );
+  const cleanupOwner = useMemo(
+    () => (ownerKnown ? { selfName: ownerName, selfEmails: ownerEmails } : null),
+    [ownerKnown, ownerName, ownerEmails],
+  );
+  const meetingCleanup = useMeetingCleanup({
+    ports: cleanupPorts,
+    owner: cleanupOwner,
+    vaultKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: inboxOpen,
+    activity: activityLog,
+    onChanged: settleArchive,
+    onOpenTask: (path) => openNote(createVaultPath(path)),
   });
   // The weekly review (P30-07): its Archive is the app's, for a project.
   const review = useWeeklyReview({
@@ -1731,6 +1752,16 @@ export function App({
                     taskMigration,
                     paraMigration,
                     vaultTidy,
+                    meetingCleanup,
+                    ownerUnknown:
+                      ownerKnown &&
+                      automations.listing !== null &&
+                      ownerNeededBy(
+                        automations.listing.automations.map(({ rule }) => rule),
+                        { selfName: ownerName, selfEmails: ownerEmails, people: [] },
+                      )
+                        ? { onOpenSettings: () => showOverlay('settings') }
+                        : null,
                     view:
                       inboxView === null
                         ? null

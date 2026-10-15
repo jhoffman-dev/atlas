@@ -14,6 +14,7 @@ import type { RelationChoice } from './properties-panel.tsx';
 import { ParaMigration, type ParaMigrationProps } from './para-migration.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
+import { MeetingCleanup, type MeetingCleanupProps } from './meeting-cleanup.tsx';
 
 const NO_REFUSALS: readonly InboxRefusal[] = [];
 
@@ -66,6 +67,13 @@ export interface InboxPageProps {
   paraMigration?: ParaMigrationProps | null;
   /** Moving loose notes and old meetings to their home folders, once, previewed first (#214). */
   vaultTidy?: VaultTidyProps | null;
+  /**
+   * Set while a rule would make the owner's tasks from meetings but the vault
+   * does not say who the owner is (#181): no task can be made until it does.
+   */
+  ownerUnknown?: { readonly onOpenSettings: () => void } | null;
+  /** The tasks meetings made that today's rules would not have, offered to archive (#226). */
+  meetingCleanup?: MeetingCleanupProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
   view?: { readonly title: string; readonly onOpen: () => void } | null;
   /** What Claude or an automation proposed, answered here rather than filed (P29-02). */
@@ -89,6 +97,8 @@ export function InboxPage(props: InboxPageProps) {
   const migration = props.taskMigration ?? null;
   const paraMigration = props.paraMigration ?? null;
   const tidy = props.vaultTidy ?? null;
+  const ownerUnknown = props.ownerUnknown ?? null;
+  const cleanup = props.meetingCleanup ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
   return (
@@ -113,10 +123,12 @@ export function InboxPage(props: InboxPageProps) {
               ),
             })}
           />
+          {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
           {offer !== null && <TypesOffer {...offer} />}
           {migration !== null && <TaskMigration {...migration} />}
           {paraMigration !== null && <ParaMigration {...paraMigration} />}
           {tidy !== null && <VaultTidy {...tidy} />}
+          {cleanup !== null && <MeetingCleanup {...cleanup} />}
           {problem !== null && (
             <p className="table__error" role="alert">
               {problem}
@@ -137,6 +149,31 @@ function describe(contents: InboxContents | null, proposals: number): string | n
   if (contents.total === 0)
     return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
   return `${contents.total} to process · clarify each task, file each note${toAnswer}`;
+}
+
+/**
+ * Said for as long as it is so (#181): with no name or address to know the
+ * owner by, no meeting's item can be known to be theirs, so none is made a task.
+ */
+function OwnerUnknown({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <aside
+      className="inbox__offer inbox__offer--warning"
+      role="alert"
+      aria-label="Atlas can’t tell which action items are yours"
+    >
+      <Icon name="person" size={16} className="inbox__offer-icon" />
+      <div className="inbox__offer-text">
+        <p>
+          Atlas can’t tell which action items are yours, so meetings make no tasks for you. Add your
+          name or your emails in Settings → Profile.
+        </p>
+      </div>
+      <button type="button" className="btn btn--ghost btn--sm" onClick={onOpenSettings}>
+        Open Settings
+      </button>
+    </aside>
+  );
 }
 
 function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {

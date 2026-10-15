@@ -97,7 +97,7 @@ describe('whose an action item is', () => {
       why: 'Yours, from Platform weekly sync.',
       distinguishedBy: 'self',
       sharedAcrossRules: true,
-      meetingItem: { owner: 'self', ownerKey: 'self', caps: [] },
+      meetingItem: { owner: 'self', ownerKey: 'self', caps: [], askedByOwner: false },
     });
   });
 
@@ -413,7 +413,7 @@ describe('an answer that does not read', () => {
     expect(read([item({ why: 'because' })])).toEqual({
       ok: false,
       problem:
-        'Item 1: It has “why”, which is not one of kind, title, owner, due, source_block, confidence.',
+        'Item 1: It has “why”, which is not one of kind, title, owner, due, source_block, confidence, asked_by_owner.',
     });
   });
 

@@ -6,6 +6,7 @@ import {
   isAutomationPath,
   localTimeMs,
   localTimeOf,
+  noteTitle,
   noteTriggerHears,
   type AutomationRule,
   type LocalTime,
@@ -15,6 +16,7 @@ import {
 import {
   adoptAutomations,
   AutomationLogError,
+  refreshBuiltInPrompts,
   HeldForPullError,
   loadAutomations,
   needsAdoption,
@@ -531,6 +533,7 @@ function useSchedule({
   mayActOn,
   heldForPull,
   pulledFiles,
+  activity,
   scheduled = true,
 }: AutomationsOptions & {
   listing: AutomationListing | null;
@@ -560,6 +563,7 @@ function useSchedule({
     if (opening) openingHeld.current = new Set();
     opened.current = vaultKey;
     void (async () => {
+      if (opening) await refreshPrompts({ fs, activity });
       if (needsAdoption(listing, clock.localNow())) {
         await exclusive(() => adoptAutomations({ fs, markdown, clock, listing }));
       }
@@ -595,7 +599,42 @@ function useSchedule({
     mayActOn,
     heldForPull,
     standing,
+    activity,
   ]);
+}
+
+/**
+ * Brings the prompts Atlas ships up to date where they are untouched (#226),
+ * once each time the vault is opened on the Mac that runs its automations,
+ * and says so in Activity, a failure too: the rules still run as they are.
+ * Not one of the runner's commands: it writes no rule, and one that wrote
+ * nothing must not have the vault read again.
+ */
+async function refreshPrompts({
+  fs,
+  activity,
+}: {
+  fs: AutomationPorts['fs'];
+  activity: ActivityLog;
+}): Promise<void> {
+  const recorder = activity.inOpenVault();
+  try {
+    for (const path of await refreshBuiltInPrompts({ fs })) {
+      recorder.record({
+        level: 'info',
+        kind: 'automation',
+        message: `Brought ${noteTitle(path)}, a prompt Atlas ships that was never edited, up to date.`,
+        subject: { kind: 'note', path },
+      });
+    }
+  } catch (cause) {
+    recorder.record({
+      level: 'warning',
+      kind: 'automation',
+      message: `The prompts Atlas ships could not be brought up to date: ${errorMessage(cause)}`,
+      subject: null,
+    });
+  }
 }
 
 /**

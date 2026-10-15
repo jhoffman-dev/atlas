@@ -3,6 +3,7 @@ import {
   linkedTaskOwner,
   linkTargets,
   MEETING_TASKS_KEY,
+  meetingReview,
   messageWithoutPaths,
   resolveWikiLinkTarget,
   splitFrontmatter,
@@ -38,18 +39,26 @@ export interface PlannedTask {
   readonly item: MeetingItemTask;
 }
 
-/** What the declared step decided for one meeting: the tasks to make, and the rest as proposals. */
+/**
+ * What the declared step decided for one meeting: the tasks to make, the one
+ * review proposal of what the owner should still see (#226), and how many
+ * items were left out.
+ */
 export interface MeetingDecided {
   readonly meeting: VaultPath;
   readonly tasks: readonly PlannedTask[];
+  /** The meeting's review, when anything is left to review: never more than one. */
   readonly proposals: readonly CheckedProposal[];
+  /** The items that reach the owner nowhere: not theirs, or not sure enough. */
+  readonly leftOut: number;
   /** Why none of the meeting's items could be a task, when that is the meeting's, not an item's. */
   readonly noTasksBecause: MeetingItemsDecision['noTasksBecause'];
 }
 
 /**
  * Decides what becomes of one meeting's items (`decideMeetingItems`, #178):
- * the owner's tasks to make, and the proposals. What the run knows beyond
+ * the owner's tasks to make, and the rest the owner should see gathered into
+ * the meeting's one review (`meetingReview`, #226). What the run knows beyond
  * the answer is read from the meeting as it is now — its `tasks`, and when
  * it arrived — never from the model.
  */
@@ -88,8 +97,13 @@ export async function decideForMeeting({
   const decision = decideMeetingItems({ proposals, vault: owner, run });
   const tasks: PlannedTask[] = [];
   const rest: CheckedProposal[] = [];
+  let leftOut = 0;
   for (const { proposal, decision: each } of decision.items) {
     if (each.outcome === 'skipped') continue;
+    if (each.outcome === 'left-out') {
+      leftOut += 1;
+      continue;
+    }
     if (
       each.outcome === 'proposal' ||
       !isTaskKind(proposal.kind) ||
@@ -111,7 +125,14 @@ export async function decideForMeeting({
       },
     });
   }
-  return { meeting, tasks, proposals: rest, noTasksBecause: decision.noTasksBecause };
+  const review = meetingReview(rest);
+  return {
+    meeting,
+    tasks,
+    proposals: review === null ? [] : [review],
+    leftOut,
+    noTasksBecause: decision.noTasksBecause,
+  };
 }
 
 const isTaskKind = (kind: string): kind is MeetingItemTask['kind'] =>

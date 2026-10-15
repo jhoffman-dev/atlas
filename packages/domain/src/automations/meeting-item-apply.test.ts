@@ -4,8 +4,11 @@ import type { MeetingIdentity } from '../meetings/meeting-holding.ts';
 import type { DirectoryPerson } from '../meeting-links/attendee-matching.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { atlasItemKey } from './claude-proposal-id.ts';
+import { EXCHANGE_TURNS } from './meeting-items.ts';
 import {
   decideMeetingItems,
+  ownerNeededBy,
+  REVIEW_CONFIDENCE_FLOOR,
   TASK_CONFIDENCE_FLOOR,
   vaultNamesItsOwner,
   type MeetingItemsRun,
@@ -147,8 +150,8 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
       fields: { owner: 'You', confidence: 'high' },
     },
     {
-      cell: 'the owner, by name, spoken by the owner, medium',
-      fields: { owner: 'Mara Quill', confidence: 'medium' },
+      cell: 'the owner, by name, spoken by the owner',
+      fields: { owner: 'Mara Quill' },
     },
     {
       cell: 'the owner, cited turn written “You” by the transcript',
@@ -168,9 +171,34 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
 
   it.each([
     {
+      cell: 'the owner, medium',
+      fields: { confidence: 'medium' },
+      because: 'below-floor',
+    },
+    {
+      cell: 'the owner, by name, medium',
+      fields: { owner: 'Mara Quill', confidence: 'medium' },
+      because: 'below-floor',
+    },
+    {
+      cell: 'a follow-up of the owner’s, medium',
+      fields: { kind: 'follow-up', confidence: 'medium' },
+      because: 'below-floor',
+    },
+    {
+      cell: 'a decision the owner took part in, at high',
+      fields: { kind: 'decision', title: 'Renew for a year' },
+      because: 'decision',
+    },
+  ])('shows it in the meeting’s review: $cell', ({ fields, because }) => {
+    expect(decideOne(fields)).toEqual({ outcome: 'proposal', because });
+  });
+
+  it.each([
+    {
       cell: 'the owner, low',
       fields: { confidence: 'low' },
-      because: 'below-floor',
+      because: 'unsure',
     },
     {
       cell: 'another person with a Person note',
@@ -193,11 +221,6 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
       because: 'owner-undecided',
     },
     {
-      cell: 'a decision, even the owner’s, at high',
-      fields: { kind: 'decision', title: 'Renew for a year' },
-      because: 'decision',
-    },
-    {
       cell: 'a follow-up another person took on',
       fields: { kind: 'follow-up', owner: 'Tobias Fenn', source_block: 't0002' },
       because: 'someone-elses',
@@ -210,10 +233,15 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
     {
       cell: 'a follow-up of the owner’s, low',
       fields: { kind: 'follow-up', confidence: 'low' },
-      because: 'below-floor',
+      because: 'unsure',
     },
-  ])('makes a proposal: $cell', ({ fields, because }) => {
-    expect(decideOne(fields)).toEqual({ outcome: 'proposal', because });
+    {
+      cell: 'a decision the owner took part in, at medium',
+      fields: { kind: 'decision', title: 'Renew for a year', confidence: 'medium' },
+      because: 'unsure',
+    },
+  ])('leaves it out (#226): $cell', ({ fields, because }) => {
+    expect(decideOne(fields)).toEqual({ outcome: 'left-out', because });
   });
 
   it.each([
@@ -222,6 +250,25 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
       fields: { source_block: 't0002', title: 'Book the review room' },
       caps: ['spoken-by-another'],
     },
+    {
+      cell: 'a follow-up of the owner’s spoken by another',
+      fields: { kind: 'follow-up', source_block: 't0002' },
+      caps: ['spoken-by-another'],
+    },
+  ])(
+    'shows the owner’s item in the review, even at high, when capped: $cell',
+    ({ fields, caps }) => {
+      for (const confidence of ['high', 'medium']) {
+        expect(decideOne({ ...fields, confidence })).toEqual({
+          outcome: 'proposal',
+          because: 'capped',
+          caps,
+        });
+      }
+    },
+  );
+
+  it.each([
     {
       cell: 'an unnamed speaker',
       fields: { source_block: 't0003', title: 'Chase the invoice' },
@@ -243,53 +290,58 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
       caps: ['mixed-kind'],
     },
     {
-      cell: 'a follow-up of the owner’s spoken by another',
-      fields: { kind: 'follow-up', source_block: 't0002' },
-      caps: ['spoken-by-another'],
-    },
-    {
       cell: 'a follow-up of the owner’s from an unnamed speaker',
       fields: { kind: 'follow-up', source_block: 't0003' },
       caps: ['unnamed-speaker'],
     },
   ])(
-    'keeps the owner’s item a proposal, even at medium, when capped: $cell',
+    'leaves out the owner’s item, even at high, when a cap makes whose it is a guess: $cell',
     ({ fields, caps }) => {
+      const [proposal] = proposalsFor([item({ ...fields, confidence: 'high' })], {
+        notes: [meeting()],
+        vault: VAULT,
+      });
+      expect(proposal!.meetingItem?.caps).toEqual(caps);
       for (const confidence of ['high', 'medium']) {
         expect(decideOne({ ...fields, confidence })).toEqual({
-          outcome: 'proposal',
-          because: 'capped',
-          caps,
+          outcome: 'left-out',
+          because: 'unsure',
         });
       }
     },
   );
 
   it('names every cap an item has, not just the first', () => {
-    expect(decideOne({ owner: 'We', kind: 'waiting', source_block: 't0002' })).toEqual({
-      outcome: 'proposal',
-      because: 'capped',
-      caps: ['spoken-by-another', 'we', 'mixed-kind'],
-    });
+    const [proposal] = proposalsFor(
+      [item({ owner: 'We', kind: 'waiting', source_block: 't0002' })],
+      { notes: [meeting()], vault: VAULT },
+    );
+
+    expect(proposal!.meetingItem?.caps).toEqual(['spoken-by-another', 'we', 'mixed-kind']);
   });
 
-  it('applies the medium floor after the caps: medium is the one constant', () => {
-    expect(TASK_CONFIDENCE_FLOOR).toBe('medium');
-    expect(decideOne({ owner: 'We', confidence: 'low' })).toMatchObject({ because: 'capped' });
+  it('makes a task only at high, and shows medium in the review (#226)', () => {
+    expect(TASK_CONFIDENCE_FLOOR).toBe('high');
+    expect(REVIEW_CONFIDENCE_FLOOR).toBe('medium');
+    expect(decideOne({ confidence: 'high' })).toMatchObject({ outcome: 'task' });
+    expect(decideOne({ confidence: 'medium' })).toEqual({
+      outcome: 'proposal',
+      because: 'below-floor',
+    });
   });
 });
 
 describe('the speaker decides; the model’s “You” is a hint', () => {
-  it('keeps an item a proposal when the hint names someone else and the owner spoke the turn', () => {
+  it('leaves an item out when the hint names someone else and the owner spoke the turn', () => {
     expect(decideOne({ owner: 'Tobias Fenn', source_block: 't0001' })).toEqual({
-      outcome: 'proposal',
+      outcome: 'left-out',
       because: 'someone-elses',
     });
   });
 
-  it('keeps an item a proposal when the owner spoke the turn but the model named nobody', () => {
+  it('leaves an item out when the owner spoke the turn but the model named nobody', () => {
     expect(decideOne({ owner: '', source_block: 't0004' })).toEqual({
-      outcome: 'proposal',
+      outcome: 'left-out',
       because: 'owner-undecided',
     });
   });
@@ -325,7 +377,7 @@ describe('the speaker decides; the model’s “You” is a hint', () => {
     const note = meeting([MARA, OTHER_MARA, TOBIAS]);
 
     expect(decideOne({ owner: 'Mara' }, { note })).toEqual({
-      outcome: 'proposal',
+      outcome: 'left-out',
       because: 'owner-undecided',
     });
   });
@@ -334,14 +386,25 @@ describe('the speaker decides; the model’s “You” is a hint', () => {
 describe('who the owner is: selfEmails and the profile name (#173)', () => {
   const NOBODY: AnswerVault = { ...VAULT, selfName: null, selfEmails: [] };
 
-  it('makes no task, and says why, when the vault names neither', () => {
-    const decided = decide([item(), item({ kind: 'follow-up' })], { vault: NOBODY });
+  it('makes no task, and says why, when the vault names neither: what would be one is shown for review', () => {
+    const decided = decide(
+      [item({ source_block: 't0004' }), item({ kind: 'follow-up', source_block: 't0004' })],
+      { vault: NOBODY },
+    );
 
     expect(decided.noTasksBecause).toBe('owner-unknown');
     expect(decided.items.map(({ decision }) => decision)).toEqual([
       { outcome: 'proposal', because: 'owner-unknown' },
       { outcome: 'proposal', because: 'owner-unknown' },
     ]);
+  });
+
+  it('still leaves out what is not the owner’s while the vault names neither', () => {
+    const decided = decide([item({ owner: 'Tobias Fenn', source_block: 't0002' })], {
+      vault: NOBODY,
+    });
+
+    expect(decided.items[0]!.decision).toEqual({ outcome: 'left-out', because: 'someone-elses' });
   });
 
   it('does not read a blank profile name as a name', () => {
@@ -376,7 +439,7 @@ describe('who the owner is: selfEmails and the profile name (#173)', () => {
 });
 
 describe('backfill (14 days) makes proposals only', () => {
-  it('turns every item into a proposal, and says why', () => {
+  it('shows what would be a task for review, says why, and still leaves out the rest', () => {
     const decided = decide([item(), item({ kind: 'follow-up' }), item({ owner: 'Tobias Fenn' })], {
       run: { backfilled: true },
     });
@@ -385,7 +448,7 @@ describe('backfill (14 days) makes proposals only', () => {
     expect(decided.items.map(({ decision }) => decision)).toEqual([
       { outcome: 'proposal', because: 'backfilled' },
       { outcome: 'proposal', because: 'backfilled' },
-      { outcome: 'proposal', because: 'backfilled' },
+      { outcome: 'left-out', because: 'someone-elses' },
     ]);
   });
 
@@ -594,7 +657,10 @@ describe('an item already made is skipped', () => {
   });
 
   it('does not let a proposal take the key a later task of the same turn needs', () => {
-    const decided = decide([item({ confidence: 'low' }), item({ title: 'Book the signing call' })]);
+    const decided = decide([
+      item({ confidence: 'medium' }),
+      item({ title: 'Book the signing call' }),
+    ]);
 
     expect(decided.items.map(({ decision }) => decision.outcome)).toEqual(['proposal', 'task']);
   });
@@ -615,5 +681,217 @@ describe('what the decision is handed', () => {
     expect(
       decideMeetingItems({ proposals: [plain], vault: VAULT, run: RUN }).items[0]!.decision,
     ).toEqual({ outcome: 'proposal', because: 'not-an-action-item' });
+  });
+});
+
+/** A meeting whose transcript is these turns, in order: `[id, speaker, words]`. */
+function meetingOf(turns: readonly (readonly [string, string, string])[]): AnsweredNote {
+  const text = [
+    ...MEETING_TEXT.split('## Transcript')[0]!.split('\n'),
+    '## Transcript',
+    '',
+    ...turns.flatMap(([id, speaker, words]) => [`**${speaker}** [10:00:00] ${words} ^${id}`, '']),
+  ].join('\n');
+  return { ...meeting(), text };
+}
+
+/** Tobias and Lena talk for `between` turns after the owner's last word, then Tobias settles it. */
+function exchangeAfter(between: number): AnsweredNote {
+  const talk = Array.from({ length: between }, (_, at) => {
+    const id = `t${String(at + 2).padStart(4, '0')}`;
+    return [id, at % 2 === 0 ? 'Tobias Fenn' : 'Lena Hart', 'More on the release.'] as const;
+  });
+  const settled = `t${String(between + 2).padStart(4, '0')}`;
+  return meetingOf([
+    ['t0001', 'Mara Quill', 'What about the release?'],
+    ...talk,
+    [settled, 'Tobias Fenn', 'Agreed: we ship it on Friday.'],
+  ]);
+}
+
+describe('a decision reaches the owner only when they took part and it was settled (#226)', () => {
+  const decision = (block: string) => ({
+    kind: 'decision',
+    title: 'Ship the release on Friday',
+    owner: '',
+    source_block: block,
+    confidence: 'high',
+  });
+
+  it.each([0, 5])(
+    'shows a decision settled %i turns after the owner last spoke: within the exchange',
+    (between) => {
+      const block = `t${String(between + 2).padStart(4, '0')}`;
+      expect(decideOne(decision(block), { note: exchangeAfter(between) })).toEqual({
+        outcome: 'proposal',
+        because: 'decision',
+      });
+    },
+  );
+
+  it('leaves out a decision settled more than the exchange’s turns after the owner last spoke', () => {
+    expect(EXCHANGE_TURNS).toBe(6);
+    const block = `t${String(EXCHANGE_TURNS + 2).padStart(4, '0')}`;
+
+    expect(decideOne(decision(block), { note: exchangeAfter(EXCHANGE_TURNS) })).toEqual({
+      outcome: 'left-out',
+      because: 'not-the-owners-decision',
+    });
+  });
+
+  it('does not count a turn by an unnamed speaker as the owner’s', () => {
+    const note = meetingOf([
+      ['t0001', 'Unknown', 'Shall we ship on Friday?'],
+      ['t0002', 'Tobias Fenn', 'Agreed: we ship it on Friday.'],
+    ]);
+
+    expect(decideOne(decision('t0002'), { note })).toEqual({
+      outcome: 'left-out',
+      because: 'not-the-owners-decision',
+    });
+  });
+
+  it('leaves out a decision the owner took part in but the model was not sure was settled', () => {
+    expect(
+      decideOne({ ...decision('t0002'), confidence: 'medium' }, { note: exchangeAfter(0) }),
+    ).toEqual({ outcome: 'left-out', because: 'unsure' });
+  });
+
+  it('leaves out a decision with no claim, as one read before #226 would be', () => {
+    const [proposal] = proposalsFor([decision('t0002')], {
+      notes: [exchangeAfter(0)],
+      vault: VAULT,
+    });
+    const { meetingDecision, ...plain } = proposal!;
+    expect(meetingDecision).toEqual({ ownerTookPart: true });
+
+    expect(
+      decideMeetingItems({ proposals: [plain], vault: VAULT, run: RUN }).items[0]!.decision,
+    ).toEqual({ outcome: 'left-out', because: 'not-the-owners-decision' });
+  });
+});
+
+describe('someone else’s item reaches the owner only as a waiting-for they asked for (#226)', () => {
+  const asked = meetingOf([
+    ['t0001', 'Mara Quill', 'Tobias, could you send me the signed copy?'],
+    ['t0002', 'Tobias Fenn', 'Yes, I’ll send it tomorrow.'],
+  ]);
+  const waiting = (fields: Record<string, unknown> = {}) => ({
+    kind: 'waiting',
+    title: 'Send the signed copy',
+    owner: 'Tobias Fenn',
+    source_block: 't0002',
+    asked_by_owner: true,
+    ...fields,
+  });
+
+  it('shows it when the model says the owner asked, and the owner spoke in the exchange', () => {
+    expect(decideOne(waiting(), { note: asked })).toEqual({
+      outcome: 'proposal',
+      because: 'asked-for',
+    });
+  });
+
+  it('leaves it out when the model does not say the owner asked', () => {
+    expect(decideOne(waiting({ asked_by_owner: false }), { note: asked })).toEqual({
+      outcome: 'left-out',
+      because: 'someone-elses',
+    });
+    expect(decideOne(waiting({ asked_by_owner: undefined }), { note: asked })).toEqual({
+      outcome: 'left-out',
+      because: 'someone-elses',
+    });
+  });
+
+  it('leaves it out when the model says the owner asked but the owner never spoke in the exchange', () => {
+    const note = meetingOf([
+      ['t0001', 'Lena Hart', 'Tobias, could you send the signed copy?'],
+      ['t0002', 'Tobias Fenn', 'Yes, I’ll send it tomorrow.'],
+    ]);
+
+    expect(decideOne(waiting(), { note })).toEqual({
+      outcome: 'left-out',
+      because: 'someone-elses',
+    });
+  });
+
+  it('leaves it out when the owner asked but the model is unsure', () => {
+    expect(decideOne(waiting({ confidence: 'low' }), { note: asked })).toEqual({
+      outcome: 'left-out',
+      because: 'unsure',
+    });
+  });
+
+  it('drops an item whose asked_by_owner is not true or false', () => {
+    const reading = schema.read(JSON.stringify({ items: [waiting({ asked_by_owner: 'yes' })] }), {
+      notes: [asked],
+      vault: VAULT,
+    });
+
+    expect(reading.ok && reading.value).toEqual([]);
+    expect(reading.ok && reading.dropped).toEqual([
+      {
+        title: 'Send the signed copy',
+        reason: 'Its "asked_by_owner" is not true or false.',
+      },
+    ]);
+  });
+});
+
+describe('a meeting of small talk and ideas makes nothing (#226)', () => {
+  it('leaves out every item the model was unsure of or could name nobody for', () => {
+    const decided = decide([
+      item({ title: 'Maybe try the new café', confidence: 'low' }),
+      item({ title: 'We should automate the report', owner: 'We', source_block: 't0004' }),
+      item({ title: 'Somebody should chase the invoice', owner: '', source_block: 't0003' }),
+      item({ kind: 'decision', title: 'Friday drinks are nice', confidence: 'low' }),
+    ]);
+
+    expect(decided.items.map(({ decision }) => decision.outcome)).toEqual([
+      'left-out',
+      'left-out',
+      'left-out',
+      'left-out',
+    ]);
+  });
+});
+
+describe('whether the Inbox says the owner cannot be told apart (#181)', () => {
+  const mine = {
+    enabled: true,
+    action: {
+      kind: 'claude',
+      prompt: '.atlas/prompts/after-a-meeting.md',
+      tools: [],
+      output: { kind: 'proposals', schema: 'meeting-items' },
+      apply: 'mine',
+    },
+  } as const;
+  const NOBODY = { selfName: null, selfEmails: [], people: [] };
+
+  it('says so while an enabled rule makes the owner’s tasks and the vault names nobody', () => {
+    expect(ownerNeededBy([mine], NOBODY)).toBe(true);
+  });
+
+  it.each([
+    ['a profile name', { ...NOBODY, selfName: 'Mara Quill' }],
+    ['an address', { ...NOBODY, selfEmails: ['mara.quill@example.com'] }],
+  ])('clears once the vault has %s', (_, owner) => {
+    expect(ownerNeededBy([mine], owner)).toBe(false);
+  });
+
+  it('says nothing when no enabled rule makes the owner’s tasks', () => {
+    const proposesOnly = {
+      kind: 'claude',
+      prompt: mine.action.prompt,
+      tools: [],
+      output: mine.action.output,
+    } as const;
+    expect(ownerNeededBy([{ ...mine, enabled: false }], NOBODY)).toBe(false);
+    expect(ownerNeededBy([{ ...mine, action: proposesOnly }], NOBODY)).toBe(false);
+    expect(ownerNeededBy([{ enabled: true, action: { kind: 'archive' } } as never], NOBODY)).toBe(
+      false,
+    );
+    expect(ownerNeededBy([], NOBODY)).toBe(false);
   });
 });

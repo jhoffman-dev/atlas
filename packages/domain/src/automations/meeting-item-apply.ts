@@ -1,16 +1,21 @@
 /**
  * Which of a meeting's action items become the owner's tasks without a click
- * (ADR-0036, "Action items become tasks, for the owner only"). The model
- * names an owner and a confidence; whether a task is made is decided here,
- * never by the model.
+ * (ADR-0036, "Action items become tasks, for the owner only"), and which
+ * reach the owner at all (#226). The model names an owner and a confidence;
+ * what becomes of an item is decided here, never by the model.
  *
  * A task is made only for an item that is the vault owner's — the cited
  * turn's speaker is them, and the model's owner (a hint) agrees — that
- * nothing caps, at medium confidence or above, from a meeting that arrived
- * after the rule (not a backfill), in a vault that says who its owner is.
- * Everything else stays a proposal, as before. An item a task already stands
- * for is skipped; another item on the turn that task was made from is a
- * proposal.
+ * nothing caps, at high confidence, from a meeting that arrived after the
+ * rule (not a backfill), in a vault that says who its owner is.
+ *
+ * What the owner should still see goes into the meeting's one review
+ * proposal (`meetingReview`): their own items Atlas is less sure of, a
+ * waiting-for they asked for, and a decision they took part in that the
+ * model is sure was made. Everything else is left out: low confidence, other
+ * people's items, items nobody can be named for, and decisions the owner
+ * had no part in. An item a task already stands for is skipped; another item
+ * on the turn that task was made from goes to the review.
  */
 
 import { sameMeetingIdentity, type MeetingIdentity } from '../meetings/meeting-holding.ts';
@@ -23,15 +28,22 @@ import {
   type NotePayload,
   type ProposalConfidence,
 } from '../proposals/proposal.ts';
+import type { AutomationDraft } from './automation-rule.ts';
 import { atlasItemKey } from './claude-proposal-id.ts';
 import { namesNote, type AnswerVault, type CheckedProposal } from './proposal-schema.ts';
 
 /**
  * The least sure an uncapped item of the owner's may be and still be made a
- * task. One constant: medium errs toward a task the owner can delete over an
- * item they never saw (ADR-0036, Q4).
+ * task. High: a task the owner never asked for costs them more than an item
+ * they review once (#226, which moved it up from ADR-0036's medium).
  */
-export const TASK_CONFIDENCE_FLOOR: ProposalConfidence = 'medium';
+export const TASK_CONFIDENCE_FLOOR: ProposalConfidence = 'high';
+
+/**
+ * The least sure an item may be and still reach the owner, in the meeting's
+ * review: below it, an item is left out (#226).
+ */
+export const REVIEW_CONFIDENCE_FLOOR: ProposalConfidence = 'medium';
 
 /**
  * What keeps the owner's item a proposal at any confidence: the cited turn
@@ -49,6 +61,16 @@ export interface MeetingItemClaim {
   /** Whose it is, as an identity holds it: `self`, a lower-cased name, `?name` or blank. */
   readonly ownerKey: string;
   readonly caps: readonly MeetingItemCap[];
+  /**
+   * Whether the owner asked for it: the model says so and the owner spoke in
+   * the exchange it cites. What keeps someone else's item (#226).
+   */
+  readonly askedByOwner: boolean;
+}
+
+/** A meeting's decision as the domain read it: whether the owner took part in the exchange it cites. */
+export interface MeetingDecisionClaim {
+  readonly ownerTookPart: boolean;
 }
 
 /** What a run knows beyond the answer, read by the step: never by the model. */
@@ -88,18 +110,28 @@ export interface LinkedTask {
   readonly owner: string;
 }
 
-/** Why an item stays a proposal. */
+/** Why an item goes to the meeting's review rather than becoming a task. */
 export type ProposedBecause =
   | 'owner-unknown'
   | 'backfilled'
   | 'decision'
   | 'not-an-action-item'
   | 'not-imported'
-  | 'someone-elses'
-  | 'owner-undecided'
+  | 'asked-for'
   | 'below-floor'
   | 'turn-already-a-task'
   | 'copy-of-another-recording';
+
+/** Why an item never reaches the owner (#226). */
+export type LeftOutBecause =
+  /** Less sure than {@link REVIEW_CONFIDENCE_FLOOR}. */
+  | 'unsure'
+  /** Someone else's, which the owner did not ask for. */
+  | 'someone-elses'
+  /** Nobody, or more than one person, could be named. */
+  | 'owner-undecided'
+  /** A decision the owner took no part in. */
+  | 'not-the-owners-decision';
 
 export type MeetingItemDecision =
   /** A task made now: the note to make, and what it is known by. */
@@ -110,6 +142,8 @@ export type MeetingItemDecision =
       readonly because: 'capped';
       readonly caps: readonly MeetingItemCap[];
     }
+  /** Not the owner's, or not sure enough to show them: nothing is made. */
+  | { readonly outcome: 'left-out'; readonly because: LeftOutBecause }
   /** A task already stands for it: nothing is made, not even a proposal. */
   | {
       readonly outcome: 'skipped';
@@ -144,10 +178,25 @@ export function vaultNamesItsOwner({ selfName, selfEmails, people }: OwnerSettin
 }
 
 /**
+ * Whether an enabled rule would make the owner's tasks (`apply: mine`) while
+ * the vault does not say who its owner is (#181): the Inbox says so, on
+ * every run until it is fixed, since no task can be made meanwhile.
+ */
+export function ownerNeededBy(
+  rules: readonly Pick<AutomationDraft, 'enabled' | 'action'>[],
+  owner: OwnerSettings,
+): boolean {
+  const makesTasks = rules.some(
+    ({ enabled, action }) => enabled && action.kind === 'claude' && action.apply === 'mine',
+  );
+  return makesTasks && !vaultNamesItsOwner(owner);
+}
+
+/**
  * What becomes of each of a meeting's checked proposals, in the answer's
  * order. Two of the owner's items citing one turn are one `atlas_item`: the
- * first is the task, and the rest stay proposals, so none is lost and a rerun
- * of the same answer decides the same.
+ * first is the task, and the rest go to the meeting's review, so none is lost
+ * and a rerun of the same answer decides the same.
  */
 export function decideMeetingItems({
   proposals,
@@ -164,11 +213,10 @@ export function decideMeetingItems({
       ? 'backfilled'
       : null;
   const claimed = new Set<string>();
-  const items = proposals.map((proposal) => {
-    const decision =
-      noTasksBecause === null ? decideItem({ proposal, run, claimed }) : proposed(noTasksBecause);
-    return { proposal, decision };
-  });
+  const items = proposals.map((proposal) => ({
+    proposal,
+    decision: decideItem({ proposal, run, claimed, noTasksBecause }),
+  }));
   return { items, noTasksBecause };
 }
 
@@ -176,19 +224,37 @@ function decideItem({
   proposal,
   run,
   claimed,
+  noTasksBecause,
 }: {
   proposal: CheckedProposal;
   run: MeetingItemsRun;
   /** The keys an earlier item of this answer was decided for. */
   claimed: Set<string>;
+  /** Why no item of the meeting may be a task: what would be one is shown for review instead. */
+  noTasksBecause: MeetingItemsDecision['noTasksBecause'];
 }): MeetingItemDecision {
-  if (proposal.kind === 'decision') return proposed('decision');
+  if (proposal.kind === 'decision') return decisionShown(proposal);
   const claim = proposal.meetingItem;
   if (claim === undefined) return proposed('not-an-action-item');
-  return (
-    notTheOwnersTask(claim, proposal.confidence) ??
-    ownersTask({ proposal, run, claimed, owner: claim.ownerKey })
-  );
+  const notATask = notTheOwnersTask(claim, proposal.confidence);
+  if (notATask !== null) return notATask;
+  if (noTasksBecause !== null) return proposed(noTasksBecause);
+  return ownersTask({ proposal, run, claimed, owner: claim.ownerKey });
+}
+
+const leftOut = (because: LeftOutBecause): MeetingItemDecision => ({
+  outcome: 'left-out',
+  because,
+});
+
+/**
+ * A decision reaches the owner only when it was made where they took part —
+ * a turn of theirs in the exchange it cites — and the model is sure it was
+ * settled, not discussed (#226). It is never made a note without a click.
+ */
+function decisionShown(proposal: CheckedProposal): MeetingItemDecision {
+  if (proposal.meetingDecision?.ownerTookPart !== true) return leftOut('not-the-owners-decision');
+  return proposal.confidence === 'high' ? proposed('decision') : leftOut('unsure');
 }
 
 const proposed = (because: ProposedBecause): MeetingItemDecision => ({
@@ -196,13 +262,19 @@ const proposed = (because: ProposedBecause): MeetingItemDecision => ({
   because,
 });
 
-/** Why an action item is not the owner's task to make: whose it is, then the caps, then the floor. */
+/**
+ * Why an action item is not the owner's task to make: whose it is, then how
+ * sure, then the caps, then the floor. Someone else's reaches the owner only
+ * when they asked for it, and nothing below the review's floor reaches them.
+ */
 function notTheOwnersTask(
   claim: MeetingItemClaim,
   confidence: ProposalConfidence,
 ): MeetingItemDecision | null {
-  if (claim.owner === 'other') return proposed('someone-elses');
-  if (claim.owner === 'undecided') return proposed('owner-undecided');
+  if (claim.owner === 'undecided') return leftOut('owner-undecided');
+  if (claim.owner === 'other' && !claim.askedByOwner) return leftOut('someone-elses');
+  if (!atLeast(confidence, REVIEW_CONFIDENCE_FLOOR)) return leftOut('unsure');
+  if (claim.owner === 'other') return proposed('asked-for');
   if (claim.caps.length > 0) return { outcome: 'proposal', because: 'capped', caps: claim.caps };
   return atLeast(confidence, TASK_CONFIDENCE_FLOOR) ? null : proposed('below-floor');
 }

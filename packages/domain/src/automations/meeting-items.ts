@@ -38,7 +38,11 @@ import { truncated } from './answer-limits.ts';
 import { ownerNotAGroup, sameName } from '../meeting-links/vault-owner.ts';
 import { shownNotes, type AnsweredNote } from './answered-note.ts';
 import { itemOwner, type ItemOwner, type OwnerDirectory } from './meeting-item-owner.ts';
-import type { MeetingItemCap, MeetingItemClaim } from './meeting-item-apply.ts';
+import type {
+  MeetingDecisionClaim,
+  MeetingItemCap,
+  MeetingItemClaim,
+} from './meeting-item-apply.ts';
 import {
   citedBlockProblem,
   isRecord,
@@ -68,6 +72,15 @@ const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MAX_DUE_YEARS_FROM_MEETING = 5;
 const DAY_MS = 86_400_000;
 
+/**
+ * How many turns before an item's cited turn count as the exchange it was
+ * settled in (#226): an agreement answers a proposal a few turns up, and a
+ * provider that splits one sentence into several turns spreads a request
+ * over more than one. The owner taking part is a turn of theirs among these
+ * or the cited turn itself.
+ */
+export const EXCHANGE_TURNS = 6;
+
 interface MeetingItem {
   readonly kind: ItemKind;
   readonly title: string;
@@ -77,6 +90,8 @@ interface MeetingItem {
   readonly due: string | null;
   readonly sourceBlock: string;
   readonly confidence: ProposalConfidence;
+  /** The model says the owner asked for it: what keeps a waiting-for of someone else's. */
+  readonly askedByOwner: boolean;
 }
 
 const dropped = (problem: string): { ok: false; problem: string; drop: true } => ({
@@ -96,7 +111,10 @@ function readMeetingItem(value: unknown, context: AnswerContext): ItemReading<Me
   const kind = ITEM_KINDS.find((known) => known === value['kind']);
   if (kind === undefined) return dropped(`Its kind is not one of ${ITEM_KINDS.join(', ')}.`);
   const { title, owner = '', due = null, source_block: sourceBlock } = value;
+  const { asked_by_owner: askedByOwner = false } = value;
   if (typeof title !== 'string' || title.trim() === '') return dropped('It has no "title".');
+  if (typeof askedByOwner !== 'boolean')
+    return dropped('Its "asked_by_owner" is not true or false.');
   if (owner !== null && typeof owner !== 'string') return dropped('Its "owner" is not text.');
   if ((owner ?? '').length > MAX_OWNER_CHARACTERS) {
     return dropped(`Its "owner" is longer than a name: at most ${MAX_OWNER_CHARACTERS}.`);
@@ -107,7 +125,7 @@ function readMeetingItem(value: unknown, context: AnswerContext): ItemReading<Me
     return dropped(`Its confidence is not one of ${PROPOSAL_CONFIDENCES.join(', ')}.`);
   }
   const day = readDue(due, meetingDateOf(context));
-  const item = { kind, title: title.trim(), owner: owner ?? '', sourceBlock };
+  const item = { kind, title: title.trim(), owner: owner ?? '', sourceBlock, askedByOwner };
   if (day.ok) return { ok: true, value: { ...item, due: day.value, confidence } };
   return {
     ok: true,
@@ -260,7 +278,11 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
   const from = noteTitle(cited.meeting.path);
   const unnamed = cited.turn.speaker.kind === 'unknown';
   const join = meetingJoin(cited.meeting);
+  const directory = directoryOf(cited, context);
   if (item.kind === 'decision') {
+    const meetingDecision: MeetingDecisionClaim = {
+      ownerTookPart: ownerTookPart(cited, directory),
+    };
     return [
       {
         kind: 'decision',
@@ -272,12 +294,13 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
         confidence: unnamed ? 'low' : item.confidence,
         why: `Decided in ${from}.${unnamed ? UNNAMED_SPEAKER_WHY : ''}${join.why}`,
         ...join.joins(MEETING_DECISIONS_KEY),
+        meetingDecision,
       },
     ];
   }
   const due = item.due === null ? {} : { [TASK_KEYS.due]: item.due };
-  const owned = ownedItem({ item, cited, context });
-  const meetingItem = claimOf(owned);
+  const owned = ownedItem({ item, cited, context, directory });
+  const meetingItem = claimOf(owned, item.askedByOwner && ownerTookPart(cited, directory));
   if (item.kind === 'follow-up') {
     return [
       {
@@ -310,15 +333,44 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
   ];
 }
 
-/** What decides whether an action item is made the owner's task: whose it is and what caps it. */
-function claimOf({ owner, caps }: OwnedItem): MeetingItemClaim {
+/**
+ * What decides whether an action item is made the owner's task: whose it is,
+ * what caps it, and — for someone else's — whether the owner asked for it:
+ * the model says so, and the owner spoke in the exchange it cites.
+ */
+function claimOf({ owner, caps }: OwnedItem, askedByOwner: boolean): MeetingItemClaim {
   const whose =
     owner.kind === 'self'
       ? 'self'
       : owner.kind === 'person' || owner.kind === 'named'
         ? 'other'
         : 'undecided';
-  return { owner: whose, ownerKey: ownerKey(owner), caps };
+  return { owner: whose, ownerKey: ownerKey(owner), caps, askedByOwner };
+}
+
+/** Who an item's owner, and a turn's speaker, may be found among: the meeting's attendees and speakers, and the vault's people and owner. */
+function directoryOf(cited: FoundTurn, context: AnswerContext): OwnerDirectory {
+  return {
+    attendees: cited.meeting.meeting?.attendees ?? [],
+    people: context.vault?.people ?? [],
+    selfName: context.vault?.selfName ?? null,
+    selfEmails: context.vault?.selfEmails ?? [],
+    speakers: meetingTurnsOf(cited.meeting.text).map((turn) => turn.writtenSpeaker),
+  };
+}
+
+/**
+ * Whether the vault's owner spoke in the exchange an item cites: the cited
+ * turn or one of the {@link EXCHANGE_TURNS} before it, by a speaker who is
+ * them (one the provider did not name never is). A decision the owner took no part in, or a waiting-for they
+ * never asked for, is not theirs to hear of (#226).
+ */
+function ownerTookPart(cited: FoundTurn, directory: OwnerDirectory): boolean {
+  const turns = meetingTurnsOf(cited.meeting.text);
+  const at = turns.findIndex((turn) => turn.blockId === cited.turn.blockId);
+  return turns
+    .slice(Math.max(0, at - EXCHANGE_TURNS), at + 1)
+    .some((turn) => itemOwner(turn.writtenSpeaker, directory).kind === 'self');
 }
 
 const UNNAMED_SPEAKER_WHY = ' The turn it cites has no named speaker, so check it.';
@@ -360,18 +412,13 @@ function ownedItem({
   item,
   cited,
   context,
+  directory,
 }: {
   item: MeetingItem;
   cited: FoundTurn;
   context: AnswerContext;
+  directory: OwnerDirectory;
 }): OwnedItem {
-  const directory = {
-    attendees: cited.meeting.meeting?.attendees ?? [],
-    people: context.vault?.people ?? [],
-    selfName: context.vault?.selfName ?? null,
-    selfEmails: context.vault?.selfEmails ?? [],
-    speakers: meetingTurnsOf(cited.meeting.text).map((turn) => turn.writtenSpeaker),
-  };
   const owner = itemOwner(item.owner, directory);
   return { owner, caps: capsOf({ owner, item, turn: cited.turn, directory }), context };
 }
@@ -585,8 +632,8 @@ export const MEETING_ITEMS: ProposalSchema<MeetingItem> = {
     `{ "kind": one of ${ITEM_KINDS.join(', ')}; "title": what is to be done, or what was decided, in a few words; ` +
     '"owner": who took it on, named as the attendees are — "You" for the vault’s owner, "" when nobody can be named; ' +
     '"due": optional, a date as YYYY-MM-DD, only when one was said; "source_block": the turn it came from; ' +
-    '"confidence": high, medium or low }.',
-  itemKeys: ['kind', 'title', 'owner', 'due', 'source_block', 'confidence'],
+    '"confidence": high, medium or low; "asked_by_owner": optional, true only for a waiting item the vault’s owner asked that person for in the meeting }.',
+  itemKeys: ['kind', 'title', 'owner', 'due', 'source_block', 'confidence', 'asked_by_owner'],
   citation:
     '"source_block" is the id at the end of the one transcript turn the item came from, as written there without its ^: "t0004". ' +
     'Only a turn of the Transcript you were shown counts — never the summary, the notes or the provider’s next steps. ' +

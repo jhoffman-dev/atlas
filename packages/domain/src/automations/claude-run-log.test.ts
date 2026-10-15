@@ -377,6 +377,43 @@ describe('what the declared step made of each meeting (ADR-0036)', () => {
     expect(parseRunLog(newLogText('After a meeting', [entry]))).toEqual([entry]);
   });
 
+  it('says how many items it left out of a meeting, and reads it back (#226)', () => {
+    const entry = made([
+      { path: REVIEW, tasks: 2, proposals: 1, leftOut: 7 },
+      { path: STANDUP, tasks: 0, proposals: 0, leftOut: 1 },
+    ]);
+    const text = formatLogEntry(entry);
+
+    expect(text).toContain(
+      '- meeting `"Meetings/2026-10-14 Renewal review.md"`: tasks `2`, proposals `1`, left out `7`',
+    );
+    expect(logEntrySummary(entry)).toBe(
+      'Made 2 tasks from 2026-10-14 Renewal review, 1 proposal, left out 7 items. Made 0 tasks from 2026-10-14 Standup, 0 proposals, left out 1 item.',
+    );
+    expect(parseRunLog(newLogText('After a meeting', [entry]))).toEqual([entry]);
+  });
+
+  it('says what it left out even when it made nothing of a meeting', () => {
+    const entry: LogEntry = {
+      ...RAN,
+      done: [],
+      claude: { ...RAN.claude!, meetings: [{ path: REVIEW, tasks: 0, proposals: 0, leftOut: 3 }] },
+    };
+
+    expect(logEntrySummary(entry)).toBe(
+      'Made 0 tasks from 2026-10-14 Renewal review, 0 proposals, left out 3 items.',
+    );
+  });
+
+  it('leaves out a meeting line whose left-out count does not read', () => {
+    const text = newLogText('After a meeting', [
+      made([{ path: REVIEW, tasks: 2, proposals: 1, leftOut: 7 }]),
+    ]).replace('left out `7`', 'left out `-1`');
+
+    const [entry] = parseRunLog(text);
+    expect(entry?.kind === 'run' && entry.claude?.meetings).toBeUndefined();
+  });
+
   it('leaves out a meeting line edited into something that does not read', () => {
     const text = newLogText('After a meeting', [
       made([{ path: REVIEW, tasks: 2, proposals: 1 }]),
