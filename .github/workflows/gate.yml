@@ -15,7 +15,8 @@ defaults:
     shell: bash
 
 # The slow work is split across machines: the unit tests over three, the
-# end-to-end suite over four. `gate`, at the bottom, is the one check to require.
+# end-to-end suite over four, the response-time budgets on one more.
+# `gate`, at the bottom, is the one check to require.
 #
 # macOS: the account runs only five macOS jobs at once, and a full run uses
 # exactly five (four end-to-end shards and `rust`). Add a sixth and it queues.
@@ -277,11 +278,48 @@ jobs:
             test-results/
           retention-days: 7
 
+  perf:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    # The response-time budgets on the 2,000-note fixture vault (#217): filing
+    # from the Inbox and opening a note. Linux, because macOS jobs are the
+    # scarce ones and WebKit runs here too; the budgets have headroom for it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install WebKit
+        run: pnpm exec playwright install --with-deps webkit
+
+      - name: Response times on the fixture vault
+        run: pnpm perf --reporter=list
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf
+          path: |
+            test-results/perf/
+            test-results/**/error-context.md
+          retention-days: 7
+
   gate:
     # The one check to require. `always()` because a job skipped after a failed
     # dependency counts as passing, which would let a red run through. So a skip
     # is accepted only where `changes` asked for it: a docs-only change.
-    needs: [changes, static, unit, coverage, rust, e2e]
+    needs: [changes, static, unit, coverage, rust, e2e, perf]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -297,5 +335,5 @@ jobs:
             (if $code == "false" then "skipped" else "success" end) as $slow
             | .changes.result == "success"
               and .static.result == "success"
-              and ([.unit, .coverage, .rust, .e2e] | all(.result == $slow))
+              and ([.unit, .coverage, .rust, .e2e, .perf] | all(.result == $slow))
           ' <<< "$NEEDS"
