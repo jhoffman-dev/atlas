@@ -56,11 +56,19 @@
  * - dropped `"Send the contract"`: Vendor call has no transcript turn ^t0099 that Claude was shown.
  * ```
  *
+ * The declared step (ADR-0036) says, for each meeting, how many of its
+ * action items it made the owner's tasks and how many it proposed:
+ *
+ * ```markdown
+ * - meeting `"Inbox/Meetings/Standup.md"`: tasks `2`, proposals `1`
+ * ```
+ *
  * New entries go at the end; past {@link MAX_LOG_ENTRIES} the oldest go, so
  * the file stays a size a person will read.
  */
 
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
+import { noteTitle } from '../vault/vault-entry.ts';
 import { AUTOMATIONS_DIRECTORY } from '../vault/vault-visibility.ts';
 import { truncated } from './answer-limits.ts';
 import {
@@ -72,7 +80,9 @@ import {
   markOf,
   pruneLedger,
   recordRun,
+  recordStored,
   type HandledLedger,
+  type StoredAnswerDraft,
 } from './handled-ledger.ts';
 import { splitSections, utf8Length } from './log-sections.ts';
 import { code, JSON_SPAN } from './log-spans.ts';
@@ -142,6 +152,20 @@ export interface ClaudeRunInfo {
    * out when none were.
    */
   readonly alreadyMade?: number;
+  /**
+   * For the declared step (ADR-0036): what it made of each meeting it read,
+   * in the order read. Left out for any other step.
+   */
+  readonly meetings?: readonly MeetingTally[];
+}
+
+/** What the declared step made of one meeting's action items. */
+export interface MeetingTally {
+  readonly path: VaultPath;
+  /** The owner's tasks it made. */
+  readonly tasks: number;
+  /** The proposals it made: the rest, less any made before. */
+  readonly proposals: number;
 }
 
 /** The longest an item's title runs in a log line: it is a model's, and a line is not a note. */
@@ -256,13 +280,30 @@ export function logEntrySummary(entry: LogEntry): string {
   if (entry.kind === 'letGo') return letGoWords(entry.count);
   const askedForNothing =
     entry.kind === 'run' && entry.claude !== undefined && entry.done.length === 0;
-  const counts = askedForNothing ? nothingProposedWords(entry.claude) : countDone(entry.done);
+  const meetings = 'claude' in entry ? (entry.claude?.meetings ?? []) : [];
+  const counts =
+    entry.kind === 'run' && meetings.some(({ tasks, proposals }) => tasks + proposals > 0)
+      ? meetingWords(meetings)
+      : askedForNothing
+        ? nothingProposedWords(entry.claude)
+        : countDone(entry.done);
   const left = entry.left.length === 0 ? '' : ` Left ${entry.left.length} alone.`;
   // The cap counts notes: a rule setting two properties makes two lines per note.
   const notes = new Set(entry.done.map((action) => ('path' in action ? action.path : action.from)));
   const capped = entry.kind === 'run' && entry.capped ? cappedWords(entry, notes.size) : '';
   const claude = 'claude' in entry ? entry.claude : undefined;
   return `${counts}${left}${capped}${cutWords(claude?.cut ?? [])}${droppedWords(claude?.dropped ?? [])}${adjustedWords(claude?.adjusted ?? [])}${warningWords(claude?.warnings ?? [])}`;
+}
+
+/** What the declared step says it made of each meeting: "Made 2 tasks from Standup, 1 proposal." */
+function meetingWords(meetings: readonly MeetingTally[]): string {
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return meetings
+    .map(
+      ({ path, tasks, proposals }) =>
+        `Made ${count(tasks, 'task', 'tasks')} from ${noteTitle(path)}, ${count(proposals, 'proposal', 'proposals')}.`,
+    )
+    .join(' ');
 }
 
 /** What a run says of what the person should know. */
@@ -343,9 +384,14 @@ function claudeLines({
   dropped = [],
   adjusted = [],
   warnings = [],
+  meetings = [],
 }: ClaudeRunInfo): string[] {
   return [
     `- claude ${code(model)} in ${code(ms)} ms`,
+    ...meetings.map(
+      ({ path, tasks, proposals }) =>
+        `- meeting ${code(path)}: tasks ${code(tasks)}, proposals ${code(proposals)}`,
+    ),
     ...(asks === undefined ? [] : [`- asked ${code(asks)} ${asks === 1 ? 'time' : 'times'}`]),
     ...(alreadyMade > 0 ? [`- already made ${code(alreadyMade)}`] : []),
     ...cut.map(
@@ -427,11 +473,14 @@ export function appendEntryToLog({
   keep = MAX_LOG_ENTRIES,
   maxBytes = MAX_LOG_BYTES,
   maxLedgerRecords,
+  stored = [],
 }: {
   /** The log as it is; null when there is none yet. */
   text: string | null;
   ruleName: string;
   entry: LogEntry;
+  /** The model's answers a run read and could not finish with, kept in the ledger for its retry (ADR-0036). */
+  stored?: readonly StoredAnswerDraft[];
   /** The instant the entry is written, from the clock. */
   now: number;
   keep?: number;
@@ -451,6 +500,7 @@ export function appendEntryToLog({
     now,
     keep,
     maxLedgerRecords,
+    stored,
   });
   const ledgerText =
     found.ledger === null && isEmptyLedger(ledger) ? '' : `${formatLedger(ledger)}\n`;
@@ -503,6 +553,7 @@ function ledgerAfter({
   now,
   keep,
   maxLedgerRecords,
+  stored,
 }: {
   before: HandledLedger | null;
   entries: readonly LogEntry[];
@@ -511,10 +562,12 @@ function ledgerAfter({
   now: number;
   keep: number;
   maxLedgerRecords: number | undefined;
+  stored: readonly StoredAnswerDraft[];
 }): HandledLedger {
   const caught = before === null ? ledgerFromEntries(entries, keep) : layOver(before, entries);
   const mended = before?.damaged === true ? { ...caught, vouchesFrom: now } : caught;
-  const recorded = entry.kind === 'run' ? recordRun(mended, entry, now) : mended;
+  const ran = entry.kind === 'run' ? recordRun(mended, entry, now) : mended;
+  const recorded = recordStored(ran, stored, now);
   const limits = maxLedgerRecords === undefined ? {} : { maxRecords: maxLedgerRecords };
   const pruned = pruneLedger(recorded, now, limits);
   return { ...pruned, through: markOf(written), damaged: false };
@@ -555,6 +608,9 @@ const VERSION_LINE = new RegExp(
 );
 const WENT_LINE = new RegExp(`^- went ${JSON_SPAN}$`);
 const ALREADY_MADE_LINE = new RegExp(`^- already made ${JSON_SPAN}$`);
+const MEETING_LINE = new RegExp(
+  `^- meeting ${JSON_SPAN}: tasks ${JSON_SPAN}, proposals ${JSON_SPAN}$`,
+);
 const LET_GO_LINE = new RegExp(`^- let go ${JSON_SPAN}$`);
 
 /**
@@ -638,6 +694,7 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
         const adjusted = droppedOf(body, ADJUSTED_LINE);
         const warnings = body.flatMap((line) => WARNED_LINE.exec(line)?.[1] ?? []);
         const alreadyMade = countOn(body, ALREADY_MADE_LINE);
+        const meetings = meetingsOf(body);
         return {
           model,
           ms,
@@ -647,6 +704,7 @@ function claudeOf(body: readonly string[]): ClaudeRunInfo | null {
           ...(adjusted.length > 0 && { adjusted }),
           ...(warnings.length > 0 && { warnings }),
           ...(alreadyMade !== null && { alreadyMade }),
+          ...(meetings.length > 0 && { meetings }),
         };
       }
     } catch {
@@ -671,6 +729,28 @@ function countOn(body: readonly string[], shape: RegExp): number | null {
   }
   return null;
 }
+
+/** What the declared step made of each meeting, from its lines; one that does not read is left out. */
+function meetingsOf(body: readonly string[]): MeetingTally[] {
+  return body.flatMap((line) => {
+    const match = MEETING_LINE.exec(line);
+    if (match === null) return [];
+    try {
+      const [tasks, proposals] = [
+        JSON.parse(match[2]!) as unknown,
+        JSON.parse(match[3]!) as unknown,
+      ];
+      if (!isCount(tasks) || !isCount(proposals)) return [];
+      return [{ path: pathOf(match[1]!), tasks, proposals }];
+    } catch {
+      // A line edited into JSON that does not read, or a path that is no path, is left out.
+      return [];
+    }
+  });
+}
+
+const isCount = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0;
 
 /** The notes a Claude step read only the start of, from its lines; one that does not read is left out. */
 function cutOf(body: readonly string[]): NoteCut[] {

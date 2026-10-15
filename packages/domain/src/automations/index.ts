@@ -61,6 +61,7 @@ export type {
   DoneAction,
   LogEntry,
   LoggedVersion,
+  MeetingTally,
   PriorValue,
   RunTrigger,
 } from './run-log.ts';
@@ -112,6 +113,7 @@ export { PROPOSAL_SCHEMAS, proposalSchemaNamed } from './proposal-schemas.ts';
 export { FOLLOW_UP_TAG, MEETING_ITEMS, MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
 export { itemOwner } from './meeting-item-owner.ts';
 export type { ItemOwner, OwnerDirectory } from './meeting-item-owner.ts';
+export { compileMadeItemsQuery, linkedTaskOwner } from './made-items.ts';
 export {
   decideMeetingItems,
   TASK_CONFIDENCE_FLOOR,
@@ -172,9 +174,19 @@ export {
   LEDGER_MAX_BYTES,
   MAX_DIGESTS_PER_PATH,
   MAX_LEDGER_RECORDS,
+  MAX_STORED_ANSWERS,
   readHandledLedger,
+  STORED_ANSWERS_MAX_BYTES,
+  storedAnswerFor,
 } from './handled-ledger.ts';
-export type { AnsweredRecord, HandledLedger, LedgerMark, PathRecord } from './handled-ledger.ts';
+export type {
+  AnsweredRecord,
+  HandledLedger,
+  LedgerMark,
+  PathRecord,
+  StoredAnswer,
+  StoredAnswerDraft,
+} from './handled-ledger.ts';
 export {
   handledVersions,
   leftHandledNotes,
