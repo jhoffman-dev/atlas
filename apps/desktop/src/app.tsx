@@ -135,6 +135,7 @@ import { paletteEditTypeOffers, runPaletteEditTypeCommand } from './types/palett
 import { useTemplatesPage } from './templates/use-templates-page.ts';
 import { useTermsPage } from './terms/use-terms-page.ts';
 import { useProposals } from './proposals/use-proposals.ts';
+import { answersWrittenOrGivenUp } from './proposals/answer-queue.ts';
 import { useNewArtifact } from './artifacts/use-new-artifact.ts';
 import { useThumbnailQueue, useThumbnailsNow } from './artifacts/use-thumbnails.ts';
 import { useQueryPage } from './query/use-query-page.ts';
@@ -286,8 +287,13 @@ export function App({
   // Set once the sync hook below exists: a switch waits for a sync under way,
   // whose remaining steps would otherwise be refused half-done (U-29).
   const settleSync = useRef<() => Promise<void>>(() => Promise.resolve());
+  // Set once the Inbox and Proposals hooks below exist: a switch waits for the
+  // clarifications and answers still being written behind those pages, which
+  // the host would refuse once another vault is open (#217, #166).
+  const settleWrites = useRef<() => Promise<void>>(() => Promise.resolve());
   const leaveVault = useCallback(async () => {
     await editors.flushAll();
+    await settleWrites.current();
     await settleSync.current();
   }, [editors]);
   // Every pane's unsaved work is written before the host moves to another vault,
@@ -985,9 +991,11 @@ export function App({
     () => ({ ...entryPorts, markdown: notes.markdown }),
     [entryPorts, notes.markdown],
   );
+  /** Re-reads the tree and the index after a write; settles once the index holds it. */
   const settleArchive = useCallback(() => {
-    void refresh();
+    const refreshed = refresh();
     void reload();
+    return refreshed;
   }, [refresh, reload]);
   // Meetings that n8n commits arrive by pull: each is checked, deduplicated and marked (P28-04).
   useMeetingImport({
@@ -1073,6 +1081,12 @@ export function App({
     activity: activityLog,
     closing: closing.writes,
   });
+  const { written: inboxWritten } = inbox;
+  const { written: answersWritten } = proposals;
+  useEffect(() => {
+    settleWrites.current = () =>
+      answersWrittenOrGivenUp(Promise.all([inboxWritten(), answersWritten()]));
+  }, [inboxWritten, answersWritten]);
   const inboxView = quick.find((view) => view.id === 'inbox')?.entry ?? null;
   // One Inbox: its count is what waits to be filed and the proposals waiting for an answer.
   const waiting = inboxWaiting({
@@ -1682,7 +1696,7 @@ export function App({
                     onClarify: inbox.clarify,
                     busy: inbox.busy,
                     problem: inbox.problem,
-                    refusal: inbox.refusal,
+                    refusals: inbox.refusals,
                     lastAction: inbox.lastAction,
                     onUndo: () => void inbox.undo(),
                     onDismissLastAction: inbox.dismissLastAction,

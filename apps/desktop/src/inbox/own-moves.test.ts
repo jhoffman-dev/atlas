@@ -29,3 +29,45 @@ describe('notesAfterOwnMoves (#217)', () => {
     expect(after.unseen).toEqual([]);
   });
 });
+
+describe('notesAfterOwnMoves — moves taken in the order they were made (#217)', () => {
+  const ELSEWHERE = at('Projects/Fennel/Call Mara.md');
+
+  it('leaves a filing taken back before the tree caught up where the undo put it', () => {
+    // Filed, then undone; the tree still lists what it read before both.
+    const after = notesAfterOwnMoves(
+      [CALL, PAY],
+      [
+        { from: CALL, to: FILED },
+        { from: FILED, to: CALL },
+      ],
+    );
+    expect(after.notes).toEqual([CALL, PAY]);
+    expect(after.unseen).toEqual([]);
+  });
+
+  it('carries a note moved on from where an earlier move left it to where it is now', () => {
+    const after = notesAfterOwnMoves(
+      [CALL, PAY],
+      [
+        { from: CALL, to: FILED },
+        { from: FILED, to: ELSEWHERE },
+      ],
+    );
+    expect(after.notes).toEqual([ELSEWHERE, PAY]);
+    expect(after.unseen).toEqual([{ from: CALL, to: ELSEWHERE }]);
+  });
+
+  it('applies a move made after one taken back as if the first had never been', () => {
+    const after = notesAfterOwnMoves(
+      [CALL, PAY],
+      [
+        { from: CALL, to: FILED },
+        { from: FILED, to: CALL },
+        { from: CALL, to: ELSEWHERE },
+      ],
+    );
+    expect(after.notes).toEqual([ELSEWHERE, PAY]);
+    expect(after.unseen).toEqual([{ from: CALL, to: ELSEWHERE }]);
+  });
+});

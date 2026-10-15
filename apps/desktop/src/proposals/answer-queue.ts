@@ -84,8 +84,20 @@ export function useAnswerQueue(onDrained: () => void): AnswerQueue {
   );
 }
 
-/** The longest closing the window waits for the answers still being written. */
+/** The longest closing the window, or leaving a vault, waits for the answers still being written. */
 export const ANSWERS_CLOSE_WAIT_MS = 10_000;
+
+/**
+ * Settles once `drained` has — every answer queued written — or once
+ * {@link ANSWERS_CLOSE_WAIT_MS} has passed: a hung disk must not hold the
+ * window, or the vault, for ever.
+ */
+export function answersWrittenOrGivenUp(drained: Promise<unknown>): Promise<void> {
+  return Promise.race([
+    drained.then(() => undefined),
+    new Promise<void>((resolve) => void window.setTimeout(resolve, ANSWERS_CLOSE_WAIT_MS)),
+  ]);
+}
 
 /**
  * Holds the window's close until the answers queued are written (#166), so
@@ -97,12 +109,7 @@ export function useAnswersWrittenBeforeClose(queue: AnswerQueue, closing: Window
     let stop: (() => void) | null = null;
     let live = true;
     void closing
-      .beforeClose(() =>
-        Promise.race([
-          queue.drained(),
-          new Promise<void>((resolve) => void window.setTimeout(resolve, ANSWERS_CLOSE_WAIT_MS)),
-        ]),
-      )
+      .beforeClose(() => answersWrittenOrGivenUp(queue.drained()))
       .then(
         (stopListening) => {
           if (live) stop = stopListening;

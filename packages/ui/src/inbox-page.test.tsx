@@ -395,7 +395,7 @@ describe('InboxPage — clarifying a task on its row', () => {
       path: createVaultPath(TASK),
       reason: 'That task has changed since: read it again.',
     };
-    page({ onClarify: vi.fn(async () => false), refusal });
+    page({ onClarify: vi.fn(async () => false), refusals: [refusal] });
     const alert = within(rowOf('Call the bank')).getByRole('alert');
     expect(alert.textContent).toBe('That task has changed since: read it again.');
     expect(within(rowOf('Standup')).queryByRole('alert')).toBeNull();
@@ -407,7 +407,7 @@ describe('InboxPage — clarifying a task on its row', () => {
 
   it('says a refusal above the list once its row has left it', () => {
     page({
-      refusal: { path: createVaultPath('Inbox/Gone.md'), reason: 'Gone: the disk is full' },
+      refusals: [{ path: createVaultPath('Inbox/Gone.md'), reason: 'Gone: the disk is full' }],
     });
     expect(screen.getByRole('alert').textContent).toBe('Gone: the disk is full');
   });

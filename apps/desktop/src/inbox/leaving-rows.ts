@@ -13,9 +13,11 @@ export interface ReadMoment {
 
 /**
  * A row taken off the page the moment it was clarified, before the index has
- * caught up with the write. Null `settled` while it is still being written;
- * once written, the moment it was, so a read begun since — against an index
- * that has moved on — is what says whether it is still waiting.
+ * caught up with the write. Null `settled` while it is being written and
+ * until a refresh of the index asked for after that has landed; then the
+ * moment it landed, and the index's key when the refresh was asked for, so a
+ * read begun since — against an index that has moved on — is what says
+ * whether it is still waiting.
  */
 export interface LeavingRow {
   readonly path: VaultPath;

@@ -13,6 +13,8 @@ import {
 import type { RelationChoice } from './properties-panel.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 
+const NO_REFUSALS: readonly InboxRefusal[] = [];
+
 /** What the Inbox lists, once it has been read. */
 export interface InboxContents {
   readonly items: readonly InboxItem[];
@@ -48,8 +50,8 @@ export interface InboxPageProps {
   busy: boolean;
   /** Why the last undo could not be done, or null. */
   problem: string | null;
-  /** Why a row's clarification was refused, shown on that row. */
-  refusal?: InboxRefusal | null;
+  /** Why each row's clarification was refused, shown on that row, until it is clarified again. */
+  refusals?: readonly InboxRefusal[];
   /** The last clarification, while it can be taken back: a new object for each, kept across renders. */
   lastAction?: { readonly title: string } | null;
   onUndo?: () => void;
@@ -152,11 +154,11 @@ function TypesOffer({ lines, onAccept, onDismiss }: InboxTypesOffer) {
   );
 }
 
-/** A refusal whose row has left the list — clarified, but not filed — which the page says instead. */
-function leftRefusal({ contents, refusal }: InboxPageProps): string | null {
-  if (refusal === null || refusal === undefined) return null;
-  const listed = contents?.items.some((item: InboxItem) => item.path === refusal.path) ?? false;
-  return listed ? null : refusal.reason;
+/** The refusals whose rows have left the list — clarified, but not filed — which the page says instead. */
+function leftRefusal({ contents, refusals = NO_REFUSALS }: InboxPageProps): string | null {
+  const listed = new Set(contents?.items.map((item: InboxItem) => item.path));
+  const left = refusals.filter((refusal) => !listed.has(refusal.path));
+  return left.length === 0 ? null : left.map((refusal) => refusal.reason).join(' ');
 }
 
 function LastAction({ lastAction, onUndo, onDismissLastAction, busy }: InboxPageProps) {
@@ -207,7 +209,7 @@ function InboxList({
   onShowMore,
   onClarify,
   busy,
-  refusal = null,
+  refusals = NO_REFUSALS,
 }: InboxPageProps) {
   if (error !== null) {
     return (
@@ -245,7 +247,7 @@ function InboxList({
             onOpen={onOpen}
             onClarify={onClarify}
             busy={busy}
-            refusal={refusal}
+            refusals={refusals}
           />
         </table>
         {contents.truncated && (

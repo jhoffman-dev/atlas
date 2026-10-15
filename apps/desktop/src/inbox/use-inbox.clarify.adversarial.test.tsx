@@ -88,7 +88,7 @@ describe('useInbox — the write under a decision fails', () => {
     });
 
     expect(done).toBe(false);
-    expect(hook.result.current.refusal).toEqual({ path: CALL, reason: 'permission denied' });
+    expect(hook.result.current.refusals).toEqual([{ path: CALL, reason: 'permission denied' }]);
     expect(files.get(CALL)).toBe(CAPTURED);
     expect(hook.result.current.contents?.items.map((item) => item.path)).toContain(CALL);
     expect(hook.result.current.busy).toBe(false);
@@ -114,7 +114,7 @@ describe('useInbox — two decisions asked for in one tick', () => {
     expect(outcomes).toEqual([true, true]);
     expect(files.get(CALL)).toContain('status: next-action');
     expect(files.get(WRITE)).toContain('status: someday');
-    expect(hook.result.current.refusal).toBeNull();
+    expect(hook.result.current.refusals).toEqual([]);
     expect(onSettled).toHaveBeenCalledOnce();
   });
 });

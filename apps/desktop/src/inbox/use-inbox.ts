@@ -29,7 +29,7 @@ import {
   type InboxListing,
   type WindowClosingPort,
 } from '@atlas/application';
-import type { RelationChoice } from '@atlas/ui';
+import type { InboxRefusal, RelationChoice } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useAnswerQueue, useAnswersWrittenBeforeClose } from '../proposals/answer-queue.ts';
 import { errorMessage } from '../query/error-message.ts';
@@ -51,8 +51,12 @@ export interface InboxOptions {
   readonly indexReady?: boolean;
   /** Whether the Inbox page is showing, which is when what to file under is read. */
   readonly open: boolean;
-  /** Re-reads the tree and the index once the clarifications asked for are all written. */
-  readonly onSettled: () => void;
+  /**
+   * Re-reads the tree and the index once the clarifications asked for are all
+   * written. What it hands back settles once the index holds them — false if
+   * it does not — and nothing handed back means it does at once.
+   */
+  readonly onSettled: () => Promise<boolean> | void;
   /** Where a write the page gives up on is recorded; a refusal is not. */
   readonly activity: Pick<ActivityLog, 'inOpenVault'>;
   /** The window's close, held until the clarifications still being written are written. */
@@ -93,9 +97,14 @@ export function useInbox(options: InboxOptions) {
   const [choices, setChoices] = useState<Choices | null>(null);
   const [said, setSaid] = useState<Said | null>(null);
   const [undoing, setUndoing] = useState(0);
-  const { actions: writes, leaving } = useClarifyWrites({
+  const {
+    actions: writes,
+    leaving,
+    caughtUp,
+  } = useClarifyWrites({
     onSettled,
     closing: options.closing,
+    vaultKey,
     notePaths,
     indexKey,
   });
@@ -107,6 +116,7 @@ export function useInbox(options: InboxOptions) {
     fresh,
     tasksStartInInbox: startInInbox,
     moment: writes.moment,
+    caughtUp,
   });
 
   useEffect(() => {
@@ -154,12 +164,16 @@ export function useInbox(options: InboxOptions) {
   /** Says what a write left, of the vault it was asked in; `kept` leaves the last action to take back. */
   const say = useCallback(
     (asked: string | null, result: Result) =>
-      setSaid((before) => ({
-        vaultKey: asked,
-        ...result,
-        last:
-          result.last === 'kept' ? (before?.vaultKey === asked ? before.last : null) : result.last,
-      })),
+      setSaid((before) => {
+        const same = before?.vaultKey === asked ? before : null;
+        const refusals = same?.refusals ?? NO_REFUSALS;
+        return {
+          vaultKey: asked,
+          problem: result.problem,
+          refusals: result.row === undefined ? refusals : withRowSaid(refusals, result.row),
+          last: result.last === 'kept' ? (same?.last ?? null) : result.last,
+        };
+      }),
     [],
   );
 
@@ -172,14 +186,14 @@ export function useInbox(options: InboxOptions) {
       if (leaves) writes.leave(asked, path);
       const write = clarification.project === undefined ? 'edit' : 'filing';
       const named = { activity: logOfVaultOpenNow(activity), write, path } as const;
-      return writes.enqueue(ports, async (paths) => {
+      return writes.enqueue(ports, asked, async (given) => {
         try {
           const outcome = await withGiveUpRecorded({ ...named, refusal: ClarifyRefusedError }, () =>
             clarifyInboxItem({
-              ports,
+              ports: given.ports,
               path,
               clarification,
-              notePaths: paths,
+              notePaths: given.notePaths,
               today: clock.today(),
             }),
           );
@@ -189,18 +203,18 @@ export function useInbox(options: InboxOptions) {
           else writes.stay(asked, path);
           say(asked, {
             problem: null,
-            refusal: reason === null ? null : { path, reason },
+            row: { path, reason },
             last: { title: noteTitle(path), undo: outcome.undo },
           });
-          return { done: reason === null, wrote: true, moved: movedBy(outcome) };
+          return { done: reason === null, wrote: true };
         } catch (cause) {
           writes.stay(asked, path);
           say(asked, {
             problem: null,
-            refusal: { path, reason: errorMessage(cause) },
+            row: { path, reason: errorMessage(cause) },
             last: 'kept',
           });
-          return { done: false, wrote: false, moved: null };
+          return NOT_WRITTEN;
         }
       });
     },
@@ -215,24 +229,32 @@ export function useInbox(options: InboxOptions) {
     const named = { activity: logOfVaultOpenNow(activity), write: 'edit', path } as const;
     setUndoing((count) => count + 1);
     return writes
-      .enqueue(ports, async (paths) => {
+      .enqueue(ports, asked, async (given) => {
         // Pressed twice, or for one already taken back: there is nothing left to take back.
-        if (writes.undone(last.undo)) return { done: false, wrote: false, moved: null };
+        if (writes.undone(last.undo)) return NOT_WRITTEN;
         try {
           await withGiveUpRecorded({ ...named, refusal: ClarifyRefusedError }, () =>
-            undoClarifyInboxItem({ ports, undo: last.undo, notePaths: paths }),
+            undoClarifyInboxItem({
+              ports: given.ports,
+              undo: last.undo,
+              notePaths: given.notePaths,
+            }),
           );
           writes.markUndone(last.undo);
           setSaid((before) =>
             before?.vaultKey === asked && before.last === last
-              ? { ...before, problem: null, refusal: null, last: null }
+              ? {
+                  ...before,
+                  problem: null,
+                  refusals: withRowSaid(before.refusals, { path: last.undo.from, reason: null }),
+                  last: null,
+                }
               : before,
           );
-          const moved = last.undo.to === last.undo.from ? null : { from: path, to: last.undo.from };
-          return { done: true, wrote: true, moved };
+          return { done: true, wrote: true };
         } catch (cause) {
-          say(asked, { problem: errorMessage(cause), refusal: null, last: 'kept' });
-          return { done: false, wrote: false, moved: null };
+          say(asked, { problem: errorMessage(cause), last: 'kept' });
+          return NOT_WRITTEN;
         }
       })
       .finally(() => setUndoing((count) => count - 1));
@@ -258,8 +280,8 @@ export function useInbox(options: InboxOptions) {
     busy: undoing > 0,
     /** Why the last undo could not be done, or null. */
     problem: told?.problem ?? null,
-    /** Why the last clarification was refused or left unfinished, and the row it was for. */
-    refusal: told?.refusal ?? null,
+    /** Why each row's last clarification was refused or left unfinished, until that row is clarified again. */
+    refusals: told?.refusals ?? NO_REFUSALS,
     /** The last clarification, while it can be taken back. */
     lastAction,
     clarify,
@@ -267,12 +289,18 @@ export function useInbox(options: InboxOptions) {
     dismissLastAction,
     /** Lists the next page of what waits (#167). */
     showMore,
+    /** Settles once every clarification asked for so far is written, or has failed. */
+    written: writes.drained,
   };
 }
 
-/** Where a clarification moved its note, for the next one's list of notes. */
-function movedBy(outcome: ClarifyOutcome): EntryMove | null {
-  return outcome.movedFrom === null ? null : { from: outcome.movedFrom, to: outcome.path };
+/** The refusals said, with one row's said again: its reason now, or none. */
+function withRowSaid(
+  refusals: readonly InboxRefusal[],
+  row: { readonly path: VaultPath; readonly reason: string | null },
+): readonly InboxRefusal[] {
+  const others = refusals.filter((each) => each.path !== row.path);
+  return row.reason === null ? others : [...others, { path: row.path, reason: row.reason }];
 }
 
 /**
@@ -287,11 +315,25 @@ function logOfVaultOpenNow(
   return { inOpenVault: () => recorder };
 }
 
-/** What one queued write did: whether it was done, whether it wrote, and where it moved a note. */
+/** What one queued write did: whether it was done, and whether it wrote. */
 interface Written {
   readonly done: boolean;
   readonly wrote: boolean;
-  readonly moved: EntryMove | null;
+}
+
+const NOT_WRITTEN: Written = { done: false, wrote: false };
+
+/** What a queued write is handed as it begins: the vault's notes as they stand, and the ports to write through. */
+interface WriteGiven {
+  readonly notePaths: readonly VaultPath[];
+  readonly ports: ArchivePorts;
+}
+
+/** The vault open, its notes and its index's key, as the page last rendered them. */
+interface Seen {
+  readonly vaultKey: string | null;
+  readonly notePaths: readonly VaultPath[];
+  readonly indexKey: string;
 }
 
 /**
@@ -299,33 +341,40 @@ interface Written {
  * in the order asked for, as Proposals writes its answers (#166) — and held
  * to by the window's close. Which rows have left the list before the index
  * says so, and the moves the tree has not caught up with, are kept here.
+ *
+ * A written row is the index's to show again only once a refresh asked for
+ * after it was written has landed: a sync already under way when it was
+ * written may have read the Inbox before it moved (#217).
  */
 function useClarifyWrites({
   onSettled,
   closing,
+  vaultKey,
   notePaths,
   indexKey,
 }: {
-  onSettled: () => void;
+  onSettled: InboxOptions['onSettled'];
   closing: WindowClosingPort;
+  vaultKey: string | null;
   notePaths: readonly VaultPath[];
   indexKey: string;
 }) {
   const wroteSinceDrained = useRef(false);
-  const queue = useAnswerQueue(() => {
-    if (!wroteSinceDrained.current) return;
-    wroteSinceDrained.current = false;
-    onSettled();
-  });
-  useAnswersWrittenBeforeClose(queue, closing);
+  /** Rows written since the last refresh was asked for, as each is on the page. */
+  const unrefreshed = useRef<LeavingRow[]>([]);
+  /** One more each time a refresh asked for after some writes lands, so the Inbox is read again after it. */
+  const [caughtUp, setCaughtUp] = useState(0);
   // Read when a write begins or ends, not when it was asked for: the latest the page knows.
-  const latest = useRef({ notePaths, indexKey });
+  const latest = useRef<Seen>({ vaultKey, notePaths, indexKey });
   useEffect(() => {
-    latest.current = { notePaths, indexKey };
-  }, [notePaths, indexKey]);
-  const moves = useRef<readonly EntryMove[]>([]);
+    latest.current = { vaultKey, notePaths, indexKey };
+  }, [vaultKey, notePaths, indexKey]);
+  const ownMoves = useRef<{ vaultKey: string | null; moves: readonly EntryMove[] }>({
+    vaultKey: null,
+    moves: [],
+  });
   const undone = useRef(new WeakSet<ClarifyUndo>());
-  /** One clock for the page's reads and writes, so a read can be told from one begun before a write ended. */
+  /** One clock for the page's reads and writes, so a read can be told from one begun before a refresh landed. */
   const moment = useRef(0);
   const [leaving, setLeaving] = useState<{
     readonly vaultKey: string | null;
@@ -341,15 +390,58 @@ function useClarifyWrites({
     });
   }, []);
 
+  /** A refresh asked for once `rows` were written has landed: a read begun since, past `askedAt`, answers for them. */
+  const refreshed = useCallback((rows: readonly LeavingRow[], askedAt: string) => {
+    moment.current += 1;
+    const settled = { at: moment.current, indexKey: askedAt };
+    const answered = new Set(rows);
+    setLeaving((before) => ({
+      ...before,
+      rows: before.rows.map((row) => (answered.has(row) ? { ...row, settled } : row)),
+    }));
+    setCaughtUp((count) => count + 1);
+  }, []);
+
+  const queue = useAnswerQueue(() => {
+    if (!wroteSinceDrained.current) return;
+    wroteSinceDrained.current = false;
+    const rows = unrefreshed.current;
+    unrefreshed.current = [];
+    const askedAt = latest.current.indexKey;
+    // Not held: the rows wait for the next refresh asked for after a write.
+    const waitAgain = () => {
+      unrefreshed.current = [...rows, ...unrefreshed.current];
+    };
+    void Promise.resolve(onSettled()).then(
+      (held) => (held === false ? waitAgain() : refreshed(rows, askedAt)),
+      (cause: unknown) => {
+        console.error('The index could not be refreshed after the Inbox was written:', cause);
+        waitAgain();
+      },
+    );
+  });
+  useAnswersWrittenBeforeClose(queue, closing);
+
   const enqueue = useCallback(
-    (vault: object, write: (notePaths: readonly VaultPath[]) => Promise<Written>) => {
+    (ports: ArchivePorts, asked: string | null, write: (given: WriteGiven) => Promise<Written>) => {
       let done = false;
-      queue.enqueue(vault, async () => {
-        const known = notesAfterOwnMoves(latest.current.notePaths, moves.current);
-        const result = await write(known.notes);
-        moves.current = result.moved === null ? known.unseen : [...known.unseen, result.moved];
-        if (result.wrote) wroteSinceDrained.current = true;
-        done = result.done;
+      // The vault's notes as they were when asked, for a write that begins once another vault is open.
+      const askedIn = latest.current.notePaths;
+      queue.enqueue(ports, async () => {
+        const tree = latest.current.vaultKey === asked ? latest.current.notePaths : askedIn;
+        const own = ownMoves.current.vaultKey === asked ? ownMoves.current.moves : [];
+        const known = notesAfterOwnMoves(tree, own);
+        const moving = keepingMoves(ports);
+        try {
+          const result = await write({ notePaths: known.notes, ports: moving.ports });
+          if (result.wrote) wroteSinceDrained.current = true;
+          done = result.done;
+        } finally {
+          // A move made before the write failed is as real as one made by a write that was done.
+          const moved = moving.moved();
+          ownMoves.current = { vaultKey: asked, moves: [...known.unseen, ...moved] };
+          if (moved.length > 0) wroteSinceDrained.current = true;
+        }
       });
       // Settles once this write — and the re-read, when it was the last — is done.
       return queue.drained().then(() => done);
@@ -361,24 +453,38 @@ function useClarifyWrites({
     () => ({
       enqueue,
       moment,
+      drained: queue.drained,
       /** Takes a row off the list while it is written. */
       leave: (vaultKey: string | null, path: VaultPath) =>
         setRow(vaultKey, path, { path, settled: null }),
-      /** Its write is done: off the list until a read of the index that has caught up with it. */
+      /** Its write is done: off the list until a refresh asked for since has landed, and a read after it. */
       written: (vaultKey: string | null, path: VaultPath) => {
-        moment.current += 1;
-        const settled = { at: moment.current, indexKey: latest.current.indexKey };
-        setRow(vaultKey, path, { path, settled });
+        const row = { path, settled: null };
+        unrefreshed.current.push(row);
+        setRow(vaultKey, path, row);
       },
       /** Its write was refused or failed: the row is back. */
       stay: (vaultKey: string | null, path: VaultPath) => setRow(vaultKey, path, null),
       undone: (undo: ClarifyUndo) => undone.current.has(undo),
       markUndone: (undo: ClarifyUndo) => void undone.current.add(undo),
     }),
-    [enqueue, setRow],
+    [enqueue, queue.drained, setRow],
   );
   // Apart from the actions, so a row leaving does not make every row's actions new.
-  return { actions, leaving };
+  return { actions, leaving, caughtUp };
+}
+
+/** `ports`, keeping every move a write makes through them — one made before the write then failed included. */
+function keepingMoves(ports: ArchivePorts): {
+  readonly ports: ArchivePorts;
+  readonly moved: () => readonly EntryMove[];
+} {
+  const moved: EntryMove[] = [];
+  const moveEntry: ArchivePorts['fs']['moveEntry'] = async (move) => {
+    await ports.fs.moveEntry(move);
+    moved.push({ from: move.from, to: move.to });
+  };
+  return { ports: { ...ports, fs: { ...ports.fs, moveEntry } }, moved: () => moved };
 }
 
 const NO_ROWS: readonly LeavingRow[] = [];
@@ -406,12 +512,23 @@ interface Choices {
 interface Said {
   readonly vaultKey: string | null;
   readonly problem: string | null;
-  readonly refusal: { readonly path: VaultPath; readonly reason: string } | null;
+  /** One for each row whose last clarification was refused or left unfinished. */
+  readonly refusals: readonly InboxRefusal[];
   readonly last: { readonly title: string; readonly undo: ClarifyUndo } | null;
 }
 
-/** What an action leaves to say; `kept` leaves the last clarification to take back as it was. */
-type Result = Omit<Said, 'vaultKey' | 'last'> & { readonly last: Said['last'] | 'kept' };
+/**
+ * What an action leaves to say: `row` says again what one row's clarification
+ * left — why it was refused, or nothing — and every other row keeps what it
+ * was told; `kept` leaves the last clarification to take back as it was.
+ */
+interface Result {
+  readonly problem: string | null;
+  readonly row?: { readonly path: VaultPath; readonly reason: string | null };
+  readonly last: Said['last'] | 'kept';
+}
+
+const NO_REFUSALS: readonly InboxRefusal[] = [];
 
 /** Only what clarifying would accept: never a project still in the Inbox, or an archived person. */
 async function readChoices(
@@ -443,6 +560,7 @@ function useInboxListing({
   fresh,
   tasksStartInInbox,
   moment,
+  caughtUp,
 }: {
   index: InboxOptions['ports']['index'];
   vaultKey: string | null;
@@ -451,6 +569,8 @@ function useInboxListing({
   tasksStartInInbox: boolean;
   /** The page's clock of reads and writes, which each read is stamped from as it begins. */
   moment: { current: number };
+  /** Changes once a refresh asked for after the page's writes lands: read again, to show what it answers. */
+  caughtUp: number;
 }) {
   const [listing, setListing] = useState<Listing | null>(null);
   // How far down the page has been shown, by the last note listed; nothing past the first page until asked.
@@ -489,7 +609,7 @@ function useInboxListing({
     return () => {
       cancelled = true;
     };
-  }, [index, indexKey, fresh, vaultKey, tasksStartInInbox, readAgain, land, moment]);
+  }, [index, indexKey, fresh, vaultKey, tasksStartInInbox, readAgain, land, moment, caughtUp]);
 
   const showMore = useCallback(() => {
     const shown = listing?.vaultKey === vaultKey ? listing.contents : null;

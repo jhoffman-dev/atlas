@@ -16,7 +16,12 @@ import {
   type ArchivePorts,
   type WindowClosingPort,
 } from '@atlas/application';
-import { createVaultPath, INBOX_QUERY_COLUMNS, TASK_TYPE_FILE } from '@atlas/domain';
+import {
+  createVaultPath,
+  INBOX_QUERY_COLUMNS,
+  TASK_TYPE_FILE,
+  type VaultPath,
+} from '@atlas/domain';
 import { useInbox, type InboxOptions } from './use-inbox.ts';
 
 const CALL = createVaultPath('Inbox/Call Mara Quill.md');
@@ -203,7 +208,7 @@ describe('useInbox — a write that fails (#217)', () => {
       expect(await outcome).toBe(false);
     });
     expect(shown()).toEqual([CALL, PAY]);
-    expect(hook.result.current.refusal).toEqual({ path: CALL, reason: 'the disk is full' });
+    expect(hook.result.current.refusals).toEqual([{ path: CALL, reason: 'the disk is full' }]);
     expect(files.get(CALL)).toBe(CAPTURED);
 
     fail(null);
@@ -213,7 +218,7 @@ describe('useInbox — a write that fails (#217)', () => {
       ).toBe(true);
     });
     expect(shown()).toEqual([PAY]);
-    expect(hook.result.current.refusal).toBeNull();
+    expect(hook.result.current.refusals).toEqual([]);
     expect(files.get(CALL)).toContain('status: next-action');
   });
 });
@@ -263,5 +268,450 @@ describe('useInbox — closing the window (#217)', () => {
     });
     expect(closed).toBe(true);
     expect(files.get(CALL)).toContain('status: next-action');
+  });
+});
+
+const PROJECT = createVaultPath('Projects/Larkspur.md');
+const SEND = createVaultPath('Inbox/Send Zoe Marlow the lease.md');
+const TASK = (body: string) => `---\ntype: task\nstatus: inbox\n---\n\n${body}\n`;
+const NO_EDITORS: ArchivePorts['editors'] = {
+  state: () => 'closed',
+  flush: async () => {},
+  follow: () => {},
+  abandon: () => {},
+  reload: () => {},
+};
+
+/** An index that lists these, whatever has been written since. */
+function listing(paths: readonly VaultPath[]): ArchivePorts['index'] {
+  return fakeIndexPort({
+    query: async () => ({
+      columns: [...INBOX_QUERY_COLUMNS],
+      rows: paths.map((at) => [at, at, 'task', 0, null, null, 'inbox']),
+      truncated: false,
+    }),
+  });
+}
+
+/** The hook's options over `ports`, for the Larkspur vault as its tree was read before a burst of filings. */
+function optionsFor(ports: ArchivePorts, notePaths: readonly VaultPath[]): InboxOptions {
+  return {
+    ports,
+    notePaths,
+    vaultKey: '/vaults/larkspur',
+    types: [TASK_TYPE_FILE.type],
+    clock: { today: () => '2026-10-15' },
+    indexKey: 'ready:1',
+    open: true,
+    onSettled: vi.fn(),
+    activity: recordingActivity(),
+    closing: { beforeClose: async () => () => {} },
+  };
+}
+
+/** A vault of Inbox tasks, whose write to `holdPath` waits until released; the tree is read again only when the test says. */
+function burst(files: Record<string, string>, holdPath: VaultPath | null = null) {
+  const memory = memoryVault(files);
+  const held = gate();
+  const ports: ArchivePorts = {
+    fs: fakeVaultFs({
+      ...memory.fs,
+      // The host's: a note that is not there is skipped.
+      readNotes: async (paths) =>
+        paths.flatMap((path) => {
+          const text = memory.files.get(path);
+          return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+        }),
+      writeTextFile: async (write) => {
+        if (write.path === holdPath) await held.opened;
+        return memory.fs.writeTextFile(write);
+      },
+    }),
+    markdown: fakeMarkdown(),
+    index: listing([CALL, PAY, SEND]),
+    editors: NO_EDITORS,
+  };
+  const options = optionsFor(ports, [...memory.files.keys()].map(createVaultPath));
+  const hook = renderHook((given: InboxOptions) => useInbox(given), { initialProps: options });
+  return { hook, files: memory.files, release: held.open };
+}
+
+const FILED_PAY = 'Projects/Larkspur/Pay Tobias Fenn.md';
+
+describe('useInbox — a filing taken back while the queue is busy (#217)', () => {
+  const files = {
+    [PROJECT]: '---\ntype: project\n---\n',
+    [CALL]: TASK('Ask about [[Inbox/Pay Tobias Fenn]] first.'),
+    [PAY]: TASK('Pay the invoice.'),
+    [SEND]: TASK('Send it.'),
+  };
+
+  it('re-points the path link one Inbox note holds to another filed', async () => {
+    const { hook, files: vault } = burst(files);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(3));
+    await act(() =>
+      hook.result.current.clarify({
+        path: PAY,
+        clarification: { status: 'next-action', project: PROJECT },
+      }),
+    );
+    expect(vault.get(CALL)).toContain('[[Projects/Larkspur/Pay Tobias Fenn]]');
+  });
+
+  it('knows the note is back where it was, so a filing after re-points the link it holds', async () => {
+    const { hook, files: vault, release } = burst(files, SEND);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(3));
+
+    await act(() =>
+      hook.result.current.clarify({
+        path: CALL,
+        clarification: { status: 'next-action', project: PROJECT },
+      }),
+    );
+    expect(vault.has(CALL)).toBe(false);
+
+    // The next row is being written (held), so the queue does not drain and the tree is not re-read.
+    const outcomes: Promise<boolean>[] = [];
+    act(() => {
+      outcomes.push(
+        hook.result.current.clarify({ path: SEND, clarification: { status: 'someday' } }),
+      );
+    });
+    // Undo Call, then file Pay — both queued behind Send.
+    act(() => {
+      outcomes.push(hook.result.current.undo());
+    });
+    act(() => {
+      outcomes.push(
+        hook.result.current.clarify({
+          path: PAY,
+          clarification: { status: 'next-action', project: PROJECT },
+        }),
+      );
+    });
+    release();
+    await act(async () => {
+      expect(await Promise.all(outcomes)).toEqual([true, true, true]);
+    });
+
+    expect(vault.has(CALL)).toBe(true);
+    expect(vault.has(FILED_PAY)).toBe(true);
+    expect(vault.get(CALL)).toContain('[[Projects/Larkspur/Pay Tobias Fenn]]');
+  });
+
+  it('knows where a filing that failed after its move left the note', async () => {
+    const FILED_CALL = createVaultPath('Projects/Larkspur/Call Mara Quill.md');
+    const memory = memoryVault(files);
+    let readsOfFiled = 0;
+    const ports: ArchivePorts = {
+      fs: fakeVaultFs({
+        ...memory.fs,
+        readNotes: async (paths) =>
+          paths.flatMap((path) => {
+            const text = memory.files.get(path);
+            return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
+          }),
+        // Moved and stamped, the filed note cannot be read back: the filing throws after its move.
+        readTextFile: async (path) => {
+          if (path === FILED_CALL && (readsOfFiled += 1) === 2) {
+            throw new Error('the disk stopped answering');
+          }
+          return memory.fs.readTextFile(path);
+        },
+      }),
+      markdown: fakeMarkdown(),
+      index: listing([CALL, PAY, SEND]),
+      editors: NO_EDITORS,
+    };
+    const options = optionsFor(ports, [...memory.files.keys()].map(createVaultPath));
+    const hook = renderHook((given: InboxOptions) => useInbox(given), { initialProps: options });
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(3));
+
+    const outcomes: Promise<boolean>[] = [];
+    for (const path of [CALL, PAY]) {
+      act(() => {
+        outcomes.push(
+          hook.result.current.clarify({
+            path,
+            clarification: { status: 'next-action', project: PROJECT },
+          }),
+        );
+      });
+    }
+    await act(async () => {
+      expect(await Promise.all(outcomes)).toEqual([false, true]);
+    });
+
+    expect(memory.files.has(FILED_CALL)).toBe(true);
+    // Call's link to Pay followed Pay: the filing of Pay knew Call was filed.
+    expect(memory.files.get(FILED_CALL)).toContain('[[Projects/Larkspur/Pay Tobias Fenn]]');
+    // It moved a note, so the tree and the index are read again.
+    expect(options.onSettled).toHaveBeenCalledOnce();
+    expect(hook.result.current.refusals).toEqual([
+      { path: CALL, reason: 'the disk stopped answering' },
+    ]);
+  });
+});
+
+describe('useInbox — failures in the middle of a burst (#217)', () => {
+  function failing(paths: readonly VaultPath[]) {
+    const memory = memoryVault({ [CALL]: TASK('a'), [PAY]: TASK('b'), [SEND]: TASK('c') });
+    const ports: ArchivePorts = {
+      fs: fakeVaultFs({
+        ...memory.fs,
+        writeTextFile: async (write) => {
+          if (paths.includes(write.path)) throw new Error(`${write.path}: the disk is full`);
+          return memory.fs.writeTextFile(write);
+        },
+      }),
+      markdown: fakeMarkdown(),
+      index: listing([CALL, PAY, SEND]),
+      editors: NO_EDITORS,
+    };
+    const hook = renderHook((given: InboxOptions) => useInbox(given), {
+      initialProps: optionsFor(ports, [CALL, PAY, SEND]),
+    });
+    const fileAll = async (all: readonly VaultPath[]) => {
+      const outcomes: Promise<boolean>[] = [];
+      for (const path of all) {
+        act(() => {
+          outcomes.push(
+            hook.result.current.clarify({ path, clarification: { status: 'next-action' } }),
+          );
+        });
+      }
+      let done: boolean[] = [];
+      await act(async () => {
+        done = await Promise.all(outcomes);
+      });
+      return done;
+    };
+    return { hook, fileAll, paths };
+  }
+
+  it('brings the row that failed back still saying why, after the rows behind it are written', async () => {
+    const { hook, fileAll } = failing([PAY]);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(3));
+
+    expect(await fileAll([CALL, PAY, SEND])).toEqual([true, false, true]);
+
+    expect(hook.result.current.contents?.items.map((item) => item.path)).toEqual([PAY]);
+    expect(hook.result.current.refusals).toEqual([
+      { path: PAY, reason: `${PAY}: the disk is full` },
+    ]);
+  });
+
+  it('keeps each failed row’s reason until that row is clarified again', async () => {
+    const { hook, fileAll, paths } = failing([CALL, SEND]);
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(3));
+
+    expect(await fileAll([CALL, PAY, SEND])).toEqual([false, true, false]);
+    expect(hook.result.current.refusals).toEqual([
+      { path: CALL, reason: `${CALL}: the disk is full` },
+      { path: SEND, reason: `${SEND}: the disk is full` },
+    ]);
+
+    (paths as VaultPath[]).length = 0;
+    expect(await fileAll([SEND])).toEqual([true]);
+    expect(hook.result.current.refusals).toEqual([
+      { path: CALL, reason: `${CALL}: the disk is full` },
+    ]);
+  });
+});
+
+describe('useInbox — leaving a vault with filings still queued (#217)', () => {
+  it('settles what a switch waits for only once the filings queued are written', async () => {
+    // The host as boundToVault makes it: a write bound to a vault that is no longer open is refused (R14-01).
+    let openVault = '/vaults/larkspur';
+    const memory = memoryVault({ [CALL]: TASK('a'), [PAY]: TASK('b') });
+    const held = gate();
+    const ports: ArchivePorts = {
+      fs: fakeVaultFs({
+        ...memory.fs,
+        writeTextFile: async (write) => {
+          await held.opened;
+          if (openVault !== '/vaults/larkspur') throw new Error('another vault is open');
+          return memory.fs.writeTextFile(write);
+        },
+      }),
+      markdown: fakeMarkdown(),
+      index: listing([CALL, PAY]),
+      editors: NO_EDITORS,
+    };
+    const first = optionsFor(ports, [CALL, PAY]);
+    const hook = renderHook((given: InboxOptions) => useInbox(given), { initialProps: first });
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(2));
+
+    const outcomes: Promise<boolean>[] = [];
+    for (const path of [CALL, PAY]) {
+      act(() => {
+        outcomes.push(
+          hook.result.current.clarify({ path, clarification: { status: 'next-action' } }),
+        );
+      });
+    }
+    expect(hook.result.current.contents?.items).toHaveLength(0);
+
+    // The person opens another vault: the switch (app.tsx's leaveVault) waits for this first.
+    let left = false;
+    const leaving = hook.result.current.written().then(() => {
+      left = true;
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(left).toBe(false);
+    held.open();
+    await act(async () => {
+      await leaving;
+    });
+    openVault = '/vaults/quill';
+    hook.rerender({ ...first, vaultKey: '/vaults/quill', notePaths: [], indexKey: 'working' });
+    await act(async () => {
+      expect(await Promise.all(outcomes)).toEqual([true, true]);
+    });
+
+    expect(memory.files.get(CALL)).toContain('status: next-action');
+    expect(memory.files.get(PAY)).toContain('status: next-action');
+  });
+
+  it('files a note queued before a switch against the notes of the vault it was asked in', async () => {
+    const memory = memoryVault({ [PROJECT]: '---\ntype: project\n---\n', [CALL]: TASK('a') });
+    const held = gate();
+    const ports: ArchivePorts = {
+      // Bound to Larkspur, as the ports a write was asked through are.
+      fs: fakeVaultFs({
+        ...memory.fs,
+        writeTextFile: async (write) => {
+          await held.opened;
+          return memory.fs.writeTextFile(write);
+        },
+      }),
+      markdown: fakeMarkdown(),
+      index: listing([CALL]),
+      editors: NO_EDITORS,
+    };
+    const first = optionsFor(ports, [PROJECT, CALL]);
+    const hook = renderHook((given: InboxOptions) => useInbox(given), { initialProps: first });
+    await waitFor(() => expect(hook.result.current.contents?.items).toHaveLength(1));
+
+    let outcome: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      outcome = hook.result.current.clarify({
+        path: CALL,
+        clarification: { status: 'next-action', project: PROJECT },
+      });
+    });
+    // Another vault opens, with notes of its own, before the filing is written.
+    hook.rerender({
+      ...first,
+      vaultKey: '/vaults/quill',
+      notePaths: [createVaultPath('Notes/Quill ledger.md')],
+      indexKey: 'working',
+    });
+    held.open();
+    await act(async () => {
+      expect(await outcome).toBe(true);
+    });
+
+    expect(memory.files.has('Projects/Larkspur/Call Mara Quill.md')).toBe(true);
+  });
+});
+
+describe('useInbox — an index sync begun before a filing landed (#217)', () => {
+  /** A vault of three Inbox tasks whose index, until the page's own refresh lands, is what a sync read before the filing. */
+  function syncing(holdPath: VaultPath) {
+    const memory = memoryVault({
+      [PROJECT]: '---\ntype: project\n---\n',
+      [CALL]: TASK('a'),
+      [PAY]: TASK('b'),
+      [SEND]: TASK('c'),
+    });
+    const held = gate();
+    const refreshed = gate();
+    const ports: ArchivePorts = {
+      fs: fakeVaultFs({
+        ...memory.fs,
+        readNotes: async () => [],
+        writeTextFile: async (write) => {
+          if (write.path === holdPath) await held.opened;
+          return memory.fs.writeTextFile(write);
+        },
+      }),
+      markdown: fakeMarkdown(),
+      index: listing([CALL, PAY, SEND]),
+      editors: NO_EDITORS,
+    };
+    // As the app's: the refresh it asks for settles once the index holds what was written.
+    const first: InboxOptions = {
+      ...optionsFor(ports, [PROJECT, CALL, PAY, SEND]),
+      onSettled: () => refreshed.opened.then(() => true),
+    };
+    const hook = renderHook((given: InboxOptions) => useInbox(given), { initialProps: first });
+    const shown = () => hook.result.current.contents?.items.map((item) => item.path) ?? [];
+    const fileCall = () =>
+      hook.result.current.clarify({
+        path: CALL,
+        clarification: { status: 'next-action', project: PROJECT },
+      });
+    return { hook, first, shown, fileCall, memory, release: held.open, refreshed: refreshed.open };
+  }
+
+  it('keeps the filed row off what that sync found, once the queue has drained', async () => {
+    const { hook, first, shown, fileCall, memory, release, refreshed } = syncing(SEND);
+    await waitFor(() => expect(shown()).toEqual([CALL, PAY, SEND]));
+
+    // A watcher-triggered sync starts (the index says "working") and reads the Inbox as it is now.
+    hook.rerender({ ...first, indexKey: 'working' });
+    // Call is filed and its write lands while that sync runs; Send is filed behind it, still being written.
+    await act(async () => {
+      void fileCall();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(memory.files.has(CALL)).toBe(false);
+    act(() => {
+      void hook.result.current.clarify({ path: SEND, clarification: { status: 'someday' } });
+    });
+    // The sync finishes: it read the Inbox before Call moved, so it still lists Call.
+    hook.rerender({ ...first, indexKey: 'ready:2' });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(shown()).toEqual([PAY]);
+    release();
+    refreshed();
+  });
+
+  it('keeps the filed row off what that sync found while the row behind it is still being written', async () => {
+    const { hook, first, shown, fileCall, memory, release, refreshed } = syncing(SEND);
+    await waitFor(() => expect(shown()).toEqual([CALL, PAY, SEND]));
+
+    hook.rerender({ ...first, indexKey: 'working' });
+    // Send is asked for before Call's write lands, so the queue never drains between them.
+    let filed: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      filed = fileCall();
+      void hook.result.current.clarify({ path: SEND, clarification: { status: 'someday' } });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(memory.files.has(CALL)).toBe(false);
+
+    hook.rerender({ ...first, indexKey: 'ready:2' });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(shown()).toEqual([PAY]);
+
+    // Send lands and the page's own refresh is asked for: once it lands, what the index says is shown.
+    release();
+    refreshed();
+    await act(async () => {
+      expect(await filed).toBe(true);
+    });
+    hook.rerender({ ...first, indexKey: 'ready:3' });
+    await waitFor(() => expect(shown()).toEqual([CALL, PAY, SEND]));
   });
 });

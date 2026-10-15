@@ -35,7 +35,8 @@ export interface InboxRowsProps {
   onClarify: ClarifyInboxItem;
   /** While a note is being written, so it is not asked for twice. */
   busy: boolean;
-  refusal: InboxRefusal | null;
+  /** Why each refused row's last clarification was refused, shown on that row. */
+  refusals: readonly InboxRefusal[];
 }
 
 /**
@@ -51,7 +52,7 @@ export function InboxRows({
   onOpen,
   onClarify,
   busy,
-  refusal,
+  refusals,
 }: InboxRowsProps) {
   const triage = useInboxTriage({ items, onClarify });
   const { rowRef, onRowFocus, pick, commit, fileUnder, makeTask } = triage;
@@ -71,7 +72,7 @@ export function InboxRows({
           choices={choices}
           onOpen={onOpen}
           busy={busy}
-          refusal={refusal?.path === item.path ? refusal.reason : null}
+          refusal={refusals.find((each) => each.path === item.path)?.reason ?? null}
           actions={actions}
         />
       ))}

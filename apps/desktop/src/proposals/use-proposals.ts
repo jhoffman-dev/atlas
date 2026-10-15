@@ -352,7 +352,12 @@ export function useProposals({
       onDismissNotice,
     ],
   );
-  return { section, count: contents?.open.length ?? null };
+  return {
+    section,
+    count: contents?.open.length ?? null,
+    /** Settles once every answer given so far is written, or has failed. */
+    written: queue.drained,
+  };
 }
 
 /**

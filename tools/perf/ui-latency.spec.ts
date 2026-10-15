@@ -14,12 +14,18 @@ import { expect, test, type Page } from '@playwright/test';
 import { splitWindow, type FakeVault } from '../../e2e/host.ts';
 import { FIXTURE_SHAPE, noteCount } from './fixture-vault.ts';
 import { measure, percentile, waitForQuiet, type Measured } from './probe.ts';
-import { expandFolder, openFixtureVault, openFromSidebar } from './session.ts';
+import { expandFolder, openFixtureVault, openFromSidebar, scrollFolderOn } from './session.ts';
 
 /** How many Inbox items are filed in a row, as #217's acceptance asks. */
 const FILINGS = Number(process.env.PERF_FILINGS ?? 50);
 /** How many times each other action is repeated. */
 const REPEATS = 10;
+/**
+ * How many notes are opened. Opening a note is held to a budget at p95, and
+ * with fewer than twenty samples the p95 is the slowest one: one hitch on a
+ * CI runner would fail the run.
+ */
+const OPENINGS = 30;
 
 /**
  * The p95 each guarded action is held to, input to ready, in milliseconds.
@@ -33,11 +39,14 @@ const BUDGETS = {
   openNote: 750,
 } as const;
 
-function expectWithinBudget(action: string, budget: number): void {
-  const p95 = percentile(
-    (results.get(action) ?? []).map((run) => run.inputToReady),
-    95,
+/** Fails unless `action` was timed at least `samples` times — never fewer than once — with its p95 under `budget`. */
+function expectWithinBudget(action: string, budget: number, samples: number): void {
+  const times = (results.get(action) ?? []).map((run) => run.inputToReady);
+  // With nothing timed the p95 would read 0 and pass: an action that never ran is not within budget.
+  expect(times.length, `${action}: timed ${times.length} times`).toBeGreaterThanOrEqual(
+    Math.max(1, samples),
   );
+  const p95 = percentile(times, 95);
   expect(p95, `${action}: p95 ${Math.round(p95)} ms, budget ${budget} ms`).toBeLessThan(budget);
 }
 
@@ -124,7 +133,7 @@ test(`file ${FILINGS} Inbox items in a row`, async () => {
     );
     await page.waitForTimeout(THINK_MS);
   }
-  expectWithinBudget('File an Inbox item (next item interactive)', BUDGETS.filing);
+  expectWithinBudget('File an Inbox item (next item interactive)', BUDGETS.filing, FILINGS);
 
   // Every filing is written in the end: none is lost behind the page.
   await expect
@@ -149,10 +158,19 @@ async function notesFiledUnderAProject(): Promise<number> {
 
 test('open a note', async () => {
   await waitForQuiet(page);
-  for (const title of (await expandFolder(page, 'Notes')).slice(0, REPEATS)) {
-    record('Open a note', await openFromSidebar(page, title));
+  // The tree draws a screenful at a time: each is opened, then the folder scrolled on to the next.
+  const opened = new Set<string>();
+  let shown = await expandFolder(page, 'Notes');
+  while (opened.size < OPENINGS) {
+    const next = shown.filter((title) => !opened.has(title)).slice(0, OPENINGS - opened.size);
+    if (next.length === 0) break;
+    for (const title of next) {
+      opened.add(title);
+      record('Open a note', await openFromSidebar(page, title));
+    }
+    shown = await scrollFolderOn(page);
   }
-  expectWithinBudget('Open a note', BUDGETS.openNote);
+  expectWithinBudget('Open a note', BUDGETS.openNote, OPENINGS);
 });
 
 test('switch panes', async () => {

@@ -42,13 +42,40 @@ export function openFromSidebar(page: Page, title: string): Promise<Measured> {
   });
 }
 
+/** The notes of the expanded top-level folder that the tree draws now. */
+const folderNotes = (page: Page) =>
+  sidebarSection(page, 'userSpace').locator(
+    '[role="treeitem"][aria-level="2"]:not([aria-expanded])',
+  );
+
+const namesOf = (page: Page) =>
+  folderNotes(page).evaluateAll((rows) => rows.map((row) => row.getAttribute('aria-label') ?? ''));
+
+/** Scrolls the sidebar back to its top, where the top-level folders are drawn, wherever a test left it. */
+async function scrollTreeToTop(page: Page): Promise<void> {
+  await sidebarSection(page, 'userSpace').evaluate((section) => {
+    const around: Element[] = [...section.querySelectorAll('*')];
+    for (let at: Element | null = section; at !== null; at = at.parentElement) around.push(at);
+    for (const each of around) if (each.scrollTop > 0) each.scrollTop = 0;
+  });
+}
+
 /** Expands one top-level folder, alone, and names the notes it shows: the tree draws only a screenful. */
 export async function expandFolder(page: Page, name: string): Promise<string[]> {
   const tree = sidebarSection(page, 'userSpace');
+  await scrollTreeToTop(page);
+  // Drawn again from the top once the tree has heard of the scroll.
+  await expect(tree.locator('[role="treeitem"][aria-level="1"]').first()).toBeVisible();
   const expanded = tree.locator('[role="treeitem"][aria-level="1"][aria-expanded="true"]');
   while ((await expanded.count()) > 0) await expanded.first().click();
   await tree.getByRole('treeitem', { name, exact: true }).click();
-  const notes = tree.locator('[role="treeitem"][aria-level="2"]:not([aria-expanded])');
-  await expect(notes.first()).toBeVisible();
-  return notes.evaluateAll((rows) => rows.map((row) => row.getAttribute('aria-label') ?? ''));
+  await expect(folderNotes(page).first()).toBeVisible();
+  return namesOf(page);
+}
+
+/** Scrolls the expanded folder on past the last note it draws, and names the notes it shows then. */
+export async function scrollFolderOn(page: Page): Promise<string[]> {
+  await folderNotes(page).last().scrollIntoViewIfNeeded();
+  await waitForQuiet(page);
+  return namesOf(page);
 }
