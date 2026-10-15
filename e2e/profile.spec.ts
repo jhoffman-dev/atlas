@@ -168,7 +168,8 @@ test('addresses Settings → Granola kept are in use, and editing them keeps the
   await expect(field).toHaveValue('mara.quill@example.com');
   await expect(card.getByText(/In use from granola_self_emails/)).toBeVisible();
 
-  await field.fill('mara.quill@example.com');
+  // An edit moves them; the same address typed differently is still an edit.
+  await field.fill('Mara.Quill@example.com');
   await field.blur();
 
   // Moved in one save: selfEmails holds them, and the Granola key is gone.
