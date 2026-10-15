@@ -54,8 +54,11 @@ use crate::vault::VaultState;
 /// A mismatch throws the cache away rather than trying to migrate something
 /// that can simply be rebuilt. 16: a note's path is searched as well (#211) —
 /// a meeting's day is in its file name, not its title or body, so searching
-/// for the day found none of that day's meetings.
-const SCHEMA_VERSION: i64 = 16;
+/// for the day found none of that day's meetings. 17: only the file name stem
+/// is searched, not the folders or `.md` — a folder named for a project put
+/// every note in it ahead of the notes that mention the project, and "md"
+/// matched every note.
+const SCHEMA_VERSION: i64 = 17;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -662,7 +665,7 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
     transaction
         .execute(
             "INSERT INTO fts (rowid, path, title, body) VALUES (?1, ?2, ?3, ?4)",
-            params![row, note.path, note.title, note.body],
+            params![row, searchable_file_stem(&note.path), note.title, note.body],
         )
         .map_err(stringly)?;
 
@@ -740,6 +743,16 @@ fn write_note(transaction: &rusqlite::Transaction<'_>, note: &IndexedNote) -> Re
 }
 
 /// The rowid of a note's row in `files`, which is its search row's too; none for a note not held.
+/// The part of a path worth searching: the file name without its extension.
+/// A meeting's day lives there (#211); the folders name a place, not the
+/// note, and the extension is on every note.
+fn searchable_file_stem(path: &str) -> &str {
+    Path::new(path)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(path)
+}
+
 fn search_row(connection: &Connection, path: &str) -> Result<Option<i64>, String> {
     use rusqlite::OptionalExtension;
     connection
@@ -3512,5 +3525,54 @@ ORDER BY 1, 3"#;
 
             assert_eq!(found, Ok(500));
         }
+    }
+
+    /// Unlinked mentions asks for the top 25 hits on a note's name and keeps
+    /// those whose body names it. A folder of 30 notes named for the project
+    /// must not fill all 25 slots on the folder name alone.
+    #[test]
+    fn a_body_mention_is_not_crowded_out_of_the_first_25_hits_by_a_folder_name() {
+        let mut index = empty_index();
+        let mut notes: Vec<IndexedNote> = (0..30)
+            .map(|i| {
+                note(
+                    &format!("Projects/Larkspur/Notes {i:02}.md"),
+                    &format!("Notes {i:02}"),
+                    "rollout plan and open questions",
+                )
+            })
+            .collect();
+        notes.push(note(
+            "Daily/2026-10-01.md",
+            "2026-10-01",
+            "Met with Larkspur about the rollout.",
+        ));
+        put_notes(&mut index, &notes).unwrap();
+
+        let hits = search(&index, "\"Larkspur\"*", 25, None).unwrap();
+        let paths: Vec<&str> = hits.iter().map(|hit| hit.path.as_str()).collect();
+        assert!(
+            paths.contains(&"Daily/2026-10-01.md"),
+            "the only note mentioning Larkspur in its body is missing from the top 25: {paths:?}"
+        );
+    }
+
+    /// Every note's path ends `.md`; the extension is not something anyone
+    /// searches for, and as a prefix term "m" would match the whole vault.
+    #[test]
+    fn searching_md_does_not_match_every_note_by_its_extension() {
+        let mut index = empty_index();
+        put_notes(
+            &mut index,
+            &[
+                note("Projects/Q3.md", "Q3", "budget review"),
+                note("People/Tobias Fenn.md", "Tobias Fenn", "engineer"),
+                note("Daily/2026-10-14.md", "2026-10-14", "standup at ten"),
+            ],
+        )
+        .unwrap();
+        let hits = search(&index, "\"md\"*", 10, None).unwrap();
+        let paths: Vec<&str> = hits.iter().map(|hit| hit.path.as_str()).collect();
+        assert!(paths.is_empty(), "no note says md, yet: {paths:?}");
     }
 }
