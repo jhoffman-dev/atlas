@@ -98,7 +98,7 @@ describe('WidgetEditor', () => {
       within(filters).getByRole('combobox', { name: 'Property' }),
       'status',
     );
-    await userEvent.type(within(filters).getByRole('textbox', { name: 'Value' }), 'done');
+    await userEvent.type(within(filters).getByRole('combobox', { name: 'Value' }), 'done');
     await userEvent.click(within(filters).getByRole('button', { name: 'Add filter' }));
 
     expect(given.onChange).toHaveBeenLastCalledWith({

@@ -6,11 +6,13 @@ import {
   filterOperatorWords,
   filterValueFrom,
   operatorTakesValue,
+  type FilterChoice,
   type FilterOperator,
   type PropertyKind,
   type QueryFilter,
   type QuerySort,
 } from '@atlas/domain';
+import { FilterValueBox } from './filter-value-box.tsx';
 import { Icon, type IconName } from './icon.tsx';
 import type { OverlaySlot } from './overlay-slot.ts';
 
@@ -20,10 +22,17 @@ export interface ViewField {
   readonly label: string;
   /** The declared kind, which decides whether a typed filter value is a number. */
   readonly kind?: PropertyKind;
+  /** The values a filter on it offers (`filterChoices`): a status's options, a relation's notes. */
+  readonly choices?: readonly FilterChoice[];
 }
+
+const NO_CHOICES: readonly FilterChoice[] = [];
 
 const labelOf = (fields: readonly ViewField[], key: string) =>
   fields.find((field) => field.key === key)?.label ?? key;
+
+const choicesOf = (fields: readonly ViewField[], key: string) =>
+  fields.find((field) => field.key === key)?.choices ?? NO_CHOICES;
 
 /**
  * A toolbar button that opens a small panel under it. Focus and dismissal are
@@ -111,7 +120,11 @@ export function FilterList({
       ) : (
         <ul className="view-popover__list">
           {filters.map((filter, at) => {
-            const sentence = describeFilter({ filter, label: labelOf(fields, filter.key) });
+            const sentence = describeFilter({
+              filter,
+              label: labelOf(fields, filter.key),
+              choices: choicesOf(fields, filter.key),
+            });
             return (
               <li key={`${filter.key}-${at}`} className="view-popover__row">
                 <span className="view-popover__text">{sentence}</span>
@@ -139,9 +152,20 @@ function AddFilter({
   const [key, setKey] = useState(fields[0]?.key ?? '');
   const [operator, setOperator] = useState<FilterOperator>('is');
   const [typed, setTyped] = useState('');
+  // The choice last picked, while the box still reads as it: two notes can share a title.
+  const [picked, setPicked] = useState<FilterChoice | null>(null);
+  const field = fields.find((candidate) => candidate.key === key);
+  const choices = field?.choices ?? NO_CHOICES;
   const takesValue = operatorTakesValue(operator);
-  const value = filterValueFrom(typed, fields.find((field) => field.key === key)?.kind);
+  const value =
+    picked !== null && picked.label === typed
+      ? picked.value
+      : filterValueFrom(typed, field?.kind, choices);
   const ready = key !== '' && (!takesValue || value !== null);
+  const retype = (next: string) => {
+    setTyped(next);
+    setPicked(null);
+  };
 
   return (
     <form
@@ -150,10 +174,18 @@ function AddFilter({
         event.preventDefault();
         if (!ready) return;
         onAdd(takesValue ? { key, operator, value } : { key, operator });
-        setTyped('');
+        retype('');
       }}
     >
-      <select aria-label="Property" value={key} onChange={(event) => setKey(event.target.value)}>
+      <select
+        aria-label="Property"
+        value={key}
+        onChange={(event) => {
+          setKey(event.target.value);
+          // A value of one property means nothing for another.
+          retype('');
+        }}
+      >
         {fields.map((field) => (
           <option key={field.key} value={field.key}>
             {field.label}
@@ -172,11 +204,15 @@ function AddFilter({
         ))}
       </select>
       {takesValue && (
-        <input
-          aria-label="Value"
-          placeholder="Value"
-          value={typed}
-          onChange={(event) => setTyped(event.target.value)}
+        <FilterValueBox
+          kind={field?.kind}
+          choices={choices}
+          typed={typed}
+          onType={retype}
+          onPick={(choice) => {
+            setTyped(choice.label);
+            setPicked(choice);
+          }}
         />
       )}
       <button type="submit" className="view-popover__submit" disabled={!ready}>

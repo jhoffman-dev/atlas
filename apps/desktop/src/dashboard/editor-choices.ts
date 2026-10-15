@@ -1,4 +1,10 @@
-import type { ObjectType, SavedViewSummary, WidgetDraft } from '@atlas/domain';
+import {
+  filterChoices,
+  NO_CHOICE_SOURCES,
+  type ObjectType,
+  type SavedViewSummary,
+  type WidgetDraft,
+} from '@atlas/domain';
 import type { EditorChoice, ViewField } from '@atlas/ui';
 
 /**
@@ -33,7 +39,13 @@ export function editorChoices({
       { key: 'title', label: 'Name' },
       ...properties
         .filter((def) => def.key !== 'title')
-        .map((def) => ({ key: def.key, label: def.label, kind: def.kind })),
+        .map((def) => ({
+          key: def.key,
+          label: def.label,
+          kind: def.kind,
+          // What the type itself declares; a widget's sheet reads no notes or tags.
+          choices: filterChoices(def, NO_CHOICE_SOURCES),
+        })),
     ],
     groupings: [
       ...properties.map((def) => ({ value: def.key, label: def.label })),

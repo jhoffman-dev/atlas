@@ -520,6 +520,15 @@ pnpm tauri:dev</pre>
         <li>While it differs from what's saved, the toolbar shows <b>Reset</b> · <b>Save as new view…</b> · <b>Save view</b>. Editing cells, dragging cards and ticking tasks save straight away.</li>
         <li><b>Include archived</b> lists archived notes too, for now. It isn't saved with the view and turns off when you go to another view.</li>
       </ul>
+      <h3>Filter</h3>
+      <ul>
+        <li><b>Filter</b> → pick a property and a condition (<i>is</i>, <i>is not</i>, <i>contains</i>, …), then a value. The view redraws at once; <b>Save view</b> keeps it.</li>
+        <li>The value box offers what the property can hold: a status's or select's options (a task's eight GTD statuses), the vault's tags for <code>tags</code>, <i>true</i> and <i>false</i> for a checkbox, <i>Today</i>, <i>Tomorrow</i> and the like for a date, plus a date picker. For a relation, start typing and it lists the notes it can point at.</li>
+        <li>From the keyboard: <kbd>↓</kbd> <kbd>↑</kbd> to move through the list, <kbd>Enter</kbd> to pick, <kbd>Enter</kbd> again to add the filter. <kbd>Esc</kbd> closes the list.</li>
+        <li>Type the value as the table shows it: <i>Next Action</i>, <i>next action</i> and <i>next-action</i> are the same status. Anything else is kept as typed, except on a checkbox, which takes only <i>true</i> or <i>false</i>.</li>
+        <li>To leave out several values, add one <i>is not</i> for each: <i>Status is not Archive</i> and <i>Status is not Someday</i>.</li>
+        <li>On a property that holds several values — tags, a multi-select, a relation to several notes — <i>is</i> compares the whole list, so it matches only a note with just that one value. Use <i>contains</i> there.</li>
+      </ul>
       <h3>Group and sub-group</h3>
       <ul>
         <li><b>Group</b> in the toolbar has <b>Group by</b>, then <b>Then by</b> to split each group again. It works on tables and boards: on a table they're groups and sub-groups, on a board they're columns and lanes.</li>

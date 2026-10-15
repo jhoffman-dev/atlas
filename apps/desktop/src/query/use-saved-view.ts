@@ -49,6 +49,7 @@ import { errorMessage } from './error-message.ts';
 import type { TickMemory } from './tick-memory.ts';
 import { useCardCreation } from './use-card-creation.ts';
 import { useDoneTicks } from './use-done-ticks.ts';
+import { useFilterChoices, type FilterChoicesByKey } from './use-filter-choices.ts';
 import { useNotePreviews, type NotePreviews } from './use-note-previews.ts';
 import { useChangeProperties, useRowWrites } from './use-view-writes.ts';
 import { useViewEdits } from './use-view-edits.ts';
@@ -116,6 +117,8 @@ export function useSavedView({
   groups: readonly RowGroup[];
   /** What the Group control offers, each with why it cannot be chosen when it cannot. */
   groupChoices: readonly GroupChoice[];
+  /** What the Filter control's value box offers for each property. */
+  filterChoices: FilterChoicesByKey;
   error: string | null;
   editCell: (args: { path: string; column: string; value: string }) => void;
   toggleSort: (column: string) => void;
@@ -188,6 +191,8 @@ export function useSavedView({
     indexKey,
   });
   const choices = useMemo(() => groupChoices(type), [type]);
+  const names = useNoteNames();
+  const filterChoices = useFilterChoices({ type, index, indexKey, names });
 
   const changeProperties = useChangeProperties({
     editors,
@@ -243,6 +248,7 @@ export function useSavedView({
     lanes,
     groups,
     groupChoices: choices,
+    filterChoices,
     error,
     ...viewEdits,
     ...rowWrites,

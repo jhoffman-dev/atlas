@@ -50,6 +50,15 @@ export {
   filterValueFrom,
   operatorTakesValue,
 } from './filter-words.ts';
+export {
+  choiceNamed,
+  filterChoices,
+  matchingChoices,
+  NO_CHOICE_SOURCES,
+  relatedChoices,
+  TAGS_PROPERTY,
+} from './filter-choices.ts';
+export type { FilterChoice, FilterChoiceSources } from './filter-choices.ts';
 export { groupRows, toBoardRows, UNGROUPED_LABEL } from './group-rows.ts';
 export type { GroupingKind } from './group-rows.ts';
 export type { BoardColumn, BoardRow } from './group-rows.ts';

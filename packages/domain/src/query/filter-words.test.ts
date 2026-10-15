@@ -29,6 +29,33 @@ describe('filterValueFrom', () => {
   });
 });
 
+describe('filterValueFrom with the property’s choices (#212)', () => {
+  const statuses = [
+    { value: 'next-action', label: 'Next Action' },
+    { value: 'archive', label: 'Archive' },
+  ];
+
+  it('stores the option a label names, so it matches what the file holds', () => {
+    expect(filterValueFrom('Next Action', 'select', statuses)).toBe('next-action');
+    expect(filterValueFrom(' next action ', 'select', statuses)).toBe('next-action');
+    expect(filterValueFrom('ARCHIVE', 'select', statuses)).toBe('archive');
+  });
+
+  it('keeps text that names no choice as typed, where any text is a value', () => {
+    expect(filterValueFrom('Someday', 'select', statuses)).toBe('Someday');
+    expect(filterValueFrom('@weekAgo', 'date', [])).toBe('@weekAgo');
+  });
+
+  it('takes only true or false for a checkbox', () => {
+    const states = [
+      { value: 'true', label: 'true' },
+      { value: 'false', label: 'false' },
+    ];
+    expect(filterValueFrom('True', 'checkbox', states)).toBe('true');
+    expect(filterValueFrom('maybe', 'checkbox', states)).toBeNull();
+  });
+});
+
 describe('filterOperatorWords', () => {
   it('has words for every operator a view can store', () => {
     for (const operator of FILTER_OPERATORS) {
@@ -62,6 +89,24 @@ describe('describeFilter', () => {
         label: 'Phase',
       }),
     ).toBe('Phase is more than 14');
+  });
+
+  it('reads a stored value as the choice it is, and anything else as written', () => {
+    const choices = [{ value: 'next-action', label: 'Next Action' }];
+    expect(
+      describeFilter({
+        filter: { key: 'status', operator: 'isNot', value: 'next-action' },
+        label: 'Status',
+        choices,
+      }),
+    ).toBe('Status is not Next Action');
+    expect(
+      describeFilter({
+        filter: { key: 'status', operator: 'is', value: 'someday' },
+        label: 'Status',
+        choices,
+      }),
+    ).toBe('Status is someday');
   });
 
   it('leaves the value out where the operator ignores it', () => {

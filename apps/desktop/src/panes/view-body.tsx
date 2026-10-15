@@ -60,11 +60,20 @@ function fieldsOf(view: SavedView): ViewField[] {
     const kind = view.type?.properties.find((def) => def.key === key)?.kind;
     return kind === undefined ? {} : { kind };
   };
+  const choicesOf = (key: string) => {
+    const choices = view.filterChoices[key];
+    return choices === undefined ? {} : { choices };
+  };
   return [
     { key: 'title', label: 'Name' },
     ...declared
       .filter((key) => key !== 'title')
-      .map((key) => ({ key, label: labels[key] ?? humanizeKey(key), ...kindOf(key) })),
+      .map((key) => ({
+        key,
+        label: labels[key] ?? humanizeKey(key),
+        ...kindOf(key),
+        ...choicesOf(key),
+      })),
   ];
 }
 
