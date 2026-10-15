@@ -32,17 +32,22 @@ The harness runs the real built frontend against the e2e stand-in host
 
 ## Baseline and after (ms)
 
-Baseline is `origin/main` at `8a6a5cf`; after is `feat/217-performance`. Same harness, same machine.
+Baseline is `origin/main` at `8a6a5cf`, before #214; after is `feat/217-performance` merged with `origin/main` after #214, #219 and #222 (`pnpm perf` three times, the median of each column). Same harness, same machine.
 
 | Action                                     | Baseline p50 / p95 / max | After p50 / p95 / max | Longest frame | IPC before ready |
 | ------------------------------------------ | ------------------------ | --------------------- | ------------- | ---------------- |
-| File an Inbox item (next item interactive) | 3,184 / 3,989 / 4,257    | **6 / 36 / 51**       | 1,011 → 38    | 211 → 3          |
-| Open a note                                | 37 / 55 / 55             | 38 / 54 / 54          | 19 → 22       | 3 → 3            |
-| Switch panes                               | 12 / 19 / 19             | 8 / 25 / 25           | 25 → 20       | 2 → 2            |
-| Edit a property (per key)                  | 9 / 13 / 13              | 7 / 20 / 20           | 101 → 27      | 1 → 1            |
-| Change a task status                       | 89 / 93 / 93             | **13 / 46 / 46**      | 59 → 37       | 1 → 2            |
-| Type in the editor (per key)               | 239 / 309 / 975          | **7 / 18 / 18**       | 350 → 19      | 0 → 0            |
-| Open the Inbox (first row interactive)     | 135 / 171 / 171          | 125 / 164 / 164       | 27 → 110      | 8 → 8            |
+| File an Inbox item (next item interactive) | 3,184 / 3,989 / 4,257    | **9 / 21 / 57**       | 1,011 → 32    | 211 → 1.2        |
+| Open a note                                | 37 / 55 / 55             | 37 / 54 / 111         | 19 → 45       | 3 → 3            |
+| Switch panes                               | 12 / 19 / 19             | 9 / 19 / 19           | 25 → 20       | 2 → 2            |
+| Edit a property (per key)                  | 9 / 13 / 13              | 10 / 21 / 21          | 101 → 20      | 1 → 1            |
+| Change a task status                       | 89 / 93 / 93             | **17 / 30 / 30**      | 59 → 26       | 1 → 1.9          |
+| Type in the editor (per key)               | 239 / 309 / 975          | **8 / 18 / 19**       | 350 → 39      | 0 → 0            |
+| Open the Inbox (first row interactive)     | 135 / 171 / 171          | 156 / 201 / 201       | 27 → 146      | 8 → 8.4          |
+
+Filing's three runs: p50 9, 9, 9; p95 17, 22, 21. Filing a note out of the
+`Inbox` folder still moves it to its type's home folder (#214), so the
+fixture's filings keep the move; a note filed where it lives, a meeting in its
+month's folder, only has its link written and moves nothing.
 
 All 50 filings land on disk after the run (checked by the spec), in about 15 s
 behind the page on the stand-in host.
@@ -60,5 +65,5 @@ behind the page on the stand-in host.
 ## Not fixed here
 
 - **Opening the Inbox** stays ~130 ms: 500 rows × 60 options is 30,000 DOM nodes, and the sidebar's scroll-margin layout effect forces their layout. Virtualising the rows fixes it but changes #167's "every row can be reached" behaviour (its e2e counts 500 rendered rows) — a decision, filed as a follow-up.
-- **The move's link update** still reads every note per filing (in the background now). #214 makes filing set a link instead of moving, which removes it.
+- **The move's link update** still reads every note when a filed note leaves the `Inbox` folder (in the background now). #214 removed the move for a note filed where it lives, but a note in `Inbox` still goes to its home folder.
 - Heavy pure work off the main thread: the profiles show none left on these paths; parsing for the index already runs in a worker (#135).
