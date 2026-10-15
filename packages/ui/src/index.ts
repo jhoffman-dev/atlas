@@ -179,6 +179,13 @@ export type {
   TaskMigrationProps,
   TaskMigrationRow,
 } from './task-migration.tsx';
+export { VaultTidy } from './vault-tidy.tsx';
+export type {
+  VaultTidyMove,
+  VaultTidyPreviewData,
+  VaultTidyProps,
+  VaultTidyRefusal,
+} from './vault-tidy.tsx';
 export { SelectAllBox, SelectBox, SelectionBar } from './row-selection.tsx';
 export type { BulkAction, RowSelection } from './row-selection.tsx';
 export * from './query-language/index.ts';

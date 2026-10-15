@@ -68,6 +68,10 @@ const board = (title: string, groupBy: string) =>
     '',
   ].join('\n');
 
+/** A task added from a board goes to the task type's home for today (#214). */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const TASKS = `Tasks/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}`;
+
 const task = (title: string, lines: string[]) =>
   ['---', 'type: task', ...lines, '---', '', `# ${title}`, ''].join('\n');
 
@@ -221,7 +225,7 @@ test('a board grouped by project has a column per project', async ({ page }) => 
   await taxes.getByRole('button', { name: 'Add to Taxes' }).click();
   await page.keyboard.type('File returns');
   await page.keyboard.press('Enter');
-  await expectFile(vault, 'File returns.md').toContain('project: "[[Taxes]]"');
+  await expectFile(vault, `${TASKS}/File returns.md`).toContain('project: "[[Taxes]]"');
 });
 
 test('switching type while notes are being migrated edits the type now open (R17-01)', async ({

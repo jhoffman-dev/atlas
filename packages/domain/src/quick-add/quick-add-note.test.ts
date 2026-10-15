@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { PropertyDef } from '../types/property-def.ts';
-import { createVaultPath, VAULT_ROOT } from '../vault/vault-path.ts';
+import { createVaultPath } from '../vault/vault-path.ts';
 import {
   quickAddFields,
-  quickAddFolder,
+  quickAddBeside,
   quickAddProperties,
   quickAddStartValues,
 } from './quick-add-note.ts';
@@ -131,20 +131,15 @@ describe('quickAddProperties', () => {
   });
 });
 
-describe('quickAddFolder', () => {
+describe('quickAddBeside', () => {
   const acme = createVaultPath('Clients/Acme.md');
 
-  it('puts a task where capture does: beside the note in view', () => {
-    expect(quickAddFolder({ type: { name: 'task' }, beside: acme })).toBe('Clients');
-    expect(quickAddFolder({ type: { name: 'task' }, beside: null })).toBe(VAULT_ROOT);
+  it('puts a task with no home folder beside the note in view, as capture once did', () => {
+    expect(quickAddBeside({ type: { name: 'task' }, beside: acme })).toBe(acme);
+    expect(quickAddBeside({ type: { name: 'task' }, beside: null })).toBeNull();
   });
 
-  it('puts a task at the root rather than among the notes Atlas keeps', () => {
-    const board = createVaultPath('.atlas/views/Board.md');
-    expect(quickAddFolder({ type: { name: 'task' }, beside: board })).toBe(VAULT_ROOT);
-  });
-
-  it('puts any other type at the root, whatever is in view', () => {
-    expect(quickAddFolder({ type: { name: 'project' }, beside: acme })).toBe(VAULT_ROOT);
+  it('puts any other type beside nothing, whatever is in view', () => {
+    expect(quickAddBeside({ type: { name: 'project' }, beside: acme })).toBeNull();
   });
 });

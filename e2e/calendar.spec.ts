@@ -29,6 +29,9 @@ const NOW = new Date(2026, 8, 22, 12);
 // Read in UTC, this expectation was a day ahead for every evening west of London.
 const today = NOW.toLocaleDateString('en-CA');
 
+/** Where today's note lives: the daily type's home for its year (#214). */
+const DAILY = `Daily/${today.slice(0, 4)}`;
+
 /**
  * A day of the month the calendar opens on. The drag tests start from the
  * 15th, so a day or a week either way stays inside the six weeks shown
@@ -169,7 +172,7 @@ test('today has a note, made on demand from the vault template', async ({ page }
   await page.getByRole('button', { name: 'New note' }).click();
   await page.getByRole('menuitem', { name: "Today's note" }).click();
 
-  await expectFile(vault, `${today}.md`).toContain('## What happened');
+  await expectFile(vault, `${DAILY}/${today}.md`).toContain('## What happened');
   await expect(page.getByRole('article', { name: today })).toBeVisible();
 });
 
@@ -182,5 +185,7 @@ test('asking twice opens the same daily note rather than making another', async 
     await expect(page.getByRole('article', { name: today })).toBeVisible();
   }
 
+  await expectFile(vault, `${DAILY}/${today}.md`).toContain('## What happened');
+  expect(await vault.read(`${DAILY}/${today} 2.md`)).toBe('');
   expect(await vault.read(`${today} 2.md`)).toBe('');
 });

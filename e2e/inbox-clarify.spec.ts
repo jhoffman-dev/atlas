@@ -51,6 +51,14 @@ const CALL = [
   '',
 ].join('\n');
 
+/**
+ * Where an Inbox task filed under a project lands: its type's home for today,
+ * linked to the project, never the project's folder (#214).
+ */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const [YEAR, MONTH] = [TODAY.slice(0, 4), TODAY.slice(5, 7)];
+const FILED_CALL = `Tasks/${YEAR}/${MONTH}/Call the bank.md`;
+
 async function gtdVault(): Promise<FakeVault> {
   const vault = await createVault();
   for (const folder of ['.atlas/types', 'Projects', 'People', 'Tasks', 'Inbox/Meetings']) {
@@ -145,8 +153,8 @@ test('a task is clarified to Next Action with a project: one Done sets the statu
   await row(page, 'Call the bank').getByRole('button', { name: 'Done' }).press('Enter');
 
   // The link is stamped once the note has landed: waited for, not read once.
-  await expectFile(vault, 'Projects/Atlas/Call the bank.md').toContain('[[Atlas]]');
-  const filed = await vault.read('Projects/Atlas/Call the bank.md');
+  await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
+  const filed = await vault.read(FILED_CALL);
   expect(filed).toContain('status: next-action');
   expect(filed).toMatch(/^project: "?\[\[Atlas\]\]"?$/m);
   // Every other byte is as it was written: the comment, the spacing, the checklist.
@@ -154,6 +162,7 @@ test('a task is clarified to Next Action with a project: one Done sets the statu
     CALL.replace('status: inbox', 'status: next-action'),
   );
   expect(await vault.exists('Inbox/Call the bank.md')).toBe(false);
+  expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toHaveCount(0);
   await expect(row(page, 'Chase the quote')).toBeVisible();
   await expect(sidebarInbox(page)).toContainText('4');
@@ -260,14 +269,16 @@ test('Undo takes the last clarification back: the file returns, saying what it s
     .getByRole('combobox', { name: 'File Call the bank under' })
     .selectOption({ label: 'Atlas' });
   await row(page, 'Call the bank').getByRole('button', { name: 'Done' }).press('Enter');
-  await expectFile(vault, 'Projects/Atlas/Call the bank.md').toContain('[[Atlas]]');
-  expect(await vault.read('Projects/Atlas/Call the bank.md')).toContain('status: waiting');
+  await expectFile(vault, FILED_CALL).toContain('[[Atlas]]');
+  expect(await vault.read(FILED_CALL)).toContain('status: waiting');
+  expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toHaveCount(0);
 
   const said = inbox.getByRole('status').filter({ hasText: 'Clarified “Call the bank”.' });
   await said.getByRole('button', { name: 'Undo' }).click();
 
   await expectFile(vault, 'Inbox/Call the bank.md').toBe(CALL);
+  expect(await vault.exists(FILED_CALL)).toBe(false);
   expect(await vault.exists('Projects/Atlas/Call the bank.md')).toBe(false);
   await expect(row(page, 'Call the bank')).toBeVisible();
   await expect(inbox.getByRole('button', { name: 'Undo' })).toHaveCount(0);

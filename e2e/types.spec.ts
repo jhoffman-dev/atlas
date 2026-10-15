@@ -129,7 +129,8 @@ test('a new note from a template arrives with its type and properties', async ({
   const panel = page.getByRole('region', { name: 'Properties' });
   await expect(panel.getByLabel('ceo')).toBeVisible();
 
-  expect(await vault.read('New Company.md')).toContain('type: company');
+  // Made in the company type's home folder (#214).
+  expect(await vault.read('Companies/New Company.md')).toContain('type: company');
 });
 
 test('a note with no type shows no properties panel', async ({ page }) => {
@@ -173,7 +174,7 @@ test('a new note of a type is listed by the name typed at the top of its page', 
   await name.fill('Globex');
   await name.press('Enter');
   await expect(page.getByRole('article', { name: 'Globex', exact: true })).toBeVisible();
-  await expectFile(vault, 'Globex.md').toContain('type: company');
+  await expectFile(vault, 'Companies/Globex.md').toContain('type: company');
 
   // The type's table names it as its page does, not by a heading it was made with.
   await companies.click();

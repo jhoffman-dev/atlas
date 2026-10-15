@@ -1,8 +1,8 @@
 /**
  * POST /v1/meetings (#93), through the real YAML reader: a meeting sent the
  * way n8n assembles it is mapped by the mapper n8n's Code nodes run, checked
- * against meeting/v1, and written once into Inbox/Meetings, where the
- * import (P28-04) settles it. All names are made up.
+ * against meeting/v1, and written once into its month's folder under
+ * Meetings/ (#214), where the import (P28-04) settles it. All names are made up.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -65,7 +65,7 @@ const SENT = {
   category: 'Sync',
 };
 
-const PATH = 'Inbox/Meetings/2026-10-06 Larkspur Payroll onboarding sync.md';
+const PATH = 'Meetings/2026/10/2026-10-06 Larkspur Payroll onboarding sync.md';
 const COLLISION_PATH = mapMeeting({ ...fieldsOf(SENT) }, { timeZone: 'UTC' }).collisionPath;
 
 /** The request's fields under the mapper's names, as n8n's "Meeting fields for Atlas" node gives them. */
@@ -126,7 +126,7 @@ const frontmatterOf = (text: string) =>
   remarkMarkdown.frontmatterProperties(splitFrontmatter(text).frontmatter);
 
 describe('POST /v1/meetings: a Gemini meeting from n8n', () => {
-  it('writes it into Inbox/Meetings as a file meeting/v1 accepts, making the folder', async () => {
+  it('writes it into its month’s folder under Meetings as a file meeting/v1 accepts, making the folders', async () => {
     const api = vault();
     const response = await send(api, SENT);
 
@@ -213,11 +213,11 @@ describe('POST /v1/meetings: a Gemini meeting from n8n', () => {
     expect(JSON.stringify(api.activity.reports)).not.toContain('go-live');
   });
 
-  it('writes into the Inbox as the vault spells it', async () => {
-    const api = vault({ 'inbox/meetings/Older.md': '# Older\n' });
+  it('writes into the month’s folder as the vault spells it', async () => {
+    const api = vault({ 'meetings/2026/10/Older.md': '# Older\n' });
     const response = await send(api, SENT);
     expect(bodyOf(response)).toEqual({
-      meeting: { path: `inbox/meetings/${PATH.split('/').at(-1)}`, outcome: 'written' },
+      meeting: { path: `meetings/2026/10/${PATH.split('/').at(-1)}`, outcome: 'written' },
     });
   });
 });

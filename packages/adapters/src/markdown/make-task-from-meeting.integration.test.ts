@@ -10,7 +10,7 @@ import { createVaultPath, type VaultPath } from '@atlas/domain';
 import { remarkMarkdown } from './markdown-port.ts';
 
 const MEETING = 'Projects/Ledger/2026-10-06 Standup.md';
-const TASK = 'Send Mara the payroll file.md';
+const TASK = 'Tasks/2026/10/Send Mara the payroll file.md';
 
 const MEETING_TYPE = [
   '---',

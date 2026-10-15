@@ -125,7 +125,8 @@ test('a new note of the type starts as the edited template', async ({ page }) =>
   await typeRow(page, 'Person').click();
   await page.getByRole('button', { name: 'New person' }).click();
 
-  await expectFile(vault, 'New Person.md').toBe(
+  // Made in the person type's home folder (#214).
+  await expectFile(vault, 'People/New Person.md').toBe(
     ['---', 'type: person', 'role:', '---', '', 'Met at: the park', ''].join('\n'),
   );
   // What opens is the new note, not the template.

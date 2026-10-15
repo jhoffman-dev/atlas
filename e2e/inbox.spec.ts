@@ -4,8 +4,8 @@ import { createVault, expectFile, installHost, type FakeVault } from './host.ts'
 /**
  * P30-01: PARA. Opening a vault writes the PARA types it lacks and leaves the
  * ones it has alone; capture lands in the Inbox; the Inbox files a note under
- * a project or an area — into that project's folder, linked — and offers
- * nothing else to file it under.
+ * a project or an area — linked, and moved to its type's home folder, never
+ * the project's (#214) — and offers nothing else to file it under.
  */
 
 const TASK_TYPE = [
@@ -35,6 +35,11 @@ const PROJECT_TYPE = [
 ].join('\n');
 
 const TASK_TEMPLATE = ['---', 'type: task', 'status: backlog', '---', '', '# ', '', ''].join('\n');
+
+// A filed Inbox task goes to the task type's home for today (#214).
+const TODAY = new Date().toLocaleDateString('en-CA');
+const [YEAR, MONTH] = [TODAY.slice(0, 4), TODAY.slice(5, 7)];
+const FILED_TASK = `Tasks/${YEAR}/${MONTH}/Renew the passport.md`;
 
 const note = (frontmatter: string[], body: string) =>
   ['---', ...frontmatter, '---', '', body, ''].join('\n');
@@ -119,16 +124,17 @@ test('a captured task waits in the Inbox, and Process files it under its project
     .getByRole('button', { name: 'Done' })
     .click();
 
-  await expectFile(vault, 'Projects/Atlas/Renew the passport.md').toContain('[[Atlas]]');
-  const filed = await vault.read('Projects/Atlas/Renew the passport.md');
+  await expectFile(vault, FILED_TASK).toContain('[[Atlas]]');
+  const filed = await vault.read(FILED_TASK);
   expect(filed).toMatch(/^project: "?\[\[Atlas\]\]"?$/m);
   expect(filed).toContain('type: task');
   expect(await vault.exists('Inbox/Renew the passport.md')).toBe(false);
+  expect(await vault.exists('Projects/Atlas/Renew the passport.md')).toBe(false);
   await expect(inbox.getByRole('button', { name: 'Renew the passport' })).toHaveCount(0);
   await expect(inbox.getByRole('button', { name: '2026-10-01 Seed swap' })).toBeVisible();
 });
 
-test('the Inbox files a meeting under an area, into the area’s folder', async ({ page }) => {
+test('the Inbox files a meeting under an area, linked, into its home folder', async ({ page }) => {
   const vault = await openParaVault(page);
   await goTo(page)
     .getByRole('button', { name: /^Inbox/ })
@@ -138,8 +144,12 @@ test('the Inbox files a meeting under an area, into the area’s folder', async 
     .getByRole('combobox', { name: 'File 2026-10-01 Seed swap under' })
     .selectOption({ label: 'Garden' });
 
-  await expectFile(vault, 'Areas/Garden/2026-10-01 Seed swap.md').toContain('[[Garden]]');
+  // Its home is the month its name starts with.
+  const filed = 'Meetings/2026/10/2026-10-01 Seed swap.md';
+  await expectFile(vault, filed).toContain('[[Garden]]');
+  expect(await vault.read(filed)).toMatch(/^project: "?\[\[Garden\]\]"?$/m);
   expect(await vault.exists('Inbox/Meetings/2026-10-01 Seed swap.md')).toBe(false);
+  expect(await vault.exists('Areas/Garden/2026-10-01 Seed swap.md')).toBe(false);
 });
 
 test('a task’s project, once its type is extended, offers projects and areas alike', async ({

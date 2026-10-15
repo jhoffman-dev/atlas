@@ -585,6 +585,12 @@ export interface ApiArchiveOutcome {
   readonly linksUpdated: number;
 }
 
+/** What processing the Inbox did: what moved out of the `Inbox` folder, and what was filed where it is. */
+export interface ApiProcessOutcome extends ApiArchiveOutcome {
+  /** Notes filed by their `project` link alone, where they live: a meeting in its month's folder (#214). */
+  readonly linked: readonly string[];
+}
+
 /** A note in the Archive, as the Archive lists it. */
 export interface ApiArchivedNote {
   readonly path: string;
@@ -1292,11 +1298,21 @@ export interface ApiToday {
 
 export type ApiSuccessBody =
   | ApiStatus
-  | { readonly notes: readonly ApiNoteSummary[]; readonly next: string | null }
+  | {
+      readonly notes: readonly ApiNoteSummary[];
+      readonly next: string | null;
+      /** How many notes match in all, over every page (#214). */
+      readonly total: number;
+    }
   | { readonly note: ApiNote }
   | { readonly note: ApiNote; readonly moved: boolean }
   | { readonly note: ApiNote; readonly task: ApiNote }
-  | { readonly backlinks: readonly ApiNoteSummary[] }
+  | {
+      readonly backlinks: readonly ApiNoteSummary[];
+      readonly next: string | null;
+      /** How many notes link to it in all, over every page (#214). */
+      readonly total: number;
+    }
   | { readonly hits: readonly ApiSearchHit[] }
   | { readonly types: readonly ApiType[] }
   | { readonly views: readonly ApiView[] }
@@ -1329,9 +1345,12 @@ export type ApiSuccessBody =
       readonly tag: ApiTag;
       readonly notes: readonly ApiTaggedNote[];
       readonly next: string | null;
+      /** How many notes use the tag in all, over every page (#214). */
+      readonly total: number;
     }
   | { readonly rename: ApiTagRenamePreview; readonly report?: ApiTagRenameReport }
   | ApiArchiveOutcome
+  | ApiProcessOutcome
   | ApiClarifyOutcome
   | {
       readonly notes: readonly ApiArchivedNote[];

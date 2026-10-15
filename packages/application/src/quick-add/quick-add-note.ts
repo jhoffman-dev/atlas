@@ -1,6 +1,6 @@
 import {
   NEW_NOTE_CONTENTS,
-  quickAddFolder,
+  quickAddBeside,
   quickAddProperties,
   splitFrontmatter,
   type ObjectType,
@@ -17,8 +17,9 @@ import type { VaultFsPort } from '../vault/ports.ts';
  * It starts from the type's template when the vault has one — so what a new
  * task holds is still decided in the vault — with the fields written into that
  * frontmatter through the byte-preserving write, and from an empty note of the
- * type otherwise. Where it goes is `quickAddFolder`'s to say, and a taken name
- * is numbered by `createNote`, as capture's is.
+ * type otherwise. It goes to its type's home folder (#214); a type with none
+ * goes where `quickAddBeside` says, and a taken name is numbered by
+ * `createNote`, as capture's is.
  */
 export async function quickAddNote({
   fs,
@@ -51,8 +52,7 @@ export async function quickAddNote({
     markdown,
     today,
     name,
-    beside,
-    folder: quickAddFolder({ type, beside }),
+    beside: quickAddBeside({ type, beside }),
     notePaths,
     contents,
     properties: markdown.frontmatterProperties(splitFrontmatter(contents).frontmatter),

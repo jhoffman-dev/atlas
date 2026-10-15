@@ -170,6 +170,7 @@ import { useToday } from './today/use-today.ts';
 import { useBuiltInTypes } from './types/use-built-in-types.ts';
 import { useBlockType } from './timeblocks/use-block-type.ts';
 import { useTaskMigration } from './gtd/use-task-migration.ts';
+import { useVaultTidy } from './vault/use-vault-tidy.ts';
 import { useAutomations } from './automations/use-automations.ts';
 import { useMeetingImport } from './meetings/use-meeting-import.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
@@ -1037,6 +1038,15 @@ export function App({
     activity: activityLog,
     onChanged: typesChanged,
   });
+  // Moving loose notes and old meetings to their home folders, once, previewed there too (#214).
+  const vaultTidy = useVaultTidy({
+    ports: archivePorts,
+    vaultKey,
+    indexReady: indexStatus.kind === 'ready',
+    open: inboxOpen,
+    activity: activityLog,
+    onChanged: settleArchive,
+  });
   // The weekly review (P30-07): its Archive is the app's, for a project.
   const review = useWeeklyReview({
     ports: archivePorts,
@@ -1694,6 +1704,7 @@ export function App({
                             onDismiss: typesOffer.dismiss,
                           },
                     taskMigration,
+                    vaultTidy,
                     view:
                       inboxView === null
                         ? null

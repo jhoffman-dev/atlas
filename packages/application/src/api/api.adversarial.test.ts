@@ -105,12 +105,12 @@ describe('FAILING: a body write never changes the note’s properties', () => {
 describe('FAILING: daily and capture answer, never fault, when the name is taken meanwhile', () => {
   it('daily answers with today’s note when it appears between listing and creating', async () => {
     const api = apiFixture();
-    createdRightAfterListing(api, `${TODAY}.md`);
+    createdRightAfterListing(api, `Daily/2026/${TODAY}.md`);
 
     const response = await api.send({ method: 'POST', path: '/v1/daily' });
 
     expect(response.status).toBe(200);
-    expect(bodyOf(response)['note']).toMatchObject({ path: `${TODAY}.md` });
+    expect(bodyOf(response)['note']).toMatchObject({ path: `Daily/2026/${TODAY}.md` });
   });
 
   it('capture numbers the task when its name appears between listing and creating', async () => {

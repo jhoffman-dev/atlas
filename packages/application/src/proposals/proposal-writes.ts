@@ -7,13 +7,17 @@ import {
   messageOf,
   noteTitle,
   parentVaultPath,
+  PROPOSAL_NOTE_TYPES,
   splitFrontmatter,
   TASK_KEYS,
   vaultPathName,
   type LinkFrom,
   type LinkTarget,
   type MarkdownDocument,
+  type NoteProposalKind,
+  type NotePayload,
   type ProposalWrite,
+  type VaultPath,
 } from '@atlas/domain';
 import {
   checkUndo,
@@ -24,6 +28,7 @@ import {
 import { newNoteTaskRules, withTaskRules } from '../gtd/task-rules.ts';
 import { archiveTaskChange } from '../review/review-actions.ts';
 import { NoteChangedError } from '../notes/note-changed-error.ts';
+import { homeFolderFor } from '../notes/home-folder.ts';
 import { noteModified } from '../notes/note-modified.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
 import { ensureFolder } from '../vault/create-folder.ts';
@@ -36,6 +41,18 @@ import { refuseUnsaved, type ProposalPorts } from './proposal-file.ts';
  * meeting's action item (#177).
  */
 export type NoteWritePorts = Pick<ProposalPorts, 'fs' | 'markdown' | 'editors'>;
+
+/**
+ * The home folder, for its day, of the note a proposal of `kind` makes
+ * (#214): where a task or a decision goes when its payload names no folder.
+ */
+export function proposalHomeFolder(
+  { fs, markdown }: Pick<NoteWritePorts, 'fs' | 'markdown'>,
+  { kind, payload, today }: { kind: NoteProposalKind; payload: NotePayload; today: string },
+): Promise<VaultPath | null> {
+  const properties = { ...payload.properties, type: PROPOSAL_NOTE_TYPES[kind] };
+  return homeFolderFor({ fs, markdown, properties, today });
+}
 
 /** A link proposal's note, as read to check it and write it. */
 export interface LinkNote {

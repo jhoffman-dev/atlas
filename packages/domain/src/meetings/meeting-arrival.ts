@@ -4,12 +4,29 @@ import { foldedVaultPath } from '../vault/vault-spelling.ts';
 import type { MeetingImportError } from './meeting-import-error.ts';
 
 /**
- * Where the meeting import contract puts each meeting file (ADR-0027): the
- * mapping commits it here, and a pull brings it in.
+ * Where meeting files landed before each had a folder for its month
+ * (ADR-0027, #214). An older mapping still writes here, so it is still a
+ * place meeting files land, and every file in it is the import's to judge.
  */
 export const MEETING_INBOX = 'Inbox/Meetings';
 
+/**
+ * Where the meeting import writes each meeting now, in a folder for its
+ * month — `Meetings/2026/10` — and the Meeting type's home (#214). A note
+ * made here by hand is a meeting like any other: only a file that declares
+ * the contract ({@link IMPORT_CONTRACT_KEY}) is the import's.
+ */
+export const MEETINGS_HOME = 'Meetings';
+
 const MEETING_INBOX_PREFIX = `${MEETING_INBOX.toLowerCase()}/`;
+
+/** A month's folder under `Meetings`, `meetings/2026/10/`, as the start of a lower-cased path. */
+const MONTH_FOLDER = new RegExp(`^${MEETINGS_HOME.toLowerCase()}/\\d{4}/\\d{2}/`);
+/** {@link MONTH_FOLDER} as a SQLite GLOB over a lower-cased path. */
+const MONTH_FOLDER_GLOB = `${MEETINGS_HOME.toLowerCase()}/[0-9][0-9][0-9][0-9]/[0-9][0-9]/*`;
+
+/** The key a meeting file names the contract it follows by: `atlas_import: meeting/v1`. */
+export const IMPORT_CONTRACT_KEY = 'atlas_import';
 
 /**
  * What the import wrote into a file it handled: the one line that says it is
@@ -28,9 +45,55 @@ export const IMPORT_ERROR_KEY = 'atlas_import_error';
 /** What Atlas writes into a second copy of a meeting: a link to the first. */
 export const DUPLICATE_OF_KEY = 'atlas_duplicate_of';
 
-/** Whether a note sits where meeting files land, at any depth; the disk does not tell case apart. */
+/**
+ * Whether a note sits where meeting files land — a month's folder under
+ * `Meetings`, `Meetings/2026/10/`, or anywhere in the older `Inbox/Meetings`
+ * — and not in the Archive; the disk does not tell case apart. A folder of
+ * meetings filed some other way, `Meetings/From Notion`, is not one. Whether
+ * a note there is the import's is {@link isMeetingArrival}'s to say.
+ */
 export function isMeetingInboxPath(path: string): boolean {
+  if (isArchivedPath(path)) return false;
+  const folded = path.toLowerCase();
+  return folded.startsWith(MEETING_INBOX_PREFIX) || MONTH_FOLDER.test(folded);
+}
+
+/** {@link isMeetingInboxPath}'s folders as a SQL condition on a path column, Archive aside. */
+export function meetingLandingSql(column: string): string {
+  return `(lower(${column}) LIKE '${MEETING_INBOX_PREFIX}%' OR lower(${column}) GLOB '${MONTH_FOLDER_GLOB}')`;
+}
+
+/** Whether a note sits in the older `Inbox/Meetings`, where every file is the import's. */
+export function isInMeetingInboxFolder(path: string): boolean {
   return path.toLowerCase().startsWith(MEETING_INBOX_PREFIX) && !isArchivedPath(path);
+}
+
+/** Whether a note's frontmatter names a contract it follows: an `atlas_import` with something in it. */
+export function declaresImport(properties: Readonly<Record<string, unknown>>): boolean {
+  const declared = properties[IMPORT_CONTRACT_KEY];
+  return declared !== undefined && declared !== null && String(declared).trim() !== '';
+}
+
+/** What says whether a note is the meeting import's: where it is, and what its frontmatter says. */
+export interface ArrivalSigns {
+  readonly path: string;
+  /** It declares the contract (`atlas_import`). */
+  readonly importDeclared?: boolean | undefined;
+  /** How the import settled it, when it says. */
+  readonly importOutcome?: ImportOutcome | string | null | undefined;
+}
+
+/**
+ * Whether a note is the meeting import's to settle (#214): a file where
+ * meeting files land that declares the contract, or that the import already
+ * stamped — and, in the older `Inbox/Meetings`, any file at all, as before.
+ * A meeting made by hand in `Meetings` declares nothing and is a note like
+ * any other, in play from the moment it is made.
+ */
+export function isMeetingArrival({ path, importDeclared, importOutcome }: ArrivalSigns): boolean {
+  if (!isMeetingInboxPath(path)) return false;
+  if (isInMeetingInboxFolder(path)) return true;
+  return importDeclared === true || (importOutcome !== undefined && importOutcome !== null);
 }
 
 /**
@@ -54,42 +117,43 @@ export function importOutcomeOf(
 }
 
 /**
- * Whether a note is in play to what reacts to notes: anywhere but where meeting
- * files land, always; there, once the import has let it in (#92).
+ * Whether a note is in play to what reacts to notes: any note that is not
+ * the meeting import's, always; one that is, once the import has let it in
+ * (#92, {@link isMeetingArrival}).
  */
-export function isInPlay({
-  path,
-  importOutcome,
-}: {
-  path: string;
-  importOutcome: ImportOutcome | null | undefined;
-}): boolean {
-  return !isMeetingInboxPath(path) || importOutcome === 'imported';
+export function isInPlay(
+  note: ArrivalSigns & { importOutcome: ImportOutcome | null | undefined },
+): boolean {
+  return !isMeetingArrival(note) || note.importOutcome === 'imported';
 }
 
 /**
  * Where a meeting file stands with the import, as a listing says it: its
  * outcome when it is stamped — read as the import reads it, a cleared one as
- * `imported` — `pending` when it waits where meeting files land, and null
- * when it is elsewhere and was never the import's (a meeting filed before
- * Atlas imported, or made by hand).
+ * `imported` — `pending` when it is the import's and not settled yet, and
+ * null when it was never the import's (a meeting filed before Atlas
+ * imported, or made by hand).
  */
 export function importStanding({
   path,
   stamped,
   stamp,
+  declared = false,
 }: {
   path: string;
   stamped: boolean;
   stamp: unknown;
+  /** It declares the contract (`atlas_import`). */
+  declared?: boolean;
 }): ImportOutcome | 'pending' | null {
   if (stamped) return importOutcomeOf({ [IMPORT_OUTCOME_KEY]: stamp });
-  return isMeetingInboxPath(path) ? 'pending' : null;
+  return isMeetingArrival({ path, importDeclared: declared }) ? 'pending' : null;
 }
 
 /**
  * The notes one sync's changes give the meeting import to look at: each
- * added or changed where meeting files land, once, in the order reported.
+ * added or changed that is the import's ({@link isMeetingArrival}), once, in
+ * the order reported.
  * The feed only says where to look — what a file is due comes from its own
  * stamp, so a move, a rename or an unarchive needs no pairing here.
  *
@@ -101,7 +165,7 @@ export function importStanding({
  */
 export function meetingCandidates(changes: readonly NoteChange[]): string[] {
   const paths = changes
-    .filter((change) => change.kind !== 'removed' && isMeetingInboxPath(change.path))
+    .filter((change) => change.kind !== 'removed' && isMeetingArrival(change))
     .map((change) => change.path);
   return [...new Set(paths)];
 }

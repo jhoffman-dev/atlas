@@ -58,9 +58,13 @@ export interface NoteAcrossMove {
  *
  * A wiki link that opened a note the move carried: a rename changes the name
  * the link finds it by, a move changes a link written as a path, and a move
- * can leave a bare name opening another note of the same name. Only a link's
- * target is rewritten — its heading, alias and `!` stay byte for byte, as does
- * everything else. A link that still opens the note is untouched.
+ * can leave a bare name opening another note of the same name. And a link
+ * that opened a note the move left alone, whose bare name a moved note now
+ * answers to first — `Inbox/Acme.md` filed to `Companies/Acme.md` takes
+ * `[[Acme]]` from `Customers/Acme.md` — is written as the path of the note it
+ * opened. Only a link's target is rewritten — its heading, alias and `!` stay
+ * byte for byte, as does everything else. A link that still opens the note is
+ * untouched.
  *
  * An image source written relative to the note, which a move of the note — or
  * of the folder the image is in — leaves pointing at nothing: see
@@ -117,7 +121,8 @@ function retargetWikiLinks({ text, before, after, moved }: NotesAcrossMove & { t
   const pieces: string[] = [];
   for (const { targetStart, targetEnd, link } of wikiLinkSpans(text)) {
     const opened = resolveWikiLinkTarget(link.target, before);
-    const to = opened === null ? undefined : moved.get(opened);
+    // Where the note it opened is now: moved, or where it was when a namesake moved.
+    const to = opened === null ? undefined : (moved.get(opened) ?? opened);
     if (to === undefined || resolveWikiLinkTarget(link.target, after) === to) continue;
     count += 1;
     pieces.push(text.slice(cursor, targetStart), targetFor({ written: link.target, to, after }));

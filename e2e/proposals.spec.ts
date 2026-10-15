@@ -54,6 +54,11 @@ const PROPOSAL = [
   '',
 ].join('\n');
 
+/** An accepted task is made in the task type's home for today (#214). */
+const TODAY = new Date().toLocaleDateString('en-CA');
+const TASKS = `Tasks/${TODAY.slice(0, 4)}/${TODAY.slice(5, 7)}`;
+const MADE = `${TASKS}/Send Mara the payroll file.md`;
+
 async function openProposalsVault(page: Page, proposal = PROPOSAL): Promise<FakeVault> {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
@@ -112,10 +117,8 @@ test('a task proposal accepted on the Inbox page makes the task, and the task op
   await expect(page.getByText('Nothing to answer.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Inbox/ })).toContainText('1');
 
-  await expectFile(vault, 'Send Mara the payroll file.md').toContain(
-    'source: "[[2026-10-01 Standup#^t0003]]"',
-  );
-  const task = await vault.read('Send Mara the payroll file.md');
+  await expectFile(vault, MADE).toContain('source: "[[2026-10-01 Standup#^t0003]]"');
+  const task = await vault.read(MADE);
   expect(task).toContain('type: task');
   expect(task).toContain('meeting: "[[2026-10-01 Standup]]"');
   expect(await vault.exists('Inbox/Proposals/Send the payroll file.md')).toBe(false);
@@ -136,15 +139,17 @@ test('a task whose name is taken is made under a numbered name, leaving the note
   page,
 }) => {
   const vault = await openProposalsVault(page);
-  await vault.write('Send Mara the payroll file.md', 'Made by hand.\n');
+  // Taken where the task would be made: its type's home for today.
+  await vault.mkdir(TASKS);
+  await vault.write(MADE, 'Made by hand.\n');
 
   await page.getByRole('button', { name: /^Inbox/ }).click();
   await settledInbox(page);
   const card = page.getByRole('region', { name: 'Task: Send Mara the payroll file' });
   await card.getByRole('button', { name: 'Accept' }).click();
 
-  await expectFile(vault, 'Send Mara the payroll file 2.md').toContain('type: task');
-  expect(await vault.read('Send Mara the payroll file.md')).toBe('Made by hand.\n');
+  await expectFile(vault, `${TASKS}/Send Mara the payroll file 2.md`).toContain('type: task');
+  expect(await vault.read(MADE)).toBe('Made by hand.\n');
   await expectFile(vault, 'Archive/Inbox/Proposals/Send the payroll file.md').toContain(
     'state: accepted',
   );
@@ -165,5 +170,6 @@ test('a refused accept says why on the proposal and leaves it waiting', async ({
 
   await expect(card.getByRole('alert')).toContainText('which is not a note any more');
   expect(await vault.exists('Send Mara the payroll file.md')).toBe(false);
+  expect(await vault.exists(MADE)).toBe(false);
   expect(await vault.exists('Inbox/Proposals/Send the payroll file.md')).toBe(true);
 });

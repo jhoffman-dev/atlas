@@ -28,6 +28,11 @@ const BOARD = [
   '',
 ].join('\n');
 
+// A task added from the board goes to the task type's home for today (#214).
+const TODAY = new Date().toLocaleDateString('en-CA');
+const [YEAR, MONTH] = [TODAY.slice(0, 4), TODAY.slice(5, 7)];
+const TASKS = `Tasks/${YEAR}/${MONTH}`;
+
 const task = (title: string, status: string) =>
   ['---', 'type: task', `status: ${status}`, 'phase: 1', '---', '', `# ${title}`, ''].join('\n');
 
@@ -120,8 +125,8 @@ test('adding a card puts it in the column it was added to', async ({ page }) => 
   await input.fill('A new card');
   await input.press('Enter');
 
-  await expectFile(vault, 'A new card.md').toContain('status: doing');
-  expect(await vault.read('A new card.md')).toContain('type: task');
+  await expectFile(vault, `${TASKS}/A new card.md`).toContain('status: doing');
+  expect(await vault.read(`${TASKS}/A new card.md`)).toContain('type: task');
 });
 
 test('a card opens the note behind it', async ({ page }) => {
@@ -196,7 +201,7 @@ test('a card can be added with a name, from the column', async ({ page }) => {
   await input.fill('Write the release notes');
   await input.press('Enter');
 
-  await expectFile(vault, 'Write the release notes.md').toContain('status: doing');
+  await expectFile(vault, `${TASKS}/Write the release notes.md`).toContain('status: doing');
   // Exact, and inside the column: once the sidebar catches up with the new note
   // its favourites star matches this name too, and a loose locator then fails
   // for a reason that has nothing to do with the board.
@@ -218,8 +223,8 @@ test('adding another card keeps the field open for the next one', async ({ page 
   await input.fill('Second idea');
   await input.press('Enter');
 
-  await expectFile(vault, 'First idea.md').toContain('status: backlog');
-  await expectFile(vault, 'Second idea.md').toContain('status: backlog');
+  await expectFile(vault, `${TASKS}/First idea.md`).toContain('status: backlog');
+  await expectFile(vault, `${TASKS}/Second idea.md`).toContain('status: backlog');
 });
 
 test('escape closes the add field without making a card', async ({ page }) => {

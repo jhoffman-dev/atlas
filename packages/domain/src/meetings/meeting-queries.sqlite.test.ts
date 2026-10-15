@@ -179,6 +179,7 @@ describe('compileMeetingListQuery', () => {
       atlas_import_error: null,
       atlas_duplicate_of: null,
       stamped: 1,
+      declared: 0,
     });
     const broken = vault.list().find((row) => row['path'] === 'Inbox/Meetings/Broken.md');
     expect(broken?.['atlas_import_error']).toBe('title is required');

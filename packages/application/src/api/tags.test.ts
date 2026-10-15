@@ -130,6 +130,7 @@ describe('GET /v1/tags/{tag}/notes', () => {
         { path: 'Notes/b.md', title: 'b', uses: 2 },
       ],
       next: null,
+      total: 2,
     });
   });
 

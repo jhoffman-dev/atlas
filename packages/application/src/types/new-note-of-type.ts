@@ -1,4 +1,4 @@
-import { createVaultPath, VAULT_ROOT, type ObjectType, type VaultPath } from '@atlas/domain';
+import { createVaultPath, type ObjectType, type VaultPath } from '@atlas/domain';
 import { createNote } from '../notes/create-note.ts';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { quickAddContents } from '../quick-add/quick-add-note.ts';
@@ -7,7 +7,7 @@ import { findTypeTemplate, loadTemplates, readTemplate } from './templates.ts';
 
 /**
  * "New book" at the foot of a type's table: a note that already says it is
- * one, at the top of the vault, named "New Book" until it is renamed — made
+ * one, in its type's home folder or else at the top of the vault (#214), named "New Book" until it is renamed — made
  * from the type's template when it has one, as the add button's notes are, so
  * editing the template changes what every new note of the type starts as.
  */
@@ -34,7 +34,6 @@ export async function createNoteOfType({
     today,
     name: `New ${type.label}`,
     beside: null,
-    folder: VAULT_ROOT,
     notePaths: notePaths.map(createVaultPath),
     contents,
   });

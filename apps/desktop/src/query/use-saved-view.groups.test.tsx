@@ -14,6 +14,10 @@ import type { OpenEditors } from '../panes/open-editors.ts';
 import { createTickMemory } from './tick-memory.ts';
 import { useSavedView } from './use-saved-view.ts';
 import { useViewDrafts } from './use-view-drafts.ts';
+import { localToday } from '../today.ts';
+
+/** Where a new task lands: its type's home folder for this month (#214). */
+const taskHome = () => `Tasks/${localToday().slice(0, 4)}/${localToday().slice(5, 7)}`;
 
 /** Where the hooks under test record what they give up on; these tests do not read it. */
 const ACTIVITY = recordingActivity();
@@ -202,7 +206,7 @@ describe('adding a note inside a group', () => {
     const { hook, created } = await show('board');
     act(() => hook.result.current.addCard({ value: 'doing', lane: 'home', name: 'Paint' }));
     await settle();
-    expect(created[0]?.path).toBe('Paint.md');
+    expect(created[0]?.path).toBe(`${taskHome()}/Paint.md`);
     expect(created[0]?.contents).toContain('status: doing');
     expect(created[0]?.contents).toContain('area: home');
   });
@@ -216,7 +220,7 @@ describe('adding a note inside a group', () => {
     await act(async () => {
       path = await hook.result.current.addInGroup([doing, work]);
     });
-    expect(path).toBe('New task.md');
+    expect(path).toBe(`${taskHome()}/New task.md`);
     expect(created[0]?.contents).toContain('status: doing');
     expect(created[0]?.contents).toContain('area: work');
   });

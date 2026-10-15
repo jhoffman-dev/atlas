@@ -61,13 +61,18 @@ async function openInbox(
   return { vault, host };
 }
 
+// An accepted task goes to the task type's home for today (#214).
+const TODAY = new Date().toLocaleDateString('en-CA');
+const [YEAR, MONTH] = [TODAY.slice(0, 4), TODAY.slice(5, 7)];
+const TASKS = `Tasks/${YEAR}/${MONTH}`;
+
 /** The task the first card would make, by the number its title ends in. */
 async function firstCard(page: Page) {
   const card = cards(page).first();
   const label = (await card.getAttribute('aria-label')) ?? '';
   const title = /Follow up with Larkspur Payroll \d+/.exec(label)?.[0] ?? '';
   expect(title).not.toBe('');
-  return { card, label, task: `${title}.md`, title };
+  return { card, label, task: `${TASKS}/${title}.md`, title };
 }
 
 const inboxPage = (page: Page) => page.getByRole('article', { name: 'Inbox' });

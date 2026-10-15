@@ -53,7 +53,9 @@ describe('POST /v1/notes making a task', () => {
       body: { name: 'Hear back from Tobias', properties: { type: 'task', status: 'waiting' } },
     });
     expect(response.status).toBe(201);
-    expect(api.files.get('Hear back from Tobias.md')?.text).toContain('status: waiting');
+    expect(api.files.get('Tasks/2026/09/Hear back from Tobias.md')?.text).toContain(
+      'status: waiting',
+    );
   });
 
   it('dates a new task made already in Archive', async () => {
@@ -63,8 +65,10 @@ describe('POST /v1/notes making a task', () => {
       path: '/v1/notes',
       body: { name: 'Filed the forms', properties: { type: 'task', status: 'archive' } },
     });
-    expect(api.files.get('Filed the forms.md')?.text).toContain('status: archive');
-    expect(api.files.get('Filed the forms.md')?.text).toContain(`completed: ${TODAY}`);
+    expect(api.files.get('Tasks/2026/09/Filed the forms.md')?.text).toContain('status: archive');
+    expect(api.files.get('Tasks/2026/09/Filed the forms.md')?.text).toContain(
+      `completed: ${TODAY}`,
+    );
   });
 });
 

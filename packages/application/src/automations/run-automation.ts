@@ -3,6 +3,7 @@ import {
   claudeStepBudget,
   leftHandledNotes,
   messageWithoutPaths,
+  movedHandledNotes,
   noteRunsHeldUntil,
   noteTriggerHears,
   storedAnswerFor,
@@ -13,6 +14,7 @@ import {
   type DoneAction,
   type LoggedVersion,
   type LogEntry,
+  type MovedVersion,
   type NoteChange,
   type NoteTrigger,
   type NoteVersionRef,
@@ -123,7 +125,8 @@ export async function runAutomation(
  * own write left is there by then, and does not set it off again. A path a
  * note it had handled has left — deleted, moved, renamed, archived, or
  * replaced by a new note — is written down as gone, so a new note there is
- * new to it. A run that changed nothing is said in
+ * new to it; a note that moved is written down where it is now, so it is not
+ * new to it there (#214). A run that changed nothing is said in
  * Activity but kept out of the log, and out of the hourly count. A rule
  * that has run as often this hour as one may rejects with
  * `NoteRunsCappedError` instead, and runs nothing.
@@ -156,20 +159,23 @@ async function runOnHeard(
     versions: triggeringVersions(run.when, run.changes),
   });
   const handled = await handledAmong({ index: run.ports.index, log, versions: triggering });
-  const went = leftHandledNotes(run.changes, handled);
+  const departed: Departures = {
+    went: leftHandledNotes(run.changes, handled),
+    moved: movedHandledNotes(run.changes, handled),
+  };
   const versions = unhandledVersions(triggering, handled);
   const budget = claudeStepBudget(run.rule.action);
   const allowance = await allowanceEntries(run.ports, run.rule, entries);
   const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow(), budget, allowance);
   if (versions.length === 0 || heldUntil !== null) {
-    await recordGone(run, went, 'note');
+    await recordGone(run, departed, 'note');
     if (versions.length > 0 && heldUntil !== null) {
       throw new NoteRunsCappedError(heldUntil, budget);
     }
     return null;
   }
   const aim: Aim = (ports, today) => planForVersions({ ports, rule: run.rule, versions, today });
-  return runOnce({ run, trigger: 'note', aim, quiet: true, went });
+  return runOnce({ run, trigger: 'note', aim, quiet: true, departed });
 }
 
 /**
@@ -245,17 +251,37 @@ export async function recordNewsLetGo({
 }
 
 /**
- * Writes down notes a rule had handled that were deleted, in an entry of
- * their own; none, nothing. Held, like any write of a gated run, while the
- * gates are shut — unless `trigger` is null: the run has made something
- * already, and its record is written whatever the gates say.
+ * Notes a rule had handled that left their paths: deleted or replaced, their
+ * history ending (`went`), or moved, their history going with them (`moved`).
+ * A move is both: its old path went, and it is known where it is now.
+ */
+interface Departures {
+  readonly went: readonly VaultPath[];
+  readonly moved: readonly MovedVersion[];
+}
+
+const NONE_DEPARTED: Departures = { went: [], moved: [] };
+
+const anyDeparted = ({ went, moved }: Departures): boolean => went.length + moved.length > 0;
+
+/** The departures as a log entry's fields: none, nothing. */
+const departureFields = ({ went, moved }: Departures) => ({
+  ...(went.length > 0 && { went }),
+  ...(moved.length > 0 && { moved }),
+});
+
+/**
+ * Writes down notes a rule had handled that were deleted or moved, in an
+ * entry of their own; none, nothing. Held, like any write of a gated run,
+ * while the gates are shut — unless `trigger` is null: the run has made
+ * something already, and its record is written whatever the gates say.
  */
 async function recordGone(
   run: AutomationRun,
-  went: readonly VaultPath[],
+  departed: Departures,
   trigger: RunTrigger | null,
 ): Promise<void> {
-  if (went.length === 0) return;
+  if (!anyDeparted(departed)) return;
   if (trigger !== null) await holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger });
   const entry: LogEntry = {
     kind: 'run',
@@ -264,7 +290,7 @@ async function recordGone(
     done: [],
     left: [],
     capped: false,
-    went,
+    ...departureFields(departed),
   };
   await appendForRun({ fs: guardedFs(run.ports.fs, run.guard), run, entry });
 }
@@ -280,7 +306,7 @@ async function runOnce({
   trigger,
   aim,
   quiet,
-  went = [],
+  departed = NONE_DEPARTED,
 }: {
   run: AutomationRun;
   trigger: RunTrigger;
@@ -290,8 +316,8 @@ async function runOnce({
    * off, on every save. With nothing to do it says nothing at all.
    */
   quiet: boolean;
-  /** Notes the rule had handled that were deleted, for its log to say. */
-  went?: readonly VaultPath[];
+  /** Notes the rule had handled that were deleted or moved, for its log to say. */
+  departed?: Departures;
 }): Promise<LogEntry | null> {
   const { clock, guard } = run;
   const at = clock.localNow();
@@ -314,7 +340,7 @@ async function runOnce({
     if (!(cause instanceof AtlasQueryError)) throw cause;
     const failed: LogEntry = { kind: 'failed', at, trigger, problem: messageWithoutPaths(cause) };
     // A query that does not read still heard which notes went: the history is the rule's either way.
-    await recordGone(run, went, trigger);
+    await recordGone(run, departed, trigger);
     await log(failed);
     return failed;
   }
@@ -322,11 +348,11 @@ async function runOnce({
   stillInVault(guard);
   const { plan } = target;
   if (quiet && plan.paths.length === 0 && plan.passedOver.length === 0) {
-    await recordGone(run, went, trigger);
+    await recordGone(run, departed, trigger);
     return null;
   }
   if (plan.action.kind === 'claude' && plan.paths.length > 0) {
-    const asked = { run, ports, target, action: plan.action, at, trigger, went, log, append };
+    const asked = { run, ports, target, action: plan.action, at, trigger, departed, log, append };
     return askClaude(asked);
   }
   let applied: PropertyOutcome = { done: [], left: [] };
@@ -339,7 +365,7 @@ async function runOnce({
     left: [...plan.passedOver, ...applied.left],
     capped: plan.capped,
     ...(target.versions !== null && { versions }),
-    ...(went.length > 0 && { went }),
+    ...departureFields(departed),
   });
   try {
     applied = await applyPlan({ ports, plan, today });
@@ -347,7 +373,7 @@ async function runOnce({
     // Each batch records per note and does not throw part-way, so what it returns is all it did;
     // if it throws, it threw before its first change, and the entry says it did nothing.
     if (target.versions !== null) versions = await versionsOf(run, target.versions, applied);
-    if (!quiet || applied.done.length > 0 || went.length > 0) await log(entry());
+    if (!quiet || applied.done.length > 0 || anyDeparted(departed)) await log(entry());
   }
   // Cut off by a switch: said so to the caller, once what it did is on record.
   stillInVault(guard);
@@ -379,7 +405,7 @@ async function askClaude({
   action,
   at,
   trigger,
-  went,
+  departed,
   log,
   append,
 }: {
@@ -389,7 +415,7 @@ async function askClaude({
   action: Extract<AutomationRule['action'], { kind: 'claude' }>;
   at: string;
   trigger: RunTrigger;
-  went: readonly VaultPath[];
+  departed: Departures;
   log: (entry: LogEntry, paths?: readonly string[]) => Promise<void>;
   append: (entry: LogEntry, stored?: readonly StoredAnswerDraft[]) => Promise<void>;
 }): Promise<LogEntry> {
@@ -426,7 +452,7 @@ async function askClaude({
       left: [...plan.passedOver, ...left],
       capped: plan.capped,
       ...(target.versions !== null && { versions: askedAbout(target) }),
-      ...(went.length > 0 && { went }),
+      ...departureFields(departed),
       claude,
     };
     await (done.length > 0 ? append(entry) : log(entry, plan.paths));
@@ -444,7 +470,7 @@ async function askClaude({
     };
     const madeSome = cause.made.length > 0;
     if (!madeSome) await hold();
-    await recordGone(run, went, madeSome ? null : trigger);
+    await recordGone(run, departed, madeSome ? null : trigger);
     // The answers it read are kept with the failure, so its retry asks nothing again (ADR-0036).
     await append(failed, cause.stored);
     // Stopped by something other than the answer — a disk that refused — is raised once it is on record.

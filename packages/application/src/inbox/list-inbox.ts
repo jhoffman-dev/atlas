@@ -118,6 +118,7 @@ async function readPage({
       title: String(cell(row, 'title') ?? ''),
       type: cell(row, 'type'),
       importStamped: Boolean(cell(row, 'importStamped')),
+      importDeclared: Boolean(cell(row, 'importDeclared')),
       importOutcome: cell(row, 'importOutcome'),
       importError: cell(row, 'importError'),
       status: cell(row, 'status'),

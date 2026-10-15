@@ -107,7 +107,7 @@ function vault(
 const BASE = { 'Projects/Atlas.md': PROJECT, 'People/Mara Quill.md': PERSON, [CALL]: CAPTURED };
 
 describe('clarifyInboxItem', () => {
-  it('sets the status and files the task under its project: it moves, linked, its text kept', async () => {
+  it('sets the status and files the task under its project: it moves to its home, linked, its text kept', async () => {
     const v = vault(BASE);
 
     const outcome = await v.clarify(CALL, {
@@ -116,12 +116,12 @@ describe('clarifyInboxItem', () => {
     });
 
     expect(outcome).toMatchObject({
-      path: 'Projects/Atlas/Call the bank.md',
+      path: 'Tasks/2026/10/Call the bank.md',
       movedFrom: CALL,
       failed: [],
     });
     expect(v.files.has(CALL)).toBe(false);
-    expect(v.files.get('Projects/Atlas/Call the bank.md')).toBe(
+    expect(v.files.get('Tasks/2026/10/Call the bank.md')).toBe(
       '---\ntype: task\nstatus: next-action\nproject: [[Atlas]]\n---\n\nAbout the loan.\n\n- [ ] find the letter\n',
     );
   });
@@ -186,10 +186,26 @@ describe('clarifyInboxItem', () => {
       project: path('Projects/Atlas.md'),
     });
 
-    expect(outcome.path).toBe('Projects/Atlas/Standup.md');
-    expect(v.files.get('Projects/Atlas/Standup.md')).toContain('project: [[Atlas]]');
-    await expect(v.clarify('Projects/Atlas/Standup.md', { status: 'next-action' })).rejects.toThrow(
-      /^Only a task is given a status/,
+    expect(outcome.path).toBe('Meetings/2026/10/Standup.md');
+    expect(v.files.get('Meetings/2026/10/Standup.md')).toContain('project: [[Atlas]]');
+    await expect(
+      v.clarify('Meetings/2026/10/Standup.md', { status: 'next-action' }),
+    ).rejects.toThrow(/^Only a task is given a status/);
+  });
+
+  // #214: a meeting waits in its month's folder; filing it is the link, and it stays put.
+  it('files a meeting waiting in its month’s folder by its link alone, leaving its path as it was', async () => {
+    const meeting = 'Meetings/2026/10/2026-10-06 Standup.md';
+    const v = vault({
+      ...BASE,
+      [meeting]: '---\ntype: meeting\natlas_import: meeting/v1\n---\n\nNotes.\n',
+    });
+
+    const outcome = await v.clarify(meeting, { project: path('Projects/Atlas.md') });
+
+    expect(outcome).toMatchObject({ path: meeting, movedFrom: null, failed: [] });
+    expect(v.files.get(meeting)).toBe(
+      '---\ntype: meeting\natlas_import: meeting/v1\nproject: [[Atlas]]\n---\n\nNotes.\n',
     );
   });
 
@@ -234,7 +250,7 @@ describe('clarifyInboxItem', () => {
       project: path('projects/atlas.md'),
     });
 
-    expect(outcome.path).toBe('Projects/Atlas/Call the bank.md');
+    expect(outcome.path).toBe('Tasks/2026/10/Call the bank.md');
     expect(v.files.get(outcome.path)).toContain('waiting_on: [[Mara Quill]]');
   });
 

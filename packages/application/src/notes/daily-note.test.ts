@@ -20,11 +20,26 @@ function vault(template: (path: string) => string = (path) => `from ${path}`) {
 }
 
 describe("today's note", () => {
-  it('is named by the date, at the root of the vault', () => {
-    expect(dailyNotePath(TODAY)).toBe('2026-09-22.md');
+  it('is named by the date, in the folder it lives in', () => {
+    expect(dailyNotePath(TODAY, createVaultPath('Daily/2026'))).toBe('Daily/2026/2026-09-22.md');
   });
 
-  it('is found rather than made again when it is already there', async () => {
+  // #214: today's note is filed in the Daily type's home, dated by the year.
+  it('is found in its home folder rather than made again', async () => {
+    const { fs, created } = vault();
+    const found = await ensureDailyNote({
+      fs,
+      markdown,
+      today: TODAY,
+      notePaths: [createVaultPath('Daily/2026/2026-09-22.md')],
+      templates: [DAILY],
+    });
+
+    expect(found).toEqual({ path: 'Daily/2026/2026-09-22.md', created: false });
+    expect(created).toEqual([]);
+  });
+
+  it('is found at the root, where it was made before it had a home, rather than made again', async () => {
     const { fs, created } = vault();
     const found = await ensureDailyNote({
       fs,
@@ -38,7 +53,7 @@ describe("today's note", () => {
     expect(created).toEqual([]);
   });
 
-  it('is made at the root from the Daily template', async () => {
+  it('is made in the Daily home folder from the Daily template', async () => {
     const { fs, created } = vault();
     const made = await ensureDailyNote({
       fs,
@@ -49,9 +64,9 @@ describe("today's note", () => {
       templates: [DAILY],
     });
 
-    expect(made).toEqual({ path: '2026-09-22.md', created: true });
+    expect(made).toEqual({ path: 'Daily/2026/2026-09-22.md', created: true });
     expect(created).toEqual([
-      { path: '2026-09-22.md', contents: 'from .atlas/templates/Daily.md' },
+      { path: 'Daily/2026/2026-09-22.md', contents: 'from .atlas/templates/Daily.md' },
     ]);
   });
 
@@ -65,7 +80,7 @@ describe("today's note", () => {
       templates: [],
     });
 
-    expect(created).toEqual([{ path: '2026-09-22.md', contents: DAILY_NOTE_CONTENTS }]);
+    expect(created).toEqual([{ path: 'Daily/2026/2026-09-22.md', contents: DAILY_NOTE_CONTENTS }]);
     expect(DAILY_NOTE_CONTENTS).toMatch(/^---\ntype: daily\n---\n/);
   });
 
@@ -74,7 +89,7 @@ describe("today's note", () => {
     const { fs, created } = vault(() => contents);
 
     await ensureDailyNote({ fs, markdown, today: TODAY, notePaths: [], templates: [DAILY] });
-    expect(created).toEqual([{ path: '2026-09-22.md', contents }]);
+    expect(created).toEqual([{ path: 'Daily/2026/2026-09-22.md', contents }]);
   });
 
   it('is found, not numbered, when it appears between the listing and the create', async () => {
@@ -98,7 +113,7 @@ describe("today's note", () => {
     });
 
     expect(found).toEqual({ path: '2026-09-22.md', created: false });
-    expect(attempts).toEqual(['2026-09-22.md']);
+    expect(attempts).toEqual(['Daily/2026/2026-09-22.md']);
   });
 
   it('is found under the spelling the disk has when the create is refused for the name', async () => {

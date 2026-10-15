@@ -147,8 +147,10 @@ describe('POST /v1/notes/{path}/promote, sent twice', () => {
     const first = await api.send(request({ text: 'Order chairs' }));
     expect(first.status).toBe(201);
     await api.send(request({ text: 'Order chairs' }));
-    const tasks = [...api.files.keys()].filter((path) => path.startsWith('tasks/Order chairs'));
-    expect(tasks).toEqual(['tasks/Order chairs.md']);
+    const tasks = [...api.files.keys()].filter((path) =>
+      (path.split('/').at(-1) ?? '').startsWith('Order chairs'),
+    );
+    expect(tasks).toEqual(['tasks/2026/09/Order chairs.md']);
     expect(api.files.get(plan)?.text).toContain('[[Order chairs]]');
   });
 

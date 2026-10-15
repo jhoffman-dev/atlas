@@ -208,7 +208,7 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
     let edited = false;
     vault.ports.fs.createNote = async (write) => {
       await create(write);
-      if (!edited && write.path === 'Book the review room.md') {
+      if (!edited && write.path === 'Tasks/2026/10/Book the review room.md') {
         edited = true;
         await vault.ports.fs.writeTextFile({
           path: MEETING as never,
@@ -218,10 +218,14 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
       }
     };
     await arrived();
+    expect(edited).toBe(true);
     vault.ports.index.query = async (sql, parameters) =>
       sql.includes('meeting items: made') && stale !== null ? stale : query(sql, parameters);
     await runNow();
-    expect(tasks()).toEqual(['Book the review room.md', 'Send the renewal contract.md']);
+    expect(tasks()).toEqual([
+      'Tasks/2026/10/Book the review room.md',
+      'Tasks/2026/10/Send the renewal contract.md',
+    ]);
   });
 
   it('makes a second task for one item: a plain retry of a long meeting re-asks, and Accept takes the reworded item as new', async () => {
@@ -270,13 +274,14 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
     const create = vault.ports.fs.createNote;
     let refuseOnce = true;
     vault.ports.fs.createNote = async (write) => {
-      if (write.path === 'Chase the vendor invoice.md' && refuseOnce) {
+      if (write.path === 'Tasks/2026/10/Chase the vendor invoice.md' && refuseOnce) {
         refuseOnce = false;
         throw new Error('the disk is full');
       }
       return create(write);
     };
     await runNow().catch(() => undefined);
+    expect(refuseOnce).toBe(false);
     const firstAsked = asked();
     await runNow();
     // The retry reuses the answers the failed run kept: nothing is asked again.

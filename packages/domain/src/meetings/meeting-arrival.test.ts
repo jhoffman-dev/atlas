@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { arrivedPaths, type NoteChange } from '../index/note-changes.ts';
 import {
+  declaresImport,
   importErrorText,
+  importStanding,
+  isInPlay,
+  isMeetingArrival,
   isMeetingInboxPath,
   meetingCandidates,
   meetingCopies,
@@ -230,5 +234,66 @@ describe('meeting arrival: adversarial, round 2', () => {
       'Inbox/Meetings/2026-10-06 Onboarding cohort 1.md',
       'Inbox/Meetings/2026-10-06 Onboarding cohort 2.md',
     ]);
+  });
+});
+
+// #214: meetings arrive in a month's folder, and whether one is the import's is what it says.
+describe('where meeting files land, by month (#214)', () => {
+  it('is a month’s folder under Meetings, or anywhere in the older Inbox/Meetings', () => {
+    expect(isMeetingInboxPath('Meetings/2026/10/2026-10-06 Standup.md')).toBe(true);
+    expect(isMeetingInboxPath('meetings/2026/10/x.md')).toBe(true);
+    expect(isMeetingInboxPath('Inbox/Meetings/Older/x.md')).toBe(true);
+  });
+
+  it('is not a folder of meetings filed some other way, or the Archive', () => {
+    expect(isMeetingInboxPath('Meetings/From Notion/2026-10-06 Standup.md')).toBe(false);
+    expect(isMeetingInboxPath('Meetings/2026/x.md')).toBe(false);
+    expect(isMeetingInboxPath('Archive/Meetings/2026/10/x.md')).toBe(false);
+  });
+});
+
+describe('isMeetingArrival (#214)', () => {
+  const month = 'Meetings/2026/10/2026-10-06 Standup.md';
+
+  it('is a file in a month’s folder that declares the contract, or that the import stamped', () => {
+    expect(isMeetingArrival({ path: month, importDeclared: true })).toBe(true);
+    expect(isMeetingArrival({ path: month, importOutcome: 'imported' })).toBe(true);
+  });
+
+  it('is not a meeting made by hand in its month’s folder: it declares nothing', () => {
+    expect(isMeetingArrival({ path: month })).toBe(false);
+    expect(isInPlay({ path: month, importOutcome: undefined })).toBe(true);
+  });
+
+  it('is any file in the older Inbox/Meetings, as it always was', () => {
+    expect(isMeetingArrival({ path: 'Inbox/Meetings/Hand made.md' })).toBe(true);
+  });
+
+  it('keeps a declared file out of play until the import lets it in', () => {
+    expect(isInPlay({ path: month, importDeclared: true, importOutcome: undefined })).toBe(false);
+    expect(isInPlay({ path: month, importDeclared: true, importOutcome: 'error' })).toBe(false);
+    expect(isInPlay({ path: month, importDeclared: true, importOutcome: 'imported' })).toBe(true);
+  });
+
+  it('is pending in a listing only when it is the import’s and unstamped', () => {
+    expect(importStanding({ path: month, stamped: false, stamp: null, declared: true })).toBe(
+      'pending',
+    );
+    expect(importStanding({ path: month, stamped: false, stamp: null })).toBeNull();
+  });
+
+  it('gives the import a declared arrival in a month’s folder to look at, never a meeting made by hand', () => {
+    const changes = [
+      { kind: 'added', path: month, type: 'meeting', digest: 'a', importDeclared: true },
+      { kind: 'added', path: 'Meetings/2026/10/By hand.md', type: 'meeting', digest: 'b' },
+    ] as const;
+    expect(meetingCandidates(changes)).toEqual([month]);
+  });
+
+  it('reads a declaration with anything in it', () => {
+    expect(declaresImport({ atlas_import: 'meeting/v1' })).toBe(true);
+    expect(declaresImport({ atlas_import: '' })).toBe(false);
+    expect(declaresImport({ atlas_import: null })).toBe(false);
+    expect(declaresImport({})).toBe(false);
   });
 });

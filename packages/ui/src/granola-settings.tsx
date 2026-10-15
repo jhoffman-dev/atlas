@@ -72,8 +72,8 @@ export function GranolaSettings({
   return (
     <SettingsCard id="settings-granola" icon="event" title="Granola">
       <p className="settings__lede">
-        Meetings you record in Granola land in Inbox/Meetings, as they open and every 15 minutes.
-        The API key stays in this Mac’s Keychain, never in the vault.
+        Meetings you record in Granola land in Meetings, a folder for each month, as they open and
+        every 15 minutes. The API key stays in this Mac’s Keychain, never in the vault.
       </p>
       <div className="settings__row">
         <span className="settings__row-text">

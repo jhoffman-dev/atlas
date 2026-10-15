@@ -216,3 +216,63 @@ describe('a link never opens a template (issue #15)', () => {
     expect(createWikiLinkResolver(both)('company')).toBe('Clients/Deep/Company.md');
   });
 });
+
+describe('a name shared with a proposal or an archived note (#214)', () => {
+  it('opens the task, not the archived proposal of the same name at the same depth', () => {
+    const vault = notes(
+      'Archive/Inbox/Proposals/Send Mara the payroll file.md',
+      'Tasks/2026/10/Send Mara the payroll file.md',
+    );
+    expect(resolveWikiLinkTarget('Send Mara the payroll file', vault)).toBe(
+      'Tasks/2026/10/Send Mara the payroll file.md',
+    );
+  });
+
+  it('opens the meeting, not an archived copy of it, however shallow the copy is', () => {
+    const vault = notes(
+      'Archive/Standup.md',
+      'Meetings/2026/10/Standup.md',
+      'Archive/Inbox/Meetings/Standup.md',
+    );
+    expect(resolveWikiLinkTarget('Standup', vault)).toBe('Meetings/2026/10/Standup.md');
+  });
+
+  it('opens a note in use before a proposal still waiting, though the proposal is shallower', () => {
+    const vault = notes(
+      'Inbox/Proposals/Send Mara the payroll file.md',
+      'Tasks/2026/10/Send Mara the payroll file.md',
+    );
+    expect(resolveWikiLinkTarget('Send Mara the payroll file', vault)).toBe(
+      'Tasks/2026/10/Send Mara the payroll file.md',
+    );
+  });
+
+  it('opens a proposal still waiting before an archived note', () => {
+    const vault = notes('Archive/Plan.md', 'Inbox/Proposals/Plan.md');
+    expect(resolveWikiLinkTarget('Plan', vault)).toBe('Inbox/Proposals/Plan.md');
+  });
+
+  it('still opens an archived note when it is the only one of that name', () => {
+    expect(resolveWikiLinkTarget('Old', notes('Archive/Notes/Old.md'))).toBe(
+      'Archive/Notes/Old.md',
+    );
+  });
+
+  it('ranks the same way in the resolver built once for a whole note', () => {
+    const resolve = createWikiLinkResolver(
+      notes('Archive/Inbox/Proposals/Brief.md', 'Inbox/Proposals/Brief.md', 'Briefs/2026/Brief.md'),
+    );
+    expect(resolve('Brief')).toBe('Briefs/2026/Brief.md');
+  });
+
+  it('writes a bare name for a task whose namesakes are a proposal and its archived copy', () => {
+    const vault = notes(
+      'Inbox/Proposals/Send Mara the payroll file.md',
+      'Archive/Inbox/Proposals/Send Mara the payroll file.md',
+      'Tasks/2026/10/Send Mara the payroll file.md',
+    );
+    expect(
+      wikiLinkTargetFor(createVaultPath('Tasks/2026/10/Send Mara the payroll file.md'), vault),
+    ).toBe('Send Mara the payroll file');
+  });
+});

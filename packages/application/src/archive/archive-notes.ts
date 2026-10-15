@@ -207,6 +207,46 @@ export async function moveAndStampNotes(batch: NoteBatch, rule: MoveRule): Promi
   return { moves, failed: [...failed, ...links.failed], linksUpdated: links.count };
 }
 
+/** What stamping notes where they are did: the notes written, and the ones that could not be. */
+export interface StampOutcome {
+  readonly stamped: readonly VaultPath[];
+  readonly failed: readonly ArchiveFailure[];
+}
+
+/**
+ * Writes each note's frontmatter where it is, moving nothing — filing a
+ * meeting under a project by its link alone (#214) — as a batch's stamp is
+ * written where a note lands: the same unsaved-typing rule, the rest of the
+ * file byte for byte. A note that cannot be written is reported and the rest
+ * carry on.
+ */
+export async function stampNotes(
+  batch: Pick<NoteBatch, 'ports' | 'paths' | 'unsavedTyping'>,
+  rule: Pick<MoveRule, 'refusal'> & { readonly stamp: Stamp },
+): Promise<StampOutcome> {
+  const stamped: VaultPath[] = [];
+  const failed: ArchiveFailure[] = [];
+  const unsavedTyping = batch.unsavedTyping ?? 'save';
+  for (const path of batch.paths) {
+    const refusal = rule.refusal(path);
+    if (refusal !== null) {
+      failed.push({ path, reason: refusal });
+      continue;
+    }
+    try {
+      await rewriteFrontmatter({ ports: batch.ports, path, stamp: rule.stamp, unsavedTyping });
+      stamped.push(path);
+    } catch (cause) {
+      failed.push(
+        cause instanceof UnsavedTypingError
+          ? { path, reason: UNSAVED_REASON, unsavedInApp: true }
+          : { path, reason: reasonOf(cause) },
+      );
+    }
+  }
+  return { stamped, failed };
+}
+
 /**
  * Moves one note and writes its frontmatter where it landed. The folder it
  * lands in is named as the disk spells it, so the move reported — and the

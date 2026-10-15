@@ -1,5 +1,6 @@
 import {
   DAILY_NOTE_CONTENTS,
+  DAILY_TYPE,
   dailyNoteAmong,
   joinVaultPath,
   noteFileName,
@@ -8,23 +9,28 @@ import {
 } from '@atlas/domain';
 import { newNoteTaskRules } from '../gtd/task-rules.ts';
 import { findDailyTemplate, readTemplate, type NoteTemplate } from '../types/templates.ts';
+import { ensureFolder } from '../vault/create-folder.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { listVaultNotes } from '../vault/read-vault.ts';
+import { homeFolderFor } from './home-folder.ts';
 import type { MarkdownPort } from './ports.ts';
 
 /**
- * Where today's note lives: named by the date, at the root of the vault, which
- * is what every other tool that keeps daily notes settles on.
+ * Where today's note lives: named by the date, in `folder` — the Daily type's
+ * home for the day, `Daily/2026` (#214) — which is what every other tool
+ * that keeps daily notes settles on for the name.
  */
-export function dailyNotePath(today: string): VaultPath {
-  return joinVaultPath(VAULT_ROOT, noteFileName(today));
+export function dailyNotePath(today: string, folder: VaultPath): VaultPath {
+  return joinVaultPath(folder, noteFileName(today));
 }
 
 /**
  * Today's note, made on demand.
  *
  * Found where it should be if it is already there, however the disk spells
- * its name — a daily note imported from elsewhere included — otherwise created at the root, never beside
+ * its name — a daily note imported from elsewhere included, and one made at
+ * the root before daily notes had a home — otherwise created in the Daily
+ * type's home folder (#214), never beside
  * whatever note happens to be in view, or the next ask would not find it. It
  * starts from the vault's Daily template when it has one, and as a note of the
  * built-in Daily type otherwise.
@@ -48,9 +54,11 @@ export async function ensureDailyNote({
   notePaths: readonly VaultPath[];
   templates: readonly NoteTemplate[];
 }): Promise<{ path: VaultPath; created: boolean }> {
-  const existing = dailyNoteAmong(today, notePaths);
+  const home =
+    (await homeFolderFor({ fs, markdown, properties: { type: DAILY_TYPE }, today })) ?? VAULT_ROOT;
+  const existing = dailyNoteAmong(today, notePaths, home);
   if (existing !== null) return { path: existing, created: false };
-  const path = dailyNotePath(today);
+  const path = dailyNotePath(today, await ensureFolder({ fs, folder: home }));
 
   const template = findDailyTemplate(templates);
   const started = template === null ? DAILY_NOTE_CONTENTS : await readTemplate({ fs, template });
@@ -60,7 +68,7 @@ export async function ensureDailyNote({
   } catch (error) {
     // Another program made it after the listing, or the disk holds it under
     // another spelling: it is found, not numbered.
-    const found = dailyNoteAmong(today, await listVaultNotes({ fs }));
+    const found = dailyNoteAmong(today, await listVaultNotes({ fs }), home);
     if (found !== null) return { path: found, created: false };
     throw error;
   }

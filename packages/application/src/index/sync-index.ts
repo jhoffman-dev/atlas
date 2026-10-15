@@ -121,15 +121,18 @@ async function versionsHeld(
   try {
     const entries = await heldEntries(index);
     return new Map(
-      [...entries.values()].map(({ path, type, digest, importOutcome, arrivalHeard }) => [
-        path,
-        {
-          type,
-          digest,
-          ...(importOutcome !== undefined && { importOutcome }),
-          ...(arrivalHeard !== undefined && { arrivalHeard }),
-        },
-      ]),
+      [...entries.values()].map(
+        ({ path, type, digest, importOutcome, importDeclared, arrivalHeard }) => [
+          path,
+          {
+            type,
+            digest,
+            ...(importOutcome !== undefined && { importOutcome }),
+            ...(importDeclared !== undefined && { importDeclared }),
+            ...(arrivalHeard !== undefined && { arrivalHeard }),
+          },
+        ],
+      ),
     );
   } catch (cause) {
     // A rebuild is the remedy for an index that cannot answer, so it must not

@@ -269,10 +269,16 @@ describe('links after a move', () => {
   });
 
   it('are reported when a move changes which of two namesakes a link opens', () => {
-    const notes = [path('Projects/Deep/Plan.md'), path('Archive/Plan.md')];
+    const notes = [path('Projects/Deep/Plan.md'), path('Notes/Plan.md')];
     // Moving the deeper one to the top makes it the shallowest `Plan`.
     const move = { from: path('Projects/Deep/Plan.md'), to: path('Plan.md') };
     expect(nameClashes(move, notes)).toEqual([{ name: 'Plan', opens: 'Plan.md' }]);
+  });
+
+  it('are not reported when the only other namesake is archived, which never wins a name (#214)', () => {
+    const notes = [path('Projects/Deep/Plan.md'), path('Archive/Plan.md')];
+    const move = { from: path('Projects/Deep/Plan.md'), to: path('Plan.md') };
+    expect(nameClashes(move, notes)).toEqual([]);
   });
 
   it('are not reported when the same namesake still wins', () => {
@@ -288,9 +294,9 @@ describe('links after a move', () => {
   });
 
   it('are checked for every note a folder carries', () => {
-    const notes = [path('Old/Plan.md'), path('Archive/Plan.md'), path('Old/Solo.md')];
+    const notes = [path('Old/Plan.md'), path('Notes/Plan.md'), path('Old/Solo.md')];
     const move = { from: path('Old'), to: path('Top') };
-    // As deep as Archive/Plan.md either way; a tie goes alphabetically.
+    // As deep as Notes/Plan.md either way; a tie goes alphabetically.
     expect(nameClashes({ ...move, to: path('A') }, notes)).toEqual([
       { name: 'Plan', opens: 'A/Plan.md' },
     ]);

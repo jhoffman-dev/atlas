@@ -44,6 +44,11 @@ const VIEW = [
   '',
 ].join('\n');
 
+// A task made through the API with no folder goes to its type's home for today (#214).
+const TODAY = new Date().toLocaleDateString('en-CA');
+const [YEAR, MONTH] = [TODAY.slice(0, 4), TODAY.slice(5, 7)];
+const FRESH = `Tasks/${YEAR}/${MONTH}/Fresh.md`;
+
 const FIRST = '---\ntype: task\nstatus: doing\n---\n\n# First\n\nThe work.\n';
 
 async function openVault(
@@ -159,11 +164,14 @@ test('a note created through the API shows up in the sidebar and in a view, unre
   });
 
   expect(created.status).toBe(201);
-  expect(created.body).toMatchObject({ note: { path: 'Fresh.md' } });
-  await expectFile(vault, 'Fresh.md').toContain('status: backlog');
-  await expect(
-    sidebarSection(page, 'userSpace').getByRole('treeitem', { name: 'Fresh', exact: true }),
-  ).toBeVisible();
+  expect(created.body).toMatchObject({ note: { path: FRESH } });
+  await expectFile(vault, FRESH).toContain('status: backlog');
+  // In the sidebar, inside its home folder: each level opened in turn.
+  const pages = sidebarSection(page, 'userSpace');
+  for (const folder of ['Tasks', YEAR, MONTH]) {
+    await pages.getByRole('treeitem', { name: folder, exact: true }).click();
+  }
+  await expect(pages.getByRole('treeitem', { name: 'Fresh', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Fresh', exact: true })).toBeVisible();
 });
 

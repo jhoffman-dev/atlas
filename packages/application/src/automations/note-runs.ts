@@ -120,7 +120,8 @@ function versionsNow(
 ): NoteVersionRef[] {
   return paths.flatMap((path) => {
     const entry = held.get(path);
-    return entry === undefined || !isInPlay({ path, importOutcome: entry.importOutcome })
+    return entry === undefined ||
+      !isInPlay({ path, importOutcome: entry.importOutcome, importDeclared: entry.importDeclared })
       ? []
       : [{ path, digest: entry.digest }];
   });

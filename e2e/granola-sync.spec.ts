@@ -46,8 +46,9 @@ const note = (id: string, title: string, updatedAt: string) => ({
 const RENEWAL = note('not_e2eRenewal0001', 'Larkspur Payroll renewal', '2026-10-13T15:00:00Z');
 const ONE_ON_ONE = note('not_e2eOneOnOne002', 'Tobias one on one', '2026-10-13T16:00:00Z');
 
-const RENEWAL_FILE = 'Inbox/Meetings/2026-10-06 Larkspur Payroll renewal.md';
-const ONE_ON_ONE_FILE = 'Inbox/Meetings/2026-10-06 Tobias one on one.md';
+/** A pulled meeting arrives in its month's folder (#214). */
+const RENEWAL_FILE = 'Meetings/2026/10/2026-10-06 Larkspur Payroll renewal.md';
+const ONE_ON_ONE_FILE = 'Meetings/2026/10/2026-10-06 Tobias one on one.md';
 
 const ok = (body: unknown) => ({ status: 200, body: JSON.stringify(body) });
 
