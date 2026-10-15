@@ -14,7 +14,14 @@ function setUp({
   open = VAULT,
   active = true,
   notes = { [BROKEN]: BROKEN_TEXT } as Record<string, string>,
-}: { open?: string | null; active?: boolean; notes?: Record<string, string> } = {}) {
+  gate,
+}: {
+  open?: string | null;
+  active?: boolean;
+  notes?: Record<string, string>;
+  /** Asked in place of `active`, as the window's gate is (ADR-0035 part 4). */
+  gate?: (vault: string) => Promise<boolean>;
+} = {}) {
   const vault = automationVault({ notes, today: '2026-10-08' });
   const activity = recordingActivity();
   const onWritten = vi.fn();
@@ -24,7 +31,7 @@ function setUp({
     clock: { today: () => '2026-10-08' },
     activity,
     openVault: () => open,
-    active: () => state.active,
+    active: gate ?? (() => state.active),
     onWritten,
   });
   const arrived: NoteChange = {
@@ -45,6 +52,33 @@ describe('createMeetingImporter', () => {
     expect(outcome?.happenings.map((happening) => happening.kind)).toEqual(['invalid']);
     expect(vault.properties(BROKEN)['atlas_import_error']).toContain('title is required');
     expect(onWritten).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR-0035 part 4: the gate is read when the run's turn comes, not when it was heard.
+  it('asks whether it may import as each run’s turn comes, for the vault the run is for', async () => {
+    const asked: { vault: string; writesBefore: number }[] = [];
+    let open = false;
+    const { vault, importer, arrived, onWritten } = setUp({
+      gate: async (gated) => {
+        asked.push({ vault: gated, writesBefore: onWritten.mock.calls.length });
+        return open;
+      },
+    });
+
+    expect(await importer.hear({ vault: VAULT, changes: [arrived] })).toBeNull();
+    expect(vault.files.get(BROKEN)).toBe(BROKEN_TEXT);
+
+    open = true;
+    const first = importer.catchUp(VAULT);
+    // Heard while the catch-up runs: its turn, and its question, come once the catch-up has written.
+    const second = importer.hear({ vault: VAULT, changes: [arrived] });
+    await Promise.all([first, second]);
+    expect(vault.properties(BROKEN)['atlas_import_error']).toContain('title is required');
+    expect(asked).toEqual([
+      { vault: VAULT, writesBefore: 0 },
+      { vault: VAULT, writesBefore: 0 },
+      { vault: VAULT, writesBefore: 1 },
+    ]);
   });
 
   it('drops news of a vault that is no longer open', async () => {

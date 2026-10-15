@@ -9,6 +9,7 @@ import type { NoteChangeNews, NoteChanges } from '../index/note-changes.ts';
 import type { Clock } from '../ports.ts';
 import {
   catchUpMeetings,
+  createUnsettledSaid,
   importArrivedMeetings,
   type MeetingImportOutcome,
   type MeetingImportPorts,
@@ -20,11 +21,17 @@ import {
  * once when asked to catch up. Runs go one at a time, so two never settle the
  * same meeting at once.
  *
- * Only the Mac that runs the vault's automations imports — `active` says
- * whether this is it — so two Macs never write the same file. One that is
- * not drops what it hears; nothing is lost by that, since what a file is due
- * is in the file, and catching up when the import starts or this Mac takes
- * the automations over settles every file left.
+ * Only the Mac that runs the vault's automations imports, and only on fresh
+ * sync state (ADR-0035 part 4) — `active` says whether it may, as each run's
+ * turn comes, and `mayWrite` again for each file, right before each write —
+ * so two Macs never write the same file. A run or a file it may not make
+ * drops what it heard; nothing is lost by that, since what a file is due is
+ * in the file, and catching up when the import starts, when this Mac takes
+ * the automations over, or when a pull completes settles every file left.
+ *
+ * A file it leaves unsettled — a conflict copy, one it cannot read or write —
+ * is said in Activity once while the window is open, and again only when it
+ * changes: the catch-up after every pull meets it each time.
  *
  * The ports answer for whichever vault is open, so a run for a vault that is
  * no longer open is dropped too. They are asked for at the start of each
@@ -44,6 +51,7 @@ export function createMeetingImporter({
   activity,
   openVault,
   active,
+  mayWrite,
   onWritten,
   beforeLetIn,
 }: {
@@ -53,8 +61,18 @@ export function createMeetingImporter({
   activity: ActivityLog;
   /** The vault open now, which the ports answer for; null when none is. */
   openVault: () => string | null;
-  /** Whether this Mac imports: it runs the vault's automations. */
-  active: () => boolean;
+  /**
+   * Whether this Mac may import into the vault now: it runs the vault's
+   * automations, on fresh sync state (ADR-0035 part 4). Asked as each run's
+   * turn comes, right before it acts.
+   */
+  active: (vault: string) => boolean | Promise<boolean>;
+  /**
+   * Whether this Mac may write into one file of the vault now (ADR-0035
+   * part 4): asked as each file is read and right before each of its writes,
+   * with when it was last modified as the run first read it. Left out, it may.
+   */
+  mayWrite?: (vault: string, path: VaultPath, arrivedAt: number) => Promise<boolean>;
   /** Told when the import wrote or moved a note, so the tree and the index read it again. */
   onWritten: () => void;
   /**
@@ -70,19 +88,27 @@ export function createMeetingImporter({
   ) => Promise<void>;
 }): MeetingImporter {
   let queue: Promise<unknown> = Promise.resolve();
+  const unsettledSaid = createUnsettledSaid();
 
   const runFor = (
     vault: string,
     importing: (run: MeetingImportRun) => Promise<MeetingImportOutcome>,
   ): Promise<MeetingImportOutcome | null> => {
     const next = queue.then(async () => {
-      if (!active() || openVault() !== vault) return null;
+      if (openVault() !== vault) return null;
+      const mayImport = await active(vault);
+      // Another vault may have opened while the gate was read.
+      if (!mayImport || openVault() !== vault) return null;
       const recorder = activity.inVault(vault);
       try {
         const outcome = await importing({
           ports: ports(),
           today: clock.today(),
           activity: recorder,
+          unsettledSaid,
+          ...(mayWrite !== undefined && {
+            mayWrite: (path, arrivedAt) => mayWrite(vault, path, arrivedAt),
+          }),
           ...(beforeLetIn !== undefined && {
             beforeLetIn: async (path, reading) => {
               await beforeLetIn(vault, path, reading);

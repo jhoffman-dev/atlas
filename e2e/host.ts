@@ -490,6 +490,15 @@ export interface FakeHost {
     registered(): string | null;
     press(): Promise<void>;
   };
+  /**
+   * How long this Mac has slept since it booted, as `sleep_clock.rs` reads it
+   * (#172). It moves only when `sleep` says the Mac slept, as a real sleep
+   * moves it; the reading itself, from the kernel's clocks, is Rust's and
+   * tested there.
+   */
+  readonly sleepClock: {
+    sleep(milliseconds: number): void;
+  };
   /** SQLite files a source may read, by the name the note gives, and what the picker offers. */
   readonly sqlite: {
     serve(file: string, rows: { columns: string[]; rows: unknown[][] }): void;
@@ -657,6 +666,8 @@ export async function installHost(
   let offeredDatabase: string | null = null;
   /** The global capture shortcut the app asked the host to register, if any. */
   let globalShortcut: string | null = null;
+  /** The Mac's time asleep since boot, in milliseconds: a Mac that has slept before. */
+  let asleepMs = 457_335_000;
   const claudeReplies: string[] = [];
   const claudeRuns: { args: readonly string[]; stdin: string }[] = [];
   let claudeLoggedIn = true;
@@ -1326,6 +1337,8 @@ export async function installHost(
         return offeredDatabase;
       case 'watch_vault':
         return null;
+      case 'host_asleep_ms':
+        return asleepMs;
       case 'read_binary_file': {
         const { readFile } = await import('node:fs/promises');
         const bytes = await readFile(containedPath(openRoot(), path));
@@ -1661,6 +1674,11 @@ export async function installHost(
       },
       hasKey: () => granolaKeys.size > 0,
       requests: () => [...granolaRequests],
+    },
+    sleepClock: {
+      sleep: (milliseconds) => {
+        asleepMs += milliseconds;
+      },
     },
     globalCapture: {
       registered: () => globalShortcut,

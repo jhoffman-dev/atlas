@@ -9,7 +9,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { recordingActivity, scriptedFolders, type GitResult } from '@atlas/application';
+import {
+  fakeSleepClock,
+  recordingActivity,
+  scriptedFolders,
+  type GitResult,
+} from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useSync, type SyncOptions } from './use-sync.ts';
 import { SYNC_TICK_MS } from './use-sync-schedule.ts';
@@ -78,6 +83,7 @@ describe('a vault set up from Settings syncs by itself (issue #8)', () => {
           },
           thisMac: { name: async () => 'Air', id: async () => 'mac-air' },
           pause: { read: () => false, write: () => {} },
+          sleepClock: fakeSleepClock().port,
         },
         fs: vaultFsOf(mac),
         markdown: remarkMarkdown,

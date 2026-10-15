@@ -74,6 +74,17 @@ describe('IPC contract', () => {
     expect(needed.filter((name) => !called.has(name))).toEqual([]);
   });
 
+  // ADR-0035 part 4 (#172): the meeting import and a rule's Claude step read
+  // how long this Mac has slept right before they act. Were the command
+  // missing on either side, every synced vault's gate would stay shut with
+  // both suites green; and on the main thread it would wait behind the
+  // window's own work.
+  it('reads how long this Mac has slept through a command the host exposes, off the main thread', () => {
+    expect(commandsCalledByAdapters()).toContain('host_asleep_ms');
+    expect(commandsExposedByRust()).toContain('host_asleep_ms');
+    expect(threadOf('host_asleep_ms')).not.toBe('main');
+  });
+
   // A secret's value goes into the host and never comes back out: the host
   // fills it into a request itself (P12-06). A command that answered with one
   // would hand it to the webview, so the only secret commands are these four,

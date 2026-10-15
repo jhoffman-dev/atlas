@@ -1,11 +1,13 @@
 import {
   createVaultPath,
+  digestOf,
   IMPORT_ERROR_KEY,
   IMPORT_OUTCOME_KEY,
   importErrorText,
   importOutcomeOf,
   isConflictCopyPath,
   isMeetingInboxPath,
+  leavesFileUnsettled,
   meetingCandidates,
   meetingCopies,
   meetingImportReport,
@@ -25,10 +27,12 @@ import type { MarkdownPort } from '../notes/ports.ts';
 import {
   archiveCopy,
   letIn,
+  mayWriteInto,
   meetingHolders,
   writeInto,
   type BeforeLetIn,
   type ImportContext,
+  type MayWriteMeeting,
 } from './meeting-files.ts';
 import { meetingInboxNotes } from './meeting-inbox.ts';
 import { readFrontmatter, validateMeetingFile } from './meeting-reading.ts';
@@ -52,6 +56,41 @@ export interface MeetingImportRun {
    * vault is no longer the one open, which leaves the meeting unstamped.
    */
   readonly beforeLetIn?: BeforeLetIn;
+  /**
+   * Whether the import may write into a file now (ADR-0035 part 4): asked as
+   * each file is read, and right before each of its writes. A file it may
+   * not write is left as it is and not said, for the next pull to settle.
+   */
+  readonly mayWrite?: MayWriteMeeting;
+  /**
+   * What the import has said of files it leaves unsettled: see
+   * {@link UnsettledSaid}. Left out, it says every one every time.
+   */
+  readonly unsettledSaid?: UnsettledSaid;
+}
+
+/**
+ * The files the import has said it leaves unsettled — a conflict copy, one
+ * it cannot read or write, a problem it cannot mark — and what each held
+ * when it was said (#174). Every catch-up meets such a file again, and the
+ * catch-up runs after every pull: each is said once a session, and again
+ * only when what it holds changes.
+ */
+export interface UnsettledSaid {
+  /** Whether this is news: the file was not said yet, or held something else when it was. Records it as said. */
+  isNews(path: string, holding: string): boolean;
+}
+
+/** An empty record of what has been said, for one session. */
+export function createUnsettledSaid(): UnsettledSaid {
+  const said = new Map<string, string>();
+  return {
+    isNews: (path, holding) => {
+      if (said.get(path) === holding) return false;
+      said.set(path, holding);
+      return true;
+    },
+  };
 }
 
 export interface MeetingImportOutcome {
@@ -116,40 +155,68 @@ async function importMeetings(
     notePaths: null,
     wrote: false,
     vocabulary: null,
+    arrived: new Map(),
   };
   const happenings: MeetingImportHappening[] = [];
   for (const path of paths) {
     if (context.settled.has(path)) continue;
-    for (const happening of await importOne(context, createVaultPath(path))) {
-      run.activity.record(meetingImportReport(happening));
+    const looked = await importOne(context, createVaultPath(path));
+    for (const happening of looked.happenings) {
+      if (isNews(run, happening, looked.read)) run.activity.record(meetingImportReport(happening));
       happenings.push(happening);
     }
   }
   return { happenings, wrote: context.wrote };
 }
 
-/** What happened to one file and the others of its meeting; empty when there was nothing to do or say. */
-async function importOne(
-  context: ImportContext,
-  path: VaultPath,
-): Promise<MeetingImportHappening[]> {
+/**
+ * Whether a happening is news to Activity: always, unless it leaves its file
+ * unsettled and was said already of the file holding what it holds now. A
+ * file not read is known by what was said of it.
+ */
+function isNews(
+  { unsettledSaid }: MeetingImportRun,
+  happening: MeetingImportHappening,
+  read: { readonly path: string; readonly text: string } | null,
+): boolean {
+  if (unsettledSaid === undefined || !leavesFileUnsettled(happening)) return true;
+  const said = 'problem' in happening ? `${happening.kind}: ${happening.problem}` : happening.kind;
+  const holding = read?.path === happening.path ? digestOf(read.text) : said;
+  return unsettledSaid.isNews(happening.path, holding);
+}
+
+/** What one file looked at came to, and what it held when read: none, when it could not be. */
+interface Looked {
+  /** What happened to the file and the others of its meeting; empty when there was nothing to do or say. */
+  readonly happenings: MeetingImportHappening[];
+  readonly read: { readonly path: VaultPath; readonly text: string } | null;
+}
+
+/** Looks at one file, and settles it with the others of its meeting. */
+async function importOne(context: ImportContext, path: VaultPath): Promise<Looked> {
+  let read: Looked['read'] = null;
+  const looked = (happenings: MeetingImportHappening[]): Looked => ({ happenings, read });
   try {
     const { markdown } = context.ports;
     const { text, modified } = await context.ports.fs.readTextFile(path);
+    read = { path, text };
+    context.arrived.set(path, modified);
+    // Not on fresh sync state, or changed here since the last pull: left for the next pull.
+    if (!(await mayWriteInto(context, path))) return looked([]);
     const reading = readFrontmatter(markdown, splitFrontmatter(text).frontmatter);
     const outcome = importOutcomeOf(reading.properties);
     // Settled: and a copy stamped where meetings land was brought back from the Archive by the person.
-    if (outcome === 'imported' || outcome === 'duplicate') return [];
+    if (outcome === 'imported' || outcome === 'duplicate') return looked([]);
     // The other Mac's version of a meeting both changed: the person's to settle, never a copy.
-    if (isConflictCopyPath(path)) return [{ kind: 'conflict', path }];
+    if (isConflictCopyPath(path)) return looked([{ kind: 'conflict', path }]);
     const result = validateMeetingFile(markdown, text);
-    if (result.ok) return await settleMeeting(context, { path, meeting: result.meeting });
+    if (result.ok) return looked(await settleMeeting(context, { path, meeting: result.meeting }));
     const refused = await refuse(context, { path, modified, text, reading, errors: result.errors });
-    return refused === null ? [] : [refused];
+    return looked(refused === null ? [] : [refused]);
   } catch (cause) {
     // Moved or deleted since the feed named it: there is nothing to settle, and the next sync says so.
-    if (await isGone(context, path)) return [];
-    return [{ kind: 'failed', path, problem: messageWithoutPaths(cause) }];
+    if (await isGone(context, path)) return looked([]);
+    return looked([{ kind: 'failed', path, problem: messageWithoutPaths(cause) }]);
   }
 }
 
@@ -187,6 +254,7 @@ async function refuse(
   const problem = problemAsMarked(context.ports.markdown, text, errors);
   const stamped = importOutcomeOf(reading.properties) === 'error';
   if (stamped && reading.properties[IMPORT_ERROR_KEY] === problem) return null;
+  if (!(await mayWriteInto(context, path))) return null;
   const unsaved = await writeInto(context, { path, modified, values: errorStamp(problem) });
   return { kind: 'invalid', path, problem, unmarked: unsaved === null ? null : UNSAVED_CLAUSE };
 }
@@ -230,7 +298,7 @@ async function settleMeeting(
   const { unsettled, imported } = await meetingHolders(context, { meeting, besides: path });
   const { original, copies } = meetingCopies([path, ...unsettled], imported);
   const kept = createVaultPath(original);
-  const settling: { path: VaultPath; settle: () => Promise<MeetingImportHappening> }[] = [
+  const settling: { path: VaultPath; settle: () => Promise<MeetingImportHappening | null> }[] = [
     ...(imported.includes(original) || !isMeetingInboxPath(original)
       ? []
       : [{ path: kept, settle: () => letIn(context, kept) }]),
@@ -241,13 +309,13 @@ async function settleMeeting(
   ];
   const happenings: MeetingImportHappening[] = [];
   for (const each of settling) {
-    happenings.push(
-      await each.settle().catch((cause: unknown): MeetingImportHappening => ({
-        kind: 'failed',
-        path: each.path,
-        problem: messageWithoutPaths(cause),
-      })),
-    );
+    const happening = await each.settle().catch((cause: unknown): MeetingImportHappening => ({
+      kind: 'failed',
+      path: each.path,
+      problem: messageWithoutPaths(cause),
+    }));
+    // Null: held by the gates for the next pull, and not said.
+    if (happening !== null) happenings.push(happening);
   }
   return happenings;
 }

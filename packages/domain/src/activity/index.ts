@@ -49,6 +49,7 @@ export {
   indexFailedReport,
   indexInWindowReport,
   indexRebuiltReport,
+  leavesFileUnsettled,
   meetingImportReport,
   meetingImportStoppedReport,
   noticeReport,

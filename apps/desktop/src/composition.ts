@@ -29,6 +29,7 @@ import {
   tauriGitFolders,
   tauriGitHub,
   tauriMacName,
+  tauriSleepClock,
   tauriSyncFiles,
 } from '@atlas/adapters';
 import type {
@@ -160,6 +161,7 @@ export function resolveSyncPorts(): SyncHostPorts {
     github: tauriGitHub,
     pause: browserSyncPause,
     thisMac: { name: tauriMacName.name, id: browserMacId(() => crypto.randomUUID()) },
+    sleepClock: tauriSleepClock,
   };
 }
 

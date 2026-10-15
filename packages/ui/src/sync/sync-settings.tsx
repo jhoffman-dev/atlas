@@ -294,7 +294,7 @@ function SyncedControls({
           <span className="settings__row-label">Pause sync on this Mac</span>
           <span className="settings__status">
             {view.paused
-              ? 'Nothing is sent or brought in until you turn this off, or press Sync now.'
+              ? `Nothing is sent or brought in until you turn this off, or press Sync now.${view.automationsHere ? ' Automations on this Mac wait too: no meeting is imported and no Claude step runs until sync resumes.' : ''}`
               : 'Your other Macs keep syncing either way.'}
           </span>
         </span>
