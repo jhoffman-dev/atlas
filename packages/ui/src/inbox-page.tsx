@@ -11,6 +11,7 @@ import {
   type ProposalsSectionProps,
 } from './proposals/proposals-section.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
+import { MeetingProjects, type MeetingProjectsProps } from './meeting-projects.tsx';
 import { ParaMigration, type ParaMigrationProps } from './para-migration.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
@@ -66,6 +67,8 @@ export interface InboxPageProps {
   paraMigration?: ParaMigrationProps | null;
   /** Moving loose notes and old meetings to their home folders, once, previewed first (#214). */
   vaultTidy?: VaultTidyProps | null;
+  /** Filing the meetings that have no project as their series is, previewed first (#227). */
+  meetingProjects?: MeetingProjectsProps | null;
   /** The vault's own Inbox view, which the sidebar's Inbox row opened before this page. */
   view?: { readonly title: string; readonly onOpen: () => void } | null;
   /** What Claude or an automation proposed, answered here rather than filed (P29-02). */
@@ -89,6 +92,7 @@ export function InboxPage(props: InboxPageProps) {
   const migration = props.taskMigration ?? null;
   const paraMigration = props.paraMigration ?? null;
   const tidy = props.vaultTidy ?? null;
+  const meetingProjects = props.meetingProjects ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
   return (
@@ -117,6 +121,7 @@ export function InboxPage(props: InboxPageProps) {
           {migration !== null && <TaskMigration {...migration} />}
           {paraMigration !== null && <ParaMigration {...paraMigration} />}
           {tidy !== null && <VaultTidy {...tidy} />}
+          {meetingProjects !== null && <MeetingProjects {...meetingProjects} />}
           {problem !== null && (
             <p className="table__error" role="alert">
               {problem}
