@@ -46,6 +46,7 @@ function filing(readProject: () => Promise<{ text: string; modified: number }>) 
       open: false,
       onSettled: () => {},
       activity,
+      closing: { beforeClose: async () => () => {} },
     }),
   );
   const file = () =>

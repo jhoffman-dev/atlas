@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Clarification, InboxItem, VaultPath } from '@atlas/domain';
 import { clarificationOf, rowAfter, type InboxDraft } from './inbox-triage.ts';
 
@@ -29,6 +29,12 @@ export function useInboxTriage({
   const [drafts, setDrafts] = useState<Readonly<Record<string, InboxDraft>>>({});
   const [focused, setFocused] = useState<VaultPath | null>(null);
   const rows = useRef(new Map<VaultPath, HTMLElement>());
+  // Read when a row is acted on, so the actions stay the same from one list to
+  // the next and a row that has not changed is not drawn again (#217).
+  const listed = useRef(items);
+  useEffect(() => {
+    listed.current = items;
+  }, [items]);
 
   const focusRow = useCallback((path: VaultPath) => {
     setFocused(path);
@@ -37,7 +43,7 @@ export function useInboxTriage({
 
   const act = useCallback(
     async (path: VaultPath, clarification: Clarification) => {
-      const next = rowAfter(items, path);
+      const next = rowAfter(listed.current, path);
       if (!(await onClarify({ path, clarification }))) return;
       setDrafts((held) => Object.fromEntries(Object.entries(held).filter(([at]) => at !== path)));
       // Focus that has gone elsewhere since — another note opened, say — is left there.
@@ -45,7 +51,7 @@ export function useInboxTriage({
       const stillHere = at === document.body || rows.current.get(path)?.contains(at) === true;
       if (next !== null && stillHere) focusRow(next);
     },
-    [items, onClarify, focusRow],
+    [onClarify, focusRow],
   );
 
   return {
@@ -67,14 +73,13 @@ export function useInboxTriage({
         setDrafts((held) => ({ ...held, [path]: { ...held[path], ...picked } })),
       [],
     ),
-    /** Done: writes everything the task's row holds in one save. */
+    /** Done: writes everything the task's row holds — `draft` — in one save. */
     commit: useCallback(
-      (item: InboxItem) => {
-        const clarification =
-          item.task === null ? null : clarificationOf(item.task, drafts[item.path] ?? {});
+      (item: InboxItem, draft: InboxDraft) => {
+        const clarification = item.task === null ? null : clarificationOf(item.task, draft);
         if (clarification !== null) void act(item.path, clarification);
       },
-      [act, drafts],
+      [act],
     ),
     /** Files a note that is not a task under a project or an area, at once. */
     fileUnder: useCallback(

@@ -1,16 +1,17 @@
+import { memo, useMemo } from 'react';
 import {
   createVaultPath,
   GTD_STATUSES,
   GTD_STATUS_LABELS,
   humanizeKey,
   isGtdStatus,
+  noteNames,
   type GtdStatus,
   type InboxItem,
   type InboxTask,
   type VaultPath,
 } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
-import { useNoteNames } from '../note-names.tsx';
 import type { RelationChoice } from '../properties-panel.tsx';
 import { RelationOptions } from '../relation-options.tsx';
 import { asksWhoItWaitsOn, clarificationOf, type InboxDraft } from './inbox-triage.ts';
@@ -53,49 +54,107 @@ export function InboxRows({
   refusal,
 }: InboxRowsProps) {
   const triage = useInboxTriage({ items, onClarify });
+  const { rowRef, onRowFocus, pick, commit, fileUnder, makeTask } = triage;
+  const actions = useMemo(
+    () => ({ rowRef, onRowFocus, pick, commit, fileUnder, makeTask }),
+    [rowRef, onRowFocus, pick, commit, fileUnder, makeTask],
+  );
+  const choices = useMemo(() => ({ filing, people, statuses }), [filing, people, statuses]);
   return (
     <tbody>
       {items.map((item) => (
-        <tr
+        <InboxRow
           key={item.path}
-          ref={triage.rowRef(item.path)}
-          tabIndex={-1}
-          className={`table__row inbox__row${triage.focused === item.path ? ' inbox__row--focused' : ''}`}
-          onFocus={() => triage.onRowFocus(item.path)}
-        >
-          <td className="table__name">
-            <button type="button" className="table__link" onClick={() => onOpen(item.path)}>
-              <Icon name="doc" size={16} />
-              <span className="table__title">{item.title}</span>
-            </button>
-          </td>
-          <td className="inbox__kind">
-            {kindOf(item)}
-            <ImportStanding item={item} />
-          </td>
-          <td className="inbox__actions">
-            {item.task === null ? (
-              <NoteActions item={item} filing={filing} busy={busy} triage={triage} />
-            ) : (
-              <ClarifyTask
-                item={item}
-                task={item.task}
-                choices={{ filing, people, statuses }}
-                busy={busy}
-                triage={triage}
-              />
-            )}
-            {refusal?.path === item.path && (
-              <p className="inbox__refusal" role="alert">
-                {refusal.reason}
-              </p>
-            )}
-          </td>
-        </tr>
+          item={item}
+          focused={triage.focused === item.path}
+          draft={triage.draftOf(item.path)}
+          choices={choices}
+          onOpen={onOpen}
+          busy={busy}
+          refusal={refusal?.path === item.path ? refusal.reason : null}
+          actions={actions}
+        />
       ))}
     </tbody>
   );
 }
+
+/** What a row can do, the same from one render to the next. */
+type RowActions = Pick<
+  InboxTriage,
+  'rowRef' | 'onRowFocus' | 'pick' | 'commit' | 'fileUnder' | 'makeTask'
+>;
+
+interface RowChoices {
+  readonly filing: readonly RelationChoice[];
+  readonly people: readonly RelationChoice[];
+  readonly statuses: readonly GtdStatus[];
+}
+
+/**
+ * One row, drawn again only when what it shows has changed: a long Inbox is
+ * hundreds of rows, each with a picker of every project, and redrawing them
+ * all for one row clarified was what kept the next row waiting (#217).
+ */
+const InboxRow = memo(function InboxRow({
+  item,
+  focused,
+  draft,
+  choices,
+  onOpen,
+  busy,
+  refusal,
+  actions,
+}: {
+  item: InboxItem;
+  focused: boolean;
+  draft: InboxDraft;
+  choices: RowChoices;
+  onOpen: (path: VaultPath) => void;
+  busy: boolean;
+  /** Why this row's last clarification was refused, or null. */
+  refusal: string | null;
+  actions: RowActions;
+}) {
+  return (
+    <tr
+      ref={actions.rowRef(item.path)}
+      tabIndex={-1}
+      className={`table__row inbox__row${focused ? ' inbox__row--focused' : ''}`}
+      onFocus={() => actions.onRowFocus(item.path)}
+    >
+      <td className="table__name">
+        <button type="button" className="table__link" onClick={() => onOpen(item.path)}>
+          <Icon name="doc" size={16} />
+          <span className="table__title">{item.title}</span>
+        </button>
+      </td>
+      <td className="inbox__kind">
+        {kindOf(item)}
+        <ImportStanding item={item} />
+      </td>
+      <td className="inbox__actions">
+        {item.task === null ? (
+          <NoteActions item={item} filing={choices.filing} busy={busy} actions={actions} />
+        ) : (
+          <ClarifyTask
+            item={item}
+            task={item.task}
+            draft={draft}
+            choices={choices}
+            busy={busy}
+            actions={actions}
+          />
+        )}
+        {refusal !== null && (
+          <p className="inbox__refusal" role="alert">
+            {refusal}
+          </p>
+        )}
+      </td>
+    </tr>
+  );
+});
 
 /** "Meeting · Meetings": its type, and the folder of the Inbox it arrived in. */
 function kindOf(item: InboxItem): string {
@@ -121,12 +180,12 @@ function NoteActions({
   item,
   filing,
   busy,
-  triage,
+  actions,
 }: {
   item: InboxItem;
   filing: readonly RelationChoice[];
   busy: boolean;
-  triage: InboxTriage;
+  actions: RowActions;
 }) {
   return (
     <div className="inbox__clarify">
@@ -135,7 +194,7 @@ function NoteActions({
           type="button"
           className="btn btn--ghost btn--sm"
           disabled={busy}
-          onClick={() => triage.makeTask(item.path)}
+          onClick={() => actions.makeTask(item.path)}
         >
           Make task
         </button>
@@ -146,7 +205,7 @@ function NoteActions({
         placeholder={filing.length === 0 ? 'No project or area yet' : 'File under…'}
         choices={filing}
         disabled={busy || filing.length === 0}
-        onPick={(project) => triage.fileUnder(item.path, project)}
+        onPick={(project) => actions.fileUnder(item.path, project)}
       />
     </div>
   );
@@ -156,22 +215,19 @@ function NoteActions({
 function ClarifyTask({
   item,
   task,
+  draft,
   choices,
   busy,
-  triage,
+  actions,
 }: {
   item: InboxItem;
   task: InboxTask;
-  choices: {
-    filing: readonly RelationChoice[];
-    people: readonly RelationChoice[];
-    statuses: readonly GtdStatus[];
-  };
+  draft: InboxDraft;
+  choices: RowChoices;
   busy: boolean;
-  triage: InboxTriage;
+  actions: RowActions;
 }) {
-  const draft = triage.draftOf(item.path);
-  const pick = (picked: InboxDraft) => triage.pick(item.path, picked);
+  const pick = (picked: InboxDraft) => actions.pick(item.path, picked);
   const status = draft.status ?? task.status ?? '';
   // What the vault's Task type declares, and what the task says now so the row can show it.
   const offered = GTD_STATUSES.filter(
@@ -183,7 +239,7 @@ function ClarifyTask({
       aria-label={`Clarify ${item.title}`}
       onSubmit={(event) => {
         event.preventDefault();
-        triage.commit(item);
+        actions.commit(item, draft);
       }}
     >
       <select
@@ -245,6 +301,12 @@ function ClarifyTask({
   );
 }
 
+/**
+ * Valued by path, a picker works out no link, so it needs none of the vault's
+ * names: reading them would draw every row again each time a note changes.
+ */
+const BY_PATH = noteNames(null);
+
 /** A picker of notes, valued by path. */
 function NotePicker({
   label,
@@ -261,7 +323,6 @@ function NotePicker({
   disabled: boolean;
   onPick: (path: VaultPath) => void;
 }) {
-  const names = useNoteNames();
   return (
     <select
       className="inbox__file"
@@ -273,7 +334,7 @@ function NotePicker({
       }}
     >
       <option value="">{placeholder}</option>
-      <RelationOptions choices={choices} names={names} optionValue={(choice) => choice.path} />
+      <RelationOptions choices={choices} names={BY_PATH} optionValue={(choice) => choice.path} />
     </select>
   );
 }

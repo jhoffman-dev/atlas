@@ -77,6 +77,7 @@ function inbox(overrides: Partial<InboxOptions> = {}, files: Record<string, stri
     open: true,
     onSettled,
     activity: recordingActivity(),
+    closing: { beforeClose: async () => () => {} },
     ...overrides,
   };
   const hook = renderHook((options: InboxOptions) => useInbox(options), { initialProps: initial });

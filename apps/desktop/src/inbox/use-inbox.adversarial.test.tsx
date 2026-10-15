@@ -55,6 +55,7 @@ describe('useInbox — what it offers to file under', () => {
         open: true,
         onSettled: () => {},
         activity,
+        closing: { beforeClose: async () => () => {} },
       }),
     );
 
