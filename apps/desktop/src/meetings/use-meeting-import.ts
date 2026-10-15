@@ -40,6 +40,8 @@ export function useMeetingImport({
   active,
   indexReady,
   selfName,
+  selfEmails,
+  ownerKnown,
   pulledFiles,
   onWritten,
 }: {
@@ -58,14 +60,32 @@ export function useMeetingImport({
   indexReady: boolean;
   /** The vault owner's name, from their profile: an attendee of that name is never proposed as someone new. */
   selfName: string | null;
+  /** The vault owner's own addresses, its `selfEmails`: an attendee at one is never proposed as someone new. */
+  selfEmails: readonly string[];
+  /**
+   * Whether the vault's settings have answered for the owner's name and
+   * addresses. Until they have, nothing is imported: a meeting linked with
+   * neither would propose its own owner as someone new.
+   */
+  ownerKnown: boolean;
   /** Whether this Mac may act on what sync brought in, and the pull that says so (ADR-0035 part 4). */
   pulledFiles: Pick<PulledFilesGate, 'standing' | 'acts'>;
   /** Re-reads the tree and the index once the import has written or moved a note. */
   onWritten: () => void;
 }): void {
   const { standing, acts } = pulledFiles;
-  const latest = useRef({ ports, onWritten, vaultKey, active, selfName, acts });
-  latest.current = { ports, onWritten, vaultKey, active, selfName, acts };
+  // Imports only once the owner is known, as if this Mac did not import until then.
+  const importing = active && ownerKnown;
+  const latest = useRef({
+    ports,
+    onWritten,
+    vaultKey,
+    active: importing,
+    selfName,
+    selfEmails,
+    acts,
+  });
+  latest.current = { ports, onWritten, vaultKey, active: importing, selfName, selfEmails, acts };
   const [importer, setImporter] = useState<MeetingImporter | null>(null);
 
   useEffect(() => {
@@ -75,6 +95,7 @@ export function useMeetingImport({
       activity,
       openVault: () => latest.current.vaultKey,
       selfName: () => latest.current.selfName,
+      selfEmails: () => latest.current.selfEmails,
       onWritten: () => latest.current.onWritten(),
     });
     const made = createMeetingImporter({
@@ -111,11 +132,11 @@ export function useMeetingImport({
   // Once per pull of the vault completed while this is the importing Mac, once its index is ready.
   const caughtUp = useRef<{ vault: string; standing: PullStanding } | null>(null);
   useEffect(() => {
-    if (!active || vaultKey === null) caughtUp.current = null;
-    if (importer === null || !active || !readyHere || vaultKey === null) return;
+    if (!importing || vaultKey === null) caughtUp.current = null;
+    if (importer === null || !importing || !readyHere || vaultKey === null) return;
     if (standing === null || standing.kind === 'pulling') return;
     if (caughtUp.current?.vault === vaultKey && caughtUp.current.standing === standing) return;
     caughtUp.current = { vault: vaultKey, standing };
     void importer.catchUp(vaultKey);
-  }, [importer, active, readyHere, vaultKey, standing]);
+  }, [importer, importing, readyHere, vaultKey, standing]);
 }

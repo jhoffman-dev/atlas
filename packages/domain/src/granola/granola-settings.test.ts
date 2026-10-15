@@ -3,12 +3,11 @@ import {
   DEFAULT_GRANOLA_TIME_ZONE,
   GRANOLA_GROUP_ADDRESSES_KEY,
   GRANOLA_PERIODIC_KEY,
-  GRANOLA_SELF_EMAILS_KEY,
   GRANOLA_TIME_ZONE_KEY,
   GRANOLA_WEBHOOK_KEY,
-  granolaSelfEmailsFromText,
   parseGranolaSettings,
 } from './granola-settings.ts';
+import { GRANOLA_SELF_EMAILS_KEY, selfEmailsFromText } from '../profile/self-emails.ts';
 
 describe('parseGranolaSettings', () => {
   it('reads every setting the vault gives', () => {
@@ -42,6 +41,21 @@ describe('parseGranolaSettings', () => {
       selfEmailsProblem: null,
     });
     expect(DEFAULT_GRANOLA_TIME_ZONE).toBe('America/Los_Angeles');
+  });
+
+  it('reads the owner’s addresses from selfEmails, and granola_self_emails only while that is empty (#173)', () => {
+    const alias = ['mara.quill@example.com'];
+    expect(parseGranolaSettings({ [GRANOLA_SELF_EMAILS_KEY]: alias }).selfEmails).toEqual(alias);
+    expect(
+      parseGranolaSettings({ selfEmails: ['mq@example.org'], [GRANOLA_SELF_EMAILS_KEY]: alias }),
+    ).toMatchObject({ selfEmails: ['mq@example.org'], selfEmailsProblem: null });
+    expect(
+      parseGranolaSettings({ selfEmails: [], [GRANOLA_SELF_EMAILS_KEY]: alias }).selfEmails,
+    ).toEqual(alias);
+    expect(parseGranolaSettings({ selfEmails: 'Mara' })).toMatchObject({
+      selfEmails: [],
+      selfEmailsProblem: 'Not an email address: “Mara”.',
+    });
   });
 
   it('keys are the ones the vault’s settings note spells', () => {
@@ -185,22 +199,22 @@ describe('parseGranolaSettings', () => {
   });
 });
 
-describe('granolaSelfEmailsFromText', () => {
+describe('selfEmailsFromText', () => {
   it('reads addresses however they were separated, each once and in lower case, in order', () => {
     expect(
-      granolaSelfEmailsFromText(
+      selfEmailsFromText(
         ' mara.quill@example.com, MQ@example.com;\nmara.quill@EXAMPLE.com  mq@example.com ',
       ),
     ).toEqual({ ok: true, emails: ['mara.quill@example.com', 'mq@example.com'] });
   });
 
   it('reads nothing typed as no addresses', () => {
-    expect(granolaSelfEmailsFromText('  ,; \n')).toEqual({ ok: true, emails: [] });
+    expect(selfEmailsFromText('  ,; \n')).toEqual({ ok: true, emails: [] });
   });
 
   it('keeps the address of each "Name <address>", the name quoted or not', () => {
     expect(
-      granolaSelfEmailsFromText(
+      selfEmailsFromText(
         'Mara Quill <Mara.Quill@example.com>, "Quill, Mara" <mq@example.com>; <mara@example.org>',
       ),
     ).toEqual({
@@ -210,13 +224,14 @@ describe('granolaSelfEmailsFromText', () => {
   });
 
   it('keeps an address typed bare beside a "Name <address>" with only a space between', () => {
-    expect(granolaSelfEmailsFromText('mq@example.com Mara Quill <mara.quill@example.com>')).toEqual(
-      { ok: true, emails: ['mq@example.com', 'mara.quill@example.com'] },
-    );
+    expect(selfEmailsFromText('mq@example.com Mara Quill <mara.quill@example.com>')).toEqual({
+      ok: true,
+      emails: ['mq@example.com', 'mara.quill@example.com'],
+    });
   });
 
   it('names each entry that is not an address, and keeps none of them', () => {
-    expect(granolaSelfEmailsFromText('mara.quill@example.com and also mq')).toEqual({
+    expect(selfEmailsFromText('mara.quill@example.com and also mq')).toEqual({
       ok: false,
       problem: 'Not an email address: “and”, “also”, “mq”. Nothing was saved.',
     });
@@ -232,12 +247,12 @@ describe('granolaSelfEmailsFromText', () => {
     ['an unclosed bracket', 'Mara <mara@example.com'],
     ['a stray quote', '"mara@example.com'],
   ])('refuses %s', (_, typed) => {
-    const read = granolaSelfEmailsFromText(typed);
+    const read = selfEmailsFromText(typed);
     expect(read.ok).toBe(false);
   });
 
   it('names the whole "Name <not an address>" it refuses', () => {
-    expect(granolaSelfEmailsFromText('Mara Quill <someone>')).toEqual({
+    expect(selfEmailsFromText('Mara Quill <someone>')).toEqual({
       ok: false,
       problem: 'Not an email address: “Mara Quill <someone>”. Nothing was saved.',
     });
@@ -259,7 +274,7 @@ describe('granolaSelfEmailsFromText', () => {
     ['a line separator', 'mara@example.com\u2028'],
     ['a Hangul filler, a letter that shows nothing', 'mara\u3164@example.com'],
   ])('refuses an address with %s', (_, typed) => {
-    expect(granolaSelfEmailsFromText(typed).ok).toBe(false);
+    expect(selfEmailsFromText(typed).ok).toBe(false);
   });
 
   it.each([
@@ -268,44 +283,44 @@ describe('granolaSelfEmailsFromText', () => {
     ['a hyphen inside a label', 'mara@mail-host.example.com'],
     ['letters of another script', 'mara@exämple.com'],
   ])('keeps an address with %s', (_, typed) => {
-    expect(granolaSelfEmailsFromText(typed)).toEqual({ ok: true, emails: [typed.toLowerCase()] });
+    expect(selfEmailsFromText(typed)).toEqual({ ok: true, emails: [typed.toLowerCase()] });
   });
 
   it('reads no-break spaces as spaces, between a name and its address and between addresses', () => {
     expect(
-      granolaSelfEmailsFromText('Mara\u202FQuill\u00A0<mara@example.com>\u2007mq@example.com'),
+      selfEmailsFromText('Mara\u202FQuill\u00A0<mara@example.com>\u2007mq@example.com'),
     ).toEqual({ ok: true, emails: ['mara@example.com', 'mq@example.com'] });
   });
 
   it('keeps a quoted name with escaped quotes in it, and a name on the line before its address', () => {
     expect(
-      granolaSelfEmailsFromText(
+      selfEmailsFromText(
         '"Quill \\"MQ, Mara\\"" <mq@example.com>\n"Quill, Mara"\r\n  <mara@example.com>',
       ),
     ).toEqual({ ok: true, emails: ['mq@example.com', 'mara@example.com'] });
   });
 
   it('reads a word on its own line as an entry of its own, not as the name of the next address', () => {
-    expect(granolaSelfEmailsFromText('mara@example.com\nnotes\nMara <mq@example.com>')).toEqual({
+    expect(selfEmailsFromText('mara@example.com\nnotes\nMara <mq@example.com>')).toEqual({
       ok: false,
       problem: 'Not an email address: “notes”. Nothing was saved.',
     });
   });
 
   it('refuses an address in angle brackets that never close, before the next line', () => {
-    expect(granolaSelfEmailsFromText('Mara <mara@example.com\nmq@example.com')).toEqual({
+    expect(selfEmailsFromText('Mara <mara@example.com\nmq@example.com')).toEqual({
       ok: false,
       problem: 'Not an email address: “Mara <mara@example.com”. Nothing was saved.',
     });
   });
 
   it('refuses a quoted name with no address after it', () => {
-    expect(granolaSelfEmailsFromText('"Mara Quill", mara@example.com').ok).toBe(false);
+    expect(selfEmailsFromText('"Mara Quill", mara@example.com').ok).toBe(false);
   });
 
   it('names a refused entry with what does not show escaped, cut short', () => {
     const long = `${'m'.repeat(80)}\u200B`;
-    const read = granolaSelfEmailsFromText(`mara@exa\u200Bmple.com ${long}`);
+    const read = selfEmailsFromText(`mara@exa\u200Bmple.com ${long}`);
     expect(read).toEqual({
       ok: false,
       problem: `Not an email address: “mara@exa\\u200Bmple.com”, “${'m'.repeat(60)}…”. Nothing was saved.`,
@@ -313,7 +328,7 @@ describe('granolaSelfEmailsFromText', () => {
   });
 
   it('names the first five entries it refuses, and counts the rest', () => {
-    expect(granolaSelfEmailsFromText('a b c d e f g')).toEqual({
+    expect(selfEmailsFromText('a b c d e f g')).toEqual({
       ok: false,
       problem: 'Not an email address: “a”, “b”, “c”, “d”, “e” and 2 more. Nothing was saved.',
     });
@@ -323,10 +338,10 @@ describe('granolaSelfEmailsFromText', () => {
     const tooMuch =
       'That is more than 10 KB of text, too much to be email addresses. Nothing was saved.';
     const atLimit = `${'m@example.com,'.repeat(730)}${' '.repeat(10 * 1024 - 14 * 730)}`;
-    expect(granolaSelfEmailsFromText(atLimit)).toEqual({ ok: true, emails: ['m@example.com'] });
-    expect(granolaSelfEmailsFromText(`${atLimit} `)).toEqual({ ok: false, problem: tooMuch });
+    expect(selfEmailsFromText(atLimit)).toEqual({ ok: true, emails: ['m@example.com'] });
+    expect(selfEmailsFromText(`${atLimit} `)).toEqual({ ok: false, problem: tooMuch });
     // Measured in bytes: 5,200 × "é" is 5,200 characters but 10,400 bytes.
-    expect(granolaSelfEmailsFromText(`m@ex${'é'.repeat(5_200)}.com`)).toEqual({
+    expect(selfEmailsFromText(`m@ex${'é'.repeat(5_200)}.com`)).toEqual({
       ok: false,
       problem: tooMuch,
     });
@@ -344,7 +359,7 @@ describe('granolaSelfEmailsFromText', () => {
     ];
     for (const shape of shapes) {
       const started = performance.now();
-      granolaSelfEmailsFromText(shape);
+      selfEmailsFromText(shape);
       expect(performance.now() - started, shape.slice(0, 8)).toBeLessThan(50);
     }
   });

@@ -6,7 +6,8 @@ import {
   matchSpeakers,
   messageWithoutPaths,
   namedSpeakers,
-  ownerAddresses,
+  ownerAddressesInUse,
+  ownerNotAGroup,
   planMeetingLinks,
   rankProjects,
   splitFrontmatter,
@@ -82,6 +83,7 @@ export async function linkMeeting({
   path,
   today,
   selfName = null,
+  selfEmails = [],
   vocabulary,
 }: {
   ports: MeetingLinkPorts;
@@ -90,10 +92,12 @@ export async function linkMeeting({
   today: string;
   /** The vault owner's name from their profile: an attendee of that name is never proposed. */
   selfName?: string | null;
+  /** The vault owner's own addresses, its `selfEmails`: an attendee at one is never proposed. */
+  selfEmails?: readonly string[];
   /** The vocabulary the caller's run corrects by, so speakers are read by the same one; read from the index when not given. */
   vocabulary?: Vocabulary | undefined;
 }): Promise<MeetingLinkRun> {
-  const plan = await planFor({ ports, path, selfName, vocabulary });
+  const plan = await planFor({ ports, path, owner: { selfName, selfEmails }, vocabulary });
   const linked = await changeProperties({
     ports,
     changes: relationChanges(path, plan.properties, plan.changes),
@@ -121,18 +125,20 @@ export async function linkMeeting({
 async function planFor({
   ports,
   path,
-  selfName,
+  owner,
   vocabulary,
 }: {
   ports: MeetingLinkPorts;
   path: VaultPath;
-  selfName: string | null;
+  owner: { selfName: string | null; selfEmails: readonly string[] };
   vocabulary: Vocabulary | undefined;
 }): Promise<MeetingLinkPlan & { readonly properties: Readonly<Record<string, unknown>> }> {
   const read = await readMeeting(ports, path);
   const notePaths = await listVaultNotes({ fs: ports.fs });
   const { people, companies } = await loadLinkDirectory({ index: ports.index });
-  const matching = matchAttendees(attendeesOf(read.properties), people, companies);
+  // An attendee at one of the owner's addresses is them, whatever a group rule made of it.
+  const attendees = ownerNotAGroup(attendeesOf(read.properties), owner.selfEmails);
+  const matching = matchAttendees(attendees, people, companies);
   // As corrected (P28-06): the import corrects in its stamp write, after this, so a misheard speaker is read as it will arrive.
   const corrected = await meetingTextAsCorrected({ ports, text: read.text, vocabulary });
   const speakers = speakersOf(ports, { heard: read.text, corrected }, people);
@@ -140,7 +146,8 @@ async function planFor({
   const ties = await loadProjectTies({ index: ports.index, meeting: path, entities });
   const projects = rankProjects(ties);
   const { properties } = read;
-  const selfEmails = ownerAddresses(people, selfName);
+  const { selfName } = owner;
+  const selfEmails = ownerAddressesInUse({ selfEmails: owner.selfEmails, people, selfName });
   const input = {
     meeting: path,
     properties,

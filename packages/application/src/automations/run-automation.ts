@@ -1,5 +1,6 @@
 import {
   automationEntryReport,
+  claudeStepBudget,
   leftHandledNotes,
   messageWithoutPaths,
   noteRunsHeldUntil,
@@ -28,6 +29,7 @@ import { withHandledKeys } from './handled-keys.ts';
 import { ClaudeStepFailed, runClaudeStep, type ClaudeStepPorts } from './claude-step.ts';
 import { holdUnlessFresh, type FreshPullCheck } from './fresh-pull-hold.ts';
 import { heldEntries } from '../index/refresh-index.ts';
+import { allowanceEntries, askedThisHour } from './ask-allowance.ts';
 import { appendForRun, reported } from './automation-activity.ts';
 import { readRuleLog } from './automation-log.ts';
 import {
@@ -154,10 +156,14 @@ async function runOnHeard(
   const handled = await handledAmong({ index: run.ports.index, log, versions: triggering });
   const went = leftHandledNotes(run.changes, handled);
   const versions = unhandledVersions(triggering, handled);
-  const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
+  const budget = claudeStepBudget(run.rule.action);
+  const allowance = await allowanceEntries(run.ports, run.rule, entries);
+  const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow(), budget, allowance);
   if (versions.length === 0 || heldUntil !== null) {
     await recordGone(run, went, 'note');
-    if (versions.length > 0 && heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
+    if (versions.length > 0 && heldUntil !== null) {
+      throw new NoteRunsCappedError(heldUntil, budget);
+    }
     return null;
   }
   const aim: Aim = (ports, today) => planForVersions({ ports, rule: run.rule, versions, today });
@@ -200,8 +206,10 @@ export async function runOnMissedArrivals(run: AutomationRun): Promise<LogEntry 
       handled,
     });
     if (versions.length === 0) return null;
-    const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow());
-    if (heldUntil !== null) throw new NoteRunsCappedError(heldUntil);
+    const budget = claudeStepBudget(rule.action);
+    const allowance = await allowanceEntries(run.ports, rule, entries);
+    const heldUntil = noteRunsHeldUntil(entries, run.clock.localNow(), budget, allowance);
+    if (heldUntil !== null) throw new NoteRunsCappedError(heldUntil, budget);
     const aim: Aim = (ports, today) => planForVersions({ ports, rule, versions, today });
     return runOnce({ run, trigger: 'note', aim, quiet: true });
   };
@@ -386,6 +394,7 @@ async function askClaude({
   const hold = () =>
     holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths: plan.paths });
   await hold();
+  const spent = await askedThisHour(ports, run.rule, at);
   try {
     const { done, left, claude } = await runClaudeStep({
       ports: ports.claude,
@@ -398,6 +407,7 @@ async function askClaude({
       rule: run.rule.id,
       madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
       beforeWrite: hold,
+      askedThisHour: spent,
     });
     const entry: LogEntry = {
       kind: 'run',

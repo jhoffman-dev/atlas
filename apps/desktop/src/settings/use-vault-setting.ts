@@ -8,7 +8,15 @@ export interface VaultSetting<Value> {
   readonly value: Value | null;
   /** Whether `value` is what this vault's settings hold, rather than a stand-in until they are read. */
   readonly loaded: boolean;
+  /**
+   * Whether this vault's settings note has been read, whatever it answered:
+   * `loaded`, or found `unreadable`. Until then nothing about the setting is known.
+   */
+  readonly answered: boolean;
+  /** Shows `value` at once and writes it behind it. */
   readonly save: (value: Value) => void;
+  /** As `save`, for a caller that waits on the write: settles once it has, with why it failed or null. */
+  readonly write: (value: Value) => Promise<string | null>;
   /** Why the last save failed. */
   readonly problem: string | null;
   /** Why the settings note cannot be read; while it cannot, nothing is written to it. */
@@ -50,6 +58,8 @@ export function useVaultSetting<Value>({
   const value = held !== null && held.vault === vaultKey ? held.value : null;
   // The vault whose settings `value` was read from.
   const [loadedFrom, setLoadedFrom] = useState<string | null>(null);
+  // The vault whose settings note last answered a read, whether or not it could be read.
+  const [answeredFor, setAnsweredFor] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [unreadable, setUnreadable] = useState<string | null>(null);
   // Bumped when the last write in flight lands, to read what the file now holds.
@@ -64,6 +74,7 @@ export function useVaultSetting<Value>({
     if (vaultKey === null) {
       setHeld(null);
       setLoadedFrom(null);
+      setAnsweredFor(null);
       return;
     }
     const current = () => ticket === latest.current && writing.current === 0;
@@ -73,22 +84,33 @@ export function useVaultSetting<Value>({
         setHeld({ vault: vaultKey, value: found });
         setUnreadable(null);
         setLoadedFrom(vaultKey);
+        setAnsweredFor(vaultKey);
       })
       .catch((cause: unknown) => {
         if (!current()) return;
         setUnreadable(messageOf(cause));
         setLoadedFrom(null);
+        setAnsweredFor(vaultKey);
       });
   }, [load, vaultKey, changeKey, landed]);
 
-  const save = useCallback(
-    (next: Value) => {
+  const write = useCallback(
+    (next: Value): Promise<string | null> => {
       latest.current += 1;
       writing.current += 1;
       setHeld({ vault: vaultKey, value: next });
       setProblem(null);
-      withGiveUpRecorded({ activity, write: 'setting', path: null }, () => store(next, value))
-        .catch((cause: unknown) => setProblem(messageOf(cause)))
+      return withGiveUpRecorded({ activity, write: 'setting', path: null }, () =>
+        store(next, value),
+      )
+        .then(
+          () => null,
+          (cause: unknown) => {
+            const why = messageOf(cause);
+            setProblem(why);
+            return why;
+          },
+        )
         .finally(() => {
           writing.current -= 1;
           if (writing.current === 0) setLanded((count) => count + 1);
@@ -96,11 +118,14 @@ export function useVaultSetting<Value>({
     },
     [store, vaultKey, value, activity],
   );
+  const save = useCallback((next: Value) => void write(next), [write]);
 
   return {
     value,
     loaded: vaultKey !== null && loadedFrom === vaultKey,
+    answered: vaultKey !== null && answeredFor === vaultKey,
     save,
+    write,
     problem,
     unreadable,
   };

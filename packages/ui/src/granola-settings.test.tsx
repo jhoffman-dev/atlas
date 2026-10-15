@@ -14,10 +14,7 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     lastPull: null,
     lastPullAt: null,
     notes: [],
-    selfEmails: '',
-    suggestedEmails: null,
-    emailsProblem: null,
-    emailsUnreadable: null,
+    addressesUnreadable: null,
     problem: null,
     pending: false,
     ...overrides,
@@ -27,7 +24,6 @@ function renderWith(overrides: Partial<GranolaView> = {}) {
     onForgetKey: vi.fn(),
     onSyncNow: vi.fn(),
     onOpenNote: vi.fn(),
-    onSaveEmails: vi.fn<(emails: string) => boolean>(() => true),
   };
   const { rerender } = render(<GranolaSettings view={view} {...handlers} />);
   /** Draws the same card again with the view changed, as the next render would. */
@@ -137,96 +133,25 @@ describe('GranolaSettings', () => {
     expect(within(card()).getByRole('alert').textContent).toContain('Granola could not be reached');
   });
 
-  it('offers the Person note’s addresses while none are kept, and saves what is in the field', async () => {
-    const { onSaveEmails } = renderWith({ suggestedEmails: 'mara.quill@example.com' });
-    const field = within(card()).getByLabelText<HTMLInputElement>('Your emails');
-    expect(field.value).toBe('mara.quill@example.com');
-    expect(card().textContent).toContain('From your Person note.');
-
-    await userEvent.type(field, ', mq@example.com');
-    await userEvent.click(button('Save emails'));
-    expect(onSaveEmails).toHaveBeenCalledWith('mara.quill@example.com, mq@example.com');
+  it('points to Settings → Profile for the addresses that make “me” You, with no field of its own', () => {
+    renderWith();
+    expect(card().textContent).toContain('one of Your emails in Settings → Profile');
+    expect(within(card()).queryByLabelText('Your emails')).toBeNull();
   });
 
-  it('shows the addresses kept, and saves nothing until they change', async () => {
-    const { onSaveEmails } = renderWith({
-      selfEmails: 'mara@example.com',
-      suggestedEmails: 'mara.quill@example.com',
-    });
-    const field = within(card()).getByLabelText<HTMLInputElement>('Your emails');
-    expect(field.value).toBe('mara@example.com');
-    expect(card().textContent).not.toContain('From your Person note.');
-    expect(button('Save emails')).toHaveProperty('disabled', true);
-
-    await userEvent.clear(field);
-    await userEvent.click(button('Save emails'));
-    expect(onSaveEmails).toHaveBeenCalledWith('');
-  });
-
-  it('keeps what was typed, and says why, when the addresses are refused', async () => {
-    const { onSaveEmails, redraw } = renderWith({ selfEmails: 'mara@example.com' });
-    onSaveEmails.mockReturnValue(false);
-    const field = within(card()).getByLabelText<HTMLInputElement>('Your emails');
-    await userEvent.clear(field);
-    await userEvent.type(field, 'mara@example.com and mq');
-    await userEvent.click(button('Save emails'));
-    expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com and mq');
-    redraw({ selfEmails: 'mara@example.com', emailsProblem: 'Not an email address: “and”.' });
-    expect(field.value).toBe('mara@example.com and mq');
+  it('says addresses in the settings could not be read, and nothing when they were', () => {
+    const words =
+      'Your emails in settings could not be read: Not an email address: “Mara”. ' +
+      'The group addresses in settings could not be read: Not an email address: “eng@example..com”.';
+    const { redraw } = renderWith({ addressesUnreadable: words });
     expect(
-      within(card()).getByRole('alert', { name: 'Your emails were not saved' }).textContent,
-    ).toBe('Not an email address: “and”.');
-  });
-
-  it('shows what the settings keep once the addresses typed are saved', async () => {
-    const { onSaveEmails, redraw } = renderWith({ selfEmails: '' });
-    const field = within(card()).getByLabelText<HTMLInputElement>('Your emails');
-    await userEvent.type(field, 'Mara Quill <Mara@Example.com>');
-    await userEvent.click(button('Save emails'));
-    expect(onSaveEmails).toHaveBeenCalledWith('Mara Quill <Mara@Example.com>');
-    redraw({ selfEmails: 'mara@example.com' });
-    expect(field.value).toBe('mara@example.com');
-    expect(button('Save emails')).toHaveProperty('disabled', true);
-  });
-
-  it('takes the addresses in a field of several lines, a line break kept as typed', async () => {
-    const { onSaveEmails } = renderWith({ selfEmails: '' });
-    const field = within(card()).getByLabelText<HTMLTextAreaElement>('Your emails');
-    expect(field.tagName).toBe('TEXTAREA');
-    await userEvent.type(field, 'mara@example.com{Enter}Mara Quill <mq@example.com>');
-    await userEvent.click(button('Save emails'));
-    expect(onSaveEmails).toHaveBeenCalledWith('mara@example.com\nMara Quill <mq@example.com>');
-  });
-
-  it('says the settings’ addresses could not be read, and shows none of them as kept', () => {
-    renderWith({
-      selfEmails: '',
-      suggestedEmails: null,
-      emailsUnreadable:
-        'Your emails in settings could not be read: Not an email address: “Mara <someone>”.',
-    });
-    expect(
-      within(card()).getByRole('alert', { name: 'Your emails in settings could not be read' })
+      within(card()).getByRole('alert', { name: 'Addresses in settings could not be read' })
         .textContent,
-    ).toBe('Your emails in settings could not be read: Not an email address: “Mara <someone>”.');
-    expect(within(card()).getByLabelText<HTMLTextAreaElement>('Your emails').value).toBe('');
-  });
-
-  it('says nothing of the settings’ addresses when they were read', () => {
-    renderWith({ selfEmails: 'mara@example.com' });
-    expect(within(card()).getByLabelText('Your emails')).toBeTruthy();
+    ).toBe(words);
+    redraw({ addressesUnreadable: null });
     expect(
-      within(card()).queryByRole('alert', { name: 'Your emails in settings could not be read' }),
+      within(card()).queryByRole('alert', { name: 'Addresses in settings could not be read' }),
     ).toBeNull();
-  });
-
-  it('shows the suggestion that arrives while the field is untouched', () => {
-    const { redraw } = renderWith({ selfEmails: '', suggestedEmails: null });
-    redraw({ selfEmails: '', suggestedEmails: 'mara.quill@example.com' });
-    expect(within(card()).getByLabelText<HTMLInputElement>('Your emails').value).toBe(
-      'mara.quill@example.com',
-    );
-    expect(card().textContent).toContain('From your Person note.');
   });
 
   it('while a key is being saved, neither another save nor a forget nor Sync now can be pressed', async () => {

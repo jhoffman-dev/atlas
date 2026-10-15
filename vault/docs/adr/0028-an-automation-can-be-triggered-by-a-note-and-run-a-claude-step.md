@@ -631,6 +631,13 @@ bullets above, this wins._
   is not detected; a compound owner among others (`Tobias and Lena`) is not
   split into two tasks.
 
+### Addendum (2026-10-14, #162): an older Meeting type gains the relations on opening
+
+Amends "a vault's Meeting type is offered them" above: opening a vault now
+adds `tasks` and `decisions`, and the rest of what Atlas ships on its own
+types, to a type file that lacks them. The decision, its scope and its limits
+are ADR-0016's amendment of 2026-10-14 (#162).
+
 ## Consequences
 
 - A Mac that is not the automations Mac never runs Claude on a meeting; the
@@ -658,7 +665,8 @@ text stands.
   digest. The ledger entry also holds the step's stored answer, reused by
   every retry.
 - **The caps.** That step has its own ask budget (10 asks per run, reduce
-  included) and its own hourly allowance (30 asks), apart from the rule's 20
+  included) and one hourly allowance of 30 asks shared by every rule that
+  declares it, apart from each rule's 20
   runs an hour, and defaults to a cheaper model with `model:` to override.
 - **"A Mac that is not the automations Mac never runs Claude on a meeting;
   the meeting waits until that Mac is awake and has pulled"** stays true.

@@ -27,11 +27,27 @@ export function jsonLinesMarkdown(): MarkdownPort {
         if (value === null || value === undefined) merged.delete(key);
         else merged.set(key, value);
       }
-      const lines = [...merged].map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
-      return ['---', ...lines, '---', ''].join('\n');
+      return linesOf(merged);
+    },
+    // As the port promises: added to a map, or to none yet; never over anything else.
+    addToFrontmatterMap: (frontmatter, key, entries) => {
+      const merged = read(frontmatter);
+      const held = merged.get(key) ?? {};
+      if (typeof held !== 'object' || Array.isArray(held)) return null;
+      if (Object.keys(entries).some((entry) => Object.hasOwn(held, entry))) return null;
+      merged.set(key, { ...held, ...entries });
+      return linesOf(merged);
     },
   };
 }
+
+const linesOf = (properties: ReadonlyMap<string, unknown>) =>
+  [
+    '---',
+    ...[...properties].map(([key, value]) => `${key}: ${JSON.stringify(value)}`),
+    '---',
+    '',
+  ].join('\n');
 
 /** A note whose frontmatter is `properties`, as `jsonLinesMarkdown` writes it. */
 export function jsonLinesNote(properties: Readonly<Record<string, unknown>>, body = ''): string {

@@ -17,6 +17,7 @@ const markdown: MarkdownPort = {
   parseBody: () => ({ blocks: [], doc: { type: 'doc', content: [] } }),
   serializeBody: () => '',
   rawParts: () => [],
+  addToFrontmatterMap: () => null,
   frontmatterProblem: () => null,
   frontmatterKeyTexts: () => ({}),
   frontmatterProperties: (frontmatter) =>

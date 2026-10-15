@@ -77,11 +77,22 @@ const portsOver = (written: string[]): MeetingImportPorts => ({
   },
 });
 
+/** What each render of the hook is handed. */
+interface Props {
+  ports: MeetingImportPorts;
+  active: boolean;
+  indexReady: boolean;
+  vaultKey: string | null;
+  pulledFiles?: Gate;
+  ownerKnown?: boolean;
+}
+
 function render(initial: {
   active: boolean;
   indexReady: boolean;
   vaultKey?: string | null;
   pulledFiles?: Gate;
+  ownerKnown?: boolean;
 }) {
   const changes = createNoteChanges({ onError: () => undefined });
   const activity = recordingActivity();
@@ -89,7 +100,8 @@ function render(initial: {
   const onWritten = vi.fn();
   const clock = { today: () => '2026-10-08' };
   const hook = renderHook(
-    ({ ports, active, indexReady, vaultKey, pulledFiles }) =>
+    // Left out of a rerender, the gate is a vault that does not sync, and the owner is known.
+    ({ ports, active, indexReady, vaultKey, pulledFiles = NOT_SYNCED, ownerKnown = true }: Props) =>
       useMeetingImport({
         changes,
         ports,
@@ -97,6 +109,8 @@ function render(initial: {
         activity,
         vaultKey,
         selfName: null,
+        selfEmails: [],
+        ownerKnown,
         active,
         indexReady,
         pulledFiles,
@@ -107,8 +121,9 @@ function render(initial: {
         ports: portsOver(written),
         vaultKey: VAULT as string | null,
         pulledFiles: NOT_SYNCED,
+        ownerKnown: true,
         ...initial,
-      },
+      } as Props,
     },
   );
   return { ...hook, changes, activity, written, onWritten };
@@ -125,6 +140,7 @@ describe('useMeetingImport', () => {
       indexReady: false,
       vaultKey: VAULT,
       pulledFiles: NOT_SYNCED,
+      ownerKnown: true,
     });
     changes.publish({ vault: VAULT, changes: [ARRIVED] });
 
@@ -144,7 +160,12 @@ describe('useMeetingImport', () => {
 
   it('catches up once the index is ready, and again when this Mac takes the automations over', async () => {
     const { rerender, written } = render({ active: true, indexReady: false });
-    const props = { ports: portsOver(written), vaultKey: VAULT, pulledFiles: NOT_SYNCED };
+    const props = {
+      ports: portsOver(written),
+      vaultKey: VAULT,
+      pulledFiles: NOT_SYNCED,
+      ownerKnown: true,
+    };
     expect(written).toEqual([]);
 
     rerender({ ...props, active: true, indexReady: true });
@@ -155,6 +176,34 @@ describe('useMeetingImport', () => {
     rerender({ ...props, active: true, indexReady: true });
 
     await waitFor(() => expect(written).toEqual([BROKEN, BROKEN]));
+  });
+
+  it('imports nothing until the owner’s name and addresses are read, then catches up (#173)', async () => {
+    const { rerender, changes, activity, written } = render({
+      active: true,
+      indexReady: false,
+      ownerKnown: false,
+    });
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: false,
+    });
+    changes.publish({ vault: VAULT, changes: [ARRIVED] });
+    await settled();
+    expect(written).toEqual([]);
+    expect(activity.reports).toEqual([]);
+
+    rerender({
+      ports: portsOver(written),
+      active: true,
+      indexReady: true,
+      vaultKey: VAULT,
+      ownerKnown: true,
+    });
+    await waitFor(() => expect(written).toEqual([BROKEN]));
   });
 
   it('imports nothing while no vault is open', async () => {
@@ -301,6 +350,8 @@ describe('useMeetingImport: adversarial, round 3', () => {
           activity,
           vaultKey,
           selfName: null,
+          selfEmails: [],
+          ownerKnown: true,
           active: true,
           indexReady: status.kind === 'ready',
           pulledFiles: NOT_SYNCED,

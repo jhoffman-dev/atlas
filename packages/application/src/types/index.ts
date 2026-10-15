@@ -33,4 +33,10 @@ export type {
   TypeSetupFailure,
   TypeSetupOffer,
 } from './ensure-built-in-types.ts';
+export type {
+  ShippedPropertiesAdded,
+  ShippedPropertiesFailure,
+  ShippedPropertiesGained,
+  ShippedPropertiesSkipped,
+} from './add-shipped-properties.ts';
 export { linkedTypeProblems } from './linked-types.ts';

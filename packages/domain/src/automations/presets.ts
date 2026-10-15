@@ -1,5 +1,5 @@
 import type { AutomationDraft } from './automation-rule.ts';
-import { MEETING_EXTRACTION_PROMPT } from './built-in-prompts.ts';
+import { AFTER_A_MEETING_PROMPT, MEETING_EXTRACTION_PROMPT } from './built-in-prompts.ts';
 import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
 
 /**
@@ -11,6 +11,11 @@ import { MEETING_ITEMS_OUTPUT } from './meeting-items.ts';
  * The second is meeting extraction (P29-05): when a meeting arrives, Claude
  * pulls its action items and decisions out as proposals. Its prompt is one
  * Atlas ships, written into the vault when the rule is saved.
+ *
+ * The third is "After a meeting" (#179, ADR-0036): the declared step, which
+ * says `apply: mine` so the owner's own action items may become tasks, asks
+ * Sonnet on its own ask budget, and takes meetings of the last 14 days, so
+ * turning it on cannot reach back through every meeting the vault holds.
  */
 export const AUTOMATION_PRESETS: readonly AutomationDraft[] = [
   {
@@ -32,6 +37,20 @@ export const AUTOMATION_PRESETS: readonly AutomationDraft[] = [
       prompt: MEETING_EXTRACTION_PROMPT,
       tools: [],
       output: { kind: 'proposals', schema: MEETING_ITEMS_OUTPUT },
+    },
+  },
+  {
+    name: 'After a meeting',
+    enabled: true,
+    when: { kind: 'note', type: 'meeting', on: ['created'] },
+    which: 'FROM meeting WHERE date >= @-14d',
+    olderThanDays: null,
+    action: {
+      kind: 'claude',
+      prompt: AFTER_A_MEETING_PROMPT,
+      tools: [],
+      output: { kind: 'proposals', schema: MEETING_ITEMS_OUTPUT },
+      apply: 'mine',
     },
   },
 ];

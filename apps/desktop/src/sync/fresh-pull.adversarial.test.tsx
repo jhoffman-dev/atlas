@@ -121,6 +121,8 @@ function wire({
         activity,
         vaultKey: VAULT,
         selfName: null,
+        selfEmails: [],
+        ownerKnown: true,
         active: true,
         indexReady,
         pulledFiles: gate,
