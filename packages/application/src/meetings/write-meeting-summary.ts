@@ -3,11 +3,13 @@ import {
   noteTitle,
   placeSummary,
   removeSummary,
+  restoreSummary,
   SUMMARY_DIGEST_KEY,
   SUMMARY_MODEL_KEY,
   SUMMARY_OF_KEY,
   tasksJoined,
   tasksParted,
+  type ReplacedSummary,
   type SummaryRefusal,
   type VaultPath,
 } from '@atlas/domain';
@@ -36,6 +38,8 @@ export interface MeetingSummaryWrite {
 export interface MeetingSummaryWritten {
   /** The block's digest when it was written; null when none was. */
   readonly digest: string | null;
+  /** The summary the block was written over, for undo to put back; null when there was none. */
+  readonly replaced: ReplacedSummary | null;
   /** Why the block was left as the person has it, when it was: a refusal of the grammar's. */
   readonly kept: { readonly refusal: SummaryRefusal; readonly reason: string } | null;
   /** The tasks it joined into the meeting's `tasks`. */
@@ -103,6 +107,14 @@ export async function writeMeetingSummary(
   const values = { ...summary, ...(tasks !== null && { [MEETING_TASKS_KEY]: tasks }) };
   const written: MeetingSummaryWritten = {
     digest: placed?.ok === true ? placed.digest : null,
+    replaced:
+      placed?.ok === true && placed.prior !== null
+        ? {
+            block: placed.prior,
+            of: textOrNull(properties[SUMMARY_OF_KEY]),
+            model: textOrNull(properties[SUMMARY_MODEL_KEY]),
+          }
+        : null,
     kept: placed === null || placed.ok ? null : { refusal: placed.refusal, reason: placed.reason },
     joined: tasks === null ? [] : write.tasks,
   };
@@ -120,47 +132,87 @@ export async function writeMeetingSummary(
   return written;
 }
 
+const textOrNull = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+
+/** What a run wrote of a meeting's summary, as its log says: the block's digest, and what it replaced. */
+export interface SummaryToTakeBack {
+  readonly digest: string;
+  readonly replaced?: ReplacedSummary | undefined;
+}
+
 /**
- * Takes a run's summary back off a meeting (#185, Undo last run): the block
- * while it is still the one written (`digest`), its keys, and the links to the
- * tasks the undo trashed. A block edited since is left, and so is everything
- * else: the refusal says why.
+ * Takes a run's writes back off a meeting, in one write (#185, Undo last
+ * run): the block while it is still the one written — out, or back to the
+ * summary it replaced, with that one's keys — and the links to the tasks the
+ * undo is to trash. Written before any task is trashed, so a refusal leaves
+ * the meeting and its tasks as they are and no link names a trashed note.
+ *
+ * Rejects with {@link MeetingSummaryRefused}, writing nothing, when the block
+ * was edited since, the meeting has unsaved typing, changed meanwhile, or is
+ * gone.
  */
 export async function undoMeetingSummary(
   ports: NoteWritePorts,
   {
     meeting,
-    digest,
-    trashed,
+    summary,
+    trashing,
     notePaths,
   }: {
     meeting: VaultPath;
-    digest: string;
-    /** The tasks the undo trashed: their links leave the meeting's `tasks`. */
-    trashed: readonly VaultPath[];
-    /** Every note the links were spelt against, the trashed tasks included. */
+    /** What the run wrote of the summary; null when it wrote none (it only joined tasks). */
+    summary: SummaryToTakeBack | null;
+    /** The tasks the undo is to trash: their links leave the meeting's `tasks`. */
+    trashing: readonly VaultPath[];
+    /** Every note the links were spelt against, the tasks included. */
     notePaths: readonly VaultPath[];
   },
 ): Promise<void> {
   const link = await readMeeting(ports, meeting, UNDOING);
-  const removed = removeSummary(link.document.body, { recorded: digest });
-  if (!removed.ok) throw new MeetingSummaryRefused(removed.reason);
-  const tasks = tasksParted({ value: link.target.value, tasks: trashed, notePaths });
+  const taken = summary === null ? null : summaryTakenBack(link.document.body, summary);
+  if (taken !== null && !taken.ok) throw new MeetingSummaryRefused(taken.reason);
+  const tasks =
+    trashing.length === 0
+      ? undefined
+      : tasksParted({ value: link.target.value, tasks: trashing, notePaths });
+  const values = {
+    ...(taken === null ? {} : taken.keys),
+    ...(tasks !== undefined && { [MEETING_TASKS_KEY]: tasks }),
+  };
+  if (Object.keys(values).length === 0) return;
   await stamped(
     ports,
     {
       path: meeting,
       modified: link.modified,
-      values: {
-        [SUMMARY_DIGEST_KEY]: null,
-        [SUMMARY_OF_KEY]: null,
-        [SUMMARY_MODEL_KEY]: null,
-        ...(tasks !== undefined && { [MEETING_TASKS_KEY]: tasks }),
-      },
-      body: removed.body,
+      values,
+      ...(taken !== null && { body: taken.body }),
     },
     UNDOING,
   );
+}
+
+/** The body and keys with the run's block taken out, or put back to the one it replaced. */
+function summaryTakenBack(
+  body: string,
+  { digest, replaced }: SummaryToTakeBack,
+):
+  | { readonly ok: true; readonly body: string; readonly keys: Record<string, unknown> }
+  | { readonly ok: false; readonly reason: string } {
+  if (replaced === undefined) {
+    const removed = removeSummary(body, { recorded: digest });
+    if (!removed.ok) return removed;
+    const keys = { [SUMMARY_DIGEST_KEY]: null, [SUMMARY_OF_KEY]: null, [SUMMARY_MODEL_KEY]: null };
+    return { ok: true, body: removed.body, keys };
+  }
+  const restored = restoreSummary(body, { recorded: digest, prior: replaced.block });
+  if (!restored.ok) return restored;
+  const keys = {
+    [SUMMARY_DIGEST_KEY]: restored.digest,
+    [SUMMARY_OF_KEY]: replaced.of,
+    [SUMMARY_MODEL_KEY]: replaced.model,
+  };
+  return { ok: true, body: restored.body, keys };
 }
 
 /** What a refusal says, by what was being done. */

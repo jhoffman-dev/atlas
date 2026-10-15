@@ -10,7 +10,7 @@ import {
   parseRunLog,
   type LogEntry,
 } from './run-log.ts';
-import { loggedActionProblem } from './undo-check.ts';
+import { loggedActionProblem, madeTaskMeeting } from './undo-check.ts';
 
 /**
  * #185: what the declared step's run leaves on record when it writes a
@@ -170,5 +170,87 @@ describe('undo of the declared step’s run', () => {
     expect(formatLogEntry(undo)).toContain('Trashed 1 note. Took the summary off 1 meeting.');
     expect(parseRunLog(newLogText('After a meeting', [RAN, undo]))).toEqual([RAN, undo]);
     expect(lastUndoableRun([RAN, undo])).toBeNull();
+  });
+});
+
+describe('a run that made tasks and wrote no summary (#185)', () => {
+  it('is still the run undo takes back: a task logged with its digest is undoable', () => {
+    const tasksOnly: LogEntry = {
+      ...RAN,
+      at: '2026-10-15T09:00:00',
+      done: [{ kind: 'created', path: TASK, digest: 'a1b2c3d4' }],
+    };
+    expect(lastUndoableRun([RAN, tasksOnly])).toBe(tasksOnly);
+    // One logged with no digest is a note a Claude step made, which undo leaves: not a run to undo.
+    const noDigest: LogEntry = { ...tasksOnly, done: [{ kind: 'created', path: TASK }] };
+    expect(lastUndoableRun([RAN, noDigest])).toBe(RAN);
+  });
+});
+
+describe('a summary written over an earlier one, in the log', () => {
+  const REPLACED = {
+    block:
+      '<!-- atlas:summary v1 -->\n\n> [!summary] Summary by Claude (claude-sonnet-5-5, 2026-10-13)\n> `Old` words.\n<!-- /atlas:summary -->',
+    of: 'abcd1234',
+    model: 'claude-sonnet-5-5',
+  };
+  const OVER: LogEntry = {
+    ...RAN,
+    done: [{ kind: 'summarised', path: MEETING, digest: '0f0e0d0c', replaced: REPLACED }],
+  };
+
+  it('keeps the summary it replaced, every byte, and reads it back', () => {
+    const text = newLogText('After a meeting', [OVER]);
+    expect(text.split('\n').filter((line) => line.startsWith('- summarised'))).toHaveLength(1);
+    expect(parseRunLog(text)).toEqual([OVER]);
+  });
+
+  it('leaves out a line whose replaced summary is not one a run writes', () => {
+    const text = newLogText('After a meeting', [OVER]).replace(
+      /over `[^`]*`/,
+      'over `{"block":7,"of":null,"model":null}`',
+    );
+    const [entry] = parseRunLog(text);
+    expect(entry?.kind === 'run' && entry.done).toEqual([]);
+  });
+});
+
+describe('a task a forged log line names (A25-01)', () => {
+  const HOME = createVaultPath('Tasks/2026/10');
+  const MADE = createVaultPath('Tasks/2026/10/Write the rollout note.md');
+  const NOTES = [MEETING, MADE, createVaultPath('People/Tobias Fenn.md')];
+  const TASK_PROPERTIES = {
+    type: 'task',
+    status: 'inbox',
+    source: '[[2026-10-14 Platform weekly sync#^t0003]]',
+  };
+  const reading = (path = MADE, properties: Record<string, unknown> = TASK_PROPERTIES) =>
+    madeTaskMeeting({ path, properties, runMeetings: [MEETING], notePaths: NOTES, home: HOME });
+
+  it('is believed only as a task, from a meeting the run read, where the run made tasks', () => {
+    expect(reading()).toEqual({ ok: true, meeting: MEETING });
+    const refused = { ok: false, reason: 'It is not a task this rule made, so it was left.' };
+    // A person's note, whatever its digest.
+    expect(reading(createVaultPath('People/Tobias Fenn.md'), { type: 'person' })).toEqual(refused);
+    // A task elsewhere in the vault.
+    expect(reading(createVaultPath('Projects/Write the rollout note.md'))).toEqual(refused);
+    // A task from a meeting this run did not read, or citing nothing.
+    expect(reading(MADE, { ...TASK_PROPERTIES, source: '[[Some other meeting#^t0001]]' })).toEqual(
+      refused,
+    );
+    expect(reading(MADE, { type: 'task' })).toEqual(refused);
+  });
+
+  it('is at the top of the vault when the task type has no home', () => {
+    const top = createVaultPath('Write the rollout note.md');
+    expect(
+      madeTaskMeeting({
+        path: top,
+        properties: TASK_PROPERTIES,
+        runMeetings: [MEETING],
+        notePaths: [MEETING, top],
+        home: null,
+      }),
+    ).toEqual({ ok: true, meeting: MEETING });
   });
 });

@@ -3,6 +3,7 @@ import {
   foldedVaultPath,
   lastUndoableRun,
   loggedActionProblem,
+  madeTaskMeeting,
   splitFrontmatter,
   unarchiveProblem,
   type DoneAction,
@@ -11,7 +12,12 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import { unarchiveNotes } from '../archive/archive-notes.ts';
-import { MeetingSummaryRefused, undoMeetingSummary } from '../meetings/write-meeting-summary.ts';
+import {
+  MeetingSummaryRefused,
+  undoMeetingSummary,
+  type SummaryToTakeBack,
+} from '../meetings/write-meeting-summary.ts';
+import { homeFolderFor } from '../notes/home-folder.ts';
 import {
   changeProperties,
   UNSAVED_TYPING,
@@ -81,7 +87,7 @@ async function undoOnce(run: AutomationRun): Promise<LogEntry | null> {
       kind: 'restored',
       today: clock.today(),
     });
-    summaries = await takeBackSummaries({ ports, done: trusted });
+    summaries = await takeBackSummaries({ ports, run: last, done: trusted });
   } finally {
     // As a run does: what the undo changed is logged however it ends, in the rule's own vault.
     await appendForRun({ fs: run.ports.fs, run, entry: entry() });
@@ -159,62 +165,120 @@ function restoringChanges(done: readonly DoneAction[]): PropertyChange[] {
 
 const CHANGED_SINCE = 'It was changed since the run made it, so it was kept.';
 const NOT_THERE = 'It is no longer where the run made it, so it was left.';
+const meetingKept = (reason: string) => `Its meeting was left as it is, so it was kept: ${reason}`;
+
+/** A task the run made, unchanged since, and the meeting it is from. */
+interface MadeTask {
+  readonly path: VaultPath;
+  readonly meeting: VaultPath;
+}
 
 /**
- * Takes back what the declared step wrote (#185): each task it made, to the
- * Trash, while it is still exactly as made; then each meeting's summary
- * block and keys, while the block is still the one written, with the links
- * to the tasks trashed. A task changed since stays, and so does its link; a
- * block edited since stays, and so does the meeting.
+ * Takes back what the declared step wrote (#185), one meeting at a time:
+ * first the meeting — its summary block out, or back to the one it replaced,
+ * and the links to its tasks — in one write, then each of its tasks to the
+ * Trash. A task changed since stays, and so does its link. A meeting that
+ * refuses (its block edited since, typed in, changed meanwhile) is left, and
+ * so is every task of it: no link names a trashed note, and no summary says
+ * a task was made that is gone. A logged task undo cannot believe the run
+ * made (A25-01) is left, and named.
  */
 async function takeBackSummaries({
   ports,
+  run,
   done,
 }: {
   ports: UndoPorts;
+  run: Run;
   done: readonly DoneAction[];
 }): Promise<PropertyOutcome> {
-  const tasks = done.flatMap((action) =>
-    action.kind === 'created' && action.digest !== undefined ? [action] : [],
-  );
-  const meetings = done.flatMap((action) => (action.kind === 'summarised' ? [action] : []));
-  const did: DoneAction[] = [];
-  const left: PassedOver[] = [];
-  for (const { path, digest } of tasks) {
-    const problem = await unchangedTaskProblem(ports, path, digest!);
-    if (problem !== null) {
-      left.push({ path, reason: problem });
-      continue;
-    }
-    await ports.fs.trashEntry({ path });
-    did.push({ kind: 'trashed', path });
+  const summaries = new Map<VaultPath, SummaryToTakeBack>();
+  for (const action of done) {
+    if (action.kind === 'summarised') summaries.set(action.path, action);
   }
-  const trashed = did.map((action) => ('path' in action ? action.path : action.to));
-  for (const { path, digest } of meetings) {
+  const { made, left } = await madeTasks({ ports, run, done, meetings: [...summaries.keys()] });
+  const meetings = [...new Set([...summaries.keys(), ...made.map(({ meeting }) => meeting)])];
+  const did: DoneAction[] = [];
+  for (const meeting of meetings) {
+    const trashing = made.filter((task) => task.meeting === meeting).map(({ path }) => path);
+    const summary = summaries.get(meeting) ?? null;
     try {
-      await undoMeetingSummary(ports, {
-        meeting: path,
-        digest,
-        trashed,
-        notePaths: ports.notePaths,
-      });
-      did.push({ kind: 'unsummarised', path });
+      await undoMeetingSummary(ports, { meeting, summary, trashing, notePaths: ports.notePaths });
     } catch (cause) {
       if (!(cause instanceof MeetingSummaryRefused)) throw cause;
-      left.push({ path, reason: cause.message });
+      if (summary !== null) left.push({ path: meeting, reason: cause.message });
+      left.push(...trashing.map((path) => ({ path, reason: meetingKept(cause.message) })));
+      continue;
     }
+    for (const path of trashing) {
+      await ports.fs.trashEntry({ path });
+      did.push({ kind: 'trashed', path });
+    }
+    if (summary !== null) did.push({ kind: 'unsummarised', path: meeting });
   }
   return { done: did, left };
 }
 
-/** Why a task the run made is not to be trashed: typed in, changed since, or gone; null when it is as made. */
-async function unchangedTaskProblem(
+/**
+ * The tasks the run's log says it made that undo may trash: each still as
+ * made, and one the run could have made — a task from a meeting it read, in
+ * the folder it made tasks in. The rest are left, with why.
+ */
+async function madeTasks({
+  ports,
+  run,
+  done,
+  meetings,
+}: {
+  ports: UndoPorts;
+  run: Run;
+  done: readonly DoneAction[];
+  /** The meetings the run wrote a summary to: read by it, whatever its tallies say. */
+  meetings: readonly VaultPath[];
+}): Promise<{ made: MadeTask[]; left: PassedOver[] }> {
+  const runMeetings = [...meetings, ...(run.claude?.meetings ?? []).map(({ path }) => path)];
+  const made: MadeTask[] = [];
+  const left: PassedOver[] = [];
+  for (const action of done) {
+    if (action.kind !== 'created' || action.digest === undefined) continue;
+    const { path, digest } = action;
+    const read = await readUnchangedTask(ports, path, digest);
+    if (!read.ok) {
+      left.push({ path, reason: read.reason });
+      continue;
+    }
+    const properties = ports.markdown.frontmatterProperties(
+      splitFrontmatter(read.text).frontmatter,
+    );
+    const home = await homeFolderFor({
+      fs: ports.fs,
+      markdown: ports.markdown,
+      properties,
+      today: run.at.slice(0, 10),
+    });
+    const ours = madeTaskMeeting({
+      path,
+      properties,
+      runMeetings,
+      notePaths: ports.notePaths,
+      home,
+    });
+    if (ours.ok) made.push({ path, meeting: ours.meeting });
+    else left.push({ path, reason: ours.reason });
+  }
+  return { made, left };
+}
+
+/** A task the run made, as it is now — or why it is not to be trashed: typed in, changed since, or gone. */
+async function readUnchangedTask(
   ports: UndoPorts,
   path: VaultPath,
   digest: string,
-): Promise<string | null> {
-  if (ports.editors.state(path) === 'dirty') return UNSAVED_TYPING;
+): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  if (ports.editors.state(path) === 'dirty') return { ok: false, reason: UNSAVED_TYPING };
   const [file] = await ports.fs.readNotes([path]);
-  if (file === undefined) return NOT_THERE;
-  return digestOf(file.text) === digest ? null : CHANGED_SINCE;
+  if (file === undefined) return { ok: false, reason: NOT_THERE };
+  return digestOf(file.text) === digest
+    ? { ok: true, text: file.text }
+    : { ok: false, reason: CHANGED_SINCE };
 }

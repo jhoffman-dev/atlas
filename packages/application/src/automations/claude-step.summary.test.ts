@@ -17,6 +17,7 @@ import {
   claudeAsks,
   createVaultPath,
   DECLARED_STEP_MODEL,
+  digestOf,
   logPathFor,
   parseObjectType,
   parseRunLog,
@@ -584,5 +585,150 @@ describe('Undo last run', () => {
     expect(at.vault.files.has(task!)).toBe(true);
     expect(at.body()).toContain('flag before Friday!');
     expect(at.properties()['tasks']).toEqual(['[[Write the rollout note]]']);
+  });
+});
+
+const taskNamed = (at: ReturnType<typeof setUp>, words: string) =>
+  [...at.vault.files.keys()].filter(
+    (path) => at.vault.properties(path)['type'] === 'task' && path.includes(words),
+  );
+
+const RETRO = 'Meetings/Platform retro.md';
+const retroWith = (body: string) =>
+  jsonNote(
+    { ...HEADER, title: 'Platform retro', external_id: 'gemini-0b1d2e3f', date: '2026-10-10' },
+    body,
+  );
+/** A meeting written into the vault as a sync would: a new file, with its modified time. */
+const arrives = (at: ReturnType<typeof setUp>, contents: string) =>
+  at.vault.ports.fs.createNote({ path: createVaultPath(RETRO), contents });
+const RETRO_ITEM = {
+  kind: 'task',
+  title: 'Send the cache numbers',
+  owner: 'Mara Quill',
+  source_block: 't0003',
+  confidence: 'high',
+};
+
+describe('Undo last run reaches the last run, even one that wrote no summary', () => {
+  it('a later run that made a task but wrote no summary (it did not read) is the one undone', async () => {
+    const at = setUp([digest(), digest({ summary: 42, items: [RETRO_ITEM] })]);
+    await at.run();
+    const firstBlock = blockOf(at.body()).text;
+    // A second meeting arrives; Claude's summary of it does not read, its item is made a task.
+    await arrives(at, retroWith(BODY));
+    await at.run();
+    expect(taskNamed(at, 'cache numbers')).toHaveLength(1);
+
+    await at.undo();
+
+    // The last run's task goes, and its link off the meeting; the first run's summary and task stay.
+    expect(taskNamed(at, 'cache numbers')).toHaveLength(0);
+    expect(JSON.stringify(at.vault.properties(RETRO)['tasks'] ?? [])).not.toContain(
+      'cache numbers',
+    );
+    expect(taskNamed(at, 'rollout note')).toHaveLength(1);
+    expect(blockOf(at.body()).text).toBe(firstBlock);
+  });
+
+  it('a later run whose summary was kept (the meeting holds a pasted block) is the one undone', async () => {
+    const at = setUp([digest(), digest({ items: [RETRO_ITEM] })]);
+    await at.run();
+    const firstBlock = blockOf(at.body()).text;
+    // The person pasted last week's summary into the new meeting's Notes before the run.
+    await arrives(at, retroWith(BODY.replace('## Notes\n', `## Notes\n\n${firstBlock}\n`)));
+    await at.run();
+    expect(taskNamed(at, 'cache numbers')).toHaveLength(1);
+
+    await at.undo();
+
+    expect(taskNamed(at, 'cache numbers')).toHaveLength(0);
+    expect(taskNamed(at, 'rollout note')).toHaveLength(1);
+    expect(blockOf(at.body()).text).toBe(firstBlock);
+  });
+});
+
+describe('Undo of a run that replaced a summary', () => {
+  it('puts the summary it replaced back, with its keys', async () => {
+    const at = setUp([digest(), digest({ summary: 'They moved the date to Monday.', items: [] })]);
+    await at.run();
+    const first = { block: blockOf(at.body()).text, properties: at.properties() };
+    // The transcript corrected: new words, so the next run writes a new summary over the old.
+    at.vault.files.set(SYNC, at.meeting().replace('Friday works.', 'Monday works.'));
+    await at.run();
+    expect(blockOf(at.body()).text).toContain('Monday');
+
+    const undone = (await at.undo()) as Extract<LogEntry, { kind: 'undo' }> | null;
+
+    expect(undone?.done).toEqual([{ kind: 'unsummarised', path: SYNC }]);
+    expect(blockOf(at.body()).text).toBe(first.block);
+    for (const key of ['atlas_summary_digest', 'atlas_summary_of', 'atlas_summary_model']) {
+      expect(at.properties()[key]).toBe(first.properties[key]);
+    }
+    // The person's own change to the transcript is theirs: undo leaves it.
+    expect(at.body()).toContain('Monday works.');
+  });
+});
+
+describe('Undo with a summary block the person edited', () => {
+  it('never leaves the meeting’s tasks linking a task it trashed', async () => {
+    const at = setUp([digest()]);
+    await at.run();
+    const [task] = at.tasks();
+    // Only the block is edited; the task is as made.
+    at.vault.files.set(SYNC, at.meeting().replace('flag before Friday.', 'flag before Friday!'));
+
+    await at.undo();
+
+    const trashed = !at.vault.files.has(task!);
+    const linked = JSON.stringify(at.properties()['tasks'] ?? []).includes(
+      'Write the rollout note',
+    );
+    expect(trashed && linked).toBe(false);
+  });
+});
+
+describe('Undo of a meeting being typed in', () => {
+  it('trashes none of its tasks and takes nothing off it, saying why', async () => {
+    const at = setUp([digest()]);
+    await at.run();
+    const [task] = at.tasks();
+    const before = at.meeting();
+    at.vault.unsaved.add(SYNC);
+
+    const undone = (await at.undo()) as Extract<LogEntry, { kind: 'undo' }> | null;
+
+    expect(undone?.done).toEqual([]);
+    const left = new Map<string, string>(undone?.left.map(({ path, reason }) => [path, reason]));
+    expect(left.get(createVaultPath(SYNC))).toMatch(/has unsaved typing/);
+    expect(left.get(task!)).toMatch(
+      /^Its meeting was left as it is, so it was kept: .*unsaved typing/,
+    );
+    expect(at.vault.files.has(task!)).toBe(true);
+    expect(at.meeting()).toBe(before);
+  });
+});
+
+describe('a run log someone else wrote into (A25-01)', () => {
+  it('Undo trashes only a task the rule made, never another note a log line names', async () => {
+    const at = setUp([digest()]);
+    await at.run();
+    const [task] = at.tasks();
+    const person = 'People/Tobias Fenn.md';
+    const log = logPathFor(RULE.id);
+    // A sync tool or another program rewrites the "created" line to name a person's note, as it is now.
+    const forged = at.vault.files
+      .get(log)!
+      .replace(
+        /- created `"[^`]*"` at `"[^`]*"`/,
+        `- created \`"${person}"\` at \`"${digestOf(at.vault.files.get(person)!)}"\``,
+      );
+    expect(forged).toContain(person);
+    at.vault.files.set(log, forged);
+
+    await at.undo();
+
+    expect(at.vault.files.has(person)).toBe(true);
+    expect(task).toBeDefined();
   });
 });

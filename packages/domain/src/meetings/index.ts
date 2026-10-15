@@ -88,6 +88,7 @@ export {
   readSummaryBlock,
   removeSummary,
   renderSummaryBlock,
+  restoreSummary,
   SUMMARY_CLOSE_MARKER,
   SUMMARY_DIGEST_KEY,
   SUMMARY_MODEL_KEY,

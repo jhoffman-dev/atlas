@@ -159,6 +159,8 @@ export type SummaryPlacement =
       readonly digest: string;
       /** Whether a block was there and was replaced. */
       readonly replaced: boolean;
+      /** The block replaced, as it was; null when none was there. */
+      readonly prior: string | null;
     }
   | { readonly ok: false; readonly refusal: SummaryRefusal; readonly reason: string };
 
@@ -491,10 +493,11 @@ export function placeSummary(
       body: body.slice(0, reading.start) + written + body.slice(reading.end),
       digest,
       replaced: true,
+      prior: reading.text,
     };
   }
   if (recorded !== null) return refusal('removed');
-  return { ok: true, body: insertedAtTop(body, written), digest, replaced: false };
+  return { ok: true, body: insertedAtTop(body, written), digest, replaced: false, prior: null };
 }
 
 /**
@@ -510,23 +513,66 @@ export function removeSummary(
   if (reading.kind === 'refused') return { ok: false, ...withoutKind(reading) };
   if (reading.kind === 'none') return refusal('removed');
   if (reading.digest !== recorded) return refusal('edited');
-  const eol = lineEndOf(body);
-  let end = reading.end;
-  for (let breaks = 0; breaks < 2 && body.startsWith(eol, end); breaks += 1) end += eol.length;
-  return { ok: true, body: body.slice(0, reading.start) + body.slice(end) };
+  const { start, end } = blockSpan(body, reading);
+  return { ok: true, body: body.slice(0, start) + body.slice(end) };
 }
+
+/**
+ * `body` with the summary it holds — while it is the one recorded — put back
+ * to `prior`, the block it was written over: what undoing a run that
+ * replaced a summary does. Refused as {@link removeSummary} is, and when
+ * `prior` is not one summary block, every byte of it (a run log is a note
+ * anyone can write into).
+ */
+export function restoreSummary(
+  body: string,
+  { recorded, prior }: { recorded: string; prior: string },
+):
+  | { readonly ok: true; readonly body: string; readonly digest: string }
+  | { readonly ok: false; readonly reason: string } {
+  const reading = readSummaryBlock(body);
+  if (reading.kind === 'refused') return { ok: false, reason: reading.reason };
+  if (reading.kind === 'none') return refusal('removed');
+  if (reading.digest !== recorded) return refusal('edited');
+  const earlier = readSummaryBlock(prior);
+  if (earlier.kind !== 'block' || earlier.text !== prior) {
+    return { ok: false, reason: PRIOR_UNREADABLE };
+  }
+  return {
+    ok: true,
+    body: body.slice(0, reading.start) + prior + body.slice(reading.end),
+    digest: earlier.digest,
+  };
+}
+
+const PRIOR_UNREADABLE =
+  'The summary this run wrote over is not one Atlas can put back, so the summary was left as it is.';
 
 /**
  * `text` without its summary block, what the model is shown: it never
  * summarises its own summary. A block that cannot be read as one is left in.
  */
 export function withoutSummaryBlock(text: string): string {
+  const span = summaryBlockSpan(text);
+  return span === null ? text : text.slice(0, span.start) + text.slice(span.end);
+}
+
+/**
+ * Where `text`'s summary block sits, with the blank line written after it:
+ * what {@link withoutSummaryBlock} takes out. Null when there is no block
+ * that reads as one.
+ */
+export function summaryBlockSpan(text: string): { start: number; end: number } | null {
   const reading = readSummaryBlock(text);
-  if (reading.kind !== 'block') return text;
+  return reading.kind === 'block' ? blockSpan(text, reading) : null;
+}
+
+/** The block's span, the line breaks after it (up to two) included. */
+function blockSpan(text: string, block: { start: number; end: number }) {
   const eol = lineEndOf(text);
-  let end = reading.end;
+  let end = block.end;
   for (let breaks = 0; breaks < 2 && text.startsWith(eol, end); breaks += 1) end += eol.length;
-  return text.slice(0, reading.start) + text.slice(end);
+  return { start: block.start, end };
 }
 
 /**

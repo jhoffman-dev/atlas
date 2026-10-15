@@ -14,6 +14,12 @@ import {
   undoMeetingCorrections,
   wasCorrected,
 } from './meeting-corrections.ts';
+import {
+  placeSummary,
+  readSummaryBlock,
+  removeSummary,
+  renderSummaryBlock,
+} from './meeting-summary-block.ts';
 
 const VOCABULARY = vocabulary({
   terms: [
@@ -208,5 +214,78 @@ describe('undoMeetingCorrections', () => {
     ]) {
       expect(recordedCorrections({ [CORRECTIONS_KEY]: broken }), JSON.stringify(broken)).toBeNull();
     }
+  });
+});
+
+describe('corrections and the summary Claude writes at the top (#185)', () => {
+  const SUMMARY_BLOCK = renderSummaryBlock({
+    model: 'claude-sonnet-5-5',
+    date: '2026-10-14',
+    // Words the vocabulary would correct, were the block corrected: it never is.
+    summary: 'Mara Quil says Lark Spur Pay ships Friday.',
+    keyPoints: ['Lark Spur Pay is ready'],
+    decisions: [],
+    actionItems: [],
+    openQuestions: [],
+  }).text;
+  const summarised = (body: string): string => {
+    const placed = placeSummary(body, SUMMARY_BLOCK, { recorded: null });
+    if (!placed.ok) throw new Error(placed.reason);
+    return placed.body;
+  };
+  const blockText = (body: string): string => {
+    const reading = readSummaryBlock(body);
+    if (reading.kind !== 'block') throw new Error(`no block: ${reading.kind}`);
+    return reading.text;
+  };
+
+  it('Undo corrections still gives back the original once a summary is written above them', () => {
+    // Corrected at import, as every correction recorded before the summary existed was.
+    const correction = correctMeetingBody(BODY, VOCABULARY);
+    const properties = correctionProperties(correction);
+
+    const undone = undoMeetingCorrections({ body: summarised(correction.body), properties });
+
+    expect(undone).toEqual({ ok: true, body: summarised(BODY) });
+  });
+
+  it('corrects a meeting with a summary as it would one without, the block left as written', () => {
+    const plain = correctMeetingBody(BODY, VOCABULARY);
+
+    const correction = correctMeetingBody(summarised(BODY), VOCABULARY);
+
+    expect(correction.body).toBe(summarised(plain.body));
+    expect(correctionProperties(correction)).toEqual(correctionProperties(plain));
+    const properties = correctionProperties(correction);
+    expect(undoMeetingCorrections({ body: correction.body, properties })).toEqual({
+      ok: true,
+      body: summarised(BODY),
+    });
+    // Its summary undone too, the corrections still come off.
+    const digest = readSummaryBlock(correction.body);
+    if (digest.kind !== 'block') throw new Error('no block');
+    const taken = removeSummary(correction.body, { recorded: digest.digest });
+    if (!taken.ok) throw new Error(taken.reason);
+    expect(undoMeetingCorrections({ body: taken.body, properties })).toEqual({
+      ok: true,
+      body: BODY,
+    });
+  });
+
+  it('never corrects the words of a summary block pasted into a section, and undoes around it', () => {
+    const block = summarised('').trim().replace(/\n/g, '\r\n');
+    const pasted = BODY.replace('- Lark Spur Pay cache', `- Lark Spur Pay cache\r\n\r\n${block}`);
+    expect(blockText(pasted)).toContain('Lark Spur Pay ships');
+
+    const correction = correctMeetingBody(pasted, VOCABULARY);
+
+    expect(blockText(correction.body)).toBe(blockText(pasted));
+    expect(correction.body).toContain('- Larkspur Pay cache');
+    expect(
+      undoMeetingCorrections({
+        body: correction.body,
+        properties: correctionProperties(correction),
+      }),
+    ).toEqual({ ok: true, body: pasted });
   });
 });

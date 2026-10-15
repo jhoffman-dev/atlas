@@ -1103,7 +1103,11 @@ async function writeAll({
       if (written.kept !== null)
         warnings.push(`${noteTitle(summary.meeting)}: ${written.kept.reason}`);
       if (written.digest !== null) {
-        made = [...made, { kind: 'summarised', path: summary.meeting, digest: written.digest }];
+        const replaced = written.replaced === null ? {} : { replaced: written.replaced };
+        made = [
+          ...made,
+          { kind: 'summarised', path: summary.meeting, digest: written.digest, ...replaced },
+        ];
       }
     } catch (cause) {
       if (!(cause instanceof MeetingSummaryRefused)) {

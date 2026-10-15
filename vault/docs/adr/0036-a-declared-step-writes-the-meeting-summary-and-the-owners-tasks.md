@@ -168,8 +168,15 @@ answer, never what is asked.
   ("Summary written by <model> in 41 s; 2 tasks made, 3 items listed, 1
   proposal") and in the rule's log.
 - **Undo** is the rule's "Undo last run" (ADR-0028): the block and its keys
-  are removed when the digest still matches, and the tasks it made are
-  trashed when unchanged.
+  are removed when the digest still matches — or, when the run replaced an
+  earlier block, that block and its keys (logged with the run) are put back —
+  and the tasks it made are trashed when unchanged. A run that made tasks and
+  wrote no block is still the last run. Each meeting is written first, then
+  its tasks trashed; a meeting that refuses leaves its tasks too. A logged
+  task is trashed only when it is a task, in the task home folder for the
+  run's day, citing a meeting the run read (A25-01). Term corrections are
+  recorded against the body without the block, so the block never stops
+  their undo.
 
 ### Action items become tasks, for the owner only
 

@@ -71,6 +71,7 @@ describe('writeMeetingSummary', () => {
     const written = await at.write();
     expect(written).toEqual({
       digest: readSummaryBlock(at.body()).kind === 'block' ? expect.any(String) : null,
+      replaced: null,
       kept: null,
       joined: [TASK],
     });
@@ -86,7 +87,7 @@ describe('writeMeetingSummary', () => {
   it('writes the tasks alone when there is no block to write', async () => {
     const at = setUp();
     const written = await at.write({ block: null });
-    expect(written).toEqual({ digest: null, kept: null, joined: [TASK] });
+    expect(written).toEqual({ digest: null, replaced: null, kept: null, joined: [TASK] });
     expect(at.properties()).not.toHaveProperty('atlas_summary_digest');
     expect(at.properties()['tasks']).toEqual(['[[Send the file]]']);
   });
@@ -184,8 +185,8 @@ describe('a meeting written between the read and the write', () => {
     await expect(
       undoMeetingSummary(at.vault.ports, {
         meeting: MEETING,
-        digest: digest!,
-        trashed: [],
+        summary: { digest: digest! },
+        trashing: [],
         notePaths: [],
       }),
     ).rejects.toThrow(/changed just now, so its summary was left as it is/);
@@ -210,8 +211,8 @@ describe('undoMeetingSummary', () => {
     const { digest } = await at.write();
     await undoMeetingSummary(at.vault.ports, {
       meeting: MEETING,
-      digest: digest!,
-      trashed: [TASK],
+      summary: { digest: digest! },
+      trashing: [TASK],
       notePaths: [MEETING, TASK],
     });
     expect(at.body()).toBe(before);
@@ -231,8 +232,8 @@ describe('undoMeetingSummary', () => {
     const undo = () =>
       undoMeetingSummary(at.vault.ports, {
         meeting: MEETING,
-        digest: digest!,
-        trashed: [],
+        summary: { digest: digest! },
+        trashing: [],
         notePaths: [],
       });
     await expect(undo()).rejects.toThrow(/edited since Claude wrote it/);

@@ -6,6 +6,7 @@ import {
   readSummaryBlock,
   removeSummary,
   renderSummaryBlock,
+  restoreSummary,
   SUMMARY_CLOSE_MARKER,
   SUMMARY_OPEN_MARKER,
   summaryBlockDigest,
@@ -443,5 +444,49 @@ describe('plainLine', () => {
   it('keeps a hash inside a word and drops one that would tag', () => {
     expect(plainLine('C# and #tag and ##twice', 100)).toBe('C# and tag and twice');
     expect(plainLine('## A heading of its own', 100)).toBe('A heading of its own');
+  });
+});
+
+describe('restoreSummary', () => {
+  const placedOver = () => {
+    const first = placeSummary(MEETING_BODY, block(), { recorded: null });
+    if (!first.ok) throw new Error(first.reason);
+    const firstDigest = first.digest;
+    const second = placeSummary(first.body, block({ ...SUMMARY, summary: 'New words.' }), {
+      recorded: firstDigest,
+    });
+    if (!second.ok) throw new Error(second.reason);
+    return { first, second };
+  };
+
+  it('puts the block a run wrote over back, every byte, with its digest', () => {
+    const { first, second } = placedOver();
+    expect(second.prior).toBe(block());
+    expect(restoreSummary(second.body, { recorded: second.digest, prior: second.prior! })).toEqual({
+      ok: true,
+      body: first.body,
+      digest: first.digest,
+    });
+  });
+
+  it('is refused when the block was edited since, taken out, or the prior is not one block', () => {
+    const { second } = placedOver();
+    const prior = second.prior!;
+    expect(
+      restoreSummary(second.body.replace('New words.', 'Mine.'), {
+        recorded: second.digest,
+        prior,
+      }),
+    ).toMatchObject({ ok: false, reason: expect.stringMatching(/edited since/) });
+    expect(restoreSummary(MEETING_BODY, { recorded: second.digest, prior })).toMatchObject({
+      ok: false,
+    });
+    for (const forged of ['Not a block.', `${prior}\n\nMore.`, `${prior}\n${prior}`]) {
+      expect(restoreSummary(second.body, { recorded: second.digest, prior: forged })).toEqual({
+        ok: false,
+        reason:
+          'The summary this run wrote over is not one Atlas can put back, so the summary was left as it is.',
+      });
+    }
   });
 });

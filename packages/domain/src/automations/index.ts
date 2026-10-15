@@ -65,6 +65,7 @@ export type {
   SummaryOutcome,
   MovedVersion,
   PriorValue,
+  ReplacedSummary,
   RunTrigger,
 } from './run-log.ts';
 export {
@@ -232,5 +233,5 @@ export type {
   NoteTrigger,
   NoteVersionRef,
 } from './note-trigger.ts';
-export { loggedActionProblem, unarchiveProblem } from './undo-check.ts';
+export { loggedActionProblem, madeTaskMeeting, unarchiveProblem } from './undo-check.ts';
 export { AUTOMATION_PRESETS, BLANK_AUTOMATION } from './presets.ts';

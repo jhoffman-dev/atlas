@@ -107,6 +107,17 @@ export const LOG_MARKER_VALUE = 'automation-log';
 /** What a property held before a rule set it: a value, or no such key at all. */
 export type PriorValue = { readonly absent: true } | { readonly value: unknown };
 
+/**
+ * The summary a run wrote over (#185): the block as it was, and the keys it
+ * was written with, so undoing the run puts that summary back. Its digest is
+ * the block's own.
+ */
+export interface ReplacedSummary {
+  readonly block: string;
+  readonly of: string | null;
+  readonly model: string | null;
+}
+
 /** One thing a run, or an undo, did to one note. */
 export type DoneAction =
   | { readonly kind: 'archived'; readonly from: VaultPath; readonly to: VaultPath }
@@ -121,9 +132,15 @@ export type DoneAction =
   /**
    * The declared step wrote a meeting's summary block, whose digest this is,
    * with its keys and the meeting's `tasks` (#185): undo takes the block out
-   * while it is still this one.
+   * while it is still this one — or, when it was written over an earlier
+   * summary (`replaced`), puts that one back.
    */
-  | { readonly kind: 'summarised'; readonly path: VaultPath; readonly digest: string }
+  | {
+      readonly kind: 'summarised';
+      readonly path: VaultPath;
+      readonly digest: string;
+      readonly replaced?: ReplacedSummary;
+    }
   /** Undo trashed a task the declared step made, unchanged since. */
   | { readonly kind: 'trashed'; readonly path: VaultPath }
   /** Undo took a meeting's summary block, its keys and its trashed tasks' links back out. */
@@ -312,7 +329,8 @@ function actionLine(action: DoneAction): string {
     return `- ${action.kind} ${code(action.path)}${at}`;
   }
   if (action.kind === 'summarised') {
-    return `- summarised ${code(action.path)} at ${code(action.digest)}`;
+    const over = action.replaced === undefined ? '' : ` over ${code(action.replaced)}`;
+    return `- summarised ${code(action.path)} at ${code(action.digest)}${over}`;
   }
   if (action.kind === 'trashed' || action.kind === 'unsummarised') {
     return `- ${action.kind} ${code(action.path)}`;
@@ -683,7 +701,9 @@ const HEADING = /^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) · (.+)$/;
 const PRIOR_SPAN = `(nothing|${JSON_SPAN})`;
 const MOVE_LINE = new RegExp(`^- (archived|unarchived) ${JSON_SPAN} → ${JSON_SPAN}$`);
 const MADE_LINE = new RegExp(`^- (proposed|created) ${JSON_SPAN}(?: at ${JSON_SPAN})?$`);
-const SUMMARISED_LINE = new RegExp(`^- summarised ${JSON_SPAN} at ${JSON_SPAN}$`);
+const SUMMARISED_LINE = new RegExp(
+  `^- summarised ${JSON_SPAN} at ${JSON_SPAN}(?: over ${JSON_SPAN})?$`,
+);
 const TOOK_BACK_LINE = new RegExp(`^- (trashed|unsummarised) ${JSON_SPAN}$`);
 const CLAUDE_LINE = new RegExp(`^- claude ${JSON_SPAN} in ${JSON_SPAN} ms$`);
 const CUT_LINE = new RegExp(`^- cut ${JSON_SPAN}: read ${JSON_SPAN} of ${JSON_SPAN} characters$`);
@@ -986,7 +1006,10 @@ function readLine(line: string): DoneAction | PassedOver | null {
     if (summarised !== null) {
       const digest = JSON.parse(summarised[2]!) as unknown;
       if (typeof digest !== 'string') return null;
-      return { kind: 'summarised', path: pathOf(summarised[1]!), digest };
+      const path = pathOf(summarised[1]!);
+      if (summarised[3] === undefined) return { kind: 'summarised', path, digest };
+      const replaced = replacedSummaryOf(JSON.parse(summarised[3]) as unknown);
+      return replaced === null ? null : { kind: 'summarised', path, digest, replaced };
     }
     const set = SET_LINE.exec(line);
     if (set !== null) {
@@ -1009,6 +1032,16 @@ function readLine(line: string): DoneAction | PassedOver | null {
   return null;
 }
 
+/** The summary a line says a run wrote over, or null when it is not one a run writes. */
+function replacedSummaryOf(value: unknown): ReplacedSummary | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { block, of, model } = value as Record<string, unknown>;
+  const textOrNull = (each: unknown): each is string | null =>
+    each === null || typeof each === 'string';
+  if (typeof block !== 'string' || !textOrNull(of) || !textOrNull(model)) return null;
+  return { block, of, model };
+}
+
 function pathOf(json: string): VaultPath {
   const value = JSON.parse(json) as unknown;
   if (typeof value !== 'string') throw new Error('not a path');
@@ -1027,11 +1060,16 @@ export function stillAsLeft(current: PriorValue, left: PriorValue): boolean {
 }
 
 /**
- * What undo can put back: a move, a set, or a meeting's summary. What a
- * Claude step proposed is answered in the Inbox.
+ * What undo can put back: a move, a set, a meeting's summary, or a task the
+ * declared step made (logged with its digest) — a run that made tasks and
+ * wrote no summary is still the last run. What a Claude step proposed is
+ * answered in the Inbox.
  */
 const isUndoable = (action: DoneAction): boolean =>
-  action.kind === 'archived' || action.kind === 'set' || action.kind === 'summarised';
+  action.kind === 'archived' ||
+  action.kind === 'set' ||
+  action.kind === 'summarised' ||
+  (action.kind === 'created' && action.digest !== undefined);
 
 /**
  * The run that "Undo last run" undoes: the newest run that did something
