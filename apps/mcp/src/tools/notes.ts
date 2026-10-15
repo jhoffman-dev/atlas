@@ -15,13 +15,15 @@ export const listNotes = defineTool({
   name: 'atlas_list_notes',
   title: 'List notes',
   description:
-    'List notes in the Atlas vault, optionally only those in a folder or of a type. Returns ' +
+    'List notes in the Atlas vault, optionally only those in a folder, of a type, or about a ' +
+    'day ("date": named for it, or with that "date" property, as a meeting is). Returns ' +
     '{ notes: [{ path, title, type, modified }], next }. When "next" is not null, call again with ' +
     'it as "cursor" for the next page. To find notes by their words, use atlas_search instead; to ' +
     'filter by property values, use atlas_query.',
   inputSchema: z.object({
     folder: z.string().optional().describe('Vault-relative folder, e.g. "Projects".'),
     type: z.string().optional().describe('Only notes with this "type:" in their frontmatter.'),
+    date: z.string().optional().describe('Only notes about this day, YYYY-MM-DD.'),
     limit: limit.optional(),
     cursor: z.string().optional().describe('The "next" value from the previous page.'),
   }),

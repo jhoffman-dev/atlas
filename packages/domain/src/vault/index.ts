@@ -62,3 +62,5 @@ export {
 } from './vault-moves.ts';
 export type { EntryMove, MovableEntry, NameClash } from './vault-moves.ts';
 export { newNoteFolder } from './new-note-folder.ts';
+export { compileNotesOnDayQuery, isNamedForDay, NOTE_DAY_KEY } from './notes-on-day.ts';
+export { nearestNotePaths, NEAREST_NOTE_PATHS } from './nearest-note-paths.ts';

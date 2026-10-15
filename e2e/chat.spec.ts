@@ -132,6 +132,43 @@ test('a refused proposal says so, and why, in the pane and in the chat note', as
   expect(await vault.read('Plan.md')).toBe(PLAN);
 });
 
+test("Claude finds a day's meeting from a guessed path, and by its day (#211)", async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await vault.mkdir('Inbox/Meetings');
+  await vault.write(
+    'Inbox/Meetings/2026-10-14 Mara Tobias 1-1.md',
+    "---\ntype: meeting\ntitle: 'Mara / Tobias 1-1'\ndate: '2026-10-14'\n---\n\nShip the plan.\n",
+  );
+  await vault.write('Inbox/Meetings/2026-10-13 Larkspur Standup.md', 'Yesterday.\n');
+  const host = await installHost(page, vault);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  host.claude.reply(
+    '<atlas_tool>{"name":"atlas_read_note","input":{"path":"Meeting Notes/2026-10-14 Mara Tobias 1-1.md"}}</atlas_tool>',
+    '<atlas_tool>{"name":"atlas_list_notes","input":{"date":"2026-10-14"}}</atlas_tool>',
+    'Found it.',
+  );
+  await page.keyboard.press('Meta+j');
+  await ask(page, "Read today's 1-1");
+
+  await expect(chat(page).getByText('Found it.')).toBeVisible();
+  const turns = host.claude.runs().filter((run) => run.args[0] === '-p');
+  expect(turns).toHaveLength(3);
+  // The guess is answered with the real path; the day lists that note and not the other day's.
+  const guessed = turns[1]?.stdin ?? '';
+  expect(guessed).toContain('not_found: No note at Meeting Notes/2026-10-14 Mara Tobias 1-1.md');
+  expect(guessed).toMatch(
+    /Notes with a name like it: .*Inbox\/Meetings\/2026-10-14 Mara Tobias 1-1\.md/,
+  );
+  const listed = (turns[2]?.stdin ?? '').slice(guessed.length);
+  expect(listed).toContain('<tool_result name="atlas_list_notes">');
+  expect(listed).toContain('Inbox/Meetings/2026-10-14 Mara Tobias 1-1.md');
+  expect(listed).not.toContain('2026-10-13 Larkspur Standup');
+});
+
 test('when Claude Code is not logged in, the panel says how to fix it', async ({ page }) => {
   const { host } = await openPlan(page);
   host.claude.loggedIn(false);

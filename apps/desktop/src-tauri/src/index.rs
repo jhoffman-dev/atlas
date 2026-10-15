@@ -52,8 +52,10 @@ use crate::vault::VaultState;
 /// once per note, so `LINKS TO this` and `CONNECTED TO this` over a person in
 /// a thousand meetings ran out too).
 /// A mismatch throws the cache away rather than trying to migrate something
-/// that can simply be rebuilt.
-const SCHEMA_VERSION: i64 = 15;
+/// that can simply be rebuilt. 16: a note's path is searched as well (#211) —
+/// a meeting's day is in its file name, not its title or body, so searching
+/// for the day found none of that day's meetings.
+const SCHEMA_VERSION: i64 = 16;
 
 const CACHE_DIR: &str = ".atlas-cache";
 const DATABASE: &str = "index.sqlite";
@@ -476,7 +478,7 @@ fn create_schema(connection: &Connection) -> Result<(), String> {
             CREATE INDEX IF NOT EXISTS checks_path ON checks(path);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
-                path UNINDEXED,
+                path,
                 title,
                 body,
                 tokenize = 'unicode61 remove_diacritics 2'
@@ -824,6 +826,12 @@ pub async fn index_remove(
     .await
 }
 
+/// How much a word found in each column of `fts` counts — path, title, body
+/// — when hits are ranked (#211). Equal weights let a long meeting's
+/// transcript, and every short note naming the same people, bury the note
+/// whose title is what was searched for past the first page.
+const SEARCH_WEIGHTS: &str = "bm25(fts, 5.0, 10.0, 1.0)";
+
 /// Full-text search. `skip_prefix` is handed in by the frontend — the notes
 /// under it are left out — and compared against the lower-cased path; which
 /// prefix, and when, is decided there (ADR-0014). Rust only obeys it.
@@ -834,15 +842,15 @@ fn search(
     skip_prefix: Option<&str>,
 ) -> Result<Vec<SearchHit>, String> {
     let mut statement = connection
-        .prepare(
+        .prepare(&format!(
             // Through `files`, by the rowid the two share: a search row whose
             // note is not held is not an answer.
             "SELECT files.path, fts.title, snippet(fts, 2, '<<', '>>', '…', 12)
              FROM fts JOIN files ON files.rowid = fts.rowid
              WHERE fts MATCH ?1
                AND (?3 IS NULL OR lower(substr(files.path, 1, length(?3))) <> ?3)
-             ORDER BY rank LIMIT ?2",
-        )
+             ORDER BY {SEARCH_WEIGHTS} LIMIT ?2"
+        ))
         .map_err(|error| error.to_string())?;
 
     let rows = statement
@@ -2092,6 +2100,56 @@ mod tests {
             .collect();
         put_notes(&mut index, &notes).unwrap();
         assert_eq!(search(&index, "shared", 3, None).unwrap().len(), 3);
+    }
+
+    /// A meeting's long transcript and the short notes that merely mention
+    /// the same people must not push the note whose title is the search out
+    /// of the first page (#211).
+    #[test]
+    fn a_note_titled_with_every_word_comes_before_notes_that_only_mention_them() {
+        let mut index = empty_index();
+        let transcript = "Mara said the roadmap slipped. Tobias asked about hiring. ".repeat(400);
+        let mut notes = vec![note(
+            "Inbox/Meetings/2026-10-14 Mara Tobias 1-1.md",
+            "Mara / Tobias 1-1",
+            &transcript,
+        )];
+        notes.extend((0..30).map(|i| {
+            note(
+                &format!("Daily/2026-05-{i:02}.md"),
+                &format!("2026-05-{i:02}"),
+                "Mara and Tobias, 1-1 moved.",
+            )
+        }));
+        put_notes(&mut index, &notes).unwrap();
+
+        let hits = search(&index, "\"Mara\" \"Tobias\" \"1-1\"*", 5, None).unwrap();
+        assert_eq!(hits[0].path, "Inbox/Meetings/2026-10-14 Mara Tobias 1-1.md");
+    }
+
+    /// A meeting's day is in its file name, not its title or body (#211).
+    #[test]
+    fn finds_a_note_by_the_day_in_its_file_name() {
+        let mut index = empty_index();
+        put_notes(
+            &mut index,
+            &[
+                note(
+                    "Inbox/Meetings/2026-10-14 Standup.md",
+                    "Standup",
+                    "who is out",
+                ),
+                note(
+                    "Inbox/Meetings/2026-10-13 Standup.md",
+                    "Standup",
+                    "who is out",
+                ),
+            ],
+        )
+        .unwrap();
+        let hits = search(&index, "\"2026-10-14\"*", 10, None).unwrap();
+        let paths: Vec<&str> = hits.iter().map(|hit| hit.path.as_str()).collect();
+        assert_eq!(paths, vec!["Inbox/Meetings/2026-10-14 Standup.md"]);
     }
 
     #[test]

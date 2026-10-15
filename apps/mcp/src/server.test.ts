@@ -335,6 +335,13 @@ describe('tools/call → REST', () => {
   it.each([
     ['atlas_status', {}, 'GET', '/v1/status', null],
     ['atlas_list_notes', { type: 'task', limit: 5 }, 'GET', '/v1/notes?type=task&limit=5', null],
+    [
+      'atlas_list_notes',
+      { folder: 'Inbox/Meetings', date: '2026-10-14' },
+      'GET',
+      '/v1/notes?folder=Inbox%2FMeetings&date=2026-10-14',
+      null,
+    ],
     ['atlas_search', { q: 'lease sam' }, 'GET', '/v1/search?q=lease+sam', null],
     ['atlas_list_types', {}, 'GET', '/v1/types', null],
     ['atlas_list_views', {}, 'GET', '/v1/views', null],

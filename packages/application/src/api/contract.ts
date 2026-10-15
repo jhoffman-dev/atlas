@@ -1385,7 +1385,11 @@ export const API_ROUTES = [
     summary:
       'What Atlas has open, whether its index is ready, and whether Google Calendar is connected.',
   },
-  { method: 'GET', path: '/v1/notes', summary: 'List notes. Query: folder, type, limit, cursor.' },
+  {
+    method: 'GET',
+    path: '/v1/notes',
+    summary: 'List notes. Query: folder, type, date, limit, cursor.',
+  },
   { method: 'POST', path: '/v1/notes', summary: 'Create a note, optionally from a template.' },
   {
     method: 'GET',

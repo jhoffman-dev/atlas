@@ -70,8 +70,9 @@ const READ_TOOLS: readonly ReadTool[] = [
     spec: {
       name: 'atlas_search',
       description:
-        'Full-text search across the notes. Returns { hits: [{ path, title, snippet }] }, best first. ' +
-        'Read a hit with atlas_read_note.',
+        'Full-text search across the notes: their paths, titles and bodies. Returns { hits: [{ path, ' +
+        'title, snippet }] }, best first. Read a hit with atlas_read_note by its exact path. For the ' +
+        'notes of one day, use atlas_list_notes with "date".',
       inputSchema: object(
         {
           q: str('The words to search for.'),
@@ -86,7 +87,9 @@ const READ_TOOLS: readonly ReadTool[] = [
   {
     spec: {
       name: 'atlas_read_note',
-      description: 'Read one note: its properties, its markdown body, and "modified".',
+      description:
+        'Read one note: its properties, its markdown body, and "modified". Use a path another tool ' +
+        'returned, never a guessed one; a path with no note answers with the nearest real ones.',
       inputSchema: object({ path: str('The note\'s vault path, e.g. "Projects/Q3.md".') }, [
         'path',
       ]),
@@ -97,15 +100,19 @@ const READ_TOOLS: readonly ReadTool[] = [
     spec: {
       name: 'atlas_list_notes',
       description:
-        'List notes, optionally in a folder or of a type: { notes: [{ path, title, type, modified }], next }.',
+        'List notes, optionally in a folder, of a type, or about a day: { notes: [{ path, title, ' +
+        'type, modified }], next }. With "date", the notes named for that day or whose "date" ' +
+        "property is that day: the way to find a day's meetings.",
       inputSchema: object({
-        folder: str('Vault-relative folder.'),
+        folder: str('Vault-relative folder, and the folders inside it.'),
         type: str('Only notes of this type.'),
+        date: str('Only notes about this day, YYYY-MM-DD.'),
         limit: int('At most this many.'),
         cursor: str('The "next" of the previous page.'),
       }),
     },
-    request: (input) => get('/v1/notes', query(input, ['folder', 'type', 'limit', 'cursor'])),
+    request: (input) =>
+      get('/v1/notes', query(input, ['folder', 'type', 'date', 'limit', 'cursor'])),
   },
   {
     spec: {

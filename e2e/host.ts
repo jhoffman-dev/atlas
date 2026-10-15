@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, rename, writeFile, realpath } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -993,8 +994,12 @@ export async function installHost(
         if (statement.startsWith('/* terms:')) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
-        // The Inbox's quick look before reading every task (P30-02): its statuses, run for real.
-        if (statement.startsWith('/* task statuses */')) {
+        // The Inbox's quick look before reading every task (P30-02): its statuses, run for
+        // real; so are the notes dated a day, which the chat lists (#211).
+        if (
+          statement.startsWith('/* task statuses */') ||
+          statement.startsWith('/* notes on day */')
+        ) {
           return runArchiveQuery(statement, bound, indexed.values());
         }
         // Linking a meeting (P29-04): its people, companies and likely projects, and the
@@ -1200,7 +1205,8 @@ export async function installHost(
         return [...indexed.values()]
           .filter((note) => skip === null || !note.path.toLowerCase().startsWith(skip))
           .filter((note) => {
-            const haystack = `${note.title} ${note.body}`.toLowerCase();
+            // As index.rs searches: the path, the title and the body (#211).
+            const haystack = `${note.path} ${note.title} ${note.body}`.toLowerCase();
             return terms.every((term) => haystack.includes(term));
           })
           .slice(0, 20)
@@ -1371,6 +1377,9 @@ export async function installHost(
       case 'read_text_file': {
         const file = containedPath(openRoot(), path);
         const { readFile, stat: statFile } = await import('node:fs/promises');
+        // A note that is not there is refused with a message, as the real
+        // command's `Err` string is: the app reads it as a vault access failure.
+        if (!existsSync(file)) return { [REJECT]: `cannot read ${path}: no such file` };
         const [text, info] = await Promise.all([readFile(file, 'utf8'), statFile(file)]);
         return { text, modified: Math.floor(info.mtimeMs) };
       }
