@@ -5,14 +5,9 @@ import {
   isBlankValue,
   TASK_KEYS,
   TASK_TYPE,
-  WAITING_STATUS,
 } from './gtd-status.ts';
 
 type Properties = Readonly<Record<string, unknown>>;
-
-/** Why a task cannot be Waiting yet, in the words the app shows. */
-export const WAITING_NEEDS_SOMEONE =
-  'A waiting task needs someone to wait on: set Waiting on first, then move it to Waiting.';
 
 /** What a change to a task comes to under its rules: the changes to write, or why not. */
 export type TaskRuleOutcome = { readonly changes: Properties } | { readonly refused: string };
@@ -38,12 +33,6 @@ export const isTaskNote = (properties: Properties) =>
     .trim()
     .toLowerCase() === TASK_TYPE;
 
-/** A task Waiting with nobody to wait on: what the rules never let a change leave. */
-const waitsOnNobody = (note: Properties) =>
-  isTaskNote(note) &&
-  holdsStatus(note[TASK_KEYS.status], WAITING_STATUS) &&
-  isBlankValue(note[TASK_KEYS.waitingOn]);
-
 /** A finished task: Archive, on a note that is a task. */
 const isFinished = (note: Properties) =>
   isTaskNote(note) && holdsStatus(note[TASK_KEYS.status], FINISHED_TASK_STATUS);
@@ -62,31 +51,23 @@ function spelledAsStatus(before: Properties, changes: Properties): Properties {
     : { ...changes, [status]: canonical };
 }
 
-/** Whether a change touches what the Waiting rule reads: the type, the status, who it waits on. */
-const touchesWaiting = (changes: Properties) =>
-  [TASK_TYPE_KEY, TASK_KEYS.status, TASK_KEYS.waitingOn].some((key) => has(changes, key));
-
 /**
  * The GTD rules a change to a task is held to, whoever makes it — a board
  * drag, the properties panel, a tick, a new note, an automation, the API
  * (ADR-0029). They judge the note the change leaves, not the keys it names:
  *
- * - Waiting is waiting on someone: a change that leaves a task Waiting with
- *   nobody in `waiting_on` — by its status, by taking the person away, or by
- *   making a note that already says Waiting into a task — is refused, with
- *   the reason.
+ * - Waiting is a status like any other: `waiting_on` is never required, and
+ *   a task Waiting on nobody is written as asked (#202).
  * - Finishing is a day: a task that becomes finished (Archive) is given
  *   `completed:` today, unless the note it leaves says a day; one taken out
  *   of Archive loses its day, unless the change says one, so unticking
  *   leaves nothing stale behind.
  *
  * A status is read as the index reads it — trimmed, a one-item list as its
- * item — so a spelling the Waiting view lists is held to the rule too, and a
- * GTD status set in another spelling is written as the status itself.
+ * item — so a spelling the Archive rule reads is held to it too, and a GTD
+ * status set in another spelling is written as the status itself.
  *
- * A note that is not a task passes as it is, and so does a change that
- * touches none of what the Waiting rule reads: a task already Waiting with
- * nobody set can still have its due date moved.
+ * A note that is not a task passes as it is.
  */
 export function taskRuleChanges({
   before,
@@ -111,7 +92,6 @@ function heldToRules({
   today: string;
 }): TaskRuleOutcome {
   const after = changed(before, changes);
-  if (waitsOnNobody(after) && touchesWaiting(changes)) return { refused: WAITING_NEEDS_SOMEONE };
   const completed = TASK_KEYS.completed;
   if (isFinished(after) && !isFinished(before) && isBlankValue(after[completed])) {
     return { changes: { ...changes, [completed]: today } };

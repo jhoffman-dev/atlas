@@ -23,27 +23,27 @@ describe('a status written as a one-item list', () => {
     expect(rows.map((row) => row.text)).toEqual(['waiting']);
   });
 
-  it('is refused as Waiting with nobody to wait on, as `waiting` is', () => {
-    // The YAML adapter writes `["waiting"]` as a list, the index reads it as
-    // Waiting, and the Inbox's quick look never offers to migrate it: a task
-    // waiting on nobody that nothing ever catches.
+  it('is written as `waiting`, with nobody to wait on, as `waiting` is (#202)', () => {
+    // The YAML adapter writes `["waiting"]` as a list and the index reads it
+    // as Waiting: the rules write the one status, and ask for nobody.
     const outcome = taskRuleChanges({
       before: { type: 'task', status: 'next-action' },
       changes: { status: ['waiting'] },
       today: TODAY,
     });
-    expect(outcome).toHaveProperty('refused');
+    expect(outcome).toEqual({ changes: { status: 'waiting' } });
   });
 });
 
 describe('who a waiting task waits on', () => {
-  it('counts a list holding only an empty name as nobody', () => {
+  it('lets a list holding only an empty name through: nobody is a valid answer (#202)', () => {
+    const changes = { status: 'waiting', waiting_on: [''] };
     const outcome = taskRuleChanges({
       before: { type: 'task', status: 'next-action' },
-      changes: { status: 'waiting', waiting_on: [''] },
+      changes,
       today: TODAY,
     });
-    expect(outcome).toHaveProperty('refused');
+    expect(outcome).toEqual({ changes });
   });
 });
 

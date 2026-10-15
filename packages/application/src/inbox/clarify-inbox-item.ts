@@ -68,9 +68,8 @@ export interface ClarifyRequest {
  * byte-preserving save held to the task rules, and a note in the `Inbox`
  * folder given a project is then filed under it, as Process files it.
  *
- * Everything is judged before anything is written: a refusal — Waiting with
- * nobody to wait on, a project that cannot be filed under, a person who is
- * not one — throws {@link ClarifyRefusedError} and leaves the vault as it
+ * Everything is judged before anything is written: a refusal — a project
+ * that cannot be filed under, a person who is not one — throws {@link ClarifyRefusedError} and leaves the vault as it
  * was. The properties are written first, so a filing that then fails leaves
  * a clarified note where it was, and says so in `failed`.
  */

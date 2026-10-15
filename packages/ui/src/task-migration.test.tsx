@@ -21,7 +21,6 @@ const PREVIEW: TaskMigrationProps['preview'] = {
       from: 'doing',
       to: 'in-progress',
       completed: null,
-      held: null,
     },
     {
       path: 'tasks/Ship.md',
@@ -29,17 +28,15 @@ const PREVIEW: TaskMigrationProps['preview'] = {
       from: 'done',
       to: 'archive',
       completed: '2026-09-30',
-      held: null,
     },
     {
       path: 'tasks/Hear.md',
       title: 'Hear back',
       from: 'Waiting',
-      to: 'inbox',
+      to: 'waiting',
       completed: null,
-      held: 'It would be Waiting, but nobody is in Waiting on.',
     },
-    { path: 'tasks/Odd.md', title: 'Odd one', from: '', to: 'inbox', completed: null, held: null },
+    { path: 'tasks/Odd.md', title: 'Odd one', from: '', to: 'inbox', completed: null },
   ],
   references: [{ title: 'Roadmap', moved: ['done → archive'] }],
   listed: [{ title: 'Odd view', reason: 'It compares status using contains.' }],
@@ -83,7 +80,7 @@ describe('TaskMigration', () => {
     expect(rows.slice(1).map((row) => row.textContent)).toEqual([
       'Draft the memoDoingIn Progress',
       'Ship itDoneArchive, completed 2026-09-30',
-      'Hear backWaitingInbox — It would be Waiting, but nobody is in Waiting on.',
+      'Hear backWaitingWaiting',
       'Odd one(none)Inbox',
     ]);
   });

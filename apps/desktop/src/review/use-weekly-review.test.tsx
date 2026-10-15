@@ -5,13 +5,13 @@ import {
   createVaultPath,
   REVIEW_PROJECTS_QUERY_MARK,
   REVIEW_TASKS_QUERY_MARK,
-  WAITING_NEEDS_SOMEONE,
   type ObjectType,
 } from '@atlas/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
   memoryVault,
+  NoteChangedError,
   recordingActivity,
   type QueryResult,
 } from '@atlas/application';
@@ -73,17 +73,26 @@ function setUp({
   types = TYPES,
   indexReady = true,
   taskText = TASK_TEXT,
+  changedOnDisk = false,
 }: {
   open?: boolean;
   types?: readonly ObjectType[];
   indexReady?: boolean;
   taskText?: string;
+  /** The host refuses every write: the note changed on disk since it was read. */
+  changedOnDisk?: boolean;
 } = {}) {
   const memory = memoryVault({ [TASK]: taskText, [PROJECT]: PROJECT_TEXT });
   const query = vi.fn(async (sql: string) => answer(sql));
+  const refused: typeof memory.fs.writeTextFile = async ({ path }) => {
+    throw new NoteChangedError(path);
+  };
   const ports = {
     index: fakeIndexPort({ query }),
-    fs: fakeVaultFs(memory.fs),
+    fs: fakeVaultFs({
+      ...memory.fs,
+      ...(changedOnDisk && { writeTextFile: refused }),
+    }),
     markdown: remarkMarkdown,
   };
   const onSettled = vi.fn();
@@ -190,10 +199,18 @@ describe('useWeeklyReview', () => {
     expect(files.get(TASK)).toContain('status: someday');
   });
 
-  it('says why a move the task rules refuse was not made, and writes nothing', async () => {
+  it('moves a task to Waiting with nobody to wait on, asking for no one (#202)', async () => {
     const { result, files, onSettled } = setUp();
     await act(async () => result.current.page.onSetStatus({ path: TASK, status: 'waiting' }));
-    await waitFor(() => expect(result.current.page.problem).toBe(WAITING_NEEDS_SOMEONE));
+    await waitFor(() => expect(onSettled).toHaveBeenCalled());
+    expect(files.get(TASK)).toContain('status: waiting');
+    expect(result.current.page.problem).toBeNull();
+  });
+
+  it('says why a refused move was not made, and writes nothing', async () => {
+    const { result, files, onSettled } = setUp({ changedOnDisk: true });
+    await act(async () => result.current.page.onSetStatus({ path: TASK, status: 'someday' }));
+    await waitFor(() => expect(result.current.page.problem).toMatch(/changed since/));
     expect(files.get(TASK)).toBe(TASK_TEXT);
     expect(onSettled).not.toHaveBeenCalled();
     expect(result.current.page.busy).toBe(false);

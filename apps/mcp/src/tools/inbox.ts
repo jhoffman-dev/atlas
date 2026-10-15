@@ -64,11 +64,10 @@ export const clarifyInboxItem = defineTool({
     "Decide what one item waiting in the Inbox is, as a row of Atlas's Inbox page does (GTD's " +
     'clarify step). Everything given is written in ONE save of the note, the rest of the file ' +
     'kept byte for byte: status (inbox, backlog, next-action, in-progress, waiting, someday, ' +
-    'longterm, archive), waitingOn (the path of a note of type person), defer and due ' +
-    '(YYYY-MM-DD), contexts. A key left out is left as the note has it; null clears waitingOn, ' +
-    'defer or due, and [] clears contexts. The GTD rules hold: status "waiting" is refused ' +
-    'unless waitingOn is given with it or the task already says who; "archive" dates the task ' +
-    'completed today. "project" (a note of type project or area, still in use) files a note ' +
+    'longterm, archive), waitingOn (optional: the path of a note of type person), defer and ' +
+    'due (YYYY-MM-DD), contexts. A key left out is left as the note has it; null clears ' +
+    'waitingOn, defer or due, and [] clears contexts. The GTD rules hold: status "waiting" ' +
+    'never needs waitingOn; "archive" dates the task completed today. "project" (a note of type project or area, still in use) files a note ' +
     "that is in Inbox/ — moved into the project's folder and linked, as " +
     'atlas_process_inbox_item does — and only links a task that lives elsewhere. A task given a ' +
     'status other than inbox leaves the Inbox even with no project. Only a task takes a status, ' +

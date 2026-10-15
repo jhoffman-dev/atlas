@@ -5,7 +5,6 @@ import {
   createVaultPath,
   REVIEW_PROJECTS_QUERY_MARK,
   REVIEW_TASKS_QUERY_MARK,
-  WAITING_NEEDS_SOMEONE,
   type ObjectType,
 } from '@atlas/domain';
 import {
@@ -153,11 +152,25 @@ describe('useToday', () => {
     expect(result.current.page.notice?.action).toEqual({ kind: 'move', status: 'someday' });
   });
 
-  it('refuses Waiting with nobody to wait on: says why, writes nothing, and it is no fault', async () => {
+  it('moves a task to Waiting with nobody to wait on, asking for no one (#202)', async () => {
     const { result, text, onSettled, activity } = setUp();
     await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'waiting' }));
-    await waitFor(() => expect(result.current.page.problem).toBe(WAITING_NEEDS_SOMEONE));
-    expect(text()).toBe(TASK_TEXT);
+    await waitFor(() => expect(result.current.page.notice).not.toBeNull());
+    expect(text()).toBe(TASK_TEXT.replace('status: next-action', 'status: waiting'));
+    expect(result.current.page.problem).toBeNull();
+    expect(onSettled).toHaveBeenCalled();
+    expect(result.current.page.notice?.action).toEqual({ kind: 'move', status: 'waiting' });
+    expect(activity.reports).toEqual([]);
+  });
+
+  it('says why a refused move was not made, writes nothing, and it is no fault', async () => {
+    const { result, text, files, onSettled, activity } = setUp();
+    await waitFor(() => expect(result.current.page.today).not.toBeNull());
+    const elsewhere = TASK_TEXT.replace('next-action', 'someday');
+    files.set(PATH, elsewhere);
+    await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'waiting' }));
+    await waitFor(() => expect(result.current.page.problem).toMatch(/changed since/));
+    expect(text()).toBe(elsewhere);
     expect(onSettled).not.toHaveBeenCalled();
     expect(result.current.page.notice).toBeNull();
     expect(activity.reports).toEqual([]);
@@ -255,7 +268,7 @@ describe('useToday', () => {
           }),
         { initialProps: { indexKey: '1' } },
       );
-      return { ...hook, onSettled, text: () => memory.files.get(PATH) ?? '' };
+      return { ...hook, onSettled, files: memory.files, text: () => memory.files.get(PATH) ?? '' };
     }
 
     it('takes no other action until a read made after its write is on the page', async () => {
@@ -366,8 +379,9 @@ describe('useToday', () => {
     });
 
     it('is not held when its action was refused', async () => {
-      const { result } = mounted();
+      const { result, files } = mounted();
       await waitFor(() => expect(result.current.page.today).not.toBeNull());
+      files.set(PATH, TASK_TEXT.replace('next-action', 'someday'));
       await act(async () => result.current.page.onSetStatus({ ...ROW, status: 'waiting' }));
       await waitFor(() => expect(result.current.page.problem).not.toBeNull());
       expect(result.current.page.settling.size).toBe(0);

@@ -45,15 +45,13 @@ describe('finishing a task under the rules', () => {
     expect(outcome).toEqual({ changes: { status: 'archive', completed: '2026-10-08' } });
   });
 
-  it('refuses making a note a Waiting task with nobody to wait on, when the type is what changes', () => {
-    // The status is not touched, so the rule never looks — yet the change
-    // leaves a task Waiting with no `waiting_on`.
+  it('makes a note that says Waiting a task with nobody to wait on, when the type is what changes (#202)', () => {
     const outcome = taskRuleChanges({
       before: { type: 'note', status: 'waiting' },
       changes: { type: 'task' },
       today: '2026-10-08',
     });
-    expect(outcome).toHaveProperty('refused');
+    expect(outcome).toEqual({ changes: { type: 'task' } });
   });
 });
 

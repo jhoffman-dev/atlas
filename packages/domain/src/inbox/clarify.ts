@@ -155,8 +155,8 @@ function asTaskChanges({
  *   wait or a date; any other note can be filed, or made a task (`asTask`)
  *   when it has no type of its own.
  * - Everything the row decided is one change, held to the task rules as any
- *   change is: Waiting with nobody to wait on is refused, Waiting chosen
- *   with its person passes as one save.
+ *   change is: Waiting passes with or without its person (#202), who it
+ *   waits on written in the same save when one is picked.
  * - A status is one the vault's Task type declares; who a task waits on is
  *   written only when it is, or is being made, Waiting; an archived note is
  *   not decided on at all.

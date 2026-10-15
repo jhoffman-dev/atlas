@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { MarkdownPort } from '../notes/ports.ts';
-import { apiFixture, bodyOf, codeOf, TODAY } from '../testing/api-fixture.ts';
+import { apiFixture, bodyOf, TODAY } from '../testing/api-fixture.ts';
 import { fakeMarkdown } from '../testing/fake-ports.ts';
 
 const GTD_TYPE =
@@ -67,12 +67,11 @@ describe('PATCH /v1/notes/{path}/properties on a task', () => {
   const patch = (api: ReturnType<typeof vault>, set: Record<string, unknown>) =>
     api.send({ method: 'PATCH', path: '/v1/notes/Call.md/properties', body: { set } });
 
-  it('refuses Waiting with nobody to wait on as invalid, saying why and writing nothing', async () => {
+  it('accepts Waiting with nobody to wait on, writing the status alone (#202)', async () => {
     const api = vault(GTD_TYPE, { 'Call.md': TASK });
     const response = await patch(api, { status: 'waiting' });
-    expect(codeOf(response)).toBe('invalid');
-    expect(JSON.stringify(response.body)).toContain('set Waiting on first');
-    expect(api.files.get('Call.md')?.text).toBe(TASK);
+    expect(response.status).toBe(200);
+    expect(api.files.get('Call.md')?.text).toBe(TASK.replace('next-action', 'waiting'));
   });
 
   it('lets Waiting through with someone to wait on', async () => {

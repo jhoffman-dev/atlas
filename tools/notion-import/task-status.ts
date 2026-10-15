@@ -74,7 +74,7 @@ export interface TaskState {
   readonly note: string | null;
 }
 
-/** Where a status the mapping does not know, or a Waiting task with nobody to wait on, goes: the Inbox. */
+/** Where a status the mapping does not know goes: the Inbox. */
 function held(state: NotionTaskState, statuses: ReadonlyMap<string, GtdStatus>) {
   const status = statuses.get(spelled(state.notionStatus));
   if (status === undefined) {
@@ -84,15 +84,12 @@ function held(state: NotionTaskState, statuses: ReadonlyMap<string, GtdStatus>) 
         : `status "${state.notionStatus}" is not one this import maps: put in the Inbox`;
     return { status: CAPTURED, note };
   }
-  if (status === WAITING && state.firstPerson === null) {
-    return { status: CAPTURED, note: 'Waiting with nobody in People: held in the Inbox' };
-  }
   return { status, note: null };
 }
 
 /**
  * A Notion task's status as one of the GTD eight. A Waiting task waits on
- * the first person in People, and is held in the Inbox when there is nobody;
+ * the first person in People, or on nobody when People is empty (#202);
  * a finished one is Archive, completed on the day it was found finished; a
  * Due date still to come is also when it is scheduled.
  */

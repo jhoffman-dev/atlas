@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { parseObjectType } from '@atlas/domain';
-import { fakeVaultFs, recordingActivity } from '@atlas/application';
+import { fakeVaultFs, recordingActivity, TaskRuleRefusedError } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useCardCreation } from './use-card-creation.ts';
 
@@ -22,15 +22,15 @@ function creation({
 }: {
   groupBy: string;
   subGroupBy: string | null;
-  /** What the disk says to the write, when it says no. */
-  refuse?: string | null;
+  /** What the write says when it says no: a message the disk gives, or a refusal. */
+  refuse?: string | Error | null;
 }) {
   const created: string[] = [];
   const errors: string[] = [];
   const activity = recordingActivity();
   const fs = fakeVaultFs({
     createNote: async ({ contents }) => {
-      if (refuse !== null) throw new Error(refuse);
+      if (refuse !== null) throw typeof refuse === 'string' ? new Error(refuse) : refuse;
       created.push(contents);
     },
   });
@@ -91,10 +91,23 @@ describe('a card that could not be added', () => {
   });
 
   it('is not recorded when a task rule refuses it, which the board shows to act on', async () => {
+    const { hook, created, errors, activity } = creation({
+      groupBy: 'status',
+      subGroupBy: null,
+      refuse: new TaskRuleRefusedError('A rule says no.'),
+    });
+    act(() => hook.result.current.addCard({ value: 'doing', name: 'Ship' }));
+    await waitFor(() => expect(errors).toEqual(['A rule says no.']));
+    expect(created).toEqual([]);
+    expect(activity.reports).toEqual([]);
+  });
+
+  it('is added to the Waiting column with nobody to wait on, asking for no one (#202)', async () => {
     const { hook, created, errors, activity } = creation({ groupBy: 'status', subGroupBy: null });
     act(() => hook.result.current.addCard({ value: 'waiting', name: 'Ship' }));
-    await waitFor(() => expect(errors).toEqual([expect.stringMatching(/waiting/i)]));
-    expect(created).toEqual([]);
+    await waitFor(() => expect(created).toHaveLength(1));
+    expect(created[0]).toMatch(/^status: waiting$/m);
+    expect(errors).toEqual([]);
     expect(activity.reports).toEqual([]);
   });
 

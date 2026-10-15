@@ -1,7 +1,6 @@
 import {
   automationStatusRewrite,
   compileTaskStatusesQuery,
-  compileWaitingOnNobodyQuery,
   indexedTexts,
   isGtdStatus,
   createVaultPath,
@@ -26,7 +25,6 @@ import {
   typeFrontmatterChanges,
   viewStatusRewrite,
   VIEWS_DIRECTORY,
-  WAITING_STATUS,
   type GtdStatus,
   type StatusMapping,
   type StatusesInUse,
@@ -64,8 +62,6 @@ export interface TaskMove {
   readonly to: GtdStatus;
   /** The day written as `completed`, when it becomes finished without one. */
   readonly completed: string | null;
-  /** Why it does not go where the mapping sends it — Waiting with nobody to wait on — or null. */
-  readonly held: string | null;
 }
 
 /** A view or an automation that names an old status, and what it will say. */
@@ -139,8 +135,7 @@ export function hasMigrationWork(preview: TaskMigrationPreview): boolean {
  * - the Task type is not yet GTD's;
  * - the last run's record says it stopped partway or left files as they were;
  * - a GTD view the move adds is missing;
- * - the index holds a task whose status is not one of the eight, or none;
- * - a task is Waiting with nobody to wait on, which a preview sends to the Inbox.
+ * - the index holds a task whose status is not one of the eight, or none.
  */
 export async function taskMigrationNeeded(
   ports: Pick<TaskMigrationPorts, 'fs' | 'markdown' | 'index'>,
@@ -151,9 +146,7 @@ export async function taskMigrationNeeded(
   if (record !== null && recordHasWorkLeft(record.record)) return true;
   if (viewCreations(ports.markdown, await viewFiles(ports.fs)).length > 0) return true;
   const statuses = await askIndex(ports.index, compileTaskStatusesQuery(own.name), 'status');
-  if (statuses.some((status) => !isGtdStatus(status))) return true;
-  if (!statuses.includes(WAITING_STATUS)) return false;
-  return (await askIndex(ports.index, compileWaitingOnNobodyQuery(own.name), 'path')).length > 0;
+  return statuses.some((status) => !isGtdStatus(status));
 }
 
 /** One column of what the index answers a compiled statement with. */

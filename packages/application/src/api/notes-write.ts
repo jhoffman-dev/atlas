@@ -40,8 +40,8 @@ export async function setPropertiesRoute(request: VaultRequest): Promise<RouteRe
  * Writes properties to a note read at `expected`: through the pane holding
  * it when there is one, so its editor never saves an older copy over them.
  * A task is held to its rules as the app holds it (ADR-0029), by the write
- * itself — the pane's save or `setNoteProperties`: Waiting with nobody to
- * wait on is refused as `invalid`, and finishing it dates it.
+ * itself — the pane's save or `setNoteProperties`: finishing it dates it,
+ * and Waiting never needs anyone to wait on (#202).
  */
 export async function writeProperties(
   request: VaultRequest,

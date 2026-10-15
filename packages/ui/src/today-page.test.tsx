@@ -292,8 +292,10 @@ describe('TodayPage', () => {
   });
 
   it('says why an action could not be done', () => {
-    page({ problem: 'A waiting task needs someone to wait on.' });
-    expect(screen.getByRole('alert').textContent).toBe('A waiting task needs someone to wait on.');
+    page({ problem: 'That task has changed since: read it again.' });
+    expect(screen.getByRole('alert').textContent).toBe(
+      'That task has changed since: read it again.',
+    );
   });
 
   it.each([

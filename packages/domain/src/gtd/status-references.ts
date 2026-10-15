@@ -4,7 +4,7 @@ import { isSavedView, parseQueryView, parseSqlView, QUERY_VIEW_KEY } from '../qu
 import type { Expression } from '../query-language/ast.ts';
 import { parseAtlasQuery } from '../query-language/parse.ts';
 import { printValue } from '../query-language/print.ts';
-import { isGtdStatus, TASK_KEYS, TASK_TYPE, WAITING_STATUS } from './gtd-status.ts';
+import { isGtdStatus, TASK_KEYS, TASK_TYPE } from './gtd-status.ts';
 import { isInboxFallback, mappedStatus, type StatusMapping } from './status-mapping.ts';
 
 /**
@@ -230,8 +230,7 @@ export function viewStatusRewrite(
  * What the migration does to an automation: the old statuses in `which:`
  * moved on, and a status it sets, when it sets one on tasks alone. A rule
  * over tasks and other types that sets an old status, or one that would set
- * a status no one knew or Waiting — which needs someone, task by task — is
- * listed instead.
+ * a status no one knew, is listed instead.
  */
 export function automationStatusRewrite(
   frontmatter: Properties,
@@ -276,9 +275,6 @@ function setProblem({
   if (types.some((type) => type !== TASK_TYPE)) return MIXED;
   if (isInboxFallback(mapping, value)) {
     return `It sets “${value}”, which is no status GTD knows. Change it by hand.`;
-  }
-  if (mappedStatus(mapping, value) === WAITING_STATUS) {
-    return 'It would set Waiting, which needs someone to wait on, task by task. Change it by hand.';
   }
   return null;
 }

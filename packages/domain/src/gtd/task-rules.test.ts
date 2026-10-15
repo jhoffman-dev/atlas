@@ -1,34 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { taskRuleChanges, WAITING_NEEDS_SOMEONE } from './task-rules.ts';
+import { taskRuleChanges } from './task-rules.ts';
 
 /** P30-02: the rules every change to a task is held to (ADR-0029). */
 const TODAY = '2026-10-08';
 const rule = (before: Record<string, unknown>, changes: Record<string, unknown>) =>
   taskRuleChanges({ before, changes, today: TODAY });
 
-describe('a waiting task waits on someone', () => {
-  it('refuses moving a task to Waiting with nobody to wait on, and says why', () => {
+describe('Waiting never needs someone to wait on (#202)', () => {
+  it('moves a task to Waiting with nobody to wait on, as any status', () => {
     expect(rule({ type: 'task', status: 'next-action' }, { status: 'waiting' })).toEqual({
-      refused: WAITING_NEEDS_SOMEONE,
+      changes: { status: 'waiting' },
     });
     expect(
       rule({ type: 'task', status: 'next-action', waiting_on: '' }, { status: 'waiting' }),
-    ).toEqual({ refused: WAITING_NEEDS_SOMEONE });
+    ).toEqual({ changes: { status: 'waiting' } });
     expect(
       rule({ type: 'task', status: 'next-action', waiting_on: [] }, { status: 'waiting' }),
-    ).toEqual({ refused: WAITING_NEEDS_SOMEONE });
+    ).toEqual({ changes: { status: 'waiting' } });
   });
 
-  it('lets it move once someone is set, before or in the same change', () => {
+  it('writes who it waits on when the change names them, before or in the same change', () => {
     const before = { type: 'task', status: 'next-action', waiting_on: '[[Mara Quill]]' };
     expect(rule(before, { status: 'waiting' })).toEqual({ changes: { status: 'waiting' } });
     const both = { status: 'waiting', waiting_on: '[[Tobias Fenn]]' };
     expect(rule({ type: 'task', status: 'inbox' }, both)).toEqual({ changes: both });
   });
 
-  it('refuses taking the person away from a task still waiting', () => {
+  it('takes the person away from a task still waiting', () => {
     const before = { type: 'task', status: 'waiting', waiting_on: '[[Mara Quill]]' };
-    expect(rule(before, { waiting_on: null })).toEqual({ refused: WAITING_NEEDS_SOMEONE });
+    expect(rule(before, { waiting_on: null })).toEqual({ changes: { waiting_on: null } });
   });
 
   it('leaves other changes to a task already waiting on nobody alone', () => {
@@ -37,13 +37,13 @@ describe('a waiting task waits on someone', () => {
     });
   });
 
-  it('holds a note that becomes a task in the same change to the rule', () => {
+  it('makes a note that says Waiting a task, with nobody to wait on', () => {
     expect(rule({ status: 'next-action' }, { type: 'task', status: 'waiting' })).toEqual({
-      refused: WAITING_NEEDS_SOMEONE,
+      changes: { type: 'task', status: 'waiting' },
     });
   });
 
-  it('is only a task’s rule', () => {
+  it('is the same for a note that is not a task', () => {
     expect(rule({ type: 'project', status: 'active' }, { status: 'waiting' })).toEqual({
       changes: { status: 'waiting' },
     });
@@ -104,19 +104,16 @@ describe('a status in another spelling (round 2)', () => {
     });
   });
 
-  it('counts waiting on a list of blank names as nobody', () => {
-    expect(
-      rule({ type: 'task', status: 'inbox' }, { status: 'waiting', waiting_on: ['', ' '] }),
-    ).toEqual({
-      refused: WAITING_NEEDS_SOMEONE,
-    });
+  it('moves a task to Waiting on a list of blank names', () => {
+    const changes = { status: 'waiting', waiting_on: ['', ' '] };
+    expect(rule({ type: 'task', status: 'inbox' }, changes)).toEqual({ changes });
   });
 });
 
 describe('a status the note already holds in another spelling (round 2)', () => {
   it('is still Waiting when the person is taken away', () => {
     const before = { type: 'task', status: ['waiting'], waiting_on: '[[Mara Quill]]' };
-    expect(rule(before, { waiting_on: null })).toEqual({ refused: WAITING_NEEDS_SOMEONE });
+    expect(rule(before, { waiting_on: null })).toEqual({ changes: { waiting_on: null } });
   });
 
   it('is still Archive, so leaving it takes the day away', () => {

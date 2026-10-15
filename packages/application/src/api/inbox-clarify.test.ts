@@ -55,13 +55,14 @@ describe('POST /v1/inbox/clarify', () => {
     expect(api.files.get('Tasks/Imported.md')?.text).toContain('status: next-action');
   });
 
-  it('refuses Waiting with nobody to wait on as invalid, writing nothing', async () => {
+  it('accepts Waiting without waitingOn, writing the status alone (#202)', async () => {
     const api = apiFixture({ files: FILES });
     const response = await api.send(clarify({ path: 'Inbox/Call Sam.md', status: 'waiting' }));
-    expect(codeOf(response)).toBe('invalid');
-    expect(JSON.stringify(response.body)).toContain('needs someone to wait on');
-    expect(api.writes).toEqual([]);
-    expect(api.files.get('Inbox/Call Sam.md')?.text).toBe(CAPTURED);
+    expect(response.status).toBe(200);
+    expect(bodyOf(response)).toMatchObject({ path: 'Inbox/Call Sam.md', movedFrom: null });
+    expect(api.files.get('Inbox/Call Sam.md')?.text).toBe(
+      CAPTURED.replace('status: inbox', 'status: waiting'),
+    );
   });
 
   it('clears a date given as null', async () => {

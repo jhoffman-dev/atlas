@@ -187,11 +187,7 @@ describe('the Inbox’s quick look after a run that left something', () => {
     expect(await taskMigrationNeeded(ports)).toBe(true);
   });
 
-  it('says yes while a task is Waiting with nobody to wait on, which a preview sends to the Inbox', async () => {
-    // Every status is one of the eight, so the quick look says no — yet the
-    // preview holds this task (`held`) and moves it, as ADR-0029 says the
-    // migration never leaves what the rules refuse. A source, or the other
-    // Mac, writes such a task without the rules.
+  it('says no for a task Waiting with nobody to wait on: Waiting never needs someone (#202)', async () => {
     const { ports, files } = vault({
       '.atlas/types/task.md': OLD_TASK_TYPE,
       'tasks/Draft the memo.md': note({ type: 'task', status: 'doing' }),
@@ -202,11 +198,9 @@ describe('the Inbox’s quick look after a run that left something', () => {
       clock,
       preview: await previewTaskMigration(ports),
     });
-    expect(await taskMigrationNeeded(ports)).toBe(false);
     files.set('tasks/Hear from Mara Quill.md', note({ type: 'task', status: 'waiting' }));
-    const preview = await previewTaskMigration(ports);
-    expect(preview.tasks.map((task) => task.held !== null)).toEqual([true]);
-    expect(await taskMigrationNeeded(ports)).toBe(true);
+    expect((await previewTaskMigration(ports)).tasks).toEqual([]);
+    expect(await taskMigrationNeeded(ports)).toBe(false);
   });
 });
 

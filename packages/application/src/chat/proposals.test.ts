@@ -216,7 +216,7 @@ describe('proposeNote and accepting it', () => {
     ).toThrow(reason);
   });
 
-  it('holds a proposed task to the task rules: Waiting needs someone, Archive is dated (P30-02)', () => {
+  it('holds a proposed task to the task rules: Waiting needs nobody (#202), Archive is dated (P30-02)', () => {
     const propose = (properties: Record<string, unknown>) =>
       proposeNote({
         today: '2026-10-08',
@@ -225,7 +225,7 @@ describe('proposeNote and accepting it', () => {
         id: 'n',
         notePaths: [],
       });
-    expect(() => propose({ type: 'task', status: 'waiting' })).toThrow(/set Waiting on first/);
+    expect(propose({ type: 'task', status: 'waiting' }).contents).toContain('status: waiting');
     expect(propose({ type: 'task', status: 'archive' }).contents).toContain(
       'completed: 2026-10-08',
     );

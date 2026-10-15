@@ -22,9 +22,9 @@ async function propose(properties: Record<string, unknown>) {
 }
 
 describe('proposeEdit on a GTD task', () => {
-  it('never proposes a task Waiting with nobody to wait on', async () => {
-    const made = await propose({ status: 'waiting' }).catch(() => null);
-    expect(made?.contents ?? '').not.toContain('status: waiting');
+  it('proposes a task Waiting with nobody to wait on (#202)', async () => {
+    const made = await propose({ status: 'waiting' });
+    expect(made.contents).toContain('status: waiting');
   });
 
   it('dates a task it proposes to move to Archive', async () => {

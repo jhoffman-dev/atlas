@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { createVaultPath, DAILY_NOTE_CONTENTS, type VaultPath } from '@atlas/domain';
-import { TaskRuleRefusedError } from '../gtd/task-rules.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { dailyNotePath, ensureDailyNote } from './daily-note.ts';
 
@@ -70,13 +69,12 @@ describe("today's note", () => {
     expect(DAILY_NOTE_CONTENTS).toMatch(/^---\ntype: daily\n---\n/);
   });
 
-  it('is held to the task rules: a Daily template that is a task waiting on nobody makes no file', async () => {
-    const { fs, created } = vault(() => '---\ntype: task\nstatus: waiting\n---\n');
+  it('is held to the task rules: a Daily template that is a task waiting on nobody is made as it is (#202)', async () => {
+    const contents = '---\ntype: task\nstatus: waiting\n---\n';
+    const { fs, created } = vault(() => contents);
 
-    await expect(
-      ensureDailyNote({ fs, markdown, today: TODAY, notePaths: [], templates: [DAILY] }),
-    ).rejects.toBeInstanceOf(TaskRuleRefusedError);
-    expect(created).toEqual([]);
+    await ensureDailyNote({ fs, markdown, today: TODAY, notePaths: [], templates: [DAILY] });
+    expect(created).toEqual([{ path: '2026-09-22.md', contents }]);
   });
 
   it('is found, not numbered, when it appears between the listing and the create', async () => {

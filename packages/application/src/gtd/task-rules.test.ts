@@ -4,7 +4,7 @@ import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { doneChange } from '../query/tick-done.ts';
 import { setNoteProperties } from '../query/set-property.ts';
-import { TaskRuleRefusedError, withTaskRules } from './task-rules.ts';
+import { withTaskRules } from './task-rules.ts';
 
 /** P30-02: a write to a task is held to its rules, against what the file says as it is written. */
 const TODAY = '2026-10-08';
@@ -41,12 +41,12 @@ const write = (
   });
 
 describe('withTaskRules', () => {
-  it('refuses Waiting with nobody to wait on, writing nothing', async () => {
+  it('writes Waiting with nobody to wait on, asking for no one (#202)', async () => {
     const vault = taskFile('type: task\nstatus: next-action');
-    const before = vault.files.get('tasks/Call.md');
-    await expect(write(vault, { status: 'waiting' })).rejects.toThrow(TaskRuleRefusedError);
-    await expect(write(vault, { status: 'waiting' })).rejects.toThrow(/set Waiting on first/);
-    expect(vault.files.get('tasks/Call.md')).toBe(before);
+    await write(vault, { status: 'waiting' });
+    expect(vault.files.get('tasks/Call.md')).toBe(
+      '---\ntype: task\nstatus: waiting\n---\n\n# Call\n',
+    );
   });
 
   it('lets Waiting through when the file already says who', async () => {

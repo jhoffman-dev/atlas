@@ -1,7 +1,7 @@
 /**
  * Adversarial pass on P30-02 (ADR-0029): the add button makes tasks too, and
- * a task it makes is held to the same rule as one changed anywhere else —
- * Waiting is waiting on someone.
+ * a task it makes is held to the same rules as one changed anywhere else —
+ * and Waiting never needs someone to wait on (#202).
  */
 import { describe, expect, it } from 'vitest';
 import { TASK_TYPE_FILE } from '@atlas/domain';
@@ -9,7 +9,7 @@ import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { quickAddNote } from './quick-add-note.ts';
 
 describe('quickAddNote on a GTD task', () => {
-  it('never makes a task Waiting with nobody to wait on', async () => {
+  it('makes a task Waiting with nobody to wait on (#202)', async () => {
     const created: string[] = [];
     const fs = fakeVaultFs({
       createNote: async ({ contents }) => {
@@ -28,7 +28,8 @@ describe('quickAddNote on a GTD task', () => {
       beside: null,
       notePaths: [],
     });
-    await made.catch(() => undefined);
-    expect(created.some((contents) => contents.includes('status: waiting'))).toBe(false);
+    await made;
+    expect(created).toHaveLength(1);
+    expect(created[0]).toContain('status: waiting');
   });
 });

@@ -577,9 +577,9 @@ ADR-0029 gives tasks eight statuses. What the API does about it:
 - **Writes are held to the same rules as the app's**, by the same code: the
   rules live in the application's write chokepoints — `setNoteProperties`, a
   pane's `saveNote`, `createNote` — which the app and every API route that
-  changes or makes a note go through. `waiting` without `waiting_on` is
-  refused with `invalid` (mapped once, in `failureOf`) and writes nothing;
-  `archive` sets `completed` to the request's day. A rule kept in one place
+  changes or makes a note go through. ~~`waiting` without `waiting_on` is
+  refused with `invalid` (mapped once, in `failureOf`) and writes nothing;~~
+  _(Amended 2026-10-14, #202: `waiting` never needs `waiting_on`.)_ `archive` sets `completed` to the request's day. A rule kept in one place
   cannot drift between the app and the API.
 - **Capture starts a task in the Inbox** when the vault's Task type has the
   `inbox` status; a vault still on statuses of its own keeps its template's.

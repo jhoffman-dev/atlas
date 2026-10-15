@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { WAITING_NEEDS_SOMEONE } from '../gtd/task-rules.ts';
 import { createVaultPath, type VaultPath } from '../vault/vault-path.ts';
 import { clarifyVocabulary, TASK_TYPE_FILE } from '../gtd/task-type.ts';
 import { parseObjectType } from '../types/property-def.ts';
@@ -37,8 +36,11 @@ describe('clarifyPlan — a task', () => {
     });
   });
 
-  it('refuses Waiting with nobody to wait on, in the task rules’ own words', () => {
-    expect(plan({ status: 'waiting' })).toEqual({ refused: WAITING_NEEDS_SOMEONE });
+  it('writes Waiting with nobody to wait on: who is offered, never demanded (#202)', () => {
+    expect(plan({ status: 'waiting' })).toEqual({
+      changes: { status: 'waiting' },
+      fileUnder: null,
+    });
   });
 
   it('lets a task that already says who it waits on be moved to Waiting', () => {
@@ -49,10 +51,11 @@ describe('clarifyPlan — a task', () => {
     expect(waiting).toEqual({ changes: { status: 'waiting' }, fileUnder: null });
   });
 
-  it('refuses taking the person away from a task that is Waiting', () => {
+  it('takes the person away from a task that stays Waiting', () => {
     const waiting = { type: 'task', status: 'waiting', waiting_on: '[[Mara Quill]]' };
     expect(plan({ waitingOn: null }, { properties: waiting })).toEqual({
-      refused: WAITING_NEEDS_SOMEONE,
+      changes: { waiting_on: null },
+      fileUnder: null,
     });
   });
 
@@ -155,9 +158,17 @@ describe('clarifyPlan — a note that is not a task', () => {
     });
   });
 
-  it('holds a note made a task to the task rules in the same change', () => {
+  it('makes a note a Waiting task in one change, with nobody to wait on', () => {
     expect(plan({ asTask: true, status: 'waiting' }, { properties: {} })).toEqual({
-      refused: WAITING_NEEDS_SOMEONE,
+      changes: { type: 'task', status: 'waiting' },
+      fileUnder: null,
+    });
+  });
+
+  it('holds a note made a task to the task rules in the same change', () => {
+    expect(plan({ asTask: true, status: 'archive' }, { properties: {} })).toEqual({
+      changes: { type: 'task', status: 'archive', completed: TODAY },
+      fileUnder: null,
     });
   });
 

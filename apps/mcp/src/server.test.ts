@@ -241,10 +241,15 @@ describe('tools/list', () => {
       expect(described(tool)).toContain(
         'inbox, backlog, next-action, in-progress, waiting, someday, longterm, archive',
       );
-      expect(described(tool)).toContain('"waiting" needs "waiting_on"');
+      expect(described(tool)).toContain('Setting "waiting" never needs "waiting_on"');
+      expect(described(tool)).not.toMatch(/refused as invalid/);
       expect(described(tool)).toContain('"completed" to today');
     }
     expect(described('atlas_capture_task')).toContain('with status "inbox"');
+    expect(described('atlas_clarify_inbox_item')).toContain(
+      'status "waiting" never needs waitingOn',
+    );
+    expect(described('atlas_clarify_inbox_item')).not.toMatch(/"waiting" is refused/);
   });
 
   it('tells the model what the Today page holds, what its days are counted from, and how to act (#111)', async () => {
@@ -258,7 +263,8 @@ describe('tools/list', () => {
     expect(described).toContain("days since the file's last change");
     expect(described).toContain('whose "defer" day has passed');
     expect(described).toContain('atlas_update_properties');
-    expect(described).toContain('refused unless "waiting_on" names someone');
+    expect(described).toContain('Status waiting never needs "waiting_on"');
+    expect(described).not.toMatch(/waiting is refused/i);
   });
 
   it('tells the model what puts an item in the weekly review, and how to act on one (P30-07)', async () => {
@@ -541,6 +547,13 @@ describe('tools/call → REST', () => {
         project: 'Projects/Atlas.md',
         due: null,
       },
+    ],
+    [
+      'atlas_clarify_inbox_item',
+      { path: 'Inbox/Call Sam.md', status: 'waiting' },
+      'POST',
+      '/v1/inbox/clarify',
+      { path: 'Inbox/Call Sam.md', status: 'waiting' },
     ],
     [
       'atlas_clarify_inbox_item',

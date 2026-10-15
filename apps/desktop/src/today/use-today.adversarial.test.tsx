@@ -90,7 +90,7 @@ function setUp({ taskText = TASK_TEXT }: { taskText?: string } = {}) {
     failNextWrite,
     text: () => memory.files.get(PATH) ?? '',
     /** An edit made somewhere else — another pane, the API, a sync — after the page's read. */
-    editedElsewhere: (text: string) => memory.files.set(PATH, text),
+    editedElsewhere: (text: string, path: string = PATH) => memory.files.set(path, text),
   };
 }
 
@@ -238,13 +238,14 @@ describe('useToday: undo gives the file back exactly', () => {
 
 describe('useToday: one level of undo', () => {
   it('still offers to undo the last action after a later one was refused', async () => {
-    const { result, text } = setUp();
+    const { result, text, editedElsewhere } = setUp();
     await act(async () => result.current.page.onDone(ROW));
     await offered(result);
 
-    // Refused by the task rules: nobody to wait on. Nothing was written.
+    // Refused: the other row changed since the page read it. Nothing was written.
+    editedElsewhere(OTHER_TEXT.replace('next-action', 'someday'), OTHER);
     await act(async () => result.current.page.onSetStatus({ ...OTHER_ROW, status: 'waiting' }));
-    await waitFor(() => expect(result.current.page.problem).not.toBeNull());
+    await waitFor(() => expect(result.current.page.problem).toMatch(/changed since/));
 
     expect(text()).toContain('status: archive');
     expect(result.current.page.notice).toMatchObject({ title: ROW.title });

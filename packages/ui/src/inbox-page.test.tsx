@@ -379,10 +379,13 @@ describe('InboxPage — clarifying a task on its row', () => {
   });
 
   it('shows a refusal on the row it was for, and keeps what was picked', async () => {
-    const refusal = { path: createVaultPath(TASK), reason: 'A waiting task needs someone.' };
+    const refusal = {
+      path: createVaultPath(TASK),
+      reason: 'That task has changed since: read it again.',
+    };
     page({ onClarify: vi.fn(async () => false), refusal });
     const alert = within(rowOf('Call the bank')).getByRole('alert');
-    expect(alert.textContent).toBe('A waiting task needs someone.');
+    expect(alert.textContent).toBe('That task has changed since: read it again.');
     expect(within(rowOf('Standup')).queryByRole('alert')).toBeNull();
 
     await userEvent.selectOptions(control('Status of Call the bank'), 'Waiting');
