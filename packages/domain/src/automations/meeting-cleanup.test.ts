@@ -60,12 +60,28 @@ describe('meetingTasksFailingRules', () => {
     expect(judge([task('[[Renewal review#^t0001]]')], owner)).toEqual([]);
   });
 
-  it('lists every open task while the vault does not say who its owner is', () => {
+  it('lists nothing while the vault does not say who its owner is: no task can be judged', () => {
     const nobody = { selfName: null, selfEmails: [], people: [] };
-    expect(judge([task('[[Renewal review#^t0001]]'), task('nothing')], nobody)).toEqual([
-      'owner-unknown',
-      'owner-unknown',
-    ]);
+    expect(
+      judge(
+        [
+          task('[[Renewal review#^t0001]]'),
+          task('[[Renewal review#^t0002]]'),
+          task('[[Renewal review#^t0003]]'),
+          task('nothing'),
+        ],
+        nobody,
+      ),
+    ).toEqual([]);
+  });
+
+  it('never lists a task the person chose to keep', () => {
+    expect(
+      judge([
+        task('[[Renewal review#^t0002]]', { atlas_item_kept: true }),
+        task('[[Renewal review#^t0003]]', { atlas_item_kept: true }),
+      ]),
+    ).toEqual([]);
   });
 
   it('leaves alone a task finished, or in the Archive', () => {

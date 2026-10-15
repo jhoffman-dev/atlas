@@ -183,6 +183,7 @@ import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
 import { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 import { useProfileSetting } from './profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from './profile/use-self-emails-setting.ts';
+import { vaultOwnerKnown } from './profile/vault-owner-known.ts';
 import { automationsScheduled } from './automations/automations-scheduled.ts';
 import { browserChatSettingsStore } from './chat/chat-settings-store.ts';
 import { claudeStepPorts } from './chat/claude-step-ports.ts';
@@ -759,8 +760,8 @@ export function App({
   // and their addresses as the vault's settings hold them (#173).
   const ownerName = profileSetting.profile === 'unknown' ? null : profileSetting.profile.name;
   const ownerEmails = selfEmailsSetting.emails;
-  // Whether the settings note has answered for both, so nothing that asks who the owner is acts on a stand-in.
-  const ownerKnown = profileSetting.settled && selfEmailsSetting.settled;
+  // Whether both were read, so nothing that asks who the owner is acts on a stand-in: an unreadable settings note is not known.
+  const ownerKnown = vaultOwnerKnown(profileSetting, selfEmailsSetting);
   const claudeStep = useMemo(
     () =>
       claudeStepPorts({

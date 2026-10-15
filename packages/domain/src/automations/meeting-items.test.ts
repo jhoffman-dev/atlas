@@ -244,11 +244,11 @@ describe('an owner nobody can be sure of', () => {
     expect(one({ owner: 'Tobias Fenn', source_block: 't0002' }).confidence).toBe('high');
   });
 
-  it('is low confidence when called a waiting-for and owned by the owner', () => {
+  it('is medium at most when called a waiting-for and owned by the owner (ADR-0036 amendment, #226)', () => {
     const proposal = one({ kind: 'waiting', owner: 'You', confidence: 'high' });
 
     expect(proposal.payload.properties).toEqual({ status: 'inbox' });
-    expect(proposal.confidence).toBe('low');
+    expect(proposal.confidence).toBe('medium');
     expect(proposal.why).toContain('Claude called it a waiting-for but named you');
   });
 });

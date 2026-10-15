@@ -482,7 +482,10 @@ problem, not who the owner is: his profile name already told him apart.
   linking), and Settings → Profile says so. The field saves as it is typed.
 - **An offered cleanup** lists the tasks the step made that fail these rules
   from what the task and its meeting still hold — the cited turn not the
-  owner's, or no owner known — and archives the ones he leaves ticked. How
+  owner's — and archives the ones he leaves ticked, unless one changed since
+  he was shown it. One he unticks is marked `atlas_item_kept` and never listed
+  again. With no owner known nothing can be judged: it lists none and says
+  why. How
   sure the model was is not kept on a task, so one made at medium under the
   old floor cannot be told apart and is not listed.
 

@@ -26,5 +26,10 @@ export { guardedFs, stillInVault, VaultChangedError } from './vault-guard.ts';
 export type { VaultGuard } from './vault-guard.ts';
 export { CLAUDE_RUN_TIMEOUT_MS, ClaudeStepFailed, runClaudeStep } from './claude-step.ts';
 export type { ClaudeStepOutcome, ClaudeStepPorts } from './claude-step.ts';
-export { applyMeetingCleanup, previewMeetingCleanup } from './meeting-cleanup.ts';
-export type { CleanupOwner, MeetingCleanupPorts } from './meeting-cleanup.ts';
+export {
+  applyMeetingCleanup,
+  keepMeetingCleanupTasks,
+  meetingCleanupNeedsOwner,
+  previewMeetingCleanup,
+} from './meeting-cleanup.ts';
+export type { CleanupOwner, ListedCleanupTask, MeetingCleanupPorts } from './meeting-cleanup.ts';

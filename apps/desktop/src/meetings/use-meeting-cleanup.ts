@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  CLEANUP_REASON_WORDS,
-  createVaultPath,
-  noteTitle,
-  type CleanupCandidate,
-} from '@atlas/domain';
+import { CLEANUP_REASON_WORDS, createVaultPath, noteTitle, type VaultPath } from '@atlas/domain';
 import {
   applyMeetingCleanup,
+  keepMeetingCleanupTasks,
+  meetingCleanupNeedsOwner,
   previewMeetingCleanup,
   type ActivityRecorder,
+  type ArchiveOutcome,
   type ArchivePorts,
   type CleanupOwner,
+  type ListedCleanupTask,
   type MeetingCleanupPorts,
 } from '@atlas/application';
 import type { MeetingCleanupProps } from '@atlas/ui';
@@ -19,13 +18,20 @@ import { localToday } from '../today.ts';
 const tasks = (count: number) => (count === 1 ? '1 task' : `${count} tasks`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
+/** What the offer says when it cannot judge the tasks meetings made: it lists none, so nothing is ticked. */
+export const NEEDS_OWNER_NOTICE =
+  'Atlas can’t tell which tasks meetings made are yours, so it offers none to archive. Add your name or email in Settings → Profile.';
+
 /**
  * The offered cleanup on the Inbox page (#226): the tasks the "After a
  * meeting" rule made that today's rules would not have, read while the page
  * shows, once the owner's name and addresses are known. Nothing moves until
  * the person presses Archive in the preview, and any task they untick stays.
- * The run is said in Activity, with every task it left as it was and why.
- * "Not now" puts the offer away until the vault is opened again.
+ * A task they untick is marked kept, when they archive or say "Not now",
+ * and is never listed again. While the vault does not say who its owner is,
+ * nothing is listed, and the offer says why. The run is said in Activity,
+ * with every task it left as it was and why. "Not now" puts the offer away
+ * until the vault is opened again.
  */
 export function useMeetingCleanup({
   ports,
@@ -49,7 +55,8 @@ export function useMeetingCleanup({
   onChanged: () => void;
   onOpenTask: (path: string) => void;
 }): MeetingCleanupProps | null {
-  const [listed, setListed] = useState<readonly CleanupCandidate[] | null>(null);
+  const [listed, setListed] = useState<readonly ListedCleanupTask[] | null>(null);
+  const [needsOwner, setNeedsOwner] = useState(false);
   const [kept, setKept] = useState<ReadonlySet<string>>(new Set());
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -62,6 +69,7 @@ export function useMeetingCleanup({
 
   useEffect(() => {
     setListed(null);
+    setNeedsOwner(false);
     setKept(new Set());
     setExpanded(false);
     setDismissed(false);
@@ -73,8 +81,11 @@ export function useMeetingCleanup({
     if (!open || !indexReady || vaultKey === null || owner === null || dismissed) return;
     let cancelled = false;
     previewMeetingCleanup({ ports, owner })
-      .then((read) => {
-        if (!cancelled) setListed(read);
+      .then(async (read) => {
+        const unjudged = read.length === 0 && (await meetingCleanupNeedsOwner({ ports, owner }));
+        if (cancelled) return;
+        setListed(read);
+        setNeedsOwner(unjudged);
       })
       .catch((cause: unknown) => {
         if (!cancelled) setProblem(`The tasks meetings made could not be read: ${reasonOf(cause)}`);
@@ -101,14 +112,7 @@ export function useMeetingCleanup({
           done.failed.length === 0 ? '' : `, ${tasks(done.failed.length)} left as they were`;
         const said = `Archived ${tasks(done.moves.length)} meetings made that weren’t yours${left}.`;
         activity.record({ level: 'info', kind: 'automation', message: said, subject: null });
-        for (const { path, reason } of done.failed) {
-          activity.record({
-            level: 'warning',
-            kind: 'automation',
-            message: `The cleanup left ${noteTitle(path)} as it was: ${reason}`,
-            subject: { kind: 'note', path },
-          });
-        }
+        recordLeft(activity, done.failed);
         setResult(said);
         setExpanded(false);
         setKept(new Set());
@@ -136,14 +140,17 @@ export function useMeetingCleanup({
   }, []);
 
   const dismiss = useCallback(() => {
+    const keeping = (listed ?? []).filter(({ path }) => kept.has(path)).map(({ path }) => path);
+    if (keeping.length > 0) rememberKept({ ports, paths: keeping, activity });
     setDismissed(true);
     setExpanded(false);
     setResult(null);
     setProblem(null);
-  }, []);
+  }, [listed, kept, ports, activity]);
 
   const offered = !dismissed && listed !== null && listed.length > 0 ? listed : null;
-  if (offered === null && result === null && problem === null) return null;
+  const notice = !dismissed && offered === null && needsOwner ? NEEDS_OWNER_NOTICE : null;
+  if (offered === null && result === null && notice === null && problem === null) return null;
   return {
     tasks:
       offered === null
@@ -157,6 +164,7 @@ export function useMeetingCleanup({
     open: expanded,
     busy,
     result,
+    notice,
     problem,
     onOpen: () => setExpanded(true),
     onToggle: toggle,
@@ -165,4 +173,39 @@ export function useMeetingCleanup({
     onDismiss: dismiss,
     onOpenTask,
   };
+}
+
+/** Every task the cleanup left as it was, and why, in Activity. */
+function recordLeft(activity: ActivityRecorder, failed: ArchiveOutcome['failed']): void {
+  for (const { path, reason } of failed) {
+    activity.record({
+      level: 'warning',
+      kind: 'automation',
+      message: `The cleanup left ${noteTitle(path)} as it was: ${reason}`,
+      subject: { kind: 'note', path },
+    });
+  }
+}
+
+/** Marks the tasks the person unticked before "Not now", so they are not listed again. */
+function rememberKept({
+  ports,
+  paths,
+  activity,
+}: {
+  ports: ArchivePorts;
+  paths: readonly string[];
+  activity: ActivityRecorder;
+}): void {
+  const keeping: VaultPath[] = paths.map((path) => createVaultPath(path));
+  keepMeetingCleanupTasks({ ports, paths: keeping })
+    .then((failed) => recordLeft(activity, failed))
+    .catch((cause: unknown) =>
+      activity.record({
+        level: 'error',
+        kind: 'automation',
+        message: `The tasks you kept could not be marked as kept: ${reasonOf(cause)}`,
+        subject: null,
+      }),
+    );
 }

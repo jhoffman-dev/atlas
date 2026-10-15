@@ -33,6 +33,19 @@ function writtenAddress(email: string): string {
 /** An address as compared: as written, its domain in ASCII ({@link comparableAddress}). */
 const addressKey = (email: string): string => comparableAddress(writtenAddress(email));
 
+/** Whether two addresses are one, as written and with their domains in ASCII. */
+export const sameAddress = (left: string, right: string): boolean =>
+  addressKey(left) === addressKey(right);
+
+/**
+ * Whether an address is on more than one Person note: a shared or group
+ * mailbox, which tells nobody apart, so it never says who the owner is (#226).
+ */
+export function isSharedAddress(email: string, people: readonly DirectoryPerson[]): boolean {
+  const holders = people.filter((person) => person.emails.some((each) => sameAddress(each, email)));
+  return holders.length > 1;
+}
+
 /** Whether a person's note is the owner's: its name or an alias is the profile's. */
 export function isOwnerNote(person: DirectoryPerson, selfName: string | null): boolean {
   return (

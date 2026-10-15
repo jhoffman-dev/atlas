@@ -25,6 +25,7 @@ const propsOf = (overrides: Partial<MeetingCleanupProps> = {}): MeetingCleanupPr
   open: false,
   busy: false,
   result: null,
+  notice: null,
   problem: null,
   onOpen: vi.fn(),
   onToggle: vi.fn(),
@@ -113,6 +114,19 @@ describe('MeetingCleanup', () => {
     expect(within(region()).getByRole('alert').textContent).toBe(
       'The cleanup stopped: the disk is full',
     );
+  });
+
+  it('says why nothing is offered, with nothing to tick', async () => {
+    const props = draw({
+      tasks: null,
+      notice: 'Atlas can’t tell which tasks meetings made are yours, so it offers none to archive.',
+    });
+    expect(within(region()).getByRole('status').textContent).toBe(
+      'Atlas can’t tell which tasks meetings made are yours, so it offers none to archive.',
+    );
+    expect(within(region()).queryByRole('checkbox')).toBeNull();
+    await userEvent.click(within(region()).getByRole('button', { name: 'Dismiss' }));
+    expect(props.onDismiss).toHaveBeenCalledTimes(1);
   });
 
   it('draws nothing with nothing to offer or say', () => {

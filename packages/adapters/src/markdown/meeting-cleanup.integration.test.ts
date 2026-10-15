@@ -6,7 +6,11 @@
  * real YAML adapter. All names are made up.
  */
 import { describe, expect, it } from 'vitest';
-import { applyMeetingCleanup, previewMeetingCleanup } from '@atlas/application';
+import {
+  applyMeetingCleanup,
+  meetingCleanupNeedsOwner,
+  previewMeetingCleanup,
+} from '@atlas/application';
 import { automationVault } from '@atlas/application/testing/sqlite';
 import { createVaultPath } from '@atlas/domain';
 import { remarkMarkdown } from './markdown-port.ts';
@@ -90,12 +94,22 @@ describe('the cleanup preview (#226)', () => {
     const vault = setUp();
 
     expect(await previewMeetingCleanup({ ports: vault.ports, owner: OWNER })).toEqual([
-      { path: UNNAMED, title: 'Book the room', because: 'unnamed-speaker' },
-      { path: TOBIAS, title: 'Flag the new cache', because: 'spoken-by-another' },
+      {
+        path: UNNAMED,
+        title: 'Book the room',
+        because: 'unnamed-speaker',
+        digest: expect.any(String),
+      },
+      {
+        path: TOBIAS,
+        title: 'Flag the new cache',
+        because: 'spoken-by-another',
+        digest: expect.any(String),
+      },
     ]);
   });
 
-  it('lists every open task the rule made while the vault does not say who its owner is', async () => {
+  it('lists nothing while the vault does not say who its owner is: no task can be judged', async () => {
     const vault = setUp();
 
     const listed = await previewMeetingCleanup({
@@ -103,12 +117,20 @@ describe('the cleanup preview (#226)', () => {
       owner: { selfName: null, selfEmails: [] },
     });
 
-    expect(listed.map(({ path, because }) => [path, because])).toEqual([
-      [UNNAMED, 'owner-unknown'],
-      [GONE_TURN, 'owner-unknown'],
-      [TOBIAS, 'owner-unknown'],
-      [MINE, 'owner-unknown'],
-    ]);
+    expect(listed).toEqual([]);
+  });
+
+  it('says it needs the owner only while the rule made tasks and the vault names nobody', async () => {
+    const nobody = { selfName: null, selfEmails: [] };
+    const empty = automationVault({
+      notes: { [MEETING]: meetingFile },
+      today: TODAY,
+      markdown: remarkMarkdown,
+    });
+
+    expect(await meetingCleanupNeedsOwner({ ports: setUp().ports, owner: nobody })).toBe(true);
+    expect(await meetingCleanupNeedsOwner({ ports: setUp().ports, owner: OWNER })).toBe(false);
+    expect(await meetingCleanupNeedsOwner({ ports: empty.ports, owner: nobody })).toBe(false);
   });
 
   it('lists nothing in a vault where the rule made no task', async () => {

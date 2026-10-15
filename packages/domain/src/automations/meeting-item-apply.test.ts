@@ -270,12 +270,7 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
 
   it.each([
     {
-      cell: 'an unnamed speaker',
-      fields: { source_block: 't0003', title: 'Chase the invoice' },
-      caps: ['unnamed-speaker'],
-    },
-    {
-      cell: '“we”',
+      cell: '“we”, in an exchange the owner spoke in',
       fields: { owner: 'We' },
       caps: ['we'],
     },
@@ -288,6 +283,42 @@ describe('the outcome table (ADR-0036): which items become the owner’s tasks',
       cell: 'a mixed-up kind (a waiting-for, naming the owner)',
       fields: { kind: 'waiting' },
       caps: ['mixed-kind'],
+    },
+  ])(
+    'shows the owner’s item they share in the review, at medium even when sure (ADR-0036 amendment): $cell',
+    ({ fields, caps }) => {
+      for (const confidence of ['high', 'medium']) {
+        const [proposal] = proposalsFor([item({ ...fields, confidence })], {
+          notes: [meeting()],
+          vault: VAULT,
+        });
+        expect(proposal!.meetingItem?.caps).toEqual(caps);
+        expect(proposal!.confidence).toBe('medium');
+        expect(decideOne({ ...fields, confidence })).toEqual({
+          outcome: 'proposal',
+          because: 'capped',
+          caps,
+        });
+      }
+    },
+  );
+
+  it('leaves out “we” in an exchange the owner said nothing in: whose it is is a guess', () => {
+    const note = meetingOf([
+      ['t0001', 'Tobias Fenn', 'We should send the renewal contract by Friday.'],
+    ]);
+
+    expect(decideOne({ owner: 'We', confidence: 'high' }, { note })).toEqual({
+      outcome: 'left-out',
+      because: 'unsure',
+    });
+  });
+
+  it.each([
+    {
+      cell: 'an unnamed speaker',
+      fields: { source_block: 't0003', title: 'Chase the invoice' },
+      caps: ['unnamed-speaker'],
     },
     {
       cell: 'a follow-up of the owner’s from an unnamed speaker',
@@ -842,7 +873,6 @@ describe('a meeting of small talk and ideas makes nothing (#226)', () => {
   it('leaves out every item the model was unsure of or could name nobody for', () => {
     const decided = decide([
       item({ title: 'Maybe try the new café', confidence: 'low' }),
-      item({ title: 'We should automate the report', owner: 'We', source_block: 't0004' }),
       item({ title: 'Somebody should chase the invoice', owner: '', source_block: 't0003' }),
       item({ kind: 'decision', title: 'Friday drinks are nice', confidence: 'low' }),
     ]);
@@ -851,7 +881,16 @@ describe('a meeting of small talk and ideas makes nothing (#226)', () => {
       'left-out',
       'left-out',
       'left-out',
-      'left-out',
+    ]);
+  });
+
+  it('shows “we” the owner said in the review rather than leaving it out (ADR-0036 amendment)', () => {
+    const decided = decide([
+      item({ title: 'We should automate the report', owner: 'We', source_block: 't0004' }),
+    ]);
+
+    expect(decided.items.map(({ decision }) => decision)).toEqual([
+      { outcome: 'proposal', because: 'capped', caps: ['we'] },
     ]);
   });
 });

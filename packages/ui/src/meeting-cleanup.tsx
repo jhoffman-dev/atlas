@@ -18,6 +18,8 @@ export interface MeetingCleanupProps {
   readonly busy: boolean;
   /** What the last cleanup did, in a sentence. */
   readonly result: string | null;
+  /** Why nothing is offered although meetings made tasks, in a sentence: null when they could be judged. */
+  readonly notice: string | null;
   readonly problem: string | null;
   readonly onOpen: () => void;
   readonly onToggle: (path: string) => void;
@@ -37,8 +39,8 @@ const tasks = (count: number) => (count === 1 ? '1 task' : `${count} tasks`);
  * Archive, and archiving is never deleting.
  */
 export function MeetingCleanup(props: MeetingCleanupProps) {
-  const { tasks: listed, open, result, problem } = props;
-  if (listed === null && result === null && problem === null) return null;
+  const { tasks: listed, open, result, notice, problem } = props;
+  if (listed === null && result === null && notice === null && problem === null) return null;
   return (
     <section className="inbox__offer meeting-cleanup" aria-label="Tasks meetings made">
       <Icon name="archive" size={16} className="inbox__offer-icon" />
@@ -46,6 +48,7 @@ export function MeetingCleanup(props: MeetingCleanupProps) {
         {listed !== null && !open && <Offer {...props} listed={listed} />}
         {listed !== null && open && <Preview {...props} listed={listed} />}
         {result !== null && <p role="status">{result}</p>}
+        {notice !== null && <p role="status">{notice}</p>}
         {problem !== null && (
           <p className="table__error" role="alert">
             {problem}

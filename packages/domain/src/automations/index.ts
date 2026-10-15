@@ -118,7 +118,11 @@ export {
   MEETING_ITEMS_OUTPUT,
 } from './meeting-items.ts';
 export { meetingReview } from './meeting-review.ts';
-export { CLEANUP_REASON_WORDS, meetingTasksFailingRules } from './meeting-cleanup.ts';
+export {
+  CLEANUP_REASON_WORDS,
+  MEETING_ITEM_KEPT_KEY,
+  meetingTasksFailingRules,
+} from './meeting-cleanup.ts';
 export type {
   CitedMeeting,
   CleanupCandidate,

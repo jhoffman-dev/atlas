@@ -318,7 +318,7 @@ function draftsOfItem(item: MeetingItem, context: AnswerContext): ProposalDraft[
     ];
   }
   const { owner } = owned;
-  const task = taskOf({ ...owned, cited });
+  const task = taskOf({ ...owned, cited, directory });
   return [
     {
       kind: 'task',
@@ -463,6 +463,8 @@ interface OwnedTask {
 
 const SURE: ProposalConfidence = 'high';
 const GUESS: ProposalConfidence = 'low';
+/** The most sure the owner's item they share may be: enough to reach the review, never a task. */
+const SHARED: ProposalConfidence = 'medium';
 
 /**
  * The task an action item makes, by who took it on (the mine / waiting-for
@@ -473,9 +475,18 @@ const GUESS: ProposalConfidence = 'low';
  * low confidence. A name nobody in the meeting or the vault has, and a cited
  * turn with no named speaker, make whose it is a guess: low confidence too. A
  * cited turn spoken by a third person makes it medium at most (see
- * {@link spokenByAnother}).
+ * {@link spokenByAnother}), and so does the owner's item they share — named
+ * with others, called a waiting-for, or "we" in an exchange the owner spoke
+ * in — so it reaches the meeting's review (ADR-0036 amendment, #226). "We"
+ * where the owner said nothing is a guess.
  */
-function taskOf({ owner, caps, cited, context }: OwnedItem & { cited: FoundTurn }): OwnedTask {
+function taskOf({
+  owner,
+  caps,
+  cited,
+  context,
+  directory,
+}: OwnedItem & { cited: FoundTurn; directory: OwnerDirectory }): OwnedTask {
   const from = noteTitle(cited.meeting.path);
   if (owner.kind === 'unknown' || owner.kind === 'ambiguous') {
     return {
@@ -497,10 +508,12 @@ function taskOf({ owner, caps, cited, context }: OwnedItem & { cited: FoundTurn 
     const doubt = mixed
       ? ' Claude called it a waiting-for but named you, so check whose it is.'
       : '';
+    const shared = mixed || owner.doubt !== undefined;
+    const weWithoutTheOwner = owner.shared === 'we' && !ownerTookPart(cited, directory);
     return {
       properties: { [TASK_KEYS.status]: NEW_TASK_STATUS },
       why: `Yours, from ${from}.${doubt}${owner.doubt === undefined ? '' : ` ${owner.doubt}`}${spoken}`,
-      ceiling: mixed || owner.doubt !== undefined ? GUESS : ceiling,
+      ceiling: !shared ? ceiling : lowestOf(ceiling, weWithoutTheOwner ? GUESS : SHARED),
     };
   }
   const strange = owner.kind === 'named' && !owner.inMeeting;

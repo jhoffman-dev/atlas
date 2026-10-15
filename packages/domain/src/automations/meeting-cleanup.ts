@@ -9,7 +9,10 @@
  * How sure the model was is not kept on a task, so a task made at medium
  * confidence under the earlier floor cannot be told from one made at high,
  * and is not listed. A task already finished, archived, or whose meeting or
- * turn can no longer be found is left alone: nothing is guessed.
+ * turn can no longer be found is left alone: nothing is guessed. Nor is one
+ * the person chose to keep ({@link MEETING_ITEM_KEPT_KEY}), and while the
+ * vault does not say who its owner is, nothing is listed at all: no task can
+ * be judged theirs or not.
  */
 
 import { FINISHED_TASK_STATUS, holdsStatus, TASK_KEYS } from '../gtd/gtd-status.ts';
@@ -21,14 +24,18 @@ import type { VaultPath } from '../vault/vault-path.ts';
 import { itemOwner } from './meeting-item-owner.ts';
 import { vaultNamesItsOwner, type OwnerSettings } from './meeting-item-apply.ts';
 
+/**
+ * A made task's mark that the person chose to keep it when the cleanup
+ * listed it: `true`, and it is never listed again (#226).
+ */
+export const MEETING_ITEM_KEPT_KEY = 'atlas_item_kept';
+
 /** Why a made task fails today's rules. */
 export type CleanupReason =
   /** The turn it cites was spoken by someone other than the owner. */
   | 'spoken-by-another'
   /** The turn it cites has no named speaker: whose it was is a guess. */
-  | 'unnamed-speaker'
-  /** The vault does not say who its owner is: no task can be known to be theirs. */
-  | 'owner-unknown';
+  | 'unnamed-speaker';
 
 /** A task the rule made, as the cleanup reads it. */
 export interface MadeMeetingTask {
@@ -54,13 +61,12 @@ export interface CleanupCandidate {
 export const CLEANUP_REASON_WORDS: Readonly<Record<CleanupReason, string>> = {
   'spoken-by-another': 'Someone else said it, not you.',
   'unnamed-speaker': 'Nobody named said it, so it may not be yours.',
-  'owner-unknown': 'Atlas can’t tell which items are yours.',
 };
 
 /**
- * The tasks of `tasks` today's rules would not have made, in the order given.
- * `meetingOf` finds the meeting a link's target names, or null when there is
- * none to read.
+ * The tasks of `tasks` today's rules would not have made, in the order given;
+ * none while the vault does not say who its owner is. `meetingOf` finds the
+ * meeting a link's target names, or null when there is none to read.
  */
 export function meetingTasksFailingRules({
   tasks,
@@ -71,15 +77,16 @@ export function meetingTasksFailingRules({
   meetingOf: (target: string) => CitedMeeting | null;
   owner: OwnerSettings;
 }): CleanupCandidate[] {
-  const known = vaultNamesItsOwner(owner);
+  if (!vaultNamesItsOwner(owner)) return [];
   return tasks.flatMap((task) => {
     if (
       isArchivedPath(task.path) ||
-      holdsStatus(task.properties[TASK_KEYS.status], FINISHED_TASK_STATUS)
+      holdsStatus(task.properties[TASK_KEYS.status], FINISHED_TASK_STATUS) ||
+      task.properties[MEETING_ITEM_KEPT_KEY] === true
     ) {
       return [];
     }
-    const because = known ? reasonOf(task, meetingOf, owner) : 'owner-unknown';
+    const because = reasonOf(task, meetingOf, owner);
     return because === null ? [] : [{ path: task.path, title: task.title, because }];
   });
 }
