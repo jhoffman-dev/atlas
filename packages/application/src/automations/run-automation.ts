@@ -5,6 +5,7 @@ import {
   messageWithoutPaths,
   noteRunsHeldUntil,
   noteTriggerHears,
+  storedAnswerFor,
   triggeringVersions,
   unhandledVersions,
   type AutomationPlan,
@@ -17,6 +18,7 @@ import {
   type NoteVersionRef,
   type PassedOver,
   type RunTrigger,
+  type StoredAnswerDraft,
   type VaultPath,
 } from '@atlas/domain';
 import { archiveNotes, type ArchiveOutcome, type ArchivePorts } from '../archive/archive-notes.ts';
@@ -298,7 +300,8 @@ async function runOnce({
   const fs = guardedFs(run.ports.fs, guard);
   const ports = { ...run.ports, fs, notePaths: await listVaultNotes({ fs }) };
   /** Writes the run's entry, whatever the gates say: for what the run has already made. */
-  const append = (entry: LogEntry) => appendForRun({ fs: run.ports.fs, run, entry });
+  const append = (entry: LogEntry, stored?: readonly StoredAnswerDraft[]) =>
+    appendForRun({ fs: run.ports.fs, run, entry, ...(stored !== undefined && { stored }) });
   /** Writes the run's entry once the gates allow it, when the run has made nothing yet. */
   const log = async (entry: LogEntry, paths: readonly string[] = []) => {
     await holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths });
@@ -388,13 +391,16 @@ async function askClaude({
   trigger: RunTrigger;
   went: readonly VaultPath[];
   log: (entry: LogEntry, paths?: readonly string[]) => Promise<void>;
-  append: (entry: LogEntry) => Promise<void>;
+  append: (entry: LogEntry, stored?: readonly StoredAnswerDraft[]) => Promise<void>;
 }): Promise<LogEntry> {
   const { plan } = target;
   const hold = () =>
     holdUnlessFresh({ check: run.freshPull, rule: run.rule, trigger, paths: plan.paths });
   await hold();
   const spent = await askedThisHour(ports, run.rule, at);
+  // Only the declared step keeps answers and tells a backfill from an arrival (ADR-0036).
+  const declared = action.apply === 'mine';
+  const ledger = declared ? (await readRuleLog(ports.fs, run.rule)).ledger : null;
   try {
     const { done, left, claude } = await runClaudeStep({
       ports: ports.claude,
@@ -403,11 +409,14 @@ async function askClaude({
       fs: ports.fs,
       index: ports.index,
       markdown: ports.markdown,
+      editors: ports.editors,
       notePaths: ports.notePaths,
       rule: run.rule.id,
       madeBy: `${run.rule.name} · ${at.replace('T', ' ')}`,
       beforeWrite: hold,
       askedThisHour: spent,
+      storedAnswer: (key) => storedAnswerFor(ledger, key)?.answers ?? null,
+      ruleSince: declared ? await savedAt(ports.fs, run.rule.path) : null,
     });
     const entry: LogEntry = {
       kind: 'run',
@@ -436,10 +445,24 @@ async function askClaude({
     const madeSome = cause.made.length > 0;
     if (!madeSome) await hold();
     await recordGone(run, went, madeSome ? null : trigger);
-    await append(failed);
+    // The answers it read are kept with the failure, so its retry asks nothing again (ADR-0036).
+    await append(failed, cause.stored);
     // Stopped by something other than the answer — a disk that refused — is raised once it is on record.
     if (cause.interruption !== undefined) throw cause.interruption;
     return failed;
+  }
+}
+
+/**
+ * When a rule's file was last written: a meeting that arrived before it is
+ * a backfill to the declared step. Null when it cannot be read.
+ */
+async function savedAt(fs: AutomationPorts['fs'], path: VaultPath): Promise<number | null> {
+  try {
+    return (await fs.readTextFile(path)).modified;
+  } catch {
+    // Safe to go without: every meeting is then taken for a backfill, which makes only proposals.
+    return null;
   }
 }
 

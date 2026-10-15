@@ -21,18 +21,21 @@ import {
   splitFrontmatter,
   truncated,
   type AnsweredNote,
+  type AnswerReading,
   type AnswerVault,
   type CheckedProposal,
   type ClaudeAction,
   type ClaudeRunInfo,
   type DoneAction,
   type DroppedItem,
+  type MeetingTally,
   type ModelMessage,
   type NewProposal,
   type NoteCut,
   type NoteSkipped,
   type PromptData,
   type RegisteredProposalSchema,
+  type StoredAnswerDraft,
   type VaultPath,
 } from '@atlas/domain';
 import { ModelProviderError, type ModelProvider, type ProviderStatus } from '../chat/ports.ts';
@@ -41,11 +44,21 @@ import type { ChatToolbox, Toolboxes } from '../chat/toolbox.ts';
 import { loadLinkDirectory } from '../meeting-links/link-directory.ts';
 import type { Clock } from '../ports.ts';
 import { loadTerms } from '../terms/terms.ts';
+import type { MarkdownPort } from '../notes/ports.ts';
 import { loadObjectTypes } from '../types/load-types.ts';
+import type { NoteWritePorts } from '../proposals/proposal-writes.ts';
 import { planProposals, type ProposalWritePorts } from '../proposals/write-proposals.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { planNote, type PlannedNote } from './claude-writes.ts';
 import { HeldForPullError } from './fresh-pull-hold.ts';
+import {
+  decideForMeeting,
+  makeOwnersTasks,
+  OwnersTasksStopped,
+  readMadeItems,
+  type MeetingDecided,
+  type PlannedTask,
+} from './owners-tasks.ts';
 
 /**
  * How long a whole run may take, every ask of it together, before it is
@@ -96,6 +109,8 @@ export interface ClaudeStepAftermath {
   readonly made?: readonly DoneAction[];
   /** The error that stopped it, to be raised once the run is on record. */
   readonly cause?: unknown;
+  /** The answers it read in full before it stopped, to be kept so its retry asks nothing again (ADR-0036). */
+  readonly stored?: readonly StoredAnswerDraft[];
 }
 
 /**
@@ -107,16 +122,18 @@ export class ClaudeStepFailed extends Error {
   readonly made: readonly DoneAction[];
   /** Set when an error other than the model's answer stopped it: raised after the log is written. */
   readonly interruption: unknown;
+  readonly stored: readonly StoredAnswerDraft[];
 
   constructor(
     message: string,
     readonly claude: ClaudeRunInfo,
-    { made = [], cause }: ClaudeStepAftermath = {},
+    { made = [], cause, stored = [] }: ClaudeStepAftermath = {},
   ) {
     super(truncated(message));
     this.name = 'ClaudeStepFailed';
     this.made = made;
     this.interruption = cause;
+    this.stored = [...stored];
   }
 }
 
@@ -132,6 +149,9 @@ export interface ClaudeStepOutcome {
 }
 
 interface StepArgs extends ProposalWritePorts {
+  readonly markdown: MarkdownPort;
+  /** The panes: a task is never made from a meeting with unsaved typing in one. */
+  readonly editors: NoteWritePorts['editors'];
   readonly ports: ClaudeStepPorts;
   readonly action: ClaudeAction;
   /** The notes the run is about. */
@@ -154,6 +174,18 @@ interface StepArgs extends ProposalWritePorts {
    * it is, not as the step's failure.
    */
   readonly beforeWrite?: () => Promise<void>;
+  /**
+   * For the declared step: the answers kept for a meeting's words, by the key
+   * its schema knows them by, from a run that read them and could not finish
+   * (ADR-0036); null when none are. Reused instead of asking again.
+   */
+  readonly storedAnswer?: (key: string) => readonly string[] | null;
+  /**
+   * For the declared step: when the rule's own file was last written, which
+   * tells a meeting that arrived since from a backfill (ADR-0036); null when
+   * it could not be read, and then every meeting is taken for a backfill.
+   */
+  readonly ruleSince?: number | null;
 }
 
 /**
@@ -188,6 +220,15 @@ interface StepArgs extends ProposalWritePorts {
  * run, nor than its hourly allowance has left (`claudeRunAsks`): an ask past
  * either fails the run with nothing written. The declared step plans its
  * notes' parts with one ask kept back, for the reduce (#184).
+ *
+ * The declared step (`apply: mine`, ADR-0036) makes the owner's own action
+ * items into tasks, linked both ways, without a click: which ones is decided
+ * in the domain (`decideMeetingItems`), per meeting, and the rest are
+ * proposals as before. The tasks are made first, then the proposals. A run
+ * that read a meeting's answers in full and then failed keeps them
+ * (`ClaudeStepFailed.stored`), and its retry reuses them rather than asking
+ * again; one it made some tasks in names them in `made`, and the retry finds
+ * them by their `atlas_item` and makes only the rest.
  */
 export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> {
   const { ports, action } = args;
@@ -201,6 +242,8 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   const adjusted: DroppedItem[] = [];
   const warnings: string[] = [];
   let alreadyMade = 0;
+  const toStore: StoredAnswerDraft[] = [];
+  let meetings: readonly MeetingTally[] = [];
   const claudeRun = (): ClaudeRunInfo => ({
     model,
     ms: Math.max(0, ports.clock.now() - started),
@@ -210,9 +253,10 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
     ...(adjusted.length > 0 && { adjusted: [...adjusted] }),
     ...(warnings.length > 0 && { warnings: [...warnings] }),
     ...(alreadyMade > 0 && { alreadyMade }),
+    ...(meetings.length > 0 && { meetings }),
   });
   const fail = (message: string): never => {
-    throw new ClaudeStepFailed(message, claudeRun());
+    throw new ClaudeStepFailed(message, claudeRun(), { stored: toStore });
   };
   // Defence in depth: the action a run is handed is checked as the file that wrote it was.
   const output = outputOf(action);
@@ -239,27 +283,47 @@ export async function runClaudeStep(args: StepArgs): Promise<ClaudeStepOutcome> 
   if (output.kind === 'proposals')
     warnings.push(...(await missingRelations(args, notes, output.schema)));
   try {
-    const { planned, proposed } =
+    const answered =
       output.kind === 'note'
         ? await planNoteAnswer({ ...asking, output, notes, counted })
         : await planProposalAnswers({
             ...asking,
             schema: output.schema,
             asks: plan.asks,
+            read: notes,
             counted,
             dropped,
             adjusted,
+            toStore,
           });
+    const { planned, proposed, tasks = [] } = answered;
     // What it proposed and the writer left out was made before: said, so a re-ask does not read as an empty answer.
     alreadyMade = Math.max(0, proposed - planned.length);
     await args.beforeWrite?.();
-    const done = await writePlanned({ fs: args.fs, planned, claudeRun });
+    const done = await writeAll({ args, tasks, planned, claudeRun, stored: toStore });
+    meetings = (answered.meetings ?? []).map((meeting) => tallyOf(meeting, tasks, planned));
     return { done, left: plan.skipped, claude: claudeRun() };
   } catch (error) {
     if (error instanceof ClaudeStepFailed || error instanceof HeldForPullError) throw error;
     // Anything else after the model was asked (the index, the disk) still cost an ask: on record, then raised.
-    throw new ClaudeStepFailed(messageWithoutPaths(error), claudeRun(), { cause: error });
+    throw new ClaudeStepFailed(messageWithoutPaths(error), claudeRun(), {
+      cause: error,
+      stored: toStore,
+    });
   }
+}
+
+/** What the declared step made of one meeting it read: its tasks, and its proposals written. */
+function tallyOf(
+  meeting: VaultPath,
+  tasks: readonly PlannedTask[],
+  planned: readonly PlannedNote[],
+): MeetingTally {
+  return {
+    path: meeting,
+    tasks: tasks.filter((task) => task.meeting.path === meeting).length,
+    proposals: planned.filter((note) => note.meeting === meeting).length,
+  };
 }
 
 /**
@@ -435,6 +499,10 @@ const unreadWords = (problem: string): string =>
 interface AnswerPlanned {
   readonly planned: readonly PlannedNote[];
   readonly proposed: number;
+  /** For the declared step: the owner's tasks to make, before the proposals are written. */
+  readonly tasks?: readonly PlannedTask[];
+  /** For the declared step: each meeting it read, in order, for the log to say what it made of each. */
+  readonly meetings?: readonly VaultPath[];
 }
 
 /** Asks once for the rule's one new note, and plans it: nothing is written yet. */
@@ -458,47 +526,46 @@ async function planNoteAnswer({
   return { planned: [planned], proposed: 0 };
 }
 
-/**
- * Asks each of the run's asks in turn, reads every answer as the schema's
- * proposals, and plans them all: nothing is written until every answer has
- * read. An answer that does not read fails the run, saying which part it was.
- */
-async function planProposalAnswers({
-  schema,
-  asks,
-  counted,
-  dropped,
-  adjusted,
-  ...asking
-}: Asking & {
+/** What every proposal answer of a run is read with. */
+type ProposalAsking = Asking & {
   schema: RegisteredProposalSchema;
   asks: readonly (readonly AnsweredNote[])[];
+  /** Every note the run read, whole: what a meeting's stored answers are read against. */
+  read: readonly AnsweredNote[];
   /** Told each time the model is asked. */
   counted: () => void;
   /** Gains the items each answer left out. */
   dropped: DroppedItem[];
   /** Gains the items each answer kept with a fault put right. */
   adjusted: DroppedItem[];
-}): Promise<AnswerPlanned> {
-  const vault = schema.readsVault ? await readVault(asking) : undefined;
-  const proposals: CheckedProposal[] = [];
-  for (const [at, notes] of asks.entries()) {
-    const context = { notes, ...(vault !== undefined && { vault }) };
-    const answer = await askModel({ ...asking, notes, data: schema.dataFor(context), counted });
-    const read = schema.read(answer, context);
-    if (!read.ok) {
-      const part = asks.length > 1 ? `Ask ${at + 1} of ${asks.length}: ` : '';
-      return asking.fail(unreadWords(`${part}${read.problem}`));
-    }
-    proposals.push(...read.value);
-    dropped.push(...read.dropped);
-    adjusted.push(...read.adjusted);
-  }
+  /** Gains the answers about each meeting the declared step read in full, to be kept if the run fails. */
+  toStore: StoredAnswerDraft[];
+};
+
+/**
+ * Reads every answer of the run as the schema's proposals, and plans them
+ * all: nothing is written until every answer has read. An answer that does
+ * not read fails the run, saying which part it was. The declared step then
+ * decides, meeting by meeting, which of the owner's items are made tasks;
+ * the rest are planned as proposals.
+ */
+async function planProposalAnswers(asking: ProposalAsking): Promise<AnswerPlanned> {
+  const vault = asking.schema.readsVault ? await readVault(asking) : undefined;
+  const answered = await readAnswers(asking, vault);
+  const declared = asking.action.apply === 'mine';
+  const decided = declared
+    ? await decideOwnersItems(asking, answered, vault)
+    : answered.map(({ path, proposals }) => ({ meeting: path, tasks: [], proposals }));
+  const meetingOf = new Map<string, VaultPath>();
   const drafted = cappedForRun(
-    proposals.map((proposal) =>
-      claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal }),
+    decided.flatMap(({ meeting, proposals }) =>
+      proposals.map((proposal) => {
+        const drafted = claudeNewProposal({ rule: asking.rule, madeBy: asking.madeBy, proposal });
+        meetingOf.set(drafted.id, meeting);
+        return drafted;
+      }),
     ),
-    dropped,
+    asking.dropped,
   );
   const { planned, left } = await planProposals({
     fs: asking.fs,
@@ -511,9 +578,151 @@ async function planProposalAnswers({
   // An id given twice in one answer is one proposal: only those made before this run are "already made".
   const proposed = new Set(drafted.map(({ id }) => id)).size;
   return {
-    planned: planned.map((note) => ({ ...note, made: { kind: 'proposed', path: note.path } })),
+    planned: planned.map(({ path, contents, id }) => ({
+      path,
+      contents,
+      made: { kind: 'proposed', path },
+      ...(declared && { meeting: meetingOf.get(id)! }),
+    })),
     proposed,
+    ...(declared && {
+      tasks: decided.flatMap(({ tasks }) => tasks),
+      meetings: decided.map(({ meeting }) => meeting),
+    }),
   };
+}
+
+/** The proposals the answers about one note hold. */
+interface NoteAnswered {
+  readonly path: VaultPath;
+  readonly proposals: readonly CheckedProposal[];
+}
+
+/**
+ * Asks each of the run's asks in turn and reads every answer, note by note.
+ * The declared step first looks for the answers kept for a meeting's words
+ * (`storedAnswer`): found, they are read again as the domain reads them now
+ * and nothing is asked; a kept answer that no longer reads is asked again.
+ * The answers about each meeting it asked are added to `toStore`.
+ */
+async function readAnswers(
+  asking: ProposalAsking,
+  vault: AnswerVault | undefined,
+): Promise<NoteAnswered[]> {
+  const answered: NoteAnswered[] = [];
+  const total = asking.asks.length;
+  let at = 0;
+  for (const group of asksByNote(asking.asks)) {
+    const note = asking.read.find((each) => each.path === group.path);
+    const key = asking.action.apply === 'mine' && note !== undefined ? keyOf(asking, note) : null;
+    const kept = key === null ? null : (asking.storedAnswer?.(key) ?? null);
+    const reused =
+      kept === null || note === undefined ? null : rereadKept(asking, note, kept, vault);
+    if (reused !== null) {
+      answered.push({ path: group.path, proposals: reused });
+      continue;
+    }
+    const answers: string[] = [];
+    const proposals: CheckedProposal[] = [];
+    for (const notes of group.asks) {
+      at += 1;
+      const context = { notes, ...(vault !== undefined && { vault }) };
+      const data = asking.schema.dataFor(context);
+      const answer = await askModel({ ...asking, notes, data, counted: asking.counted });
+      const reading = asking.schema.read(answer, context);
+      if (!reading.ok) {
+        const part = total > 1 ? `Ask ${at} of ${total}: ` : '';
+        return asking.fail(unreadWords(`${part}${reading.problem}`));
+      }
+      proposals.push(...keptItems(asking, reading));
+      answers.push(answer);
+    }
+    if (key !== null) asking.toStore.push({ key, answers });
+    answered.push({ path: group.path, proposals });
+  }
+  return answered;
+}
+
+/** The key a meeting's words are known by, as the schema names them; null for a note it names none. */
+function keyOf({ schema }: ProposalAsking, note: AnsweredNote): string | null {
+  return schema.handledKeyOf?.(note) ?? null;
+}
+
+/**
+ * A meeting's kept answers read again, each against the part of the meeting
+ * it answered — parts are cut the same way each time — with the vault as it
+ * is now; null when one no longer reads, so the meeting is asked again.
+ */
+function rereadKept(
+  asking: ProposalAsking,
+  note: AnsweredNote,
+  kept: readonly string[],
+  vault: AnswerVault | undefined,
+): CheckedProposal[] | null {
+  const parts = claudeAsks([note], { inParts: true, asks: kept.length }).asks;
+  const readings = parts.map((notes, at) =>
+    asking.schema.read(kept[at] ?? '', { notes, ...(vault !== undefined && { vault }) }),
+  );
+  if (readings.length === 0 || readings.some((reading) => !reading.ok)) return null;
+  return readings.flatMap((reading) => (reading.ok ? keptItems(asking, reading) : []));
+}
+
+/** An answer's proposals, with what it left out and put right added to the run's record. */
+function keptItems(
+  { dropped, adjusted }: ProposalAsking,
+  reading: Extract<AnswerReading, { ok: true }>,
+): readonly CheckedProposal[] {
+  dropped.push(...reading.dropped);
+  adjusted.push(...reading.adjusted);
+  return reading.value;
+}
+
+/** The asks grouped by the note each is about, in order: a long meeting's parts are one group. */
+function asksByNote(
+  asks: readonly (readonly AnsweredNote[])[],
+): { path: VaultPath; asks: (readonly AnsweredNote[])[] }[] {
+  const groups: { path: VaultPath; asks: (readonly AnsweredNote[])[] }[] = [];
+  for (const notes of asks) {
+    const path = notes[0]?.path;
+    if (path === undefined) continue;
+    const last = groups.at(-1);
+    if (last?.path === path) last.asks.push(notes);
+    else groups.push({ path, asks: [notes] });
+  }
+  return groups;
+}
+
+/**
+ * Decides, meeting by meeting, which of the owner's items become tasks
+ * (`decideForMeeting`): the tasks already made are read once for them all.
+ */
+async function decideOwnersItems(
+  asking: ProposalAsking,
+  answered: readonly NoteAnswered[],
+  vault: AnswerVault | undefined,
+): Promise<MeetingDecided[]> {
+  const made = await readMadeItems(asking.index);
+  const owner = {
+    selfName: vault?.selfName ?? null,
+    selfEmails: vault?.selfEmails ?? [],
+    people: vault?.people ?? [],
+  };
+  const decided: MeetingDecided[] = [];
+  for (const { path, proposals } of answered) {
+    decided.push(
+      await decideForMeeting({
+        ports: asking,
+        meeting: path,
+        proposals,
+        owner,
+        made,
+        ruleSince: asking.ruleSince ?? null,
+        notePaths: asking.notePaths,
+        today: asking.ports.clock.today(),
+      }),
+    );
+  }
+  return decided;
 }
 
 /**
@@ -582,28 +791,47 @@ async function readVault({
 }
 
 /**
- * Writes each planned note in turn. One the disk refuses stops the run, with
- * those already made reported — they stay — so the log names every note the
- * step left behind.
+ * Makes the owner's tasks, then writes each planned note. A task that cannot
+ * be made, or a note the disk refuses, stops the run with those already made
+ * reported — they stay — so the log names everything the step left behind. A
+ * task refused in words (the meeting was edited, or is being typed in) fails
+ * the run plainly; any other fault is raised once the run is on record.
  */
-async function writePlanned({
-  fs,
+async function writeAll({
+  args,
+  tasks,
   planned,
   claudeRun,
+  stored,
 }: {
-  fs: Pick<VaultFsPort, 'createNote'>;
+  args: StepArgs;
+  tasks: readonly PlannedTask[];
   planned: readonly PlannedNote[];
   claudeRun: () => ClaudeRunInfo;
+  stored: readonly StoredAnswerDraft[];
 }): Promise<DoneAction[]> {
-  const made: DoneAction[] = [];
+  let made: DoneAction[];
+  try {
+    made = await makeOwnersTasks({
+      ports: args,
+      tasks,
+      notePaths: args.notePaths,
+      today: args.ports.clock.today(),
+    });
+  } catch (error) {
+    if (!(error instanceof OwnersTasksStopped)) throw error;
+    const cause = error.refused ? {} : { cause: error.reason };
+    throw new ClaudeStepFailed(error.message, claudeRun(), { made: error.made, stored, ...cause });
+  }
   for (const note of planned) {
     try {
-      await fs.createNote({ path: note.path, contents: note.contents });
+      await args.fs.createNote({ path: note.path, contents: note.contents });
     } catch (cause) {
-      const said = `Made ${made.length} of ${planned.length} notes, then the write failed: ${messageWithoutPaths(cause)}`;
-      throw new ClaudeStepFailed(said, claudeRun(), { made, cause });
+      const notes = made.length - tasks.length;
+      const said = `Made ${notes} of ${planned.length} notes, then the write failed: ${messageWithoutPaths(cause)}`;
+      throw new ClaudeStepFailed(said, claudeRun(), { made, cause, stored });
     }
-    made.push(note.made);
+    made = [...made, note.made];
   }
   return made;
 }

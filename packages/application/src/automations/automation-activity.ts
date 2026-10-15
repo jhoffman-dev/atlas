@@ -5,6 +5,7 @@ import {
   messageWithoutPaths,
   type LogEntry,
   type RuleNamed,
+  type StoredAnswerDraft,
 } from '@atlas/domain';
 import type { Clock } from '../ports.ts';
 import type { ActivityLog } from '../activity/ports.ts';
@@ -55,10 +56,13 @@ export function appendForRun({
   fs,
   run,
   entry,
+  stored,
 }: {
   fs: VaultFsPort;
   run: { rule: RuleNamed & { id: string }; clock: Pick<Clock, 'now'>; activity: ActivityLog };
   entry: LogEntry;
+  /** Answers a failed run read, kept in the rule's ledger for its retry. */
+  stored?: readonly StoredAnswerDraft[];
 }): Promise<void> {
   // Taken before the write waits, so its line lands in its own vault's log.
   const recorder = run.activity.inOpenVault();
@@ -66,6 +70,7 @@ export function appendForRun({
     fs,
     rule: run.rule,
     entry,
+    ...(stored !== undefined && { stored }),
     now: run.clock.now(),
     onLedgerRepaired: () => recorder.record(ledgerRepairedReport(run.rule)),
   });

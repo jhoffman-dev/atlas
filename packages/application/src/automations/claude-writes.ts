@@ -17,6 +17,8 @@ export interface PlannedNote {
   readonly path: VaultPath;
   readonly contents: string;
   readonly made: DoneAction;
+  /** For the declared step's proposal: the meeting it was read from, which its tally counts it under. */
+  readonly meeting?: VaultPath;
 }
 
 /**

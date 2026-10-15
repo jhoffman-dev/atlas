@@ -5,3 +5,4 @@
  * `@atlas/application` never loads it.
  */
 export { atlasQueryIndex } from './query-index.ts';
+export { automationVault } from './automation-vault.ts';
