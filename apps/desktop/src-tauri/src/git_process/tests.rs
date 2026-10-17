@@ -1734,3 +1734,94 @@ fn reading_a_blob_refuses_anything_but_a_full_lowercase_object_id() {
     let sha256 = "0123456789abcdef".repeat(4);
     assert!(vault_ok(&["cat-file", "blob", &sha256]));
 }
+
+// --- #246: git's working-tree writes take the vault's change turn ----------
+
+/// A named pipe: opening one end waits for the other, so a test can hold a
+/// fake `git` mid-run and know it is there, with no sleep.
+fn fifo(at: &Path) -> PathBuf {
+    let status = Command::new("/usr/bin/mkfifo").arg(at).status().unwrap();
+    assert!(status.success(), "mkfifo {}", at.display());
+    at.to_path_buf()
+}
+
+/// A fake `git` that says it started, waits to be let go, then writes a note
+/// in the vault, as a merge rewrites a pulled note.
+struct HeldGit {
+    bin: tempfile::TempDir,
+    // Kept for as long as the fake runs: the pipes live here.
+    _pipes: tempfile::TempDir,
+    started: PathBuf,
+    release: PathBuf,
+}
+
+fn held_git() -> HeldGit {
+    let pipes = tempfile::tempdir().unwrap();
+    let started = fifo(&pipes.path().join("started"));
+    let release = fifo(&pipes.path().join("release"));
+    let script = format!(
+        "printf started > '{}'\nread go < '{}'\nprintf merged > a.md",
+        started.display(),
+        release.display()
+    );
+    HeldGit {
+        bin: fake("git", &script),
+        _pipes: pipes,
+        started,
+        release,
+    }
+}
+
+#[test]
+fn a_save_waits_while_a_merge_is_writing_the_vault() {
+    let held = held_git();
+    let vault = tempfile::tempdir().unwrap();
+    fs::write(vault.path().join("a.md"), "before").unwrap();
+    let host = host_in(&[held.bin.path()], None, NO_LIMIT);
+    let root = vault.path().to_path_buf();
+    let merge = std::thread::spawn(move || {
+        let merge = args(&[
+            "merge",
+            "--no-edit",
+            "--allow-unrelated-histories",
+            "origin/main",
+        ]);
+        host.git_in_vault(&root, &merge)
+    });
+    assert_eq!(fs::read_to_string(&held.started).unwrap(), "started");
+    let taken_mid_merge = crate::vault::change_turn_is_taken();
+    let root = vault.path().to_path_buf();
+    let save = std::thread::spawn(move || crate::vault::write_text(&root, "a.md", "saved", None));
+    // Let the merge finish before asserting, so a failure leaves no fake git waiting.
+    fs::write(&held.release, "go\n").unwrap();
+    assert_eq!(merge.join().unwrap().unwrap().code, Some(0));
+    save.join().unwrap().unwrap();
+    assert!(
+        taken_mid_merge,
+        "a merge ran outside the vault's change turn"
+    );
+    assert_eq!(
+        fs::read_to_string(vault.path().join("a.md")).unwrap(),
+        "saved",
+        "the save landed under the merge"
+    );
+}
+
+#[test]
+fn a_git_write_inside_a_change_turn_runs_rather_than_waiting_on_itself() {
+    let bin = fake("git", "printf merged > a.md");
+    let vault = tempfile::tempdir().unwrap();
+    let host = host_in(&[bin.path()], None, NO_LIMIT);
+    let merge = args(&[
+        "merge",
+        "--no-edit",
+        "--allow-unrelated-histories",
+        "origin/main",
+    ]);
+    let output = crate::vault::one_change_at_a_time(|| host.git_in_vault(vault.path(), &merge));
+    assert_eq!(output.unwrap().code, Some(0));
+    assert_eq!(
+        fs::read_to_string(vault.path().join("a.md")).unwrap(),
+        "merged"
+    );
+}

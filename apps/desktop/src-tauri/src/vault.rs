@@ -547,7 +547,7 @@ fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
 /// millisecond (see `write_temporary`). A note that is a link out of the vault is refused by `resolve`;
 /// one that is a link inside it has its target replaced, never the link's
 /// destination written through.
-fn write_text(
+pub(crate) fn write_text(
     root: &Path,
     path: &str,
     contents: &str,
@@ -764,6 +764,13 @@ pub(crate) fn change_turn() -> ChangeTurn {
     let turn = CHANGES.lock().unwrap_or_else(PoisonError::into_inner);
     HOLDS_CHANGES.with(|holds| holds.set(true));
     ChangeTurn(Some(turn))
+}
+
+/// Whether some thread holds the turn to change the vault right now, for a
+/// test to see a change is under way without waiting for its turn.
+#[cfg(test)]
+pub(crate) fn change_turn_is_taken() -> bool {
+    matches!(CHANGES.try_lock(), Err(std::sync::TryLockError::WouldBlock))
 }
 
 /// Runs one change to the vault — a save, a creation, a move, a trash, a
