@@ -6,12 +6,25 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
+/**
+ * The app's state libraries (#238): stores and queries belong to `apps/desktop`,
+ * so the packages stay plain and `packages/ui` stays prop-driven.
+ */
+const appStateOnly = ['zustand', 'zustand/*', '@tanstack/react-query'];
+
 /** Every layer that must stay out of a given layer's imports. */
 const forbidden = {
-  domain: ['@atlas/application', '@atlas/adapters', '@atlas/ui', 'react*', '@tauri-apps/*'],
-  application: ['@atlas/adapters', '@atlas/ui', 'react*', '@tauri-apps/*'],
-  adapters: ['@atlas/ui', 'react*'],
-  ui: ['@atlas/adapters'],
+  domain: [
+    '@atlas/application',
+    '@atlas/adapters',
+    '@atlas/ui',
+    'react*',
+    '@tauri-apps/*',
+    ...appStateOnly,
+  ],
+  application: ['@atlas/adapters', '@atlas/ui', 'react*', '@tauri-apps/*', ...appStateOnly],
+  adapters: ['@atlas/ui', 'react*', ...appStateOnly],
+  ui: ['@atlas/adapters', ...appStateOnly],
 };
 
 const architecture = Object.entries(forbidden).map(([layer, patterns]) => ({

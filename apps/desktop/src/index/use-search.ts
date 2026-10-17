@@ -6,8 +6,17 @@ const LIMIT = 20;
 
 const NO_COMMANDS: readonly PaletteCommand[] = [];
 const NO_HITS: readonly SearchHit[] = [];
-/** The index being written: searched now, it answers from half of it (#135). */
-const WORKING = 'working';
+/** Hits, and the search they answered: `includeArchived:query`. */
+interface Answer {
+  readonly asked: string;
+  readonly hits: readonly SearchHit[];
+}
+const NO_ANSWER: Answer = { asked: '', hits: NO_HITS };
+/**
+ * The index being built — a vault's first sync, or a rebuild: searched now, it
+ * answers from half of it (#135). A refresh keeps the index ready (#238).
+ */
+const BUILDING = 'building';
 const noOffers = (): readonly PaletteCommand[] => NO_COMMANDS;
 
 /**
@@ -32,42 +41,48 @@ export function useSearch({
   changeKey?: string;
 }) {
   const [query, setQuery] = useState('');
-  const [hits, setHits] = useState<readonly SearchHit[]>(NO_HITS);
+  const [answer, setAnswer] = useState<Answer>(NO_ANSWER);
   const [selected, setSelected] = useState(0);
   const [includeArchived, setIncludeArchived] = useState(false);
   const prepared = toSearchQuery(query);
+  const asking = prepared === null ? '' : `${String(includeArchived)}:${prepared}`;
+  // Only hits that answered the search on screen are shown: while a query typed
+  // during a build waits, the last query's hits are not this one's to open.
+  const hits = answer.asked === asking ? answer.hits : NO_HITS;
   // Searched again once per settled index, never while it is being written,
   // and not at all for an empty query: the palette shut asks nothing.
-  const searchKey = prepared === null ? null : changeKey === WORKING ? WORKING : (changeKey ?? '');
+  const searchKey =
+    prepared === null ? null : changeKey === BUILDING ? BUILDING : (changeKey ?? '');
   // What the hits on screen answered, and which one is chosen, for a search run
   // again only because the index moved: it keeps the person's place.
   const shown = useRef({ asked: '', hits: NO_HITS, selected: 0, ahead: 0 });
 
   useEffect(() => {
     if (prepared === null) {
-      setHits(NO_HITS);
+      setAnswer(NO_ANSWER);
       return;
     }
-    if (searchKey === WORKING) return;
+    if (searchKey === BUILDING) return;
 
     let cancelled = false;
-    const asked = `${String(includeArchived)}:${prepared}`;
+    const asked = asking;
     searchNotes({ index, query: prepared, limit: LIMIT, includeArchived })
       .then((found) => {
         if (cancelled) return;
         const was = shown.current;
-        setHits(found);
+        setAnswer({ asked, hits: found });
+        // The place is kept only for the same search answered again.
         setSelected(was.asked === asked ? keptPlace(was, found) : 0);
       })
       .catch(() => {
         // A half-typed query the index cannot parse yet simply matches nothing.
-        if (!cancelled) setHits(NO_HITS);
+        if (!cancelled) setAnswer({ asked, hits: NO_HITS });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [index, prepared, includeArchived, searchKey]);
+  }, [index, prepared, includeArchived, asking, searchKey]);
 
   const offered = useMemo(
     () => [...offerFor(query), ...matchingCommands(query, commands)],
@@ -75,8 +90,9 @@ export function useSearch({
   );
   const count = offered.length + hits.length;
   useEffect(() => {
+    // The search the hits on screen answered, not the query typed since.
     shown.current = {
-      asked: prepared === null ? '' : `${String(includeArchived)}:${prepared}`,
+      asked: hits === NO_HITS ? '' : answer.asked,
       hits,
       selected,
       ahead: offered.length,
@@ -91,7 +107,7 @@ export function useSearch({
 
   const reset = useCallback(() => {
     setQuery('');
-    setHits(NO_HITS);
+    setAnswer(NO_ANSWER);
     setSelected(0);
     setIncludeArchived(false);
   }, []);

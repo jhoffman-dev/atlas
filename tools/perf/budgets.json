@@ -28,19 +28,18 @@
       "calls": {}
     },
     "One autosave and its watcher echo": {
-      "commits": 62,
-      "renders": 5884,
+      "commits": 42,
+      "renders": 3678,
       "calls": {
         "index_manifest": 4,
-        "index_notes_of_type": 5,
-        "index_open": 3,
+        "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 27,
-        "index_rebuild_views": 4,
+        "index_query": 19,
+        "index_rebuild_views": 3,
         "index_stats": 3,
-        "list_directory": 29,
+        "list_directory": 18,
         "list_notes": 4,
-        "read_notes": 26,
+        "read_notes": 15,
         "write_text_file": 3
       }
     },
@@ -77,19 +76,19 @@
       "calls": {}
     },
     "Tick a task on Today": {
-      "commits": 63,
-      "renders": 15541,
+      "commits": 42,
+      "renders": 10655,
       "calls": {
         "index_manifest": 4,
-        "index_notes_of_type": 5,
+        "index_notes_of_type": 4,
         "index_open": 3,
         "index_put": 3,
         "index_query": 31,
-        "index_rebuild_views": 4,
+        "index_rebuild_views": 3,
         "index_stats": 3,
-        "list_directory": 31,
+        "list_directory": 25,
         "list_notes": 4,
-        "read_notes": 26,
+        "read_notes": 15,
         "read_text_file": 5,
         "write_text_file": 3
       },
@@ -109,22 +108,21 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 77,
-      "renders": 6255,
+      "commits": 52,
+      "renders": 4213,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
-        "index_notes_of_type": 9,
-        "index_open": 3,
+        "index_notes_of_type": 7,
         "index_put": 3,
         "index_query": 47,
-        "index_rebuild_views": 4,
+        "index_rebuild_views": 3,
         "index_remove": 3,
         "index_stats": 3,
-        "list_directory": 47,
+        "list_directory": 28,
         "list_notes": 7,
         "move_entry": 3,
-        "read_notes": 39,
+        "read_notes": 21,
         "read_text_file": 8,
         "write_text_file": 3
       },
@@ -156,19 +154,18 @@
       }
     },
     "Drag a board card": {
-      "commits": 106,
-      "renders": 12113,
+      "commits": 81,
+      "renders": 7732,
       "calls": {
         "index_manifest": 4,
-        "index_notes_of_type": 5,
-        "index_open": 3,
+        "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 31,
-        "index_rebuild_views": 4,
+        "index_query": 21,
+        "index_rebuild_views": 3,
         "index_stats": 3,
-        "list_directory": 30,
+        "list_directory": 19,
         "list_notes": 4,
-        "read_notes": 26,
+        "read_notes": 15,
         "read_text_file": 3,
         "write_text_file": 3
       }
