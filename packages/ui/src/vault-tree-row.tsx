@@ -42,6 +42,12 @@ export interface RowEditing {
 }
 
 /**
+ * How a row's menu was asked for. From the keyboard it opens on its first
+ * item, as a menu button does; from the pointer, on the menu itself.
+ */
+export type MenuOpenedBy = 'keyboard' | 'pointer';
+
+/**
  * What every row can do, the same object for every row and from one render
  * to the next, so a row draws again only for a change of its own (#238).
  */
@@ -51,7 +57,11 @@ export interface TreeRowActions {
   readonly onFocusRow: (path: VaultPath) => void;
   readonly onToggleFavorite: (path: VaultPath) => void;
   /** Opens the row's menu, anchored to the element or the point it was asked from. */
-  readonly onMenu: (entry: VaultEntry, anchor: Element | { x: number; y: number }) => void;
+  readonly onMenu: (
+    entry: VaultEntry,
+    anchor: Element | { x: number; y: number },
+    openedBy: MenuOpenedBy,
+  ) => void;
   readonly onRename: (args: { entry: VaultEntry; name: string }) => void;
   readonly onCancelRename: () => void;
 }
@@ -141,7 +151,7 @@ export const VaultTreeRow = memo(function VaultTreeRow({
       onContextMenu={(event) => {
         if (editing === null) return;
         event.preventDefault();
-        actions.onMenu(row.entry, { x: event.clientX, y: event.clientY });
+        actions.onMenu(row.entry, { x: event.clientX, y: event.clientY }, 'pointer');
       }}
     >
       <Icon name={sidebarGlyph(row.icon)} className="sidebar__icon" />
@@ -169,7 +179,14 @@ export const VaultTreeRow = memo(function VaultTreeRow({
         <MoreButton
           label={row.label}
           tabbable={placement.tabbable}
-          onOpen={(event) => actions.onMenu(row.entry, event.currentTarget)}
+          onOpen={(event) =>
+            // Enter or Space on a button clicks it with no press counted.
+            actions.onMenu(
+              row.entry,
+              event.currentTarget,
+              event.detail === 0 ? 'keyboard' : 'pointer',
+            )
+          }
         />
       )}
     </div>

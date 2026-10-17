@@ -188,26 +188,76 @@ describe('VaultTree — what one commit draws', () => {
 /**
  * The rows share one menu, built once beside the tree rather than once a row,
  * so there is no per-row menu to build lazily: a row's "…" is a plain button
- * that opens it. These hold what that already does from the keyboard.
+ * that opens it. From the keyboard it opens on its first item, as a menu
+ * button does (#250); from the pointer, on the menu itself.
  */
 describe('VaultTree — a row’s menu from the keyboard', () => {
   const more = (name: string) => screen.getByRole('button', { name: `Options for ${name}` });
 
   it.each(['{Enter}', ' '])(
-    'opens on the first %s, keeps the focus in it, and Escape gives it back to the "…"',
+    'opens on its first item from %s, and Escape gives the focus back to the "…"',
     async (key) => {
       render(tree());
       more('Ledger').focus();
       await userEvent.keyboard(key);
       const menu = await screen.findByRole('menu', { name: 'Page' });
-      expect(within(menu).getByRole('menuitem', { name: 'Duplicate Ledger.md' })).toBeDefined();
-      await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true));
+      const first = within(menu).getByRole('menuitem', { name: 'Rename' });
+      await waitFor(() => expect(document.activeElement).toBe(first));
+      // Base UI counts the first item as the one it is on, so the arrows go on from it.
+      expect(first.hasAttribute('data-highlighted')).toBe(true);
       await userEvent.keyboard('{ArrowDown}');
-      expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Rename' }));
+      expect(document.activeElement).toBe(
+        within(menu).getByRole('menuitem', { name: 'Duplicate Ledger.md' }),
+      );
 
       await userEvent.keyboard('{Escape}');
       await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
       expect(document.activeElement).toBe(more('Ledger'));
     },
   );
+
+  it('opens on its first item from Shift+F10 on the row too', async () => {
+    render(tree());
+    screen.getByRole('treeitem', { name: 'Ledger' }).focus();
+    await userEvent.keyboard('{Shift>}{F10}{/Shift}');
+    const menu = await screen.findByRole('menu', { name: 'Page' });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Rename' })),
+    );
+  });
+
+  it('opens on the menu itself, no item picked out, when the "…" is clicked', async () => {
+    render(tree());
+    await userEvent.click(more('Ledger'));
+    const menu = await screen.findByRole('menu', { name: 'Page' });
+    await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true));
+    // Long enough for Base UI's own focus, a frame after the popup mounts, to have landed.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(menu);
+    expect(
+      within(menu)
+        .queryAllByRole('menuitem')
+        .some((item) => item === document.activeElement),
+    ).toBe(false);
+  });
+
+  it('draws no row again for opening it or shutting it', async () => {
+    render(tree());
+    more('Ledger').focus();
+    startCountingRenders();
+    await userEvent.keyboard('{Enter}');
+    const menu = await screen.findByRole('menu', { name: 'Page' });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Rename' })),
+    );
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    const { renders } = stopCountingRenders();
+    expect({ rows: renders['VaultTreeRow'] ?? 0, more: renders['MoreButton'] ?? 0 }).toEqual({
+      rows: 0,
+      more: 0,
+    });
+    // The counter was on and saw the menu drawn, so the zeros above are not a counter that saw nothing.
+    expect(renders['EntryMenu'] ?? 0).toBeGreaterThan(0);
+  });
 });

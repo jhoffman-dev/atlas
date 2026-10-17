@@ -175,17 +175,67 @@ describe('a grouped table', () => {
     ]);
   });
 
-  it('moves between headers with Up and Down, and folds one with Enter or Space', async () => {
+  // The long, virtualised case — a move to a line not drawn yet, and what
+  // cancels one — is in table-groups.keyboard.test.tsx.
+  it('moves row to row and header to header with Up and Down, across groups, skipping "+ New" (#248)', async () => {
     render(<Grouped />);
+    const name = (title: string) => screen.getByRole('button', { name: title });
     header(/^backlog/i).focus();
+    const order = [
+      name('Gamma'),
+      header(/^doing/i),
+      name('Alpha'),
+      name('Beta'),
+      header(/^No value/),
+      name('Delta'),
+    ];
+    for (const next of order) {
+      await userEvent.keyboard('{ArrowDown}');
+      expect(document.activeElement).toBe(next);
+    }
+    // The last row stays put, rather than going on to its "+ New".
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(name('Delta'));
+    for (const next of [...order.slice(0, -1)].reverse()) {
+      await userEvent.keyboard('{ArrowUp}');
+      expect(document.activeElement).toBe(next);
+    }
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}');
+    expect(document.activeElement).toBe(header(/^backlog/i));
+  });
+
+  it('goes to the first header with Home and the last row with End (#248)', async () => {
+    render(<Grouped />);
+    screen.getByRole('button', { name: 'Alpha' }).focus();
+    await userEvent.keyboard('{End}');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delta' }));
+    await userEvent.keyboard('{Home}');
+    expect(document.activeElement).toBe(header(/^backlog/i));
+  });
+
+  it('steps over a folded group to the header after it, and through sub-group headers (#248)', async () => {
+    render(<Grouped subGroupBy="flagged" />);
+    await userEvent.click(header(/^doing/i));
+    screen.getByRole('button', { name: 'Gamma' }).focus();
     await userEvent.keyboard('{ArrowDown}');
     expect(document.activeElement).toBe(header(/^doing/i));
     await userEvent.keyboard('{ArrowDown}');
     expect(document.activeElement).toBe(header(/^No value/));
+    // Into the "No value" group: its sub-group's header comes before its row.
     await userEvent.keyboard('{ArrowDown}');
-    expect(document.activeElement).toBe(header(/^No value/));
-    await userEvent.keyboard('{ArrowUp}');
-    expect(document.activeElement).toBe(header(/^doing/i));
+    expect((document.activeElement as HTMLElement).classList).toContain('table__group-toggle');
+    expect(document.activeElement?.getAttribute('data-depth')).toBe('1');
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Delta' }));
+  });
+
+  it('leaves a chord to the app, and folds a header with Enter or Space', async () => {
+    render(<Grouped />);
+    header(/^doing/i).focus();
+    for (const chord of ['{Shift>}{ArrowDown}{/Shift}', '{Meta>}{End}{/Meta}']) {
+      await userEvent.keyboard(chord);
+      expect(document.activeElement).toBe(header(/^doing/i));
+    }
     await userEvent.keyboard('{Enter}');
     expect(header(/^doing/i).getAttribute('aria-expanded')).toBe('false');
     await userEvent.keyboard(' ');

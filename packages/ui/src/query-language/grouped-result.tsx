@@ -10,6 +10,7 @@ import {
 } from '@atlas/domain';
 import { BoardLanes, ColumnHeading } from '../board-lanes.tsx';
 import { ariaRowIndex, GroupedRows, useGroupLines, type LinePlace } from '../grouped-rows.tsx';
+import { ROW_STOP } from '../row-focus.ts';
 import { Icon } from '../icon.tsx';
 import { useNoteNames } from '../note-names.tsx';
 import { StatusPill } from '../status-pill.tsx';
@@ -139,10 +140,14 @@ function ResultTable(props: GroupedResultProps) {
   const row = (found: BoardRow, place?: LinePlace) => (
     <tr
       key={found.path}
-      {...(place !== undefined && { 'aria-rowindex': ariaRowIndex(place.index) })}
+      {...(place !== undefined && {
+        'data-index': place.index,
+        'aria-rowindex': ariaRowIndex(place.index),
+      })}
     >
       <td>
         <button
+          {...ROW_STOP}
           type="button"
           className="qresult__title"
           onClick={() => props.onOpenNote(found.path)}
