@@ -273,6 +273,24 @@ describe('useScrollMargin — when it reads the layout', () => {
     expect(screen.getAllByRole('treeitem')).toHaveLength(7 + 12);
   });
 
+  it('does not move the rows twice when the browser has already scrolled by what grew above', () => {
+    let treeTop = 300;
+    placeElements((element) => (element.classList.contains('tree') ? treeTop : 0));
+    const { container } = render(<SectionedTree />);
+    const scroller = container.firstElementChild as HTMLElement;
+    scroller.scrollTop = 900;
+    fireEvent.scroll(scroller);
+
+    // A favourite is added above, and the browser keeps the rows in place itself (scroll anchoring).
+    treeTop = 331;
+    scroller.scrollTop = 931;
+    act(() => {
+      fireEvent.scroll(scroller);
+    });
+
+    expect(scroller.scrollTop).toBe(931);
+  });
+
   it('reads it again on a scroll', () => {
     let treeTop = 300;
     placeElements((element) => (element.classList.contains('tree') ? treeTop : 0));

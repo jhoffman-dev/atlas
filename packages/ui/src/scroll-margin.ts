@@ -83,8 +83,11 @@ export function useScrollMargin(
     scrolled.current = scroller.scrollTop;
     measure(scroller);
     const onScroll = () => {
-      scrolled.current = scroller.scrollTop;
+      // Measured against where it was scrolled before this scroll: when the
+      // scroll is the browser making room for what grew above, the room is
+      // already made, and measuring from here would move the rows twice.
       measure(scroller);
+      scrolled.current = scroller.scrollTop;
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
     return () => scroller.removeEventListener('scroll', onScroll);
