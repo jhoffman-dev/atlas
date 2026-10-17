@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createVaultPath, type SidebarTreeRow } from '@atlas/domain';
-import { offsetWithin } from './scroll-margin.ts';
+import { offsetWithin, useScrollMargin } from './scroll-margin.ts';
 import { VaultTree } from './vault-tree.tsx';
 
 // jsdom lays nothing out, so where each element sits is given to it here:
@@ -301,5 +301,38 @@ describe('useScrollMargin — when it reads the layout', () => {
     });
 
     expect(screen.getAllByRole('treeitem')).toHaveLength(7 + 12);
+  });
+});
+
+describe('useScrollMargin without anchoring (#247)', () => {
+  /** A list in a shared scroller that a virtualiser anchors itself. */
+  function Unanchored() {
+    const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+    const content = useRef<HTMLDivElement>(null);
+    const margin = useScrollMargin(content, scroller, { anchors: false });
+    return (
+      <div ref={setScroller}>
+        <div className="list" ref={content} data-margin={margin} />
+      </div>
+    );
+  }
+
+  it('reads where the content starts, but leaves a scroll the browser made where it is', () => {
+    let listTop = 300;
+    placeElements((element) => (element.classList.contains('list') ? listTop : 0));
+    const { container } = render(<Unanchored />);
+    const scroller = container.firstElementChild as HTMLElement;
+    scroller.scrollTop = 1526;
+    fireEvent.scroll(scroller);
+
+    // The browser scrolls to a focused row, and rows placed above move the list's start.
+    listTop = 400;
+    scroller.scrollTop = 1881;
+    act(() => {
+      fireEvent.scroll(scroller);
+    });
+
+    expect(scroller.scrollTop).toBe(1881);
+    expect(container.querySelector('.list')?.getAttribute('data-margin')).toBe('400');
   });
 });

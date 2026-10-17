@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useRef, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
@@ -6,6 +6,7 @@ import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
 import { PageBar, type PageHistory } from './page-bar.tsx';
 import { PageHead } from './page-head.tsx';
+import { ROW_SCROLLER_MARK, RowScrollerContext } from './row-scroller.ts';
 import {
   proposalsToShow,
   ProposalsSection,
@@ -115,6 +116,7 @@ export function InboxPage(props: InboxPageProps) {
   const meetingProjects = props.meetingProjects ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
+  const scroller = useRef<HTMLDivElement>(null);
   return (
     <>
       <PageBar
@@ -123,41 +125,45 @@ export function InboxPage(props: InboxPageProps) {
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
-      <div className="panel__body">
-        <article className="page page--wide inbox" aria-label="Inbox">
-          <PageHead
-            icon="inbox"
-            title="Inbox"
-            description={describe(props.contents, proposals?.contents?.open.length ?? 0)}
-            {...(view !== null && {
-              actions: (
-                <button type="button" className="btn btn--ghost btn--sm" onClick={view.onOpen}>
-                  Open the {view.title} view
-                </button>
-              ),
-            })}
-          />
-          {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
-          {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
-          <Offers
-            offers={[
-              ['types', offer && <TypesOffer {...offer} />],
-              ['tasks', migration && <TaskMigration {...migration} />],
-              ['para', paraMigration && <ParaMigration {...paraMigration} />],
-              ['tidy', tidy && <VaultTidy {...tidy} />],
-              ['cleanup', cleanup && <MeetingCleanup {...cleanup} />],
-              ['meetings', meetingProjects && <MeetingProjects {...meetingProjects} />],
-            ]}
-          />
-          {problem !== null && (
-            <p className="table__error" role="alert">
-              {problem}
-            </p>
-          )}
-          <LastAction {...props} />
-          {proposals !== null && proposalsToShow(proposals) && <ProposalsSection {...proposals} />}
-          <InboxList {...props} />
-        </article>
+      <div className="panel__body panel__body--rows" ref={scroller} {...ROW_SCROLLER_MARK}>
+        <RowScrollerContext.Provider value={scroller}>
+          <article className="page page--wide inbox" aria-label="Inbox">
+            <PageHead
+              icon="inbox"
+              title="Inbox"
+              description={describe(props.contents, proposals?.contents?.open.length ?? 0)}
+              {...(view !== null && {
+                actions: (
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={view.onOpen}>
+                    Open the {view.title} view
+                  </button>
+                ),
+              })}
+            />
+            {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
+            {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
+            <Offers
+              offers={[
+                ['types', offer && <TypesOffer {...offer} />],
+                ['tasks', migration && <TaskMigration {...migration} />],
+                ['para', paraMigration && <ParaMigration {...paraMigration} />],
+                ['tidy', tidy && <VaultTidy {...tidy} />],
+                ['cleanup', cleanup && <MeetingCleanup {...cleanup} />],
+                ['meetings', meetingProjects && <MeetingProjects {...meetingProjects} />],
+              ]}
+            />
+            {problem !== null && (
+              <p className="table__error" role="alert">
+                {problem}
+              </p>
+            )}
+            <LastAction {...props} />
+            {proposals !== null && proposalsToShow(proposals) && (
+              <ProposalsSection {...proposals} />
+            )}
+            <InboxList {...props} />
+          </article>
+        </RowScrollerContext.Provider>
       </div>
     </>
   );
@@ -352,9 +358,9 @@ function InboxList({
   return (
     <div className="table">
       <div className="table__sheet">
-        <table className="table__grid inbox__grid">
+        <table className="table__grid inbox__grid" aria-rowcount={contents.items.length + 1}>
           <thead>
-            <tr>
+            <tr aria-rowindex={1}>
               <th>Name</th>
               <th>Kind</th>
               <th>

@@ -85,7 +85,7 @@ function props(overrides: Partial<TodayPageProps> = {}): TodayPageProps {
 }
 
 describe('TodayPage — ticking one row', () => {
-  it('draws again only the row ticked, through the write and the read after it', async () => {
+  it('draws no row again, through the write and the read after it', async () => {
     const read = report();
     const onDone = vi.fn();
     const view = render(<TodayPage {...props({ today: read, onDone })} />);
@@ -102,8 +102,9 @@ describe('TodayPage — ticking one row', () => {
 
     expect(screen.queryByRole('checkbox', { name: 'Mark Call the bank done' })).toBeNull();
     expect(screen.getAllByRole('checkbox')).toHaveLength(TITLES.length - 1);
-    // The ticked row, once, as it settled; none of the three others.
-    expect(renders['TaskRow']).toBe(1);
+    // No row's cells: the ticked row's controls read that it settles from the
+    // page (#247), and the three others are not drawn again at all.
+    expect(renders['TaskRow'] ?? 0).toBe(0);
   });
 
   it('still offers no action on any row while one is under way', () => {

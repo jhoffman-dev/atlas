@@ -194,7 +194,7 @@ describe('TodayPage lazy Move to… menu — #236', () => {
 describe('TodayPage row memo — #236', () => {
   const many = Array.from({ length: 12 }, (_, at) => task(`Row ${String(at).padStart(2, '0')}`));
 
-  it('ticking any one of N rows, then its read-back, draws exactly that row', async () => {
+  it('ticking any one of N rows, then its read-back, draws no row, and the ticked one waits', async () => {
     const random = seeded(236);
     const picks = Array.from({ length: 5 }, () => many[Math.floor(random() * many.length)]!);
     for (const picked of picks) {
@@ -206,11 +206,14 @@ describe('TodayPage row memo — #236', () => {
       view.rerender(<TodayPage {...props({ today: read, busy: true })} />);
       view.rerender(<TodayPage {...props({ today: read, settling: new Set([picked.path]) })} />);
       const { renders } = stopCountingRenders();
+      // Settling, its own Done waits, though its row was not drawn again for it (#247).
+      const waits = screen.getByRole('checkbox', { name: `Mark ${picked.title} done` });
+      expect(waits.matches(':disabled')).toBe(true);
       view.unmount();
 
       expect({ picked: picked.title, rows: renders['TaskRow'] ?? 0 }).toEqual({
         picked: picked.title,
-        rows: 1,
+        rows: 0,
       });
     }
   });
