@@ -65,13 +65,13 @@ describe('useSearch — the index changes while the palette is open', () => {
     expect(hook.result.current.hits[hook.result.current.selected]?.title).toBe('Ledger July');
   });
 
-  it('does not search an index that is still working, which reads it half written (#135)', async () => {
+  it('does not search an index that is still building, which reads it half written (#135)', async () => {
     const { index, asked } = ledgerIndex();
     const { hook } = palette(index);
     act(() => hook.result.current.setQuery('ledger'));
     await waitFor(() => expect(asked.count).toBe(1));
 
-    hook.rerender({ changeKey: 'working' });
+    hook.rerender({ changeKey: 'building' });
     await act(async () => {});
 
     expect(asked.count).toBe(1);
@@ -84,7 +84,7 @@ describe('useSearch — the index changes while the palette is open', () => {
     await waitFor(() => expect(asked.count).toBe(1));
 
     for (let revision = 2; revision <= 11; revision += 1) {
-      hook.rerender({ changeKey: 'working' });
+      hook.rerender({ changeKey: 'building' });
       await act(async () => {});
       hook.rerender({ changeKey: `ready:${revision}` });
       await act(async () => {});

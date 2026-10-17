@@ -6,8 +6,11 @@ const LIMIT = 20;
 
 const NO_COMMANDS: readonly PaletteCommand[] = [];
 const NO_HITS: readonly SearchHit[] = [];
-/** The index being written: searched now, it answers from half of it (#135). */
-const WORKING = 'working';
+/**
+ * The index being built — a vault's first sync, or a rebuild: searched now, it
+ * answers from half of it (#135). A refresh keeps the index ready (#238).
+ */
+const BUILDING = 'building';
 const noOffers = (): readonly PaletteCommand[] => NO_COMMANDS;
 
 /**
@@ -38,7 +41,8 @@ export function useSearch({
   const prepared = toSearchQuery(query);
   // Searched again once per settled index, never while it is being written,
   // and not at all for an empty query: the palette shut asks nothing.
-  const searchKey = prepared === null ? null : changeKey === WORKING ? WORKING : (changeKey ?? '');
+  const searchKey =
+    prepared === null ? null : changeKey === BUILDING ? BUILDING : (changeKey ?? '');
   // What the hits on screen answered, and which one is chosen, for a search run
   // again only because the index moved: it keeps the person's place.
   const shown = useRef({ asked: '', hits: NO_HITS, selected: 0, ahead: 0 });
@@ -48,7 +52,7 @@ export function useSearch({
       setHits(NO_HITS);
       return;
     }
-    if (searchKey === WORKING) return;
+    if (searchKey === BUILDING) return;
 
     let cancelled = false;
     const asked = `${String(includeArchived)}:${prepared}`;
