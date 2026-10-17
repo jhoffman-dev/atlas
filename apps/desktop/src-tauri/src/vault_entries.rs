@@ -9,9 +9,11 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-use tauri::State;
+use tauri::{AppHandle, Manager};
 
-use crate::vault::{resolve_new, root_for_write, VaultState};
+use crate::vault::{
+    change_in_vault, change_turn, off_main, rename_exclusive, resolve_new, VaultState,
+};
 
 /// An entry that is already there, as itself: a link is the link, not what it
 /// points at.
@@ -45,6 +47,7 @@ fn contains(folder: &Path, inside: &Path) -> bool {
 
 /// Creates an empty folder, refusing when anything already has the name.
 pub(crate) fn create_folder_at(root: &Path, relative: &str) -> Result<(), String> {
+    let _turn = change_turn();
     let folder = resolve_new(root, relative)?;
     fs::create_dir(&folder).map_err(|error| match error.kind() {
         std::io::ErrorKind::AlreadyExists => "something with that name is already there".into(),
@@ -59,6 +62,7 @@ pub(crate) fn create_folder_at(root: &Path, relative: &str) -> Result<(), String
 /// spelled in another case is a rename of that one entry, which a
 /// case-insensitive disk would otherwise report as a collision with itself.
 pub(crate) fn move_entry_at(root: &Path, from: &str, to: &str) -> Result<(), String> {
+    let _turn = change_turn();
     let source = resolve_entry(root, from)?;
     let target = resolve_new(root, to)?;
 
@@ -103,57 +107,6 @@ fn is_listed_as_itself(path: &Path) -> bool {
     })
 }
 
-/// Renames `from` to `to` only if nothing is at `to`, decided by the kernel
-/// in the rename itself, so nothing can take the name between a check and
-/// the move.
-#[cfg(target_os = "macos")]
-fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
-    let (from, to) = (c_path(from)?, c_path(to)?);
-    // SAFETY: both are NUL-terminated paths that outlive the call.
-    let status = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
-    if status == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
-    let (from, to) = (c_path(from)?, c_path(to)?);
-    // SAFETY: both are NUL-terminated paths that outlive the call.
-    let status = unsafe {
-        libc::renameat2(
-            libc::AT_FDCWD,
-            from.as_ptr(),
-            libc::AT_FDCWD,
-            to.as_ptr(),
-            libc::RENAME_NOREPLACE,
-        )
-    };
-    if status == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-/// Elsewhere there is no exclusive rename, and the check is as close as it gets.
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
-    if fs::symlink_metadata(to).is_ok() {
-        return Err(std::io::ErrorKind::AlreadyExists.into());
-    }
-    fs::rename(from, to)
-}
-
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-fn c_path(path: &Path) -> std::io::Result<std::ffi::CString> {
-    use std::os::unix::ffi::OsStrExt;
-    std::ffi::CString::new(path.as_os_str().as_bytes())
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL"))
-}
-
 /// Puts a note or a folder in the Trash through `trash`, and nothing else.
 ///
 /// Taking the way to the Trash as an argument is what lets the tests check the
@@ -165,6 +118,7 @@ pub(crate) fn trash_entry_at(
     relative: &str,
     trash: impl FnOnce(&Path) -> Result<(), String>,
 ) -> Result<(), String> {
+    let _turn = change_turn();
     let entry = resolve_entry(root, relative)?;
     trash(&entry)
 }
@@ -186,41 +140,44 @@ fn system_trash(entry: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn create_folder(
-    state: State<'_, VaultState>,
-    path: String,
-    vault: String,
-) -> Result<(), String> {
-    create_folder_at(&root_for_write(state.get(), Some(&vault))?, &path)?;
-    log::info!("created folder {path}");
-    Ok(())
+pub async fn create_folder(app: AppHandle, path: String, vault: String) -> Result<(), String> {
+    off_main(move || {
+        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            create_folder_at(root, &path)
+        })?;
+        log::info!("created folder {path}");
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn move_entry(
-    state: State<'_, VaultState>,
+pub async fn move_entry(
+    app: AppHandle,
     from: String,
     to: String,
     vault: String,
 ) -> Result<(), String> {
-    move_entry_at(&root_for_write(state.get(), Some(&vault))?, &from, &to)?;
-    log::info!("moved {from} to {to}");
-    Ok(())
+    off_main(move || {
+        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            move_entry_at(root, &from, &to)
+        })?;
+        log::info!("moved {from} to {to}");
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn trash_entry(
-    state: State<'_, VaultState>,
-    path: String,
-    vault: String,
-) -> Result<(), String> {
-    trash_entry_at(
-        &root_for_write(state.get(), Some(&vault))?,
-        &path,
-        system_trash,
-    )?;
-    log::info!("moved {path} to the Trash");
-    Ok(())
+pub async fn trash_entry(app: AppHandle, path: String, vault: String) -> Result<(), String> {
+    off_main(move || {
+        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            trash_entry_at(root, &path, system_trash)
+        })?;
+        log::info!("moved {path} to the Trash");
+        Ok(())
+    })
+    .await
 }
 
 #[cfg(test)]

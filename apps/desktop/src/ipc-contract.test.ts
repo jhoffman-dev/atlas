@@ -133,9 +133,21 @@ describe('IPC contract', () => {
     expect(indexing.filter((name) => threadOf(name) !== 'blocking pool')).toEqual([]);
   });
 
+  // #238: every command that touches the vault's files, on the blocking pool.
+  // A save lists the folders it touches — some two dozen calls — and an image
+  // read can be 32 MB: on the main thread each holds the window while it runs.
+  // Read from the modules that hold them, so a file command added there later
+  // is held to it without being listed here.
+  it('runs every command that reads or writes the vault on a thread of its own', () => {
+    const commands = VAULT_FILE_MODULES.flatMap(commandsDeclaredIn);
+    expect(commands).toEqual(
+      expect.arrayContaining(['write_text_file', 'move_entry', 'watch_vault']),
+    );
+    expect(commands.filter((name) => threadOf(name) !== 'blocking pool')).toEqual([]);
+  });
+
   it('tells where a command runs from how it is declared', () => {
-    // Saving a note is still the main thread's, where one write follows another.
-    expect(threadOf('write_text_file')).toBe('main');
+    expect(threadOf('api_status')).toBe('main');
     expect(threadOf('activity_read')).toBe('blocking pool');
     const declared = (source: string) => threadDeclaredBy(source, 'probe');
     expect(declared('#[tauri::command]\npub fn probe() {}')).toBe('main');
@@ -161,6 +173,17 @@ describe('IPC contract', () => {
 
 /** The commands that walk the vault and read its notes for the index. */
 const VAULT_READS = ['list_notes', 'read_notes'];
+
+/** The host's modules that read, write and watch the vault's files. */
+const VAULT_FILE_MODULES = ['vault.rs', 'vault_entries.rs', 'vault_files.rs', 'watcher.rs'];
+
+/** The names of the commands one module of the host declares. */
+function commandsDeclaredIn(module: string): string[] {
+  const source = readFileSync(here(`../src-tauri/src/${module}`), 'utf8');
+  return [...source.matchAll(/#\[tauri::command(?:\(async\))?\]\s*pub (?:async )?fn (\w+)/g)].map(
+    (match) => match[1] ?? '',
+  );
+}
 
 type CommandThread = 'main' | 'runtime' | 'blocking pool';
 
