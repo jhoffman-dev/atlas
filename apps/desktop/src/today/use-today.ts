@@ -66,6 +66,11 @@ export function useToday(options: TodayOptions) {
   const [settling, setSettling] = useState<Settling>(NOTHING_SETTLING);
   // Counts the reads begun, so a row can tell one made after its write from one already under way.
   const readsBegun = useRef(0);
+  // The index's key as a change begins. A read begun after the write can still
+  // be of the index from before it, now that a refresh keeps the index ready
+  // (#239): the row settles only on a read of an index that has moved since.
+  const keyNow = useRef(indexKey);
+  keyNow.current = indexKey;
   const day = useDayOf(clock, open);
   // The types the sidebar's Inbox count is read with, so the page's Inbox link counts the same.
   const startInInbox = tasksStartInInbox(types);
@@ -92,7 +97,7 @@ export function useToday(options: TodayOptions) {
           landed.report === null ? null : keptTodayReport(shown?.report ?? null, landed.report);
         return { index, vaultKey, error: landed.error, report };
       });
-      setSettling((rows) => withoutSettledBy(rows, begun));
+      setSettling((rows) => withoutSettledBy(rows, { begun, key: indexKey }));
     };
     readToday({ index, fs, markdown, clock, tasksStartInInbox: startInInbox })
       .then((report) => land({ report, error: null }))
@@ -120,6 +125,7 @@ export function useToday(options: TodayOptions) {
   const change = useCallback(
     async ({ path, title, action, values }: Change) => {
       if (settlingHere.has(path)) return;
+      const askedAt = keyNow.current;
       const { fs, markdown, index } = ports;
       const row = knownHere.get(path) ?? rows.get(path);
       const guarded = row === undefined ? values : whileAsRead({ values, row });
@@ -145,7 +151,10 @@ export function useToday(options: TodayOptions) {
       setSettling((was) => ({
         index,
         vaultKey,
-        rows: new Map([...(sameVault(was, { index, vaultKey }) ? was.rows : []), [path, since]]),
+        rows: new Map([
+          ...(sameVault(was, { index, vaultKey }) ? was.rows : []),
+          [path, { since, askedAt }],
+        ]),
         known: sameVault(was, { index, vaultKey }) ? was.known : new Map(),
       }));
     },
@@ -261,7 +270,8 @@ function rowsAsRead(report: TodayReport | null): ReadonlyMap<VaultPath, TaskAsRe
 
 /** The rows acted on and not yet read again, each with the count of reads begun when its write landed. */
 interface Settling extends OfAVault {
-  readonly rows: ReadonlyMap<VaultPath, number>;
+  /** Each row acted on: the reads begun before its write, and the index's key as it began. */
+  readonly rows: ReadonlyMap<VaultPath, { readonly since: number; readonly askedAt: string }>;
   /**
    * What a row's task is known to be, where the page knows better than its
    * last read: a change the page made and took back leaves the task as the
@@ -288,9 +298,20 @@ const NOTHING_SETTLING: Settling = {
   known: new Map(),
 };
 
-/** Without the rows a read begun as the `begun`-th has caught up with: those written before it began. */
-function withoutSettledBy(settling: Settling, begun: number): Settling {
-  const rows = new Map([...settling.rows].filter(([, since]) => since >= begun));
+/**
+ * Without the rows a read has caught up with: the `begun`-th read, of the index
+ * as `key` says, settles those written before it began whose index has moved
+ * since the change began.
+ */
+function withoutSettledBy(
+  settling: Settling,
+  read: { readonly begun: number; readonly key: string },
+): Settling {
+  const rows = new Map(
+    [...settling.rows].filter(
+      ([, { since, askedAt }]) => since >= read.begun || askedAt === read.key,
+    ),
+  );
   const unchanged = rows.size === settling.rows.size && settling.known.size === 0;
   return unchanged ? settling : { ...settling, rows, known: new Map() };
 }
