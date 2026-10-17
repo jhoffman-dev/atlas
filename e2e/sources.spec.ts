@@ -62,7 +62,7 @@ async function openSource(page: Page, feeds: Record<string, string> = {}): Promi
   await vault.write(`.atlas/sources/${FETCHED_NOTE}`, FETCHED_SOURCE);
   await vault.write('feeds/people.csv', TWO_PEOPLE);
 
-  await installHost(page, vault, feeds);
+  await installHost(page, vault, { feeds });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();

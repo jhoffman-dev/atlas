@@ -1,4 +1,13 @@
-import { memo, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  memo,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Menu } from '@base-ui/react/menu';
 import {
   GTD_STATUS_LABELS,
@@ -280,15 +289,21 @@ function Sections(props: TodayPageProps & { today: TodayReport; focus: RowFocus 
   const settling = props.settling ?? NONE_SETTLING;
   const actions = useRowActions(props);
   return (
-    // While an action is under way every row's controls are disabled at once, by
-    // the fieldset, so that no row is drawn again to say so (#217).
-    <fieldset className="today__sections" disabled={busy} role="presentation">
+    // While an action is under way, each row's action controls read it from
+    // here, so that the rows themselves are not drawn again to say so (#217).
+    <PageBusy.Provider value={busy}>
       {today.sections.map((section) => (
         <Section key={section.id} section={section} settling={settling} actions={actions} />
       ))}
-    </fieldset>
+    </PageBusy.Provider>
   );
 }
+
+/** Whether an action is under way on the page: every row's Done, Move and Defer wait for it. */
+const PageBusy = createContext(false);
+
+/** Whether a row's actions wait: one is under way on the page, or this row's last is not read back. */
+const useActionsWait = (settling: boolean) => useContext(PageBusy) || settling;
 
 /**
  * What every row can do, the same object from one render to the next: the
@@ -318,6 +333,9 @@ function useRowActions(props: TodayPageProps & { focus: RowFocus }): RowActions 
 
 const rowOf = (task: TodayTask): RowTask => ({ path: task.path, title: task.title });
 
+/** How a row's Move to… menu was first asked for, which decides where its focus starts. */
+type MenuOpening = 'pointer' | 'press' | 'arrow';
+
 /** A row's Move to… button and menu: the statuses the domain offers this task. */
 function MoveMenu({
   task,
@@ -331,18 +349,26 @@ function MoveMenu({
   // Built the first time it is opened: a Base UI menu on each of hundreds of
   // rows was most of what a tick drew again (#217). Kept once built, so focus
   // goes back to its button when it shuts.
-  const [built, setBuilt] = useState(false);
-  const label = `Move ${task.title} to…`;
-  if (built) return <MoveMenuOpened task={task} busy={busy} onMove={onMove} />;
+  const [opening, setOpening] = useState<MenuOpening | null>(null);
+  if (opening !== null) {
+    return <MoveMenuOpened task={task} busy={busy} onMove={onMove} opening={opening} />;
+  }
   return (
     <button
       type="button"
       className="btn btn--ghost btn--sm"
-      aria-label={label}
+      aria-label={`Move ${task.title} to…`}
       aria-haspopup="menu"
       aria-expanded={false}
       disabled={busy}
-      onClick={() => setBuilt(true)}
+      onKeyDown={(event) => {
+        // The built trigger opens on ArrowDown as well as on a press.
+        if (event.key !== 'ArrowDown') return;
+        event.preventDefault();
+        setOpening('arrow');
+      }}
+      // Enter and Space press a button with no pointer, which leaves `detail` 0.
+      onClick={(event) => setOpening(event.detail === 0 ? 'press' : 'pointer')}
     >
       Move to…
     </button>
@@ -350,26 +376,44 @@ function MoveMenu({
 }
 
 /**
- * The menu itself, open as it is first built. Open state, focus, typeahead
- * and Escape are Base UI's (ADR-0015).
+ * The menu itself. Open state, focus, typeahead and Escape are Base UI's
+ * (ADR-0015). Built from a keyboard, its trigger takes the focus the plain
+ * button had and is given the same key again, so Base UI opens it as it
+ * would from the keyboard — focus on the first item — and not as from a pointer.
  */
 function MoveMenuOpened({
   task,
   busy,
   onMove,
+  opening,
 }: {
   task: TodayTask;
   busy: boolean;
   onMove: (task: TodayTask, status: string) => void;
+  opening: MenuOpening;
 }) {
   const chosen = useRef<MenuCommand | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    const button = trigger.current;
+    if (opening === 'pointer' || button === null) return;
+    // Before the browser paints: the focus never rests on the page between the two buttons.
+    button.focus();
+    if (opening === 'press') button.click();
+    else {
+      button.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+      );
+    }
+  }, [opening]);
   const items = todayMovesFor(task.status).map((status) => ({
     label: GTD_STATUS_LABELS[status],
     onSelect: () => onMove(task, status),
   }));
   return (
-    <Menu.Root defaultOpen>
+    <Menu.Root defaultOpen={opening === 'pointer'}>
       <Menu.Trigger
+        ref={trigger}
         className="btn btn--ghost btn--sm"
         aria-label={`Move ${task.title} to…`}
         disabled={busy}
@@ -492,7 +536,7 @@ function GroupName({
 /**
  * One task's row, drawn again only when its task or its standing changes:
  * the page can hold hundreds, and a tick drew every one of them again (#217).
- * The page's own busy disables it through the fieldset around the sections.
+ * The page's own busy reaches only its action controls (`useActionsWait`).
  */
 const TaskRow = memo(function TaskRow({
   task,
@@ -509,15 +553,7 @@ const TaskRow = memo(function TaskRow({
   return (
     <tr className="table__row" data-today-row={task.path} aria-busy={settling || undefined}>
       <td className="table__done">
-        <input
-          ref={actions.rowRef(task.path)}
-          type="checkbox"
-          className="done-check"
-          aria-label={`Mark ${task.title} done`}
-          checked={false}
-          disabled={settling}
-          onChange={() => actions.onDone(task)}
-        />
+        <DoneBox task={task} settling={settling} actions={actions} />
       </td>
       <td className="table__name">
         <button type="button" className="table__link" onClick={() => actions.onOpen(task.path)}>
@@ -528,24 +564,55 @@ const TaskRow = memo(function TaskRow({
         <Details task={task} sectionId={sectionId} onOpen={actions.onOpen} />
       </td>
       <td className="review__actions">
-        <MoveMenu task={task} busy={settling} onMove={actions.onMove} />
-        {TODAY_DEFER_DAYS.map((days) => (
-          <button
-            key={days}
-            type="button"
-            className="btn btn--ghost btn--sm"
-            aria-label={`Defer ${task.title} ${days === 1 ? '1 day' : `${days} days`}`}
-            title={days === 1 ? 'Defer until tomorrow' : `Defer for ${days} days`}
-            disabled={settling}
-            onClick={() => actions.onDefer(task, days)}
-          >
-            +{days}d
-          </button>
-        ))}
+        <RowCommands task={task} settling={settling} actions={actions} />
       </td>
     </tr>
   );
 });
+
+interface RowControlProps {
+  readonly task: TodayTask;
+  readonly settling: boolean;
+  readonly actions: RowActions;
+}
+
+function DoneBox({ task, settling, actions }: RowControlProps) {
+  const waits = useActionsWait(settling);
+  return (
+    <input
+      ref={actions.rowRef(task.path)}
+      type="checkbox"
+      className="done-check"
+      aria-label={`Mark ${task.title} done`}
+      checked={false}
+      disabled={waits}
+      onChange={() => actions.onDone(task)}
+    />
+  );
+}
+
+/** A row's Move to… and Defer buttons. */
+function RowCommands({ task, settling, actions }: RowControlProps) {
+  const waits = useActionsWait(settling);
+  return (
+    <>
+      <MoveMenu task={task} busy={waits} onMove={actions.onMove} />
+      {TODAY_DEFER_DAYS.map((days) => (
+        <button
+          key={days}
+          type="button"
+          className="btn btn--ghost btn--sm"
+          aria-label={`Defer ${task.title} ${days === 1 ? '1 day' : `${days} days`}`}
+          title={days === 1 ? 'Defer until tomorrow' : `Defer for ${days} days`}
+          disabled={waits}
+          onClick={() => actions.onDefer(task, days)}
+        >
+          +{days}d
+        </button>
+      ))}
+    </>
+  );
+}
 
 /** The sections whose tasks are of mixed statuses, so each row says its own. */
 const SAYS_STATUS: ReadonlySet<TodaySectionId> = new Set(['overdue', 'dueToday', 'backToday']);

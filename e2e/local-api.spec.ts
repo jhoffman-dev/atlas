@@ -69,7 +69,7 @@ async function openVault(
     await vault.write(path, text);
   }
 
-  const host = await installHost(page, vault, feeds);
+  const host = await installHost(page, vault, { feeds });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();

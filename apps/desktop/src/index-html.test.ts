@@ -15,6 +15,7 @@ const REPORTER = [...PAGE.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((found)
 const LOOP_LIMIT = 50;
 
 function windowWithHost(invoke: (command: string, args: unknown) => unknown) {
+  const warned: unknown[][] = [];
   const listeners = new Map<string, ((event: unknown) => void)[]>();
   const dispatch = (kind: string, event: unknown) => {
     for (const listener of listeners.get(kind) ?? []) listener(event);
@@ -31,8 +32,9 @@ function windowWithHost(invoke: (command: string, args: unknown) => unknown) {
       },
     },
   };
-  runInNewContext(REPORTER ?? '', { window, String });
-  return { dispatch, sent };
+  const console = { warn: (...said: unknown[]) => warned.push(said) };
+  runInNewContext(REPORTER ?? '', { window, String, console });
+  return { dispatch, sent, warned };
 }
 
 /**
@@ -93,6 +95,22 @@ describe('index.html — reporting a failure to the host', () => {
     await turns(10);
 
     expect(sent).toEqual(['unhandled rejection: the vault went away']);
+  });
+
+  it('says on the console what could not be reported, and why', async () => {
+    const harness: { dispatch?: (kind: string, event: unknown) => void } = {};
+    const refusal = new Error('no such command: report_error');
+    const { dispatch, warned } = windowWithHost(() =>
+      rejectedUnlessHandled(refusal, (kind, event) => harness.dispatch?.(kind, event)),
+    );
+    harness.dispatch = dispatch;
+
+    dispatch('error', { message: 'first', filename: 'main.js', lineno: 7 });
+    await turns(3);
+
+    expect(warned).toEqual([
+      ['This error could not be reported to Atlas:', 'first @ main.js:7', refusal],
+    ]);
   });
 
   it('does not report an error raised while it is reporting one', async () => {

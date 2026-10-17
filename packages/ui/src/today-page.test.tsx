@@ -284,7 +284,7 @@ describe('TodayPage', () => {
       within(row).getByRole('button', { name: 'Move Call the bank to…' }),
       within(row).getByRole('button', { name: 'Defer Call the bank 1 day' }),
     ];
-    // Disabled as the browser has it: by the fieldset around the rows, not each control's own attribute.
+    // Each of the row's actions waits; its title and project do not (see today-page.attack-236).
     expect(controls.map((control) => control.matches(':disabled'))).toEqual([true, true, true]);
   });
 

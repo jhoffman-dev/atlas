@@ -511,15 +511,16 @@ export const STUB_THUMBNAIL = solidPng(16, 10, [214, 40, 160]);
 export async function installHost(
   page: Page,
   vault: FakeVault,
-  /**
-   * Canned feeds by URL, for sources that fetch rather than read a file. The
-   * object is read on every call, so a test can change what a feed says between
-   * refreshes by writing to it.
-   */
-  feeds: Record<string, string> = {},
   {
+    feeds = {},
     keepsManifest = false,
   }: {
+    /**
+     * Canned feeds by URL, for sources that fetch rather than read a file. The
+     * object is read on every call, so a test can change what a feed says between
+     * refreshes by writing to it.
+     */
+    feeds?: Record<string, string>;
     /**
      * Lists what was indexed as the index's manifest, as the real index does,
      * so a refresh re-reads only the notes that changed. Off by default: the

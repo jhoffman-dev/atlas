@@ -11,14 +11,17 @@ import type { IndexPort } from '../index/ports.ts';
  *
  * A type with no notes counts zero. So does every type when the index cannot
  * answer — it is being rebuilt, say — rather than the sidebar failing: the
- * next refresh asks again.
+ * next refresh asks again. Why it could not is handed to `onFailed`.
  */
 export async function countNotesByType({
   index,
   types,
+  onFailed,
 }: {
   index: Pick<IndexPort, 'query'>;
   types: readonly ObjectType[];
+  /** Told why the index could not answer, for the log. */
+  onFailed?: (cause: unknown) => void;
 }): Promise<ReadonlyMap<string, number>> {
   const counts = new Map(types.map((type) => [type.name, 0]));
   if (counts.size === 0) return counts;
@@ -26,9 +29,10 @@ export async function countNotesByType({
   let result;
   try {
     result = await index.query(sql, parameters);
-  } catch {
-    // Safe to drop: zero beside each type is what the sidebar showed before the
-    // index answered, and the next refresh asks again.
+  } catch (cause) {
+    // Zero beside each type is what the sidebar showed before the index
+    // answered, and the next refresh asks again; why is only for the log.
+    onFailed?.(cause);
     return counts;
   }
   const [typeAt = -1, countAt = -1] = TYPE_COUNTS_QUERY_COLUMNS.map((column) =>

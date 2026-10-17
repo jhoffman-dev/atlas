@@ -11634,15 +11634,6 @@ form.inbox__clarify {
    The weekly review's daily sibling, drawn with its sections: a strip of what
    waits elsewhere, then tables of tasks, some under a project or a person. */
 
-/* Only there to disable every row's controls at once while an action is under
-   way (#217): it draws nothing of its own. */
-.today__sections {
-  border: 0;
-  margin: 0;
-  min-inline-size: 0;
-  padding: 0;
-}
-
 .today__elsewhere {
   display: flex;
   flex-wrap: wrap;

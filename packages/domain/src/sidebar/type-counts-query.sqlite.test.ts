@@ -94,6 +94,18 @@ describe('compileTypeCountsQuery', () => {
     ).toEqual({ project: 2 });
   });
 
+  it('reads a Project’s PARA from its first value, as the picker does, when it lists more than one', () => {
+    expect(
+      countsIn(
+        {
+          'Garden.md': { type: 'project', para: ['project', 'archive'] },
+          'Shed.md': { type: 'project', para: ['archive', 'project'] },
+        },
+        ['project'],
+      ),
+    ).toEqual({ project: 1 });
+  });
+
   it('still counts a note that is a task as well as a Project set to archive, as a task', () => {
     expect(
       countsIn({ 'Both.md': { type: ['task', 'project'], para: 'archive' } }, ['task', 'project']),

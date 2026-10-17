@@ -143,10 +143,12 @@ describe('TodayPage — a row’s Move to… menu', () => {
         .getAllByRole('menuitem')
         .map((item) => item.textContent),
     ).toContain('Waiting');
-    await waitFor(() => expect(menu.contains(document.activeElement)).toBe(true));
-    for (let step = 0; step < 8 && document.activeElement?.textContent !== 'Waiting'; step += 1) {
-      await userEvent.keyboard('{ArrowDown}');
-    }
+    // Opened from the keyboard on its first press, as on any later one: focus on the first item.
+    const [first] = within(menu).getAllByRole('menuitem');
+    await waitFor(() => expect(document.activeElement).toBe(first));
+    expect(first?.textContent).toBe('Inbox');
+    // Inbox, Backlog, In Progress, then Waiting.
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
     expect(document.activeElement?.textContent).toBe('Waiting');
     await userEvent.keyboard('{Enter}');
 

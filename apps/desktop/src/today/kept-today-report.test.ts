@@ -58,6 +58,16 @@ describe('keptTodayReport', () => {
     );
   });
 
+  it('hands over a new object for a task whose file changed, though nothing it shows did', () => {
+    const before = report([task('Ship the page')]);
+    const next = report([task('Ship the page', { modified: NOW + 60_000 })]);
+
+    const kept = keptTodayReport(before, next);
+
+    expect(find(kept, 'Ship the page')).not.toBe(find(before, 'Ship the page'));
+    expect(find(kept, 'Ship the page')?.modified).toBe(NOW + 60_000);
+  });
+
   it('keeps what the read says of the day and the Inbox, not what was said before', () => {
     const before = report([task('Ship the page')]);
     const next = { ...report([task('Ship the page')]), inbox: { ...before.inbox, count: 4 } };

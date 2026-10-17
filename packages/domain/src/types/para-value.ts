@@ -244,6 +244,25 @@ export function paraArchivedSql(column: string): string {
   ].join('\n');
 }
 
+/**
+ * A SQL condition that leaves out the Project notes at `column` whose first
+ * `para` value is archive — the value a picker reads ({@link compileParaValuesQuery}
+ * keeps each note's first), so that what a count leaves out is what a picker
+ * does not offer. One value, which is how a `para` is written, reads the same
+ * either way; this differs from {@link paraArchivedSql} only for a list.
+ * Constants of the app only, so nothing is bound.
+ */
+export function outsideFirstParaArchiveSql(column: string): string {
+  return [
+    `NOT EXISTS (SELECT 1 FROM props AS para_value WHERE para_value.path = ${column}`,
+    `  AND para_value.key = '${PARA_KEY}' AND lower(trim(para_value.value_text)) = '${ARCHIVED_PARA}'`,
+    `  AND para_value.idx = (SELECT MIN(first_para.idx) FROM props AS first_para`,
+    `    WHERE first_para.path = ${column} AND first_para.key = '${PARA_KEY}')`,
+    `  AND EXISTS (SELECT 1 FROM props AS para_type WHERE para_type.path = ${column}`,
+    `    AND para_type.key = 'type' AND lower(trim(para_type.value_text)) = '${PROJECT_TYPE}'))`,
+  ].join('\n');
+}
+
 /** A SQL condition that leaves out Project notes set to archive: see {@link paraArchivedSql}. */
 export function outsideParaArchiveSql(column: string): string {
   return `NOT ${paraArchivedSql(column)}`;

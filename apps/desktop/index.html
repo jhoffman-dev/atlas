@@ -32,10 +32,12 @@
               message: String(message),
             });
             if (sent && typeof sent.then === 'function') {
-              sent.then(undefined, function () {
-                /* Safe to drop: a report that cannot be delivered has nowhere
-                   else to go, and left unhandled its rejection is reported in
-                   turn — which fails the same way, round and round (#217). */
+              sent.then(undefined, function (cause) {
+                /* Handled here, not left to reject: a report that cannot be
+                   delivered has nowhere else to go, and left unhandled its
+                   rejection is reported in turn — which fails the same way,
+                   round and round (#217). The console is all that is left. */
+                console.warn('This error could not be reported to Atlas:', String(message), cause);
               });
             }
           } catch (_) {

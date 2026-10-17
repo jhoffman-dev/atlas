@@ -60,7 +60,12 @@ describe('countNotesByType', () => {
       },
     });
 
-    const counts = await countNotesByType({ index, types: [type('task'), type('person')] });
+    const onFailed = vi.fn();
+    const counts = await countNotesByType({
+      index,
+      types: [type('task'), type('person')],
+      onFailed,
+    });
 
     expect(counts).toEqual(
       new Map([
@@ -68,6 +73,7 @@ describe('countNotesByType', () => {
         ['person', 0],
       ]),
     );
+    expect(onFailed).toHaveBeenCalledWith(new Error('the index is being rebuilt'));
   });
 
   it('asks nothing of the index when the vault has no types', async () => {
