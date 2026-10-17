@@ -68,7 +68,7 @@ async function observe<Arg>(action: string, setUp: () => Promise<Step<Arg>>): Pr
   const step = await setUp();
   await page.evaluate(() => {
     const counter = (globalThis as { __renderCounter?: { on: boolean } }).__renderCounter;
-    Object.assign(counter ?? {}, { on: true, renders: {}, changedProps: {} });
+    Object.assign(counter ?? {}, { on: true, commits: 0, renders: {}, changedProps: {} });
   });
   await measure(page, step);
   const counts = await page.evaluate(() => {
@@ -76,7 +76,11 @@ async function observe<Arg>(action: string, setUp: () => Promise<Step<Arg>>): Pr
       .__renderCounter;
     if (counter === undefined) throw new Error('the render counter was not installed');
     counter.on = false;
-    return { renders: counter.renders, changedProps: counter.changedProps };
+    return {
+      commits: counter.commits,
+      renders: counter.renders,
+      changedProps: counter.changedProps,
+    };
   });
   observed.push({ action, timed, counts });
 }
