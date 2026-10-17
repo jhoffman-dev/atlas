@@ -1591,6 +1591,22 @@ export async function installHost(
       },
     };
 
+    // What `unlisten` in @tauri-apps/api calls before it tells the host. Missing,
+    // every unlisten threw, and the page reported the rejection as an error.
+    (
+      window as unknown as {
+        __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: (e: string, id: number) => void };
+      }
+    ).__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+      unregisterListener(event, id) {
+        listeners.set(
+          event,
+          (listeners.get(event) ?? []).filter((handler) => handler !== id),
+        );
+        callbacks.delete(id);
+      },
+    };
+
     // The system clipboard, as a list a test can read: WebKit under Playwright
     // grants no clipboard permission, and a test must not touch the real one.
     const copied: string[] = [];
