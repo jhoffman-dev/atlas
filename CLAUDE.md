@@ -199,7 +199,12 @@ over one at a time, so the same build gives the same counts on every machine. Ti
 printed and put in the job summary, never failed on. A failure names the action, the
 count, budget against actual, and the components and commands that did most.
 `pnpm perf:budgets` runs it here; `PERF_BUDGETS=write pnpm perf:budgets` writes a run's
-counts into the file and only ever lowers a budget.
+counts into the file and only ever lowers a budget. A count under half its budget fails
+too (the action probably did not happen), and `write` will not lower past that floor
+without `PERF_BUDGETS_ALLOW_DROP=1`, nor drop an action it no longer measures without
+`PERF_BUDGETS_ALLOW_RENAME=1`. `PERF_BUDGETS_RUNS=N` counts N times and fails on any
+difference (CI counts twice). `pnpm perf` here builds minified; CI's `perf` job times
+the unminified build it counts with, so local times differ a little from CI's.
 
 Each checkout serves its e2e build on its own port, derived from its path (see
 `playwright.config.ts`), so suites in two worktrees can run at the same time.

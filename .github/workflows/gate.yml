@@ -306,7 +306,10 @@ jobs:
         run: pnpm exec playwright install --with-deps webkit
 
       # One build for both runs, unminified so the work budgets can name the
-      # components that rendered.
+      # components that rendered. So the response-time budgets here time the
+      # unminified bundle, not the shipped one: a little slower to parse, which
+      # their headroom covers. `pnpm perf` locally builds minified, so its
+      # times differ a little from this job's.
       - name: Build the frontend, keeping component names
         run: pnpm --filter @atlas/desktop exec vite build --minify false
 
