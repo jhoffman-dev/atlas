@@ -86,6 +86,7 @@ import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
 import { useIndexFailure, useIndexKey, useIndexReady } from './index/index-status-store.ts';
 import { openOnce } from './index/open-once.ts';
+import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
 import { useVaultWatch } from './vault/use-vault-watch.ts';
 import { useSearch } from './index/use-search.ts';
@@ -370,14 +371,16 @@ export function App({
   const indexFailedWith = useIndexFailure(indexStore, vaultKey);
 
   // Anything that edits the vault from outside — Obsidian, a sync client — should
-  // show up here without a restart. Quiet: it moves the index only when the
-  // refresh found something, which an echo of the app's own save does not.
+  // show up here without a restart. Quiet when every path is a note the index
+  // holds: it moves the index only when the refresh found something, which an
+  // echo of the app's own save does not. Anything else is not in the index, so
+  // only a loud refresh tells its readers.
   useVaultWatch({
     watch: vault.watch,
     vaultKey: location?.absolutePath ?? null,
-    onChange: () => {
+    onChange: (paths) => {
       void reload();
-      void refresh({ quiet: true });
+      void refresh(refreshAfterWatch(paths));
     },
   });
   // Everything derived from the index re-runs when this changes: backlinks,

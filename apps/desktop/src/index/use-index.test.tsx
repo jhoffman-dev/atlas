@@ -12,8 +12,9 @@ import {
   recordingActivity,
 } from '@atlas/application';
 import { IndexProgressPill, LiveIndexSettings } from './index-progress.tsx';
-import type { IndexPhase, IndexStatusStore } from './index-status-store.ts';
+import { useIndexKey, type IndexPhase, type IndexStatusStore } from './index-status-store.ts';
 import { openOnce } from './open-once.ts';
+import { refreshAfterWatch } from './watched-paths.ts';
 import { useIndex, type IndexPorts, type IndexStatus } from './use-index.ts';
 
 const VAULT = '/vaults/Larkspur';
@@ -334,6 +335,45 @@ describe('useIndex: a refresh keeps the index ready (#238)', () => {
     expect(activity.reports.map((report) => report.message)).toContain(
       `Rebuilt the index: ${INDEX_BATCH_SIZE} notes.`,
     );
+  });
+});
+
+describe('useIndex: what a watcher event moves (#239)', () => {
+  /** A ready index, with every key the window would re-run on. */
+  async function watched() {
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const ports = vaultOf(3);
+    const keys: string[] = [];
+    const { result } = renderHook(() => {
+      const index = useIndex({ ports, vaultKey: VAULT, activity, changes });
+      const key = useIndexKey(index.store, VAULT);
+      if (keys.at(-1) !== key) keys.push(key);
+      return index;
+    });
+    await waitFor(() => expect(result.current.status.kind).toBe('ready'));
+    const heard = (paths: string[]) =>
+      act(async () => {
+        await result.current.refresh(refreshAfterWatch(paths));
+      });
+    return { keys, heard };
+  }
+
+  it.each([
+    ['a template', '.atlas/templates/Meeting.md'],
+    ['an attachment', 'Files/Scan from Mara Quill.pdf'],
+  ])('moves the key for %s, which the index does not hold', async (_, path) => {
+    const { keys, heard } = await watched();
+    const before = keys.at(-1);
+    await heard([path]);
+    expect(keys.at(-1)).not.toBe(before);
+  });
+
+  it('leaves the key for a note whose refresh found nothing', async () => {
+    const { keys, heard } = await watched();
+    const before = keys.at(-1);
+    await heard(['Note 1.md']);
+    expect(keys.at(-1)).toBe(before);
   });
 });
 
