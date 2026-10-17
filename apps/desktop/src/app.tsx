@@ -549,6 +549,7 @@ export function App({
     index: index.index,
     commands: paletteCommands,
     offerFor: paletteOffersFor,
+    changeKey: indexKey,
   });
   // One overlay at a time; the rule is `openOverlay` and `closeOverlay`.
   const [overlay, setOverlay] = useState<Overlay | null>(null);

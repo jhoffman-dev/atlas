@@ -145,15 +145,23 @@ test(`file ${FILINGS} Inbox items in a row`, async () => {
 /**
  * How many notes on disk are filed under a project: the fixture's tasks, and
  * each Inbox note filed. Counted wherever they are, so it holds whether
- * filing moves a note or only links it.
+ * filing moves a note or only links it. Filings are still being written while
+ * this polls, so a note can move between the listing and the read: it is
+ * counted where it lands, at the next poll.
  */
 async function notesFiledUnderAProject(): Promise<number> {
   const entries = await readdir(vault.root, { recursive: true, withFileTypes: true });
   const notes = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md'));
   const texts = await Promise.all(
-    notes.map((entry) => readFile(join(entry.parentPath, entry.name), 'utf8')),
+    notes.map((entry) => readFile(join(entry.parentPath, entry.name), 'utf8').catch(movedAway)),
   );
   return texts.filter((text) => /^project: /m.test(text)).length;
+}
+
+/** A note gone since it was listed reads as nothing; any other failure is one. */
+function movedAway(error: unknown): string {
+  if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
+  throw error;
 }
 
 test('open a note', async () => {

@@ -11,6 +11,8 @@
 
 /** What was counted while counting was on. */
 export interface RenderCounts {
+  /** How many commits React made: each time it changed the page, however much. */
+  readonly commits: number;
   /** How many times each component rendered, mounts included, by name. */
   readonly renders: Readonly<Record<string, number>>;
   /**
@@ -22,6 +24,9 @@ export interface RenderCounts {
 
 interface Counter {
   on: boolean;
+  commits: number;
+  /** `performance.now()` at React's last commit, counted or not, so a harness can wait for React to go quiet. */
+  lastCommitAt: number | null;
   renders: Record<string, number>;
   changedProps: Record<string, Record<string, number>>;
 }
@@ -59,7 +64,13 @@ export function installRenderCounter(): void {
   }
 
   const target = globalThis as CountingGlobal;
-  const counter: Counter = { on: false, renders: {}, changedProps: {} };
+  const counter: Counter = {
+    on: false,
+    commits: 0,
+    lastCommitAt: null,
+    renders: {},
+    changedProps: {},
+  };
   target.__renderCounter = counter;
 
   const nameOf = (fiber: Fiber): string | null => {
@@ -111,7 +122,9 @@ export function installRenderCounter(): void {
     onCommitFiberUnmount: () => undefined,
     onPostCommitFiberRoot: () => undefined,
     onCommitFiberRoot: (_renderer: number, root: { readonly current: Fiber }) => {
+      counter.lastCommitAt = performance.now();
       if (!counter.on) return;
+      counter.commits += 1;
       const before = root.current.alternate;
       if (before === null) mounted(root.current);
       else updated(root.current, before);
@@ -127,12 +140,21 @@ function counterOf(): Counter {
 
 /** Starts counting from nothing. */
 export function startCountingRenders(): void {
-  Object.assign(counterOf(), { on: true, renders: {}, changedProps: {} });
+  Object.assign(counterOf(), {
+    on: true,
+    commits: 0,
+    renders: {},
+    changedProps: {},
+  });
 }
 
 /** Stops counting, and says what was counted since it started. */
 export function stopCountingRenders(): RenderCounts {
   const counter = counterOf();
   counter.on = false;
-  return { renders: { ...counter.renders }, changedProps: { ...counter.changedProps } };
+  return {
+    commits: counter.commits,
+    renders: { ...counter.renders },
+    changedProps: { ...counter.changedProps },
+  };
 }

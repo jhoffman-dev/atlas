@@ -172,20 +172,23 @@ describe('TodayPage lazy Move to… menu — #236', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
   });
 
-  it('builds a menu only for the rows opened: 40 rows each opened once leave one menu up at most', async () => {
-    const many = Array.from({ length: 40 }, (_, at) => task(`Task ${String(at).padStart(2, '0')}`));
+  it('builds a menu only for the rows opened: 12 rows each opened once leave one menu up at most', async () => {
+    const many = Array.from({ length: 12 }, (_, at) => task(`Task ${String(at).padStart(2, '0')}`));
+    const user = userEvent.setup({ delay: null });
     render(<TodayPage {...props({ today: report(many) })} />);
     for (const each of many) {
-      await userEvent.click(screen.getByRole('button', { name: `Move ${each.title} to…` }));
+      await user.click(screen.getByRole('button', { name: `Move ${each.title} to…` }));
       await screen.findByRole('menu');
-      await userEvent.keyboard('{Escape}');
+      // The one just opened, and none left over from the rows before it.
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      await user.keyboard('{Escape}');
       await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     }
 
     expect(screen.queryAllByRole('menu')).toHaveLength(0);
     expect(document.querySelectorAll('[role="menuitem"]')).toHaveLength(0);
-    // Forty menus opened and shut one after another: about 5 s under coverage, the default limit.
-  }, 20_000);
+    // Twelve, without userEvent's pauses: under a second, where forty with them took 20 s on a CI shard.
+  });
 });
 
 describe('TodayPage row memo — #236', () => {

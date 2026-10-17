@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Split view with tabs in each pane</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; overflow: hidden; background: #FFFFFF; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 13px;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="sp-table" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M4 10h16M10 10v9"></path></g></symbol>
+<symbol id="sp-page" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M7 3.5h7l4 4v13H7z"></path><path d="M14 3.5v4h4"></path></g></symbol>
+<symbol id="sp-review" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14.5" rx="2"></rect><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4M9 14.5l2 2 4-4"></path></g></symbol>
+<symbol id="sp-tag" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 4h7l9 9-7 7-9-9z"></path><circle cx="8.5" cy="8.5" r="1.3"></circle></g></symbol>
+<symbol id="sp-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12 2.5-6h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="sp-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="sp-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="sp-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="sp-fwd" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="sp-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M14 5v14"></path></g></symbol>
+<symbol id="sp-more" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="6" cy="12" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="18" cy="12" r="1.5"></circle></g></symbol>
+</svg>
+
+<dc-import name="Sidebar" active="task-table" hint-size="224px,900px"></dc-import>
+
+<sc-for list="{{panes}}" as="pane" hint-placeholder-count="2">
+<section aria-label="{{pane.label}}" style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; border-left: {{pane.edge}};">
+<div role="tablist" style="height: 36px; flex-shrink: 0; display: flex; align-items: stretch; background: #F6F6F7; border-bottom: 1px solid #E6E6E9;">
+<sc-for list="{{pane.tabs}}" as="tab" hint-placeholder-count="3">
+<button type="button" role="tab" aria-selected="{{tab.selected}}" style="width: 176px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 12px; border: 0; border-right: 1px solid #E6E6E9; border-top: 2px solid {{tab.top}}; margin-bottom: -1px; background: {{tab.bg}}; color: {{tab.ink}}; font: inherit; font-size: 12.5px; font-weight: {{tab.weight}}; cursor: pointer; text-align: left;">
+<svg width="13" height="13" style="flex-shrink: 0; color: #6B6B73;" aria-hidden="true"><use href="#sp-{{tab.icon}}"></use></svg>
+<span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{tab.label}}</span>
+<svg width="13" height="13" style="flex-shrink: 0; color: {{tab.closeInk}};" aria-hidden="true"><use href="#sp-x"></use></svg>
+</button>
+</sc-for>
+<button type="button" aria-label="New tab in this pane" style="width: 34px; border: 0; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#sp-plus"></use></svg></button>
+<span style="flex-grow: 1;"></span>
+<sc-if value="{{pane.last}}" hint-placeholder-val="{{false}}">
+<button type="button" aria-label="Show right sidebar" style="width: 36px; border: 0; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#sp-panel"></use></svg></button>
+</sc-if>
+</div>
+<header style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid #E6E6E9; color: {{pane.headInk}};">
+<button type="button" aria-label="Back" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: {{pane.backInk}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#sp-back"></use></svg></button>
+<button type="button" aria-label="Forward" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: {{pane.fwdInk}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#sp-fwd"></use></svg></button>
+<span style="margin-left: 6px; color: #6B6B73; white-space: nowrap;">{{pane.crumb}}</span>
+<span style="color: #6B6B73;">/</span>
+<span style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;">{{pane.title}}</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" aria-label="More" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#sp-more"></use></svg></button>
+</header>
+
+<sc-if value="{{pane.isTable}}" hint-placeholder-val="{{true}}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+<div style="height: 32px; flex-shrink: 0; display: grid; grid-template-columns: minmax(0, 1fr) 104px 54px; align-items: center; padding: 0 14px 0 20px; border-bottom: 1px solid #E6E6E9; font-size: 12px; font-weight: 500; color: #6B6B73;"><span>Name</span><span>Status</span><span>Phase</span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="20">
+<div style="height: 34px; flex-shrink: 0; display: grid; grid-template-columns: minmax(0, 1fr) 104px 54px; align-items: center; padding: 0 14px 0 20px; border-bottom: 1px solid #ECECEF; background: {{r.bg}};">
+<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 16px;">{{r.name}}</span>
+<span style="display: flex; align-items: center;"><span style="height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: {{r.tint}}; color: {{r.pink}}; font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{r.dot}};"></span>{{r.status}}</span></span>
+<span style="font-size: 12.5px; color: #52525B;">{{r.phase}}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{pane.isNote}}" hint-placeholder-val="{{false}}">
+<article style="flex-grow: 1; padding: 36px 44px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; line-height: 1.28; letter-spacing: -0.01em;">Leftovers from A15-02: templates in views, short query pages, create races</h1>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12.5px; color: #52525B;">
+<span style="display: flex; align-items: center; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #A1A1AA;"></span>Backlog</span><span style="color: #C4C4CA;">·</span><span>Phase 15</span><span style="color: #C4C4CA;">·</span><span>3h</span><span style="color: #C4C4CA;">·</span><span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px;">A15-03</span><span style="color: #C4C4CA;">·</span><span>Blocked by <span style="text-decoration: underline; text-decoration-color: #C4C4CA; text-underline-offset: 3px; color: #18181B;">A15-02</span></span>
+</div>
+<p style="margin: 0; font-size: 12px; color: #6B6B73;">Right sidebar is hidden, so properties collapse to this one line. Click it to edit.</p>
+<div style="height: 1px; background: #ECECEF; margin: 4px 0;"></div>
+<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.6; color: #27272A;">
+<li>Done in <span style="text-decoration: underline; text-decoration-color: #C4C4CA; text-underline-offset: 3px;">P16-04</span>: <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">compileViewQuery</code> leaves out every path under <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">.atlas/</code>, and the sidebar’s type counts do too.</li>
+<li><code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">/v1/query</code> drops <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">.atlas</code> rows after the SQL limit, so a page can come back short.</li>
+<li>An unnamed create still answers <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">exists</code> if “Untitled” is taken between listing and creating.</li>
+</ul>
+</article>
+</sc-if>
+</section>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (icon, label, on, focused) => ({
+      icon, label, selected: on ? "true" : "false", bg: on ? "#FFFFFF" : "transparent", ink: on ? "#18181B" : "#52525B",
+      weight: on ? "500" : "400", closeInk: on ? "#6B6B73" : "transparent", top: on ? (focused ? "#18181B" : "#D4D4D8") : "transparent",
+    });
+    const panes = [
+      { label: "Left pane", edge: "0", last: false, isTable: true, isNote: false, crumb: "Views", title: "Task table", headInk: "#18181B", backInk: "#52525B", fwdInk: "#C4C4CA",
+        tabs: [tab("table", "Task table", true, false), tab("review", "Weekly review", false), tab("pulse", "Activity", false)] },
+      { label: "Right pane, focused", edge: "1px solid #E6E6E9", last: true, isTable: false, isNote: true, crumb: "tasks", title: "Leftovers from A15-02…", headInk: "#18181B", backInk: "#52525B", fwdInk: "#52525B",
+        tabs: [tab("page", "Leftovers from A15-02: templates in views", true, true), tab("tag", "#1on1", false)] },
+    ];
+    const dot = { Review: "#A595E3", Backlog: "#A1A1AA", Done: "#7DBF93" };
+    const raw = [
+      ["Phase 16 — The look, rebuilt", "Review", "16"],
+      ["The UI doesn’t look good, or close to the reference images", "Review", ""],
+      ["Leftovers from A15-02: templates in views, short query pages, create races", "Backlog", "15"],
+      ["addDays hands back its input when it cannot move, and says nothing", "Backlog", "14"],
+      ["Cmd+N and Shift+Cmd+D still fire behind an open palette", "Backlog", "14"],
+      ["Drag to resize and reorder widgets", "Backlog", ""],
+      ["new-note.spec reads the file once instead of waiting for it", "Backlog", ""],
+      ["Prove it end to end, and try to break it", "Done", "15"],
+      ["The MCP server, apps/mcp", "Done", "15"],
+      ["Wire the bridge, and a Settings panel to turn it on", "Done", "15"],
+      ["niceTicks never returns for a max too small for a step", "Done", "13"],
+      ["A slice narrower than its gap is painted back across its neighbour", "Done", "13"],
+      ["Open-in-pane silently opens in a different pane when that pane is gone", "Done", "13"],
+      ["bug: edits made to a document aren’t saving", "Done", ""],
+      ["feature: makes sidebar collapsible", "Done", ""],
+      ["Folder picker + persisted vault choice", "Done", "1"],
+      ["Tauri fs adapter (scoped read)", "Done", "1"],
+      ["VaultPort + domain vault model", "Done", "1"],
+      ["CI workflow + COVERAGE.md", "Done", "0"],
+      ["Test + lint + typecheck gate", "Done", "0"],
+      ["Tauri v2 + React + Vite shell", "Done", "0"],
+      ["pnpm workspace + package skeleton", "Done", "0"],
+    ];
+    const tint = { Review: "#EFEBFB", Backlog: "#F1F1F3", Done: "#E6F3EA" };
+    const pink = { Review: "#4E3F8F", Backlog: "#52525B", Done: "#2F6B45" };
+    const rows = raw.map(([name, status, phase], i) => ({ name, status, phase, dot: dot[status], tint: tint[status], pink: pink[status], bg: i === 2 ? "#F6F6F8" : "transparent" }));
+    return { panes, rows };
+  }
+}
+</script>
+</body>
+</html>

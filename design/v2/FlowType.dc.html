@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Type editor in the right sidebar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; overflow: hidden; background: #FFFFFF; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 13px;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="ty-table" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M4 10h16M10 10v9"></path></g></symbol>
+<symbol id="ty-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14.5" rx="2"></rect><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"></path></g></symbol>
+<symbol id="ty-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></symbol>
+<symbol id="ty-text" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="ty-list" viewBox="0 0 24 24"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.5M4.5 12h.5M4.5 17h.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></symbol>
+<symbol id="ty-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="9" cy="7" r="1.3"></circle><circle cx="15" cy="7" r="1.3"></circle><circle cx="9" cy="12" r="1.3"></circle><circle cx="15" cy="12" r="1.3"></circle><circle cx="9" cy="17" r="1.3"></circle><circle cx="15" cy="17" r="1.3"></circle></g></symbol>
+<symbol id="ty-chev" viewBox="0 0 24 24"><path d="M10 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="ty-down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="ty-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="ty-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="ty-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="ty-fwd" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="ty-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M14 5v14"></path></g></symbol>
+<symbol id="ty-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-8.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+</svg>
+
+<dc-import name="Sidebar" active="t-meeting" hint-size="224px,900px"></dc-import>
+
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+<div style="height: 36px; flex-shrink: 0; display: flex; align-items: stretch; background: #F6F6F7; border-bottom: 1px solid #E6E6E9;">
+<span style="width: 188px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #FFFFFF; border-right: 1px solid #E6E6E9; margin-bottom: -1px; font-size: 12.5px; font-weight: 500;"><svg width="13" height="13" style="color: #6B6B73;" aria-hidden="true"><use href="#ty-table"></use></svg>Meeting table</span>
+<button type="button" aria-label="New tab" style="width: 36px; border: 0; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center;"><svg width="14" height="14" aria-hidden="true"><use href="#ty-plus"></use></svg></button>
+</div>
+<header style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid #E6E6E9;">
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #52525B;"><svg width="15" height="15" aria-hidden="true"><use href="#ty-back"></use></svg></span>
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #C4C4CA;"><svg width="15" height="15" aria-hidden="true"><use href="#ty-fwd"></use></svg></span>
+<span style="margin-left: 6px; color: #6B6B73;">Views</span><span style="color: #6B6B73;">/</span><span style="font-weight: 500;">Meeting table</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" aria-label="Hide right sidebar" aria-pressed="true" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: #E8E8EB; color: #18181B; display: flex; align-items: center; justify-content: center;"><svg width="15" height="15" aria-hidden="true"><use href="#ty-panel"></use></svg></button>
+</header>
+<div style="flex-grow: 1; display: flex; flex-direction: column;">
+<div style="height: 32px; display: grid; grid-template-columns: minmax(0, 1fr) 84px 76px 120px; align-items: center; padding: 0 16px 0 20px; border-bottom: 1px solid #E6E6E9; font-size: 12px; font-weight: 500; color: #6B6B73;"><span>Name</span><span>Date</span><span style="color: #18181B; display: flex; align-items: center; gap: 6px;">People<span style="width: 6px; height: 6px; border-radius: 50%; background: #6B7BC4;"></span></span><span>Project</span></div>
+<sc-for list="{{meetings}}" as="m" hint-placeholder-count="6">
+<div style="height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) 84px 76px 120px; align-items: center; padding: 0 16px 0 20px; border-bottom: 1px solid #ECECEF;">
+<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 20px;">{{m.name}}</span>
+<span style="font-size: 12.5px; color: #52525B; font-variant-numeric: tabular-nums;">{{m.date}}</span>
+<span style="font-size: 12.5px; color: #52525B; font-variant-numeric: tabular-nums;">{{m.people}}</span>
+<span style="font-size: 12.5px; color: #52525B;">{{m.project}}</span>
+</div>
+</sc-for>
+</div>
+</main>
+
+<aside aria-label="Right sidebar — Meeting type" style="width: 340px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid #E6E6E9;">
+<div style="height: 36px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 14px; border-bottom: 1px solid #E6E6E9; background: #F6F6F7;">
+<span style="font-size: 12.5px; color: #6B6B73;">Type</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" aria-label="Hide right sidebar" style="width: 26px; height: 26px; border: 0; border-radius: 5px; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center;"><svg width="13" height="13" aria-hidden="true"><use href="#ty-x"></use></svg></button>
+</div>
+
+<div style="padding: 14px 16px 12px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #ECECEF;">
+<span style="width: 28px; height: 28px; border-radius: 6px; border: 1px solid #E6E6E9; display: flex; align-items: center; justify-content: center; color: #52525B;"><svg width="15" height="15" aria-hidden="true"><use href="#ty-cal"></use></svg></span>
+<div style="display: flex; flex-direction: column; gap: 1px;">
+<span style="font-size: 15px; font-weight: 600;">Meeting</span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px; color: #6B6B73;">.atlas/types/meeting.md</span>
+</div>
+</div>
+
+<div style="padding: 10px 8px 6px; display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-height: 0; overflow: hidden;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 11.5px; font-weight: 500; color: #6B6B73;"><span style="flex-grow: 1;">Properties</span><span>{{propCount}}</span></div>
+<sc-for list="{{props}}" as="p" hint-placeholder-count="9">
+<div style="display: flex; flex-direction: column; border-radius: 6px; background: {{p.bg}}; box-shadow: {{p.ring}};">
+<div style="height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 2px;">
+<svg width="13" height="13" style="color: #C4C4CA;" aria-hidden="true"><use href="#ty-grip"></use></svg>
+<svg width="14" height="14" style="color: #6B6B73;" aria-hidden="true"><use href="#ty-{{p.icon}}"></use></svg>
+<span style="flex-grow: 1; font-size: 13px;">{{p.name}}</span>
+<span style="font-size: 12px; color: #6B6B73;">{{p.kind}}</span>
+<svg width="12" height="12" style="color: #8E8E98;" aria-hidden="true"><use href="#ty-{{p.chev}}"></use></svg>
+</div>
+<sc-if value="{{p.open}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 4px 10px 12px 30px;">
+<label style="display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12px; color: #6B6B73;">Name<input type="text" value="people" style="height: 28px; box-sizing: border-box; border: 1px solid #D9D9DE; border-radius: 6px; padding: 0 8px; font: inherit; font-size: 12.5px; color: #18181B; background: #FFFFFF;"></label>
+<label style="display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12px; color: #6B6B73;">Kind<span style="height: 28px; box-sizing: border-box; border: 1px solid #D9D9DE; border-radius: 6px; padding: 0 8px; display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: #18181B; background: #FFFFFF;">Link to Person<svg width="12" height="12" style="color: #6B6B73;" aria-hidden="true"><use href="#ty-down"></use></svg></span></label>
+<div style="display: flex; flex-direction: column; gap: 6px; padding-left: 72px;">
+<sc-for list="{{options}}" as="o" hint-placeholder-count="3">
+<label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #27272A;">
+<span style="width: 14px; height: 14px; box-sizing: border-box; border-radius: 4px; border: 1.5px solid {{o.line}}; background: {{o.fill}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center;"><sc-if value="{{o.on}}" hint-placeholder-val="{{true}}"><svg width="10" height="10" aria-hidden="true"><use href="#ty-check"></use></svg></sc-if></span>{{o.label}}
+</label>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<button type="button" style="height: 30px; margin-top: 4px; border: 0; border-radius: 6px; background: transparent; color: #52525B; font: inherit; font-size: 12.5px; display: flex; align-items: center; gap: 6px; padding: 0 8px; cursor: pointer;"><svg width="13" height="13" aria-hidden="true"><use href="#ty-plus"></use></svg>Add property</button>
+</div>
+
+<div style="padding: 10px 16px; border-top: 1px solid #ECECEF; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
+<div style="display: flex; justify-content: space-between;"><span style="color: #6B6B73;">Template</span><span>Meeting</span></div>
+<div style="display: flex; justify-content: space-between;"><span style="color: #6B6B73;">Default view</span><span>Meeting table</span></div>
+</div>
+<div style="height: 34px; flex-shrink: 0; display: flex; align-items: center; padding: 0 16px; border-top: 1px solid #ECECEF; font-size: 12px; color: #6B6B73;">Saved · edits apply to every Meeting note</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const meetings = [
+      { name: "2026-10-16 Platform Standup (granola 5e1f0a2c)", date: "Oct 16", people: "", project: "" },
+      { name: "2026-10-16 Platform Standup", date: "Oct 16", people: "", project: "" },
+      { name: "2026-10-14 Release Roundup", date: "Oct 14", people: "5", project: "" },
+      { name: "2026-10-14 Platform Standup", date: "Oct 14", people: "9", project: "" },
+      { name: "2026-07-15 Larkspur Payroll Weekly", date: "Jul 15", people: "", project: "" },
+      { name: "2026-07-01 Review the on-call runbook (granola 9b3d7e41)", date: "Jul 1", people: "3", project: "" },
+    ];
+    const list = [
+      ["date", "cal", "Date"], ["people", "link", "Person, many"], ["project", "link", "Project"], ["series", "link", "Meeting"],
+      ["tasks", "list", "Task, many"], ["decisions", "list", "Text list"], ["summary digest", "text", "Text"], ["summary of", "link", "Note"], ["summary model", "text", "Text"],
+    ];
+    const props = list.map(([name, icon, kind]) => {
+      const open = name === "people";
+      return { name, icon, kind, open, chev: open ? "down" : "chev", bg: open ? "#F8F8F9" : "transparent", ring: open ? "inset 0 0 0 1px #E6E6E9" : "none" };
+    });
+    const options = [
+      { label: "Allow many", on: true }, { label: "Show as a column in views", on: true }, { label: "Required on new notes", on: false },
+    ].map((o) => ({ ...o, line: o.on ? "#18181B" : "#C4C4CA", fill: o.on ? "#18181B" : "#FFFFFF" }));
+    return { meetings, props, options, propCount: String(list.length) };
+  }
+}
+</script>
+</body>
+</html>
