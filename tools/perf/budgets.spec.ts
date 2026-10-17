@@ -40,18 +40,35 @@ import {
   budgetFor,
   describeBreaches,
   differencesBetween,
+  looksMinified,
   lowered,
   reportTable,
   type ActionBudget,
   type BudgetsFile,
   type Measurement,
+  type RunTolerance,
   type Work,
 } from './work-budgets.ts';
 
 const BUDGETS_FILE = join('tools', 'perf', 'budgets.json');
 const WRITING = process.env.PERF_BUDGETS === 'write';
+/** `PERF_BUDGETS_ALLOW_DROP=1`: a count may fall past its floor, the work having really gone. */
+const ALLOW_DROP = process.env.PERF_BUDGETS_ALLOW_DROP === '1';
+/** `PERF_BUDGETS_ALLOW_RENAME=1`: `write` may drop a budget whose action is no longer measured. */
+const ALLOW_RENAME = process.env.PERF_BUDGETS_ALLOW_RENAME === '1';
 /** How many times the counted pass runs; more than one fails on any count that differs between runs. */
-const COUNTED_RUNS = Math.max(1, Number(process.env.PERF_BUDGETS_RUNS ?? 1));
+const COUNTED_RUNS = countedRuns(process.env.PERF_BUDGETS_RUNS);
+
+function countedRuns(given: string | undefined): number {
+  if (given === undefined || given === '') return 1;
+  const runs = Number(given);
+  if (!Number.isInteger(runs) || runs < 1) {
+    throw new Error(
+      `PERF_BUDGETS_RUNS must be a whole number of runs, 1 or more; it is "${given}"`,
+    );
+  }
+  return runs;
+}
 
 /** A fixed day, in UTC, so Today shows the same tasks on every run and every machine. */
 const STARTS_AT = Date.UTC(2026, 5, 15, 9);
@@ -65,6 +82,17 @@ const IDLE_MS = 3_000;
 const ROW_RULES: Partial<Record<BudgetedAction, ActionBudget['rows']>> = {
   'Tick a task on Today': { TaskRow: 1 },
   'Decide an Inbox row': { InboxRow: 2 },
+};
+
+/**
+ * The one action allowed to differ between two counted runs, and by how much:
+ * the drag counted 98 commits on one CI run and 96 on the next (#240), each
+ * component in the board three renders apart. Host calls matched. What in the
+ * drag still runs on the wall clock is not found yet (#243); every
+ * other action must match exactly.
+ */
+const RUN_TOLERANCE: Partial<Record<BudgetedAction, RunTolerance>> = {
+  'Drag a board card': { commits: 2, rendersEach: 3 },
 };
 
 /** A board of the fixture's 48 projects, all active, by status: what "drag a board card" drags on. */
@@ -105,8 +133,16 @@ interface Pass {
   readonly vault: FakeVault;
   /** Does `step` uncounted: getting the app to where the next action starts. */
   setUp(step: Phase): Promise<void>;
-  /** Does an action's phases, and keeps what it took. */
-  budgeted(action: BudgetedAction, phases: readonly Phase[]): Promise<void>;
+  /**
+   * Does an action's phases, and keeps what it took. It first lets the work
+   * before it finish, unless `settleFirst` is false: the autosave is that
+   * work, and is the action.
+   */
+  budgeted(
+    action: BudgetedAction,
+    phases: readonly Phase[],
+    options?: { readonly settleFirst?: boolean },
+  ): Promise<void>;
   /** Watches the page do nothing for `IDLE_MS`. */
   idle(action: BudgetedAction): Promise<void>;
   /** Gives one key or pointer move, and lets the page take it in before the next, as a person's hand does. */
@@ -135,15 +171,21 @@ test('the app does no more work than its budget', async ({ browser }) => {
       await pass.page.close();
       for (const action of BUDGETED_ACTIONS) {
         const [first, now] = [counted.get(action), recount.get(action)];
+        expect.soft(first, `"${action}" was not counted on run 1`).toBeDefined();
+        expect.soft(now, `"${action}" was not counted on run ${again}`).toBeDefined();
         if (first === undefined || now === undefined) continue;
-        const changed = differencesBetween(first, now);
+        const changed = differencesBetween(first, now, RUN_TOLERANCE[action]);
         expect.soft(changed, `"${action}" counted differently on run ${again}`).toEqual([]);
       }
     });
   }
-  if (!WRITING) {
-    for (const action of BUDGETED_ACTIONS) holdToBudget(action, budgets.actions[action]);
-  }
+  // Held to the budgets as they were even when writing: a regression is red either way.
+  for (const action of BUDGETED_ACTIONS) holdToBudget(action, budgets.actions[action]);
+  const names = [...new Set([...counted.values()].flatMap((work) => Object.keys(work.renders)))];
+  expect(
+    looksMinified(names),
+    'the components have no names: build without minifying (pnpm perf:budgets does)',
+  ).toBe(false);
 
   try {
     await test.step('timed, against the wall clock (reported, not gated)', async () => {
@@ -162,7 +204,7 @@ function holdToBudget(action: BudgetedAction, budget: ActionBudget | undefined):
   expect.soft(work, `"${action}" was not counted`).toBeDefined();
   expect.soft(budget, `"${action}" has no budget in ${BUDGETS_FILE}`).toBeDefined();
   if (work === undefined || budget === undefined) return;
-  const breaches = breachesOf(work, budget);
+  const breaches = breachesOf(work, budget, { allowDrop: ALLOW_DROP });
   expect.soft(breaches, describeBreaches(action, work, breaches)).toEqual([]);
 }
 
@@ -182,8 +224,8 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
       await act();
       await runUntil(page, { ready, arg: arg as never });
     },
-    async budgeted(action, phases) {
-      await runUntil(page, {});
+    async budgeted(action, phases, { settleFirst = true } = {}) {
+      if (settleFirst) await runUntil(page, {});
       await startCounting(page);
       for (const { act, ready, arg } of phases) {
         await act();
@@ -220,8 +262,12 @@ async function timedPass(browser: Browser): Promise<Pass> {
   const page = await newPage(browser);
   await page.addInitScript(installWorkClock, clockAt({ virtual: false }));
   const vault = await openFixtureVault(page, [PROJECT_BOARD]);
-  const time = async (action: BudgetedAction, phases: readonly Phase[]) => {
-    await waitForQuiet(page);
+  const time = async (
+    action: BudgetedAction,
+    phases: readonly Phase[],
+    { settleFirst = true }: { readonly settleFirst?: boolean } = {},
+  ) => {
+    if (settleFirst) await waitForQuiet(page);
     let inputToReady = 0;
     let longestFrame = 0;
     for (const { act, ready, arg } of phases) {
@@ -262,6 +308,8 @@ async function timedPass(browser: Browser): Promise<Pass> {
 const clockAt = ({ virtual }: Pick<WorkClockOptions, 'virtual'>): WorkClockOptions => ({
   startsAt: STARTS_AT,
   virtual,
+  // A slower host, to show the counts do not move with it.
+  hostDelayMs: Number(process.env.PERF_HOST_DELAY_MS ?? 0) || 0,
 });
 
 const newPage = (browser: Browser) =>
@@ -386,13 +434,51 @@ async function typeAndSave(pass: Pass, title: string): Promise<void> {
   ]);
 
   const path = `Notes/${title}.md`;
-  const saved = () =>
-    [...document.querySelectorAll('[role="status"]')].some((each) => each.textContent === 'Saved');
-  await pass.budgeted('One autosave and its watcher echo', [
-    phase(() => Promise.resolve(), saved, null),
-    // What the real host's watcher sends once the save is on disk.
-    phase(() => emitVaultChanged(page, [path]), saved, null),
-  ]);
+  // Ready once the host was asked for these commands since `__echoFrom`: work the
+  // action itself caused, not a state that was already true. On the work clock the
+  // counted calls tell; in real time, the probe's calls since the phase began.
+  const caused = (wanted: Record<string, number>) => {
+    const clock = (window as unknown as { __workClock?: { callsSoFar(): Record<string, number> } })
+      .__workClock;
+    const from = (window as unknown as { __echoFrom?: Record<string, number> }).__echoFrom ?? {};
+    const sent: Record<string, number> = {};
+    if (clock !== undefined) Object.assign(sent, clock.callsSoFar());
+    else {
+      const probe = (window as unknown as { __perf: { calls: { command: string }[] } }).__perf;
+      for (const { command } of probe.calls) sent[command] = (sent[command] ?? 0) + 1;
+    }
+    const saved = [...document.querySelectorAll('[role="status"]')].some(
+      (each) => each.textContent === 'Saved',
+    );
+    return (
+      saved &&
+      Object.entries(wanted).every(
+        ([command, least]) => (sent[command] ?? 0) - (from[command] ?? 0) >= least,
+      )
+    );
+  };
+  // Not settled first: the autosave due 1.2 s after the last key is this action.
+  await pass.budgeted(
+    'One autosave and its watcher echo',
+    [
+      phase(() => Promise.resolve(), caused, { write_text_file: 1 }),
+      // What the real host's watcher sends once the save is on disk: ready once it re-lists the vault.
+      phase(
+        async () => {
+          await page.evaluate(() => {
+            const clock = (
+              window as unknown as { __workClock?: { callsSoFar(): Record<string, number> } }
+            ).__workClock;
+            Object.assign(window, { __echoFrom: clock?.callsSoFar() ?? {} });
+          });
+          await emitVaultChanged(page, [path]);
+        },
+        caused,
+        { list_notes: 1 },
+      ),
+    ],
+    { settleFirst: false },
+  );
   expect(await pass.vault.read(path)).toContain(TYPED);
 }
 
@@ -557,12 +643,23 @@ async function report(budgets: BudgetsFile): Promise<void> {
 
 /** Writes this run's counts into `budgets.json`, lowering each budget and never raising one. */
 async function writeBudgets(budgets: BudgetsFile): Promise<void> {
+  const gone = Object.keys(budgets.actions).filter(
+    (action) => !(BUDGETED_ACTIONS as readonly string[]).includes(action),
+  );
+  if (gone.length > 0 && !ALLOW_RENAME) {
+    throw new Error(
+      `budgets.json holds actions the harness no longer measures (${gone.join(', ')}). ` +
+        'A renamed action would start again from whatever it counts now; carry its numbers over ' +
+        'by hand, or set PERF_BUDGETS_ALLOW_RENAME=1 to drop them.',
+    );
+  }
   const actions: Record<string, ActionBudget> = {};
   for (const action of BUDGETED_ACTIONS) {
     const work = counted.get(action);
     const was = budgets.actions[action];
-    if (work !== undefined) actions[action] = lowered(was, budgetFor(work, ROW_RULES[action]));
-    else if (was !== undefined) actions[action] = was;
+    if (work !== undefined) {
+      actions[action] = lowered(was, budgetFor(work, ROW_RULES[action]), { allowDrop: ALLOW_DROP });
+    } else if (was !== undefined) actions[action] = was;
   }
   const next: BudgetsFile = { $comment: budgets.$comment, actions };
   await writeFile(BUDGETS_FILE, `${JSON.stringify(next, null, 2)}\n`);

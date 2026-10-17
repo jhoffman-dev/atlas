@@ -20,6 +20,8 @@ import { expect, type Page } from '@playwright/test';
  *   command (and a request to the index worker) is sent at once, but its
  *   answer is handed to the app only when the page is quiet — and the oldest
  *   question first, whenever the answers arrived.
+ * - **Animations a script starts** (`element.animate`) are held, and finish
+ *   when their time on the work clock is up.
  * - **Quiet** means no React or `MessageChannel` task pending, the answer
  *   just handed over drawn, one frame after it so that layout observers have
  *   run, and no finite animation still playing.
@@ -38,6 +40,12 @@ export interface WorkClockOptions {
   readonly startsAt: number;
   /** Whether time and the host's answers are held, for counting; false only fixes the date. */
   readonly virtual: boolean;
+  /**
+   * Real milliseconds every host answer is held back before it counts as
+   * arrived: a slower host. The counts must not move with it
+   * (`PERF_HOST_DELAY_MS`, to check that they do not).
+   */
+  readonly hostDelayMs?: number;
 }
 
 /** What the clock counted between `startCounting` and `stopCounting`. */
@@ -57,7 +65,7 @@ export interface Ran {
  * stand-in host's own script, whose IPC it wraps. Everything it uses is
  * inside it, since it crosses into the page as its source.
  */
-export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void {
+export function installWorkClock({ startsAt, virtual, hostDelayMs = 0 }: WorkClockOptions): void {
   if (window !== window.top) return;
   const RealDate = Date;
   const realStart = performance.now();
@@ -126,6 +134,21 @@ export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void 
       addTimer(() => callback(realStart + state.now), 16 - (state.now % 16), null),
     cancelAnimationFrame: clear,
   });
+
+  // A script's own animation (`element.animate`, as dnd-kit's drop) runs on the
+  // work clock too: held where it starts, and finished when its time is up,
+  // rather than ending on the wall clock before or after a host answer.
+  const realAnimate = Element.prototype.animate as ((...given: unknown[]) => Animation) | undefined;
+  if (typeof realAnimate === 'function') {
+    Element.prototype.animate = function heldAnimation(this: Element, ...given: unknown[]) {
+      const animation = realAnimate.apply(this, given);
+      animation.pause();
+      const ends = Number(animation.effect?.getComputedTiming().endTime ?? 0);
+      // One that never ends stays held where it started.
+      if (Number.isFinite(ends)) addTimer(() => animation.finish(), ends, null);
+      return animation;
+    } as typeof Element.prototype.animate;
+  }
 
   // React's scheduler and the index's breaths post themselves messages: counted, to be waited for.
   const RealChannel = window.MessageChannel;
@@ -204,6 +227,8 @@ export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void 
   ).__TAURI_INTERNALS__;
   if (internals === undefined) throw new Error('install the work clock after the stand-in host');
   const invoke = internals.invoke;
+  const arrived = (then: () => void) =>
+    hostDelayMs > 0 ? void realSetTimeout(then, hostDelayMs) : then();
   internals.invoke = (command, ...rest) => {
     if (command.startsWith('plugin:event')) return invoke(command, ...rest);
     if (state.counting) state.calls[command] = (state.calls[command] ?? 0) + 1;
@@ -212,10 +237,10 @@ export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void 
     return new Promise((resolve, reject) => {
       invoke(command, ...rest).then(
         (value) => {
-          question.answer = () => resolve(value);
+          arrived(() => Object.assign(question, { answer: () => resolve(value) }));
         },
         (error: unknown) => {
-          question.answer = () => reject(error);
+          arrived(() => Object.assign(question, { answer: () => reject(error) }));
         },
       );
     });
@@ -344,6 +369,8 @@ export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void 
       }
     },
     inputsSeen: () => inputs,
+    /** The host commands counted so far, by name: for a ready test that the action itself caused. */
+    callsSoFar: () => ({ ...state.calls }),
     startCounting() {
       Object.assign(state, { counting: true, calls: {} });
     },
@@ -358,6 +385,7 @@ interface ClockWindow {
   __workClock: {
     run(source: string | null, arg: unknown, settleMs: number, limitMs: number): Promise<Ran>;
     inputsSeen(): number;
+    callsSoFar(): Record<string, number>;
     startCounting(): void;
     stopCounting(): Record<string, number>;
   };

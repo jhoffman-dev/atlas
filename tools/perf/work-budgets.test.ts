@@ -5,10 +5,12 @@ import {
   budgetFor,
   describeBreaches,
   differencesBetween,
+  looksMinified,
   lowered,
   reportTable,
   topOf,
   withHeadroom,
+  withRenderHeadroom,
   type ActionBudget,
   type BudgetsFile,
   type Work,
@@ -71,6 +73,35 @@ describe('breaches', () => {
   });
 });
 
+describe('the floor', () => {
+  it('fails a count under half its budget, saying the action probably did not happen', () => {
+    const little = work({ commits: 2 });
+    const [breach] = breachesOf(little, budget);
+    expect(breach).toMatchObject({ count: 'React commits', budget: 6, actual: 2 });
+    expect(describeBreaches('Tick', little, breachesOf(little, budget))).toContain(
+      'the action probably did not happen',
+    );
+  });
+
+  it('lets a count fall past its floor when the drop is allowed', () => {
+    expect(breachesOf(work({ commits: 2 }), budget, { allowDrop: true })).toEqual([]);
+  });
+
+  it('holds a budgeted command to its floor too', () => {
+    expect(breachesOf(work({ calls: {} }), { ...budget, calls: { read_note: 4 } })).toEqual([
+      expect.objectContaining({ count: 'host calls to read_note', budget: 4, actual: 0 }),
+    ]);
+  });
+});
+
+describe('a minified build', () => {
+  it('is told apart from one that kept its names', () => {
+    expect(looksMinified(['e', 't', 'n', 'Ar'])).toBe(true);
+    expect(looksMinified([])).toBe(true);
+    expect(looksMinified(['TaskRow', 'Icon', 'e'])).toBe(false);
+  });
+});
+
 describe('the failure message', () => {
   it('names the action, each count, budget against actual, and the top offenders', () => {
     const over = work({ commits: 9, calls: { read_note: 5, list_notes: 2 } });
@@ -79,8 +110,8 @@ describe('the failure message', () => {
       [
         '"Open the Inbox" did more work than its budget (tools/perf/budgets.json):',
         '  React commits: budget 6, actual 9 (+3)',
-        '  host calls to read_note: budget 3, actual 5 (+2)',
         '  host calls to list_notes: budget 0, actual 2 (+2)',
+        '  host calls to read_note: budget 3, actual 5 (+2)',
         '  most rendered: Sidebar×3, InboxRow×2',
         '  most called:   read_note×5, list_notes×2',
       ].join('\n'),
@@ -107,13 +138,33 @@ describe('writing budgets', () => {
     const now = budgetFor(
       work({ commits: 100, renders: { Sidebar: 1 }, calls: { list_notes: 1 } }),
     );
+    // read_note stopped being sent: past its floor, so it keeps its budget unless the drop is allowed.
     expect(lowered(budget, now)).toEqual({
       commits: 6,
       renders: 3,
-      // read_note is no longer sent, so it is no longer allowed; list_notes was never allowed.
+      calls: { read_note: 3 },
+      rows: { InboxRow: 2 },
+    });
+    // Allowed, it is no longer allowed at all; list_notes was never allowed.
+    expect(lowered(budget, now, { allowDrop: true })).toEqual({
+      commits: 6,
+      renders: 3,
       calls: {},
       rows: { InboxRow: 2 },
     });
+  });
+
+  it('refuses to lower a count past its floor unless the drop is allowed', () => {
+    // 0 commits, against a budget of 6 whose floor is 3.
+    const fell = budgetFor(work({ commits: 0 }));
+    expect(lowered(budget, fell).commits).toBe(6);
+    expect(lowered(budget, fell, { allowDrop: true }).commits).toBe(0);
+  });
+
+  it('gives summed renders 2% of headroom, not 10%', () => {
+    expect(budgetFor(work({ renders: { Row: 10_000 } })).renders).toBe(10_200);
+    expect(withRenderHeadroom(10)).toBe(12);
+    expect(withRenderHeadroom(0)).toBe(0);
   });
 
   it('takes the measured budget whole for an action that had none', () => {
@@ -166,6 +217,18 @@ describe('the report', () => {
 });
 
 describe('two runs compared', () => {
+  it('allows only the difference it is told to, and never in host calls', () => {
+    const second = work({ commits: 6, renders: { InboxRow: 4, Sidebar: 3 } });
+    const loose = { commits: 2, rendersEach: 2 };
+    expect(differencesBetween(work(), second, loose)).toEqual([]);
+    expect(differencesBetween(work(), work({ commits: 7 }), loose)).toEqual([
+      'React commits: 4 → 7',
+    ]);
+    expect(differencesBetween(work(), work({ calls: { read_note: 2 } }), loose)).toEqual([
+      'host calls to read_note: 1 → 2',
+    ]);
+  });
+
   it('finds nothing between equal runs', () => {
     expect(differencesBetween(work(), work())).toEqual([]);
   });

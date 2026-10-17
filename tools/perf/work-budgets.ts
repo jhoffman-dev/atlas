@@ -36,11 +36,13 @@ export interface BudgetsFile {
   readonly actions: Readonly<Record<string, ActionBudget>>;
 }
 
-/** One count over its budget. */
+/** One count out of its budget: over it, far under it, or missing from it. */
 export interface Breach {
   readonly count: string;
   readonly budget: number;
   readonly actual: number;
+  /** Why it fails, when it is not simply over: under the floor, never drawn, or no budget to hold to. */
+  readonly why?: string;
 }
 
 /**
@@ -52,22 +54,75 @@ export function withHeadroom(measured: number): number {
   return measured + Math.max(2, Math.ceil(measured * 0.1));
 }
 
+/**
+ * The same for summed component renders, at 2%: a sum in the tens of
+ * thousands would hide a whole extra list's worth of rows in 10%.
+ */
+export function withRenderHeadroom(measured: number): number {
+  if (measured === 0) return 0;
+  return measured + Math.max(2, Math.ceil(measured * 0.02));
+}
+
+/**
+ * The least an action may count against a budget: half of it. Less, and the
+ * action most likely did not happen — a step skipped, a window that closed
+ * before the work came — and a gate that passes on no work is fooled.
+ */
+export const floorOf = (budget: number): number => Math.floor(budget / 2);
+
+/** Re-recording a budget past its floor is allowed only on purpose, once the work really went. */
+export interface DropRule {
+  /** `PERF_BUDGETS_ALLOW_DROP=1`: the counts fell for a reason, and the budget may follow. */
+  readonly allowDrop?: boolean;
+}
+
 const sum = (counts: Readonly<Record<string, number>>) =>
   Object.values(counts).reduce((total, count) => total + count, 0);
 
-/** Every count in `work` that is over `budget`, rows first, then commits, renders and commands. */
-export function breachesOf(work: Work, budget: ActionBudget): Breach[] {
+const UNDER =
+  'far under its budget: the action probably did not happen (if the work really went, re-record with PERF_BUDGETS=write PERF_BUDGETS_ALLOW_DROP=1)';
+const UNBUDGETED = 'the budget has no number for this count';
+const UNNAMED = 'never rendered under that name: renamed, or a minified build';
+
+/**
+ * Every count in `work` out of `budget`: over it; under its floor (unless the
+ * drop is allowed); a hard row rule whose component never rendered; and a
+ * count the budget has no number for.
+ */
+export function breachesOf(
+  work: Work,
+  budget: ActionBudget,
+  { allowDrop = false }: DropRule = {},
+): Breach[] {
   const breaches: Breach[] = [];
-  const over = (count: string, limit: number, actual: number) => {
-    if (actual > limit) breaches.push({ count, budget: limit, actual });
+  const held = (count: string, limit: unknown, actual: number) => {
+    if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+      breaches.push({ count, budget: Number.NaN, actual, why: UNBUDGETED });
+    } else if (actual > limit) {
+      breaches.push({ count, budget: limit, actual });
+    } else if (!allowDrop && actual < floorOf(limit)) {
+      breaches.push({ count, budget: limit, actual, why: UNDER });
+    }
   };
   for (const [row, limit] of Object.entries(budget.rows ?? {})) {
-    over(`${row} renders (hard rule)`, limit, work.renders[row] ?? 0);
+    const actual = work.renders[row];
+    if (actual === undefined)
+      breaches.push({
+        count: `${row} renders (hard rule)`,
+        budget: limit,
+        actual: 0,
+        why: UNNAMED,
+      });
+    else if (actual > limit)
+      breaches.push({ count: `${row} renders (hard rule)`, budget: limit, actual });
   }
-  over('React commits', budget.commits, work.commits);
-  over('component renders', budget.renders, sum(work.renders));
-  for (const [command, actual] of Object.entries(work.calls)) {
-    over(`host calls to ${command}`, budget.calls[command] ?? 0, actual);
+  held('React commits', budget.commits, work.commits);
+  held('component renders', budget.renders, sum(work.renders));
+  const budgeted = budget.calls as Readonly<Record<string, unknown>>;
+  for (const command of [
+    ...new Set([...Object.keys(work.calls), ...Object.keys(budgeted)]),
+  ].sort()) {
+    held(`host calls to ${command}`, budgeted[command] ?? 0, work.calls[command] ?? 0);
   }
   return breaches;
 }
@@ -82,14 +137,18 @@ export function topOf(counts: Readonly<Record<string, number>>, limit = 5): stri
     .join(', ');
 }
 
-/** What the gate prints when an action is over its budget: which counts, by how much, and who did it. */
+const signed = (difference: number) => (difference >= 0 ? `+${difference}` : `${difference}`);
+
+/** What the gate prints when an action is out of its budget: which counts, by how much, why, and who did it. */
 export function describeBreaches(action: string, work: Work, breaches: readonly Breach[]): string {
-  const lines = breaches.map(
-    ({ count, budget, actual }) =>
-      `  ${count}: budget ${budget}, actual ${actual} (+${actual - budget})`,
+  const lines = breaches.map(({ count, budget, actual, why }) =>
+    why === undefined
+      ? `  ${count}: budget ${budget}, actual ${actual} (${signed(actual - budget)})`
+      : `  ${count}: budget ${Number.isNaN(budget) ? 'none' : budget}, actual ${actual}: ${why}`,
   );
+  const over = breaches.some((breach) => breach.why === undefined);
   return [
-    `"${action}" did more work than its budget (tools/perf/budgets.json):`,
+    `"${action}" ${over ? 'did more work than' : 'is out of'} its budget (tools/perf/budgets.json):`,
     ...lines,
     `  most rendered: ${topOf(work.renders)}`,
     `  most called:   ${topOf(work.calls)}`,
@@ -100,7 +159,7 @@ export function describeBreaches(action: string, work: Work, breaches: readonly 
 export function budgetFor(work: Work, rows?: ActionBudget['rows']): ActionBudget {
   return {
     commits: withHeadroom(work.commits),
-    renders: withHeadroom(sum(work.renders)),
+    renders: withRenderHeadroom(sum(work.renders)),
     calls: Object.fromEntries(
       Object.entries(work.calls)
         .sort((a, b) => a[0].localeCompare(b[0]))
@@ -112,22 +171,45 @@ export function budgetFor(work: Work, rows?: ActionBudget['rows']): ActionBudget
 
 /**
  * `was`, lowered wherever `now` is under it, and never raised: each count is
- * the lesser of the two. An action with no budget yet takes `now` whole.
+ * the lesser of the two. A count `was` lacks, or holds as no number, takes
+ * `now`'s. One that would fall below `was`'s floor keeps `was` unless the
+ * drop is allowed: a step that stopped happening must not write itself a
+ * budget of nothing. An action with no budget yet takes `now` whole.
  */
-export function lowered(was: ActionBudget | undefined, now: ActionBudget): ActionBudget {
+export function lowered(
+  was: ActionBudget | undefined,
+  now: ActionBudget,
+  { allowDrop = false }: DropRule = {},
+): ActionBudget {
   if (was === undefined) return now;
-  const commands = Object.keys(was.calls).filter((command) => command in now.calls);
+  const lower = (before: unknown, after: number) => {
+    if (typeof before !== 'number' || !Number.isFinite(before)) return after;
+    if (!allowDrop && after < floorOf(before)) return before;
+    return Math.min(before, after);
+  };
+  const kept = Object.keys(was.calls).filter((command) => command in now.calls || !allowDrop);
+  const calls = Object.fromEntries(
+    kept
+      .map((command) => [command, lower(was.calls[command], now.calls[command] ?? 0)] as const)
+      .filter(([, count]) => count > 0),
+  );
   return {
-    commits: Math.min(was.commits, now.commits),
-    renders: Math.min(was.renders, now.renders),
-    calls: Object.fromEntries(
-      commands.map((command) => [
-        command,
-        Math.min(was.calls[command] ?? 0, now.calls[command] ?? 0),
-      ]),
-    ),
+    commits: lower(was.commits, now.commits),
+    renders: lower(was.renders, now.renders),
+    calls,
     ...(was.rows === undefined ? {} : { rows: was.rows }),
   };
+}
+
+/**
+ * Whether the component names counted look minified: none longer than three
+ * letters, or most of them one or two. The row rules and the "most rendered"
+ * names mean nothing then, so the run refuses such a build.
+ */
+export function looksMinified(names: readonly string[]): boolean {
+  if (names.length === 0) return true;
+  const short = names.filter((name) => name.length <= 2).length;
+  return !names.some((name) => name.length > 3) || short * 2 > names.length;
 }
 
 /** One action as the run measured it, for the report. */
@@ -161,19 +243,35 @@ export function reportTable(measured: readonly Measurement[]): string {
   return [...head, ...rows].join('\n');
 }
 
-/** Every count that differs between two runs of one action, as `count: first → second`. */
-export function differencesBetween(first: Work, second: Work): string[] {
+/** How far two runs of one action may differ and still count as the same: none, unless said. */
+export interface RunTolerance {
+  readonly commits: number;
+  /** For each component, how many renders either way. */
+  readonly rendersEach: number;
+}
+
+const EXACT: RunTolerance = { commits: 0, rendersEach: 0 };
+
+/**
+ * Every count that differs between two runs of one action, beyond `tolerance`,
+ * as `count: first → second`. Host calls are always held to an exact match.
+ */
+export function differencesBetween(
+  first: Work,
+  second: Work,
+  tolerance: RunTolerance = EXACT,
+): string[] {
   const differ: string[] = [];
-  const compare = (count: string, a: number, b: number) => {
-    if (a !== b) differ.push(`${count}: ${a} → ${b}`);
+  const compare = (count: string, a: number, b: number, allowed: number) => {
+    if (Math.abs(a - b) > allowed) differ.push(`${count}: ${a} → ${b}`);
   };
-  compare('React commits', first.commits, second.commits);
-  for (const [kind, a, b] of [
-    ['renders of', first.renders, second.renders],
-    ['host calls to', first.calls, second.calls],
+  compare('React commits', first.commits, second.commits, tolerance.commits);
+  for (const [kind, a, b, allowed] of [
+    ['renders of', first.renders, second.renders, tolerance.rendersEach],
+    ['host calls to', first.calls, second.calls, 0],
   ] as const) {
     for (const name of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
-      compare(`${kind} ${name}`, a[name] ?? 0, b[name] ?? 0);
+      compare(`${kind} ${name}`, a[name] ?? 0, b[name] ?? 0, allowed);
     }
   }
   return differ;
