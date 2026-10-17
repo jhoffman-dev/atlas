@@ -8,6 +8,11 @@ export type { SidebarSection, SidebarSectionId } from './sidebar-section.ts';
 export { classifySidebarNote, orderSidebarEntries, sidebarEntry } from './sidebar-entry.ts';
 export type { SidebarEntry, SidebarMark } from './sidebar-entry.ts';
 export { compileSidebarQuery, SIDEBAR_QUERY_COLUMNS } from './sidebar-query.ts';
+export {
+  compileTypeCountsQuery,
+  TYPE_COUNTS_QUERY_COLUMNS,
+  TYPE_COUNTS_QUERY_MARK,
+} from './type-counts-query.ts';
 export { treeEntryIcon, typeIcon, viewIcon } from './sidebar-icon.ts';
 export type { SidebarIcon } from './sidebar-icon.ts';
 export { SYSTEM_FOLDER_LABEL, treeEntryLabel, vaultInitial } from './sidebar-names.ts';

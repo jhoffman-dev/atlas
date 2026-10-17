@@ -90,7 +90,7 @@ export function useSidebarCatalog({
         if (!cancelled) setCounts(counted);
       })
       .catch(() => {
-        // Already handled per type inside the use-case; nothing to add here.
+        // Already handled inside the use-case, which counts none on a failure.
       });
     return () => {
       cancelled = true;

@@ -94,6 +94,12 @@ describe('compileTypeCountsQuery', () => {
     ).toEqual({ project: 2 });
   });
 
+  it('still counts a note that is a task as well as a Project set to archive, as a task', () => {
+    expect(
+      countsIn({ 'Both.md': { type: ['task', 'project'], para: 'archive' } }, ['task', 'project']),
+    ).toEqual({ task: 1 });
+  });
+
   it('counts a note of another type that says para: archive, which only a Project can be', () => {
     expect(countsIn({ 'Old.md': { type: 'task', para: 'archive' } }, ['task'])).toEqual({
       task: 1,

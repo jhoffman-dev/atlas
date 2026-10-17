@@ -284,11 +284,8 @@ describe('TodayPage', () => {
       within(row).getByRole('button', { name: 'Move Call the bank to…' }),
       within(row).getByRole('button', { name: 'Defer Call the bank 1 day' }),
     ];
-    expect(controls.map((control) => (control as HTMLButtonElement).disabled)).toEqual([
-      true,
-      true,
-      true,
-    ]);
+    // Disabled as the browser has it: by the fieldset around the rows, not each control's own attribute.
+    expect(controls.map((control) => control.matches(':disabled'))).toEqual([true, true, true]);
   });
 
   it('says why an action could not be done', () => {

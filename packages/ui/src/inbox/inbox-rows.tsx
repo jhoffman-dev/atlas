@@ -14,6 +14,7 @@ import {
 import { Icon } from '../icon.tsx';
 import type { RelationChoice } from '../properties-panel.tsx';
 import { RelationOptions } from '../relation-options.tsx';
+import { useSteadyCallback } from '../steady-callback.ts';
 import { asksWhoItWaitsOn, clarificationOf, type InboxDraft } from './inbox-triage.ts';
 import { useInboxTriage, type ClarifyInboxItem, type InboxTriage } from './use-inbox-triage.ts';
 
@@ -58,6 +59,7 @@ export function InboxRows({
   summaryPending,
 }: InboxRowsProps) {
   const triage = useInboxTriage({ items, onClarify });
+  const open = useSteadyCallback(onOpen);
   const { rowRef, onRowFocus, pick, commit, fileUnder, makeTask } = triage;
   const actions = useMemo(
     () => ({ rowRef, onRowFocus, pick, commit, fileUnder, makeTask }),
@@ -73,7 +75,7 @@ export function InboxRows({
           focused={triage.focused === item.path}
           draft={triage.draftOf(item.path)}
           choices={choices}
-          onOpen={onOpen}
+          onOpen={open}
           busy={busy}
           refusal={refusals.find((each) => each.path === item.path)?.reason ?? null}
           summaryPending={summaryPending?.get(item.path) ?? null}

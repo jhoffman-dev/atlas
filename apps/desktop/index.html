@@ -21,11 +21,27 @@
       // Classic script, so it runs before the module bundle and can report a
       // failure to load it. Tauri injects its internals before any page script.
       (function () {
+        // Set while a report is being handed over: an error the hand-over itself
+        // raises is not reported again, which would only report that, and so on.
+        var reporting = false;
         var report = function (message) {
+          if (reporting) return;
+          reporting = true;
           try {
-            window.__TAURI_INTERNALS__.invoke('report_error', { message: String(message) });
+            var sent = window.__TAURI_INTERNALS__.invoke('report_error', {
+              message: String(message),
+            });
+            if (sent && typeof sent.then === 'function') {
+              sent.then(undefined, function () {
+                /* Safe to drop: a report that cannot be delivered has nowhere
+                   else to go, and left unhandled its rejection is reported in
+                   turn — which fails the same way, round and round (#217). */
+              });
+            }
           } catch (_) {
             /* Outside Tauri there is nowhere to report to; the console will do. */
+          } finally {
+            reporting = false;
           }
         };
         window.addEventListener('error', function (event) {

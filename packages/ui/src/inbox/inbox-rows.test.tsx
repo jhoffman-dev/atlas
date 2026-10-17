@@ -101,13 +101,15 @@ describe('InboxRows — deciding one row (#217)', () => {
     task: null,
   });
   const NOTES = ['Larkspur sync', 'Ledger review', 'Payroll dry run', 'Quarter close'].map(note);
+  // Kept the same lists while they say the same, as the app keeps them.
   const FILING = [{ path: 'Projects/Atlas.md', title: 'Atlas' }];
+  const PEOPLE = [{ path: 'People/Mara Quill.md', title: 'Mara Quill' }];
 
   /** The page as the app hands it over: callbacks made again on every render of the app. */
   const given = (items: readonly InboxItem[]): InboxPageProps => ({
     ...props([...items]),
     filing: FILING,
-    statuses: undefined,
+    people: PEOPLE,
     onOpen: vi.fn(),
     onClarify: vi.fn(async () => true),
   });

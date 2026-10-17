@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { memo, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import {
   GTD_STATUS_LABELS,
@@ -20,6 +20,7 @@ import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
 import { PageHead } from './page-head.tsx';
 import { StatusPill } from './status-pill.tsx';
+import { useSteadyCallback } from './steady-callback.ts';
 import { useRowFocus, type RowFocus } from './today-row-focus.ts';
 
 /** What the page did to a task, for the line that offers to take it back. */
@@ -98,7 +99,11 @@ export function TodayPage(props: TodayPageProps) {
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
-        <article className="page page--wide review today" aria-label="Today">
+        <article
+          className="page page--wide review today"
+          aria-label="Today"
+          aria-busy={props.busy || undefined}
+        >
           <PageHead
             icon="today"
             title="Today"
@@ -271,37 +276,84 @@ const EMPTY: Readonly<Record<TodaySectionId, string>> = {
 };
 
 function Sections(props: TodayPageProps & { today: TodayReport; focus: RowFocus }) {
-  const { today, busy, focus } = props;
-  const act = (task: TodayTask, action: () => void) => {
-    focus.actedOn(task.path);
-    action();
-  };
+  const { today, busy } = props;
   const settling = props.settling ?? NONE_SETTLING;
-  const row: RowContext = {
-    // A row that is settling is as busy as the page: what it shows is no longer what its task is.
-    busyFor: (path) => busy || settling.has(path),
-    rowRef: focus.rowRef,
-    onOpen: props.onOpen,
-    onDone: (task) => act(task, () => props.onDone(rowOf(task))),
-    onDefer: (task, days) => act(task, () => props.onDefer({ ...rowOf(task), days })),
-    onMove: (task, status) => act(task, () => props.onSetStatus({ ...rowOf(task), status })),
-  };
+  const actions = useRowActions(props);
   return (
-    <>
+    // While an action is under way every row's controls are disabled at once, by
+    // the fieldset, so that no row is drawn again to say so (#217).
+    <fieldset className="today__sections" disabled={busy} role="presentation">
       {today.sections.map((section) => (
-        <Section key={section.id} section={section} row={row} />
+        <Section key={section.id} section={section} settling={settling} actions={actions} />
       ))}
-    </>
+    </fieldset>
   );
+}
+
+/**
+ * What every row can do, the same object from one render to the next: the
+ * app hands the page new callbacks on many of its renders, and a row handed a
+ * new action is drawn again — all of them, for one tick (#217).
+ */
+function useRowActions(props: TodayPageProps & { focus: RowFocus }): RowActions {
+  const { actedOn, rowRef } = props.focus;
+  const onOpen = useSteadyCallback(props.onOpen);
+  const onDone = useSteadyCallback(props.onDone);
+  const onDefer = useSteadyCallback(props.onDefer);
+  const onSetStatus = useSteadyCallback(props.onSetStatus);
+  return useMemo(() => {
+    const act = (task: TodayTask, action: () => void) => {
+      actedOn(task.path);
+      action();
+    };
+    return {
+      rowRef,
+      onOpen,
+      onDone: (task) => act(task, () => onDone(rowOf(task))),
+      onDefer: (task, days) => act(task, () => onDefer({ ...rowOf(task), days })),
+      onMove: (task, status) => act(task, () => onSetStatus({ ...rowOf(task), status })),
+    };
+  }, [actedOn, rowRef, onOpen, onDone, onDefer, onSetStatus]);
 }
 
 const rowOf = (task: TodayTask): RowTask => ({ path: task.path, title: task.title });
 
-/**
- * A row's Move to… menu: the statuses the domain offers this task.
- * Open state, focus, typeahead and Escape are Base UI's (ADR-0015).
- */
+/** A row's Move to… button and menu: the statuses the domain offers this task. */
 function MoveMenu({
+  task,
+  busy,
+  onMove,
+}: {
+  task: TodayTask;
+  busy: boolean;
+  onMove: (task: TodayTask, status: string) => void;
+}) {
+  // Built the first time it is opened: a Base UI menu on each of hundreds of
+  // rows was most of what a tick drew again (#217). Kept once built, so focus
+  // goes back to its button when it shuts.
+  const [built, setBuilt] = useState(false);
+  const label = `Move ${task.title} to…`;
+  if (built) return <MoveMenuOpened task={task} busy={busy} onMove={onMove} />;
+  return (
+    <button
+      type="button"
+      className="btn btn--ghost btn--sm"
+      aria-label={label}
+      aria-haspopup="menu"
+      aria-expanded={false}
+      disabled={busy}
+      onClick={() => setBuilt(true)}
+    >
+      Move to…
+    </button>
+  );
+}
+
+/**
+ * The menu itself, open as it is first built. Open state, focus, typeahead
+ * and Escape are Base UI's (ADR-0015).
+ */
+function MoveMenuOpened({
   task,
   busy,
   onMove,
@@ -316,7 +368,7 @@ function MoveMenu({
     onSelect: () => onMove(task, status),
   }));
   return (
-    <Menu.Root>
+    <Menu.Root defaultOpen>
       <Menu.Trigger
         className="btn btn--ghost btn--sm"
         aria-label={`Move ${task.title} to…`}
@@ -337,10 +389,8 @@ function MoveMenu({
 
 const NONE_SETTLING: ReadonlySet<VaultPath> = new Set();
 
-/** What every row is handed: how to act, and where it stands. */
-interface RowContext {
-  /** Whether a row takes no action just now: one is under way, or this row's last has not been read back. */
-  readonly busyFor: (path: VaultPath) => boolean;
+/** What every row can do. */
+interface RowActions {
   readonly rowRef: (path: VaultPath) => (element: HTMLElement | null) => void;
   readonly onOpen: (path: VaultPath) => void;
   readonly onDone: (task: TodayTask) => void;
@@ -348,7 +398,14 @@ interface RowContext {
   readonly onMove: (task: TodayTask, status: string) => void;
 }
 
-function Section({ section, row }: { section: TodaySection; row: RowContext }) {
+/** What a section hands each row: what the rows can do, and which have yet to be read back. */
+interface RowsGiven {
+  /** The rows acted on whose change the page has not read back: each takes no action until then. */
+  readonly settling: ReadonlySet<VaultPath>;
+  readonly actions: RowActions;
+}
+
+function Section({ section, ...given }: { section: TodaySection } & RowsGiven) {
   const title = TODAY_SECTION_LABELS[section.id];
   return (
     <section className="review__section" aria-label={title}>
@@ -365,7 +422,7 @@ function Section({ section, row }: { section: TodaySection; row: RowContext }) {
         <p className="review__empty">{EMPTY[section.id]}</p>
       ) : (
         section.groups.map((group) => (
-          <Group key={group.key} sectionId={section.id} group={group} row={row} />
+          <Group key={group.key} sectionId={section.id} group={group} {...given} />
         ))
       )}
     </section>
@@ -381,18 +438,15 @@ const UNNAMED: Partial<Record<TodaySectionId, string>> = {
 function Group({
   sectionId,
   group,
-  row,
-}: {
-  sectionId: TodaySectionId;
-  group: TodayGroup;
-  row: RowContext;
-}) {
+  settling,
+  actions,
+}: { sectionId: TodaySectionId; group: TodayGroup } & RowsGiven) {
   const name = group.label ?? UNNAMED[sectionId] ?? null;
   return (
     <div className="today__group" role="group" aria-label={name ?? undefined}>
       {name !== null && (
         <h3 className="today__group-name">
-          <GroupName group={group} name={name} onOpen={row.onOpen} />
+          <GroupName group={group} name={name} onOpen={actions.onOpen} />
           <span className="review__count">{group.tasks.length}</span>
         </h3>
       )}
@@ -401,7 +455,13 @@ function Group({
           <table className="table__grid review__grid">
             <tbody>
               {group.tasks.map((task) => (
-                <TaskRow key={task.path} task={task} sectionId={sectionId} row={row} />
+                <TaskRow
+                  key={task.path}
+                  task={task}
+                  sectionId={sectionId}
+                  settling={settling.has(task.path)}
+                  actions={actions}
+                />
               ))}
             </tbody>
           </table>
@@ -429,39 +489,46 @@ function GroupName({
   );
 }
 
-function TaskRow({
+/**
+ * One task's row, drawn again only when its task or its standing changes:
+ * the page can hold hundreds, and a tick drew every one of them again (#217).
+ * The page's own busy disables it through the fieldset around the sections.
+ */
+const TaskRow = memo(function TaskRow({
   task,
   sectionId,
-  row,
+  settling,
+  actions,
 }: {
   task: TodayTask;
   sectionId: TodaySectionId;
-  row: RowContext;
+  /** Acted on, and not yet read back: what it shows is no longer what its task is. */
+  settling: boolean;
+  actions: RowActions;
 }) {
-  const busy = row.busyFor(task.path);
   return (
-    <tr className="table__row" data-today-row={task.path} aria-busy={busy || undefined}>
+    <tr className="table__row" data-today-row={task.path} aria-busy={settling || undefined}>
       <td className="table__done">
         <input
-          ref={row.rowRef(task.path)}
+          ref={actions.rowRef(task.path)}
           type="checkbox"
           className="done-check"
           aria-label={`Mark ${task.title} done`}
           checked={false}
-          disabled={busy}
-          onChange={() => row.onDone(task)}
+          disabled={settling}
+          onChange={() => actions.onDone(task)}
         />
       </td>
       <td className="table__name">
-        <button type="button" className="table__link" onClick={() => row.onOpen(task.path)}>
+        <button type="button" className="table__link" onClick={() => actions.onOpen(task.path)}>
           <span className="table__title">{task.title}</span>
         </button>
       </td>
       <td className="review__detail today__detail">
-        <Details task={task} sectionId={sectionId} onOpen={row.onOpen} />
+        <Details task={task} sectionId={sectionId} onOpen={actions.onOpen} />
       </td>
       <td className="review__actions">
-        <MoveMenu task={task} busy={busy} onMove={row.onMove} />
+        <MoveMenu task={task} busy={settling} onMove={actions.onMove} />
         {TODAY_DEFER_DAYS.map((days) => (
           <button
             key={days}
@@ -469,8 +536,8 @@ function TaskRow({
             className="btn btn--ghost btn--sm"
             aria-label={`Defer ${task.title} ${days === 1 ? '1 day' : `${days} days`}`}
             title={days === 1 ? 'Defer until tomorrow' : `Defer for ${days} days`}
-            disabled={busy}
-            onClick={() => row.onDefer(task, days)}
+            disabled={settling}
+            onClick={() => actions.onDefer(task, days)}
           >
             +{days}d
           </button>
@@ -478,7 +545,7 @@ function TaskRow({
       </td>
     </tr>
   );
-}
+});
 
 /** The sections whose tasks are of mixed statuses, so each row says its own. */
 const SAYS_STATUS: ReadonlySet<TodaySectionId> = new Set(['overdue', 'dueToday', 'backToday']);

@@ -969,6 +969,10 @@ export async function installHost(
         if (statement.startsWith('/* inbox */')) {
           return runAtlasQuery(statement, bound, indexed.values());
         }
+        // The sidebar's count beside each type (#217): over files and props, run for real.
+        if (statement.startsWith('/* type counts */')) {
+          return runArchiveQuery(statement, bound, indexed.values());
+        }
         // The vocabulary's notes (P28-05) read the same files and props tables
         // the Archive does, so they run for real by SQLite the same way.
         if (statement.startsWith('/* terms:')) {

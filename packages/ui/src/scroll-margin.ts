@@ -74,32 +74,42 @@ export function useScrollMargin(
     setMargin(next);
   };
 
-  // Every render: a section above opening, shutting or moving re-renders the
-  // sidebar and this with it, so there is no value to depend on — only the
-  // layout. Setting the same number again does not render again.
-  useLayoutEffect(() => {
-    if (scroller !== null) measure(scroller);
-  });
-
+  // Read once mounted, then only when something can have moved the content:
+  // never on a render, since the sidebar renders on every commit of the app and
+  // a read then forces the browser to lay the whole window out there and then
+  // (#217). `measure` reads only refs and a state setter, so the first one serves.
   useLayoutEffect(() => {
     if (scroller === null) return;
     scrolled.current = scroller.scrollTop;
+    measure(scroller);
     const onScroll = () => {
       scrolled.current = scroller.scrollTop;
+      measure(scroller);
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
     return () => scroller.removeEventListener('scroll', onScroll);
-  }, [scroller]);
+  }, [content, scroller]);
 
-  // What the sidebar does not re-render for — a row above that wraps once a
-  // font arrives — still changes the content's height, so that is watched too.
-  // `measure` reads only refs and a state setter, so the first one serves.
+  // A section above opening, shutting or growing changes the height of what
+  // the scroller holds, and one moving changes the order of its sections
+  // without changing a size: both are watched.
   useLayoutEffect(() => {
     const inner = scroller?.firstElementChild ?? null;
-    if (scroller === null || inner === null || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => measure(scroller));
-    observer.observe(inner);
-    return () => observer.disconnect();
+    if (scroller === null || inner === null) return;
+    const watchers: { disconnect: () => void }[] = [];
+    if (typeof ResizeObserver !== 'undefined') {
+      const resized = new ResizeObserver(() => measure(scroller));
+      resized.observe(inner);
+      watchers.push(resized);
+    }
+    if (typeof MutationObserver !== 'undefined') {
+      const reordered = new MutationObserver(() => measure(scroller));
+      reordered.observe(inner, { childList: true });
+      watchers.push(reordered);
+    }
+    return () => {
+      for (const watcher of watchers) watcher.disconnect();
+    };
   }, [content, scroller]);
 
   return margin;

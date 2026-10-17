@@ -277,7 +277,13 @@ export function useInbox(options: InboxOptions) {
     indexKey,
   });
 
-  const statuses = useMemo(() => clarifyVocabulary(types).statuses, [types]);
+  // The types are read again after every write: the same statuses are kept the
+  // same list, or every row would be drawn again for a list that says the same (#217).
+  const statusesSaid = useMemo(() => JSON.stringify(clarifyVocabulary(types).statuses), [types]);
+  const statuses = useMemo(
+    () => JSON.parse(statusesSaid) as ReturnType<typeof clarifyVocabulary>['statuses'],
+    [statusesSaid],
+  );
   // One object per clarification, not one per render: its bar's time is kept by it (#165).
   const lastAction = useMemo(() => (last === null ? null : { title: last.title }), [last]);
   return {

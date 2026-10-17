@@ -20,6 +20,7 @@ import {
 } from '@atlas/application';
 import type { TodayAction } from '@atlas/ui';
 import { errorMessage } from '../query/error-message.ts';
+import { keptTodayReport } from './kept-today-report.ts';
 import { useReviewWrites, type ReviewWritesOptions } from '../review/use-review-writes.ts';
 
 /** How often an open page asks the clock whether the day has turned. */
@@ -84,7 +85,13 @@ export function useToday(options: TodayOptions) {
     const begun = readsBegun.current;
     const land = (landed: Pick<ReadFrom, 'report' | 'error'>) => {
       if (cancelled) return;
-      setRead({ index, vaultKey, ...landed });
+      // A task that reads the same keeps its object, so its row is not drawn again (#217).
+      setRead((before) => {
+        const shown = before !== null && sameVault(before, { index, vaultKey }) ? before : null;
+        const report =
+          landed.report === null ? null : keptTodayReport(shown?.report ?? null, landed.report);
+        return { index, vaultKey, error: landed.error, report };
+      });
       setSettling((rows) => withoutSettledBy(rows, begun));
     };
     readToday({ index, fs, markdown, clock, tasksStartInInbox: startInInbox })
