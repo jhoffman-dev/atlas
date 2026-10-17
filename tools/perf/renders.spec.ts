@@ -61,6 +61,8 @@ test.afterAll(async () => {
 
 /** Times `setUp`'s step `REPEATS` times, then counts what one more drew. */
 async function observe<Arg>(action: string, setUp: () => Promise<Step<Arg>>): Promise<void> {
+  // Each run waits for the host to go quiet, up to `probe.ts`'s limit.
+  test.setTimeout((REPEATS + 1) * 30_000);
   const timed: Measured[] = [];
   for (let turn = 0; turn < REPEATS; turn += 1) timed.push(await measure(page, await setUp()));
   const step = await setUp();
