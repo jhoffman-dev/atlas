@@ -1732,3 +1732,248 @@ mod concurrency_tests {
         }
     }
 }
+
+/// Adversarial probes of the vault's changes running on the blocking pool
+/// (PR #242). Each test names the invariant it holds.
+#[cfg(test)]
+mod attack_242_tests {
+    use super::{list_entries, one_change_at_a_time, read_text, write_text};
+    use crate::vault_entries::{create_folder_at, move_entry_at, trash_entry_at};
+    use crate::vault_files::replace_binary_at;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::mpsc;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::Duration;
+    use tempfile::tempdir;
+
+    /// A small seeded generator, so a failing schedule can be replayed.
+    struct XorShift(u64);
+    impl XorShift {
+        fn below(&mut self, bound: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % bound
+        }
+    }
+
+    /// The modification time is the only version a save is checked against,
+    /// so two different versions must never share one. A note created and
+    /// saved in the same millisecond does, and a writer still holding the
+    /// first version's time then saves over the second.
+    #[test]
+    fn a_save_holding_an_older_versions_time_is_refused_even_within_one_millisecond() {
+        for round in 0..200 {
+            let vault = tempdir().unwrap();
+            fs::write(vault.path().join("a.md"), "opened by both").unwrap();
+            let opened = read_text(vault.path(), "a.md").unwrap().modified;
+            // Pane one saves first, from the version both opened.
+            one_change_at_a_time(|| write_text(vault.path(), "a.md", "pane one", Some(opened)))
+                .unwrap();
+            // Pane two still holds the version it opened; its save is stale.
+            let stale =
+                one_change_at_a_time(|| write_text(vault.path(), "a.md", "pane two", Some(opened)));
+            assert!(
+                stale.is_err(),
+                "round {round}: a stale save was accepted and \"pane one\" was lost"
+            );
+            assert_eq!(
+                fs::read_to_string(vault.path().join("a.md")).unwrap(),
+                "pane one",
+                "round {round}"
+            );
+        }
+    }
+
+    /// A save writes only the note it names. A link left at the note's
+    /// temporary name (by anything that can write the vault: sync, an
+    /// archive, another app) must not carry the save's text out of it.
+    #[test]
+    fn a_save_never_writes_through_a_link_at_its_temporary_name() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let victim = outside.path().join("victim.txt");
+        fs::write(&victim, "not the vault's").unwrap();
+        fs::write(vault.path().join("a.md"), "note").unwrap();
+        std::os::unix::fs::symlink(&victim, vault.path().join(".a.md.atlas-tmp")).unwrap();
+
+        let saved = one_change_at_a_time(|| write_text(vault.path(), "a.md", "saved text", None));
+
+        assert_eq!(
+            fs::read_to_string(&victim).unwrap(),
+            "not the vault's",
+            "the save wrote outside the vault (result {saved:?})"
+        );
+    }
+
+    /// The lock guards nothing, so a change that panics must not stop the
+    /// next one from running.
+    #[test]
+    fn a_change_that_panicked_inside_the_lock_does_not_stop_later_saves() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "first").unwrap();
+        let panicked = thread::spawn(|| one_change_at_a_time(|| panic!("a change blew up"))).join();
+        assert!(panicked.is_err());
+
+        let (done, finished) = mpsc::channel();
+        let root = vault.path().to_path_buf();
+        thread::spawn(move || {
+            done.send(one_change_at_a_time(|| {
+                write_text(&root, "a.md", "after", None)
+            }))
+            .unwrap();
+        });
+        let result = finished
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the save after a panic never got its turn");
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    const NOTES: [&str; 3] = ["F/a.md", "F/b.md", "G/c.md"];
+
+    /// A note's text as written by one save: whole only if both ends match.
+    fn stamped(thread: usize, step: usize, filler: usize) -> String {
+        let id = format!("{thread}-{step}");
+        format!("BEGIN {id} {} END {id}", "x".repeat(filler))
+    }
+
+    fn is_whole(text: &str) -> bool {
+        let Some(rest) = text.strip_prefix("BEGIN ") else {
+            return text == "seed";
+        };
+        let id = rest.split(' ').next().unwrap_or_default();
+        text.ends_with(&format!(" END {id}"))
+    }
+
+    fn walk(root: &Path, found: &mut Vec<PathBuf>) {
+        for entry in fs::read_dir(root).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, found);
+            } else {
+                found.push(path);
+            }
+        }
+    }
+
+    /// One worker's step: a read, a listing, or one change under the lock.
+    /// Every save carries the time the worker last read, and the save is
+    /// checked against what was on disk at its turn: a save of a version the
+    /// worker never read is a stale save accepted.
+    fn step(root: &Path, trash: &Path, rng: &mut XorShift, at: (usize, usize)) -> Option<String> {
+        let note = NOTES[rng.below(NOTES.len() as u64) as usize];
+        match rng.below(8) {
+            0 | 1 => {
+                let Ok(read) = read_text(root, note) else {
+                    return None;
+                };
+                let text = stamped(at.0, at.1, rng.below(5000) as usize);
+                one_change_at_a_time(|| {
+                    let before = fs::read_to_string(root.join(note)).ok();
+                    let saved = write_text(root, note, &text, Some(read.modified));
+                    (saved.is_ok() && before.as_deref() != Some(read.text.as_str())).then(|| {
+                        let head = |text: &str| text.chars().take(14).collect::<String>();
+                        let disk = before.as_deref().map(head);
+                        format!(
+                            "stale save of {note} accepted: read {:?}, disk {disk:?}",
+                            head(&read.text)
+                        )
+                    })
+                })
+            }
+            2 => {
+                let text = stamped(at.0, at.1, rng.below(5000) as usize);
+                let _ = one_change_at_a_time(|| write_text(root, note, &text, None));
+                None
+            }
+            3 => {
+                let _ = one_change_at_a_time(|| super::create_note_at(root, note, "seed"));
+                None
+            }
+            4 => {
+                let (from, to) = if rng.below(2) == 0 {
+                    ("F", "H")
+                } else {
+                    ("H", "F")
+                };
+                let _ = one_change_at_a_time(|| move_entry_at(root, from, to));
+                None
+            }
+            5 => {
+                let into = trash.join(format!("{}-{}", at.0, at.1));
+                let _ = one_change_at_a_time(|| {
+                    trash_entry_at(root, note, |entry| {
+                        fs::rename(entry, &into).map_err(|error| error.to_string())
+                    })
+                });
+                let _ = one_change_at_a_time(|| create_folder_at(root, "F"));
+                None
+            }
+            6 => {
+                let _ = one_change_at_a_time(|| replace_binary_at(root, "F/pic.png", &[7; 4096]));
+                None
+            }
+            _ => {
+                let _ = list_entries(root, "F");
+                read_text(root, note).ok().and_then(|read| {
+                    (!is_whole(&read.text)).then(|| format!("torn read of {note}: {:?}", read.text))
+                })
+            }
+        }
+    }
+
+    /// Many workers mixing every change and read on the same few paths: no
+    /// torn note, no temporary left, no stale save accepted, no deadlock.
+    #[test]
+    fn a_hammer_of_mixed_changes_leaves_every_note_whole_and_accepts_no_stale_save() {
+        const WORKERS: usize = 6;
+        const STEPS: usize = 300;
+        let vault = tempdir().unwrap();
+        let trash = tempdir().unwrap();
+        for folder in ["F", "G"] {
+            fs::create_dir(vault.path().join(folder)).unwrap();
+        }
+        for note in NOTES {
+            fs::write(vault.path().join(note), "seed").unwrap();
+        }
+        let violations = Arc::new(Mutex::new(Vec::new()));
+        let (done, finished) = mpsc::channel();
+        for worker in 0..WORKERS {
+            let (root, trash) = (vault.path().to_path_buf(), trash.path().to_path_buf());
+            let (violations, done) = (Arc::clone(&violations), done.clone());
+            thread::spawn(move || {
+                let mut rng = XorShift(0x9E37_79B9_7F4A_7C15 ^ (worker as u64 + 1));
+                for at in 0..STEPS {
+                    if let Some(violation) = step(&root, &trash, &mut rng, (worker, at)) {
+                        violations.lock().unwrap().push(violation);
+                    }
+                }
+                done.send(()).unwrap();
+            });
+        }
+        for _ in 0..WORKERS {
+            finished
+                .recv_timeout(Duration::from_secs(60))
+                .expect("a worker never finished: deadlock");
+        }
+        let mut files = Vec::new();
+        walk(vault.path(), &mut files);
+        for file in &files {
+            let name = file.file_name().unwrap().to_string_lossy();
+            assert!(!name.ends_with(".atlas-tmp"), "temporary left: {file:?}");
+            if name.ends_with(".md") {
+                let text = fs::read_to_string(file).unwrap();
+                assert!(is_whole(&text), "{file:?} is torn: {text:?}");
+            }
+        }
+        let violations = violations.lock().unwrap();
+        assert!(
+            violations.is_empty(),
+            "{} violations, first: {:?}",
+            violations.len(),
+            violations.first()
+        );
+    }
+}
