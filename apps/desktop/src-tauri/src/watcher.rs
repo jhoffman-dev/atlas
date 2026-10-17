@@ -10,9 +10,9 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager};
 
-use crate::vault::VaultState;
+use crate::vault::{off_main, VaultState};
 
 /// Changes arrive in bursts — a save is often several events — so they are
 /// collected briefly and reported once.
@@ -41,13 +41,23 @@ fn to_relative(root: &Path, path: &Path) -> Option<String> {
 }
 
 /// Starts watching the open vault, replacing any previous watch.
+///
+/// Off the main thread: registering a recursive watch on a large vault takes
+/// as long as the vault is big.
 #[tauri::command]
-pub fn watch_vault(
-    app: AppHandle,
-    vault: State<'_, VaultState>,
-    watcher: State<'_, WatcherState>,
-) -> Result<(), String> {
-    let root = vault.root().ok_or("no vault is open")?;
+pub async fn watch_vault(app: AppHandle) -> Result<(), String> {
+    off_main(move || watch(app)).await
+}
+
+/// Replaces the watch with one on the open vault. The watch held is locked
+/// from start to end, so two calls never interleave, and the vault is read
+/// once the lock is held, so the call that stores its watch last watches the
+/// vault open then. The old watch is dropped — its thread ends — when the new
+/// one is stored.
+fn watch(app: AppHandle) -> Result<(), String> {
+    let watcher = app.state::<WatcherState>();
+    let mut current = watcher.0.lock().map_err(|_| "watcher state poisoned")?;
+    let root = app.state::<VaultState>().root().ok_or("no vault is open")?;
     let (sender, receiver) = channel();
 
     let mut handle: RecommendedWatcher =
@@ -63,6 +73,7 @@ pub fn watch_vault(
         .map_err(|error| format!("cannot watch the vault: {error}"))?;
 
     let watch_root = root.clone();
+    let emitter = app.clone();
     std::thread::spawn(move || {
         let mut pending: Vec<String> = Vec::new();
         loop {
@@ -82,7 +93,7 @@ pub fn watch_vault(
                 Err(RecvTimeoutError::Timeout) => {
                     if !pending.is_empty() {
                         log::debug!("vault changed: {} paths", pending.len());
-                        let _ = app.emit("vault-changed", &pending);
+                        let _ = emitter.emit("vault-changed", &pending);
                         pending.clear();
                     }
                 }
@@ -92,7 +103,7 @@ pub fn watch_vault(
         }
     });
 
-    *watcher.0.lock().map_err(|_| "watcher state poisoned")? = Some(handle);
+    *current = Some(handle);
     log::info!("watching {}", root.display());
     Ok(())
 }

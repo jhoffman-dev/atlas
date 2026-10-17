@@ -14,9 +14,11 @@ use std::io::{ErrorKind, Write};
 use std::path::Path;
 
 use tauri::ipc::{InvokeBody, Request};
-use tauri::State;
+use tauri::{AppHandle, Manager};
 
-use crate::vault::{resolve, resolve_new, root_for_write, VaultState, MAX_BINARY_BYTES};
+use crate::vault::{
+    change_in_vault, change_turn, off_main, resolve, resolve_new, VaultState, MAX_BINARY_BYTES,
+};
 
 /// The headers the frontend names the write in, percent-encoded, since a
 /// header carries only ASCII. `tauri-vault-fs.ts` sends the same names.
@@ -40,6 +42,7 @@ pub(crate) fn write_binary_at(
     bytes: &[u8],
     offset: u64,
 ) -> Result<u64, String> {
+    let _turn = change_turn();
     let end = offset.saturating_add(bytes.len() as u64);
     refuse_past_ceiling(end)?;
 
@@ -92,6 +95,7 @@ fn refuse_past_ceiling(end: u64) -> Result<(), String> {
 /// name, never what a link at that name points to, so it cannot write through
 /// a link out of the vault; a folder at the name is refused by the rename.
 pub(crate) fn replace_binary_at(root: &Path, relative: &str, bytes: &[u8]) -> Result<u64, String> {
+    let _turn = change_turn();
     refuse_past_ceiling(bytes.len() as u64)?;
     let file = resolve_new(root, relative)?;
     let directory = file.parent().ok_or("a file needs a folder")?;
@@ -138,11 +142,12 @@ pub(crate) fn header(request: &Request<'_>, name: &str) -> Result<Option<String>
 
 /// Writes the raw body into a file of the open vault. The path, the offset
 /// and the vault the write is meant for arrive as headers.
+///
+/// The body is borrowed from the request, which cannot leave this call, so it
+/// is copied once to be written on the blocking pool; a copy in memory is far
+/// cheaper than the write that would otherwise hold the window.
 #[tauri::command]
-pub fn write_binary_file(
-    state: State<'_, VaultState>,
-    request: Request<'_>,
-) -> Result<u64, String> {
+pub async fn write_binary_file(app: AppHandle, request: Request<'_>) -> Result<u64, String> {
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err("the file's bytes must be the body of the call".into());
     };
@@ -157,14 +162,19 @@ pub fn write_binary_file(
         return Err("a file is replaced whole, from offset 0".into());
     }
 
-    let root = root_for_write(state.get(), vault.as_deref())?;
-    let length = if replace {
-        replace_binary_at(&root, &path, bytes)?
-    } else {
-        write_binary_at(&root, &path, bytes, offset)?
-    };
-    log::info!("wrote {path} ({length} bytes)");
-    Ok(length)
+    let bytes = bytes.clone();
+    off_main(move || {
+        let length = change_in_vault(&app.state::<VaultState>(), vault.as_deref(), |root| {
+            if replace {
+                replace_binary_at(root, &path, &bytes)
+            } else {
+                write_binary_at(root, &path, &bytes, offset)
+            }
+        })?;
+        log::info!("wrote {path} ({length} bytes)");
+        Ok(length)
+    })
+    .await
 }
 
 #[cfg(test)]

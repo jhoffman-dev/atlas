@@ -4,6 +4,7 @@
  * Only glue lives here: which sensors, which keys, and how a keyboard press is
  * turned into a position. What a press *means* is decided in `snapping.ts`.
  */
+import { useMemo } from 'react';
 import {
   KeyboardSensor,
   PointerSensor,
@@ -42,10 +43,14 @@ const KEYBOARD_CODES = {
   end: ['Space', 'Enter'],
 };
 
+const POINTER_OPTIONS = { activationConstraint: { distance: DRAG_DISTANCE } };
+
 export function useDragSensors(coordinateGetter: KeyboardCoordinateGetter) {
-  return useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_DISTANCE } }),
-    useSensor(KeyboardSensor, {
+  // The same options from one render to the next: dnd-kit makes its sensors,
+  // and the context every draggable reads, anew for new ones — which drew
+  // every row of the sidebar again on each of its renders (#238).
+  const keyboard = useMemo(
+    () => ({
       coordinateGetter,
       keyboardCodes: KEYBOARD_CODES,
       // When a step leads off the visible part of a pane, the sensor scrolls the
@@ -53,9 +58,11 @@ export function useDragSensors(coordinateGetter: KeyboardCoordinateGetter) {
       // when the next arrow arrives, and that step is then worked out from
       // where things were — so a quick Down, Left lost the Down. An instant
       // scroll is finished before the next key.
-      scrollBehavior: 'auto',
+      scrollBehavior: 'auto' as const,
     }),
+    [coordinateGetter],
   );
+  return useSensors(useSensor(PointerSensor, POINTER_OPTIONS), useSensor(KeyboardSensor, keyboard));
 }
 
 /**

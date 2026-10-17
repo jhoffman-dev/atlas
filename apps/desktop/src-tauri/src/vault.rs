@@ -5,10 +5,14 @@
 //! outside the chosen vault root. It holds no product rules: what a note *means*
 //! is decided in TypeScript.
 
+use std::cell::Cell;
 use std::collections::HashSet;
 use std::fs;
+use std::io::{ErrorKind, Read, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -62,18 +66,18 @@ impl VaultState {
     /// lock cannot have left that path half-written, so the poison flag says
     /// nothing useful here — and honouring it would turn one panic somewhere
     /// else into every later vault call panicking for the rest of the session.
-    fn set(&self, root: PathBuf) {
-        *self
-            .0
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(root);
+    fn open(&self) -> MutexGuard<'_, Option<PathBuf>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     pub(crate) fn get(&self) -> Option<PathBuf> {
-        self.0
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone()
+        self.open().clone()
+    }
+
+    /// The open vault, or `root` when none is: a vault opened meanwhile wins
+    /// over the one remembered from the last launch.
+    fn get_or_set(&self, root: PathBuf) -> PathBuf {
+        self.open().get_or_insert(root).clone()
     }
 }
 
@@ -247,40 +251,101 @@ pub(crate) fn resolve_new(root: &Path, relative: &str) -> Result<PathBuf, String
 }
 
 /// Creates a note, refusing to touch one that is already there.
+///
+/// Written whole beside it first and renamed into place, so a read never
+/// finds the note empty while its text is still being written. The rename is
+/// exclusive, so an existing note is never overwritten and two creations
+/// racing cannot both win.
 fn create_note_at(root: &Path, relative: &str, contents: &str) -> Result<(), String> {
+    let _turn = change_turn();
     let file = resolve_new(root, relative)?;
+    let temporary = temporary_beside(&file)?;
 
-    // create_new fails if the path exists, so an existing note is never overwritten
-    // and two creations racing cannot both win.
-    let mut handle = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&file)
-        .map_err(|error| match error.kind() {
-            std::io::ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
+    // Nothing is replaced, so the time the clock gives is kept.
+    write_temporary(&temporary, contents.as_bytes(), 0)
+        .map_err(|error| format!("cannot write the note: {error}"))?;
+    rename_exclusive(&temporary, &file).map_err(|error| {
+        let _ = fs::remove_file(&temporary); // Best effort; the creation already failed.
+        match error.kind() {
+            ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
             _ => format!("cannot create the note: {error}"),
-        })?;
+        }
+    })
+}
 
-    use std::io::Write;
-    handle
-        .write_all(contents.as_bytes())
-        .map_err(|error| format!("cannot write the note: {error}"))
+/// The name a note's new text is written under before it is renamed into place.
+fn temporary_beside(file: &Path) -> Result<PathBuf, String> {
+    let directory = file.parent().ok_or("note has no parent directory")?;
+    let name = file.file_name().ok_or("note has no file name")?;
+    Ok(directory.join(format!(".{}.atlas-tmp", name.to_string_lossy())))
+}
+
+/// Renames `from` to `to` only if nothing is at `to`, decided by the kernel
+/// in the rename itself, so nothing can take the name between a check and
+/// the move.
+#[cfg(target_os = "macos")]
+pub(crate) fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both are NUL-terminated paths that outlive the call.
+    let status = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both are NUL-terminated paths that outlive the call.
+    let status = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+/// Elsewhere there is no exclusive rename, and the check is as close as it gets.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub(crate) fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    if fs::symlink_metadata(to).is_ok() {
+        return Err(std::io::ErrorKind::AlreadyExists.into());
+    }
+    fs::rename(from, to)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn c_path(path: &Path) -> std::io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL"))
 }
 
 #[tauri::command]
-pub fn create_note(
-    state: State<'_, VaultState>,
+pub async fn create_note(
+    app: AppHandle,
     path: String,
     contents: String,
     vault: String,
 ) -> Result<(), String> {
-    create_note_at(
-        &root_for_write(state.get(), Some(&vault))?,
-        &path,
-        &contents,
-    )?;
-    log::info!("created {path}");
-    Ok(())
+    off_main(move || {
+        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            create_note_at(root, &path, &contents)
+        })?;
+        log::info!("created {path}");
+        Ok(())
+    })
+    .await
 }
 
 fn root_of(state: &State<'_, VaultState>) -> Result<PathBuf, String> {
@@ -311,10 +376,12 @@ pub(crate) fn root_for_write(
 
 #[tauri::command]
 pub async fn pick_vault(app: AppHandle) -> Result<Option<VaultLocation>, String> {
-    // Runs off the main thread: an async command is dispatched to the runtime pool,
-    // and the dialog plugin hops back to the main thread on its own.
+    // Waits on the blocking pool for as long as the dialog is open, so it parks
+    // neither the window nor a worker of the async runtime; the dialog plugin
+    // hops back to the main thread on its own.
     // Picking only reports a choice — whether to keep it is decided in the use-case.
-    let Some(picked) = app.dialog().file().blocking_pick_folder() else {
+    let Some(picked) = off_main(move || Ok(app.dialog().file().blocking_pick_folder())).await?
+    else {
         return Ok(None);
     };
     let root = picked
@@ -323,30 +390,61 @@ pub async fn pick_vault(app: AppHandle) -> Result<Option<VaultLocation>, String>
     Ok(Some(location_of(&root)))
 }
 
+/// The vault is open once this answers: a write the frontend sends after
+/// awaiting it lands in the new vault, and none lands in the old one.
 #[tauri::command]
-pub fn open_vault(
-    app: AppHandle,
-    state: State<'_, VaultState>,
-    location: VaultLocation,
+pub async fn open_vault(app: AppHandle, location: VaultLocation) -> Result<(), String> {
+    off_main(move || {
+        switch_vault(&app.state::<VaultState>(), &location, |location| {
+            remember(&app, location)
+        })
+    })
+    .await
+}
+
+/// Opens the vault at `location`, as a change of its own: a change already
+/// running finishes in the vault it was meant for, and one whose turn comes
+/// after finds the new vault open and is refused (`change_in_vault`).
+///
+/// Remembered and opened under the vault's lock, so the vault remembered for
+/// the next launch is always the one open; one that cannot be remembered is
+/// not opened.
+pub(crate) fn switch_vault(
+    state: &VaultState,
+    location: &VaultLocation,
+    remember: impl FnOnce(&VaultLocation) -> Result<(), String>,
 ) -> Result<(), String> {
     let root = PathBuf::from(&location.absolute_path);
     if !root.is_dir() {
         return Err(format!("{} is not a folder", location.absolute_path));
     }
+    let _turn = change_turn();
+    let mut open = state.open();
+    remember(location)?;
+    *open = Some(root);
     log::info!("vault opened: {}", location.absolute_path);
-    state.set(root);
-    remember(&app, &location)
+    Ok(())
 }
 
 #[tauri::command]
-pub fn current_vault(app: AppHandle, state: State<'_, VaultState>) -> Option<VaultLocation> {
+pub async fn current_vault(app: AppHandle) -> Result<Option<VaultLocation>, String> {
+    off_main(move || Ok(restore_vault(&app.state::<VaultState>(), || recall(&app)))).await
+}
+
+/// The open vault, or the one remembered from the last launch when none is.
+fn restore_vault(
+    state: &VaultState,
+    recall: impl FnOnce() -> Option<VaultLocation>,
+) -> Option<VaultLocation> {
     if let Some(root) = state.get() {
         return Some(location_of(&root));
     }
-    let location = recall(&app)?;
-    log::info!("vault restored: {}", location.absolute_path);
-    state.set(PathBuf::from(&location.absolute_path));
-    Some(location)
+    let remembered = PathBuf::from(recall()?.absolute_path);
+    let open = state.get_or_set(remembered.clone());
+    if open == remembered {
+        log::info!("vault restored: {}", open.display());
+    }
+    Some(location_of(&open))
 }
 
 /// Lists one directory's immediate children. Entries whose metadata cannot be read
@@ -393,21 +491,47 @@ fn modified_ms(metadata: &fs::Metadata) -> Result<u64, String> {
         .map_err(|error| format!("modification time is before the epoch: {error}"))
 }
 
-fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
-    let file = resolve(root, path)?;
+fn refuse_larger(length: u64, limit: u64) -> Result<(), String> {
+    if length > limit {
+        return Err(format!(
+            "file is {} MB, larger than the {} MB limit",
+            length / 1024 / 1024,
+            limit / 1024 / 1024
+        ));
+    }
+    Ok(())
+}
 
-    let metadata = fs::metadata(&file).map_err(|error| format!("cannot read: {error}"))?;
+/// A file's bytes and the metadata of that same version, refused when it is a
+/// folder or larger than `limit`.
+///
+/// Both come from one open handle: a save renames a new file over the note, and
+/// the handle keeps the file it opened, so a read racing a save can never pair
+/// the new text with the old time (which would make the next save look stale)
+/// or the old text with the new time (which would let it clobber the new one).
+/// The limit holds while reading too, for a file that grows once opened.
+fn read_one_version(file: &Path, limit: u64) -> Result<(Vec<u8>, fs::Metadata), String> {
+    let handle = fs::File::open(file).map_err(|error| format!("cannot read: {error}"))?;
+    let metadata = handle
+        .metadata()
+        .map_err(|error| format!("cannot read: {error}"))?;
     if metadata.is_dir() {
         return Err("that is a directory".into());
     }
-    if metadata.len() > MAX_TEXT_BYTES {
-        return Err(format!(
-            "file is {} MB, larger than the {} MB limit",
-            metadata.len() / 1024 / 1024,
-            MAX_TEXT_BYTES / 1024 / 1024
-        ));
-    }
-    let text = fs::read_to_string(&file).map_err(|_| "not a text file".to_string())?;
+    refuse_larger(metadata.len(), limit)?;
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    handle
+        .take(limit + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("cannot read: {error}"))?;
+    refuse_larger(bytes.len() as u64, limit)?;
+    Ok((bytes, metadata))
+}
+
+/// Reads a note and the modification time of that same version.
+fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
+    let (bytes, metadata) = read_one_version(&resolve(root, path)?, MAX_TEXT_BYTES)?;
+    let text = String::from_utf8(bytes).map_err(|_| "not a text file".to_string())?;
     Ok(NoteContents {
         text,
         modified: modified_ms(&metadata)?,
@@ -417,39 +541,94 @@ fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
 /// Saves a note by writing a temporary file beside it and renaming over the top.
 /// A rename within a directory is atomic, so an interrupted save can never leave a
 /// half-written note: the reader sees either the old file or the new one.
+///
+/// The modification time is the version a save is checked against, so every
+/// save leaves one other than the version it replaced, even within the same
+/// millisecond (see `write_temporary`). A note that is a link out of the vault is refused by `resolve`;
+/// one that is a link inside it has its target replaced, never the link's
+/// destination written through.
 fn write_text(
     root: &Path,
     path: &str,
     contents: &str,
     expected_modified: Option<u64>,
 ) -> Result<u64, String> {
+    let _turn = change_turn();
     let file = resolve(root, path)?;
 
     let metadata = fs::metadata(&file).map_err(|error| format!("cannot read: {error}"))?;
     if metadata.is_dir() {
         return Err("that is a directory".into());
     }
-    if let Some(expected) = expected_modified {
-        if modified_ms(&metadata)? != expected {
-            return Err("the note changed on disk since it was opened".into());
-        }
+    let replaced = modified_ms(&metadata)?;
+    if expected_modified.is_some_and(|expected| expected != replaced) {
+        return Err("the note changed on disk since it was opened".into());
     }
 
-    let directory = file.parent().ok_or("note has no parent directory")?;
-    let name = file
-        .file_name()
-        .ok_or("note has no file name")?
-        .to_string_lossy()
-        .into_owned();
-    let temporary = directory.join(format!(".{name}.atlas-tmp"));
+    let temporary = temporary_beside(&file)?;
 
-    fs::write(&temporary, contents).map_err(|error| format!("cannot write: {error}"))?;
-    if let Err(error) = fs::rename(&temporary, &file) {
+    let saved = write_temporary(&temporary, contents.as_bytes(), replaced)
+        .map_err(|error| format!("cannot write: {error}"))
+        .and_then(|modified| {
+            fs::rename(&temporary, &file)
+                .map(|()| modified)
+                .map_err(|error| format!("cannot save: {error}"))
+        });
+    if saved.is_err() {
         let _ = fs::remove_file(&temporary); // Best effort; the save already failed.
-        return Err(format!("cannot save: {error}"));
     }
+    saved
+}
 
-    modified_ms(&fs::metadata(&file).map_err(|error| format!("cannot read back: {error}"))?)
+/// Writes `bytes` to a new file at `temporary`, timed other than `after`
+/// (the replaced version's time, in milliseconds since the epoch), and
+/// reports that time.
+///
+/// The clock's own time is kept unless it is not past `after` by less than
+/// `BUMP_GRACE_MS`: then the file is timed `after` + 1 ms. Within the grace,
+/// saves stay in order even when several land in one millisecond, so no save
+/// can come back to an earlier version's time. A note dated further ahead (an
+/// unzip, `touch -t`) gets the clock's time back on its first save, rather
+/// than staying in the future for good.
+///
+/// The `sync_all` costs some 4 ms a save on this Mac's SSD, spent while the
+/// save holds the change turn.
+///
+/// A temporary left by a save that died is removed, never written through:
+/// it could be a link planted to point anywhere. The new file is opened
+/// exclusively and without following a link, so one planted in between is
+/// refused rather than followed.
+/// How far ahead of the clock a replaced version may be and still have a save
+/// timed just after it. Bumps run ahead by a millisecond a save at most, and
+/// a save takes several, so a second is far more than they ever reach.
+const BUMP_GRACE_MS: u64 = 1000;
+
+fn write_temporary(temporary: &Path, bytes: &[u8], after: u64) -> Result<u64, String> {
+    match fs::remove_file(temporary) {
+        Err(error) if error.kind() != ErrorKind::NotFound => {
+            return Err(format!("cannot clear the way: {error}"));
+        }
+        _ => {}
+    }
+    let mut handle = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(temporary)
+        .map_err(|error| error.to_string())?;
+    handle.write_all(bytes).map_err(|error| error.to_string())?;
+    let natural = modified_of(&handle)?;
+    if natural <= after && after - natural < BUMP_GRACE_MS {
+        handle
+            .set_modified(UNIX_EPOCH + Duration::from_millis(after + 1))
+            .map_err(|error| error.to_string())?;
+    }
+    handle.sync_all().map_err(|error| error.to_string())?;
+    modified_of(&handle)
+}
+
+fn modified_of(handle: &fs::File) -> Result<u64, String> {
+    modified_ms(&handle.metadata().map_err(|error| error.to_string())?)
 }
 
 /// A walk of the vault for markdown notes, and the two things that hold for all of it.
@@ -542,24 +721,88 @@ pub async fn list_notes(
     .await
 }
 
-/// Runs a read of the vault off the main thread, and off the async runtime's
+/// Runs work on the vault off the main thread, and off the async runtime's
 /// workers, which every other async command and the local API server share.
-async fn off_main<T: Send + 'static>(
+/// Work that panicked or was cancelled answers as an error, never as nothing.
+pub(crate) async fn off_main<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(work)
         .await
-        .map_err(|error| format!("the vault could not be read: {error}"))?
+        .map_err(|error| format!("the vault could not be reached: {error}"))?
+}
+
+/// Every change to the vault's files, one after another.
+static CHANGES: Mutex<()> = Mutex::new(());
+
+thread_local! {
+    /// Whether this thread holds `CHANGES`, so a change made inside another
+    /// (a command's vault check around the write it guards) takes no second turn.
+    static HOLDS_CHANGES: Cell<bool> = const { Cell::new(false) };
+}
+
+/// This thread's turn to change the vault, held until dropped.
+pub(crate) struct ChangeTurn(Option<MutexGuard<'static, ()>>);
+
+impl Drop for ChangeTurn {
+    fn drop(&mut self) {
+        if self.0.is_some() {
+            HOLDS_CHANGES.with(|holds| holds.set(false));
+        }
+    }
+}
+
+/// Waits for this thread's turn to change the vault; at once when it already
+/// has it. Every function that changes the vault's files takes it first.
+///
+/// The guarded value is nothing, so a change that panicked leaves nothing for
+/// the poison flag to protect, and the next change still runs.
+pub(crate) fn change_turn() -> ChangeTurn {
+    if HOLDS_CHANGES.with(Cell::get) {
+        return ChangeTurn(None);
+    }
+    let turn = CHANGES.lock().unwrap_or_else(PoisonError::into_inner);
+    HOLDS_CHANGES.with(|holds| holds.set(true));
+    ChangeTurn(Some(turn))
+}
+
+/// Runs one change to the vault — a save, a creation, a move, a trash, a
+/// binary write, a switch of vault — while no other is running.
+///
+/// On the main thread the host did one thing at a time; on the blocking pool
+/// two saves of one note would both pass the modification check and race on
+/// the one temporary file, and a save racing a move would rename its
+/// temporary back to where the note had just left. Per path would not be
+/// enough: moving a folder moves every path beneath it. Reads take no turn —
+/// a save lands by rename, so a read sees the old file or the new one whole.
+pub(crate) fn one_change_at_a_time<T>(change: impl FnOnce() -> T) -> T {
+    let _turn = change_turn();
+    change()
+}
+
+/// Runs `change` in the root of the vault it is meant for, refused when that
+/// vault is no longer the open one by the time its turn comes: a switch takes
+/// a turn too, so once it answers nothing more lands in the old vault.
+pub(crate) fn change_in_vault<T>(
+    state: &VaultState,
+    meant_for: Option<&str>,
+    change: impl FnOnce(&Path) -> Result<T, String>,
+) -> Result<T, String> {
+    one_change_at_a_time(|| change(&root_for_write(state.get(), meant_for)?))
 }
 
 #[tauri::command]
-pub fn list_directory(
+pub async fn list_directory(
     state: State<'_, VaultState>,
     path: String,
 ) -> Result<Vec<VaultEntry>, String> {
-    let entries = list_entries(&root_of(&state)?, &path)?;
-    log::debug!("listed {} entries in {:?}", entries.len(), path);
-    Ok(entries)
+    let root = root_of(&state)?;
+    off_main(move || {
+        let entries = list_entries(&root, &path)?;
+        log::debug!("listed {} entries in {:?}", entries.len(), path);
+        Ok(entries)
+    })
+    .await
 }
 
 /// A note's text together with the facts the index needs about the file.
@@ -578,15 +821,13 @@ fn read_notes_at(root: &Path, paths: &[String]) -> Vec<NoteFile> {
         let Ok(file) = resolve(root, path) else {
             continue;
         };
-        let Ok(metadata) = fs::metadata(&file) else {
-            continue;
-        };
-        if metadata.is_dir() || metadata.len() > MAX_TEXT_BYTES {
-            continue;
-        }
         // A note that cannot be read as text is skipped, not fatal: one unreadable
         // file must not stop the rest of the vault being indexed.
-        let Ok(text) = fs::read_to_string(&file) else {
+        let Ok((bytes, metadata)) = read_one_version(&file, MAX_TEXT_BYTES) else {
+            continue;
+        };
+        let size = bytes.len() as u64;
+        let Ok(text) = String::from_utf8(bytes) else {
             continue;
         };
         let Ok(modified) = modified_ms(&metadata) else {
@@ -596,7 +837,7 @@ fn read_notes_at(root: &Path, paths: &[String]) -> Vec<NoteFile> {
             path: path.clone(),
             text,
             modified,
-            size: metadata.len(),
+            size,
         });
     }
     notes
@@ -613,24 +854,18 @@ pub async fn read_notes(
 }
 
 #[tauri::command]
-pub fn read_text_file(state: State<'_, VaultState>, path: String) -> Result<NoteContents, String> {
-    read_text(&root_of(&state)?, &path)
+pub async fn read_text_file(
+    state: State<'_, VaultState>,
+    path: String,
+) -> Result<NoteContents, String> {
+    let root = root_of(&state)?;
+    off_main(move || read_text(&root, &path)).await
 }
 
+/// Reads a file's bytes through one open handle, so the size checked is the
+/// size of the file read even when a write replaces it meanwhile.
 fn read_binary(root: &Path, path: &str) -> Result<Vec<u8>, String> {
-    let file = resolve(root, path)?;
-    let metadata = fs::metadata(&file).map_err(|error| format!("cannot read: {error}"))?;
-    if metadata.is_dir() {
-        return Err("that is a directory".into());
-    }
-    if metadata.len() > MAX_BINARY_BYTES {
-        return Err(format!(
-            "file is {} MB, larger than the {} MB limit",
-            metadata.len() / 1024 / 1024,
-            MAX_BINARY_BYTES / 1024 / 1024
-        ));
-    }
-    fs::read(&file).map_err(|error| format!("cannot read: {error}"))
+    read_one_version(&resolve(root, path)?, MAX_BINARY_BYTES).map(|(bytes, _)| bytes)
 }
 
 /// Raw bytes of a file in the vault, for showing an image.
@@ -638,26 +873,33 @@ fn read_binary(root: &Path, path: &str) -> Result<Vec<u8>, String> {
 /// Sent as a binary response rather than a JSON array, and read through the same
 /// guard as everything else, so the webview never gets access to the filesystem.
 #[tauri::command]
-pub fn read_binary_file(
+pub async fn read_binary_file(
     state: State<'_, VaultState>,
     path: String,
 ) -> Result<tauri::ipc::Response, String> {
-    let bytes = read_binary(&root_of(&state)?, &path)?;
+    let root = root_of(&state)?;
+    let bytes = off_main(move || read_binary(&root, &path)).await?;
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// The vault check, the modification check and the write are one change: no
+/// other change to the vault runs between them (see `one_change_at_a_time`).
 #[tauri::command]
-pub fn write_text_file(
-    state: State<'_, VaultState>,
+pub async fn write_text_file(
+    app: AppHandle,
     path: String,
     contents: String,
     expected_modified: Option<u64>,
     vault: String,
 ) -> Result<u64, String> {
-    let root = root_for_write(state.get(), Some(&vault))?;
-    let modified = write_text(&root, &path, &contents, expected_modified)?;
-    log::info!("saved {path}");
-    Ok(modified)
+    off_main(move || {
+        let modified = change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            write_text(root, &path, &contents, expected_modified)
+        })?;
+        log::info!("saved {path}");
+        Ok(modified)
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -675,7 +917,7 @@ mod tests {
         use std::sync::Arc;
 
         let state = Arc::new(VaultState::default());
-        state.set(PathBuf::from("/tmp/atlas-vault"));
+        *state.open() = Some(PathBuf::from("/tmp/atlas-vault"));
 
         let poisoner = Arc::clone(&state);
         let panicked = std::thread::spawn(move || {
@@ -687,7 +929,7 @@ mod tests {
 
         // The path is still readable, and still writable.
         assert_eq!(state.get(), Some(PathBuf::from("/tmp/atlas-vault")));
-        state.set(PathBuf::from("/tmp/atlas-other"));
+        *state.open() = Some(PathBuf::from("/tmp/atlas-other"));
         assert_eq!(state.root(), Some(PathBuf::from("/tmp/atlas-other")));
     }
 
@@ -1497,5 +1739,611 @@ mod create_tests {
     fn refuses_a_null_byte() {
         let vault = tempdir().unwrap();
         assert!(create_note_at(vault.path(), "a\0.md", "x").is_err());
+    }
+}
+
+/// The vault's commands run on the blocking pool, several at once: these hold
+/// that a save is still one change, checked and written with nothing between.
+/// They call the write functions bare, as the commands do, so a write that
+/// stopped taking its turn would fail them.
+#[cfg(test)]
+mod concurrency_tests {
+    use super::{one_change_at_a_time, read_text, write_text};
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+    use std::time::{Duration, UNIX_EPOCH};
+    use tempfile::tempdir;
+
+    const SAVERS: usize = 8;
+    const ROUNDS: usize = 25;
+
+    /// A note last written long ago, so that any save gives it a new time.
+    fn old_note(vault: &Path, text: &str) -> u64 {
+        let file = vault.join("a.md");
+        fs::write(&file, text).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(UNIX_EPOCH + Duration::from_secs(1_000_000))
+            .unwrap();
+        read_text(vault, "a.md").unwrap().modified
+    }
+
+    /// Saves `a.md` from `SAVERS` threads released together, as the command does.
+    fn save_together(root: &Path, expected: Option<u64>) -> Vec<Result<u64, String>> {
+        let start = Arc::new(Barrier::new(SAVERS));
+        let savers: Vec<_> = (0..SAVERS)
+            .map(|saver| {
+                let start = Arc::clone(&start);
+                let root: PathBuf = root.to_path_buf();
+                thread::spawn(move || {
+                    start.wait();
+                    write_text(&root, "a.md", &format!("saver {saver}"), expected)
+                })
+            })
+            .collect();
+        savers
+            .into_iter()
+            .map(|saver| saver.join().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn of_saves_opened_at_one_version_only_the_first_lands_and_the_rest_are_refused_as_stale() {
+        for round in 0..ROUNDS {
+            let vault = tempdir().unwrap();
+            let opened = old_note(vault.path(), "first");
+            let results = save_together(vault.path(), Some(opened));
+            let landed = results.iter().filter(|result| result.is_ok()).count();
+            assert_eq!(landed, 1, "round {round}: {results:?}");
+            for result in results.iter().filter(|result| result.is_err()) {
+                assert_eq!(
+                    result,
+                    &Err("the note changed on disk since it was opened".to_string()),
+                    "round {round}"
+                );
+            }
+            let text = fs::read_to_string(vault.path().join("a.md")).unwrap();
+            assert!(text.starts_with("saver "), "round {round}: {text:?}");
+        }
+    }
+
+    #[test]
+    fn saves_of_one_note_at_once_each_land_whole_and_leave_no_temporary_behind() {
+        for round in 0..ROUNDS {
+            let vault = tempdir().unwrap();
+            old_note(vault.path(), "first");
+            let results = save_together(vault.path(), None);
+            assert!(
+                results.iter().all(Result::is_ok),
+                "round {round}: {results:?}"
+            );
+            let text = fs::read_to_string(vault.path().join("a.md")).unwrap();
+            let whole = (0..SAVERS).any(|saver| text == format!("saver {saver}"));
+            assert!(whole, "round {round}: {text:?}");
+            assert!(
+                !vault.path().join(".a.md.atlas-tmp").exists(),
+                "round {round}"
+            );
+        }
+    }
+
+    /// A read pairs a text with the time of that same version, whatever save
+    /// lands while it runs: the wrong time would make the next save look stale,
+    /// or let it write over a newer note.
+    #[test]
+    fn a_read_during_saves_answers_one_version_and_that_versions_time() {
+        let vault = tempdir().unwrap();
+        let first = old_note(vault.path(), "version 0");
+        let root = vault.path().to_path_buf();
+        let saver = thread::spawn(move || {
+            let mut written = HashMap::from([("version 0".to_string(), first)]);
+            for version in 1..400 {
+                // Lengths differ, so a torn read could not pass for a version.
+                let text = format!("version {version} {}", "x".repeat(version));
+                let modified = write_text(&root, "a.md", &text, None);
+                written.insert(text, modified.unwrap());
+            }
+            written
+        });
+        let mut reads = Vec::new();
+        while !saver.is_finished() {
+            reads.push(read_text(vault.path(), "a.md").unwrap());
+        }
+        let written = saver.join().unwrap();
+        assert!(!reads.is_empty());
+        for read in reads {
+            assert_eq!(
+                written.get(&read.text),
+                Some(&read.modified),
+                "{:?} read with another version's time",
+                read.text
+            );
+        }
+    }
+
+    /// A note is never seen half-made: a read racing its creation finds no
+    /// note or the whole of it, never an empty file the text is still being
+    /// written into.
+    #[test]
+    fn a_read_racing_a_creation_never_sees_an_empty_note() {
+        let vault = tempdir().unwrap();
+        let root = vault.path().to_path_buf();
+        let creator = thread::spawn(move || {
+            for _ in 0..500 {
+                super::create_note_at(&root, "n.md", "made whole").unwrap();
+                one_change_at_a_time(|| fs::remove_file(root.join("n.md")).unwrap());
+            }
+        });
+        let mut seen = Vec::new();
+        while !creator.is_finished() {
+            if let Ok(read) = read_text(vault.path(), "n.md") {
+                seen.push(read.text);
+            }
+        }
+        creator.join().unwrap();
+        let torn: Vec<_> = seen.iter().filter(|text| *text != "made whole").collect();
+        assert!(
+            torn.is_empty(),
+            "{} of {} reads torn: {:?}",
+            torn.len(),
+            seen.len(),
+            torn.first()
+        );
+    }
+
+    /// A save racing a move must not rename its temporary back to where the
+    /// note just left: the note would be in two places, the moved copy stale.
+    #[test]
+    fn a_save_racing_a_move_never_puts_the_note_back_where_it_was() {
+        for round in 0..ROUNDS {
+            let vault = tempdir().unwrap();
+            fs::create_dir(vault.path().join("Notes")).unwrap();
+            fs::create_dir(vault.path().join("Archive")).unwrap();
+            fs::write(vault.path().join("Notes/a.md"), "first").unwrap();
+            let start = Arc::new(Barrier::new(2));
+            let moved = Arc::new(AtomicBool::new(false));
+            let root = vault.path().to_path_buf();
+            let saver = {
+                let (start, moved, root) = (Arc::clone(&start), Arc::clone(&moved), root.clone());
+                thread::spawn(move || {
+                    start.wait();
+                    // Bounded: the lock is not fair, and the move may well
+                    // only get its turn once the saves are done.
+                    for _ in 0..40 {
+                        if moved.load(Ordering::SeqCst)
+                            || write_text(&root, "Notes/a.md", "saved", None).is_err()
+                        {
+                            break;
+                        }
+                    }
+                })
+            };
+            start.wait();
+            crate::vault_entries::move_entry_at(&root, "Notes/a.md", "Archive/a.md").unwrap();
+            moved.store(true, Ordering::SeqCst);
+            saver.join().unwrap();
+            assert!(!root.join("Notes/a.md").exists(), "round {round}");
+            assert!(root.join("Archive/a.md").exists(), "round {round}");
+            assert!(
+                !root.join("Notes/.a.md.atlas-tmp").exists(),
+                "round {round}"
+            );
+        }
+    }
+}
+
+/// Adversarial probes of the vault's changes running on the blocking pool
+/// (PR #242). Each test names the invariant it holds.
+#[cfg(test)]
+mod attack_242_tests {
+    use super::{list_entries, one_change_at_a_time, read_text, write_text};
+    use crate::vault_entries::{create_folder_at, move_entry_at, trash_entry_at};
+    use crate::vault_files::replace_binary_at;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::mpsc;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::Duration;
+    use tempfile::tempdir;
+
+    /// A small seeded generator, so a failing schedule can be replayed.
+    struct XorShift(u64);
+    impl XorShift {
+        fn below(&mut self, bound: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % bound
+        }
+    }
+
+    /// The modification time is the only version a save is checked against,
+    /// so two different versions must never share one. A note created and
+    /// saved in the same millisecond does, and a writer still holding the
+    /// first version's time then saves over the second.
+    #[test]
+    fn a_save_holding_an_older_versions_time_is_refused_even_within_one_millisecond() {
+        for round in 0..200 {
+            let vault = tempdir().unwrap();
+            fs::write(vault.path().join("a.md"), "opened by both").unwrap();
+            let opened = read_text(vault.path(), "a.md").unwrap().modified;
+            // Pane one saves first, from the version both opened.
+            one_change_at_a_time(|| write_text(vault.path(), "a.md", "pane one", Some(opened)))
+                .unwrap();
+            // Pane two still holds the version it opened; its save is stale.
+            let stale =
+                one_change_at_a_time(|| write_text(vault.path(), "a.md", "pane two", Some(opened)));
+            assert!(
+                stale.is_err(),
+                "round {round}: a stale save was accepted and \"pane one\" was lost"
+            );
+            assert_eq!(
+                fs::read_to_string(vault.path().join("a.md")).unwrap(),
+                "pane one",
+                "round {round}"
+            );
+        }
+    }
+
+    /// A save writes only the note it names. A link left at the note's
+    /// temporary name (by anything that can write the vault: sync, an
+    /// archive, another app) must not carry the save's text out of it.
+    #[test]
+    fn a_save_never_writes_through_a_link_at_its_temporary_name() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let victim = outside.path().join("victim.txt");
+        fs::write(&victim, "not the vault's").unwrap();
+        fs::write(vault.path().join("a.md"), "note").unwrap();
+        std::os::unix::fs::symlink(&victim, vault.path().join(".a.md.atlas-tmp")).unwrap();
+
+        let saved = one_change_at_a_time(|| write_text(vault.path(), "a.md", "saved text", None));
+
+        assert_eq!(
+            fs::read_to_string(&victim).unwrap(),
+            "not the vault's",
+            "the save wrote outside the vault (result {saved:?})"
+        );
+    }
+
+    /// The lock guards nothing, so a change that panics must not stop the
+    /// next one from running.
+    #[test]
+    fn a_change_that_panicked_inside_the_lock_does_not_stop_later_saves() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "first").unwrap();
+        let panicked = thread::spawn(|| one_change_at_a_time(|| panic!("a change blew up"))).join();
+        assert!(panicked.is_err());
+
+        let (done, finished) = mpsc::channel();
+        let root = vault.path().to_path_buf();
+        thread::spawn(move || {
+            done.send(one_change_at_a_time(|| {
+                write_text(&root, "a.md", "after", None)
+            }))
+            .unwrap();
+        });
+        let result = finished
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the save after a panic never got its turn");
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    const NOTES: [&str; 3] = ["F/a.md", "F/b.md", "G/c.md"];
+
+    /// A note's text as written by one save: whole only if both ends match.
+    fn stamped(thread: usize, step: usize, filler: usize) -> String {
+        let id = format!("{thread}-{step}");
+        format!("BEGIN {id} {} END {id}", "x".repeat(filler))
+    }
+
+    fn is_whole(text: &str) -> bool {
+        let Some(rest) = text.strip_prefix("BEGIN ") else {
+            return text == "seed";
+        };
+        let id = rest.split(' ').next().unwrap_or_default();
+        text.ends_with(&format!(" END {id}"))
+    }
+
+    fn walk(root: &Path, found: &mut Vec<PathBuf>) {
+        for entry in fs::read_dir(root).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, found);
+            } else {
+                found.push(path);
+            }
+        }
+    }
+
+    /// One worker's step: a read, a listing, or one change under the lock.
+    /// Every save carries the time the worker last read, and the save is
+    /// checked against what was on disk at its turn: a save of a version the
+    /// worker never read is a stale save accepted.
+    fn step(root: &Path, trash: &Path, rng: &mut XorShift, at: (usize, usize)) -> Option<String> {
+        let note = NOTES[rng.below(NOTES.len() as u64) as usize];
+        match rng.below(8) {
+            0 | 1 => {
+                let Ok(read) = read_text(root, note) else {
+                    return None;
+                };
+                let text = stamped(at.0, at.1, rng.below(5000) as usize);
+                one_change_at_a_time(|| {
+                    let before = fs::read_to_string(root.join(note)).ok();
+                    let saved = write_text(root, note, &text, Some(read.modified));
+                    (saved.is_ok() && before.as_deref() != Some(read.text.as_str())).then(|| {
+                        let head = |text: &str| text.chars().take(14).collect::<String>();
+                        let disk = before.as_deref().map(head);
+                        format!(
+                            "stale save of {note} accepted: read {:?}, disk {disk:?}",
+                            head(&read.text)
+                        )
+                    })
+                })
+            }
+            2 => {
+                let text = stamped(at.0, at.1, rng.below(5000) as usize);
+                let _ = one_change_at_a_time(|| write_text(root, note, &text, None));
+                None
+            }
+            3 => {
+                let _ = one_change_at_a_time(|| super::create_note_at(root, note, "seed"));
+                None
+            }
+            4 => {
+                let (from, to) = if rng.below(2) == 0 {
+                    ("F", "H")
+                } else {
+                    ("H", "F")
+                };
+                let _ = one_change_at_a_time(|| move_entry_at(root, from, to));
+                None
+            }
+            5 => {
+                let into = trash.join(format!("{}-{}", at.0, at.1));
+                let _ = one_change_at_a_time(|| {
+                    trash_entry_at(root, note, |entry| {
+                        fs::rename(entry, &into).map_err(|error| error.to_string())
+                    })
+                });
+                let _ = one_change_at_a_time(|| create_folder_at(root, "F"));
+                None
+            }
+            6 => {
+                let _ = one_change_at_a_time(|| replace_binary_at(root, "F/pic.png", &[7; 4096]));
+                None
+            }
+            _ => {
+                let _ = list_entries(root, "F");
+                read_text(root, note).ok().and_then(|read| {
+                    (!is_whole(&read.text)).then(|| format!("torn read of {note}: {:?}", read.text))
+                })
+            }
+        }
+    }
+
+    /// Many workers mixing every change and read on the same few paths: no
+    /// torn note, no temporary left, no stale save accepted, no deadlock.
+    #[test]
+    fn a_hammer_of_mixed_changes_leaves_every_note_whole_and_accepts_no_stale_save() {
+        const WORKERS: usize = 6;
+        const STEPS: usize = 300;
+        let vault = tempdir().unwrap();
+        let trash = tempdir().unwrap();
+        for folder in ["F", "G"] {
+            fs::create_dir(vault.path().join(folder)).unwrap();
+        }
+        for note in NOTES {
+            fs::write(vault.path().join(note), "seed").unwrap();
+        }
+        let violations = Arc::new(Mutex::new(Vec::new()));
+        let (done, finished) = mpsc::channel();
+        for worker in 0..WORKERS {
+            let (root, trash) = (vault.path().to_path_buf(), trash.path().to_path_buf());
+            let (violations, done) = (Arc::clone(&violations), done.clone());
+            thread::spawn(move || {
+                let mut rng = XorShift(0x9E37_79B9_7F4A_7C15 ^ (worker as u64 + 1));
+                for at in 0..STEPS {
+                    if let Some(violation) = step(&root, &trash, &mut rng, (worker, at)) {
+                        violations.lock().unwrap().push(violation);
+                    }
+                }
+                done.send(()).unwrap();
+            });
+        }
+        for _ in 0..WORKERS {
+            finished
+                .recv_timeout(Duration::from_secs(60))
+                .expect("a worker never finished: deadlock");
+        }
+        let mut files = Vec::new();
+        walk(vault.path(), &mut files);
+        for file in &files {
+            let name = file.file_name().unwrap().to_string_lossy();
+            assert!(!name.ends_with(".atlas-tmp"), "temporary left: {file:?}");
+            if name.ends_with(".md") {
+                let text = fs::read_to_string(file).unwrap();
+                assert!(is_whole(&text), "{file:?} is torn: {text:?}");
+            }
+        }
+        let violations = violations.lock().unwrap();
+        assert!(
+            violations.is_empty(),
+            "{} violations, first: {:?}",
+            violations.len(),
+            violations.first()
+        );
+    }
+}
+
+/// The version a save is checked against, the links it must not follow, and
+/// what a switch of vault does to the changes around it.
+#[cfg(test)]
+mod version_tests {
+    use super::{
+        change_in_vault, read_one_version, read_text, restore_vault, switch_vault, write_text,
+        VaultLocation, VaultState,
+    };
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use tempfile::tempdir;
+
+    fn location(root: &Path) -> VaultLocation {
+        VaultLocation {
+            absolute_path: root.to_string_lossy().into_owned(),
+            name: "vault".into(),
+        }
+    }
+
+    #[test]
+    fn every_save_leaves_a_later_time_than_the_version_it_replaced() {
+        let vault = tempdir().unwrap();
+        fs::write(vault.path().join("a.md"), "0").unwrap();
+        let mut last = read_text(vault.path(), "a.md").unwrap().modified;
+        for version in 1..50 {
+            let saved = write_text(vault.path(), "a.md", &version.to_string(), None).unwrap();
+            assert!(saved > last, "version {version}: {saved} after {last}");
+            assert_eq!(read_text(vault.path(), "a.md").unwrap().modified, saved);
+            last = saved;
+        }
+    }
+
+    /// A note another program left timed ahead of this Mac's clock gets the
+    /// clock's time back from a save, and that version still cannot be saved
+    /// over again.
+    #[test]
+    fn a_save_over_a_note_timed_in_the_future_brings_its_time_back_to_now() {
+        let vault = tempdir().unwrap();
+        let file = vault.path().join("a.md");
+        fs::write(&file, "ahead").unwrap();
+        let ahead = SystemTime::now() + Duration::from_secs(3600);
+        fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(ahead)
+            .unwrap();
+        let opened = read_text(vault.path(), "a.md").unwrap().modified;
+        let before = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let saved = write_text(vault.path(), "a.md", "mine", Some(opened)).unwrap();
+        assert!(saved < opened, "{saved} is still in the future");
+        assert!(saved + 1000 >= before, "{saved} is not now ({before})");
+        assert_eq!(
+            write_text(vault.path(), "a.md", "stale", Some(opened)),
+            Err("the note changed on disk since it was opened".to_string())
+        );
+    }
+
+    #[test]
+    fn a_save_of_a_note_that_links_out_of_the_vault_is_refused_and_writes_nothing() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let victim = outside.path().join("victim.md");
+        fs::write(&victim, "not the vault's").unwrap();
+        std::os::unix::fs::symlink(&victim, vault.path().join("a.md")).unwrap();
+
+        assert!(write_text(vault.path(), "a.md", "saved", None).is_err());
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "not the vault's");
+        assert!(fs::symlink_metadata(vault.path().join("a.md"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[test]
+    fn a_save_never_writes_through_a_link_at_its_temporary_name() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let victim = outside.path().join("victim.txt");
+        fs::write(&victim, "not the vault's").unwrap();
+        fs::write(vault.path().join("a.md"), "note").unwrap();
+        std::os::unix::fs::symlink(&victim, vault.path().join(".a.md.atlas-tmp")).unwrap();
+
+        write_text(vault.path(), "a.md", "saved", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "not the vault's");
+        assert_eq!(
+            fs::read_to_string(vault.path().join("a.md")).unwrap(),
+            "saved"
+        );
+        assert!(!vault.path().join(".a.md.atlas-tmp").exists());
+    }
+
+    #[test]
+    fn a_read_is_refused_past_its_limit() {
+        let vault = tempdir().unwrap();
+        let file = vault.path().join("big.bin");
+        fs::write(&file, vec![0u8; 11]).unwrap();
+        assert!(read_one_version(&file, 10).is_err());
+        assert_eq!(read_one_version(&file, 11).unwrap().0.len(), 11);
+    }
+
+    /// Once a switch answers, a change meant for the old vault is refused,
+    /// even one that was already waiting for its turn.
+    #[test]
+    fn a_change_meant_for_a_vault_switched_away_from_is_refused() {
+        let (old, new) = (tempdir().unwrap(), tempdir().unwrap());
+        let state = VaultState::default();
+        switch_vault(&state, &location(old.path()), |_| Ok(())).unwrap();
+        let meant = old.path().to_string_lossy().into_owned();
+        assert!(change_in_vault(&state, Some(&meant), |_| Ok(())).is_ok());
+
+        switch_vault(&state, &location(new.path()), |_| Ok(())).unwrap();
+        let landed = change_in_vault(&state, Some(&meant), |root| {
+            fs::write(root.join("late.md"), "late").map_err(|error| error.to_string())
+        });
+        assert_eq!(
+            landed,
+            Err("another vault was opened before this could be written".to_string())
+        );
+        assert!(!old.path().join("late.md").exists());
+    }
+
+    #[test]
+    fn a_vault_that_cannot_be_remembered_is_not_opened() {
+        let (old, new) = (tempdir().unwrap(), tempdir().unwrap());
+        let state = VaultState::default();
+        switch_vault(&state, &location(old.path()), |_| Ok(())).unwrap();
+        let refused = switch_vault(&state, &location(new.path()), |_| Err("disk full".into()));
+        assert_eq!(refused, Err("disk full".to_string()));
+        assert_eq!(state.get(), Some(old.path().to_path_buf()));
+    }
+
+    /// Restoring last launch's vault never replaces one opened meanwhile.
+    #[test]
+    fn restoring_the_remembered_vault_keeps_one_opened_meanwhile() {
+        let (opened, remembered) = (tempdir().unwrap(), tempdir().unwrap());
+        let state = VaultState::default();
+        let restored = restore_vault(&state, || {
+            // The user opens a vault while the remembered one is being read.
+            switch_vault(&state, &location(opened.path()), |_| Ok(())).unwrap();
+            Some(location(remembered.path()))
+        });
+        let open = PathBuf::from(restored.unwrap().absolute_path);
+        assert_eq!(open, opened.path());
+        assert_eq!(state.get(), Some(opened.path().to_path_buf()));
+    }
+
+    #[test]
+    fn restores_the_remembered_vault_when_none_is_open() {
+        let remembered = tempdir().unwrap();
+        let state = VaultState::default();
+        let restored = restore_vault(&state, || Some(location(remembered.path())));
+        assert_eq!(
+            PathBuf::from(restored.unwrap().absolute_path),
+            remembered.path()
+        );
+        assert_eq!(state.get(), Some(remembered.path().to_path_buf()));
     }
 }
