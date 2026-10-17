@@ -36,7 +36,7 @@ import {
   type SyncPorts,
   type VaultFsPort,
 } from '@atlas/application';
-import { gitCommands } from '@atlas/adapters';
+import { gitCommands, remarkMarkdown } from '@atlas/adapters';
 
 const run = promisify(execFile);
 export const TIMEOUT = 60_000;
@@ -344,6 +344,7 @@ export function macAt({
           git: intercepted({ ...git, ...overrides.git }, 'git', overrides.intercept),
           fs: intercepted({ ...fs, ...overrides.fs }, 'fs', overrides.intercept),
           files: intercepted(syncFiles, 'files', overrides.intercept),
+          markdown: remarkMarkdown,
           unsaved: intercepted(
             { flushAll: overrides.flushAll ?? (async () => {}) },
             'unsaved',

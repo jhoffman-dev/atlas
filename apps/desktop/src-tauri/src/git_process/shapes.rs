@@ -37,10 +37,12 @@ enum Slot {
     Branch,
     /// `--filter=blob:limit=<bytes>`.
     BlobLimit,
+    /// A blob's id, as `cat-file blob` takes it.
+    Blob,
 }
 
 use Slot::{
-    BlobLimit, Branch, CacheInfo, CloneName, Identity, Is, Message, Ref, Rev, Url, VaultPath,
+    Blob, BlobLimit, Branch, CacheInfo, CloneName, Identity, Is, Message, Ref, Rev, Url, VaultPath,
 };
 
 type Shape = (&'static [Slot], Reach);
@@ -173,6 +175,8 @@ const IN_VAULT: &[Shape] = &[
         &[Is("hash-object"), Is("--no-filters"), Is("--"), VaultPath],
         Reach::Local,
     ),
+    // One side of a settings file both Macs changed, to merge by its keys.
+    (&[Is("cat-file"), Is("blob"), Blob], Reach::Local),
     // A blob already in the repository, put in the index under a new path.
     (
         &[
@@ -347,6 +351,7 @@ fn check(slot: Slot, arg: &str) -> Result<(), String> {
         CacheInfo => is_cache_info(arg),
         Rev => arg == "HEAD" || is_remote_branch(arg) || is_oid(arg),
         Branch => is_branch(arg),
+        Blob => is_oid(arg),
         BlobLimit => arg
             .strip_prefix("--filter=blob:limit=")
             .is_some_and(|bytes| {

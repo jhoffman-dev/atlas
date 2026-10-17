@@ -108,6 +108,11 @@ const ACCEPTED: &[&[&str]] = &[
     &["merge-base", "HEAD", "origin/main"],
     &["hash-object", "--no-filters", "--", "Notes/Idea.md"],
     &[
+        "cat-file",
+        "blob",
+        "0123456789abcdef0123456789abcdef01234567",
+    ],
+    &[
         "update-index",
         "--add",
         "--cacheinfo",
@@ -157,6 +162,23 @@ fn a_shape_missing_or_gaining_an_argument_is_refused() {
         let mut longer = shape.to_vec();
         longer.push("--upload-pack=touch /tmp/pwned");
         assert!(!vault_ok(&longer), "{longer:?} is long");
+    }
+}
+
+#[test]
+fn reading_a_blob_takes_only_a_blob_id() {
+    for refused in [
+        &["cat-file", "blob", "HEAD"][..],
+        &["cat-file", "blob", "origin/main:secret.md"],
+        &["cat-file", "-p", "0123456789abcdef0123456789abcdef01234567"],
+        &["cat-file", "--batch"],
+        &[
+            "cat-file",
+            "blob",
+            "0123456789ABCDEF0123456789ABCDEF01234567",
+        ],
+    ] {
+        assert!(!vault_ok(refused), "{refused:?}");
     }
 }
 
@@ -1672,4 +1694,43 @@ fn a_vault_under_var_is_spelled_under_private_var() {
         "{}",
         resolved.display()
     );
+}
+
+/// #233 attack: `cat-file blob` is handed nothing git would read as an
+/// option, a ref expression, a path or an abbreviated id.
+#[test]
+fn reading_a_blob_refuses_anything_but_a_full_lowercase_object_id() {
+    let full = "0123456789abcdef0123456789abcdef01234567";
+    let too_long = format!("{full}0");
+    let with_peel = format!("{full}^{{tree}}");
+    let with_path = format!("{full}:Notes/Idea.md");
+    let dashed = format!("-{}", &full[1..]);
+    let spaced = format!(" {}", &full[1..]);
+    let newline = format!("{}\n", &full[..39]);
+    for refused in [
+        dashed.as_str(),
+        "--batch-all-objects",
+        "-e",
+        "HEAD:.atlas/types/meeting.md",
+        ":0:.atlas/types/meeting.md",
+        ".atlas/types/meeting.md",
+        "-x.md",
+        "0123456",
+        &full[..39],
+        too_long.as_str(),
+        with_peel.as_str(),
+        with_path.as_str(),
+        spaced.as_str(),
+        newline.as_str(),
+        "",
+    ] {
+        assert!(!vault_ok(&["cat-file", "blob", refused]), "{refused:?}");
+    }
+    assert!(!vault_ok(&["cat-file", "blob", "--", full]));
+    assert!(!vault_ok(&["cat-file", "blob", full, full]));
+    assert!(!vault_ok(&["cat-file", "tree", full]));
+    assert!(!vault_ok(&["cat-file", "commit", full]));
+    assert!(vault_ok(&["cat-file", "blob", full]));
+    let sha256 = "0123456789abcdef".repeat(4);
+    assert!(vault_ok(&["cat-file", "blob", &sha256]));
 }

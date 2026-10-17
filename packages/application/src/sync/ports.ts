@@ -64,6 +64,8 @@ export interface GitPort {
   mergeBase(branch: string): Promise<GitResult>;
   /** `hash-object --no-filters -- <path>`: the blob id of the file's bytes as they are. */
   hashFile(path: string): Promise<GitResult>;
+  /** `cat-file blob <oid>`: a blob's bytes, as text — a side of a settings file both Macs changed. */
+  readBlob(oid: string): Promise<GitResult>;
   /** `update-index --add --cacheinfo <mode>,<oid>,<path>`: a blob already in git, staged under a path. */
   stageBlob(args: { mode: string; oid: string; path: string }): Promise<GitResult>;
   /** `checkout-index -- <path>`: writes the path from the index, never over a file already there. */

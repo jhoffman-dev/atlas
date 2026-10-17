@@ -86,6 +86,7 @@ async function setUp(mac: Mac, env: Env, remote: SyncRemoteChoice) {
       folders: folders(env),
       fs: mac.fs,
       files: mac.syncFiles,
+      markdown: remarkMarkdown,
       unsaved: { flushAll: async () => {} },
       activity: { record: (line) => mac.activity.push(`${line.level}: ${line.message}`) },
       settings,
@@ -209,28 +210,28 @@ describe('setting up sync works on the open vault, in place (issue #8)', () => {
         if (path === '.atlas/settings.md') continue;
         expect(await mac.read(path)).toBe(contents);
       }
-      // The vault's own settings win, with Atlas's sync keys written into them;
-      // GitHub's version is kept, not lost, as a copy under Sync conflicts —
-      // the way sync settles any file both sides changed.
+      // The vault's own settings win, with Atlas's sync keys written into them.
+      // GitHub's version says nothing they do not, so it is merged by its keys
+      // rather than kept as a copy under Sync conflicts (#233): nothing is lost.
       const settings = await mac.read('.atlas/settings.md');
       expect(settings).toMatch(/quickAdd:\n {2}- task\n {2}- notes/);
       expect(settings).toMatch(/sidebarOrder:/);
       expect(settings).toMatch(/sync: github/);
       expect(settings).toMatch(/automationsMac: mac-air/);
+      expect(settings).toMatch(/automationsMacName: James’s MacBook Air/);
       expect(settings).not.toMatch(MARKERS);
       const copies = [...(await mac.files()).keys()].filter((path) =>
         path.startsWith('Sync conflicts/'),
       );
-      expect(copies).toHaveLength(1);
-      expect(await mac.read(copies[0] ?? '')).toBe(SETUP_COMMIT_SETTINGS);
+      expect(copies).toEqual([]);
       expect(report.pushed).toBe(true);
       expect(await pushedPaths(base, bare, env)).toEqual(
         expect.arrayContaining([...EVERY_VAULT_FILE, '.gitignore']),
       );
       expect(await readFile(join(mac.root, '.gitignore'), 'utf8')).toBe(withManagedIgnores(null));
-      // The settings written after the first sync go with the next, which
-      // then leaves nothing behind.
-      await expect(mac.sync()).resolves.toMatchObject({ conflicts: [], pushed: true });
+      // A sync after it settles nothing and leaves nothing behind: GitHub
+      // holds the vault's settings as they are here.
+      await expect(mac.sync()).resolves.toMatchObject({ conflicts: [] });
       expect(await pushedText(base, bare, '.atlas/settings.md', env)).toBe(settings);
       expect(await must(mac.root, ['status', '--porcelain'], env)).toBe('');
       const setup = await inspectSync({

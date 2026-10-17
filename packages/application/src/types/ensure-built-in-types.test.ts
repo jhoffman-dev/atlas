@@ -10,12 +10,27 @@
  * read back whole; how the real writer keeps every byte is the adapters'.
  */
 import { describe, expect, it } from 'vitest';
-import { extensionKeys, relationTypes, splitFrontmatter, type VaultPath } from '@atlas/domain';
+import {
+  extensionKeys,
+  parseShippedPropertiesRecord,
+  relationTypes,
+  splitFrontmatter,
+  type VaultPath,
+} from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 import { memoryVault } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { acceptTypeSetup, ensureBuiltInTypes } from './ensure-built-in-types.ts';
 import { loadObjectTypes } from './load-types.ts';
+
+/** The keys an older Meeting type gains, as the record holds them: sorted, one order on every Mac (#233). */
+const MEETING_ADDED = [
+  'atlas_summary_digest',
+  'atlas_summary_model',
+  'atlas_summary_of',
+  'decisions',
+  'tasks',
+];
 
 /** Frontmatter as one JSON object, changed key by key as the port promises. */
 function jsonFrontmatter(): MarkdownPort {
@@ -325,9 +340,7 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
 
     const record = v.files.get(RECORD) ?? '';
     expect(record).toMatch(/^---\natlas: migration\n---\n/);
-    expect(record).toContain(
-      '"added":{"meeting":["tasks","decisions","atlas_summary_digest","atlas_summary_of","atlas_summary_model"]}',
-    );
+    expect(parseShippedPropertiesRecord(record).added).toEqual({ meeting: MEETING_ADDED });
   });
 
   it('leaves a property the person changed as it is, even where it differs from what Atlas ships', async () => {
@@ -454,8 +467,10 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
     expect(opened.properties).toEqual({ gained: [], skipped: [], failed: [] });
     expect(v.files.get('.atlas/types/meeting.md')).toBe(complete);
     const record = v.files.get(RECORD) ?? '';
-    expect(record).toContain(`"settled":{"meeting":${JSON.stringify(Object.keys(shipped))}}`);
-    expect(record).toContain('"added":{}');
+    expect(parseShippedPropertiesRecord(record)).toEqual({
+      settled: { meeting: Object.keys(shipped).sort() },
+      added: {},
+    });
 
     const rest = Object.fromEntries(Object.entries(shipped).filter(([key]) => key !== 'tasks'));
     const without = note({ name: 'meeting', label: 'Meeting', properties: rest });
@@ -488,8 +503,9 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
         'Summary model',
       ],
     ]);
-    expect(v.files.get(RECORD) ?? '').toContain('"added":{"meeting":["atlas_import_outcome"');
-    expect(v.files.get(RECORD) ?? '').not.toMatch(/"added":\{"meeting":\[[^\]]*"tasks"/);
+    const added = parseShippedPropertiesRecord(v.files.get(RECORD) ?? '').added['meeting'];
+    expect(added).toContain('atlas_import_outcome');
+    expect(added).not.toContain('tasks');
   });
 
   it('is not thrown by a type named `constructor`, in the vault or in its record', async () => {
@@ -529,9 +545,10 @@ describe('ensureBuiltInTypes, on a built-in type file older than what Atlas ship
 
     expect(later.properties.gained.map((gained) => gained.label)).toEqual(['daily']);
     const record = v.files.get(RECORD) ?? '';
-    expect(record).toContain(
-      '"added":{"meeting":["tasks","decisions","atlas_summary_digest","atlas_summary_of","atlas_summary_model"],"daily":["tags"]}',
-    );
+    expect(parseShippedPropertiesRecord(record).added).toEqual({
+      daily: ['tags'],
+      meeting: MEETING_ADDED,
+    });
     expect(record.match(/# Properties added to built-in types/g)).toHaveLength(1);
   });
 

@@ -11,6 +11,7 @@ import {
   statusText,
   type GitScript,
 } from '../testing/fake-git.ts';
+import { fakeMarkdown } from '../testing/fake-ports.ts';
 import { ProgramMissingError } from './ports.ts';
 import { SyncError } from './git-steps.ts';
 import { syncNow } from './sync-now.ts';
@@ -43,7 +44,7 @@ function setUp({
   };
   const run = () =>
     syncNow({
-      ports: { git, fs: vault.fs, files: files_, unsaved, activity },
+      ports: { git, fs: vault.fs, markdown: fakeMarkdown(), files: files_, unsaved, activity },
       mac: 'Studio',
       clock,
     });

@@ -121,3 +121,17 @@ export type {
   SyncTone,
 } from './sync-state.ts';
 export { CREATE_REPOSITORY_STEP, explainGitFailure, missingProgramMessage } from './git-failure.ts';
+export {
+  isSettingsFile,
+  mergeSettingsText,
+  sameFrontmatterValue,
+  writtenMap,
+} from './settings-merge.ts';
+export type {
+  SettingsFolded,
+  SettingsMerged,
+  SettingsText,
+  WrittenEntry,
+  WrittenKey,
+  WrittenMap,
+} from './settings-merge.ts';

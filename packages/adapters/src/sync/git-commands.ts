@@ -50,6 +50,7 @@ export function gitCommands(git: RunGit): Omit<GitPort, 'createGitHubRepository'
     tree: (rev) => git('ls-tree', '-r', '-z', revOf(rev)),
     mergeBase: (branch) => git('merge-base', 'HEAD', `origin/${branch}`),
     hashFile: (path) => git('hash-object', '--no-filters', '--', path),
+    readBlob: (oid) => git('cat-file', 'blob', oid),
     stageBlob: ({ mode, oid, path }) =>
       git('update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`),
     writeFromIndex: (path) => git('checkout-index', '--', path),

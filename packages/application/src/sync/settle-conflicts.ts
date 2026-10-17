@@ -14,6 +14,7 @@ import {
 import { blobOf, expectOk, firstLine, readIndex, stageAll, SyncError } from './git-steps.ts';
 import { readJournal, writeJournal } from './journal.ts';
 import type { GitPort, SyncFilesPort } from './ports.ts';
+import { mergeSettingsConflicts, type SettingsMergePorts } from './settle-settings.ts';
 
 /** The commit a merge under way is bringing in; null with no merge under way. */
 export async function mergeHeadOf(git: GitPort): Promise<string | null> {
@@ -57,6 +58,11 @@ export async function recordMerge({
  * of it — never by reading the file as text, so an image, a file that is not
  * UTF-8 or one of any size is copied as exactly as a note.
  *
+ * A settings file of Atlas's own in `.atlas/` is first merged by its keys
+ * (#233): one Atlas changed by itself on each Mac — a built-in type given
+ * the properties a newer build ships — is never left as a copy. Only one
+ * whose two versions a person must reconcile is copied.
+ *
  * Every step can be run again after a quit: the copy's name is kept in the
  * journal, writing the copy never writes over a file, and this Mac's file is
  * written over with its own side only while it still holds exactly what the
@@ -65,16 +71,19 @@ export async function recordMerge({
 export async function settleConflicts({
   git,
   files,
-  conflicts,
+  conflicts: all,
   mac,
   leftOut,
+  settings,
 }: {
   git: GitPort;
   files: SyncFilesPort;
   conflicts: readonly GitConflict[];
   mac: string;
   leftOut: LeftOut;
+  settings: SettingsMergePorts;
 }): Promise<readonly ConflictCopy[]> {
+  const conflicts = await mergeSettingsConflicts({ git, files, conflicts: all, settings });
   const journal = await planCopies({ git, files, conflicts, mac });
   const copies: ConflictCopy[] = [];
   for (const conflict of conflicts) {

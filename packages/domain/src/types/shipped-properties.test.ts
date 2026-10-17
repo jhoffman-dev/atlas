@@ -4,6 +4,7 @@ import {
   addablePropertyKeys,
   declaredPropertyKeys,
   keysRecorded,
+  mergeShippedPropertiesRecords,
   NO_SHIPPED_PROPERTIES_RECORD,
   parseShippedPropertiesRecord,
   PROPERTIES_NOT_A_MAP,
@@ -44,7 +45,7 @@ const MEETING_KEYS = [
 const parsedKeys = (found: ObjectType) => new Set(found.properties.map((added) => added.key));
 
 const plan = (types: readonly ObjectType[], record = NO_SHIPPED_PROPERTIES_RECORD) =>
-  shippedPropertiesPlan(types, record, parsedKeys).changes;
+  shippedPropertiesPlan(types, record, { declaredKeys: parsedKeys }).changes;
 
 const addedKeys = (types: readonly ObjectType[], record = NO_SHIPPED_PROPERTIES_RECORD) =>
   plan(types, record).map((change) => [change.before.name, change.added.map((added) => added.key)]);
@@ -113,11 +114,9 @@ describe('shippedPropertiesPlan', () => {
 
   it('counts a key the file declares as there even when Atlas could not read it', () => {
     const unread = (found: ObjectType) => new Set([...parsedKeys(found), 'tasks']);
-    const [change] = shippedPropertiesPlan(
-      [type('meeting')],
-      NO_SHIPPED_PROPERTIES_RECORD,
-      unread,
-    ).changes;
+    const [change] = shippedPropertiesPlan([type('meeting')], NO_SHIPPED_PROPERTIES_RECORD, {
+      declaredKeys: unread,
+    }).changes;
     expect(change?.added.map((added) => added.key)).not.toContain('tasks');
     expect(change?.added.map((added) => added.key)).toContain('decisions');
   });
@@ -138,11 +137,9 @@ describe('shippedPropertiesPlan, on a type it must leave alone', () => {
   it('skips a type whose `properties` is not a map, neither changing nor settling it', () => {
     const notAMap = () => null;
     const meeting = type('meeting');
-    const { changes, skipped } = shippedPropertiesPlan(
-      [meeting],
-      NO_SHIPPED_PROPERTIES_RECORD,
-      notAMap,
-    );
+    const { changes, skipped } = shippedPropertiesPlan([meeting], NO_SHIPPED_PROPERTIES_RECORD, {
+      declaredKeys: notAMap,
+    });
     expect(changes).toEqual([]);
     expect(skipped).toEqual([{ types: [meeting], label: 'Meeting', reason: PROPERTIES_NOT_A_MAP }]);
   });
@@ -153,7 +150,7 @@ describe('shippedPropertiesPlan, on a type it must leave alone', () => {
     const { changes, skipped } = shippedPropertiesPlan(
       [first, copy, type('daily')],
       NO_SHIPPED_PROPERTIES_RECORD,
-      parsedKeys,
+      { declaredKeys: parsedKeys },
     );
     expect(changes.map((change) => change.before.name)).toEqual(['daily']);
     expect(skipped).toEqual([
@@ -168,11 +165,9 @@ describe('shippedPropertiesPlan, on a type it must leave alone', () => {
 
   it('says nothing of a duplicated type whose keys are all settled', () => {
     const record = { settled: { meeting: MEETING_KEYS }, added: {} };
-    const { skipped } = shippedPropertiesPlan(
-      [type('meeting'), type('meeting')],
-      record,
-      parsedKeys,
-    );
+    const { skipped } = shippedPropertiesPlan([type('meeting'), type('meeting')], record, {
+      declaredKeys: parsedKeys,
+    });
     expect(skipped).toEqual([]);
   });
 });
@@ -261,16 +256,21 @@ describe('recordSettling', () => {
 
 describe('the record file', () => {
   const RECORD = { settled: { meeting: MEETING_KEYS }, added: { meeting: ['tasks'] } };
+  // The keys come back sorted: the file is written in one order on every Mac (#233).
+  const READ_BACK = {
+    settled: { meeting: [...MEETING_KEYS].sort() },
+    added: { meeting: ['tasks'] },
+  };
 
   it('reads back what it wrote, under a heading a person can read', () => {
     const text = shippedPropertiesRecordText(RECORD);
     expect(text).toMatch(/^---\natlas: migration\n---\n\n# Properties added to built-in types\n/);
-    expect(parseShippedPropertiesRecord(text)).toEqual(RECORD);
+    expect(parseShippedPropertiesRecord(text)).toEqual(READ_BACK);
   });
 
   it('reads back a record whose line endings were turned to CRLF', () => {
     const text = shippedPropertiesRecordText(RECORD).replace(/\n/g, '\r\n');
-    expect(parseShippedPropertiesRecord(text)).toEqual(RECORD);
+    expect(parseShippedPropertiesRecord(text)).toEqual(READ_BACK);
   });
 
   it('reads a record that says nothing of what was added', () => {
@@ -303,5 +303,32 @@ describe('shippedPropertiesLine', () => {
     expect(shippedPropertiesLine({ label: 'Daily', added: ['Tags'] })).toBe(
       'Added Tags to the Daily type, which was written before Atlas shipped it.',
     );
+  });
+});
+
+describe('two Macs’ records (#233)', () => {
+  it('merge into every key either settled or added', () => {
+    const older = { settled: { meeting: ['tasks', 'decisions'] }, added: { meeting: ['tasks'] } };
+    const newer = {
+      settled: { meeting: ['tasks', 'atlas_summary_of'], daily: ['date'] },
+      added: { daily: ['date'] },
+    };
+    expect(mergeShippedPropertiesRecords(older, newer)).toEqual({
+      settled: { meeting: ['tasks', 'decisions', 'atlas_summary_of'], daily: ['date'] },
+      added: { meeting: ['tasks'], daily: ['date'] },
+    });
+  });
+
+  it('are written as the same bytes whatever order the keys were settled in', () => {
+    const one = { settled: { meeting: ['tasks', 'decisions'], daily: ['date'] }, added: {} };
+    const other = {
+      settled: { daily: ['date'], meeting: ['decisions', 'tasks', 'tasks'] },
+      added: {},
+    };
+    expect(shippedPropertiesRecordText(one)).toBe(shippedPropertiesRecordText(other));
+    expect(parseShippedPropertiesRecord(shippedPropertiesRecordText(other)).settled).toEqual({
+      daily: ['date'],
+      meeting: ['decisions', 'tasks'],
+    });
   });
 });

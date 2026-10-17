@@ -56,6 +56,7 @@ async function setUp(mac: Mac, env: Env, remote: SyncRemoteChoice) {
       folders: folders(env),
       fs: mac.fs,
       files: mac.syncFiles,
+      markdown: remarkMarkdown,
       unsaved: { flushAll: async () => {} },
       activity: { record: (line) => mac.activity.push(`${line.level}: ${line.message}`) },
       settings,
