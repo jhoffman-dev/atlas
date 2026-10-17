@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useState } from 'react';
 import {
   withNoteNames,
   type BoardLane,
@@ -125,7 +125,9 @@ function Levels({
 }
 
 function ResultTable(props: GroupedResultProps) {
-  const sheet = useRef<HTMLDivElement>(null);
+  // State, not a ref: the rows' virtualiser looks for its scroller in a
+  // layout effect, which runs before the sheet's ref is set.
+  const [sheet, setSheet] = useState<HTMLDivElement | null>(null);
   const names = useNoteNames();
   const row = (found: BoardRow) => (
     <tr key={found.path}>
@@ -146,7 +148,7 @@ function ResultTable(props: GroupedResultProps) {
     </tr>
   );
   return (
-    <div className="table__sheet qresult__sheet" ref={sheet}>
+    <div className="table__sheet qresult__sheet" ref={setSheet}>
       <table className="table__grid qresult__table">
         <thead>
           <tr>

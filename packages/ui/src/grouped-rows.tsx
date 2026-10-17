@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  type KeyboardEvent,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   columnSummary,
@@ -47,6 +40,12 @@ export interface SummaryColumn {
 /** Heights the virtualiser places lines by, matching the stylesheet's. */
 const LINE_HEIGHT: Readonly<Record<GroupLine['kind'], number>> = { group: 44, row: 44, new: 38 };
 
+/** The height a table row is placed by until it is measured. */
+export const ROW_ESTIMATE = LINE_HEIGHT.row;
+
+/** The scroller's size before it is measured: jsdom reports a zero-height one, which would draw no lines at all. */
+export const SCROLLER_ESTIMATE = { width: 960, height: 880 };
+
 /**
  * A table's rows in their groups and sub-groups, as Coda draws them: each
  * group a full-width header row — disclosure arrow, the value (a pill for a
@@ -76,8 +75,8 @@ export function GroupedRows({
   /** "New task". */
   newLabel: string;
   renderRow: (row: BoardRow, place: LinePlace) => ReactNode;
-  /** The element the table scrolls in. */
-  scroller: RefObject<HTMLElement | null>;
+  /** The element the table scrolls in; null until it is in the page. */
+  scroller: HTMLElement | null;
 }) {
   const { groups, collapsed, onToggle, onNew } = grouping;
   // Without a way to add a note there is no "+ New" line to make room for.
@@ -90,11 +89,10 @@ export function GroupedRows({
   );
   const virtualizer = useVirtualizer({
     count: lines.length,
-    getScrollElement: () => scroller.current,
+    getScrollElement: () => scroller,
     estimateSize: (index) => LINE_HEIGHT[lines[index]?.kind ?? 'row'],
     overscan: 12,
-    // jsdom reports a zero-height scroller, which would draw no lines at all.
-    initialRect: { width: 960, height: 880 },
+    initialRect: SCROLLER_ESTIMATE,
   });
   const focus = useHeaderFocus(lines, (index) => virtualizer.scrollToIndex(index));
 
@@ -147,7 +145,7 @@ export function GroupedRows({
 }
 
 /** Room for the lines scrolled out of the page, so the scrollbar stays true. */
-function Spacer({ height, width }: { height: number; width: number }) {
+export function Spacer({ height, width }: { height: number; width: number }) {
   return (
     <tr aria-hidden="true" className="table__spacer">
       <td colSpan={width} style={{ height }} />
