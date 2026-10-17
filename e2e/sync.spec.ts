@@ -304,9 +304,17 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   // This Mac changes a note; half a minute later it is on GitHub, sent by itself.
   await vault.write('Welcome.md', '# Welcome\n\nEdited on the studio.\n');
   await emitVaultChanged(page, ['Welcome.md']);
-  await page.clock.fastForward('00:35');
+  // The edit counts from when the index has taken it, which can land after a
+  // jump of the clock made at once (#238). So the clock moves on ten seconds a
+  // look, and the push is waited for in the app's time, not the test's.
   await expect
-    .poll(async () => (await gitIn(remote, ['show', 'master:Welcome.md'], host.git.env)).stdout)
+    .poll(
+      async () => {
+        await page.clock.fastForward('00:10');
+        return (await gitIn(remote, ['show', 'master:Welcome.md'], host.git.env)).stdout;
+      },
+      { intervals: [250], timeout: 15_000 },
+    )
     .toBe('# Welcome\n\nEdited on the studio.\n');
 
   // Behind: changes wait on GitHub while this Mac has typing not yet sent.
