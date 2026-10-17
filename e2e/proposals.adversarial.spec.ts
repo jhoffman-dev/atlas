@@ -59,7 +59,10 @@ test('adversarial: the bar over chosen proposals is named for proposals, not not
   page,
 }) => {
   await openProposals(page);
-  await page.getByRole('checkbox', { name: 'Select all' }).click();
+  // By keyboard: the Inbox's offers are read once it opens and are drawn above
+  // the proposals, so a click can land where the box was before they arrived.
+  await page.getByRole('checkbox', { name: 'Select all' }).focus();
+  await page.keyboard.press('Space');
   await expect(page.getByRole('toolbar', { name: /proposals/i })).toBeVisible();
 });
 
