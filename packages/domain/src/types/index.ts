@@ -133,12 +133,14 @@ export {
   recordSettling,
   SHIPPED_PROPERTIES_RECORD_PATH,
   ShippedPropertiesRecordError,
+  SHIPPED_PROPERTIES,
   shippedPropertiesLine,
   shippedPropertiesPlan,
   shippedPropertiesRecordText,
   shippedPropertiesSkippedLine,
 } from './shipped-properties.ts';
 export type {
+  ShippedCatalogue,
   ShippedPropertiesChange,
   ShippedPropertiesPlan,
   ShippedPropertiesRecord,

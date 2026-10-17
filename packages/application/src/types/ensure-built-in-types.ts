@@ -8,6 +8,7 @@ import {
   inboxTypePlan,
   newTypeFrontmatter,
   type BuiltInTypeFile,
+  type ShippedCatalogue,
   type TypeExtension,
   type VaultPath,
 } from '@atlas/domain';
@@ -84,7 +85,7 @@ interface TypePorts {
  * the other made as a failure. `vault` names the vault the host has open.
  */
 export function ensureBuiltInTypes(
-  ports: TypePorts & { readonly vault?: string },
+  ports: TypePorts & { readonly vault?: string; readonly shipped?: ShippedCatalogue },
 ): Promise<BuiltInTypesEnsured> {
   const vault = ports.vault ?? null;
   const running = underWay.get(ports.fs);
@@ -102,7 +103,9 @@ const underWay = new WeakMap<
   { readonly vault: string | null; readonly run: Promise<BuiltInTypesEnsured> }
 >();
 
-async function setUpTypes(ports: TypePorts): Promise<BuiltInTypesEnsured> {
+async function setUpTypes(
+  ports: TypePorts & { readonly shipped?: ShippedCatalogue },
+): Promise<BuiltInTypesEnsured> {
   const properties = await addShippedProperties(ports);
   return { properties, offer: setupOffer(await loadObjectTypes(ports)) };
 }

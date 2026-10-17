@@ -12,6 +12,13 @@ import { listed } from './para.ts';
 import type { ObjectType, PropertyDef } from './property-def.ts';
 
 /**
+ * The properties a build of Atlas ships on built-in types, by the type's name.
+ * Two Macs on different builds hold different catalogues; a test stands in an
+ * older build with a smaller one.
+ */
+export type ShippedCatalogue = ReadonlyMap<string, readonly PropertyDef[]>;
+
+/**
  * The properties Atlas ships on its own built-in types, by the type's name
  * (#162, ADR-0016's amendment of 2026-10-14). A file written before Atlas
  * shipped one of them lacks it, and a feature built on it fails — Accept on a
@@ -25,7 +32,7 @@ import type { ObjectType, PropertyDef } from './property-def.ts';
  * Meeting is here though Atlas writes no Meeting file: the import writes its
  * keys (ADR-0027) and meeting extraction links through its relations (P29-05).
  */
-const SHIPPED: ReadonlyMap<string, readonly PropertyDef[]> = new Map([
+export const SHIPPED_PROPERTIES: ShippedCatalogue = new Map([
   ...[...PROPOSAL_TYPE_FILES, DAILY_TYPE_FILE, BLOCK_TYPE_FILE].map(
     (file) => [file.type.name, file.type.properties] as const,
   ),
@@ -138,17 +145,24 @@ export const PROPERTIES_NOT_ADDABLE_AS_LINES =
  * the plan's to choose, so the person is asked to merge them.
  *
  * `declaredKeys` says which keys a type's file declares, taken from the file
- * rather than from the properties Atlas could parse out of it.
+ * rather than from the properties Atlas could parse out of it; `shipped` is
+ * this build's catalogue.
  */
 export function shippedPropertiesPlan<Type extends ObjectType>(
   types: readonly Type[],
   record: ShippedPropertiesRecord,
-  declaredKeys: (type: Type) => ReadonlySet<string> | null,
+  {
+    declaredKeys,
+    shipped: catalogue = SHIPPED_PROPERTIES,
+  }: {
+    declaredKeys: (type: Type) => ReadonlySet<string> | null;
+    shipped?: ShippedCatalogue;
+  },
 ): ShippedPropertiesPlan<Type> {
   const changes: ShippedPropertiesChange<Type>[] = [];
   const skipped: ShippedPropertiesSkip<Type>[] = [];
   for (const [name, files] of byFoldedName(types)) {
-    const shipped = SHIPPED.get(name) ?? [];
+    const shipped = catalogue.get(name) ?? [];
     const settled = new Set(keysRecorded(record.settled, name));
     if (shipped.every((property) => settled.has(property.key))) continue;
     const [type, ...others] = files as [Type, ...Type[]];
@@ -194,12 +208,13 @@ const duplicatedReason = (count: number, label: string) =>
 export function recordSettling(
   record: ShippedPropertiesRecord,
   changes: readonly ShippedPropertiesChange[],
+  catalogue: ShippedCatalogue = SHIPPED_PROPERTIES,
 ): ShippedPropertiesRecord {
   const settled = { ...record.settled };
   const added = { ...record.added };
   for (const change of changes) {
     const name = folded(change.before.name);
-    const shipped = (SHIPPED.get(name) ?? []).map((property) => property.key);
+    const shipped = (catalogue.get(name) ?? []).map((property) => property.key);
     settled[name] = union(keysRecorded(settled, name), shipped);
     if (change.added.length > 0) {
       added[name] = union(

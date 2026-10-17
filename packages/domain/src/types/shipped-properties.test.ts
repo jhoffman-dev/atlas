@@ -44,7 +44,7 @@ const MEETING_KEYS = [
 const parsedKeys = (found: ObjectType) => new Set(found.properties.map((added) => added.key));
 
 const plan = (types: readonly ObjectType[], record = NO_SHIPPED_PROPERTIES_RECORD) =>
-  shippedPropertiesPlan(types, record, parsedKeys).changes;
+  shippedPropertiesPlan(types, record, { declaredKeys: parsedKeys }).changes;
 
 const addedKeys = (types: readonly ObjectType[], record = NO_SHIPPED_PROPERTIES_RECORD) =>
   plan(types, record).map((change) => [change.before.name, change.added.map((added) => added.key)]);
@@ -113,11 +113,9 @@ describe('shippedPropertiesPlan', () => {
 
   it('counts a key the file declares as there even when Atlas could not read it', () => {
     const unread = (found: ObjectType) => new Set([...parsedKeys(found), 'tasks']);
-    const [change] = shippedPropertiesPlan(
-      [type('meeting')],
-      NO_SHIPPED_PROPERTIES_RECORD,
-      unread,
-    ).changes;
+    const [change] = shippedPropertiesPlan([type('meeting')], NO_SHIPPED_PROPERTIES_RECORD, {
+      declaredKeys: unread,
+    }).changes;
     expect(change?.added.map((added) => added.key)).not.toContain('tasks');
     expect(change?.added.map((added) => added.key)).toContain('decisions');
   });
@@ -138,11 +136,9 @@ describe('shippedPropertiesPlan, on a type it must leave alone', () => {
   it('skips a type whose `properties` is not a map, neither changing nor settling it', () => {
     const notAMap = () => null;
     const meeting = type('meeting');
-    const { changes, skipped } = shippedPropertiesPlan(
-      [meeting],
-      NO_SHIPPED_PROPERTIES_RECORD,
-      notAMap,
-    );
+    const { changes, skipped } = shippedPropertiesPlan([meeting], NO_SHIPPED_PROPERTIES_RECORD, {
+      declaredKeys: notAMap,
+    });
     expect(changes).toEqual([]);
     expect(skipped).toEqual([{ types: [meeting], label: 'Meeting', reason: PROPERTIES_NOT_A_MAP }]);
   });
@@ -153,7 +149,7 @@ describe('shippedPropertiesPlan, on a type it must leave alone', () => {
     const { changes, skipped } = shippedPropertiesPlan(
       [first, copy, type('daily')],
       NO_SHIPPED_PROPERTIES_RECORD,
-      parsedKeys,
+      { declaredKeys: parsedKeys },
     );
     expect(changes.map((change) => change.before.name)).toEqual(['daily']);
     expect(skipped).toEqual([
@@ -168,11 +164,9 @@ describe('shippedPropertiesPlan, on a type it must leave alone', () => {
 
   it('says nothing of a duplicated type whose keys are all settled', () => {
     const record = { settled: { meeting: MEETING_KEYS }, added: {} };
-    const { skipped } = shippedPropertiesPlan(
-      [type('meeting'), type('meeting')],
-      record,
-      parsedKeys,
-    );
+    const { skipped } = shippedPropertiesPlan([type('meeting'), type('meeting')], record, {
+      declaredKeys: parsedKeys,
+    });
     expect(skipped).toEqual([]);
   });
 });

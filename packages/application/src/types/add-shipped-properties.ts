@@ -10,6 +10,7 @@ import {
   shippedPropertiesPlan,
   shippedPropertiesRecordText,
   splitFrontmatter,
+  type ShippedCatalogue,
   type ShippedPropertiesChange,
   type ShippedPropertiesRecord,
   type VaultPath,
@@ -52,6 +53,8 @@ export interface ShippedPropertiesAdded {
 interface TypePorts {
   readonly fs: VaultFsPort;
   readonly markdown: MarkdownPort;
+  /** This build's catalogue; a test stands in an older build's. */
+  readonly shipped?: ShippedCatalogue;
 }
 
 /**
@@ -85,7 +88,10 @@ export async function addShippedProperties(ports: TypePorts): Promise<ShippedPro
   const record = found?.record ?? NO_SHIPPED_PROPERTIES_RECORD;
   const types = await loadObjectTypes(ports);
   const declared = await declaredKeysByPath(ports, types);
-  const plan = shippedPropertiesPlan(types, record, (type) => declared.get(type.path) ?? null);
+  const plan = shippedPropertiesPlan(types, record, {
+    declaredKeys: (type) => declared.get(type.path) ?? null,
+    ...(ports.shipped === undefined ? {} : { shipped: ports.shipped }),
+  });
   const complete = plan.changes.filter((change) => change.added.length === 0);
 
   const writes = await writeChanges(
@@ -104,7 +110,11 @@ export async function addShippedProperties(ports: TypePorts): Promise<ShippedPro
   const settled = [...written, ...complete];
   if (settled.length > 0) {
     try {
-      await writeRecord(ports.fs, recordSettling(record, settled), found?.modified ?? null);
+      await writeRecord(
+        ports.fs,
+        recordSettling(record, settled, ports.shipped),
+        found?.modified ?? null,
+      );
     } catch (cause) {
       failed.push({ name: 'its record', reason: reasonOf(cause) });
     }
