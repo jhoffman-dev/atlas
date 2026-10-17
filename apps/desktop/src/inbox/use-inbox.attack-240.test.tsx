@@ -72,7 +72,7 @@ function inbox() {
   };
   const hook = renderHook((options: InboxOptions) => useInbox(options), { initialProps: initial });
   /** The page as the app renders it: `vault`'s ports, and the index's key. */
-  const show = async (vault: string, indexKey: string, ports = of[vault]) => {
+  const show = async (vault: string, indexKey: string, ports = of[vault as keyof typeof of]) => {
     hook.rerender({
       ...initial,
       vaultKey: vault,
