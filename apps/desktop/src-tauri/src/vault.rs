@@ -483,8 +483,8 @@ fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
 /// half-written note: the reader sees either the old file or the new one.
 ///
 /// The modification time is the version a save is checked against, so every
-/// save leaves one later than the version it replaced, even within the same
-/// millisecond. A note that is a link out of the vault is refused by `resolve`;
+/// save leaves one other than the version it replaced, even within the same
+/// millisecond (see `write_temporary`). A note that is a link out of the vault is refused by `resolve`;
 /// one that is a link inside it has its target replaced, never the link's
 /// destination written through.
 fn write_text(
@@ -526,13 +526,29 @@ fn write_text(
     saved
 }
 
-/// Writes `bytes` to a new file at `temporary`, timed later than `after`
-/// (milliseconds since the epoch), and reports that time.
+/// Writes `bytes` to a new file at `temporary`, timed other than `after`
+/// (the replaced version's time, in milliseconds since the epoch), and
+/// reports that time.
+///
+/// The clock's own time is kept unless it is not past `after` by less than
+/// `BUMP_GRACE_MS`: then the file is timed `after` + 1 ms. Within the grace,
+/// saves stay in order even when several land in one millisecond, so no save
+/// can come back to an earlier version's time. A note dated further ahead (an
+/// unzip, `touch -t`) gets the clock's time back on its first save, rather
+/// than staying in the future for good.
+///
+/// The `sync_all` costs some 4 ms a save on this Mac's SSD, spent while the
+/// save holds the change turn.
 ///
 /// A temporary left by a save that died is removed, never written through:
 /// it could be a link planted to point anywhere. The new file is opened
 /// exclusively and without following a link, so one planted in between is
 /// refused rather than followed.
+/// How far ahead of the clock a replaced version may be and still have a save
+/// timed just after it. Bumps run ahead by a millisecond a save at most, and
+/// a save takes several, so a second is far more than they ever reach.
+const BUMP_GRACE_MS: u64 = 1000;
+
 fn write_temporary(temporary: &Path, bytes: &[u8], after: u64) -> Result<u64, String> {
     match fs::remove_file(temporary) {
         Err(error) if error.kind() != ErrorKind::NotFound => {
@@ -547,7 +563,8 @@ fn write_temporary(temporary: &Path, bytes: &[u8], after: u64) -> Result<u64, St
         .open(temporary)
         .map_err(|error| error.to_string())?;
     handle.write_all(bytes).map_err(|error| error.to_string())?;
-    if modified_of(&handle)? <= after {
+    let natural = modified_of(&handle)?;
+    if natural <= after && after - natural < BUMP_GRACE_MS {
         handle
             .set_modified(UNIX_EPOCH + Duration::from_millis(after + 1))
             .map_err(|error| error.to_string())?;
@@ -2092,7 +2109,7 @@ mod version_tests {
     };
     use std::fs;
     use std::path::{Path, PathBuf};
-    use std::time::{Duration, SystemTime};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use tempfile::tempdir;
 
     fn location(root: &Path) -> VaultLocation {
@@ -2115,10 +2132,11 @@ mod version_tests {
         }
     }
 
-    /// A note another program left timed ahead of this Mac's clock still gets
-    /// a later time from a save, so that version cannot be saved over again.
+    /// A note another program left timed ahead of this Mac's clock gets the
+    /// clock's time back from a save, and that version still cannot be saved
+    /// over again.
     #[test]
-    fn a_save_over_a_note_timed_in_the_future_is_later_still() {
+    fn a_save_over_a_note_timed_in_the_future_brings_its_time_back_to_now() {
         let vault = tempdir().unwrap();
         let file = vault.path().join("a.md");
         fs::write(&file, "ahead").unwrap();
@@ -2130,8 +2148,13 @@ mod version_tests {
             .set_modified(ahead)
             .unwrap();
         let opened = read_text(vault.path(), "a.md").unwrap().modified;
+        let before = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
         let saved = write_text(vault.path(), "a.md", "mine", Some(opened)).unwrap();
-        assert!(saved > opened);
+        assert!(saved < opened, "{saved} is still in the future");
+        assert!(saved + 1000 >= before, "{saved} is not now ({before})");
         assert_eq!(
             write_text(vault.path(), "a.md", "stale", Some(opened)),
             Err("the note changed on disk since it was opened".to_string())
