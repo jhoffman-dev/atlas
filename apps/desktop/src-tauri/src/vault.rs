@@ -251,24 +251,84 @@ pub(crate) fn resolve_new(root: &Path, relative: &str) -> Result<PathBuf, String
 }
 
 /// Creates a note, refusing to touch one that is already there.
+///
+/// Written whole beside it first and renamed into place, so a read never
+/// finds the note empty while its text is still being written. The rename is
+/// exclusive, so an existing note is never overwritten and two creations
+/// racing cannot both win.
 fn create_note_at(root: &Path, relative: &str, contents: &str) -> Result<(), String> {
     let _turn = change_turn();
     let file = resolve_new(root, relative)?;
+    let temporary = temporary_beside(&file)?;
 
-    // create_new fails if the path exists, so an existing note is never overwritten
-    // and two creations racing cannot both win.
-    let mut handle = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&file)
-        .map_err(|error| match error.kind() {
-            std::io::ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
+    // Nothing is replaced, so the time the clock gives is kept.
+    write_temporary(&temporary, contents.as_bytes(), 0)
+        .map_err(|error| format!("cannot write the note: {error}"))?;
+    rename_exclusive(&temporary, &file).map_err(|error| {
+        let _ = fs::remove_file(&temporary); // Best effort; the creation already failed.
+        match error.kind() {
+            ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
             _ => format!("cannot create the note: {error}"),
-        })?;
+        }
+    })
+}
 
-    handle
-        .write_all(contents.as_bytes())
-        .map_err(|error| format!("cannot write the note: {error}"))
+/// The name a note's new text is written under before it is renamed into place.
+fn temporary_beside(file: &Path) -> Result<PathBuf, String> {
+    let directory = file.parent().ok_or("note has no parent directory")?;
+    let name = file.file_name().ok_or("note has no file name")?;
+    Ok(directory.join(format!(".{}.atlas-tmp", name.to_string_lossy())))
+}
+
+/// Renames `from` to `to` only if nothing is at `to`, decided by the kernel
+/// in the rename itself, so nothing can take the name between a check and
+/// the move.
+#[cfg(target_os = "macos")]
+pub(crate) fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both are NUL-terminated paths that outlive the call.
+    let status = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: both are NUL-terminated paths that outlive the call.
+    let status = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    if status == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+/// Elsewhere there is no exclusive rename, and the check is as close as it gets.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub(crate) fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    if fs::symlink_metadata(to).is_ok() {
+        return Err(std::io::ErrorKind::AlreadyExists.into());
+    }
+    fs::rename(from, to)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn c_path(path: &Path) -> std::io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL"))
 }
 
 #[tauri::command]
@@ -505,13 +565,7 @@ fn write_text(
         return Err("the note changed on disk since it was opened".into());
     }
 
-    let directory = file.parent().ok_or("note has no parent directory")?;
-    let name = file
-        .file_name()
-        .ok_or("note has no file name")?
-        .to_string_lossy()
-        .into_owned();
-    let temporary = directory.join(format!(".{name}.atlas-tmp"));
+    let temporary = temporary_beside(&file)?;
 
     let saved = write_temporary(&temporary, contents.as_bytes(), replaced)
         .map_err(|error| format!("cannot write: {error}"))
@@ -1694,7 +1748,7 @@ mod create_tests {
 /// stopped taking its turn would fail them.
 #[cfg(test)]
 mod concurrency_tests {
-    use super::{read_text, write_text};
+    use super::{one_change_at_a_time, read_text, write_text};
     use std::collections::HashMap;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -1811,6 +1865,36 @@ mod concurrency_tests {
                 read.text
             );
         }
+    }
+
+    /// A note is never seen half-made: a read racing its creation finds no
+    /// note or the whole of it, never an empty file the text is still being
+    /// written into.
+    #[test]
+    fn a_read_racing_a_creation_never_sees_an_empty_note() {
+        let vault = tempdir().unwrap();
+        let root = vault.path().to_path_buf();
+        let creator = thread::spawn(move || {
+            for _ in 0..500 {
+                super::create_note_at(&root, "n.md", "made whole").unwrap();
+                one_change_at_a_time(|| fs::remove_file(root.join("n.md")).unwrap());
+            }
+        });
+        let mut seen = Vec::new();
+        while !creator.is_finished() {
+            if let Ok(read) = read_text(vault.path(), "n.md") {
+                seen.push(read.text);
+            }
+        }
+        creator.join().unwrap();
+        let torn: Vec<_> = seen.iter().filter(|text| *text != "made whole").collect();
+        assert!(
+            torn.is_empty(),
+            "{} of {} reads torn: {:?}",
+            torn.len(),
+            seen.len(),
+            torn.first()
+        );
     }
 
     /// A save racing a move must not rename its temporary back to where the

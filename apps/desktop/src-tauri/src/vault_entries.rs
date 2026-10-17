@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Manager};
 
-use crate::vault::{change_in_vault, change_turn, off_main, resolve_new, VaultState};
+use crate::vault::{
+    change_in_vault, change_turn, off_main, rename_exclusive, resolve_new, VaultState,
+};
 
 /// An entry that is already there, as itself: a link is the link, not what it
 /// points at.
@@ -103,57 +105,6 @@ fn is_listed_as_itself(path: &Path) -> bool {
             .filter_map(Result::ok)
             .any(|entry| entry.file_name() == name)
     })
-}
-
-/// Renames `from` to `to` only if nothing is at `to`, decided by the kernel
-/// in the rename itself, so nothing can take the name between a check and
-/// the move.
-#[cfg(target_os = "macos")]
-fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
-    let (from, to) = (c_path(from)?, c_path(to)?);
-    // SAFETY: both are NUL-terminated paths that outlive the call.
-    let status = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
-    if status == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
-    let (from, to) = (c_path(from)?, c_path(to)?);
-    // SAFETY: both are NUL-terminated paths that outlive the call.
-    let status = unsafe {
-        libc::renameat2(
-            libc::AT_FDCWD,
-            from.as_ptr(),
-            libc::AT_FDCWD,
-            to.as_ptr(),
-            libc::RENAME_NOREPLACE,
-        )
-    };
-    if status == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-/// Elsewhere there is no exclusive rename, and the check is as close as it gets.
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
-    if fs::symlink_metadata(to).is_ok() {
-        return Err(std::io::ErrorKind::AlreadyExists.into());
-    }
-    fs::rename(from, to)
-}
-
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-fn c_path(path: &Path) -> std::io::Result<std::ffi::CString> {
-    use std::os::unix::ffi::OsStrExt;
-    std::ffi::CString::new(path.as_os_str().as_bytes())
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL"))
 }
 
 /// Puts a note or a folder in the Trash through `trash`, and nothing else.
