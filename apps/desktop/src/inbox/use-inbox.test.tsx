@@ -568,3 +568,34 @@ describe('useInbox — undo', () => {
     expect(files.get(CALL)).toContain('Edited since.');
   });
 });
+
+describe('useInbox — what it hands every row (#217)', () => {
+  it('keeps the same statuses while the types read again say the same ones', async () => {
+    const { hook, initial } = inbox();
+    await waitFor(() => expect(hook.result.current.contents).not.toBeNull());
+    const before = hook.result.current.statuses;
+
+    // The types are read again after every write; the Task type says what it said.
+    hook.rerender({ ...initial, types: [{ ...TASK_TYPE_FILE.type }] });
+
+    expect(hook.result.current.statuses).toEqual(before);
+    expect(hook.result.current.statuses).toBe(before);
+  });
+
+  it('hands over new statuses once the Task type declares others', async () => {
+    const { hook, initial } = inbox();
+    await waitFor(() => expect(hook.result.current.contents).not.toBeNull());
+    const fewer: ObjectType = {
+      ...TASK_TYPE_FILE.type,
+      properties: TASK_TYPE_FILE.type.properties.map((property) =>
+        property.key === 'status' && 'options' in property
+          ? { ...property, options: ['inbox', 'next-action'] }
+          : property,
+      ),
+    };
+
+    hook.rerender({ ...initial, types: [fewer] });
+
+    expect(hook.result.current.statuses).toEqual(['inbox', 'next-action']);
+  });
+});

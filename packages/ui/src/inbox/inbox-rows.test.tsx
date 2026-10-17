@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 /** The Inbox's rows (#112), drawn again only when what they show has changed (#217). */
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createVaultPath, type InboxItem, type InboxTask } from '@atlas/domain';
 import { InboxPage, type InboxPageProps } from '../inbox-page.tsx';
+import { startCountingRenders, stopCountingRenders } from '../testing/render-counter.ts';
+
+// Before React loads, so every commit is handed to the counter.
+await vi.hoisted(async () => {
+  const { installRenderCounter } = await import('../testing/render-counter.ts');
+  installRenderCounter();
+});
 
 const task = (
   status: InboxTask['status'],
@@ -80,5 +87,45 @@ describe('InboxRows — a meeting whose summary still waits (#186)', () => {
     const view = render(<InboxPage {...props([meeting])} summaryPending={new Map()} />);
     expect(screen.getByRole('button', { name: meeting.title })).toBeDefined();
     expect(view.container.textContent).not.toContain('Summary pending');
+  });
+});
+
+describe('InboxRows — deciding one row (#217)', () => {
+  const note = (title: string): InboxItem => ({
+    path: createVaultPath(`Inbox/${title}.md`),
+    title,
+    type: 'meeting',
+    arrivedIn: '',
+    importOutcome: null,
+    importError: null,
+    task: null,
+  });
+  const NOTES = ['Larkspur sync', 'Ledger review', 'Payroll dry run', 'Quarter close'].map(note);
+  const FILING = [{ path: 'Projects/Atlas.md', title: 'Atlas' }];
+
+  /** The page as the app hands it over: callbacks made again on every render of the app. */
+  const given = (items: readonly InboxItem[]): InboxPageProps => ({
+    ...props([...items]),
+    filing: FILING,
+    statuses: undefined,
+    onOpen: vi.fn(),
+    onClarify: vi.fn(async () => true),
+  });
+
+  it('draws again only the row focus moves to, though the app hands over new callbacks', async () => {
+    const view = render(<InboxPage {...given(NOTES)} />);
+    startCountingRenders();
+    fireEvent.change(screen.getByRole('combobox', { name: 'File Larkspur sync under' }), {
+      target: { value: 'Projects/Atlas.md' },
+    });
+    // The write lands; the app renders again, the filed row gone and every callback new.
+    await act(async () => {});
+    view.rerender(<InboxPage {...given(NOTES.slice(1))} />);
+    view.rerender(<InboxPage {...given(NOTES.slice(1))} />);
+    const { renders } = stopCountingRenders();
+
+    expect(document.activeElement?.textContent).toContain('Ledger review');
+    // The row the focus moved to, once; the three others not at all.
+    expect(renders['InboxRow']).toBe(1);
   });
 });

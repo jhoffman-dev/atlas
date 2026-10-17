@@ -529,3 +529,66 @@ describe('useToday', () => {
     expect(result.current.page.notice).toBeNull();
   });
 });
+
+describe('useToday — a read again (#217)', () => {
+  const OTHER = createVaultPath('Tasks/Call the bank.md');
+
+  /** The day's tasks as the index answers, `dueOfOther` the one thing that changes. */
+  function twoTasks(dueOfOther: string) {
+    return async (sql: string): Promise<QueryResult> =>
+      sql.startsWith(REVIEW_TASKS_QUERY_MARK)
+        ? {
+            columns: ['path', 'title', 'modified', 'status', 'due', 'defer'],
+            rows: [
+              [PATH, 'Ship the page', NOW, 'next-action', '2026-10-13', null],
+              [OTHER, 'Call the bank', NOW, 'next-action', dueOfOther, null],
+            ],
+            truncated: false,
+          }
+        : answer(sql);
+  }
+
+  function reading() {
+    let query = twoTasks('2026-10-13');
+    const ports = {
+      index: fakeIndexPort({ query: (sql) => query(sql) }),
+      fs: fakeVaultFs(memoryVault({}).fs),
+      markdown: remarkMarkdown,
+    };
+    const hook = renderHook(
+      ({ indexKey }: { indexKey: string }) =>
+        useToday({
+          ports,
+          editors: noPane,
+          activity: recordingActivity(),
+          clock: CLOCK,
+          types: TYPES,
+          vaultKey: 'vault-a',
+          indexKey,
+          open: true,
+          onSettled: vi.fn(),
+        }),
+      { initialProps: { indexKey: '1' } },
+    );
+    const taskOf = (path: string) =>
+      hook.result.current.page.today?.sections
+        .flatMap((section) => section.groups.flatMap((group) => group.tasks))
+        .find((task) => task.path === path);
+    return { hook, taskOf, answerNext: (next: typeof query) => (query = next) };
+  }
+
+  it('keeps each task that did not change the same, so its row is not drawn again', async () => {
+    const { hook, taskOf, answerNext } = reading();
+    await waitFor(() => expect(taskOf(OTHER)).toBeDefined());
+    const [shipBefore, callBefore] = [taskOf(PATH), taskOf(OTHER)];
+    const before = hook.result.current.page.today;
+
+    answerNext(twoTasks('2026-10-01'));
+    hook.rerender({ indexKey: '2' });
+    await waitFor(() => expect(hook.result.current.page.today).not.toBe(before));
+
+    expect(taskOf(PATH)).toBe(shipBefore);
+    expect(taskOf(OTHER)).not.toBe(callBefore);
+    expect(taskOf(OTHER)?.due).toBe('2026-10-01');
+  });
+});
