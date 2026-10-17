@@ -237,7 +237,6 @@ function entriesAdded(
 function foldInto(onto: SettingsText, from: SettingsText, added: Added): SettingsMerged | null {
   const own = byKey(onto.keys);
   const keys: string[] = [];
-  const folded = new Map<string, string[]>();
   const tail: string[] = [];
   for (const key of added.keys) {
     const same = own.get(key.key);
@@ -248,35 +247,44 @@ function foldInto(onto: SettingsText, from: SettingsText, added: Added): Setting
     keys.push(key.key);
     tail.push(key.text);
   }
+  for (const name of added.entries.keys()) if (!own.has(name)) return null;
+  const folded = new Map<string, string[]>();
   const texts: string[] = [];
   for (const key of onto.keys) {
-    const extra = added.entries.get(key.key) ?? [];
-    const map = key.map;
-    const fresh = extra.filter(
-      (entry) => !(map?.entries ?? []).some(({ name }) => name === entry.name),
-    );
-    for (const entry of extra) {
-      const same = map?.entries.find(({ name }) => name === entry.name);
-      if (same !== undefined && same.text !== entry.text) return null;
-    }
-    if (fresh.length > 0) {
-      const theirs = from.keys.find(({ key: name }) => name === key.key)?.map;
-      if (map === null || theirs === undefined || theirs === null || map.indent !== theirs.indent) {
-        return null;
-      }
+    const theirs = from.keys.find(({ key: name }) => name === key.key)?.map ?? null;
+    const fresh = freshEntries(key, theirs, added.entries.get(key.key) ?? []);
+    if (fresh === null) return null;
+    if (fresh.length > 0)
       folded.set(
         key.key,
         fresh.map(({ name }) => name),
       );
-    }
     texts.push(key.text + fresh.map((entry) => entry.text).join(''));
   }
-  for (const name of added.entries.keys()) if (!own.has(name)) return null;
   return {
     frontmatter: [...texts, ...tail].join(''),
     body: onto.body,
     folded: { keys, entries: folded },
   };
+}
+
+/**
+ * The entries of `extra` that the kept key's map lacks, to put after its own;
+ * null when one it has is written differently, or the two maps cannot take
+ * each other's entries as lines (one is not a map, or their indents differ).
+ */
+function freshEntries(
+  kept: WrittenKey,
+  theirs: WrittenMap | null,
+  extra: readonly WrittenEntry[],
+): WrittenEntry[] | null {
+  const map = kept.map;
+  const own = new Map((map?.entries ?? []).map((entry) => [entry.name, entry.text]));
+  if (extra.some((entry) => own.has(entry.name) && own.get(entry.name) !== entry.text)) return null;
+  const fresh = extra.filter((entry) => !own.has(entry.name));
+  if (fresh.length === 0) return fresh;
+  if (map === null || theirs === null || map.indent !== theirs.indent) return null;
+  return fresh;
 }
 
 const byKey = (keys: readonly WrittenKey[]) => new Map(keys.map((key) => [key.key, key]));

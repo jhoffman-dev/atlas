@@ -38,8 +38,9 @@ export function mergeSettings(markdown: MarkdownPort, versions: SettingsVersions
   try {
     return mergeByKeys(markdown, versions);
   } catch {
-    // Safe to ignore: frontmatter the reader throws on (an alias to an anchor
-    // only one side has, say) is a person's to merge, so both are kept with a copy.
+    // Broad on purpose: whatever throws here — the reader on frontmatter it
+    // refuses, or anything else — means the file is a person's to merge, and
+    // returning null keeps both versions with a copy. Nothing is written.
     return null;
   }
 }
@@ -54,17 +55,26 @@ function mergeRecords({ base, ours, theirs }: SettingsVersions): string | null {
   return shippedPropertiesRecordText(mergeShippedPropertiesRecords(mine, other));
 }
 
+const RECORD_JSON = /\n```json\n([^\n]*)\n```\n/;
+
 /**
  * A record read back, when its file is the text Atlas writes for it — but for
- * the order of its keys, which older builds did not sort. Null for one a
- * person wrote in: a note of theirs is kept with a copy, never merged away.
+ * the order of its keys, which older builds did not sort, and an `added` older
+ * builds left out. Null for one a person wrote in, around the JSON or inside
+ * it (a field of their own, which reading drops): it is kept with a copy,
+ * never merged away.
  */
 function asAtlasWrote(text: string): ShippedPropertiesRecord | null {
   const record = readRecord(text);
   if (record === null) return null;
-  const withoutKeys = (written: string) =>
-    written.replace(/\n```json\n[^\n]*\n```\n/, '\n```json\n```\n');
-  return withoutKeys(text) === withoutKeys(shippedPropertiesRecordText(record)) ? record : null;
+  const withoutKeys = (written: string) => written.replace(RECORD_JSON, '\n```json\n```\n');
+  if (withoutKeys(text) !== withoutKeys(shippedPropertiesRecordText(record))) return null;
+  const json: unknown = JSON.parse(RECORD_JSON.exec(text)?.[1] ?? 'null');
+  const written =
+    typeof json === 'object' && json !== null && !Object.hasOwn(json, 'added')
+      ? { settled: record.settled }
+      : { settled: record.settled, added: record.added };
+  return sameFrontmatterValue(json, written) ? record : null;
 }
 
 function readRecord(text: string): ShippedPropertiesRecord | null {
@@ -105,6 +115,8 @@ function mergeByKeys(markdown: MarkdownPort, versions: SettingsVersions): string
     [ours, theirs],
     [theirs, ours],
   ] as const) {
+    // The kept side's fences are written: one the other side changed (a BOM, a trailing space) would be lost.
+    if (onto.opening !== from.opening || onto.closing !== from.closing) continue;
     const merged = mergeSettingsText({
       base: base?.text ?? null,
       onto: onto.text,
