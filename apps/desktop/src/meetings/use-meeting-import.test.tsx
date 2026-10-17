@@ -5,7 +5,7 @@
  * index is ready.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, digestOf, type NoteChange, type PullStanding } from '@atlas/domain';
 import {
   createNoteChanges,
@@ -15,6 +15,7 @@ import {
   type MeetingImportPorts,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { useIndexReady } from '../index/index-status-store.ts';
 import { useIndex } from '../index/use-index.ts';
 import { useMeetingImport } from './use-meeting-import.ts';
 
@@ -342,7 +343,8 @@ describe('useMeetingImport: adversarial, round 3', () => {
     const clock = { today: () => '2026-10-08' };
     const { rerender } = renderHook(
       ({ vaultKey }: { vaultKey: string }) => {
-        const { status } = useIndex({ ports: indexPorts, vaultKey, activity, changes });
+        const { store } = useIndex({ ports: indexPorts, vaultKey, activity, changes });
+        const indexReady = useIndexReady(store, vaultKey);
         useMeetingImport({
           changes,
           ports,
@@ -353,7 +355,7 @@ describe('useMeetingImport: adversarial, round 3', () => {
           selfEmails: [],
           ownerKnown: true,
           active: true,
-          indexReady: status.kind === 'ready',
+          indexReady,
           pulledFiles: NOT_SYNCED,
           onWritten: () => undefined,
         });
@@ -368,6 +370,43 @@ describe('useMeetingImport: adversarial, round 3', () => {
     await settled();
     await settled();
 
+    expect(written).toEqual([BROKEN]);
+  });
+
+  it('still imports once the first build is ready, read through the store (#238)', async () => {
+    const written: string[] = [];
+    const indexPorts = { fs: fakeVaultFs(), index: fakeIndexPort(), markdown: remarkMarkdown };
+    const changes = createNoteChanges({ onError: () => undefined });
+    const activity = recordingActivity();
+    const ports = portsOver(written);
+    const clock = { today: () => '2026-10-08' };
+    const { result } = renderHook(() => {
+      const index = useIndex({ ports: indexPorts, vaultKey: VAULT, activity, changes });
+      useMeetingImport({
+        changes,
+        ports,
+        clock,
+        activity,
+        vaultKey: VAULT,
+        selfName: null,
+        selfEmails: [],
+        ownerKnown: true,
+        active: true,
+        indexReady: useIndexReady(index.store, VAULT),
+        pulledFiles: NOT_SYNCED,
+        onWritten: () => undefined,
+      });
+      return index;
+    });
+    // The first build is seen building, so the ready after it counts.
+    await waitFor(() => expect(written).toEqual([BROKEN]));
+
+    // A refresh after it keeps the index ready, and the catch-up is spent.
+    await act(async () => {
+      await result.current.refresh();
+      await result.current.refresh({ quiet: true });
+    });
+    await settled();
     expect(written).toEqual([BROKEN]);
   });
 });

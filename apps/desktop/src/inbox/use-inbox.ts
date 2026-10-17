@@ -677,11 +677,13 @@ function followedBy(shown: InboxListing, page: InboxListing): InboxListing {
 }
 
 /**
- * Whether the index has moved on to the vault that is open. It starts on a
- * vault a render after that vault opens, so for that render it still says
- * `ready` with the last vault's rows: the key it had then is remembered, and
+ * Whether the index has moved on to the vault that is open. On the render a
+ * vault opens, the key already says `building` (#238), unless the store still
+ * holds that very vault — a switch back before the other vault's sync began —
+ * when it says that vault's last `ready:N`, with rows the index may no longer
+ * hold. Either way the key the switch was made under is remembered, and
  * nothing is read, shown or written until it has changed. Once it has, every
- * later key is this vault's — a re-index says `working` again, which may be
+ * later key is this vault's — a rebuild says `building` again, which may be
  * the very key the switch was made under — so it stays moved on.
  */
 function useIndexMovedOn({

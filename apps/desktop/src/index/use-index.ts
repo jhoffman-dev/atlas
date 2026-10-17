@@ -8,6 +8,15 @@ import {
   type NoteDeriver,
   type VaultFsPort,
 } from '@atlas/application';
+import {
+  createIndexStatusStore,
+  useIndexStatus,
+  type IndexStatus,
+  type IndexStatusStore,
+} from './index-status-store.ts';
+import { createSyncQueue, type QueuedSync, type SyncRequest } from './sync-queue.ts';
+
+export type { IndexStatus } from './index-status-store.ts';
 
 export interface IndexPorts {
   fs: VaultFsPort;
@@ -52,34 +61,36 @@ function createIndexProgress(): IndexProgressStore & { set(progress: IndexProgre
   };
 }
 
-export type IndexStatus =
-  | { readonly kind: 'idle' }
-  /** Being built. How far it has got is `progress`'s to say, so `done` and `total` stay 0 here. */
-  | { readonly kind: 'working'; readonly done: number; readonly total: number }
-  | {
-      readonly kind: 'ready';
-      readonly notes: number;
-      /**
-       * How many times the index has finished refreshing. The note count alone
-       * does not change when a note is edited rather than added, so anything
-       * re-running on "the index moved" needs a number that always does.
-       */
-      readonly revision: number;
-    }
-  | { readonly kind: 'failed'; readonly message: string };
-
-/** One value for every build, so a refresh asked for during a build changes nothing the window sees. */
-const WORKING: IndexStatus = { kind: 'working', done: 0, total: 0 };
-
 const message = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+/** Counts what the syncer publishes, so a sync can tell whether it found anything. */
+function countingPublishes(changes: NoteChanges): NoteChanges & { published(): number } {
+  let published = 0;
+  return {
+    publish(news) {
+      published += 1;
+      changes.publish(news);
+    },
+    subscribe: (listener) => changes.subscribe(listener),
+    published: () => published,
+  };
+}
+
+/** Says the index is ready, telling the store's readers only when something they read moved. */
+function settle(store: IndexStatusStore, ready: { notes: number; revision: number }): void {
+  const now = store.getState();
+  if (now.phase === 'ready' && now.notes === ready.notes && now.revision === ready.revision) return;
+  store.setState({ phase: 'ready', message: null, ...ready });
+}
 
 /**
  * Keeps the index in step with the vault.
  *
  * It is opened and brought up to date whenever a vault is opened. Rebuilding
  * throws the database away and starts again, which is the check that nothing
- * depends on it surviving.
+ * depends on it surviving. Only those two say the index is building; a
+ * refresh after a change keeps it ready while it runs (#238).
  */
 export function useIndex({
   ports,
@@ -94,10 +105,16 @@ export function useIndex({
   /** Where every refresh says which notes it found added, changed or removed (P28-03). */
   changes: NoteChanges;
 }): {
+  /** The open vault's status. What only needs part of it reads `store` through a selector. */
   status: IndexStatus;
+  store: IndexStatusStore;
   progress: IndexProgressStore;
-  /** Resolves true once the index holds the files as they were when it was asked, false when it does not. */
-  refresh: () => Promise<boolean>;
+  /**
+   * Resolves true once the index holds the files as they were when it was
+   * asked, false when it does not. A `quiet` refresh — the watcher's — moves
+   * the revision only when it found a change.
+   */
+  refresh: (options?: { quiet?: boolean }) => Promise<boolean>;
   rebuild: () => Promise<boolean>;
   /**
    * Resolves true once the index holds every change that has asked for a
@@ -107,15 +124,14 @@ export function useIndex({
    */
   catchUp: () => Promise<boolean>;
 } {
-  const [status, setStatus] = useState<IndexStatus>({ kind: 'idle' });
+  const [store] = useState(createIndexStatusStore);
   const [progress] = useState(createIndexProgress);
   const revision = useRef(0);
-  /** Syncs asked for and not yet settled, of the vault they were asked for: the one running, and any queued behind it. */
-  const waiting = useRef<{ vault: string | null; count: number }>({ vault: null, count: 0 });
   // Read by every syncer this hook has made, so one left from a vault since
   // closed drops what is still queued on it instead of reading the new vault.
   const open = useRef(vaultKey);
   open.current = vaultKey;
+  const counted = useMemo(() => countingPublishes(changes), [changes]);
   const syncer = useMemo(
     () =>
       createIndexSyncer({
@@ -124,85 +140,92 @@ export function useIndex({
         markdown: ports.markdown,
         ...(ports.deriver !== undefined && { deriver: ports.deriver }),
         activity,
-        changes,
+        changes: counted,
         openVault: () => open.current,
       }),
-    [ports.fs, ports.index, ports.markdown, ports.deriver, activity, changes],
+    [ports.fs, ports.index, ports.markdown, ports.deriver, activity, counted],
   );
 
   const run = useCallback(
-    async ({ fromScratch }: { fromScratch: boolean }): Promise<boolean> => {
-      if (vaultKey === null || open.current !== vaultKey) return false;
-      // Another vault's syncs are not this one's: its count starts again, and so
-      // does what the window says of how far it has got.
-      if (waiting.current.vault !== vaultKey) waiting.current = { vault: vaultKey, count: 0 };
-      const asked = waiting.current;
-      // A refresh asked for while a build runs waits its turn behind it, and
-      // must not wipe what the window says of the one under way.
-      if (asked.count === 0) progress.set(NOT_STARTED);
-      setStatus(WORKING);
-      asked.count += 1;
-      /** Whether this is the last word on the vault still open: nothing queued behind it, no switch since. */
-      const settles = () => asked.count === 0 && waiting.current === asked;
+    async ({ vault, request, last, current }: QueuedSync): Promise<boolean> => {
+      if (open.current !== vault) return false;
+      const { fromScratch, quiet } = request;
+      const building = fromScratch || store.getState().vault !== vault;
+      if (building) {
+        progress.set(NOT_STARTED);
+        store.setState({ vault, phase: 'building', message: null });
+      }
+      const publishedBefore = counted.published();
       try {
-        const stats = await syncer
-          .sync({
-            vault: vaultKey,
-            fromScratch,
-            onProgress: (done, total) => {
-              // A build caught by a switch may report once more before it stops.
-              if (waiting.current === asked) progress.set({ done, total });
-            },
-          })
-          .finally(() => (asked.count -= 1));
+        const stats = await syncer.sync({
+          vault,
+          fromScratch,
+          onProgress: (done, total) => {
+            // A build caught by a switch may report once more before it stops.
+            if (current()) progress.set({ done, total });
+          },
+        });
         // Dropped: the vault closed while it waited, and the one open now has its own.
         if (stats === null) return false;
-        revision.current += 1;
+        const found = counted.published() > publishedBefore;
+        if (building || found || !quiet) revision.current += 1;
         // Not "ready" while a sync queued behind this one is still to write:
         // whatever reads the index on "ready" would read it half written (#135).
-        if (settles()) {
-          setStatus({ kind: 'ready', notes: stats.notes, revision: revision.current });
-        }
+        if (last()) settle(store, { notes: stats.notes, revision: revision.current });
         return true;
       } catch (cause) {
+        // Moved for every failure, so the window hears each edit the index could not take.
+        revision.current += 1;
         // A sync still to come has the last word; this failure is in the Activity log.
-        if (settles()) setStatus({ kind: 'failed', message: message(cause) });
+        if (last()) {
+          store.setState({ phase: 'failed', message: message(cause), revision: revision.current });
+        }
         return false;
       }
     },
-    [syncer, vaultKey, progress],
+    [syncer, store, progress, counted],
   );
+  // One queue for the window, so asks made across a re-render still join one another.
+  const latestRun = useRef(run);
+  latestRun.current = run;
+  const [queue] = useState(() => createSyncQueue((sync) => latestRun.current(sync)));
 
   /** The last sync asked of the open vault: it settles after every one asked before it. */
   const lastAsked = useRef<{ vault: string; held: Promise<boolean> } | null>(null);
   const ask = useCallback(
-    (fromScratch: boolean) => {
-      const held = run({ fromScratch });
-      if (vaultKey !== null) lastAsked.current = { vault: vaultKey, held };
+    (request: SyncRequest) => {
+      if (vaultKey === null || open.current !== vaultKey) return Promise.resolve(false);
+      const held = queue.ask(vaultKey, request);
+      lastAsked.current = { vault: vaultKey, held };
       return held;
     },
-    [run, vaultKey],
+    [queue, vaultKey],
   );
 
   useEffect(() => {
     if (vaultKey === null) {
-      setStatus({ kind: 'idle' });
+      store.setState({ vault: null, phase: 'idle', message: null });
       return;
     }
-    void ask(false);
-  }, [vaultKey, ask]);
+    void ask({ fromScratch: false, quiet: false });
+  }, [vaultKey, ask, store]);
 
   const catchUp = useCallback(async () => {
     const last = lastAsked.current;
     if (last?.vault === vaultKey && (await last.held)) return true;
-    return ask(false);
+    return ask({ fromScratch: false, quiet: false });
   }, [vaultKey, ask]);
 
   return {
-    status,
+    status: useIndexStatus(store, vaultKey),
+    store,
     progress,
-    refresh: useCallback(() => ask(false), [ask]),
-    rebuild: useCallback(() => ask(true), [ask]),
+    refresh: useCallback(
+      (options?: { quiet?: boolean }) =>
+        ask({ fromScratch: false, quiet: options?.quiet === true }),
+      [ask],
+    ),
+    rebuild: useCallback(() => ask({ fromScratch: true, quiet: false }), [ask]),
     catchUp,
   };
 }
