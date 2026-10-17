@@ -38,23 +38,56 @@ export async function mergeSettingsConflicts({
   conflicts: readonly GitConflict[];
   settings: SettingsMergePorts;
 }): Promise<readonly GitConflict[]> {
-  const candidates = conflicts.filter(
-    (conflict) =>
-      conflict.ours !== null && conflict.theirs !== null && isSettingsFile(conflict.path),
-  );
+  const candidates = conflicts.flatMap((conflict) => {
+    const { path, base, ours, theirs } = conflict;
+    if (ours === null || theirs === null || !isSettingsFile(path)) return [];
+    return [{ conflict, sides: { path, base, ours, theirs } }];
+  });
   if (candidates.length === 0) return conflicts;
   const journal = await readJournal(files);
   const mergeHead = firstLine(await git.mergeInProgress());
   const merged = new Set<string>();
-  for (const conflict of candidates) {
+  for (const { conflict, sides } of candidates) {
     const entry = journalEntryFor({ journal, mergeHead, conflict });
-    if (await mergeOne({ git, settings, conflict, entry })) merged.add(conflict.path);
+    if (await mergeOne({ git, settings, conflict: sides, entry })) merged.add(conflict.path);
   }
   return conflicts.filter((conflict) => !merged.has(conflict.path));
 }
 
-/** Writes one file's merge; says whether it holds it now. */
-async function mergeOne({
+/** A conflict both sides of which are there: a file each Mac still has. */
+interface BothSides {
+  readonly path: string;
+  readonly base: ConflictBlob | null;
+  readonly ours: ConflictBlob;
+  readonly theirs: ConflictBlob;
+}
+
+type ConflictBlob = NonNullable<GitConflict['ours']>;
+
+/**
+ * Writes one file's merge; says whether it holds it now. Anything that goes
+ * wrong on the way — a side git cannot hand over, frontmatter the reader
+ * throws on (an alias to an anchor only the other side has), a write the
+ * host refuses — leaves the file as git's merge wrote it, and the conflict
+ * goes the usual way: this Mac's version kept, the other's copied, no markers
+ * left. Giving up loses nothing, where stopping the sync would leave the
+ * markers in place and every later sync stuck on them.
+ */
+async function mergeOne(request: {
+  git: GitPort;
+  settings: SettingsMergePorts;
+  conflict: BothSides;
+  entry: JournalFile | null;
+}): Promise<boolean> {
+  try {
+    return await writeMerge(request);
+  } catch {
+    // Safe to ignore: nothing was written, and the copy keeps both versions (see above).
+    return false;
+  }
+}
+
+async function writeMerge({
   git,
   settings: { vault, markdown },
   conflict,
@@ -62,7 +95,7 @@ async function mergeOne({
 }: {
   git: GitPort;
   settings: SettingsMergePorts;
-  conflict: GitConflict;
+  conflict: BothSides;
   entry: JournalFile | null;
 }): Promise<boolean> {
   const versions = await versionsOf(git, conflict);
@@ -79,11 +112,11 @@ async function mergeOne({
 }
 
 /** The base, this Mac's and the other's versions as text; null when one cannot be read whole. */
-async function versionsOf(git: GitPort, { path, base, ours, theirs }: GitConflict) {
+async function versionsOf(git: GitPort, { path, base, ours, theirs }: BothSides) {
   const [baseText, oursText, theirsText] = await Promise.all([
     base === null ? null : blobText(git, base.oid),
-    blobText(git, ours!.oid),
-    blobText(git, theirs!.oid),
+    blobText(git, ours.oid),
+    blobText(git, theirs.oid),
   ]);
   if (oursText === null || theirsText === null) return null;
   if (base !== null && baseText === null) return null;

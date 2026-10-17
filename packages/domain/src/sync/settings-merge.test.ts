@@ -1,16 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { isSettingsFile, settingsAdditions, type SettingsSide } from './settings-merge.ts';
+import {
+  isSettingsFile,
+  mergeSettingsText,
+  sameFrontmatterValue,
+  writtenMap,
+  type SettingsText,
+} from './settings-merge.ts';
 
-const side = (frontmatter: Record<string, unknown>, body = '\nMine.\n'): SettingsSide => ({
-  frontmatter,
+/** A version from its keys' texts, each cut into entries where it can be. */
+const version = (texts: string[], body = '\nMeetings.\n'): SettingsText => ({
+  keys: texts.map((text) => ({ key: keyOf(text), text, map: writtenMap(text) })),
   body,
 });
 
-const attendees = { kind: 'relation', target: 'person', many: true };
-const tasks = { kind: 'relation', target: 'task', many: true };
-const summary = { kind: 'text', label: 'Summary of' };
+/** The key a text writes: its first line that is not a comment or blank. */
+const keyOf = (text: string) => {
+  const line = text.split('\n').find((each) => each.trim() !== '' && !each.startsWith('#')) ?? '';
+  return line.slice(0, line.indexOf(':'));
+};
 
-const BASE = side({ name: 'meeting', properties: { attendees } });
+const NAME = 'name: meeting\n';
+const props = (...entries: string[]) => `properties:\n${entries.join('')}`;
+const DATE = '  date:\n    kind: date\n';
+const TASKS = '  tasks:\n    kind: relation\n';
+const ROOM = '  # Mara Quill: the room it was in\n  room:\n    kind: text\n';
+
+const BASE = version([NAME, props(DATE)]);
 
 describe('isSettingsFile', () => {
   it('is a markdown file under `.atlas`, and nothing else', () => {
@@ -19,134 +34,154 @@ describe('isSettingsFile', () => {
     expect(isSettingsFile('.atlas/sources/logo.png')).toBe(false);
     expect(isSettingsFile('Notes/.atlas/types/meeting.md')).toBe(false);
     expect(isSettingsFile('.atlas-cache/meeting.md')).toBe(false);
-    expect(isSettingsFile('Meeting.md')).toBe(false);
   });
 });
 
-describe('settingsAdditions', () => {
-  it('gives one side the entries the other added to a map, in its order', () => {
-    const onto = side({ name: 'meeting', properties: { attendees, tasks } });
-    const from = side({ name: 'meeting', properties: { attendees, tasks, summary } });
-    expect(settingsAdditions({ base: BASE, onto, from })).toEqual({
-      keys: [],
-      entries: { properties: ['summary'] },
+describe('writtenMap', () => {
+  it('cuts a block map into its entries, each with the comments just above it', () => {
+    expect(writtenMap(props(DATE, ROOM))).toEqual({
+      head: 'properties:\n',
+      indent: 2,
+      entries: [
+        { name: 'date', text: DATE },
+        { name: 'room', text: ROOM },
+      ],
     });
   });
 
-  it('adds nothing where the other side’s additions are all there already, maps in any key order', () => {
-    const onto = side({ name: 'meeting', properties: { attendees, tasks, summary } });
-    const from = side({
-      name: 'meeting',
-      properties: { attendees, tasks: { many: true, target: 'task', kind: 'relation' } },
+  it('keeps a comment deeper than the entries with the entry it is in', () => {
+    const inner = '  date:\n    kind: date\n    # held, not invited\n';
+    expect(writtenMap(props(inner, TASKS))?.entries.map(({ text }) => text)).toEqual([
+      inner,
+      TASKS,
+    ]);
+  });
+
+  it.each([
+    ['a value on the key’s line', 'properties: { date: { kind: date } }\n'],
+    ['a list', 'tags:\n  - one\n'],
+    ['a quoted entry name', 'properties:\n  "date":\n    kind: date\n'],
+    ['no entries', 'properties:\n'],
+    ['a scalar', 'label: Meeting\n'],
+  ])('is null for %s', (_, text) => {
+    expect(writtenMap(text)).toBeNull();
+  });
+});
+
+describe('mergeSettingsText', () => {
+  it('keeps one side whole and puts the other’s new entries after its own, as written', () => {
+    const merged = mergeSettingsText({
+      base: BASE,
+      onto: version([NAME, props(DATE, TASKS)]),
+      from: version([NAME, props(DATE, ROOM)]),
     });
-    expect(settingsAdditions({ base: BASE, onto, from })).toEqual({ keys: [], entries: {} });
+    expect(merged?.frontmatter).toBe(NAME + props(DATE, TASKS, ROOM));
+    expect(merged?.folded).toEqual({ keys: [], entries: new Map([['properties', ['room']]]) });
   });
 
-  it('gives one side a top-level key the other added', () => {
-    const onto = side({ name: 'meeting', label: 'Meeting', properties: { attendees } });
-    const from = side({ name: 'meeting', icon: 'calendar', properties: { attendees } });
-    const base = side({ name: 'meeting', properties: { attendees } });
-    expect(settingsAdditions({ base, onto, from })).toEqual({ keys: ['icon'], entries: {} });
-  });
-
-  it('keeps a change only one side made to a key: the other left it as it was', () => {
-    const onto = side({ name: 'meeting', label: 'Meetings', properties: { attendees } });
-    const from = side({ name: 'meeting', label: 'Meeting', properties: { attendees, tasks } });
-    const base = side({ name: 'meeting', label: 'Meeting', properties: { attendees } });
-    expect(settingsAdditions({ base, onto, from })).toEqual({
-      keys: [],
-      entries: { properties: ['tasks'] },
+  it('puts a top-level key the other side added after this side’s keys, as written', () => {
+    const icon = '# the calendar glyph\nicon:   "calendar"\n';
+    const merged = mergeSettingsText({
+      base: BASE,
+      onto: version([NAME, props(DATE)]),
+      from: version([NAME, icon, props(DATE)]),
     });
+    expect(merged?.frontmatter).toBe(NAME + props(DATE) + icon);
+    expect(merged?.folded.keys).toEqual(['icon']);
   });
 
-  it('is null when both sides gave a key different values', () => {
-    const onto = side({ name: 'meeting', label: 'Meetings' });
-    const from = side({ name: 'meeting', label: 'Calls' });
-    expect(settingsAdditions({ base: side({ name: 'meeting' }), onto, from })).toBeNull();
-  });
-
-  it('is null when both sides added the same entry differently', () => {
-    const onto = side({ name: 'meeting', properties: { attendees, tasks } });
-    const from = side({ name: 'meeting', properties: { attendees, tasks: { kind: 'text' } } });
-    expect(settingsAdditions({ base: BASE, onto, from })).toBeNull();
-  });
-
-  it('is null when the other side changed what this side kept: only a person can choose', () => {
-    const onto = side({ name: 'meeting', properties: { attendees } });
-    const from = side({ name: 'meeting', properties: { attendees: { kind: 'text' } } });
-    expect(settingsAdditions({ base: BASE, onto, from })).toBeNull();
-  });
-
-  it('is null when the other side removed a key or an entry this side still has', () => {
-    const removedKey = side({ properties: { attendees } });
-    expect(settingsAdditions({ base: BASE, onto: BASE, from: removedKey })).toBeNull();
-    const removedEntry = side({ name: 'meeting', properties: {} });
-    expect(settingsAdditions({ base: BASE, onto: BASE, from: removedEntry })).toBeNull();
-  });
-
-  it('leaves out a key this side removed that the other left as it was', () => {
-    const onto = side({ name: 'meeting', properties: {} });
-    const from = side({ name: 'meeting', properties: { attendees, tasks } });
-    expect(settingsAdditions({ base: BASE, onto, from })).toEqual({
-      keys: [],
-      entries: { properties: ['tasks'] },
+  it('keeps every edit of the side kept: only the side folded in must have only added', () => {
+    const relabelled = 'name: meetings # plural now\n';
+    const merged = mergeSettingsText({
+      base: BASE,
+      onto: version([relabelled, props(DATE)]),
+      from: version([NAME, props(DATE, TASKS)]),
     });
+    expect(merged?.frontmatter).toBe(relabelled + props(DATE, TASKS));
   });
 
-  it('is null when this side removed an entry the other changed', () => {
-    const onto = side({ name: 'meeting', properties: {} });
-    const from = side({ name: 'meeting', properties: { attendees: { kind: 'text' } } });
-    expect(settingsAdditions({ base: BASE, onto, from })).toBeNull();
+  it.each([
+    ['a comment', version([NAME, props(DATE, '  # Tobias Fenn: held, not invited\n')])],
+    ['a comment on a key', version(['# ours\nname: meeting\n', props(DATE, TASKS)])],
+    ['a restyled value', version(['name: "meeting"\n', props(DATE, TASKS)])],
+    ['a reorder', version([props(DATE, TASKS), NAME])],
+    ['a blank line', version([NAME, `\n${props(DATE, TASKS)}`])],
+    ['a removed key', version([props(DATE, TASKS)])],
+    ['a removed entry', version([NAME, props(TASKS)])],
+    ['a changed entry', version([NAME, props('  date:\n    kind: text\n', TASKS)])],
+  ])('is null when the side folded in has %s beside what it added', (_, from) => {
+    expect(mergeSettingsText({ base: BASE, onto: BASE, from })).toBeNull();
   });
 
-  it('is null when a map on one side is something else on the other', () => {
-    const onto = side({ name: 'meeting', properties: ['attendees'] });
-    const from = side({ name: 'meeting', properties: { attendees, tasks } });
-    expect(settingsAdditions({ base: BASE, onto, from })).toBeNull();
-  });
-
-  it('takes this side’s body when only it changed the body, and is null when both did', () => {
-    const onto = side({ name: 'meeting', properties: { attendees } }, '\nRewritten.\n');
-    const from = side({ name: 'meeting', properties: { attendees, tasks } });
-    expect(settingsAdditions({ base: BASE, onto, from })).not.toBeNull();
-    const both = side({ name: 'meeting', properties: { attendees, tasks } }, '\nMine too.\n');
-    expect(settingsAdditions({ base: BASE, onto, from: both })).toBeNull();
-  });
-
-  it('with no base — both Macs made the file — adds only what this side lacks, the rest the same', () => {
-    const onto = side({ name: 'daily', properties: { date: { kind: 'date' } } });
-    const from = side({ name: 'daily', properties: { date: { kind: 'date' }, mood: summary } });
-    expect(settingsAdditions({ base: null, onto, from })).toEqual({
-      keys: [],
-      entries: { properties: ['mood'] },
-    });
-    const otherBody = side({ name: 'daily' }, '\nTheirs.\n');
-    expect(settingsAdditions({ base: null, onto, from: otherBody })).toBeNull();
-  });
-
-  it('compares dates by the time they say, and lists by their items in order', () => {
-    const at = (iso: string) => new Date(iso);
-    const base = side({ since: at('2026-10-01'), tags: ['a', 'b'] });
+  it('is null when both sides added one key written differently', () => {
     expect(
-      settingsAdditions({
-        base,
-        onto: base,
-        from: side({ since: at('2026-10-01'), tags: ['a', 'b'] }),
-      }),
-    ).toEqual({ keys: [], entries: {} });
-    expect(
-      settingsAdditions({
-        base,
-        onto: side({ since: at('2026-10-02'), tags: ['a', 'b'] }),
-        from: side({ since: at('2026-10-03'), tags: ['a', 'b'] }),
+      mergeSettingsText({
+        base: BASE,
+        onto: version([NAME, props(DATE, TASKS)]),
+        from: version([NAME, props(DATE, '  tasks:\n    kind: text\n')]),
       }),
     ).toBeNull();
     expect(
-      settingsAdditions({
-        base,
-        onto: side({ since: at('2026-10-01'), tags: ['b', 'a'] }),
-        from: side({ since: at('2026-10-01'), tags: ['a', 'c'] }),
+      mergeSettingsText({
+        base: BASE,
+        onto: version([NAME, 'icon: calendar\n', props(DATE)]),
+        from: version([NAME, 'icon: phone\n', props(DATE)]),
       }),
     ).toBeNull();
+  });
+
+  it('is the side kept as it is when the other only added what it has, written the same', () => {
+    const onto = version([NAME, props(DATE, TASKS, ROOM)]);
+    const merged = mergeSettingsText({
+      base: BASE,
+      onto,
+      from: version([NAME, props(DATE, TASKS)]),
+    });
+    expect(merged?.frontmatter).toBe(NAME + props(DATE, TASKS, ROOM));
+    expect(merged?.folded).toEqual({ keys: [], entries: new Map() });
+  });
+
+  it('is null when the side kept dropped the map the other side added entries to', () => {
+    expect(
+      mergeSettingsText({
+        base: BASE,
+        onto: version([NAME]),
+        from: version([NAME, props(DATE, TASKS)]),
+      }),
+    ).toBeNull();
+  });
+
+  it('takes this side’s body when only it changed it, and is null when both did', () => {
+    const onto = version([NAME, props(DATE)], '\nRewritten.\n');
+    const from = version([NAME, props(DATE, TASKS)]);
+    expect(mergeSettingsText({ base: BASE, onto, from })?.body).toBe('\nRewritten.\n');
+    const both = version([NAME, props(DATE, TASKS)], '\nMine too.\n');
+    expect(mergeSettingsText({ base: BASE, onto, from: both })).toBeNull();
+  });
+
+  it('with no base, adds what one side has beyond what both share written the same', () => {
+    const onto = version(['name: board\n', 'group: status\n']);
+    const from = version(['name: board\n', 'sort: due\n']);
+    expect(mergeSettingsText({ base: null, onto, from })?.frontmatter).toBe(
+      'name: board\ngroup: status\nsort: due\n',
+    );
+    const restyled = version(['name: "board"\n', 'sort: due\n']);
+    expect(mergeSettingsText({ base: null, onto, from: restyled })).toBeNull();
+  });
+
+  it('is null for a key or entry that does not end its line', () => {
+    expect(
+      mergeSettingsText({ base: BASE, onto: BASE, from: version([NAME, props(DATE), 'icon: x']) }),
+    ).toBeNull();
+  });
+});
+
+describe('sameFrontmatterValue', () => {
+  it('compares maps in any key order, lists in order, and dates by their time', () => {
+    expect(sameFrontmatterValue({ a: 1, b: [1, 2] }, { b: [1, 2], a: 1 })).toBe(true);
+    expect(sameFrontmatterValue([1, 2], [2, 1])).toBe(false);
+    expect(sameFrontmatterValue({ a: 1 }, { a: 1, b: 2 })).toBe(false);
+    expect(sameFrontmatterValue(new Date('2026-10-01'), new Date('2026-10-01'))).toBe(true);
+    expect(sameFrontmatterValue(new Date('2026-10-01'), '2026-10-01')).toBe(false);
   });
 });

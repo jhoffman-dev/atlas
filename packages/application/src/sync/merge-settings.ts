@@ -1,14 +1,17 @@
 import {
   isSettingsFile,
-  KeyAsWritten,
+  mergeSettingsText,
   mergeShippedPropertiesRecords,
   parseShippedPropertiesRecord,
+  sameFrontmatterValue,
   SHIPPED_PROPERTIES_RECORD_PATH,
-  settingsAdditions,
   shippedPropertiesRecordText,
   ShippedPropertiesRecordError,
   splitFrontmatter,
-  type SettingsAdditions,
+  writtenMap,
+  type SettingsMerged,
+  type SettingsText,
+  type ShippedPropertiesRecord,
 } from '@atlas/domain';
 import type { MarkdownPort } from '../notes/ports.ts';
 
@@ -24,24 +27,49 @@ export interface SettingsVersions {
  * One file holding both Macs' changes to a settings file of Atlas's own
  * (#233), or null when only a person can merge them and both versions are to
  * be kept. The record of the properties Atlas added to built-in types is the
- * union of both; any other `.atlas/` markdown file gains what the other side
- * added — a key, or an entry in a map such as a type's `properties` — with
- * every line it had kept byte for byte (ADR-0003).
+ * union of both, while each side is exactly as Atlas writes it. Any other
+ * `.atlas/` markdown file keeps one side byte for byte and gains, as written,
+ * the keys or map entries the other side added — when adding them is all the
+ * other side did (ADR-0003).
  */
 export function mergeSettings(markdown: MarkdownPort, versions: SettingsVersions): string | null {
   if (versions.path === (SHIPPED_PROPERTIES_RECORD_PATH as string)) return mergeRecords(versions);
   if (!isSettingsFile(versions.path)) return null;
-  return mergeByKeys(markdown, versions);
+  try {
+    return mergeByKeys(markdown, versions);
+  } catch {
+    // Safe to ignore: frontmatter the reader throws on (an alias to an anchor
+    // only one side has, say) is a person's to merge, so both are kept with a copy.
+    return null;
+  }
 }
 
-function mergeRecords({ ours, theirs }: SettingsVersions): string | null {
+function mergeRecords({ base, ours, theirs }: SettingsVersions): string | null {
+  const mine = asAtlasWrote(ours);
+  const other = asAtlasWrote(theirs);
+  if (mine === null || other === null) return null;
+  const was = base === null ? null : readRecord(base);
+  // A key the base had and a side no longer has was taken off by hand: a person's to settle.
+  if (was !== null && !(holds(mine, was) && holds(other, was))) return null;
+  return shippedPropertiesRecordText(mergeShippedPropertiesRecords(mine, other));
+}
+
+/**
+ * A record read back, when its file is the text Atlas writes for it — but for
+ * the order of its keys, which older builds did not sort. Null for one a
+ * person wrote in: a note of theirs is kept with a copy, never merged away.
+ */
+function asAtlasWrote(text: string): ShippedPropertiesRecord | null {
+  const record = readRecord(text);
+  if (record === null) return null;
+  const withoutKeys = (written: string) =>
+    written.replace(/\n```json\n[^\n]*\n```\n/, '\n```json\n```\n');
+  return withoutKeys(text) === withoutKeys(shippedPropertiesRecordText(record)) ? record : null;
+}
+
+function readRecord(text: string): ShippedPropertiesRecord | null {
   try {
-    return shippedPropertiesRecordText(
-      mergeShippedPropertiesRecords(
-        parseShippedPropertiesRecord(ours),
-        parseShippedPropertiesRecord(theirs),
-      ),
-    );
+    return parseShippedPropertiesRecord(text);
   } catch (cause) {
     // A record that is not one Atlas wrote is a person's: both are kept as they are.
     if (cause instanceof ShippedPropertiesRecordError) return null;
@@ -49,10 +77,22 @@ function mergeRecords({ ours, theirs }: SettingsVersions): string | null {
   }
 }
 
+/** Whether `record` still holds every key `earlier` did. */
+const holds = (record: ShippedPropertiesRecord, earlier: ShippedPropertiesRecord) =>
+  (['settled', 'added'] as const).every((part) =>
+    Object.entries(earlier[part]).every(([name, keys]) =>
+      keys.every((key) =>
+        (Object.hasOwn(record[part], name) ? record[part][name]! : []).includes(key),
+      ),
+    ),
+  );
+
+/** A version as the merge reads it: its keys as written, its fences, and its values. */
 interface ReadSide {
-  readonly frontmatterText: string;
-  readonly frontmatter: Record<string, unknown>;
-  readonly body: string;
+  readonly text: SettingsText;
+  readonly opening: string;
+  readonly closing: string;
+  readonly values: Readonly<Record<string, unknown>>;
 }
 
 function mergeByKeys(markdown: MarkdownPort, versions: SettingsVersions): string | null {
@@ -61,48 +101,97 @@ function mergeByKeys(markdown: MarkdownPort, versions: SettingsVersions): string
   if (ours === null || theirs === null) return null;
   const base = versions.base === null ? null : read(markdown, versions.base);
   if (versions.base !== null && base === null) return null;
-  const intoOurs = settingsAdditions({ base, onto: ours, from: theirs });
-  if (intoOurs !== null)
-    return withAdditions(markdown, { onto: ours, from: theirs, additions: intoOurs });
-  const intoTheirs = settingsAdditions({ base, onto: theirs, from: ours });
-  if (intoTheirs === null) return null;
-  return withAdditions(markdown, { onto: theirs, from: ours, additions: intoTheirs });
+  for (const [onto, from] of [
+    [ours, theirs],
+    [theirs, ours],
+  ] as const) {
+    const merged = mergeSettingsText({
+      base: base?.text ?? null,
+      onto: onto.text,
+      from: from.text,
+    });
+    const written = merged === null ? null : checked(markdown, { merged, onto, from });
+    if (written !== null) return written;
+  }
+  return null;
 }
 
-/** A version with frontmatter Atlas can read; null for one without, or one it cannot. */
-function read(markdown: MarkdownPort, text: string): ReadSide | null {
-  const { frontmatter, body } = splitFrontmatter(text);
-  if (frontmatter === null || markdown.frontmatterProblem(frontmatter) !== null) return null;
-  return {
-    frontmatterText: frontmatter,
-    frontmatter: markdown.frontmatterProperties(frontmatter),
-    body,
-  };
+/**
+ * A YAML anchor (`&name`) or alias (`*name`): one key's value written in terms
+ * of another's, so the keys cannot be told apart and merged one by one.
+ */
+const ANCHOR_OR_ALIAS = /(?:^|[\s[{,])[&*][^\s,\]}]/m;
+
+/**
+ * A version whose frontmatter is a map Atlas can cut into its keys exactly as
+ * written; null for any other — no frontmatter, one that cannot be read, a
+ * list or a bare value, CRLF line endings, anchors or aliases, or keys the reader and the text
+ * disagree about (`__proto__`, say, which a reader drops).
+ */
+function read(markdown: MarkdownPort, file: string): ReadSide | null {
+  const { frontmatter, body } = splitFrontmatter(file);
+  if (frontmatter === null || frontmatter.includes('\r') || ANCHOR_OR_ALIAS.test(frontmatter)) {
+    return null;
+  }
+  if (markdown.frontmatterProblem(frontmatter) !== null) return null;
+  const opening = frontmatter.slice(0, frontmatter.indexOf('\n') + 1);
+  const lastLine = frontmatter.lastIndexOf('\n', frontmatter.length - 2) + 1;
+  const closing = frontmatter.slice(lastLine);
+  const inside = frontmatter.slice(opening.length, lastLine);
+  const written = Object.entries(markdown.frontmatterKeyTexts(frontmatter));
+  if (written.map(([, text]) => text).join('') !== inside) return null;
+  const values = markdown.frontmatterProperties(frontmatter);
+  if (
+    !sameNames(
+      Object.keys(values),
+      written.map(([key]) => key),
+    )
+  )
+    return null;
+  const keys = written.map(([key, text]) => {
+    const map = writtenMap(text);
+    const value = values[key];
+    const agrees =
+      map !== null &&
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      sameNames(
+        Object.keys(value),
+        map.entries.map(({ name }) => name),
+      );
+    return { key, text, map: agrees ? map : null };
+  });
+  return { text: { keys, body }, opening, closing, values };
 }
 
-/** `onto` with `from`'s additions written in; null when the block cannot take them as new lines. */
-function withAdditions(
+const sameNames = (first: readonly string[], second: readonly string[]) =>
+  first.length === second.length && first.every((name, at) => name === second[at]);
+
+/**
+ * The merged file, once read back to hold exactly `onto`'s values with
+ * `from`'s added ones beside them; null if it reads any other way — an alias
+ * resolving to another anchor, say — or cannot be read at all.
+ */
+function checked(
   markdown: MarkdownPort,
-  { onto, from, additions }: { onto: ReadSide; from: ReadSide; additions: SettingsAdditions },
+  { merged, onto, from }: { merged: SettingsMerged; onto: ReadSide; from: ReadSide },
 ): string | null {
-  let block = onto.frontmatterText;
-  if (additions.keys.length > 0) {
-    const written = markdown.frontmatterKeyTexts(from.frontmatterText);
-    if (additions.keys.some((key) => !Object.hasOwn(written, key))) return null;
-    block = markdown.updateFrontmatter(
-      block,
-      Object.fromEntries(additions.keys.map((key) => [key, new KeyAsWritten(written[key]!)])),
-    );
+  const frontmatter = `${onto.opening}${merged.frontmatter}${onto.closing}`;
+  if (markdown.frontmatterProblem(frontmatter) !== null) return null;
+  const values = markdown.frontmatterProperties(frontmatter);
+  const expected = new Map<string, unknown>(Object.entries(onto.values));
+  for (const key of merged.folded.keys) expected.set(key, from.values[key]);
+  for (const [key, names] of merged.folded.entries) {
+    const own = onto.values[key] as Record<string, unknown>;
+    const theirs = from.values[key] as Record<string, unknown>;
+    const map = new Map(Object.entries(own));
+    for (const name of names) map.set(name, theirs[name]);
+    expected.set(key, Object.fromEntries(map));
   }
-  for (const [key, entries] of Object.entries(additions.entries)) {
-    const map = from.frontmatter[key] as Record<string, unknown>;
-    const next = markdown.addToFrontmatterMap(
-      block,
-      key,
-      Object.fromEntries(entries.map((entry) => [entry, map[entry]])),
-    );
-    if (next === null) return null;
-    block = next;
+  if (!sameNames(Object.keys(values), [...expected.keys()])) return null;
+  for (const [key, value] of expected) {
+    if (!sameFrontmatterValue(values[key], value)) return null;
   }
-  return block + onto.body;
+  return frontmatter + merged.body;
 }

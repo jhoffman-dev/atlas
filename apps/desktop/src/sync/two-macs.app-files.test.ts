@@ -170,6 +170,31 @@ describe('two Macs open the vault and sync (#233)', () => {
   );
 
   it(
+    'a merge that throws part-way gives up to the copy: no markers, nothing lost, and later syncs run',
+    async () => {
+      const { studio, laptop } = await twoMacs({ [MEETING]: OLD_MEETING });
+      await open(studio, OLDER_BUILD);
+      await open(laptop);
+      await studio.sync();
+      const laptops = await laptop.read(MEETING);
+      const report = await laptop.sync({
+        fs: {
+          readTextFile: async () => {
+            throw new Error('the host could not read it');
+          },
+        },
+      });
+      expect(report.conflicts.length).toBeGreaterThan(0);
+      await expectNoMarkers(laptop);
+      expect(await laptop.read(MEETING)).toBe(laptops);
+      await expect(laptop.sync()).resolves.toMatchObject({ conflicts: [] });
+      await expect(studio.sync()).resolves.toMatchObject({ conflicts: [] });
+      await expectNoMarkers(studio);
+    },
+    TIMEOUT,
+  );
+
+  it(
     'an older build opening after the newer one’s upgrade synced changes nothing: no downgrade',
     async () => {
       const { studio, laptop } = await twoMacs({ [MEETING]: OLD_MEETING });

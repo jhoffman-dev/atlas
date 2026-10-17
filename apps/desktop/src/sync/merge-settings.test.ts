@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeSettings } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { shippedPropertiesRecordText } from '@atlas/domain';
 
 const TYPE = '.atlas/types/meeting.md';
 
@@ -71,6 +72,41 @@ describe('mergeSettings (#233)', () => {
     expect(merged).toContain('icon:   "calendar" # theirs\n');
   });
 
+  it.each([
+    ['a comment', (text: string) => text.replace('label: Meeting\n', 'label: Meeting # Mara’s\n')],
+    [
+      'a reorder',
+      (text: string) =>
+        text.replace(
+          'name: meeting\n# kept as written\nlabel: Meeting\n',
+          'label: Meeting\nname: meeting\n# kept as written\n',
+        ),
+    ],
+    ['a restyle', (text: string) => text.replace('label: Meeting', 'label: "Meeting"')],
+  ])(
+    'keeps %s on either side, whole, with the other side’s additions — or a copy when both edited',
+    (_, edit) => {
+      const base = typeFile(ATTENDEES);
+      const added = typeFile([...ATTENDEES, ...TASKS]);
+      const edited = edit(base);
+      expect(edited).not.toBe(base);
+      for (const [ours, theirs] of [
+        [edited, added],
+        [added, edited],
+      ] as const) {
+        const merged = merge({ base, ours, theirs });
+        expect(merged).toBe(edit(added));
+      }
+      expect(
+        merge({
+          base,
+          ours: edit(added),
+          theirs: typeFile([...ATTENDEES, ...SUMMARY]).replace('name: meeting', 'name: meetings'),
+        }),
+      ).toBeNull();
+    },
+  );
+
   it('is null for a real conflict: both Macs gave a key different values', () => {
     const base = typeFile(ATTENDEES);
     const ours = typeFile(ATTENDEES, { extra: 'icon: calendar' });
@@ -102,15 +138,33 @@ describe('mergeSettings (#233)', () => {
     expect(merge({ base, ours, theirs: base }, 'Notes/meeting.md')).toBeNull();
   });
 
-  it('merges the record of shipped properties as the union, and refuses one Atlas did not write', () => {
-    const recordText = (keys: string[]) =>
-      `---\natlas: migration\n---\n\n\`\`\`json\n${JSON.stringify({ settled: { meeting: keys } })}\n\`\`\`\n`;
+  it('merges the record of shipped properties as the union, an older build’s unsorted one too', () => {
     const path = '.atlas/migrations/type-properties.md';
+    const record = (keys: string[]) =>
+      shippedPropertiesRecordText({ settled: { meeting: keys }, added: {} });
+    const unsorted = record(['tasks', 'decisions']).replace(
+      '"meeting":["decisions","tasks"]',
+      '"meeting":["tasks","decisions"]',
+    );
     const merged = merge(
-      { base: null, ours: recordText(['tasks']), theirs: recordText(['decisions']) },
+      { base: null, ours: unsorted, theirs: record(['atlas_summary_of']) },
       path,
     );
-    expect(merged).toContain('"meeting":["decisions","tasks"]');
-    expect(merge({ base: null, ours: 'mine\n', theirs: recordText([]) }, path)).toBeNull();
+    expect(merged).toContain('"meeting":["atlas_summary_of","decisions","tasks"]');
+  });
+
+  it('refuses a record a person wrote in, or one a key was taken off by hand', () => {
+    const path = '.atlas/migrations/type-properties.md';
+    const record = (keys: string[]) =>
+      shippedPropertiesRecordText({ settled: { meeting: keys }, added: {} });
+    expect(merge({ base: null, ours: 'mine\n', theirs: record([]) }, path)).toBeNull();
+    const noted = record(['tasks']).replace('```json', 'Mara Quill: keep it off.\n\n```json');
+    expect(merge({ base: null, ours: noted, theirs: record(['decisions']) }, path)).toBeNull();
+    expect(
+      merge(
+        { base: record(['tasks']), ours: record([]), theirs: record(['tasks', 'decisions']) },
+        path,
+      ),
+    ).toBeNull();
   });
 });
