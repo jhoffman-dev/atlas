@@ -29,10 +29,11 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
-use crate::vault::{location_of, root_for_write, VaultLocation, VaultState};
+use crate::vault::{change_turn, location_of, root_for_write, VaultLocation, VaultState};
 pub use shapes::Reach;
 use shapes::{
     clone_name, clone_url, new_remote_url, vet_folder_args, vet_repo_name, vet_vault_args,
+    writes_working_tree,
 };
 
 /// Where `git` is looked for, in order: Homebrew's, then Apple's.
@@ -271,7 +272,9 @@ impl GitHost {
     }
 
     /// Runs one vetted `git` command in the vault at `root`. Pointing the
-    /// vault at a remote is asked of the person first.
+    /// vault at a remote is asked of the person first. A command that rewrites
+    /// notes runs in the vault's change turn, so no save lands while it writes
+    /// (#246); on a thread that already holds the turn it runs at once.
     pub fn git_in_vault(&self, root: &Path, args: &[String]) -> Result<GitOutput, String> {
         let reach = vet_vault_args(args)?;
         if let Some(url) = new_remote_url(args) {
@@ -287,6 +290,7 @@ impl GitHost {
             format!("core.excludesFile={}", excludes_of(root).display()),
         ];
         full.extend(args.iter().cloned());
+        let _turn = writes_working_tree(args).then(change_turn);
         let (output, stopped) = self.git(root, &full, reach, Some(ceiling_of(root)))?;
         if stopped && reach == Reach::Local {
             remove_lock_made_since(root, started);

@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use super::shapes::{clone_name, is_url, vet_folder_args, vet_repo_name, vet_vault_args, Reach};
+use super::shapes::{
+    clone_name, is_url, vet_folder_args, vet_repo_name, vet_vault_args, writes_working_tree, Reach,
+};
 use super::{
     Confirm, GitHost, GitOutput, Limits, DECLINED, FIXED_PREFIX, GH_DIRS, GIT_DIRS, NOT_CHOSEN,
     NOT_FOUND,
@@ -1824,4 +1826,22 @@ fn a_git_write_inside_a_change_turn_runs_rather_than_waiting_on_itself() {
         fs::read_to_string(vault.path().join("a.md")).unwrap(),
         "merged"
     );
+}
+
+#[test]
+fn only_the_commands_that_rewrite_notes_take_the_change_turn() {
+    for shape in ACCEPTED {
+        let verb = shape.first().copied().unwrap_or_default();
+        let writes = matches!(verb, "merge" | "checkout" | "checkout-index" | "mv");
+        assert_eq!(writes_working_tree(&args(shape)), writes, "{shape:?}");
+    }
+    for network in [
+        &["fetch", "--quiet", "origin"][..],
+        &["push", "--quiet", "--set-upstream", "origin", "HEAD"],
+        &["ls-remote", "--symref", "origin", "HEAD"],
+    ] {
+        assert_eq!(vet_vault_args(&args(network)), Ok(Reach::Network));
+        assert!(!writes_working_tree(&args(network)), "{network:?}");
+    }
+    assert!(!writes_working_tree(&[]));
 }

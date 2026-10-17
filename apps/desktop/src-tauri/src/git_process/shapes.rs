@@ -251,6 +251,19 @@ const MAX_URL: usize = 2048;
 const MAX_NAME: usize = 255;
 const MAX_REPO_NAME: usize = 100;
 
+/// The vault commands that rewrite notes in the working tree: a merge, taking
+/// one side of a conflict, writing a path from the index, and a move. The rest
+/// read, or change only what is inside `.git`, which no save touches.
+const WRITES_TREE: &[&str] = &["merge", "checkout", "checkout-index", "mv"];
+
+/// Whether vetted vault arguments rewrite notes, and so must wait for the
+/// vault's change turn. Network runs never do: a turn held over a fetch would
+/// hold every save behind it.
+pub fn writes_working_tree(args: &[String]) -> bool {
+    args.first()
+        .is_some_and(|verb| WRITES_TREE.contains(&verb.as_str()))
+}
+
 /// Checks arguments meant for the open vault; says how far the run reaches.
 pub fn vet_vault_args(args: &[String]) -> Result<Reach, String> {
     vet(IN_VAULT, args)
