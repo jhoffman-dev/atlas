@@ -76,19 +76,19 @@
       "calls": {}
     },
     "Tick a task on Today": {
-      "commits": 42,
-      "renders": 10655,
+      "commits": 81,
+      "renders": 19766,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_open": 3,
         "index_put": 3,
-        "index_query": 31,
+        "index_query": 64,
         "index_rebuild_views": 3,
         "index_stats": 3,
-        "list_directory": 25,
+        "list_directory": 49,
         "list_notes": 4,
-        "read_notes": 15,
+        "read_notes": 27,
         "read_text_file": 5,
         "write_text_file": 3
       },
@@ -108,21 +108,21 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 52,
-      "renders": 4213,
+      "commits": 93,
+      "renders": 7760,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
-        "index_notes_of_type": 7,
+        "index_notes_of_type": 12,
         "index_put": 3,
-        "index_query": 47,
+        "index_query": 83,
         "index_rebuild_views": 3,
         "index_remove": 3,
         "index_stats": 3,
-        "list_directory": 28,
-        "list_notes": 7,
+        "list_directory": 48,
+        "list_notes": 11,
         "move_entry": 3,
-        "read_notes": 21,
+        "read_notes": 36,
         "read_text_file": 8,
         "write_text_file": 3
       },
@@ -154,18 +154,18 @@
       }
     },
     "Drag a board card": {
-      "commits": 81,
-      "renders": 7732,
+      "commits": 120,
+      "renders": 14931,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 21,
+        "index_query": 42,
         "index_rebuild_views": 3,
         "index_stats": 3,
-        "list_directory": 19,
+        "list_directory": 38,
         "list_notes": 4,
-        "read_notes": 15,
+        "read_notes": 27,
         "read_text_file": 3,
         "write_text_file": 3
       }

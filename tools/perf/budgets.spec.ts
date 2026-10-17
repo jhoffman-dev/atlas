@@ -21,7 +21,7 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { emitVaultChanged, installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
+import { installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
 import { installRenderCounter } from '../../packages/ui/src/testing/render-counter.ts';
 import { BUDGETED_ACTIONS, type BudgetedAction } from './budgeted-actions.ts';
 import type { FixtureFile } from './fixture-vault.ts';
@@ -213,7 +213,8 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
   const page = await newPage(browser);
   const vault = await writeFixtureVault([PROJECT_BOARD]);
   // With a manifest, as the real index has: without one every refresh re-reads all 2,000 notes.
-  await installHost(page, vault, { keepsManifest: true });
+  // And with the watcher's echo of every write, as the real host sends it.
+  await installHost(page, vault, { keepsManifest: true, echoWrites: true });
   await page.addInitScript(installRenderCounter);
   await page.addInitScript(installWorkClock, clockAt({ virtual: true }));
   await page.goto('/');
@@ -261,7 +262,7 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
 async function timedPass(browser: Browser): Promise<Pass> {
   const page = await newPage(browser);
   await page.addInitScript(installWorkClock, clockAt({ virtual: false }));
-  const vault = await openFixtureVault(page, [PROJECT_BOARD]);
+  const vault = await openFixtureVault(page, [PROJECT_BOARD], { echoWrites: true });
   const time = async (
     action: BudgetedAction,
     phases: readonly Phase[],
@@ -434,13 +435,12 @@ async function typeAndSave(pass: Pass, title: string): Promise<void> {
   ]);
 
   const path = `Notes/${title}.md`;
-  // Ready once the host was asked for these commands since `__echoFrom`: work the
-  // action itself caused, not a state that was already true. On the work clock the
-  // counted calls tell; in real time, the probe's calls since the phase began.
+  // Ready once the host was asked for these commands since the action began: work
+  // the action itself caused, not a state that was already true. On the work clock
+  // the counted calls tell; in real time, the probe's calls since the phase began.
   const caused = (wanted: Record<string, number>) => {
     const clock = (window as unknown as { __workClock?: { callsSoFar(): Record<string, number> } })
       .__workClock;
-    const from = (window as unknown as { __echoFrom?: Record<string, number> }).__echoFrom ?? {};
     const sent: Record<string, number> = {};
     if (clock !== undefined) Object.assign(sent, clock.callsSoFar());
     else {
@@ -451,36 +451,30 @@ async function typeAndSave(pass: Pass, title: string): Promise<void> {
       (each) => each.textContent === 'Saved',
     );
     return (
-      saved &&
-      Object.entries(wanted).every(
-        ([command, least]) => (sent[command] ?? 0) - (from[command] ?? 0) >= least,
-      )
+      saved && Object.entries(wanted).every(([command, least]) => (sent[command] ?? 0) >= least)
     );
   };
+  const echoesBefore = await echoesSent(page);
   // Not settled first: the autosave due 1.2 s after the last key is this action.
   await pass.budgeted(
     'One autosave and its watcher echo',
     [
       phase(() => Promise.resolve(), caused, { write_text_file: 1 }),
-      // What the real host's watcher sends once the save is on disk: ready once it re-lists the vault.
+      // What the host's watcher sends once the save is on disk (`echoWrites`).
       phase(
-        async () => {
-          await page.evaluate(() => {
-            const clock = (
-              window as unknown as { __workClock?: { callsSoFar(): Record<string, number> } }
-            ).__workClock;
-            Object.assign(window, { __echoFrom: clock?.callsSoFar() ?? {} });
-          });
-          await emitVaultChanged(page, [path]);
-        },
-        caused,
-        { list_notes: 1 },
+        () => Promise.resolve(),
+        (before) =>
+          ((window as unknown as { __atlasEchoesSent?: number }).__atlasEchoesSent ?? 0) > before,
+        echoesBefore,
       ),
     ],
     { settleFirst: false },
   );
   expect(await pass.vault.read(path)).toContain(TYPED);
 }
+
+const echoesSent = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __atlasEchoesSent?: number }).__atlasEchoesSent ?? 0);
 
 async function tickATask(pass: Pass): Promise<void> {
   const tick = pass.page.locator(TODAY_TICKS).first();

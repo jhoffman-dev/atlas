@@ -359,6 +359,10 @@ export interface FakeHost {
   };
   /** How many times the app has asked the host to write this file, creates and refused writes included. */
   writesTo(relativePath: string): number;
+  /** How many times the app has asked the host for this command. */
+  callsTo(command: string): number;
+  /** How many `vault-changed` events `echoWrites` has sent of the app's own writes. */
+  echoesSent(): Promise<number>;
   /** Makes the next call of this command fail with this message, as the Rust host would answer `Err`. */
   failNext(command: string, message: string): void;
   /**
@@ -514,6 +518,7 @@ export async function installHost(
   {
     feeds = {},
     keepsManifest = false,
+    echoWrites = false,
   }: {
     /**
      * Canned feeds by URL, for sources that fetch rather than read a file. The
@@ -528,6 +533,14 @@ export async function installHost(
      * harness turns it on, or every refresh it times re-reads the whole vault.
      */
     keepsManifest?: boolean;
+    /**
+     * Reports the app's own writes back as `vault-changed`, as the real
+     * watcher does: the paths a write touched (a save's temporary beside its
+     * note as well), collected until 400 ms pass with none, then sent once
+     * (`watcher.rs`). Off by default: the e2e suite was written against a
+     * host whose watcher heard only what a test said changed.
+     */
+    echoWrites?: boolean;
   } = {},
 ): Promise<FakeHost> {
   /** What the picker answers with. */
@@ -1526,7 +1539,10 @@ export async function installHost(
     }
   };
 
+  /** Every command the app has asked the host for, by name. */
+  const calls = new Map<string, number>();
   await page.exposeFunction('__atlasInvoke', async (command: string, args: unknown) => {
+    calls.set(command, (calls.get(command) ?? 0) + 1);
     const answered = await answer(command, args);
     // Logged only once a secret exists: before that there is nothing to leak,
     // and the replies that carry whole files would only slow every test.
@@ -1534,7 +1550,7 @@ export async function installHost(
     return answered;
   });
 
-  await page.addInitScript(() => {
+  await page.addInitScript((echoing: boolean) => {
     // Tauri injects its IPC into the main frame only (`for_main_frame_only`),
     // so a frame the app shows — an artifact's sandboxed copy — gets none of
     // it. Playwright runs init scripts in every frame; this keeps the stub true
@@ -1558,38 +1574,102 @@ export async function installHost(
         return id;
       },
       invoke: (command: string, args: unknown, options?: { headers?: Record<string, string> }) => {
-        if (command === 'plugin:event|listen') {
-          const { event, handler } = args as { event: string; handler: number };
-          listeners.set(event, [...(listeners.get(event) ?? []), handler]);
-          return Promise.resolve(handler);
-        }
-        if (command === 'plugin:event|unlisten') return Promise.resolve(null);
-        // A raw body (`write_binary_file`) cannot cross `exposeFunction` as
-        // bytes; it goes as numbers, with the headers that name it.
-        if (args instanceof Uint8Array) {
-          const answer = (
-            window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
-          ).__atlasInvoke(command, { bytes: Array.from(args), headers: options?.headers ?? {} });
-          return command === 'snapshot_page'
-            ? answer.then((numbers) => new Uint8Array(numbers as number[]).buffer)
-            : answer;
-        }
-        const answer = (
-          window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
-        )
-          .__atlasInvoke(command, args)
-          // A command that rejects with a value rather than a message, as
-          // Tauri hands the webview whatever a command's `Err` serializes to.
-          .then((value) =>
-            typeof value === 'object' && value !== null && '__atlasReject' in value
-              ? Promise.reject((value as { __atlasReject: unknown }).__atlasReject)
-              : value,
-          );
-        return command === 'read_binary_file'
-          ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
-          : answer;
+        const answered = invokeHost(command, args, options);
+        if (echoing) echoOnceWritten(answered, touchedBy(command, args, options));
+        return answered;
       },
     };
+
+    /** What the real watcher would report of a write: every path it touched. */
+    function touchedBy(
+      command: string,
+      args: unknown,
+      options?: { headers?: Record<string, string> },
+    ): string[] {
+      const named = (args ?? {}) as { path?: string; from?: string; to?: string };
+      // A note is saved beside itself and renamed over (`temporary_beside` in vault.rs).
+      const savedBeside = (path: string) => {
+        const slash = path.lastIndexOf('/');
+        return [`${path.slice(0, slash + 1)}.${path.slice(slash + 1)}.atlas-tmp`, path];
+      };
+      switch (command) {
+        case 'write_text_file':
+        case 'create_note':
+          return savedBeside(named.path ?? '');
+        case 'create_folder':
+        case 'trash_entry':
+          return [named.path ?? ''];
+        case 'move_entry':
+          return [named.from ?? '', named.to ?? ''];
+        case 'write_binary_file':
+          return [decodeURIComponent(options?.headers?.['atlas-path'] ?? '')];
+        default:
+          return [];
+      }
+    }
+
+    // As `watcher.rs`: paths are collected until 400 ms pass with no more, then sent once.
+    // Its timer is the page's own, so on the work clock the echo arrives on virtual time.
+    let echoPending: string[] = [];
+    let echoTimer: ReturnType<typeof setTimeout> | null = null;
+    let echoesSent = 0;
+    Object.defineProperty(window, '__atlasEchoesSent', { get: () => echoesSent });
+    function echoOnceWritten(answered: Promise<unknown>, paths: string[]) {
+      if (paths.length === 0) return;
+      answered.then(
+        () => {
+          for (const path of paths)
+            if (path !== '' && !echoPending.includes(path)) echoPending.push(path);
+          if (echoTimer !== null) clearTimeout(echoTimer);
+          echoTimer = setTimeout(() => {
+            echoTimer = null;
+            const sent = echoPending;
+            echoPending = [];
+            echoesSent += 1;
+            emit('vault-changed', sent);
+          }, 400);
+        },
+        // A refused write changed nothing on disk, so the watcher has nothing to say.
+        () => undefined,
+      );
+    }
+
+    function invokeHost(
+      command: string,
+      args: unknown,
+      options?: { headers?: Record<string, string> },
+    ): Promise<unknown> {
+      if (command === 'plugin:event|listen') {
+        const { event, handler } = args as { event: string; handler: number };
+        listeners.set(event, [...(listeners.get(event) ?? []), handler]);
+        return Promise.resolve(handler);
+      }
+      if (command === 'plugin:event|unlisten') return Promise.resolve(null);
+      // A raw body (`write_binary_file`) cannot cross `exposeFunction` as
+      // bytes; it goes as numbers, with the headers that name it.
+      if (args instanceof Uint8Array) {
+        const answer = (
+          window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
+        ).__atlasInvoke(command, { bytes: Array.from(args), headers: options?.headers ?? {} });
+        return command === 'snapshot_page'
+          ? answer.then((numbers) => new Uint8Array(numbers as number[]).buffer)
+          : answer;
+      }
+      const answer = (
+        window as unknown as { __atlasInvoke: (c: string, a: unknown) => Promise<unknown> }
+      )
+        .__atlasInvoke(command, args)
+        // A command that rejects with a value rather than a message, as
+        // Tauri hands the webview whatever a command's `Err` serializes to.
+        .then((value) =>
+          typeof value === 'object' && value !== null && '__atlasReject' in value
+            ? Promise.reject((value as { __atlasReject: unknown }).__atlasReject)
+            : value,
+        );
+      return command === 'read_binary_file'
+        ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
+        : answer;
+    }
 
     // What `unlisten` in @tauri-apps/api calls before it tells the host. Missing,
     // every unlisten threw, and the page reported the rejection as an error.
@@ -1617,13 +1697,14 @@ export async function installHost(
     });
 
     // What the tests call to pretend the vault changed underneath the app.
+    function emit(event: string, payload: unknown) {
+      for (const id of listeners.get(event) ?? []) {
+        callbacks.get(id)?.({ event, id, payload });
+      }
+    }
     (window as unknown as { __atlasEmit: (event: string, payload: unknown) => void }).__atlasEmit =
-      (event, payload) => {
-        for (const id of listeners.get(event) ?? []) {
-          callbacks.get(id)?.({ event, id, payload });
-        }
-      };
-  });
+      emit;
+  }, echoWrites);
 
   return {
     offer(next) {
@@ -1663,6 +1744,11 @@ export async function installHost(
       token: () => api.token,
     },
     writesTo: (relativePath) => writes.get(relativePath) ?? 0,
+    callsTo: (command) => calls.get(command) ?? 0,
+    echoesSent: () =>
+      page.evaluate(
+        () => (window as unknown as { __atlasEchoesSent?: number }).__atlasEchoesSent ?? 0,
+      ),
     failNext: (command, message) => void failures.set(command, message),
     activityLog: () => activityFiles.get(openRoot()) ?? '',
     seedActivity: (root, text) => void activityFiles.set(root, text),
