@@ -10,13 +10,18 @@ export interface PlacedRow {
   readonly gapBefore: number;
 }
 
+/**
+ * Marks the element a page scrolls its virtualised lists in, which each list
+ * finds from where it is: `{...ROW_SCROLLER_PROPS}` on the page's scroller.
+ */
+const ROW_SCROLLER = '[data-row-scroller]';
+export const ROW_SCROLLER_PROPS = { 'data-row-scroller': true } as const;
+
 export interface VirtualRowsOptions {
   /** The element the rows start in, so they are placed below what sits above it. */
   readonly content: RefObject<HTMLElement | null>;
   /** Each row's key, top to bottom. */
   readonly keys: readonly string[];
-  /** The element the page scrolls in, shared with whatever sits around the list; null until mounted. */
-  readonly scroller: HTMLElement | null;
   /** A row's height before it is measured. */
   readonly estimate: (index: number) => number;
   /**
@@ -56,20 +61,23 @@ export interface VirtualRows {
 export function useVirtualRows({
   content,
   keys,
-  scroller,
   estimate,
   indexAttribute = 'data-index',
   overscan = 12,
   pinned = null,
 }: VirtualRowsOptions): VirtualRows {
   // The virtualiser anchors the scroll itself, as a placed row above the screen grows.
+  const scroller = useCallback(
+    () => content.current?.closest<HTMLElement>(ROW_SCROLLER) ?? null,
+    [content],
+  );
   const scrollMargin = useScrollMargin(content, scroller, { anchors: false });
   const [focused, setFocused] = useState<string | null>(null);
   const held = [focused, pinned].map((key) => (key === null ? -1 : keys.indexOf(key)));
   const getItemKey = useCallback((index: number) => keys[index] ?? index, [keys]);
   const virtualizer = useVirtualizer({
     count: keys.length,
-    getScrollElement: () => scroller,
+    getScrollElement: scroller,
     estimateSize: estimate,
     getItemKey,
     overscan,
@@ -77,7 +85,7 @@ export function useVirtualRows({
     scrollMargin,
     // Starts from where the scroller already is: the virtualiser otherwise
     // scrolls it to 0 as it attaches, and lists mount while the page is scrolled.
-    initialOffset: () => scroller?.scrollTop ?? 0,
+    initialOffset: () => scroller()?.scrollTop ?? 0,
     rangeExtractor: (range: Range) => withHeld(defaultRangeExtractor(range), held, range.count),
     // jsdom reports a zero-height scroller, which would place no rows at all.
     initialRect: { width: 960, height: 880 },

@@ -51,10 +51,13 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
  * The scroller is passed as an element, not a ref: it is an ancestor of
  * `content`, and an ancestor's ref is attached only after its descendants'
  * layout effects have run, so a ref would still be empty on the first pass.
+ * Or as a function that finds it from `content` — read in the layout effects,
+ * where `content` is attached — so the page need not hold it as state, which
+ * would cost a render of its own (#247). The function has to stay the same.
  */
 export function useScrollMargin(
   content: RefObject<HTMLElement | null>,
-  scroller: HTMLElement | null,
+  scroller: HTMLElement | null | (() => HTMLElement | null),
   { anchors = true }: { readonly anchors?: boolean } = {},
 ): number {
   const [margin, setMargin] = useState(0);
@@ -85,34 +88,36 @@ export function useScrollMargin(
   // a read then forces the browser to lay the whole window out there and then
   // (#217). `measure` reads only refs and a state setter, so the first one serves.
   useLayoutEffect(() => {
-    if (scroller === null) return;
-    scrolled.current = scroller.scrollTop;
-    measure(scroller);
+    const area = typeof scroller === 'function' ? scroller() : scroller;
+    if (area === null) return;
+    scrolled.current = area.scrollTop;
+    measure(area);
     const onScroll = () => {
       // Measured against where it was scrolled before this scroll: when the
       // scroll is the browser making room for what grew above, the room is
       // already made, and measuring from here would move the rows twice.
-      measure(scroller);
-      scrolled.current = scroller.scrollTop;
+      measure(area);
+      scrolled.current = area.scrollTop;
     };
-    scroller.addEventListener('scroll', onScroll, { passive: true });
-    return () => scroller.removeEventListener('scroll', onScroll);
+    area.addEventListener('scroll', onScroll, { passive: true });
+    return () => area.removeEventListener('scroll', onScroll);
   }, [content, scroller]);
 
   // A section above opening, shutting or growing changes the height of what
   // the scroller holds, and one moving changes the order of its sections
   // without changing a size: both are watched.
   useLayoutEffect(() => {
-    const inner = scroller?.firstElementChild ?? null;
-    if (scroller === null || inner === null) return;
+    const area = typeof scroller === 'function' ? scroller() : scroller;
+    const inner = area?.firstElementChild ?? null;
+    if (area === null || inner === null) return;
     const watchers: { disconnect: () => void }[] = [];
     if (typeof ResizeObserver !== 'undefined') {
-      const resized = new ResizeObserver(() => measure(scroller));
+      const resized = new ResizeObserver(() => measure(area));
       resized.observe(inner);
       watchers.push(resized);
     }
     if (typeof MutationObserver !== 'undefined') {
-      const reordered = new MutationObserver(() => measure(scroller));
+      const reordered = new MutationObserver(() => measure(area));
       reordered.observe(inner, { childList: true });
       watchers.push(reordered);
     }

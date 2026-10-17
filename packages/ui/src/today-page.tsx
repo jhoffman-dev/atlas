@@ -33,7 +33,7 @@ import { StatusPill } from './status-pill.tsx';
 import { useSteadyCallback } from './steady-callback.ts';
 import { TableGap } from './table-gap.tsx';
 import { useRowFocus, type RowFocus } from './today-row-focus.ts';
-import { useVirtualRows } from './virtual-rows.ts';
+import { ROW_SCROLLER_PROPS, useVirtualRows } from './virtual-rows.ts';
 
 /** What the page did to a task, for the line that offers to take it back. */
 export type TodayAction =
@@ -102,9 +102,6 @@ export function TodayPage(props: TodayPageProps) {
     [props.today],
   );
   const focus = useRowFocus({ order, shown: props.today, problem: props.problem });
-  // An element, not a ref: the lists inside it measure where they start in it
-  // as they mount, before an ancestor's ref would be attached.
-  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   return (
     <>
       <PageBar
@@ -113,7 +110,7 @@ export function TodayPage(props: TodayPageProps) {
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
-      <div className="panel__body panel__body--rows" ref={setScroller}>
+      <div className="panel__body panel__body--rows" {...ROW_SCROLLER_PROPS}>
         <article
           className="page page--wide review today"
           aria-label="Today"
@@ -131,7 +128,7 @@ export function TodayPage(props: TodayPageProps) {
             </p>
           )}
           <UndoNotice notice={props.notice} busy={props.busy} />
-          <TodayBody {...props} focus={focus} place={{ scroller, wanted: focus.wanted }} />
+          <TodayBody {...props} focus={focus} place={{ wanted: focus.wanted }} />
         </article>
       </div>
     </>
@@ -229,9 +226,8 @@ function UndoBar({ notice, busy }: { notice: TodayNotice; busy: boolean }) {
   );
 }
 
-/** Where the page's lists are placed: the element they scroll in, and the row the page is about to focus. */
+/** Where the page's lists are placed: the row the page is about to focus. */
 interface ListPlace {
-  readonly scroller: HTMLElement | null;
   readonly wanted: VaultPath | null;
 }
 
@@ -309,15 +305,17 @@ function Sections(props: TodayPageProps & PlacedProps & { today: TodayReport }) 
     // While an action is under way, each row's action controls read it from
     // here, so that the rows themselves are not drawn again to say so (#217).
     <PageBusy.Provider value={busy}>
-      {today.sections.map((section) => (
-        <Section
-          key={section.id}
-          section={section}
-          place={props.place}
-          settling={settling}
-          actions={actions}
-        />
-      ))}
+      <Settling.Provider value={settling}>
+        {today.sections.map((section) => (
+          <Section
+            key={section.id}
+            section={section}
+            place={props.place}
+            settling={settling}
+            actions={actions}
+          />
+        ))}
+      </Settling.Provider>
     </PageBusy.Provider>
   );
 }
@@ -325,8 +323,19 @@ function Sections(props: TodayPageProps & PlacedProps & { today: TodayReport }) 
 /** Whether an action is under way on the page: every row's Done, Move and Defer wait for it. */
 const PageBusy = createContext(false);
 
+/**
+ * The rows acted on and not read back yet, read by each row's action
+ * controls: the row itself is not drawn again for it, so a tick draws no
+ * row's cells but those of a row coming into the page (#247).
+ */
+const Settling = createContext<ReadonlySet<VaultPath>>(new Set());
+
 /** Whether a row's actions wait: one is under way on the page, or this row's last is not read back. */
-const useActionsWait = (settling: boolean) => useContext(PageBusy) || settling;
+function useActionsWait(path: VaultPath): boolean {
+  const busy = useContext(PageBusy);
+  const settling = useContext(Settling);
+  return busy || settling.has(path);
+}
 
 /**
  * What every row can do, the same object from one render to the next: the
@@ -519,7 +528,6 @@ function SectionGroups({
   const list = useVirtualRows({
     content,
     keys,
-    scroller: place.scroller,
     estimate: (index) =>
       GROUP_GAP + GROUP_NAME_HEIGHT + (groups[index]?.tasks.length ?? 0) * ROW_HEIGHT,
     indexAttribute: 'data-group-index',
@@ -584,7 +592,6 @@ function Group({
   const rows = useVirtualRows({
     content: body,
     keys,
-    scroller: place.scroller,
     estimate: () => ROW_HEIGHT,
     pinned: place.wanted,
   });
@@ -609,7 +616,6 @@ function Group({
               {rows.placed.map(({ key, index, gapBefore }) => {
                 const task = group.tasks[index];
                 if (task === undefined) return null;
-                const waits = settling.has(task.path);
                 return (
                   <Fragment key={key}>
                     {gapBefore > 0 && <TableGap height={gapBefore} width={ROW_CELLS} />}
@@ -619,14 +625,9 @@ function Group({
                       aria-rowindex={index + 1}
                       className="table__row"
                       data-today-row={task.path}
-                      aria-busy={waits || undefined}
+                      aria-busy={settling.has(task.path) || undefined}
                     >
-                      <TaskRow
-                        task={task}
-                        sectionId={sectionId}
-                        settling={waits}
-                        actions={actions}
-                      />
+                      <TaskRow task={task} sectionId={sectionId} actions={actions} />
                     </tr>
                   </Fragment>
                 );
@@ -662,24 +663,22 @@ function GroupName({
  * One task's row — its cells; the `<tr>` around them is placed by its group's
  * list — drawn again only when its task or its standing changes: the page can
  * hold hundreds, and a tick drew every one of them again (#217). The page's
- * own busy reaches only its action controls (`useActionsWait`).
+ * busy, and which rows are settling, reach only its action controls
+ * (`useActionsWait`).
  */
 const TaskRow = memo(function TaskRow({
   task,
   sectionId,
-  settling,
   actions,
 }: {
   task: TodayTask;
   sectionId: TodaySectionId;
-  /** Acted on, and not yet read back: what it shows is no longer what its task is. */
-  settling: boolean;
   actions: RowActions;
 }) {
   return (
     <>
       <td className="table__done">
-        <DoneBox task={task} settling={settling} actions={actions} />
+        <DoneBox task={task} actions={actions} />
       </td>
       <td className="table__name">
         <button type="button" className="table__link" onClick={() => actions.onOpen(task.path)}>
@@ -690,7 +689,7 @@ const TaskRow = memo(function TaskRow({
         <Details task={task} sectionId={sectionId} onOpen={actions.onOpen} />
       </td>
       <td className="review__actions">
-        <RowCommands task={task} settling={settling} actions={actions} />
+        <RowCommands task={task} actions={actions} />
       </td>
     </>
   );
@@ -698,12 +697,11 @@ const TaskRow = memo(function TaskRow({
 
 interface RowControlProps {
   readonly task: TodayTask;
-  readonly settling: boolean;
   readonly actions: RowActions;
 }
 
-function DoneBox({ task, settling, actions }: RowControlProps) {
-  const waits = useActionsWait(settling);
+function DoneBox({ task, actions }: RowControlProps) {
+  const waits = useActionsWait(task.path);
   return (
     <input
       ref={actions.rowRef(task.path)}
@@ -718,8 +716,8 @@ function DoneBox({ task, settling, actions }: RowControlProps) {
 }
 
 /** A row's Move to… and Defer buttons. */
-function RowCommands({ task, settling, actions }: RowControlProps) {
-  const waits = useActionsWait(settling);
+function RowCommands({ task, actions }: RowControlProps) {
+  const waits = useActionsWait(task.path);
   return (
     <>
       <MoveMenu task={task} busy={waits} onMove={actions.onMove} />

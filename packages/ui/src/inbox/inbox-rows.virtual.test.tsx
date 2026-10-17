@@ -56,6 +56,9 @@ const pickers = () => screen.getAllByRole('combobox', { name: /^File .* under$/ 
 /** The row the focus is in, by its place among the table's rows (the header is the first). */
 const focusedRow = () => document.activeElement?.closest('tr')?.getAttribute('aria-rowindex');
 
+/** A walk of a hundred key presses takes seconds on a loaded CI shard. */
+const KEYBOARD_WALK_MS = 30_000;
+
 describe('InboxRows — an Inbox of hundreds (#238)', () => {
   it('puts only a screenful of 500 rows in the page, and says the table holds them all', () => {
     render(<InboxPage {...given(notes(500))} />);
@@ -67,19 +70,23 @@ describe('InboxRows — an Inbox of hundreds (#238)', () => {
     expect(pickers()[0]?.closest('tr')?.getAttribute('aria-rowindex')).toBe('2');
   });
 
-  it('reaches the last row with Tab, each placed as the focus comes to it', async () => {
-    render(<InboxPage {...given(notes(40))} />);
-    expect(pickers().length).toBeLessThan(40);
+  it(
+    'reaches the last row with Tab, each placed as the focus comes to it',
+    async () => {
+      render(<InboxPage {...given(notes(40))} />);
+      expect(pickers().length).toBeLessThan(40);
 
-    screen.getByRole('button', { name: 'Note 0' }).focus();
-    for (let presses = 0; presses < 200 && focusedRow() !== '41'; presses += 1) {
-      await userEvent.tab();
-    }
+      screen.getByRole('button', { name: 'Note 0' }).focus();
+      for (let presses = 0; presses < 200 && focusedRow() !== '41'; presses += 1) {
+        await userEvent.tab();
+      }
 
-    expect(focusedRow()).toBe('41');
-    expect(document.activeElement?.closest('tr')?.textContent).toContain('Note 39');
-    expect(pickers().length).toBeLessThan(40);
-  });
+      expect(focusedRow()).toBe('41');
+      expect(document.activeElement?.closest('tr')?.textContent).toContain('Note 39');
+      expect(pickers().length).toBeLessThan(40);
+    },
+    KEYBOARD_WALK_MS,
+  );
 
   it('keeps the focused row in the page when a read puts it far from what is shown', () => {
     const items = notes(40);

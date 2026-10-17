@@ -1,6 +1,7 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
+import { ROW_SCROLLER_PROPS } from './virtual-rows.ts';
 import { Icon } from './icon.tsx';
 import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
@@ -115,9 +116,6 @@ export function InboxPage(props: InboxPageProps) {
   const meetingProjects = props.meetingProjects ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
-  // An element, not a ref: the list inside it measures where it starts in it
-  // as it mounts, before an ancestor's ref would be attached.
-  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   return (
     <>
       <PageBar
@@ -126,7 +124,7 @@ export function InboxPage(props: InboxPageProps) {
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
-      <div className="panel__body panel__body--rows" ref={setScroller}>
+      <div className="panel__body panel__body--rows" {...ROW_SCROLLER_PROPS}>
         <article className="page page--wide inbox" aria-label="Inbox">
           <PageHead
             icon="inbox"
@@ -159,7 +157,7 @@ export function InboxPage(props: InboxPageProps) {
           )}
           <LastAction {...props} />
           {proposals !== null && proposalsToShow(proposals) && <ProposalsSection {...proposals} />}
-          <InboxList {...props} scroller={scroller} />
+          <InboxList {...props} />
         </article>
       </div>
     </>
@@ -336,8 +334,7 @@ function InboxList({
   busy,
   refusals = NO_REFUSALS,
   summaryPending,
-  scroller,
-}: InboxPageProps & { scroller: HTMLElement | null }) {
+}: InboxPageProps) {
   if (error !== null) {
     return (
       <p className="table__error" role="alert">
@@ -376,7 +373,6 @@ function InboxList({
             busy={busy}
             refusals={refusals}
             {...(summaryPending !== undefined && { summaryPending })}
-            scroller={scroller}
           />
         </table>
         {contents.truncated && (

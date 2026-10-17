@@ -42,8 +42,6 @@ export interface InboxRowsProps {
   refusals: readonly InboxRefusal[];
   /** Why each imported meeting's summary still waits, by path: shown on its row (#186). */
   summaryPending?: ReadonlyMap<string, string>;
-  /** The element the page scrolls in; null until it is mounted. */
-  scroller: HTMLElement | null;
 }
 
 /** A row's height until it is measured, as the stylesheet draws a note's. */
@@ -70,7 +68,6 @@ export function InboxRows({
   busy,
   refusals,
   summaryPending,
-  scroller,
 }: InboxRowsProps) {
   const triage = useInboxTriage({ items, onClarify });
   const keys = useMemo(() => items.map((item) => item.path), [items]);
@@ -78,7 +75,6 @@ export function InboxRows({
   const list = useVirtualRows({
     content: body,
     keys,
-    scroller,
     estimate: () => ROW_HEIGHT,
     pinned: triage.wanted,
   });

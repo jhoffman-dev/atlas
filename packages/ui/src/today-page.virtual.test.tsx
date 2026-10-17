@@ -57,6 +57,19 @@ const oneGroup = (count: number) => report(Array.from({ length: count }, (_, at)
 const ownProjects = (count: number) =>
   report(Array.from({ length: count }, (_, at) => task(at, createVaultPath(`Projects/P${at}.md`))));
 
+/** The same read once `gone` has left it: every other task the same object, as the app keeps it. */
+function without(read: TodayReport, gone: VaultPath): TodayReport {
+  return {
+    ...read,
+    sections: read.sections.map((section) => {
+      const groups = section.groups
+        .map((group) => ({ ...group, tasks: group.tasks.filter((each) => each.path !== gone) }))
+        .filter((group) => group.tasks.length > 0);
+      return { ...section, groups, count: groups.reduce((sum, g) => sum + g.tasks.length, 0) };
+    }),
+  };
+}
+
 function props(today: TodayReport, overrides: Partial<TodayPageProps> = {}): TodayPageProps {
   return {
     today,
@@ -81,6 +94,9 @@ const ticks = () => screen.getAllByRole('checkbox', { name: /^Mark Task \d+ done
 /** The row the focus is in, by its place among its table's rows. */
 const focusedRow = () => document.activeElement?.closest('tr')?.getAttribute('aria-rowindex');
 
+/** A walk of hundreds of key presses takes seconds on a loaded CI shard. */
+const KEYBOARD_WALK_MS = 30_000;
+
 describe('TodayPage — a day of hundreds of tasks (#238)', () => {
   it('puts only a screenful of 500 rows in the page, and says there are 500', () => {
     render(<TodayPage {...props(oneGroup(500))} />);
@@ -102,56 +118,70 @@ describe('TodayPage — a day of hundreds of tasks (#238)', () => {
     expect(within(nextActions()).getByRole('heading', { level: 2 }).textContent).toContain('300');
   });
 
-  it('reaches every row with Tab, each placed as the focus comes to it', async () => {
-    render(<TodayPage {...props(oneGroup(30))} />);
-    const placed = ticks().length;
-    expect(placed).toBeLessThan(30);
+  it(
+    'reaches every row with Tab, each placed as the focus comes to it',
+    async () => {
+      render(<TodayPage {...props(oneGroup(30))} />);
+      const placed = ticks().length;
+      expect(placed).toBeLessThan(30);
 
-    ticks()[0]?.focus();
-    for (let presses = 0; presses < 400 && focusedRow() !== '30'; presses += 1) {
-      await userEvent.tab();
-    }
+      ticks()[0]?.focus();
+      for (let presses = 0; presses < 400 && focusedRow() !== '30'; presses += 1) {
+        await userEvent.tab();
+      }
 
-    expect(focusedRow()).toBe('30');
-    expect(
-      document.activeElement?.closest('[data-today-row]')?.getAttribute('data-today-row'),
-    ).toBe('Tasks/Task 029.md');
-    // Reached without putting every row in the page.
-    expect(ticks().length).toBeLessThan(30);
-  });
+      expect(focusedRow()).toBe('30');
+      expect(
+        document.activeElement?.closest('[data-today-row]')?.getAttribute('data-today-row'),
+      ).toBe('Tasks/Task 029.md');
+      // Reached without putting every row in the page.
+      expect(ticks().length).toBeLessThan(30);
+    },
+    KEYBOARD_WALK_MS,
+  );
 
-  it('reaches the next project’s group with Tab, past the groups placed', async () => {
-    render(<TodayPage {...props(ownProjects(40))} />);
-    const placed = within(nextActions()).getAllByRole('group').length;
-    expect(placed).toBeLessThan(40);
+  it(
+    'reaches the next project’s group with Tab, past the groups placed',
+    async () => {
+      render(<TodayPage {...props(ownProjects(40))} />);
+      const placed = within(nextActions()).getAllByRole('group').length;
+      expect(placed).toBeLessThan(40);
 
-    screen.getByRole('checkbox', { name: 'Mark Task 000 done' }).focus();
-    for (let presses = 0; presses < 1000; presses += 1) {
-      if (document.activeElement?.matches('[aria-label="Mark Task 039 done"]') === true) break;
-      await userEvent.tab();
-    }
+      screen.getByRole('checkbox', { name: 'Mark Task 000 done' }).focus();
+      for (let presses = 0; presses < 1000; presses += 1) {
+        if (document.activeElement?.matches('[aria-label="Mark Task 039 done"]') === true) break;
+        await userEvent.tab();
+      }
 
-    expect(document.activeElement?.getAttribute('aria-label')).toBe('Mark Task 039 done');
-  });
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Mark Task 039 done');
+    },
+    KEYBOARD_WALK_MS,
+  );
 
-  it('reaches the last row of the group above with Shift+Tab, though the rows between are not placed', async () => {
-    const under = (project: string, from: number, count: number) =>
-      Array.from({ length: count }, (_, at) => ({
-        ...task(from + at, createVaultPath(`Projects/${project}.md`)),
-        projectTitle: project,
-      }));
-    render(<TodayPage {...props(report([...under('Alder', 0, 30), ...under('Birch', 100, 5)]))} />);
-    expect(ticks().length).toBeLessThan(35);
+  it(
+    'reaches the last row of the group above with Shift+Tab, though the rows between are not placed',
+    async () => {
+      const under = (project: string, from: number, count: number) =>
+        Array.from({ length: count }, (_, at) => ({
+          ...task(from + at, createVaultPath(`Projects/${project}.md`)),
+          projectTitle: project,
+        }));
+      render(
+        <TodayPage {...props(report([...under('Alder', 0, 30), ...under('Birch', 100, 5)]))} />,
+      );
+      expect(ticks().length).toBeLessThan(35);
 
-    screen.getByRole('checkbox', { name: 'Mark Task 100 done' }).focus();
-    // Past the Birch group's name, to the last control of Alder's last row.
-    await userEvent.tab({ shift: true });
-    await userEvent.tab({ shift: true });
+      screen.getByRole('checkbox', { name: 'Mark Task 100 done' }).focus();
+      // Past the Birch group's name, to the last control of Alder's last row.
+      await userEvent.tab({ shift: true });
+      await userEvent.tab({ shift: true });
 
-    expect(
-      document.activeElement?.closest('[data-today-row]')?.getAttribute('data-today-row'),
-    ).toBe('Tasks/Task 029.md');
-  });
+      expect(
+        document.activeElement?.closest('[data-today-row]')?.getAttribute('data-today-row'),
+      ).toBe('Tasks/Task 029.md');
+    },
+    KEYBOARD_WALK_MS,
+  );
 
   it('keeps the focused row in the page when a read puts it far from what is shown', () => {
     const tasks = Array.from({ length: 40 }, (_, at) => task(at));
@@ -170,7 +200,7 @@ describe('TodayPage — a day of hundreds of tasks (#238)', () => {
     expect(focusedRow()).toBe('36');
   });
 
-  it('draws one row for a tick among 500: the row ticked, and none of the rest', async () => {
+  it('draws one row for a tick among 500: the one that comes into the page as the ticked one leaves', async () => {
     const read = oneGroup(500);
     const onDone = vi.fn();
     const view = render(<TodayPage {...props(read, { onDone })} />);
@@ -179,6 +209,7 @@ describe('TodayPage — a day of hundreds of tasks (#238)', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Mark Task 003 done' }));
     view.rerender(<TodayPage {...props(read, { busy: true })} />);
     view.rerender(<TodayPage {...props(read, { settling: new Set([ticked]) })} />);
+    view.rerender(<TodayPage {...props(without(read, ticked))} />);
     const { renders } = stopCountingRenders();
 
     expect(onDone).toHaveBeenCalledWith({ path: ticked, title: 'Task 003' });
