@@ -1845,3 +1845,272 @@ fn only_the_commands_that_rewrite_notes_take_the_change_turn() {
     }
     assert!(!writes_working_tree(&[]));
 }
+
+// --- #246 attack: where the change turn does not reach -----------------------
+
+const MERGE: &[&str] = &[
+    "merge",
+    "--no-edit",
+    "--allow-unrelated-histories",
+    "origin/main",
+];
+
+/// Runs the system git directly, for setting a repository up; the host's
+/// shapes do not cover making branches.
+fn raw_git(git_dir: &Path, repo: &Path, list: &[&str]) {
+    let status = Command::new(git_dir.join("git"))
+        .args([
+            "-c",
+            "user.name=Atlas Test",
+            "-c",
+            "user.email=atlas@test.local",
+        ])
+        .args(list)
+        .current_dir(repo)
+        .env("HOME", repo)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .status()
+        .unwrap();
+    assert!(status.success(), "git {list:?}");
+}
+
+/// A vault whose merge of `origin/main` leaves `Note.md` in conflict: this
+/// Mac wrote "ours", the other wrote "theirs".
+fn conflicted_vault(git_dir: &Path, host: &GitHost) -> tempfile::TempDir {
+    let vault = tempfile::tempdir().unwrap();
+    let root = vault.path();
+    raw_git(git_dir, root, &["init", "--quiet", "--initial-branch=main"]);
+    fs::write(root.join("Note.md"), "base\n").unwrap();
+    raw_git(git_dir, root, &["add", "--all"]);
+    raw_git(git_dir, root, &["commit", "--quiet", "-m", "base"]);
+    raw_git(git_dir, root, &["branch", "other"]);
+    fs::write(root.join("Note.md"), "ours\n").unwrap();
+    raw_git(git_dir, root, &["commit", "--quiet", "-am", "ours"]);
+    raw_git(git_dir, root, &["checkout", "--quiet", "other"]);
+    fs::write(root.join("Note.md"), "theirs\n").unwrap();
+    raw_git(git_dir, root, &["commit", "--quiet", "-am", "theirs"]);
+    raw_git(git_dir, root, &["checkout", "--quiet", "main"]);
+    raw_git(
+        git_dir,
+        root,
+        &["update-ref", "refs/remotes/origin/main", "other"],
+    );
+    let merged = host.git_in_vault(root, &args(MERGE)).unwrap();
+    assert_ne!(
+        merged.code,
+        Some(0),
+        "the merge should conflict: {merged:?}"
+    );
+    vault
+}
+
+/// Settling a conflict reads the note's blob (`hash-object`, no turn), then
+/// decides to keep this Mac's side and runs `checkout --ours`. A save that
+/// lands between the two is overwritten: the turn covers each command, not
+/// the read-decide-write the sync makes across them (settle-conflicts.ts).
+#[test]
+fn a_save_between_the_syncs_look_at_a_conflict_and_its_checkout_is_kept() {
+    let Some(git_dir) = real_git_dir() else {
+        println!("skipped: no git in {GIT_DIRS:?}");
+        return;
+    };
+    let home = tempfile::tempdir().unwrap();
+    let host = host_in(&[&git_dir], Some(home.path().to_path_buf()), NO_LIMIT);
+    let vault = conflicted_vault(&git_dir, &host);
+    let root = vault.path();
+
+    // The sync looks at the file and sees the merge's own result.
+    ok(host
+        .git_in_vault(
+            root,
+            &args(&["hash-object", "--no-filters", "--", "Note.md"]),
+        )
+        .unwrap());
+    // The person saves the note they have open.
+    crate::vault::one_change_at_a_time(|| {
+        crate::vault::write_text(root, "Note.md", "typed while syncing\n", None)
+    })
+    .unwrap();
+    // The sync acts on what it saw.
+    ok(host
+        .git_in_vault(root, &args(&["checkout", "--ours", "--", "Note.md"]))
+        .unwrap());
+
+    assert_eq!(
+        fs::read_to_string(root.join("Note.md")).unwrap(),
+        "typed while syncing\n",
+        "checkout --ours overwrote a save made after the sync looked at the note"
+    );
+}
+
+/// `git_run` checks the vault it was meant for before the git write waits for
+/// its turn, unlike `change_in_vault`, which checks inside the turn. A switch
+/// that lands while the merge waits is followed by the merge writing the old
+/// vault, breaking `switch_vault`'s "once it answers nothing more lands in the
+/// old vault". The two lines of `git_run` are replayed here, as the command
+/// itself needs a running app.
+#[test]
+fn a_git_write_queued_before_a_vault_switch_does_not_land_in_the_old_vault() {
+    let bin = fake("git", "printf merged > a.md");
+    let old = tempfile::tempdir().unwrap();
+    let new = tempfile::tempdir().unwrap();
+    fs::write(old.path().join("a.md"), "before").unwrap();
+    let state = crate::vault::VaultState::default();
+    let at = |dir: &Path| crate::vault::location_of(dir);
+    crate::vault::switch_vault(&state, &at(old.path()), |_| Ok(())).unwrap();
+    let host = host_in(&[bin.path()], None, NO_LIMIT);
+
+    // git_run: the vault is checked, then the run goes to the blocking pool.
+    let meant_for = old.path().display().to_string();
+    let root = crate::vault::root_for_write(state.get(), Some(&meant_for)).unwrap();
+    // The person opens another vault before the merge's turn comes.
+    crate::vault::switch_vault(&state, &at(new.path()), |_| Ok(())).unwrap();
+    let ran = host.git_in_vault(&root, &args(MERGE));
+
+    assert_eq!(
+        fs::read_to_string(old.path().join("a.md")).unwrap(),
+        "before",
+        "a merge wrote the old vault after the switch answered: {ran:?}"
+    );
+}
+
+/// A fake `git` that deletes the note, waits to be let go, then writes it
+/// anew, as git's checkout does (it unlinks a file and creates it again).
+fn rewriting_git() -> HeldGit {
+    let pipes = tempfile::tempdir().unwrap();
+    let started = fifo(&pipes.path().join("started"));
+    let release = fifo(&pipes.path().join("release"));
+    let script = format!(
+        "rm a.md\nprintf started > '{}'\nread go < '{}'\nprintf merged > a.md",
+        started.display(),
+        release.display()
+    );
+    HeldGit {
+        bin: fake("git", &script),
+        _pipes: pipes,
+        started,
+        release,
+    }
+}
+
+/// Reads take no turn because a save lands by rename, so a read sees the old
+/// note or the new one whole. A git write is not a rename: a read while a
+/// merge is under way finds the note gone (or part-written).
+#[test]
+fn a_read_during_a_merge_sees_the_note_whole() {
+    let held = rewriting_git();
+    let vault = tempfile::tempdir().unwrap();
+    fs::write(vault.path().join("a.md"), "before").unwrap();
+    let host = host_in(&[held.bin.path()], None, NO_LIMIT);
+    let root = vault.path().to_path_buf();
+    let merge = std::thread::spawn(move || host.git_in_vault(&root, &args(MERGE)));
+    assert_eq!(fs::read_to_string(&held.started).unwrap(), "started");
+    let mid_merge = fs::read_to_string(vault.path().join("a.md"));
+    fs::write(&held.release, "go\n").unwrap();
+    assert_eq!(merge.join().unwrap().unwrap().code, Some(0));
+    let seen = mid_merge.map_err(|error| error.to_string());
+    assert!(
+        matches!(seen.as_deref(), Ok("before") | Ok("merged")),
+        "a read during a merge saw {seen:?}"
+    );
+}
+
+/// Waits for `work` on a thread of its own, failing rather than hanging when
+/// the change turn was never given back.
+fn within_a_minute<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+    let (done, answer) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = done.send(work());
+    });
+    answer
+        .recv_timeout(Duration::from_secs(60))
+        .expect("the change turn was not given back")
+}
+
+#[test]
+fn a_merge_that_is_stopped_for_running_too_long_gives_the_turn_back() {
+    let pipes = tempfile::tempdir().unwrap();
+    let never = fifo(&pipes.path().join("never"));
+    let bin = fake("git", &format!("read go < '{}'", never.display()));
+    let vault = tempfile::tempdir().unwrap();
+    fs::write(vault.path().join("a.md"), "before").unwrap();
+    let limits = Limits {
+        local: Duration::from_millis(200),
+        network: Duration::from_millis(200),
+    };
+    let host = host_in(&[bin.path()], None, limits);
+    let stopped = host.git_in_vault(vault.path(), &args(MERGE)).unwrap();
+    assert_eq!(stopped.code, None, "{stopped:?}");
+    let root = vault.path().to_path_buf();
+    within_a_minute(move || crate::vault::write_text(&root, "a.md", "saved", None)).unwrap();
+    assert_eq!(
+        fs::read_to_string(vault.path().join("a.md")).unwrap(),
+        "saved"
+    );
+}
+
+#[test]
+fn a_merge_that_fails_or_cannot_start_gives_the_turn_back() {
+    let failing = fake("git", "printf half > a.md\nexit 1");
+    let vault = tempfile::tempdir().unwrap();
+    let host = host_in(&[failing.path()], None, NO_LIMIT);
+    assert_eq!(
+        host.git_in_vault(vault.path(), &args(MERGE)).unwrap().code,
+        Some(1)
+    );
+    let missing = host_in(&[], None, NO_LIMIT);
+    assert!(missing.git_in_vault(vault.path(), &args(MERGE)).is_err());
+    let root = vault.path().to_path_buf();
+    within_a_minute(move || crate::vault::write_text(&root, "a.md", "saved", None)).unwrap();
+    assert_eq!(
+        fs::read_to_string(vault.path().join("a.md")).unwrap(),
+        "saved"
+    );
+}
+
+/// Many saves and many merges at once, each merge writing the note in two
+/// steps: every save lands, no two merges interleave, and the note at the end
+/// is one whole version. (Reads mid-run are left out: see the test above.)
+#[test]
+fn saves_and_merges_hammered_together_leave_no_torn_or_lost_note() {
+    let bin = fake("git", "printf 'half' > a.md\nprintf ' merged' >> a.md");
+    let vault = tempfile::tempdir().unwrap();
+    fs::write(vault.path().join("a.md"), "before").unwrap();
+    let mut runs = Vec::new();
+    for merger in 0..4 {
+        let host = host_in(&[bin.path()], None, NO_LIMIT);
+        let root = vault.path().to_path_buf();
+        runs.push(std::thread::spawn(move || {
+            for _ in 0..10 {
+                assert_eq!(
+                    host.git_in_vault(&root, &args(MERGE)).unwrap().code,
+                    Some(0)
+                );
+            }
+            merger
+        }));
+    }
+    for saver in 0..8 {
+        let root = vault.path().to_path_buf();
+        runs.push(std::thread::spawn(move || {
+            for save in 0..25 {
+                let text = format!("save {saver}-{save}");
+                crate::vault::write_text(&root, "a.md", &text, None).unwrap();
+            }
+            saver
+        }));
+    }
+    for run in runs {
+        run.join().unwrap();
+    }
+    let last = fs::read_to_string(vault.path().join("a.md")).unwrap();
+    assert!(
+        last.starts_with("save ") || last == "half merged",
+        "{last:?}"
+    );
+    let left: Vec<_> = fs::read_dir(vault.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(left.len(), 1, "temporaries left behind: {left:?}");
+}
