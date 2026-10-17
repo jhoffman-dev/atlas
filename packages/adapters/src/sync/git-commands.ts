@@ -49,7 +49,7 @@ export function gitCommands(git: RunGit): Omit<GitPort, 'createGitHubRepository'
     mergeInProgress: () => git('rev-parse', '--verify', '--quiet', 'MERGE_HEAD'),
     remoteSubject: (branch) => git('log', '-1', '--format=%s', `origin/${branch}`, '--'),
     remoteBranchExists: (branch) => git('rev-parse', '--verify', '--quiet', `origin/${branch}`),
-    // What the sync saw of the file is the host's to check; see `tauriGit`.
+    // Drops `seen`: the guard lives in the host, and only `tauriGit`, which overrides this, runs in production.
     checkout: ({ side, path }) => git(...checkoutArgs(side, path)),
     config: (key) => git('config', '--get', key),
     untrackedExact: () =>

@@ -351,6 +351,8 @@ describe('settleConflicts', () => {
         },
       },
       vault,
+      // A checkout let through would write the other Mac's text over it.
+      sides: { 'Made since.md': { ours: '', theirs: 'theirs' } },
     });
     const { port: files } = memorySyncFiles();
     await settleConflicts({

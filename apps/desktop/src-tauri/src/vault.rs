@@ -811,9 +811,6 @@ fn notes_whole() -> RwLockReadGuard<'static, ()> {
     whole
 }
 
-/// Which thread holds the change turn, and which threads wait on it or on a
-/// whole note: so a test can see who is where, whatever other tests run
-/// beside it, without waiting on time.
 /// The vault's own save and read, for tests outside this module, which
 /// otherwise reach notes only through the commands.
 #[cfg(test)]
@@ -835,6 +832,9 @@ pub(crate) mod test_access {
     }
 }
 
+/// Which thread holds the change turn, and which threads wait on it or on a
+/// whole note: so a test can see who is where, whatever other tests run
+/// beside it, without waiting on time.
 #[cfg(test)]
 pub(crate) mod turn_watch {
     use std::collections::HashSet;
