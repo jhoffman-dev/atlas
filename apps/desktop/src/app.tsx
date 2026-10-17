@@ -84,6 +84,8 @@ import { useVault, type VaultPorts } from './vault/use-vault.ts';
 import { boundToVault, type OnHost } from './vault/bound-to-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import { useIndex, type IndexPorts } from './index/use-index.ts';
+import { useIndexFailure, useIndexKey, useIndexReady } from './index/index-status-store.ts';
+import { openOnce } from './index/open-once.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
 import { useVaultWatch } from './vault/use-vault-watch.ts';
 import { useSearch } from './index/use-search.ts';
@@ -341,7 +343,11 @@ export function App({
   // switch is refused instead of landing in the vault opened next.
   const vault = useMemo(() => boundToVault(vaultPorts, vaultKey), [vaultPorts, vaultKey]);
   const notes = useMemo(() => boundToVault(notePorts, vaultKey), [notePorts, vaultKey]);
-  const index = useMemo(() => boundToVault(indexPorts, vaultKey), [indexPorts, vaultKey]);
+  // Opened once per vault: a new vault gets a new opening (#238).
+  const index = useMemo(() => {
+    const bound = boundToVault(indexPorts, vaultKey);
+    return { ...bound, index: openOnce(bound.index) };
+  }, [indexPorts, vaultKey]);
   const panes = usePanes({ store: browserPaneStore, vaultKey: location?.absolutePath ?? null });
   const { openInFocusedPane, openInPane, openBeside, followMove, closeNotes, toggleSplit } = panes;
   useFocusAfterArrange(panes.layout.paths.length);
@@ -349,6 +355,7 @@ export function App({
   const focusedPath = panes.layout.paths[panes.layout.focused] ?? null;
   const {
     status: indexStatus,
+    store: indexStore,
     progress: indexProgress,
     rebuild,
     refresh,
@@ -359,21 +366,23 @@ export function App({
     activity: activityLog,
     changes: noteChanges,
   });
+  const indexReady = useIndexReady(indexStore, vaultKey);
+  const indexFailedWith = useIndexFailure(indexStore, vaultKey);
 
   // Anything that edits the vault from outside — Obsidian, a sync client — should
-  // show up here without a restart.
+  // show up here without a restart. Quiet: it moves the index only when the
+  // refresh found something, which an echo of the app's own save does not.
   useVaultWatch({
     watch: vault.watch,
     vaultKey: location?.absolutePath ?? null,
     onChange: () => {
       void reload();
-      void refresh();
+      void refresh({ quiet: true });
     },
   });
   // Everything derived from the index re-runs when this changes: backlinks,
-  // saved views and dashboard widgets.
-  const indexKey =
-    indexStatus.kind === 'ready' ? `ready:${indexStatus.revision}` : indexStatus.kind;
+  // saved views and dashboard widgets. It moves only with the revision (#238).
+  const indexKey = useIndexKey(indexStore, vaultKey);
   const { types, reload: reloadTypes } = useTypes({
     fs: vault.fs,
     markdown: notes.markdown,
@@ -452,7 +461,7 @@ export function App({
   // The tags page and the API rename tags through one queue per vault.
   const tagRenames = useMemo(() => createTagRenames(), []);
   const refreshSpacing = useMemo(() => createRefreshSpacing(), []);
-  const apiHost = useApiHost({ vault: location, indexReady: indexStatus.kind === 'ready' });
+  const apiHost = useApiHost({ vault: location, indexReady });
   // An archive from another tool moves notes; the panes follow through this,
   // pointed at `followEntryMove` below, so the API's deps stay put.
   const apiMoves = useMemo(() => createMoveRelay(), []);
@@ -603,12 +612,12 @@ export function App({
   const vaultGraph = useVaultGraph({
     index: index.index,
     indexKey,
-    ready: indexStatus.kind === 'ready',
+    ready: indexReady,
   });
   const vaultTags = useVaultTags({
     index: index.index,
     indexKey,
-    ready: indexStatus.kind === 'ready',
+    ready: indexReady,
   });
   const openTag = useCallback((name: string) => openTags(tagKey(name)), [openTags]);
   // Every relation is shown by the names in the same copy the graph reads.
@@ -755,7 +764,7 @@ export function App({
     index: index.index,
     vaultKey,
     changeKey: indexKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     activity: activityLog,
   });
   // What a rule's Claude step reaches (P29-03), with the owner's name as their profile holds it (P29-05)
@@ -1017,7 +1026,7 @@ export function App({
     // Only the Mac that runs the automations writes into meeting files (U-29),
     // and only on fresh sync state (ADR-0035 part 4).
     active: sync.automationsHere,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     selfName: ownerName,
     selfEmails: ownerEmails,
     ownerKnown,
@@ -1041,7 +1050,7 @@ export function App({
     types,
     clock: localClock,
     indexKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: inboxOpen,
     onSettled: settleArchive,
     activity: activityLog,
@@ -1051,7 +1060,7 @@ export function App({
   const taskMigration = useTaskMigration({
     ports: archivePorts,
     vaultKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: inboxOpen,
     activity: activityLog,
     onChanged: typesChanged,
@@ -1060,7 +1069,7 @@ export function App({
   const paraMigration = useParaMigration({
     ports: archivePorts,
     vaultKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: inboxOpen,
     activity: activityLog,
     onChanged: typesChanged,
@@ -1069,7 +1078,7 @@ export function App({
   const vaultTidy = useVaultTidy({
     ports: archivePorts,
     vaultKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: inboxOpen,
     activity: activityLog,
     onChanged: settleArchive,
@@ -1087,7 +1096,7 @@ export function App({
     ports: cleanupPorts,
     owner: cleanupOwner,
     vaultKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: inboxOpen,
     activity: activityLog,
     onChanged: settleArchive,
@@ -1097,7 +1106,7 @@ export function App({
   const meetingProjects = useMeetingProjects({
     ports: archivePorts,
     vaultKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: inboxOpen,
     owner: { selfName: ownerName, selfEmails: ownerEmails },
     activity: activityLog,
@@ -1110,7 +1119,7 @@ export function App({
     clock: localClock,
     types,
     indexKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: reviewOpen,
     onSettled: settleArchive,
     archiveNote: (path) => archiveCommands.archive([path]),
@@ -1124,7 +1133,7 @@ export function App({
     types,
     vaultKey,
     indexKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     open: todayOpen,
     onSettled: settleArchive,
     activity: activityLog,
@@ -1162,7 +1171,7 @@ export function App({
     clock: localClock,
     vaultKey,
     indexKey,
-    indexReady: indexStatus.kind === 'ready',
+    indexReady,
     activity: activityLog,
     onSettled: settleArchive,
     live: automationsOpen,
@@ -1288,7 +1297,7 @@ export function App({
   const vaultPeople = usePeople({
     ports: peoplePorts,
     indexKey,
-    ready: indexStatus.kind === 'ready',
+    ready: indexReady,
     notePaths,
     types,
     templates,
@@ -1480,8 +1489,7 @@ export function App({
     termsPage.notice,
     sidebarOrder.unreadable,
   ];
-  const indexFailure =
-    location !== null && indexStatus.kind === 'failed' ? indexStatus.message : null;
+  const indexFailure = location !== null ? indexFailedWith : null;
   const sidebarOrderFailure =
     sidebarOrder.problem === null
       ? null

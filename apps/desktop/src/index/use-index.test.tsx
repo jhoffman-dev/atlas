@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createVaultPath } from '@atlas/domain';
@@ -11,6 +12,8 @@ import {
   recordingActivity,
 } from '@atlas/application';
 import { IndexProgressPill, LiveIndexSettings } from './index-progress.tsx';
+import type { IndexPhase, IndexStatusStore } from './index-status-store.ts';
+import { openOnce } from './open-once.ts';
 import { useIndex, type IndexPorts, type IndexStatus } from './use-index.ts';
 
 const VAULT = '/vaults/Larkspur';
@@ -56,7 +59,8 @@ describe('useIndex while a vault is being indexed (#135)', () => {
 
     // Everything that re-reads when the index moves hangs off `status`: a
     // status per batch would run every one of those reads per batch.
-    expect(large.statuses.map((status) => status.kind)).toEqual(['idle', 'working', 'ready']);
+    // An open vault not yet synced is building from the first render, never idle (#238).
+    expect(large.statuses.map((status) => status.kind)).toEqual(['working', 'ready']);
     expect(large.renders).toBe(small.renders);
   });
 
@@ -217,6 +221,225 @@ describe('useIndex, asked to catch up (ADR-0034)', () => {
     expect(answered).toBe(true);
     expect(listed).toBe(2);
     expect(result.current.status.kind).toBe('ready');
+  });
+});
+
+/** Every phase the store passes through, from now on, each time it changes. */
+function phasesOf(store: IndexStatusStore): IndexPhase[] {
+  const seen: IndexPhase[] = [store.getState().phase];
+  store.subscribe((state) => {
+    if (seen.at(-1) !== state.phase) seen.push(state.phase);
+  });
+  return seen;
+}
+
+/** A vault's index, built and ready, with what a test needs to drive it. */
+async function readyIndex(ports: IndexPorts = vaultOf(3)) {
+  const activity = recordingActivity();
+  const changes = createNoteChanges({ onError: () => {} });
+  const hook = renderHook(() => useIndex({ ports, vaultKey: VAULT, activity, changes }));
+  await waitFor(() => expect(hook.result.current.status.kind).toBe('ready'));
+  return { ...hook, ports, changes };
+}
+
+describe('useIndex: a refresh keeps the index ready (#238)', () => {
+  it('never says building, or anything but ready, while an incremental refresh runs', async () => {
+    const { result } = await readyIndex();
+    const store = result.current.store;
+    const phases = phasesOf(store);
+    const revision = store.getState().revision;
+
+    await act(async () => {
+      await result.current.refresh();
+      await result.current.refresh({ quiet: true });
+    });
+
+    expect(phases).toEqual(['ready']);
+    // The loud refresh moved it; the quiet one found nothing and left it.
+    expect(store.getState().revision).toBe(revision + 1);
+  });
+
+  it('says building for the first sync of a vault, and for a rebuild', async () => {
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const ports = vaultOf(3);
+    const { result } = renderHook(() => useIndex({ ports, vaultKey: VAULT, activity, changes }));
+    // The first sync has started by the time the hook hands its store back.
+    const phases = phasesOf(result.current.store);
+    await waitFor(() => expect(result.current.status.kind).toBe('ready'));
+    expect(phases).toEqual(['building', 'ready']);
+
+    await act(async () => {
+      await result.current.rebuild();
+    });
+    expect(phases).toEqual(['building', 'ready', 'building', 'ready']);
+  });
+
+  it('moves the revision on a quiet refresh only when it found a change', async () => {
+    const { result, ports } = await readyIndex();
+    const store = result.current.store;
+    const revision = store.getState().revision;
+
+    await act(async () => {
+      await result.current.refresh({ quiet: true });
+    });
+    expect(store.getState().revision).toBe(revision);
+
+    const listNotes = ports.fs.listNotes.bind(ports.fs);
+    ports.fs.listNotes = async (...args) => [
+      ...(await listNotes(...args)),
+      { name: 'Arrived.md', path: createVaultPath('Arrived.md'), modified: 1, size: 4 },
+    ];
+    await act(async () => {
+      await result.current.refresh({ quiet: true });
+    });
+    expect(store.getState().revision).toBe(revision + 1);
+  });
+
+  it('answers every refresh asked during a sync with one sync after it', async () => {
+    const ports = vaultOf(INDEX_BATCH_SIZE);
+    let letBuildFinish = () => {};
+    const held = new Promise<void>((resolve) => (letBuildFinish = resolve));
+    ports.index = { ...ports.index, put: () => held };
+    let listed = 0;
+    const listNotes = ports.fs.listNotes.bind(ports.fs);
+    ports.fs.listNotes = async (...args) => {
+      listed += 1;
+      return listNotes(...args);
+    };
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const { result } = renderHook(() => useIndex({ ports, vaultKey: VAULT, activity, changes }));
+    await waitFor(() => expect(listed).toBe(1));
+
+    let asked: Promise<boolean>[] = [];
+    act(() => {
+      asked = [
+        result.current.refresh({ quiet: true }),
+        result.current.refresh(),
+        result.current.refresh({ quiet: true }),
+        result.current.rebuild(),
+        result.current.refresh(),
+      ];
+    });
+    letBuildFinish();
+    let answers: boolean[] = [];
+    await act(async () => {
+      answers = await Promise.all(asked);
+    });
+
+    expect(listed).toBe(2);
+    expect(answers).toEqual([true, true, true, true, true]);
+    // Joined: the rebuild asked among them was not lost to the refreshes around it.
+    expect(activity.reports.map((report) => report.message)).toContain(
+      `Rebuilt the index: ${INDEX_BATCH_SIZE} notes.`,
+    );
+  });
+});
+
+describe('useIndex: the index is opened once per vault (#238)', () => {
+  /** The window's ports, as `app.tsx` makes them: a new opening for each vault. */
+  function windowOver(vault: IndexPorts) {
+    const opened = { count: 0 };
+    const raw = vault.index;
+    const portsFor = () => ({
+      ...vault,
+      index: openOnce({
+        ...raw,
+        open: async () => {
+          opened.count += 1;
+          return raw.open();
+        },
+      }),
+    });
+    return { opened, portsFor };
+  }
+
+  it('opens it once for the first build and every refresh after, and again for each vault', async () => {
+    const vault = vaultOf(3);
+    const { opened, portsFor } = windowOver(vault);
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const { result, rerender } = renderHook(
+      ({ ports, vaultKey }: { ports: IndexPorts; vaultKey: string }) =>
+        useIndex({ ports, vaultKey, activity, changes }),
+      { initialProps: { ports: portsFor(), vaultKey: VAULT } },
+    );
+    await waitFor(() => expect(result.current.status.kind).toBe('ready'));
+    await act(async () => {
+      await result.current.refresh();
+      await result.current.refresh({ quiet: true });
+      await result.current.rebuild();
+    });
+    expect(opened.count).toBe(1);
+
+    rerender({ ports: portsFor(), vaultKey: '/vaults/Quill' });
+    await waitFor(() => expect(result.current.status.kind).toBe('ready'));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(opened.count).toBe(2);
+  });
+
+  it('opens it again after a sync that failed on it', async () => {
+    const vault = vaultOf(3);
+    let failing = false;
+    const put = vault.index.put;
+    vault.index = {
+      ...vault.index,
+      put: async (...args) => {
+        if (failing) throw new Error('the index went away');
+        return put(...args);
+      },
+    };
+    const listNotes = vault.fs.listNotes.bind(vault.fs);
+    let arrivals = 0;
+    // Each listing has a new note, so every refresh has something to write.
+    vault.fs.listNotes = async (...args) => [
+      ...(await listNotes(...args)),
+      {
+        name: `Arrived ${++arrivals}.md`,
+        path: createVaultPath(`Arrived ${arrivals}.md`),
+        modified: 1,
+        size: 4,
+      },
+    ];
+    const { opened, portsFor } = windowOver(vault);
+    const { result } = await readyIndex(portsFor());
+    expect(opened.count).toBe(1);
+
+    failing = true;
+    await act(async () => {
+      expect(await result.current.refresh()).toBe(false);
+    });
+    failing = false;
+    await act(async () => {
+      expect(await result.current.refresh()).toBe(true);
+    });
+    expect(opened.count).toBe(2);
+  });
+});
+
+describe('useIndex under StrictMode (#238)', () => {
+  it('subscribes once: one change is heard once, and a quiet refresh that found none moves nothing', async () => {
+    const activity = recordingActivity();
+    const changes = createNoteChanges({ onError: () => {} });
+    const heard: number[] = [];
+    changes.subscribe((news) => heard.push(news.changes.length));
+    const ports = vaultOf(3);
+    const { result } = renderHook(() => useIndex({ ports, vaultKey: VAULT, activity, changes }), {
+      wrapper: StrictMode,
+    });
+    await waitFor(() => expect(result.current.status.kind).toBe('ready'));
+    // The first build found the three notes; StrictMode's second ask found nothing new.
+    expect(heard).toEqual([3]);
+    const revision = result.current.store.getState().revision;
+
+    await act(async () => {
+      await result.current.refresh({ quiet: true });
+    });
+    expect(result.current.store.getState().revision).toBe(revision);
+    expect(heard).toEqual([3]);
   });
 });
 
