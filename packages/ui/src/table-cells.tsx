@@ -3,6 +3,7 @@ import { holdsLinks, isYou, linkedNames, propertyRole, type PropertyKind } from 
 import { ChecklistProgress } from './checklist-progress.tsx';
 import { DoneCheckbox, type DoneTicks } from './done-checkbox.tsx';
 import { ariaRowIndex, type LinePlace } from './grouped-rows.tsx';
+import { ROW_STOP } from './row-focus.ts';
 import { Icon } from './icon.tsx';
 import { LinkedNote, useNoteNames } from './note-names.tsx';
 import { SelectBox } from './row-selection.tsx';
@@ -141,7 +142,7 @@ function CellFor({
 }) {
   if (column === TITLE) {
     return (
-      <button type="button" className="table__link" onClick={onOpen}>
+      <button {...ROW_STOP} type="button" className="table__link" onClick={onOpen}>
         <Icon name="doc" size={16} />
         <span className="table__title">{String(value ?? '')}</span>
       </button>

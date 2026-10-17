@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   columnSummary,
@@ -10,6 +10,7 @@ import {
   type RowGroup,
 } from '@atlas/domain';
 import { Icon } from './icon.tsx';
+import { ROW_STOP, useRowFocus } from './row-focus.ts';
 import { StatusPill } from './status-pill.tsx';
 
 /** A table's groups, which are folded shut, and what can be done to them. */
@@ -60,8 +61,9 @@ export const SCROLLER_ESTIMATE = { width: 960, height: 880 };
  * its sub-groups one step in, and "+ New" at the foot of each innermost group.
  *
  * Virtualised: only the lines near the scroller's window are in the page, and
- * a folded group is a header and nothing else. Up and Down move between the
- * headers; Enter and Space fold one, as a button does.
+ * a folded group is a header and nothing else. Up, Down, Home and End move
+ * between the rows' names and the headers, as the flat table's do, skipping
+ * "+ New"; Enter and Space fold a header, as a button does.
  */
 /**
  * The lines a grouped table draws, its header rows among them: worked out by
@@ -107,6 +109,7 @@ export function GroupedRows({
   scroller: HTMLElement | null;
 }) {
   const { onToggle, onNew } = grouping;
+  const body = useRef<HTMLTableSectionElement>(null);
   const virtualizer = useVirtualizer({
     count: lines.length,
     getScrollElement: () => scroller,
@@ -114,7 +117,12 @@ export function GroupedRows({
     overscan: 12,
     initialRect: SCROLLER_ESTIMATE,
   });
-  const focus = useHeaderFocus(lines, (index) => virtualizer.scrollToIndex(index));
+  const onKeyDown = useRowFocus({
+    body,
+    count: lines.length,
+    stopKey: (index) => stopKeyOf(lines[index]),
+    scrollTo: (index) => virtualizer.scrollToIndex(index),
+  });
 
   const items = virtualizer.getVirtualItems();
   const before = items[0]?.start ?? 0;
@@ -122,7 +130,7 @@ export function GroupedRows({
   const width = lead + columns.length;
 
   return (
-    <tbody onKeyDown={focus.onKeyDown}>
+    <tbody ref={body} onKeyDown={onKeyDown}>
       {before > 0 && <Spacer height={before} width={width} />}
       {items.map((item) => {
         const line = lines[item.index];
@@ -155,13 +163,22 @@ export function GroupedRows({
             lead={lead}
             noun={noun}
             onToggle={() => onToggle(line.group.id)}
-            buttonRef={focus.refFor(line.group.id)}
           />
         );
       })}
       {after > 0 && <Spacer height={after} width={width} />}
     </tbody>
   );
+}
+
+/**
+ * The key a line's stop goes by, whatever moves around it: a header by its
+ * group, a row by its note. "+ New" holds no stop.
+ */
+function stopKeyOf(line: GroupLine | undefined): string | null {
+  if (line?.kind === 'group') return `group:${line.group.id}`;
+  if (line?.kind === 'row') return `row:${line.row.path}`;
+  return null;
 }
 
 /** Room for the lines scrolled out of the page, so the scrollbar stays true. */
@@ -181,7 +198,6 @@ function GroupHeader({
   lead,
   noun,
   onToggle,
-  buttonRef,
 }: {
   line: Extract<GroupLine, { kind: 'group' }>;
   index: number;
@@ -190,7 +206,6 @@ function GroupHeader({
   lead: number;
   noun: string;
   onToggle: () => void;
-  buttonRef: (element: HTMLButtonElement | null) => void;
 }) {
   const { group, depth, collapsed } = line;
   const count = group.rows.length;
@@ -203,7 +218,7 @@ function GroupHeader({
     >
       <td colSpan={lead + 1} className="table__group-cell">
         <button
-          ref={buttonRef}
+          {...ROW_STOP}
           type="button"
           className="table__group-toggle"
           aria-expanded={!collapsed}
@@ -274,53 +289,4 @@ function NewLine({
       </td>
     </tr>
   );
-}
-
-/**
- * Up and Down from a header move to the header above or below it, scrolling
- * it into the page first when the virtualiser has not drawn it yet.
- */
-function useHeaderFocus(lines: readonly GroupLine[], scrollTo: (index: number) => void) {
-  const buttons = useRef(new Map<string, HTMLButtonElement>());
-  /** A header asked for the focus before the virtualiser had drawn it. */
-  const wanted = useRef<string | null>(null);
-  const focusDrawn = (id: string): boolean => {
-    const button = buttons.current.get(id);
-    button?.focus();
-    return button !== undefined;
-  };
-
-  // Finishes a move to a header that was not drawn when it was asked for: the
-  // scroll puts it in the page, that renders, and this focuses it. On every
-  // render, as the vault tree's is — there is only whether it has appeared yet.
-  useEffect(() => {
-    if (wanted.current !== null && focusDrawn(wanted.current)) wanted.current = null;
-  });
-
-  const refFor = (id: string) => (element: HTMLButtonElement | null) => {
-    if (element === null) buttons.current.delete(id);
-    else buttons.current.set(id, element);
-  };
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    const from = lines.findIndex(
-      (line) => line.kind === 'group' && buttons.current.get(line.group.id) === event.target,
-    );
-    if (from === -1) return;
-    event.preventDefault();
-    const step = event.key === 'ArrowDown' ? 1 : -1;
-    for (let at = from + step; at >= 0 && at < lines.length; at += step) {
-      const line = lines[at];
-      if (line?.kind === 'group') {
-        if (!focusDrawn(line.group.id)) {
-          scrollTo(at);
-          wanted.current = line.group.id;
-        }
-        return;
-      }
-    }
-  };
-
-  return { refFor, onKeyDown };
 }
