@@ -133,9 +133,11 @@ test('a folded group draws nothing of its rows, and stays folded on coming back'
   await expect(header(page, /^Doing/)).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.table__title')).toHaveText(['gamma']);
 
-  // The keyboard folds too: Up through the headers above — backlog's
-  // sub-group, then backlog itself — and Enter to fold it.
+  // The keyboard folds too: Up through the lines above — gamma's name,
+  // backlog's sub-group, then backlog itself (#248) — and Enter to fold it.
   await header(page, /^Doing/).focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(page.locator('.table__row .table__link')).toBeFocused();
   await page.keyboard.press('ArrowUp');
   await expect(page.locator('.table__group-toggle[data-depth="1"]')).toBeFocused();
   await page.keyboard.press('ArrowUp');

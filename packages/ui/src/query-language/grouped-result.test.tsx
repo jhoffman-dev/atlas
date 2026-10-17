@@ -111,6 +111,20 @@ describe('GroupedResult', () => {
     expect(titles()).toEqual(['Write', 'Plan', 'Ship', 'Weed']);
   });
 
+  it('moves between the rows’ names and the headers with Up, Down, Home and End (#248)', async () => {
+    render(<Harness layout="table" groupBy={['project']} />);
+    const name = (title: string) => screen.getByRole('button', { name: title });
+    header(/^Atlas/).focus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(name('Write'));
+    await userEvent.keyboard('{End}');
+    expect(document.activeElement).toBe(name('Weed'));
+    await userEvent.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(header(/^Garden/));
+    await userEvent.keyboard('{Home}');
+    expect(document.activeElement).toBe(header(/^Atlas/));
+  });
+
   it('draws a board: groups as columns, empty ones kept, sub-groups as lanes across them', async () => {
     render(<Harness layout="board" groupBy={['status', 'project']} />);
     const heads = [...document.querySelectorAll('.board__lane-head')].map(
