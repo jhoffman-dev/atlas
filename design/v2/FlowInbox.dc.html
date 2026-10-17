@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; overflow: hidden; background: #FFFFFF; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 13px;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="ib-inbox" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l2.5-7.5h11L20 13v5.5H4z"></path><path d="M4 13h4.5l1 2h5l1-2H20"></path></g></symbol>
+<symbol id="ib-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14.5" rx="2"></rect><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"></path></g></symbol>
+<symbol id="ib-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="ib-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="ib-fwd" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="ib-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M14 5v14"></path></g></symbol>
+<symbol id="ib-spark" viewBox="0 0 24 24"><path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></symbol>
+<symbol id="ib-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-8.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="ib-task" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="15" height="15" rx="3"></rect></g></symbol>
+</svg>
+
+<dc-import name="Sidebar" active="inbox" hint-size="224px,900px"></dc-import>
+
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+<div style="height: 36px; flex-shrink: 0; display: flex; align-items: stretch; background: #F6F6F7; border-bottom: 1px solid #E6E6E9;">
+<span style="width: 188px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #FFFFFF; border-right: 1px solid #E6E6E9; margin-bottom: -1px; font-size: 12.5px; font-weight: 500;"><svg width="13" height="13" style="color: #6B6B73;" aria-hidden="true"><use href="#ib-inbox"></use></svg>Inbox</span>
+<button type="button" aria-label="New tab" style="width: 36px; border: 0; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center;"><svg width="14" height="14" aria-hidden="true"><use href="#ib-plus"></use></svg></button>
+</div>
+<header style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid #E6E6E9;">
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #52525B;"><svg width="15" height="15" aria-hidden="true"><use href="#ib-back"></use></svg></span>
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #C4C4CA;"><svg width="15" height="15" aria-hidden="true"><use href="#ib-fwd"></use></svg></span>
+<span style="margin-left: 6px; color: #6B6B73;">Inbox</span><span style="color: #6B6B73;">/</span><span style="font-weight: 500;">To process</span>
+<span style="margin-left: 8px; font-size: 12px; color: #6B6B73;">2 to clarify · 15 to answer</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; font: inherit; font-size: 12.5px; padding: 0 8px; cursor: pointer;">Open the Inbox view</button>
+<button type="button" aria-label="Show right sidebar" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center;"><svg width="15" height="15" aria-hidden="true"><use href="#ib-panel"></use></svg></button>
+</header>
+
+<div style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: #F8F8F9; border-bottom: 1px solid #E6E6E9; font-size: 12.5px;">
+<svg width="14" height="14" style="color: #6B6B73;" aria-hidden="true"><use href="#ib-cal"></use></svg>
+<span style="color: #27272A;">2 meetings have no project. 2 can be filed as their series, or their other copy is.</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" style="height: 26px; border: 1px solid #D9D9DE; border-radius: 6px; background: #FFFFFF; font: inherit; font-size: 12px; padding: 0 10px; color: #18181B; cursor: pointer;">Preview</button>
+<button type="button" style="height: 26px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 12px; padding: 0 8px; color: #52525B; cursor: pointer;">Not now</button>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
+
+<section aria-label="To clarify" style="flex-shrink: 0; display: flex; flex-direction: column;">
+<div style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 20px; border-bottom: 1px solid #E6E6E9;">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: #9DB4C8;"></span>
+<h2 style="margin: 0; font-size: 12.5px; font-weight: 600;">To clarify</h2>
+<span style="font-size: 12px; color: #6B6B73;">2</span>
+<span style="font-size: 12px; color: #6B6B73; margin-left: 8px;">New tasks land here with status Inbox. Nothing is required.</span>
+</div>
+<sc-for list="{{clarify}}" as="c" hint-placeholder-count="2">
+<div style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 1px solid #ECECEF; background: {{c.bg}};">
+<svg width="14" height="14" style="color: #A1A1AA; flex-shrink: 0;" aria-hidden="true"><use href="#ib-task"></use></svg>
+<span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.title}}</span>
+<span style="font-size: 12px; color: #6B6B73; margin-right: 8px;">{{c.when}}</span>
+<div style="display: flex; align-items: center; gap: 2px; opacity: {{c.actions}};">
+<button type="button" style="height: 26px; border: 0; border-radius: 5px; background: #E8EFFB; font: inherit; font-size: 12px; font-weight: 500; padding: 0 8px; color: #2D4F8A; display: flex; align-items: center; gap: 6px; cursor: pointer;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #7EA2DD;"></span>Next<span style="color: #7E95BC; font-weight: 400;">N</span></button>
+<button type="button" style="height: 26px; border: 0; border-radius: 5px; background: #F6ECF2; font: inherit; font-size: 12px; font-weight: 500; padding: 0 8px; color: #6E3F5C; display: flex; align-items: center; gap: 6px; cursor: pointer;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #C9A0B8;"></span>Waiting<span style="color: #A98597; font-weight: 400;">W</span></button>
+<button type="button" style="height: 26px; border: 0; border-radius: 5px; background: transparent; font: inherit; font-size: 12px; padding: 0 8px; color: #52525B; cursor: pointer;">Someday <span style="color: #A1A1AA;">S</span></button>
+<button type="button" style="height: 26px; border: 0; border-radius: 5px; background: transparent; font: inherit; font-size: 12px; padding: 0 8px; color: #52525B; cursor: pointer;">Schedule <span style="color: #A1A1AA;">T</span></button>
+<button type="button" style="height: 26px; border: 0; border-radius: 5px; background: transparent; font: inherit; font-size: 12px; padding: 0 8px; color: #52525B; cursor: pointer;">Project <span style="color: #A1A1AA;">P</span></button>
+<button type="button" style="height: 26px; border: 0; border-radius: 5px; background: #E6F3EA; font: inherit; font-size: 12px; font-weight: 500; padding: 0 8px; color: #2F6B45; cursor: pointer;">Done <span style="color: #7FA58C; font-weight: 400;">D</span></button>
+</div>
+</div>
+</sc-for>
+</section>
+
+<section aria-label="Proposals" style="flex-shrink: 0; display: flex; flex-direction: column; margin-top: 18px; border-top: 1px solid #E6E6E9;">
+<div style="height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 20px; border-bottom: 1px solid #E6E6E9;">
+<svg width="14" height="14" style="color: #6B6B73;" aria-hidden="true"><use href="#ib-spark"></use></svg>
+<h2 style="margin: 0; font-size: 12.5px; font-weight: 600;">Proposals</h2>
+<span style="font-size: 12px; color: #6B6B73;">15 · nothing is written until you accept</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" aria-pressed="true" style="height: 26px; border: 0; border-radius: 5px; background: #E3ECFB; font: inherit; font-size: 12px; font-weight: 500; padding: 0 8px; color: #23457E;">All</button>
+<button type="button" aria-pressed="false" style="height: 26px; border: 0; border-radius: 5px; background: transparent; font: inherit; font-size: 12px; padding: 0 8px; color: #52525B;">High confidence</button>
+<button type="button" aria-pressed="false" style="height: 26px; border: 0; border-radius: 5px; background: transparent; font: inherit; font-size: 12px; padding: 0 8px; color: #52525B;">Needs a choice</button>
+<span style="width: 1px; height: 16px; background: #E6E6E9; margin: 0 6px;"></span>
+<button type="button" style="height: 26px; border: 1px solid #C8E3D2; border-radius: 6px; background: #E3F2E8; font: inherit; font-size: 12px; font-weight: 500; padding: 0 10px; color: #26603D;">Accept all high confidence</button>
+</div>
+
+<div style="display: grid; grid-template-columns: 28px 64px minmax(0, 1fr) 96px 196px; align-items: center; min-height: 56px; padding: 6px 20px; border-bottom: 1px solid #ECECEF; column-gap: 8px;">
+<span style="width: 14px; height: 14px; box-sizing: border-box; border-radius: 4px; border: 1.5px solid #C4C4CA;"></span>
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: #6B6B73;">PERSON</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-weight: 500;">tobias.fenn</span><span style="font-size: 12px; color: #6B6B73; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Was at 2026-10-16 Platform Standup (granola 5e1f0a2c) and is not in People yet. Accepting adds them and links them to the meeting.</span></span>
+<span style="justify-self: start; height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: #E6F3EA; font-size: 12px; font-weight: 500; color: #2F6B45;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #7DBF93;"></span>High</span>
+<span style="display: flex; justify-content: flex-end; gap: 2px;">
+<button type="button" style="height: 26px; border: 1px solid #F2D4D4; border-radius: 6px; background: #FBEDED; font: inherit; font-size: 12px; font-weight: 500; padding: 0 10px; color: #9A3F3F;">Reject</button>
+<button type="button" style="height: 26px; border: 0; border-radius: 5px; background: transparent; font: inherit; font-size: 12px; padding: 0 8px; color: #52525B;">Edit</button>
+<button type="button" style="height: 26px; border: 1px solid #C8E3D2; border-radius: 6px; background: #E3F2E8; font: inherit; font-size: 12px; font-weight: 500; padding: 0 12px; color: #26603D;">Accept</button>
+</span>
+</div>
+
+<div style="display: flex; flex-direction: column; border-bottom: 1px solid #ECECEF;">
+<div style="display: grid; grid-template-columns: 28px 64px minmax(0, 1fr) 96px 196px; align-items: center; min-height: 52px; padding: 6px 20px 2px; column-gap: 8px;">
+<span style="width: 14px; height: 14px; box-sizing: border-box; border-radius: 4px; border: 1.5px solid #C4C4CA;"></span>
+<span style="font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: #6B6B73;">LINK</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;"><span style="font-weight: 500;">Which Mara Quill was at 2026-10-16 Platform Standup?</span><span style="font-size: 12px; color: #6B6B73;">3 proposals disagree. Pick one; the others are rejected.</span></span>
+<span style="justify-self: start; height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: #FBF1DF; font-size: 12px; font-weight: 500; color: #7A5312;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #DDA54E;"></span>Low</span>
+<span style="display: flex; justify-content: flex-end; gap: 2px;">
+<button type="button" style="height: 26px; border: 1px solid #F2D4D4; border-radius: 6px; background: #FBEDED; font: inherit; font-size: 12px; font-weight: 500; padding: 0 10px; color: #9A3F3F;">Reject all</button>
+<button type="button" style="height: 26px; border: 1px solid #C8E3D2; border-radius: 6px; background: #E3F2E8; font: inherit; font-size: 12px; font-weight: 500; padding: 0 12px; color: #26603D;">Accept choice</button>
+</span>
+</div>
+<sc-for list="{{choices}}" as="o" hint-placeholder-count="3">
+<label style="display: grid; grid-template-columns: 28px 64px minmax(0, 1fr); align-items: center; height: 30px; padding: 0 20px; column-gap: 8px; font-size: 12.5px;">
+<span></span>
+<span style="width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: {{o.ring}}; justify-self: end;"></span>
+<span style="color: #27272A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{o.text}}</span>
+</label>
+</sc-for>
+<div style="height: 8px;"></div>
+</div>
+
+<button type="button" style="align-self: flex-start; height: 34px; margin-left: 20px; border: 0; background: transparent; padding: 0; font: inherit; font-size: 12px; color: #6B6B73;">Show 11 more proposals</button>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const clarify = [
+      { title: "[Captured task]", when: "[captured time]", bg: "#F6F6F8", actions: "1" },
+      { title: "[Captured task]", when: "[captured time]", bg: "transparent", actions: "0.0" },
+    ];
+    const choices = [
+      { text: "[[People/Mara Quill]] · in 2026-10-16 Platform Standup (granola 5e1f0a2c)", ring: "4.5px solid #18181B" },
+      { text: "[[Mara Quill]] · in 2026-10-16 Platform Standup (granola 5e1f0a2c)", ring: "1.5px solid #C4C4CA" },
+      { text: "[[Mara Quill]] · in 2026-10-16 Platform Standup", ring: "1.5px solid #C4C4CA" },
+    ];
+    return { clarify, choices };
+  }
+}
+</script>
+</body>
+</html>
