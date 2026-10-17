@@ -89,6 +89,10 @@ interface StoredNote {
   /** How far through its checklist the note is, as the app worked it out (P30-03). */
   progress?: number | null;
   size?: number;
+  /** What the app digested of its text, which the manifest hands back (ADR-0012). */
+  digest?: string;
+  /** The type its frontmatter declares, which the manifest hands back. */
+  type?: string | null;
   body: string;
   links: { target: string; path: string | null }[];
   /** Every use of a tag, as the app found it. */
@@ -513,6 +517,17 @@ export async function installHost(
    * refreshes by writing to it.
    */
   feeds: Record<string, string> = {},
+  {
+    keepsManifest = false,
+  }: {
+    /**
+     * Lists what was indexed as the index's manifest, as the real index does,
+     * so a refresh re-reads only the notes that changed. Off by default: the
+     * e2e suite was written against a stand-in that lists none. The perf
+     * harness turns it on, or every refresh it times re-reads the whole vault.
+     */
+    keepsManifest?: boolean;
+  } = {},
 ): Promise<FakeHost> {
   /** What the picker answers with. */
   let offered = vault.root;
@@ -861,14 +876,21 @@ export async function installHost(
         return files;
       }
       case 'index_open':
-        // This stand-in keeps nothing between windows and lists no manifest, so
-        // every index it opens is one made just now.
+        // This stand-in keeps nothing between windows, so every index it opens
+        // is one made just now.
         return { fresh: true };
       case 'index_clear':
         indexed.clear();
         return null;
       case 'index_manifest':
-        return [];
+        if (!keepsManifest) return [];
+        return [...indexed.values()].map((note) => ({
+          path: note.path,
+          modified: note.modified ?? 0,
+          size: note.size ?? 0,
+          digest: note.digest ?? '',
+          type: note.type ?? null,
+        }));
       case 'index_put': {
         indexPuts += 1;
         if (indexPuts > indexPutsBeforeHold) await indexHeld;

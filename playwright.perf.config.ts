@@ -10,6 +10,8 @@ import e2e from './playwright.config.ts';
  *   held to the budgets. This is what CI runs.
  * - `profile` (`pnpm perf:profile`): the same actions under Chromium's CPU
  *   profiler, which WebKit lacks, to name where the time went.
+ * - `renders` (`pnpm perf:renders`): in WebKit, how many components each
+ *   action draws again, beside its time and longest frame.
  */
 export default defineConfig({
   ...e2e,
@@ -19,5 +21,6 @@ export default defineConfig({
   projects: [
     { name: 'latency', testMatch: 'ui-latency.spec.ts', use: { ...devices['Desktop Safari'] } },
     { name: 'profile', testMatch: 'profile.spec.ts', use: { ...devices['Desktop Chrome'] } },
+    { name: 'renders', testMatch: 'renders.spec.ts', use: { ...devices['Desktop Safari'] } },
   ],
 });
