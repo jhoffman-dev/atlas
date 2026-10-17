@@ -272,7 +272,43 @@ export class ShippedPropertiesRecordError extends Error {
 const FENCE = '```';
 const OPENING = `\n${FENCE}json\n`;
 
-/** The record as its file is written: a heading a person can read, then the record as JSON. */
+/**
+ * Two Macs' records as one (#233): every key either settled or added, kept.
+ * A record only ever grows — a settled key is never unsettled — so the union
+ * is what both would have written had they run one after the other.
+ */
+export function mergeShippedPropertiesRecords(
+  first: ShippedPropertiesRecord,
+  second: ShippedPropertiesRecord,
+): ShippedPropertiesRecord {
+  const merged = (one: KeysByType, other: KeysByType) =>
+    Object.fromEntries(
+      [...new Set([...Object.keys(one), ...Object.keys(other)])].map((name) => [
+        name,
+        union(keysRecorded(one, name), keysRecorded(other, name)),
+      ]),
+    );
+  return {
+    settled: merged(first.settled, second.settled),
+    added: merged(first.added, second.added),
+  };
+}
+
+type KeysByType = Readonly<Record<string, readonly string[]>>;
+
+/** The keys by type in one order, whatever order they were settled in: the same record is the same bytes on every Mac. */
+const canonical = (byType: KeysByType): Record<string, string[]> =>
+  Object.fromEntries(
+    Object.keys(byType)
+      .sort()
+      .map((name) => [name, [...new Set(keysRecorded(byType, name))].sort()]),
+  );
+
+/**
+ * The record as its file is written: a heading a person can read, then the
+ * record as JSON, its types and keys sorted so two Macs that settled the same
+ * keys in a different order write the same bytes (#233).
+ */
 export function shippedPropertiesRecordText(record: ShippedPropertiesRecord): string {
   return [
     '---',
@@ -286,7 +322,7 @@ export function shippedPropertiesRecordText(record: ShippedPropertiesRecord): st
     'off since stays off.',
     '',
     `${FENCE}json`,
-    JSON.stringify(record),
+    JSON.stringify({ settled: canonical(record.settled), added: canonical(record.added) }),
     FENCE,
     '',
   ].join('\n');

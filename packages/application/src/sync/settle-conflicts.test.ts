@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { journalText, type GitConflict } from '@atlas/domain';
 import { fakeBlob, memorySyncFiles, said, scriptedGit } from '../testing/fake-git.ts';
+import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { mergeHeadOf, recordMerge, settleConflicts } from './settle-conflicts.ts';
+
+/** No file here is Atlas's own settings, so nothing is merged by its keys. */
+const settings = { vault: fakeVaultFs({}), markdown: fakeMarkdown() };
 
 const MERGE_HEAD = 'f'.repeat(40);
 
@@ -101,6 +105,7 @@ describe('settleConflicts', () => {
       conflicts: [c],
       mac: 'Laptop',
       leftOut: NOTHING_LEFT_OUT,
+      settings,
     });
     expect(copies).toEqual([
       { path: 'Ideas.md', copy: 'Ideas (conflict from Laptop).md', whose: 'theirs' },
@@ -139,6 +144,7 @@ describe('settleConflicts', () => {
       conflicts: [c],
       mac: 'Laptop',
       leftOut: NOTHING_LEFT_OUT,
+      settings,
     });
     expect(copies).toEqual([
       { path: 'Ideas.md', copy: 'Ideas (already planned).md', whose: 'theirs' },
@@ -170,7 +176,14 @@ describe('settleConflicts', () => {
       sides: { 'Ideas.md': sides },
     });
     const { port: files } = memorySyncFiles({ 'journal.json': journal });
-    await settleConflicts({ git, files, conflicts: [c], mac: 'Laptop', leftOut: NOTHING_LEFT_OUT });
+    await settleConflicts({
+      git,
+      files,
+      conflicts: [c],
+      mac: 'Laptop',
+      leftOut: NOTHING_LEFT_OUT,
+      settings,
+    });
     // No `checkout` writes this Mac's side back over what was typed since.
     expect(vault.get('Ideas.md')).toBe(typed);
   });
@@ -196,6 +209,7 @@ describe('settleConflicts', () => {
       conflicts: [c],
       mac: 'Laptop',
       leftOut: NOTHING_LEFT_OUT,
+      settings,
     });
     expect(copies).toEqual([
       { path: 'Ideas.md', copy: 'Ideas (conflict from Laptop).md', whose: 'theirs' },
@@ -230,6 +244,7 @@ describe('settleConflicts', () => {
       conflicts: [c],
       mac: 'Laptop',
       leftOut: NOTHING_LEFT_OUT,
+      settings,
     });
     expect(copies).toEqual([
       { path: 'Ideas.md', copy: 'Ideas (conflict from Laptop) 2.md', whose: 'theirs' },
@@ -250,6 +265,7 @@ describe('settleConflicts', () => {
       conflicts: [conflict('Gone.md', 'DD', {})],
       mac: 'Laptop',
       leftOut: NOTHING_LEFT_OUT,
+      settings,
     });
     expect(copies).toEqual([]);
     expect(called('untrack').map(({ args }) => args)).toEqual(['Gone.md']);
@@ -264,6 +280,7 @@ describe('settleConflicts', () => {
       conflicts: [conflict('Edited there.md', 'DU', { theirs: 'theirs' })],
       mac: 'Laptop',
       leftOut: NOTHING_LEFT_OUT,
+      settings,
     });
     expect(copies).toEqual([]);
     expect(called('checkout').map(({ args }) => args)).toEqual([
@@ -280,6 +297,7 @@ describe('settleConflicts', () => {
       conflicts: [conflict('Back again.md', 'DU', { theirs: 'theirs' })],
       mac: 'Laptop',
       leftOut: NOTHING_LEFT_OUT,
+      settings,
     });
     expect(called('checkout')).toHaveLength(0);
   });

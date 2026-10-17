@@ -4,6 +4,7 @@ import {
   addablePropertyKeys,
   declaredPropertyKeys,
   keysRecorded,
+  mergeShippedPropertiesRecords,
   NO_SHIPPED_PROPERTIES_RECORD,
   parseShippedPropertiesRecord,
   PROPERTIES_NOT_A_MAP,
@@ -255,16 +256,21 @@ describe('recordSettling', () => {
 
 describe('the record file', () => {
   const RECORD = { settled: { meeting: MEETING_KEYS }, added: { meeting: ['tasks'] } };
+  // The keys come back sorted: the file is written in one order on every Mac (#233).
+  const READ_BACK = {
+    settled: { meeting: [...MEETING_KEYS].sort() },
+    added: { meeting: ['tasks'] },
+  };
 
   it('reads back what it wrote, under a heading a person can read', () => {
     const text = shippedPropertiesRecordText(RECORD);
     expect(text).toMatch(/^---\natlas: migration\n---\n\n# Properties added to built-in types\n/);
-    expect(parseShippedPropertiesRecord(text)).toEqual(RECORD);
+    expect(parseShippedPropertiesRecord(text)).toEqual(READ_BACK);
   });
 
   it('reads back a record whose line endings were turned to CRLF', () => {
     const text = shippedPropertiesRecordText(RECORD).replace(/\n/g, '\r\n');
-    expect(parseShippedPropertiesRecord(text)).toEqual(RECORD);
+    expect(parseShippedPropertiesRecord(text)).toEqual(READ_BACK);
   });
 
   it('reads a record that says nothing of what was added', () => {
@@ -297,5 +303,32 @@ describe('shippedPropertiesLine', () => {
     expect(shippedPropertiesLine({ label: 'Daily', added: ['Tags'] })).toBe(
       'Added Tags to the Daily type, which was written before Atlas shipped it.',
     );
+  });
+});
+
+describe('two Macs’ records (#233)', () => {
+  it('merge into every key either settled or added', () => {
+    const older = { settled: { meeting: ['tasks', 'decisions'] }, added: { meeting: ['tasks'] } };
+    const newer = {
+      settled: { meeting: ['tasks', 'atlas_summary_of'], daily: ['date'] },
+      added: { daily: ['date'] },
+    };
+    expect(mergeShippedPropertiesRecords(older, newer)).toEqual({
+      settled: { meeting: ['tasks', 'decisions', 'atlas_summary_of'], daily: ['date'] },
+      added: { meeting: ['tasks'], daily: ['date'] },
+    });
+  });
+
+  it('are written as the same bytes whatever order the keys were settled in', () => {
+    const one = { settled: { meeting: ['tasks', 'decisions'], daily: ['date'] }, added: {} };
+    const other = {
+      settled: { daily: ['date'], meeting: ['decisions', 'tasks', 'tasks'] },
+      added: {},
+    };
+    expect(shippedPropertiesRecordText(one)).toBe(shippedPropertiesRecordText(other));
+    expect(parseShippedPropertiesRecord(shippedPropertiesRecordText(other)).settled).toEqual({
+      daily: ['date'],
+      meeting: ['decisions', 'tasks'],
+    });
   });
 });

@@ -136,6 +136,40 @@ describe('two Macs open the vault and sync (#233)', () => {
   );
 
   it(
+    'a person’s edit to the type on one Mac and the app’s upgrade on the other are both kept, with no copy',
+    async () => {
+      const { studio, laptop } = await twoMacs({ [MEETING]: OLD_MEETING });
+      await studio.write(MEETING, OLD_MEETING.replace('label: Meeting', 'label: Meetings'));
+      await studio.sync();
+      await open(laptop);
+      const report = await laptop.sync();
+      expect(report.conflicts).toEqual([]);
+      const merged = await laptop.read(MEETING);
+      expect(merged).toContain('label: Meetings\n');
+      for (const key of SUMMARY_KEYS) expect(await meetingKeys(laptop)).toContain(key);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'two people changing the same key differently is a real conflict: both versions are kept',
+    async () => {
+      const { studio, laptop } = await twoMacs({ [MEETING]: OLD_MEETING });
+      const studios = OLD_MEETING.replace('label: Meeting', 'label: Calls');
+      const laptops = OLD_MEETING.replace('label: Meeting', 'label: Catch-ups');
+      await studio.write(MEETING, studios);
+      await studio.sync();
+      await laptop.write(MEETING, laptops);
+      const report = await laptop.sync();
+      expect(report.conflicts.map((conflict) => conflict.path)).toEqual([MEETING]);
+      await expectNoMarkers(laptop);
+      expect(await laptop.read(MEETING)).toBe(laptops);
+      expect(await laptop.read(report.conflicts[0]!.copy)).toBe(studios);
+    },
+    TIMEOUT,
+  );
+
+  it(
     'an older build opening after the newer one’s upgrade synced changes nothing: no downgrade',
     async () => {
       const { studio, laptop } = await twoMacs({ [MEETING]: OLD_MEETING });

@@ -133,6 +133,7 @@ export {
   recordSettling,
   SHIPPED_PROPERTIES_RECORD_PATH,
   ShippedPropertiesRecordError,
+  mergeShippedPropertiesRecords,
   SHIPPED_PROPERTIES,
   shippedPropertiesLine,
   shippedPropertiesPlan,

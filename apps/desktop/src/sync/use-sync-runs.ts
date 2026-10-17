@@ -76,6 +76,8 @@ export interface RunContext {
   readonly thisMac: ThisMac | null;
   readonly vaultKey: string | null;
   readonly fs: VaultFsPort;
+  /** To merge a settings file both Macs changed by its keys (#233). */
+  readonly markdown: MarkdownPort;
   readonly clock: Pick<Clock, 'now' | 'localNow'>;
   readonly activity: { inVault(vault: string): ActivityRecorder };
   readonly flushAll: () => Promise<void>;
@@ -97,7 +99,7 @@ export interface RunContext {
  * them: a look that finds some starts a sync to bring them in.
  */
 export function useSyncRuns(context: RunContext) {
-  const { git, files, thisMac, vaultKey, fs, clock, activity, flushAll } = context;
+  const { git, files, thisMac, vaultKey, fs, markdown, clock, activity, flushAll } = context;
   const { setPhase, setBehind, markSynced, exclusive, pulls } = context;
   const lastSyncAt = useRef<number | null>(null);
   const lastCheckAt = useRef<number | null>(null);
@@ -122,7 +124,14 @@ export function useSyncRuns(context: RunContext) {
     lastSyncAt.current = now;
     lastCheckAt.current = now;
     setPhase({ kind: 'syncing' });
-    const ports = { git, fs, files, unsaved: { flushAll }, activity: activity.inVault(vaultKey) };
+    const ports = {
+      git,
+      fs,
+      markdown,
+      files,
+      unsaved: { flushAll },
+      activity: activity.inVault(vaultKey),
+    };
     const current = () => openVault.current === vaultKey;
     return exclusive.start('sync', async () => {
       pulls.started(vaultKey);
@@ -154,6 +163,7 @@ export function useSyncRuns(context: RunContext) {
     thisMac,
     clock,
     fs,
+    markdown,
     flushAll,
     activity,
     setPhase,

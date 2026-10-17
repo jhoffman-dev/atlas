@@ -56,7 +56,7 @@ export function useSetUp(context: SetUpContext) {
       setProblem(null);
       setPhase({ kind: 'syncing' });
       const ports = {
-        ...{ git, files, folders, fs, unsaved: { flushAll } },
+        ...{ git, files, folders, fs, markdown, unsaved: { flushAll } },
         activity: activity.inVault(vaultKey),
         settings: vaultSettingsWriter({ fs, markdown }),
         readSettings: () => readVaultSettings({ fs, markdown }),

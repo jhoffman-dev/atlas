@@ -229,7 +229,7 @@ export function scriptedGit({
 }: {
   script?: GitScript;
   vault?: Map<string, string>;
-  sides?: Record<string, { ours: string; theirs: string }>;
+  sides?: Record<string, { base?: string; ours: string; theirs: string }>;
 } = {}) {
   const calls: { method: keyof GitPort; args: unknown }[] = [];
   const turns = new Map<string, number>();
@@ -241,6 +241,7 @@ export function scriptedGit({
   const movedTo = new Set<string>();
   const blobsByOid = new Map<string, string>();
   for (const side of Object.values(sides)) {
+    if (side.base !== undefined) blobsByOid.set(fakeBlob(side.base), side.base);
     blobsByOid.set(fakeBlob(side.ours), side.ours);
     blobsByOid.set(fakeBlob(side.theirs), side.theirs);
   }
@@ -301,6 +302,10 @@ export function scriptedGit({
         path,
         text === undefined ? failed('no such file', 128) : said(`${fakeBlob(text)}\n`),
       );
+    },
+    readBlob: async (oid) => {
+      const text = blobsByOid.get(oid);
+      return answer('readBlob', oid, text === undefined ? failed('not a blob', 128) : said(text));
     },
     stageBlob: async (args) => {
       staged.set(args.path, args.oid);

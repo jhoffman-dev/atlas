@@ -193,6 +193,7 @@ describe('setting up sync cut off at every step', () => {
         folders: intercepted(folders(env), 'folders', intercept),
         fs: intercepted(studio.fs, 'fs', intercept),
         files: intercepted(studio.syncFiles, 'files', intercept),
+        markdown: remarkMarkdown,
         unsaved: { flushAll: async () => {} },
         activity: { record: () => {} },
         settings: intercepted(settings, 'settings', intercept),

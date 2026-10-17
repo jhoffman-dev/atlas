@@ -58,6 +58,7 @@ function prepare({
     git,
     folders,
     fs: vault.fs,
+    markdown: fakeMarkdown(),
     files: syncFiles,
     unsaved: { flushAll: async () => {} },
     activity,

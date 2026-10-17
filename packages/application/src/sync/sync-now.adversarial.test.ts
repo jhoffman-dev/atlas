@@ -11,6 +11,7 @@ import {
   statusText,
   type GitScript,
 } from '../testing/fake-git.ts';
+import { fakeMarkdown } from '../testing/fake-ports.ts';
 import { syncNow } from './sync-now.ts';
 
 const clock = { now: () => 1_000, localNow: () => '2026-09-28T14:05:00' };
@@ -48,7 +49,14 @@ function setUp({
   const activity = recordingActivity();
   const run = () =>
     syncNow({
-      ports: { git, fs, files: syncFilesPort, unsaved: { flushAll: async () => {} }, activity },
+      ports: {
+        git,
+        fs,
+        markdown: fakeMarkdown(),
+        files: syncFilesPort,
+        unsaved: { flushAll: async () => {} },
+        activity,
+      },
       mac: 'Studio',
       clock,
     });

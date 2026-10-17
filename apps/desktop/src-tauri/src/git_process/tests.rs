@@ -108,6 +108,11 @@ const ACCEPTED: &[&[&str]] = &[
     &["merge-base", "HEAD", "origin/main"],
     &["hash-object", "--no-filters", "--", "Notes/Idea.md"],
     &[
+        "cat-file",
+        "blob",
+        "0123456789abcdef0123456789abcdef01234567",
+    ],
+    &[
         "update-index",
         "--add",
         "--cacheinfo",
@@ -157,6 +162,23 @@ fn a_shape_missing_or_gaining_an_argument_is_refused() {
         let mut longer = shape.to_vec();
         longer.push("--upload-pack=touch /tmp/pwned");
         assert!(!vault_ok(&longer), "{longer:?} is long");
+    }
+}
+
+#[test]
+fn reading_a_blob_takes_only_a_blob_id() {
+    for refused in [
+        &["cat-file", "blob", "HEAD"][..],
+        &["cat-file", "blob", "origin/main:secret.md"],
+        &["cat-file", "-p", "0123456789abcdef0123456789abcdef01234567"],
+        &["cat-file", "--batch"],
+        &[
+            "cat-file",
+            "blob",
+            "0123456789ABCDEF0123456789ABCDEF01234567",
+        ],
+    ] {
+        assert!(!vault_ok(refused), "{refused:?}");
     }
 }
 

@@ -12,6 +12,7 @@ import {
   type SyncReport,
 } from '@atlas/domain';
 import type { ActivityRecorder } from '../activity/ports.ts';
+import type { MarkdownPort } from '../notes/ports.ts';
 import type { Clock } from '../ports.ts';
 import type { VaultFsPort } from '../vault/ports.ts';
 import { followCaseRenames, moveCaseCollisionsAside } from './case-steps.ts';
@@ -34,8 +35,16 @@ import { mergeHeadOf, recordMerge, settleConflicts } from './settle-conflicts.ts
 
 export interface SyncPorts {
   readonly git: GitPort;
-  /** To measure files, for what is too large to sync, and to make a folder a copy goes in. */
-  readonly fs: Pick<VaultFsPort, 'listDirectory' | 'createFolder'>;
+  /**
+   * To measure files, for what is too large to sync, to make a folder a copy
+   * goes in, and to write a settings file both Macs changed merged by its keys.
+   */
+  readonly fs: Pick<
+    VaultFsPort,
+    'listDirectory' | 'createFolder' | 'readTextFile' | 'writeTextFile'
+  >;
+  /** To read and write the frontmatter of a settings file both Macs changed. */
+  readonly markdown: MarkdownPort;
   /** The journal and the excludes, in the vault's `.git/atlas-sync/`. */
   readonly files: SyncFilesPort;
   readonly unsaved: UnsavedWorkPort;
@@ -77,6 +86,7 @@ export async function syncNow({
 interface SyncStep {
   readonly git: GitPort;
   readonly fs: SyncPorts['fs'];
+  readonly markdown: MarkdownPort;
   readonly files: SyncFilesPort;
   readonly activity: ActivityRecorder;
   readonly mac: string;
@@ -86,7 +96,7 @@ interface SyncStep {
 }
 
 async function runSync({
-  ports: { git, fs, files, unsaved, activity },
+  ports: { git, fs, files, unsaved, activity, markdown },
   mac,
   clock,
 }: {
@@ -99,7 +109,7 @@ async function runSync({
   const { leftOut, newly, ignored } = await leaveOut({ git, fs, files });
   warn(activity, leftOutWarnings(newly));
   const message = syncCommitMessage({ mac, localNow: clock.localNow() });
-  const step: SyncStep = { git, fs, files, activity, mac, branch, leftOut, message };
+  const step: SyncStep = { git, fs, markdown, files, activity, mac, branch, leftOut, message };
   const leftover = await concludeLeftoverMerge(step);
   await followCaseRenames(git, await readStatus(git));
   const committed = (await commitAll({ git, mac, message, leftOut })) || leftover;
@@ -151,7 +161,14 @@ async function concludeLeftoverMerge(step: SyncStep): Promise<boolean> {
   const { conflicts } = await readStatus(git);
   if (conflicts.length > 0) {
     const from = await otherMac(git, branch);
-    await settleConflicts({ git, files, conflicts, mac: from, leftOut });
+    await settleConflicts({
+      git,
+      files,
+      conflicts,
+      mac: from,
+      leftOut,
+      settings: settingsOf(step),
+    });
   }
   const waiting = (await mergeHeadOf(git)) !== null;
   if (waiting) await commitStaged({ git, mac, message });
@@ -182,7 +199,7 @@ async function mergeFromOrigin(step: SyncStep): Promise<boolean> {
   if (conflicts.length === 0) expectOk('merge the other Macs’ changes', merge);
   await recordMerge({ git, files, conflicts });
   const from = await otherMac(git, branch);
-  await settleConflicts({ git, files, conflicts, mac: from, leftOut });
+  await settleConflicts({ git, files, conflicts, mac: from, leftOut, settings: settingsOf(step) });
   await commitStaged({ git, mac, message });
   return true;
 }
@@ -215,6 +232,8 @@ async function leaveOutOfUnpushedHistory(step: SyncStep): Promise<readonly strin
   await commitStaged({ git, mac, message });
   return paths;
 }
+
+const settingsOf = ({ fs, markdown }: SyncStep) => ({ vault: fs, markdown });
 
 /**
  * The Mac the other side of a merge came from, which a conflict copy is named
