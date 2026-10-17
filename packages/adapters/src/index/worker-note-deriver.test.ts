@@ -313,18 +313,32 @@ describe('workerNoteDeriver', () => {
       return { timer, advance, pending: () => pending.size };
     }
 
-    /** A worker that says a build began and answers only the batches `answers` lets it. */
+    /**
+     * A worker that says a build began and answers only the batches `answers`
+     * lets it, counting the batches asked of it and the answers it gave, which
+     * a test waits on.
+     */
     function selectiveWorker(answers: (files: readonly NoteFile[]) => boolean) {
       const inner = inProcessWorker();
       let stopped = 0;
+      let answered = 0;
+      let asked = 0;
       const worker: DerivationWorker = {
         post: (request) => {
+          if (request.kind === 'derive') asked += 1;
           if (request.kind !== 'derive' || answers(request.files)) inner.worker.post(request);
         },
-        listen: (heard) => inner.worker.listen(heard),
+        listen: (heard) =>
+          inner.worker.listen({
+            ...heard,
+            onAnswer: (answer) => {
+              answered += 1;
+              heard.onAnswer(answer);
+            },
+          }),
         stop: () => void (stopped += 1),
       };
-      return { worker, stopped: () => stopped };
+      return { worker, stopped: () => stopped, answered: () => answered, asked: () => asked };
     }
 
     const note = (name: string) => ({
@@ -333,8 +347,14 @@ describe('workerNoteDeriver', () => {
       modified: 1,
       size: 9,
     });
-    /** Long enough for the in-process worker's messages, which go by real timers, to arrive. */
-    const messagesArrive = () => new Promise((resolve) => setTimeout(resolve, 5));
+    /**
+     * Waits until `worker` has said the build began and answered `batches`.
+     * Its messages go by real timers, so a fixed wait is not enough under
+     * load: a hand-moved clock past WORKER_START_DEADLINE_MS before "began"
+     * arrives would rightly give the worker up as never started.
+     */
+    const answeredBy = (worker: { answered: () => number }, batches: number) =>
+      vi.waitFor(() => expect(worker.answered()).toBe(1 + batches));
 
     it('gives up on a worker that never says it has started, and reads in the window', async () => {
       const { timer, advance } = handTimer();
@@ -358,20 +378,22 @@ describe('workerNoteDeriver', () => {
       // Anything with Torn.md in it never comes back, alone or in company.
       const unlessTorn = (files: readonly NoteFile[]) =>
         !files.some((file) => file.path === 'Torn.md');
-      const workers = [
+      const [first, second, third] = [
         selectiveWorker(unlessTorn),
         selectiveWorker(unlessTorn),
         selectiveWorker(unlessTorn),
       ];
+      const workers = [first, second, third];
       const spawn = vi.fn<() => DerivationWorker>();
       for (const each of workers) spawn.mockReturnValueOnce(each.worker);
       const deriving = workerNoteDeriver(spawn, { timer }).begin([]);
 
       const waiting = deriving.derive([note('Idea'), note('Torn'), note('Plan')]);
-      await messagesArrive();
+      await answeredBy(first, 0);
       // The batch runs out of time: the worker is stopped, and each note asked on its own.
       advance(BATCH_DEADLINE_MS + BATCH_DEADLINE_MS_PER_KB);
-      await messagesArrive();
+      await answeredBy(second, 1);
+      await vi.waitFor(() => expect(second.asked()).toBe(2));
       // Idea came back from the second worker; Torn, alone, runs out again.
       advance(BATCH_DEADLINE_MS + BATCH_DEADLINE_MS_PER_KB);
 
@@ -385,11 +407,12 @@ describe('workerNoteDeriver', () => {
 
     it('allows a batch longer the more there is in it', async () => {
       const { timer, advance } = handTimer();
-      const { worker, stopped } = selectiveWorker(() => false);
+      const selective = selectiveWorker(() => false);
+      const { worker, stopped } = selective;
       const deriving = workerNoteDeriver(() => worker, { timer }).begin([]);
       const long = { path: 'Long.md', text: 'long', modified: 1, size: 2_200_000 };
       void deriving.derive([long]).catch(() => {});
-      await messagesArrive();
+      await answeredBy(selective, 0);
 
       advance(BATCH_DEADLINE_MS + 1_000);
       expect(stopped()).toBe(0);
@@ -416,7 +439,7 @@ describe('workerNoteDeriver', () => {
       const deriver = workerNoteDeriver(spawn, { timer });
       const abandoned = deriver.begin([]);
       const waiting = abandoned.derive([note('Idea')]);
-      await messagesArrive();
+      await answeredBy(stuck, 0);
 
       abandoned.end();
 

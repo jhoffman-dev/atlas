@@ -79,6 +79,16 @@ const inboxPage = (page: Page) => page.getByRole('article', { name: 'Inbox' });
 const cards = (page: Page) =>
   page.getByRole('list', { name: 'Open proposals' }).getByRole('region');
 
+/**
+ * The cards, once nothing more will be drawn above them. The GTD offer is read
+ * after the cards and lands above them, moving every button down; a click begun
+ * before it lands can hit the space the button just left.
+ */
+async function settledCards(page: Page, count: number) {
+  await expect(cards(page)).toHaveCount(count);
+  await expect(page.getByRole('region', { name: 'Move tasks to GTD statuses' })).toBeVisible();
+}
+
 test('the Inbox list keeps its rows whole below a long Proposals section (#164)', async ({
   page,
 }) => {
@@ -105,7 +115,7 @@ test('an answered proposal leaves at once, and the next can be answered while it
   page,
 }) => {
   const { vault, host } = await openInbox(page, { proposals: 3, waiting: 0 });
-  await expect(cards(page)).toHaveCount(3);
+  await settledCards(page, 3);
   const { card, label, task, title } = await firstCard(page);
   const release = host.holdWrites(task);
 
@@ -123,7 +133,7 @@ test('an answered proposal leaves at once, and the next can be answered while it
 
 test('a proposal whose write fails comes back, saying why (#166)', async ({ page }) => {
   const { vault, host } = await openInbox(page, { proposals: 2, waiting: 0 });
-  await expect(cards(page)).toHaveCount(2);
+  await settledCards(page, 2);
   const { card, label, task } = await firstCard(page);
   host.failNext('create_note', 'The disk is full.');
 

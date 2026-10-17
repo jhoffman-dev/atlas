@@ -779,10 +779,15 @@ export async function installHost(
         const walk = async (dir: string, prefix: string, depth = 0): Promise<unknown[]> => {
           if (depth > maxDepth) return [];
           const found: unknown[] = [];
-          for (const name of await readdir(join(root, dir))) {
+          // Like the real host's walk (`NoteWalk::collect`), a folder or entry
+          // gone between the listing and the look at it is left out, not an
+          // error: a save's temporary file is renamed, a filed note moved.
+          const names = await readdir(join(root, dir)).catch(() => null);
+          for (const name of names ?? []) {
             if (skip.has(name)) continue;
             const relative = prefix === '' ? name : `${prefix}/${name}`;
-            const info = await stat(join(root, relative));
+            const info = await stat(join(root, relative)).catch(() => null);
+            if (info === null) continue;
             if (info.isDirectory()) found.push(...(await walk(relative, relative, depth + 1)));
             else if (name.toLowerCase().endsWith('.md'))
               found.push({
@@ -1583,6 +1588,22 @@ export async function installHost(
         return command === 'read_binary_file'
           ? answer.then((read) => Uint8Array.from((read as { binary: number[] }).binary).buffer)
           : answer;
+      },
+    };
+
+    // What `unlisten` in @tauri-apps/api calls before it tells the host. Missing,
+    // every unlisten threw, and the page reported the rejection as an error.
+    (
+      window as unknown as {
+        __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: (e: string, id: number) => void };
+      }
+    ).__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+      unregisterListener(event, id) {
+        listeners.set(
+          event,
+          (listeners.get(event) ?? []).filter((handler) => handler !== id),
+        );
+        callbacks.delete(id);
       },
     };
 
