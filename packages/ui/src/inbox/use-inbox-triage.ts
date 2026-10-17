@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRowHandles } from '../row-handles.ts';
 import { useSteadyCallback } from '../steady-callback.ts';
 import type { Clarification, InboxItem, VaultPath } from '@atlas/domain';
 import { clarificationOf, rowAfter, type InboxDraft } from './inbox-triage.ts';
@@ -18,7 +19,8 @@ const NOTHING_PICKED: InboxDraft = {};
  *
  * An action that is done moves the focus to the next row, so the list is
  * worked top to bottom without reaching for it; a refused one leaves the
- * focus, and what was picked, where it is.
+ * focus, and what was picked, where it is. The next row may not be in the
+ * DOM — the list is virtualised (#238) — so it is `wanted` until it is drawn.
  */
 export function useInboxTriage({
   items,
@@ -29,7 +31,9 @@ export function useInboxTriage({
 }) {
   const [drafts, setDrafts] = useState<Readonly<Record<string, InboxDraft>>>({});
   const [focused, setFocused] = useState<VaultPath | null>(null);
-  const rows = useRef(new Map<VaultPath, HTMLElement>());
+  const order = useMemo(() => items.map((item) => item.path), [items]);
+  const handles = useRowHandles(order);
+  const { focusRow: focusPlaced, elementOf } = handles;
   // Read when a row is acted on, so the actions stay the same from one list to
   // the next and a row that has not changed is not drawn again (#217).
   const listed = useRef(items);
@@ -40,10 +44,13 @@ export function useInboxTriage({
   // The app makes its callback anew on many of its renders; the rows' actions stay the same.
   const clarify = useSteadyCallback(onClarify);
 
-  const focusRow = useCallback((path: VaultPath) => {
-    setFocused(path);
-    rows.current.get(path)?.focus();
-  }, []);
+  const focusRow = useCallback(
+    (path: VaultPath) => {
+      setFocused(path);
+      focusPlaced(path);
+    },
+    [focusPlaced],
+  );
 
   const act = useCallback(
     async (path: VaultPath, clarification: Clarification) => {
@@ -52,10 +59,10 @@ export function useInboxTriage({
       setDrafts((held) => Object.fromEntries(Object.entries(held).filter(([at]) => at !== path)));
       // Focus that has gone elsewhere since — another note opened, say — is left there.
       const at = document.activeElement;
-      const stillHere = at === document.body || rows.current.get(path)?.contains(at) === true;
+      const stillHere = at === document.body || elementOf(path)?.contains(at) === true;
       if (next !== null && stillHere) focusRow(next);
     },
-    [clarify, focusRow],
+    [clarify, focusRow, elementOf],
   );
 
   return {
@@ -63,13 +70,9 @@ export function useInboxTriage({
     focused,
     onRowFocus: setFocused,
     /** Registers a row's element, so the focus can be put on it. */
-    rowRef: useCallback(
-      (path: VaultPath) => (element: HTMLElement | null) => {
-        if (element === null) rows.current.delete(path);
-        else rows.current.set(path, element);
-      },
-      [],
-    ),
+    rowRef: handles.rowRef,
+    /** A row to focus that the list has yet to draw: it places it. */
+    wanted: handles.wanted,
     draftOf: (path: VaultPath): InboxDraft => drafts[path] ?? NOTHING_PICKED,
     /** Holds a pick on a task's row until Done. */
     pick: useCallback(

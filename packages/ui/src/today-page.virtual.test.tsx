@@ -134,6 +134,25 @@ describe('TodayPage — a day of hundreds of tasks (#238)', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe('Mark Task 039 done');
   });
 
+  it('reaches the last row of the group above with Shift+Tab, though the rows between are not placed', async () => {
+    const under = (project: string, from: number, count: number) =>
+      Array.from({ length: count }, (_, at) => ({
+        ...task(from + at, createVaultPath(`Projects/${project}.md`)),
+        projectTitle: project,
+      }));
+    render(<TodayPage {...props(report([...under('Alder', 0, 30), ...under('Birch', 100, 5)]))} />);
+    expect(ticks().length).toBeLessThan(35);
+
+    screen.getByRole('checkbox', { name: 'Mark Task 100 done' }).focus();
+    // Past the Birch group's name, to the last control of Alder's last row.
+    await userEvent.tab({ shift: true });
+    await userEvent.tab({ shift: true });
+
+    expect(
+      document.activeElement?.closest('[data-today-row]')?.getAttribute('data-today-row'),
+    ).toBe('Tasks/Task 029.md');
+  });
+
   it('keeps the focused row in the page when a read puts it far from what is shown', () => {
     const tasks = Array.from({ length: 40 }, (_, at) => task(at));
     const view = render(<TodayPage {...props(report(tasks))} />);

@@ -48,8 +48,10 @@ export interface VirtualRows {
  * The row that has the focus is kept placed however far it is scrolled away,
  * and so are its neighbours: Tab and Shift+Tab move to the next row before
  * anything has scrolled, so every row can be reached from the keyboard
- * (#167). A row asked for by `pinned` is placed too, for the page to focus;
- * focusing it scrolls it into view.
+ * (#167). So are the list's first and last rows: Tab from the list before
+ * this one, or Shift+Tab from the one after, lands on its edge row, where
+ * the browser scrolls (#247). A row asked for by `pinned` is placed too, for
+ * the page to focus; focusing it scrolls it into view.
  */
 export function useVirtualRows({
   content,
@@ -60,7 +62,8 @@ export function useVirtualRows({
   overscan = 12,
   pinned = null,
 }: VirtualRowsOptions): VirtualRows {
-  const scrollMargin = useScrollMargin(content, scroller);
+  // The virtualiser anchors the scroll itself, as a placed row above the screen grows.
+  const scrollMargin = useScrollMargin(content, scroller, { anchors: false });
   const [focused, setFocused] = useState<string | null>(null);
   const held = [focused, pinned].map((key) => (key === null ? -1 : keys.indexOf(key)));
   const getItemKey = useCallback((index: number) => keys[index] ?? index, [keys]);
@@ -100,9 +103,10 @@ export function useVirtualRows({
   return { placed, after, measure: virtualizer.measureElement, onFocus };
 }
 
-/** The range's rows, and each held row with the row either side of it. */
+/** The range's rows, the list's first and last, and each held row with the row either side of it. */
 function withHeld(indexes: number[], held: readonly number[], count: number): number[] {
   const wanted = new Set(indexes);
+  if (count > 0) wanted.add(0).add(count - 1);
   for (const index of held) {
     if (index < 0) continue;
     for (const near of [index - 1, index, index + 1]) {

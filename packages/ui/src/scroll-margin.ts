@@ -43,6 +43,11 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
  * scroll anchoring, which WebKit does not do for us. Starring a row adds one to
  * Favorites above it, and the star clicked must not slide away.
  *
+ * `anchors: false` leaves the scroll alone. Lists nested in a virtualiser
+ * are anchored by it already — it scrolls by as much as a placed item above
+ * the screen grows — and anchoring them again here moved the page back from a
+ * scroll the browser had just made to show a focused row (#247).
+ *
  * The scroller is passed as an element, not a ref: it is an ancestor of
  * `content`, and an ancestor's ref is attached only after its descendants'
  * layout effects have run, so a ref would still be empty on the first pass.
@@ -50,6 +55,7 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
 export function useScrollMargin(
   content: RefObject<HTMLElement | null>,
   scroller: HTMLElement | null,
+  { anchors = true }: { readonly anchors?: boolean } = {},
 ): number {
   const [margin, setMargin] = useState(0);
   /** Where content started when last measured; null before the first time. */
@@ -67,7 +73,7 @@ export function useScrollMargin(
     const next = offsetWithin(element, area);
     const before = placed.current;
     placed.current = next;
-    if (before !== null && next !== before && scrolled.current > before) {
+    if (anchors && before !== null && next !== before && scrolled.current > before) {
       area.scrollTop = scrolled.current + next - before;
       scrolled.current = area.scrollTop;
     }

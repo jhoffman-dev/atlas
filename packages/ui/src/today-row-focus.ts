@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { rowToFocusAfter, type VaultPath } from '@atlas/domain';
+import { CONTROLS, useRowHandles } from './row-handles.ts';
 
 /**
  * Where focus is on the Today page, by row rather than by element (#111).
@@ -11,12 +12,8 @@ import { rowToFocusAfter, type VaultPath } from '@atlas/domain';
  * Keyboard triage (#109) moves through the same order with the same handle.
  *
  * The page puts only the rows near what it shows in the DOM (#238), so a row
- * to be focused may not be there: it is `wanted`, the page places it, and it
- * takes the focus as it is drawn.
+ * to be focused may not be there: it is `wanted` (`useRowHandles`).
  */
-/** What a person focuses on purpose: something to press or type into. */
-const CONTROLS = 'button, input, select, textarea, a[href], [contenteditable="true"]';
-
 export type RowFocus = ReturnType<typeof useRowFocus>;
 
 export function useRowFocus({
@@ -31,29 +28,10 @@ export function useRowFocus({
   /** Why the last action could not be done, if it could not: nothing moved, so focus stays. */
   problem: string | null;
 }) {
-  const rows = useRef(new Map<VaultPath, HTMLElement>());
+  const { rowRef, focusRow: focusPlaced, wanted } = useRowHandles(order);
   const pending = useRef<{ acted: VaultPath; next: VaultPath | null } | null>(null);
   const orderNow = useRef(order);
   orderNow.current = order;
-  /** A row to focus that was not in the DOM when it was asked for. */
-  const [wanted, setWanted] = useState<VaultPath | null>(null);
-  const wantedNow = useRef<VaultPath | null>(null);
-
-  /** A row's handle: the control focus lands on when the row is focused. */
-  const rowRef = useCallback(
-    (path: VaultPath) => (element: HTMLElement | null) => {
-      if (element === null) {
-        rows.current.delete(path);
-        return;
-      }
-      rows.current.set(path, element);
-      if (wantedNow.current !== path) return;
-      wantedNow.current = null;
-      element.focus();
-      setWanted(null);
-    },
-    [],
-  );
 
   /** Says a row is being acted on, before the action that may take it away. */
   const actedOn = useCallback((path: VaultPath) => {
@@ -63,16 +41,12 @@ export function useRowFocus({
     };
   }, []);
 
-  const focusRow = useCallback((path: VaultPath | null) => {
-    if (path === null) return;
-    const element = rows.current.get(path);
-    if (element !== undefined) {
-      element.focus();
-      return;
-    }
-    wantedNow.current = path;
-    setWanted(path);
-  }, []);
+  const focusRow = useCallback(
+    (path: VaultPath | null) => {
+      if (path !== null) focusPlaced(path);
+    },
+    [focusPlaced],
+  );
 
   useEffect(() => {
     if (problem !== null) pending.current = null;

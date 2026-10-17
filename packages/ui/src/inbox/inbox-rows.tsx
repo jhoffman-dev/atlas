@@ -80,6 +80,7 @@ export function InboxRows({
     keys,
     scroller,
     estimate: () => ROW_HEIGHT,
+    pinned: triage.wanted,
   });
   const placeRef = usePlacedRowRefs(list.measure, triage.rowRef);
   const open = useSteadyCallback(onOpen);
