@@ -69,6 +69,45 @@ function targetIndex(key: string, from: number, last: number): number | null {
   return null;
 }
 
+/** A move to a row the virtualiser had not drawn: where it goes, and the name it was asked from. */
+interface PendingMove {
+  readonly index: number;
+  readonly from: HTMLElement;
+  /** Stops listening for what overtakes the move. */
+  readonly release: () => void;
+}
+
+/**
+ * Whether a pending move may still take the focus: only while the focus is
+ * where the move was asked from — or that name has been scrolled out of the
+ * page, which drops its focus to the body. A cell being edited, or the focus
+ * taken anywhere else, overtakes it.
+ */
+function stillWanted({ from }: PendingMove): boolean {
+  const focused = document.activeElement;
+  if (focused === from) return true;
+  return !from.isConnected && (focused === null || focused === document.body);
+}
+
+/**
+ * Listens for what overtakes a pending move that the focus alone does not
+ * show: a press anywhere, or the name blurred while it is still in the page.
+ * A name scrolled out of the page loses its focus too — some engines say so
+ * with a blur, after it has left the page — and that one is not the reader's
+ * doing, so a blur counts only while the name is still in the page.
+ */
+function listenForOvertaking(from: HTMLElement, overtaken: () => void): () => void {
+  const onBlur = () => {
+    if (from.isConnected) overtaken();
+  };
+  from.addEventListener('blur', onBlur);
+  document.addEventListener('pointerdown', overtaken, true);
+  return () => {
+    from.removeEventListener('blur', onBlur);
+    document.removeEventListener('pointerdown', overtaken, true);
+  };
+}
+
 /**
  * The arrows, Home and End from a row's name, moving the focus to another
  * row's name — scrolled to first when the virtualiser has not drawn it.
@@ -82,30 +121,54 @@ function useRowFocus({
   last: number;
   scrollTo: (index: number) => void;
 }) {
-  /** A row asked for the focus before the virtualiser had drawn it. */
-  const wanted = useRef<number | null>(null);
-  const focusDrawn = (index: number): boolean => {
-    const name = body.current?.querySelector<HTMLElement>(`tr[data-index="${index}"] ${ROW_NAME}`);
-    name?.focus();
-    return name !== null && name !== undefined;
+  const wanted = useRef<PendingMove | null>(null);
+  const nameAt = (index: number) =>
+    body.current?.querySelector<HTMLElement>(`tr[data-index="${index}"] ${ROW_NAME}`) ?? null;
+  const drop = () => {
+    wanted.current?.release();
+    wanted.current = null;
   };
 
   // Finishes a move to a row that was not drawn when it was asked for: the
-  // scroll puts it in the page, that renders, and this focuses it. On every
-  // render, as the grouped rows' is — there is only whether it has appeared yet.
+  // scroll puts it in the page, that renders, and this focuses it — unless the
+  // reader has moved on since. On every render, as the grouped rows' is: there
+  // is only whether it has appeared yet.
   useEffect(() => {
-    if (wanted.current !== null && focusDrawn(wanted.current)) wanted.current = null;
+    const move = wanted.current;
+    if (move === null) return;
+    if (!stillWanted(move)) {
+      drop();
+      return;
+    }
+    const name = nameAt(move.index);
+    if (name === null) return;
+    drop();
+    name.focus();
   });
+  // A table that goes away stops listening for a move it can no longer finish.
+  useEffect(() => drop, []);
 
   return (event: KeyboardEvent) => {
     if (!(event.target instanceof HTMLElement) || !event.target.matches(ROW_NAME)) return;
+    // A chord belongs to the app or the browser, not to moving between rows.
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     const from = event.target.closest('tr')?.getAttribute('data-index') ?? null;
     const to = from === null ? null : targetIndex(event.key, Number(from), last);
     if (to === null) return;
     // The arrows and Home and End would otherwise scroll the sheet out from under the focus.
     event.preventDefault();
-    if (focusDrawn(to)) return;
+    // Any move overtakes one still waiting for its row.
+    drop();
+    const name = nameAt(to);
+    if (name !== null) {
+      name.focus();
+      return;
+    }
+    wanted.current = {
+      index: to,
+      from: event.target,
+      release: listenForOvertaking(event.target, drop),
+    };
     scrollTo(to);
-    wanted.current = to;
   };
 }

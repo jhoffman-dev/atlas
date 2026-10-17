@@ -10,7 +10,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type SidebarTreeRow, type VaultEntry } from '@atlas/domain';
+import { DndContext } from '@dnd-kit/core';
 import { VaultTree, type TreeEditing } from './vault-tree.tsx';
+import { VaultTreeRow, type TreeRowActions } from './vault-tree-row.tsx';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';
 
 // Before React loads, so every commit is handed to the counter.
@@ -33,19 +35,23 @@ const ROWS = ['Atlas', 'Budget', 'Garden', 'Harbour', 'Ledger', 'Orchard'].map(n
 
 /** Pages as the app hands it over: every handler, the sets and the editing made again on each render. */
 function tree({
+  rows = ROWS,
   open = [],
+  starred = ['Garden.md'],
   editing = {},
   onSelectFile = () => {},
 }: {
+  rows?: readonly SidebarTreeRow[];
   open?: readonly string[];
+  starred?: readonly string[];
   editing?: Partial<TreeEditing>;
   onSelectFile?: (path: string) => void;
 } = {}) {
   return (
     <VaultTree
-      rows={ROWS}
+      rows={rows}
       open={new Set(open)}
-      starred={new Set(['Garden.md'])}
+      starred={new Set(starred)}
       onToggleDirectory={() => {}}
       onSelectFile={onSelectFile}
       onToggleFavorite={() => {}}
@@ -75,6 +81,41 @@ function drawnBy(act: () => void): { rows: number; more: number } {
   return { rows: renders['VaultTreeRow'] ?? 0, more: renders['MoreButton'] ?? 0 };
 }
 
+const ORCHARD = noteRow('Orchard');
+
+/** One row inside the drag context it reads, as the tree draws it: its placement and editing made anew. */
+function oneRow(accepts: boolean, actions: TreeRowActions) {
+  return (
+    <DndContext>
+      <VaultTreeRow
+        row={ORCHARD}
+        placement={{ index: 0, top: 0, height: 30, indent: 10, tabbable: true, selected: false }}
+        editing={{ renaming: false, accepts }}
+        starred={false}
+        actions={actions}
+      />
+    </DndContext>
+  );
+}
+
+describe('VaultTreeRow — what it is compared by', () => {
+  const actions: TreeRowActions = {
+    onActivate: () => {},
+    onFocusRow: () => {},
+    onToggleFavorite: () => {},
+    onMenu: () => {},
+    onRename: () => {},
+    onCancelRename: () => {},
+  };
+
+  it('draws again when what is held may be dropped on it, so it can light up', () => {
+    const view = render(oneRow(false, actions));
+    // The highlight itself needs a drag under way over the row, which the e2e drag specs drive.
+    expect(drawnBy(() => view.rerender(oneRow(false, actions))).rows).toBe(0);
+    expect(drawnBy(() => view.rerender(oneRow(true, actions))).rows).toBe(1);
+  });
+});
+
 describe('VaultTree — what one commit draws', () => {
   it('draws no row again for a commit that changes nothing in the tree', () => {
     const view = render(tree());
@@ -102,6 +143,35 @@ describe('VaultTree — what one commit draws', () => {
     );
     expect(drawn.rows).toBe(1);
     expect(screen.getByRole('textbox', { name: 'Name for Budget' })).toBeDefined();
+  });
+
+  it('draws the one row starred, with its star on', () => {
+    const view = render(tree());
+    const drawn = drawnBy(() => view.rerender(tree({ starred: ['Garden.md', 'Ledger.md'] })));
+    expect(drawn.rows).toBe(1);
+    expect(
+      screen.getByRole('treeitem', { name: 'Ledger' }).querySelector('.star--on'),
+    ).not.toBeNull();
+  });
+
+  it('draws the one folder opened, expanded', () => {
+    const shut: SidebarTreeRow = {
+      entry: { kind: 'directory', name: 'Seeds', path: createVaultPath('Seeds') },
+      depth: 0,
+      isExpanded: false,
+      isLoaded: true,
+      label: 'Seeds',
+      icon: 'folder',
+      opensArchive: false,
+    };
+    const view = render(tree({ rows: [shut, ...ROWS] }));
+    const drawn = drawnBy(() =>
+      view.rerender(tree({ rows: [{ ...shut, isExpanded: true }, ...ROWS] })),
+    );
+    expect(drawn.rows).toBe(1);
+    expect(screen.getByRole('treeitem', { name: 'Seeds' }).getAttribute('aria-expanded')).toBe(
+      'true',
+    );
   });
 
   it('opens with the latest handler, though the rows were not drawn again for it', async () => {

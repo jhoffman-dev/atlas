@@ -124,21 +124,109 @@ describe('TableView — what one commit draws', () => {
     expect(screen.getByRole('checkbox', { name: 'Select Task 3' })).toHaveProperty('checked', true);
   });
 
-  it('calls the latest handlers, though the rows were not drawn again for them', async () => {
+  it('calls the latest handlers, and draws no row again for new ones', async () => {
     const result = read(3);
-    const first = vi.fn();
-    const latest = vi.fn();
-    const onTick = vi.fn();
-    const view = render(<TableView {...props(result, { onOpenNote: first })} />);
-    view.rerender(
-      <TableView {...props(result, { onOpenNote: latest, ticks: ticksFor(onTick) })} />,
+    const isDone: DoneTicks['isDone'] = (values) => values['status'] === 'done';
+    const first = { open: vi.fn(), tick: vi.fn() };
+    const latest = { open: vi.fn(), tick: vi.fn() };
+    const view = render(
+      <TableView
+        {...props(result, { onOpenNote: first.open, ticks: { isDone, onToggle: first.tick } })}
+      />,
     );
+    const drawn = rowsDrawnBy(() =>
+      view.rerender(
+        <TableView
+          {...props(result, { onOpenNote: latest.open, ticks: { isDone, onToggle: latest.tick } })}
+        />,
+      ),
+    );
+    expect(drawn).toBe(0);
     await userEvent.click(screen.getByRole('button', { name: 'Task 1' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Mark Task 2 done' }));
 
-    expect(first).not.toHaveBeenCalled();
-    expect(latest).toHaveBeenCalledWith('t1.md');
-    expect(onTick).toHaveBeenCalledWith({ path: 't2.md', done: true });
+    expect(first.open).not.toHaveBeenCalled();
+    expect(first.tick).not.toHaveBeenCalled();
+    expect(latest.open).toHaveBeenCalledWith('t1.md');
+    expect(latest.tick).toHaveBeenCalledWith({ path: 't2.md', done: true });
+  });
+});
+
+describe('TableView — what a change of its own draws', () => {
+  const cellsOf = (title: string) =>
+    [...(screen.getByRole('button', { name: title }).closest('tr')?.querySelectorAll('td') ?? [])]
+      .map((cell) => cell.textContent)
+      .join('|');
+
+  it('draws every row again when a column is hidden, and the column is gone from each', () => {
+    const result = read(12);
+    const view = render(<TableView {...props(result)} />);
+    expect(cellsOf('Task 3')).toContain('Doing');
+    const drawn = rowsDrawnBy(() =>
+      view.rerender(<TableView {...props(result, { hiddenColumns: ['status'] })} />),
+    );
+    expect(drawn).toBe(12);
+    expect(screen.queryByText('Doing')).toBeNull();
+    expect(cellsOf('Task 3')).toBe('Task 3|home,work');
+    expect(screen.queryByRole('button', { name: 'Sort by Status' })).toBeNull();
+  });
+
+  it('draws every row again when the columns are reordered, each in the new order', () => {
+    const view = render(<TableView {...props(read(12))} />);
+    const swapped: TableResult = {
+      ...read(12),
+      columns: ['path', 'title', 'tags', 'status'],
+      rows: read(12).rows.map(([path, title, status, tags]) => [path, title, tags, status]),
+    };
+    const drawn = rowsDrawnBy(() => view.rerender(<TableView {...props(swapped)} />));
+    expect(drawn).toBe(12);
+    expect(cellsOf('Task 3').indexOf('home')).toBeLessThan(cellsOf('Task 3').indexOf('Doing'));
+  });
+
+  it('draws the one row whose tag changed inside its list, with the new tag', () => {
+    const view = render(<TableView {...props(read(12))} />);
+    const retagged = read(12);
+    const rows = retagged.rows.map((row, at) =>
+      at === 5 ? [...row.slice(0, 3), ['home', 'play']] : row,
+    );
+    const drawn = rowsDrawnBy(() => view.rerender(<TableView {...props({ ...retagged, rows })} />));
+    expect(drawn).toBe(1);
+    expect(cellsOf('Task 5')).toContain('play');
+    expect(cellsOf('Task 4')).not.toContain('play');
+  });
+
+  it('ticks a row whose done-ness changed though its values did not', () => {
+    const result = read(12);
+    const doneOnly = (title: string): DoneTicks => ({
+      isDone: (values) => values['title'] === title,
+      onToggle: () => {},
+    });
+    const box = (title: string) =>
+      screen.getByRole('checkbox', { name: `Mark ${title} done` }) as HTMLInputElement;
+    const view = render(<TableView {...props(result, { ticks: doneOnly('Task 3') })} />);
+    expect(box('Task 3').checked).toBe(true);
+    const drawn = rowsDrawnBy(() =>
+      view.rerender(<TableView {...props(result, { ticks: doneOnly('Task 4') })} />),
+    );
+    expect(drawn).toBe(2);
+    expect(box('Task 3').checked).toBe(false);
+    expect(box('Task 4').checked).toBe(true);
+    expect(box('Task 4').closest('tr')?.className).toContain('table__row--done');
+  });
+});
+
+describe('TableView — what assistive technology is told of a virtualised table', () => {
+  it('says how many rows the table has, and where each drawn row sits', () => {
+    render(<TableView {...props(read(420))} />);
+    expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('421');
+    const drawn = [...document.querySelectorAll('tr.table__row')];
+    expect(drawn.length).toBeLessThan(60);
+    for (const row of drawn) {
+      expect(row.getAttribute('aria-rowindex')).toBe(
+        String(Number(row.getAttribute('data-index')) + 2),
+      );
+    }
+    expect(drawn[0]?.getAttribute('aria-rowindex')).toBe('2');
   });
 });
 
@@ -170,5 +258,20 @@ describe('TableView — a long table', () => {
     expect(document.activeElement).toBe(name('Task 0'));
     await userEvent.keyboard('{ArrowUp}');
     expect(document.activeElement).toBe(name('Task 0'));
+  });
+
+  it('leaves a chord to the app: Shift, Alt, Ctrl or Cmd with an arrow does not move between rows', async () => {
+    render(<TableView {...props(read(3))} />);
+    const first = screen.getByRole('button', { name: 'Task 0' });
+    first.focus();
+    for (const chord of [
+      '{Shift>}{ArrowDown}{/Shift}',
+      '{Alt>}{ArrowDown}{/Alt}',
+      '{Control>}{End}{/Control}',
+      '{Meta>}{ArrowDown}{/Meta}',
+    ]) {
+      await userEvent.keyboard(chord);
+      expect(document.activeElement).toBe(first);
+    }
   });
 });

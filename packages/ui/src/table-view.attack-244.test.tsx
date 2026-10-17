@@ -336,6 +336,22 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     expect(document.activeElement).toBe(input);
   });
 
+  it('a move left pending is dropped once the focus leaves its row for anywhere else', () => {
+    const model = startModel(300);
+    render(<TableView {...propsOf(model)} />);
+    const edge = lastDrawn();
+    const last = screen.getByRole('button', { name: `Row ${edge}` });
+    last.focus();
+    fireEvent.keyDown(last, { key: 'End' });
+    // A click on nothing in particular, or the window's focus moved on: the row keeps its place.
+    last.blur();
+    expect(document.activeElement).toBe(document.body);
+
+    scrollSheet(sheetOf(), 300 * 44);
+    expect(document.querySelector('tr[data-index="299"]')).not.toBeNull();
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it('a row edited while scrolled out of the page shows the edit when scrolled back', () => {
     const model = startModel(300);
     const view = render(<TableView {...propsOf(model)} />);

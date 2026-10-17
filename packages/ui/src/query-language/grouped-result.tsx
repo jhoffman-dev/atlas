@@ -9,7 +9,7 @@ import {
   type ViewLayout,
 } from '@atlas/domain';
 import { BoardLanes, ColumnHeading } from '../board-lanes.tsx';
-import { GroupedRows } from '../grouped-rows.tsx';
+import { ariaRowIndex, GroupedRows, useGroupLines, type LinePlace } from '../grouped-rows.tsx';
 import { Icon } from '../icon.tsx';
 import { useNoteNames } from '../note-names.tsx';
 import { StatusPill } from '../status-pill.tsx';
@@ -129,8 +129,18 @@ function ResultTable(props: GroupedResultProps) {
   // layout effect, which runs before the sheet's ref is set.
   const [sheet, setSheet] = useState<HTMLDivElement | null>(null);
   const names = useNoteNames();
-  const row = (found: BoardRow) => (
-    <tr key={found.path}>
+  const grouping = {
+    groups: props.groups,
+    collapsed: props.collapsed,
+    onToggle: props.onToggleGroup,
+  };
+  const grouped = props.groups.length > 0;
+  const lines = useGroupLines(grouped ? grouping : undefined);
+  const row = (found: BoardRow, place?: LinePlace) => (
+    <tr
+      key={found.path}
+      {...(place !== undefined && { 'aria-rowindex': ariaRowIndex(place.index) })}
+    >
       <td>
         <button
           type="button"
@@ -149,7 +159,10 @@ function ResultTable(props: GroupedResultProps) {
   );
   return (
     <div className="table__sheet qresult__sheet" ref={setSheet}>
-      <table className="table__grid qresult__table">
+      <table
+        className="table__grid qresult__table"
+        aria-rowcount={(grouped ? lines.length : props.rows.length) + 1}
+      >
         <thead>
           <tr>
             <th scope="col">
@@ -162,15 +175,12 @@ function ResultTable(props: GroupedResultProps) {
             ))}
           </tr>
         </thead>
-        {props.groups.length === 0 ? (
-          <tbody>{props.rows.map(row)}</tbody>
+        {!grouped ? (
+          <tbody>{props.rows.map((found) => row(found))}</tbody>
         ) : (
           <GroupedRows
-            grouping={{
-              groups: props.groups,
-              collapsed: props.collapsed,
-              onToggle: props.onToggleGroup,
-            }}
+            grouping={grouping}
+            lines={lines}
             columns={[
               { key: 'title' },
               ...props.fields.map((field) => ({

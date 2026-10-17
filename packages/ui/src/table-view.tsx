@@ -11,7 +11,7 @@ import {
 } from '@atlas/domain';
 import type { DoneTicks } from './done-checkbox.tsx';
 import { FlatRows } from './flat-rows.tsx';
-import { GroupedRows, type LinePlace, type TableGrouping } from './grouped-rows.tsx';
+import { GroupedRows, useGroupLines, type LinePlace, type TableGrouping } from './grouped-rows.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { SelectAllBox, type RowSelection } from './row-selection.tsx';
 import { useSteadyCallback } from './steady-callback.ts';
@@ -155,29 +155,29 @@ function TableSheet({
         {result.rows.length === 0 ? (
           <p className="table__empty">Nothing matches this view yet.</p>
         ) : (
-          <table className="table__grid">
-            <TableHead
-              columns={shown}
-              sorts={sorts}
-              schema={schema}
-              onToggleSort={onToggleSort}
-              ticked={ticks !== undefined}
-              choose={
-                selection === undefined ? null : (
-                  <SelectAllBox paths={paths} selection={selection} />
-                )
-              }
-            />
-            <TableBody
-              result={result}
-              look={look}
-              noun={schema.noun}
-              scroller={sheet}
-              {...(ticks !== undefined && { ticks })}
-              {...(selection !== undefined && { selection })}
-              {...(grouping !== undefined && { grouping })}
-            />
-          </table>
+          <TableGrid
+            head={
+              <TableHead
+                columns={shown}
+                sorts={sorts}
+                schema={schema}
+                onToggleSort={onToggleSort}
+                ticked={ticks !== undefined}
+                choose={
+                  selection === undefined ? null : (
+                    <SelectAllBox paths={paths} selection={selection} />
+                  )
+                }
+              />
+            }
+            result={result}
+            look={look}
+            noun={schema.noun}
+            scroller={sheet}
+            {...(ticks !== undefined && { ticks })}
+            {...(selection !== undefined && { selection })}
+            {...(grouping !== undefined && { grouping })}
+          />
         )}
         <footer className="table__footer">
           {onNewNote !== undefined && (
@@ -239,8 +239,13 @@ function useRowLook({
   );
 }
 
-/** The rows, flat or under their groups' header rows. */
-function TableBody({
+/**
+ * The table: its heading row, then the rows, flat or under their groups'
+ * header rows. It says how many rows it has, since only those near the
+ * window are in the page.
+ */
+function TableGrid({
+  head,
   result,
   look,
   noun,
@@ -249,6 +254,7 @@ function TableBody({
   selection,
   grouping,
 }: {
+  head: ReactNode;
   result: TableResult;
   look: RowLook;
   noun: string;
@@ -276,21 +282,31 @@ function TableBody({
     />
   );
   const lead = leadCellCount(look);
-  if (grouping === undefined || grouping.groups.length === 0) {
-    return (
-      <FlatRows rows={rows} width={lead + look.shown.length} renderRow={row} scroller={scroller} />
-    );
-  }
+  const grouped = grouping !== undefined && grouping.groups.length > 0;
+  const lines = useGroupLines(grouped ? grouping : undefined);
   return (
-    <GroupedRows
-      grouping={grouping}
-      columns={look.shown.map((key) => ({ key, kind: look.kinds[key] }))}
-      lead={lead}
-      noun={noun}
-      newLabel={newNoteLabel(noun)}
-      renderRow={row}
-      scroller={scroller}
-    />
+    <table className="table__grid" aria-rowcount={(grouped ? lines.length : rows.length) + 1}>
+      {head}
+      {grouped ? (
+        <GroupedRows
+          grouping={grouping}
+          lines={lines}
+          columns={look.shown.map((key) => ({ key, kind: look.kinds[key] }))}
+          lead={lead}
+          noun={noun}
+          newLabel={newNoteLabel(noun)}
+          renderRow={row}
+          scroller={scroller}
+        />
+      ) : (
+        <FlatRows
+          rows={rows}
+          width={lead + look.shown.length}
+          renderRow={row}
+          scroller={scroller}
+        />
+      )}
+    </table>
   );
 }
 

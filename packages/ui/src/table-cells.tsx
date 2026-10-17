@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { holdsLinks, isYou, linkedNames, propertyRole, type PropertyKind } from '@atlas/domain';
 import { ChecklistProgress } from './checklist-progress.tsx';
 import { DoneCheckbox, type DoneTicks } from './done-checkbox.tsx';
-import type { LinePlace } from './grouped-rows.tsx';
+import { ariaRowIndex, type LinePlace } from './grouped-rows.tsx';
 import { Icon } from './icon.tsx';
 import { LinkedNote, useNoteNames } from './note-names.tsx';
 import { SelectBox } from './row-selection.tsx';
@@ -69,6 +69,7 @@ export const TableRow = memo(function TableRow({
       className={done ? 'table__row table__row--done' : 'table__row'}
       ref={measure}
       data-index={index}
+      aria-rowindex={index === undefined ? undefined : ariaRowIndex(index)}
     >
       {onChoose !== undefined && (
         <td className="table__choose">
