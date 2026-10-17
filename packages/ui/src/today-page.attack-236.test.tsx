@@ -184,7 +184,8 @@ describe('TodayPage lazy Move to… menu — #236', () => {
 
     expect(screen.queryAllByRole('menu')).toHaveLength(0);
     expect(document.querySelectorAll('[role="menuitem"]')).toHaveLength(0);
-  });
+    // Forty menus opened and shut one after another: about 5 s under coverage, the default limit.
+  }, 20_000);
 });
 
 describe('TodayPage row memo — #236', () => {
