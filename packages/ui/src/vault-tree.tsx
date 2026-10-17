@@ -11,16 +11,17 @@ import {
   type DragEndEvent,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { Menu } from '@base-ui/react/menu';
 import type { SidebarTreeRow, VaultEntry, VaultPath } from '@atlas/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
-import { MenuItems, type MenuCommand } from './menu-items.tsx';
+import type { MenuCommand } from './menu-items.tsx';
+import { EntryMenu, type MenuAnchor } from './vault-tree-menu.tsx';
 import { dropTargetWithin, snapToNextRow, useDragSensors } from './drag/dnd.ts';
 import { treeWords } from './drag/announcements.ts';
 import { useSteadyCallback } from './steady-callback.ts';
 import {
   folderOfDropId,
   VaultTreeRow,
+  type MenuOpenedBy,
   type RowEditing,
   type TreeRowActions,
 } from './vault-tree-row.tsx';
@@ -97,9 +98,6 @@ const MEASURED_WHERE_DRAWN: MeasuringConfiguration = {
   droppable: { measure: getClientRect },
 };
 
-/** Where a row's menu opens from: the "…" pressed, or the point right-clicked. */
-type MenuAnchor = Element | { x: number; y: number };
-
 /**
  * The vault's folders and notes. Virtualised, so a vault with tens of thousands of
  * notes costs the same to render as one with ten.
@@ -148,8 +146,12 @@ export function VaultTree({
   /** A row asked for the focus that the virtualiser has not rendered yet. */
   const wantedIndex = useRef<number | null>(null);
   const typed = useRef({ prefix: '', at: 0 });
-  /** The entry whose menu is up, and where it opened from. */
-  const [menu, setMenu] = useState<{ entry: VaultEntry; anchor: MenuAnchor } | null>(null);
+  /** The entry whose menu is up, where it opened from, and how it was asked for. */
+  const [menu, setMenu] = useState<{
+    entry: VaultEntry;
+    anchor: MenuAnchor;
+    openedBy: MenuOpenedBy;
+  } | null>(null);
   /** The entry being carried, while a drag is under way. */
   const [held, setHeld] = useState<SidebarTreeRow | null>(null);
   const sensors = useDragSensors(snapToNextRow);
@@ -256,9 +258,38 @@ export function VaultTree({
     if (found >= 0) focusRow(found);
   };
 
-  const openMenu = (entry: VaultEntry, anchor: MenuAnchor) => {
-    setMenu({ entry, anchor });
+  /** What had the focus as the menu opened, and the row it was opened for. */
+  const menuOrigin = useRef<{ focused: Element | null; index: number } | null>(null);
+
+  const openMenu = (entry: VaultEntry, anchor: MenuAnchor, openedBy: MenuOpenedBy) => {
+    menuOrigin.current = {
+      focused: document.activeElement,
+      index: rows.findIndex((row) => row.entry.path === entry.path),
+    };
+    setMenu({ entry, anchor, openedBy });
     editing?.onMenuOpenChange(true);
+  };
+
+  const setMenuOpen = useSteadyCallback((next: boolean) => {
+    editing?.onMenuOpenChange(next);
+    if (!next) setMenu(null);
+  });
+
+  // A refresh can take the row away while its menu is up — deleted or renamed
+  // on disk — and its commands would act on what is gone: the menu shuts.
+  const menuRowGone = menu !== null && !rows.some((row) => row.entry.path === menu.entry.path);
+  useEffect(() => {
+    if (menuRowGone) setMenuOpen(false);
+  }, [menuRowGone, setMenuOpen]);
+
+  // The focus goes back where it was as the menu shuts, unless that went with
+  // its row: then to the row that took the gone one's place.
+  const returnFocusFromMenu = () => {
+    const origin = menuOrigin.current;
+    menuOrigin.current = null;
+    if (origin === null || origin.focused?.isConnected !== false || rows.length === 0) return true;
+    focusRow(Math.min(Math.max(origin.index, 0), rows.length - 1));
+    return false;
   };
 
   const rowActions = useRowActions({
@@ -333,7 +364,7 @@ export function VaultTree({
       case 'ContextMenu':
         // Shift+F10 or the menu key: the row's menu, from the keyboard.
         if (editing === undefined || (event.key === 'F10' && !event.shiftKey)) return;
-        openMenu(row.entry, event.target);
+        openMenu(row.entry, event.target, 'keyboard');
         break;
       default:
         // A printable character is type-ahead; a chord belongs to the app.
@@ -442,11 +473,10 @@ export function VaultTree({
       <EntryMenu
         items={menu === null ? [] : editing.menuFor(menu.entry)}
         anchor={menu?.anchor ?? null}
+        openedBy={menu?.openedBy ?? 'pointer'}
         open={editing.menuOpen && menu !== null}
-        onOpenChange={(next) => {
-          editing.onMenuOpenChange(next);
-          if (!next) setMenu(null);
-        }}
+        onOpenChange={setMenuOpen}
+        onReturnFocus={returnFocusFromMenu}
       />
     </DndContext>
   );
@@ -483,56 +513,4 @@ function treeAnnouncements(byPath: ReadonlyMap<string, SidebarTreeRow>): Announc
     onDragEnd: ({ active, over }) => treeWords.end(name(active.id), folder(over?.id)),
     onDragCancel: ({ active }) => treeWords.cancel(name(active.id)),
   };
-}
-
-/**
- * One row's menu, opened from its "…" or by a right-click where the pointer is.
- * Open state, focus, typeahead and Escape are Base UI's (ADR-0015).
- */
-function EntryMenu({
-  items,
-  anchor,
-  open,
-  onOpenChange,
-}: {
-  items: readonly MenuCommand[];
-  anchor: MenuAnchor | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const chosen = useRef<MenuCommand | null>(null);
-  const positioned =
-    anchor === null || anchor instanceof Element
-      ? anchor
-      : {
-          getBoundingClientRect: () =>
-            DOMRect.fromRect({ x: anchor.x, y: anchor.y, width: 0, height: 0 }),
-        };
-
-  return (
-    <Menu.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
-      <Menu.Portal>
-        <Menu.Positioner
-          className="menu-positioner"
-          anchor={positioned}
-          side="bottom"
-          align="start"
-          sideOffset={4}
-        >
-          <Menu.Popup
-            className="menu"
-            aria-label="Page"
-            render={<ul />}
-            finalFocus={() => {
-              const returnFocus = chosen.current?.movesFocus !== true;
-              chosen.current = null;
-              return returnFocus;
-            }}
-          >
-            <MenuItems items={items} chosen={chosen} />
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
-  );
 }
