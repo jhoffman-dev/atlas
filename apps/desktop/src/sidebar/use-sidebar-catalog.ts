@@ -85,12 +85,16 @@ export function useSidebarCatalog({
 
   useEffect(() => {
     let cancelled = false;
-    countNotesByType({ index, types })
+    countNotesByType({
+      index,
+      types,
+      onFailed: (cause) => console.error('The types’ counts could not be read:', cause),
+    })
       .then((counted) => {
         if (!cancelled) setCounts(counted);
       })
       .catch(() => {
-        // Already handled per type inside the use-case; nothing to add here.
+        // Already handled inside the use-case, which counts none on a failure.
       });
     return () => {
       cancelled = true;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSteadyCallback } from '../steady-callback.ts';
 import type { Clarification, InboxItem, VaultPath } from '@atlas/domain';
 import { clarificationOf, rowAfter, type InboxDraft } from './inbox-triage.ts';
 
@@ -36,6 +37,9 @@ export function useInboxTriage({
     listed.current = items;
   }, [items]);
 
+  // The app makes its callback anew on many of its renders; the rows' actions stay the same.
+  const clarify = useSteadyCallback(onClarify);
+
   const focusRow = useCallback((path: VaultPath) => {
     setFocused(path);
     rows.current.get(path)?.focus();
@@ -44,14 +48,14 @@ export function useInboxTriage({
   const act = useCallback(
     async (path: VaultPath, clarification: Clarification) => {
       const next = rowAfter(listed.current, path);
-      if (!(await onClarify({ path, clarification }))) return;
+      if (!(await clarify({ path, clarification }))) return;
       setDrafts((held) => Object.fromEntries(Object.entries(held).filter(([at]) => at !== path)));
       // Focus that has gone elsewhere since — another note opened, say — is left there.
       const at = document.activeElement;
       const stillHere = at === document.body || rows.current.get(path)?.contains(at) === true;
       if (next !== null && stillHere) focusRow(next);
     },
-    [onClarify, focusRow],
+    [clarify, focusRow],
   );
 
   return {
@@ -89,10 +93,10 @@ export function useInboxTriage({
     /** Makes a plain note a task, which then waits on its own row to be clarified as one. */
     makeTask: useCallback(
       (path: VaultPath) =>
-        void onClarify({ path, clarification: { asTask: true } }).then((done) => {
+        void clarify({ path, clarification: { asTask: true } }).then((done) => {
           if (done) focusRow(path);
         }),
-      [onClarify, focusRow],
+      [clarify, focusRow],
     ),
   };
 }

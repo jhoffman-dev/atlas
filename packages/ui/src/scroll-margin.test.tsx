@@ -207,3 +207,99 @@ describe('VaultTree when what sits above it changes height', () => {
     expect(scroller.scrollTop).toBe(100);
   });
 });
+
+describe('useScrollMargin — when it reads the layout', () => {
+  const rows = Array.from({ length: 60 }, (_, at) => fileRow(at));
+
+  /** Places the tree 300px down, counting every read of where an element sits. */
+  function countLayoutReads() {
+    const reads = { count: 0 };
+    placeElements((element) => {
+      reads.count += 1;
+      return element.classList.contains('tree') ? 300 : 0;
+    });
+    return reads;
+  }
+
+  it('does not read the layout again when the sidebar re-renders and nothing moved', () => {
+    const reads = countLayoutReads();
+    const view = render(<SharedTree rows={rows} />);
+    expect(reads.count).toBeGreaterThan(0);
+    reads.count = 0;
+
+    // The sidebar re-renders on every commit of the app: a note typed into, say.
+    view.rerender(<SharedTree rows={rows} />);
+    view.rerender(<SharedTree rows={[...rows]} />);
+
+    expect(reads.count).toBe(0);
+  });
+
+  /** The sidebar's shape: one scroller around one list of sections, the tree in the last. */
+  function SectionedTree() {
+    const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+    return (
+      <div ref={setScroller}>
+        <div className="sections">
+          <section className="favorites" />
+          <section>
+            <VaultTree
+              rows={rows}
+              open={new Set()}
+              starred={new Set()}
+              onToggleDirectory={noop}
+              onSelectFile={noop}
+              onToggleFavorite={noop}
+              scrollParent={scroller}
+            />
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  it('reads it again when a section moves, which changes no size', async () => {
+    let treeTop = 300;
+    placeElements((element) => (element.classList.contains('tree') ? treeTop : 0));
+    const { container } = render(<SectionedTree />);
+    expect(screen.getAllByRole('treeitem')).toHaveLength(17 + 12);
+
+    // Sections reordered: the tree is 600px down the scroller now, and no size changed.
+    treeTop = 600;
+    const sections = container.querySelector('.sections')!;
+    await act(async () => {
+      sections.append(sections.querySelector('.favorites')!);
+    });
+
+    expect(screen.getAllByRole('treeitem')).toHaveLength(7 + 12);
+  });
+
+  it('does not move the rows twice when the browser has already scrolled by what grew above', () => {
+    let treeTop = 300;
+    placeElements((element) => (element.classList.contains('tree') ? treeTop : 0));
+    const { container } = render(<SectionedTree />);
+    const scroller = container.firstElementChild as HTMLElement;
+    scroller.scrollTop = 900;
+    fireEvent.scroll(scroller);
+
+    // A favourite is added above, and the browser keeps the rows in place itself (scroll anchoring).
+    treeTop = 331;
+    scroller.scrollTop = 931;
+    act(() => {
+      fireEvent.scroll(scroller);
+    });
+
+    expect(scroller.scrollTop).toBe(931);
+  });
+
+  it('reads it again on a scroll', () => {
+    let treeTop = 300;
+    placeElements((element) => (element.classList.contains('tree') ? treeTop : 0));
+    const { container } = render(<SharedTree rows={rows} />);
+    treeTop = 600;
+    act(() => {
+      fireEvent.scroll(container.firstElementChild as HTMLElement);
+    });
+
+    expect(screen.getAllByRole('treeitem')).toHaveLength(7 + 12);
+  });
+});

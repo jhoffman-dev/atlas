@@ -89,6 +89,10 @@ interface StoredNote {
   /** How far through its checklist the note is, as the app worked it out (P30-03). */
   progress?: number | null;
   size?: number;
+  /** What the app digested of its text, which the manifest hands back (ADR-0012). */
+  digest?: string;
+  /** The type its frontmatter declares, which the manifest hands back. */
+  type?: string | null;
   body: string;
   links: { target: string; path: string | null }[];
   /** Every use of a tag, as the app found it. */
@@ -507,12 +511,24 @@ export const STUB_THUMBNAIL = solidPng(16, 10, [214, 40, 160]);
 export async function installHost(
   page: Page,
   vault: FakeVault,
-  /**
-   * Canned feeds by URL, for sources that fetch rather than read a file. The
-   * object is read on every call, so a test can change what a feed says between
-   * refreshes by writing to it.
-   */
-  feeds: Record<string, string> = {},
+  {
+    feeds = {},
+    keepsManifest = false,
+  }: {
+    /**
+     * Canned feeds by URL, for sources that fetch rather than read a file. The
+     * object is read on every call, so a test can change what a feed says between
+     * refreshes by writing to it.
+     */
+    feeds?: Record<string, string>;
+    /**
+     * Lists what was indexed as the index's manifest, as the real index does,
+     * so a refresh re-reads only the notes that changed. Off by default: the
+     * e2e suite was written against a stand-in that lists none. The perf
+     * harness turns it on, or every refresh it times re-reads the whole vault.
+     */
+    keepsManifest?: boolean;
+  } = {},
 ): Promise<FakeHost> {
   /** What the picker answers with. */
   let offered = vault.root;
@@ -861,14 +877,21 @@ export async function installHost(
         return files;
       }
       case 'index_open':
-        // This stand-in keeps nothing between windows and lists no manifest, so
-        // every index it opens is one made just now.
+        // This stand-in keeps nothing between windows, so every index it opens
+        // is one made just now.
         return { fresh: true };
       case 'index_clear':
         indexed.clear();
         return null;
       case 'index_manifest':
-        return [];
+        if (!keepsManifest) return [];
+        return [...indexed.values()].map((note) => ({
+          path: note.path,
+          modified: note.modified ?? 0,
+          size: note.size ?? 0,
+          digest: note.digest ?? '',
+          type: note.type ?? null,
+        }));
       case 'index_put': {
         indexPuts += 1;
         if (indexPuts > indexPutsBeforeHold) await indexHeld;
@@ -946,6 +969,10 @@ export async function installHost(
         // waits on — over files, props and relations, run for real.
         if (statement.startsWith('/* inbox */')) {
           return runAtlasQuery(statement, bound, indexed.values());
+        }
+        // The sidebar's count beside each type (#217): over files and props, run for real.
+        if (statement.startsWith('/* type counts */')) {
+          return runArchiveQuery(statement, bound, indexed.values());
         }
         // The vocabulary's notes (P28-05) read the same files and props tables
         // the Archive does, so they run for real by SQLite the same way.

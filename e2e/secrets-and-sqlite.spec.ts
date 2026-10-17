@@ -49,7 +49,7 @@ async function openVault(page: Page, feeds: Record<string, string> = {}) {
   await vault.write('.atlas/sources/Issues.md', ISSUES);
   await vault.write('.atlas/sources/Team.md', TEAM);
 
-  const host = await installHost(page, vault, feeds);
+  const host = await installHost(page, vault, { feeds });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();

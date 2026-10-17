@@ -1,4 +1,4 @@
-import { useRef, type ReactNode, type RefObject } from 'react';
+import { useMemo, useRef, type ReactNode, type RefObject } from 'react';
 import {
   columnIcon,
   countLabel,
@@ -190,7 +190,10 @@ function TableBody({
   scroller: RefObject<HTMLDivElement | null>;
   grouping?: TableGrouping;
 }) {
-  const rows = toBoardRows({ columns: result.columns, rows: result.rows });
+  // Once per result: the window draws the open table again for whatever else
+  // happens in it — every key typed in ⌘K — and a table can hold hundreds (#217).
+  const { columns, rows: read } = result;
+  const rows = useMemo(() => toBoardRows({ columns, rows: read }), [columns, read]);
   const row = (found: (typeof rows)[number], place?: LinePlace) => (
     <TableRow
       key={found.path}

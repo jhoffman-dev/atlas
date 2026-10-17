@@ -18,7 +18,8 @@ export async function openFixtureVault(page: Page): Promise<FakeVault> {
     await Promise.all([...folders].filter((folder) => folder !== '').map((f) => vault.mkdir(f)));
     await Promise.all(batch.map((file) => vault.write(file.path, file.contents)));
   }
-  await installHost(page, vault);
+  // With a manifest, as the real index has: without one every refresh re-reads all 2,000 notes.
+  await installHost(page, vault, { keepsManifest: true });
   await installProbe(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();

@@ -1,101 +1,86 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ObjectType } from '@atlas/domain';
+import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@atlas/domain';
 import { fakeIndexPort } from '../testing/fake-ports.ts';
 import { countNotesByType } from './count-notes-by-type.ts';
 
 const type = (name: string): ObjectType => ({ name, label: name, properties: [] });
 
+/** An index that answers the counts query with `rows`, and says each query it was asked. */
+function countingIndex(rows: readonly (readonly unknown[])[], columns = ['type', 'count']) {
+  const query = vi.fn(async () => ({ columns, rows, truncated: false }));
+  const notesOfType = vi.fn(async () => [{ path: 'a.md', title: 'a' }]);
+  return { index: fakeIndexPort({ query, notesOfType }), query, notesOfType };
+}
+
 describe('countNotesByType', () => {
-  it('counts the notes the index holds for each type', async () => {
-    const index = fakeIndexPort({
-      notesOfType: async (name) =>
-        name === 'task'
-          ? [
-              { path: 'a.md', title: 'a' },
-              { path: 'b.md', title: 'b' },
-            ]
-          : [{ path: 'c.md', title: 'c' }],
+  it('asks the index once for every type’s count, and never for the notes themselves', async () => {
+    const { index, query, notesOfType } = countingIndex([
+      ['task', 2],
+      ['person', 1],
+    ]);
+
+    const counts = await countNotesByType({
+      index,
+      types: [type('task'), type('person'), type('project')],
     });
 
-    const counts = await countNotesByType({ index, types: [type('task'), type('person')] });
-
-    expect(counts.get('task')).toBe(2);
-    expect(counts.get('person')).toBe(1);
+    expect(query).toHaveBeenCalledTimes(1);
+    const [sql, parameters] = query.mock.calls[0] as unknown as [string, unknown[]];
+    expect(sql.startsWith(TYPE_COUNTS_QUERY_MARK)).toBe(true);
+    expect(parameters).toEqual(['task', 'person', 'project']);
+    expect(notesOfType).not.toHaveBeenCalled();
+    expect(counts).toEqual(
+      new Map([
+        ['task', 2],
+        ['person', 1],
+        ['project', 0],
+      ]),
+    );
   });
 
-  it('does not count the templates and definitions Atlas keeps in .atlas', async () => {
-    const index = fakeIndexPort({
-      notesOfType: async () => [
-        { path: 'tasks/P16-04.md', title: 'Views' },
-        { path: '.atlas/templates/Task.md', title: 'Task' },
-        { path: '.atlas-notes/Mine.md', title: 'Mine' },
-      ],
-    });
-
+  it('reads the counts by column name, wherever the index puts them', async () => {
+    const { index } = countingIndex([[3, 'task']], ['count', 'type']);
     const counts = await countNotesByType({ index, types: [type('task')] });
-
-    expect(counts.get('task')).toBe(2);
+    expect(counts.get('task')).toBe(3);
   });
 
-  it('does not count archived notes', async () => {
-    const index = fakeIndexPort({
-      notesOfType: async () => [
-        { path: 'tasks/Live.md', title: 'Live' },
-        { path: 'Archive/tasks/Old.md', title: 'Old' },
-        { path: 'tasks/Archive/Kept.md', title: 'Kept' },
-      ],
-    });
-
+  it('keeps no count for a type it did not ask about', async () => {
+    const { index } = countingIndex([
+      ['task', 2],
+      ['ghost', 9],
+    ]);
     const counts = await countNotesByType({ index, types: [type('task')] });
-
-    expect(counts.get('task')).toBe(2);
+    expect([...counts.keys()]).toEqual(['task']);
   });
 
-  it('counts a type with no notes as none, not as missing', async () => {
-    const counts = await countNotesByType({ index: fakeIndexPort(), types: [type('task')] });
-    expect(counts.get('task')).toBe(0);
-  });
-
-  it('counts a type the index cannot answer for as none', async () => {
+  it('counts every type as none when the index cannot answer, rather than failing the sidebar', async () => {
     const index = fakeIndexPort({
-      notesOfType: async (name) => {
-        if (name === 'task') throw new Error('no such view: v_task');
-        return [{ path: 'c.md', title: 'c' }];
+      query: async () => {
+        throw new Error('the index is being rebuilt');
       },
     });
 
-    const counts = await countNotesByType({ index, types: [type('task'), type('person')] });
+    const onFailed = vi.fn();
+    const counts = await countNotesByType({
+      index,
+      types: [type('task'), type('person')],
+      onFailed,
+    });
 
-    expect(counts.get('task')).toBe(0);
-    expect(counts.get('person')).toBe(1);
+    expect(counts).toEqual(
+      new Map([
+        ['task', 0],
+        ['person', 0],
+      ]),
+    );
+    expect(onFailed).toHaveBeenCalledWith(new Error('the index is being rebuilt'));
   });
 
   it('asks nothing of the index when the vault has no types', async () => {
-    const notesOfType = vi.fn(async () => []);
-    const counts = await countNotesByType({ index: fakeIndexPort({ notesOfType }), types: [] });
+    const { index, query, notesOfType } = countingIndex([]);
+    const counts = await countNotesByType({ index, types: [] });
     expect(counts.size).toBe(0);
+    expect(query).not.toHaveBeenCalled();
     expect(notesOfType).not.toHaveBeenCalled();
-  });
-
-  it('does not count a Project set to PARA archive, though its file has not moved (#213)', async () => {
-    const index = fakeIndexPort({
-      notesOfType: async () => [
-        { path: 'Atlas.md', title: 'Atlas' },
-        { path: 'Garden.md', title: 'Garden' },
-        { path: 'Old Plan.md', title: 'Old Plan' },
-      ],
-      query: async () => ({
-        columns: ['path', 'para'],
-        rows: [
-          ['Garden.md', 'area'],
-          ['Old Plan.md', 'archive'],
-        ],
-        truncated: false,
-      }),
-    });
-
-    const counts = await countNotesByType({ index, types: [type('project')] });
-
-    expect(counts.get('project')).toBe(2);
   });
 });

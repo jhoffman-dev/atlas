@@ -284,11 +284,8 @@ describe('TodayPage', () => {
       within(row).getByRole('button', { name: 'Move Call the bank to…' }),
       within(row).getByRole('button', { name: 'Defer Call the bank 1 day' }),
     ];
-    expect(controls.map((control) => (control as HTMLButtonElement).disabled)).toEqual([
-      true,
-      true,
-      true,
-    ]);
+    // Each of the row's actions waits; its title and project do not (see today-page.attack-236).
+    expect(controls.map((control) => control.matches(':disabled'))).toEqual([true, true, true]);
   });
 
   it('says why an action could not be done', () => {

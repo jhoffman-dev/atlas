@@ -10,6 +10,7 @@ import {
   waitingOnRefusal,
   type Clarification,
   type EntryMove,
+  type GtdStatus,
   type InboxKey,
   type ObjectType,
   type VaultPath,
@@ -277,7 +278,16 @@ export function useInbox(options: InboxOptions) {
     indexKey,
   });
 
-  const statuses = useMemo(() => clarifyVocabulary(types).statuses, [types]);
+  // The types are read again after every write: the same statuses are kept the
+  // same list, or every row would be drawn again for a list that says the same (#217).
+  const statusesWere = useRef<readonly GtdStatus[] | null>(null);
+  const statuses = useMemo(() => {
+    const read = clarifyVocabulary(types).statuses;
+    return keptWhereSame(statusesWere.current, read, String);
+  }, [types]);
+  useEffect(() => {
+    statusesWere.current = statuses;
+  }, [statuses]);
   // One object per clarification, not one per render: its bar's time is kept by it (#165).
   const lastAction = useMemo(() => (last === null ? null : { title: last.title }), [last]);
   return {
