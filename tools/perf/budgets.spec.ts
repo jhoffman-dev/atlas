@@ -496,7 +496,15 @@ async function dragACard(pass: Pass): Promise<void> {
       announced,
       'is over paused.',
     ),
-    phase(() => page.mouse.up(), announced, 'dropped'),
+    // The board's own word once the card has landed.
+    phase(
+      () => page.mouse.up(),
+      (text) =>
+        [...document.querySelectorAll('[role="status"]')].some((each) =>
+          (each.textContent ?? '').endsWith(text),
+        ),
+      'moved to paused.',
+    ),
   ]);
   await expect.poll(() => pass.vault.read(cardPath)).toMatch(/^status: paused$/m);
 }

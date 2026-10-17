@@ -318,7 +318,9 @@ jobs:
         if: success() || failure()
         run: pnpm exec playwright test --config playwright.perf.config.ts --project budgets --reporter=list
         env:
-          PERF_BUDGETS_RUNS: 3
+          # Counted twice: a count that differs between the two runs fails, so the
+          # work clock stays proven deterministic on the runner, not only here.
+          PERF_BUDGETS_RUNS: 2
 
       - uses: actions/upload-artifact@v4
         if: always()

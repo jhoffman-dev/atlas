@@ -5,5 +5,173 @@
     "Measured on the 2,008-note fixture by `pnpm perf:budgets`; `PERF_BUDGETS=write pnpm perf:budgets` lowers them to a run's counts plus headroom (10% or 2, whichever is more).",
     "`rows` are hard rules with no headroom: the most times a list's row component may render."
   ],
-  "actions": {}
+  "actions": {
+    "Click a sidebar note": {
+      "commits": 11,
+      "renders": 1014,
+      "calls": {
+        "list_directory": 4,
+        "read_text_file": 3
+      }
+    },
+    "Switch notes": {
+      "commits": 11,
+      "renders": 1038,
+      "calls": {
+        "list_directory": 4,
+        "read_text_file": 3
+      }
+    },
+    "Type 10 characters in a note": {
+      "commits": 12,
+      "renders": 440,
+      "calls": {}
+    },
+    "One autosave and its watcher echo": {
+      "commits": 62,
+      "renders": 15668,
+      "calls": {
+        "index_manifest": 4,
+        "index_notes_of_type": 5,
+        "index_open": 3,
+        "index_put": 3,
+        "index_query": 27,
+        "index_rebuild_views": 4,
+        "index_stats": 3,
+        "list_directory": 29,
+        "list_notes": 4,
+        "read_notes": 26
+      }
+    },
+    "Idle 3 s with a note open": {
+      "commits": 0,
+      "renders": 0,
+      "calls": {}
+    },
+    "Open Settings": {
+      "commits": 13,
+      "renders": 2331,
+      "calls": {
+        "api_status": 3,
+        "gh_repo_list": 3,
+        "google_status": 3,
+        "index_query": 3,
+        "list_directory": 6,
+        "model_process_start": 3,
+        "read_notes": 4,
+        "report_error": 3,
+        "secret_list": 3
+      }
+    },
+    "Open Today": {
+      "commits": 6,
+      "renders": 1898,
+      "calls": {
+        "index_query": 6,
+        "list_directory": 4
+      }
+    },
+    "Idle 3 s on Today": {
+      "commits": 0,
+      "renders": 0,
+      "calls": {}
+    },
+    "Tick a task on Today": {
+      "commits": 63,
+      "renders": 26370,
+      "calls": {
+        "index_manifest": 4,
+        "index_notes_of_type": 5,
+        "index_open": 3,
+        "index_put": 3,
+        "index_query": 31,
+        "index_rebuild_views": 4,
+        "index_stats": 3,
+        "list_directory": 31,
+        "list_notes": 4,
+        "read_notes": 26,
+        "read_text_file": 5,
+        "write_text_file": 3
+      },
+      "rows": {
+        "TaskRow": 1
+      }
+    },
+    "Open the Inbox": {
+      "commits": 12,
+      "renders": 8741,
+      "calls": {
+        "index_notes_of_type": 6,
+        "index_query": 11,
+        "list_directory": 11,
+        "list_notes": 4,
+        "read_notes": 10
+      }
+    },
+    "Decide an Inbox row": {
+      "commits": 77,
+      "renders": 18115,
+      "calls": {
+        "create_folder": 3,
+        "index_manifest": 4,
+        "index_notes_of_type": 9,
+        "index_open": 3,
+        "index_put": 3,
+        "index_query": 47,
+        "index_rebuild_views": 4,
+        "index_remove": 3,
+        "index_stats": 3,
+        "list_directory": 47,
+        "list_notes": 7,
+        "move_entry": 3,
+        "read_notes": 39,
+        "read_text_file": 8,
+        "write_text_file": 3
+      },
+      "rows": {
+        "InboxRow": 2
+      }
+    },
+    "Open a person's page": {
+      "commits": 13,
+      "renders": 1249,
+      "calls": {
+        "index_query": 6,
+        "list_directory": 5,
+        "read_text_file": 3
+      }
+    },
+    "Open the 420-row table": {
+      "commits": 9,
+      "renders": 10367,
+      "calls": {
+        "index_query": 4
+      }
+    },
+    "⌘K + 5 keys over the table": {
+      "commits": 19,
+      "renders": 105575,
+      "calls": {
+        "index_search": 7
+      }
+    },
+    "Drag a board card": {
+      "commits": 106,
+      "renders": 23359,
+      "calls": {
+        "index_manifest": 4,
+        "index_notes_of_type": 5,
+        "index_open": 3,
+        "index_put": 3,
+        "index_query": 31,
+        "index_rebuild_views": 4,
+        "index_stats": 3,
+        "list_directory": 30,
+        "list_notes": 4,
+        "read_notes": 26,
+        "read_text_file": 3,
+        "write_text_file": 3
+      }
+    }
+  }
 }
