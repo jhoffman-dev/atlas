@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeSettings } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { shippedPropertiesRecordText } from '@atlas/domain';
 
 const TYPE = '.atlas/types/meeting.md';
 
@@ -99,6 +100,48 @@ describe('mergeSettings never loses what a person wrote (#233 attack)', () => {
       '.atlas/migrations/type-properties.md',
     );
     expect(merged === null || merged.includes(note), String(merged)).toBe(true);
+  });
+
+  it('keeps a field a person added inside the record’s JSON, by giving up to a copy', () => {
+    const path = '.atlas/migrations/type-properties.md';
+    const record = (keys: string[]) =>
+      shippedPropertiesRecordText({ settled: { meeting: keys }, added: {} });
+    const edited = record(['tasks']).replace('"added":{}', '"added":{},"why":"Mara Quill asked"');
+    const merged = merge({ base: null, ours: record(['decisions']), theirs: edited }, path);
+    expect(merged === null || merged.includes('Mara Quill asked'), String(merged)).toBe(true);
+  });
+
+  it('still merges an older record that says nothing of what was added', () => {
+    const path = '.atlas/migrations/type-properties.md';
+    const older = shippedPropertiesRecordText({
+      settled: { meeting: ['tasks'] },
+      added: {},
+    }).replace(',"added":{}', '');
+    const newer = shippedPropertiesRecordText({ settled: { meeting: ['decisions'] }, added: {} });
+    expect(merge({ base: null, ours: older, theirs: newer }, path)).toContain(
+      '"meeting":["decisions","tasks"]',
+    );
+  });
+
+  it.each([
+    ['a byte-order mark', (text: string) => `\uFEFF${text}`],
+    ['trailing spaces on the opening fence', (text: string) => text.replace(/^---\n/, '---  \n')],
+    [
+      'trailing spaces on the closing fence',
+      (text: string) => text.replace('\n---\n\n', '\n---  \n\n'),
+    ],
+  ])('keeps %s the side folded in has, or gives up so a copy keeps it', (_, edit) => {
+    const ours = withLines(['  tasks:', '    kind: relation']);
+    const theirs = edit(withLines(['  room:', '    kind: text']));
+    expect(theirs).not.toBe(withLines(['  room:', '    kind: text']));
+    const merged = merge({ base: edit(BASE), ours, theirs });
+    const fence = (text: string) => [
+      text.split('\n')[0],
+      text.split('\n').find((line, at) => at > 0 && line.startsWith('---')),
+    ];
+    expect(merged === null || fence(merged).join() === fence(theirs).join(), String(merged)).toBe(
+      true,
+    );
   });
 });
 
