@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
 import {
@@ -11,10 +11,10 @@ import {
   type DragEndEvent,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { Menu } from '@base-ui/react/menu';
 import type { SidebarTreeRow, VaultEntry, VaultPath } from '@atlas/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
-import { MenuItems, type MenuCommand } from './menu-items.tsx';
+import type { MenuCommand } from './menu-items.tsx';
+import { EntryMenu, type MenuAnchor } from './vault-tree-menu.tsx';
 import { dropTargetWithin, snapToNextRow, useDragSensors } from './drag/dnd.ts';
 import { treeWords } from './drag/announcements.ts';
 import { useSteadyCallback } from './steady-callback.ts';
@@ -97,9 +97,6 @@ const MEASURED_WHERE_DRAWN: MeasuringConfiguration = {
   draggable: { measure: getClientRect },
   droppable: { measure: getClientRect },
 };
-
-/** Where a row's menu opens from: the "…" pressed, or the point right-clicked. */
-type MenuAnchor = Element | { x: number; y: number };
 
 /**
  * The vault's folders and notes. Virtualised, so a vault with tens of thousands of
@@ -261,9 +258,38 @@ export function VaultTree({
     if (found >= 0) focusRow(found);
   };
 
+  /** What had the focus as the menu opened, and the row it was opened for. */
+  const menuOrigin = useRef<{ focused: Element | null; index: number } | null>(null);
+
   const openMenu = (entry: VaultEntry, anchor: MenuAnchor, openedBy: MenuOpenedBy) => {
+    menuOrigin.current = {
+      focused: document.activeElement,
+      index: rows.findIndex((row) => row.entry.path === entry.path),
+    };
     setMenu({ entry, anchor, openedBy });
     editing?.onMenuOpenChange(true);
+  };
+
+  const setMenuOpen = useSteadyCallback((next: boolean) => {
+    editing?.onMenuOpenChange(next);
+    if (!next) setMenu(null);
+  });
+
+  // A refresh can take the row away while its menu is up — deleted or renamed
+  // on disk — and its commands would act on what is gone: the menu shuts.
+  const menuRowGone = menu !== null && !rows.some((row) => row.entry.path === menu.entry.path);
+  useEffect(() => {
+    if (menuRowGone) setMenuOpen(false);
+  }, [menuRowGone, setMenuOpen]);
+
+  // The focus goes back where it was as the menu shuts, unless that went with
+  // its row: then to the row that took the gone one's place.
+  const returnFocusFromMenu = () => {
+    const origin = menuOrigin.current;
+    menuOrigin.current = null;
+    if (origin === null || origin.focused?.isConnected !== false || rows.length === 0) return true;
+    focusRow(Math.min(Math.max(origin.index, 0), rows.length - 1));
+    return false;
   };
 
   const rowActions = useRowActions({
@@ -449,10 +475,8 @@ export function VaultTree({
         anchor={menu?.anchor ?? null}
         openedBy={menu?.openedBy ?? 'pointer'}
         open={editing.menuOpen && menu !== null}
-        onOpenChange={(next) => {
-          editing.onMenuOpenChange(next);
-          if (!next) setMenu(null);
-        }}
+        onOpenChange={setMenuOpen}
+        onReturnFocus={returnFocusFromMenu}
       />
     </DndContext>
   );
@@ -489,82 +513,4 @@ function treeAnnouncements(byPath: ReadonlyMap<string, SidebarTreeRow>): Announc
     onDragEnd: ({ active, over }) => treeWords.end(name(active.id), folder(over?.id)),
     onDragCancel: ({ active }) => treeWords.cancel(name(active.id)),
   };
-}
-
-/**
- * One row's menu, opened from its "…" or by a right-click where the pointer is.
- * Open state, focus, typeahead and Escape are Base UI's (ADR-0015).
- */
-function EntryMenu({
-  items,
-  anchor,
-  openedBy,
-  open,
-  onOpenChange,
-}: {
-  items: readonly MenuCommand[];
-  anchor: MenuAnchor | null;
-  openedBy: MenuOpenedBy;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const chosen = useRef<MenuCommand | null>(null);
-  const popup = useRef<HTMLDivElement>(null);
-  const positioned =
-    anchor === null || anchor instanceof Element
-      ? anchor
-      : {
-          getBoundingClientRect: () =>
-            DOMRect.fromRect({ x: anchor.x, y: anchor.y, width: 0, height: 0 }),
-        };
-
-  return (
-    <Menu.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
-      <Menu.Portal>
-        <Menu.Positioner
-          className="menu-positioner"
-          anchor={positioned}
-          side="bottom"
-          align="start"
-          sideOffset={4}
-        >
-          <Menu.Popup
-            ref={popup}
-            className="menu"
-            aria-label="Page"
-            render={<ul />}
-            finalFocus={() => {
-              const returnFocus = chosen.current?.movesFocus !== true;
-              chosen.current = null;
-              return returnFocus;
-            }}
-          >
-            <MenuItems items={items} chosen={chosen} />
-            {openedBy === 'keyboard' && <FocusFirstItem popup={popup} />}
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
-  );
-}
-
-/**
- * Puts the focus on a menu's first item as it opens. The rows' menu is shared
- * and opened by its `open` prop rather than by a Base UI trigger (#244), so
- * Base UI never sees the key that opened it and would focus the popup instead.
- * Waiting a frame lets Base UI first mark the menu open, so it takes the
- * focused item as the one it is on, and note the "…" as where Escape gives
- * the focus back. Base UI's own initial focus, also a frame on, leaves the
- * focus alone once it is already inside the menu.
- */
-function FocusFirstItem({ popup }: { popup: RefObject<HTMLElement | null> }) {
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      popup.current
-        ?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')
-        ?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [popup]);
-  return null;
 }
