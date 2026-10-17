@@ -114,7 +114,7 @@ describe('InboxRows — deciding one row (#217)', () => {
     onClarify: vi.fn(async () => true),
   });
 
-  it('draws again only the row focus moves to, though the app hands over new callbacks', async () => {
+  it('draws no row again, though the app hands over new callbacks and focus moves on', async () => {
     const view = render(<InboxPage {...given(NOTES)} />);
     startCountingRenders();
     fireEvent.change(screen.getByRole('combobox', { name: 'File Larkspur sync under' }), {
@@ -127,7 +127,8 @@ describe('InboxRows — deciding one row (#217)', () => {
     const { renders } = stopCountingRenders();
 
     expect(document.activeElement?.textContent).toContain('Ledger review');
-    // The row the focus moved to, once; the three others not at all.
-    expect(renders['InboxRow']).toBe(1);
+    // Not even the row the focus moved to: its highlight is on the row the list
+    // places (#238), and the cells inside it are what each row costs to draw.
+    expect(renders['InboxRow'] ?? 0).toBe(0);
   });
 });

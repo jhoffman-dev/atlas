@@ -752,6 +752,12 @@ body {
   overflow: auto;
 }
 
+/* A page whose long lists are virtualised (#238): positioned, so a list can
+   read where it starts in the scroller from its offsets (\`scroll-margin.ts\`). */
+.panel__body--rows {
+  position: relative;
+}
+
 /* Where a hidden sidebar comes back from: the first panel's top-left corner,
    inside its header strip. */
 .shell__show {
@@ -11701,8 +11707,10 @@ form.inbox__clarify {
   margin-bottom: var(--space-2);
 }
 
-.today__group + .today__group {
-  margin-top: var(--space-3);
+/* Padding, not a margin between siblings: the page places only the groups
+   near what it shows (#238), by their measured heights, which leave margins out. */
+.today__group--after {
+  padding-top: var(--space-3);
 }
 
 .today__group-name {

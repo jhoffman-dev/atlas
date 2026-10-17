@@ -115,6 +115,9 @@ export function InboxPage(props: InboxPageProps) {
   const meetingProjects = props.meetingProjects ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
+  // An element, not a ref: the list inside it measures where it starts in it
+  // as it mounts, before an ancestor's ref would be attached.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   return (
     <>
       <PageBar
@@ -123,7 +126,7 @@ export function InboxPage(props: InboxPageProps) {
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
-      <div className="panel__body">
+      <div className="panel__body panel__body--rows" ref={setScroller}>
         <article className="page page--wide inbox" aria-label="Inbox">
           <PageHead
             icon="inbox"
@@ -156,7 +159,7 @@ export function InboxPage(props: InboxPageProps) {
           )}
           <LastAction {...props} />
           {proposals !== null && proposalsToShow(proposals) && <ProposalsSection {...proposals} />}
-          <InboxList {...props} />
+          <InboxList {...props} scroller={scroller} />
         </article>
       </div>
     </>
@@ -333,7 +336,8 @@ function InboxList({
   busy,
   refusals = NO_REFUSALS,
   summaryPending,
-}: InboxPageProps) {
+  scroller,
+}: InboxPageProps & { scroller: HTMLElement | null }) {
   if (error !== null) {
     return (
       <p className="table__error" role="alert">
@@ -352,9 +356,9 @@ function InboxList({
   return (
     <div className="table">
       <div className="table__sheet">
-        <table className="table__grid inbox__grid">
+        <table className="table__grid inbox__grid" aria-rowcount={contents.items.length + 1}>
           <thead>
-            <tr>
+            <tr aria-rowindex={1}>
               <th>Name</th>
               <th>Kind</th>
               <th>
@@ -372,6 +376,7 @@ function InboxList({
             busy={busy}
             refusals={refusals}
             {...(summaryPending !== undefined && { summaryPending })}
+            scroller={scroller}
           />
         </table>
         {contents.truncated && (

@@ -54,7 +54,7 @@ const fileUnderAtlas = (title: string) =>
   });
 
 describe('InboxRows — deciding any one row (#236)', () => {
-  it('draws at most the one row focus moves to, whichever row of N is decided', async () => {
+  it('draws no row’s cells again, whichever row of N is decided', async () => {
     const drawn: Record<string, number> = {};
     for (const decided of NOTES) {
       const view = render(<InboxPage {...given(NOTES)} />);
@@ -67,7 +67,8 @@ describe('InboxRows — deciding any one row (#236)', () => {
       view.unmount();
     }
 
-    expect(drawn).toEqual(Object.fromEntries(NOTES.map((each) => [each.title, 1])));
+    // The focus moving to the next row changes only the `<tr>` the list places (#238).
+    expect(drawn).toEqual(Object.fromEntries(NOTES.map((each) => [each.title, 0])));
   });
 
   it('decides two rows in quick succession, each for its own note, before the app reads again', async () => {
