@@ -37,8 +37,12 @@ const merged = (a: SyncRequest, b: SyncRequest): SyncRequest => ({
  * answered by the one sync after it: the asks join it, and settle with it.
  * Ten saves during a build cost one refresh, not ten.
  *
- * Asking for another vault starts a new lane at once; the syncer orders it
- * behind the old vault's sync and tells that one it is no longer wanted.
+ * Asking for another vault starts a new lane at once, beside the old one
+ * rather than behind it: each vault gets its own syncer, since its ports are
+ * its own. The old vault's sync sees its vault is no longer open, stops at its
+ * next batch, and publishes nothing; any write it still sends names its vault,
+ * which the host refuses once another vault is open (#135). What waited in
+ * the old lane runs only to find the same, and settles false.
  */
 export function createSyncQueue(run: (sync: QueuedSync) => Promise<boolean>): {
   ask(vault: string, request: SyncRequest): Promise<boolean>;

@@ -17,8 +17,9 @@ export interface IndexStatusState {
   readonly notes: number;
   /**
    * Moves when the index has news for its readers: a sync published changes,
-   * a build finished, or a refresh an own write asked for settled. A note
-   * count alone does not move when a note is edited rather than added.
+   * a build finished, a refresh an own write asked for settled, or a sync
+   * failed. A note count alone does not move when a note is edited rather
+   * than added.
    */
   readonly revision: number;
   /** Why the last sync failed, while `phase` is `failed`. */
@@ -76,14 +77,16 @@ export function useIndexFailure(store: IndexStatusStore, open: string | null): s
 }
 
 /**
- * What every reader of "the index moved" re-runs on: the phase while not
- * ready, and `ready:<revision>` once it is — so it changes only when the
- * revision does, not twice per refresh.
+ * What every reader of "the index moved" re-runs on: `ready:<revision>` once
+ * ready, and `failed:<revision>` while failing — a refresh that fails again
+ * still moves it, so an edit made while the index is broken still counts
+ * toward a push. Otherwise the phase. It changes only when the revision or
+ * the phase does, not twice per refresh.
  */
 export function useIndexKey(store: IndexStatusStore, open: string | null): string {
   return useStore(store, (state) => {
     const phase = phaseFor(state, open);
-    return phase === 'ready' ? `ready:${state.revision}` : phase;
+    return phase === 'ready' || phase === 'failed' ? `${phase}:${state.revision}` : phase;
   });
 }
 

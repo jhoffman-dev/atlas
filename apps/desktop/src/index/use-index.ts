@@ -174,8 +174,12 @@ export function useIndex({
         if (last()) settle(store, { notes: stats.notes, revision: revision.current });
         return true;
       } catch (cause) {
+        // Moved for every failure, so the window hears each edit the index could not take.
+        revision.current += 1;
         // A sync still to come has the last word; this failure is in the Activity log.
-        if (last()) store.setState({ phase: 'failed', message: message(cause) });
+        if (last()) {
+          store.setState({ phase: 'failed', message: message(cause), revision: revision.current });
+        }
         return false;
       }
     },
