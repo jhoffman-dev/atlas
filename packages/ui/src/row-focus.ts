@@ -52,8 +52,9 @@ function aimFor(key: string, index: number, stops: Stops): Aim {
 
 /** The line an aim names now; `last` is where it was, for a line that has gone. */
 function resolveAim(aim: Aim, last: number, stops: Stops): number | null {
-  if (aim.to === 'first') return stopFrom(0, 1, stops);
-  if (aim.to === 'last') return stopFrom(stops.count - 1, -1, stops);
+  if (aim.to !== 'line') {
+    return aim.to === 'first' ? stopFrom(0, 1, stops) : stopFrom(stops.count - 1, -1, stops);
+  }
   if (stops.stopKey(last) === aim.key) return last;
   for (let at = 0; at < stops.count; at += 1) {
     if (stops.stopKey(at) === aim.key) return at;
