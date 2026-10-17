@@ -680,7 +680,9 @@ function followedBy(shown: InboxListing, page: InboxListing): InboxListing {
  * Whether the index has moved on to the vault that is open. It starts on a
  * vault a render after that vault opens, so for that render it still says
  * `ready` with the last vault's rows: the key it had then is remembered, and
- * nothing is read, shown or written until it has changed.
+ * nothing is read, shown or written until it has changed. Once it has, every
+ * later key is this vault's — a re-index says `working` again, which may be
+ * the very key the switch was made under — so it stays moved on.
  */
 function useIndexMovedOn({
   vaultKey,
@@ -689,10 +691,17 @@ function useIndexMovedOn({
   vaultKey: string | null;
   indexKey: string;
 }): boolean {
-  const [opened, setOpened] = useState({ vaultKey, staleIndexKey: null as string | null });
+  const [opened, setOpened] = useState({
+    vaultKey,
+    staleIndexKey: null as string | null,
+    movedOn: false,
+  });
   if (opened.vaultKey !== vaultKey) {
-    setOpened({ vaultKey, staleIndexKey: indexKey });
+    setOpened({ vaultKey, staleIndexKey: indexKey, movedOn: false });
     return false;
   }
-  return indexKey !== opened.staleIndexKey;
+  if (opened.movedOn) return true;
+  if (indexKey === opened.staleIndexKey) return false;
+  setOpened({ ...opened, movedOn: true });
+  return true;
 }

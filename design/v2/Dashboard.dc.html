@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Progress dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; overflow: hidden; background: {{t.surface}}; color: {{t.ink}}; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 13px;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="d-chart" viewBox="0 0 24 24"><path d="M6 18v-6M11 18V7M16 18v-9M4 20.5h16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></symbol>
+<symbol id="d-filter" viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="d-star" viewBox="0 0 24 24"><path d="M12 4l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.4l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></symbol>
+<symbol id="d-more" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="6" cy="12" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="18" cy="12" r="1.5"></circle></g></symbol>
+<symbol id="d-table" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M4 10h16M10 10v9"></path></g></symbol>
+</svg>
+
+<dc-import name="Sidebar" theme="{{theme}}" active="progress" hint-size="224px,900px"></dc-import>
+
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 20px; border-bottom: 1px solid {{t.line}};">
+<svg width="15" height="15" style="color: {{t.ink3}};" aria-hidden="true"><use href="#d-chart"></use></svg>
+<span style="color: {{t.ink3}};">Dashboards</span>
+<span style="color: {{t.ink3}};">/</span>
+<span style="font-weight: 500;">Progress</span>
+<span style="margin-left: 8px; font-size: 12px; color: {{t.ink3}};">Every task on the Atlas board, by phase and status</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: {{t.ink2}}; font: inherit; font-size: 12.5px; display: flex; align-items: center; gap: 6px; padding: 0 8px; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#d-filter"></use></svg>Filter</button>
+<span style="font-size: 12px; color: {{t.ink3}}; margin: 0 6px;">Saved</span>
+<button type="button" aria-label="Add to favorites" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: {{t.ink3}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#d-star"></use></svg></button>
+<button type="button" aria-label="More" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: {{t.ink3}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="16" height="16" aria-hidden="true"><use href="#d-more"></use></svg></button>
+</header>
+
+<div style="height: 84px; flex-shrink: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-bottom: 1px solid {{t.line}};">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 20px; border-right: 1px solid {{k.edge}};">
+<span style="font-size: 11.5px; font-weight: 500; color: {{t.ink3}};">{{k.label}}</span>
+<span style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 24px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums;">{{k.value}}</span><span style="font-size: 12px; color: {{t.ink3}}; font-variant-numeric: tabular-nums;">{{k.sub}}</span></span>
+</div>
+</sc-for>
+</div>
+
+<div style="height: 340px; flex-shrink: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); border-bottom: 1px solid {{t.line}};">
+
+<section aria-label="Tasks per phase" style="display: flex; flex-direction: column; padding: 16px 20px 14px; border-right: 1px solid {{t.line}}; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 10px; height: 24px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Tasks per phase</h2>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: {{t.ink3}};"><span style="width: 8px; height: 8px; border-radius: 2px; background: {{t.barNow}};"></span>Current phase</span>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 12px; color: {{t.ink3}};">6 tasks have no phase</span>
+<button type="button" aria-label="Show as table" style="width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: {{t.ink3}}; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#d-table"></use></svg></button>
+</div>
+<div style="flex-grow: 1; display: flex; gap: 0; margin-top: 12px; min-height: 0;">
+<div style="width: 26px; height: 220px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: {{t.ink3}}; font-variant-numeric: tabular-nums; text-align: right; padding-right: 8px; box-sizing: border-box;">
+<span style="margin-top: -6px;">40</span><span>30</span><span>20</span><span>10</span><span style="margin-bottom: -6px;">0</span>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+<div style="height: 220px; display: flex; align-items: flex-end; gap: 0; border-bottom: 1px solid {{t.line2}}; background-image: linear-gradient({{t.grid}} 1px, transparent 1px); background-size: 100% 55px; background-position: 0 0;">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="17">
+<div title="{{b.tip}}" style="flex: 1 1 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px;">
+<span style="font-size: 11.5px; font-weight: 500; color: {{t.ink2}}; font-variant-numeric: tabular-nums;">{{b.label}}</span>
+<span style="width: 60%; max-width: 30px; height: {{b.h}}; background: {{b.fill}}; border-radius: 4px 4px 0 0;"></span>
+</div>
+</sc-for>
+</div>
+<div style="height: 26px; display: flex; align-items: center;">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="17">
+<span style="flex: 1 1 0; text-align: center; font-size: 11.5px; color: {{b.axisInk}}; font-weight: {{b.axisWeight}}; font-variant-numeric: tabular-nums;">{{b.phase}}</span>
+</sc-for>
+</div>
+</div>
+</div>
+</section>
+
+<section aria-label="By status" style="display: flex; flex-direction: column; gap: 14px; padding: 16px 20px 14px; min-width: 0;">
+<div style="display: flex; align-items: center; height: 24px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">By status</h2>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 12px; color: {{t.ink3}}; font-variant-numeric: tabular-nums;">186 tasks</span>
+</div>
+<div style="display: flex; gap: 2px; height: 10px;">
+<sc-for list="{{segments}}" as="s" hint-placeholder-count="3">
+<span title="{{s.tip}}" style="flex: {{s.flex}}; min-width: 4px; border-radius: 3px; background: {{s.dot}};"></span>
+</sc-for>
+</div>
+<div style="display: flex; flex-direction: column;">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 48px; height: 26px; align-items: center; font-size: 11.5px; font-weight: 500; color: {{t.ink3}}; border-bottom: 1px solid {{t.line}};">
+<span>Status</span><span style="text-align: right;">Tasks</span><span style="text-align: right;">Share</span>
+</div>
+<sc-for list="{{statusRows}}" as="s" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 48px; height: 34px; align-items: center; border-bottom: 1px solid {{t.lineSoft}}; font-variant-numeric: tabular-nums;">
+<span style="display: flex; align-items: center; gap: 8px; color: {{s.ink}};"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{s.dot}};"></span>{{s.label}}</span>
+<span style="text-align: right; color: {{s.ink}};">{{s.count}}</span>
+<span style="text-align: right; font-size: 12px; color: {{t.ink3}};">{{s.pct}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden;">
+
+<section aria-label="Largest phases" style="display: flex; flex-direction: column; padding: 16px 20px; border-right: 1px solid {{t.line}}; min-width: 0;">
+<div style="display: flex; align-items: center; height: 24px; margin-bottom: 6px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Largest phases</h2>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 12px; color: {{t.ink3}};">106 of 186 tasks</span>
+</div>
+<div style="display: grid; grid-template-columns: 64px minmax(0, 1fr) 44px; height: 26px; align-items: center; font-size: 11.5px; font-weight: 500; color: {{t.ink3}}; border-bottom: 1px solid {{t.line}};">
+<span>Phase</span><span>Share of tasks</span><span style="text-align: right;">Tasks</span>
+</div>
+<sc-for list="{{largest}}" as="p" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 64px minmax(0, 1fr) 44px; height: 34px; align-items: center; border-bottom: 1px solid {{t.lineSoft}}; font-variant-numeric: tabular-nums;">
+<span style="color: {{t.ink}};">{{p.name}}</span>
+<span style="display: flex; align-items: center; padding-right: 16px;"><span style="height: 6px; width: {{p.w}}; border-radius: 3px; background: {{p.fill}};"></span></span>
+<span style="text-align: right;">{{p.count}}</span>
+</div>
+</sc-for>
+</section>
+
+<section aria-label="Waiting for review" style="display: flex; flex-direction: column; padding: 16px 20px; border-right: 1px solid {{t.line}}; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 8px; height: 24px; margin-bottom: 6px;">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: {{t.dotReview}};"></span>
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Waiting for review</h2>
+<span style="font-size: 12px; color: {{t.ink3}};">2</span>
+</div>
+<sc-for list="{{review}}" as="r" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 2px; padding: 9px 0; border-bottom: 1px solid {{t.lineSoft}};">
+<span style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.title}}</span>
+<span style="font-size: 12px; color: {{t.ink3}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.meta}}</span>
+</div>
+</sc-for>
+</section>
+
+<section aria-label="Backlog" style="display: flex; flex-direction: column; padding: 16px 20px; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 8px; height: 24px; margin-bottom: 6px;">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: {{t.dotBacklog}};"></span>
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Backlog</h2>
+<span style="font-size: 12px; color: {{t.ink3}};">10</span>
+</div>
+<sc-for list="{{backlog}}" as="r" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; gap: 12px; height: 34px; border-bottom: 1px solid {{t.lineSoft}};">
+<span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.title}}</span>
+<span style="flex-shrink: 0; font-size: 12px; color: {{t.ink3}}; font-variant-numeric: tabular-nums;">{{r.meta}}</span>
+</div>
+</sc-for>
+<button type="button" style="align-self: flex-start; height: 30px; border: 0; background: transparent; padding: 0; font: inherit; font-size: 12px; color: {{t.ink3}}; cursor: pointer;">Show 5 more</button>
+</section>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  tokens(theme) {
+    if (theme === "dark") {
+      return { surface: "#18181B", ink: "#EDEDEF", ink2: "#B4B4BC", ink3: "#8E8E98", line: "#2A2A2F", lineSoft: "#24242A", line2: "#3A3A40", grid: "#232328",
+        bar: "#3F3F46", barNow: "#7EA2DD", dotReview: "#A595E3", dotBacklog: "#7C7C86",
+        status: { done: "#7DBF93", backlog: "#7C7C86", review: "#A595E3", next: "#6A90D6", doing: "#DDA54E" } };
+    }
+    return { surface: "#FFFFFF", ink: "#18181B", ink2: "#52525B", ink3: "#6B6B73", line: "#E6E6E9", lineSoft: "#ECECEF", line2: "#D4D4D8", grid: "#F1F1F3",
+      bar: "#D4D4D8", barNow: "#7EA2DD", dotReview: "#A595E3", dotBacklog: "#A1A1AA",
+      status: { done: "#7DBF93", backlog: "#A1A1AA", review: "#A595E3", next: "#6A90D6", doing: "#DDA54E" } };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? "light";
+    const t = this.tokens(theme);
+    const kpis = [
+      { label: "Tasks", value: "186", sub: "17 phases" },
+      { label: "Done", value: "174", sub: "94%" },
+      { label: "Waiting for review", value: "2", sub: "1%" },
+      { label: "Backlog", value: "10", sub: "5%" },
+      { label: "In flight", value: "0", sub: "next + doing" },
+      { label: "Current phase", value: "16", sub: "10 tasks" },
+    ].map((k, i, a) => ({ ...k, edge: i < a.length - 1 ? t.line : "transparent" }));
+    const perPhase = [5, 5, 6, 8, 7, 7, 7, 6, 6, 5, 7, 5, 29, 33, 22, 12, 10];
+    const top = Math.max(...perPhase);
+    const bars = perPhase.map((v, i) => {
+      const now = i === 16;
+      return {
+        phase: String(i), h: Math.round((v / 40) * 220) + "px",
+        fill: now ? t.barNow : t.bar, label: now || v === top ? String(v) : "",
+        tip: "Phase " + i + " · " + v + " tasks", axisInk: now ? t.ink : t.ink3, axisWeight: now ? "600" : "400",
+      };
+    });
+    const segments = [
+      { flex: "174 1 0", dot: t.status.done, tip: "Done · 174" },
+      { flex: "10 1 0", dot: t.status.backlog, tip: "Backlog · 10" },
+      { flex: "2 1 0", dot: t.status.review, tip: "Review · 2" },
+    ];
+    const statusRows = [
+      { label: "Done", count: "174", pct: "94%", dot: t.status.done, ink: t.ink },
+      { label: "Backlog", count: "10", pct: "5%", dot: t.status.backlog, ink: t.ink },
+      { label: "Review", count: "2", pct: "1%", dot: t.status.review, ink: t.ink },
+      { label: "Next", count: "0", pct: "0%", dot: t.status.next, ink: t.ink3 },
+      { label: "Doing", count: "0", pct: "0%", dot: t.status.doing, ink: t.ink3 },
+    ];
+    const largest = [["Phase 13", 33], ["Phase 12", 29], ["Phase 14", 22], ["Phase 15", 12], ["Phase 16", 10]].map(([name, n]) => ({
+      name, count: String(n), w: Math.round((n / 33) * 100) + "%", fill: name === "Phase 16" ? t.barNow : t.bar,
+    }));
+    const review = [
+      { title: "Phase 16 — The look, rebuilt", meta: "P16 · 1w · James, 2026-09-22: “go ahead and rebuild…”" },
+      { title: "The UI doesn’t look good, or close to the reference images", meta: "From you · James, 2026-09-22: “When I get back home, I will assess…”" },
+    ];
+    const backlog = [
+      { title: "addDays hands back its input when it cannot move, and says nothing", meta: "P14 · 1h" },
+      { title: "Cmd+N and Shift+Cmd+D still fire behind an open palette", meta: "P14 · 1h" },
+      { title: "Leftovers from A15-02: templates in views, short query pages, create races", meta: "P15 · 3h" },
+      { title: "Drag to resize and reorder widgets", meta: "" },
+      { title: "new-note.spec reads the file once instead of waiting for it", meta: "" },
+    ];
+    return { theme, t, kpis, bars, segments, statusRows, largest, review, backlog };
+  }
+}
+</script>
+</body>
+</html>

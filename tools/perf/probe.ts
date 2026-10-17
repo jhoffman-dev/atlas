@@ -160,15 +160,26 @@ export async function measure<Arg>(
   }, settle);
 }
 
-/** Waits until no host command is in flight and none has ended for `QUIET_MS`, or the limit passes. */
+/**
+ * Waits until no host command is in flight, and none has ended nor (with the
+ * render counter on) React committed for `QUIET_MS`, or the limit passes.
+ * Polled in the page, on its own timers, so a timer the app set to fire
+ * sooner than that runs first however busy the machine is.
+ */
 async function waitUntilQuiet(page: Page): Promise<void> {
   await page.waitForFunction(
     ({ quiet, limit }) => {
       const perf = (window as unknown as ProbeWindow).__perf;
+      const counter = (window as unknown as { __renderCounter?: { lastCommitAt: number | null } })
+        .__renderCounter;
       const now = performance.now();
       if (now - (perf.armedAt ?? now) > limit) return true;
       if (perf.calls.some((call) => call.end === null)) return false;
-      const lastEnd = Math.max(perf.readyAt ?? 0, ...perf.calls.map((call) => call.end ?? 0));
+      const lastEnd = Math.max(
+        perf.readyAt ?? 0,
+        counter?.lastCommitAt ?? 0,
+        ...perf.calls.map((call) => call.end ?? 0),
+      );
       return now - lastEnd >= quiet;
     },
     { quiet: QUIET_MS, limit: SETTLE_LIMIT_MS },
