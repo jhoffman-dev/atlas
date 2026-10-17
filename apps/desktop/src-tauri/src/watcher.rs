@@ -4,13 +4,13 @@
 //! can change it at any moment. The watcher reports what changed and nothing more;
 //! deciding what to do about it happens in TypeScript.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::vault::{off_main, VaultState};
 
@@ -45,17 +45,19 @@ fn to_relative(root: &Path, path: &Path) -> Option<String> {
 /// Off the main thread: registering a recursive watch on a large vault takes
 /// as long as the vault is big.
 #[tauri::command]
-pub async fn watch_vault(app: AppHandle, vault: State<'_, VaultState>) -> Result<(), String> {
-    let root = vault.root().ok_or("no vault is open")?;
-    off_main(move || watch(app, root)).await
+pub async fn watch_vault(app: AppHandle) -> Result<(), String> {
+    off_main(move || watch(app)).await
 }
 
-/// Replaces the watch with one on `root`. The watch held is locked from start
-/// to end, so two calls never interleave, and the old watch is dropped — its
-/// thread ends — when the new one is stored.
-fn watch(app: AppHandle, root: PathBuf) -> Result<(), String> {
+/// Replaces the watch with one on the open vault. The watch held is locked
+/// from start to end, so two calls never interleave, and the vault is read
+/// once the lock is held, so the call that stores its watch last watches the
+/// vault open then. The old watch is dropped — its thread ends — when the new
+/// one is stored.
+fn watch(app: AppHandle) -> Result<(), String> {
     let watcher = app.state::<WatcherState>();
     let mut current = watcher.0.lock().map_err(|_| "watcher state poisoned")?;
+    let root = app.state::<VaultState>().root().ok_or("no vault is open")?;
     let (sender, receiver) = channel();
 
     let mut handle: RecommendedWatcher =

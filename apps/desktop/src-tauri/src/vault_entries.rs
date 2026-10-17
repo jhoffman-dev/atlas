@@ -9,9 +9,9 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-use tauri::State;
+use tauri::{AppHandle, Manager};
 
-use crate::vault::{off_main, one_change_at_a_time, resolve_new, root_for_write, VaultState};
+use crate::vault::{change_in_vault, change_turn, off_main, resolve_new, VaultState};
 
 /// An entry that is already there, as itself: a link is the link, not what it
 /// points at.
@@ -45,6 +45,7 @@ fn contains(folder: &Path, inside: &Path) -> bool {
 
 /// Creates an empty folder, refusing when anything already has the name.
 pub(crate) fn create_folder_at(root: &Path, relative: &str) -> Result<(), String> {
+    let _turn = change_turn();
     let folder = resolve_new(root, relative)?;
     fs::create_dir(&folder).map_err(|error| match error.kind() {
         std::io::ErrorKind::AlreadyExists => "something with that name is already there".into(),
@@ -59,6 +60,7 @@ pub(crate) fn create_folder_at(root: &Path, relative: &str) -> Result<(), String
 /// spelled in another case is a rename of that one entry, which a
 /// case-insensitive disk would otherwise report as a collision with itself.
 pub(crate) fn move_entry_at(root: &Path, from: &str, to: &str) -> Result<(), String> {
+    let _turn = change_turn();
     let source = resolve_entry(root, from)?;
     let target = resolve_new(root, to)?;
 
@@ -165,6 +167,7 @@ pub(crate) fn trash_entry_at(
     relative: &str,
     trash: impl FnOnce(&Path) -> Result<(), String>,
 ) -> Result<(), String> {
+    let _turn = change_turn();
     let entry = resolve_entry(root, relative)?;
     trash(&entry)
 }
@@ -186,14 +189,11 @@ fn system_trash(entry: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn create_folder(
-    state: State<'_, VaultState>,
-    path: String,
-    vault: String,
-) -> Result<(), String> {
-    let root = root_for_write(state.get(), Some(&vault))?;
+pub async fn create_folder(app: AppHandle, path: String, vault: String) -> Result<(), String> {
     off_main(move || {
-        one_change_at_a_time(|| create_folder_at(&root, &path))?;
+        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            create_folder_at(root, &path)
+        })?;
         log::info!("created folder {path}");
         Ok(())
     })
@@ -202,14 +202,15 @@ pub async fn create_folder(
 
 #[tauri::command]
 pub async fn move_entry(
-    state: State<'_, VaultState>,
+    app: AppHandle,
     from: String,
     to: String,
     vault: String,
 ) -> Result<(), String> {
-    let root = root_for_write(state.get(), Some(&vault))?;
     off_main(move || {
-        one_change_at_a_time(|| move_entry_at(&root, &from, &to))?;
+        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            move_entry_at(root, &from, &to)
+        })?;
         log::info!("moved {from} to {to}");
         Ok(())
     })
@@ -217,14 +218,11 @@ pub async fn move_entry(
 }
 
 #[tauri::command]
-pub async fn trash_entry(
-    state: State<'_, VaultState>,
-    path: String,
-    vault: String,
-) -> Result<(), String> {
-    let root = root_for_write(state.get(), Some(&vault))?;
+pub async fn trash_entry(app: AppHandle, path: String, vault: String) -> Result<(), String> {
     off_main(move || {
-        one_change_at_a_time(|| trash_entry_at(&root, &path, system_trash))?;
+        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+            trash_entry_at(root, &path, system_trash)
+        })?;
         log::info!("moved {path} to the Trash");
         Ok(())
     })
