@@ -306,11 +306,15 @@ test('picks a repository from the GitHub list, then sends and brings in changes 
   await emitVaultChanged(page, ['Welcome.md']);
   // The edit counts from when the index has taken it, which can land after a
   // jump of the clock made at once (#238). So the clock moves on ten seconds a
-  // look, and the push is waited for in the app's time, not the test's.
+  // look, at most four times: the push must come within 40 s of the app's time.
+  let moved = 0;
   await expect
     .poll(
       async () => {
-        await page.clock.fastForward('00:10');
+        if (moved < 4) {
+          moved += 1;
+          await page.clock.fastForward('00:10');
+        }
         return (await gitIn(remote, ['show', 'master:Welcome.md'], host.git.env)).stdout;
       },
       { intervals: [250], timeout: 15_000 },
