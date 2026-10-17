@@ -16,7 +16,10 @@ use std::path::Path;
 use tauri::ipc::{InvokeBody, Request};
 use tauri::State;
 
-use crate::vault::{resolve, resolve_new, root_for_write, VaultState, MAX_BINARY_BYTES};
+use crate::vault::{
+    off_main, one_change_at_a_time, resolve, resolve_new, root_for_write, VaultState,
+    MAX_BINARY_BYTES,
+};
 
 /// The headers the frontend names the write in, percent-encoded, since a
 /// header carries only ASCII. `tauri-vault-fs.ts` sends the same names.
@@ -138,8 +141,12 @@ pub(crate) fn header(request: &Request<'_>, name: &str) -> Result<Option<String>
 
 /// Writes the raw body into a file of the open vault. The path, the offset
 /// and the vault the write is meant for arrive as headers.
+///
+/// The body is borrowed from the request, which cannot leave this call, so it
+/// is copied once to be written on the blocking pool; a copy in memory is far
+/// cheaper than the write that would otherwise hold the window.
 #[tauri::command]
-pub fn write_binary_file(
+pub async fn write_binary_file(
     state: State<'_, VaultState>,
     request: Request<'_>,
 ) -> Result<u64, String> {
@@ -158,13 +165,19 @@ pub fn write_binary_file(
     }
 
     let root = root_for_write(state.get(), vault.as_deref())?;
-    let length = if replace {
-        replace_binary_at(&root, &path, bytes)?
-    } else {
-        write_binary_at(&root, &path, bytes, offset)?
-    };
-    log::info!("wrote {path} ({length} bytes)");
-    Ok(length)
+    let bytes = bytes.clone();
+    off_main(move || {
+        let length = one_change_at_a_time(|| {
+            if replace {
+                replace_binary_at(&root, &path, &bytes)
+            } else {
+                write_binary_at(&root, &path, &bytes, offset)
+            }
+        })?;
+        log::info!("wrote {path} ({length} bytes)");
+        Ok(length)
+    })
+    .await
 }
 
 #[cfg(test)]

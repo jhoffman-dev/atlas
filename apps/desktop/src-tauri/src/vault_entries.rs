@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use tauri::State;
 
-use crate::vault::{resolve_new, root_for_write, VaultState};
+use crate::vault::{off_main, one_change_at_a_time, resolve_new, root_for_write, VaultState};
 
 /// An entry that is already there, as itself: a link is the link, not what it
 /// points at.
@@ -186,41 +186,49 @@ fn system_trash(entry: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn create_folder(
+pub async fn create_folder(
     state: State<'_, VaultState>,
     path: String,
     vault: String,
 ) -> Result<(), String> {
-    create_folder_at(&root_for_write(state.get(), Some(&vault))?, &path)?;
-    log::info!("created folder {path}");
-    Ok(())
+    let root = root_for_write(state.get(), Some(&vault))?;
+    off_main(move || {
+        one_change_at_a_time(|| create_folder_at(&root, &path))?;
+        log::info!("created folder {path}");
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn move_entry(
+pub async fn move_entry(
     state: State<'_, VaultState>,
     from: String,
     to: String,
     vault: String,
 ) -> Result<(), String> {
-    move_entry_at(&root_for_write(state.get(), Some(&vault))?, &from, &to)?;
-    log::info!("moved {from} to {to}");
-    Ok(())
+    let root = root_for_write(state.get(), Some(&vault))?;
+    off_main(move || {
+        one_change_at_a_time(|| move_entry_at(&root, &from, &to))?;
+        log::info!("moved {from} to {to}");
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn trash_entry(
+pub async fn trash_entry(
     state: State<'_, VaultState>,
     path: String,
     vault: String,
 ) -> Result<(), String> {
-    trash_entry_at(
-        &root_for_write(state.get(), Some(&vault))?,
-        &path,
-        system_trash,
-    )?;
-    log::info!("moved {path} to the Trash");
-    Ok(())
+    let root = root_for_write(state.get(), Some(&vault))?;
+    off_main(move || {
+        one_change_at_a_time(|| trash_entry_at(&root, &path, system_trash))?;
+        log::info!("moved {path} to the Trash");
+        Ok(())
+    })
+    .await
 }
 
 #[cfg(test)]
