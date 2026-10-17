@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { journalText, type GitConflict } from '@atlas/domain';
-import { fakeBlob, memorySyncFiles, said, scriptedGit } from '../testing/fake-git.ts';
+import { failed, fakeBlob, memorySyncFiles, said, scriptedGit } from '../testing/fake-git.ts';
 import { fakeMarkdown, fakeVaultFs } from '../testing/fake-ports.ts';
 import { mergeHeadOf, recordMerge, settleConflicts } from './settle-conflicts.ts';
 
@@ -284,7 +284,7 @@ describe('settleConflicts', () => {
     });
     expect(copies).toEqual([]);
     expect(called('checkout').map(({ args }) => args)).toEqual([
-      { side: 'theirs', path: 'Edited there.md' },
+      { side: 'theirs', path: 'Edited there.md', seen: null },
     ]);
   });
 
@@ -300,5 +300,93 @@ describe('settleConflicts', () => {
       settings,
     });
     expect(called('checkout')).toHaveLength(0);
+  });
+
+  // #246: the sync looks at a file, then writes over it. A save the person
+  // makes between the two is theirs, and the host refuses the write.
+  it('keeps a save made between looking at a conflicted file and writing this Mac’s side', async () => {
+    const marked = '<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> origin/main\n';
+    const typed = 'saved while the sync looked\n';
+    const sides = { ours: 'mine\n', theirs: 'theirs\n' };
+    const c = conflict('Ideas.md', 'UU', sides);
+    const vault = new Map([['Ideas.md', marked]]);
+    const { git, called } = scriptedGit({
+      script: {
+        mergeInProgress: said(`${MERGE_HEAD}\n`),
+        // The look sees the merge's markers; the save lands right after it.
+        hashFile: (path: string) => {
+          const text = vault.get(path);
+          if (path === 'Ideas.md') vault.set(path, typed);
+          return text === undefined ? failed('no such file', 128) : said(`${fakeBlob(text)}\n`);
+        },
+      },
+      vault,
+      sides: { 'Ideas.md': sides },
+    });
+    const { port: files } = memorySyncFiles({ 'journal.json': planned(c, marked) });
+    const copies = await settleConflicts({
+      git,
+      files,
+      conflicts: [c],
+      mac: 'Laptop',
+      leftOut: NOTHING_LEFT_OUT,
+      settings,
+    });
+    expect(called('checkout').map(({ args }) => args)).toEqual([
+      { side: 'ours', path: 'Ideas.md', seen: fakeBlob(marked) },
+    ]);
+    expect(vault.get('Ideas.md')).toBe(typed);
+    expect(copies).toEqual([
+      { path: 'Ideas.md', copy: 'Ideas (conflict from Laptop).md', whose: 'theirs' },
+    ]);
+  });
+
+  it('keeps a file this Mac made between the sync finding none and writing the other Mac’s', async () => {
+    const vault = new Map<string, string>();
+    const { git, called } = scriptedGit({
+      script: {
+        hashFile: (path: string) => {
+          vault.set(path, 'made while the sync looked');
+          return failed('no such file', 128);
+        },
+      },
+      vault,
+      // A checkout let through would write the other Mac's text over it.
+      sides: { 'Made since.md': { ours: '', theirs: 'theirs' } },
+    });
+    const { port: files } = memorySyncFiles();
+    await settleConflicts({
+      git,
+      files,
+      conflicts: [conflict('Made since.md', 'DU', { theirs: 'theirs' })],
+      mac: 'Laptop',
+      leftOut: NOTHING_LEFT_OUT,
+      settings,
+    });
+    expect(called('checkout').map(({ args }) => args)).toEqual([
+      { side: 'theirs', path: 'Made since.md', seen: null },
+    ]);
+    expect(vault.get('Made since.md')).toBe('made while the sync looked');
+  });
+
+  it('still stops when a checkout fails for any other reason', async () => {
+    const { git } = scriptedGit({
+      script: {
+        checkout: () => {
+          throw new Error('the host is gone');
+        },
+      },
+    });
+    const { port: files } = memorySyncFiles();
+    await expect(
+      settleConflicts({
+        git,
+        files,
+        conflicts: [conflict('Edited there.md', 'DU', { theirs: 'theirs' })],
+        mac: 'Laptop',
+        leftOut: NOTHING_LEFT_OUT,
+        settings,
+      }),
+    ).rejects.toThrow('the host is gone');
   });
 });

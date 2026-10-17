@@ -1,11 +1,12 @@
 import { createVaultPath, parentVaultPath, vaultPathName, type VaultEntry } from '@atlas/domain';
-import type {
-  GitFoldersPort,
-  GitPort,
-  GitResult,
-  SyncFileName,
-  SleepClockPort,
-  SyncFilesPort,
+import {
+  FileChangedError,
+  type GitFoldersPort,
+  type GitPort,
+  type GitResult,
+  type SyncFileName,
+  type SleepClockPort,
+  type SyncFilesPort,
 } from '../sync/ports.ts';
 import type { VaultFsPort, VaultLocation } from '../vault/ports.ts';
 
@@ -272,10 +273,17 @@ export function scriptedGit({
     remoteSubject: async (branch) =>
       answer('remoteSubject', branch, said('Atlas sync from Laptop 2026-09-28 13:00\n')),
     remoteBranchExists: async (branch) => answer('remoteBranchExists', branch, OK),
+    // As the host does, writes only over the file the sync saw (#246).
     checkout: async (args) => {
+      const now = vault?.get(args.path);
+      if (vault !== undefined && args.seen !== (now === undefined ? null : fakeBlob(now))) {
+        calls.push({ method: 'checkout', args });
+        throw new FileChangedError(`changed: ${args.path} changed since the sync looked at it`);
+      }
+      const result = answer('checkout', args, OK);
       const side = sides[args.path];
       if (side !== undefined && vault !== undefined) vault.set(args.path, side[args.side]);
-      return answer('checkout', args, OK);
+      return result;
     },
     config: async (key) => answer('config', key, said('James\n')),
     createGitHubRepository: async (name) => answer('createGitHubRepository', name, OK),
