@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { isMarkdownFile, type SidebarTreeRow, type VaultPath } from '@atlas/domain';
+import {
+  isMarkdownFile,
+  type SidebarTreeRow,
+  type VaultEntry,
+  type VaultPath,
+} from '@atlas/domain';
 import { Icon, sidebarGlyph } from './icon.tsx';
 import { FavoriteStar } from './favorite-star.tsx';
 import { isImeKey } from './ime.ts';
+import { sameEntries } from './steady-value.ts';
 
 const DROP_PREFIX = 'into:';
 
@@ -18,21 +24,46 @@ export function folderOfDropId(id: string): VaultPath | undefined {
 /** Where a row sits and how it is drawn — everything the virtualiser decides. */
 export interface RowPlacement {
   readonly index: number;
-  readonly style: CSSProperties;
+  /** How far down the tree the row is placed, in pixels. */
+  readonly top: number;
+  readonly height: number;
+  /** How far the row is set in, in pixels. */
+  readonly indent: number;
   readonly tabbable: boolean;
   readonly selected: boolean;
 }
 
-/** What a row can do beyond opening: the menu, naming in place, being dragged. */
+/** What a row can be while Pages is editable: being named in place, or a place to drop. */
 export interface RowEditing {
-  /** Opens the row's menu, anchored to the element or the point it was asked from. */
-  readonly onMenu: (anchor: Element | { x: number; y: number }) => void;
   /** Whether this row is being named in place. */
   readonly renaming: boolean;
-  readonly onRename: (name: string) => void;
-  readonly onCancelRename: () => void;
   /** Whether what is held can be dropped here; false for anything but a folder. */
   readonly accepts: boolean;
+}
+
+/**
+ * What every row can do, the same object for every row and from one render
+ * to the next, so a row draws again only for a change of its own (#238).
+ */
+export interface TreeRowActions {
+  readonly onActivate: (row: SidebarTreeRow) => void;
+  /** Moves the tab order to the row. */
+  readonly onFocusRow: (path: VaultPath) => void;
+  readonly onToggleFavorite: (path: VaultPath) => void;
+  /** Opens the row's menu, anchored to the element or the point it was asked from. */
+  readonly onMenu: (entry: VaultEntry, anchor: Element | { x: number; y: number }) => void;
+  readonly onRename: (args: { entry: VaultEntry; name: string }) => void;
+  readonly onCancelRename: () => void;
+}
+
+/** One row as the tree hands it over. */
+export interface VaultTreeRowProps {
+  readonly row: SidebarTreeRow;
+  readonly placement: RowPlacement;
+  /** Null while the tree only opens and expands: no menu, no naming, no drag. */
+  readonly editing: RowEditing | null;
+  readonly starred: boolean;
+  readonly actions: TreeRowActions;
 }
 
 /**
@@ -41,24 +72,19 @@ export interface RowEditing {
  * A pointer picks it up from anywhere on the row and Space picks it up from
  * the keyboard; a press that travels less than a few pixels is still a click.
  * A folder is also a drop target, lit while something it accepts is over it.
+ *
+ * Drawn again only when what it shows changes: the sidebar is drawn again for
+ * everything the window does, and every row with it was most of what opening
+ * a note drew (#238). Its placement and editing state are compared field by
+ * field, since the tree works them out afresh for each row it draws.
  */
-export function VaultTreeRow({
+export const VaultTreeRow = memo(function VaultTreeRow({
   row,
   placement,
   editing,
   starred,
-  onActivate,
-  onFocusRow,
-  onToggleFavorite,
-}: {
-  row: SidebarTreeRow;
-  placement: RowPlacement;
-  editing: RowEditing | null;
-  starred: boolean;
-  onActivate: () => void;
-  onFocusRow: () => void;
-  onToggleFavorite: () => void;
-}) {
+  actions,
+}: VaultTreeRowProps) {
   const path = row.entry.path;
   // The Archive's row opens a page rather than a level of the tree.
   const isDirectory = row.entry.kind === 'directory' && !row.opensArchive;
@@ -92,30 +118,38 @@ export function VaultTreeRow({
       aria-describedby={editing === null ? undefined : drag.attributes['aria-describedby']}
       tabIndex={placement.tabbable ? 0 : -1}
       className={classes.join(' ')}
-      style={placement.style}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: placement.height,
+        transform: `translateY(${placement.top}px)`,
+        paddingLeft: placement.indent,
+      }}
       {...(editing !== null && !renaming && drag.listeners)}
       onFocus={(event) => {
         // React's onFocus bubbles, so the star inside the row reports here
         // too: it is the row's turn only when the row itself was focused.
-        if (event.target === event.currentTarget) onFocusRow();
+        if (event.target === event.currentTarget) actions.onFocusRow(path);
       }}
       onClick={() => {
         if (renaming) return;
-        onFocusRow();
-        onActivate();
+        actions.onFocusRow(path);
+        actions.onActivate(row);
       }}
       onContextMenu={(event) => {
         if (editing === null) return;
         event.preventDefault();
-        editing.onMenu({ x: event.clientX, y: event.clientY });
+        actions.onMenu(row.entry, { x: event.clientX, y: event.clientY });
       }}
     >
       <Icon name={sidebarGlyph(row.icon)} className="sidebar__icon" />
       {renaming && editing !== null ? (
         <RenameField
           name={row.label}
-          onRename={editing.onRename}
-          onCancel={editing.onCancelRename}
+          onRename={(name) => actions.onRename({ entry: row.entry, name })}
+          onCancel={actions.onCancelRename}
         />
       ) : (
         <span className="tree__name">{row.label}</span>
@@ -125,7 +159,7 @@ export function VaultTreeRow({
         <FavoriteStar
           name={row.label}
           favorite={starred}
-          onToggle={onToggleFavorite}
+          onToggle={() => actions.onToggleFavorite(path)}
           tabbable={placement.tabbable}
         />
       )}
@@ -135,10 +169,24 @@ export function VaultTreeRow({
         <MoreButton
           label={row.label}
           tabbable={placement.tabbable}
-          onOpen={(event) => editing.onMenu(event.currentTarget)}
+          onOpen={(event) => actions.onMenu(row.entry, event.currentTarget)}
         />
       )}
     </div>
+  );
+}, sameTreeRow);
+
+/** Whether a row would draw the same as it did. */
+function sameTreeRow(before: VaultTreeRowProps, after: VaultTreeRowProps): boolean {
+  return (
+    before.row === after.row &&
+    before.starred === after.starred &&
+    before.actions === after.actions &&
+    sameEntries(before.placement, after.placement) &&
+    (before.editing === after.editing ||
+      (before.editing !== null &&
+        after.editing !== null &&
+        sameEntries(before.editing, after.editing)))
   );
 }
 

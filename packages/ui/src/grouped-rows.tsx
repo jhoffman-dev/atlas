@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  type KeyboardEvent,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   columnSummary,
@@ -47,6 +40,19 @@ export interface SummaryColumn {
 /** Heights the virtualiser places lines by, matching the stylesheet's. */
 const LINE_HEIGHT: Readonly<Record<GroupLine['kind'], number>> = { group: 44, row: 44, new: 38 };
 
+/** The height a table row is placed by until it is measured. */
+export const ROW_ESTIMATE = LINE_HEIGHT.row;
+
+/**
+ * A body line's `aria-rowindex`: the heading row is the table's first. A
+ * virtualised table leaves most of its rows out of the page, so each row
+ * says where it sits, and the table how many rows it has (`aria-rowcount`).
+ */
+export const ariaRowIndex = (index: number): number => index + 2;
+
+/** The scroller's size before it is measured: jsdom reports a zero-height one, which would draw no lines at all. */
+export const SCROLLER_ESTIMATE = { width: 960, height: 880 };
+
 /**
  * A table's rows in their groups and sub-groups, as Coda draws them: each
  * group a full-width header row — disclosure arrow, the value (a pill for a
@@ -57,8 +63,27 @@ const LINE_HEIGHT: Readonly<Record<GroupLine['kind'], number>> = { group: 44, ro
  * a folded group is a header and nothing else. Up and Down move between the
  * headers; Enter and Space fold one, as a button does.
  */
+/**
+ * The lines a grouped table draws, its header rows among them: worked out by
+ * the table, which says how many rows it has, and handed to `GroupedRows`.
+ */
+export function useGroupLines(grouping: TableGrouping | undefined): readonly GroupLine[] {
+  const groups = grouping?.groups;
+  const collapsed = grouping?.collapsed;
+  const adds = grouping?.onNew !== undefined;
+  // Without a way to add a note there is no "+ New" line to make room for.
+  return useMemo(
+    () =>
+      groups === undefined || collapsed === undefined
+        ? []
+        : groupLines({ groups, collapsed }).filter((line) => adds || line.kind !== 'new'),
+    [groups, collapsed, adds],
+  );
+}
+
 export function GroupedRows({
   grouping,
+  lines,
   columns,
   lead,
   noun,
@@ -67,6 +92,8 @@ export function GroupedRows({
   scroller,
 }: {
   grouping: TableGrouping;
+  /** The lines `useGroupLines` worked out for `grouping`. */
+  lines: readonly GroupLine[];
   /** The shown columns in order, the name first. */
   columns: readonly SummaryColumn[];
   /** Cells each row leads with before its name: a choose box, a done box. */
@@ -76,25 +103,16 @@ export function GroupedRows({
   /** "New task". */
   newLabel: string;
   renderRow: (row: BoardRow, place: LinePlace) => ReactNode;
-  /** The element the table scrolls in. */
-  scroller: RefObject<HTMLElement | null>;
+  /** The element the table scrolls in; null until it is in the page. */
+  scroller: HTMLElement | null;
 }) {
-  const { groups, collapsed, onToggle, onNew } = grouping;
-  // Without a way to add a note there is no "+ New" line to make room for.
-  const lines = useMemo(
-    () =>
-      groupLines({ groups, collapsed }).filter(
-        (line) => onNew !== undefined || line.kind !== 'new',
-      ),
-    [groups, collapsed, onNew],
-  );
+  const { onToggle, onNew } = grouping;
   const virtualizer = useVirtualizer({
     count: lines.length,
-    getScrollElement: () => scroller.current,
+    getScrollElement: () => scroller,
     estimateSize: (index) => LINE_HEIGHT[lines[index]?.kind ?? 'row'],
     overscan: 12,
-    // jsdom reports a zero-height scroller, which would draw no lines at all.
-    initialRect: { width: 960, height: 880 },
+    initialRect: SCROLLER_ESTIMATE,
   });
   const focus = useHeaderFocus(lines, (index) => virtualizer.scrollToIndex(index));
 
@@ -147,7 +165,7 @@ export function GroupedRows({
 }
 
 /** Room for the lines scrolled out of the page, so the scrollbar stays true. */
-function Spacer({ height, width }: { height: number; width: number }) {
+export function Spacer({ height, width }: { height: number; width: number }) {
   return (
     <tr aria-hidden="true" className="table__spacer">
       <td colSpan={width} style={{ height }} />
@@ -177,7 +195,12 @@ function GroupHeader({
   const { group, depth, collapsed } = line;
   const count = group.rows.length;
   return (
-    <tr className={`table__group table__group--depth-${depth}`} ref={measure} data-index={index}>
+    <tr
+      className={`table__group table__group--depth-${depth}`}
+      ref={measure}
+      data-index={index}
+      aria-rowindex={ariaRowIndex(index)}
+    >
       <td colSpan={lead + 1} className="table__group-cell">
         <button
           ref={buttonRef}
@@ -231,7 +254,12 @@ function NewLine({
 }) {
   const where = line.chain.map((group) => group.label).join(' · ');
   return (
-    <tr className="table__group-new" ref={measure} data-index={index}>
+    <tr
+      className="table__group-new"
+      ref={measure}
+      data-index={index}
+      aria-rowindex={ariaRowIndex(index)}
+    >
       <td colSpan={width}>
         <button
           type="button"

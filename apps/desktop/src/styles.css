@@ -4188,6 +4188,9 @@ ul.sidebar__sections {
   border-radius: 18px;
   box-shadow: var(--shadow-soft);
   overflow: auto;
+  /* A row the arrow keys focus is scrolled clear of the sticky headings
+     (.table__grid th: 40px and its 1px rule), not under them (#244). */
+  scroll-padding-top: 41px;
 }
 
 .table__grid {
