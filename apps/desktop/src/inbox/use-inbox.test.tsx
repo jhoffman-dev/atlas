@@ -168,6 +168,22 @@ describe('useInbox — a vault switch', () => {
     await waitFor(() => expect(listed()).toEqual(['Order seeds']));
   });
 
+  it('keeps the new vault’s rows up when its index re-reads under the key it switched on', async () => {
+    const { hook, initial, listed } = inbox();
+    await waitFor(() => expect(listed()).toEqual(['Call the bank']));
+    // The index had already started on the new vault when the switch rendered.
+    const working = { ...initial, vaultKey: '/vaults/b', indexKey: 'working', indexReady: false };
+    hook.rerender(working);
+    const fresh = { ...initial.ports, index: listingIndex(['Order seeds']) };
+    hook.rerender({ ...working, ports: fresh, indexKey: 'ready:2', indexReady: true });
+    await waitFor(() => expect(listed()).toEqual(['Order seeds']));
+
+    // The same vault re-indexes: 'working' again, the key the switch was made under.
+    hook.rerender({ ...working, ports: fresh });
+
+    expect(listed()).toEqual(['Order seeds']);
+  });
+
   it('clarifies nothing in the window before the new vault is read', async () => {
     const { hook, initial, files, listed } = inbox();
     await waitFor(() => expect(listed()).toEqual(['Call the bank']));

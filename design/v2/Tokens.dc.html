@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Atlas tokens and rules</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1440px; box-sizing: border-box; padding: 48px 56px; display: flex; flex-direction: column; gap: 36px; background: #FFFFFF; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 13px;">
+
+<div style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 20px; border-bottom: 1px solid #E6E6E9;">
+<h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em;">Atlas — Dense &amp; Calm</h1>
+<span style="font-size: 13px; color: #6B6B73;">Tokens, sizes and rules for the Board and All tasks mockups</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px;">
+
+<section style="display: flex; flex-direction: column; gap: 10px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Neutrals</h2>
+<div style="display: grid; grid-template-columns: 52px 76px 76px minmax(0, 1fr); align-items: center; height: 24px; font-size: 11.5px; font-weight: 500; color: #6B6B73; border-bottom: 1px solid #E6E6E9;">
+<span></span><span>Light</span><span>Dark</span><span>Use</span>
+</div>
+<sc-for list="{{neutrals}}" as="n" hint-placeholder-count="10">
+<div style="display: grid; grid-template-columns: 52px 76px 76px minmax(0, 1fr); align-items: center; height: 30px; border-bottom: 1px solid #F0F0F2;">
+<span style="display: flex; gap: 3px;"><span style="width: 18px; height: 18px; border-radius: 4px; background: {{n.light}}; border: 1px solid #E0E0E4;"></span><span style="width: 18px; height: 18px; border-radius: 4px; background: {{n.dark}}; border: 1px solid #3A3A40;"></span></span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px;">{{n.light}}</span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px; color: #52525B;">{{n.dark}}</span>
+<span style="font-size: 12px; color: #52525B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><b style="font-weight: 500; color: #18181B;">{{n.name}}</b> · {{n.use}}</span>
+</div>
+</sc-for>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Status — muted pastels</h2>
+<div style="display: grid; grid-template-columns: 110px 76px 76px minmax(0, 1fr); align-items: center; height: 24px; font-size: 11.5px; font-weight: 500; color: #6B6B73; border-bottom: 1px solid #E6E6E9;">
+<span>Label</span><span>Dot</span><span>Text</span><span>Tint (rare)</span>
+</div>
+<sc-for list="{{statuses}}" as="s" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 110px 76px 76px minmax(0, 1fr); align-items: center; height: 36px; border-bottom: 1px solid #F0F0F2;">
+<span style="display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #52525B;"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{s.dot}};"></span>{{s.label}}</span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px;">{{s.dot}}</span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px; color: {{s.ink}};">{{s.ink}}</span>
+<span style="display: flex; align-items: center; gap: 8px;"><span style="height: 20px; padding: 0 7px; border-radius: 4px; background: {{s.tint}}; color: {{s.ink}}; font-size: 12px; display: flex; align-items: center;">{{s.label}}</span><span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px; color: #6B6B73;">{{s.tint}}</span></span>
+</div>
+</sc-for>
+<p style="margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: #52525B;">Dark theme keeps the same dots; text lightens and tints drop to 14% alpha of the dot.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Type — system UI (SF Pro on Mac)</h2>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 24px; font-size: 11.5px; font-weight: 500; color: #6B6B73; border-bottom: 1px solid #E6E6E9;">
+<span>Sample</span><span>Size / weight</span>
+</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; min-height: 42px; border-bottom: 1px solid #F0F0F2;"><span style="font-size: 24px; font-weight: 600; letter-spacing: -0.01em;">Note title</span><span style="font-size: 12px; color: #52525B;">24 / 600</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 32px; border-bottom: 1px solid #F0F0F2;"><span style="font-size: 15px; font-weight: 600;">Section title</span><span style="font-size: 12px; color: #52525B;">15 / 600</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 32px; border-bottom: 1px solid #F0F0F2;"><span style="font-size: 13px; font-weight: 500;">Card title, active tab</span><span style="font-size: 12px; color: #52525B;">13 / 500</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 32px; border-bottom: 1px solid #F0F0F2;"><span style="font-size: 13px;">Body, table rows, nav</span><span style="font-size: 12px; color: #52525B;">13 / 400</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 32px; border-bottom: 1px solid #F0F0F2;"><span style="font-size: 12.5px; font-weight: 600;">Column &amp; group label</span><span style="font-size: 12px; color: #52525B;">12.5 / 600</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 32px; border-bottom: 1px solid #F0F0F2;"><span style="font-size: 12px; color: #6B6B73;">P14 · Bug fixer · 1h</span><span style="font-size: 12px; color: #52525B;">12 / 400 ink-3</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 32px; border-bottom: 1px solid #F0F0F2;"><span style="font-size: 11.5px; font-weight: 500; color: #6B6B73;">Sidebar section, column header</span><span style="font-size: 12px; color: #52525B;">11.5 / 500</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; height: 32px; border-bottom: 1px solid #F0F0F2;"><span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px;">compileViewQuery</span><span style="font-size: 12px; color: #52525B;">12 mono</span></div>
+<p style="margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: #52525B;">Weights 400, 500, 600 only. Numbers use tabular figures.</p>
+</section>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; padding-top: 28px; border-top: 1px solid #E6E6E9;">
+
+<section style="display: flex; flex-direction: column; gap: 10px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Shape &amp; size</h2>
+<div style="display: flex; gap: 20px; align-items: flex-end; padding: 6px 0 10px;">
+<span style="display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 11.5px; color: #6B6B73;"><span style="width: 44px; height: 44px; border: 1px solid #C4C4CA; border-radius: 4px;"></span>4 chips</span>
+<span style="display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 11.5px; color: #6B6B73;"><span style="width: 44px; height: 44px; border: 1px solid #C4C4CA; border-radius: 6px;"></span>6 controls</span>
+<span style="display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 11.5px; color: #6B6B73;"><span style="width: 44px; height: 44px; border: 1px solid #C4C4CA; border-radius: 8px;"></span>8 popover</span>
+<span style="display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 11.5px; color: #6B6B73;"><span style="width: 44px; height: 44px; border: 1px solid #C4C4CA; border-radius: 50%;"></span>dots only</span>
+</div>
+<sc-for list="{{sizes}}" as="z" hint-placeholder-count="9">
+<div style="display: flex; align-items: center; height: 26px; border-bottom: 1px solid #F0F0F2; font-size: 12.5px;">
+<span style="flex-grow: 1; color: #52525B;">{{z.name}}</span>
+<span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px;">{{z.value}}</span>
+</div>
+</sc-for>
+</section>
+
+<section style="grid-column: span 2; display: flex; flex-direction: column; gap: 14px;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Components</h2>
+
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="width: 110px; font-size: 12px; color: #6B6B73;">Buttons</span>
+<button type="button" style="height: 28px; border: 0; border-radius: 6px; background: #E3ECFB; color: #23457E; font: inherit; font-size: 12.5px; font-weight: 500; padding: 0 10px; cursor: pointer;">New task</button>
+<button type="button" style="height: 28px; border: 1px solid #C8E3D2; border-radius: 6px; background: #E3F2E8; color: #26603D; font: inherit; font-size: 12.5px; font-weight: 500; padding: 0 10px; cursor: pointer;">Accept</button>
+<button type="button" style="height: 28px; border: 1px solid #F2D4D4; border-radius: 6px; background: #FBEDED; color: #9A3F3F; font: inherit; font-size: 12.5px; font-weight: 500; padding: 0 10px; cursor: pointer;">Reject</button>
+<button type="button" style="height: 28px; border: 1px solid #D9D9DE; border-radius: 6px; background: #FFFFFF; color: #18181B; font: inherit; font-size: 12.5px; padding: 0 10px; cursor: pointer;">Secondary</button>
+<button type="button" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; font: inherit; font-size: 12.5px; padding: 0 8px; cursor: pointer;">Ghost</button>
+<span style="font-size: 12px; color: #6B6B73;">Primary #E3ECFB/#23457E · positive #E3F2E8/#26603D · destructive #FBEDED/#9A3F3F</span>
+</div>
+
+<div style="display: flex; align-items: stretch; gap: 10px; height: 36px;">
+<span style="width: 110px; font-size: 12px; color: #6B6B73; align-self: center;">Tabs</span>
+<div style="display: flex; align-items: stretch; gap: 2px; border-bottom: 1px solid #E6E6E9;">
+<button type="button" aria-pressed="true" style="border: 0; border-bottom: 2px solid #18181B; margin-bottom: -1px; background: transparent; padding: 0 8px; font: inherit; font-size: 13px; font-weight: 500; color: #18181B;">Board</button>
+<button type="button" aria-pressed="false" style="border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; padding: 0 8px; font: inherit; font-size: 13px; color: #52525B;">All tasks</button>
+<button type="button" aria-pressed="false" style="border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; padding: 0 8px; font: inherit; font-size: 13px; color: #52525B;">Calendar</button>
+</div>
+<span style="font-size: 12px; color: #6B6B73; align-self: center;">Underline, no fills, no icons.</span>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="width: 110px; font-size: 12px; color: #6B6B73;">Status</span>
+<span style="height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: #F1F1F3; color: #52525B; font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #A1A1AA;"></span>Backlog</span>
+<span style="height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: #FBF1DF; color: #7A5312; font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #DDA54E;"></span>Doing</span>
+<span style="height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: #E6F3EA; color: #2F6B45; font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #7DBF93;"></span>Done</span>
+<span style="font-size: 12px; color: #6B6B73; margin-left: 10px;">Tinted pill in tables, peeks and filters. Board column heads keep the bare dot.</span>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="width: 110px; font-size: 12px; color: #6B6B73;">Metadata</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6B6B73;">A15-03<span style="color: #C4C4CA;">·</span>P15<span style="color: #C4C4CA;">·</span>3h<span style="color: #C4C4CA;">·</span>Blocked by A15-02</span>
+<span style="font-size: 12px; color: #6B6B73; margin-left: 10px;">One line, separated by dots. No chip per value. Empty values omitted.</span>
+</div>
+
+<div style="display: flex; align-items: flex-start; gap: 10px;">
+<span style="width: 110px; font-size: 12px; color: #6B6B73; padding-top: 10px;">Card</span>
+<div style="width: 250px; padding: 8px 4px 4px; background: #F6F6F7;">
+<article style="display: flex; flex-direction: column; gap: 3px; padding: 8px 10px 9px; background: #FFFFFF; border: 1px solid #E6E6E9;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 500; line-height: 1.38;">Cmd+N and Shift+Cmd+D still fire behind an open palette</h3>
+<p style="margin: 0; font-size: 12px; color: #6B6B73; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The one-overlay rule (apps/desktop/src/overlay.ts)…</p>
+<div style="display: flex; gap: 6px; margin-top: 2px; font-size: 12px; color: #6B6B73;">P14<span style="color: #C4C4CA;">·</span>Bug fixer<span style="color: #C4C4CA;">·</span>1h</div>
+</article>
+</div>
+<span style="font-size: 12px; line-height: 1.5; color: #6B6B73; padding-top: 10px; max-width: 360px;">White card, 1px hairline, square corners in a square column, padding 8/10, no shadow, no hover lift. Title clamps to 2 lines, summary to 1. Done cards dim the title to ink-2 and add a sage check.</span>
+</div>
+</section>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 12px; padding-top: 28px; border-top: 1px solid #E6E6E9;">
+<h2 style="margin: 0; font-size: 13px; font-weight: 600;">Rules</h2>
+<ol style="margin: 0; padding-left: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 56px; row-gap: 8px; font-size: 13px; line-height: 1.5; color: #27272A;">
+<sc-for list="{{rules}}" as="rule" hint-placeholder-count="10">
+<li>{{rule}}</li>
+</sc-for>
+</ol>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1440}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const neutrals = [
+      { name: "bg", light: "#F6F6F7", dark: "#111113", use: "sidebar, board column wells" },
+      { name: "surface", light: "#FFFFFF", dark: "#18181B", use: "content, cards" },
+      { name: "well", light: "#F8F8F9", dark: "#1D1D21", use: "table group rows" },
+      { name: "ink", light: "#18181B", dark: "#EDEDEF", use: "primary text, primary button" },
+      { name: "ink-2", light: "#52525B", dark: "#B4B4BC", use: "secondary text, controls" },
+      { name: "ink-3", light: "#6B6B73", dark: "#8E8E98", use: "metadata, labels (≥4.5:1)" },
+      { name: "line", light: "#E6E6E9", dark: "#2A2A2F", use: "hairlines, card borders" },
+      { name: "line-soft", light: "#ECECEF", dark: "#2A2A2F", use: "table row dividers" },
+      { name: "hover", light: "#F4F4F6", dark: "#222227", use: "row and button hover" },
+      { name: "selected", light: "#E8E8EB", dark: "#26262B", use: "active nav item" },
+      { name: "focus", light: "#6B7BC4", dark: "#8F9BE0", use: "focus ring only" },
+    ];
+    const statuses = [
+      { label: "Inbox", dot: "#9DB4C8", ink: "#3D5A70", tint: "#EAF0F5" },
+      { label: "Backlog", dot: "#A1A1AA", ink: "#52525B", tint: "#F1F1F3" },
+      { label: "Next", dot: "#7EA2DD", ink: "#2D4F8A", tint: "#E8EFFB" },
+      { label: "Doing", dot: "#DDA54E", ink: "#7A5312", tint: "#FBF1DF" },
+      { label: "Waiting", dot: "#C9A0B8", ink: "#6E3F5C", tint: "#F6ECF2" },
+      { label: "Review", dot: "#A595E3", ink: "#4E3F8F", tint: "#EFEBFB" },
+      { label: "Done", dot: "#7DBF93", ink: "#2F6B45", tint: "#E6F3EA" },
+    ];
+    const sizes = [
+      { name: "Sidebar width", value: "224px" },
+      { name: "Top bar / view bar", value: "44px + 44px" },
+      { name: "Table header, group row", value: "32px" },
+      { name: "Table row", value: "34px" },
+      { name: "Control, sidebar item", value: "28px" },
+      { name: "Board column gap", value: "8px" },
+      { name: "Spacing scale", value: "4 8 12 16 20 24" },
+      { name: "Borders", value: "1px, line" },
+      { name: "Shadow (popover only)", value: "0 8px 24px #0000000F" },
+    ];
+    const rules = [
+      "No shadows on content. A 1px hairline separates; shadows are for popovers and menus only.",
+      "Radius 4 for chips, 6 for buttons and inputs, 8 for popovers. Board columns and cards are square. Round only dots and avatars.",
+      "Color appears as pastel tints on buttons, status pills, charts and the focus ring — never as a filled area larger than a button.",
+      "One bold thing per row: the title. Everything else is 400 weight in ink-2 or ink-3.",
+      "Metadata sits on one line, separated by middle dots. No chip, icon or border per value.",
+      "Hide empty values and zero counts. Never print the word “Empty”.",
+      "Page chrome is 88px: a 44px breadcrumb bar and a 44px view bar. No hero icon tile, no subtitle.",
+      "One pastel-blue primary per view. Accept and confirm are pastel green, reject and delete pastel rose; everything else is neutral or ghost.",
+      "Board columns share the width equally, empty or not.",
+      "Content runs edge to edge on the white surface — no floating panel, no gutter around the main area.",
+      "Click a note or task: center peek. ⌘-click: new tab. ⌘⇧-click: split. From a peek, ⌘↵ and ⌘⇧↵ do the same.",
+      "Each pane has its own tabs. Each tab keeps its own back/forward and undo/redo history, like a browser. Tabs come back on restart.",
+      "The right sidebar is contextual (properties, backlinks, outline, type editor) and hides with ⌘\\. Hidden, properties collapse to one line under the title.",
+      "When the window runs out of room, the right sidebar collapses first, then the left.",
+      "Every table cell and board field edits in place: click or ↵ to edit, Tab to move, Esc to cancel, number keys pick a status.",
+      "Toasts sit top right, leave after 5 s and always offer Undo. Warnings and errors are also kept in Activity.",
+      "Hovering a link for 400 ms shows a preview card. Click peeks; the modifier keys work as above.",
+      "New tasks need no fields; they start with status Inbox. Loading shows a spinner only if it takes longer than 150 ms.",
+    ];
+    return { neutrals, statuses, sizes, rules };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Center peek with link preview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; display: flex; overflow: hidden; background: #FFFFFF; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 13px;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="p-table" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M4 10h16M10 10v9"></path></g></symbol>
+<symbol id="p-page" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M7 3.5h7l4 4v13H7z"></path><path d="M14 3.5v4h4"></path></g></symbol>
+<symbol id="p-review" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14.5" rx="2"></rect><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4M9 14.5l2 2 4-4"></path></g></symbol>
+<symbol id="p-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="p-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="p-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="p-fwd" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="p-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M14 5v14"></path></g></symbol>
+<symbol id="p-up" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="p-down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="p-expand" viewBox="0 0 24 24"><path d="M14 5h5v5M10 19H5v-5M19 5l-6 6M5 19l6-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="p-tab" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 19V8h6V5h10v14z"></path><path d="M4 8h16"></path></g></symbol>
+<symbol id="p-split" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M12 5v14"></path></g></symbol>
+<symbol id="p-more" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="6" cy="12" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="18" cy="12" r="1.5"></circle></g></symbol>
+</svg>
+
+<dc-import name="Sidebar" active="task-table" hint-size="224px,900px"></dc-import>
+
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+<div style="height: 36px; flex-shrink: 0; display: flex; align-items: stretch; background: #F6F6F7; border-bottom: 1px solid #E6E6E9;">
+<span style="width: 188px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #FFFFFF; border-right: 1px solid #E6E6E9; margin-bottom: -1px; font-size: 12.5px; font-weight: 500;"><svg width="13" height="13" style="color: #6B6B73;" aria-hidden="true"><use href="#p-table"></use></svg>Task table</span>
+<span style="width: 188px; display: flex; align-items: center; gap: 7px; padding: 0 12px; border-right: 1px solid #E6E6E9; font-size: 12.5px; color: #52525B;"><svg width="13" height="13" style="color: #6B6B73;" aria-hidden="true"><use href="#p-review"></use></svg>Weekly review</span>
+</div>
+<header style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid #E6E6E9;">
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #52525B;"><svg width="15" height="15" aria-hidden="true"><use href="#p-back"></use></svg></span>
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #C4C4CA;"><svg width="15" height="15" aria-hidden="true"><use href="#p-fwd"></use></svg></span>
+<span style="margin-left: 6px; color: #6B6B73;">Views</span><span style="color: #6B6B73;">/</span><span style="font-weight: 500;">Task table</span>
+<span style="flex-grow: 1;"></span>
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #6B6B73;"><svg width="15" height="15" aria-hidden="true"><use href="#p-panel"></use></svg></span>
+</header>
+<div style="flex-grow: 1; display: flex; flex-direction: column;">
+<div style="height: 32px; display: grid; grid-template-columns: minmax(0, 1fr) 118px 60px 74px; align-items: center; padding: 0 16px 0 40px; border-bottom: 1px solid #E6E6E9; font-size: 12px; font-weight: 500; color: #6B6B73;"><span>Name</span><span>Status</span><span>Phase</span><span>Estimate</span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="20">
+<div style="height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) 118px 60px 74px; align-items: center; padding: 0 16px 0 40px; border-bottom: 1px solid #ECECEF; background: {{r.bg}};">
+<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 20px;">{{r.name}}</span>
+<span style="display: flex; align-items: center;"><span style="height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: {{r.tint}}; color: {{r.pink}}; font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{r.dot}};"></span>{{r.status}}</span></span>
+<span style="font-size: 12.5px; color: #52525B;">{{r.phase}}</span>
+<span style="font-size: 12.5px; color: #52525B;">{{r.est}}</span>
+</div>
+</sc-for>
+</div>
+</main>
+
+<div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(24,24,27,0.30);"></div>
+
+<div role="dialog" aria-label="Leftovers from A15-02" style="position: absolute; left: 300px; top: 56px; width: 840px; height: 788px; display: flex; flex-direction: column; background: #FFFFFF; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 24px 64px rgba(0,0,0,0.22); overflow: visible;">
+<div style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 12px; border-bottom: 1px solid #ECECEF;">
+<button type="button" aria-label="Previous row" style="width: 28px; height: 28px; border: 1px solid #E6E6E9; border-radius: 6px; background: #FFFFFF; color: #52525B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#p-up"></use></svg></button>
+<button type="button" aria-label="Next row" style="width: 28px; height: 28px; border: 1px solid #E6E6E9; border-radius: 6px; background: #FFFFFF; color: #52525B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#p-down"></use></svg></button>
+<span style="margin-left: 8px; font-size: 12px; color: #6B6B73;">3 of 186 in Task table</span>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 12px; color: #6B6B73; margin-right: 6px;">Saved</span>
+<button type="button" aria-label="Open as full page" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#p-expand"></use></svg></button>
+<button type="button" aria-label="Open in new tab" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#p-tab"></use></svg></button>
+<span style="position: relative; display: flex;">
+<button type="button" aria-label="Open in split" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: #F1F1F3; color: #18181B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#p-split"></use></svg></button>
+<span role="tooltip" style="position: absolute; top: 34px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 4px 8px; border-radius: 5px; background: #18181B; color: #FFFFFF; font-size: 11.5px;">Open in split <span style="color: #A1A1AA;">⌘⇧↵</span></span>
+</span>
+<button type="button" aria-label="More" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#p-more"></use></svg></button>
+<span style="width: 1px; height: 16px; background: #E6E6E9; margin: 0 4px;"></span>
+<button type="button" aria-label="Close" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#p-x"></use></svg></button>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; padding: 36px 64px 0; display: flex; flex-direction: column; gap: 14px; position: relative;">
+<h1 style="margin: 0; font-size: 24px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em;">Leftovers from A15-02: templates in views, short query pages, create races</h1>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 12.5px;">
+<span style="display: flex; align-items: center; gap: 6px;"><span style="color: #6B6B73;">Status</span><span style="height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: #F1F1F3; color: #52525B; font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #A1A1AA;"></span>Backlog</span></span>
+<span style="display: flex; gap: 6px;"><span style="color: #6B6B73;">Phase</span>15</span>
+<span style="display: flex; gap: 6px;"><span style="color: #6B6B73;">Estimate</span>3h</span>
+<span style="display: flex; gap: 6px;"><span style="color: #6B6B73;">ID</span><span style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px;">A15-03</span></span>
+<span style="display: flex; gap: 6px;"><span style="color: #6B6B73;">Blocked by</span><a href="#" style="color: #18181B; text-decoration: underline; text-decoration-color: #C4C4CA; text-underline-offset: 3px;">A15-02</a></span>
+<button type="button" style="border: 0; background: transparent; padding: 0; font: inherit; font-size: 12px; color: #6B6B73; cursor: pointer;">+ 4 empty</button>
+</div>
+<div style="height: 1px; background: #ECECEF; margin: 6px 0 4px;"></div>
+<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.6; color: #27272A;">
+<li><span style="text-decoration: line-through; color: #8E8E98;">In-app views, dashboards and aggregates include <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">.atlas/templates/*</code> notes (a Task template is <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">type: task</code>). Fix in <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">compileViewQuery</code>; this changes what the app shows, so check with James’s board first.</span> Done in <a href="#" style="color: #18181B; text-decoration: underline; text-decoration-color: #6B7BC4; text-decoration-thickness: 1.5px; text-underline-offset: 3px; background: #EEF0FA; border-radius: 3px; padding: 0 2px;">P16-04</a>: <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">compileViewQuery</code> leaves out every path under <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">.atlas/</code>, and the sidebar’s type counts do too (<code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">isAtlasNote</code>).</li>
+<li><code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">/v1/query</code> drops <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">.atlas</code> rows after the SQL limit, so a page can come back short.</li>
+<li>An unnamed create still answers <code style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; padding: 1px 4px; border-radius: 4px; background: #F4F4F6;">exists</code> if “Untitled” is taken between listing and creating.</li>
+</ul>
+
+<div role="tooltip" style="position: absolute; left: 150px; top: 290px; width: 360px; box-sizing: border-box; display: flex; flex-direction: column; background: #FFFFFF; border: 1px solid #E6E6E9; border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.12);">
+<div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px 6px;">
+<svg width="14" height="14" style="color: #6B6B73;" aria-hidden="true"><use href="#p-page"></use></svg>
+<span style="font-size: 13px; font-weight: 600;">P16-04</span>
+<span style="font-size: 12px; color: #6B6B73;">Task · Phase 16</span>
+</div>
+<p style="margin: 0; padding: 0 14px 12px 36px; font-size: 12.5px; line-height: 1.5; color: #6B6B73;">[The first lines of P16-04 show here, up to four lines, then fade.]</p>
+<div style="display: flex; gap: 12px; padding: 8px 14px; border-top: 1px solid #ECECEF; font-size: 11.5px; color: #6B6B73;">
+<span>Click to peek</span><span>⌘-click new tab</span><span>⌘⇧-click split</span>
+</div>
+</div>
+</div>
+
+<div style="height: 34px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-top: 1px solid #ECECEF; font-size: 11.5px; color: #6B6B73; border-radius: 0 0 8px 8px;">
+<span>Esc close</span><span>↑ ↓ previous / next row</span><span>⌘↵ open in tab</span><span>⌘⇧↵ open in split</span>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dot = { Review: "#A595E3", Backlog: "#A1A1AA", Done: "#7DBF93" };
+    const raw = [
+      ["Phase 16 — The look, rebuilt", "Review", "16", "1w"],
+      ["The UI doesn’t look good, or close to the reference images", "Review", "", ""],
+      ["Leftovers from A15-02: templates in views, short query pages, create races", "Backlog", "15", "3h"],
+      ["addDays hands back its input when it cannot move, and says nothing", "Backlog", "14", "1h"],
+      ["Cmd+N and Shift+Cmd+D still fire behind an open palette", "Backlog", "14", "1h"],
+      ["Drag to resize and reorder widgets", "Backlog", "", ""],
+      ["new-note.spec reads the file once instead of waiting for it", "Backlog", "", ""],
+      ["Prove it end to end, and try to break it", "Done", "15", "1d"],
+      ["The MCP server, apps/mcp", "Done", "15", "1d"],
+      ["Wire the bridge, and a Settings panel to turn it on", "Done", "15", ""],
+      ["niceTicks never returns for a max too small for a step", "Done", "13", "1h"],
+      ["A slice narrower than its gap is painted back across its neighbour", "Done", "13", "2h"],
+      ["Open-in-pane silently opens in a different pane when that pane is gone", "Done", "13", ""],
+      ["bug: edits made to a document aren’t saving", "Done", "", ""],
+      ["feature: makes sidebar collapsible", "Done", "", ""],
+      ["Folder picker + persisted vault choice", "Done", "1", "1h30"],
+      ["Tauri fs adapter (scoped read)", "Done", "1", "3h"],
+      ["VaultPort + domain vault model", "Done", "1", "2h"],
+      ["CI workflow + COVERAGE.md", "Done", "0", "1h"],
+      ["Test + lint + typecheck gate", "Done", "0", "1h30"],
+      ["Tauri v2 + React + Vite shell", "Done", "0", "2h"],
+      ["pnpm workspace + package skeleton", "Done", "0", "1h"],
+    ];
+    const tint = { Review: "#EFEBFB", Backlog: "#F1F1F3", Done: "#E6F3EA" };
+    const pink = { Review: "#4E3F8F", Backlog: "#52525B", Done: "#2F6B45" };
+    const rows = raw.map(([name, status, phase, est], i) => ({ name, status, phase, est, dot: dot[status], tint: tint[status], pink: pink[status], bg: i === 2 ? "#F3F3F6" : "transparent" }));
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

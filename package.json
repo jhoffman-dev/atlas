@@ -26,6 +26,7 @@
     "perf": "pnpm build && playwright test --config playwright.perf.config.ts --project latency",
     "perf:profile": "pnpm --filter @atlas/desktop exec vite build --minify false && playwright test --config playwright.perf.config.ts --project profile",
     "perf:renders": "pnpm --filter @atlas/desktop exec vite build --minify false && playwright test --config playwright.perf.config.ts --project renders",
+    "perf:budgets": "pnpm --filter @atlas/desktop exec vite build --minify false && playwright test --config playwright.perf.config.ts --project budgets",
     "perf:vault": "node tools/perf/make-fixture-vault.ts",
     "smoke:api": "node apps/mcp/scripts/smoke.mjs",
     "design:refs": "node tools/design/refs.ts",

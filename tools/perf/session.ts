@@ -1,23 +1,35 @@
 import { expect, type Page } from '@playwright/test';
 import { createVault, installHost, sidebarSection, type FakeVault } from '../../e2e/host.ts';
-import { fixtureVault, FIXTURE_SHAPE, noteCount } from './fixture-vault.ts';
+import { fixtureVault, FIXTURE_SHAPE, noteCount, type FixtureFile } from './fixture-vault.ts';
 import { installProbe, measure, waitForQuiet, type Measured } from './probe.ts';
 
 /** The fixture's notes, and the type files beside them: "2,008 notes indexed". */
-const EVERY_NOTE_INDEXED = new RegExp(
+export const EVERY_NOTE_INDEXED = new RegExp(
   `^${Math.floor(noteCount(FIXTURE_SHAPE) / 1000)},\\d{3} notes indexed`,
 );
 
-/** Writes the fixture vault to a new folder and opens it in `page`, through the stand-in host. */
-export async function openFixtureVault(page: Page): Promise<FakeVault> {
+/** Writes the fixture vault, and any `extra` files (a view to measure, say), to a new folder. */
+export async function writeFixtureVault(extra: readonly FixtureFile[] = []): Promise<FakeVault> {
   const vault = await createVault();
-  const files = fixtureVault();
+  const files = [...fixtureVault(), ...extra];
   for (let start = 0; start < files.length; start += 200) {
     const batch = files.slice(start, start + 200);
     const folders = new Set(batch.map((file) => file.path.split('/').slice(0, -1).join('/')));
     await Promise.all([...folders].filter((folder) => folder !== '').map((f) => vault.mkdir(f)));
     await Promise.all(batch.map((file) => vault.write(file.path, file.contents)));
   }
+  return vault;
+}
+
+/**
+ * Writes the fixture vault to a new folder and opens it in `page`, through the
+ * stand-in host. `extra` files are written beside it.
+ */
+export async function openFixtureVault(
+  page: Page,
+  extra: readonly FixtureFile[] = [],
+): Promise<FakeVault> {
+  const vault = await writeFixtureVault(extra);
   // With a manifest, as the real index has: without one every refresh re-reads all 2,000 notes.
   await installHost(page, vault, { keepsManifest: true });
   await installProbe(page);
