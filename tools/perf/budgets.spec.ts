@@ -28,8 +28,8 @@ import type { FixtureFile } from './fixture-vault.ts';
 import { measure, waitForQuiet } from './probe.ts';
 import { EVERY_NOTE_INDEXED, openFixtureVault, writeFixtureVault } from './session.ts';
 import {
-  between,
   installWorkClock,
+  oneInput,
   runUntil,
   startCounting,
   stopCounting,
@@ -109,8 +109,10 @@ interface Pass {
   budgeted(action: BudgetedAction, phases: readonly Phase[]): Promise<void>;
   /** Watches the page do nothing for `IDLE_MS`. */
   idle(action: BudgetedAction): Promise<void>;
-  /** Lets the page take one key or pointer move in before the next, as a person's hand does. */
-  between(): Promise<void>;
+  /** Gives one key or pointer move, and lets the page take it in before the next, as a person's hand does. */
+  input(give: () => Promise<void>): Promise<void>;
+  /** Waits, inside an action, until the page shows `ready`: what a person looks for before going on. */
+  until(step: Omit<Phase, 'act'>): Promise<void>;
 }
 
 const counted = new Map<string, Work>();
@@ -195,8 +197,11 @@ async function countedPass(browser: Browser, into: Map<string, Work>): Promise<P
       await runUntil(page, { settleMs: IDLE_MS });
       into.set(action, await stopCounting(page));
     },
-    async between() {
-      await between(page);
+    async input(give) {
+      await oneInput(page, give);
+    },
+    async until({ ready, arg }) {
+      await runUntil(page, { ready, arg: arg as never, settleMs: 0 });
     },
   };
   // The whole vault, not the first count the status shows.
@@ -247,7 +252,10 @@ async function timedPass(browser: Browser): Promise<Pass> {
           IDLE_MS,
         ),
       ]),
-    between: () => Promise.resolve(),
+    input: (give) => give(),
+    async until({ ready, arg }) {
+      await page.waitForFunction(ready, arg as never, { timeout: 60_000 });
+    },
   };
 }
 
@@ -365,8 +373,7 @@ async function typeAndSave(pass: Pass, title: string): Promise<void> {
     phase(
       async () => {
         for (const key of TYPED) {
-          await page.keyboard.type(key);
-          await pass.between();
+          await pass.input(() => page.keyboard.type(key));
         }
       },
       ({ selector, text }) =>
@@ -425,11 +432,17 @@ async function searchOverTheTable(pass: Pass): Promise<void> {
   await pass.budgeted('⌘K + 5 keys over the table', [
     phase(
       async () => {
-        await page.keyboard.press('Meta+k');
-        await pass.between();
+        await pass.input(() => page.keyboard.press('Meta+k'));
+        // A person types once the box has the caret, not before.
+        await pass.until(
+          phase(
+            () => Promise.resolve(),
+            (selector) => document.activeElement?.matches(selector) === true,
+            SEARCH_BOX,
+          ),
+        );
         for (const key of query) {
-          await page.keyboard.type(key);
-          await pass.between();
+          await pass.input(() => page.keyboard.type(key));
         }
       },
       ({ text, selector }) =>
@@ -476,8 +489,7 @@ async function dragACard(pass: Pass): Promise<void> {
     phase(
       async () => {
         await page.mouse.move(start.x, start.y);
-        await page.mouse.down();
-        await pass.between();
+        await pass.input(() => page.mouse.down());
         // The short hop that turns a press into a drag, then the way across.
         for (const [from, to, steps] of [
           [start, hop, 4],
@@ -485,11 +497,9 @@ async function dragACard(pass: Pass): Promise<void> {
         ] as const) {
           for (let step = 1; step <= steps; step += 1) {
             const along = step / steps;
-            await page.mouse.move(
-              from.x + (to.x - from.x) * along,
-              from.y + (to.y - from.y) * along,
+            await pass.input(() =>
+              page.mouse.move(from.x + (to.x - from.x) * along, from.y + (to.y - from.y) * along),
             );
-            await pass.between();
           }
         }
       },

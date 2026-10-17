@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 /*
  * The work clock: what makes a count of the app's work the same on every run
@@ -221,6 +221,13 @@ export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void 
     });
   };
 
+  // Every key and pointer event the page has been given, so a harness can wait
+  // for its input to have arrived before it moves time on.
+  let inputs = 0;
+  for (const kind of ['keydown', 'pointerdown', 'pointermove', 'pointerup']) {
+    window.addEventListener(kind, () => void (inputs += 1), { capture: true });
+  }
+
   const counter = () =>
     (window as unknown as { __renderCounter?: { lastCommitAt: number | null } }).__renderCounter;
   const aTurn = () => new Promise((resolve) => realSetTimeout(resolve, 0));
@@ -336,6 +343,7 @@ export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void 
         state.running = false;
       }
     },
+    inputsSeen: () => inputs,
     startCounting() {
       Object.assign(state, { counting: true, calls: {} });
     },
@@ -349,6 +357,7 @@ export function installWorkClock({ startsAt, virtual }: WorkClockOptions): void 
 interface ClockWindow {
   __workClock: {
     run(source: string | null, arg: unknown, settleMs: number, limitMs: number): Promise<Ran>;
+    inputsSeen(): number;
     startCounting(): void;
     stopCounting(): Record<string, number>;
   };
@@ -391,8 +400,21 @@ export function runUntil<Arg>(
 /** How long a quick hand takes between one key or pointer move and the next, on the work clock. */
 export const BETWEEN_MS = 50;
 
-/** Lets the page take in one key or pointer move before the next: `BETWEEN_MS` of the work clock. */
-export const between = (page: Page): Promise<Ran> => runUntil(page, { settleMs: BETWEEN_MS });
+/** How many key and pointer events the page has been given so far. */
+export const inputsSeen = (page: Page): Promise<number> =>
+  page.evaluate(() => (window as unknown as ClockWindow).__workClock.inputsSeen());
+
+/**
+ * Gives one input, waits until the page has had it — the browser can hand an
+ * event over after the call that sent it returns — and lets it take it in for
+ * `BETWEEN_MS` of the work clock before the next.
+ */
+export async function oneInput(page: Page, give: () => Promise<void>): Promise<Ran> {
+  const before = await inputsSeen(page);
+  await give();
+  await expect.poll(() => inputsSeen(page), { intervals: [5] }).toBeGreaterThan(before);
+  return runUntil(page, { settleMs: BETWEEN_MS });
+}
 
 /** Starts counting commits, renders and host calls from nothing, and holds the host's answers for `runUntil`. */
 export async function startCounting(page: Page): Promise<void> {
