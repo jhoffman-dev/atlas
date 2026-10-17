@@ -11,7 +11,7 @@ use std::fs;
 use std::io::{ErrorKind, Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -530,6 +530,7 @@ fn read_one_version(file: &Path, limit: u64) -> Result<(Vec<u8>, fs::Metadata), 
 
 /// Reads a note and the modification time of that same version.
 fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
+    let _whole = notes_whole();
     let (bytes, metadata) = read_one_version(&resolve(root, path)?, MAX_TEXT_BYTES)?;
     let text = String::from_utf8(bytes).map_err(|_| "not a text file".to_string())?;
     Ok(NoteContents {
@@ -547,7 +548,7 @@ fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
 /// millisecond (see `write_temporary`). A note that is a link out of the vault is refused by `resolve`;
 /// one that is a link inside it has its target replaced, never the link's
 /// destination written through.
-pub(crate) fn write_text(
+fn write_text(
     root: &Path,
     path: &str,
     contents: &str,
@@ -748,6 +749,8 @@ impl Drop for ChangeTurn {
     fn drop(&mut self) {
         if self.0.is_some() {
             HOLDS_CHANGES.with(|holds| holds.set(false));
+            #[cfg(test)]
+            turn_watch::own(None);
         }
     }
 }
@@ -761,16 +764,114 @@ pub(crate) fn change_turn() -> ChangeTurn {
     if HOLDS_CHANGES.with(Cell::get) {
         return ChangeTurn(None);
     }
+    #[cfg(test)]
+    turn_watch::wait(true);
     let turn = CHANGES.lock().unwrap_or_else(PoisonError::into_inner);
+    #[cfg(test)]
+    {
+        turn_watch::wait(false);
+        turn_watch::own(Some(std::thread::current().id()));
+    }
     HOLDS_CHANGES.with(|holds| holds.set(true));
     ChangeTurn(Some(turn))
 }
 
-/// Whether some thread holds the turn to change the vault right now, for a
-/// test to see a change is under way without waiting for its turn.
+/// Held, shared, by every read of a note, and alone by git while it rewrites
+/// notes in place. A save lands by rename, so a read never waits behind one;
+/// git unlinks a file and writes it anew, so a read during that would find
+/// the note gone or part-written (#246).
+static GIT_WRITING: RwLock<()> = RwLock::new(());
+
+/// The turn git takes to rewrite notes: the change turn, so no save lands
+/// meanwhile, then the notes to itself, so no read sees one half-written.
+/// Fields drop in order: reads go on before the next change does.
+pub(crate) struct GitWriteTurn {
+    _writing: RwLockWriteGuard<'static, ()>,
+    _turn: ChangeTurn,
+}
+
+/// Waits until git may rewrite notes. The guarded value is nothing, so a
+/// poison flag protects nothing, as with `change_turn`.
+pub(crate) fn git_write_turn() -> GitWriteTurn {
+    let turn = change_turn();
+    let writing = GIT_WRITING.write().unwrap_or_else(PoisonError::into_inner);
+    GitWriteTurn {
+        _writing: writing,
+        _turn: turn,
+    }
+}
+
+/// Waits while git rewrites notes; at once otherwise, however many read.
+fn notes_whole() -> RwLockReadGuard<'static, ()> {
+    #[cfg(test)]
+    turn_watch::wait(true);
+    let whole = GIT_WRITING.read().unwrap_or_else(PoisonError::into_inner);
+    #[cfg(test)]
+    turn_watch::wait(false);
+    whole
+}
+
+/// Which thread holds the change turn, and which threads wait on it or on a
+/// whole note: so a test can see who is where, whatever other tests run
+/// beside it, without waiting on time.
+/// The vault's own save and read, for tests outside this module, which
+/// otherwise reach notes only through the commands.
 #[cfg(test)]
-pub(crate) fn change_turn_is_taken() -> bool {
-    matches!(CHANGES.try_lock(), Err(std::sync::TryLockError::WouldBlock))
+pub(crate) mod test_access {
+    use super::NoteContents;
+    use std::path::Path;
+
+    pub(crate) fn write_text(
+        root: &Path,
+        path: &str,
+        contents: &str,
+        expected_modified: Option<u64>,
+    ) -> Result<u64, String> {
+        super::write_text(root, path, contents, expected_modified)
+    }
+
+    pub(crate) fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
+        super::read_text(root, path)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod turn_watch {
+    use std::collections::HashSet;
+    use std::sync::{Mutex, PoisonError};
+    use std::thread::{self, ThreadId};
+
+    static OWNER: Mutex<Option<ThreadId>> = Mutex::new(None);
+    static WAITING: Mutex<Option<HashSet<ThreadId>>> = Mutex::new(None);
+
+    pub(super) fn own(owner: Option<ThreadId>) {
+        *OWNER.lock().unwrap_or_else(PoisonError::into_inner) = owner;
+    }
+
+    pub(super) fn wait(waiting: bool) {
+        let id = thread::current().id();
+        let mut set = WAITING.lock().unwrap_or_else(PoisonError::into_inner);
+        let set = set.get_or_insert_with(HashSet::new);
+        if waiting {
+            set.insert(id);
+        } else {
+            set.remove(&id);
+        }
+    }
+
+    /// The thread that holds the change turn now.
+    pub(crate) fn owner() -> Option<ThreadId> {
+        *OWNER.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Whether the thread is waiting for the change turn or for a whole note.
+    pub(crate) fn is_waiting(id: ThreadId) -> bool {
+        WAITING
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|set| set.contains(&id))
+    }
 }
 
 /// Runs one change to the vault — a save, a creation, a move, a trash, a
@@ -823,6 +924,7 @@ pub struct NoteFile {
 }
 
 fn read_notes_at(root: &Path, paths: &[String]) -> Vec<NoteFile> {
+    let _whole = notes_whole();
     let mut notes = Vec::with_capacity(paths.len());
     for path in paths {
         let Ok(file) = resolve(root, path) else {
@@ -872,6 +974,7 @@ pub async fn read_text_file(
 /// Reads a file's bytes through one open handle, so the size checked is the
 /// size of the file read even when a write replaces it meanwhile.
 fn read_binary(root: &Path, path: &str) -> Result<Vec<u8>, String> {
+    let _whole = notes_whole();
     read_one_version(&resolve(root, path)?, MAX_BINARY_BYTES).map(|(bytes, _)| bytes)
 }
 

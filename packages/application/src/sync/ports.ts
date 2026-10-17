@@ -46,8 +46,12 @@ export interface GitPort {
   remoteSubject(branch: string): Promise<GitResult>;
   /** Whether `origin/<branch>` exists yet. */
   remoteBranchExists(branch: string): Promise<GitResult>;
-  /** Writes one side of a conflicted file over the file. */
-  checkout(args: { side: ConflictSide; path: string }): Promise<GitResult>;
+  /**
+   * Writes one side of a conflicted file over the file, only while the file
+   * still holds `seen`: the blob id the sync saw there, or null for no file.
+   * Rejects with {@link FileChangedError} when it no longer does.
+   */
+  checkout(args: { side: ConflictSide; path: string; seen: string | null }): Promise<GitResult>;
   /** `config --get user.name` or `user.email`. */
   config(key: 'user.name' | 'user.email'): Promise<GitResult>;
   /** `gh repo create <name> --private --source=. --remote=origin --push`. */
@@ -167,5 +171,17 @@ export class ProgramMissingError extends Error {
   constructor(readonly program: 'git' | 'gh') {
     super(`${program} is not installed`);
     this.name = 'ProgramMissingError';
+  }
+}
+
+/**
+ * The host did not write over a file, because it changed since the sync
+ * looked at it: the person saved it meanwhile. As a save opened at an old
+ * version is refused, so is a sync's write over a newer file.
+ */
+export class FileChangedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FileChangedError';
   }
 }

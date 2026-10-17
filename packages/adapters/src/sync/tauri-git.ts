@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
+  FileChangedError,
   ProgramMissingError,
   type GitFoldersPort,
   type GitHubPort,
@@ -9,12 +10,14 @@ import {
   type ThisMacPort,
   type VaultLocation,
 } from '@atlas/application';
-import { gitCommands } from './git-commands.ts';
+import { checkoutArgs, gitCommands } from './git-commands.ts';
 
 /** How the host words a refusal to run because the program is not installed. */
 const NOT_FOUND = 'not_found:';
 /** How the host words the person's No to its question before a clone, a remote or a repository. */
 const DECLINED = 'declined:';
+/** How the host words a checkout it did not run: the file changed since the sync looked at it. */
+const CHANGED = 'changed:';
 
 /**
  * Git and gh, run by the host (`git_process.rs`, U-29) in the open vault's
@@ -26,6 +29,12 @@ export function tauriGit(vault: string): GitPort {
   const git = (...args: string[]) => ran(invoke('git_run', { vault, args }), 'git');
   return {
     ...gitCommands(git),
+    // The host writes over the file only while it still holds what the sync saw.
+    checkout: ({ side, path, seen }) =>
+      ran(
+        invoke('git_run', { vault, args: checkoutArgs(side, path), seen: { blob: seen } }),
+        'git',
+      ),
     createGitHubRepository: (name) => ran(invoke('gh_repo_create', { vault, name }), 'gh'),
   };
 }
@@ -76,6 +85,9 @@ async function ran(call: Promise<unknown>, program: 'git' | 'gh'): Promise<GitRe
     // The person said no in the host's own question; its sentence says so.
     if (typeof error === 'string' && error.startsWith(DECLINED)) {
       throw new Error(error.slice(DECLINED.length).trim(), { cause: error });
+    }
+    if (typeof error === 'string' && error.startsWith(CHANGED)) {
+      throw new FileChangedError(error.slice(CHANGED.length).trim());
     }
     throw error instanceof Error ? error : new Error(String(error));
   }

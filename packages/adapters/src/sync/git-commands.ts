@@ -1,7 +1,15 @@
-import type { GitPort, GitResult, TreeRev } from '@atlas/application';
+import type { ConflictSide, GitPort, GitResult, TreeRev } from '@atlas/application';
 
 /** Runs git with these arguments, in the vault, as the host does. */
 export type RunGit = (...args: string[]) => Promise<GitResult>;
+
+/** `checkout --ours|--theirs -- <path>`: one side of a conflicted file, written over it. */
+export const checkoutArgs = (side: ConflictSide, path: string): string[] => [
+  'checkout',
+  `--${side}`,
+  '--',
+  path,
+];
 
 const revOf = (rev: TreeRev): string =>
   rev.kind === 'head' ? 'HEAD' : rev.kind === 'remote' ? `origin/${rev.branch}` : rev.oid;
@@ -41,7 +49,8 @@ export function gitCommands(git: RunGit): Omit<GitPort, 'createGitHubRepository'
     mergeInProgress: () => git('rev-parse', '--verify', '--quiet', 'MERGE_HEAD'),
     remoteSubject: (branch) => git('log', '-1', '--format=%s', `origin/${branch}`, '--'),
     remoteBranchExists: (branch) => git('rev-parse', '--verify', '--quiet', `origin/${branch}`),
-    checkout: ({ side, path }) => git('checkout', `--${side}`, '--', path),
+    // What the sync saw of the file is the host's to check; see `tauriGit`.
+    checkout: ({ side, path }) => git(...checkoutArgs(side, path)),
     config: (key) => git('config', '--get', key),
     untrackedExact: () =>
       git('-c', 'core.ignoreCase=false', 'ls-files', '-z', '--others', '--exclude-standard'),

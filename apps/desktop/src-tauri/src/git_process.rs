@@ -25,15 +25,17 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-use serde::Serialize;
-use tauri::{AppHandle, State};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
-use crate::vault::{change_turn, location_of, root_for_write, VaultLocation, VaultState};
+use crate::vault::{
+    change_in_vault, git_write_turn, location_of, root_for_write, VaultLocation, VaultState,
+};
 pub use shapes::Reach;
 use shapes::{
-    clone_name, clone_url, new_remote_url, vet_folder_args, vet_repo_name, vet_vault_args,
-    writes_working_tree,
+    clone_name, clone_url, new_remote_url, overwritten_path, vet_folder_args, vet_repo_name,
+    vet_vault_args, writes_working_tree,
 };
 
 /// Where `git` is looked for, in order: Homebrew's, then Apple's.
@@ -112,6 +114,9 @@ const MAX_SYNC_FILE: usize = 1024 * 1024;
 const NOT_FOUND: &str = "not_found:";
 /// How the webview is told the person said no to what it asked for.
 const DECLINED: &str = "declined:";
+/// How the webview is told a checkout was not run because the file it would
+/// write over changed since the sync looked at it: the person saved it.
+const CHANGED: &str = "changed:";
 /// How the webview is told a folder outside the vault was not one the person picked.
 const NOT_CHOSEN: &str = "that folder was not chosen in Atlas";
 /// The most of a run's output the host keeps; `status` of a very large vault fits.
@@ -128,6 +133,22 @@ pub struct GitOutput {
     pub code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
+}
+
+/// What the sync saw of the file a checkout writes over, when it looked: the
+/// file's blob id, or None when there was no file there.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct Seen {
+    pub blob: Option<String>,
+}
+
+/// One vetted command for the open vault, as the webview asks for it.
+pub struct VaultRun<'a> {
+    pub state: &'a VaultState,
+    /// The vault the command is meant for; refused when another is open.
+    pub meant_for: &'a str,
+    pub args: &'a [String],
+    pub seen: Option<&'a Seen>,
 }
 
 /// Asks the person to agree to something only they may allow: connecting the
@@ -271,12 +292,50 @@ impl GitHost {
         }
     }
 
+    /// Runs one vetted command in the open vault, refused when that is no
+    /// longer the vault it was meant for. A command that rewrites notes checks
+    /// inside its turn, as a save does: a switch takes the turn too, so once
+    /// it answers nothing more lands in the old vault (#246).
+    pub fn git_in_open_vault(&self, run: VaultRun<'_>) -> Result<GitOutput, String> {
+        let VaultRun {
+            state,
+            meant_for,
+            args,
+            seen,
+        } = run;
+        if writes_working_tree(args) {
+            return change_in_vault(state, Some(meant_for), |root| {
+                self.git_in_vault_seen(root, args, seen)
+            });
+        }
+        self.git_in_vault_seen(&root_for_write(state.get(), Some(meant_for))?, args, seen)
+    }
+
+    /// Runs one vetted `git` command in the vault at `root`; see `git_in_vault_seen`.
+    #[cfg(test)]
+    pub fn git_in_vault(&self, root: &Path, args: &[String]) -> Result<GitOutput, String> {
+        self.git_in_vault_seen(root, args, None)
+    }
+
     /// Runs one vetted `git` command in the vault at `root`. Pointing the
     /// vault at a remote is asked of the person first. A command that rewrites
-    /// notes runs in the vault's change turn, so no save lands while it writes
-    /// (#246); on a thread that already holds the turn it runs at once.
-    pub fn git_in_vault(&self, root: &Path, args: &[String]) -> Result<GitOutput, String> {
+    /// notes runs in git's write turn, so no save lands and no read looks while
+    /// it writes (#246); on a thread that already holds the change turn it
+    /// runs at once. A checkout runs only while its file still holds what the
+    /// sync `seen`, as a save lands only on the version it was opened at.
+    pub fn git_in_vault_seen(
+        &self,
+        root: &Path,
+        args: &[String],
+        seen: Option<&Seen>,
+    ) -> Result<GitOutput, String> {
         let reach = vet_vault_args(args)?;
+        let overwritten = overwritten_path(args);
+        if overwritten.is_some() != seen.is_some() {
+            return Err(
+                "a checkout, and only a checkout, says what the sync saw of its file".into(),
+            );
+        }
         if let Some(url) = new_remote_url(args) {
             self.agree(
                 &format!("Connect this vault to {url}?"),
@@ -284,18 +343,53 @@ impl GitHost {
                 format!("You cancelled connecting the vault to {url}."),
             )?;
         }
+        let _turn = writes_working_tree(args).then(git_write_turn);
+        if let (Some(path), Some(seen)) = (overwritten, seen) {
+            self.refuse_if_changed(root, path, seen)?;
+        }
+        // Taken once the turn is held, so a stopped run's lock check covers
+        // the run only, never the time it waited for its turn.
         let started = SystemTime::now();
         let mut full = vec![
             "-c".to_string(),
             format!("core.excludesFile={}", excludes_of(root).display()),
         ];
         full.extend(args.iter().cloned());
-        let _turn = writes_working_tree(args).then(change_turn);
         let (output, stopped) = self.git(root, &full, reach, Some(ceiling_of(root)))?;
         if stopped && reach == Reach::Local {
             remove_lock_made_since(root, started);
         }
         Ok(output)
+    }
+
+    /// Refuses with `changed:` when the file at `path` no longer holds what the sync saw.
+    fn refuse_if_changed(&self, root: &Path, path: &str, seen: &Seen) -> Result<(), String> {
+        if self.blob_of(root, path)? == seen.blob {
+            Ok(())
+        } else {
+            Err(format!(
+                "{CHANGED} {path} changed since the sync looked at it"
+            ))
+        }
+    }
+
+    /// The blob id of the file's bytes as they are, as the sync's own
+    /// `hash-object` says it; None when there is no file.
+    fn blob_of(&self, root: &Path, path: &str) -> Result<Option<String>, String> {
+        match root.join(path).symlink_metadata() {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(format!("{path} cannot be read: {error}")),
+            Ok(_) => {}
+        }
+        let args: Vec<String> = ["hash-object", "--no-filters", "--", path]
+            .iter()
+            .map(|arg| arg.to_string())
+            .collect();
+        let (output, _) = self.git(root, &args, Reach::Local, Some(ceiling_of(root)))?;
+        match output.code {
+            Some(0) => Ok(Some(output.stdout.trim().to_string())),
+            _ => Err(format!("{path} cannot be read: {}", output.stderr.trim())),
+        }
     }
 
     /// Reads one of the vault's sync files in `.git/atlas-sync/`; None when it is not there.
@@ -761,14 +855,21 @@ async fn off_thread<T: Send + 'static>(
 #[tauri::command]
 pub async fn git_run(
     app: AppHandle,
-    state: State<'_, VaultState>,
     host: State<'_, GitHost>,
     vault: String,
     args: Vec<String>,
+    seen: Option<Seen>,
 ) -> Result<GitOutput, String> {
-    let root = root_for_write(state.get(), Some(&vault))?;
-    let host = host.confirming(Arc::new(DialogConfirm(app)));
-    off_thread(move || host.git_in_vault(&root, &args)).await
+    let host = host.confirming(Arc::new(DialogConfirm(app.clone())));
+    off_thread(move || {
+        host.git_in_open_vault(VaultRun {
+            state: &app.state::<VaultState>(),
+            meant_for: &vault,
+            args: &args,
+            seen: seen.as_ref(),
+        })
+    })
+    .await
 }
 
 #[tauri::command]
