@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import type { ChipIcon, PropertyIcon, SidebarIcon, WidgetIcon, WidgetKind } from '@atlas/domain';
 
 /*
@@ -339,8 +339,11 @@ export type IconName = keyof typeof GLYPHS;
  * A glyph at a given size. Always decoration: whatever it stands for is said by
  * the text or the accessible name beside it, so it is hidden from a screen
  * reader rather than read out as an unnamed image.
+ *
+ * Drawn with `memo`: its props are a name and a size, and it was the
+ * component drawn most often as the window drew its chrome again (#238).
  */
-export function Icon({
+export const Icon = memo(function Icon({
   name,
   size = 17,
   className,
@@ -361,7 +364,7 @@ export function Icon({
       {GLYPHS[name]}
     </svg>
   );
-}
+});
 
 /** How each kind of sidebar row is drawn: the system folder wears the gear. */
 const SIDEBAR_GLYPHS: Readonly<Record<SidebarIcon, IconName>> = {

@@ -192,6 +192,20 @@ describe('a grouped table', () => {
     expect(header(/^doing/i).getAttribute('aria-expanded')).toBe('true');
   });
 
+  it('counts its header rows and "+ New" lines among its rows, for assistive technology (#244)', async () => {
+    render(<Grouped />);
+    // Three groups, four notes, and a "+ New" at the foot of each group: ten lines and the heading.
+    const lines = [...document.querySelectorAll('tbody tr:not(.table__spacer)')];
+    expect(lines).toHaveLength(10);
+    expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('11');
+    expect(lines.map((line) => line.getAttribute('aria-rowindex'))).toEqual(
+      lines.map((_, at) => String(at + 2)),
+    );
+
+    await userEvent.click(header(/^doing/i));
+    expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('8');
+  });
+
   it('virtualises: a group of 3000 rows puts only a screenful in the page', () => {
     const many: TableResult = {
       ...result,

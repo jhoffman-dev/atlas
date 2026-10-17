@@ -1,17 +1,21 @@
-import { useMemo, useRef, type ReactNode, type RefObject } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   columnIcon,
   countLabel,
   humanizeKey,
   newNoteLabel,
   toBoardRows,
+  type BoardRow,
   type PropertyKind,
   type QuerySort,
 } from '@atlas/domain';
 import type { DoneTicks } from './done-checkbox.tsx';
-import { GroupedRows, type LinePlace, type TableGrouping } from './grouped-rows.tsx';
+import { FlatRows } from './flat-rows.tsx';
+import { GroupedRows, useGroupLines, type LinePlace, type TableGrouping } from './grouped-rows.tsx';
 import { Icon, propertyGlyph } from './icon.tsx';
 import { SelectAllBox, type RowSelection } from './row-selection.tsx';
+import { useSteadyCallback } from './steady-callback.ts';
+import { sameEntries, sameItems, useSteadyValue } from './steady-value.ts';
 import { leadCellCount, TableRow, TITLE, type RowLook } from './table-cells.tsx';
 
 export interface TableResult {
@@ -121,43 +125,59 @@ function TableSheet({
   schema: TableSchema;
   hiddenColumns: readonly string[];
 }) {
-  const sheet = useRef<HTMLDivElement>(null);
+  // State, not a ref: the rows' virtualiser looks for its scroller in a
+  // layout effect, which runs before the sheet's ref is set. With a ref it
+  // found none, and drew a guessed screenful that scrolling never moved,
+  // until something else happened to draw the table again.
+  const [sheet, setSheet] = useState<HTMLDivElement | null>(null);
 
   const pathAt = result.columns.indexOf('path');
   // The path names a row and the summary is a card's aid; neither is a column.
-  const shown = result.columns.filter(
-    (column) => !HIDDEN_COLUMNS.includes(column) && !hiddenColumns.includes(column),
+  const shown = useSteadyValue(
+    result.columns.filter(
+      (column) => !HIDDEN_COLUMNS.includes(column) && !hiddenColumns.includes(column),
+    ),
+    sameItems,
   );
   const paths = pathAt === -1 ? [] : result.rows.map((row) => String(row[pathAt] ?? ''));
-  const look: RowLook = { shown, kinds: schema.kinds, onOpenNote, onEditCell, ticks, selection };
+  const look = useRowLook({
+    shown,
+    kinds: useSteadyValue(schema.kinds, sameEntries),
+    onOpenNote,
+    onEditCell,
+    ticks,
+    selection,
+  });
 
   return (
     <div className="table">
-      <div className="table__sheet" ref={sheet}>
+      <div className="table__sheet" ref={setSheet}>
         {result.rows.length === 0 ? (
           <p className="table__empty">Nothing matches this view yet.</p>
         ) : (
-          <table className="table__grid">
-            <TableHead
-              columns={shown}
-              sorts={sorts}
-              schema={schema}
-              onToggleSort={onToggleSort}
-              ticked={ticks !== undefined}
-              choose={
-                selection === undefined ? null : (
-                  <SelectAllBox paths={paths} selection={selection} />
-                )
-              }
-            />
-            <TableBody
-              result={result}
-              look={look}
-              noun={schema.noun}
-              scroller={sheet}
-              {...(grouping !== undefined && { grouping })}
-            />
-          </table>
+          <TableGrid
+            head={
+              <TableHead
+                columns={shown}
+                sorts={sorts}
+                schema={schema}
+                onToggleSort={onToggleSort}
+                ticked={ticks !== undefined}
+                choose={
+                  selection === undefined ? null : (
+                    <SelectAllBox paths={paths} selection={selection} />
+                  )
+                }
+              />
+            }
+            result={result}
+            look={look}
+            noun={schema.noun}
+            scroller={sheet}
+            {...(ticks !== undefined && { ticks })}
+            {...(selection !== undefined && { selection })}
+            {...(grouping !== undefined && { grouping })}
+          />
         )}
         <footer className="table__footer">
           {onNewNote !== undefined && (
@@ -176,46 +196,117 @@ function TableSheet({
   );
 }
 
-/** The rows, flat or under their groups' header rows. */
-function TableBody({
+/**
+ * What every row shares, the same object from one render to the next while
+ * the columns and what can be done stay the same: the window draws the open
+ * table again for every key typed in ⌘K, each time with handlers made anew,
+ * and a new look would draw every row again for it (#238).
+ */
+function useRowLook({
+  shown,
+  kinds,
+  onOpenNote,
+  onEditCell,
+  ticks,
+  selection,
+}: {
+  shown: readonly string[];
+  kinds: RowLook['kinds'];
+  onOpenNote: TableViewProps['onOpenNote'];
+  onEditCell: TableViewProps['onEditCell'];
+  ticks: DoneTicks | undefined;
+  selection: RowSelection | undefined;
+}): RowLook {
+  const open = useSteadyCallback(onOpenNote);
+  const edit = useSteadyCallback((args: { path: string; column: string; value: string }) =>
+    onEditCell?.(args),
+  );
+  const tick = useSteadyCallback((args: { path: string; done: boolean }) => ticks?.onToggle(args));
+  const choose = useSteadyCallback((path: string) => selection?.onToggle(path));
+  const editable = onEditCell !== undefined;
+  const ticked = ticks !== undefined;
+  const choosing = selection !== undefined;
+  return useMemo(
+    () => ({
+      shown,
+      kinds,
+      onOpenNote: open,
+      onEditCell: editable ? edit : undefined,
+      onTick: ticked ? tick : undefined,
+      onChoose: choosing ? choose : undefined,
+    }),
+    [shown, kinds, open, edit, tick, choose, editable, ticked, choosing],
+  );
+}
+
+/**
+ * The table: its heading row, then the rows, flat or under their groups'
+ * header rows. It says how many rows it has, since only those near the
+ * window are in the page.
+ */
+function TableGrid({
+  head,
   result,
   look,
   noun,
   scroller,
+  ticks,
+  selection,
   grouping,
 }: {
+  head: ReactNode;
   result: TableResult;
   look: RowLook;
   noun: string;
-  scroller: RefObject<HTMLDivElement | null>;
+  scroller: HTMLElement | null;
+  ticks?: DoneTicks;
+  selection?: RowSelection;
   grouping?: TableGrouping;
 }) {
   // Once per result: the window draws the open table again for whatever else
   // happens in it — every key typed in ⌘K — and a table can hold hundreds (#217).
   const { columns, rows: read } = result;
   const rows = useMemo(() => toBoardRows({ columns, rows: read }), [columns, read]);
-  const row = (found: (typeof rows)[number], place?: LinePlace) => (
+  // Each row is told whether it is done and chosen, rather than handed the
+  // sets: a tick or a choice then draws the one row it changed.
+  const row = (found: BoardRow, place: LinePlace) => (
     <TableRow
       key={found.path}
       path={found.path}
       values={found.values}
       look={look}
-      {...(place !== undefined && { index: place.index, measure: place.measure })}
+      done={ticks?.isDone(found.values) === true}
+      chosen={selection?.selected.has(found.path) === true}
+      index={place.index}
+      measure={place.measure}
     />
   );
-  if (grouping === undefined || grouping.groups.length === 0) {
-    return <tbody>{rows.map((found) => row(found))}</tbody>;
-  }
+  const lead = leadCellCount(look);
+  const grouped = grouping !== undefined && grouping.groups.length > 0;
+  const lines = useGroupLines(grouped ? grouping : undefined);
   return (
-    <GroupedRows
-      grouping={grouping}
-      columns={look.shown.map((key) => ({ key, kind: look.kinds[key] }))}
-      lead={leadCellCount(look)}
-      noun={noun}
-      newLabel={newNoteLabel(noun)}
-      renderRow={row}
-      scroller={scroller}
-    />
+    <table className="table__grid" aria-rowcount={(grouped ? lines.length : rows.length) + 1}>
+      {head}
+      {grouped ? (
+        <GroupedRows
+          grouping={grouping}
+          lines={lines}
+          columns={look.shown.map((key) => ({ key, kind: look.kinds[key] }))}
+          lead={lead}
+          noun={noun}
+          newLabel={newNoteLabel(noun)}
+          renderRow={row}
+          scroller={scroller}
+        />
+      ) : (
+        <FlatRows
+          rows={rows}
+          width={lead + look.shown.length}
+          renderRow={row}
+          scroller={scroller}
+        />
+      )}
+    </table>
   );
 }
 

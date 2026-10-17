@@ -167,8 +167,11 @@ test('a long table keeps its header in view while the rows scroll', async ({ pag
   await expect(header).toBeVisible();
   const before = await header.boundingBox();
 
-  // Scroll the last row into view: whatever scrolls, the header must not go with it.
-  await last.scrollIntoViewIfNeeded();
+  // Scroll to the last row: whatever scrolls, the header must not go with it. The
+  // rows are virtualised (#238), so the last is drawn only once the sheet scrolls.
+  await page.locator('.table__sheet').evaluate((sheet) => {
+    sheet.scrollTop = sheet.scrollHeight;
+  });
   await expect(last).toBeInViewport();
   await expect(header).toBeInViewport();
   const after = await header.boundingBox();

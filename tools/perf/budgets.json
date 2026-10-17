@@ -8,7 +8,7 @@
   "actions": {
     "Click a sidebar note": {
       "commits": 11,
-      "renders": 940,
+      "renders": 357,
       "calls": {
         "list_directory": 4,
         "read_text_file": 3
@@ -16,7 +16,7 @@
     },
     "Switch notes": {
       "commits": 11,
-      "renders": 962,
+      "renders": 389,
       "calls": {
         "list_directory": 4,
         "read_text_file": 3
@@ -24,12 +24,12 @@
     },
     "Type 10 characters in a note": {
       "commits": 12,
-      "renders": 408,
+      "renders": 317,
       "calls": {}
     },
     "One autosave and its watcher echo": {
       "commits": 62,
-      "renders": 14610,
+      "renders": 5884,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 5,
@@ -51,7 +51,7 @@
     },
     "Open Settings": {
       "commits": 13,
-      "renders": 2162,
+      "renders": 1098,
       "calls": {
         "api_status": 3,
         "gh_repo_list": 3,
@@ -65,7 +65,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 1760,
+      "renders": 1291,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -78,7 +78,7 @@
     },
     "Tick a task on Today": {
       "commits": 63,
-      "renders": 24452,
+      "renders": 15541,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 5,
@@ -99,7 +99,7 @@
     },
     "Open the Inbox": {
       "commits": 12,
-      "renders": 8105,
+      "renders": 6317,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
@@ -110,7 +110,7 @@
     },
     "Decide an Inbox row": {
       "commits": 77,
-      "renders": 16798,
+      "renders": 6255,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
@@ -134,7 +134,7 @@
     },
     "Open a person's page": {
       "commits": 13,
-      "renders": 1158,
+      "renders": 537,
       "calls": {
         "index_query": 6,
         "list_directory": 5,
@@ -143,21 +143,21 @@
     },
     "Open the 420-row table": {
       "commits": 9,
-      "renders": 9613,
+      "renders": 1011,
       "calls": {
         "index_query": 4
       }
     },
     "⌘K + 5 keys over the table": {
       "commits": 19,
-      "renders": 97897,
+      "renders": 1646,
       "calls": {
         "index_search": 7
       }
     },
     "Drag a board card": {
       "commits": 106,
-      "renders": 21660,
+      "renders": 12113,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 5,

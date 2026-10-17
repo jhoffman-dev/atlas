@@ -17,7 +17,13 @@ import { Icon, sidebarGlyph } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { dropTargetWithin, snapToNextRow, useDragSensors } from './drag/dnd.ts';
 import { treeWords } from './drag/announcements.ts';
-import { folderOfDropId, VaultTreeRow, type RowEditing } from './vault-tree-row.tsx';
+import { useSteadyCallback } from './steady-callback.ts';
+import {
+  folderOfDropId,
+  VaultTreeRow,
+  type RowEditing,
+  type TreeRowActions,
+} from './vault-tree-row.tsx';
 import { stickyOffsetOf, useScrollMargin } from './scroll-margin.ts';
 
 /** A row's pitch: 29px tall with a pixel between rows, as in the mockup. */
@@ -255,6 +261,17 @@ export function VaultTree({
     editing?.onMenuOpenChange(true);
   };
 
+  const rowActions = useRowActions({
+    onActivate: activate,
+    // A click moves the tab order with it, so coming back to the tree comes
+    // back to the row that was last used.
+    onFocusRow: setActivePath,
+    onToggleFavorite,
+    onMenu: openMenu,
+    onRename: (args) => editing?.onRename(args),
+    onCancelRename: () => editing?.onCancelRename(),
+  });
+
   const drop = ({ active, over }: DragEndEvent) => {
     setHeld(null);
     const entry = byPath.get(String(active.id))?.entry;
@@ -352,10 +369,7 @@ export function VaultTree({
     editing === undefined || row.opensArchive
       ? null
       : {
-          onMenu: (anchor) => openMenu(row.entry, anchor),
           renaming: editing.renaming === row.entry.path,
-          onRename: (name) => editing.onRename({ entry: row.entry, name }),
-          onCancelRename: editing.onCancelRename,
           accepts:
             held !== null &&
             row.entry.kind === 'directory' &&
@@ -378,25 +392,15 @@ export function VaultTree({
               row={row}
               placement={{
                 index: item.index,
+                top: item.start - scrollMargin,
+                height: item.size - ROW_GAP,
+                indent: 10 + row.depth * INDENT,
                 tabbable: item.index === tabbableIndex,
                 selected: open.has(row.entry.path),
-                style: {
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: item.size - ROW_GAP,
-                  transform: `translateY(${item.start - scrollMargin}px)`,
-                  paddingLeft: 10 + row.depth * INDENT,
-                },
               }}
               editing={rowEditing(row)}
               starred={starred.has(row.entry.path)}
-              // A click moves the tab order with it, so coming back to the
-              // tree comes back to the row that was last used.
-              onFocusRow={() => setActivePath(row.entry.path)}
-              onActivate={() => activate(row)}
-              onToggleFavorite={() => onToggleFavorite(row.entry.path)}
+              actions={rowActions}
             />
           );
         })}
@@ -445,6 +449,24 @@ export function VaultTree({
         }}
       />
     </DndContext>
+  );
+}
+
+/**
+ * What every row can do, as one object that stays the same from one render to
+ * the next and calls the latest of each: rows are drawn with `memo`, and new
+ * handlers on every render would draw every row again (#238).
+ */
+function useRowActions(act: TreeRowActions): TreeRowActions {
+  const onActivate = useSteadyCallback(act.onActivate);
+  const onFocusRow = useSteadyCallback(act.onFocusRow);
+  const onToggleFavorite = useSteadyCallback(act.onToggleFavorite);
+  const onMenu = useSteadyCallback(act.onMenu);
+  const onRename = useSteadyCallback(act.onRename);
+  const onCancelRename = useSteadyCallback(act.onCancelRename);
+  return useMemo(
+    () => ({ onActivate, onFocusRow, onToggleFavorite, onMenu, onRename, onCancelRename }),
+    [onActivate, onFocusRow, onToggleFavorite, onMenu, onRename, onCancelRename],
   );
 }
 
