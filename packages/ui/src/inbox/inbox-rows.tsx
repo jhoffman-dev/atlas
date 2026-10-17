@@ -15,7 +15,7 @@ import { Icon } from '../icon.tsx';
 import type { RelationChoice } from '../properties-panel.tsx';
 import { RelationOptions } from '../relation-options.tsx';
 import { useSteadyCallback } from '../steady-callback.ts';
-import { TableGap } from '../table-gap.tsx';
+import { Spacer } from '../grouped-rows.tsx';
 import { useVirtualRows } from '../virtual-rows.ts';
 import { asksWhoItWaitsOn, clarificationOf, type InboxDraft } from './inbox-triage.ts';
 import { useInboxTriage, type ClarifyInboxItem, type InboxTriage } from './use-inbox-triage.ts';
@@ -44,8 +44,8 @@ export interface InboxRowsProps {
   summaryPending?: ReadonlyMap<string, string>;
 }
 
-/** A row's height until it is measured, as the stylesheet draws a note's. */
-const ROW_HEIGHT = 49;
+/** A row's height until it is measured, as WebKit draws a note's. */
+const ROW_HEIGHT = 61;
 
 /** A row's cells: its name, its kind, and how it is clarified. */
 const ROW_CELLS = 3;
@@ -94,7 +94,7 @@ export function InboxRows({
         const focused = triage.focused === item.path;
         return (
           <Fragment key={key}>
-            {gapBefore > 0 && <TableGap height={gapBefore} width={ROW_CELLS} />}
+            {gapBefore > 0 && <Spacer height={gapBefore} width={ROW_CELLS} />}
             <tr
               ref={placeRef(item.path)}
               data-index={index}
@@ -117,7 +117,7 @@ export function InboxRows({
           </Fragment>
         );
       })}
-      {list.after > 0 && <TableGap height={list.after} width={ROW_CELLS} />}
+      {list.after > 0 && <Spacer height={list.after} width={ROW_CELLS} />}
     </tbody>
   );
 }

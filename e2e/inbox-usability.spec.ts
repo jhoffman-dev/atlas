@@ -175,9 +175,14 @@ test('Tab walks on past the rows on screen, each row put in the page and in view
   await expect(table).toHaveAttribute('aria-rowcount', '301', { timeout: 15_000 });
   const placed = table.locator('tbody tr.table__row');
   expect(await placed.count()).toBeLessThan(100);
-  const lastPlaced = Number(await placed.last().getAttribute('aria-rowindex'));
+  // The last of the rows placed from the top down, before the list's gap; its own last row is kept too.
+  const indexes = (await placed.evaluateAll((rows) =>
+    rows.map((row) => Number(row.getAttribute('aria-rowindex'))),
+  )) as number[];
+  const lastPlaced = indexes.findIndex((index, at) => index !== at + 2) + 1;
+  expect(lastPlaced).toBeGreaterThan(2);
 
-  await placed.last().getByRole('combobox').first().focus();
+  await table.locator(`tr[aria-rowindex="${lastPlaced}"]`).getByRole('combobox').first().focus();
   const focusedRow = () =>
     page.evaluate(() =>
       Number(document.activeElement?.closest('tr')?.getAttribute('aria-rowindex')),

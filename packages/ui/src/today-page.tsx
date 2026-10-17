@@ -29,11 +29,12 @@ import { Icon } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
 import { PageHead } from './page-head.tsx';
+import { ROW_SCROLLER_MARK, RowScrollerContext } from './row-scroller.ts';
 import { StatusPill } from './status-pill.tsx';
 import { useSteadyCallback } from './steady-callback.ts';
-import { TableGap } from './table-gap.tsx';
+import { Spacer } from './grouped-rows.tsx';
 import { useRowFocus, type RowFocus } from './today-row-focus.ts';
-import { ROW_SCROLLER_PROPS, useVirtualRows } from './virtual-rows.ts';
+import { useVirtualRows } from './virtual-rows.ts';
 
 /** What the page did to a task, for the line that offers to take it back. */
 export type TodayAction =
@@ -102,6 +103,7 @@ export function TodayPage(props: TodayPageProps) {
     [props.today],
   );
   const focus = useRowFocus({ order, shown: props.today, problem: props.problem });
+  const scroller = useRef<HTMLDivElement>(null);
   return (
     <>
       <PageBar
@@ -110,26 +112,28 @@ export function TodayPage(props: TodayPageProps) {
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
-      <div className="panel__body panel__body--rows" {...ROW_SCROLLER_PROPS}>
-        <article
-          className="page page--wide review today"
-          aria-label="Today"
-          aria-busy={props.busy || undefined}
-        >
-          <PageHead
-            icon="today"
-            title="Today"
-            description={describe(props.today)}
-            actions={<HeadActions view={props.view} onOpenDailyNote={props.onOpenDailyNote} />}
-          />
-          {props.problem !== null && (
-            <p className="table__error" role="alert">
-              {props.problem}
-            </p>
-          )}
-          <UndoNotice notice={props.notice} busy={props.busy} />
-          <TodayBody {...props} focus={focus} place={{ wanted: focus.wanted }} />
-        </article>
+      <div className="panel__body panel__body--rows" ref={scroller} {...ROW_SCROLLER_MARK}>
+        <RowScrollerContext.Provider value={scroller}>
+          <article
+            className="page page--wide review today"
+            aria-label="Today"
+            aria-busy={props.busy || undefined}
+          >
+            <PageHead
+              icon="today"
+              title="Today"
+              description={describe(props.today)}
+              actions={<HeadActions view={props.view} onOpenDailyNote={props.onOpenDailyNote} />}
+            />
+            {props.problem !== null && (
+              <p className="table__error" role="alert">
+                {props.problem}
+              </p>
+            )}
+            <UndoNotice notice={props.notice} busy={props.busy} />
+            <TodayBody {...props} focus={focus} place={{ wanted: focus.wanted }} />
+          </article>
+        </RowScrollerContext.Provider>
       </div>
     </>
   );
@@ -507,10 +511,22 @@ function Section({
   );
 }
 
-/** Heights a group and a row are placed by until they are measured, as the stylesheet draws them. */
-const GROUP_NAME_HEIGHT = 28;
+/**
+ * Heights a group and a row are placed by until they are measured, as WebKit
+ * draws them: a row measured at its estimate does not place the list again.
+ */
+const GROUP_NAME_HEIGHT = 23.875;
 const GROUP_GAP = 12;
-const ROW_HEIGHT = 41;
+const ROW_HEIGHT = 44;
+
+/** A group's height before it is measured: the gap above it, its name, and its rows. */
+function groupHeight(sectionId: TodaySectionId, group: TodayGroup | undefined, at: number): number {
+  if (group === undefined) return 0;
+  const named = (group.label ?? UNNAMED[sectionId] ?? null) !== null;
+  return (
+    (at === 0 ? 0 : GROUP_GAP) + (named ? GROUP_NAME_HEIGHT : 0) + group.tasks.length * ROW_HEIGHT
+  );
+}
 
 /**
  * A section's groups, only those near what the page shows put in it (#238):
@@ -528,10 +544,10 @@ function SectionGroups({
   const list = useVirtualRows({
     content,
     keys,
-    estimate: (index) =>
-      GROUP_GAP + GROUP_NAME_HEIGHT + (groups[index]?.tasks.length ?? 0) * ROW_HEIGHT,
+    estimate: (index) => groupHeight(section.id, groups[index], index),
     indexAttribute: 'data-group-index',
     overscan: 4,
+    keepsEdges: false,
     pinned:
       wanted === null
         ? null
@@ -618,7 +634,7 @@ function Group({
                 if (task === undefined) return null;
                 return (
                   <Fragment key={key}>
-                    {gapBefore > 0 && <TableGap height={gapBefore} width={ROW_CELLS} />}
+                    {gapBefore > 0 && <Spacer height={gapBefore} width={ROW_CELLS} />}
                     <tr
                       ref={rows.measure}
                       data-index={index}
@@ -632,7 +648,7 @@ function Group({
                   </Fragment>
                 );
               })}
-              {rows.after > 0 && <TableGap height={rows.after} width={ROW_CELLS} />}
+              {rows.after > 0 && <Spacer height={rows.after} width={ROW_CELLS} />}
             </tbody>
           </table>
         </div>

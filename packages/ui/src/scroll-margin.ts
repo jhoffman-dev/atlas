@@ -54,13 +54,17 @@ export function stickyOffsetOf(scroller: HTMLElement | null): number {
  * Or as a function that finds it from `content` — read in the layout effects,
  * where `content` is attached — so the page need not hold it as state, which
  * would cost a render of its own (#247). The function has to stay the same.
+ *
+ * Null until it is first measured, in the commit after the content mounts:
+ * a virtualiser that took it for 0 meanwhile would think rows far down the
+ * page sat above the screen, and scroll the page as it measured them.
  */
 export function useScrollMargin(
   content: RefObject<HTMLElement | null>,
   scroller: HTMLElement | null | (() => HTMLElement | null),
   { anchors = true }: { readonly anchors?: boolean } = {},
-): number {
-  const [margin, setMargin] = useState(0);
+): number | null {
+  const [margin, setMargin] = useState<number | null>(null);
   /** Where content started when last measured; null before the first time. */
   const placed = useRef<number | null>(null);
   /**
@@ -80,7 +84,9 @@ export function useScrollMargin(
       area.scrollTop = scrolled.current + next - before;
       scrolled.current = area.scrollTop;
     }
-    setMargin(next);
+    // Only when it moved: a resize or a scroll that moved nothing would
+    // otherwise commit the page again for the same number (#247).
+    if (next !== before) setMargin(next);
   };
 
   // Read once mounted, then only when something can have moved the content:

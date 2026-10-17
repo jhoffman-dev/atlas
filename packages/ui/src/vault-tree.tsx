@@ -140,7 +140,7 @@ export function VaultTree({
   scrollParent?: HTMLElement | null;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollMargin = useScrollMargin(scrollRef, scrollParent ?? null);
+  const scrollMargin = useScrollMargin(scrollRef, scrollParent ?? null) ?? 0;
   // The sticky heading over a shared scroller's top edge, as its stylesheet has it.
   const stickyOffset = useMemo(() => stickyOffsetOf(scrollParent ?? null), [scrollParent]);
   /** The row the tab order points at, held by path so it survives the list changing. */

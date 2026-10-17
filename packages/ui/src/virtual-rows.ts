@@ -1,5 +1,11 @@
-import { useCallback, useState, type FocusEvent, type RefObject } from 'react';
-import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
+import { useCallback, useContext, useState, type FocusEvent, type RefObject } from 'react';
+import {
+  defaultRangeExtractor,
+  useVirtualizer,
+  type Range,
+  type VirtualItem,
+} from '@tanstack/react-virtual';
+import { RowScrollerContext, scrollerOf } from './row-scroller.ts';
 import { useScrollMargin } from './scroll-margin.ts';
 
 /** A row the list puts in the page, and the room left above it for the rows it does not. */
@@ -9,13 +15,6 @@ export interface PlacedRow {
   /** Height of the rows between this one and the one placed before it (or the list's top). */
   readonly gapBefore: number;
 }
-
-/**
- * Marks the element a page scrolls its virtualised lists in, which each list
- * finds from where it is: `{...ROW_SCROLLER_PROPS}` on the page's scroller.
- */
-const ROW_SCROLLER = '[data-row-scroller]';
-export const ROW_SCROLLER_PROPS = { 'data-row-scroller': true } as const;
 
 export interface VirtualRowsOptions {
   /** The element the rows start in, so they are placed below what sits above it. */
@@ -34,6 +33,12 @@ export interface VirtualRowsOptions {
   readonly overscan?: number;
   /** A row to place wherever it is scrolled to: one the page is about to focus. */
   readonly pinned?: string | null;
+  /**
+   * Whether the first and last rows stay placed, for the keyboard to reach
+   * from the list before or after. A list of lists leaves its own edges to
+   * the virtualiser, which places the items nearest the screen.
+   */
+  readonly keepsEdges?: boolean;
 }
 
 export interface VirtualRows {
@@ -65,13 +70,13 @@ export function useVirtualRows({
   indexAttribute = 'data-index',
   overscan = 12,
   pinned = null,
+  keepsEdges = true,
 }: VirtualRowsOptions): VirtualRows {
   // The virtualiser anchors the scroll itself, as a placed row above the screen grows.
-  const scroller = useCallback(
-    () => content.current?.closest<HTMLElement>(ROW_SCROLLER) ?? null,
-    [content],
-  );
-  const scrollMargin = useScrollMargin(content, scroller, { anchors: false });
+  const page = useContext(RowScrollerContext);
+  const scroller = useCallback(() => scrollerOf(page, content), [page, content]);
+  const margin = useScrollMargin(content, scroller, { anchors: false });
+  const scrollMargin = margin ?? 0;
   const [focused, setFocused] = useState<string | null>(null);
   const held = [focused, pinned].map((key) => (key === null ? -1 : keys.indexOf(key)));
   const getItemKey = useCallback((index: number) => keys[index] ?? index, [keys]);
@@ -86,10 +91,19 @@ export function useVirtualRows({
     // Starts from where the scroller already is: the virtualiser otherwise
     // scrolls it to 0 as it attaches, and lists mount while the page is scrolled.
     initialOffset: () => scroller()?.scrollTop ?? 0,
-    rangeExtractor: (range: Range) => withHeld(defaultRangeExtractor(range), held, range.count),
+    rangeExtractor: (range: Range) =>
+      withHeld({ indexes: defaultRangeExtractor(range), held, count: range.count, keepsEdges }),
     // jsdom reports a zero-height scroller, which would place no rows at all.
     initialRect: { width: 960, height: 880 },
   });
+  // The page is scrolled by as much as a row wholly above the screen grows,
+  // so what is shown stays put. Not before the list knows where it starts:
+  // taken to start at 0, rows far down the page would seem above the screen,
+  // and measuring them scrolled the page away from a focused row (#247). Set
+  // while rendering, as the virtualiser's options are: the rows are measured
+  // as they are attached, before any effect.
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item: VirtualItem) =>
+    margin !== null && item.end <= (virtualizer.scrollOffset ?? 0);
 
   const onFocus = useCallback(
     (event: FocusEvent<HTMLElement>) => {
@@ -111,10 +125,20 @@ export function useVirtualRows({
   return { placed, after, measure: virtualizer.measureElement, onFocus };
 }
 
-/** The range's rows, the list's first and last, and each held row with the row either side of it. */
-function withHeld(indexes: number[], held: readonly number[], count: number): number[] {
+/** The range's rows, the list's first and last if kept, and each held row with the row either side of it. */
+function withHeld({
+  indexes,
+  held,
+  count,
+  keepsEdges,
+}: {
+  indexes: number[];
+  held: readonly number[];
+  count: number;
+  keepsEdges: boolean;
+}): number[] {
   const wanted = new Set(indexes);
-  if (count > 0) wanted.add(0).add(count - 1);
+  if (keepsEdges && count > 0) wanted.add(0).add(count - 1);
   for (const index of held) {
     if (index < 0) continue;
     for (const near of [index - 1, index, index + 1]) {
