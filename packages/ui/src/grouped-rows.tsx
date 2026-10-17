@@ -120,7 +120,7 @@ export function GroupedRows({
   const onKeyDown = useRowFocus({
     body,
     count: lines.length,
-    isStop: (index) => lines[index]?.kind !== 'new',
+    stopKey: (index) => stopKeyOf(lines[index]),
     scrollTo: (index) => virtualizer.scrollToIndex(index),
   });
 
@@ -169,6 +169,16 @@ export function GroupedRows({
       {after > 0 && <Spacer height={after} width={width} />}
     </tbody>
   );
+}
+
+/**
+ * The key a line's stop goes by, whatever moves around it: a header by its
+ * group, a row by its note. "+ New" holds no stop.
+ */
+function stopKeyOf(line: GroupLine | undefined): string | null {
+  if (line?.kind === 'group') return `group:${line.group.id}`;
+  if (line?.kind === 'row') return `row:${line.row.path}`;
+  return null;
 }
 
 /** Room for the lines scrolled out of the page, so the scrollbar stays true. */

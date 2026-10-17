@@ -9,21 +9,56 @@ export const ROW_STOP = { 'data-row-stop': '' } as const;
 
 const STOP = '[data-row-stop]';
 
-/** The lines a table draws, and which of them hold a stop: a "+ New" line holds none. */
+/**
+ * The lines a table draws, and the stop each holds: a key that names the
+ * line whatever moves around it — a row's path, a group's id — or null for a
+ * line with none, such as "+ New".
+ */
 interface Stops {
   readonly count: number;
-  readonly isStop: (index: number) => boolean;
+  readonly stopKey: (index: number) => string | null;
 }
 
-/** Every line is a stop: a table that draws rows and nothing else. */
-export const everyLine = (): boolean => true;
-
 /** The first stop from `start`, stepping by `step`, or null when there is none that way. */
-function stopFrom(start: number, step: 1 | -1, { count, isStop }: Stops): number | null {
+function stopFrom(start: number, step: 1 | -1, { count, stopKey }: Stops): number | null {
   for (let at = start; at >= 0 && at < count; at += step) {
-    if (isStop(at)) return at;
+    if (stopKey(at) !== null) return at;
   }
   return null;
+}
+
+/** The stop nearest a line, either way, for a move whose own line has gone. */
+function nearestStop(near: number, stops: Stops): number | null {
+  const at = Math.min(Math.max(near, 0), stops.count - 1);
+  const below = stopFrom(at, 1, stops);
+  const above = stopFrom(at, -1, stops);
+  if (below === null) return above;
+  if (above === null) return below;
+  return below - at <= at - above ? below : above;
+}
+
+/**
+ * What a move is after, so a move still waiting can find it again once the
+ * lines change under it — a group folded or unfolded, a re-read: Home and End
+ * the first and last stop as they are now, an arrow the line it named.
+ */
+type Aim = { readonly to: 'first' | 'last' } | { readonly to: 'line'; readonly key: string };
+
+function aimFor(key: string, index: number, stops: Stops): Aim {
+  if (key === 'Home') return { to: 'first' };
+  if (key === 'End') return { to: 'last' };
+  return { to: 'line', key: stops.stopKey(index) ?? '' };
+}
+
+/** The line an aim names now; `last` is where it was, for a line that has gone. */
+function resolveAim(aim: Aim, last: number, stops: Stops): number | null {
+  if (aim.to === 'first') return stopFrom(0, 1, stops);
+  if (aim.to === 'last') return stopFrom(stops.count - 1, -1, stops);
+  if (stops.stopKey(last) === aim.key) return last;
+  for (let at = 0; at < stops.count; at += 1) {
+    if (stops.stopKey(at) === aim.key) return at;
+  }
+  return nearestStop(last, stops);
 }
 
 /** Where a key from a stop sends the focus: a line's index, or null for a key that is not the table's. */
@@ -35,8 +70,10 @@ function targetIndex(key: string, from: number, stops: Stops): number | null {
   return null;
 }
 
-/** A move to a line the virtualiser had not drawn: where it goes, and the stop it was asked from. */
+/** A move to a line the virtualiser had not drawn: what it is after, and the stop it was asked from. */
 interface PendingMove {
+  readonly aim: Aim;
+  /** The line it last scrolled to: where its aim was, the last time it looked. */
   readonly index: number;
   readonly from: HTMLElement;
   /** Stops listening for what overtakes the move. */
@@ -83,12 +120,13 @@ function listenForOvertaking(from: HTMLElement, overtaken: () => void): () => vo
 export function useRowFocus({
   body,
   count,
-  isStop,
+  stopKey,
   scrollTo,
 }: Stops & {
   body: RefObject<HTMLTableSectionElement | null>;
   scrollTo: (index: number) => void;
 }): (event: KeyboardEvent) => void {
+  const stops: Stops = { count, stopKey };
   const wanted = useRef<PendingMove | null>(null);
   const stopAt = (index: number) =>
     body.current?.querySelector<HTMLElement>(`tr[data-index="${index}"] ${STOP}`) ?? null;
@@ -100,28 +138,47 @@ export function useRowFocus({
   // Finishes a move to a line that was not drawn when it was asked for: the
   // scroll puts it in the page, that renders, and this focuses it — unless the
   // reader has moved on since. On every render: there is only whether it has
-  // appeared yet.
+  // appeared yet, and where its aim is now that the lines may have changed.
   useEffect(() => {
     const move = wanted.current;
     if (move === null) return;
-    if (!stillWanted(move)) {
+    const index = stillWanted(move) ? resolveAim(move.aim, move.index, stops) : null;
+    if (index === null) {
       drop();
       return;
     }
-    const stop = stopAt(move.index);
-    if (stop === null) return;
-    drop();
-    stop.focus();
+    const stop = stopAt(index);
+    if (stop !== null) {
+      drop();
+      stop.focus();
+    } else if (index !== move.index) {
+      // The lines changed under it: scroll to where its line is now.
+      wanted.current = { ...move, index };
+      scrollTo(index);
+    }
   });
   // A table that goes away stops listening for a move it can no longer finish.
   useEffect(() => drop, []);
 
+  /**
+   * The line a key moves on from: the line a waiting move is after, when the
+   * key comes from the stop that move was asked from — a held key repeats
+   * faster than the frames that draw each line — or else the key's own line.
+   */
+  const startOf = (origin: HTMLElement): number | null => {
+    const move = wanted.current;
+    if (move?.from === origin) return resolveAim(move.aim, move.index, stops);
+    const line = origin.closest('tr')?.getAttribute('data-index') ?? null;
+    return line === null ? null : Number(line);
+  };
+
   return (event: KeyboardEvent) => {
-    if (!(event.target instanceof HTMLElement) || !event.target.matches(STOP)) return;
+    const origin = event.target;
+    if (!(origin instanceof HTMLElement) || !origin.matches(STOP)) return;
     // A chord belongs to the app or the browser, not to moving between rows.
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-    const from = event.target.closest('tr')?.getAttribute('data-index') ?? null;
-    const to = from === null ? null : targetIndex(event.key, Number(from), { count, isStop });
+    const from = startOf(origin);
+    const to = from === null ? null : targetIndex(event.key, from, stops);
     if (to === null) return;
     // The arrows and Home and End would otherwise scroll the sheet out from under the focus.
     event.preventDefault();
@@ -133,9 +190,10 @@ export function useRowFocus({
       return;
     }
     wanted.current = {
+      aim: aimFor(event.key, to, stops),
       index: to,
-      from: event.target,
-      release: listenForOvertaking(event.target, drop),
+      from: origin,
+      release: listenForOvertaking(origin, drop),
     };
     scrollTo(to);
   };

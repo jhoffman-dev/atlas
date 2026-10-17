@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { BoardRow } from '@atlas/domain';
 import { ROW_ESTIMATE, SCROLLER_ESTIMATE, Spacer, type LinePlace } from './grouped-rows.tsx';
-import { everyLine, useRowFocus } from './row-focus.ts';
+import { useRowFocus } from './row-focus.ts';
 
 /**
  * A table's rows when it does not group them. Virtualised, as the grouped
@@ -38,7 +38,7 @@ export function FlatRows({
   const onKeyDown = useRowFocus({
     body,
     count: rows.length,
-    isStop: everyLine,
+    stopKey: (index) => rows[index]?.path ?? null,
     scrollTo: (index) => virtualizer.scrollToIndex(index),
   });
 
