@@ -82,3 +82,35 @@ test('reaches a row the virtualiser is not holding, and holds no more for it', a
   await page.keyboard.press('Enter');
   await expect(page.getByRole('article', { name: 'note-0599' })).toBeVisible();
 });
+
+test('opens a row’s menu from its "…" on the first item, and Escape comes back (#250)', async ({
+  page,
+}) => {
+  const vault = await createVault();
+  await vault.write('alpha.md', '# Alpha\n');
+  await installHost(page, vault);
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expect(page.getByRole('treeitem', { name: 'alpha', exact: true })).toBeVisible();
+
+  await tabToTree(page);
+  await expect(focusedRow(page)).toHaveAttribute('aria-label', 'alpha');
+  // The row, then its star, then its "…".
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  const more = page.getByRole('button', { name: 'Options for alpha', exact: true });
+  await expect(more).toBeFocused();
+
+  for (const key of ['Enter', 'Space']) {
+    await page.keyboard.press(key);
+    const menu = page.getByRole('menu', { name: 'Page' });
+    await expect(menu.getByRole('menuitem').first()).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.getByRole('menuitem').nth(1)).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(more).toBeFocused();
+  }
+});

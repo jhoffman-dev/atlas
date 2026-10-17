@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
 import {
@@ -21,6 +21,7 @@ import { useSteadyCallback } from './steady-callback.ts';
 import {
   folderOfDropId,
   VaultTreeRow,
+  type MenuOpenedBy,
   type RowEditing,
   type TreeRowActions,
 } from './vault-tree-row.tsx';
@@ -148,8 +149,12 @@ export function VaultTree({
   /** A row asked for the focus that the virtualiser has not rendered yet. */
   const wantedIndex = useRef<number | null>(null);
   const typed = useRef({ prefix: '', at: 0 });
-  /** The entry whose menu is up, and where it opened from. */
-  const [menu, setMenu] = useState<{ entry: VaultEntry; anchor: MenuAnchor } | null>(null);
+  /** The entry whose menu is up, where it opened from, and how it was asked for. */
+  const [menu, setMenu] = useState<{
+    entry: VaultEntry;
+    anchor: MenuAnchor;
+    openedBy: MenuOpenedBy;
+  } | null>(null);
   /** The entry being carried, while a drag is under way. */
   const [held, setHeld] = useState<SidebarTreeRow | null>(null);
   const sensors = useDragSensors(snapToNextRow);
@@ -256,8 +261,8 @@ export function VaultTree({
     if (found >= 0) focusRow(found);
   };
 
-  const openMenu = (entry: VaultEntry, anchor: MenuAnchor) => {
-    setMenu({ entry, anchor });
+  const openMenu = (entry: VaultEntry, anchor: MenuAnchor, openedBy: MenuOpenedBy) => {
+    setMenu({ entry, anchor, openedBy });
     editing?.onMenuOpenChange(true);
   };
 
@@ -333,7 +338,7 @@ export function VaultTree({
       case 'ContextMenu':
         // Shift+F10 or the menu key: the row's menu, from the keyboard.
         if (editing === undefined || (event.key === 'F10' && !event.shiftKey)) return;
-        openMenu(row.entry, event.target);
+        openMenu(row.entry, event.target, 'keyboard');
         break;
       default:
         // A printable character is type-ahead; a chord belongs to the app.
@@ -442,6 +447,7 @@ export function VaultTree({
       <EntryMenu
         items={menu === null ? [] : editing.menuFor(menu.entry)}
         anchor={menu?.anchor ?? null}
+        openedBy={menu?.openedBy ?? 'pointer'}
         open={editing.menuOpen && menu !== null}
         onOpenChange={(next) => {
           editing.onMenuOpenChange(next);
@@ -492,15 +498,18 @@ function treeAnnouncements(byPath: ReadonlyMap<string, SidebarTreeRow>): Announc
 function EntryMenu({
   items,
   anchor,
+  openedBy,
   open,
   onOpenChange,
 }: {
   items: readonly MenuCommand[];
   anchor: MenuAnchor | null;
+  openedBy: MenuOpenedBy;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const chosen = useRef<MenuCommand | null>(null);
+  const popup = useRef<HTMLDivElement>(null);
   const positioned =
     anchor === null || anchor instanceof Element
       ? anchor
@@ -520,6 +529,7 @@ function EntryMenu({
           sideOffset={4}
         >
           <Menu.Popup
+            ref={popup}
             className="menu"
             aria-label="Page"
             render={<ul />}
@@ -530,9 +540,31 @@ function EntryMenu({
             }}
           >
             <MenuItems items={items} chosen={chosen} />
+            {openedBy === 'keyboard' && <FocusFirstItem popup={popup} />}
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
   );
+}
+
+/**
+ * Puts the focus on a menu's first item as it opens. The rows' menu is shared
+ * and opened by its `open` prop rather than by a Base UI trigger (#244), so
+ * Base UI never sees the key that opened it and would focus the popup instead.
+ * Waiting a frame lets Base UI first mark the menu open, so it takes the
+ * focused item as the one it is on, and note the "…" as where Escape gives
+ * the focus back. Base UI's own initial focus, also a frame on, leaves the
+ * focus alone once it is already inside the menu.
+ */
+function FocusFirstItem({ popup }: { popup: RefObject<HTMLElement | null> }) {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      popup.current
+        ?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')
+        ?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [popup]);
+  return null;
 }
