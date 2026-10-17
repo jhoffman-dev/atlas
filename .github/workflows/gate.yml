@@ -281,9 +281,11 @@ jobs:
   perf:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    # The response-time budgets on the 2,000-note fixture vault (#217): filing
-    # from the Inbox and opening a note. Linux, because macOS jobs are the
-    # scarce ones and WebKit runs here too; the budgets have headroom for it.
+    # On the 2,000-note fixture vault: the response-time budgets (#217) for
+    # filing from the Inbox and opening a note, and the work budgets
+    # (`tools/perf/budgets.json`), counts of what each action makes the app
+    # do. Linux, because macOS jobs are the scarce ones and WebKit runs here
+    # too; the time budgets have headroom for it, and counts do not vary.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -303,8 +305,20 @@ jobs:
       - name: Install WebKit
         run: pnpm exec playwright install --with-deps webkit
 
+      # One build for both runs, unminified so the work budgets can name the
+      # components that rendered.
+      - name: Build the frontend, keeping component names
+        run: pnpm --filter @atlas/desktop exec vite build --minify false
+
       - name: Response times on the fixture vault
-        run: pnpm perf --reporter=list
+        run: pnpm exec playwright test --config playwright.perf.config.ts --project latency --reporter=list
+
+      # Run even when a time budget failed, so a red run still says what the counts were.
+      - name: Work budgets on the fixture vault
+        if: success() || failure()
+        run: pnpm exec playwright test --config playwright.perf.config.ts --project budgets --reporter=list
+        env:
+          PERF_BUDGETS_RUNS: 3
 
       - uses: actions/upload-artifact@v4
         if: always()

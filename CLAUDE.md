@@ -152,6 +152,7 @@ are what older commits and ADRs refer to.
 pnpm tauri:dev       # run the app
 pnpm gate            # format, typecheck, lint, tests + coverage, build, rust lint + tests
 pnpm e2e             # Playwright in WebKit
+pnpm perf:budgets    # the work budgets: what each action makes the app do, against tools/perf/budgets.json
 pnpm design:refs     # render design/target mockups to design/out/refs (design/README.md)
 pnpm shots           # screenshot the built app's surfaces to design/out/shots
 pnpm design:compare  # mockup beside app, per surface, at design/out/compare/index.html
@@ -187,6 +188,18 @@ GitHub billing, and a commit message confidently blamed a Node version first.
 ```sh
 gh api "repos/{owner}/{repo}/check-runs/<job-id>/annotations" -q '.[].message'
 ```
+
+**The work budgets fail the gate when the app does more work** (`tools/perf/budgets.json`,
+the `perf` job). Each action on the 2,008-note fixture — open a note, type, autosave,
+tick, file from the Inbox, ⌘K, drag a card, and 3 s idle — is held to a count of React
+commits, component renders and host calls by command name, and a few hard per-row
+rules (ticking one task renders one `TaskRow`). Counts, not times: the run is on a
+work clock (`tools/perf/work-clock.ts`) with virtual time and the host's answers handed
+over one at a time, so the same build gives the same counts on every machine. Times are
+printed and put in the job summary, never failed on. A failure names the action, the
+count, budget against actual, and the components and commands that did most.
+`pnpm perf:budgets` runs it here; `PERF_BUDGETS=write pnpm perf:budgets` writes a run's
+counts into the file and only ever lowers a budget.
 
 Each checkout serves its e2e build on its own port, derived from its path (see
 `playwright.config.ts`), so suites in two worktrees can run at the same time.
@@ -238,4 +251,8 @@ and TypeScript will drift, and the version the user sees is the TypeScript one.
 - **Do not reimplement a card an agent is still working on.** Cancel it or wait.
   It has been done once here; the work was duplicated and the coordinator's copy
   was quietly worse.
+- **Work budgets only go down.** A PR may lower `tools/perf/budgets.json` (and
+  should, when it removes work); it never raises a number without James's explicit
+  agreement. Over budget means the change made the app do more: find the work, don't
+  move the number. A new host command, or a count that was 0, has no headroom at all.
 - Plan and phases: `PLAN.md`. Decisions: `vault/docs/adr/`.

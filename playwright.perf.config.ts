@@ -12,6 +12,8 @@ import e2e from './playwright.config.ts';
  *   profiler, which WebKit lacks, to name where the time went.
  * - `renders` (`pnpm perf:renders`): in WebKit, how many components each
  *   action draws again, beside its time and longest frame.
+ * - `budgets` (`pnpm perf:budgets`): in WebKit, the work each action makes the
+ *   app do, as counts, held to `tools/perf/budgets.json`. CI runs it too.
  */
 export default defineConfig({
   ...e2e,
@@ -22,5 +24,6 @@ export default defineConfig({
     { name: 'latency', testMatch: 'ui-latency.spec.ts', use: { ...devices['Desktop Safari'] } },
     { name: 'profile', testMatch: 'profile.spec.ts', use: { ...devices['Desktop Chrome'] } },
     { name: 'renders', testMatch: 'renders.spec.ts', use: { ...devices['Desktop Safari'] } },
+    { name: 'budgets', testMatch: 'budgets.spec.ts', use: { ...devices['Desktop Safari'] } },
   ],
 });

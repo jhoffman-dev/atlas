@@ -1,0 +1,9 @@
+{
+  "$comment": [
+    "The work budgets: the most each action may make the app do, as counts.",
+    "These numbers only go DOWN. A PR may lower them; it never raises one without James's explicit agreement.",
+    "Measured on the 2,008-note fixture by `pnpm perf:budgets`; `PERF_BUDGETS=write pnpm perf:budgets` lowers them to a run's counts plus headroom (10% or 2, whichever is more).",
+    "`rows` are hard rules with no headroom: the most times a list's row component may render."
+  ],
+  "actions": {}
+}
