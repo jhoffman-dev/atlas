@@ -16,11 +16,17 @@ export function useSearch({
   index,
   commands = NO_COMMANDS,
   offerFor = noOffers,
+  changeKey,
 }: {
   index: IndexPort;
   commands?: readonly PaletteCommand[];
   /** Commands the query itself calls for — a pasted link, say — listed first. */
   offerFor?: (query: string) => readonly PaletteCommand[];
+  /**
+   * Changes whenever the index does. A note made a moment ago is indexed after
+   * it opens, so a search typed in between would otherwise stay empty.
+   */
+  changeKey?: string;
 }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<readonly SearchHit[]>([]);
@@ -50,7 +56,7 @@ export function useSearch({
     return () => {
       cancelled = true;
     };
-  }, [index, query, includeArchived]);
+  }, [index, query, includeArchived, changeKey]);
 
   const offered = useMemo(
     () => [...offerFor(query), ...matchingCommands(query, commands)],
