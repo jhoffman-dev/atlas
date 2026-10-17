@@ -251,6 +251,40 @@ const MAX_URL: usize = 2048;
 const MAX_NAME: usize = 255;
 const MAX_REPO_NAME: usize = 100;
 
+/// The vault commands that rewrite notes in the working tree: a merge, taking
+/// one side of a conflict, writing a path from the index, and a move. The rest
+/// read, or change only what is inside `.git`, which no save touches.
+const WRITES_TREE: &[&str] = &["merge", "checkout", "checkout-index", "mv"];
+
+/// The git command the arguments run, past any leading `-c <key>=<value>`.
+fn verb_of(args: &[String]) -> Option<&str> {
+    let mut rest = args;
+    while let [flag, _setting, after @ ..] = rest {
+        if flag != "-c" {
+            break;
+        }
+        rest = after;
+    }
+    rest.first().map(String::as_str)
+}
+
+/// Whether vetted vault arguments rewrite notes, and so must wait for the
+/// vault's change turn. Network runs never do: a turn held over a fetch would
+/// hold every save behind it.
+pub fn writes_working_tree(args: &[String]) -> bool {
+    verb_of(args).is_some_and(|verb| WRITES_TREE.contains(&verb))
+}
+
+/// The file a vetted `checkout --ours/--theirs` writes over whatever is there,
+/// which the sync must say what it saw of: a save made since it looked is
+/// the person's, and is not written over. `checkout-index` and `merge` need
+/// no such word, as git itself never writes them over a file it did not make.
+pub fn overwritten_path(args: &[String]) -> Option<&str> {
+    (verb_of(args) == Some("checkout"))
+        .then(|| args.last().map(String::as_str))
+        .flatten()
+}
+
 /// Checks arguments meant for the open vault; says how far the run reaches.
 pub fn vet_vault_args(args: &[String]) -> Result<Reach, String> {
     vet(IN_VAULT, args)

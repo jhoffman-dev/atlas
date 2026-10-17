@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ProgramMissingError } from '@atlas/application';
+import { FileChangedError, ProgramMissingError } from '@atlas/application';
 
 const invoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
@@ -22,7 +22,7 @@ describe('tauriGit', () => {
     await git.commit({ message: 'm', identity: { name: 'Atlas on Mac', email: 'a@b' } });
     await git.merge('main');
     await git.remoteBranchExists('main');
-    await git.checkout({ side: 'theirs', path: 'Ideas.md' });
+    await git.checkout({ side: 'theirs', path: 'Ideas.md', seen: null });
     await git.setRemote({ url: 'git@github.com:j/n.git', exists: true });
     await git.setRemote({ url: 'git@github.com:j/n.git', exists: false });
     expect(invoke.mock.calls.map(([, args]) => (args as { args: string[] }).args)).toEqual([
@@ -50,6 +50,33 @@ describe('tauriGit', () => {
         ([command, args]) => command === 'git_run' && (args as { vault: string }).vault === '/v',
       ),
     ).toBe(true);
+  });
+
+  it('hands the host what the sync saw of a file a checkout writes over (#246)', async () => {
+    const git = tauriGit('/v');
+    await git.checkout({ side: 'ours', path: 'Ideas.md', seen: 'c'.repeat(40) });
+    await git.checkout({ side: 'theirs', path: 'New.md', seen: null });
+    expect(invoke.mock.calls).toEqual([
+      [
+        'git_run',
+        {
+          vault: '/v',
+          args: ['checkout', '--ours', '--', 'Ideas.md'],
+          seen: { blob: 'c'.repeat(40) },
+        },
+      ],
+      [
+        'git_run',
+        { vault: '/v', args: ['checkout', '--theirs', '--', 'New.md'], seen: { blob: null } },
+      ],
+    ]);
+  });
+
+  it('says the file changed when the host would not write over a newer one', async () => {
+    invoke.mockRejectedValue('changed: Ideas.md changed since the sync looked at it');
+    const checkout = tauriGit('/v').checkout({ side: 'ours', path: 'Ideas.md', seen: null });
+    await expect(checkout).rejects.toBeInstanceOf(FileChangedError);
+    await expect(checkout).rejects.toThrow('Ideas.md changed since the sync looked at it');
   });
 
   it('runs each step the settle and the case and size rules take as a shape the host holds (A29-01)', async () => {

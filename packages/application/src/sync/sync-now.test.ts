@@ -297,7 +297,7 @@ describe('syncNow', () => {
     const report = await run();
     // Git writes only the file this Mac no longer has; this Mac's own is left as it is.
     expect(called('checkout').map(({ args }) => args)).toEqual([
-      { side: 'theirs', path: 'Edited there.md' },
+      { side: 'theirs', path: 'Edited there.md', seen: null },
     ]);
     expect(report.conflicts).toEqual([]);
     // The merge is concluded even though nothing new was staged for it.

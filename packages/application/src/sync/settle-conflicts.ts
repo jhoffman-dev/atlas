@@ -13,7 +13,7 @@ import {
 } from '@atlas/domain';
 import { blobOf, expectOk, firstLine, readIndex, stageAll, SyncError } from './git-steps.ts';
 import { readJournal, writeJournal } from './journal.ts';
-import type { GitPort, SyncFilesPort } from './ports.ts';
+import { FileChangedError, type GitPort, type GitResult, type SyncFilesPort } from './ports.ts';
 import { mergeSettingsConflicts, type SettingsMergePorts } from './settle-settings.ts';
 
 /** The commit a merge under way is bringing in; null with no merge under way. */
@@ -176,7 +176,10 @@ async function settleOne({
     const current = await blobOf(git, path);
     const keep = thisMacsFileAfterConflict({ current, merged: entry.merged, ours: ours.oid });
     if (keep === 'ours') {
-      expectOk('keep this Mac’s version', await git.checkout({ side: 'ours', path }));
+      await unlessChanged(
+        'keep this Mac’s version',
+        git.checkout({ side: 'ours', path, seen: current }),
+      );
     }
     return copy;
   }
@@ -191,9 +194,25 @@ async function settleOne({
   // file loses work. This Mac's is on disk already; the other's is written
   // if the file is not there.
   if (ours === null && theirs !== null && (await blobOf(git, path)) === null) {
-    expectOk('keep the other Mac’s file', await git.checkout({ side: 'theirs', path }));
+    await unlessChanged(
+      'keep the other Mac’s file',
+      git.checkout({ side: 'theirs', path, seen: null }),
+    );
   }
   return null;
+}
+
+/**
+ * Waits for a checkout the host runs only over the file the sync saw. When
+ * the host refused, the person saved the file after the sync looked: theirs
+ * is kept, as every other step keeps what was typed since.
+ */
+async function unlessChanged(step: string, checkout: Promise<GitResult>): Promise<void> {
+  try {
+    expectOk(step, await checkout);
+  } catch (error) {
+    if (!(error instanceof FileChangedError)) throw error;
+  }
 }
 
 /**

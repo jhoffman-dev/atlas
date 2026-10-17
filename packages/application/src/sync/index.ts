@@ -1,4 +1,4 @@
-export { ProgramMissingError } from './ports.ts';
+export { FileChangedError, ProgramMissingError } from './ports.ts';
 export type {
   ConflictSide,
   GitFoldersPort,
