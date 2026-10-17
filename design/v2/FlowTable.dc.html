@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Table with in-place editing and right sidebar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; display: flex; overflow: hidden; background: #FFFFFF; color: #18181B; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; font-size: 13px;">
+<svg width="0" height="0" style="position: absolute;" aria-hidden="true">
+<symbol id="f-table" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M4 10h16M10 10v9"></path></g></symbol>
+<symbol id="f-page" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M7 3.5h7l4 4v13H7z"></path><path d="M14 3.5v4h4"></path></g></symbol>
+<symbol id="f-review" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14.5" rx="2"></rect><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4M9 14.5l2 2 4-4"></path></g></symbol>
+<symbol id="f-tag" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 4h7l9 9-7 7-9-9z"></path><circle cx="8.5" cy="8.5" r="1.3"></circle></g></symbol>
+<symbol id="f-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="f-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="f-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="f-fwd" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="f-panel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M14 5v14"></path></g></symbol>
+<symbol id="f-star" viewBox="0 0 24 24"><path d="M12 4l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.4l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></symbol>
+<symbol id="f-more" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="6" cy="12" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="18" cy="12" r="1.5"></circle></g></symbol>
+<symbol id="f-filter" viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></symbol>
+<symbol id="f-sort" viewBox="0 0 24 24"><path d="M8 5v14M5 16l3 3 3-3M16 19V5M13 8l3-3 3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="f-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="f-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></g></symbol>
+<symbol id="f-undo" viewBox="0 0 24 24"><path d="M9 7L5 11l4 4M5 11h9a5 5 0 0 1 0 10h-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+<symbol id="f-open" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></symbol>
+</svg>
+
+<dc-import name="Sidebar" active="task-table" hint-size="224px,900px"></dc-import>
+
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+
+<div role="tablist" aria-label="Open tabs" style="height: 36px; flex-shrink: 0; display: flex; align-items: stretch; background: #F6F6F7; border-bottom: 1px solid #E6E6E9;">
+<sc-for list="{{tabs}}" as="tab" hint-placeholder-count="4">
+<button type="button" role="tab" aria-selected="{{tab.selected}}" style="width: 188px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 12px; border: 0; border-right: 1px solid #E6E6E9; margin-bottom: -1px; background: {{tab.bg}}; color: {{tab.ink}}; font: inherit; font-size: 12.5px; font-weight: {{tab.weight}}; cursor: pointer; text-align: left;">
+<svg width="13" height="13" style="flex-shrink: 0; color: #6B6B73;" aria-hidden="true"><use href="#f-{{tab.icon}}"></use></svg>
+<span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{tab.label}}</span>
+<svg width="13" height="13" style="flex-shrink: 0; color: {{tab.closeInk}};" aria-hidden="true"><use href="#f-x"></use></svg>
+</button>
+</sc-for>
+<button type="button" aria-label="New tab" style="width: 36px; border: 0; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#f-plus"></use></svg></button>
+</div>
+
+<header style="height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 10px; border-bottom: 1px solid #E6E6E9;">
+<button type="button" aria-label="Back" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#f-back"></use></svg></button>
+<button type="button" aria-label="Forward" disabled style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #C4C4CA; display: flex; align-items: center; justify-content: center;"><svg width="15" height="15" aria-hidden="true"><use href="#f-fwd"></use></svg></button>
+<span style="margin-left: 6px; color: #6B6B73;">Views</span>
+<span style="color: #6B6B73;">/</span>
+<span style="font-weight: 500;">Task table</span>
+<span style="margin-left: 6px; font-size: 12px; color: #6B6B73;">186 tasks</span>
+<span style="flex-grow: 1;"></span>
+<button type="button" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; font: inherit; font-size: 12.5px; display: flex; align-items: center; gap: 6px; padding: 0 8px; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#f-filter"></use></svg>Filter</button>
+<button type="button" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: #52525B; font: inherit; font-size: 12.5px; display: flex; align-items: center; gap: 6px; padding: 0 8px; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#f-sort"></use></svg>Phase</button>
+<button type="button" style="height: 28px; border: 0; border-radius: 6px; background: #E3ECFB; color: #23457E; font: inherit; font-size: 12.5px; font-weight: 500; display: flex; align-items: center; gap: 5px; padding: 0 10px 0 8px; margin: 0 6px; cursor: pointer;"><svg width="14" height="14" aria-hidden="true"><use href="#f-plus"></use></svg>New task</button>
+<button type="button" aria-label="Favorite" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#f-star"></use></svg></button>
+<button type="button" aria-label="More" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#f-more"></use></svg></button>
+<button type="button" aria-label="Hide right sidebar" aria-pressed="true" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: #E8E8EB; color: #18181B; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="15" height="15" aria-hidden="true"><use href="#f-panel"></use></svg></button>
+</header>
+
+<div role="table" aria-label="Task table" style="flex-grow: 1; min-height: 0; position: relative; display: flex; flex-direction: column; overflow: hidden;">
+<div role="row" style="height: 32px; flex-shrink: 0; display: grid; grid-template-columns: 28px minmax(0, 1fr) 118px 60px 74px 128px; align-items: center; padding: 0 16px 0 12px; border-bottom: 1px solid #E6E6E9; font-size: 12px; font-weight: 500; color: #6B6B73;">
+<span></span><span role="columnheader">Name</span><span role="columnheader">Status</span><span role="columnheader">Phase</span><span role="columnheader">Estimate</span><span role="columnheader">Role</span>
+</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="18">
+<div role="row" style="height: 34px; flex-shrink: 0; display: grid; grid-template-columns: 28px minmax(0, 1fr) 118px 60px 74px 128px; align-items: stretch; padding: 0 16px 0 12px; border-bottom: 1px solid #ECECEF; background: {{r.bg}};">
+<span role="cell" style="display: flex; align-items: center;"><span style="width: 14px; height: 14px; box-sizing: border-box; border-radius: 4px; border: 1.5px solid {{r.boxLine}};"></span></span>
+<span role="cell" style="display: flex; align-items: center; padding-right: 20px; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.name}}</span></span>
+<span role="cell" style="display: flex; align-items: center; margin: 3px 8px 3px -4px; padding: 0 4px; border-radius: 5px; box-shadow: {{r.editRing}}; background: {{r.editBg}};"><span style="height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; border-radius: 4px; background: {{r.tint}}; color: {{r.pink}}; font-size: 12px; font-weight: 500;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{r.dot}};"></span>{{r.status}}</span></span>
+<span role="cell" style="display: flex; align-items: center; font-size: 12.5px; color: #52525B; font-variant-numeric: tabular-nums;">{{r.phase}}</span>
+<span role="cell" style="display: flex; align-items: center; font-size: 12.5px; color: #52525B; font-variant-numeric: tabular-nums;">{{r.est}}</span>
+<span role="cell" style="display: flex; align-items: center; font-size: 12.5px; color: #52525B; white-space: nowrap; overflow: hidden;">{{r.role}}</span>
+</div>
+</sc-for>
+
+<div role="listbox" aria-label="Set status" style="position: absolute; left: {{popLeft}}; top: {{popTop}}; width: 220px; box-sizing: border-box; padding: 4px; background: #FFFFFF; border: 1px solid #E6E6E9; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 1px;">
+<div style="height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 8px; border-bottom: 1px solid #ECECEF; margin-bottom: 3px; color: #6B6B73; font-size: 12.5px;"><svg width="13" height="13" aria-hidden="true"><use href="#f-search"></use></svg>Set status…</div>
+<sc-for list="{{statusOpts}}" as="o" hint-placeholder-count="7">
+<div role="option" aria-selected="{{o.selected}}" style="height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 5px; background: {{o.bg}}; font-size: 12.5px;">
+<span style="width: 7px; height: 7px; border-radius: 50%; background: {{o.dot}};"></span>
+<span style="flex-grow: 1;">{{o.label}}</span>
+<sc-if value="{{o.current}}" hint-placeholder-val="{{false}}"><svg width="13" height="13" style="color: #52525B;" aria-hidden="true"><use href="#f-check"></use></svg></sc-if>
+<span style="width: 12px; text-align: right; font-size: 11.5px; color: #8E8E98; font-variant-numeric: tabular-nums;">{{o.key}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<footer style="height: 30px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 16px; border-top: 1px solid #E6E6E9; font-size: 12px; color: #6B6B73;">
+<span>1 selected</span>
+<span style="flex-grow: 1;"></span>
+<span>Click a cell to edit · Tab to the next · Space opens · ⌘Z undo</span>
+</footer>
+</main>
+
+<aside aria-label="Right sidebar" style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid #E6E6E9; background: #FFFFFF;">
+<div style="height: 36px; flex-shrink: 0; display: flex; align-items: stretch; gap: 2px; padding: 0 6px 0 10px; border-bottom: 1px solid #E6E6E9; background: #F6F6F7;">
+<button type="button" aria-pressed="true" style="border: 0; border-bottom: 2px solid #18181B; margin-bottom: -1px; background: transparent; padding: 0 6px; font: inherit; font-size: 12.5px; font-weight: 500; color: #18181B;">Properties</button>
+<button type="button" aria-pressed="false" style="border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; padding: 0 6px; font: inherit; font-size: 12.5px; color: #52525B;">Backlinks</button>
+<button type="button" aria-pressed="false" style="border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; padding: 0 6px; font: inherit; font-size: 12.5px; color: #52525B;">Outline</button>
+<span style="flex-grow: 1;"></span>
+<button type="button" aria-label="Hide right sidebar" style="width: 26px; align-self: center; height: 26px; border: 0; border-radius: 5px; background: transparent; color: #6B6B73; display: flex; align-items: center; justify-content: center;"><svg width="13" height="13" aria-hidden="true"><use href="#f-x"></use></svg></button>
+</div>
+<div style="padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid #ECECEF;">
+<span style="font-size: 11.5px; font-weight: 500; color: #6B6B73;">Task · selected row</span>
+<h2 style="margin: 0; font-size: 14px; font-weight: 600; line-height: 1.35;">Cmd+N and Shift+Cmd+D still fire behind an open palette</h2>
+</div>
+<div style="padding: 6px 8px; display: flex; flex-direction: column;">
+<sc-for list="{{props}}" as="p" hint-placeholder-count="5">
+<div style="height: 30px; display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; padding: 0 8px; border-radius: 5px;">
+<span style="font-size: 12.5px; color: #6B6B73;">{{p.label}}</span>
+<span style="display: flex; align-items: center; gap: 7px; font-size: 13px; color: #18181B;"><sc-if value="{{p.dot}}" hint-placeholder-val="{{false}}"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{p.dot}};"></span></sc-if>{{p.value}}</span>
+</div>
+</sc-for>
+<button type="button" style="height: 28px; border: 0; background: transparent; text-align: left; padding: 0 8px; font: inherit; font-size: 12px; color: #6B6B73; cursor: pointer;">4 empty properties</button>
+</div>
+<div style="padding: 12px 16px; border-top: 1px solid #ECECEF; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 11.5px; font-weight: 500; color: #6B6B73;">Summary</span>
+<p style="margin: 0; font-size: 12.5px; line-height: 1.5; color: #52525B;">The one-overlay rule (apps/desktop/src/overlay.ts)…</p>
+</div>
+<span style="flex-grow: 1;"></span>
+<div style="padding: 10px 12px; border-top: 1px solid #ECECEF; display: flex; gap: 6px;">
+<button type="button" style="flex-grow: 1; height: 28px; border: 1px solid #D9D9DE; border-radius: 6px; background: #FFFFFF; font: inherit; font-size: 12.5px; color: #18181B; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;"><svg width="13" height="13" aria-hidden="true"><use href="#f-open"></use></svg>Open<span style="color: #8E8E98; font-size: 11.5px;">Space</span></button>
+<button type="button" style="flex-grow: 1; height: 28px; border: 1px solid #D9D9DE; border-radius: 6px; background: #FFFFFF; font: inherit; font-size: 12.5px; color: #18181B; cursor: pointer;">New tab <span style="color: #8E8E98; font-size: 11.5px;">⌘↵</span></button>
+</div>
+</aside>
+
+<div role="status" style="position: absolute; top: 46px; right: 12px; width: 340px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; background: #18181B; color: #FFFFFF; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.16); font-size: 12.5px;">
+<span style="width: 7px; height: 7px; border-radius: 50%; background: #7DBF93; flex-shrink: 0;"></span>
+<span style="flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Moved “bug: edits made to a document…” to Done</span>
+<button type="button" style="height: 24px; border: 0; border-radius: 5px; background: rgba(255,255,255,0.12); color: #FFFFFF; font: inherit; font-size: 12px; padding: 0 8px; display: flex; align-items: center; gap: 5px; cursor: pointer;"><svg width="12" height="12" aria-hidden="true"><use href="#f-undo"></use></svg>Undo</button>
+<button type="button" aria-label="Dismiss" style="width: 22px; height: 22px; border: 0; background: transparent; color: #B4B4BC; display: flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="12" height="12" aria-hidden="true"><use href="#f-x"></use></svg></button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dot = { Inbox: "#9DB4C8", Next: "#7EA2DD", Doing: "#DDA54E", Waiting: "#C9A0B8", Review: "#A595E3", Backlog: "#A1A1AA", Done: "#7DBF93" };
+    const tint = { Inbox: "#EAF0F5", Next: "#E8EFFB", Doing: "#FBF1DF", Waiting: "#F6ECF2", Review: "#EFEBFB", Backlog: "#F1F1F3", Done: "#E6F3EA" };
+    const pink = { Inbox: "#3D5A70", Next: "#2D4F8A", Doing: "#7A5312", Waiting: "#6E3F5C", Review: "#4E3F8F", Backlog: "#52525B", Done: "#2F6B45" };
+    const tabs = [
+      { icon: "table", label: "Task table", on: true },
+      { icon: "review", label: "Weekly review" },
+      { icon: "page", label: "Leftovers from A15-02: templates in views" },
+      { icon: "tag", label: "#1on1" },
+    ].map((x) => ({ ...x, selected: x.on ? "true" : "false", bg: x.on ? "#FFFFFF" : "transparent", ink: x.on ? "#18181B" : "#52525B", weight: x.on ? "500" : "400", closeInk: x.on ? "#6B6B73" : "transparent" }));
+    const editIndex = 4;
+    const raw = [
+      ["Phase 16 — The look, rebuilt", "Review", "16", "1w", ""],
+      ["The UI doesn’t look good, or close to the reference images", "Review", "", "", ""],
+      ["Leftovers from A15-02: templates in views, short query pages, create races", "Backlog", "15", "3h", ""],
+      ["addDays hands back its input when it cannot move, and says nothing", "Backlog", "14", "1h", "Bug fixer"],
+      ["Cmd+N and Shift+Cmd+D still fire behind an open palette", "Backlog", "14", "1h", "Bug fixer"],
+      ["Drag to resize and reorder widgets", "Backlog", "", "", ""],
+      ["new-note.spec reads the file once instead of waiting for it", "Backlog", "", "", ""],
+      ["Prove it end to end, and try to break it", "Done", "15", "1d", ""],
+      ["The MCP server, apps/mcp", "Done", "15", "1d", ""],
+      ["Wire the bridge, and a Settings panel to turn it on", "Done", "15", "", ""],
+      ["niceTicks never returns for a max too small for a step", "Done", "13", "1h", "Adversarial tester"],
+      ["A slice narrower than its gap is painted back across its neighbour", "Done", "13", "2h", "Adversarial tester"],
+      ["Open-in-pane silently opens in a different pane when that pane is gone", "Done", "13", "", ""],
+      ["bug: edits made to a document aren’t saving", "Done", "", "", ""],
+      ["feature: makes sidebar collapsible", "Done", "", "", ""],
+      ["bug: spacing between task list items is double what it should be", "Done", "", "", ""],
+      ["Folder picker + persisted vault choice", "Done", "1", "1h30", ""],
+      ["Tauri fs adapter (scoped read)", "Done", "1", "3h", ""],
+      ["VaultPort + domain vault model", "Done", "1", "2h", ""],
+      ["CI workflow + COVERAGE.md", "Done", "0", "1h", ""],
+      ["Test + lint + typecheck gate", "Done", "0", "1h30", ""],
+      ["Tauri v2 + React + Vite shell", "Done", "0", "2h", ""],
+    ];
+    const rows = raw.map(([name, status, phase, est, role], i) => {
+      const sel = i === editIndex;
+      return { name, status, phase, est, role, dot: dot[status], tint: tint[status], pink: pink[status], bg: sel ? "#F3F3F6" : "transparent", boxLine: sel ? "#52525B" : "#D4D4D8",
+        editRing: sel ? "inset 0 0 0 1.5px #6B7BC4" : "none", editBg: sel ? "#FFFFFF" : "transparent" };
+    });
+    const statusOpts = ["Inbox", "Next", "Doing", "Waiting", "Review", "Backlog", "Done"].map((label, i) => ({
+      label, dot: dot[label], key: String(i + 1), current: label === "Backlog", selected: label === "Backlog" ? "true" : "false", bg: label === "Next" ? "#F1F1F3" : "transparent",
+    }));
+    const props = [
+      { label: "Status", value: "Backlog", dot: dot.Backlog },
+      { label: "Phase", value: "14", dot: "" },
+      { label: "Estimate", value: "1h", dot: "" },
+      { label: "Role", value: "Bug fixer", dot: "" },
+    ];
+    const popLeft = (12 + 28 + 0) + "px";
+    return { tabs, rows, statusOpts, props, popTop: (32 + 34 * (editIndex + 1) + 2) + "px", popLeft: "calc(100% - 16px - 128px - 74px - 60px - 118px - 6px)" };
+  }
+}
+</script>
+</body>
+</html>

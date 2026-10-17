@@ -14,3 +14,6 @@ docs/guide/
 
 # A Notion export as Notion writes it: formatting it would change what it tests.
 tools/notion-import/fixtures
+
+# Design-tool exports of the v2 mockups, as the tool writes them (as design/target is, through **/target/**).
+design/v2/
