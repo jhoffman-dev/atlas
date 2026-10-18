@@ -62,6 +62,8 @@ export function recordingOwnWrites({
     trashEntry: (args) =>
       forgetOnFailure([args.path], async () => {
         await fs.trashEntry(args);
+        // A folder goes with all it holds: what the app left inside is gone too.
+        ownWrites.forgetUnder(at(args.path));
         ownWrites.record({ ...at(args.path), left: { kind: 'absent' } });
       }),
     moveEntry: (args) =>
@@ -71,6 +73,9 @@ export function recordingOwnWrites({
         const carried = ownWrites.leftAt(at(args.from));
         if (carried?.kind === 'text') ownWrites.record({ ...at(args.to), left: carried });
         else ownWrites.forget(at(args.to));
+        // A folder moves with all it holds, so neither end's contents are known.
+        ownWrites.forgetUnder(at(args.from));
+        ownWrites.forgetUnder(at(args.to));
         ownWrites.record({ ...at(args.from), left: { kind: 'absent' } });
       }),
     writeBinaryFile: (args) => forgetAfter(args.path, () => fs.writeBinaryFile(args)),
