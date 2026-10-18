@@ -1146,6 +1146,8 @@ describe('a pane on a note that is moved or deleted', () => {
     let reads = 0;
     let writes = 0;
     let clock = 1;
+    /** Holds a write's answer once it is on disk. */
+    const answers = gate();
     const fs: VaultFsPort = {
       ...vault.fs,
       readTextFile: async (path) => {
@@ -1162,12 +1164,15 @@ describe('a pane on a note that is moved or deleted', () => {
           throw new Error('the note changed on disk since it was opened');
         }
         clock += 1;
-        files.set(path, { text: contents, modified: clock });
-        return clock;
+        const landed = clock;
+        files.set(path, { text: contents, modified: landed });
+        await answers.pass();
+        return landed;
       },
     };
     return {
       fs,
+      answers,
       move: () => {
         const file = files.get(NOTE);
         if (file !== undefined) files.set(MOVED, file);
@@ -1210,6 +1215,32 @@ describe('a pane on a note that is moved or deleted', () => {
     expect(vault.text(MOVED)).toContain('Typed before the move.');
     expect(vault.text(NOTE)).toBeUndefined();
     expect(view.result.current.dirty).toBe(false);
+  });
+
+  // Verification of #281: the answer to a write made before a move names the
+  // path the note had then; it is still this pane's note, under its new path.
+  it('saves again after a property write whose answer came back once the note had moved', async () => {
+    const vault = movableVault();
+    const view = paneOn(vault.fs);
+    await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
+    vault.answers.hold();
+    act(() => view.result.current.setProperty('status', 'open'));
+    await settle();
+    expect(vault.text(NOTE)).toContain('status: open');
+
+    vault.move();
+    act(() => view.result.current.repoint(MOVED));
+    view.rerender({ path: MOVED });
+    await settle();
+    vault.answers.release();
+    await settle();
+    await settle();
+
+    await act(() => view.result.current.setProperties({ status: 'done' }));
+    expect(vault.text(MOVED)).toContain('status: done');
+    expect(vault.text(NOTE)).toBeUndefined();
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
   });
 
   it('writes nothing on the way out once told its note was deleted', async () => {
