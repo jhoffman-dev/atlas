@@ -282,7 +282,9 @@ describe('BarChart', () => {
     const { container } = bars(barData(barsOf(['2', 9])));
     const column = container.querySelector('.bars__column');
     expect(column?.getAttribute('title')).toBe('Phase 2 · 9 tasks');
-    expect(column?.getAttribute('aria-label')).toBe('Phase 2 · 9 tasks');
+    expect(column?.querySelector('.visually-hidden')?.textContent).toBe('Phase 2 · 9 tasks');
+    // Not as a label: it would shadow a widget whose title the reading contains.
+    expect(column?.hasAttribute('aria-label')).toBe(false);
   });
 
   it('marks the scale with round ticks from zero past the largest', () => {

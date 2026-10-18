@@ -12,7 +12,9 @@ import { useNoteNames } from '../note-names.tsx';
  * pastel blue with its label in ink. Which one is the widget's `highlight`
  * rule; this only draws it. A value is written only over the tallest bar and
  * the called-out one, so the picture is not a row of numbers; every bar still
- * names itself and its count when pointed at, and to a screen reader.
+ * names itself and its count when pointed at, and to a screen reader. Not as
+ * a label on the item: a label is what `getByLabel` and a rotor list by, and
+ * "Status doing · 2 tasks" would then shadow the widget called "Doing".
  */
 export function BarChart({
   bars,
@@ -63,8 +65,10 @@ export function BarChart({
                 className={current ? 'bars__column bars__column--current' : 'bars__column'}
                 key={bar.label}
                 title={tipOf(bar)}
-                aria-label={tipOf(bar)}
               >
+                {/* The reading, once, for a screen reader; the drawn label and
+                    value are hidden from it so a bar is not read twice. */}
+                <span className="visually-hidden">{tipOf(bar)}</span>
                 <span className="bars__stack">
                   <span className="bars__bar" style={at(bar.count)} />
                   {(current || bar.count === tallest) && (

@@ -157,9 +157,10 @@ test('a donut names every segment in its table, not only in the bar', async ({ p
   await openDashboard(page);
 
   const donut = page.getByLabel('Share of status');
+  // Two segments; three rows, since the option nothing is in yet is still listed.
   await expect(donut.locator('.donut__segment')).toHaveCount(2);
-  await expect(donut.locator('.count-table__label')).toHaveText(['Doing', 'Done']);
-  await expect(donut.locator('.count-table__count')).toHaveText(['2', '1']);
+  await expect(donut.locator('.count-table__label')).toHaveText(['Doing', 'Done', 'Backlog']);
+  await expect(donut.locator('.count-table__count')).toHaveText(['2', '1', '0']);
 });
 
 test('a line chart gives its numbers as a table as well as a line', async ({ page }) => {
