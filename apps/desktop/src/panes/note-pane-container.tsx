@@ -880,27 +880,21 @@ function usePaneNote({
     if (hidden) void live.current.flush();
   }, [hidden]);
 
-  // A note changed outside while its tab waited is read again as the tab
-  // shows, when the editor is clean; a dirty one keeps its edits and the
-  // save's own conflict rules apply. News of the tab's own write — the same
-  // digest it holds — is not a change. (A shown tab's note is older ground.)
-  const changedWhileHidden = useRef(false);
+  // A note changed outside — a different digest from what this editor read
+  // or last wrote, so its own write's echo is not a change — is read again
+  // while the editor is clean, behind another tab or shown; a dirty one
+  // keeps its edits and the save's own conflict rules apply. For the whole
+  // of the tab's life rather than while hidden: the news of a change made
+  // while the tab waited can land just after it shows.
   useEffect(() => {
-    if (!hidden || path === null) return;
+    if (path === null) return;
     return changes.subscribe(({ changes: changed }) => {
       const held = live.current.open;
-      if (held === null) return;
-      const mine = changed.find((change) => change.path === held.path);
-      if (mine !== undefined && mine.digest !== digestOf(held.onDisk)) {
-        changedWhileHidden.current = true;
-      }
+      if (held === null || live.current.dirty) return;
+      const mine = changed.find((change) => change.kind === 'changed' && change.path === held.path);
+      if (mine !== undefined && mine.digest !== digestOf(held.onDisk)) live.current.reload();
     });
-  }, [hidden, path, changes]);
-  useEffect(() => {
-    if (hidden || !changedWhileHidden.current) return;
-    changedWhileHidden.current = false;
-    if (!live.current.dirty) live.current.reload();
-  }, [hidden]);
+  }, [path, changes]);
 
   useEffect(() => {
     if (path === null) return;
