@@ -236,3 +236,20 @@ describe('drawsGroups', () => {
     expect(VIEW_LAYOUTS.filter(drawsGroups)).toEqual(['table', 'board', 'gallery']);
   });
 });
+
+describe('queryForLayout for a board of repeating work (#260)', () => {
+  const query: ViewQuery = { type: 'task', columns: ['due'], filters: [], sorts: [], limit: 50 };
+  const repeatKeys = ['recurrence', 'due'];
+
+  it('reads what a repeating task rolls on by, hidden, so a card dropped on done is drawn where the roll puts it', () => {
+    const run = queryForLayout({ query, layout: 'board', statusKey: 'status', repeatKeys });
+    expect(run.query.columns).toEqual(['due', 'status', 'recurrence']);
+    expect(run.hidden).toEqual(['status', 'recurrence']);
+  });
+
+  it('reads them for a board only', () => {
+    for (const layout of ['table', 'list', 'calendar', 'gallery'] as const) {
+      expect(queryForLayout({ query, layout, statusKey: null, repeatKeys }).hidden).toEqual([]);
+    }
+  });
+});

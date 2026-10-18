@@ -340,3 +340,66 @@ test('the watcher’s echo of a tick is not refreshed for again, and a change fr
     await Promise.all([quiet.close(), echoing.close()]);
   }
 });
+
+test('a tick takes the row off the page before its write lands (#260)', async ({ page }) => {
+  const { vault, host } = await openTodayVaultOn(page);
+  await openToday(page);
+  await expect(itemsIn(page, 'In progress')).toHaveText(['Draft the plan']);
+  const release = host.holdWrites('Tasks/Draft the plan.md');
+
+  await section(page, 'In progress')
+    .getByRole('checkbox', { name: 'Mark Draft the plan done' })
+    .click();
+
+  // Gone while the file still says it is under way: the page did not wait for the write.
+  await expect(section(page, 'In progress').getByText('Nothing is under way.')).toBeVisible();
+  await expect(countOf(page, 'In progress')).toHaveText('0');
+  expect(await vault.read('Tasks/Draft the plan.md')).toContain('status: in-progress');
+
+  release();
+  await expectFile(vault, 'Tasks/Draft the plan.md').toContain('status: archive');
+  await expect(today(page).getByRole('status').getByRole('button', { name: 'Undo' })).toBeVisible();
+  await expect(section(page, 'In progress').getByText('Nothing is under way.')).toBeVisible();
+});
+
+test('a move draws the row in its new section before its write lands (#260)', async ({ page }) => {
+  const { vault, host } = await openTodayVaultOn(page);
+  await openToday(page);
+  const release = host.holdWrites('Tasks/Call the bank.md');
+
+  await section(page, 'Next actions')
+    .getByRole('button', { name: 'Move Call the bank to…' })
+    .click();
+  await page
+    .getByRole('menu', { name: 'Move Call the bank to' })
+    .getByText('In Progress', { exact: true })
+    .click();
+
+  await expect(itemsIn(page, 'In progress')).toHaveText(['Call the bank', 'Draft the plan']);
+  await expect(itemsIn(page, 'Next actions')).toHaveText(['Ship the page', 'Sow the beans']);
+  expect(await vault.read('Tasks/Call the bank.md')).toContain('status: next-action');
+
+  release();
+  await expectFile(vault, 'Tasks/Call the bank.md').toContain('status: in-progress');
+  await expect(itemsIn(page, 'In progress')).toHaveText(['Call the bank', 'Draft the plan']);
+});
+
+test('a tick whose write fails puts the row back, saying why (#260)', async ({ page }) => {
+  const { vault, host } = await openTodayVaultOn(page);
+  await openToday(page);
+  const release = host.holdWrites('Tasks/Draft the plan.md');
+
+  await section(page, 'In progress')
+    .getByRole('checkbox', { name: 'Mark Draft the plan done' })
+    .click();
+  await expect(section(page, 'In progress').getByText('Nothing is under way.')).toBeVisible();
+
+  release({ fail: 'The disk is full.' });
+
+  await expect(itemsIn(page, 'In progress')).toHaveText(['Draft the plan']);
+  await expect(today(page).getByText(/The disk is full/)).toBeVisible();
+  await expect(
+    section(page, 'In progress').getByRole('checkbox', { name: 'Mark Draft the plan done' }),
+  ).toBeEnabled();
+  expect(await vault.read('Tasks/Draft the plan.md')).toContain('status: in-progress');
+});
