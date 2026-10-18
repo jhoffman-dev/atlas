@@ -68,6 +68,7 @@ export { nextOccurrence, parseRecurrence } from './recurrence.ts';
 export type { Recurrence } from './recurrence.ts';
 export {
   repeatingTaskUpdate,
+  repeatKeysOf,
   DUE_KEY,
   LAST_COMPLETED_KEY,
   RECURRENCE_KEY,

@@ -146,8 +146,16 @@ describe('IPC contract', () => {
     expect(commands.filter((name) => threadOf(name) !== 'blocking pool')).toEqual([]);
   });
 
+  // #89: turning the Local API on can wait up to two seconds for its port,
+  // and off up to two for the server to stop. On the main thread, the window
+  // would hold for as long; the status and the token are asked meanwhile.
+  it('runs the Local API commands that can wait on a thread of its own', () => {
+    const waiting = ['api_status', 'api_set_enabled', 'api_token', 'api_rotate_token'];
+    expect(waiting.filter((name) => threadOf(name) !== 'blocking pool')).toEqual([]);
+  });
+
   it('tells where a command runs from how it is declared', () => {
-    expect(threadOf('api_status')).toBe('main');
+    expect(threadOf('api_router_ready')).toBe('main');
     expect(threadOf('activity_read')).toBe('blocking pool');
     const declared = (source: string) => threadDeclaredBy(source, 'probe');
     expect(declared('#[tauri::command]\npub fn probe() {}')).toBe('main');

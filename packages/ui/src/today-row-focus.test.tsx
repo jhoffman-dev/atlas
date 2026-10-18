@@ -103,3 +103,57 @@ describe('useRowFocus — a row not in the DOM', () => {
     expect(result.current.wanted).toBeNull();
   });
 });
+
+describe('useRowFocus — a row that leaves while its action is under way (#260)', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it('focuses the next row once the action is done, when its controls can take the focus', () => {
+    const next = mounted();
+    next.disabled = true;
+    const { result, rerender } = renderHook(
+      ({ order, busy }) => useRowFocus({ order, shown: { order }, problem: null, busy }),
+      { initialProps: { order: [first, far], busy: false } },
+    );
+    act(() => result.current.rowRef(far)(next));
+    act(() => result.current.actedOn(first));
+
+    // The row leaves at once, while every row's controls wait for its write.
+    rerender({ order: [far], busy: true });
+    expect(document.activeElement).not.toBe(next);
+
+    next.disabled = false;
+    rerender({ order: [far], busy: false });
+    expect(document.activeElement).toBe(next);
+  });
+});
+
+describe('useRowFocus — a row put back when its action is refused (#260, PR #274)', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it('gives the focus back to the row once it is back on the page', () => {
+    const acted = mounted();
+    const { result, rerender } = renderHook(
+      ({ order, problem, busy }) => useRowFocus({ order, shown: { order }, problem, busy }),
+      { initialProps: { order: [first, far], problem: null as string | null, busy: false } },
+    );
+    act(() => result.current.rowRef(first)(acted));
+    act(() => result.current.actedOn(first));
+
+    // Taken off at once, while its write is held: the focus goes to the document.
+    acted.remove();
+    rerender({ order: [far], problem: null, busy: true });
+    act(() => result.current.rowRef(first)(null));
+
+    // Refused: the problem is said, then the row is drawn again.
+    rerender({ order: [far], problem: 'The disk is full.', busy: false });
+    const back = mounted();
+    act(() => result.current.rowRef(first)(back));
+    rerender({ order: [first, far], problem: 'The disk is full.', busy: false });
+
+    expect(document.activeElement).toBe(back);
+  });
+});

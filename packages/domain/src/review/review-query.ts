@@ -4,6 +4,7 @@ import { splitWikiLinks, wikiLinkLabel } from '../markdown/wikilink.ts';
 import type { CompiledQuery } from '../query/view-query.ts';
 import { FILED_UNDER_KEY, PROJECT_TYPE } from '../types/para.ts';
 import { paraProjectSql } from '../types/para-value.ts';
+import { RECURRENCE_KEY } from '../query/repeating-task.ts';
 import { createVaultPath } from '../vault/vault-path.ts';
 import { userSpaceNoteSql } from '../vault/vault-visibility.ts';
 import { MOVING_STATUSES, type ReviewProject, type ReviewTask } from './weekly-review.ts';
@@ -56,6 +57,7 @@ export function compileReviewTasksQuery(): CompiledQuery {
       `  ${singleText(TASK_KEYS.status)} AS "status",`,
       `  ${firstDay(TASK_KEYS.due)} AS "due",`,
       `  ${firstDay(TASK_KEYS.defer)} AS "defer",`,
+      `  ${singleText(RECURRENCE_KEY)} AS "recurrence",`,
       `  ${allItems(TASK_KEYS.waitingOn)} AS "waitingOn",`,
       `  ${allItems(TASK_KEYS.contexts)} AS "contexts",`,
       `  (SELECT r.dst FROM relations AS r WHERE r.src = f.path AND r.key = '${FILED_UNDER_KEY}' AND r.dst IS NOT NULL ORDER BY r.idx LIMIT 1) AS "project",`,
@@ -141,6 +143,8 @@ export function reviewTask(row: Readonly<Record<string, unknown>>): ReviewTask {
     status: gtdStatusOf(row['status']),
     due: textOrNull(row['due']),
     defer: textOrNull(row['defer']),
+    // Absent when the row did not carry it, which is not knowing it: see ReviewTask.
+    ...(Object.hasOwn(row, 'recurrence') && { recurrence: textOrNull(row['recurrence']) }),
     waitingOn: waitingOnNames(row['waitingOn']),
     contexts: contextsOf(row['contexts']),
     project: project === null ? null : createVaultPath(project),

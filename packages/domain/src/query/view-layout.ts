@@ -98,6 +98,8 @@ export const MODIFIED_COLUMN = 'modified';
  * week can draw how long each note runs. A grouped layout reads what it groups
  * by, hidden, so a grouping need not be a shown column. A board, a list and a
  * table read each note's checklist progress, hidden, to draw its bar (P30-03).
+ * A board of repeating work reads what a task rolls on by, hidden, so a card
+ * dropped on done is drawn where finishing it puts it (#260).
  * A feed with no sort of its own reads newest first. The saved query is never changed: the Sort control still shows what
  * the view asks for.
  */
@@ -108,6 +110,7 @@ export function queryForLayout({
   endKey = null,
   groupKeys = [],
   progressKey = null,
+  repeatKeys = [],
 }: {
   query: ViewQuery;
   layout: ViewLayout;
@@ -118,10 +121,13 @@ export function queryForLayout({
   groupKeys?: readonly string[];
   /** The column holding each note's checklist progress, when the type's view has one. */
   progressKey?: string | null;
+  /** What a board's card is rolled on by when it is dropped on done (`repeatKeysOf`). */
+  repeatKeys?: readonly string[];
 }): { query: ViewQuery; hidden: readonly string[] } {
   const wanted = [
     statusKey,
     ...(drawsGroups(layout) ? groupKeys : []),
+    ...(layout === 'board' ? repeatKeys : []),
     PROGRESS_LAYOUTS.includes(layout) ? progressKey : null,
     layout === 'feed' || layout === 'gallery' ? MODIFIED_COLUMN : null,
     layout === 'calendar' ? endKey : null,
