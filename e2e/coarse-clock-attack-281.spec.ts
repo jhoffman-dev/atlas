@@ -43,8 +43,21 @@ async function openOnACoarseDisk(page: Page): Promise<FakeVault> {
  */
 async function replaceLastCharacter(page: Page, text: string, typed: string) {
   await page.getByText(text).click();
-  await page.keyboard.press('End');
-  await page.keyboard.press('Shift+ArrowLeft');
+  // Selected until it holds: ProseMirror puts its own selection back 20 ms
+  // after the editor takes the focus, if it has not read the page's yet, so
+  // on a slow runner a selection made in that window is undone (zapg).
+  // Read a frame later, the selection is one ProseMirror has seen.
+  await expect(async () => {
+    await page.keyboard.press('End');
+    await page.keyboard.press('Shift+ArrowLeft');
+    const selected = await page.evaluate(
+      () =>
+        new Promise<string>((resolve) =>
+          requestAnimationFrame(() => resolve(String(window.getSelection()))),
+        ),
+    );
+    expect(selected).toBe(text.slice(-1));
+  }).toPass({ timeout: 5_000 });
   await page.keyboard.insertText(typed);
 }
 
