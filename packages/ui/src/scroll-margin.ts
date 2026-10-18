@@ -111,11 +111,14 @@ export function useScrollMargin(
 
   // A section above opening, shutting or growing changes the height of what
   // the scroller holds, and one moving changes the order of its sections
-  // without changing a size: both are watched.
+  // without changing a size: both are watched. Not for a list that is not
+  // anchored here: it is read again on the next scroll, and until then its
+  // overscan covers what moved — a new margin on every change above it cost
+  // the page a commit of its own each time (#247).
   useLayoutEffect(() => {
     const area = typeof scroller === 'function' ? scroller() : scroller;
     const inner = area?.firstElementChild ?? null;
-    if (area === null || inner === null) return;
+    if (!anchors || area === null || inner === null) return;
     const watchers: { disconnect: () => void }[] = [];
     if (typeof ResizeObserver !== 'undefined') {
       const resized = new ResizeObserver(() => measure(area));

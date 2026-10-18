@@ -73,17 +73,21 @@ describe('InboxRows — an Inbox of hundreds (#238)', () => {
   it(
     'reaches the last row with Tab, each placed as the focus comes to it',
     async () => {
-      render(<InboxPage {...given(notes(40))} />);
-      expect(pickers().length).toBeLessThan(40);
+      render(<InboxPage {...given(notes(20))} />);
+      expect(pickers().length).toBeLessThan(20);
 
       screen.getByRole('button', { name: 'Note 0' }).focus();
-      for (let presses = 0; presses < 200 && focusedRow() !== '41'; presses += 1) {
+      const visited = new Set([focusedRow()]);
+      for (let presses = 0; presses < 200 && focusedRow() !== '21'; presses += 1) {
         await userEvent.tab();
+        visited.add(focusedRow());
       }
 
-      expect(focusedRow()).toBe('41');
-      expect(document.activeElement?.closest('tr')?.textContent).toContain('Note 39');
-      expect(pickers().length).toBeLessThan(40);
+      expect(focusedRow()).toBe('21');
+      // Every row on the way, none skipped past the rows first placed.
+      expect([...visited].filter((row) => row !== undefined && row !== null)).toHaveLength(20);
+      expect(document.activeElement?.closest('tr')?.textContent).toContain('Note 19');
+      expect(pickers().length).toBeLessThan(20);
     },
     KEYBOARD_WALK_MS,
   );

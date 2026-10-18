@@ -64,7 +64,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 741,
+      "renders": 730,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -77,7 +77,7 @@
     },
     "Tick a task on Today": {
       "commits": 42,
-      "renders": 4838,
+      "renders": 4819,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
@@ -97,8 +97,8 @@
       }
     },
     "Open the Inbox": {
-      "commits": 13,
-      "renders": 1005,
+      "commits": 12,
+      "renders": 999,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,

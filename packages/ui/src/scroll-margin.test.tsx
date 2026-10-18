@@ -335,4 +335,37 @@ describe('useScrollMargin without anchoring (#247)', () => {
     expect(scroller.scrollTop).toBe(1881);
     expect(container.querySelector('.list')?.getAttribute('data-margin')).toBe('400');
   });
+
+  it('reads a move above it on the next scroll, not as it happens, so the page commits nothing for it', () => {
+    const watched: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          watched.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    let listTop = 300;
+    placeElements((element) => (element.classList.contains('list') ? listTop : 0));
+    const { container } = render(<Unanchored />);
+    const list = () => container.querySelector('.list')?.getAttribute('data-margin');
+    expect(list()).toBe('300');
+
+    // An offer arrives above the list: whatever watches the page hears of it.
+    listTop = 420;
+    act(() => {
+      for (const callback of watched) callback([], {} as ResizeObserver);
+    });
+    expect(list()).toBe('300');
+
+    act(() => {
+      fireEvent.scroll(container.firstElementChild as HTMLElement);
+    });
+    expect(list()).toBe('420');
+    vi.unstubAllGlobals();
+  });
 });

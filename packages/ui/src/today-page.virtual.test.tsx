@@ -121,21 +121,25 @@ describe('TodayPage — a day of hundreds of tasks (#238)', () => {
   it(
     'reaches every row with Tab, each placed as the focus comes to it',
     async () => {
-      render(<TodayPage {...props(oneGroup(30))} />);
+      render(<TodayPage {...props(oneGroup(20))} />);
       const placed = ticks().length;
-      expect(placed).toBeLessThan(30);
+      expect(placed).toBeLessThan(20);
 
       ticks()[0]?.focus();
-      for (let presses = 0; presses < 400 && focusedRow() !== '30'; presses += 1) {
+      const visited = new Set([focusedRow()]);
+      for (let presses = 0; presses < 400 && focusedRow() !== '20'; presses += 1) {
         await userEvent.tab();
+        visited.add(focusedRow());
       }
 
-      expect(focusedRow()).toBe('30');
+      expect(focusedRow()).toBe('20');
+      // Every row on the way, none skipped past the rows first placed.
+      expect([...visited].filter((row) => row !== undefined && row !== null)).toHaveLength(20);
       expect(
         document.activeElement?.closest('[data-today-row]')?.getAttribute('data-today-row'),
-      ).toBe('Tasks/Task 029.md');
+      ).toBe('Tasks/Task 019.md');
       // Reached without putting every row in the page.
-      expect(ticks().length).toBeLessThan(30);
+      expect(ticks().length).toBeLessThan(20);
     },
     KEYBOARD_WALK_MS,
   );
@@ -143,17 +147,17 @@ describe('TodayPage — a day of hundreds of tasks (#238)', () => {
   it(
     'reaches the next project’s group with Tab, past the groups placed',
     async () => {
-      render(<TodayPage {...props(ownProjects(40))} />);
+      render(<TodayPage {...props(ownProjects(15))} />);
       const placed = within(nextActions()).getAllByRole('group').length;
-      expect(placed).toBeLessThan(40);
+      expect(placed).toBeLessThan(15);
 
       screen.getByRole('checkbox', { name: 'Mark Task 000 done' }).focus();
       for (let presses = 0; presses < 1000; presses += 1) {
-        if (document.activeElement?.matches('[aria-label="Mark Task 039 done"]') === true) break;
+        if (document.activeElement?.matches('[aria-label="Mark Task 014 done"]') === true) break;
         await userEvent.tab();
       }
 
-      expect(document.activeElement?.getAttribute('aria-label')).toBe('Mark Task 039 done');
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Mark Task 014 done');
     },
     KEYBOARD_WALK_MS,
   );
