@@ -441,6 +441,17 @@ describe('DonutChart', () => {
     ]);
   });
 
+  it('paints a GTD status and an alias in their status tones, as their pills are', () => {
+    const { container } = donut(
+      barsOf(['in-progress', 4], ['next-action', 3], ['Complete', 2], ['someday', 1]),
+    );
+    expect(
+      [...container.querySelectorAll('.donut__segment')].map((segment) =>
+        segment.getAttribute('data-tone'),
+      ),
+    ).toEqual(['doing', 'next', 'done', 'backlog']);
+  });
+
   it('leaves a value that is no status on the ramp, even in a status grouping', () => {
     const { container } = donut(barsOf(['done', 3], ['Other', 2], ['', 1], ['blocked', 1]));
     const segments = [...container.querySelectorAll('.donut__segment')];

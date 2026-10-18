@@ -13,7 +13,7 @@ export { cardChip, cardChips, cardFields } from './card-chip.ts';
 export type { CardChip, ChipIcon } from './card-chip.ts';
 export { countLabel, newNoteLabel, pluralNoun } from './count-label.ts';
 export type { PropertyIcon } from './property-icon.ts';
-export { noteTone, optionLabel, statusTone, STATUS_TONES } from './status-tone.ts';
+export { isKnownStatus, noteTone, optionLabel, statusTone, STATUS_TONES } from './status-tone.ts';
 export type { StatusTone } from './status-tone.ts';
 export {
   newPropertyKey,

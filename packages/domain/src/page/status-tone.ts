@@ -44,6 +44,17 @@ export function statusTone(value: string): StatusTone {
   return TONES[value.trim().toLowerCase()] ?? 'backlog';
 }
 
+/**
+ * Whether a value is a status the ramp knows — one of the seven, an alias such
+ * as "Complete", or a GTD status — as against a custom option, a gathered
+ * "Other" or no value, which `statusTone` draws in Backlog's grey for want of
+ * better. A chart that colours by status asks this first, so two groups that
+ * are not statuses are never painted the same.
+ */
+export function isKnownStatus(value: string): boolean {
+  return Object.hasOwn(TONES, value.trim().toLowerCase());
+}
+
 /** The property a note's tint is read from, wherever it is drawn small. */
 const STATUS_KEY = 'status';
 

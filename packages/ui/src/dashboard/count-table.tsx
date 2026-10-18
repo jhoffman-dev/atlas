@@ -1,6 +1,6 @@
 import {
-  STATUS_TONES,
   humanizeKey,
+  isKnownStatus,
   legendName,
   pluralOf,
   statusTone,
@@ -12,11 +12,11 @@ import { useNoteNames } from '../note-names.tsx';
 /**
  * Which colour a group's swatch wears, as data attributes for the stylesheet:
  * its rank among the groups, and, when the groups are statuses and the group
- * is one of the eight, the status itself — so Done is green here as it is in
- * every pill. A value that is not a status — a custom option, the gathered
- * "Other", no value at all — keeps its rank colour: `statusTone` falls back
- * to Backlog for anything it does not know, and two groups must not share a
- * colour.
+ * is a status the ramp knows — one of the seven tones, an alias, a GTD status
+ * — the status itself, so Done is green here as it is in every pill. A value
+ * that is no status — a custom option, the gathered "Other", no value at all
+ * — keeps its rank colour: `statusTone` falls back to Backlog for anything
+ * it does not know, and two groups must not share a colour.
  */
 export function swatchOf({
   index,
@@ -27,13 +27,9 @@ export function swatchOf({
   label: string;
   groupBy: string | null;
 }): { readonly 'data-rank': number; readonly 'data-tone'?: StatusTone } {
-  const tone = groupBy === 'status' ? knownTone(label) : null;
+  const tone: StatusTone | null =
+    groupBy === 'status' && isKnownStatus(label) ? statusTone(label) : null;
   return { 'data-rank': index + 1, ...(tone !== null && { 'data-tone': tone }) };
-}
-
-function knownTone(label: string): StatusTone | null {
-  const tone = statusTone(label);
-  return STATUS_TONES.includes(tone) && label.trim().toLowerCase() === tone ? tone : null;
 }
 
 /**
