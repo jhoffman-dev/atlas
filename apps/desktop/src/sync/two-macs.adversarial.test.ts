@@ -538,6 +538,30 @@ describe('two Macs, one remote: what breaks', () => {
     },
     TIMEOUT,
   );
+
+  it(
+    'merges the other Mac’s changes as Atlas on a Mac whose git has no identity and cannot guess one (#87)',
+    async () => {
+      // A Mac's hostname makes git's guess work; `useConfigOnly` stands in for
+      // a domainless host, where git refuses to guess, without leaning on this one's.
+      const world = await twoMacs(
+        { 'A.md': 'a\n', 'B.md': 'b\n' },
+        { gitconfig: '[user]\n\tuseConfigOnly = true\n' },
+      );
+      await world.studio.write('A.md', 'a on Studio\n');
+      await world.studio.sync();
+      await world.laptop.write('B.md', 'b on Laptop\n');
+      await expect(world.laptop.sync()).resolves.toMatchObject({ pulled: true, pushed: true });
+      const merge = await must(
+        world.laptop.root,
+        ['log', '-1', '--merges', '--format=%an <%ae>%x00%cn <%ce>'],
+        world.env,
+      );
+      const atlas = 'Atlas on Laptop <atlas@laptop.local>';
+      expect(merge.trim().split('\0')).toEqual([atlas, atlas]);
+    },
+    TIMEOUT,
+  );
 });
 
 describe('setting up and inspecting sync against real repositories', () => {

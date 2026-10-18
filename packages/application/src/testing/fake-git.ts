@@ -264,7 +264,7 @@ export function scriptedGit({
     addAll: async () => answer('addAll', null, OK),
     commit: async (args) => answer('commit', args, OK),
     fetch: async () => answer('fetch', null, OK),
-    merge: async (branch) => answer('merge', branch, OK),
+    merge: async (args) => answer('merge', args, OK),
     push: async () => answer('push', null, OK),
     remoteUrl: async () => answer('remoteUrl', null, said('git@github.com:j/notes.git\n')),
     setRemote: async (args) => answer('setRemote', args, OK),
