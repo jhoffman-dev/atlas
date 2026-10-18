@@ -553,12 +553,36 @@ fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
 /// millisecond (see `write_temporary`). A note that is a link out of the vault is refused by `resolve`;
 /// one that is a link inside it has its target replaced, never the link's
 /// destination written through.
-fn write_text(
-    root: &Path,
-    path: &str,
-    contents: &str,
-    expected_modified: Option<u64>,
-) -> Result<u64, String> {
+/// The version a save was made from, as the client read it. A save over any
+/// other version is refused rather than overwriting it.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BasedOn<'a> {
+    /// The modification time it was read at, in milliseconds; none to save
+    /// over whatever is there.
+    pub(crate) modified: Option<u64>,
+    /// SHA-256 of the bytes it was read as, in lowercase hex (#245). The time
+    /// cannot tell two versions apart on a disk that keeps it to the second
+    /// (HFS+), to two (exFAT) or to the server's (SMB, NFS); the bytes can.
+    pub(crate) digest: Option<&'a str>,
+}
+
+impl BasedOn<'_> {
+    /// No version to hold to: the save replaces whatever is there.
+    pub(crate) const ANY: BasedOn<'static> = BasedOn {
+        modified: None,
+        digest: None,
+    };
+
+    /// The version read at `modified`, whatever its bytes.
+    pub(crate) fn at(modified: u64) -> BasedOn<'static> {
+        BasedOn {
+            modified: Some(modified),
+            digest: None,
+        }
+    }
+}
+
+fn write_text(root: &Path, path: &str, contents: &str, based_on: BasedOn) -> Result<u64, String> {
     let _turn = change_turn();
     let file = resolve(root, path)?;
 
@@ -567,7 +591,10 @@ fn write_text(
         return Err("that is a directory".into());
     }
     let replaced = modified_ms(&metadata)?;
-    if expected_modified.is_some_and(|expected| expected != replaced) {
+    if based_on
+        .modified
+        .is_some_and(|expected| expected != replaced)
+    {
         return Err("the note changed on disk since it was opened".into());
     }
 
@@ -827,9 +854,9 @@ pub(crate) mod test_access {
         root: &Path,
         path: &str,
         contents: &str,
-        expected_modified: Option<u64>,
+        based_on: super::BasedOn,
     ) -> Result<u64, String> {
-        super::write_text(root, path, contents, expected_modified)
+        super::write_text(root, path, contents, based_on)
     }
 
     pub(crate) fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
@@ -1005,11 +1032,16 @@ pub async fn write_text_file(
     path: String,
     contents: String,
     expected_modified: Option<u64>,
+    expected_digest: Option<String>,
     vault: String,
 ) -> Result<u64, String> {
     off_main(move || {
+        let based_on = BasedOn {
+            modified: expected_modified,
+            digest: expected_digest.as_deref(),
+        };
         let modified = change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
-            write_text(root, &path, &contents, expected_modified)
+            write_text(root, &path, &contents, based_on)
         })?;
         log::info!("saved {path}");
         Ok(modified)
@@ -1385,7 +1417,7 @@ mod read_tests {
 
 #[cfg(test)]
 mod write_tests {
-    use super::{read_text, write_text};
+    use super::{read_text, write_text, BasedOn};
     use std::fs;
     use tempfile::tempdir;
 
@@ -1395,7 +1427,7 @@ mod write_tests {
         fs::write(vault.path().join("a.md"), "old\n").unwrap();
 
         let text = "---\ntitle: New\n---\n\n# New\n\n- [ ] one\n";
-        write_text(vault.path(), "a.md", text, None).unwrap();
+        write_text(vault.path(), "a.md", text, BasedOn::ANY).unwrap();
         assert_eq!(fs::read_to_string(vault.path().join("a.md")).unwrap(), text);
     }
 
@@ -1403,7 +1435,7 @@ mod write_tests {
     fn leaves_no_temporary_file_behind() {
         let vault = tempdir().unwrap();
         fs::write(vault.path().join("a.md"), "old\n").unwrap();
-        write_text(vault.path(), "a.md", "new\n", None).unwrap();
+        write_text(vault.path(), "a.md", "new\n", BasedOn::ANY).unwrap();
 
         let names: Vec<_> = fs::read_dir(vault.path())
             .unwrap()
@@ -1418,7 +1450,7 @@ mod write_tests {
         fs::write(vault.path().join("a.md"), "old\n").unwrap();
 
         let before = read_text(vault.path(), "a.md").unwrap().modified;
-        let after = write_text(vault.path(), "a.md", "new\n", None).unwrap();
+        let after = write_text(vault.path(), "a.md", "new\n", BasedOn::ANY).unwrap();
         assert!(after >= before);
         assert_eq!(read_text(vault.path(), "a.md").unwrap().modified, after);
     }
@@ -1429,7 +1461,7 @@ mod write_tests {
         fs::write(vault.path().join("a.md"), "old\n").unwrap();
 
         let opened = read_text(vault.path(), "a.md").unwrap();
-        assert!(write_text(vault.path(), "a.md", "new\n", Some(opened.modified)).is_ok());
+        assert!(write_text(vault.path(), "a.md", "new\n", BasedOn::at(opened.modified)).is_ok());
     }
 
     #[test]
@@ -1439,8 +1471,13 @@ mod write_tests {
         let opened = read_text(vault.path(), "a.md").unwrap();
 
         // Something else — Obsidian, a sync client — rewrites the file.
-        let error =
-            write_text(vault.path(), "a.md", "mine\n", Some(opened.modified - 1)).unwrap_err();
+        let error = write_text(
+            vault.path(),
+            "a.md",
+            "mine\n",
+            BasedOn::at(opened.modified - 1),
+        )
+        .unwrap_err();
         assert_eq!(error, "the note changed on disk since it was opened");
         assert_eq!(
             fs::read_to_string(vault.path().join("a.md")).unwrap(),
@@ -1459,7 +1496,7 @@ mod write_tests {
         )
         .unwrap();
 
-        assert!(write_text(vault.path(), "link", "hacked", None).is_err());
+        assert!(write_text(vault.path(), "link", "hacked", BasedOn::ANY).is_err());
         assert_eq!(
             fs::read_to_string(outside.path().join("secrets.txt")).unwrap(),
             "top secret"
@@ -1471,7 +1508,7 @@ mod write_tests {
         let vault = tempdir().unwrap();
         fs::create_dir(vault.path().join("Notes")).unwrap();
         assert_eq!(
-            write_text(vault.path(), "Notes", "x", None).unwrap_err(),
+            write_text(vault.path(), "Notes", "x", BasedOn::ANY).unwrap_err(),
             "that is a directory"
         );
     }
@@ -1481,7 +1518,7 @@ mod write_tests {
         let vault = tempdir().unwrap();
         fs::write(vault.path().join("a.md"), "x").unwrap();
         let text = "año — 日本語 🎉\r\nsecond\r\n";
-        write_text(vault.path(), "a.md", text, None).unwrap();
+        write_text(vault.path(), "a.md", text, BasedOn::ANY).unwrap();
         assert_eq!(read_text(vault.path(), "a.md").unwrap().text, text);
     }
 }
@@ -1780,7 +1817,7 @@ mod batch_tests {
 
 #[cfg(test)]
 mod create_tests {
-    use super::{create_note_at, read_text, write_text};
+    use super::{create_note_at, read_text, write_text, BasedOn};
     use std::fs;
     use tempfile::tempdir;
 
@@ -1802,8 +1839,8 @@ mod create_tests {
     fn a_save_checked_against_the_reported_time_lands() {
         let vault = tempdir().unwrap();
         let modified = create_note_at(vault.path(), "a.md", "first").unwrap();
-        assert!(write_text(vault.path(), "a.md", "second", Some(modified + 1)).is_err());
-        write_text(vault.path(), "a.md", "second", Some(modified)).unwrap();
+        assert!(write_text(vault.path(), "a.md", "second", BasedOn::at(modified + 1)).is_err());
+        write_text(vault.path(), "a.md", "second", BasedOn::at(modified)).unwrap();
         assert_eq!(read_text(vault.path(), "a.md").unwrap().text, "second");
     }
 
@@ -1886,7 +1923,7 @@ mod create_tests {
 /// stopped taking its turn would fail them.
 #[cfg(test)]
 mod concurrency_tests {
-    use super::{one_change_at_a_time, read_text, write_text};
+    use super::{one_change_at_a_time, read_text, write_text, BasedOn};
     use std::collections::HashMap;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -1921,7 +1958,15 @@ mod concurrency_tests {
                 let root: PathBuf = root.to_path_buf();
                 thread::spawn(move || {
                     start.wait();
-                    write_text(&root, "a.md", &format!("saver {saver}"), expected)
+                    write_text(
+                        &root,
+                        "a.md",
+                        &format!("saver {saver}"),
+                        BasedOn {
+                            modified: expected,
+                            ..BasedOn::ANY
+                        },
+                    )
                 })
             })
             .collect();
@@ -1984,7 +2029,7 @@ mod concurrency_tests {
             for version in 1..400 {
                 // Lengths differ, so a torn read could not pass for a version.
                 let text = format!("version {version} {}", "x".repeat(version));
-                let modified = write_text(&root, "a.md", &text, None);
+                let modified = write_text(&root, "a.md", &text, BasedOn::ANY);
                 written.insert(text, modified.unwrap());
             }
             written
@@ -2055,7 +2100,7 @@ mod concurrency_tests {
                     // only get its turn once the saves are done.
                     for _ in 0..40 {
                         if moved.load(Ordering::SeqCst)
-                            || write_text(&root, "Notes/a.md", "saved", None).is_err()
+                            || write_text(&root, "Notes/a.md", "saved", BasedOn::ANY).is_err()
                         {
                             break;
                         }
@@ -2080,7 +2125,7 @@ mod concurrency_tests {
 /// (PR #242). Each test names the invariant it holds.
 #[cfg(test)]
 mod attack_242_tests {
-    use super::{list_entries, one_change_at_a_time, read_text, write_text};
+    use super::{list_entries, one_change_at_a_time, read_text, write_text, BasedOn};
     use crate::vault_entries::{create_folder_at, move_entry_at, trash_entry_at};
     use crate::vault_files::replace_binary_at;
     use std::fs;
@@ -2113,11 +2158,14 @@ mod attack_242_tests {
             fs::write(vault.path().join("a.md"), "opened by both").unwrap();
             let opened = read_text(vault.path(), "a.md").unwrap().modified;
             // Pane one saves first, from the version both opened.
-            one_change_at_a_time(|| write_text(vault.path(), "a.md", "pane one", Some(opened)))
-                .unwrap();
+            one_change_at_a_time(|| {
+                write_text(vault.path(), "a.md", "pane one", BasedOn::at(opened))
+            })
+            .unwrap();
             // Pane two still holds the version it opened; its save is stale.
-            let stale =
-                one_change_at_a_time(|| write_text(vault.path(), "a.md", "pane two", Some(opened)));
+            let stale = one_change_at_a_time(|| {
+                write_text(vault.path(), "a.md", "pane two", BasedOn::at(opened))
+            });
             assert!(
                 stale.is_err(),
                 "round {round}: a stale save was accepted and \"pane one\" was lost"
@@ -2142,7 +2190,8 @@ mod attack_242_tests {
         fs::write(vault.path().join("a.md"), "note").unwrap();
         std::os::unix::fs::symlink(&victim, vault.path().join(".a.md.atlas-tmp")).unwrap();
 
-        let saved = one_change_at_a_time(|| write_text(vault.path(), "a.md", "saved text", None));
+        let saved =
+            one_change_at_a_time(|| write_text(vault.path(), "a.md", "saved text", BasedOn::ANY));
 
         assert_eq!(
             fs::read_to_string(&victim).unwrap(),
@@ -2164,7 +2213,7 @@ mod attack_242_tests {
         let root = vault.path().to_path_buf();
         thread::spawn(move || {
             done.send(one_change_at_a_time(|| {
-                write_text(&root, "a.md", "after", None)
+                write_text(&root, "a.md", "after", BasedOn::ANY)
             }))
             .unwrap();
         });
@@ -2215,7 +2264,7 @@ mod attack_242_tests {
                 let text = stamped(at.0, at.1, rng.below(5000) as usize);
                 one_change_at_a_time(|| {
                     let before = fs::read_to_string(root.join(note)).ok();
-                    let saved = write_text(root, note, &text, Some(read.modified));
+                    let saved = write_text(root, note, &text, BasedOn::at(read.modified));
                     (saved.is_ok() && before.as_deref() != Some(read.text.as_str())).then(|| {
                         let head = |text: &str| text.chars().take(14).collect::<String>();
                         let disk = before.as_deref().map(head);
@@ -2228,7 +2277,7 @@ mod attack_242_tests {
             }
             2 => {
                 let text = stamped(at.0, at.1, rng.below(5000) as usize);
-                let _ = one_change_at_a_time(|| write_text(root, note, &text, None));
+                let _ = one_change_at_a_time(|| write_text(root, note, &text, BasedOn::ANY));
                 None
             }
             3 => {
@@ -2327,7 +2376,7 @@ mod attack_242_tests {
 mod version_tests {
     use super::{
         change_in_vault, read_one_version, read_text, restore_vault, switch_vault, write_text,
-        VaultLocation, VaultState,
+        BasedOn, VaultLocation, VaultState,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -2347,7 +2396,8 @@ mod version_tests {
         fs::write(vault.path().join("a.md"), "0").unwrap();
         let mut last = read_text(vault.path(), "a.md").unwrap().modified;
         for version in 1..50 {
-            let saved = write_text(vault.path(), "a.md", &version.to_string(), None).unwrap();
+            let saved =
+                write_text(vault.path(), "a.md", &version.to_string(), BasedOn::ANY).unwrap();
             assert!(saved > last, "version {version}: {saved} after {last}");
             assert_eq!(read_text(vault.path(), "a.md").unwrap().modified, saved);
             last = saved;
@@ -2374,11 +2424,11 @@ mod version_tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        let saved = write_text(vault.path(), "a.md", "mine", Some(opened)).unwrap();
+        let saved = write_text(vault.path(), "a.md", "mine", BasedOn::at(opened)).unwrap();
         assert!(saved < opened, "{saved} is still in the future");
         assert!(saved + 1000 >= before, "{saved} is not now ({before})");
         assert_eq!(
-            write_text(vault.path(), "a.md", "stale", Some(opened)),
+            write_text(vault.path(), "a.md", "stale", BasedOn::at(opened)),
             Err("the note changed on disk since it was opened".to_string())
         );
     }
@@ -2391,7 +2441,7 @@ mod version_tests {
         fs::write(&victim, "not the vault's").unwrap();
         std::os::unix::fs::symlink(&victim, vault.path().join("a.md")).unwrap();
 
-        assert!(write_text(vault.path(), "a.md", "saved", None).is_err());
+        assert!(write_text(vault.path(), "a.md", "saved", BasedOn::ANY).is_err());
         assert_eq!(fs::read_to_string(&victim).unwrap(), "not the vault's");
         assert!(fs::symlink_metadata(vault.path().join("a.md"))
             .unwrap()
@@ -2408,7 +2458,7 @@ mod version_tests {
         fs::write(vault.path().join("a.md"), "note").unwrap();
         std::os::unix::fs::symlink(&victim, vault.path().join(".a.md.atlas-tmp")).unwrap();
 
-        write_text(vault.path(), "a.md", "saved", None).unwrap();
+        write_text(vault.path(), "a.md", "saved", BasedOn::ANY).unwrap();
 
         assert_eq!(fs::read_to_string(&victim).unwrap(), "not the vault's");
         assert_eq!(
@@ -2491,7 +2541,7 @@ mod version_tests {
 /// note is in place, every time, however many creates race.
 #[cfg(test)]
 mod attack_264_tests {
-    use super::{create_note_at, modified_ms, read_notes_at, write_text};
+    use super::{create_note_at, modified_ms, read_notes_at, write_text, BasedOn};
     use crate::vault_entries::create_folder_at;
     use std::fs;
     use std::path::Path;
@@ -2662,10 +2712,119 @@ mod attack_264_tests {
         for at in 0..200 {
             let name = format!("Capture {at}.md");
             let created = create_note_at(vault.path(), &name, "# Capture\n").unwrap();
-            let saved = write_text(vault.path(), &name, "# Capture\n\nMore.\n", Some(created));
+            let saved = write_text(
+                vault.path(),
+                &name,
+                "# Capture\n\nMore.\n",
+                BasedOn::at(created),
+            );
             let saved = saved.unwrap();
             assert_ne!(saved, created, "capture {at}");
             assert_eq!(saved, on_disk(vault.path(), &name), "capture {at}");
         }
+    }
+}
+
+/// A save from a version another program has since replaced, on a disk whose
+/// clock keeps whole seconds (#245). The other program's write is simulated by
+/// writing the same number of bytes and setting the time back to the second
+/// the first version had, as HFS+ (1 s) or exFAT (2 s) would leave it.
+#[cfg(test)]
+mod coarse_clock_tests {
+    use super::{read_text, write_text, BasedOn};
+    use sha2::{Digest, Sha256};
+    use std::fs;
+    use std::path::Path;
+    use std::time::{Duration, UNIX_EPOCH};
+    use tempfile::tempdir;
+
+    /// A whole second, as a coarse disk keeps every time.
+    const TICK: u64 = 1_700_000_000_000;
+
+    fn digest_of(text: &str) -> String {
+        Sha256::digest(text.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
+    /// Writes `text` over `a.md` and leaves it timed at `TICK`.
+    fn write_in_the_tick(root: &Path, text: &str) {
+        let file = root.join("a.md");
+        fs::write(&file, text).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(UNIX_EPOCH + Duration::from_millis(TICK))
+            .unwrap();
+    }
+
+    #[test]
+    fn a_save_from_a_version_another_program_replaced_in_the_same_second_is_refused() {
+        let vault = tempdir().unwrap();
+        write_in_the_tick(vault.path(), "theirs\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+        write_in_the_tick(vault.path(), "other!\n");
+        let now = read_text(vault.path(), "a.md").unwrap();
+        // The simulation holds: the time and the length are the version read.
+        assert_eq!(now.modified, opened.modified);
+        assert_eq!(now.text.len(), opened.text.len());
+
+        let digest = digest_of(&opened.text);
+        let based_on = BasedOn {
+            modified: Some(opened.modified),
+            digest: Some(&digest),
+        };
+        assert_eq!(
+            write_text(vault.path(), "a.md", "mine\n", based_on),
+            Err("the note changed on disk since it was opened".to_string())
+        );
+        assert_eq!(
+            fs::read_to_string(vault.path().join("a.md")).unwrap(),
+            "other!\n"
+        );
+    }
+
+    #[test]
+    fn a_save_from_the_version_on_disk_lands_on_a_coarse_clock() {
+        let vault = tempdir().unwrap();
+        write_in_the_tick(vault.path(), "theirs\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+
+        let digest = digest_of(&opened.text);
+        let based_on = BasedOn {
+            modified: Some(opened.modified),
+            digest: Some(&digest),
+        };
+        let saved = write_text(vault.path(), "a.md", "mine\n", based_on).unwrap();
+        assert!(saved > opened.modified);
+        assert_eq!(read_text(vault.path(), "a.md").unwrap().text, "mine\n");
+    }
+
+    #[test]
+    fn a_save_from_a_later_time_is_refused_whatever_its_digest() {
+        let vault = tempdir().unwrap();
+        write_in_the_tick(vault.path(), "theirs\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+
+        let digest = digest_of(&opened.text);
+        let based_on = BasedOn {
+            modified: Some(opened.modified - 1),
+            digest: Some(&digest),
+        };
+        assert!(write_text(vault.path(), "a.md", "mine\n", based_on).is_err());
+        assert_eq!(read_text(vault.path(), "a.md").unwrap().text, "theirs\n");
+    }
+
+    /// The contract before #245, kept for a caller that sends no digest.
+    #[test]
+    fn a_save_that_sends_no_digest_is_held_to_the_time_alone() {
+        let vault = tempdir().unwrap();
+        write_in_the_tick(vault.path(), "theirs\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+        write_in_the_tick(vault.path(), "other!\n");
+
+        assert!(write_text(vault.path(), "a.md", "mine\n", BasedOn::at(opened.modified)).is_ok());
     }
 }

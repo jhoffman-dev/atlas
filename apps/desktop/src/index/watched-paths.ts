@@ -37,6 +37,9 @@ export function watchedPathsAreIndexedNotes(paths: readonly string[]): boolean {
 }
 
 /** The refresh a watcher event asks for. */
-export function refreshAfterWatch(paths: readonly string[]): { quiet: boolean } {
+export function refreshAfterWatch(paths: readonly string[]): {
+  quiet: boolean;
+  recheck?: readonly string[];
+} {
   return { quiet: watchedPathsAreIndexedNotes(paths) };
 }

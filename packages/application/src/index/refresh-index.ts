@@ -91,6 +91,15 @@ export interface RefreshOptions {
    * has just cleared, and a delete in the app has already let go of.
    */
   previous?: ReadonlyMap<string, NoteVersion>;
+  /**
+   * Notes something other than the app was seen to change — the watcher's
+   * report, with the app's own echo left out — read again even when their
+   * time and size are as the index holds them. On a disk that keeps the time
+   * to the second (HFS+), to two (exFAT) or to a server's (SMB, NFS), another
+   * program's same-length write within the same tick leaves both as they
+   * were, and only the bytes tell (#245).
+   */
+  recheck?: readonly string[];
 }
 
 /**

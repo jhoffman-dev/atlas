@@ -171,6 +171,8 @@ export interface IndexSyncer {
     vault: string;
     fromScratch: boolean;
     onProgress?: RefreshOptions['onProgress'];
+    /** Notes to read again whatever their time and size; see `RefreshOptions.recheck`. */
+    recheck?: RefreshOptions['recheck'];
   }): Promise<IndexStats | null>;
 }
 

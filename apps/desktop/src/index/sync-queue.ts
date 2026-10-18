@@ -7,6 +7,11 @@ export interface SyncRequest {
    * moves it regardless, for readers that re-read on every write.
    */
   readonly quiet: boolean;
+  /**
+   * Notes another program was seen to change, read again even when their
+   * time and size stand (#245). Left out when there are none.
+   */
+  readonly recheck?: readonly string[];
 }
 
 /** A sync the queue starts, and what it can ask of the queue while it runs. */

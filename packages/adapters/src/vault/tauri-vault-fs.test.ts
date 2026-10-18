@@ -149,6 +149,40 @@ describe('tauriVaultFs writes', () => {
       expectedModified: 7,
       vault: '/vaults/a',
     });
+    expect(invoke.mock.calls[0]?.[1]).not.toHaveProperty('expectedDigest');
+  });
+
+  // The digest the Rust host compares (`vault.rs`, `coarse_clock_tests`):
+  // SHA-256 of the UTF-8 bytes, in lowercase hex. The text crosses as its
+  // digest, not a second copy of the note (#245).
+  it('sends the text a save was read as for the host to compare, as its SHA-256', async () => {
+    await tauriVaultFs.writeTextFile({
+      path: notes,
+      contents: 'x',
+      expectedModified: 7,
+      expectedText: 'abc',
+      vault: '/vaults/a',
+    });
+    expect(invoke).toHaveBeenCalledWith('write_text_file', {
+      path: 'notes.md',
+      contents: 'x',
+      expectedModified: 7,
+      expectedDigest: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      vault: '/vaults/a',
+    });
+  });
+
+  it('digests the bytes of text beyond ASCII, as the host reads them', async () => {
+    await tauriVaultFs.writeTextFile({
+      path: notes,
+      contents: 'x',
+      expectedModified: null,
+      expectedText: 'café\n',
+      vault: '/vaults/a',
+    });
+    expect(invoke.mock.calls[0]?.[1]).toMatchObject({
+      expectedDigest: '7b49b9e063bd91a4f9252b413261f5557b9c570aa61516989499f64a62dbcdd6',
+    });
   });
 
   it('passes the vault on for a create, a move, a new folder and a delete too', async () => {

@@ -76,6 +76,11 @@ function vaultWithIndex(notes: Record<string, string> = {}) {
     write,
     /** A newer modification time over the same bytes, as a checkout or a sync leaves. */
     touch: (path: string) => write(path, files.get(path)?.text ?? ''),
+    /** Another program's write in the tick of the version held, as a coarse disk keeps it (#245). */
+    writeInTheSameTick: (path: string, text: string) => {
+      const file = files.get(path);
+      if (file !== undefined) files.set(path, { text, modified: file.modified });
+    },
     erase: (path: string) => void files.delete(path),
     notePaths: () => [...files.keys()].map(createVaultPath),
   };
@@ -108,9 +113,9 @@ function syncerOver(
   });
   return {
     heard,
-    sync: (fromScratch = false, at = LARKSPUR) => {
+    sync: (fromScratch = false, at = LARKSPUR, recheck?: readonly string[]) => {
       asked = at;
-      return syncer.sync({ vault: at, fromScratch });
+      return syncer.sync({ vault: at, fromScratch, ...(recheck !== undefined && { recheck }) });
     },
     /** Everything heard since the last call. */
     news: () => heard.splice(0).flatMap((each) => each.changes),
@@ -610,5 +615,19 @@ describe('createIndexSyncer, attacked (#135)', () => {
     await syncer.sync({ vault: LARKSPUR, fromScratch: false });
 
     expect(activity.reports).toEqual([indexInWindowReport('The worker could not be started.')]);
+  });
+});
+
+describe('the index syncer and a note changed in the tick it was read in (#245)', () => {
+  it('reads again a note it is told was changed, and says so, though its time and size stand', async () => {
+    const { vault, sync, news } = await synced({ [KICKOFF]: KICKOFF_TEXT });
+    const edited = KICKOFF_TEXT.replace('Mara Quill', 'Tobias Fe');
+    expect(edited).toHaveLength(KICKOFF_TEXT.length);
+    vault.writeInTheSameTick(KICKOFF, edited);
+
+    await sync(false, LARKSPUR, [KICKOFF]);
+
+    expect(news()).toEqual([change('changed', KICKOFF, edited, 'meeting', KICKOFF_TEXT)]);
+    expect(vault.held.get(KICKOFF)?.digest).toBe(digestOf(edited));
   });
 });

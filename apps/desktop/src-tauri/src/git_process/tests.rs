@@ -1847,7 +1847,7 @@ fn a_save_waits_while_a_merge_is_writing_the_vault() {
     let merge_held_the_turn = crate::vault::turn_watch::owner() == Some(merge.thread().id());
     let root = vault.path().to_path_buf();
     let save = std::thread::spawn(move || {
-        crate::vault::test_access::write_text(&root, "a.md", "saved", None)
+        crate::vault::test_access::write_text(&root, "a.md", "saved", crate::vault::BasedOn::ANY)
     });
     until_waiting_or_ended(&save);
     let save_waited = !save.is_finished();
@@ -2124,7 +2124,12 @@ fn a_save_between_the_syncs_look_at_a_conflict_and_its_checkout_is_kept() {
     };
     // The person saves the note they have open.
     crate::vault::one_change_at_a_time(|| {
-        crate::vault::test_access::write_text(root, "Note.md", "typed while syncing\n", None)
+        crate::vault::test_access::write_text(
+            root,
+            "Note.md",
+            "typed while syncing\n",
+            crate::vault::BasedOn::ANY,
+        )
     })
     .unwrap();
     // The sync acts on what it saw, and is told the file changed since.
@@ -2255,8 +2260,10 @@ fn a_merge_that_is_stopped_for_running_too_long_gives_the_turn_back() {
     let stopped = host.git_in_vault(vault.path(), &args(MERGE)).unwrap();
     assert_eq!(stopped.code, None, "{stopped:?}");
     let root = vault.path().to_path_buf();
-    within_a_minute(move || crate::vault::test_access::write_text(&root, "a.md", "saved", None))
-        .unwrap();
+    within_a_minute(move || {
+        crate::vault::test_access::write_text(&root, "a.md", "saved", crate::vault::BasedOn::ANY)
+    })
+    .unwrap();
     assert_eq!(
         fs::read_to_string(vault.path().join("a.md")).unwrap(),
         "saved"
@@ -2275,8 +2282,10 @@ fn a_merge_that_fails_or_cannot_start_gives_the_turn_back() {
     let missing = host_in(&[], None, NO_LIMIT);
     assert!(missing.git_in_vault(vault.path(), &args(MERGE)).is_err());
     let root = vault.path().to_path_buf();
-    within_a_minute(move || crate::vault::test_access::write_text(&root, "a.md", "saved", None))
-        .unwrap();
+    within_a_minute(move || {
+        crate::vault::test_access::write_text(&root, "a.md", "saved", crate::vault::BasedOn::ANY)
+    })
+    .unwrap();
     assert_eq!(
         fs::read_to_string(vault.path().join("a.md")).unwrap(),
         "saved"
@@ -2310,7 +2319,13 @@ fn saves_and_merges_hammered_together_leave_no_torn_or_lost_note() {
         runs.push(std::thread::spawn(move || {
             for save in 0..25 {
                 let text = format!("save {saver}-{save}");
-                crate::vault::test_access::write_text(&root, "a.md", &text, None).unwrap();
+                crate::vault::test_access::write_text(
+                    &root,
+                    "a.md",
+                    &text,
+                    crate::vault::BasedOn::ANY,
+                )
+                .unwrap();
             }
             saver
         }));

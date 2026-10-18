@@ -55,6 +55,27 @@ describe('createSyncQueue (#238)', () => {
     expect(started[1]?.sync.request).toEqual({ fromScratch: true, quiet: false });
   });
 
+  it('reads again every note any ask that joined named, each once (#245)', async () => {
+    const { queue, started } = heldQueue();
+    void queue.ask('/vaults/Larkspur', REFRESH);
+    void queue.ask('/vaults/Larkspur', { ...QUIET, recheck: ['Plan.md'] });
+    void queue.ask('/vaults/Larkspur', QUIET);
+    void queue.ask('/vaults/Larkspur', { ...QUIET, recheck: ['Alder.md', 'Plan.md'] });
+    started[0]?.finish(true);
+    await turn();
+    expect([...(started[1]?.sync.request.recheck ?? [])].sort()).toEqual(['Alder.md', 'Plan.md']);
+  });
+
+  it('names no note to read again when no ask that joined did', async () => {
+    const { queue, started } = heldQueue();
+    void queue.ask('/vaults/Larkspur', REFRESH);
+    void queue.ask('/vaults/Larkspur', QUIET);
+    void queue.ask('/vaults/Larkspur', REFRESH);
+    started[0]?.finish(true);
+    await turn();
+    expect(started[1]?.sync.request).not.toHaveProperty('recheck');
+  });
+
   it('stays quiet when every ask that joined was quiet', async () => {
     const { queue, started } = heldQueue();
     void queue.ask('/vaults/Larkspur', REFRESH);
