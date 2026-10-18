@@ -35,7 +35,6 @@ const ready = (overrides: Partial<Extract<NotePaneState, { kind: 'ready' }>> = {
 const heading = (overrides: Partial<PageHeading> = {}): PageHeading => ({
   kind: 'note',
   crumb: { icon: 'folder', parent: 'tasks' },
-  icon: 'task',
   title: { text: 'A15-03', source: 'file' },
   description: null,
   path: 'tasks/A15-03.md',
@@ -442,10 +441,41 @@ describe('NotePane: a view or a dashboard', () => {
       body: <p>the widgets</p>,
     });
 
-  it('draws its own body, headed with its description', () => {
+  it('draws its own body, headed by the breadcrumb with its description beside the name', () => {
     dashboard();
     expect(screen.getByText('the widgets')).toBeDefined();
-    expect(screen.getByText('Every task, by phase')).toBeDefined();
+    expect(screen.getByText('Every task, by phase').closest('.page-bar__count')).not.toBeNull();
+    const title = screen.getByRole('heading', { level: 1, name: 'Progress' });
+    expect(title.classList.contains('visually-hidden')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Progress' })).toBeNull();
+  });
+
+  it('puts its own controls in the bar, not on the page', () => {
+    show({
+      heading: heading({ kind: 'view' }),
+      properties: [],
+      body: <p>the board</p>,
+      actions: <button type="button">Customize</button>,
+    });
+    const customize = screen.getByRole('button', { name: 'Customize' });
+    expect(customize.closest('.page-bar')).not.toBeNull();
+    expect(customize.closest('.page')).toBeNull();
+  });
+
+  it('still renames the file from the menu, in a field that then goes away', async () => {
+    const { onRename } = show({
+      heading: heading({ kind: 'view', title: { text: 'Doing', source: 'property' } }),
+      properties: [],
+      body: <p>the board</p>,
+    });
+    await openMenu();
+    await userEvent.click(await item(/^Rename file/));
+    const input = screen.getByRole('textbox', { name: 'Note name' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Doing now{Enter}');
+    expect(onRename).toHaveBeenCalledWith('Doing now');
+    expect(screen.queryByRole('textbox', { name: 'Note name' })).toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Doing' })).toBeDefined();
   });
 
   it('keeps its frontmatter and its links out of the page', () => {

@@ -145,6 +145,12 @@ describe('ActivityPage', () => {
   it('says so when the log is empty', () => {
     page({ rows: [], total: 0 });
     expect(screen.getByText(/^Nothing yet\./)).toBeTruthy();
+    expect(document.querySelector('.page-bar__count')).toBeNull();
+  });
+
+  it('counts the lines and says how long they are kept, beside the page name', () => {
+    page({ rows: [], total: 3 });
+    expect(screen.getByText('3 lines · kept 30 days').closest('.page-bar__count')).not.toBeNull();
   });
 
   it('says nothing matches when the filters leave no lines', () => {

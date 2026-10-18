@@ -1,5 +1,4 @@
 export type { PageKind } from './page-kind.ts';
-export { pageIcon } from './page-icon.ts';
 export { pageCrumb, placeCrumb, TEMPLATES_LABEL } from './page-crumb.ts';
 export type { PageCrumb } from './page-crumb.ts';
 export { duplicatesTitle, pageTitle, TITLE_KEY } from './page-title.ts';

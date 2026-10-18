@@ -73,7 +73,8 @@ test('a tag typed with suggestions is counted in the tags page and renamed in ev
   const tagInNote = page.locator('.editor .tag[data-tag="idea"]');
   await expect(tagInNote).toHaveText('#idea');
   await tagInNote.click();
-  await expect(page.getByRole('heading', { name: 'Tags', level: 1 })).toBeVisible();
+  // The page opens on the tag itself, so the bar names it, and so does the h1.
+  await expect(page.getByRole('heading', { name: '#idea', level: 1 })).toBeVisible();
   await expect(page.getByRole('heading', { name: '#idea', level: 2 })).toBeVisible();
   await expect(tagRow(page, 'idea')).toHaveAccessibleName('idea 4 uses');
   await expect(tagRow(page, 'brandnew')).toHaveAccessibleName('brandnew 1 use');

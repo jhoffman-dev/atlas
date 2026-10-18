@@ -172,7 +172,8 @@ test('show in graph draws the note and its neighbours only, then one step furthe
   await openNote(page, 'Hub');
   await pageCommand(page, /^Show in graph/);
 
-  await expect(page.getByRole('heading', { name: 'Around Hub' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Around Hub' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hub', level: 1 })).toBeVisible();
   await expect(page.locator('.graph__node')).toHaveCount(3);
   await expect(page.locator('.graph__node--centre')).toHaveAttribute('data-path', 'Hub.md');
   expect(await graphListed(page)).toEqual(['Hub.md', 'Spoke.md', 'Task.md']);

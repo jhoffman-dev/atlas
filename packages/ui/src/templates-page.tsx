@@ -2,9 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { TEMPLATES_LABEL, type TemplateUse } from '@atlas/domain';
 import { Icon } from './icon.tsx';
 import { isImeKey } from './ime.ts';
-import { PageBar, type PageHistory } from './page-bar.tsx';
-import { PageHead } from './page-head.tsx';
-import { lostUsesText, TEMPLATE_EXPLANATION, templateUsesText } from './template-words.ts';
+import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
+import { HiddenTitle } from './page-head.tsx';
+import { lostUsesText, templateUsesText } from './template-words.ts';
 
 /** A template as the page lists it. */
 export interface TemplateListing {
@@ -50,32 +50,28 @@ export interface TemplatesPageProps {
  */
 export function TemplatesPage(props: TemplatesPageProps) {
   const [creating, setCreating] = useState(false);
+  const counted = describe(props.catalog);
   return (
     <>
       <PageBar
         crumb={{ icon: 'template', parent: TEMPLATES_LABEL }}
         name="All templates"
+        {...(counted !== null && { count: counted })}
+        actions={
+          <PageAction
+            icon="plus"
+            label="New template"
+            tone="primary"
+            expanded={creating}
+            onPress={() => setCreating((was) => !was)}
+          />
+        }
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
         <article className="page page--wide templates" aria-label="Templates">
-          <PageHead
-            icon="template"
-            title="Templates"
-            description={TEMPLATE_EXPLANATION}
-            actions={
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                aria-expanded={creating}
-                onClick={() => setCreating((was) => !was)}
-              >
-                <Icon name="plus" size={15} />
-                New template
-              </button>
-            }
-          />
+          <HiddenTitle>All templates</HiddenTitle>
           {creating && props.catalog !== null && (
             <NewTemplateForm
               typesWithout={props.catalog.typesWithout}
@@ -170,6 +166,14 @@ function NewTemplateForm({
       )}
     </form>
   );
+}
+
+/** How many templates there are, beside the page's name; nothing when there are none. */
+function describe(catalog: TemplatesPageProps['catalog']): string | null {
+  if (catalog === null) return null;
+  const count = catalog.templates.length;
+  if (count === 0) return null;
+  return `${count} ${count === 1 ? 'template' : 'templates'}`;
 }
 
 function TemplateList({ catalog, error, ...props }: TemplatesPageProps) {

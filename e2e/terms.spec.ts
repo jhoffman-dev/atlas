@@ -33,7 +33,7 @@ async function openVault(page: Page) {
 const termsPage = (page: Page) => page.getByRole('article', { name: 'Terms' });
 
 async function addTerm(page: Page, term: { canonical: string; variants: string; kind: string }) {
-  await termsPage(page).getByRole('button', { name: 'New term' }).click();
+  await page.getByRole('button', { name: 'New term' }).click();
   const form = page.getByRole('form', { name: 'New term' });
   await form.getByRole('textbox', { name: 'Right spelling' }).fill(term.canonical);
   await form.getByRole('textbox', { name: 'Misheard as' }).fill(term.variants);
@@ -48,10 +48,8 @@ test('a term is added from the Terms page, listed there, and its variants edited
 
   await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Terms' }).click();
   await expect(termsPage(page).getByText(/^No terms yet/)).toBeVisible();
-  // The person's name and alias are in the vocabulary before any term is.
-  await expect(
-    termsPage(page).getByText(/^0 terms · 0 misheard spellings Atlas puts right/),
-  ).toBeVisible();
+  // Nothing to count yet, so the bar shows no count beside the page's name.
+  await expect(page.locator('.page-bar__count')).toHaveCount(0);
 
   await addTerm(page, {
     canonical: 'Larkspur',
@@ -68,7 +66,7 @@ test('a term is added from the Terms page, listed there, and its variants edited
     termsPage(page).getByRole('button', { name: 'Larkspur', exact: true }),
   ).toBeVisible();
   await expect(
-    termsPage(page).getByText(/^1 term · 2 misheard spellings Atlas puts right/),
+    page.locator('.page-bar__count').getByText('1 term · 2 misheard spellings'),
   ).toBeVisible();
 
   // Editing the variants writes the frontmatter and nothing else.
