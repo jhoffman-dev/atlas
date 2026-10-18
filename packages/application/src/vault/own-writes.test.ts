@@ -185,6 +185,44 @@ describe('createOwnWrites: which writes the index already holds', () => {
   });
 });
 
+describe('createOwnWrites.forgetUnder: a folder trashed or moved with all it holds (#264)', () => {
+  const recorded = (paths: readonly string[], vault = VAULT) => {
+    const writes = createOwnWrites({ clock: fixedClock() });
+    for (const path of paths) writes.record({ vault, path, left: saved });
+    return writes;
+  };
+  const left = (writes: ReturnType<typeof createOwnWrites>, path: string, vault = VAULT) =>
+    writes.leftAt({ vault, path });
+
+  it('forgets every write inside the folder, at any depth', () => {
+    const writes = recorded(['Projects/Larkspur/Plan.md', 'Projects/Larkspur/2026/Budget.md']);
+    writes.forgetUnder({ vault: VAULT, path: 'Projects/Larkspur' });
+    expect(left(writes, 'Projects/Larkspur/Plan.md')).toBeNull();
+    expect(left(writes, 'Projects/Larkspur/2026/Budget.md')).toBeNull();
+  });
+
+  it('keeps the folder’s own write, and everything beside it', () => {
+    const writes = recorded(['Projects/Larkspur', 'Projects/Other.md', 'Plan.md']);
+    writes.forgetUnder({ vault: VAULT, path: 'Projects/Larkspur' });
+    expect(left(writes, 'Projects/Larkspur')).toEqual(saved);
+    expect(left(writes, 'Projects/Other.md')).toEqual(saved);
+    expect(left(writes, 'Plan.md')).toEqual(saved);
+  });
+
+  it('matches whole names only: a folder is not every name it begins', () => {
+    const writes = recorded(['Projects/Larkspur/Plan.md', 'Projects/Lark.md']);
+    writes.forgetUnder({ vault: VAULT, path: 'Projects/Lark' });
+    expect(left(writes, 'Projects/Larkspur/Plan.md')).toEqual(saved);
+    expect(left(writes, 'Projects/Lark.md')).toEqual(saved);
+  });
+
+  it('forgets nothing in another vault', () => {
+    const writes = recorded(['Projects/Larkspur/Plan.md'], '/vaults/quill');
+    writes.forgetUnder({ vault: VAULT, path: 'Projects/Larkspur' });
+    expect(left(writes, 'Projects/Larkspur/Plan.md', '/vaults/quill')).toEqual(saved);
+  });
+});
+
 describe('noteSavedThrough: the note a save’s temporary stands beside', () => {
   it('names the note for the host’s temporary, in a folder or at the root', () => {
     expect(noteSavedThrough('Projects/.Plan.md.atlas-tmp')).toBe('Projects/Plan.md');

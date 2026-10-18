@@ -14,6 +14,7 @@ import {
   pageTitle,
   withDatePart,
   propertyIcon,
+  STATUS_TONES,
   statusTone,
 } from './index.ts';
 
@@ -237,18 +238,47 @@ describe('propertyIcon', () => {
 
 describe('statusTone', () => {
   it.each([
+    ['inbox', 'inbox'],
     ['backlog', 'backlog'],
     ['Next', 'next'],
     [' doing ', 'doing'],
     ['In progress', 'doing'],
+    ['Waiting', 'waiting'],
     ['review', 'review'],
     ['done', 'done'],
   ])('%s takes the %s ramp', (value, tone) => {
     expect(statusTone(value)).toBe(tone);
   });
 
+  // GTD's eight statuses (ADR-0029), coloured as epic #267 settled: Someday
+  // and Longterm in Backlog's grey, Archive in Done's green.
+  it.each([
+    ['inbox', 'inbox'],
+    ['backlog', 'backlog'],
+    ['next-action', 'next'],
+    ['in-progress', 'doing'],
+    ['waiting', 'waiting'],
+    ['someday', 'backlog'],
+    ['longterm', 'backlog'],
+    ['archive', 'done'],
+  ])('the GTD status %s takes the %s ramp', (value, tone) => {
+    expect(statusTone(value)).toBe(tone);
+  });
+
   it('draws an unknown value in the quietest ramp', () => {
     expect(statusTone('blocked')).toBe('backlog');
+  });
+
+  it('offers every tone a status can take, in the order the ramp runs', () => {
+    expect(STATUS_TONES).toEqual([
+      'inbox',
+      'backlog',
+      'next',
+      'doing',
+      'waiting',
+      'review',
+      'done',
+    ]);
   });
 });
 

@@ -41,6 +41,7 @@ function memoryFs(files: Record<string, string>, refuse: string | null = null) {
     createNote: async ({ path, contents }) => {
       if (notes.has(path)) throw new Error('A note is already there.');
       notes.set(path, contents);
+      return 0;
     },
   });
   return { fs, notes };

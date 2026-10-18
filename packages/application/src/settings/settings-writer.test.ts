@@ -27,6 +27,7 @@ function hostLikeVault(initial: string | null) {
       if (file.text !== null) throw new Error('a note with that name already exists');
       file.creates += 1;
       file.text = contents;
+      return 0;
     },
   });
   return { fs, file };

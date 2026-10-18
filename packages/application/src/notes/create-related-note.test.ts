@@ -31,6 +31,7 @@ function memoryFs(files: Record<string, string>) {
     createNote: async ({ path, contents }) => {
       if (store.has(path)) throw new Error(`${path} exists`);
       store.set(path, contents);
+      return 0;
     },
     moveEntry: async ({ from }) => {
       throw new Error(`nothing may move ${from}`);

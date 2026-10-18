@@ -22,6 +22,7 @@ describe('adding a term from a Term template that has a title of its own', () =>
       readTextFile: async () => ({ text: '---\ntitle: New term\ntype: term\n---\n', modified: 1 }),
       createNote: async ({ path, contents }) => {
         created.push({ path, contents });
+        return 0;
       },
     });
 

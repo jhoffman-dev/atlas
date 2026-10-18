@@ -50,8 +50,11 @@ export interface VaultFsPort {
   readTextFile(path: VaultPath): Promise<NoteContents>;
   /** Raw bytes of a file in the vault, for showing an image. */
   readBinaryFile(path: VaultPath): Promise<ArrayBuffer>;
-  /** Creates a note. Fails rather than overwriting one that already exists. */
-  createNote: (args: { path: VaultPath; contents: string }) => Promise<void>;
+  /**
+   * Creates a note and reports its modification time, as `writeTextFile` does
+   * a save's. Fails rather than overwriting one that already exists.
+   */
+  createNote: (args: { path: VaultPath; contents: string }) => Promise<number>;
   /** Creates an empty folder. Fails if anything already has the name. */
   createFolder: (args: { path: VaultPath }) => Promise<void>;
   /**

@@ -52,6 +52,7 @@ export type { PageHeadProps } from './page-head.tsx';
 export { PageBar } from './page-bar.tsx';
 export type { PageHistory, PageMenuItem } from './page-bar.tsx';
 export { SearchPalette } from './search-palette.tsx';
+export { useSteadyCallback } from './steady-callback.ts';
 export { VaultHeader } from './vault-header.tsx';
 export type { TemplateChoice } from './vault-header.tsx';
 export { PropertiesPanel } from './properties-panel.tsx';

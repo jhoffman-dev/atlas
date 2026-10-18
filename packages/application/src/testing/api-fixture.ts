@@ -240,8 +240,10 @@ export function apiFixture({
       if (stored.has(located(path))) {
         throw new VaultAccessError('a note with that name already exists');
       }
-      stored.set(path, { text: contents, modified: (clock += 1) });
+      const modified = (clock += 1);
+      stored.set(path, { text: contents, modified });
       state.writes.push({ path, contents });
+      return modified;
     },
     createFolder: async ({ path, vault }) => {
       refuseOtherVault(vault);

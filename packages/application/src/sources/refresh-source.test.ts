@@ -95,6 +95,7 @@ function fakeFs(files: Record<string, string>) {
       if (files[path] !== undefined) throw new Error('a note with that name already exists');
       files[path] = contents;
       written.push(path);
+      return 0;
     },
     createFolder: async () => {},
     moveEntry: async () => {},
@@ -405,6 +406,7 @@ describe('refreshSource', () => {
         if (allowed <= 0) throw new Error('the disk is full');
         allowed -= 1;
         await vault.fs.createNote(args);
+        return 0;
       },
     };
 

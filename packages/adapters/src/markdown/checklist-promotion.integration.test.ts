@@ -68,8 +68,10 @@ function vault(initial: Record<string, string> = { [source]: PLAN }) {
     },
     createNote: async ({ path, contents }) => {
       if (files.has(path)) throw new Error('a note with that name already exists');
-      files.set(path, { text: contents, modified: (clock += 1) });
+      const modified = (clock += 1);
+      files.set(path, { text: contents, modified });
       writes.push(path);
+      return modified;
     },
     trashEntry: async ({ path }) => {
       if (!files.delete(path)) throw new Error(`no such entry: ${path}`);
@@ -304,6 +306,7 @@ describe('promoting refuses, and changes nothing', () => {
       createNote: async (note) => {
         await fs.createNote(note);
         fixture.files.set(source, { text: edited, modified: 999 });
+        return 0;
       },
     };
     await expect(promote(racing)).rejects.toThrow('changed while the line was being promoted');

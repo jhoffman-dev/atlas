@@ -63,7 +63,9 @@ function memoryHost(initial: Record<string, string>) {
     createNote: async ({ path, contents }) => {
       if (files.has(path)) throw new Error('something with that name is already there');
       if (!hasFolder(parentVaultPath(path))) throw new Error('that folder does not exist');
-      files.set(path, { text: contents, modified: ++clock });
+      const modified = ++clock;
+      files.set(path, { text: contents, modified });
+      return modified;
     },
     createFolder: async ({ path }) => {
       if (hasFolder(path)) throw new Error('something with that name is already there');

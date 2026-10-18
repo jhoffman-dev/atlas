@@ -84,7 +84,9 @@ function vault(notes: Record<string, string>) {
     createFolder: async ({ path: at }) => void dirs.add(at),
     createNote: async ({ path: at, contents }) => {
       if (files.has(at)) throw new Error('already exists');
-      files.set(at, { text: contents, modified: (clock += 1) });
+      const modified = (clock += 1);
+      files.set(at, { text: contents, modified });
+      return modified;
     },
     moveEntry: async ({ from, to }) => {
       const file = read(from);

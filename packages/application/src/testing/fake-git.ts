@@ -160,6 +160,7 @@ export function memoryVault(files: Record<string, string> = {}) {
     createNote: async ({ path, contents: text }) => {
       if (contents.has(path)) throw new Error('already there');
       contents.set(path, text);
+      return 2;
     },
   };
   return { fs, files: contents, trashed };

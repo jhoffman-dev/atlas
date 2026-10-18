@@ -45,7 +45,7 @@ export interface InboxRowsProps {
 }
 
 /** A row's height until it is measured, as WebKit draws a note's. */
-const ROW_HEIGHT = 61;
+const ROW_HEIGHT = 59;
 
 /** A row's cells: its name, its kind, and how it is clarified. */
 const ROW_CELLS = 3;

@@ -312,7 +312,10 @@ describe('useSync', () => {
       ...options,
       fs: {
         ...options.fs,
-        createNote: async ({ path, contents }) => void written.push(`${path}:${contents}`),
+        createNote: async ({ path, contents }) => {
+          written.push(`${path}:${contents}`);
+          return 0;
+        },
         writeTextFile: async ({ path, contents }) => {
           written.push(`${path}:${contents}`);
           return 2;
@@ -556,7 +559,10 @@ describe('useSync, after the A29-01 review', () => {
     const written: string[] = [];
     const fs: SyncOptions['fs'] = {
       ...vaultFiles(frontmatter),
-      createNote: async ({ path, contents }) => void written.push(`${path}:${contents}`),
+      createNote: async ({ path, contents }) => {
+        written.push(`${path}:${contents}`);
+        return 0;
+      },
       writeTextFile: async ({ path, contents }) => {
         written.push(`${path}:${contents}`);
         return 2;

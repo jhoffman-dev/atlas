@@ -96,3 +96,61 @@ export function holdsTheScreen(current: Overlay | null): boolean {
 export function closeOverlay(current: Overlay | null, closing: Overlay): Overlay | null {
   return current === closing ? null : current;
 }
+
+/** What is typed into the search palette, and which result is chosen. */
+export interface PaletteInput {
+  readonly query: string;
+  /** The chosen row, counting the commands first and then the notes. */
+  readonly selected: number;
+  /** Archived notes are left out of a search unless this is on (U-22). */
+  readonly includeArchived: boolean;
+}
+
+export const NO_INPUT: PaletteInput = { query: '', selected: 0, includeArchived: false };
+
+/** The window's overlay state: which one is up, and what the search palette holds. */
+export interface OverlayState {
+  readonly overlay: Overlay | null;
+  readonly palette: PaletteInput;
+}
+
+export const NO_OVERLAY: OverlayState = { overlay: null, palette: NO_INPUT };
+
+/** `requested` asked for, by `openOverlay`'s rule. */
+export function withOpened(state: OverlayState, requested: Overlay): OverlayState {
+  return { ...state, overlay: openOverlay(state.overlay, requested) };
+}
+
+/**
+ * `closing` closed, by `closeOverlay`'s rule. The search palette closed forgets
+ * what was typed into it, however it closed: it opens empty the next time.
+ */
+export function withClosed(state: OverlayState, closing: Overlay): OverlayState {
+  const overlay = closeOverlay(state.overlay, closing);
+  const paletteClosed = state.overlay === 'search' && overlay !== 'search';
+  return { overlay, palette: paletteClosed ? NO_INPUT : state.palette };
+}
+
+/**
+ * The overlay the window draws itself: any but the search palette, which
+ * watches for itself, so that opening it and typing into it draws nothing
+ * else (#261).
+ */
+export function drawnByWindow(state: OverlayState): Overlay | null {
+  return state.overlay === 'search' ? null : state.overlay;
+}
+
+/** A new query, with the first result chosen. */
+export function withQuery(input: PaletteInput, query: string): PaletteInput {
+  return { ...input, query, selected: 0 };
+}
+
+/** Archived notes let in or left out, with the first result chosen. */
+export function withArchived(input: PaletteInput, includeArchived: boolean): PaletteInput {
+  return { ...input, includeArchived, selected: 0 };
+}
+
+/** The choice moved `delta` rows through `count`, wrapping at either end. */
+export function withMoved(input: PaletteInput, delta: number, count: number): PaletteInput {
+  return { ...input, selected: count === 0 ? 0 : (input.selected + delta + count) % count };
+}

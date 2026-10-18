@@ -20,7 +20,6 @@ import {
 import { guardStrayFileDrops } from './file-drop-guard.ts';
 import { preloadPages } from './pages-on-first-use.ts';
 import { PreloadAfterStart } from './preload-after-start.tsx';
-import '@fontsource-variable/manrope';
 import './styles.css';
 
 guardStrayFileDrops(window);

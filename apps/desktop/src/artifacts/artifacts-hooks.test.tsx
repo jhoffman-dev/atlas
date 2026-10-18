@@ -48,7 +48,10 @@ function memoryVault(files: Record<string, string>) {
     },
     readBinaryFile: async (path) => (bytes.get(path) ?? new Uint8Array()).slice().buffer,
     createFolder: async ({ path }) => void folders.add(path),
-    createNote: async ({ path, contents }) => void text.set(path, contents),
+    createNote: async ({ path, contents }) => {
+      text.set(path, contents);
+      return 0;
+    },
     writeBinaryFile: async ({ path, bytes: written }) => {
       bytes.set(path, written);
       return written.byteLength;
