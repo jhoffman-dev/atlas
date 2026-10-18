@@ -258,6 +258,8 @@ const PAGES: Record<string, (page: Page) => Promise<void>> = {
       .getByRole('button', { name: /^Inbox/ })
       .click();
     await expect(page.getByRole('article', { name: 'Inbox' })).toBeVisible();
+    // The rows are held back, out of reach, until the page's offers are read (#130).
+    await expect(page.locator('.inbox__row').first()).toBeVisible();
   },
   table: async (page) => {
     await sidebarSection(page, 'views').getByRole('button', { name: 'Sheet', exact: true }).click();
