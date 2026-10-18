@@ -363,6 +363,12 @@ export interface FakeHost {
   callsTo(command: string): number;
   /** How many `vault-changed` events `echoWrites` has sent of the app's own writes. */
   echoesSent(): Promise<number>;
+  /**
+   * Keeps the echo of the app's own writes from being sent, in the page now
+   * open, until the returned function is called: a test can let the app
+   * finish what it asked for its own writes before the watcher reports them.
+   */
+  holdEchoes(): Promise<() => Promise<void>>;
   /** Makes the next call of this command fail with this message, as the Rust host would answer `Err`. */
   failNext(command: string, message: string): void;
   /**
@@ -1645,6 +1651,23 @@ export async function installHost(
     let echoTimer: ReturnType<typeof setTimeout> | null = null;
     let echoesSent = 0;
     Object.defineProperty(window, '__atlasEchoesSent', { get: () => echoesSent });
+    // Held (`holdEchoes`), a report due is kept until let go, as a watcher slower than the app would.
+    let echoesHeld = false;
+    let echoDue = false;
+    function sendEcho() {
+      const sent = echoPending;
+      echoPending = [];
+      echoesSent += 1;
+      emit('vault-changed', sent);
+    }
+    Object.assign(window, {
+      __atlasHoldEchoes(held: boolean) {
+        echoesHeld = held;
+        if (held || !echoDue) return;
+        echoDue = false;
+        sendEcho();
+      },
+    });
     function echoOnceWritten(answered: Promise<unknown>, paths: string[]) {
       if (paths.length === 0) return;
       answered.then(
@@ -1654,10 +1677,8 @@ export async function installHost(
           if (echoTimer !== null) clearTimeout(echoTimer);
           echoTimer = setTimeout(() => {
             echoTimer = null;
-            const sent = echoPending;
-            echoPending = [];
-            echoesSent += 1;
-            emit('vault-changed', sent);
+            if (echoesHeld) echoDue = true;
+            else sendEcho();
           }, 400);
         },
         // A refused write changed nothing on disk, so the watcher has nothing to say.
@@ -1780,6 +1801,18 @@ export async function installHost(
       page.evaluate(
         () => (window as unknown as { __atlasEchoesSent?: number }).__atlasEchoesSent ?? 0,
       ),
+    holdEchoes: async () => {
+      const hold = (held: boolean) =>
+        page.evaluate(
+          (held) =>
+            (window as unknown as { __atlasHoldEchoes: (held: boolean) => void }).__atlasHoldEchoes(
+              held,
+            ),
+          held,
+        );
+      await hold(true);
+      return () => hold(false);
+    },
     failNext: (command, message) => void failures.set(command, message),
     activityLog: () => activityFiles.get(openRoot()) ?? '',
     seedActivity: (root, text) => void activityFiles.set(root, text),

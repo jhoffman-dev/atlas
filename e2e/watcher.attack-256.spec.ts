@@ -125,13 +125,43 @@ const seenSoFar = (page: Page) =>
   );
 
 /**
- * Does `act`, waits for the watcher's echo of it and for the app to have
- * answered it, then says how many walks of the vault the app started after
- * the echo arrived: none, when the echo is known as the app's own.
+ * No host call is waiting, and no walk or report began over a frame, on two
+ * looks in a row: whatever the app asked for has been asked and answered.
+ */
+async function quiet(page: Page) {
+  let calmLooks = 0;
+  await expect
+    .poll(async () => {
+      const before = await seenSoFar(page);
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+      const after = await seenSoFar(page);
+      const calm =
+        before.unanswered === 0 &&
+        after.unanswered === 0 &&
+        after.order.length === before.order.length;
+      calmLooks = calm ? calmLooks + 1 : 0;
+      return calmLooks;
+    })
+    .toBeGreaterThanOrEqual(2);
+}
+
+/**
+ * Does `act`, lets the app finish the refresh it asks for its own writes, and
+ * only then lets the watcher's echo of them through. Says how many walks of
+ * the vault the app started after the echo arrived: none, when the echo is
+ * known as the app's own.
+ *
+ * Held, because the watcher's 400 ms is no promise: on a slow runner a refresh
+ * the app asked before the echo can still be waiting behind another walk when
+ * the echo arrives, and would be counted as the echo's. That case is attacked
+ * on its own, below, against a run with no echo at all.
  */
 async function walksAfterTheEcho(page: Page, host: FakeHost, act: () => Promise<void>) {
   const echoesBefore = await host.echoesSent();
+  const letEchoesGo = await host.holdEchoes();
   await act();
+  await quiet(page);
+  await letEchoesGo();
   await expect.poll(() => host.echoesSent()).toBeGreaterThan(echoesBefore);
   return walksSinceTheLastReport(page);
 }
@@ -146,29 +176,52 @@ async function walksSinceTheLastReport(page: Page) {
   return order.slice(order.lastIndexOf('report') + 1).filter((each) => each === 'walk').length;
 }
 
-async function openedForCounting(page: Page, vault: FakeVault): Promise<FakeHost> {
+/**
+ * Opens the vault with every walk and report recorded. What the app writes as
+ * it opens is echoed only once it has done all it asked for, `wroteAsItOpened`
+ * included, for the reason `walksAfterTheEcho` gives.
+ */
+async function openedForCounting(
+  page: Page,
+  vault: FakeVault,
+  wroteAsItOpened: () => Promise<void> = async () => {},
+): Promise<FakeHost> {
   const host = await installHost(page, vault, { echoWrites: true });
   await recordWalksAndReports(page);
   await page.goto('/');
+  const letEchoesGo = await host.holdEchoes();
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await wroteAsItOpened();
+  await quiet(page);
+  await letEchoesGo();
   return host;
 }
 
-test('the watcher’s echo of deciding an Inbox row is not refreshed for again (#254)', async ({
-  page,
-}) => {
+/**
+ * A GTD vault whose Inbox holds one task: the app writes the Block type into
+ * it as it opens (P31-01).
+ */
+async function gtdVaultWithAnInbox(): Promise<FakeVault> {
   const vault = await createVault();
   for (const folder of ['.atlas/types', 'Projects', 'Inbox']) await vault.mkdir(folder);
   await vault.write('.atlas/types/task.md', GTD_TASK_TYPE);
   await vault.write('.atlas/types/project.md', PROJECT_TYPE);
   await vault.write('Projects/Atlas.md', note(['type: project', 'status: active'], 'The app.'));
   await vault.write('Inbox/Renew the passport.md', note(['type: task', 'status: inbox'], 'Card.'));
-  const host = await openedForCounting(page, vault);
+  return vault;
+}
+
+test('the watcher’s echo of deciding an Inbox row is not refreshed for again (#254)', async ({
+  page,
+}) => {
+  const vault = await gtdVaultWithAnInbox();
   // The app writes the Block type into a GTD vault as it opens (P31-01). The
   // host reports the new note's time, so its echo is known as the app's own:
   // nothing is walked for it (#258).
-  await expectFile(vault, '.atlas/types/block.md').toContain('block');
+  const host = await openedForCounting(page, vault, () =>
+    expectFile(vault, '.atlas/types/block.md').toContain('block'),
+  );
   await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
   expect(await walksSinceTheLastReport(page)).toBe(0);
   await page
@@ -194,36 +247,41 @@ test('the watcher’s echo of deciding an Inbox row is not refreshed for again (
 });
 
 /**
- * A GTD vault whose Inbox holds one task: the app writes the Block type into
- * it as it opens (P31-01).
+ * Opens a GTD vault with its opening walk held until the Block type is
+ * written — and, with `echoWrites`, until its echo has arrived — then says
+ * how many walks of the vault the app made in all, once it has done.
  */
-async function gtdVaultWithAnInbox(): Promise<FakeVault> {
-  const vault = await createVault();
-  for (const folder of ['.atlas/types', 'Projects', 'Inbox']) await vault.mkdir(folder);
-  await vault.write('.atlas/types/task.md', GTD_TASK_TYPE);
-  await vault.write('.atlas/types/project.md', PROJECT_TYPE);
-  await vault.write('Projects/Atlas.md', note(['type: project', 'status: active'], 'The app.'));
-  await vault.write('Inbox/Renew the passport.md', note(['type: task', 'status: inbox'], 'Card.'));
-  return vault;
+async function walksOpeningSlowly(page: Page, echoWrites: boolean): Promise<number> {
+  const vault = await gtdVaultWithAnInbox();
+  const host = await installHost(page, vault, { echoWrites });
+  await recordWalksAndReports(page);
+  const letTheWalkGo = host.holdIndexAfter(0);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expectFile(vault, '.atlas/types/block.md').toContain('block');
+  if (echoWrites) await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
+  letTheWalkGo();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  await quiet(page);
+  return (await seenSoFar(page)).order.filter((each) => each === 'walk').length;
 }
 
 test('the Block type’s echo, heard while the opening walk is still under way, is not walked for (#258)', async ({
   page,
+  browser,
 }) => {
   // A slow runner: the opening walk outlasts the watcher's 400 ms, so the
   // echo of the Block type arrives while the refresh the app asked for it
-  // still waits behind that walk.
-  const vault = await gtdVaultWithAnInbox();
-  const host = await installHost(page, vault, { echoWrites: true });
-  await recordWalksAndReports(page);
-  const release = host.holdIndexAfter(0);
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Choose folder…' }).click();
-  await expectFile(vault, '.atlas/types/block.md').toContain('block');
-  await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
-  release();
-  await expect(page.getByText(/notes indexed/)).toBeVisible();
-  expect(await walksSinceTheLastReport(page)).toBe(0);
+  // still waits behind that walk. That refresh walks after the echo, as it
+  // would with no echo at all; the echo itself adds none.
+  const unheard = await browser.newPage();
+  try {
+    const withNoEcho = await walksOpeningSlowly(unheard, false);
+    expect(withNoEcho).toBeGreaterThan(0);
+    expect(await walksOpeningSlowly(page, true)).toBe(withNoEcho);
+  } finally {
+    await unheard.close();
+  }
 });
 
 test('the watcher’s echo of dragging a board card is not refreshed for again (#254)', async ({
