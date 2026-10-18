@@ -5,6 +5,7 @@ import { act, render, renderHook, screen, waitFor } from '@testing-library/react
 import { createVaultPath } from '@atlas/domain';
 import {
   createNoteChanges,
+  createOwnWrites,
   fakeIndexPort,
   fakeMarkdown,
   fakeVaultFs,
@@ -532,5 +533,47 @@ describe('LiveIndexSettings', () => {
     );
     expect(screen.getByText('Indexing 1,240 of 5,000…')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Rebuild' }).hasAttribute('disabled')).toBe(true);
+  });
+});
+
+describe('useIndex: which of the app’s own writes a sync took in (#254)', () => {
+  async function indexWith(ports: IndexPorts) {
+    const ownWrites = createOwnWrites({ clock: { now: () => 0 } });
+    const saved = { kind: 'text', text: 'note', modified: 1 } as const;
+    const written = (path: string) => ownWrites.record({ vault: VAULT, path, left: saved });
+    written('Note 0.md');
+    const { result } = renderHook(() =>
+      useIndex({
+        ports,
+        vaultKey: VAULT,
+        activity: recordingActivity(),
+        changes: createNoteChanges({ onError: () => {} }),
+        ownWrites,
+      }),
+    );
+    await waitFor(() => expect(result.current.status.kind).not.toBe('working'));
+    const held = (path: string) => ownWrites.refreshedAt({ vault: VAULT, path }) !== null;
+    return { result, written, held };
+  }
+
+  it('holds every write made before a sync that finished, and none made after it', async () => {
+    const { result, written, held } = await indexWith(vaultOf(3));
+    expect(held('Note 0.md')).toBe(true);
+    written('Note 1.md');
+    expect(held('Note 1.md')).toBe(false);
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(held('Note 1.md')).toBe(true);
+  });
+
+  it('holds nothing after a sync that failed', async () => {
+    const ports = vaultOf(3);
+    const failing = {
+      ...ports,
+      fs: { ...ports.fs, listNotes: () => Promise.reject(new Error('the host is busy')) },
+    };
+    const { held } = await indexWith(failing);
+    expect(held('Note 0.md')).toBe(false);
   });
 });

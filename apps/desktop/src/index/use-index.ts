@@ -6,6 +6,7 @@ import {
   type MarkdownPort,
   type NoteChanges,
   type NoteDeriver,
+  type OwnWrites,
   type VaultFsPort,
 } from '@atlas/application';
 import {
@@ -97,6 +98,7 @@ export function useIndex({
   vaultKey,
   activity,
   changes,
+  ownWrites,
 }: {
   ports: IndexPorts;
   vaultKey: string | null;
@@ -104,6 +106,8 @@ export function useIndex({
   activity: ActivityLog;
   /** Where every refresh says which notes it found added, changed or removed (P28-03). */
   changes: NoteChanges;
+  /** Told of every sync that finished, so the echo of a write it took in is not refreshed for again (#254). */
+  ownWrites?: Pick<OwnWrites, 'lastWrite' | 'refreshed'>;
 }): {
   /** The open vault's status. What only needs part of it reads `store` through a selector. */
   status: IndexStatus;
@@ -156,6 +160,8 @@ export function useIndex({
         store.setState({ vault, phase: 'building', message: null });
       }
       const publishedBefore = counted.published();
+      // Every write recorded by now is on disk before this sync reads the vault.
+      const through = ownWrites?.lastWrite();
       try {
         const stats = await syncer.sync({
           vault,
@@ -167,6 +173,7 @@ export function useIndex({
         });
         // Dropped: the vault closed while it waited, and the one open now has its own.
         if (stats === null) return false;
+        if (through !== undefined) ownWrites?.refreshed({ vault, through });
         const found = counted.published() > publishedBefore;
         if (building || found || !quiet) revision.current += 1;
         // Not "ready" while a sync queued behind this one is still to write:
@@ -183,7 +190,7 @@ export function useIndex({
         return false;
       }
     },
-    [syncer, store, progress, counted],
+    [syncer, store, progress, counted, ownWrites],
   );
   // One queue for the window, so asks made across a re-render still join one another.
   const latestRun = useRef(run);

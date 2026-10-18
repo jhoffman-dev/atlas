@@ -35,6 +35,7 @@ import {
 } from '@atlas/domain';
 import {
   createNoteChanges,
+  createOwnWrites,
   createRefreshSpacing,
   createSourceRefresher,
   createTagRenames,
@@ -88,7 +89,7 @@ import { useIndexFailure, useIndexKey, useIndexReady } from './index/index-statu
 import { openOnce } from './index/open-once.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
-import { useVaultWatch } from './vault/use-vault-watch.ts';
+import { useOutsideChanges } from './vault/use-outside-changes.ts';
 import { useSearch } from './index/use-search.ts';
 import { useCreateNote } from './notes/use-create-note.ts';
 import { useTypes } from './types/use-types.ts';
@@ -342,13 +343,21 @@ export function App({
   );
   // Everything below writes through these, so a write that finishes after a
   // switch is refused instead of landing in the vault opened next.
-  const vault = useMemo(() => boundToVault(vaultPorts, vaultKey), [vaultPorts, vaultKey]);
-  const notes = useMemo(() => boundToVault(notePorts, vaultKey), [notePorts, vaultKey]);
+  // What the app itself wrote, so the watcher's report of it is not refreshed for twice (#254).
+  const [ownWrites] = useState(() => createOwnWrites({ clock: localClock }));
+  const vault = useMemo(
+    () => boundToVault(vaultPorts, vaultKey, ownWrites),
+    [vaultPorts, vaultKey, ownWrites],
+  );
+  const notes = useMemo(
+    () => boundToVault(notePorts, vaultKey, ownWrites),
+    [notePorts, vaultKey, ownWrites],
+  );
   // Opened once per vault: a new vault gets a new opening (#238).
   const index = useMemo(() => {
-    const bound = boundToVault(indexPorts, vaultKey);
+    const bound = boundToVault(indexPorts, vaultKey, ownWrites);
     return { ...bound, index: openOnce(bound.index) };
-  }, [indexPorts, vaultKey]);
+  }, [indexPorts, vaultKey, ownWrites]);
   const panes = usePanes({ store: browserPaneStore, vaultKey: location?.absolutePath ?? null });
   const { openInFocusedPane, openInPane, openBeside, followMove, closeNotes, toggleSplit } = panes;
   useFocusAfterArrange(panes.layout.paths.length);
@@ -366,18 +375,22 @@ export function App({
     vaultKey: location?.absolutePath ?? null,
     activity: activityLog,
     changes: noteChanges,
+    ownWrites,
   });
   const indexReady = useIndexReady(indexStore, vaultKey);
   const indexFailedWith = useIndexFailure(indexStore, vaultKey);
 
   // Anything that edits the vault from outside — Obsidian, a sync client — should
-  // show up here without a restart. Quiet when every path is a note the index
-  // holds: it moves the index only when the refresh found something, which an
-  // echo of the app's own save does not. Anything else is not in the index, so
-  // only a loud refresh tells its readers.
-  useVaultWatch({
+  // show up here without a restart. The echo of the app's own writes is left
+  // out: the app refreshed when it wrote (#254). Quiet when every path left is
+  // a note the index holds: it moves the index only when the refresh found
+  // something. Anything else is not in the index, so only a loud refresh tells
+  // its readers.
+  useOutsideChanges({
     watch: vault.watch,
     vaultKey: location?.absolutePath ?? null,
+    fs: vault.fs,
+    ownWrites,
     onChange: (paths) => {
       void reload();
       void refresh(refreshAfterWatch(paths));

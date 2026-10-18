@@ -76,19 +76,19 @@
       "calls": {}
     },
     "Tick a task on Today": {
-      "commits": 81,
-      "renders": 19766,
+      "commits": 42,
+      "renders": 10655,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_open": 3,
         "index_put": 3,
-        "index_query": 64,
+        "index_query": 31,
         "index_rebuild_views": 3,
         "index_stats": 3,
-        "list_directory": 49,
+        "list_directory": 25,
         "list_notes": 4,
-        "read_notes": 27,
+        "read_notes": 15,
         "read_text_file": 5,
         "write_text_file": 3
       },
@@ -108,21 +108,21 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 93,
-      "renders": 7760,
+      "commits": 52,
+      "renders": 4213,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
-        "index_notes_of_type": 12,
+        "index_notes_of_type": 7,
         "index_put": 3,
-        "index_query": 83,
+        "index_query": 47,
         "index_rebuild_views": 3,
         "index_remove": 3,
         "index_stats": 3,
-        "list_directory": 48,
-        "list_notes": 11,
+        "list_directory": 28,
+        "list_notes": 7,
         "move_entry": 3,
-        "read_notes": 36,
+        "read_notes": 21,
         "read_text_file": 8,
         "write_text_file": 3
       },
@@ -148,24 +148,24 @@
     },
     "⌘K + 5 keys over the table": {
       "commits": 19,
-      "renders": 1646,
+      "renders": 1622,
       "calls": {
         "index_search": 7
       }
     },
     "Drag a board card": {
-      "commits": 120,
-      "renders": 14931,
+      "commits": 81,
+      "renders": 7732,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 42,
+        "index_query": 21,
         "index_rebuild_views": 3,
         "index_stats": 3,
-        "list_directory": 38,
+        "list_directory": 19,
         "list_notes": 4,
-        "read_notes": 27,
+        "read_notes": 15,
         "read_text_file": 3,
         "write_text_file": 3
       }
