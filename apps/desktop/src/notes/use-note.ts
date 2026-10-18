@@ -252,6 +252,20 @@ export function useNote({
     step: number;
   }>({ queue: Promise.resolve(), landed: null, landedIn: null, landedAt: 0, step: 0 });
 
+  /**
+   * Where each note this pane followed through a move went, by the key it
+   * had before. A write asked for before the move is answered under the old
+   * path; it is still this pane's note, under the path it has now.
+   */
+  const followed = useRef(new Map<string, { key: string; path: VaultPath }>());
+
+  /** Where the note held under `key` is now, after any moves the pane followed; null when it has not moved. */
+  const movedTo = useCallback((key: string | null): { key: string; path: VaultPath } | null => {
+    let now = key === null ? undefined : followed.current.get(key);
+    for (let next = now; next !== undefined; next = followed.current.get(next.key)) now = next;
+    return now ?? null;
+  }, []);
+
   /** Records what a write of the pane's left on disk in `vault`, as the newest thing it knows of the note. */
   const recordLanded = useCallback(
     (inVault: string | null) =>
@@ -361,37 +375,44 @@ export function useNote({
   }, []);
 
   /** Runs a write, and settles the header against what is on screen when it lands. */
-  const track = useCallback((written: EditorDocument, writing: Promise<SavedNote>) => {
-    setSaving(true);
-    setSaveError(null);
-    // Taken now: what is on screen holds the handed-back work, so once this
-    // lands the work is on disk, even if the pane has moved on by then.
-    const holdingRecovered = recovered.current;
-    // The note the pane held when the write was asked for. A write answered
-    // once the pane holds another — the next vault's note of the same name —
-    // is that note's news, not this one's.
-    const holdingThen = holding.current;
-    return writing
-      .then((saved) => {
-        if (holding.current === holdingThen) setNote(saved.note);
-        announceSaved.current?.(saved.note.path);
-        settleRecovered(holdingRecovered);
-        // An edit made while the write was in flight is newer than what
-        // landed, so the note is still unsaved. Clearing the flag over it is
-        // what made the autosave stand down and the note switch skip its
-        // save, and the edit was gone with the header reading "Saved".
-        if (onScreen.current !== written) return;
-        setDirty(false);
-        unsaved.current = false;
-      })
-      .catch((cause: unknown) => {
-        setSaveError(message(cause));
-        // Passed on as well as shown: a caller writing through this pane — a
-        // board drag, the local API — must not report a write that never landed.
-        throw cause;
-      })
-      .finally(() => setSaving(false));
-  }, []);
+  const track = useCallback(
+    (written: EditorDocument, writing: Promise<SavedNote>) => {
+      setSaving(true);
+      setSaveError(null);
+      // Taken now: what is on screen holds the handed-back work, so once this
+      // lands the work is on disk, even if the pane has moved on by then.
+      const holdingRecovered = recovered.current;
+      // The note the pane held when the write was asked for. A write answered
+      // once the pane holds another — the next vault's note of the same name —
+      // is that note's news, not this one's.
+      const holdingThen = holding.current;
+      const vaultThen = vaultNow.current;
+      return writing
+        .then((saved) => {
+          // Moved meanwhile, the note is still this one, at its new path.
+          const moved = movedTo(noteKey(vaultThen, saved.note.path));
+          const landed = moved === null ? saved.note : { ...saved.note, path: moved.path };
+          if (holding.current === (movedTo(holdingThen)?.key ?? holdingThen)) setNote(landed);
+          announceSaved.current?.(landed.path);
+          settleRecovered(holdingRecovered);
+          // An edit made while the write was in flight is newer than what
+          // landed, so the note is still unsaved. Clearing the flag over it is
+          // what made the autosave stand down and the note switch skip its
+          // save, and the edit was gone with the header reading "Saved".
+          if (onScreen.current !== written) return;
+          setDirty(false);
+          unsaved.current = false;
+        })
+        .catch((cause: unknown) => {
+          setSaveError(message(cause));
+          // Passed on as well as shown: a caller writing through this pane — a
+          // board drag, the local API — must not report a write that never landed.
+          throw cause;
+        })
+        .finally(() => setSaving(false));
+    },
+    [movedTo],
+  );
 
   /**
    * What a write of `held` starts from: what the last write left, unless the
@@ -496,6 +517,10 @@ export function useNote({
     (to: VaultPath) => {
       if (vault === null) return;
       const moved = noteKey(vault, to);
+      const from = latest.current.note?.path;
+      if (from !== undefined && from !== to) {
+        followed.current.set(noteKey(vault, from), { key: moved, path: to });
+      }
       loadedNote.current = moved;
       repointed.current = moved;
       setNote((was) => (was === null ? was : { ...was, path: to }));

@@ -3097,7 +3097,11 @@ mod attack_281_tests {
         assert!(second.is_ok(), "refused: {second:?}");
     }
 
+    /// A benchmark, by hand: a wall-clock bound fails on a loaded Mac however
+    /// quick the save (4.9 s once, against 0.7 s alone), so it is not part of
+    /// the gate. `cargo test a_digest_save -- --ignored --nocapture`.
     #[test]
+    #[ignore]
     fn a_digest_save_of_1_mb_and_5_mb_stays_quick() {
         for (label, size) in [("1 MB", 1usize << 20), ("5 MB", 5usize << 20)] {
             let vault = tempdir().unwrap();
