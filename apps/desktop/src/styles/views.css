@@ -1,0 +1,414 @@
+/* Views: tabs, toolbar, popovers, status pills (P16-04).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Views: tabs, toolbar, popovers, status pills (P16-04) -----------------
+   Board.dc.html and Table.dc.html: under a view's title, a row of pill tabs —
+   the other views over the same type, the open one filled with the accent —
+   then Filter, Sort and a "New <type>" pill, over a hairline rule.
+   -------------------------------------------------------------------------- */
+
+.view-toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 6px;
+  min-width: 0;
+  padding-bottom: 12px;
+}
+
+/* Lines break on each part's full width, so the tabs keep theirs and the
+   actions drop to a second line, still on the right, when both cannot fit. */
+.view-toolbar__actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.view-tabs {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.view-tabs__tab,
+.view-toolbar__button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+  height: 32px;
+  white-space: nowrap;
+}
+
+.view-tabs__tab {
+  border-radius: var(--radius-pill);
+  padding: 0 14px;
+}
+
+/* One tab and, on the selected one, its "…": moved together when dragged. */
+.view-tabs__item {
+  align-items: center;
+  border-radius: var(--radius-pill);
+  display: flex;
+  flex: none;
+  position: relative;
+}
+
+.view-tabs__item--dragging {
+  opacity: 0.85;
+}
+
+.view-tabs__item--dragging .view-tabs__tab {
+  cursor: grabbing;
+}
+
+/* Where a dragged tab will land: the tab it takes the place of. */
+.view-tabs__item--over {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.view-tabs__more,
+.view-tabs__add {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.view-tabs__more {
+  margin-left: 2px;
+}
+
+.view-tabs__more:hover,
+.view-tabs__add:hover,
+.view-tabs__more[data-popup-open],
+.view-tabs__add[data-popup-open] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.view-tabs__more:focus-visible,
+.view-tabs__add:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.view-tabs__rename {
+  background: var(--raised);
+  border: 1px solid var(--focus);
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  height: 32px;
+  padding: 0 14px;
+  width: 16ch;
+}
+
+.view-tabs__rename:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.view-toolbar__button {
+  border-radius: var(--radius-button);
+  padding: 0 12px;
+}
+
+.view-tabs__tab:hover,
+.view-toolbar__button:hover,
+.view-toolbar__button[data-popup-open] {
+  background: var(--hover);
+}
+
+.view-tabs__tab[aria-pressed='true'] {
+  background: var(--accent);
+  box-shadow: var(--shadow-accent);
+  color: var(--accent-ink);
+  cursor: default;
+}
+
+.view-tabs__tab:focus-visible,
+.view-toolbar__button:focus-visible,
+.view-toolbar__new:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.view-toolbar__archived[aria-pressed='true'],
+.view-toolbar__archived[aria-pressed='true']:hover {
+  background: var(--active);
+  color: var(--active-ink);
+}
+
+.view-toolbar__badge {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 7px;
+}
+
+.view-toolbar__new {
+  align-items: center;
+  appearance: none;
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+  height: 34px;
+  margin-left: 6px;
+  padding: 0 16px 0 12px;
+  white-space: nowrap;
+}
+
+.view-toolbar__new:hover {
+  filter: brightness(1.06);
+}
+
+.view-popover {
+  background: var(--raised);
+  border-radius: 14px;
+  box-shadow: var(--shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: min(420px, 92vw);
+  min-width: 280px;
+  padding: 12px;
+}
+
+.view-popover__title {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  margin: 0;
+}
+
+.view-popover__empty {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.view-popover__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.view-popover__row {
+  align-items: center;
+  background: var(--chip);
+  border-radius: var(--radius-button);
+  display: flex;
+  gap: var(--space-2);
+  padding: 4px 4px 4px 10px;
+}
+
+.view-popover__text {
+  color: var(--ink);
+  flex: 1;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.view-popover__direction,
+.view-popover__submit {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--accent-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.view-popover__direction:hover,
+.view-popover__submit:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.view-popover__submit:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.view-popover__add {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.view-popover__add select,
+.view-popover__add input,
+.view-popover__add-sort {
+  background: var(--track);
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  height: 30px;
+  padding: 0 8px;
+}
+
+.view-popover__add input {
+  flex: 1;
+  min-width: 80px;
+}
+
+/*
+ * A filter's value: typed, or picked from what the property can hold (#212).
+ * The list floats under the box rather than pushing "Add filter" down — it
+ * closes as the box loses focus, and a button that moved under the pointer
+ * between press and release would not be clicked.
+ */
+.filter-value {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  position: relative;
+}
+
+.view-popover__add .filter-value__date {
+  flex: 0 0 auto;
+}
+
+.filter-value__list {
+  background: var(--raised);
+  border-radius: 8px;
+  box-shadow: var(--shadow-overlay);
+  left: 0;
+  list-style: none;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 1;
+}
+
+.filter-value__option {
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: var(--text-small);
+  padding: 5px 8px;
+}
+
+.filter-value__option:hover,
+.filter-value__option--on {
+  background: var(--hover);
+}
+
+/* A status as a pill on its ramp: a board column's head, a table's cell. */
+.status-pill {
+  --pill: var(--status-backlog);
+  --pill-ink: var(--status-backlog-ink);
+  --pill-dot: var(--status-backlog-dot);
+  align-items: center;
+  background: var(--pill);
+  border-radius: var(--radius-chip);
+  color: var(--pill-ink);
+  display: inline-flex;
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 800;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.status-pill__dot {
+  background: var(--pill-dot);
+  border-radius: 50%;
+  height: 7px;
+  width: 7px;
+}
+
+.status-pill[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
+.status-pill[data-tone='next'] {
+  --pill: var(--status-next);
+  --pill-ink: var(--status-next-ink);
+  --pill-dot: var(--status-next-dot);
+}
+
+.status-pill[data-tone='doing'] {
+  --pill: var(--status-doing);
+  --pill-ink: var(--status-doing-ink);
+  --pill-dot: var(--status-doing-dot);
+}
+
+.status-pill[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
+}
+
+.status-pill[data-tone='review'] {
+  --pill: var(--status-review);
+  --pill-ink: var(--status-review-ink);
+  --pill-dot: var(--status-review-dot);
+}
+
+.status-pill[data-tone='done'] {
+  --pill: var(--status-done);
+  --pill-ink: var(--status-done-ink);
+  --pill-dot: var(--status-done-dot);
+}
+
+.table .status-pill {
+  font-size: 12px;
+}
+
+.table .status-pill__dot {
+  height: 6px;
+  width: 6px;
+}

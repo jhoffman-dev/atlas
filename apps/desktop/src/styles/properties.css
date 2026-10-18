@@ -1,0 +1,489 @@
+/* Properties.
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Properties ----
+   Notion's rows: a glyph and a label in the quiet ink, 170px wide, then the
+   value. Controls look like their values until they are pointed at. */
+
+.props {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+}
+
+.page--note > .props {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+}
+
+.props__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+}
+
+.props__row {
+  align-items: center;
+  border-radius: var(--radius-control);
+  display: flex;
+  margin: 0 -8px;
+  min-height: 36px;
+  padding: 0 8px;
+}
+
+.props__row:hover,
+.props__add:hover {
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+}
+
+.props__label {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  flex: none;
+  font-size: var(--text-body);
+  font-weight: 600;
+  gap: 9px;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 170px;
+}
+
+.props__label label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.props__value {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.props__input {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  margin-left: -6px;
+  max-width: 420px;
+  padding: 4px 6px;
+  width: 100%;
+}
+
+.props__input::placeholder {
+  color: var(--ink-3);
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.props__input:hover {
+  background: var(--hover);
+}
+
+.props__input:focus {
+  background: var(--track);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A number is typed, not stepped. */
+.props__input--number {
+  appearance: textfield;
+}
+
+.props__input--number::-webkit-inner-spin-button,
+.props__input--number::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+/* A date reads as a date; the platform's field sits over it, unseen until it
+   has the focus, so the keyboard and the picker are the platform's own. */
+.props__date {
+  column-gap: 6px;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  max-width: 420px;
+  width: 100%;
+}
+
+.props__date > :not(.props__date-clear) {
+  grid-area: 1 / 1;
+}
+
+/* Beside the date rather than over it, so the field under it stays whole. */
+.props__date-clear {
+  align-self: center;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink-3);
+  cursor: pointer;
+  display: inline-grid;
+  grid-area: 1 / 2;
+  padding: 3px;
+  place-items: center;
+}
+
+.props__date-clear:hover,
+.props__date-clear:focus-visible {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.props__date-input {
+  opacity: 0;
+}
+
+.props__date-input:focus {
+  opacity: 1;
+}
+
+.props__date-text {
+  align-self: center;
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 600;
+  justify-self: start;
+  pointer-events: none;
+}
+
+.props__date[data-empty='true'] .props__date-text {
+  color: var(--ink-3);
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.props__date:focus-within .props__date-text {
+  visibility: hidden;
+}
+
+/* A select is a status pill, in its column's colours on the board. */
+.props__pill {
+  align-items: center;
+  background: var(--pill);
+  border-radius: var(--radius-chip);
+  display: inline-flex;
+  height: 26px;
+  position: relative;
+}
+
+.props__pill[data-tone='backlog'],
+.props__pill[data-tone='empty'] {
+  --pill: var(--status-backlog);
+  --pill-ink: var(--status-backlog-ink);
+  --pill-dot: var(--status-backlog-dot);
+}
+
+.props__pill[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
+.props__pill[data-tone='next'] {
+  --pill: var(--status-next);
+  --pill-ink: var(--status-next-ink);
+  --pill-dot: var(--status-next-dot);
+}
+
+.props__pill[data-tone='doing'] {
+  --pill: var(--status-doing);
+  --pill-ink: var(--status-doing-ink);
+  --pill-dot: var(--status-doing-dot);
+}
+
+.props__pill[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
+}
+
+.props__pill[data-tone='review'] {
+  --pill: var(--status-review);
+  --pill-ink: var(--status-review-ink);
+  --pill-dot: var(--status-review-dot);
+}
+
+.props__pill[data-tone='done'] {
+  --pill: var(--status-done);
+  --pill-ink: var(--status-done-ink);
+  --pill-dot: var(--status-done-dot);
+}
+
+.props__pill[data-tone='empty'] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.props__dot {
+  background: var(--pill-dot);
+  border-radius: 50%;
+  height: 7px;
+  left: 11px;
+  pointer-events: none;
+  position: absolute;
+  width: 7px;
+}
+
+.props__pill-select,
+.props__chip-select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+  color: var(--pill-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  height: 100%;
+  padding: 0 11px 0 25px;
+}
+
+.props__pill-select:focus-visible,
+.props__chip-select:focus-visible,
+.props__check:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* A relation is a link chip. */
+.props__chip {
+  align-items: center;
+  background: var(--chip);
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  height: 28px;
+  position: relative;
+}
+
+.props__chip-icon {
+  color: var(--accent-text);
+  left: 8px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.props__chip-select {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  font-weight: 700;
+  padding: 0 10px 0 29px;
+}
+
+.props__check,
+.editor input[type='checkbox'] {
+  accent-color: var(--accent-solid);
+  cursor: pointer;
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.props__error {
+  color: var(--danger);
+  flex-shrink: 0;
+  font-size: 11.5px;
+}
+
+/* A task's schedule (P31-01): read-only rows under its properties. */
+.task-schedule__note {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.task-schedule__over {
+  color: var(--danger);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.props__add {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: 600;
+  gap: 9px;
+  height: 34px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.props__add:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.props__add-input {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.props__add-input[aria-invalid='true'] {
+  color: var(--danger);
+}
+
+/* "Add a property": a small card under its button, like Notion's. */
+.props__add-anchor {
+  position: relative;
+}
+
+.props__add-popover {
+  left: -8px;
+  position: absolute;
+  top: calc(100% + 4px);
+  width: 320px;
+  z-index: 20;
+}
+
+.props__add-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.props__add-name,
+.props__add-kind,
+.props__add-relation select {
+  background: var(--track);
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  height: 32px;
+  padding: 0 10px;
+}
+
+.props__add-name:focus-visible,
+.props__add-kind:focus-visible,
+.props__add-relation select:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.props__add-name[aria-invalid='true'] {
+  color: var(--danger);
+}
+
+.props__add-relation {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.props__add-relation select {
+  flex: 1;
+}
+
+.props__add-scope {
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+}
+
+.props__add-option {
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-small);
+  gap: 8px;
+}
+
+.props__add-option input {
+  accent-color: var(--accent-solid);
+  margin: 0;
+}
+
+.props__add-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* A relation holding several notes: its chips, then the picker for another. */
+.props__links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.props__link-list {
+  display: contents;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.props__link {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: 6px;
+  padding: 0 4px 0 29px;
+}
+
+.props__link-remove {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  width: 20px;
+}
+
+.props__link-remove:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.props__link-remove:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.props__chip--add {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.props__chip--add .props__chip-select {
+  color: var(--ink-3);
+}

@@ -1,0 +1,44 @@
+/* The app's stylesheet, as section files in cascade order (UI v2 slice 0b,
+   docs/design/ui-v2-plan.md). The order is the order the rules were written
+   in when this was one file, and a later file may override an earlier one, so
+   add a new section at the place its rules belong in the cascade, and edit a
+   rule in the file that holds its section: the table in the plan says which. */
+@import './tokens.css';
+@import './primitives.css';
+@import './shell.css';
+@import './sidebar.css';
+@import './editor.css';
+@import './overlays.css';
+@import './page.css';
+@import './properties.css';
+@import './mentions.css';
+@import './menus.css';
+@import './table.css';
+@import './board.css';
+@import './layouts.css';
+@import './settings.css';
+@import './calendar.css';
+@import './timeline.css';
+@import './dashboard.css';
+@import './views.css';
+@import './dashboard-editing.css';
+@import './types.css';
+@import './pages-tree.css';
+@import './queries.css';
+@import './graph.css';
+@import './artifacts.css';
+@import './quick-add.css';
+@import './templates.css';
+@import './terms.css';
+@import './archive.css';
+@import './inbox.css';
+@import './weekly-review.css';
+@import './today.css';
+@import './gtd.css';
+@import './automations.css';
+@import './chat.css';
+@import './activity.css';
+@import './sync.css';
+@import './grouped-tables.css';
+@import './swimlanes.css';
+@import './proposals.css';

@@ -1,0 +1,187 @@
+/* the Inbox (P30-01).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- the Inbox (P30-01) ----
+   A page like the Archive's: what waits in the Inbox folder, each row with a
+   picker that files it under a project or an area. */
+
+.inbox__grid th {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding-left: 10px;
+}
+
+/* Scoped to the grid, as the Archive's cells are: `.table__grid td` zeroes padding. */
+.inbox__grid .inbox__kind {
+  color: var(--ink-2);
+  font-size: var(--text-ui);
+  padding: 0 24px 0 10px;
+  white-space: nowrap;
+}
+
+.inbox__actions {
+  text-align: right;
+  width: 1%;
+}
+
+/* What the meeting import made of a file, under its kind (P28-04). */
+.inbox__import {
+  color: var(--ink-3);
+  display: block;
+  font-size: var(--text-small);
+  white-space: normal;
+}
+
+.inbox__import--error {
+  color: var(--danger);
+}
+
+.inbox__file {
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-small);
+  max-width: 220px;
+  padding: 7px 12px;
+}
+
+.inbox__file:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.inbox__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+/* Clarifying on the row (#112): a task's status, project, wait and dates
+   side by side, written together by Done. They wrap under one another rather
+   than push the name off a narrow window. */
+.inbox__clarify {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  padding: 6px 0;
+}
+
+/* A task's controls keep to one or two lines: left to the table, the name
+   column takes the width and they stack one under another. */
+form.inbox__clarify {
+  margin-left: auto;
+  min-width: 540px;
+}
+
+/* A title with nowhere to break wraps inside its cell, rather than push the
+   row's controls off the page. */
+.inbox__grid .table__link {
+  white-space: normal;
+}
+
+.inbox__grid .table__title {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* Room to scroll the last row clear of the quick-add button, which floats
+   over the page's bottom-right corner — where Done is. */
+.inbox {
+  padding-bottom: 96px;
+}
+
+/* The Inbox scrolls as a whole (#164). Filled to the panel like a view's
+   table, its list was what gave way to whatever stood above it — a page of
+   proposals squeezed it into a box a row or two high. Here the list takes the
+   height of its rows, and the panel scrolls past the proposals to reach them. */
+.page--wide.inbox {
+  height: auto;
+}
+
+.page--wide.inbox .table {
+  flex: none;
+}
+
+.inbox__day {
+  align-items: center;
+  color: var(--ink-3);
+  display: inline-flex;
+  font-size: var(--text-small);
+  gap: 6px;
+}
+
+.inbox__day .inbox__file {
+  padding: 5px 10px;
+}
+
+/* The row the focus is in, or was put on once the one before it was dealt with. */
+.inbox__row:focus {
+  outline: none;
+}
+
+.inbox__row--focused > td {
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+}
+
+.inbox__row:focus-visible > td:first-child {
+  box-shadow: inset 3px 0 0 var(--focus);
+}
+
+.inbox__refusal {
+  color: var(--danger);
+  font-size: var(--text-small);
+  margin: 0 0 6px;
+  text-align: right;
+}
+
+.inbox__done {
+  align-items: center;
+  color: var(--ink-2);
+  display: flex;
+  font-size: var(--text-ui);
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: 0 18px;
+}
+
+.inbox__offer {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-text) 10%, var(--raised));
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-4);
+}
+
+.inbox__offer-icon {
+  color: var(--accent-text);
+  flex: none;
+}
+
+/* Said until it is fixed (#181): the owner cannot be told apart, so no task is made. */
+.inbox__offer--warning {
+  background: color-mix(in srgb, var(--warning) 14%, var(--raised));
+}
+
+.inbox__offer--warning .inbox__offer-icon {
+  color: var(--warning);
+}
+
+.inbox__offer-text {
+  flex: 1;
+  font-size: var(--text-ui);
+  min-width: 20ch;
+}
+
+.inbox__offer-text p,
+.inbox__offer-text ul {
+  margin: 0;
+}
