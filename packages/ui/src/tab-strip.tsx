@@ -84,9 +84,10 @@ export function TabStrip({
       (event.target as HTMLElement).closest<HTMLElement>('[data-tab]')?.dataset['tab'] ?? null;
   };
   // Once the focus has left the strip for the page, or for nowhere, a tab
-  // closing later is not the strip's cue to take it back.
-  const onBlurCapture = (event: FocusEvent<HTMLDivElement>) => {
-    if (!list.current?.contains(event.relatedTarget)) holding.current = null;
+  // closing later is not the strip's cue to take it back. A move within the
+  // strip clears and then sets again, since the focus handler above follows.
+  const onBlurCapture = () => {
+    holding.current = null;
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, at: number) => {
