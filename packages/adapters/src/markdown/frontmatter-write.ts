@@ -127,7 +127,7 @@ function writtenValue(key: string, text: string): Node | null {
   const contents = parsed.contents;
   if (parsed.errors.length > 0 || !isMap(contents) || contents.flow === true) return null;
   const [pair, ...others] = contents.items;
-  if (pair === undefined || others.length > 0 || keyOf(pair.key) !== key) return null;
+  if (pair === undefined || others.length > 0 || keyOf(pair.key, parsed) !== key) return null;
   if (!isNode(pair.key) || columnOf(text, pair.key.range?.[0]) !== 0) return null;
   // A bare `key:` may hold no node; an empty one keeps the key in its place.
   return isNode(pair.value) ? pair.value : parsed.createNode(null);
@@ -152,13 +152,17 @@ export function frontmatterKeyTexts(frontmatter: string | null): Record<string, 
   const source = split(frontmatter).body.replace(/\r\n/g, '\n');
   const cut = segments(source);
   if (cut !== null) return Object.fromEntries(cut.keys.map(({ key, text }) => [key, text]));
-  const contents = parseDocument(source).contents;
+  const parsed = parseDocument(source);
+  const contents = parsed.contents;
   if (!isMap(contents)) return {};
   return Object.fromEntries(
     contents.items.map((pair) => {
       const alone = new Document({});
       alone.set(pair.key, pair.value);
-      return [keyOf(pair.key), alone.toString({ lineWidth: 0, flowCollectionPadding: false })];
+      return [
+        keyOf(pair.key, parsed),
+        alone.toString({ lineWidth: 0, flowCollectionPadding: false }),
+      ];
     }),
   );
 }
@@ -191,13 +195,21 @@ export function columnOf(source: string, offset: number | undefined): number | n
   return offset === undefined ? null : offset - (source.lastIndexOf('\n', offset - 1) + 1);
 }
 
-/** The key as the reader names it: `2024:` is the property "2024". */
-export const keyOf = (key: unknown) => String(isScalar(key) ? key.value : key);
+/**
+ * The key as the reader names it: `2024:` is the property "2024", `~:` is "",
+ * and `*k :` is the key its anchor `&k` holds. Named any other way, a change
+ * to such a key adds a second one that shadows it.
+ */
+export function keyOf(key: unknown, document: Document): string {
+  const resolved = isAlias(key) ? key.resolve(document) : key;
+  const value = isScalar(resolved) ? resolved.value : resolved;
+  return value === null ? '' : String(value);
+}
 
 export function pairOf(document: Document, key: string): Pair | undefined {
   const contents = document.contents;
   if (!isMap(contents)) return undefined;
-  return contents.items.find((pair) => keyOf(pair.key) === key);
+  return contents.items.find((pair) => keyOf(pair.key, document) === key);
 }
 
 /** Whether the last key of a block map was just removed; a flow map stays `{}`. */
@@ -219,7 +231,7 @@ function holds(document: Document, key: string, value: unknown): boolean {
   if (value === null || value === undefined || value instanceof KeyAsWritten) return false;
   const pair = pairOf(document, key);
   if (pair === undefined || !isNode(pair.value)) return false;
-  return JSON.stringify(pair.value.toJS(document)) === JSON.stringify(value);
+  return readsTheSame(pair.value.toJS(document), value);
 }
 
 function setKey(document: Document, key: string, value: unknown): void {
@@ -277,7 +289,7 @@ function releaseAnchors(document: Document, key: string): string[] {
       }
       if (moved) {
         delete node.anchor;
-        holders.push(keyOf(pair.key));
+        holders.push(keyOf(pair.key, document));
         break;
       }
     }
@@ -347,13 +359,13 @@ function reconcileMap(
   existing: { items: { key: unknown; value: unknown }[] },
   value: Readonly<Record<string, unknown>>,
 ): void {
-  existing.items = existing.items.filter((pair) => Object.hasOwn(value, keyOf(pair.key)));
+  existing.items = existing.items.filter((pair) => Object.hasOwn(value, keyOf(pair.key, document)));
   for (const [key, wanted] of Object.entries(value)) {
-    const pair = existing.items.find((item) => keyOf(item.key) === key);
+    const pair = existing.items.find((item) => keyOf(item.key, document) === key);
     if (pair === undefined) existing.items.push(document.createPair(key, wanted));
     else pair.value = reconcile(document, pair.value, wanted);
   }
-  existing.items = inOrderOf(Object.keys(value), existing.items);
+  existing.items = inOrderOf(document, Object.keys(value), existing.items);
 }
 
 /**
@@ -361,20 +373,39 @@ function reconcileMap(
  * JavaScript object lists such keys first whatever order they were written
  * in, so its place in `order` says nothing about where it belongs.
  */
-function inOrderOf<Item extends { key: unknown }>(order: readonly string[], items: Item[]): Item[] {
+function inOrderOf<Item extends { key: unknown }>(
+  document: Document,
+  order: readonly string[],
+  items: Item[],
+): Item[] {
+  const nameOf = (item: Item) => keyOf(item.key, document);
   const place = new Map(order.filter((key) => !isIndexKey(key)).map((key, at) => [key, at]));
   const movable = items
-    .filter((item) => place.has(keyOf(item.key)))
-    .sort((left, right) => (place.get(keyOf(left.key)) ?? 0) - (place.get(keyOf(right.key)) ?? 0));
+    .filter((item) => place.has(nameOf(item)))
+    .sort((left, right) => (place.get(nameOf(left)) ?? 0) - (place.get(nameOf(right)) ?? 0));
   let next = 0;
-  return items.map((item) => (place.has(keyOf(item.key)) ? (movable[next++] as Item) : item));
+  return items.map((item) => (place.has(nameOf(item)) ? (movable[next++] as Item) : item));
 }
 
 const isIndexKey = (key: string) => /^(?:0|[1-9]\d{0,8})$/.test(key);
 
 function sameValue(document: Document, node: unknown, value: unknown): boolean {
   const current: unknown = isNode(node) ? (node as Node).toJS(document) : node;
-  return JSON.stringify(current) === JSON.stringify(value);
+  return readsTheSame(current, value);
+}
+
+/**
+ * Whether two values read the same. One that refers to itself — `&e` holding
+ * `*e`, or a JavaScript object cycle — has no JSON form, so it is never
+ * vouched for as unchanged: it is written, which is safe, where the throw it
+ * raises would fail the whole save.
+ */
+function readsTheSame(left: unknown, right: unknown): boolean {
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -437,7 +468,8 @@ function keepUntouched({
 
 function segments(text: string): Segments | null {
   const source = text.endsWith('\n') ? text : `${text}\n`;
-  const contents = parseDocument(source).contents;
+  const document = parseDocument(source);
+  const contents = document.contents;
   // A flow map (`{title: Plan}`) holds its keys on shared lines, so it cannot
   // be cut into one run of lines per key; the library writes it back whole,
   // in its own flow style, which leaves an untouched key as it was.
@@ -450,7 +482,7 @@ function segments(text: string): Segments | null {
   const last = contents.items[contents.items.length - 1] as Pair;
   const end = lineEnd(source, isNode(last.value) ? last.value.range : (last.key as Node).range);
   const keys = contents.items.map((pair, at) => ({
-    key: keyOf(pair.key),
+    key: keyOf(pair.key, document),
     text: source.slice(starts[at], starts[at + 1] ?? end),
   }));
   return { head: source.slice(0, starts[0]), keys, tail: source.slice(end) };

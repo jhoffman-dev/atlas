@@ -28,9 +28,15 @@ describe('updateFrontmatter, on a key written as an alias', () => {
   });
 
   it('changes that key in its place rather than adding one that shadows it', () => {
-    expect(updateFrontmatter(before, { tasks: 'new' })).toBe(
-      block('k: &k tasks', '*k : new', 'title: Plan'),
-    );
+    // The changed key is the library's to write, and it writes an alias key
+    // in explicit form; the lines around it keep their bytes.
+    const written = updateFrontmatter(before, { tasks: 'new' });
+    expect(written).toBe(block('k: &k tasks', '? *k', ': new', 'title: Plan'));
+    expect(parseFrontmatterProperties(written)).toEqual({
+      k: 'tasks',
+      tasks: 'new',
+      title: 'Plan',
+    });
   });
 
   it('a value it already holds is no change', () => {
@@ -76,14 +82,15 @@ describe('updateFrontmatter, with a value that refers to itself', () => {
   // YAML allows `&e` / `*e` cycles; `toJS` builds a circular object, which
   // JSON.stringify — the "already holds it?" check — throws on.
   it.each([
-    ['through a map', block('extra: &e', '  me: *e', 'title: Plan')],
-    ['through a list', block('extra: &e', '  - *e', 'title: Plan')],
-  ])('%s: the cyclic key is changed, the others keep their bytes', (_, before) => {
+    // A map written into a map keeps its node, and with it the anchor `&e`.
+    ['through a map', block('extra: &e', '  me: *e', 'title: Plan'), 'extra: &e'],
+    ['through a list', block('extra: &e', '  - *e', 'title: Plan'), 'extra:'],
+  ])('%s: the cyclic key is changed, the others keep their bytes', (_, before, head) => {
     let written = '';
     expect(() => {
       written = updateFrontmatter(before, { extra: { a: 1 } });
     }).not.toThrow();
-    expect(written).toBe(block('extra:', '  a: 1', 'title: Plan'));
+    expect(written).toBe(block(head, '  a: 1', 'title: Plan'));
   });
 
   it('a key beside the cycle changes and the cycle keeps its bytes', () => {
