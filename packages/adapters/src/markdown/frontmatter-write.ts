@@ -424,7 +424,8 @@ function reconcileMap(
 ): void {
   existing.items = existing.items.filter((pair) => Object.hasOwn(value, keyOf(pair.key, document)));
   for (const [key, wanted] of Object.entries(value)) {
-    const pair = existing.items.find((item) => keyOf(item.key, document) === key);
+    // The last spelling of a key is the one the reader reads.
+    const pair = existing.items.findLast((item) => keyOf(item.key, document) === key);
     if (pair === undefined) existing.items.push(document.createPair(key, wanted));
     else pair.value = reconcile(document, pair.value, wanted);
   }
@@ -474,15 +475,19 @@ function readsTheSame(left: unknown, right: unknown): boolean {
 /**
  * JSON's equality — same keys in the same order, same values — that follows
  * a cycle: a pair of objects already being compared counts as the same.
+ * Every pair is remembered, not one partner per object, since cycles of
+ * different lengths (`x = [x]` against `y = [[y]]`) pair one object with
+ * several and would otherwise alternate for ever.
  */
-function sameShape(left: unknown, right: unknown, comparing: Map<object, object>): boolean {
+function sameShape(left: unknown, right: unknown, comparing: Map<object, Set<object>>): boolean {
   if (Object.is(left, right)) return true;
   if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) {
     return false;
   }
-  if (comparing.get(left) === right) return true;
+  const partners = comparing.get(left) ?? new Set<object>();
+  if (partners.has(right)) return true;
   if (Array.isArray(left) !== Array.isArray(right)) return false;
-  comparing.set(left, right);
+  comparing.set(left, partners.add(right));
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
   const at = (value: object, key: string) => (value as Record<string, unknown>)[key];
