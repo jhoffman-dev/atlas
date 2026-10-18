@@ -519,6 +519,7 @@ export async function installHost(
     feeds = {},
     keepsManifest = false,
     echoWrites = false,
+    coarseTickSeconds,
   }: {
     /**
      * Canned feeds by URL, for sources that fetch rather than read a file. The
@@ -541,6 +542,12 @@ export async function installHost(
      * host whose watcher heard only what a test said changed.
      */
     echoWrites?: boolean;
+    /**
+     * A disk whose clock is coarse (#245): every note the app saves is left at
+     * this one second, as a save within the same tick of HFS+ leaves it. Off
+     * by default.
+     */
+    coarseTickSeconds?: number;
   } = {},
 ): Promise<FakeHost> {
   /** What the picker answers with. */
@@ -1438,6 +1445,10 @@ export async function installHost(
           const temporary = join(dirname(file), `.${basename(file)}.atlas-tmp-${++temporaries}`);
           await writeFile(temporary, contents, 'utf8');
           await rename(temporary, file);
+          if (coarseTickSeconds !== undefined) {
+            const { utimes } = await import('node:fs/promises');
+            await utimes(file, coarseTickSeconds, coarseTickSeconds);
+          }
           return Math.floor((await statFile(file)).mtimeMs);
         });
       }

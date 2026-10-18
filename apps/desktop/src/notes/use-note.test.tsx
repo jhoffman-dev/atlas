@@ -1190,3 +1190,87 @@ describe('a pane on a note that is moved or deleted', () => {
     expect(vault.writes()).toBe(0);
   });
 });
+
+/**
+ * Attack on #281 (#245): `startFrom` gives a tie of times to the pane's last
+ * write. On a coarse clock a read the pane made after that write — a reload
+ * for another program's edit, another pane's save, or an overwrite — has the
+ * same time, so the save starts from the older write's bytes and is refused.
+ */
+describe('attack #281: a pane on a coarse clock whose note was read again after its own write', () => {
+  const THEIRS = '# Note\n\nWritten by the other app.\n';
+
+  /** Saves once from the pane, so it has a write of its own to start from. */
+  async function paneThatSaved(vault: ReturnType<typeof fakeVault>) {
+    const view = await readyPane(vault);
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nMine.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    expect(vault.contents()).toContain('Mine.');
+    return view;
+  }
+
+  it('saves an edit made on top of a re-read of another writer’s same-tick change', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await paneThatSaved(vault);
+    vault.writeOutside(THEIRS);
+    act(() => view.result.current.reload());
+    await settle();
+    expect(shownText(view)).toContain('Written by the other app.');
+
+    act(() =>
+      view.result.current.changeDoc(docOf('# Note\n\nWritten by the other app. And me.\n')),
+    );
+    act(() => view.result.current.save());
+    await settle();
+
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toContain('And me.');
+  });
+
+  it('saves the next edit after overwriting a refused save in the same tick', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const view = await paneThatSaved(vault);
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped before the refusal.\n')));
+    vault.writeOutside(THEIRS);
+    act(() => view.result.current.save());
+    await settle();
+    act(() => view.result.current.overwrite());
+    await settle();
+    expect(vault.contents()).toContain('Typed before the refusal.');
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped after the overwrite.\n')));
+    act(() => view.result.current.save());
+    await settle();
+
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toContain('Typed after the overwrite.');
+  });
+
+  it('two panes on one note, saving in turn within one tick, are never refused', async () => {
+    const vault = fakeVault(ORIGINAL, { coarse: true });
+    const one = await readyPane(vault);
+    const two = await readyPane(vault);
+
+    act(() => one.result.current.changeDoc(docOf('# Note\n\nOne.\n')));
+    act(() => one.result.current.save());
+    await settle();
+    act(() => two.result.current.reload());
+    await settle();
+    act(() => two.result.current.changeDoc(docOf('# Note\n\nOne. Two.\n')));
+    act(() => two.result.current.save());
+    await settle();
+    act(() => one.result.current.reload());
+    await settle();
+    expect(shownText(one)).toContain('Two.');
+    act(() => one.result.current.changeDoc(docOf('# Note\n\nOne. Two. One again.\n')));
+    act(() => one.result.current.save());
+    await settle();
+
+    const state = one.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toContain('One again.');
+  });
+});
