@@ -41,8 +41,8 @@ pub struct ApiControl {
     /// The routers listening now, by the id each named. `router_ready` is
     /// whether this is non-empty, kept beside it so the gate reads one flag.
     listening_routers: Mutex<HashSet<String>>,
-    /// Held for a whole toggle, so toggles run one at a time in the order they
-    /// were asked. It guards the port the last one released.
+    /// Held for a whole toggle, so toggles run one at a time. It guards the
+    /// port the last one released.
     toggling: Mutex<Option<Released>>,
     release_wait: ReleaseWait,
     /// Held only for moments, never through a wait, so the status, the token
@@ -519,6 +519,56 @@ mod tests {
         assert_ne!(status.port, port);
         assert_ne!(control.token(), token);
         assert!(get_status(status.port.unwrap(), &control.token())
+            .unwrap()
+            .starts_with("HTTP/1.1 200"));
+    }
+
+    /// A token rotated while turning on waits for its port is the one served
+    /// and recorded: the file is read again after the wait, not before it.
+    #[cfg(unix)]
+    #[test]
+    fn a_token_rotated_during_the_wait_is_kept() {
+        let held = Arc::new(Mutex::new(None));
+        let rotated = Arc::new(Mutex::new(None));
+        let control_for_hook = Arc::new(std::sync::OnceLock::<std::sync::Weak<ApiControl>>::new());
+        let (dir, control) = waiting(ReleaseWait {
+            within: std::time::Duration::from_secs(60),
+            between_tries: {
+                let (held, rotated, control) =
+                    (held.clone(), rotated.clone(), control_for_hook.clone());
+                // Settings rotates the token, then the child execs.
+                Arc::new(move || {
+                    if let Some(control) = control.get().and_then(std::sync::Weak::upgrade) {
+                        rotated
+                            .lock()
+                            .unwrap()
+                            .get_or_insert_with(|| control.rotate_token().unwrap());
+                    }
+                    held.lock().unwrap().take();
+                })
+            },
+        });
+        control_for_hook.set(Arc::downgrade(&control)).unwrap();
+        let port = control
+            .set_enabled(true, echo(&control))
+            .unwrap()
+            .port
+            .unwrap();
+        *held.lock().unwrap() = Some(copy_of_the_listener_on(port));
+
+        control.set_enabled(false, echo(&control)).unwrap();
+        let status = control.set_enabled(true, echo(&control)).unwrap();
+
+        let rotated = rotated.lock().unwrap().clone().expect("never rotated");
+        assert_eq!(status.port, Some(port));
+        assert_eq!(control.token(), rotated);
+        assert_eq!(
+            connection::load_or_create(&dir.path().join("app"))
+                .unwrap()
+                .token,
+            rotated
+        );
+        assert!(get_status(port, &rotated)
             .unwrap()
             .starts_with("HTTP/1.1 200"));
     }

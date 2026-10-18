@@ -181,14 +181,26 @@ pub fn bind_released(
     until: Instant,
     wait: &ReleaseWait,
 ) -> std::io::Result<TcpListener> {
+    let mut waited = false;
     loop {
         match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {
-            Ok(listener) => return Ok(listener),
+            Ok(listener) => {
+                if waited {
+                    log::debug!("API port {port} is free again");
+                }
+                return Ok(listener);
+            }
             Err(error) if Instant::now() < until => {
-                log::debug!("API port {port} is not free yet: {error}");
+                if !waited {
+                    log::debug!("API port {port} is not free yet, waiting: {error}");
+                    waited = true;
+                }
                 (wait.between_tries)();
             }
-            Err(_) => return bind(port),
+            Err(error) => {
+                log::debug!("API port {port} was still not free after the wait: {error}");
+                return bind(port);
+            }
         }
     }
 }
