@@ -1,0 +1,507 @@
+/* Quick add (U-13).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Quick add (U-13) -----------------------------------------------------
+   The floating add button: a 56px accent circle over the content panel, with
+   the tile shadow and the accent glow (cyan in dark). Its layer covers the
+   panels' box and lets every press through except on what it draws. The
+   speed dial slides its pills out toward the panel's middle; the popover
+   opens the same way. Positions are `fabAnchorPoint`'s, set inline.
+   -------------------------------------------------------------------------- */
+
+.fab-layer {
+  bottom: var(--shell-inset);
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: var(--shell-inset);
+  top: var(--shell-inset);
+  z-index: 20;
+}
+
+.shell--narrow .fab-layer {
+  left: var(--shell-inset);
+}
+
+.fab {
+  height: 56px;
+  position: absolute;
+  width: 56px;
+}
+
+.fab[data-snapping='true'] {
+  transition:
+    left 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    top 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.fab__button {
+  align-items: center;
+  background: var(--accent);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: var(--shadow-tile), var(--shadow-accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  display: flex;
+  height: 56px;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: none;
+  transition:
+    transform 160ms ease,
+    background 120ms ease;
+  width: 56px;
+}
+
+.fab__button:hover {
+  background: color-mix(in srgb, var(--accent) 86%, var(--ink));
+}
+
+.fab__button:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+/* Open, the + turns to an ×: the same button closes what it opened. */
+.fab__button[data-open='true'] svg {
+  transform: rotate(45deg);
+}
+
+.fab__button svg {
+  transition: transform 160ms ease;
+}
+
+.fab[data-dragging='true'] .fab__button {
+  cursor: grabbing;
+  transform: scale(1.06);
+}
+
+/* Where it can land, shown while it is dragged; the one it would snap to is filled. */
+.fab-layer__preview {
+  border: 2px dashed color-mix(in srgb, var(--focus) 55%, transparent);
+  border-radius: 50%;
+  height: 56px;
+  position: absolute;
+  width: 56px;
+}
+
+.fab-layer__preview[data-near='true'] {
+  background: var(--you);
+  border-style: solid;
+  border-color: var(--focus);
+}
+
+/* The dial and the popover sit beside the button, toward the panel's middle. */
+.fab__dial,
+.fab__popover {
+  pointer-events: auto;
+  position: absolute;
+}
+
+.fab[data-direction='up'] :is(.fab__dial, .fab__popover) {
+  bottom: calc(100% + 12px);
+}
+
+.fab[data-direction='down'] :is(.fab__dial, .fab__popover) {
+  top: calc(100% + 12px);
+}
+
+.fab[data-direction='right'] :is(.fab__dial, .fab__popover) {
+  left: calc(100% + 12px);
+}
+
+.fab[data-direction='left'] :is(.fab__dial, .fab__popover) {
+  right: calc(100% + 12px);
+}
+
+.fab[data-direction='up'][data-align='end'] :is(.fab__dial, .fab__popover),
+.fab[data-direction='down'][data-align='end'] :is(.fab__dial, .fab__popover) {
+  right: 0;
+}
+
+.fab[data-direction='up'][data-align='start'] :is(.fab__dial, .fab__popover),
+.fab[data-direction='down'][data-align='start'] :is(.fab__dial, .fab__popover) {
+  left: 0;
+}
+
+.fab[data-direction='up'][data-align='center'] :is(.fab__dial, .fab__popover),
+.fab[data-direction='down'][data-align='center'] :is(.fab__dial, .fab__popover) {
+  left: 50%;
+  translate: -50% 0;
+}
+
+.fab[data-direction='left'] :is(.fab__dial, .fab__popover),
+.fab[data-direction='right'] :is(.fab__dial, .fab__popover) {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+.fab__dial {
+  display: flex;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The first item is always the one nearest the button. */
+.fab__dial[data-direction='up'] {
+  align-items: inherit;
+  flex-direction: column-reverse;
+}
+
+.fab__dial[data-direction='down'] {
+  flex-direction: column;
+}
+
+.fab__dial[data-direction='right'] {
+  flex-direction: row;
+}
+
+.fab__dial[data-direction='left'] {
+  flex-direction: row-reverse;
+}
+
+.fab[data-align='end'] .fab__dial {
+  align-items: flex-end;
+}
+
+.fab[data-align='start'] .fab__dial {
+  align-items: flex-start;
+}
+
+.fab[data-align='center'] .fab__dial {
+  align-items: center;
+}
+
+.fab__dial > li {
+  /* Its place in the dial, set on each item, staggers the slide out. */
+  --fab-item: 0;
+  --fab-from: 0 0;
+  animation: fab-item-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--fab-item) * 30ms);
+}
+
+.fab__dial[data-direction='up'] > li {
+  --fab-from: 0 10px;
+}
+
+.fab__dial[data-direction='down'] > li {
+  --fab-from: 0 -10px;
+}
+
+.fab__dial[data-direction='right'] > li {
+  --fab-from: -10px 0;
+}
+
+.fab__dial[data-direction='left'] > li {
+  --fab-from: 10px 0;
+}
+
+@keyframes fab-item-in {
+  from {
+    opacity: 0;
+    translate: var(--fab-from);
+  }
+}
+
+.fab__item {
+  align-items: center;
+  background: var(--raised);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-tile);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 16px 0 12px;
+  white-space: nowrap;
+}
+
+.fab__item svg {
+  color: var(--active-icon);
+}
+
+.fab__item:hover,
+.fab__item:focus-visible {
+  background: color-mix(in srgb, var(--raised) 88%, var(--accent));
+  outline: none;
+}
+
+.fab__item:focus-visible {
+  box-shadow:
+    var(--shadow-tile),
+    0 0 0 2px var(--focus);
+}
+
+/* The quick-add popover: the menus' raised card, a title field and a few properties. */
+.quick-add {
+  background: var(--raised);
+  border-radius: 14px;
+  box-shadow: var(--shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: hidden;
+  padding: 14px 14px 0;
+  width: min(360px, 80vw);
+}
+
+.quick-add__title {
+  align-items: center;
+  background: var(--track);
+  border-radius: var(--radius-control);
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 12px;
+}
+
+.quick-add__icon {
+  color: var(--active-icon);
+  flex: none;
+}
+
+.quick-add__name {
+  background: none;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-body-lg);
+  font-weight: 700;
+  height: 40px;
+  min-width: 0;
+  outline: none;
+}
+
+.quick-add__fields {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.quick-add__field {
+  align-items: center;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+
+.quick-add__label {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+.quick-add__control {
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-ui);
+  height: 32px;
+  min-width: 0;
+  padding: 0 10px;
+}
+
+.quick-add__check {
+  accent-color: var(--accent-solid);
+  justify-self: start;
+  margin: 0;
+}
+
+.quick-add__control:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.quick-add__problem {
+  color: var(--danger);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.quick-add__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.quick-add .key-hints {
+  margin: 0 -14px;
+}
+
+/* "Task added — Open": at the foot of the panels, never taking the focus. */
+.toast {
+  align-items: center;
+  background: var(--hero);
+  border-radius: var(--radius-pill);
+  bottom: calc(var(--shell-inset) + 24px);
+  box-shadow: var(--shadow-overlay);
+  color: var(--hero-ink);
+  display: flex;
+  font-size: var(--text-ui);
+  font-weight: 700;
+  gap: var(--space-3);
+  left: 50%;
+  padding: 8px 8px 8px 18px;
+  position: absolute;
+  translate: -50% 0;
+  z-index: 21;
+}
+
+.toast__action {
+  background: var(--hero-ring-track);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--tile-ink);
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 12px;
+}
+
+.toast__action:hover,
+.toast__action:focus-visible {
+  background: var(--hero-tile);
+  box-shadow: 0 0 0 1px var(--tile-ink);
+  outline: none;
+}
+
+/* Settings → Quick add. */
+.quick-add-settings__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.quick-add-settings__row {
+  align-items: center;
+  background: var(--track);
+  border-radius: var(--radius-control);
+  display: flex;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 6px;
+}
+
+.quick-add-settings__icon {
+  color: var(--active-icon);
+}
+
+.quick-add-settings__row[data-missing='true'] .quick-add-settings__icon,
+.quick-add-settings__row[data-missing='true'] .quick-add-settings__label {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.quick-add-settings__label {
+  flex: 1;
+  font-size: var(--text-ui);
+  font-weight: 700;
+}
+
+.quick-add-settings__missing {
+  color: var(--warning);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.quick-add-settings__add {
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-ui);
+  height: 32px;
+  padding: 0 10px;
+}
+
+/* Settings → Secrets: names and where they are used. There is never a value
+   on this card to style. */
+.secrets__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.secrets__item {
+  background: var(--track);
+  border-radius: var(--radius-control);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 8px 10px;
+}
+
+.secrets__row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.secrets__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.secrets__name {
+  font-size: var(--text-ui);
+  font-weight: 700;
+}
+
+.secrets__usage {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.secrets__item[data-stored='false'] .secrets__usage {
+  color: var(--warning);
+}
+
+.secrets__form {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.secrets__field {
+  flex: 1 1 160px;
+  font-size: var(--text-ui);
+  padding: 7px 14px;
+}
+
+.settings__lede code {
+  font-size: 0.95em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fab[data-snapping='true'],
+  .fab__button,
+  .fab__button svg {
+    transition: none;
+  }
+
+  .fab__dial > li {
+    animation: none;
+  }
+}

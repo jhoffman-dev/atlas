@@ -1,0 +1,411 @@
+/* Types: New type, and the type editor (P17-02).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Types: New type, and the type editor (P17-02) -------------------------
+   The "+" on the Types heading, the New type dialog (a palette), and the
+   Edit type tab of a type's page: a Notion-like list of properties, each
+   opened in place, with a select's options as pills that can be renamed,
+   coloured on the status ramp and put in order. */
+
+/* Sits over the heading's right end rather than inside it, so the heading
+   stays the section's name; placed against the sticky .sidebar__head. */
+.sidebar__heading-action {
+  height: 22px;
+  opacity: 0.7;
+  position: absolute;
+  right: 6px;
+  top: 1px;
+  width: 22px;
+}
+
+.sidebar__heading-action:hover,
+.sidebar__heading-action:focus-visible {
+  opacity: 1;
+}
+
+.new-type {
+  padding-bottom: var(--space-3);
+}
+
+.new-type__title {
+  font-size: var(--text-subtitle);
+  font-weight: 800;
+  letter-spacing: var(--tracking-title);
+  margin: var(--space-5) var(--space-5) 0;
+}
+
+.new-type__error {
+  color: var(--danger);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin: 0 var(--space-5) var(--space-2);
+}
+
+.new-type__icons,
+.type-editor__icons {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+}
+
+.new-type__icons {
+  padding: 0 var(--space-5) var(--space-3);
+}
+
+.new-type__legend {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  margin-bottom: var(--space-2);
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.new-type__icon {
+  align-items: center;
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.new-type__icon:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.new-type__icon[aria-pressed='true'] {
+  background: var(--you);
+  box-shadow: var(--shadow-soft);
+  color: var(--active-icon);
+}
+
+.new-type__icon:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.new-type__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  padding: 0 var(--space-5) var(--space-2);
+}
+
+.type-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 760px;
+  padding-top: var(--space-4);
+}
+
+.type-editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.type-editor__heading {
+  color: var(--ink-3);
+  font-size: var(--text-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.type-editor__empty {
+  color: var(--ink-3);
+  font-size: var(--text-ui);
+  margin: 0;
+}
+
+.type-editor__properties,
+.type-editor__option-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sortable__row {
+  border-radius: var(--radius-card);
+  position: relative;
+}
+
+.sortable__row--dragging {
+  box-shadow: var(--shadow-tile);
+  opacity: 0.92;
+}
+
+.sortable__row--over {
+  box-shadow: 0 -2px 0 var(--focus);
+}
+
+.sortable__handle {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--ink-3);
+  cursor: grab;
+  display: inline-flex;
+  flex: none;
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+  touch-action: none;
+  width: 20px;
+}
+
+.sortable__handle:hover {
+  background: var(--hover);
+  color: var(--ink-2);
+}
+
+.sortable__handle:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.type-editor__property {
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.type-editor__summary {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-2) 0 var(--space-2);
+}
+
+.type-editor__glyph {
+  color: var(--ink-3);
+  flex: none;
+}
+
+.type-editor__label {
+  color: var(--ink);
+  flex: 1;
+  font-size: var(--text-body);
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-editor__kind,
+.type-editor__badge {
+  background: var(--chip);
+  border-radius: var(--radius-pill);
+  color: var(--chip-ink);
+  flex: none;
+  font-size: var(--text-small);
+  font-weight: 700;
+  padding: 2px 9px;
+}
+
+.type-editor__badge {
+  background: var(--you);
+  color: var(--accent-text);
+}
+
+.type-editor__expand .icon {
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+
+.type-editor__expand[aria-expanded='true'] .icon {
+  transform: none;
+}
+
+.type-editor__details {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4) var(--space-3) 38px;
+}
+
+.type-editor__row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  min-height: 36px;
+}
+
+.type-editor__row--end {
+  justify-content: flex-end;
+}
+
+.type-editor__row-label {
+  color: var(--ink-3);
+  flex: none;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  width: 120px;
+}
+
+.type-editor__field,
+.type-editor__tone {
+  appearance: none;
+  background: var(--track);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  min-width: 0;
+  padding: 6px 10px;
+}
+
+.type-editor__row .type-editor__field {
+  flex: 1;
+  max-width: 360px;
+}
+
+.type-editor__field--code {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+
+.type-editor__field:focus,
+.type-editor__tone:focus {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+select.type-editor__field,
+.type-editor__tone {
+  cursor: pointer;
+}
+
+.type-editor__remove {
+  color: var(--danger);
+}
+
+/* A built-in type (P21-01): why it stays, where the delete button would be. */
+.type-editor__protected {
+  align-items: baseline;
+  color: var(--ink-2);
+  display: flex;
+  font-size: var(--text-ui);
+  gap: var(--space-2);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.type-editor__delete:not(:disabled) {
+  color: var(--danger);
+}
+
+.type-editor__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.type-editor__option {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.type-editor__option .status-pill {
+  flex: none;
+  min-width: 96px;
+}
+
+.type-editor__option .type-editor__field {
+  flex: 1;
+  max-width: 260px;
+}
+
+.type-editor__tone {
+  flex: none;
+  font-size: var(--text-small);
+  padding: 5px 8px;
+}
+
+.type-editor__options > .type-editor__field {
+  margin-left: 28px;
+  max-width: 260px;
+}
+
+.type-editor__add {
+  align-self: flex-start;
+  gap: var(--space-1);
+}
+
+.type-editor__prompt,
+.type-editor__notice {
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.type-editor__prompt {
+  background: var(--raised);
+  box-shadow: var(--shadow-tile);
+}
+
+.type-editor__prompt p,
+.type-editor__notice p {
+  color: var(--ink);
+  font-size: var(--text-body);
+  font-weight: 600;
+  margin: 0;
+}
+
+.type-editor__prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.type-editor__notice {
+  background: var(--raised);
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.type-editor__notice--problem {
+  background: color-mix(in srgb, var(--danger) 10%, var(--raised));
+}
+
+.type-editor__notice ul {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.board__group-label {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  font-weight: 800;
+}

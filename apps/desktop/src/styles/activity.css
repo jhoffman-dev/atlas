@@ -1,0 +1,195 @@
+/* Activity (U-28).
+   One of the section files styles/index.css imports in cascade order; the
+   section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
+
+/* ---- Activity (U-28) ----
+   A page like the Automations': its head, then the filters on one row — the
+   level as a pill track, each kind as a chip that stays lit while chosen, the
+   search — then one quiet card per line, newest first. A line's level is said
+   in words as well as in colour. */
+
+.activity__filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.activity__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.activity__kind {
+  appearance: none;
+  background: var(--chip);
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: 600;
+  padding: 5px 12px;
+}
+
+.activity__kind:hover {
+  background: var(--hover);
+}
+
+.activity__kind[aria-pressed='true'],
+.activity__kind[aria-pressed='true']:hover {
+  background: var(--active);
+  color: var(--active-ink);
+}
+
+.activity__kind:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.activity__search {
+  align-items: center;
+  background: var(--raised);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink-3);
+  display: flex;
+  gap: var(--space-2);
+  height: 36px;
+  margin-left: auto;
+  padding: 0 14px;
+  width: min(260px, 100%);
+}
+
+.activity__search:focus-within {
+  box-shadow: var(--ring);
+}
+
+.activity__search-input {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-ui);
+  min-width: 0;
+  outline: none;
+}
+
+.activity__search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.activity__empty {
+  color: var(--ink-2);
+  padding: var(--space-5) 0;
+}
+
+.activity__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-line {
+  align-items: center;
+  background: var(--raised);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 124px 76px 96px minmax(0, 1fr) auto;
+  min-height: 44px;
+  padding: 6px var(--space-4);
+}
+
+/* An error stands out by its edge, not by filling the whole card with red. */
+.activity-line--error {
+  box-shadow:
+    inset 3px 0 0 var(--danger),
+    var(--shadow-soft);
+}
+
+.activity-line--warning {
+  box-shadow:
+    inset 3px 0 0 var(--warning),
+    var(--shadow-soft);
+}
+
+.activity-line__time {
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.activity-line__level {
+  border-radius: var(--radius-pill);
+  font-size: var(--text-label);
+  font-weight: 700;
+  justify-self: start;
+  letter-spacing: var(--tracking-label);
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+
+.activity-line__level--info {
+  background: var(--chip);
+  color: var(--ink-3);
+}
+
+.activity-line__level--warning {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.activity-line__level--error {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.activity-line__kind {
+  color: var(--ink-2);
+  font-size: var(--text-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.activity-line__message {
+  color: var(--ink);
+  font-size: var(--text-ui);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.activity-line__open {
+  white-space: nowrap;
+}
+
+/* The Activity row's badge: errors since the page was last open. */
+.sidebar__badge--alert {
+  background: var(--danger);
+  color: var(--raised);
+}
+
+@media (max-width: 720px) {
+  .activity-line {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
+  .activity-line__message,
+  .activity-line__open {
+    grid-column: 1 / -1;
+  }
+
+  .activity__search {
+    margin-left: 0;
+  }
+}
