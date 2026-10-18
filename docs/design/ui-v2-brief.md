@@ -1,7 +1,7 @@
 # Atlas UI v2 — "Dense & Calm": brief for planning
 
 **Status:** approved direction from James, 2026-10-17. Plan the work first; don't start building yet.
-**Mockups:** `design/v2/*.dc.html`, in the same Design Component format as `design/target/`. The _Mockups_ section below explains how to render them. These files are the visual reference. Where this brief and a mockup disagree, the mockup wins on look and this brief wins on behavior.
+**Mockups:** `design/target/*.dc.html` (moved there from `design/v2/` in #270), in the Design Component format. The _Mockups_ section below explains how to render them. These files are the visual reference. Where this brief and a mockup disagree, the mockup wins on look and this brief wins on behavior.
 
 ---
 
