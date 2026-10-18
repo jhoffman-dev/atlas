@@ -49,7 +49,7 @@ const reads = (source: string) =>
 
 describe('tokens after the v2 turnover', () => {
   /**
-   * styles.test.ts holds styles.css to the tokens it declares. The gallery's
+   * styles.test.ts holds the app's sheet (styles/) to the tokens it declares. The gallery's
    * sheet and the components' inline styles read the same names and nothing
    * holds them: `gallery.css` still reads `--text-hero`, which #273 deleted,
    * so the gallery's hero numeral falls back to the inherited size.

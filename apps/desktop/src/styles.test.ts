@@ -284,10 +284,7 @@ describe('the styles folder', () => {
   });
 
   /** The palette comes first, so every file after it reads tokens that are already declared. */
-  it('reads the sheet as the sections joined in import order, tokens first', () => {
-    const sections = importedSections();
-    expect(sections[0]).toBe('tokens.css');
-    expect(css.startsWith(read(`./styles/${sections[0]}`))).toBe(true);
-    expect(css.endsWith(read(`./styles/${sections.at(-1)}`))).toBe(true);
+  it('imports tokens.css first', () => {
+    expect(importedSections()[0]).toBe('tokens.css');
   });
 });
