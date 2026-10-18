@@ -1211,6 +1211,8 @@ export interface ApiReviewTask {
   readonly due: string | null;
   /** `YYYY-MM-DD`: the day it comes back into play, or null. */
   readonly defer: string | null;
+  /** How it repeats, as its `recurrence` says, or null when it does not (#260). Always read by the API. */
+  readonly recurrence?: string | null;
   /** Who it waits on — a link by what it shows, a plain name as written — joined with ", "; '' for nobody. */
   readonly waitingOn: string;
   /** Its `contexts`, as written, in order. */
