@@ -1111,3 +1111,202 @@ describe('what ⌘K draws (#261)', () => {
     expect(renders.NotePaneContainer ?? 0).toBe(0);
   });
 });
+
+describe('⌘K held in the overlay store (#261, attack)', () => {
+  const twoNotes = () =>
+    fakeVault({
+      remembered: location,
+      directories: { '': [entry('recipes.md', 'file'), entry('garden.md', 'file')] },
+      files: { 'recipes.md': '# Recipes\n\nSourdough.\n', 'garden.md': '# Garden\n\nTomatoes.\n' },
+    });
+  const searchPalette = () => screen.queryByRole('dialog', { name: 'Search notes' });
+  const searchBox = () => screen.findByLabelText<HTMLInputElement>('Search the vault');
+
+  /** The app on a vault whose index answers every search with recipes. */
+  const renderFinding = (vault: ReturnType<typeof fakeVault>) => {
+    const index = fakeIndexPorts(vault);
+    index.index.search = async () => [
+      { path: 'recipes.md', title: 'Recipes', snippet: '<<Sourdough>>' },
+    ];
+    return render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={index}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+  };
+
+  async function openGardenThenRecipes() {
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'garden' }));
+    await screen.findByRole('article', { name: 'garden' });
+    await userEvent.click(screen.getByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+  }
+
+  it('opens empty again after a note was picked from it', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await searchBox(), 'sour');
+    await userEvent.click(await screen.findByRole('option', { name: /Recipes/ }));
+    await screen.findByRole('article', { name: 'recipes' });
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+
+    expect((await searchBox()).value).toBe('');
+    expect(screen.queryByRole('option', { name: /Recipes/ })).toBeNull();
+  });
+
+  it('opens with archived notes left out again after the toggle was turned on and the palette shut', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.click(await screen.findByRole('switch', { name: 'Include archived' }));
+    expect(
+      screen.getByRole('switch', { name: 'Include archived' }).getAttribute('aria-checked'),
+    ).toBe('true');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+
+    const toggle = await screen.findByRole('switch', { name: 'Include archived' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('keeps ⌘K the only dialog, with the focus in its box, through Shift+Cmd+N, Cmd+, and Cmd+J', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    const box = await searchBox();
+    await userEvent.keyboard('{Meta>}{Shift>}n{/Shift}{/Meta}');
+    await userEvent.keyboard('{Meta>},{/Meta}');
+    await userEvent.keyboard('{Meta>}j{/Meta}');
+    await userEvent.keyboard('{Meta>}{Alt>}n{/Alt}{/Meta}');
+
+    const dialogs = screen.getAllByRole('dialog', { hidden: true });
+    expect(dialogs.map((d) => d.getAttribute('aria-label'))).toEqual(['Search notes']);
+    expect(document.activeElement).toBe(box);
+  });
+
+  it('does not go back behind the palette on Cmd+[', async () => {
+    renderFinding(twoNotes());
+    await openGardenThenRecipes();
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Meta>}[[{/Meta}');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    // The modal palette hides the window from the accessibility tree, so look behind it.
+    expect(screen.getByRole('article', { name: 'recipes', hidden: true })).toBeDefined();
+    expect(screen.queryByRole('article', { name: 'garden', hidden: true })).toBeNull();
+    expect(searchPalette()).not.toBeNull();
+  });
+
+  it('does not split the window behind the palette on Shift+Cmd+\\', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    // The modal palette hides the window from the accessibility tree, so look behind it.
+    expect(screen.queryByRole('region', { name: 'Pane 1', hidden: true })).not.toBeNull();
+    expect(screen.queryByRole('region', { name: 'Pane 2', hidden: true })).toBeNull();
+    // Control: with the palette shut, the same press splits.
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    expect(await screen.findByRole('region', { name: 'Pane 2' })).toBeDefined();
+  });
+
+  it('does not hide the sidebar behind the palette on Cmd+\\', async () => {
+    renderFinding(twoNotes());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Meta>}\\{/Meta}');
+
+    // The modal palette hides the window from the accessibility tree, so look behind it.
+    expect(screen.queryByRole('treeitem', { name: 'recipes', hidden: true })).not.toBeNull();
+  });
+
+  it('gives the focus back to what had it before ⌘K, once Escape shuts it', async () => {
+    renderFinding(twoNotes());
+    const item = await screen.findByRole('treeitem', { name: 'recipes' });
+    act(() => item.focus());
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Escape}');
+
+    await waitFor(() => expect(document.activeElement).toBe(item));
+  });
+
+  it('opens a pane menu once ⌘K is shut, so the window still draws its own overlays', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await searchBox();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+
+    expect(await screen.findByRole('menuitem', { name: /^Split right/ })).toBeDefined();
+    expect(searchPalette()).toBeNull();
+  });
+
+  it('lets ⌘K replace an open pane menu, leaving only the palette up', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await screen.findByRole('menuitem', { name: /^Split right/ });
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+
+    expect(await searchBox()).toBeDefined();
+    await waitFor(() =>
+      expect(screen.queryByRole('menuitem', { name: /^Split right/ })).toBeNull(),
+    );
+  });
+
+  it('moves the choice and shuts ⌘K without drawing the window again', async () => {
+    renderFinding(twoNotes());
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await searchBox(), 'sour');
+    await screen.findByRole('option', { name: /Recipes/ });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    startCountingRenders();
+    await userEvent.keyboard('{ArrowDown}{ArrowUp}');
+    await userEvent.click(screen.getByRole('switch', { name: 'Include archived' }));
+    await userEvent.keyboard('{Escape}');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    const { renders } = stopCountingRenders();
+
+    expect(renders.SearchPalette ?? 0).toBeGreaterThanOrEqual(3);
+    expect(renders.App ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+    expect(renders.VaultTree ?? 0).toBe(0);
+  });
+});
