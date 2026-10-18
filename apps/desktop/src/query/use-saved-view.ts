@@ -54,7 +54,7 @@ import { useCardCreation } from './use-card-creation.ts';
 import { useDoneTicks } from './use-done-ticks.ts';
 import { useFilterChoices, type FilterChoicesByKey } from './use-filter-choices.ts';
 import { useNotePreviews, type NotePreviews } from './use-note-previews.ts';
-import { usePendingCards } from './use-pending-cards.ts';
+import { usePendingCards, type BoardShape, type PendingCards } from './use-pending-cards.ts';
 import { useChangeProperties, useRowWrites, useWriteProperties } from './use-view-writes.ts';
 import { useViewEdits } from './use-view-edits.ts';
 import type { ViewDrafts } from './use-view-drafts.ts';
@@ -117,6 +117,11 @@ export function useSavedView({
   columns: readonly RowGroup[];
   /** A board's swimlanes, when the view sub-groups. */
   lanes: readonly BoardLane[];
+  /** What a board draws its moved cards with, before the index has them (`useBoardAsPending`, #260). */
+  pendingBoard: {
+    pending: PendingCards;
+    regroup: (rows: readonly BoardRow[]) => BoardShape;
+  };
   /** A table's groups and their sub-groups: only the values some row has. */
   groups: readonly RowGroup[];
   /** What the Group control offers, each with why it cannot be chosen when it cannot. */
@@ -203,8 +208,8 @@ export function useSavedView({
     onChanged,
     onError: setError,
   });
-  const rows = cards.rows;
-  const { columns, lanes, groups, groupOptions } = useViewShape({
+  const rows = readRows;
+  const { columns, lanes, groups, groupOptions, regroup } = useViewShape({
     type,
     display,
     sorts: query?.sorts ?? NO_SORTS,
@@ -212,6 +217,10 @@ export function useSavedView({
     index,
     indexKey,
   });
+  const pendingBoard = useMemo(
+    () => ({ pending: cards.pending, regroup }),
+    [cards.pending, regroup],
+  );
   const choices = useMemo(() => groupChoices(type), [type]);
   const names = useNoteNames();
   const { choices: filterChoices, want: wantFilterChoices } = useFilterChoices({
@@ -280,6 +289,7 @@ export function useSavedView({
     rows,
     columns,
     lanes,
+    pendingBoard,
     groups,
     groupChoices: choices,
     filterChoices,
@@ -535,16 +545,20 @@ function useViewShape({
     [type, layout, groupBy, subGroupBy, sorts, related],
   );
   const table = display.layout === 'table';
+  const regroup = useCallback(
+    (shown: readonly BoardRow[]) => boardGroups({ rows: shown, levels, names }),
+    [levels, names],
+  );
   const board = useMemo(
-    () => (table ? { columns: [], lanes: [] } : boardGroups({ rows, levels, names })),
-    [table, rows, levels, names],
+    () => (table ? { columns: [], lanes: [] } : regroup(rows)),
+    [table, rows, regroup],
   );
   const groups = useMemo(
     () => (table ? groupResultRows({ rows, groups: levels, names }) : []),
     [table, rows, levels, names],
   );
 
-  return { columns: board.columns, lanes: board.lanes, groups, groupOptions };
+  return { columns: board.columns, lanes: board.lanes, groups, groupOptions, regroup };
 }
 
 /**

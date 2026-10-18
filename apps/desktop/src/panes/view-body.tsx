@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ComponentProps } from 'react';
 import {
   calendarEndKey,
   thumbnailPropertyOf,
@@ -44,6 +44,7 @@ import { remadeCover, useThumbnailSnapshot } from '../artifacts/use-thumbnails.t
 import { PageGallery } from '../thumbnails/page-gallery.tsx';
 import type { ThumbnailBackfill } from '../artifacts/use-thumbnail-backfill.ts';
 import type { useSavedView } from '../query/use-saved-view.ts';
+import { useBoardAsPending } from '../query/use-pending-cards.ts';
 import type { useSqlView } from '../query/use-sql-view.ts';
 import { localToday } from '../today.ts';
 import { useMinuteNow } from './use-minute-now.ts';
@@ -360,9 +361,8 @@ export function ViewBody({
 
   if (view.display.layout === 'board' && view.display.groupBy !== null) {
     return (
-      <BoardView
-        columns={view.columns}
-        lanes={view.lanes}
+      <PendingBoardView
+        view={view}
         folds={folds}
         groupBy={view.display.groupBy}
         fields={fields}
@@ -522,4 +522,21 @@ export function SqlViewBody({
       onToggleSort={view.toggleSort}
     />
   );
+}
+
+/**
+ * A board with its moved cards drawn where the move puts them, before the
+ * index has read them back (#260). Its own component, so a drop draws the
+ * board and not the pane around it.
+ */
+function PendingBoardView({
+  view,
+  ...board
+}: Omit<ComponentProps<typeof BoardView>, 'columns' | 'lanes'> & {
+  view: Pick<ReturnType<typeof useSavedView>, 'columns' | 'lanes' | 'pendingBoard'>;
+}) {
+  const { columns, lanes, pendingBoard } = view;
+  const read = useMemo(() => ({ columns, lanes }), [columns, lanes]);
+  const shown = useBoardAsPending({ ...pendingBoard, read });
+  return <BoardView columns={shown.columns} lanes={shown.lanes} {...board} />;
 }

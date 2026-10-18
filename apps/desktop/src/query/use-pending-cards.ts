@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { BoardRow } from '@atlas/domain';
+import { createStore, useStore, type StoreApi } from 'zustand';
+import type { BoardLane, BoardRow, RowGroup } from '@atlas/domain';
 import {
   readAnswers,
   rowsAsPending,
@@ -21,6 +22,26 @@ export type MoveProperties = (args: {
   values: PropertyChanges;
   shown: (values: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>;
 }) => void;
+
+/** A board's columns and swimlanes. */
+export interface BoardShape {
+  readonly columns: readonly RowGroup[];
+  readonly lanes: readonly BoardLane[];
+}
+
+/**
+ * The cards being moved on one board, and the read they are laid over. Held
+ * in a store only the board subscribes to: a drop draws the board, not the
+ * pane, its toolbar and its menus around it (#260).
+ */
+export interface PendingCards {
+  readonly store: StoreApi<{ readonly moving: readonly MovingCard[] }>;
+  /** When a move's write landed, or null while it is being written. */
+  readonly landedOf: (card: MovingCard) => ReadMoment | null;
+  /** The rows as the view's last run read them, and when that run began. */
+  readonly rows: readonly BoardRow[];
+  readonly read: ReadMoment;
+}
 
 /**
  * A board's cards as they are drawn while their moves are written (#260): a
@@ -48,8 +69,15 @@ export function usePendingCards({
   write: WriteProperties;
   onChanged: () => void;
   onError: (message: string) => void;
-}): { rows: readonly BoardRow[]; move: MoveProperties } {
-  const [moving, setMoving] = useState<readonly MovingCard[]>([]);
+}): { pending: PendingCards; move: MoveProperties } {
+  const [store] = useState(() =>
+    createStore<{ readonly moving: readonly MovingCard[] }>()(() => ({ moving: [] })),
+  );
+  const setMoving = useCallback(
+    (next: (was: readonly MovingCard[]) => readonly MovingCard[]) =>
+      store.setState((was) => ({ moving: next(was.moving) })),
+    [store],
+  );
   // When each move's write landed. Kept out of state on purpose: a write landing
   // changes nothing on screen, only how the next read is judged, and every read
   // that lands draws the board again anyway. A commit for it is work the drag's
@@ -80,15 +108,38 @@ export function usePendingCards({
         },
       );
     },
-    [runsBegun, write, onChanged, onError],
+    [runsBegun, write, onChanged, onError, setMoving],
   );
 
-  const shownRows = useMemo(() => {
-    const pending = moving.map((card) => ({ ...card, landed: landedAt.current.get(card) ?? null }));
-    return rowsAsPending({ rows, pending, read });
-  }, [rows, moving, read]);
-  return { rows: shownRows, move };
+  const landedOf = useCallback((card: MovingCard) => landedAt.current.get(card) ?? null, []);
+  const pending = useMemo(() => ({ store, landedOf, rows, read }), [store, landedOf, rows, read]);
+  return { pending, move };
+}
+
+/**
+ * The board as it is drawn (#260): each card moved and not yet read back
+ * where the move puts it (`rowsAsPending`), regrouped by `regroup`; the
+ * board as read when nothing is pending. Called by the board alone, so a
+ * drop draws only it.
+ */
+export function useBoardAsPending({
+  pending,
+  read,
+  regroup,
+}: {
+  pending: PendingCards;
+  /** The board as the view's last run read it. */
+  read: BoardShape;
+  /** The board's columns and lanes for other rows, by the view's own grouping. */
+  regroup: (rows: readonly BoardRow[]) => BoardShape;
+}): BoardShape {
+  const moving = useStore(pending.store, (state) => state.moving);
+  return useMemo(() => {
+    const cards = moving.map((card) => ({ ...card, landed: pending.landedOf(card) }));
+    const shown = rowsAsPending({ rows: pending.rows, pending: cards, read: pending.read });
+    return shown === pending.rows ? read : regroup(shown);
+  }, [moving, pending, read, regroup]);
 }
 
 /** A card moved, and what the move changes, as `cardAsMoved` reads it. */
-type MovingCard = Omit<PendingCard, 'landed'>;
+export type MovingCard = Omit<PendingCard, 'landed'>;
