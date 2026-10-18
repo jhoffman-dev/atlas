@@ -8,9 +8,9 @@ import {
   parseDocument,
   visit,
   type Node,
-  type Pair,
+  Pair,
   type Scalar,
-  type YAMLMap,
+  YAMLMap,
   type YAMLSeq,
 } from 'yaml';
 import { KeyAsWritten } from '@atlas/domain';
@@ -74,16 +74,16 @@ export function updateFrontmatter(
   const touched = new Set<string>();
   const asWritten = new Map<string, string>();
   for (const [key, change] of changed) {
-    for (const holder of releaseAnchors(document, key)) touched.add(holder);
-    touched.add(key);
-    if (!(change instanceof KeyAsWritten)) {
-      setKey(document, key, change);
-      continue;
-    }
-    const node = writtenValue(key, change.text);
-    if (node === null) setKey(document, key, null);
+    const node = change instanceof KeyAsWritten ? writtenValue(key, change.text) : undefined;
+    const removing = node === null || change === null || change === undefined;
+    for (const holder of releaseAnchors(document, key, removing)) touched.add(holder);
+    // Only the pair the reader reads is written; a shadowed one keeps its bytes.
+    const id = idOf(key, Math.max(pairsOf(document, key).length - 1, 0));
+    touched.add(id);
+    if (node === undefined) setKey(document, key, change);
+    else if (node === null) setKey(document, key, null);
     else {
-      asWritten.set(key, change.text);
+      asWritten.set(id, (change as KeyAsWritten).text);
       putNode(document, key, node);
     }
   }
@@ -201,16 +201,41 @@ export function columnOf(source: string, offset: number | undefined): number | n
  * to such a key adds a second one that shadows it.
  */
 export function keyOf(key: unknown, document: Document): string {
-  const resolved = isAlias(key) ? key.resolve(document) : key;
-  const value = isScalar(resolved) ? resolved.value : resolved;
-  return value === null ? '' : String(value);
+  if (isScalar(key) && (key.value === null || typeof key.value !== 'object')) {
+    return key.value === null ? '' : String(key.value);
+  }
+  // An alias or a collection: named by the library itself, as the reader is,
+  // from a map holding only this key.
+  const alone = new YAMLMap();
+  alone.items.push(new Pair(key, null));
+  // The library warns on every collection key it names; the reader has
+  // already warned once for this block, so naming it again is kept quiet.
+  const level = document.options.logLevel;
+  document.options.logLevel = 'error';
+  try {
+    return Object.keys(alone.toJS(document) as object)[0] ?? '';
+  } finally {
+    document.options.logLevel = level;
+  }
 }
 
+/**
+ * The pair the reader reads for `key`: the last that names it, since a later
+ * spelling (`"1":` after `1:`, `"":` after `~:`) replaces an earlier one.
+ */
 export function pairOf(document: Document, key: string): Pair | undefined {
-  const contents = document.contents;
-  if (!isMap(contents)) return undefined;
-  return contents.items.find((pair) => keyOf(pair.key, document) === key);
+  return pairsOf(document, key).at(-1);
 }
+
+/** Every top-level pair that names `key`, in the order they are written. */
+function pairsOf(document: Document, key: string): Pair[] {
+  const contents = document.contents;
+  if (!isMap(contents)) return [];
+  return contents.items.filter((pair) => keyOf(pair.key, document) === key);
+}
+
+/** One top-level pair: its name, and which of the pairs with that name it is. */
+const idOf = (key: string, occurrence: number) => `${key}\u0000${occurrence}`;
 
 /** Whether the last key of a block map was just removed; a flow map stays `{}`. */
 function isEmptiedBlockMap(document: Document): boolean {
@@ -242,7 +267,9 @@ function setKey(document: Document, key: string, value: unknown): void {
     // only comments has no map for the library to remove it from.
     if (value !== null && value !== undefined) document.set(key, value);
   } else if (value === null || value === undefined) {
-    contents.items.splice(contents.items.indexOf(pair), 1);
+    // Every spelling of the key goes, or the reader would read an earlier one.
+    const named = new Set(pairsOf(document, key));
+    contents.items = contents.items.filter((item) => !named.has(item));
   } else {
     pair.value = reconcile(document, pair.value, value);
   }
@@ -250,51 +277,87 @@ function setKey(document: Document, key: string, value: unknown): void {
 
 /**
  * Before `key` is changed, gives every anchor inside it that another key
- * refers to a new home: the first alias of it becomes a copy of the anchored
- * node, anchor and all, so it and every later alias keep the value they read.
- * Returns the keys whose text that changed.
+ * refers to a new home: the first alias of it — a value or a key — becomes a
+ * copy of the anchored node, anchor and all, so it and every later alias keep
+ * what they read, and no other key is renamed. When the key is `removing`,
+ * every pair naming it goes, so an anchor on one of their keys moves too.
+ * Returns the pairs whose text that changed.
  */
-function releaseAnchors(document: Document, key: string): string[] {
-  const edited = pairOf(document, key);
+function releaseAnchors(document: Document, key: string, removing: boolean): string[] {
   const contents = document.contents;
-  if (edited === undefined || !isMap(contents)) return [];
+  if (!isMap(contents)) return [];
+  const last = pairOf(document, key);
+  const edited = removing ? pairsOf(document, key) : last === undefined ? [] : [last];
   const anchored: (Scalar | YAMLMap | YAMLSeq)[] = [];
-  if (!isNode(edited.value)) return [];
-  visit(edited.value, (_, node) => {
-    if (isNode(node) && !isAlias(node) && node.anchor !== undefined) anchored.push(node);
-  });
+  const collect = (node: unknown) => {
+    if (!isNode(node)) return;
+    visit(node, (_, inner) => {
+      if (isNode(inner) && !isAlias(inner) && inner.anchor !== undefined) anchored.push(inner);
+    });
+  };
+  for (const pair of edited) {
+    if (removing) collect(pair.key);
+    collect(pair.value);
+  }
 
   const holders: string[] = [];
   for (const node of anchored) {
     const name = node.anchor as string;
-    for (const pair of contents.items) {
-      if (pair === edited || !isNode(pair.value)) continue;
-      const holder = () => {
-        const copy = node.clone() as typeof node;
-        copy.anchor = name;
-        return copy;
-      };
-      const refersHere = (alias: unknown) => isAlias(alias) && alias.source === name;
-      let moved = refersHere(pair.value);
-      // A key's whole value has no parent for `visit` to swap it in, so it is set directly.
-      if (moved) pair.value = holder();
-      else {
-        visit(pair.value, (_, alias) => {
-          // The copy that replaces the alias is visited next; stop there.
-          if (moved) return visit.BREAK;
-          if (!refersHere(alias)) return undefined;
-          moved = true;
-          return holder();
-        });
+    const holder = () => {
+      const copy = node.clone() as typeof node;
+      copy.anchor = name;
+      return copy;
+    };
+    const home = contents.items.find((pair) => {
+      if (edited.includes(pair)) return false;
+      const was = keyOf(pair.key, document);
+      if (!rehome(pair, 'key', name, holder)) return rehome(pair, 'value', name, holder);
+      // A list or map used as a key through an alias is named `*k` by the
+      // reader; written out in its place it would be named by its items.
+      if (keyOf(pair.key, document) !== was) {
+        throw new Error(
+          `Cannot change "${key}": the key "${was}" is an alias of it, and would be renamed`,
+        );
       }
-      if (moved) {
-        delete node.anchor;
-        holders.push(keyOf(pair.key, document));
-        break;
-      }
+      return true;
+    });
+    if (home !== undefined) {
+      delete node.anchor;
+      holders.push(idOfPair(document, home));
     }
   }
   return holders;
+}
+
+/**
+ * Swaps the first alias of `name` on one side of `pair` for `holder()`;
+ * whether there was one.
+ */
+function rehome(pair: Pair, side: 'key' | 'value', name: string, holder: () => Node): boolean {
+  const at: unknown = pair[side];
+  const refersHere = (alias: unknown) => isAlias(alias) && alias.source === name;
+  // A pair's own key or value has no parent for `visit` to swap it in, so it is set directly.
+  if (refersHere(at)) {
+    pair[side] = holder();
+    return true;
+  }
+  let moved = false;
+  if (isNode(at)) {
+    visit(at, (_, alias) => {
+      // The copy that replaces the alias is visited next; stop there.
+      if (moved) return visit.BREAK;
+      if (!refersHere(alias)) return undefined;
+      moved = true;
+      return holder();
+    });
+  }
+  return moved;
+}
+
+/** The id of a top-level pair, as {@link segments} cuts the written block. */
+function idOfPair(document: Document, pair: Pair): string {
+  const named = pairsOf(document, keyOf(pair.key, document));
+  return idOf(keyOf(pair.key, document), named.indexOf(pair));
 }
 
 /**
@@ -396,16 +459,40 @@ function sameValue(document: Document, node: unknown, value: unknown): boolean {
 
 /**
  * Whether two values read the same. One that refers to itself — `&e` holding
- * `*e`, or a JavaScript object cycle — has no JSON form, so it is never
- * vouched for as unchanged: it is written, which is safe, where the throw it
- * raises would fail the whole save.
+ * `*e`, or a JavaScript object cycle — has no JSON form, and is compared
+ * shape by shape instead, so writing it back unchanged leaves it alone.
  */
 function readsTheSame(left: unknown, right: unknown): boolean {
   try {
     return JSON.stringify(left) === JSON.stringify(right);
   } catch {
+    // JSON.stringify throws only on a cycle (or a BigInt, which YAML never reads as).
+    return sameShape(left, right, new Map());
+  }
+}
+
+/**
+ * JSON's equality — same keys in the same order, same values — that follows
+ * a cycle: a pair of objects already being compared counts as the same.
+ */
+function sameShape(left: unknown, right: unknown, comparing: Map<object, object>): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) {
     return false;
   }
+  if (comparing.get(left) === right) return true;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  comparing.set(left, right);
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  const at = (value: object, key: string) => (value as Record<string, unknown>)[key];
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] && sameShape(at(left, key), at(right, key), comparing),
+    )
+  );
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -418,7 +505,8 @@ const isScalarValue = (value: unknown) =>
 interface Segments {
   /** Comments and blank lines before the first key. */
   readonly head: string;
-  readonly keys: readonly { readonly key: string; readonly text: string }[];
+  /** Each key's name, its {@link idOf} id, and its text. */
+  readonly keys: readonly { readonly key: string; readonly id: string; readonly text: string }[];
   /** Whatever follows the last key's value: a trailing comment. */
   readonly tail: string;
 }
@@ -440,7 +528,7 @@ function keepUntouched({
   original: string;
   written: string;
   touched: ReadonlySet<string>;
-  /** Keys whose text is given, written as that text wherever they stand. */
+  /** Pairs' ids whose text is given, written as that text wherever they stand. */
   asWritten: ReadonlyMap<string, string>;
 }): string {
   const before = segments(original);
@@ -449,19 +537,19 @@ function keepUntouched({
   if (before === null) {
     // Nothing of the original to keep, but a key given as written is still written so.
     if (asWritten.size === 0) return written;
-    const keys = after.keys.map((segment) => asWritten.get(segment.key) ?? segment.text);
+    const keys = after.keys.map((segment) => asWritten.get(segment.id) ?? segment.text);
     return `${after.head}${keys.join('')}${after.tail}`.replace(/\n$/, '');
   }
-  const found = new Map(before.keys.map((segment) => [segment.key, segment.text]));
-  const first = after.keys[0]?.key;
+  const found = new Map(before.keys.map((segment) => [segment.id, segment.text]));
+  const first = after.keys[0]?.id;
   const head =
-    first !== undefined && first === before.keys[0]?.key && !touched.has(first)
+    first !== undefined && first === before.keys[0]?.id && !touched.has(first)
       ? before.head
       : after.head;
   const keys = after.keys.map(
     (segment) =>
-      asWritten.get(segment.key) ??
-      (touched.has(segment.key) ? segment.text : (found.get(segment.key) ?? segment.text)),
+      asWritten.get(segment.id) ??
+      (touched.has(segment.id) ? segment.text : (found.get(segment.id) ?? segment.text)),
   );
   return `${head}${keys.join('')}${before.tail}`.replace(/\n$/, '');
 }
@@ -481,10 +569,17 @@ function segments(text: string): Segments | null {
   }
   const last = contents.items[contents.items.length - 1] as Pair;
   const end = lineEnd(source, isNode(last.value) ? last.value.range : (last.key as Node).range);
-  const keys = contents.items.map((pair, at) => ({
-    key: keyOf(pair.key, document),
-    text: source.slice(starts[at], starts[at + 1] ?? end),
-  }));
+  const seen = new Map<string, number>();
+  const keys = contents.items.map((pair, at) => {
+    const key = keyOf(pair.key, document);
+    const occurrence = seen.get(key) ?? 0;
+    seen.set(key, occurrence + 1);
+    return {
+      key,
+      id: idOf(key, occurrence),
+      text: source.slice(starts[at], starts[at + 1] ?? end),
+    };
+  });
   return { head: source.slice(0, starts[0]), keys, tail: source.slice(end) };
 }
 
