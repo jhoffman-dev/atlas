@@ -1,27 +1,48 @@
 // `pnpm design:compare` — one page per surface, mockup on the left and the app
 // on the right at the same scale, in both themes. Reads what `design:refs` and
 // `shots` wrote; a missing image is shown as missing rather than failing.
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 const OUT = join(import.meta.dirname, '..', '..', 'design', 'out');
 const PAGES = join(OUT, 'compare');
 const THEMES = ['light', 'dark'] as const;
+type Theme = (typeof THEMES)[number];
 /** Screenshots are taken at 2x; pages show them at this fraction of their CSS size. */
 const SCALE = 0.5;
 
-/** Each app surface, and the mockup board it is judged against (null: no mockup yet). */
+/**
+ * Each app surface, and the v2 board it is judged against (null: no mockup).
+ * `tokens`, `table-editing`, `peek`, `type-editor` and `inbox` are surfaces
+ * `shots` does not capture yet; their boards are the target of later slices.
+ */
 const SURFACES: { surface: string; board: string | null }[] = [
-  { surface: 'dashboard', board: 'Main' },
-  { surface: 'board', board: 'Board' },
+  { surface: 'dashboard', board: 'Dashboard' },
+  { surface: 'board', board: 'Main' },
   { surface: 'all-tasks', board: 'Table' },
-  { surface: 'note', board: 'Note' },
   { surface: 'sidebar', board: 'Sidebar' },
+  { surface: 'tokens', board: 'Tokens' },
+  { surface: 'table-editing', board: 'FlowTable' },
+  { surface: 'peek', board: 'FlowPeek' },
+  { surface: 'split', board: 'FlowSplit' },
+  { surface: 'type-editor', board: 'FlowType' },
+  { surface: 'inbox', board: 'FlowInbox' },
+  { surface: 'note', board: null },
   { surface: 'empty', board: null },
   { surface: 'calendar', board: null },
   { surface: 'search', board: null },
   { surface: 'settings', board: null },
 ];
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    // Not written yet: the pair shows that side as missing.
+    return false;
+  }
+}
 
 /** A PNG's width in CSS pixels, from its header, or null when there is no such file. */
 async function cssWidth(path: string): Promise<number | null> {
@@ -34,22 +55,39 @@ async function cssWidth(path: string): Promise<number | null> {
   }
 }
 
-async function figure(label: string, path: string | null): Promise<string> {
+/** The image at `path`, or `absent` when there is no path; a path with no file behind it says so. */
+async function figure(label: string, path: string | null, absent = ''): Promise<string> {
   const width = path ? await cssWidth(path) : null;
   const body =
     path && width
       ? `<a href="${relative(PAGES, path)}"><img src="${relative(PAGES, path)}" width="${width * SCALE}" alt="${label}"></a>`
-      : `<p class="missing">${path ? `missing: ${relative(OUT, path)}` : 'no mockup for this surface'}</p>`;
+      : `<p class="missing">${path ? `missing: ${relative(OUT, path)}` : absent}</p>`;
   return `<figure><figcaption>${label}</figcaption>${body}</figure>`;
+}
+
+/**
+ * The mockup side for one theme. A board with a `theme` prop renders as
+ * `<Board>-<theme>.png`; one without (the Flow boards, Tokens) renders once as
+ * `<Board>.png`, which is its light look and has no dark counterpart.
+ */
+async function mockupFigure(board: string | null, theme: Theme): Promise<string> {
+  const label = `mockup · ${board ?? '—'} · ${theme}`;
+  if (!board) return figure(label, null, 'no mockup for this surface');
+  const themed = join(OUT, 'refs', `${board}-${theme}.png`);
+  const single = join(OUT, 'refs', `${board}.png`);
+  if (await exists(themed)) return figure(label, themed);
+  if (theme === 'light') return figure(label, single);
+  return (await exists(single))
+    ? figure(label, null, 'the mockup is light only')
+    : figure(label, themed);
 }
 
 async function surfacePage(surface: string, board: string | null): Promise<string> {
   const rows = await Promise.all(
     THEMES.map(async (theme) => {
-      const mockup = board ? join(OUT, 'refs', `${board}-${theme}.png`) : null;
       const shot = join(OUT, 'shots', `${surface}-${theme}.png`);
       const pair = [
-        await figure(`mockup · ${board ?? '—'} · ${theme}`, mockup),
+        await mockupFigure(board, theme),
         await figure(`app · ${surface} · ${theme}`, shot),
       ];
       return `<h2>${theme}</h2><div class="pair">${pair.join('')}</div>`;
