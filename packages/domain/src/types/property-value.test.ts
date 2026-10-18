@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isWikiLink, relationTargets, validatePropertyValue } from './property-value.ts';
+import {
+  isEmptyProperty,
+  isWikiLink,
+  relationTargets,
+  validatePropertyValue,
+} from './property-value.ts';
 import type { PropertyDef, PropertyKind } from './property-def.ts';
 
 const def = (kind: PropertyKind, extra: Partial<PropertyDef> = {}): PropertyDef => ({
@@ -141,5 +146,15 @@ describe('relationTargets', () => {
 
   it('ignores anything that is not a link', () => {
     expect(relationTargets(['plain text', '[[A]]'])).toEqual(['A']);
+  });
+});
+
+describe('isEmptyProperty', () => {
+  it.each([null, undefined, '', '  \n ', []])('holds nothing: %j', (value) => {
+    expect(isEmptyProperty(value)).toBe(true);
+  });
+
+  it.each([false, 0, 'x', ['[[Mara Quill]]'], { a: 1 }])('is a value: %j', (value) => {
+    expect(isEmptyProperty(value)).toBe(false);
   });
 });

@@ -5,17 +5,26 @@ import {
   sidebarTreeRows,
   STATUS_TONES,
   type ActiveSidebarPage,
+  type NoteLinks,
+  type OutlineHeading,
+  type PropertyDef,
   type SidebarSectionId,
 } from '@atlas/domain';
 import {
+  BacklinksPane,
   Icon,
   KeyHints,
+  OutlinePane,
+  PropertiesPane,
+  RightSidebar,
   SegmentedControl,
   Sidebar,
   StatusPill,
   TabStrip,
   Toast,
   Toggle,
+  type AsideTab,
+  type PropertyRow,
   type SectionStore,
   type TabStripTab,
 } from '@atlas/ui';
@@ -184,6 +193,94 @@ function TabStripSpecimen({ focused }: { focused: boolean }) {
   );
 }
 
+const property = (
+  def: Partial<PropertyDef> & Pick<PropertyDef, 'key' | 'kind' | 'label'>,
+  value: unknown,
+): PropertyRow => ({
+  def: { required: false, options: [], target: null, many: false, ...def },
+  value,
+  error: null,
+});
+
+/** A task's row as the aside shows it: four filled, four folded away. */
+const ASIDE_ROWS: readonly PropertyRow[] = [
+  property(
+    { key: 'status', kind: 'select', label: 'Status', options: ['Next', 'Doing', 'Done'] },
+    'Doing',
+  ),
+  property(
+    { key: 'project', kind: 'relation', label: 'Project', target: 'project' },
+    '[[Larkspur Payroll]]',
+  ),
+  property({ key: 'owner', kind: 'relation', label: 'Owner', target: 'person' }, '[[Mara Quill]]'),
+  property({ key: 'due', kind: 'date', label: 'Due' }, '2026-10-21'),
+  property({ key: 'start', kind: 'date', label: 'Start' }, null),
+  property({ key: 'estimate', kind: 'number', label: 'Estimate' }, null),
+  property({ key: 'tags', kind: 'multiSelect', label: 'Tags', options: ['bug', 'ui'] }, []),
+  property({ key: 'notes', kind: 'text', label: 'Notes' }, ''),
+];
+
+const ASIDE_LINKS: NoteLinks = {
+  incoming: [
+    { path: createVaultPath('Meetings/Larkspur kickoff.md'), title: 'Larkspur kickoff', via: null },
+    { path: createVaultPath('People/Mara Quill.md'), title: 'Mara Quill', via: 'Owner' },
+  ],
+  outgoing: [
+    {
+      path: createVaultPath('Projects/Larkspur Payroll.md'),
+      title: 'Larkspur Payroll',
+      via: 'Project',
+    },
+  ],
+};
+
+const ASIDE_HEADINGS: readonly OutlineHeading[] = [
+  { text: 'What happens', level: 2, at: [1] },
+  { text: 'Steps', level: 3, at: [3] },
+  { text: 'Expected', level: 3, at: [6] },
+  { text: 'The one-overlay rule', level: 2, at: [8] },
+];
+
+/** The aside with its tabs live; the Claude tab is the chat's seat until 8b moves it in. */
+function RightSidebarSpecimen({ tab: first }: { tab: AsideTab }) {
+  const [tab, setTab] = useState<AsideTab>(first);
+  return (
+    <div className="shell__aside gallery-page__aside">
+      <RightSidebar
+        tab={tab}
+        onSelectTab={setTab}
+        onHide={() => {}}
+        panels={{
+          properties: (
+            <PropertiesPane
+              context="Task · selected row"
+              title="Cmd+N and Shift+Cmd+D still fire behind an open palette"
+              typeName="task"
+              rows={ASIDE_ROWS}
+              relationChoices={{}}
+              onChange={() => {}}
+              summary="The one-overlay rule (apps/desktop/src/overlay.ts) keeps a second palette out, but the note-making shortcuts are not overlays and go straight through."
+              onOpen={() => {}}
+              onOpenInNewTab={() => {}}
+            />
+          ),
+          backlinks: (
+            <BacklinksPane
+              links={ASIDE_LINKS}
+              mentions={{ kind: 'idle' }}
+              onOpen={() => {}}
+              onFindMentions={() => {}}
+              onLinkMention={() => {}}
+            />
+          ),
+          outline: <OutlinePane headings={ASIDE_HEADINGS} onJump={() => {}} />,
+          claude: <p className="aside__empty">The chat moves here in slice 8b.</p>,
+        }}
+      />
+    </div>
+  );
+}
+
 function Specimens() {
   const [view, setView] = useState<'board' | 'table' | 'calendar'>('board');
   const [on, setOn] = useState(true);
@@ -310,6 +407,12 @@ function Specimens() {
       <Row title="Tab strip">
         <TabStripSpecimen focused />
         <TabStripSpecimen focused={false} />
+      </Row>
+
+      <Row title="Right sidebar">
+        <RightSidebarSpecimen tab="properties" />
+        <RightSidebarSpecimen tab="backlinks" />
+        <RightSidebarSpecimen tab="outline" />
       </Row>
 
       <Row title="Elevation">

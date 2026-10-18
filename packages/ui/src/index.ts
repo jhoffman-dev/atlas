@@ -1,4 +1,15 @@
 export { AppShell, PaneSplit } from './app-shell.tsx';
+export { BacklinksPane } from './aside/backlinks-pane.tsx';
+export {
+  ASIDE_COLLAPSES_BELOW,
+  ASIDE_COLLAPSES_BELOW_ALONE,
+  ASIDE_WIDTH,
+  collapseFor,
+} from './aside/collapse.ts';
+export { OutlinePane } from './aside/outline-pane.tsx';
+export { PropertiesPane } from './aside/properties-pane.tsx';
+export { RightSidebar } from './aside/right-sidebar.tsx';
+export type { AsideTab } from './aside/right-sidebar.tsx';
 export { IndexSettings, indexStatusText } from './index-status.tsx';
 export { ImageSettings } from './image-settings.tsx';
 export { GlobalCaptureSettings } from './global-capture-settings.tsx';

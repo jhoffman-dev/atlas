@@ -17,6 +17,7 @@ export function AppShell({
   sidebarOpen = true,
   onShowSidebar,
   aside = null,
+  asideOpen = true,
 }: {
   sidebar: ReactNode;
   /**
@@ -47,8 +48,13 @@ export function AppShell({
   sidebarOpen?: boolean;
   /** Given when the app offers a way back to a hidden sidebar. */
   onShowSidebar?: () => void;
-  /** A side pane beside the work — the chat — or null for none. */
+  /** The right sidebar beside the work — or, until slice 8b, the chat — or null for none. */
   aside?: ReactNode;
+  /**
+   * Whether the aside is shown. Closed, it is not in the page at all, so
+   * nothing in it can hold the focus or be read; the app remembers the state.
+   */
+  asideOpen?: boolean;
 }) {
   const work =
     main === null ? (
@@ -59,8 +65,17 @@ export function AppShell({
       </PaneSplit>
     );
 
+  const asideShown = aside !== null && asideOpen;
+  const className = [
+    'shell',
+    sidebarOpen ? null : 'shell--narrow',
+    asideShown ? 'shell--aside' : null,
+  ]
+    .filter((name) => name !== null)
+    .join(' ');
+
   return (
-    <div className={sidebarOpen ? 'shell' : 'shell shell--narrow'}>
+    <div className={className}>
       {sidebarOpen && (
         <nav className="shell__sidebar" aria-label="Vault">
           {sidebar}
@@ -82,7 +97,7 @@ export function AppShell({
         )}
         {floating}
       </main>
-      {aside !== null && <div className="shell__aside">{aside}</div>}
+      {asideShown && <div className="shell__aside">{aside}</div>}
       <div className="visually-hidden" role="status">
         {status}
       </div>

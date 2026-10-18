@@ -6,6 +6,7 @@
 @import './tokens.css';
 @import './primitives.css';
 @import './shell.css';
+@import './aside.css';
 @import './tabs.css';
 @import './sidebar.css';
 @import './editor.css';

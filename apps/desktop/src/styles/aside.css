@@ -1,0 +1,300 @@
+/* The right sidebar (UI v2 slice 8a, brief §5.3, design/target/FlowTable.dc.html
+   and FlowType.dc.html). One of the section files styles/index.css imports in
+   cascade order, after shell.css: it dresses `RightSidebar` and its panes in
+   packages/ui/src/aside/ and nothing else. */
+
+/* ---- The slot ------------------------------------------------------------
+   Fixed widths behind one token (plan §4, question 18): 300px for Properties,
+   Backlinks and Outline; 340px for the type editor, which slice 12 marks with
+   `.aside--type`. The slot is measured, not the aside, so the token is read on
+   the slot; the chat keeps its own width until 8b moves it into a tab. */
+
+.shell__aside:has(> .aside) {
+  --aside-width: 300px;
+
+  width: var(--aside-width);
+}
+
+.shell__aside:has(> .aside--type) {
+  --aside-width: 340px;
+}
+
+/* ---- The aside -----------------------------------------------------------
+   On the surface, behind a hairline to its left; the tab row, then the panel,
+   which scrolls on its own. */
+
+.aside {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* 36px on the sidebar's `bg` over a hairline, as the tab strip is: the tabs,
+   then the × at the row's end. */
+.aside__bar {
+  align-items: stretch;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex: none;
+  gap: 2px;
+  height: 36px;
+  padding: 0 6px 0 10px;
+}
+
+.aside__tabs {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* An underline tab: ink and 500 when selected, over the row's hairline. */
+.aside__tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-column);
+  margin-bottom: -1px;
+  padding: 0 6px;
+}
+
+.aside__tab:hover {
+  color: var(--ink);
+}
+
+.aside__tab[aria-selected='true'] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.aside__tab:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.aside__hide {
+  align-self: center;
+  border-radius: var(--radius-row);
+  color: var(--ink-3);
+  height: 26px;
+  width: 26px;
+}
+
+.aside__panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* What every pane shares: a kicker and a title block, a hairline block, an
+   empty line, and the foot's buttons. */
+.aside__head {
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 10px;
+}
+
+.aside__kicker {
+  color: var(--ink-3);
+  font-size: var(--text-header);
+  font-weight: 500;
+}
+
+.aside__title {
+  font-size: var(--text-body-lg);
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.aside__block {
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+}
+
+.aside__summary {
+  color: var(--ink-2);
+  font-size: var(--text-column);
+  line-height: var(--leading-body);
+  margin: 0;
+}
+
+.aside__empty {
+  color: var(--ink-3);
+  font-size: var(--text-column);
+  margin: 0;
+  padding: 12px 16px;
+}
+
+.aside__foot {
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex: none;
+  gap: 6px;
+  margin-top: auto;
+  padding: 10px 12px;
+}
+
+.aside__foot-button {
+  flex: 1;
+  gap: 6px;
+  height: 28px;
+}
+
+.aside__foot-button .key {
+  color: var(--ink-3);
+}
+
+/* ---- Properties ----------------------------------------------------------
+   The page's rows at the aside's density: 30px tall, a 92px label without
+   its glyph, the value beside it. */
+
+.aside-props {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.aside-props__rows {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+}
+
+.aside-props .props__row {
+  margin: 0;
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.aside-props .props__label {
+  font-size: var(--text-column);
+  font-weight: 400;
+  width: 92px;
+}
+
+.aside-props .props__label .icon {
+  display: none;
+}
+
+.aside-props .props__add {
+  margin: 0;
+}
+
+.aside-props__fold {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-row);
+  color: var(--ink-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-meta);
+  height: 28px;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.aside-props__fold:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.aside-props__fold:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* ---- Backlinks -----------------------------------------------------------
+   The page's link groups, open, with the aside's edge padding. */
+
+.aside-links {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 16px;
+}
+
+/* ---- Outline -------------------------------------------------------------
+   One 28px row per heading, stepped in 12px per level under the shallowest. */
+
+.aside-outline {
+  padding: 8px 8px;
+}
+
+.aside-outline__list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.aside-outline__heading {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-row);
+  color: var(--ink-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-column);
+  min-height: 28px;
+  overflow: hidden;
+  padding: 0 8px;
+  padding-left: calc(8px + 12px * var(--outline-depth, 0));
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.aside-outline__item[data-depth='1'] {
+  --outline-depth: 1;
+}
+
+.aside-outline__item[data-depth='2'] {
+  --outline-depth: 2;
+}
+
+.aside-outline__item[data-depth='3'] {
+  --outline-depth: 3;
+}
+
+.aside-outline__item[data-depth='4'] {
+  --outline-depth: 4;
+}
+
+.aside-outline__item[data-depth='5'] {
+  --outline-depth: 5;
+}
+
+.aside-outline__heading:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.aside-outline__heading:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
