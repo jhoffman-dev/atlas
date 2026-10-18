@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
-import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
+import {
+  INBOX_OFFERS_WAIT_MS,
+  InboxPage,
+  type InboxContents,
+  type InboxPageProps,
+} from './inbox-page.tsx';
 import type { RelationChoice } from './properties-panel.tsx';
 
 /** A captured task, as the Inbox reads one that says nothing yet but its status. */
@@ -633,5 +638,89 @@ describe('InboxPage — an offer read late does not move the ones already shown 
   it('keeps the usual order for the offers read together', () => {
     page({ meetingProjects: MEETING_PROJECTS, typesOffer: TYPES_OFFER });
     expect(precedes(typesOffer(), meetingOffer())).toBe(true);
+  });
+});
+
+describe('InboxPage — nothing moves under the pointer once the rows are drawn (#130)', () => {
+  const VAULT_TIDY: NonNullable<InboxPageProps['vaultTidy']> = {
+    preview: {
+      moves: [{ from: 'Loose idea.md', to: 'Notes/2026/Loose idea.md' }],
+      refused: [],
+    },
+    open: false,
+    busy: false,
+    result: null,
+    problem: null,
+    onOpen: vi.fn(),
+    onApply: vi.fn(),
+    onClose: vi.fn(),
+    onDismiss: vi.fn(),
+  };
+  /** The tidy while the vault is still read for it: nothing known to offer yet. */
+  const READING = { ...VAULT_TIDY, preview: null, reading: true };
+  const TYPES_OFFER: NonNullable<InboxPageProps['typesOffer']> = {
+    lines: ['Task gains Project, linking project or area notes.'],
+    onAccept: vi.fn(),
+    onDismiss: vi.fn(),
+  };
+  const tidyOffer = () => screen.queryByRole('region', { name: 'Tidy the vault' });
+  const firstRow = () => screen.queryByRole('button', { name: 'Call the bank' });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('holds the rows back while an offer is still being read, then draws them below it', () => {
+    const view = page({ vaultTidy: READING, proposals: PROPOSALS });
+    expect(firstRow()).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Proposals' })).toBeNull();
+    expect(screen.queryByText('Reading the Inbox…')).not.toBeNull();
+
+    view.rerender({ vaultTidy: VAULT_TIDY, proposals: PROPOSALS });
+    const offer = tidyOffer();
+    const row = firstRow();
+    expect(offer).not.toBeNull();
+    expect(row).not.toBeNull();
+    expect((offer!.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(
+      true,
+    );
+  });
+
+  it('draws the rows anyway once a slow read has had its time, and keeps that offer back', () => {
+    vi.useFakeTimers();
+    const view = page({ vaultTidy: READING });
+    expect(firstRow()).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_WAIT_MS);
+    });
+    expect(firstRow()).not.toBeNull();
+
+    view.rerender({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).toBeNull();
+    expect(firstRow()).not.toBeNull();
+  });
+
+  it('keeps back an offer that arrives after the rows are drawn, so it cannot push them down', () => {
+    const view = page();
+    expect(firstRow()).not.toBeNull();
+    view.rerender({ typesOffer: TYPES_OFFER });
+    expect(screen.queryByRole('complementary', { name: /Set your types up/ })).toBeNull();
+    expect(firstRow()).not.toBeNull();
+  });
+
+  it('still changes an offer already shown, as the person answers it', () => {
+    const view = page({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).not.toBeNull();
+    view.rerender({ vaultTidy: { ...VAULT_TIDY, preview: null, result: 'Tidied the vault.' } });
+    expect(within(tidyOffer()!).getByRole('status').textContent).toBe('Tidied the vault.');
+  });
+
+  it('shows the offers kept back the next time the Inbox opens', () => {
+    const view = page();
+    view.rerender({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).toBeNull();
+    view.unmount();
+    page({ vaultTidy: VAULT_TIDY });
+    expect(tidyOffer()).not.toBeNull();
   });
 });

@@ -165,3 +165,19 @@ describe('useTaskMigration — the undo is offered once (#163)', () => {
     expect(await relaunched(Object.fromEntries(files))).toBeNull();
   });
 });
+
+describe('useTaskMigration — while its preview is read (#130)', () => {
+  it('says it is still reading until the preview is back, so the Inbox can hold its rows', async () => {
+    const { hook } = setup();
+    expect(hook.result.current?.reading).toBe(true);
+    expect(hook.result.current?.preview).toBeNull();
+    await waitFor(() => expect(hook.result.current?.preview?.tasks).toHaveLength(2));
+    expect(hook.result.current?.reading).toBe(false);
+  });
+
+  it('says nothing while the Inbox is not showing', async () => {
+    const { hook } = setup({ open: false });
+    await act(async () => {});
+    expect(hook.result.current).toBeNull();
+  });
+});

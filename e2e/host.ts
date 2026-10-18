@@ -383,6 +383,12 @@ export interface FakeHost {
    * called, so an editor's save can be caught mid-way without racing a timer.
    */
   holdWrites(relativePath: string): () => void;
+  /**
+   * Holds every read of this file in flight — on its own or in a batch —
+   * until the returned function is called, so a test can make one of the
+   * app's reads land late without racing a timer (#130).
+   */
+  holdReads(relativePath: string): () => void;
   /** What the app has put in the Trash, by vault path, in order. */
   trashed(): readonly string[];
   /** Every link the app asked the host to open in the browser, in order. */
@@ -592,6 +598,8 @@ export async function installHost(
   const writes = new Map<string, number>();
   /** Files whose writes wait, and what lets them go. */
   const held = new Map<string, Promise<void>>();
+  /** Files whose reads wait, and what lets them go. */
+  const heldReads = new Map<string, Promise<void>>();
   const countWrite = (relative: string) => writes.set(relative, (writes.get(relative) ?? 0) + 1);
   /** The last text write, which the next one waits for. */
   let textWriteTail: Promise<unknown> = Promise.resolve();
@@ -878,6 +886,7 @@ export async function installHost(
       case 'read_notes': {
         const { readFile, stat: statFile } = await import('node:fs/promises');
         const wanted = (args as { paths: string[] }).paths;
+        await Promise.all(wanted.map((relative) => heldReads.get(relative)));
         const files = [];
         for (const relative of wanted) {
           try {
@@ -1392,6 +1401,7 @@ export async function installHost(
         return entries.filter((entry) => entry !== null);
       }
       case 'read_text_file': {
+        await heldReads.get(path);
         const file = containedPath(openRoot(), path);
         const { readFile, stat: statFile } = await import('node:fs/promises');
         // A note that is not there is refused with a message, as the real
@@ -1833,6 +1843,14 @@ export async function installHost(
       held.set(relativePath, new Promise<void>((resolve) => (release = resolve)));
       return () => {
         held.delete(relativePath);
+        release();
+      };
+    },
+    holdReads(relativePath) {
+      let release: () => void = () => {};
+      heldReads.set(relativePath, new Promise<void>((resolve) => (release = resolve)));
+      return () => {
+        heldReads.delete(relativePath);
         release();
       };
     },
