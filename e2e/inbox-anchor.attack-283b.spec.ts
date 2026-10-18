@@ -365,6 +365,8 @@ test('resizing the window while scrolled down the list keeps the row in the midd
   await page.setViewportSize({ width: 760, height: 720 });
   await settle(page, 30);
   expect(Math.abs((await rowTop(page, title))! - before!)).toBeLessThanOrEqual(1);
+  // A reflow is held but is not news (added in the last fix round, #130).
+  await expect(newAbove(page)).toHaveCount(0);
 });
 
 const GTD_TASK_TYPE = [

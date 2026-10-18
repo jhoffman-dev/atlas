@@ -709,6 +709,24 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     expect(firstRow()).not.toBeNull();
   });
 
+  it('holds the rows with no time limit while an offer waits for the index, then runs the limit once it is ready', () => {
+    vi.useFakeTimers();
+    const waiting = { ...READING, waitingForIndex: true };
+    const view = page({ vaultTidy: waiting });
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_WAIT_MS * 20);
+    });
+    // Still drawn in place, unseen and out of reach: a vault just opened has no index yet.
+    expect(firstRow()).toBeNull();
+    expect(screen.getByText('Call the bank').closest('[inert]')).not.toBeNull();
+
+    view.rerender({ vaultTidy: READING });
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_WAIT_MS);
+    });
+    expect(firstRow()).not.toBeNull();
+  });
+
   it('shows an offer that arrives after the rows are drawn, without waiting for the next open', () => {
     const view = page();
     expect(firstRow()).not.toBeNull();

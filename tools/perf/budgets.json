@@ -8,8 +8,8 @@
   ],
   "actions": {
     "Open a vault": {
-      "commits": 132,
-      "renders": 6331,
+      "commits": 120,
+      "renders": 4659,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -22,14 +22,14 @@
         "index_notes_of_type": 6,
         "index_open": 3,
         "index_put": 47,
-        "index_query": 140,
+        "index_query": 138,
         "index_rebuild_views": 3,
         "index_stats": 4,
-        "list_directory": 62,
+        "list_directory": 77,
         "list_notes": 8,
         "open_vault": 3,
         "pick_vault": 3,
-        "read_notes": 92,
+        "read_notes": 79,
         "read_text_file": 3,
         "watch_vault": 3,
         "write_text_file": 3
@@ -126,7 +126,7 @@
     },
     "Open the Inbox": {
       "commits": 9,
-      "renders": 655,
+      "renders": 619,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
@@ -136,8 +136,8 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 32,
-      "renders": 2332,
+      "commits": 29,
+      "renders": 1827,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,

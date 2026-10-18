@@ -24,12 +24,18 @@ import { useListAnchor, type ListAnchorParts } from './list-anchor.ts';
 const NO_REFUSALS: readonly InboxRefusal[] = [];
 
 /**
- * How long the Inbox holds its rows back for an offer still being read (#130).
- * The offers are read once the index is ready, before the Inbox opens, so this
- * is rarely waited at all; an offer read later than this lands above rows
- * already shown, and they are held still on screen as it does.
+ * How long the Inbox holds its rows back for an offer still being read (#130),
+ * once none is waiting for the index (that wait has no limit). Most offers are
+ * read ahead of the Inbox; the tidy walks the vault as it opens. An offer read
+ * later lands above rows already shown, and they are held still as it does.
+ *
+ * Timed in the page on the 2,000-note fixture, first open: main 72 ms; a
+ * 300 ms hold 319 ms, and it still did not keep the heading from moving 68 px
+ * when the tidy's walk outlasted it; 100 ms, 117 ms; no hold, 78 ms, but a
+ * resize at the top and a vault switch then move what they must not. James
+ * may want to revisit it.
  */
-export const INBOX_OFFERS_WAIT_MS = 300;
+export const INBOX_OFFERS_WAIT_MS = 100;
 
 /**
  * The proposals and rows, laid out as if the wrapper were not there. Held
