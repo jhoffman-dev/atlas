@@ -503,7 +503,6 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     vaultKey,
-    changeKey: indexKey,
     syncedThisSession: sync.syncedThisSession,
     syncPulls: sync.syncPulls,
     catchUpIndex,
@@ -628,7 +627,7 @@ function AppWindow({
     types,
     notePaths,
     vaultKey: location?.absolutePath ?? null,
-    changeKey: indexKey,
+    indexReady,
   });
 
   /** The page open over the panes, if any: a type's, the graph, or the query page. */
@@ -794,7 +793,6 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
-    changeKey: indexKey,
     activity: activityLog,
   });
   const selfEmailsSetting = useSelfEmailsSetting({
@@ -1259,14 +1257,12 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
-    changeKey: indexKey,
     activity: activityLog,
   });
   const sidebarOrder = useSidebarOrder({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
-    changeKey: indexKey,
     activity: activityLog,
   });
   const secrets = useSecrets({
@@ -1283,7 +1279,6 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
     vault: vaultKey,
-    changeKey: indexKey,
     active: overlay === 'settings',
     activity: activityLog,
   });
@@ -1294,7 +1289,6 @@ function AppWindow({
     links,
     fs: vault.fs,
     markdown: notes.markdown,
-    changeKey: indexKey,
   });
   const quickAddPorts = useMemo(
     () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),

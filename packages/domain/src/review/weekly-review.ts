@@ -17,6 +17,12 @@ export interface ReviewTask {
   readonly due: string | null;
   /** `YYYY-MM-DD`: the day it comes back into play; null when it is not deferred. */
   readonly defer: string | null;
+  /**
+   * How it repeats, as its `recurrence` says; null when it does not. Absent
+   * when the read did not say, so a change worked out from it — finishing it,
+   * which rolls a repeating task on — cannot be known before it is written.
+   */
+  readonly recurrence?: string | null;
   /** Who it waits on, as its `waiting_on` names them; '' for nobody. */
   readonly waitingOn: string;
   /** Its `contexts`, as written, in order; none when it has none. */

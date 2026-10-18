@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  loadSelfEmails,
   saveSelfEmails,
   suggestSelfEmails,
   type ActivityLog,
@@ -8,9 +7,10 @@ import {
   type MarkdownPort,
   type VaultFsPort,
 } from '@atlas/application';
-import { selfEmailsFromText, type SelfEmails } from '@atlas/domain';
+import { parseSelfEmails, selfEmailsFromText, type SelfEmails } from '@atlas/domain';
 import type { SelfEmailsView } from '@atlas/ui';
 import { useVaultSetting } from '../settings/use-vault-setting.ts';
+import { useVaultSettingsRead } from '../settings/use-vault-settings-read.ts';
 import { vaultSettingsWriter } from '../settings/vault-settings-writer.ts';
 
 /** Settings → Profile's addresses, and the addresses everything that asks who the owner is reads. */
@@ -96,11 +96,18 @@ function usePersonNoteEmails({
   indexReady: boolean;
 }): PersonNoteEmails {
   const [found, setFound] = useState<Said<readonly string[]> | null>(null);
+  const { settings, unreadable } = useVaultSettingsRead({ fs, markdown, vaultKey: vault });
   useEffect(() => {
     // People are read from the index: asked of one still being built, it would be built twice.
     if (vault === null || !indexReady) return;
+    if (unreadable !== null) {
+      console.error('The Person note’s addresses could not be read:', unreadable);
+      setFound({ vault, value: NO_EMAILS });
+      return;
+    }
+    if (settings === undefined) return;
     let live = true;
-    suggestSelfEmails({ fs, markdown, index }).then(
+    suggestSelfEmails({ settings, index }).then(
       (emails) => live && setFound({ vault, value: emails }),
       (cause: unknown) => {
         console.error('The Person note’s addresses could not be read:', cause);
@@ -110,7 +117,7 @@ function usePersonNoteEmails({
     return () => {
       live = false;
     };
-  }, [fs, markdown, index, vault, changeKey, indexReady]);
+  }, [settings, unreadable, index, vault, changeKey, indexReady]);
   return found?.vault === vault ? found.value : null;
 }
 
@@ -141,13 +148,19 @@ export function useSelfEmailsSetting({
   /** Where a save that fails is recorded. */
   activity: Pick<ActivityLog, 'inOpenVault'>;
 }): SelfEmailsSetting {
-  const load = useCallback(() => loadSelfEmails({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
     ({ emails }: SelfEmails) =>
       saveSelfEmails({ settings: vaultSettingsWriter({ fs, markdown }), emails }),
     [fs, markdown],
   );
-  const setting = useVaultSetting({ load, store, vaultKey, changeKey, activity });
+  const setting = useVaultSetting({
+    fs,
+    markdown,
+    parse: parseSelfEmails,
+    store,
+    vaultKey,
+    activity,
+  });
   const personNote = usePersonNoteEmails({
     fs,
     markdown,

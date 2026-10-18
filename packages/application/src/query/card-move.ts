@@ -15,7 +15,7 @@ export interface CardPlacement {
 }
 
 /** What decides a card's move: where it goes, and the type's rule for finishing work. */
-interface CardMove {
+export interface CardMove {
   column: CardPlacement | null;
   lane: CardPlacement | null;
   /** The type's status, or null when nothing in the type means finished. */
@@ -65,7 +65,7 @@ export function movesToDone(move: CardMove): boolean {
 }
 
 /** The rule the move finishes the task by, or null when it finishes nothing. */
-function finishingRule(move: CardMove): CompletionRule | null {
+export function finishingRule(move: CardMove): CompletionRule | null {
   const rule = completionRule(move);
   if (rule === null) return null;
   const placed = [move.column, move.lane].find((placement) => placement?.key === rule.statusKey);

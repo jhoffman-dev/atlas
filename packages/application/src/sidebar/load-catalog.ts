@@ -84,18 +84,31 @@ export async function loadSidebarCatalog({
   markdown: MarkdownPort;
   index: IndexPort;
 }): Promise<SidebarCatalog> {
-  const [indexed, { notes: inAtlas, inViewsFolder }] = await Promise.all([
-    markedNotes(index),
-    readAtlas({ fs, markdown }),
+  const [indexed, atlas] = await Promise.all([
+    readSidebarMarks(index),
+    readAtlasFolder({ fs, markdown }),
   ]);
+  return sidebarCatalogOf({ indexed, atlas });
+}
 
+/**
+ * The catalogue made of its two reads, which a window keeps apart: the marks
+ * change with the index, the walk only with a file under `.atlas` (#293).
+ */
+export function sidebarCatalogOf({
+  indexed,
+  atlas,
+}: {
+  indexed: MarkedNotes;
+  atlas: AtlasWalk;
+}): SidebarCatalog {
   const views: SidebarEntry[] = [];
   const dashboards: SidebarEntry[] = [];
   const favorites: SidebarEntry[] = [];
   const savedViews: SavedViewSummary[] = [];
   const queryViews: QueryViewSummary[] = [];
 
-  for (const [path, { properties, title }] of new Map([...indexed, ...inAtlas])) {
+  for (const [path, { properties, title }] of new Map([...indexed, ...atlas.notes])) {
     const { mark: marked, favorite, icon } = classifySidebarNote(properties);
     // A template wears the mark of what it makes; it is still only a template.
     const mark = isTemplateNote(path) ? null : marked;
@@ -120,7 +133,10 @@ export async function loadSidebarCatalog({
     quick,
     savedViews,
     queryViews,
-    takenViewPaths: takenViewPaths({ listed: inViewsFolder, views: [...views, ...savedViews] }),
+    takenViewPaths: takenViewPaths({
+      listed: atlas.inViewsFolder,
+      views: [...views, ...savedViews],
+    }),
   };
 }
 
@@ -128,7 +144,7 @@ export async function loadSidebarCatalog({
  * The marks the index knows about, gathered back into frontmatter — one entry
  * per note, holding only the keys the sidebar asked about.
  */
-async function markedNotes(index: IndexPort): Promise<MarkedNotes> {
+export async function readSidebarMarks(index: IndexPort): Promise<MarkedNotes> {
   const marks = new Map<VaultPath, MarkedNote>();
 
   const { sql, parameters } = compileSidebarQuery();
@@ -165,16 +181,17 @@ export async function atlasNotes(ports: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
 }): Promise<MarkedNotes> {
-  return (await readAtlas(ports)).notes;
+  return (await readAtlasFolder(ports)).notes;
 }
 
 /** What one walk of `.atlas` finds: its notes, and every entry in the views folder. */
-interface AtlasWalk {
+export interface AtlasWalk {
   readonly notes: MarkedNotes;
   readonly inViewsFolder: readonly VaultPath[];
 }
 
-async function readAtlas({
+/** Walks `.atlas` and reads every note in it, for the sidebar's catalogue. */
+export async function readAtlasFolder({
   fs,
   markdown,
 }: {

@@ -9,6 +9,8 @@ import {
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useSelfEmailsSetting } from './use-self-emails-setting.ts';
+import { readAgain, vaultReadKey } from '../reads/query-client.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 /** #173: Settings → Profile keeps the owner's addresses as `selfEmails`, the one source. */
 
@@ -51,7 +53,8 @@ function vaultWith(settings: string | null = '---\nprofileName: Mara Quill\n---\
 }
 
 function render(vault = vaultWith()) {
-  return renderHook(
+  const { wrapper, client } = queryWrapper();
+  const hook = renderHook(
     ({ changeKey }: { changeKey: string }) =>
       useSelfEmailsSetting({
         fs: vault.fs,
@@ -61,8 +64,11 @@ function render(vault = vaultWith()) {
         changeKey,
         activity: recordingActivity(),
       }),
-    { initialProps: { changeKey: '0' } },
+    { wrapper, initialProps: { changeKey: '0' } },
   );
+  /** The settings note changed: the window reads it again, as its reads say for its path. */
+  const settingsChanged = () => act(() => readAgain(client, vaultReadKey(VAULT, 'settings')));
+  return Object.assign(hook, { settingsChanged });
 }
 
 describe('useSelfEmailsSetting', () => {
@@ -236,7 +242,7 @@ describe('useSelfEmailsSetting', () => {
     await waitFor(() => expect(hook.result.current.emails).toEqual(['mara@example.com']));
 
     vault.file.unreadable = true;
-    hook.rerender({ changeKey: '1' });
+    await hook.settingsChanged();
 
     await waitFor(() => expect(hook.result.current.problem).toContain('could not be read'));
     expect(hook.result.current.emails).toEqual([]);
@@ -270,7 +276,7 @@ describe('useSelfEmailsSetting', () => {
     expect(hook.result.current.emails).toBe(first);
   });
 
-  it('hands out the same addresses, unchanged, after a vault change that leaves the kept ones as they were', async () => {
+  it('hands out the same addresses, unchanged, after the settings note is read again and keeps them as they were', async () => {
     const vault = vaultWith('---\nselfEmails:\n  - mara@example.com\n---\n');
     let reads = 0;
     const readNotes = vault.fs.readNotes;
@@ -282,7 +288,7 @@ describe('useSelfEmailsSetting', () => {
     const first = hook.result.current.emails;
     const before = reads;
 
-    hook.rerender({ changeKey: '1' });
+    await hook.settingsChanged();
     await waitFor(() => expect(reads).toBeGreaterThan(before));
     await act(async () => undefined);
 
@@ -295,7 +301,7 @@ describe('useSelfEmailsSetting', () => {
     await waitFor(() => expect(hook.result.current.emails).toEqual(['mara@example.com']));
 
     vault.file.text = '---\nselfEmails:\n  - mara@example.com\n  - mq@example.com\n---\n';
-    hook.rerender({ changeKey: '1' });
+    await hook.settingsChanged();
 
     await waitFor(() =>
       expect(hook.result.current.emails).toEqual(['mara@example.com', 'mq@example.com']),

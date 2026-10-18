@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import {
   isSidebarSectionId,
@@ -19,6 +19,7 @@ import { SortableList } from './sortable-list.tsx';
 import { TypeRowMenu, type TypeMenuAnchor } from './type-row-menu.tsx';
 import { useReorderTransition } from './reorder-transition.ts';
 import { useSidebarSections, type SectionOrder, type SectionStore } from './sidebar-sections.ts';
+import { useSteadyCallback } from './steady-callback.ts';
 
 /** One of the vault's types, with how many notes declare it. */
 export interface SidebarType {
@@ -165,15 +166,23 @@ export function Sidebar({
   // mounted (see useScrollMargin).
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const beforeReorder = useReorderTransition(root);
-  const open = new Set<string>(active?.kind === 'note' ? [active.path] : []);
+  const openPaths = active?.kind === 'note' ? [active.path] : [];
   // The Archive is a page of its own; its row in Pages is where it is marked.
   if (active?.kind === 'archive') {
-    for (const row of tree.rows) if (row.opensArchive) open.add(row.entry.path);
+    for (const row of tree.rows) if (row.opensArchive) openPaths.push(row.entry.path);
   }
+  const open = useSameSet(openPaths);
   const openTypeName = active?.kind === 'type' ? active.name : null;
   // The favourites section is the list of favourites, so nothing else has to be
   // told which notes are starred.
-  const starred = new Set<string>(favorites.map((entry) => entry.path));
+  const starred = useSameSet(favorites.map((entry) => entry.path));
+  // The lists are drawn with `memo`, and the app hands over new handlers on
+  // every render: these stay the same and call the latest (#293).
+  const openEntry = useSteadyCallback(onOpen);
+  const toggleFavorite = useSteadyCallback(onToggleFavorite);
+  const openType = useSteadyCallback(onOpenType);
+  const editType = useSteadyCallback((name: string) => onEditType?.(name));
+  const editTemplate = useSteadyCallback((name: string) => onEditTemplate?.(name));
 
   const list = (entries: readonly SidebarEntry[], empty: string) => (
     <EntryList
@@ -181,8 +190,8 @@ export function Sidebar({
       empty={empty}
       open={open}
       starred={starred}
-      onOpen={onOpen}
-      onToggleFavorite={onToggleFavorite}
+      onOpen={openEntry}
+      onToggleFavorite={toggleFavorite}
     />
   );
 
@@ -206,9 +215,9 @@ export function Sidebar({
         <TypeList
           types={types}
           openTypeName={openTypeName}
-          onOpenType={onOpenType}
-          {...(onEditType !== undefined && { onEditType })}
-          {...(onEditTemplate !== undefined && { onEditTemplate })}
+          onOpenType={openType}
+          {...(onEditType !== undefined && { onEditType: editType })}
+          {...(onEditTemplate !== undefined && { onEditTemplate: editTemplate })}
         />
       ),
     },
@@ -523,7 +532,17 @@ function ActivityQuickRow({ onOpen, unseenErrors, on }: ActivityRowLink & { on: 
   );
 }
 
-function TypeList({
+/**
+ * The same set from one render to the next while it holds the same paths, so
+ * a list drawn with `memo` is not drawn again for a set made anew.
+ */
+function useSameSet(paths: readonly string[]): ReadonlySet<string> {
+  const spelled = JSON.stringify(paths);
+  return useMemo(() => new Set<string>(JSON.parse(spelled) as string[]), [spelled]);
+}
+
+/** Drawn again only for a change of its own: its types, the one open, or its handlers' presence. */
+const TypeList = memo(function TypeList({
   types,
   openTypeName,
   onOpenType,
@@ -618,7 +637,7 @@ function TypeList({
       )}
     </>
   );
-}
+});
 
 /** What a section holds, apart from its heading. */
 interface SectionBody {
@@ -676,7 +695,8 @@ function Section({
   );
 }
 
-function EntryList({
+/** Drawn again only for a change of its own: its entries, or which of them is open or starred. */
+const EntryList = memo(function EntryList({
   entries,
   empty,
   open,
@@ -719,7 +739,7 @@ function EntryList({
       ))}
     </ul>
   );
-}
+});
 
 /** A section's "+": a small button at the heading's end, opening what can be made there. */
 function SectionMenu({ menu }: { menu: HeaderMenu }) {

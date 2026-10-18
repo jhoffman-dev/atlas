@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeVaultFs, type VaultFsPort, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useQuickAddSetting } from '../quick-add/use-quick-add-setting.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { useSidebarOrder } from './use-sidebar-order.ts';
 
 /** Where the hooks under test record what they give up on; these tests do not read it. */
@@ -42,25 +43,23 @@ function hostLikeVault(initial: string | null) {
 }
 
 /** Both settings the sidebar and the add button keep, as the app mounts them side by side. */
-const renderBoth = (fs: VaultFsPort, changeKey = '0') =>
+const renderBoth = (fs: VaultFsPort) =>
   renderHook(
-    ({ key }) => ({
+    () => ({
       order: useSidebarOrder({
         fs,
         markdown: remarkMarkdown,
         vaultKey: 'v',
-        changeKey: key,
         activity: ACTIVITY,
       }),
       quickAdd: useQuickAddSetting({
         fs,
         markdown: remarkMarkdown,
         vaultKey: 'v',
-        changeKey: key,
         activity: ACTIVITY,
       }),
     }),
-    { initialProps: { key: changeKey } },
+    { wrapper: queryWrapper().wrapper },
   );
 
 describe('sidebar order and quick add, sharing .atlas/settings.md', () => {
@@ -128,22 +127,22 @@ describe('useSidebarOrder while a save is in flight', () => {
         return file.modified;
       },
     });
+    const { wrapper, client } = queryWrapper();
     const hook = renderHook(
-      ({ key }) =>
+      () =>
         useSidebarOrder({
           fs,
           markdown: remarkMarkdown,
           vaultKey: 'v',
-          changeKey: key,
           activity: ACTIVITY,
         }),
-      { initialProps: { key: '0' } },
+      { wrapper },
     );
     await waitFor(() => expect(hook.result.current.order.saved).toEqual(['views']));
 
     act(() => hook.result.current.order.onChange?.(['types', 'views']));
-    // Any other file in the vault changes (the index key moves) while the write is held.
-    hook.rerender({ key: '1' });
+    // The settings note is read again (another setting's change) while the write is held.
+    void client.invalidateQueries();
     await act(async () => {
       await new Promise((settle) => setTimeout(settle, 0));
     });

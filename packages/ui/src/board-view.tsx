@@ -22,8 +22,10 @@ import type { GroupFolds } from './group-folds.ts';
 import { boardWords } from './drag/announcements.ts';
 import { dropTargetUnder, snapToDropTarget, useDragSensors } from './drag/dnd.ts';
 import { useFocusFollower, type FocusFollower } from './drag/focus.ts';
-import { boardStep, laneStep } from './drag/snapping.ts';
+import { boardStep, laneStep, type Direction } from './drag/snapping.ts';
 import { Icon } from './icon.tsx';
+import { useSteadyCallback } from './steady-callback.ts';
+import { sameEntries, sameItems, useSteadyValue } from './steady-value.ts';
 
 /**
  * A card moved on the board. A key present is a property to write: `value`
@@ -103,16 +105,16 @@ export function BoardView({
     () => (laned ? laneLookup(lanes, shut) : columnLookup(columns)),
     [laned, lanes, shut, columns],
   );
+  // Read as a key is pressed, not made anew with each move: new sensors give
+  // dnd-kit a new context, and every card reading it would be drawn again (#260).
+  const nextTarget = useSteadyCallback((current: string, direction: Direction) =>
+    laned
+      ? laneStep(lookup.grid, current, direction)
+      : boardStep(lookup.grid[0] ?? [], current, direction),
+  );
   const snap = useMemo(
-    () =>
-      snapToDropTarget({
-        next: (current, direction) =>
-          laned
-            ? laneStep(lookup.grid, current, direction)
-            : boardStep(lookup.grid[0] ?? [], current, direction),
-        sideways: !laned,
-      }),
-    [lookup, laned],
+    () => snapToDropTarget({ next: nextTarget, sideways: !laned }),
+    [nextTarget, laned],
   );
   const sensors = useDragSensors(snap);
   const announcements = useMemo(() => boardAnnouncements(lookup), [lookup]);
@@ -120,14 +122,24 @@ export function BoardView({
   const focus = useFocusFollower();
   // Every lane is by one property; a card in a lane does not repeat it.
   const laneBy = laned ? lanes[0]?.group.field : undefined;
-  const lookOf = (column: BoardColumn | undefined): CardLook => ({
-    fields,
-    groupBy,
-    ...(laneBy !== undefined && { laneBy }),
-    kinds,
-    done: column !== undefined && isDoneColumn(column),
-    ...(ticks !== undefined && { ticks }),
-  });
+  // The pane hands these over anew on each of its renders; kept steady, a card
+  // is drawn again only for a change of its own (#260).
+  const steadyFields = useSteadyValue(fields, sameItems);
+  const steadyKinds = useSteadyValue(kinds, sameEntries);
+  const looks = useMemo(() => {
+    const look = (done: boolean): CardLook => ({
+      fields: steadyFields,
+      groupBy,
+      ...(laneBy !== undefined && { laneBy }),
+      kinds: steadyKinds,
+      done,
+      ...(ticks !== undefined && { ticks }),
+    });
+    return { open: look(false), done: look(true) };
+  }, [steadyFields, groupBy, laneBy, steadyKinds, ticks]);
+  const lookOf = (column: BoardColumn | undefined): CardLook =>
+    column !== undefined && isDoneColumn(column) ? looks.done : looks.open;
+  const openNote = useSteadyCallback(onOpenNote);
   const heldHome = held === null ? undefined : lookup.homeOf.get(held.path);
 
   const drop = (event: DragEndEvent) => {
@@ -145,7 +157,7 @@ export function BoardView({
   };
 
   const shared = {
-    onOpenNote,
+    onOpenNote: openNote,
     claimFocus: focus.claim,
     keep: moved,
   };

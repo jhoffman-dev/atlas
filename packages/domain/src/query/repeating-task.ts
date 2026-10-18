@@ -1,3 +1,4 @@
+import type { ObjectType } from '../types/property-def.ts';
 import { nextOccurrence, parseRecurrence } from './recurrence.ts';
 
 /** The frontmatter keys a repeating task is described with. */
@@ -39,4 +40,15 @@ export function repeatingTaskUpdate({
     // Kept so it is possible to tell a rolled-over task from one never done.
     [LAST_COMPLETED_KEY]: from.slice(0, 10),
   };
+}
+
+/**
+ * What finishing one of a type's notes reads to roll it on: its recurrence
+ * and its due date, when the type declares both, so a board can draw a
+ * repeating task dropped on done where the roll puts it (#260). None for a
+ * type that cannot repeat: a column it does not declare cannot be asked for.
+ */
+export function repeatKeysOf(type: ObjectType | null): readonly string[] {
+  const declared = new Set(type?.properties.map((property) => property.key));
+  return declared.has(RECURRENCE_KEY) && declared.has(DUE_KEY) ? [RECURRENCE_KEY, DUE_KEY] : [];
 }

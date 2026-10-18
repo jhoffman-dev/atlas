@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { cardChips, cardFields, plainText, type BoardRow, type PropertyKind } from '@atlas/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
@@ -31,8 +31,11 @@ export interface CardLook {
  * a second tab stop would double every Tab through a column. A press that
  * travels less than a few pixels is a click, so clicking the title still opens
  * the note, and Enter on it still does too: only Space picks up.
+ *
+ * Drawn again only for a change of its own (`memo`, #260): its row, its look,
+ * or what it opens with — a board holds every card at once.
  */
-export function Card({
+export const Card = memo(function Card({
   row,
   look,
   onOpen,
@@ -86,7 +89,7 @@ export function Card({
       />
     </article>
   );
-}
+});
 
 /** The card being dragged: a picture of it, drawn above the board. */
 export function LiftedCard({ row, look }: { row: BoardRow; look: CardLook }) {

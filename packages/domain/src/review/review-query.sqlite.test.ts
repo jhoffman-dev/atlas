@@ -92,6 +92,7 @@ describe('compileReviewTasksQuery', () => {
         status: 'waiting',
         due: '2026-10-01',
         defer: '2026-10-20',
+        recurrence: null,
         waitingOn: 'Mara Quill, Tobias Fenn',
         contexts: ['@office', '@calls'],
         project: 'Projects/Atlas.md',
@@ -99,6 +100,15 @@ describe('compileReviewTasksQuery', () => {
         modified: 1234,
       },
     ]);
+  });
+
+  it('reads how a task repeats, so finishing it can be drawn before it is written (#260)', () => {
+    const [weekly] = tasksOf({
+      'Tasks/Water.md': {
+        frontmatter: { type: 'task', status: 'next-action', recurrence: 'weekly' },
+      },
+    });
+    expect(weekly?.recurrence).toBe('weekly');
   });
 
   it('reads a task with nothing set as nothing, and a project link that names no note as none', () => {

@@ -13,6 +13,7 @@ import { useProfileSetting } from '../profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from '../profile/use-self-emails-setting.ts';
 import { vaultOwnerKnown } from '../profile/vault-owner-known.ts';
 import { NEEDS_OWNER_NOTICE, useMeetingCleanup } from './use-meeting-cleanup.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 /**
  * The offered cleanup (#226) as app.tsx wires it: handed the owner only once
@@ -126,7 +127,6 @@ function useAsAppWiresIt(vault: ReturnType<typeof vaultWith>) {
     fs,
     markdown: remarkMarkdown,
     vaultKey: VAULT,
-    changeKey: '0',
     activity,
   });
   const selfEmailsSetting = useSelfEmailsSetting({
@@ -165,7 +165,9 @@ function useAsAppWiresIt(vault: ReturnType<typeof vaultWith>) {
 
 describe('the offered cleanup while the settings note cannot be read (#226)', () => {
   it('offers nothing for the Archive: who the owner is was never read, so nothing is judged', async () => {
-    const hook = renderHook(() => useAsAppWiresIt(vaultWith(BROKEN_SETTINGS)));
+    const hook = renderHook(() => useAsAppWiresIt(vaultWith(BROKEN_SETTINGS)), {
+      wrapper: queryWrapper().wrapper,
+    });
     // The settings note has answered, unreadably.
     await waitFor(() => expect(hook.result.current.profileSetting.settled).toBe(true));
     expect(hook.result.current.profileSetting.profile).toBe('unknown');
@@ -180,7 +182,7 @@ describe('the offered cleanup while the settings note cannot be read (#226)', ()
 describe('the offered cleanup in a vault that names nobody (#226)', () => {
   it('lists nothing to tick, and says why', async () => {
     const vault = vaultWith(NOBODY_SETTINGS);
-    const hook = renderHook(() => useAsAppWiresIt(vault));
+    const hook = renderHook(() => useAsAppWiresIt(vault), { wrapper: queryWrapper().wrapper });
 
     await waitFor(() => expect(hook.result.current.cleanup?.notice).toBe(NEEDS_OWNER_NOTICE));
     expect(hook.result.current.ownerKnown).toBe(true);
@@ -191,7 +193,7 @@ describe('the offered cleanup in a vault that names nobody (#226)', () => {
 describe('a task unticked before “Not now” (#226)', () => {
   it('is marked kept, so it is not listed again', async () => {
     const vault = vaultWith(OWNER_SETTINGS);
-    const hook = renderHook(() => useAsAppWiresIt(vault));
+    const hook = renderHook(() => useAsAppWiresIt(vault), { wrapper: queryWrapper().wrapper });
     await waitFor(() =>
       expect(hook.result.current.cleanup?.tasks?.map(({ path }) => path)).toEqual([TOBIAS]),
     );

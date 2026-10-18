@@ -17,6 +17,7 @@ import {
   useGranolaPull,
   type GranolaPullOptions,
 } from './use-granola-pull.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 const VAULT = '/Users/mara/Vault';
 const OTHER = '/Users/mara/Other';
@@ -54,7 +55,6 @@ function setUp(overrides: Partial<GranolaPullOptions> = {}) {
     markdown: remarkMarkdown,
     index: fakeIndexPort(),
     vaultKey: VAULT,
-    changeKey: 'ready:1',
     syncedThisSession: new Set([VAULT, OTHER]),
     syncPulls: new Map(),
     catchUpIndex: async () => true,
@@ -64,6 +64,7 @@ function setUp(overrides: Partial<GranolaPullOptions> = {}) {
     ...overrides,
   };
   const hook = renderHook((props: GranolaPullOptions) => useGranolaPull(props), {
+    wrapper: queryWrapper().wrapper,
     initialProps: options,
   });
   return { hook, granola, options, lists: () => granola.count('list') };
