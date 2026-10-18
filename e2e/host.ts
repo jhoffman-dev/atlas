@@ -1802,13 +1802,13 @@ export async function installHost(
         () => (window as unknown as { __atlasEchoesSent?: number }).__atlasEchoesSent ?? 0,
       ),
     holdEchoes: async () => {
-      const hold = (held: boolean) =>
+      const hold = (holding: boolean) =>
         page.evaluate(
-          (held) =>
+          (holding) =>
             (window as unknown as { __atlasHoldEchoes: (held: boolean) => void }).__atlasHoldEchoes(
-              held,
+              holding,
             ),
-          held,
+          holding,
         );
       await hold(true);
       return () => hold(false);

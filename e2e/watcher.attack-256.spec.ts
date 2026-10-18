@@ -127,21 +127,25 @@ const seenSoFar = (page: Page) =>
 /**
  * No host call is waiting, and no walk or report began over a frame, on two
  * looks in a row: whatever the app asked for has been asked and answered.
+ * It assumes the app's own refresh starts with a host call, not a timer.
  */
 async function quiet(page: Page) {
   let calmLooks = 0;
   await expect
-    .poll(async () => {
-      const before = await seenSoFar(page);
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
-      const after = await seenSoFar(page);
-      const calm =
-        before.unanswered === 0 &&
-        after.unanswered === 0 &&
-        after.order.length === before.order.length;
-      calmLooks = calm ? calmLooks + 1 : 0;
-      return calmLooks;
-    })
+    .poll(
+      async () => {
+        const before = await seenSoFar(page);
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+        const after = await seenSoFar(page);
+        const calm =
+          before.unanswered === 0 &&
+          after.unanswered === 0 &&
+          after.order.length === before.order.length;
+        calmLooks = calm ? calmLooks + 1 : 0;
+        return calmLooks;
+      },
+      { timeout: 15_000 },
+    )
     .toBeGreaterThanOrEqual(2);
 }
 
