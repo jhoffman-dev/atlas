@@ -42,3 +42,30 @@ describe('useRowSelection — Shift-click', () => {
     expect([...result.current.selection.selected].sort()).toEqual(['a', 'd', 'e']);
   });
 });
+
+describe('useRowSelection — where a run starts once a batch settles', () => {
+  it('lets go of the start once a batch answered its row', () => {
+    const { result } = renderHook(() => useRowSelection(''));
+    act(() => result.current.selection.onToggle('b'));
+    act(() => result.current.afterBatch({ answered: ['b'], failed: [] }));
+    act(() => result.current.selection.onToggle('d', { order: ORDER }));
+    expect([...result.current.selection.selected]).toEqual(['d']);
+  });
+
+  it('keeps the start when its row failed and is chosen again', () => {
+    const { result } = renderHook(() => useRowSelection(''));
+    act(() => result.current.selection.onToggle('b'));
+    act(() => result.current.afterBatch({ answered: ['b'], failed: ['b'] }));
+    act(() => result.current.selection.onToggle('d', { order: ORDER }));
+    expect([...result.current.selection.selected].sort()).toEqual(['b', 'c', 'd']);
+  });
+
+  it('keeps the start when keepOnly keeps its row', () => {
+    const { result } = renderHook(() => useRowSelection(''));
+    act(() => result.current.selection.onToggle('a'));
+    act(() => result.current.selection.onToggle('b'));
+    act(() => result.current.keepOnly(['b']));
+    act(() => result.current.selection.onToggle('d', { order: ORDER }));
+    expect([...result.current.selection.selected].sort()).toEqual(['b', 'c', 'd']);
+  });
+});

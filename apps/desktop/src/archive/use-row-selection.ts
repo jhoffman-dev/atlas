@@ -22,21 +22,24 @@ export function useRowSelection(resetKey: string): {
   afterBatch: (batch: { answered: readonly string[]; failed: readonly string[] }) => void;
 } {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // The row last toggled on its own: where a shift-click's range starts. Let
+  // go of with the choice, so a run never starts from a row no longer chosen.
+  const anchor = useRef<string | null>(null);
 
   useEffect(() => {
+    anchor.current = null;
     setSelected(new Set());
   }, [resetKey]);
 
-  // The row last toggled on its own: where a shift-click's range starts.
-  const anchor = useRef<string | null>(null);
   const onToggle = useCallback((path: string, extend?: { readonly order: readonly string[] }) => {
     const range = extend === undefined ? null : rowsBetween(extend.order, anchor.current, path);
     if (range === null) anchor.current = path;
     setSelected((was) => {
       const next = new Set(was);
+      // A range only ever adds; so does a shift-click with nowhere to start from.
       if (range !== null) for (const row of range) next.add(row);
-      else if (next.has(path)) next.delete(path);
-      else next.add(path);
+      else if (extend !== undefined || !next.has(path)) next.add(path);
+      else next.delete(path);
       return next;
     });
   }, []);
@@ -54,25 +57,30 @@ export function useRowSelection(resetKey: string): {
     [],
   );
 
-  const clear = useCallback(() => setSelected(new Set()), []);
-  const keepOnly = useCallback(
-    (paths: readonly string[]) =>
-      setSelected((was) => new Set(paths.filter((path) => was.has(path)))),
-    [],
-  );
+  const clear = useCallback(() => {
+    anchor.current = null;
+    setSelected(new Set());
+  }, []);
+  const keepOnly = useCallback((paths: readonly string[]) => {
+    if (anchor.current !== null && !paths.includes(anchor.current)) anchor.current = null;
+    setSelected((was) => new Set(paths.filter((path) => was.has(path))));
+  }, []);
   const selection = useMemo(
     () => ({ selected, onToggle, onToggleAll }),
     [selected, onToggle, onToggleAll],
   );
   const chosen = useMemo(() => [...selected], [selected]);
   const afterBatch = useCallback(
-    ({ answered, failed }: { answered: readonly string[]; failed: readonly string[] }) =>
+    ({ answered, failed }: { answered: readonly string[]; failed: readonly string[] }) => {
+      const at = anchor.current;
+      if (at !== null && answered.includes(at) && !failed.includes(at)) anchor.current = null;
       setSelected((was) => {
         const next = new Set(was);
         for (const path of answered) next.delete(path);
         for (const path of failed) next.add(path);
         return next;
-      }),
+      });
+    },
     [],
   );
   return { selection, chosen, clear, keepOnly, afterBatch };
@@ -81,7 +89,7 @@ export function useRowSelection(resetKey: string): {
 /**
  * The rows from `from` to `to`, both included, in the order the list shows
  * them — either way round; null when either is not in it, so a shift-click
- * with nowhere to start from toggles its own row alone.
+ * with nowhere to start from chooses its own row alone.
  */
 export function rowsBetween(
   order: readonly string[],
