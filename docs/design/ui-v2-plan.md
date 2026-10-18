@@ -1,6 +1,6 @@
 # Atlas UI v2 "Dense & Calm" — implementation plan
 
-Status: **proposed**, awaiting James's approval slice by slice. Brief: [`ui-v2-brief.md`](ui-v2-brief.md). Mockups: `design/v2/*.dc.html`. Paths are relative to the repo root. Code was read at main `abcf3553`.
+Status: **proposed**, awaiting James's approval slice by slice. Brief: [`ui-v2-brief.md`](ui-v2-brief.md). Mockups: `design/target/*.dc.html` (moved from `design/v2/` in #270). Paths are relative to the repo root. Code was read at main `abcf3553`.
 
 > **Budget numbers in this plan are out of date.** It was written against an older `tools/perf/budgets.json`. On main after #247 and #256, "Tick a task on Today" commits is **42** (at its limit on CI), "Open the 420-row table" renders is about **1,011**, "Decide an Inbox row" commits is **52**, and "Drag a board card" commits is **81**. Always read the current file; budgets only go down.
 
@@ -8,7 +8,7 @@ Status: **proposed**, awaiting James's approval slice by slice. Brief: [`ui-v2-b
 
 ## 1. Summary of the design
 
-### Tokens (from `design/v2/Tokens.dc.html`, the brief §3, and the `tokens(theme)` blocks of each board)
+### Tokens (from `design/target/Tokens.dc.html`, the brief §3, and the `tokens(theme)` blocks of each board)
 
 **Neutrals** (light / dark): `bg #F6F6F7/#111113` (left sidebar, tab strip, board column wells), `surface #FFFFFF/#18181B` (content, cards, right sidebar), `well #F8F8F9/#1D1D21` (table group rows, notice bars), `ink #18181B/#EDEDEF`, `ink-2 #52525B/#B4B4BC`, `ink-3 #6B6B73/#8E8E98` (metadata; measures 5.2:1 on white, 5.4:1 on dark surface, so WCAG AA holds), `line #E6E6E9/#2A2A2F`, `line-soft #ECECEF/#2A2A2F` (row dividers), `hover #F4F4F6/#222227`, `selected #E8E8EB/#26262B`, `focus #6B7BC4/#8F9BE0` (focus ring and editing-cell ring only). The boards also use a `line2`/separator grey for the `·` between metadata (`#C4C4CA` light, `#4A4A52` dark), a disabled-control ink `#C4C4CA`, a chart grid `#F1F1F3/#232328` and bar grey `#D4D4D8/#3F3F46`; these need tokens too.
 
