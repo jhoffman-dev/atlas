@@ -18,7 +18,7 @@ import {
   resolveVaultPorts,
 } from './composition.ts';
 import { guardStrayFileDrops } from './file-drop-guard.ts';
-import './styles.css';
+import './styles/index.css';
 
 guardStrayFileDrops(window);
 
