@@ -68,6 +68,8 @@ function fakeVault(text: string = ORIGINAL, { coarse = false }: { coarse?: boole
   const tick = () => (coarse ? clock : (clock += 1));
   const reads = gate();
   const writes = gate();
+  /** Holds a read's answer once its bytes are taken: what it hands back is the file as it was then. */
+  const answers = gate();
 
   const fs: VaultFsPort = {
     listDirectory: async () => [],
@@ -83,7 +85,9 @@ function fakeVault(text: string = ORIGINAL, { coarse = false }: { coarse?: boole
       await reads.pass();
       const file = files.get(path);
       if (file === undefined) throw new Error(`no such file: ${path}`);
-      return { text: file.text, modified: file.modified };
+      const taken = { text: file.text, modified: file.modified };
+      await answers.pass();
+      return taken;
     },
     writeTextFile: async ({ path, contents, expectedModified, expectedText }) => {
       await writes.pass();
@@ -105,6 +109,7 @@ function fakeVault(text: string = ORIGINAL, { coarse = false }: { coarse?: boole
     fs,
     reads,
     writes,
+    answers,
     contents: (): string => files.get(NOTE)?.text ?? '',
     modified: (): number => files.get(NOTE)?.modified ?? 0,
     /** Something else writes the file: the other pane, the board, another app. */
@@ -983,6 +988,7 @@ describe('a pane open when another vault is opened', () => {
     ]);
     const host = { open: A };
     const reads = gate();
+    const answers = gate();
     const fileIn = (vault: string) => {
       const file = disk.get(vault);
       if (file === undefined) throw new Error(`no vault at ${vault}`);
@@ -1003,10 +1009,12 @@ describe('a pane open when another vault is opened', () => {
           throw new Error('the note changed on disk since it was opened');
         }
         disk.set(host.open, { text: contents, modified: file.modified + 1 });
+        // Landed on disk; the answer may still be on its way back.
+        await answers.pass();
         return file.modified + 1;
       },
     });
-    return { fs, host, reads, textIn: (vault: string) => fileIn(vault).text };
+    return { fs, host, reads, answers, textIn: (vault: string) => fileIn(vault).text };
   }
 
   /** A pane over one note, in whichever vault the app has open. */
@@ -1045,6 +1053,34 @@ describe('a pane open when another vault is opened', () => {
     expect(kept.reason).toMatch(/another vault was opened/);
     // A's file as it was opened, not B's time: B's file says nothing about A's.
     expect(kept.modified).toBe(1);
+  });
+
+  // Verification of #281: a write's answer from A that comes back once the
+  // pane holds B's note of the same name is A's, and says nothing of B's.
+  it("starts B's save from B's note, not from a write of A's answered after the switch", async () => {
+    const { fs, host, answers, textIn } = twoVaults({ modifiedInB: 1 });
+    const view = paneIn(fs, vi.fn());
+    await waitFor(() => expect(view.result.current.state.kind).toBe('ready'));
+    answers.hold();
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nSaved in A.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    expect(textIn(A)).toBe('# Note\n\nSaved in A.\n');
+
+    host.open = B;
+    view.rerender({ vault: B, path: NOTE });
+    await waitFor(() => expect(shownText(view)).toContain('In vault B.'));
+    answers.release();
+    await settle();
+    await settle();
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nIn vault B, typed.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    await settle();
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(textIn(B)).toBe('# Note\n\nIn vault B, typed.\n');
   });
 
   it("autosaves none of A's typing into B's note of the same name while it is being read", async () => {
@@ -1272,5 +1308,58 @@ describe('attack #281: a pane on a coarse clock whose note was read again after 
     const state = one.result.current.state;
     expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
     expect(vault.contents()).toContain('One again.');
+  });
+});
+
+/**
+ * Verification of #281: a re-read the pane began before one of its own writes
+ * landed holds the file from before that write. Applied after it, it puts the
+ * older text back on screen, and the next save writes it over the landed edit.
+ */
+describe('a re-read begun before the pane’s own write landed (#281)', () => {
+  it.each([
+    ['a fine clock', false],
+    ['a coarse clock', true],
+  ])('is dropped on %s: the landed text stays on screen and on disk', async (_, coarse) => {
+    const vault = fakeVault(ORIGINAL, { coarse });
+    const view = await readyPane(vault);
+    vault.answers.hold();
+    act(() => view.result.current.reload());
+    await settle();
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    expect(vault.contents()).toBe('# Note\n\nTyped.\n');
+
+    vault.answers.release();
+    await settle();
+    await settle();
+    expect(shownText(view)).toContain('Typed.');
+    expect(shownText(view)).not.toContain('First line.');
+
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped. More.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    const state = view.result.current.state;
+    expect(state.kind === 'ready' ? state.saveError : 'not ready').toBeNull();
+    expect(vault.contents()).toBe('# Note\n\nTyped. More.\n');
+  });
+
+  it('still shows another writer’s change that came after the dropped read', async () => {
+    const vault = fakeVault(ORIGINAL);
+    const view = await readyPane(vault);
+    vault.answers.hold();
+    act(() => view.result.current.reload());
+    await settle();
+    act(() => view.result.current.changeDoc(docOf('# Note\n\nTyped.\n')));
+    act(() => view.result.current.save());
+    await settle();
+    vault.writeOutside('# Note\n\nTyped. And theirs.\n');
+
+    vault.answers.release();
+    await settle();
+    await settle();
+    expect(shownText(view)).toContain('And theirs.');
   });
 });
