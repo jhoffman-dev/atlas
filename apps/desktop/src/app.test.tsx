@@ -24,6 +24,7 @@ import {
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { App, localToday } from './app.tsx';
+import { preloadPages } from './pages-on-first-use.ts';
 import type { VaultPorts } from './vault/use-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
 import type { IndexPorts } from './index/use-index.ts';
@@ -271,6 +272,10 @@ const renderApp = (
 // test here opens the same vault. Without this each test would inherit the
 // panes the one before it left, which is an order dependence.
 beforeEach(() => window.localStorage.clear());
+
+// The pages loaded on first use, loaded before the tests as the app loads them after
+// start-up: the first import of their chunks is slow enough under load to outlast a find.
+beforeAll(() => preloadPages(), 30_000);
 
 describe('App', () => {
   it('offers to open a vault on a first run', async () => {

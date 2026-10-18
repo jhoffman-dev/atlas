@@ -1,22 +1,31 @@
-import { lazy, Suspense, type ComponentProps, type ReactNode } from 'react';
+import { Suspense, type ComponentProps, type ReactNode } from 'react';
 import type { GraphScope } from '@atlas/domain';
+import { InboxPage, TodayPage, type PageHistory } from '@atlas/ui';
 import {
-  ArchivePage,
-  InboxPage,
-  TemplatesPage,
-  TermsPage,
-  TodayPage,
-  WeeklyReviewPage,
-  type PageHistory,
-} from '@atlas/ui';
-import { TypePage } from './types/type-page.tsx';
-import { QueryScreen } from './query/query-screen.tsx';
-import { TagsScreen } from './tags/tags-screen.tsx';
-import { AutomationsScreen } from './automations/automations-screen.tsx';
-import { ActivityScreen } from './activity/activity-screen.tsx';
+  activityScreen,
+  archivePage,
+  automationsScreen,
+  graphPage,
+  queryScreen,
+  tagsScreen,
+  templatesPage,
+  termsPage,
+  typePage,
+  weeklyReviewPage,
+} from './pages-on-first-use.ts';
+import { PageFrameFallback } from './page-frame-fallback.tsx';
 
-// Loaded on first use, so d3-force and the drawing stay out of the main bundle.
-const GraphPage = lazy(() => import('./graph/graph-page.tsx'));
+// Loaded on first use (`pages-on-first-use.ts`); Today and the Inbox are what start-up shows.
+const GraphPage = graphPage.Component;
+const TypePage = typePage.Component;
+const QueryScreen = queryScreen.Component;
+const TagsScreen = tagsScreen.Component;
+const ArchivePage = archivePage.Component;
+const WeeklyReviewPage = weeklyReviewPage.Component;
+const AutomationsScreen = automationsScreen.Component;
+const ActivityScreen = activityScreen.Component;
+const TemplatesPage = templatesPage.Component;
+const TermsPage = termsPage.Component;
 
 type GraphProps = Omit<ComponentProps<typeof GraphPage>, 'scope' | 'onShowSidebar' | 'history'>;
 type TypeProps = Omit<ComponentProps<typeof TypePage>, 'onShowSidebar' | 'history'>;
@@ -78,28 +87,28 @@ export function mainRoute({
     ...(onShowSidebar !== undefined && { onShowSidebar }),
     ...(history !== undefined && { history }),
   };
+  // One frame for every page loaded on first use, so nothing moves when it draws.
+  const later = (page: ReactNode) => (
+    <Suspense fallback={<PageFrameFallback {...sidebar} />}>{page}</Suspense>
+  );
   if (graph.scope !== null) {
-    return (
-      <Suspense fallback={<p className="viewer viewer--muted">Opening the graph…</p>}>
-        <GraphPage {...graph} scope={graph.scope} {...sidebar} />
-      </Suspense>
-    );
+    return later(<GraphPage {...graph} scope={graph.scope} {...sidebar} />);
   }
   if (type.table.type !== null) {
     // One editor per type: its queued changes and open question belong to that file.
-    return <TypePage key={type.table.type.name} {...type} {...sidebar} />;
+    return later(<TypePage key={type.table.type.name} {...type} {...sidebar} />);
   }
-  if (query.open) return <QueryScreen {...query.screen} {...sidebar} />;
+  if (query.open) return later(<QueryScreen {...query.screen} {...sidebar} />);
   if (tags.selected !== undefined) {
-    return <TagsScreen {...tags.screen} selected={tags.selected} {...sidebar} />;
+    return later(<TagsScreen {...tags.screen} selected={tags.selected} {...sidebar} />);
   }
-  if (archive.open) return <ArchivePage {...archive.page} {...sidebar} />;
+  if (archive.open) return later(<ArchivePage {...archive.page} {...sidebar} />);
   if (inbox.open) return <InboxPage {...inbox.page} {...sidebar} />;
-  if (review.open) return <WeeklyReviewPage {...review.page} {...sidebar} />;
+  if (review.open) return later(<WeeklyReviewPage {...review.page} {...sidebar} />);
   if (today.open) return <TodayPage {...today.page} {...sidebar} />;
-  if (automations.open) return <AutomationsScreen {...automations.screen} {...sidebar} />;
-  if (activity.open) return <ActivityScreen {...activity.screen} {...sidebar} />;
-  if (templates.open) return <TemplatesPage {...templates.page} {...sidebar} />;
-  if (terms.open) return <TermsPage {...terms.page} {...sidebar} />;
+  if (automations.open) return later(<AutomationsScreen {...automations.screen} {...sidebar} />);
+  if (activity.open) return later(<ActivityScreen {...activity.screen} {...sidebar} />);
+  if (templates.open) return later(<TemplatesPage {...templates.page} {...sidebar} />);
+  if (terms.open) return later(<TermsPage {...terms.page} {...sidebar} />);
   return null;
 }

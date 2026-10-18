@@ -521,6 +521,7 @@ export async function installHost(
     feeds = {},
     keepsManifest = false,
     echoWrites = false,
+    coarseTickSeconds,
   }: {
     /**
      * Canned feeds by URL, for sources that fetch rather than read a file. The
@@ -543,6 +544,12 @@ export async function installHost(
      * host whose watcher heard only what a test said changed.
      */
     echoWrites?: boolean;
+    /**
+     * A disk whose clock is coarse (#245): every note the app saves is left at
+     * this one second, as a save within the same tick of HFS+ leaves it. Off
+     * by default.
+     */
+    coarseTickSeconds?: number;
   } = {},
 ): Promise<FakeHost> {
   /** What the picker answers with. */
@@ -1407,9 +1414,10 @@ export async function installHost(
         return { text, modified: Math.floor(info.mtimeMs) };
       }
       case 'write_text_file': {
-        const { contents, expectedModified } = args as {
+        const { contents, expectedModified, expectedDigest } = args as {
           contents: string;
           expectedModified: number | null;
+          expectedDigest?: string;
         };
         // Counted as asked for, landed or not: a second save that the host
         // refuses is still a second write the app tried to make.
@@ -1424,6 +1432,18 @@ export async function installHost(
               throw new Error('the note changed on disk since it was opened');
             }
           }
+          // As `vault.rs` does, once the time has matched: the bytes the save
+          // was read from, by their SHA-256, for a coarse clock's sake (#245).
+          if (expectedDigest !== undefined) {
+            const { readFile } = await import('node:fs/promises');
+            const { createHash } = await import('node:crypto');
+            const onDisk = createHash('sha256')
+              .update(await readFile(file))
+              .digest('hex');
+            if (onDisk !== expectedDigest) {
+              throw new Error('the note changed on disk since it was opened');
+            }
+          }
           // Beside the file, then over it, as the Rust host does: a read while
           // the write is under way sees the old file or the new one, never an
           // empty one — which would read as a type file with no type in it.
@@ -1431,6 +1451,10 @@ export async function installHost(
           const temporary = join(dirname(file), `.${basename(file)}.atlas-tmp-${++temporaries}`);
           await writeFile(temporary, contents, 'utf8');
           await rename(temporary, file);
+          if (coarseTickSeconds !== undefined) {
+            const { utimes } = await import('node:fs/promises');
+            await utimes(file, coarseTickSeconds, coarseTickSeconds);
+          }
           return Math.floor((await statFile(file)).mtimeMs);
         });
       }

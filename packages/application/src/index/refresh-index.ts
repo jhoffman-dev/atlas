@@ -91,13 +91,23 @@ export interface RefreshOptions {
    * has just cleared, and a delete in the app has already let go of.
    */
   previous?: ReadonlyMap<string, NoteVersion>;
+  /**
+   * Notes something other than the app was seen to change — the watcher's
+   * report, with the app's own echo left out — read again even when their
+   * time and size are as the index holds them. On a disk that keeps the time
+   * to the second (HFS+), to two (exFAT) or to a server's (SMB, NFS), another
+   * program's same-length write within the same tick leaves both as they
+   * were, and only the bytes tell (#245).
+   */
+  recheck?: readonly string[];
 }
 
 /**
  * Brings the index in line with the vault.
  *
  * Only notes whose size or modification time differ are re-read, so an ordinary
- * launch does almost no work. Deciding what a note contains happens here rather
+ * launch does almost no work — and the few `recheck` names, whose bytes may
+ * have changed under a time and size that did not. Deciding what a note contains happens here rather
  * than in the host, so the index always agrees with what the editor would show.
  *
  * It indexes user space, through the same listing the editor resolves links
@@ -113,6 +123,7 @@ export async function refreshIndex({
   vault,
   onProgress,
   previous,
+  recheck = [],
 }: RefreshOptions): Promise<IndexRefresh> {
   const scope = vault === undefined ? undefined : { vault };
   const notes = await listVaultNoteFiles({ fs });
@@ -121,9 +132,15 @@ export async function refreshIndex({
   );
   const known = await heldEntries(index);
 
+  const named = new Set(recheck);
   const stale = [...current.values()].filter((note) => {
     const entry = known.get(note.path);
-    return entry === undefined || entry.modified !== note.modified || entry.size !== note.size;
+    return (
+      entry === undefined ||
+      entry.modified !== note.modified ||
+      entry.size !== note.size ||
+      named.has(note.path)
+    );
   });
 
   const removed = [...known.keys()].filter((path) => !current.has(path));

@@ -230,6 +230,54 @@ export function useNote({
    */
   const repointed = useRef<string | null>(null);
 
+  /**
+   * This pane's writes, one at a time. Two property changes a moment apart — a
+   * second link picked, a digit typed — would otherwise both start from the
+   * same read, and the host would refuse the second as the file having moved
+   * on underneath it. `landed` is what the last write left on disk: a write
+   * starts from it while it is newer than the note the write's render holds,
+   * which a write queued behind another, or asked for before the render after
+   * one, always is. A read the pane takes once it has landed is newer still,
+   * and lets it go; a read begun before it is older, and is not shown. On a
+   * coarse clock the two can share a time (#245), so which came later is
+   * told by `step`, which counts each landing and each read begun, rather
+   * than by the time. `landedIn` is the vault it landed in: a note of the
+   * same name in the next vault is another note.
+   */
+  const writes = useRef<{
+    queue: Promise<unknown>;
+    landed: OpenNote | null;
+    landedIn: string | null;
+    landedAt: number;
+    step: number;
+  }>({ queue: Promise.resolve(), landed: null, landedIn: null, landedAt: 0, step: 0 });
+
+  /**
+   * Where each note this pane followed through a move went, by the key it
+   * had before. A write asked for before the move is answered under the old
+   * path; it is still this pane's note, under the path it has now.
+   */
+  const followed = useRef(new Map<string, { key: string; path: VaultPath }>());
+
+  /** Where the note held under `key` is now, after any moves the pane followed; null when it has not moved. */
+  const movedTo = useCallback((key: string | null): { key: string; path: VaultPath } | null => {
+    let now = key === null ? undefined : followed.current.get(key);
+    for (let next = now; next !== undefined; next = followed.current.get(next.key)) now = next;
+    return now ?? null;
+  }, []);
+
+  /** Records what a write of the pane's left on disk in `vault`, as the newest thing it knows of the note. */
+  const recordLanded = useCallback(
+    (inVault: string | null) =>
+      (saved: SavedNote): SavedNote => {
+        writes.current.landed = saved.note;
+        writes.current.landedIn = inVault;
+        writes.current.landedAt = ++writes.current.step;
+        return saved;
+      },
+    [],
+  );
+
   useEffect(() => {
     if (path === null) {
       loadedNote.current = null;
@@ -258,6 +306,7 @@ export function useNote({
     }
     setFailure(null);
     setSaveError(null);
+    const readAt = ++writes.current.step;
     openNote({ fs: ports.fs, markdown: ports.markdown, path })
       .then((opened) => {
         if (cancelled || holding.current !== opening) return;
@@ -267,7 +316,18 @@ export function useNote({
         // The pane keeps its edits, and the save that follows is refused
         // rather than clobbering — the way out of that is `overwrite`.
         if (loadedNote.current === opening && unsaved.current) return;
+        // A write of the pane's landed while this read was out: what it read
+        // is from before that write, and shown it would put the older text
+        // back for the next save to write over the edit. Read again instead,
+        // for anything written since.
+        if (writes.current.landedAt > readAt) {
+          setRevision((was) => was + 1);
+          return;
+        }
         loadedNote.current = opening;
+        // Begun after the pane's last write landed, this read holds that
+        // write or what came after it: a write starts from it now.
+        writes.current.landed = null;
         setNote(opened);
         // Work an earlier pane could not write comes back with the note, still
         // unsaved — it is the user's typing. If the file is as it was when the
@@ -315,52 +375,59 @@ export function useNote({
   }, []);
 
   /** Runs a write, and settles the header against what is on screen when it lands. */
-  const track = useCallback((written: EditorDocument, writing: Promise<SavedNote>) => {
-    setSaving(true);
-    setSaveError(null);
-    // Taken now: what is on screen holds the handed-back work, so once this
-    // lands the work is on disk, even if the pane has moved on by then.
-    const holdingRecovered = recovered.current;
-    return writing
-      .then((saved) => {
-        setNote(saved.note);
-        announceSaved.current?.(saved.note.path);
-        settleRecovered(holdingRecovered);
-        // An edit made while the write was in flight is newer than what
-        // landed, so the note is still unsaved. Clearing the flag over it is
-        // what made the autosave stand down and the note switch skip its
-        // save, and the edit was gone with the header reading "Saved".
-        if (onScreen.current !== written) return;
-        setDirty(false);
-        unsaved.current = false;
-      })
-      .catch((cause: unknown) => {
-        setSaveError(message(cause));
-        // Passed on as well as shown: a caller writing through this pane — a
-        // board drag, the local API — must not report a write that never landed.
-        throw cause;
-      })
-      .finally(() => setSaving(false));
-  }, []);
+  const track = useCallback(
+    (written: EditorDocument, writing: Promise<SavedNote>) => {
+      setSaving(true);
+      setSaveError(null);
+      // Taken now: what is on screen holds the handed-back work, so once this
+      // lands the work is on disk, even if the pane has moved on by then.
+      const holdingRecovered = recovered.current;
+      // The note the pane held when the write was asked for. A write answered
+      // once the pane holds another — the next vault's note of the same name —
+      // is that note's news, not this one's.
+      const holdingThen = holding.current;
+      const vaultThen = vaultNow.current;
+      return writing
+        .then((saved) => {
+          // Moved meanwhile, the note is still this one, at its new path.
+          const moved = movedTo(noteKey(vaultThen, saved.note.path));
+          const landed = moved === null ? saved.note : { ...saved.note, path: moved.path };
+          if (holding.current === (movedTo(holdingThen)?.key ?? holdingThen)) setNote(landed);
+          announceSaved.current?.(landed.path);
+          settleRecovered(holdingRecovered);
+          // An edit made while the write was in flight is newer than what
+          // landed, so the note is still unsaved. Clearing the flag over it is
+          // what made the autosave stand down and the note switch skip its
+          // save, and the edit was gone with the header reading "Saved".
+          if (onScreen.current !== written) return;
+          setDirty(false);
+          unsaved.current = false;
+        })
+        .catch((cause: unknown) => {
+          setSaveError(message(cause));
+          // Passed on as well as shown: a caller writing through this pane — a
+          // board drag, the local API — must not report a write that never landed.
+          throw cause;
+        })
+        .finally(() => setSaving(false));
+    },
+    [movedTo],
+  );
 
   /**
-   * This pane's writes, one at a time. Two property changes a moment apart — a
-   * second link picked, a digit typed — would otherwise both start from the
-   * same read, and the host would refuse the second as the file having moved
-   * on underneath it. `landed` is what the last write left on disk: a write
-   * starts from it while it is newer than the note the write's render holds,
-   * which a write queued behind another, or asked for before the render after
-   * one, always is.
+   * What a write of `held` starts from: what the last write left, unless the
+   * note was read since at a later time. A tie goes to the write, as a read
+   * begun after it has already let it go: on a disk that keeps the time to
+   * the second, a write within the second leaves the time as it was, and
+   * starting from the older read would have the save refused for the bytes
+   * the pane itself wrote (#245).
    */
-  const writes = useRef<{ queue: Promise<unknown>; landed: OpenNote | null }>({
-    queue: Promise.resolve(),
-    landed: null,
-  });
-
-  /** What a write of `held` starts from: what the last write left, when that is newer. */
-  const startFrom = useCallback((held: OpenNote): OpenNote => {
-    const { landed } = writes.current;
-    return landed !== null && landed.path === held.path && landed.modified > held.modified
+  const startFrom = useCallback((held: OpenNote, inVault: string | null): OpenNote => {
+    const { landed, landedIn } = writes.current;
+    return landed !== null &&
+      landedIn === inVault &&
+      landed.path === held.path &&
+      landed.modified >= held.modified
       ? landed
       : held;
   }, []);
@@ -369,7 +436,7 @@ export function useNote({
     (changes?: PropertyChanges) => {
       if (note === null || doc === null || outdated !== null) return Promise.resolve();
       const run = () => {
-        const from = startFrom(note);
+        const from = startFrom(note, vault);
         // A change given as a rule is worked out against the properties the
         // write starts from, which is the same frontmatter a direct write would
         // read — and held to a task's rules there, by the save itself.
@@ -381,15 +448,12 @@ export function useNote({
           ...(changes === undefined ? {} : { changes: { values: changes, today: localToday() } }),
         });
       };
-      const writing = writes.current.queue.then(run, run).then((saved) => {
-        writes.current.landed = saved.note;
-        return saved;
-      });
+      const writing = writes.current.queue.then(run, run).then(recordLanded(vault));
       // Reported through `track` below; the queue only has to know it is over.
       writes.current.queue = writing.catch(() => undefined);
       return track(doc, writing);
     },
-    [ports.fs, ports.markdown, note, doc, outdated, track, startFrom],
+    [ports.fs, ports.markdown, vault, note, doc, outdated, track, startFrom, recordLanded],
   );
 
   const save = useCallback(() => void write().catch(shownInPane(path)), [write, shownInPane, path]);
@@ -411,11 +475,14 @@ export function useNote({
       // Read again first: the refusal means someone else wrote this file, and
       // keeping their frontmatter costs one read and saves the star, the
       // status or the due date they had just set.
-      openNote({ fs: ports.fs, markdown: ports.markdown, path }).then((fresh) =>
-        saveNote({ fs: ports.fs, markdown: ports.markdown, note: fresh, doc: written }),
-      ),
+      // What it leaves is the pane's newest write, which the next starts from.
+      openNote({ fs: ports.fs, markdown: ports.markdown, path })
+        .then((fresh) =>
+          saveNote({ fs: ports.fs, markdown: ports.markdown, note: fresh, doc: written }),
+        )
+        .then(recordLanded(vault)),
     ).catch(shownInPane(path));
-  }, [ports.fs, ports.markdown, path, doc, track, shownInPane]);
+  }, [ports.fs, ports.markdown, vault, path, doc, track, shownInPane, recordLanded]);
 
   const discard = useCallback(() => {
     // Thrown away, so let go of — before the read below, which would otherwise
@@ -450,6 +517,10 @@ export function useNote({
     (to: VaultPath) => {
       if (vault === null) return;
       const moved = noteKey(vault, to);
+      const from = latest.current.note?.path;
+      if (from !== undefined && from !== to) {
+        followed.current.set(noteKey(vault, from), { key: moved, path: to });
+      }
       loadedNote.current = moved;
       repointed.current = moved;
       setNote((was) => (was === null ? was : { ...was, path: to }));
@@ -506,7 +577,7 @@ export function useNote({
         saveNote({
           fs: ports.fs,
           markdown: ports.markdown,
-          note: startFrom(leaving),
+          note: startFrom(leaving, vault),
           doc: unwritten,
         });
       const leavingWrite = writes.current.queue.then(run, run);

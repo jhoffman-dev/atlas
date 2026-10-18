@@ -36,7 +36,15 @@ export function watchedPathsAreIndexedNotes(paths: readonly string[]): boolean {
   return paths.length > 0 && paths.every(isIndexedNote);
 }
 
-/** The refresh a watcher event asks for. */
-export function refreshAfterWatch(paths: readonly string[]): { quiet: boolean } {
-  return { quiet: watchedPathsAreIndexedNotes(paths) };
+/**
+ * The refresh a watcher event asks for. It reads every path again whatever
+ * its time and size, which another program's write within the same tick of a
+ * coarse disk's clock can leave as they were (#245); the refresh ignores the
+ * paths that are not notes.
+ */
+export function refreshAfterWatch(paths: readonly string[]): {
+  quiet: boolean;
+  recheck: readonly string[];
+} {
+  return { quiet: watchedPathsAreIndexedNotes(paths), recheck: paths };
 }

@@ -108,7 +108,7 @@ export type { SegmentedOption } from './segmented-control.tsx';
 export { ThemeSwitch } from './theme-switch.tsx';
 export { systemTheme, useTheme } from './theme.ts';
 export type { Theme, ThemeStore } from './theme.ts';
-export { SettingsDialog } from './settings-dialog.tsx';
+export { SettingsDialog, SettingsUnavailable } from './settings-dialog.tsx';
 export type { ConnectionSettingsState } from './settings-dialog.tsx';
 export { ArchivedButton, ViewToolbar } from './view-toolbar.tsx';
 export { ViewTabs } from './view-tabs.tsx';

@@ -19,6 +19,12 @@ export interface OpenNote {
   readonly doc: EditorDocument;
   /** The file's modification time when it was read, used to detect outside edits. */
   readonly modified: number;
+  /**
+   * The file's whole text at `modified`, as it was read or last written. A
+   * save names it, so it is refused when another program has changed the
+   * bytes but left the time, as a coarse-clock disk can (#245).
+   */
+  readonly onDisk: string;
 }
 
 export async function openNote({
@@ -42,5 +48,6 @@ export async function openNote({
     parsed,
     doc: parsed.doc,
     modified,
+    onDisk: text,
   };
 }

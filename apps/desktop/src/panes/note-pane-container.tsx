@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ARTIFACT_KEYS,
   createVaultPath,
@@ -36,12 +36,9 @@ import type {
 } from '@atlas/application';
 import {
   ThumbnailValue,
-  ArtifactViewer,
   CustomizeToggle,
-  DashboardView,
   LinkedSections,
   NotePane,
-  WidgetEditor,
   SourcePanel,
   TaskScheduleSummary,
   useCalendarNav,
@@ -56,6 +53,7 @@ import {
   type ViewTabEditing,
 } from '@atlas/ui';
 import { useNote, type NotePorts } from '../notes/use-note.ts';
+import { artifactViewer, dashboardView, widgetEditor } from '../pages-on-first-use.ts';
 import { useUnlinkedMentions } from '../graph/use-unlinked-mentions.ts';
 import { useImages } from '../notes/use-images.ts';
 import { useBookmarks } from '../notes/use-bookmarks.ts';
@@ -96,6 +94,11 @@ import type { ArchiveCommands } from '../archive/use-archive.ts';
 import { useViewChoosing, type ViewChoosing } from '../archive/use-view-choosing.ts';
 import type { TickMemory } from '../query/tick-memory.ts';
 import { useGroupFolds } from '../query/use-group-folds.ts';
+
+// Loaded on first use: most notes are neither a dashboard nor an artifact.
+const ArtifactViewer = artifactViewer.Component;
+const DashboardView = dashboardView.Component;
+const WidgetEditor = widgetEditor.Component;
 
 /**
  * Everything a pane needs that is the same in every pane.
@@ -599,20 +602,22 @@ export function NotePaneContainer({
 function artifactAside(artifact: ArtifactCopyView | null, path: VaultPath | null): ReactNode {
   if (artifact === null || path === null) return null;
   return (
-    <ArtifactViewer
-      title={noteTitle(path)}
-      url={artifact.url}
-      copy={artifact.copy}
-      adding={artifact.adding}
-      error={artifact.error}
-      onOpenLink={artifact.openLink}
-      onReload={artifact.reload}
-      onAddCopy={artifact.addCopy}
-      thumbnail={{
-        generating: artifact.thumbnail.generating,
-        onRegenerate: artifact.thumbnail.regenerate,
-      }}
-    />
+    <Suspense fallback={null}>
+      <ArtifactViewer
+        title={noteTitle(path)}
+        url={artifact.url}
+        copy={artifact.copy}
+        adding={artifact.adding}
+        error={artifact.error}
+        onOpenLink={artifact.openLink}
+        onReload={artifact.reload}
+        onAddCopy={artifact.addCopy}
+        thumbnail={{
+          generating: artifact.thumbnail.generating,
+          onRegenerate: artifact.thumbnail.regenerate,
+        }}
+      />
+    </Suspense>
   );
 }
 
@@ -822,13 +827,20 @@ function paneBody({
   if (dashboard.results !== null) {
     return (
       <>
-        <DashboardView
-          results={dashboard.results}
-          onOpenNote={openTarget}
-          {...(arrangement.popups !== undefined && { popups: arrangement.popups })}
-          {...(dashboard.editing !== undefined && { editing: dashboard.editing })}
-        />
-        {dashboard.sheet !== null && <WidgetEditor {...dashboard.sheet} />}
+        <Suspense fallback={null}>
+          <DashboardView
+            results={dashboard.results}
+            onOpenNote={openTarget}
+            {...(arrangement.popups !== undefined && { popups: arrangement.popups })}
+            {...(dashboard.editing !== undefined && { editing: dashboard.editing })}
+          />
+        </Suspense>
+        {dashboard.sheet !== null && (
+          // Its own boundary: a sheet still loading must not hide the dashboard under it.
+          <Suspense fallback={null}>
+            <WidgetEditor {...dashboard.sheet} />
+          </Suspense>
+        )}
       </>
     );
   }

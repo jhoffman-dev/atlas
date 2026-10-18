@@ -18,6 +18,8 @@ import {
   resolveVaultPorts,
 } from './composition.ts';
 import { guardStrayFileDrops } from './file-drop-guard.ts';
+import { preloadPages } from './pages-on-first-use.ts';
+import { PreloadAfterStart } from './preload-after-start.tsx';
 import './styles/index.css';
 
 guardStrayFileDrops(window);
@@ -43,5 +45,7 @@ createRoot(root).render(
       granola={resolveGranola()}
       globalCapture={resolveGlobalCapture()}
     />
+    {/* What start-up does not draw loads once it has committed, so pages open with no fallback. */}
+    <PreloadAfterStart preload={preloadPages} />
   </StrictMode>,
 );

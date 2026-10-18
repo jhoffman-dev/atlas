@@ -24,7 +24,16 @@ describe('watchedPathsAreIndexedNotes (#239)', () => {
   });
 
   it('asks a quiet refresh only for notes', () => {
-    expect(refreshAfterWatch(['Alder.md'])).toEqual({ quiet: true });
-    expect(refreshAfterWatch(['Files/scan.pdf'])).toEqual({ quiet: false });
+    expect(refreshAfterWatch(['Alder.md']).quiet).toBe(true);
+    expect(refreshAfterWatch(['Files/scan.pdf']).quiet).toBe(false);
+  });
+
+  // Another program's write in the same tick keeps a note's time and size,
+  // so the refresh is told which notes to read again regardless (#245).
+  it('names every path it was told of for the refresh to read again', () => {
+    expect(refreshAfterWatch(['Alder.md', 'Files/scan.pdf']).recheck).toEqual([
+      'Alder.md',
+      'Files/scan.pdf',
+    ]);
   });
 });
