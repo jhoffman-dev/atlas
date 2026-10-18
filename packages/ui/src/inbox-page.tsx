@@ -222,7 +222,8 @@ function useOffersKnown(reading: boolean): boolean {
  * would move what is under the person's pointer as they reach for it. Offers
  * read together keep the order given. Once the rows are drawn (`live`), an
  * offer not already shown waits for the Inbox to open again: shown now, it
- * would push the rows down under the pointer (#130).
+ * would push the rows down under the pointer (#130). One already shown keeps
+ * its place while it is read as nothing for a moment, as its run settles.
  */
 function Offers({
   offers,
@@ -238,10 +239,12 @@ function Offers({
   const [frozen, setFrozen] = useState(live);
   if (live && !frozen) setFrozen(true);
   const keys = shown.map(([key]) => key);
-  const next = frozen ? order.filter((key) => keys.includes(key)) : inArrivalOrder(order, keys);
+  const next = frozen ? order : inArrivalOrder(order, keys);
   if (next.join('\n') !== order.join('\n')) setOrder(next);
   const byKey = new Map(shown);
-  return next.map((key) => <Fragment key={key}>{byKey.get(key)}</Fragment>);
+  return next
+    .filter((key) => byKey.has(key))
+    .map((key) => <Fragment key={key}>{byKey.get(key)}</Fragment>);
 }
 
 /** The offers shown before, in their order, then each newly shown one, in the order given. */
