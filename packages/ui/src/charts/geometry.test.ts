@@ -1,6 +1,14 @@
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { areaUnder, donutArcs, linearScale, linePath, niceTicks, ringDash } from './geometry.ts';
+import {
+  areaUnder,
+  donutArcs,
+  linearScale,
+  linePath,
+  niceTicks,
+  ringDash,
+  stackedSegments,
+} from './geometry.ts';
 
 const TAU = Math.PI * 2;
 
@@ -363,5 +371,46 @@ describe('ringDash', () => {
     expect(ringDash({ radius: 26, fraction: 1.4 })).toBe(ringDash({ radius: 26, fraction: 1 }));
     expect(ringDash({ radius: 26, fraction: -1 }).startsWith('0 ')).toBe(true);
     expect(ringDash({ radius: 26, fraction: Number.NaN }).startsWith('0 ')).toBe(true);
+  });
+});
+
+describe('stackedSegments', () => {
+  it('splits the width between the values, in the order given, with nothing left over', () => {
+    const segments = stackedSegments({ values: [174, 10, 2], width: 300 });
+
+    expect(segments.map((segment) => segment.size)).toEqual([
+      (174 / 186) * 300,
+      (10 / 186) * 300,
+      (2 / 186) * 300,
+    ]);
+    expect(segments.reduce((sum, segment) => sum + segment.size, 0)).toBeCloseTo(300, 9);
+  });
+
+  it('starts each segment where the one before it stopped', () => {
+    const segments = stackedSegments({ values: [1, 3], width: 100 });
+
+    expect(segments.map((segment) => segment.start)).toEqual([0, 25]);
+    expect(segments[1]?.start).toBeCloseTo((segments[0]?.start ?? 0) + (segments[0]?.size ?? 0));
+  });
+
+  it('gives a value nothing has no room, and keeps its place in the order', () => {
+    const segments = stackedSegments({ values: [3, 0, 1], width: 80 });
+
+    expect(segments.map((segment) => segment.size)).toEqual([60, 0, 20]);
+    expect(segments.map((segment) => segment.start)).toEqual([0, 60, 60]);
+  });
+
+  it('holds a negative or unreadable value to nothing rather than drawing it backwards', () => {
+    const segments = stackedSegments({ values: [-4, Number.NaN, 2], width: 50 });
+
+    expect(segments.map((segment) => segment.size)).toEqual([0, 0, 50]);
+  });
+
+  it('gives every segment nothing when there is nothing to share out', () => {
+    expect(stackedSegments({ values: [0, 0], width: 100 })).toEqual([
+      { start: 0, size: 0 },
+      { start: 0, size: 0 },
+    ]);
+    expect(stackedSegments({ values: [], width: 100 })).toEqual([]);
   });
 });

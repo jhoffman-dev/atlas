@@ -1,178 +1,254 @@
-/* Dashboards (P16-05): the grid and the widgets - Number tile, Hero, Bars, Donut, Ranking, Line, List and table.
+/* Dashboards (P16-05, UI v2 slice 10): the KPI strip, the panel grid and the
+   widgets - KPI cell, Hero, Bars, Donut, Ranking, Line, List and table.
    One of the section files styles/index.css imports in cascade order; the
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ==========================================================================
-   Dashboards (Phase 16, P16-05) — design/target/Main.dc.html
+   Dashboards — design/target/Dashboard.dc.html, DashboardDark.dc.html
    ==========================================================================
 
-   A twelve-column grid. A widget spans the columns its `span` asks for, and
-   two rows unless it is a number tile, which takes one — so two tiles stack
-   beside a chart as in the mockup, and a tile is never stretched to a chart's
-   height. Rows grow with their content, so a long table still fits.
+   An 84px strip of figures across the top — the number widgets and the hero's
+   totals — divided by hairlines, over a twelve-column grid of panels. Nothing
+   is a card: a panel is a 13/600 heading over its chart, bounded by hairlines
+   on its left and foot, and the grid's own leading line is clipped by the
+   page, so no line is ever left trailing. A panel spans the columns its
+   `span` asks for; rows grow with their content.
 
-   The hero is a well fill. Every chart is flat: muted bars with one called
-   out in the Next blue, a donut on the sage-blue ramp. */
-
-/* What sits on the hero follows the theme, as the hero itself does now.
-   Declared for each explicit theme, as the aliases in the token block are. */
-:root,
-[data-theme='light'],
-[data-theme='dark'] {
-  --hero-ink: var(--ink);
-  --hero-ring-track: var(--line);
-  --hero-tile: var(--selected);
-  --hero-spark: var(--status-next-dot);
-  --hero-spark-fill: var(--status-next-dot);
-}
+   Every chart is flat and grey; colour is the one called-out group, in the
+   pastel blue that is `--accent-data`, and the status dots of a donut's
+   segments. Text is ink and ink-3 only, so it reads in both themes. */
 
 .dashboard {
-  /* The dashboard fills the page's height; without this its rows would
-     stretch to fill it too, and every card would grow past its content. */
-  align-content: start;
   container: dashboard / inline-size;
-  display: grid;
-  gap: var(--space-5);
-  /* Plain auto, with a stat tile's least height on the tile: WebKit sized
-     minmax(140px, auto) rows — and rows under a card with a min-height — from
-     the card's least height rather than its content, so a card whose height
-     depends on its width (a donut whose legend drops under its ring)
-     overflowed its row. */
-  grid-auto-rows: auto;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  /* Room for the cards' shadows inside the scrolling box. */
-  padding: 4px 4px var(--space-6);
+  display: flex;
+  flex-direction: column;
+}
+
+/* The page keeps a 32px gutter for notes and the views; a dashboard's
+   hairlines run to the pane's edges, so it takes the gutter back. It is the
+   page's scroll box, so the strip scrolls with the panels. */
+.page--wide .dashboard {
+  margin: 0 -32px;
 }
 
 .dashboard__empty {
   color: var(--ink-2);
 }
 
+/* ---- The strip ---- */
+
+.dashboard__strip {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-shrink: 0;
+  /* The leading cell's hairline sits in the clipped 1px, like a row's. */
+  margin-left: -1px;
+  min-height: 84px;
+}
+
 .widget {
   --span: 6;
-  border-radius: var(--radius-hero);
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  grid-column: span var(--span);
-  grid-row: span 2;
   min-width: 0;
   position: relative;
 }
 
-.widget--number {
-  grid-row: span 1;
+.widget--strip {
+  --cells: 1;
+  display: flex;
+  flex: var(--cells) 1 0;
 }
 
-.dashboard > .widget--number {
-  min-height: 140px;
+.kpi {
+  border-left: 1px solid var(--line);
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-width: 0;
+  padding: 10px 20px;
+}
+
+.kpi__label {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  font-size: var(--text-header);
+  font-weight: 500;
+  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi__icon {
+  flex-shrink: 0;
+}
+
+.kpi__figure {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+}
+
+.kpi__value {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+  line-height: 1.2;
+}
+
+.kpi__sub {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The hero's status bar: the done part against the rest. */
+.kpi__bar {
+  display: flex;
+  gap: 2px;
+  height: 4px;
+  margin-top: 6px;
+  max-width: 140px;
+}
+
+.kpi__bar-part,
+.kpi__bar-rest {
+  --size: 0;
+  border-radius: 2px;
+  flex: var(--size) 1 0;
+}
+
+.kpi__bar-part {
+  background: var(--accent-data);
+}
+
+.kpi__bar-rest {
+  background: var(--track);
+}
+
+/* ---- The panels ---- */
+
+.dashboard__panels {
+  /* The dashboard fills the page's height; without this its rows would
+     stretch to fill it too, and every panel would grow past its content. */
+  align-content: start;
+  display: grid;
+  grid-auto-rows: auto;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  margin-left: -1px;
+}
+
+.widget--panel {
+  border-bottom: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  grid-column: span var(--span);
+  padding: 16px 20px 14px;
 }
 
 @container dashboard (max-width: 900px) {
-  .widget {
+  .widget--panel {
     grid-column: span 6;
   }
 
-  .widget--wide {
+  .widget--panel.widget--wide {
     grid-column: 1 / -1;
   }
 }
 
 @container dashboard (max-width: 560px) {
-  .widget {
+  .widget--panel {
     grid-column: 1 / -1;
   }
-}
-
-.widget--card {
-  background: var(--raised);
-  box-shadow: var(--shadow-card);
-  gap: var(--space-3);
-  padding: 20px var(--space-6) var(--space-4);
-}
-
-.widget--tile {
-  background: var(--raised);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-tile);
-}
-
-.widget--hero {
-  background: var(--hero);
-  box-shadow: var(--shadow-hero);
-  color: var(--hero-ink);
-  overflow: hidden;
-  padding: 22px var(--space-6) 18px;
 }
 
 .widget__header {
   align-items: center;
   display: flex;
-  gap: 14px;
-  min-height: 28px;
+  gap: 10px;
+  height: 24px;
 }
 
 .widget__title {
-  font-size: var(--text-card);
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-size: var(--text-body);
+  font-weight: 600;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .widget__spacer {
   flex-grow: 1;
 }
 
-.widget__note {
-  color: var(--ink-3);
-  font-size: 13px;
-  font-weight: 700;
-}
-
+.widget__note,
 .widget__total {
-  font-size: 22px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.02em;
 }
 
-/* The "…" appears when the widget is pointed at or reached by keyboard, and
-   stays while its menu is open. */
-.widget__menu {
+/* The key to a bar chart's called-out group: an 8px square of its blue. */
+.bars__key {
+  align-items: center;
+  color: var(--ink-3);
+  display: flex;
+  flex-shrink: 0;
+  font-size: var(--text-meta);
+  gap: 6px;
+}
+
+.bars__key-swatch {
+  background: var(--accent-data);
+  border-radius: 2px;
+  height: 8px;
+  width: 8px;
+}
+
+/* The "…" and the table toggle appear when the widget is pointed at or
+   reached by keyboard; the "…" stays while its menu is open, the toggle
+   while it is pressed. */
+.widget__menu,
+.widget__toggle {
+  color: var(--ink-3);
+  height: 24px;
   opacity: 0;
   transition: opacity 120ms ease;
-}
-
-.widget__header .widget__menu {
-  margin-right: -10px;
+  width: 24px;
 }
 
 .widget:hover .widget__menu,
 .widget:focus-within .widget__menu,
-.widget__menu[data-popup-open] {
+.widget__menu[data-popup-open],
+.widget:hover .widget__toggle,
+.widget:focus-within .widget__toggle,
+.widget__toggle[aria-pressed='true'] {
   opacity: 1;
+}
+
+.widget__toggle[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--ink);
+}
+
+.widget__header .widget__menu {
+  margin-right: -6px;
 }
 
 .widget__menu-corner {
   position: absolute;
-  right: 10px;
-  top: 10px;
+  right: 6px;
+  top: 6px;
   z-index: 2;
-}
-
-/* Left of the progress ring, which owns the hero's top-right corner. */
-.widget--hero .widget__menu-corner {
-  right: 96px;
-  top: 18px;
-}
-
-.widget--hero .widget__menu {
-  color: var(--hero-muted);
-}
-
-.widget--hero .widget__menu:hover {
-  background: var(--hero-ring-track);
-  color: var(--hero-ink);
 }
 
 .widget__sql {
@@ -186,17 +262,15 @@
   white-space: pre-wrap;
 }
 
-.widget--tile .widget__sql,
-.widget--hero .widget__sql {
-  margin: 0 var(--space-3) var(--space-3);
-  position: relative;
-  z-index: 1;
+.widget--strip .widget__sql {
+  align-self: center;
+  margin: 0 var(--space-3);
 }
 
 .widget__empty,
 .widget__error {
-  color: var(--ink-2);
-  font-size: 13px;
+  color: var(--ink-3);
+  font-size: var(--text-body);
   margin: 0;
 }
 
@@ -204,209 +278,26 @@
   color: var(--danger);
 }
 
-/* ---- Number tile ---- */
-
-.stat {
-  align-items: center;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-1);
-  justify-content: center;
-  padding: var(--space-3);
-}
-
-.stat__icon {
-  color: var(--cyan-ink);
-}
-
-.stat__value {
-  font-size: 34px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  margin: 0;
-}
-
-.stat__label {
-  color: var(--ink-2);
-  font-size: var(--text-ui);
-  font-weight: 700;
-  margin: 0;
-  text-align: center;
-}
-
-/* ---- Hero ---- */
-
-.hero__top {
-  align-items: flex-start;
-  display: flex;
-  gap: var(--space-3);
-  position: relative;
-  z-index: 1;
-}
-
-.hero__titles {
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.hero__headline {
-  align-items: baseline;
-  display: flex;
-  gap: var(--space-3);
-  margin: 0;
-}
-
-.hero__title {
-  font-size: var(--text-body-lg);
-  font-weight: 700;
-}
-
-.hero__total {
-  font-size: 26px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.hero__muted {
-  color: var(--hero-muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.hero__ring {
-  flex-shrink: 0;
-  height: 64px;
-  position: relative;
-  width: 64px;
-}
-
-.hero__ring-track,
-.hero__ring-value {
-  fill: none;
-  stroke-width: 5;
-}
-
-.hero__ring-track {
-  stroke: var(--hero-ring-track);
-}
-
-.hero__ring-value {
-  stroke: var(--tile-ink);
-  stroke-linecap: round;
-}
-
-.hero__ring-label {
-  align-items: center;
-  display: flex;
-  font-size: var(--text-body);
-  font-weight: 800;
-  inset: 0;
-  justify-content: center;
-  position: absolute;
-}
-
-.hero__part {
-  display: flex;
-  flex-direction: column;
-  margin: 14px 0 0;
-  position: relative;
-  z-index: 1;
-}
-
-.hero__part-value {
-  font-size: 40px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1;
-}
-
-.hero__part-label {
-  color: var(--hero-muted);
-  font-size: var(--text-body);
-  font-weight: 700;
-  margin-top: var(--space-1);
-}
-
-.hero__spark {
-  bottom: 34px;
-  height: 110px;
-  left: 0;
-  position: absolute;
-  width: 100%;
-}
-
-.hero__spark-stop-top {
-  stop-color: var(--hero-spark-fill);
-  stop-opacity: 0.35;
-}
-
-.hero__spark-stop-foot {
-  stop-color: var(--hero-spark-fill);
-  stop-opacity: 0;
-}
-
-.hero__spark-line {
-  fill: none;
-  stroke: var(--hero-spark);
-  stroke-linecap: round;
-  stroke-width: 2.4;
-  vector-effect: non-scaling-stroke;
-}
-
-.hero__foot {
-  align-items: baseline;
-  bottom: var(--space-4);
-  display: flex;
-  gap: 10px;
-  left: var(--space-6);
-  margin: 0;
-  position: absolute;
-  right: var(--space-6);
-}
-
-.hero__foot-label {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.hero__foot-value {
-  color: var(--tile-ink);
-  font-size: var(--text-body);
-  font-weight: 800;
-}
-
-.hero__foot .hero__muted {
-  font-size: 12px;
-}
-
 /* ---- Bars ---- */
 
 .bars {
   display: flex;
   flex: 1;
-  gap: var(--space-3);
-  min-height: 150px;
+  min-height: 200px;
 }
 
-/* The pill row under the bars is 22px and the gap above it 8px; the axis and
-   the gridlines stop that far short of the foot so zero is the bars' floor. */
+/* The label row under the bars is 26px; the axis and the gridlines stop that
+   far short of the foot so zero is the bars' floor. */
 .bars__axis {
+  box-sizing: border-box;
   color: var(--ink-3);
   flex-shrink: 0;
-  font-size: 11.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  margin-bottom: 30px;
+  margin-bottom: 26px;
+  padding-right: 8px;
   position: relative;
-  width: 22px;
+  width: 26px;
 }
 
 .bars__tick,
@@ -420,7 +311,7 @@
   bottom: var(--at);
   line-height: 1;
   position: absolute;
-  right: 0;
+  right: 8px;
   transform: translateY(50%);
 }
 
@@ -431,27 +322,27 @@
 }
 
 .bars__grid {
-  inset: 0 0 30px;
+  border-bottom: 1px solid var(--line-strong);
+  inset: 0 0 26px;
   pointer-events: none;
   position: absolute;
 }
 
 .bars__gridline {
-  border-top: 1px dashed var(--grid);
+  border-top: 1px solid var(--chart-grid);
   bottom: var(--at);
   left: 0;
   position: absolute;
   right: 0;
 }
 
-/* Zero is the floor the bars stand on, not a line across them. */
+/* Zero is the floor the bars stand on, drawn by the grid's own edge. */
 .bars__gridline:first-child {
   display: none;
 }
 
 .bars__columns {
   display: flex;
-  gap: 10px;
   height: 100%;
   list-style: none;
   margin: 0;
@@ -464,7 +355,6 @@
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -478,331 +368,213 @@
 }
 
 .bars__bar {
-  background: var(--bar-muted);
-  border-radius: 8px 8px 4px 4px;
+  background: var(--chart-bar);
+  border-radius: 4px 4px 0 0;
   height: var(--at);
   max-width: 30px;
-  width: 100%;
+  width: 60%;
 }
 
 .bars__column--current .bars__bar {
-  background: var(--cyan);
-  box-shadow: var(--glow);
+  background: var(--accent-data);
 }
 
 .bars__value {
-  bottom: calc(var(--at) + 6px);
-  font-size: 12px;
+  bottom: calc(var(--at) + 4px);
+  color: var(--ink-2);
+  font-size: var(--text-header);
   font-variant-numeric: tabular-nums;
-  font-weight: 800;
+  font-weight: 500;
   position: absolute;
-}
-
-/* Every count is in the markup for a screen reader; only the called-out one
-   is drawn. */
-.bars__column:not(.bars__column--current) .bars__value {
-  clip-path: inset(50%);
-  height: 1px;
-  overflow: hidden;
-  white-space: nowrap;
-  width: 1px;
 }
 
 .bars__label {
-  align-items: center;
-  border-radius: var(--radius-chip);
   box-sizing: border-box;
   color: var(--ink-3);
-  display: flex;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--text-header);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  height: 22px;
-  justify-content: center;
+  height: 26px;
+  line-height: 26px;
   max-width: 100%;
-  min-width: 26px;
   overflow: hidden;
-  padding: 0 5px;
-  white-space: nowrap;
-}
-
-.bars__column--current .bars__label {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-/* ---- Donut ---- */
-
-.donut {
-  align-items: center;
-  display: flex;
-  flex: 1;
-  /* Beside a 190px ring a narrow card left the legend nothing, and its labels
-     were cut to "D." and "B.". With no room for the legend's least width
-     beside the ring, it wraps under it instead. */
-  flex-wrap: wrap;
-  gap: 26px;
-  justify-content: center;
-  min-height: 0;
-}
-
-.donut__figure {
-  flex-shrink: 0;
-  height: 190px;
-  position: relative;
-  width: 190px;
-}
-
-.donut__ring {
-  display: block;
-  height: 190px;
-  width: 190px;
-}
-
-.donut__track {
-  fill: none;
-  stroke: var(--track);
-}
-
-/* Largest first: the deep navy, then cyan, then down the ramp and into the
-   neutrals. Mixed at the element, so each resolves against its own theme. */
-.donut__slice--1 {
-  fill: var(--navy-data);
-}
-.donut__slice--2 {
-  fill: var(--cyan);
-}
-.donut__slice--3 {
-  fill: var(--accent-data);
-}
-.donut__slice--4 {
-  fill: color-mix(in srgb, var(--navy-data) 55%, var(--raised));
-}
-.donut__slice--5 {
-  fill: var(--ink-3);
-}
-.donut__slice--6 {
-  fill: color-mix(in srgb, var(--ink-3) 62%, var(--raised));
-}
-.donut__slice--7 {
-  fill: color-mix(in srgb, var(--ink-3) 34%, var(--raised));
-}
-
-.donut__disc {
-  align-items: center;
-  background: var(--raised);
-  border-radius: 50%;
-  box-shadow: var(--shadow-tile);
-  display: flex;
-  flex-direction: column;
-  height: 104px;
-  justify-content: center;
-  left: 50%;
-  margin: -52px 0 0 -52px;
-  position: absolute;
-  top: 50%;
-  width: 104px;
-}
-
-.donut__total {
-  font-size: 26px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-
-.donut__noun {
-  color: var(--ink-3);
-  font-size: 12px;
-  font-weight: 700;
-  margin-top: var(--space-1);
-}
-
-.donut__legend {
-  display: flex;
-  /* Swatch, share, count and the gaps take 114px; a label gets the rest. */
-  flex: 1 1 180px;
-  flex-direction: column;
-  gap: 9px;
-  list-style: none;
-  margin: 0;
-  min-width: 0;
-  padding: 0;
-}
-
-.donut__entry {
-  align-items: center;
-  color: var(--ink);
-  display: flex;
-  font-size: var(--text-ui);
-  font-weight: 600;
-  gap: 10px;
-}
-
-.donut__entry--empty {
-  color: var(--ink-3);
-}
-
-.donut__swatch {
-  border-radius: 50%;
-  flex-shrink: 0;
-  height: 10px;
-  width: 10px;
-}
-
-.donut__swatch--1 {
-  background: var(--navy-data);
-}
-.donut__swatch--2 {
-  background: var(--cyan);
-}
-.donut__swatch--3 {
-  background: var(--accent-data);
-}
-.donut__swatch--4 {
-  background: color-mix(in srgb, var(--navy-data) 55%, var(--raised));
-}
-.donut__swatch--5 {
-  background: var(--ink-3);
-}
-.donut__swatch--6 {
-  background: color-mix(in srgb, var(--ink-3) 62%, var(--raised));
-}
-.donut__swatch--7 {
-  background: color-mix(in srgb, var(--ink-3) 34%, var(--raised));
-}
-
-/* A value nothing has yet has no slice, so its dot is the ring's bare track. */
-.donut__entry--empty .donut__swatch {
-  background: var(--track);
-}
-
-.donut__label {
-  flex-grow: 1;
-  min-width: 0;
-  /* A label longer than its room wraps: cut, it is no longer a label. */
-  overflow-wrap: anywhere;
-}
-
-.donut__share,
-.donut__count {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.donut__share {
-  color: var(--ink-3);
-  width: 40px;
-}
-
-.donut__count {
-  font-weight: 800;
-  width: 34px;
-}
-
-/* ---- Ranking ---- */
-
-.widget--rank {
-  gap: 14px;
-}
-
-.rank__whole,
-.rank__track {
-  background: var(--track);
-  border-radius: var(--radius-pill);
-  display: block;
-  overflow: hidden;
-}
-
-.rank__whole {
-  flex-shrink: 0;
-  height: 8px;
-}
-
-.rank__track {
-  height: 4px;
-}
-
-.rank__whole-bar,
-.rank__bar {
-  --at: 0%;
-  border-radius: var(--radius-pill);
-  display: block;
-  height: 100%;
-  width: var(--at);
-}
-
-.rank__whole-bar {
-  background: var(--cyan);
-}
-
-.rank__bar {
-  background: var(--accent-data);
-}
-
-.rank {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  list-style: none;
-  margin: var(--space-1) 0 0;
-  padding: 0;
-}
-
-.rank__row {
-  align-items: center;
-  display: flex;
-  gap: var(--space-3);
-}
-
-.rank__tile {
-  align-items: center;
-  background: var(--track);
-  border-radius: var(--radius-control);
-  color: var(--ink-2);
-  display: flex;
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 800;
-  height: 30px;
-  justify-content: center;
-  width: 30px;
-}
-
-.rank__row--current .rank__tile {
-  background: var(--cyan);
-  color: var(--accent-ink);
-}
-
-.rank__body {
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-  gap: 6px;
-  min-width: 0;
-}
-
-.rank__line {
-  align-items: baseline;
-  display: flex;
-  font-size: 13px;
-  font-weight: 700;
-  gap: var(--space-2);
-}
-
-.rank__name {
-  flex-grow: 1;
-  min-width: 0;
-  overflow: hidden;
+  padding: 0 2px;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.rank__count {
-  color: var(--ink-3);
+.bars__column--current .bars__label {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---- Donut: a stacked bar and its table ---- */
+
+.donut {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.donut__bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+}
+
+.donut__segment {
+  --size: 0;
+  border-radius: 3px;
+  flex: var(--size) 1 0;
+  min-width: 4px;
+}
+
+/* A segment's colour, and the dot beside its row: a status wears its own
+   dot; anything else walks down the ramp, largest first. */
+.chart-swatch {
+  --swatch: var(--chart-bar);
+  background: var(--swatch);
+}
+
+.chart-swatch[data-rank='1'] {
+  --swatch: var(--navy-data);
+}
+.chart-swatch[data-rank='2'] {
+  --swatch: var(--accent-data);
+}
+.chart-swatch[data-rank='3'] {
+  --swatch: var(--status-review-dot);
+}
+.chart-swatch[data-rank='4'] {
+  --swatch: var(--status-doing-dot);
+}
+.chart-swatch[data-rank='5'] {
+  --swatch: var(--status-waiting-dot);
+}
+.chart-swatch[data-rank='6'] {
+  --swatch: var(--status-inbox-dot);
+}
+.chart-swatch[data-rank='7'] {
+  --swatch: var(--ink-3);
+}
+
+.chart-swatch[data-tone='inbox'] {
+  --swatch: var(--status-inbox-dot);
+}
+.chart-swatch[data-tone='backlog'] {
+  --swatch: var(--status-backlog-dot);
+}
+.chart-swatch[data-tone='next'] {
+  --swatch: var(--status-next-dot);
+}
+.chart-swatch[data-tone='doing'] {
+  --swatch: var(--status-doing-dot);
+}
+.chart-swatch[data-tone='waiting'] {
+  --swatch: var(--status-waiting-dot);
+}
+.chart-swatch[data-tone='review'] {
+  --swatch: var(--status-review-dot);
+}
+.chart-swatch[data-tone='done'] {
+  --swatch: var(--status-done-dot);
+}
+
+/* ---- Count table: a donut's rows, and a bar chart read as numbers ---- */
+
+.count-table,
+.rank {
+  border-collapse: collapse;
   font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+
+.count-table th,
+.rank th {
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: var(--text-header);
+  font-weight: 500;
+  height: 26px;
+  text-align: left;
+}
+
+.count-table td,
+.rank td {
+  border-bottom: 1px solid var(--line-soft);
+  height: 34px;
+  padding: 0;
+}
+
+.count-table__num,
+.count-table__count,
+.count-table__share,
+.rank__num,
+.rank__count {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.count-table__count,
+.count-table__share {
+  padding-left: 12px;
+}
+
+.count-table__share {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+}
+
+.count-table__label {
+  /* A label longer than its room wraps: cut, it is no longer a label. */
+  overflow-wrap: anywhere;
+}
+
+.count-table__row--empty {
+  color: var(--ink-3);
+}
+
+.count-table__swatch {
+  border-radius: 50%;
+  display: inline-block;
+  height: 8px;
+  margin-right: 8px;
+  vertical-align: 0;
+  width: 8px;
+}
+
+/* ---- Ranking ---- */
+
+.rank__name {
+  max-width: 160px;
+  overflow: hidden;
+  padding-right: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.rank__track {
+  padding-right: 16px;
+  width: 100%;
+}
+
+.rank__bar {
+  --at: 0%;
+  background: var(--chart-bar);
+  border-radius: 3px;
+  display: block;
+  height: 6px;
+  width: var(--at);
+}
+
+.rank__row--current .rank__bar {
+  background: var(--accent-data);
+}
+
+.rank__count {
+  padding-left: 12px;
 }
 
 /* ---- Line ---- */
@@ -828,8 +600,7 @@
 }
 
 .line-chart__grid {
-  stroke: var(--grid);
-  stroke-dasharray: 4 4;
+  stroke: var(--chart-grid);
   vector-effect: non-scaling-stroke;
 }
 
@@ -838,7 +609,7 @@
   stroke: var(--accent-data);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2.4;
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
@@ -847,8 +618,9 @@
   --x: 0%;
   --y: 0%;
   background: var(--accent-data);
+  border: 2px solid var(--surface);
   border-radius: 50%;
-  box-shadow: 0 0 0 3px var(--raised);
+  box-sizing: border-box;
   height: 10px;
   left: var(--x);
   margin: -5px 0 0 -5px;
@@ -866,13 +638,13 @@
 
 .line-chart__values {
   border-collapse: collapse;
-  font-size: var(--text-label);
+  font-size: var(--text-header);
   width: 100%;
 }
 
 .line-chart__values th {
   color: var(--ink-3);
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   padding: 0 var(--space-1);
   text-overflow: ellipsis;
@@ -881,7 +653,6 @@
 
 .line-chart__values td {
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
   padding: 0 var(--space-1);
   text-align: center;
 }
@@ -891,10 +662,17 @@
 .widget__list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.widget__row {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  gap: 12px;
+  min-height: 34px;
 }
 
 .widget__link {
@@ -903,13 +681,27 @@
   color: var(--ink);
   cursor: pointer;
   font: inherit;
-  font-weight: 600;
-  padding: 2px 0;
+  padding: 0;
   text-align: left;
+}
+
+.widget__row .widget__link {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .widget__link:hover {
   color: var(--accent-text);
+}
+
+.widget__meta {
+  color: var(--ink-3);
+  flex-shrink: 0;
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
 }
 
 .widget__scroll {
@@ -919,22 +711,29 @@
 
 .widget__table {
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-body);
   width: 100%;
 }
 
 .widget__table th {
-  background: var(--raised);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
   color: var(--ink-3);
-  font-weight: 700;
+  font-size: var(--text-header);
+  font-weight: 500;
+  height: 26px;
   position: sticky;
   text-align: left;
   top: 0;
 }
 
+.widget__table td {
+  border-bottom: 1px solid var(--line-soft);
+  height: 34px;
+}
+
 .widget__table th,
 .widget__table td {
-  border-bottom: 1px solid var(--line);
-  padding: 6px 8px 6px 0;
+  padding: 0 12px 0 0;
   white-space: nowrap;
 }

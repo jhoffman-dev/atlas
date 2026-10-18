@@ -1,27 +1,52 @@
-import { withNoteNames } from '@atlas/domain';
+import { withNoteNames, type NoteNames } from '@atlas/domain';
 import type { WidgetRow } from '@atlas/application';
 import { useNoteNames } from '../note-names.tsx';
 
+/** path identifies a row and the title opens it; neither is a column to show. */
+const IDENTIFYING = new Set(['path', 'title']);
+
+/**
+ * A list widget's rows: the title, which opens the note, and whatever else
+ * the row carries on one metadata line — `P14 · 1h` — with nothing printed
+ * for an empty value.
+ */
 export function WidgetList({
   rows,
+  columns,
   onOpenNote,
 }: {
   rows: readonly WidgetRow[];
+  columns: readonly string[];
   onOpenNote: (path: string) => void;
 }) {
+  const names = useNoteNames();
   if (rows.length === 0) return <p className="widget__empty">Nothing matches yet.</p>;
+
+  const shown = columns.filter((column) => !IDENTIFYING.has(column));
 
   return (
     <ul className="widget__list">
-      {rows.map((row) => (
-        <li key={row.path}>
-          <button type="button" className="widget__link" onClick={() => onOpenNote(row.path)}>
-            {row.title}
-          </button>
-        </li>
-      ))}
+      {rows.map((row) => {
+        const meta = metadataOf(row, shown, names);
+        return (
+          <li key={row.path} className="widget__row">
+            <button type="button" className="widget__link" onClick={() => onOpenNote(row.path)}>
+              {row.title}
+            </button>
+            {meta !== '' && <span className="widget__meta">{meta}</span>}
+          </li>
+        );
+      })}
     </ul>
   );
+}
+
+/** The row's other values on one line, separated by " · ", leaving out the empty ones. */
+function metadataOf(row: WidgetRow, columns: readonly string[], names: NoteNames): string {
+  return columns
+    .map((column) => withNoteNames(row.values[column], names))
+    .filter((value) => value !== '')
+    .join(' · ');
 }
 
 export function WidgetTable({
@@ -36,12 +61,9 @@ export function WidgetTable({
   const names = useNoteNames();
   if (rows.length === 0) return <p className="widget__empty">Nothing matches yet.</p>;
 
-  // path identifies a row; the title already opens it, so it is not a column.
-  // A SQL widget's rows may be neither, and are then read as they came.
+  // A SQL widget's rows may have neither path nor title, and are then read as they came.
   const named = columns.includes('path') && columns.includes('title');
-  const shown = named
-    ? columns.filter((column) => column !== 'path' && column !== 'title')
-    : columns;
+  const shown = named ? columns.filter((column) => !IDENTIFYING.has(column)) : columns;
 
   return (
     <div className="widget__scroll">

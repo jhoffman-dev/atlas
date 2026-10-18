@@ -153,13 +153,13 @@ test('the numbers follow an edit made outside the dashboard', async ({ page }) =
   await expect(page.getByLabel('By status').locator('.bars__label')).toHaveText(['done', 'doing']);
 });
 
-test('a donut names every slice in its legend, not only in the picture', async ({ page }) => {
+test('a donut names every segment in its table, not only in the bar', async ({ page }) => {
   await openDashboard(page);
 
   const donut = page.getByLabel('Share of status');
-  await expect(donut.locator('.donut__slice')).toHaveCount(2);
-  await expect(donut.getByText('doing')).toBeVisible();
-  await expect(donut.getByText('done')).toBeVisible();
+  await expect(donut.locator('.donut__segment')).toHaveCount(2);
+  await expect(donut.locator('.count-table__label')).toHaveText(['Doing', 'Done']);
+  await expect(donut.locator('.count-table__count')).toHaveText(['2', '1']);
 });
 
 test('a line chart gives its numbers as a table as well as a line', async ({ page }) => {
@@ -221,18 +221,31 @@ test('bars run in number order and call out the latest phase', async ({ page }) 
   const bars = page.getByLabel('Per phase');
   await expect(bars.locator('.bars__label')).toHaveText(['2', '10', '11']);
   await expect(bars.locator('.bars__column--current .bars__label')).toHaveText('11');
-  await expect(bars.locator('.widget__total')).toHaveText('6');
+  await expect(bars.locator('.widget__total')).toHaveText('6 tasks');
 });
 
-test('the hero counts the whole, the done part and the latest phase', async ({ page }) => {
+test('the strip counts the whole, the done part and the latest phase', async ({ page }) => {
   await openDashboard(page, PHASES, PHASED);
 
-  const hero = page.getByLabel('Overall');
-  await expect(hero.locator('.hero__total')).toHaveText('6');
-  await expect(hero.locator('.hero__part-value')).toHaveText('4');
+  const strip = page.locator('.dashboard__strip');
+  const hero = strip.getByLabel('Overall');
+  await expect(hero.locator('.kpi__label')).toHaveText(['Overall', 'Done', 'Current phase']);
+  await expect(hero.locator('.kpi__value')).toHaveText(['6', '4', '11']);
+  await expect(hero.locator('.kpi__sub')).toHaveText(['3 phases', '67%', '2 tasks']);
   await expect(hero.getByRole('img', { name: '67% of all' })).toBeVisible();
-  await expect(hero.getByText('across 3 phases')).toBeVisible();
-  await expect(hero.locator('.hero__foot-value')).toHaveText('+2');
+});
+
+test('a bar chart reads as a table at its toggle, with the same numbers', async ({ page }) => {
+  await openDashboard(page, PHASES, PHASED);
+
+  const bars = page.getByLabel('Per phase');
+  await expect(bars.locator('.bars__label')).toHaveText(['2', '10', '11']);
+  await bars.getByRole('button', { name: 'Show as table' }).click();
+  await expect(bars.locator('.bars__label')).toHaveCount(0);
+  await expect(bars.locator('.count-table__label')).toHaveText(['2', '10', '11']);
+  await expect(bars.locator('.count-table__count')).toHaveText(['1', '3', '2']);
+  await bars.getByRole('button', { name: 'Show as table' }).click();
+  await expect(bars.locator('.bars__label')).toHaveText(['2', '10', '11']);
 });
 
 test('a ranking lists the largest groups and how much of the whole they hold', async ({ page }) => {
@@ -240,5 +253,6 @@ test('a ranking lists the largest groups and how much of the whole they hold', a
 
   const rank = page.getByLabel('Biggest');
   await expect(rank.locator('.rank__name')).toHaveText(['Phase 10', 'Phase 11']);
-  await expect(rank.getByText('5 of 6')).toBeVisible();
+  await expect(rank.locator('.rank__count')).toHaveText(['3', '2']);
+  await expect(rank.getByText('5 of 6 tasks')).toBeVisible();
 });

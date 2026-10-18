@@ -15,6 +15,10 @@
  *     areaUnder    →  d3.area()
  *     niceTicks    →  scale.nice().ticks()
  *
+ * `stackedSegments` is plain arithmetic — a stacked bar is a division of a
+ * width, and d3's stack generator is built for series over keys, not a single
+ * bar — so it lives here with the rest rather than importing a fifth generator.
+ *
  * The rules stayed ours. What counts as a value worth drawing, what a slice
  * narrower than its own gap paints, and what a scale with nothing to scale
  * falls back to are decisions; d3 draws what it is handed.
@@ -293,6 +297,37 @@ export function niceTicks({
   // left that still covers it.
   if (top === undefined || top < max) return [0, max];
   return ticks;
+}
+
+/** One run of a stacked bar: where it starts and how much of the bar it takes. */
+export interface StackedSegment {
+  readonly start: number;
+  readonly size: number;
+}
+
+/**
+ * A bar divided between `values`, left to right in the order given, so the
+ * segments add up to `width` exactly and a legend beside the bar reads in the
+ * same order. A value that is nothing — zero, negative, or not a number — takes
+ * no room and keeps its place, so the segment at index 2 is always the third
+ * value; and when every value is nothing, so is every segment.
+ */
+export function stackedSegments({
+  values,
+  width,
+}: {
+  readonly values: readonly number[];
+  readonly width: number;
+}): StackedSegment[] {
+  const held = values.map((value) => (Number.isFinite(value) && value > 0 ? value : 0));
+  const whole = held.reduce((sum, value) => sum + value, 0);
+  let start = 0;
+  return held.map((value) => {
+    const size = whole > 0 ? (value / whole) * width : 0;
+    const segment = { start, size };
+    start += size;
+    return segment;
+  });
 }
 
 /** Three decimals is finer than any screen and keeps the path strings short. */

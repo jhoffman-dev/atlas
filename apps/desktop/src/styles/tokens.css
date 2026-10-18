@@ -363,9 +363,12 @@
   --navy-data: var(--status-done-dot);
   --bar-muted: var(--chart-bar);
   --tile-ink: var(--ink-2);
-  /* The hero is a well fill now, not a gradient. */
+  /* The hero is a well fill now, not a gradient; the sidebar's empty-vault
+     card is the one thing still drawn on it. */
   --hero: var(--well);
+  --hero-ink: var(--ink);
   --hero-muted: var(--ink-3);
+  --hero-tile: var(--selected);
   --you: var(--btn-primary-bg);
   --you-ink: var(--btn-primary-ink);
 
