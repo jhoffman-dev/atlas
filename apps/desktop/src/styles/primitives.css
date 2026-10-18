@@ -101,10 +101,12 @@
   opacity: 0.5;
 }
 
-/* Inside a row or a band, where 28px would crowd the line. */
+/* Inside a row or a band, where 28px would crowd the line. 22px is what a
+   standard Inbox row is placed by (inbox-rows.tsx ROW_HEIGHT, pinned in
+   e2e/row-estimates.spec.ts), so this one does not move on its own. */
 .btn--sm {
   font-size: var(--text-small);
-  height: 24px;
+  height: 22px;
   padding: 0 8px;
 }
 
