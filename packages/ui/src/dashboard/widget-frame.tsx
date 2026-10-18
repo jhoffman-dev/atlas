@@ -27,17 +27,19 @@ export interface WidgetArranging {
 }
 
 /**
- * The tile every widget sits in: its place on the grid, its accessible name,
+ * The frame every widget sits in: its place on the grid, its accessible name,
  * and the "…" menu that holds what is not the picture — the SQL behind it,
  * and, on a dashboard that can be edited, Edit and Remove.
  *
- * `variant` is only the look: a `card` is raised with a title, a `hero` is the
- * navy gradient, a `tile` is a small raised stat.
+ * `variant` is only the look: a `panel` is a hairline-bounded section with a
+ * heading, a `strip` widget is one or more cells of the KPI strip, drawing
+ * its own labels.
  */
 export function WidgetFrame({
   result,
   variant,
   title,
+  cells,
   aside,
   menuSlot,
   actions,
@@ -45,9 +47,11 @@ export function WidgetFrame({
   children,
 }: {
   result: WidgetResult;
-  variant: 'card' | 'hero' | 'tile';
-  /** Drawn as the card's heading; heroes and tiles draw their own. */
+  variant: 'panel' | 'strip';
+  /** Drawn as the panel's heading; a strip widget draws its own labels. */
   title?: string;
+  /** How many cells of the strip the widget takes: a hero is a few figures wide. */
+  cells?: number;
   /** Right of the heading: a total, a note, a count. */
   aside?: ReactNode;
   /** The "…" menu's open state, when the app holds it (the one-overlay rule). */
@@ -81,7 +85,9 @@ export function WidgetFrame({
         arranging?.className ?? '',
       ].join(' ')}
       aria-label={widget.title}
-      style={{ '--span': widget.span } as CSSProperties}
+      style={
+        { '--span': widget.span, ...(cells !== undefined && { '--cells': cells }) } as CSSProperties
+      }
     >
       {arranging?.handles}
       {title === undefined ? (

@@ -18,6 +18,7 @@ const SCALE = 0.5;
  */
 const SURFACES: { surface: string; board: string | null }[] = [
   { surface: 'dashboard', board: 'Dashboard' },
+  { surface: 'dashboard-table', board: 'Dashboard' },
   { surface: 'board', board: 'Main' },
   { surface: 'all-tasks', board: 'Table' },
   { surface: 'sidebar', board: 'Sidebar' },
