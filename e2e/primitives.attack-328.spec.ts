@@ -246,20 +246,49 @@ const ringClipping = (page: Page) =>
     return clipped.length === 0 ? null : `${label}: ${clipped.join(', ')}`;
   });
 
-/** Tabs through `steps` stops; returns how many primitives took the focus, and each clipped ring. */
-async function tabAndCollectClipping(
+/**
+ * Focuses each primitive on the surface in turn — inside the open dialog, or
+ * the main panel — and returns how many took the focus, and each clipped ring.
+ *
+ * Focused from script, after one Tab so the focus counts as the keyboard's
+ * (`:focus-visible`), rather than reached by tabbing: WebKit's Tab skips a
+ * plain `<button>` with no `tabindex` of its own, which is what a `.btn` is,
+ * so a Tab walk never lands on the controls this is about (#294 found the
+ * walk's only stop had been the sidebar's old theme radios).
+ */
+async function focusEachAndCollectClipping(
   page: Page,
-  steps: number,
 ): Promise<{ seen: number; clipped: string[] }> {
+  await page.keyboard.press('Tab');
+  const count = await page.evaluate(() => {
+    const scope =
+      document.querySelector('[role="dialog"]') ?? document.querySelector('.shell__main');
+    const primitives = [
+      ...(scope?.querySelectorAll('.btn, .field, .chip, .segmented__option') ?? []),
+    ];
+    (globalThis as { attack328Primitives?: Element[] }).attack328Primitives = primitives;
+    return primitives.length;
+  });
   const found: string[] = [];
   let seen = 0;
-  for (let step = 0; step < steps; step += 1) {
-    await page.keyboard.press('Tab');
-    const isPrimitive = await page.evaluate(() =>
-      Boolean(document.activeElement?.matches('.btn, .field, .chip, .segmented__option')),
-    );
-    if (!isPrimitive) continue;
+  for (let at = 0; at < count; at += 1) {
+    const focused = await page.evaluate((index) => {
+      const one = (globalThis as { attack328Primitives?: Element[] }).attack328Primitives?.[index];
+      if (!(one instanceof HTMLElement)) return null;
+      one.focus();
+      if (document.activeElement !== one) return null;
+      return {
+        label: `${one.tagName.toLowerCase()}.${[...one.classList].join('.')}`,
+        visible: one.matches(':focus-visible'),
+        ring: getComputedStyle(one).boxShadow,
+      };
+    }, at);
+    // A primitive that cannot take the focus — hidden, or disabled — has no ring to clip.
+    if (focused === null) continue;
     seen += 1;
+    // A ring that is clipped nowhere because it is drawn nowhere is no ring.
+    if (!focused.visible) found.push(`${focused.label}: not :focus-visible`);
+    if (focused.ring === 'none') found.push(`${focused.label}: no ring drawn`);
     const clipped = await ringClipping(page);
     if (clipped !== null) found.push(clipped);
   }
@@ -276,15 +305,19 @@ const RING_SURFACES: Record<string, (page: Page) => Promise<void>> = {
   },
   'quick-add popover': async (page) => {
     await page.locator('.fab__button').click();
-    await expect(page.getByRole('dialog', { name: 'New Task' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'New Task' });
+    await expect(dialog).toBeVisible();
+    // Its buttons are disabled, and so take no focus, until the task has a name.
+    await dialog.locator('.quick-add__name').fill('Ring');
+    await expect(dialog.locator('.btn:enabled').first()).toBeVisible();
   },
+  // The rows' own buttons, inside the list's scroller: opening a row would take them away.
   inbox: async (page) => {
     await page
       .getByRole('list', { name: 'Go to' })
       .getByRole('button', { name: /^Inbox/ })
       .click();
-    await expect(page.locator('.inbox__row').first()).toBeVisible();
-    await page.locator('.inbox__row').first().click();
+    await expect(page.locator('.inbox__row .btn').first()).toBeVisible();
   },
   today: async (page) => {
     await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Today' }).click();
@@ -300,7 +333,7 @@ for (const theme of THEMES) {
       await openVault(page);
       await setTheme(page, theme);
       await open(page);
-      const { seen, clipped } = await tabAndCollectClipping(page, 40);
+      const { seen, clipped } = await focusEachAndCollectClipping(page);
       expect(seen).toBeGreaterThan(0);
       expect(clipped).toEqual([]);
     });

@@ -5,7 +5,8 @@
 /* ---- The shell -----------------------------------------------------------
    The sidebar sits on the ground colour behind a hairline; the work runs edge
    to edge on the surface — one panel, or one per pane when the window is
-   split. Measurements are the mockup's.
+   split, with a hairline between them and no inset, radius or shadow.
+   Measurements are Sidebar.dc.html's and the Flow boards'.
    -------------------------------------------------------------------------- */
 
 .shell {
@@ -21,9 +22,9 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: 14px;
+  gap: 4px;
   min-height: 0;
-  padding: 14px 10px 12px 12px;
+  padding: var(--sidebar-pad) var(--sidebar-pad) 10px;
   width: var(--sidebar-width);
 }
 
@@ -31,15 +32,9 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--shell-inset);
   min-height: 0;
   min-width: 0;
-  padding: var(--shell-inset) var(--shell-inset) var(--shell-inset) 0;
   position: relative;
-}
-
-.shell--narrow .shell__main {
-  padding-left: var(--shell-inset);
 }
 
 /* The split: equal columns of the width the window has, each its own panel.
@@ -60,9 +55,7 @@
 }
 
 .panel {
-  background: var(--panel);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-panel);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -90,9 +83,9 @@
 /* Where a hidden sidebar comes back from: the first panel's top-left corner,
    inside its header strip. */
 .shell__show {
-  left: calc(var(--shell-inset) + 12px);
+  left: 12px;
   position: absolute;
-  top: calc(var(--shell-inset) + 10px);
+  top: 10px;
   z-index: 2;
 }
 
@@ -102,12 +95,12 @@
 .index-progress {
   background: var(--raised);
   border-radius: var(--radius-pill);
-  bottom: calc(var(--shell-inset) + 12px);
+  bottom: 12px;
   box-shadow: var(--shadow-soft);
   color: var(--ink-2);
   font-size: var(--text-small);
   font-variant-numeric: tabular-nums;
-  left: calc(var(--shell-inset) + 12px);
+  left: 12px;
   margin: 0;
   padding: var(--space-1) var(--space-3);
   pointer-events: none;
@@ -147,7 +140,7 @@
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--ink-2);
   cursor: pointer;
   display: inline-flex;
@@ -216,29 +209,31 @@
   width: 1px;
 }
 
-/* ---- The workspace header ------------------------------------------------ */
+/* ---- The workspace header ------------------------------------------------
+   The vault switcher: a 20px ink tile with the vault's initial, its name,
+   a chevron, then New note and Hide sidebar at the row's end. */
 
 .vault-header {
   align-items: center;
   display: flex;
   flex: none;
-  gap: 10px;
-  padding: 2px 4px 2px 6px;
+  gap: 8px;
+  height: 36px;
+  padding: 0 2px 0 8px;
 }
 
 .vault-header__tile {
   align-items: center;
-  background: var(--navy);
-  border-radius: var(--radius-control);
-  box-shadow: var(--shadow-badge);
-  color: var(--tile-ink);
+  background: var(--ink);
+  border-radius: var(--radius-row);
+  color: var(--surface);
   display: flex;
   flex: none;
-  font-size: 14px;
-  font-weight: 800;
-  height: 28px;
+  font-size: 11px;
+  font-weight: 600;
+  height: 20px;
   justify-content: center;
-  width: 28px;
+  width: 20px;
 }
 
 .vault-header__name {
@@ -246,16 +241,15 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   color: var(--ink);
   cursor: pointer;
   display: flex;
   flex: 1;
   font: inherit;
-  font-size: 15px;
-  font-weight: 800;
-  gap: 4px;
-  letter-spacing: -0.01em;
+  font-size: var(--text-body);
+  font-weight: 600;
+  gap: 6px;
   min-width: 0;
   padding: 2px 0;
   text-align: left;
@@ -269,6 +263,14 @@
 
 .vault-header__chevron {
   color: var(--ink-3);
+  flex: none;
+}
+
+.vault-header .icon-button {
+  border-radius: var(--radius-row);
+  color: var(--ink-3);
+  height: 26px;
+  width: 26px;
 }
 
 .vault-header__name:focus-visible {

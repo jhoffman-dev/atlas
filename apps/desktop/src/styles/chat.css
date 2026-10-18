@@ -9,7 +9,7 @@
   display: flex;
   flex: none;
   min-height: 0;
-  padding: var(--shell-inset) var(--shell-inset) var(--shell-inset) 0;
+  padding: 0;
   width: 400px;
 }
 

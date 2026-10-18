@@ -146,8 +146,10 @@ export function VaultHeader({
 function VaultName({ name }: { name: string }) {
   return (
     <>
-      <span className="vault-header__label">{name}</span>
-      <Icon name="chevron" size={14} className="vault-header__chevron" />
+      <span className="vault-header__label" title={name}>
+        {name}
+      </span>
+      <Icon name="chevron" size={12} className="vault-header__chevron" />
     </>
   );
 }

@@ -41,7 +41,7 @@ async function useTheme(page: Page, theme: 'light' | 'dark') {
   const current = () => page.evaluate(() => document.documentElement.dataset['theme']);
   if ((await current()) === theme) return;
   await page.keyboard.press('Escape');
-  await page.getByRole('radio', { name: new RegExp(`${theme} theme`, 'i') }).click();
+  await page.getByRole('button', { name: `Switch to ${theme} theme`, exact: true }).click();
   await expect.poll(current).toBe(theme);
 }
 

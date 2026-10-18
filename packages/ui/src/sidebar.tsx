@@ -393,7 +393,7 @@ function QuickRows({
             >
               <Icon name={QUICK_GLYPHS[id]} className="sidebar__icon" />
               <span className="sidebar__name">{entry.title}</span>
-              {count !== null && <span className="sidebar__badge">{count}</span>}
+              {count !== null && count > 0 && <span className="sidebar__badge">{count}</span>}
             </button>
           </li>
         );
@@ -583,6 +583,7 @@ const TypeList = memo(function TypeList({
                 type="button"
                 className="sidebar__row"
                 aria-label={`${type.label}, ${type.count === 1 ? '1 note' : `${type.count} notes`}`}
+                title={type.label}
                 aria-current={on ? 'page' : undefined}
                 onClick={() => onOpenType(type.name)}
                 onKeyDown={(event) => onKeyDown(type, event)}
@@ -594,14 +595,12 @@ const TypeList = memo(function TypeList({
               >
                 <Icon name={sidebarGlyph(type.icon)} className="sidebar__icon" />
                 <span className="sidebar__name">{type.label}</span>
-                <span
-                  className={
-                    type.count === 0 ? 'sidebar__count sidebar__count--none' : 'sidebar__count'
-                  }
-                  aria-hidden="true"
-                >
-                  {type.count}
-                </span>
+                {/* A nought says nothing the row's name does not: the row stays, the count goes. */}
+                {type.count > 0 && (
+                  <span className="sidebar__count" aria-hidden="true">
+                    {type.count}
+                  </span>
+                )}
               </button>
             </li>
           );
@@ -724,6 +723,7 @@ const EntryList = memo(function EntryList({
           <button
             type="button"
             className="sidebar__row"
+            title={entry.title}
             aria-current={open.has(entry.path) ? 'page' : undefined}
             onClick={() => onOpen(entry.path)}
           >
