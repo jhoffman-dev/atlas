@@ -69,4 +69,47 @@ describe('useSidebarCatalog: quick-view counts', () => {
 
     expect(counted() - before).toBe(1);
   });
+
+  it('counts the quick views again when a type is defined anew under the same name', async () => {
+    const { fs, index, markdown, query } = fakePorts();
+    const counted = () => query.mock.calls.filter(([sql]) => isCount(sql)).length;
+    const task: ObjectType = { name: 'task', label: 'Task', properties: [] };
+    const { wrapper } = queryWrapper();
+    const hook = renderHook(
+      ({ types }: { types: readonly ObjectType[] }) =>
+        useSidebarCatalog({
+          fs,
+          markdown,
+          index,
+          types,
+          notePaths: NO_NOTES,
+          vaultKey: 'vault',
+          indexReady: true,
+        }),
+      { wrapper, initialProps: { types: [task] } },
+    );
+    await waitFor(() => expect(hook.result.current.quick[0]?.count).toBe(3));
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    const before = counted();
+
+    // `.atlas/types/task.md` gains an option: the same name, a new definition. A query
+    // view is checked against the types, so it is counted with the new one.
+    const withStatus: ObjectType = {
+      ...task,
+      properties: [
+        {
+          key: 'status',
+          kind: 'select',
+          label: 'Status',
+          required: false,
+          options: ['todo'],
+          target: null,
+          many: false,
+        },
+      ],
+    };
+    hook.rerender({ types: [withStatus] });
+
+    await waitFor(() => expect(counted() - before).toBe(1));
+  });
 });

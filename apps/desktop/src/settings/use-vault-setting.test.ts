@@ -173,6 +173,75 @@ describe('useVaultSetting and its writes', () => {
   });
 });
 
+describe('two settings writing at once, over the one read of the note', () => {
+  it('shows each its own value, and neither takes the other’s landing for its own', async () => {
+    const file: Record<string, string> = { a: 'a0', b: 'b0' };
+    const fs = fakeVaultFs({
+      readNotes: async () => [
+        { path: SETTINGS, text: `---\na: ${file.a}\nb: ${file.b}\n---\n`, modified: 1, size: 1 },
+      ],
+    });
+    const landing = new Map<string, () => void>();
+    const storeOf = (key: 'a' | 'b') => (next: string) =>
+      new Promise<void>((resolve) =>
+        landing.set(key, () => {
+          file[key] = next;
+          resolve();
+        }),
+      );
+    const parseOf = (key: 'a' | 'b') => (settings: Readonly<Record<string, unknown>>) =>
+      typeof settings[key] === 'string' ? (settings[key] as string) : null;
+    const [parseA, parseB, storeA, storeB] = [
+      parseOf('a'),
+      parseOf('b'),
+      storeOf('a'),
+      storeOf('b'),
+    ];
+    const { wrapper } = queryWrapper();
+    const activity = recordingActivity();
+    const hook = renderHook(
+      () => ({
+        a: useVaultSetting<string>({
+          fs,
+          markdown: remarkMarkdown,
+          parse: parseA,
+          store: storeA,
+          vaultKey: 'v',
+          activity,
+        }),
+        b: useVaultSetting<string>({
+          fs,
+          markdown: remarkMarkdown,
+          parse: parseB,
+          store: storeB,
+          vaultKey: 'v',
+          activity,
+        }),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => expect(hook.result.current.b.value).toBe('b0'));
+
+    act(() => {
+      hook.result.current.a.save('a1');
+      hook.result.current.b.save('b1');
+    });
+    // A lands first: the note is read again, holding A's new value and B's old one.
+    await act(async () => landing.get('a')?.());
+    await waitFor(() => expect(file.a).toBe('a1'));
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    expect(hook.result.current.a.value).toBe('a1');
+    // B's write is still out: what the note held before it is set aside, not shown.
+    expect(hook.result.current.b.value).toBe('b1');
+
+    await act(async () => landing.get('b')?.());
+    await waitFor(() => expect(file.b).toBe('b1'));
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    expect(hook.result.current.a.value).toBe('a1');
+    expect(hook.result.current.b.value).toBe('b1');
+  });
+});
+
 describe('useVaultSetting and the Activity log', () => {
   it('records a save it gives up on, once', async () => {
     const { hook, activity } = renderSetting(

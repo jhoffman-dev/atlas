@@ -37,11 +37,13 @@ const NO_ROWS = { rows: [], onToggleDirectory: () => {} };
 
 /** The sidebar as the app hands it over: every handler, the tree and where you are made again on each render. */
 function sidebar({
+  favorites = FAVORITES,
   views = VIEWS,
   types = TYPES,
   active = null,
   onOpen = () => {},
 }: {
+  favorites?: readonly SidebarEntry[];
   views?: readonly SidebarEntry[];
   types?: readonly SidebarType[];
   active?: ActiveSidebarPage;
@@ -49,7 +51,7 @@ function sidebar({
 } = {}) {
   return (
     <Sidebar
-      favorites={FAVORITES}
+      favorites={favorites}
       types={types}
       views={views}
       dashboards={DASHBOARDS}
@@ -114,6 +116,19 @@ describe('Sidebar — what one commit draws of its lists', () => {
     // Favourites, Views and Dashboards each say which of their rows is open.
     expect(drawn.entryLists).toBe(3);
     expect(screen.getByRole('button', { name: 'Board' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('draws the star of a view starred again, and shows it starred', () => {
+    const view = render(sidebar());
+    expect(screen.getAllByRole('button', { name: 'Add Board to favorites' })).toHaveLength(1);
+
+    const starred = [...FAVORITES, VIEWS[0]!];
+    const drawn = drawnBy(() => view.rerender(sidebar({ favorites: starred })));
+
+    expect(drawn.stars).toBeGreaterThan(0);
+    // Listed in Favorites too now, and starred in both places.
+    expect(screen.queryAllByRole('button', { name: 'Add Board to favorites' })).toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: 'Remove Board from favorites' })).toHaveLength(2);
   });
 
   it('calls the latest handler from a row not drawn again', async () => {
