@@ -112,6 +112,21 @@ async function openBoard(page: Page) {
 /** Today where the browser is, as the app writes it: the test runs on the same Mac. */
 const today = () => new Date().toLocaleDateString('en-CA');
 
+/**
+ * The board draws a drop only once the index has read the written file back,
+ * which is after the write lands. Until then the moved card still sits in its
+ * old column, and the cards below it have not closed the gap; a drag that
+ * measures one of them then presses where it no longer is.
+ */
+async function expectCardIn(page: Page, path: string, column: string) {
+  await expect(
+    page
+      .locator('.board')
+      .getByRole('region', { name: column, exact: true })
+      .locator(`.board__card[data-path="${path}"]`),
+  ).toBeVisible();
+}
+
 test('the move to GTD is previewed task by task, run, and undone byte for byte', async ({
   page,
 }) => {
@@ -166,9 +181,11 @@ test('a board drags a task between the new statuses, and Waiting needs nobody (#
 
   await dragCardTo(page, 'tasks/Call the bank.md', 'in-progress');
   await expectFile(vault, 'tasks/Call the bank.md').toContain('status: in-progress');
+  await expectCardIn(page, 'tasks/Call the bank.md', 'in-progress');
 
   await dragCardTo(page, 'tasks/Hear from Mara.md', 'waiting');
   await expectFile(vault, 'tasks/Hear from Mara.md').toContain('status: waiting');
+  await expectCardIn(page, 'tasks/Hear from Mara.md', 'waiting');
 
   // Nobody in Waiting on: the drag lands, and nothing asks who.
   await dragCardTo(page, 'tasks/Call the bank.md', 'waiting');
