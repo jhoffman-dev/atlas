@@ -237,6 +237,7 @@ export function realFs(root: string, trash: string): RealFs {
     },
     createNote: async ({ path, contents }) => {
       await writeFile(at(path), contents, { flag: 'wx' });
+      return (await stat(at(path))).mtimeMs;
     },
     writeTextFile: async ({ path, contents }) => {
       await writeFile(at(path), contents);

@@ -34,6 +34,7 @@ function hostLikeVault(initial: string | null) {
     createNote: async ({ contents }) => {
       if (file.text !== null) throw new Error('a note with that name already exists');
       file.text = contents;
+      return 0;
     },
     createFolder: async () => undefined,
   });

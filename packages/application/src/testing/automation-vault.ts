@@ -118,6 +118,7 @@ export function automationVault({
       files.set(at, contents);
       modified.set(at, noon);
       log.push(`create ${at}`);
+      return noon;
     },
     moveEntry: async (move: EntryMove) => {
       if (!files.has(move.from)) throw new VaultAccessError('no such entry');

@@ -27,6 +27,7 @@ function oneOpenVault(open: string) {
     createNote: async ({ path, contents, vault }) => {
       refuseOther(vault);
       host.written.push({ vault: host.open, path, contents });
+      return 0;
     },
     createFolder: async ({ path, vault }) => {
       refuseOther(vault);

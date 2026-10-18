@@ -8,6 +8,7 @@ function fakeFs() {
   const fs = fakeVaultFs({
     createNote: async ({ path, contents }) => {
       created.push({ path, contents });
+      return 0;
     },
   });
   return { fs, created };
@@ -134,6 +135,7 @@ describe('createNote', () => {
       createNote: async ({ path }) => {
         attempts.push(path);
         if (path === 'Untitled.md') throw new Error('a note with that name already exists');
+        return 0;
       },
     });
 
@@ -157,6 +159,7 @@ describe('createNote', () => {
       createNote: async ({ path }) => {
         if (made.has(path)) throw new Error('a note with that name already exists');
         made.add(path);
+        return 0;
       },
     });
 
@@ -287,7 +290,10 @@ describe('createNote — a type’s home folder', () => {
       readNotes: async () =>
         typeFile === null ? [] : [{ path: types, text: typeFile, modified: 1, size: 1 }],
       createFolder: async ({ path }) => void folders.push(path),
-      createNote: async ({ path }) => void created.push(path),
+      createNote: async ({ path }) => {
+        created.push(path);
+        return 0;
+      },
     });
     return { fs, created, folders };
   }

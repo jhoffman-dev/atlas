@@ -80,6 +80,7 @@ function memoryVault(files: Record<string, string> = {}) {
     createNote: async ({ path, contents }) => {
       if (stored.has(path)) throw new Error(`already there: ${path}`);
       stored.set(path, contents);
+      return 0;
     },
     trashEntry: async ({ path }) => {
       stored.delete(path);

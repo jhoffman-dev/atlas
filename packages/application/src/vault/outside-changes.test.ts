@@ -66,6 +66,7 @@ function aVault() {
     },
     createNote: async ({ path: at, contents }) => {
       put(at, { text: contents, modified: disk.mtime });
+      return disk.mtime;
     },
     createFolder: async ({ path: at }) => void put(at, 'folder'),
     moveEntry: async ({ from, to }) => {
@@ -419,12 +420,73 @@ describe('outsideChanges: renames, deletes and creates', () => {
       'Notes/New.md',
     ]);
   });
+});
 
-  it('keeps the app’s own new note, whose time the host does not report', async () => {
+describe('outsideChanges: the app’s own new note (#258)', () => {
+  const create = (fs: VaultFsPort, at: string, contents: string) =>
+    fs.createNote({ path: path(at), contents });
+
+  it('drops the report of the app’s new note, its temporary included', async () => {
     const vault = aVault();
-    await save(vault.fs, 'Notes/New.md', '# Before\n');
-    await vault.fs.createNote({ path: path('Notes/New.md'), contents: '# New\n' });
-    expect(await vault.reported(['Notes/New.md'])).toEqual(['Notes/New.md']);
+    await create(vault.fs, 'Inbox/Buy flour.md', '# Buy flour\n');
+    expect(await vault.reported(saveReport('Inbox/Buy flour.md'))).toEqual([]);
+  });
+
+  it('keeps the app’s new note it has not refreshed for, which its echo refreshes', async () => {
+    const vault = aVault();
+    await create(vault.fs, 'Inbox/Buy flour.md', '# Buy flour\n');
+    expect(
+      await vault.reported(saveReport('Inbox/Buy flour.md'), { refreshedFirst: false }),
+    ).toEqual(['Inbox/Buy flour.md']);
+  });
+
+  it('keeps another program’s write over the new note in the same millisecond', async () => {
+    const vault = aVault();
+    await create(vault.fs, 'Inbox/Buy flour.md', '# Buy flour\n');
+    vault.outside.write('Inbox/Buy flour.md', '# Buy flour, theirs\n');
+    expect(await vault.reported(saveReport('Inbox/Buy flour.md'))).toEqual(['Inbox/Buy flour.md']);
+  });
+
+  it('keeps another program’s write over the new note with the same bytes at a later time', async () => {
+    const vault = aVault();
+    await create(vault.fs, 'Inbox/Buy flour.md', '# Buy flour\n');
+    vault.disk.mtime += 5;
+    vault.outside.write('Inbox/Buy flour.md', '# Buy flour\n');
+    expect(await vault.reported(['Inbox/Buy flour.md'])).toEqual(['Inbox/Buy flour.md']);
+  });
+
+  it('keeps another program’s note at a path the app’s create was refused at', async () => {
+    const vault = aVault();
+    await create(vault.fs, 'Inbox/Buy flour.md', '# Buy flour\n');
+    vault.outside.write('Inbox/Buy flour.md', '# Theirs\n');
+    const refusing = recordingOwnWrites({
+      fs: fakeVaultFs({
+        createNote: async () => {
+          throw new Error('a note with that name already exists');
+        },
+      }),
+      ownWrites: vault.ownWrites,
+      vault: VAULT,
+    });
+    await expect(create(refusing, 'Inbox/Buy flour.md', '# Buy flour\n')).rejects.toThrow(
+      'already exists',
+    );
+    expect(vault.ownWrites.leftAt({ vault: VAULT, path: 'Inbox/Buy flour.md' })).toBeNull();
+    expect(await vault.reported(['Inbox/Buy flour.md'])).toEqual(['Inbox/Buy flour.md']);
+  });
+
+  it('keeps a new note in a vault other than the one the app made its note in', async () => {
+    const vault = aVault();
+    await create(vault.fs, 'Inbox/Buy flour.md', '# Buy flour\n');
+    expect(await vault.reported(['Inbox/Buy flour.md'], { vault: OTHER_VAULT })).toEqual([
+      'Inbox/Buy flour.md',
+    ]);
+  });
+
+  it('passes on the time the host reports for the new note', async () => {
+    const vault = aVault();
+    vault.disk.mtime = 4_321;
+    expect(await create(vault.fs, 'Inbox/Buy flour.md', '# Buy flour\n')).toBe(4_321);
   });
 });
 

@@ -56,7 +56,7 @@ function fakeVault(files: Record<string, { text: string; modified: number }>) {
           : [{ path, text: file.text, modified: file.modified, size: file.text.length }];
       }),
     readBinaryFile: async () => new ArrayBuffer(0),
-    createNote: async () => {},
+    createNote: async () => 0,
     createFolder: async () => {},
     moveEntry: async () => {},
     trashEntry: async () => {},

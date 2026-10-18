@@ -19,6 +19,7 @@ function setUp({ failCreate = false } = {}) {
     createNote: async ({ path }) => {
       if (failCreate) throw new Error('disk full');
       created.push(path);
+      return 0;
     },
   });
   const onCreated = vi.fn();

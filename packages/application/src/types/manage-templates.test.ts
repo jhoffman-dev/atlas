@@ -74,6 +74,7 @@ function memoryVault(files: Record<string, string>, folders: readonly string[] =
     createNote: async ({ path, contents }) => {
       if (notes.has(path)) throw new Error('exists');
       notes.set(path, contents);
+      return 0;
     },
     moveEntry: async ({ from, to }) => {
       const text = notes.get(from);

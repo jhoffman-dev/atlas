@@ -54,6 +54,7 @@ function memoryVault(files: Record<string, string>, folders: readonly string[] =
       // The host's create_new: a second create of the same path is refused.
       if (notes.has(path)) throw new Error('a note with that name already exists');
       notes.set(path, contents);
+      return 0;
     },
   });
   return { fs, notes };

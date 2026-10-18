@@ -254,6 +254,7 @@ describe('the toolbar changing the view', () => {
       ...vault.fs,
       createNote: async (args: { path: VaultPath; contents: string }) => {
         created.push(args);
+        return 0;
       },
     };
     const view = await showView({ vault: { ...vault, fs }, editors: fakeEditors(true).registry });
@@ -318,7 +319,7 @@ describe('the toolbar changing the view', () => {
 
   it('records nothing for a new view written', async () => {
     const vault = fakeVault();
-    const fs = { ...vault.fs, createNote: async () => {} };
+    const fs = { ...vault.fs, createNote: async () => 0 };
     const activity = recordingActivity();
     const view = await showView({
       vault: { ...vault, fs },
@@ -348,6 +349,7 @@ describe('a view adding a note of its type', () => {
       ...vault.fs,
       createNote: async (args: { path: VaultPath; contents: string }) => {
         created.push(args);
+        return 0;
       },
     };
     const onChanged = vi.fn();
@@ -376,6 +378,7 @@ describe('a view adding a note of its type', () => {
       ...vault.fs,
       createNote: async (args: { path: VaultPath; contents: string }) => {
         created.push(args);
+        return 0;
       },
     };
     const view = await showView({ vault: { ...vault, fs }, editors: fakeEditors(true).registry });

@@ -10,7 +10,12 @@ const TASK = parseObjectType({ name: 'task', label: 'Task' });
 describe('createObjectType', () => {
   it('writes .atlas/types/<name>.md with its name, label and icon, and a heading', async () => {
     const created: { path: VaultPath; contents: string }[] = [];
-    const fs = fakeVaultFs({ createNote: async (args) => void created.push(args) });
+    const fs = fakeVaultFs({
+      createNote: async (args) => {
+        created.push(args);
+        return 0;
+      },
+    });
 
     const type = await createObjectType({
       fs,
@@ -32,7 +37,12 @@ describe('createObjectType', () => {
 
   it('refuses a name the vault already has before writing anything', async () => {
     let writes = 0;
-    const fs = fakeVaultFs({ createNote: async () => void (writes += 1) });
+    const fs = fakeVaultFs({
+      createNote: async () => {
+        writes += 1;
+        return 0;
+      },
+    });
     await expect(
       createObjectType({ fs, markdown: fakeMarkdown(), label: 'Task', existing: [TASK] }),
     ).rejects.toThrow(TypeEditError);

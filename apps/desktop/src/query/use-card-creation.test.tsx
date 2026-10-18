@@ -32,6 +32,7 @@ function creation({
     createNote: async ({ contents }) => {
       if (refuse !== null) throw typeof refuse === 'string' ? new Error(refuse) : refuse;
       created.push(contents);
+      return 0;
     },
   });
   const hook = renderHook(() =>
