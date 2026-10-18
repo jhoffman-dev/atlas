@@ -19,6 +19,7 @@ import { followCaseRenames, moveCaseCollisionsAside } from './case-steps.ts';
 import {
   blobOf,
   commitAll,
+  commitAs,
   commitStaged,
   currentBranch,
   expectOk,
@@ -191,9 +192,11 @@ async function mergeFromOrigin(step: SyncStep): Promise<boolean> {
   const aside = status.born
     ? await moveCaseCollisionsAside({ git, fs, files, branch, mac, untracked: status.untracked })
     : [];
-  if (aside.length > 0) await commitStaged({ git, mac, message });
+  // One author for every commit this merge makes: the case moves, the merge, its conclusion.
+  const identity = await identityFor(git, mac);
+  if (aside.length > 0) await commitAs({ git, message, identity });
   const headBefore = (await git.head()).stdout;
-  const merge = await git.merge({ branch, identity: await identityFor(git, mac) });
+  const merge = await git.merge({ branch, identity });
   if (merge.code === 0) return (await git.head()).stdout !== headBefore;
   const { conflicts } = await readStatus(git);
   // A merge that stopped for another reason is not one to settle by guessing.
@@ -201,7 +204,7 @@ async function mergeFromOrigin(step: SyncStep): Promise<boolean> {
   await recordMerge({ git, files, conflicts });
   const from = await otherMac(git, branch);
   await settleConflicts({ git, files, conflicts, mac: from, leftOut, settings: settingsOf(step) });
-  await commitStaged({ git, mac, message });
+  await commitAs({ git, message, identity });
   return true;
 }
 

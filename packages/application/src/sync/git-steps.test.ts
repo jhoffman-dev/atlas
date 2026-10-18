@@ -120,3 +120,26 @@ describe('identityFor, attacked (#87)', () => {
     },
   );
 });
+
+describe('identityFor, for a Mac whose name leaves nothing or far too much', () => {
+  const noIdentity = () => scriptedGit({ script: { config: [said(''), said('')] } }).git;
+
+  it.each(['', '<>', ' ,:; ', '\n\t'])('names a Mac called %j "this Mac"', async (mac) => {
+    expect((await identityFor(noIdentity(), mac))?.name).toBe('Atlas on this Mac');
+  });
+
+  it('keeps a long name, of four-byte characters, inside the host’s 256 bytes', async () => {
+    const identity = await identityFor(noIdentity(), `${'🚀'.repeat(300)} Mac`);
+    const bytes = (text: string) => new TextEncoder().encode(text).length;
+    expect(identity?.name.startsWith('Atlas on 🚀')).toBe(true);
+    expect(bytes(identity?.name ?? '')).toBeLessThanOrEqual(256);
+    expect(identity?.name).not.toMatch(/�|[\uD800-\uDBFF]$/);
+  });
+
+  it('keeps a long name’s email to one plain label', async () => {
+    const identity = await identityFor(noIdentity(), 'Studio '.repeat(40));
+    const host = identity?.email.replace(/^atlas@|\.local$/g, '') ?? '';
+    expect(host.length).toBeLessThanOrEqual(63);
+    expect(host).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+  });
+});

@@ -25,7 +25,8 @@ enum Slot {
     Ref,
     /// A path inside the vault, after `--`.
     VaultPath,
-    /// `-c` config value for a commit's or merge's author: the key, then any value.
+    /// `-c` config value for a commit's or merge's author: the key, then a
+    /// non-empty value without line breaks, at most `MAX_IDENTITY` bytes.
     Identity(&'static str),
     /// The folder a clone makes: one new name.
     CloneName,
@@ -261,6 +262,7 @@ const IN_FOLDER: &[Shape] = &[
 
 const MAX_MESSAGE: usize = 1000;
 const MAX_BRANCH: usize = 200;
+const MAX_IDENTITY: usize = 256;
 const MAX_URL: usize = 2048;
 const MAX_NAME: usize = 255;
 const MAX_REPO_NAME: usize = 100;
@@ -392,9 +394,9 @@ fn check(slot: Slot, arg: &str) -> Result<(), String> {
         Url => is_url(arg),
         Ref => is_remote_branch(arg),
         VaultPath => is_vault_path(arg),
-        Identity(key) => arg
-            .strip_prefix(key)
-            .is_some_and(|value| !value.is_empty() && !has_break(value)),
+        Identity(key) => arg.strip_prefix(key).is_some_and(|value| {
+            !value.is_empty() && value.len() <= MAX_IDENTITY && !has_break(value)
+        }),
         CloneName => is_clone_name(arg),
         CacheInfo => is_cache_info(arg),
         Rev => arg == "HEAD" || is_remote_branch(arg) || is_oid(arg),
