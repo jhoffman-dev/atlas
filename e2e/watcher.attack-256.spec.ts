@@ -165,11 +165,12 @@ test('the watcher’s echo of deciding an Inbox row is not refreshed for again (
   await vault.write('Projects/Atlas.md', note(['type: project', 'status: active'], 'The app.'));
   await vault.write('Inbox/Renew the passport.md', note(['type: task', 'status: inbox'], 'Card.'));
   const host = await openedForCounting(page, vault);
-  // The app writes the Block type into a GTD vault as it opens (P31-01). A new
-  // note's time is not reported, so its echo is refreshed for: the count sees a walk.
+  // The app writes the Block type into a GTD vault as it opens (P31-01). The
+  // host reports the new note's time, so its echo is known as the app's own:
+  // nothing is walked for it (#258).
   await expectFile(vault, '.atlas/types/block.md').toContain('block');
   await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
-  expect(await walksSinceTheLastReport(page)).toBeGreaterThan(0);
+  expect(await walksSinceTheLastReport(page)).toBe(0);
   await page
     .getByRole('list', { name: 'Go to' })
     .getByRole('button', { name: /^Inbox/ })
