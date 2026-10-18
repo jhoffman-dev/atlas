@@ -607,7 +607,7 @@ pnpm tauri:dev</pre>
         <li><b>The header stays put.</b> The column names stay at the top as you scroll, as plain words with no icons; an arrow marks the column the table is sorted by.</li>
         <li><b>Long values are cut short</b> with <i>…</i>; hover the cell for the whole value. A relation's names stay on one line the same way, and hovering lists them all.</li>
         <li><b>The footer</b> has <b>New &lt;type&gt;</b>, then how many notes — <i>186 tasks</i>, with <i>(more were left out)</i> past the row limit — then, grouped, how many in each group (<i>174 done</i>, <i>10 backlog</i>, <i>2 Larkspur Payroll</i>), and how the table is arranged: <i>Grouped by status · sorted by phase, then due (descending)</i>.</li>
-        <li><b>From the keyboard:</b> click a row's name, then <kbd>↓</kbd> <kbd>↑</kbd> move a row (group headings are stops too), <kbd>Home</kbd> <kbd>End</kbd> go to the first and last, and <kbd>Page Down</kbd> <kbd>Page Up</kbd> move a window's worth at a time.</li>
+        <li><b>From the keyboard:</b> <kbd>Tab</kbd> to a row's name, then <kbd>↓</kbd> <kbd>↑</kbd> move a row (group headings are stops too), <kbd>Home</kbd> <kbd>End</kbd> go to the first and last, and <kbd>Page Down</kbd> <kbd>Page Up</kbd> move a window's worth at a time.</li>
       </ul>
       <h3>Grouped tables</h3>
       <ul>
@@ -857,8 +857,8 @@ ORDER BY phase</pre>
       <p class="sub">A strip of single figures over a grid of panels: numbers, a hero, bar charts, donuts, lines, rankings, lists, tables, SQL and Atlas queries.</p>
       <h3>What it shows</h3>
       <ul>
-        <li><b>The strip.</b> Number widgets and the hero sit in one row across the top, each a label, a figure and a quiet line under it. A zero still shows (<i>In flight 0</i>).</li>
-        <li><b>The hero</b> is three cells on the strip: the total under the widget's title, with how many groups it spans (<i>4 phases</i>); the finished part (<i>Done</i>) with its share and a thin status bar of the whole (<i>67% of all</i>); and the current group with its count (<i>Current phase</i>: <i>Phase 14</i>, <i>3 tasks</i>).</li>
+        <li><b>The strip.</b> Number widgets and the hero sit in one row across the top, each a label over a figure, some with a short figure beside it (<i>4 phases</i>, <i>67%</i>). A zero still shows (<i>In flight 0</i>).</li>
+        <li><b>The hero</b> is three cells on the strip: the total under the widget's title, with how many groups it spans (<i>4 phases</i>); the finished part (<i>Done</i>) with its share (<i>67%</i>) and a thin status bar of the whole; and the current group with its count (<i>Current phase</i>: <i>Phase 14</i>, <i>3 tasks</i>).</li>
         <li><b>Panels.</b> Every other widget is a panel under a plain heading, divided from the next by a hairline.</li>
         <li><b>Bar charts</b> are grey with the current group in blue, marked by a <i>Current phase</i> key beside the heading. The value is written over the tallest bar and the current one; hover any bar for its group and count (<i>Phase 11 · 3 tasks</i>).</li>
         <li><b>Show as table.</b> The table button on a bar chart swaps it for a table of the same numbers — group, count and share — with the current group's row marked. Press it again for the chart. It isn't saved: the chart comes back the next time the dashboard opens.</li>
