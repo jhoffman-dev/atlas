@@ -6,6 +6,7 @@ import {
   optionLabel,
   plainText,
   type BoardRow,
+  type NoteNames,
   type PropertyKind,
 } from '@atlas/domain';
 import { useClaimFocus, type FocusFollower } from './drag/focus.ts';
@@ -175,18 +176,7 @@ interface MetaItem {
  */
 function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
   const names = useNoteNames();
-  const { pills, chips } = cardFields(look);
-  const choices: MetaItem[] = pills
-    .map((field) => ({ key: field, text: optionLabel(String(row.values[field] ?? '')) }))
-    .filter((item) => item.text !== '')
-    .map((item) => ({ ...item, missing: false }));
-  const others: MetaItem[] = cardChips({
-    fields: chips,
-    values: row.values,
-    kinds: look.kinds,
-    names,
-  }).map((chip) => ({ key: chip.key, text: chip.text, missing: chip.missing === true }));
-  const items = [...choices, ...others];
+  const items = metaItems({ row, look, names });
   if (items.length === 0) return null;
 
   return (
@@ -205,6 +195,39 @@ function CardMetaLine({ row, look }: { row: BoardRow; look: CardLook }) {
       ))}
     </p>
   );
+}
+
+/** The line's values in the view's order, each field written once however often it is listed. */
+function metaItems({
+  row,
+  look,
+  names,
+}: {
+  row: BoardRow;
+  look: CardLook;
+  names: NoteNames;
+}): MetaItem[] {
+  const { pills, chips } = cardFields(look);
+  const byKey = new Map<string, MetaItem>();
+  for (const field of pills) {
+    const text = choiceLabel(row.values[field]);
+    if (text !== '') byKey.set(field, { key: field, text, missing: false });
+  }
+  for (const chip of cardChips({ fields: chips, values: row.values, kinds: look.kinds, names })) {
+    byKey.set(chip.key, { key: chip.key, text: chip.text, missing: chip.missing === true });
+  }
+  return look.fields.flatMap((field) => {
+    const item = byKey.get(field);
+    if (item === undefined) return [];
+    byKey.delete(field);
+    return [item];
+  });
+}
+
+/** A choice as it is written: its label — or nothing, for a value that is not a choice. */
+function choiceLabel(value: unknown): string {
+  if (typeof value === 'number') return String(value);
+  return typeof value === 'string' ? optionLabel(value) : '';
 }
 
 /**
