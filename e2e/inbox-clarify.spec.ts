@@ -346,3 +346,52 @@ test('after a vault switch the Inbox lists the new vault only, and clarifies int
   expect(await b.read('Inbox/Call the bank.md')).toContain('B’s own call.');
   expect(await a.read('Inbox/Call the bank.md')).toBe(aCall);
 });
+
+test('a decided row leaves the Inbox before its write lands (#260)', async ({ page }) => {
+  const vault = await gtdVault();
+  const host = await open(page, vault);
+  await openInbox(page);
+  const inbox = inboxPage(page);
+  const release = host.holdWrites('Inbox/Learn the cello.md');
+
+  await inbox
+    .getByRole('combobox', { name: 'Status of Learn the cello' })
+    .selectOption({ label: 'Someday' });
+  await row(page, 'Learn the cello').getByRole('button', { name: 'Done' }).press('Enter');
+
+  // Gone while its file still says Inbox: the page did not wait for the write.
+  await expect(row(page, 'Learn the cello')).toHaveCount(0);
+  await expect(row(page, 'Call the bank')).toBeVisible();
+  expect(await vault.read('Inbox/Learn the cello.md')).not.toContain('status: someday');
+
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('Inbox/Learn the cello.md')).toBeGreaterThan(0);
+  release();
+  await expectFile(vault, 'Inbox/Learn the cello.md').toContain('status: someday');
+  await expect(row(page, 'Learn the cello')).toHaveCount(0);
+});
+
+test('a decided row whose write fails comes back to the Inbox, saying why (#260)', async ({
+  page,
+}) => {
+  const vault = await gtdVault();
+  const host = await open(page, vault);
+  await openInbox(page);
+  const inbox = inboxPage(page);
+  const before = await vault.read('Inbox/Learn the cello.md');
+  const release = host.holdWrites('Inbox/Learn the cello.md');
+
+  await inbox
+    .getByRole('combobox', { name: 'Status of Learn the cello' })
+    .selectOption({ label: 'Someday' });
+  await row(page, 'Learn the cello').getByRole('button', { name: 'Done' }).press('Enter');
+  await expect(row(page, 'Learn the cello')).toHaveCount(0);
+
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('Inbox/Learn the cello.md')).toBeGreaterThan(0);
+  release({ fail: 'The disk is full.' });
+
+  await expect(row(page, 'Learn the cello')).toBeVisible();
+  await expect(row(page, 'Learn the cello')).toContainText(/The disk is full/);
+  expect(await vault.read('Inbox/Learn the cello.md')).toBe(before);
+});

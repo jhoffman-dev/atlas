@@ -199,6 +199,8 @@ test('a card dropped on a column is drawn there before its write lands (#260)', 
   await expect(cardIn(page, 'doing', 'one off.md')).toHaveCount(0);
   expect(await vault.read('one off.md')).toContain('status: doing');
 
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('one off.md')).toBeGreaterThan(0);
   release();
   await expectFile(vault, 'one off.md').toContain('status: done');
   await expect(cardIn(page, 'done', 'one off.md')).toBeVisible();
@@ -220,6 +222,8 @@ test('a repeating task dropped on done is drawn back in play at once, not on don
   await expect(cardIn(page, 'done', 'water the plants.md')).toHaveCount(0);
   expect(await vault.read('water the plants.md')).toContain('status: doing');
 
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('water the plants.md')).toBeGreaterThan(0);
   release();
   await expectFile(vault, 'water the plants.md').toContain('due: 2026-09-27');
   await expect(cardIn(page, 'backlog', 'water the plants.md')).toBeVisible();
@@ -235,6 +239,8 @@ test('a card whose write fails is not left in the column it was dropped in, and 
   await dragCardTo(page, 'one off.md', 'done');
   await expect(cardIn(page, 'done', 'one off.md')).toBeVisible();
 
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('one off.md')).toBeGreaterThan(0);
   release({ fail: 'The disk is full.' });
 
   await expect(page.getByText(/The disk is full/)).toBeVisible();

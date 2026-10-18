@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, expectFile, installHost, type FakeHost, type FakeVault } from './host.ts';
+import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
 
 /**
  * P30-01: PARA, as #213 has it — one Project type, offered, never written
@@ -45,10 +45,6 @@ const note = (frontmatter: string[], body: string) =>
   ['---', ...frontmatter, '---', '', body, ''].join('\n');
 
 async function openParaVault(page: Page): Promise<FakeVault> {
-  return (await openParaVaultOn(page)).vault;
-}
-
-async function openParaVaultOn(page: Page): Promise<{ vault: FakeVault; host: FakeHost }> {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.mkdir('.atlas/templates');
@@ -67,11 +63,11 @@ async function openParaVaultOn(page: Page): Promise<{ vault: FakeVault; host: Fa
     note(['type: meeting'], 'Who brings what.'),
   );
 
-  const host = await installHost(page, vault);
+  await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  return { vault, host };
+  return vault;
 }
 
 const goTo = (page: Page) => page.getByRole('list', { name: 'Go to' });
@@ -213,51 +209,4 @@ test('a task’s project, once its type is extended, offers projects and areas a
   await expect(picker.getByRole('option', { name: 'Atlas' })).toHaveCount(1);
   await expect(picker.getByRole('option', { name: 'Garden' })).toHaveCount(1);
   await expect(picker.getByRole('option', { name: 'Mara Quill' })).toHaveCount(0);
-});
-
-const SEED_SWAP = 'Inbox/Meetings/2026-10-01 Seed swap.md';
-
-test('a decided row leaves the Inbox before its write lands (#260)', async ({ page }) => {
-  const { vault, host } = await openParaVaultOn(page);
-  await goTo(page)
-    .getByRole('button', { name: /^Inbox/ })
-    .click();
-  const inbox = inboxPage(page);
-  await expect(inbox.getByRole('button', { name: '2026-10-01 Seed swap' })).toBeVisible();
-  const release = host.holdWrites(SEED_SWAP);
-
-  await inbox
-    .getByRole('combobox', { name: 'File 2026-10-01 Seed swap under' })
-    .selectOption({ label: 'Garden' });
-
-  // Gone while the note is still where it was, unwritten.
-  await expect(inbox.getByRole('button', { name: '2026-10-01 Seed swap' })).toHaveCount(0);
-  expect(await vault.read(SEED_SWAP)).not.toContain('[[Garden]]');
-
-  release();
-  await expectFile(vault, 'Meetings/2026/10/2026-10-01 Seed swap.md').toContain('[[Garden]]');
-  await expect(inbox.getByRole('button', { name: '2026-10-01 Seed swap' })).toHaveCount(0);
-});
-
-test('a decided row whose write fails comes back to the Inbox, saying why (#260)', async ({
-  page,
-}) => {
-  const { vault, host } = await openParaVaultOn(page);
-  await goTo(page)
-    .getByRole('button', { name: /^Inbox/ })
-    .click();
-  const inbox = inboxPage(page);
-  const release = host.holdWrites(SEED_SWAP);
-
-  await inbox
-    .getByRole('combobox', { name: 'File 2026-10-01 Seed swap under' })
-    .selectOption({ label: 'Garden' });
-  await expect(inbox.getByRole('button', { name: '2026-10-01 Seed swap' })).toHaveCount(0);
-
-  release({ fail: 'The disk is full.' });
-
-  await expect(inbox.getByRole('button', { name: '2026-10-01 Seed swap' })).toBeVisible();
-  await expect(inbox.getByText(/The disk is full/)).toBeVisible();
-  expect(await vault.exists(SEED_SWAP)).toBe(true);
-  expect(await vault.read(SEED_SWAP)).not.toContain('[[Garden]]');
 });

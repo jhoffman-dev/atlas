@@ -356,6 +356,8 @@ test('a tick takes the row off the page before its write lands (#260)', async ({
   await expect(countOf(page, 'In progress')).toHaveText('0');
   expect(await vault.read('Tasks/Draft the plan.md')).toContain('status: in-progress');
 
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('Tasks/Draft the plan.md')).toBeGreaterThan(0);
   release();
   await expectFile(vault, 'Tasks/Draft the plan.md').toContain('status: archive');
   await expect(today(page).getByRole('status').getByRole('button', { name: 'Undo' })).toBeVisible();
@@ -379,6 +381,8 @@ test('a move draws the row in its new section before its write lands (#260)', as
   await expect(itemsIn(page, 'Next actions')).toHaveText(['Ship the page', 'Sow the beans']);
   expect(await vault.read('Tasks/Call the bank.md')).toContain('status: next-action');
 
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('Tasks/Call the bank.md')).toBeGreaterThan(0);
   release();
   await expectFile(vault, 'Tasks/Call the bank.md').toContain('status: in-progress');
   await expect(itemsIn(page, 'In progress')).toHaveText(['Call the bank', 'Draft the plan']);
@@ -394,6 +398,8 @@ test('a tick whose write fails puts the row back, saying why (#260)', async ({ p
     .click();
   await expect(section(page, 'In progress').getByText('Nothing is under way.')).toBeVisible();
 
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('Tasks/Draft the plan.md')).toBeGreaterThan(0);
   release({ fail: 'The disk is full.' });
 
   await expect(itemsIn(page, 'In progress')).toHaveText(['Draft the plan']);

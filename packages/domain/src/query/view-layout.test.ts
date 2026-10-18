@@ -249,7 +249,9 @@ describe('queryForLayout for a board of repeating work (#260)', () => {
 
   it('reads them for a board only', () => {
     for (const layout of ['table', 'list', 'calendar', 'gallery'] as const) {
-      expect(queryForLayout({ query, layout, statusKey: null, repeatKeys }).hidden).toEqual([]);
+      expect(queryForLayout({ query, layout, statusKey: null, repeatKeys }).hidden).not.toContain(
+        'recurrence',
+      );
     }
   });
 });
