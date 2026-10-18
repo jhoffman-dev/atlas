@@ -22,6 +22,7 @@ import {
   type VaultPickerPort,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { sqliteIndexPort } from '@atlas/application/testing/sqlite';
 import { App, localToday } from './app.tsx';
 import type { VaultPorts } from './vault/use-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
@@ -1067,5 +1068,120 @@ describe('opening a vault while its index is still being built (ADR-0034)', () =
     expect(await screen.findByText('0 notes indexed')).toBeDefined();
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
     expect(syncs).toBe(1);
+  });
+});
+
+describe('reading the vault after a change (#259)', () => {
+  /**
+   * What the window reads of the index and the vault, by the number of index
+   * writes made when it asked: a read asked while the count was still `n` was
+   * set off by the change that made write `n`.
+   */
+  function countingReads(vault: ReturnType<typeof fakeVault>) {
+    const index = sqliteIndexPort();
+    let puts = 0;
+    const reads = { graph: [] as number[], tags: [] as number[], views: [] as number[] };
+    const listed = { types: [] as number[], templates: [] as number[] };
+    const ports: IndexPorts = {
+      fs: vault.fs,
+      markdown: remarkMarkdown,
+      index: {
+        ...index,
+        put: async (notes, scope) => {
+          await index.put(notes, scope);
+          puts += 1;
+        },
+        query: async (sql, parameters) => {
+          if (sql.includes('/* graph:notes */')) reads.graph.push(puts);
+          if (sql.includes('/* tags:counts */')) reads.tags.push(puts);
+          return index.query(sql, parameters);
+        },
+        rebuildViews: async () => void reads.views.push(puts),
+      },
+    };
+    const fs: VaultFsPort = {
+      ...vault.fs,
+      listDirectory: async (path) => {
+        if (path === '.atlas/types') listed.types.push(puts);
+        if (path === '.atlas/templates') listed.templates.push(puts);
+        return vault.fs.listDirectory(path);
+      },
+    };
+    return { ports, fs, reads, listed, puts: () => puts };
+  }
+
+  it('reads the graph again for a change to its links, and nothing for a change to a body alone', async () => {
+    const files: Record<string, string> = {
+      'a.md': '# A\n\nSome words.\n',
+      'b.md': '# B\n',
+      '.atlas/types/book.md': '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n',
+      '.atlas/templates/Book.md': '---\ntype: book\n---\n',
+    };
+    const vault = fakeVault({
+      remembered: location,
+      directories: {
+        '': [entry('a.md', 'file'), entry('b.md', 'file')],
+        '.atlas/types': [entry('.atlas/types/book.md', 'file')],
+        '.atlas/templates': [entry('.atlas/templates/Book.md', 'file')],
+      },
+      files,
+    });
+    const counting = countingReads(vault);
+    const heard: ((paths: readonly string[]) => void)[] = [];
+    const watch = {
+      start: async () => {},
+      onChange: async (handler: (paths: readonly string[]) => void) => {
+        heard.push(handler);
+        return () => {};
+      },
+    };
+    const watched = { ...vault, fs: counting.fs, watch };
+    render(
+      <App
+        appInfo={appInfo}
+        vault={watched}
+        notes={notesFor(watched)}
+        index={{ ...counting.ports, fs: counting.fs }}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    // The first build writes the vault once; the graph, tags, types and views are read after it.
+    await vi.waitFor(() => expect(counting.reads.graph).toContain(1));
+    await vi.waitFor(() => expect(counting.reads.views.length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(heard.length).toBeGreaterThan(0));
+    const before = {
+      tags: counting.reads.tags.length,
+      views: counting.reads.views.length,
+      types: counting.listed.types.length,
+      templates: counting.listed.templates.length,
+    };
+    const tell = (paths: readonly string[]) =>
+      act(() => heard.forEach((handler) => handler(paths)));
+
+    // Another program edits a's body: words only, no link, no tag.
+    files['a.md'] = '# A\n\nSome more words, and then some.\n';
+    await tell(['a.md']);
+    await vi.waitFor(() => expect(counting.puts()).toBe(2));
+
+    // Then it links a to b: the graph has a new edge, and is read again.
+    files['a.md'] = '# A\n\nSome more words, and then some. See [[b]].\n';
+    await tell(['a.md']);
+    await vi.waitFor(() => expect(counting.reads.graph).toContain(3));
+
+    // Nothing read the graph for the body alone, nor anything else for either edit.
+    expect(counting.reads.graph).not.toContain(2);
+    expect(counting.reads.tags.length).toBe(before.tags);
+    expect(counting.reads.views.length).toBe(before.views);
+    expect(counting.listed.types.length).toBe(before.types);
+    expect(counting.listed.templates.length).toBe(before.templates);
   });
 });
