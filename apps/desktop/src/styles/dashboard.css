@@ -66,9 +66,10 @@
   flex: 1 1 0;
   flex-direction: column;
   gap: 2px;
-  justify-content: center;
   min-width: 0;
-  padding: 10px 20px;
+  /* From the top, not centred: a cell with a status bar under its figure
+     keeps its label level with the cells beside it. */
+  padding: 20px 20px 10px;
 }
 
 .kpi__label {
@@ -214,24 +215,23 @@
   width: 8px;
 }
 
-/* The "…" and the table toggle appear when the widget is pointed at or
-   reached by keyboard; the "…" stays while its menu is open, the toggle
-   while it is pressed. */
+/* The table toggle is always there to find; the "…" appears when the widget
+   is pointed at or reached by keyboard, and stays while its menu is open. */
 .widget__menu,
 .widget__toggle {
   color: var(--ink-3);
   height: 24px;
+  width: 24px;
+}
+
+.widget__menu {
   opacity: 0;
   transition: opacity 120ms ease;
-  width: 24px;
 }
 
 .widget:hover .widget__menu,
 .widget:focus-within .widget__menu,
-.widget__menu[data-popup-open],
-.widget:hover .widget__toggle,
-.widget:focus-within .widget__toggle,
-.widget__toggle[aria-pressed='true'] {
+.widget__menu[data-popup-open] {
   opacity: 1;
 }
 
@@ -507,26 +507,26 @@
   padding: 0;
 }
 
-.count-table__num,
-.count-table__count,
-.count-table__share,
-.rank__num,
-.rank__count {
+/* The number columns hug the right, as wide as their widest figure; the
+   first column takes the rest. Written as td/th so they outrank the rows'
+   own padding and alignment above. */
+.count-table th.count-table__num,
+.count-table td.count-table__count,
+.count-table td.count-table__share,
+.rank th.rank__num,
+.rank td.rank__count {
+  padding-left: 16px;
   text-align: right;
   white-space: nowrap;
+  width: 1%;
 }
 
-.count-table__count,
-.count-table__share {
-  padding-left: 12px;
-}
-
-.count-table__share {
+.count-table td.count-table__share {
   color: var(--ink-3);
   font-size: var(--text-meta);
 }
 
-.count-table__label {
+.count-table td.count-table__label {
   /* A label longer than its room wraps: cut, it is no longer a label. */
   overflow-wrap: anywhere;
 }
@@ -546,7 +546,7 @@
 
 /* ---- Ranking ---- */
 
-.rank__name {
+.rank td.rank__name {
   max-width: 160px;
   overflow: hidden;
   padding-right: 16px;
@@ -555,7 +555,7 @@
   width: 1%;
 }
 
-.rank__track {
+.rank td.rank__track {
   padding-right: 16px;
   width: 100%;
 }
@@ -571,10 +571,6 @@
 
 .rank__row--current .rank__bar {
   background: var(--accent-data);
-}
-
-.rank__count {
-  padding-left: 12px;
 }
 
 /* ---- Line ---- */
