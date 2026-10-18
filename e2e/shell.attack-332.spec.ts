@@ -468,7 +468,9 @@ for (const which of ['Today', 'Automations', 'Archive', 'a type page'] as const)
       const bar = page.locator('main').locator('.page-bar').first();
       await expect(bar.locator('.page-bar__actions')).toBeVisible();
       const buttons = await barButtons(bar);
-      expect(buttons.length).toBeGreaterThan(0);
+      // The Archive's one action is its search field, which is never narrowed to a stub.
+      if (which === 'Archive') await expect(bar.getByRole('searchbox')).toBeVisible();
+      else expect(buttons.length).toBeGreaterThan(0);
       const stubs = buttons.filter(
         (one) => one.width < 4 * one.em - 0.5 && !(one.icon && one.title !== ''),
       );
