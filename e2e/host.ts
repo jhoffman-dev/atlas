@@ -2024,9 +2024,34 @@ export async function pageCommand(
   );
 }
 
-/** Saves the note now, as the Save button used to. */
-export const saveNow = (page: Page, scope: Page | Locator = page) =>
-  pageCommand(page, /^Save now/, scope);
+/**
+ * Saves the note now, as the Save button used to — or finds it saved already.
+ * The autosave can write the note before a slow runner reaches the menu, and
+ * then Save now is disabled, rightly: nothing is unsaved. So the item is
+ * clicked while it is enabled, and a disabled one is accepted only once
+ * every save indicator in `scope` reads Saved. Saving… is waited out.
+ */
+export async function saveNow(page: Page, scope: Page | Locator = page): Promise<void> {
+  await test.step(
+    'page menu: Save now',
+    async () => {
+      await scope.getByRole('button', { name: 'More' }).click();
+      const item = page.getByRole('menuitem', { name: /^Save now/ });
+      await expect(async () => {
+        if (await item.isEnabled()) {
+          // Short, so an autosave that disables it meanwhile is looked at again.
+          await item.click({ timeout: 1_000 });
+          return;
+        }
+        const shown = await saveStatus(scope).allTextContents();
+        expect(shown.length).toBeGreaterThan(0);
+        expect(shown.every((each) => each === 'Saved')).toBe(true);
+        await page.keyboard.press('Escape');
+      }).toPass({ timeout: 15_000 });
+    },
+    { box: true },
+  );
+}
 
 /** Splits the window from a pane's menu, as the split button used to. */
 export const splitWindow = (page: Page, scope: Page | Locator = page) =>
