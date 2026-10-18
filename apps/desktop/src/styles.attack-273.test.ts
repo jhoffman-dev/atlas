@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { readStylesheet } from './styles.test-support.ts';
 
 /**
  * PR #273 under attack: what the token turnover left reading a name that is
@@ -12,7 +13,7 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const read = (path: string) => readFileSync(here(path), 'utf8');
 const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '');
 
-const css = stripComments(read('./styles.css'));
+const css = stripComments(readStylesheet());
 const galleryCss = stripComments(read('./gallery/gallery.css'));
 
 /** Every source file under a folder, tests left out: they read no token. */
