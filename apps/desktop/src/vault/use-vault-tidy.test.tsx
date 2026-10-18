@@ -19,17 +19,20 @@ import { useVaultTidy } from './use-vault-tidy.ts';
 
 function setup({ files, open = true }: { files: Record<string, string>; open?: boolean }) {
   const memory = memoryVault(files);
+  let walked = 0;
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   const fs = fakeVaultFs({
     ...memory.fs,
-    listNotes: async () =>
-      [...memory.files.entries()].map(([path, text]) => ({
+    listNotes: async () => {
+      walked += 1;
+      return [...memory.files.entries()].map(([path, text]) => ({
         name: path.split('/').at(-1) ?? path,
         path: createVaultPath(path),
         modified: 0,
         size: text.length,
-      })),
+      }));
+    },
     readNotes: async (paths) => {
       await held;
       return paths.flatMap((path) => {
@@ -51,7 +54,7 @@ function setup({ files, open = true }: { files: Record<string, string>; open?: b
       }),
     { initialProps: { open } },
   );
-  return { hook, release };
+  return { hook, release, walks: () => walked };
 }
 
 describe('useVaultTidy — while its preview is read (#130)', () => {
@@ -71,11 +74,17 @@ describe('useVaultTidy — while its preview is read (#130)', () => {
     await waitFor(() => expect(hook.result.current).toBeNull());
   });
 
-  it('is never reading while the Inbox is not showing, though it reads ahead', async () => {
-    const { hook, release } = setup({ files: { 'Loose idea.md': 'A thought.\n' }, open: false });
-    expect(hook.result.current).toBeNull();
+  // The tidy walks the whole vault, so it is never read ahead of the Inbox (#130, #254).
+  it('walks nothing while the Inbox is not showing, and reads as it opens', async () => {
+    const { hook, release, walks } = setup({
+      files: { 'Loose idea.md': 'A thought.\n' },
+      open: false,
+    });
     await act(async () => release());
+    await act(async () => {});
+    expect(hook.result.current).toBeNull();
+    expect(walks()).toBe(0);
+    hook.rerender({ open: true });
     await waitFor(() => expect(hook.result.current?.preview?.moves).toHaveLength(1));
-    expect(hook.result.current?.reading).toBe(false);
   });
 });

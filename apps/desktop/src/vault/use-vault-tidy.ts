@@ -31,7 +31,7 @@ export function useVaultTidy({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the vault is read ahead once the index is ready, then again as it opens (#130). */
+  /** Whether the Inbox page is showing: the vault is only walked for it, never ahead of it (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After the tidy moved notes, so the tree and the index are read again. */
@@ -45,9 +45,6 @@ export function useVaultTidy({
   const [problem, setProblem] = useState<string | null>(null);
   // The vault last previewed for the offer: until this one is, the Inbox holds its rows (#130).
   const [previewedFor, setPreviewedFor] = useState<string | null>(null);
-  // Read in the effect, which runs the first preview as soon as the index is ready —
-  // before the Inbox opens, so opening it usually waits for nothing — and again on each open.
-  const prefetched = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would move twice.
   const running = useRef(false);
@@ -62,20 +59,21 @@ export function useVaultTidy({
 
   useEffect(() => {
     if (!indexReady || vaultKey === null || dismissed) return;
-    if (!open && prefetched.current === vaultKey) return;
+    // Not read ahead: the tidy walks the whole vault, and a walk then is taken
+    // for a refresh after whatever the vault last reported (#130, #254). It is
+    // read as the Inbox opens, which holds its rows for it, as for the rest.
+    if (!open) return;
     let cancelled = false;
     previewVaultTidy(ports, localToday())
       .then((read) => {
         if (cancelled) return;
         setPlan((was) => keepIfSame(was, read));
         setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
         setProblem(`The vault could not be read for a tidy: ${reasonOf(cause)}`);
         setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
       });
     return () => {
       cancelled = true;

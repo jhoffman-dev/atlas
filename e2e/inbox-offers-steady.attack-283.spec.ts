@@ -79,35 +79,33 @@ function heldAtMount(
   page: Page,
   title: string,
 ): Promise<{ hidden: boolean; inert: boolean; tookFocus: boolean }> {
-  return page.evaluate(
-    (title) =>
-      new Promise((resolve) => {
-        const find = () =>
-          [...document.querySelectorAll<HTMLElement>('.inbox__grid button')].find(
-            (button) => button.textContent?.trim() === title,
-          );
-        const look = () => {
-          const found = find();
-          if (found === undefined) return false;
-          observer.disconnect();
-          found.focus();
-          resolve({
-            hidden: getComputedStyle(found).visibility === 'hidden',
-            inert: found.closest('[inert]') !== null,
-            tookFocus: document.activeElement === found,
-          });
-          return true;
-        };
-        const observer = new MutationObserver(() => void look());
-        observer.observe(document.body, { childList: true, subtree: true });
-        const button = [...document.querySelectorAll('button')].find((b) =>
-          /^Inbox/.test(b.getAttribute('aria-label') ?? b.textContent?.trim() ?? ''),
-        );
-        if (button === undefined) throw new Error('no Inbox button');
-        button.click();
-      }),
-    title,
-  );
+  return inboxButton(page)
+    .first()
+    .evaluate(
+      (button: HTMLElement, title) =>
+        new Promise((resolve) => {
+          const find = () =>
+            [...document.querySelectorAll<HTMLElement>('.inbox__grid button')].find(
+              (button) => button.textContent?.trim() === title,
+            );
+          const look = () => {
+            const found = find();
+            if (found === undefined) return false;
+            observer.disconnect();
+            found.focus();
+            resolve({
+              hidden: getComputedStyle(found).visibility === 'hidden',
+              inert: found.closest('[inert]') !== null,
+              tookFocus: document.activeElement === found,
+            });
+            return true;
+          };
+          const observer = new MutationObserver(() => void look());
+          observer.observe(document.body, { childList: true, subtree: true });
+          button.click();
+        }),
+      title,
+    );
 }
 
 /** How far, at most, the Inbox row titled `title` moved over the next `frames` frames. */
@@ -137,25 +135,24 @@ function largestMove(page: Page, title: string, frames: number): Promise<number>
  * until the row titled `title` is both drawn and visible.
  */
 function msUntilRowVisible(page: Page, title: string): Promise<number> {
-  return page.evaluate(async (title) => {
-    const button = [...document.querySelectorAll('button')].find((b) =>
-      /^Inbox/.test(b.getAttribute('aria-label') ?? b.textContent?.trim() ?? ''),
-    );
-    if (button === undefined) throw new Error('no Inbox button');
-    const visible = () => {
-      const found = [...document.querySelectorAll('.inbox__grid button')].find(
-        (b) => b.textContent?.trim() === title,
-      );
-      return found !== undefined && getComputedStyle(found).visibility === 'visible';
-    };
-    const start = performance.now();
-    button.click();
-    while (!visible()) {
-      await new Promise((done) => requestAnimationFrame(done));
-      if (performance.now() - start > 10_000) return Infinity;
-    }
-    return performance.now() - start;
-  }, title);
+  // The button found by role, so Playwright waits for the sidebar to draw it.
+  return inboxButton(page)
+    .first()
+    .evaluate(async (button: HTMLElement, title) => {
+      const visible = () => {
+        const found = [...document.querySelectorAll('.inbox__grid button')].find(
+          (b) => b.textContent?.trim() === title,
+        );
+        return found !== undefined && getComputedStyle(found).visibility === 'visible';
+      };
+      const start = performance.now();
+      button.click();
+      while (!visible()) {
+        await new Promise((done) => requestAnimationFrame(done));
+        if (performance.now() - start > 10_000) return Infinity;
+      }
+      return performance.now() - start;
+    }, title);
 }
 
 test('on a vault with nothing to offer, the rows show without waiting out the 1 s hold (#130 attack)', async ({

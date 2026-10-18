@@ -8,8 +8,8 @@
   ],
   "actions": {
     "Open a vault": {
-      "commits": 134,
-      "renders": 6418,
+      "commits": 132,
+      "renders": 6331,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -25,11 +25,11 @@
         "index_query": 140,
         "index_rebuild_views": 3,
         "index_stats": 4,
-        "list_directory": 63,
-        "list_notes": 9,
+        "list_directory": 62,
+        "list_notes": 8,
         "open_vault": 3,
         "pick_vault": 3,
-        "read_notes": 93,
+        "read_notes": 92,
         "read_text_file": 3,
         "watch_vault": 3,
         "write_text_file": 3
@@ -125,8 +125,8 @@
       "commitsFromCi": true
     },
     "Open the Inbox": {
-      "commits": 7,
-      "renders": 563,
+      "commits": 9,
+      "renders": 655,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,

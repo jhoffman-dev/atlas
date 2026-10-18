@@ -149,6 +149,19 @@ describe.each(Object.entries(HOOKS))('%s says when it is still reading (#130)', 
     expect(reading(view.result.current)).toBe(true);
   });
 
+  it('reads again from the start when another vault opens', async () => {
+    const { view, open } = mount(hook, SHOWN);
+    await act(async () => open());
+    await waitFor(() => expect(reading(view.result.current)).toBe(false));
+    view.rerender({ ...SHOWN, vaultKey: '/vaults/work' });
+    expect(reading(view.result.current)).toBe(true);
+  });
+});
+
+// The tidy walks the whole vault, so it alone is read only as the Inbox opens (use-vault-tidy.test.tsx).
+const READ_AHEAD = Object.entries(HOOKS).filter(([name]) => name !== 'useVaultTidy');
+
+describe.each(READ_AHEAD)('%s is read ahead of the Inbox (#130)', (_, hook) => {
   it('reads as soon as the index is ready, with the Inbox shut, so opening it waits for nothing', async () => {
     const { view, open, reads } = mount(hook, { ...SHOWN, open: false });
     await waitFor(() => expect(reads()).toBeGreaterThan(0));
@@ -156,14 +169,6 @@ describe.each(Object.entries(HOOKS))('%s says when it is still reading (#130)', 
     await act(async () => {});
     view.rerender(SHOWN);
     expect(reading(view.result.current)).toBe(false);
-  });
-
-  it('reads again from the start when another vault opens', async () => {
-    const { view, open } = mount(hook, SHOWN);
-    await act(async () => open());
-    await waitFor(() => expect(reading(view.result.current)).toBe(false));
-    view.rerender({ ...SHOWN, vaultKey: '/vaults/work' });
-    expect(reading(view.result.current)).toBe(true);
   });
 });
 
