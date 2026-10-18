@@ -30,4 +30,13 @@ describe('StatusPill', () => {
     render(<StatusPill value="Seed" tone="done" variant="dot" />);
     expect(screen.getByRole('img', { name: 'Seed' }).getAttribute('data-tone')).toBe('done');
   });
+
+  it('as a dot beside its own label, says nothing a screen reader would hear twice', () => {
+    const { container } = render(<StatusPill value="doing" variant="dot" decorative />);
+    expect(screen.queryByRole('img')).toBeNull();
+    const dot = container.querySelector('.status-pill--dot');
+    expect(dot?.getAttribute('aria-hidden')).toBe('true');
+    expect(dot?.getAttribute('aria-label')).toBeNull();
+    expect(dot?.getAttribute('data-tone')).toBe('doing');
+  });
 });

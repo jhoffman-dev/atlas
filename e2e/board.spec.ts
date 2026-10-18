@@ -175,6 +175,31 @@ test('the board uses the width of the window, not the width of prose', async ({ 
   expect(measured?.board ?? 0).toBeGreaterThan((measured?.available ?? 0) * 0.8);
 });
 
+// Brief rule 7: the columns split the width equally, empty or not.
+test('every column takes the same share of the width, the empty one included', async ({ page }) => {
+  await openBoard(page);
+  await page.locator('[data-path="first.md"]').waitFor();
+
+  const measured = await page.evaluate(() => ({
+    board: Math.round(document.querySelector('.board')?.getBoundingClientRect().width ?? 0),
+    columns: [...document.querySelectorAll('.board__column')].map((column) => ({
+      label: column.getAttribute('aria-label'),
+      width: Math.round(column.getBoundingClientRect().width),
+      cards: column.querySelectorAll('.board__card').length,
+    })),
+  }));
+
+  const { board, columns } = measured;
+  expect(columns.map((column) => column.label)).toEqual(['backlog', 'doing', 'done']);
+  expect(columns.find((column) => column.label === 'done')?.cards).toBe(0);
+  const [first, ...rest] = columns;
+  expect(first?.width ?? 0).toBeGreaterThan(180);
+  for (const column of rest) expect(column.width).toBeCloseTo(first?.width ?? 0, -1);
+  // Equal shares of the whole width: not three capped columns beside a gap.
+  const taken = columns.reduce((sum, column) => sum + column.width, 0);
+  expect(taken, `columns ${taken}px of a ${board}px board`).toBeGreaterThan(board * 0.9);
+});
+
 test('the board fills the height available to it', async ({ page }) => {
   await openBoard(page);
   await page.locator('[data-path="first.md"]').waitFor();
