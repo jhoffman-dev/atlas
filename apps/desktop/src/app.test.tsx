@@ -1185,3 +1185,287 @@ describe('reading the vault after a change (#259)', () => {
     expect(counting.listed.templates.length).toBe(before.templates);
   });
 });
+
+describe('the window’s kept reads, attacked (#259, PR 272)', () => {
+  type Faults = {
+    /** Throws on the window's own reads of the type definitions until `heal` is called. */
+    typesUntilHealed?: boolean;
+    /** Throws on the first graph read when set. */
+    graphOnce?: boolean;
+    /** Rejects the first view rebuild when set. */
+    viewsOnce?: boolean;
+  };
+
+  /**
+   * A watched vault on an in-memory index, counting what the window reads by
+   * the number of index writes made when it asked. A fault, when asked for,
+   * happens once and never again: what a transient failure leaves behind.
+   */
+  function watchedVault({
+    files,
+    directories,
+    faults = {},
+  }: {
+    files: Record<string, string>;
+    directories: Record<string, VaultEntry[]>;
+    faults?: Faults;
+  }) {
+    const vault = fakeVault({ remembered: location, directories, files });
+    const index = memoryIndexPort();
+    let puts = 0;
+    const left = { ...faults };
+    const reads = { graph: [] as number[], views: [] as number[] };
+    const listed = { types: [] as number[], templates: [] as string[] };
+    const typeReads: string[] = [];
+    const indexPorts: IndexPorts = {
+      fs: vault.fs,
+      markdown: remarkMarkdown,
+      index: {
+        ...index,
+        put: async (notes, scope) => {
+          await index.put(notes, scope);
+          puts += 1;
+        },
+        query: async (sql, parameters) => {
+          if (sql.includes('/* graph:notes */')) {
+            reads.graph.push(puts);
+            if (left.graphOnce === true) {
+              left.graphOnce = false;
+              throw new Error('database is locked');
+            }
+          }
+          return index.query(sql, parameters);
+        },
+        rebuildViews: async () => {
+          reads.views.push(puts);
+          if (left.viewsOnce === true) {
+            left.viewsOnce = false;
+            throw new Error('database is locked');
+          }
+        },
+      },
+    };
+    const fs: VaultFsPort = {
+      ...vault.fs,
+      listDirectory: async (path) => {
+        if (path === '.atlas/types') listed.types.push(puts);
+        if (path.startsWith('.atlas/templates')) listed.templates.push(path);
+        return vault.fs.listDirectory(path);
+      },
+      readNotes: async (paths) => {
+        const onlyTypes = paths.length > 0 && paths.every((p) => p.startsWith('.atlas/types/'));
+        // The window's read of its types, not the one setting built-in types up.
+        const windowRead = onlyTypes && !(new Error().stack ?? '').includes('setUpTypes');
+        if (windowRead) typeReads.push(left.typesUntilHealed === true ? 'failed' : 'read');
+        if (windowRead && left.typesUntilHealed === true) {
+          throw new VaultAccessError('the disk was busy');
+        }
+        return vault.fs.readNotes(paths);
+      },
+    };
+    const heard: ((paths: readonly string[]) => void)[] = [];
+    const watch = {
+      start: async () => {},
+      onChange: async (handler: (paths: readonly string[]) => void) => {
+        heard.push(handler);
+        return () => {};
+      },
+    };
+    const watched = { ...vault, fs, watch };
+    render(
+      <App
+        appInfo={appInfo}
+        vault={watched}
+        notes={notesFor(watched)}
+        index={{ ...indexPorts, fs }}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn()}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+    /** Another program changed these paths; the watcher says so. */
+    const tell = (paths: readonly string[]) =>
+      act(() => heard.forEach((handler) => handler(paths)));
+    /** Waits until the first build has written and the watcher is listening. */
+    const opened = async () => {
+      await vi.waitFor(() => expect(puts).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(heard.length).toBeGreaterThan(0));
+    };
+    const heal = () => {
+      left.typesUntilHealed = false;
+    };
+    return { files, directories, reads, listed, typeReads, heal, puts: () => puts, tell, opened };
+  }
+
+  const BOOK = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';
+
+  function bookVault(faults?: Faults, extra: Record<string, string> = {}) {
+    const files: Record<string, string> = {
+      'a.md': '# A\n\nSome words.\n',
+      'b.md': '# B\n',
+      '.atlas/types/book.md': BOOK,
+      '.atlas/templates/Book.md': '---\ntype: book\n---\n',
+      ...extra,
+    };
+    const notes = Object.keys(files).filter((path) => !path.startsWith('.atlas/'));
+    return watchedVault({
+      files,
+      directories: {
+        '': notes.map((path) => entry(path, 'file')),
+        '.atlas/types': [entry('.atlas/types/book.md', 'file')],
+        '.atlas/templates': [entry('.atlas/templates/Book.md', 'file')],
+      },
+      ...(faults !== undefined && { faults }),
+    });
+  }
+
+  // --- What held: each of these must read again, and does. ---
+
+  it('reads the graph again when a note gains a link through a frontmatter relation', async () => {
+    const vault = bookVault();
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    const before = vault.reads.graph.length;
+
+    vault.files['a.md'] = '---\nrelated: "[[b]]"\n---\n# A\n\nSome words.\n';
+    await vault.tell(['a.md']);
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(before));
+  });
+
+  it('reads the graph again when a linked note is deleted by another program', async () => {
+    const vault = bookVault(undefined, { 'a.md': '# A\n\nSee [[b]].\n' });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    const before = vault.reads.graph.length;
+
+    delete vault.files['b.md'];
+    vault.directories[''] = (vault.directories[''] ?? []).filter((item) => item.path !== 'b.md');
+    await vault.tell(['b.md']);
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(before));
+  });
+
+  it('lists the types again and rebuilds the views for an outside edit to a type', async () => {
+    const vault = bookVault();
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(0));
+    const before = { types: vault.listed.types.length, views: vault.reads.views.length };
+
+    vault.files['.atlas/types/book.md'] = BOOK.replace(
+      '  author: text\n',
+      '  author: text\n  genre: text\n',
+    );
+    await vault.tell(['.atlas/types/book.md']);
+
+    await vi.waitFor(() => expect(vault.listed.types.length).toBeGreaterThan(before.types));
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(before.views));
+  });
+
+  it('lists the templates again for one another program adds in a nested folder', async () => {
+    const vault = bookVault();
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.listed.templates.length).toBeGreaterThan(0));
+    const before = vault.listed.templates.length;
+
+    vault.files['.atlas/templates/People/Person.md'] = '---\ntype: person\n---\n';
+    vault.directories['.atlas/templates'] = [
+      ...(vault.directories['.atlas/templates'] ?? []),
+      entry('.atlas/templates/People', 'directory'),
+    ];
+    vault.directories['.atlas/templates/People'] = [
+      entry('.atlas/templates/People/Person.md', 'file'),
+    ];
+    await vault.tell(['.atlas/templates/People/Person.md']);
+
+    await vi.waitFor(() => expect(vault.listed.templates.length).toBeGreaterThan(before));
+  });
+
+  it('reads the graph again when a bulk retag of 60 notes also links one of them', async () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 60 }, (_, at) => [`n${String(at).padStart(2, '0')}.md`, `# N${at}\n`]),
+    );
+    const vault = bookVault(undefined, many);
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    const before = vault.reads.graph.length;
+
+    // Every note is retagged; only the last, in the second batch of 50, gains a link.
+    for (const path of Object.keys(many)) vault.files[path] = `${many[path]}\n#bulk\n`;
+    vault.files['n59.md'] = '# N59\n\n#bulk [[b]]\n';
+    await vault.tell(Object.keys(many));
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(before));
+  });
+
+  // --- Bugs: a read that failed once is kept as it failed. ---
+
+  /** Opens a vault whose window reads of its types fail, then the disk recovers. */
+  async function openedWithTypesFailing() {
+    const vault = bookVault({ typesUntilHealed: true });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.typeReads).toContain('failed'));
+    // Let the opening settle: the build, the built-in types' set-up, and their reads.
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(0));
+    await act(async () => {});
+    vault.heal();
+    // Any later change to the vault: before #259 the types were read again on it.
+    vault.files['a.md'] = '# A\n\nSome words, and a link to [[b]].\n';
+    await vault.tell(['a.md']);
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(1));
+    return vault;
+  }
+
+  it('reads the types again after a read of them failed, once the index next moves', async () => {
+    const vault = await openedWithTypesFailing();
+
+    // The failed read was kept as "no types", with no error shown, for good:
+    // until a type file itself changes, or the app restarts.
+    await vi.waitFor(() => expect(vault.typeReads).toContain('read'), { timeout: 1500 });
+  });
+
+  it('rebuilds the SQL views once the types can be read after a failed first read', async () => {
+    const vault = await openedWithTypesFailing();
+
+    // book is defined on disk, so its view must exist for its table to read.
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(0), {
+      timeout: 1500,
+    });
+  });
+
+  it('reads the graph again after a read of it failed, once the index next moves', async () => {
+    const vault = bookVault({ graphOnce: true });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBe(1));
+
+    // An edit that changes no facet: the index moves, the failed graph stays failed.
+    vault.files['a.md'] = '# A\n\nSome more words, and then some.\n';
+    await vault.tell(['a.md']);
+    await vi.waitFor(() => expect(vault.puts()).toBeGreaterThan(1));
+
+    await vi.waitFor(() => expect(vault.reads.graph.length).toBeGreaterThan(1), {
+      timeout: 1500,
+    });
+  });
+
+  it('rebuilds the SQL views again after a rebuild failed, once the index next moves', async () => {
+    const vault = bookVault({ viewsOnce: true });
+    await vault.opened();
+    await vi.waitFor(() => expect(vault.reads.views.length).toBe(1));
+
+    vault.files['a.md'] = '# A\n\nSome more words, and then some.\n';
+    await vault.tell(['a.md']);
+    await vi.waitFor(() => expect(vault.puts()).toBeGreaterThan(1));
+
+    await vi.waitFor(() => expect(vault.reads.views.length).toBeGreaterThan(1), {
+      timeout: 1500,
+    });
+  });
+});
