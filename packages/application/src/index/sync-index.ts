@@ -200,7 +200,7 @@ export function createIndexSyncer({
   let running: { vault: string; abandon: AbortController } | null = null;
   let saidInWindow = false;
 
-  const syncOnce: IndexSyncer['sync'] = async ({ vault, fromScratch, onProgress }) => {
+  const syncOnce: IndexSyncer['sync'] = async ({ vault, fromScratch, onProgress, recheck }) => {
     if (openVault() !== vault) return null;
     const previous = remembered?.vault === vault ? remembered.versions : undefined;
     // Every write recorded by now is on disk before this sync reads the vault.
@@ -214,6 +214,7 @@ export function createIndexSyncer({
       abandoned: abandon.signal,
       stillWanted: () => openVault() === vault,
       ...(onProgress !== undefined && { onProgress }),
+      ...(recheck !== undefined && { recheck }),
       ...(previous !== undefined && { previous }),
       ...(unread?.vault === vault && { unreadBefore: unread.key }),
       onBaseline: (baseline) => {

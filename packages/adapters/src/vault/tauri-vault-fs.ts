@@ -19,6 +19,12 @@ interface RawNoteFile {
   size: number;
 }
 
+/** SHA-256 of the text's UTF-8 bytes, in lowercase hex, as the host's `digest_of` makes it. */
+async function digestOf(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function toEntry(raw: RawEntry): VaultEntry {
   const path = createVaultPath(raw.path);
   if (raw.kind === 'directory') return { kind: 'directory', name: raw.name, path };
@@ -85,19 +91,30 @@ export const tauriVaultFs: HostVaultFsPort = {
     await throughHost(invoke('trash_entry', { path, vault }));
   },
 
-  writeTextFile({
+  // The text a save was read as crosses as its digest, which the host
+  // compares with the note's bytes (#245): not a second copy of the note.
+  async writeTextFile({
     path,
     contents,
     expectedModified,
+    expectedText,
     vault,
   }: {
     path: VaultPath;
     contents: string;
     expectedModified: number | null;
+    expectedText?: string;
     vault: string;
   }) {
+    const expectedDigest = expectedText === undefined ? undefined : await digestOf(expectedText);
     return throughHost(
-      invoke<number>('write_text_file', { path, contents, expectedModified, vault }),
+      invoke<number>('write_text_file', {
+        path,
+        contents,
+        expectedModified,
+        ...(expectedDigest !== undefined && { expectedDigest }),
+        vault,
+      }),
     );
   },
 

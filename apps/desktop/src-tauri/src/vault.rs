@@ -15,6 +15,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockW
 use std::time::{Duration, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -548,9 +549,11 @@ fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
 /// A rename within a directory is atomic, so an interrupted save can never leave a
 /// half-written note: the reader sees either the old file or the new one.
 ///
-/// The modification time is the version a save is checked against, so every
-/// save leaves one other than the version it replaced, even within the same
-/// millisecond (see `write_temporary`). A note that is a link out of the vault is refused by `resolve`;
+/// The modification time is the version a save is checked against first, so
+/// every save leaves one other than the version it replaced, even within the
+/// same millisecond (see `write_temporary`). Another program's write on a disk
+/// that keeps the time coarsely can leave it unchanged, so a save that names
+/// the bytes it was read from is held to those too (`BasedOn::digest`). A note that is a link out of the vault is refused by `resolve`;
 /// one that is a link inside it has its target replaced, never the link's
 /// destination written through.
 /// The version a save was made from, as the client read it. A save over any
@@ -566,6 +569,9 @@ pub(crate) struct BasedOn<'a> {
     pub(crate) digest: Option<&'a str>,
 }
 
+/// The shorthands tests save by; the command builds its `BasedOn` from what
+/// the client sent.
+#[cfg(test)]
 impl BasedOn<'_> {
     /// No version to hold to: the save replaces whatever is there.
     pub(crate) const ANY: BasedOn<'static> = BasedOn {
@@ -595,7 +601,10 @@ fn write_text(root: &Path, path: &str, contents: &str, based_on: BasedOn) -> Res
         .modified
         .is_some_and(|expected| expected != replaced)
     {
-        return Err("the note changed on disk since it was opened".into());
+        return Err(CHANGED_ON_DISK.into());
+    }
+    if let Some(expected) = based_on.digest {
+        refuse_other_bytes(&file, expected)?;
     }
 
     let temporary = temporary_beside(&file)?;
@@ -611,6 +620,30 @@ fn write_text(root: &Path, path: &str, contents: &str, based_on: BasedOn) -> Res
         let _ = fs::remove_file(&temporary); // Best effort; the save already failed.
     }
     saved
+}
+
+const CHANGED_ON_DISK: &str = "the note changed on disk since it was opened";
+
+/// Refuses a save when the note's bytes are not the ones it was read as.
+///
+/// Read only once the time has matched, so a stale save the time already
+/// tells costs nothing more; one that matches costs a read and a SHA-256 of
+/// the note, under the change turn (#245).
+fn refuse_other_bytes(file: &Path, expected: &str) -> Result<(), String> {
+    let (bytes, _) = read_one_version(file, MAX_TEXT_BYTES)?;
+    if digest_of(&bytes) != expected {
+        return Err(CHANGED_ON_DISK.into());
+    }
+    Ok(())
+}
+
+/// SHA-256 of `bytes`, in lowercase hex: the digest a save names the version
+/// it was read as by, which the app's adapter makes the same way.
+fn digest_of(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 /// Writes `bytes` to a new file at `temporary`, timed other than `after`
@@ -2732,7 +2765,6 @@ mod attack_264_tests {
 #[cfg(test)]
 mod coarse_clock_tests {
     use super::{read_text, write_text, BasedOn};
-    use sha2::{Digest, Sha256};
     use std::fs;
     use std::path::Path;
     use std::time::{Duration, UNIX_EPOCH};
@@ -2742,10 +2774,21 @@ mod coarse_clock_tests {
     const TICK: u64 = 1_700_000_000_000;
 
     fn digest_of(text: &str) -> String {
-        Sha256::digest(text.as_bytes())
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect()
+        super::digest_of(text.as_bytes())
+    }
+
+    /// The same vectors the adapter's test holds its digest to
+    /// (`tauri-vault-fs.test.ts`): SHA-256 of the UTF-8 bytes, lowercase hex.
+    #[test]
+    fn the_digest_is_the_sha256_of_the_bytes_in_lowercase_hex() {
+        assert_eq!(
+            digest_of("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            digest_of("café\n"),
+            "7b49b9e063bd91a4f9252b413261f5557b9c570aa61516989499f64a62dbcdd6"
+        );
     }
 
     /// Writes `text` over `a.md` and leaves it timed at `TICK`.
@@ -2815,6 +2858,86 @@ mod coarse_clock_tests {
         };
         assert!(write_text(vault.path(), "a.md", "mine\n", based_on).is_err());
         assert_eq!(read_text(vault.path(), "a.md").unwrap().text, "theirs\n");
+    }
+
+    /// What the digest costs, by hand: `cargo test cost_of -- --ignored --nocapture`.
+    /// A save pays one read and one SHA-256 of the note it replaces. A refresh
+    /// pays nothing unless the watcher names a note; hashing every note on
+    /// every refresh instead is the alternative this measures against.
+    #[test]
+    #[ignore]
+    fn cost_of_the_digest_on_saves_and_on_a_2000_note_vault() {
+        use super::{read_notes_at, NoteWalk};
+        use std::collections::HashSet;
+        use std::time::Instant;
+
+        let vault = tempdir().unwrap();
+        for (label, size) in [
+            ("5 KB", 5 * 1024),
+            ("100 KB", 100 * 1024),
+            ("1 MB", 1 << 20),
+        ] {
+            let text = "x".repeat(size);
+            fs::write(vault.path().join("a.md"), &text).unwrap();
+            let rounds = 200;
+            let mut plain = Duration::ZERO;
+            let mut guarded = Duration::ZERO;
+            for _ in 0..rounds {
+                let opened = read_text(vault.path(), "a.md").unwrap();
+                let started = Instant::now();
+                write_text(vault.path(), "a.md", &text, BasedOn::at(opened.modified)).unwrap();
+                plain += started.elapsed();
+                let opened = read_text(vault.path(), "a.md").unwrap();
+                let digest = digest_of(&opened.text);
+                let based_on = BasedOn {
+                    modified: Some(opened.modified),
+                    digest: Some(&digest),
+                };
+                let started = Instant::now();
+                write_text(vault.path(), "a.md", &text, based_on).unwrap();
+                guarded += started.elapsed();
+            }
+            println!(
+                "save of {label}: {:?} by time alone, {:?} with the digest",
+                plain / rounds,
+                guarded / rounds
+            );
+        }
+
+        let notes = tempdir().unwrap();
+        let paths: Vec<String> = (0..2000).map(|at| format!("n{at:04}.md")).collect();
+        for path in &paths {
+            fs::write(notes.path().join(path), "# Note\n\n".repeat(300)).unwrap();
+        }
+        let skip = HashSet::new();
+        let walk = || {
+            let mut found = Vec::new();
+            NoteWalk {
+                root: notes.path(),
+                skip: &skip,
+                max_depth: 8,
+            }
+            .collect(notes.path(), "", 0, &mut found);
+            found
+        };
+        let started = Instant::now();
+        assert_eq!(walk().len(), 2000);
+        let listed = started.elapsed();
+        let started = Instant::now();
+        let read = read_notes_at(notes.path(), &paths[..1]);
+        let one = started.elapsed();
+        assert_eq!(read.len(), 1);
+        let started = Instant::now();
+        let every: Vec<String> = read_notes_at(notes.path(), &paths)
+            .iter()
+            .map(|note| super::digest_of(note.text.as_bytes()))
+            .collect();
+        let all = started.elapsed();
+        assert_eq!(every.len(), 2000);
+        println!(
+            "2,000 notes: listing {listed:?}; reading the one note named {one:?}; \
+             reading and hashing every note {all:?}"
+        );
     }
 
     /// The contract before #245, kept for a caller that sends no digest.

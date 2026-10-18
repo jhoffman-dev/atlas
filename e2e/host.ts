@@ -1401,9 +1401,10 @@ export async function installHost(
         return { text, modified: Math.floor(info.mtimeMs) };
       }
       case 'write_text_file': {
-        const { contents, expectedModified } = args as {
+        const { contents, expectedModified, expectedDigest } = args as {
           contents: string;
           expectedModified: number | null;
+          expectedDigest?: string;
         };
         // Counted as asked for, landed or not: a second save that the host
         // refuses is still a second write the app tried to make.
@@ -1415,6 +1416,18 @@ export async function installHost(
           if (expectedModified !== null) {
             const info = await statFile(file);
             if (Math.floor(info.mtimeMs) !== expectedModified) {
+              throw new Error('the note changed on disk since it was opened');
+            }
+          }
+          // As `vault.rs` does, once the time has matched: the bytes the save
+          // was read from, by their SHA-256, for a coarse clock's sake (#245).
+          if (expectedDigest !== undefined) {
+            const { readFile } = await import('node:fs/promises');
+            const { createHash } = await import('node:crypto');
+            const onDisk = createHash('sha256')
+              .update(await readFile(file))
+              .digest('hex');
+            if (onDisk !== expectedDigest) {
               throw new Error('the note changed on disk since it was opened');
             }
           }

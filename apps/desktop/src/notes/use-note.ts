@@ -357,10 +357,16 @@ export function useNote({
     landed: null,
   });
 
-  /** What a write of `held` starts from: what the last write left, when that is newer. */
+  /**
+   * What a write of `held` starts from: what the last write left, unless the
+   * note was read since at a later time. A tie goes to the write: on a disk
+   * that keeps the time to the second, a write within the second leaves the
+   * time as it was, and starting from the older read would have the save
+   * refused for the bytes the pane itself wrote (#245).
+   */
   const startFrom = useCallback((held: OpenNote): OpenNote => {
     const { landed } = writes.current;
-    return landed !== null && landed.path === held.path && landed.modified > held.modified
+    return landed !== null && landed.path === held.path && landed.modified >= held.modified
       ? landed
       : held;
   }, []);

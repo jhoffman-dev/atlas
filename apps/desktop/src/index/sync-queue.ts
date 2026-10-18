@@ -31,10 +31,14 @@ interface Lane {
   waiting: { request: SyncRequest; held: Promise<boolean>; begin: () => void } | null;
 }
 
-const merged = (a: SyncRequest, b: SyncRequest): SyncRequest => ({
-  fromScratch: a.fromScratch || b.fromScratch,
-  quiet: a.quiet && b.quiet,
-});
+const merged = (a: SyncRequest, b: SyncRequest): SyncRequest => {
+  const recheck = [...new Set([...(a.recheck ?? []), ...(b.recheck ?? [])])];
+  return {
+    fromScratch: a.fromScratch || b.fromScratch,
+    quiet: a.quiet && b.quiet,
+    ...(recheck.length > 0 && { recheck }),
+  };
+};
 
 /**
  * At most one sync of a vault runs, and one waits behind it (#238). A sync
