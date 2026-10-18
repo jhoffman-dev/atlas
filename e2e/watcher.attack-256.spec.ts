@@ -193,6 +193,39 @@ test('the watcher’s echo of deciding an Inbox row is not refreshed for again (
   await addFromOutside(page, vault, 'From outside.md');
 });
 
+/**
+ * A GTD vault whose Inbox holds one task: the app writes the Block type into
+ * it as it opens (P31-01).
+ */
+async function gtdVaultWithAnInbox(): Promise<FakeVault> {
+  const vault = await createVault();
+  for (const folder of ['.atlas/types', 'Projects', 'Inbox']) await vault.mkdir(folder);
+  await vault.write('.atlas/types/task.md', GTD_TASK_TYPE);
+  await vault.write('.atlas/types/project.md', PROJECT_TYPE);
+  await vault.write('Projects/Atlas.md', note(['type: project', 'status: active'], 'The app.'));
+  await vault.write('Inbox/Renew the passport.md', note(['type: task', 'status: inbox'], 'Card.'));
+  return vault;
+}
+
+test('the Block type’s echo, heard while the opening walk is still under way, is not walked for (#258)', async ({
+  page,
+}) => {
+  // A slow runner: the opening walk outlasts the watcher's 400 ms, so the
+  // echo of the Block type arrives while the refresh the app asked for it
+  // still waits behind that walk.
+  const vault = await gtdVaultWithAnInbox();
+  const host = await installHost(page, vault, { echoWrites: true });
+  await recordWalksAndReports(page);
+  const release = host.holdIndexAfter(0);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose folder…' }).click();
+  await expectFile(vault, '.atlas/types/block.md').toContain('block');
+  await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
+  release();
+  await expect(page.getByText(/notes indexed/)).toBeVisible();
+  expect(await walksSinceTheLastReport(page)).toBe(0);
+});
+
 test('the watcher’s echo of dragging a board card is not refreshed for again (#254)', async ({
   page,
 }) => {
