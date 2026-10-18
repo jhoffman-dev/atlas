@@ -54,7 +54,8 @@ async function filled(index: IndexPort) {
   return index;
 }
 
-const sorted = (found: readonly (readonly unknown[])[]) => found.map((row) => JSON.stringify(row)).sort();
+const sorted = (found: readonly (readonly unknown[])[]) =>
+  found.map((row) => JSON.stringify(row)).sort();
 
 describe('the in-memory index, beside the one in SQLite', () => {
   it('answers the facet check with the same rows', async () => {
