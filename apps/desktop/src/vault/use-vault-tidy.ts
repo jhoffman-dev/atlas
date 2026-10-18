@@ -42,6 +42,8 @@ export function useVaultTidy({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
+  const [read, setRead] = useState(false);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would move twice.
   const running = useRef(false);
@@ -52,6 +54,7 @@ export function useVaultTidy({
     setDismissed(false);
     setResult(null);
     setProblem(null);
+    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
@@ -59,10 +62,14 @@ export function useVaultTidy({
     let cancelled = false;
     previewVaultTidy(ports, localToday())
       .then((read) => {
-        if (!cancelled) setPlan(read);
+        if (cancelled) return;
+        setPlan(read);
+        setRead(true);
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setProblem(`The vault could not be read for a tidy: ${reasonOf(cause)}`);
+        if (cancelled) return;
+        setProblem(`The vault could not be read for a tidy: ${reasonOf(cause)}`);
+        setRead(true);
       });
     return () => {
       cancelled = true;
@@ -112,8 +119,10 @@ export function useVaultTidy({
   }, []);
 
   const offered = !dismissed && plan !== null && plan.moves.length > 0 ? plan : null;
-  if (offered === null && result === null && problem === null) return null;
+  const reading = open && vaultKey !== null && !dismissed && !read;
+  if (!reading && offered === null && result === null && problem === null) return null;
   return {
+    reading,
     preview: offered === null ? null : { moves: offered.moves, refused: offered.refused },
     open: expanded,
     busy,

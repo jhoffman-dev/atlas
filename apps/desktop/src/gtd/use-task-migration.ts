@@ -82,6 +82,8 @@ export function useTaskMigration({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
+  const [read, setRead] = useState(false);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would run twice.
   const running = useRef(false);
@@ -99,18 +101,24 @@ export function useTaskMigration({
     setDismissed(false);
     setResult(null);
     setProblem(null);
+    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
     if (!open || !indexReady || vaultKey === null) return;
     let cancelled = false;
     // Read apart: a run's undo is offered even when the tasks cannot be read now.
+    // The preview alone holds the Inbox's rows (#130): set with it, so it costs no commit of its own.
     previewIfNeeded(migrationPorts, chosen)
       .then((read) => {
-        if (!cancelled) setPreview(read !== null && hasMigrationWork(read) ? read : null);
+        if (cancelled) return;
+        setPreview(read !== null && hasMigrationWork(read) ? read : null);
+        setRead(true);
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setProblem(`Your tasks could not be read for GTD: ${reasonOf(cause)}`);
+        if (cancelled) return;
+        setProblem(`Your tasks could not be read for GTD: ${reasonOf(cause)}`);
+        setRead(true);
       });
     readMigrationRecord(migrationPorts.fs)
       .then((record) => {
@@ -209,8 +217,10 @@ export function useTaskMigration({
     setChosen((was) => new Map([...was, [from, to]]));
   }, []);
 
-  if (preview === null && !canUndo && result === null && problem === null) return null;
+  const reading = open && vaultKey !== null && !read;
+  if (!reading && preview === null && !canUndo && result === null && problem === null) return null;
   return {
+    reading,
     preview: dismissed || preview === null ? null : previewData(preview),
     open: expanded,
     busy,

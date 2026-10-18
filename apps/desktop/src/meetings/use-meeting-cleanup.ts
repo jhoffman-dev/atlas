@@ -63,6 +63,8 @@ export function useMeetingCleanup({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
+  const [read, setRead] = useState(false);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would archive twice.
   const running = useRef(false);
@@ -75,6 +77,7 @@ export function useMeetingCleanup({
     setDismissed(false);
     setResult(null);
     setProblem(null);
+    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
@@ -86,9 +89,12 @@ export function useMeetingCleanup({
         if (cancelled) return;
         setListed(read);
         setNeedsOwner(unjudged);
+        setRead(true);
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setProblem(`The tasks meetings made could not be read: ${reasonOf(cause)}`);
+        if (cancelled) return;
+        setProblem(`The tasks meetings made could not be read: ${reasonOf(cause)}`);
+        setRead(true);
       });
     return () => {
       cancelled = true;
@@ -150,8 +156,11 @@ export function useMeetingCleanup({
 
   const offered = !dismissed && listed !== null && listed.length > 0 ? listed : null;
   const notice = !dismissed && offered === null && needsOwner ? NEEDS_OWNER_NOTICE : null;
-  if (offered === null && result === null && notice === null && problem === null) return null;
+  const reading = open && vaultKey !== null && owner !== null && !dismissed && !read;
+  if (!reading && offered === null && result === null && notice === null && problem === null)
+    return null;
   return {
+    reading,
     tasks:
       offered === null
         ? null

@@ -6,6 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { createVaultPath } from '@atlas/domain';
 import {
   fakeIndexPort,
   fakeVaultFs,
@@ -22,6 +23,13 @@ function setup({ files, open = true }: { files: Record<string, string>; open?: b
   const held = new Promise<void>((resolve) => (release = resolve));
   const fs = fakeVaultFs({
     ...memory.fs,
+    listNotes: async () =>
+      [...memory.files.entries()].map(([path, text]) => ({
+        name: path.split('/').at(-1) ?? path,
+        path: createVaultPath(path),
+        modified: 0,
+        size: text.length,
+      })),
     readNotes: async (paths) => {
       await held;
       return paths.flatMap((path) => {

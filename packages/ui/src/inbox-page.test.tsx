@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
 import {
@@ -594,6 +594,23 @@ describe('InboxPage: while the vault’s settings note cannot be read (#226)', (
   });
 });
 
+const VAULT_TIDY: NonNullable<InboxPageProps['vaultTidy']> = {
+  preview: {
+    moves: [{ from: 'Loose idea.md', to: 'Notes/2026/Loose idea.md' }],
+    refused: [],
+  },
+  open: false,
+  busy: false,
+  result: null,
+  problem: null,
+  onOpen: vi.fn(),
+  onApply: vi.fn(),
+  onClose: vi.fn(),
+  onDismiss: vi.fn(),
+};
+/** The tidy while the vault is still read for it: nothing known to offer yet. */
+const READING = { ...VAULT_TIDY, preview: null, reading: true };
+
 describe('InboxPage — an offer read late does not move the ones already shown (#227)', () => {
   const TYPES_OFFER: NonNullable<InboxPageProps['typesOffer']> = {
     lines: ['Task gains Project, linking project or area notes.'],
@@ -630,8 +647,13 @@ describe('InboxPage — an offer read late does not move the ones already shown 
     (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
   it('puts an offer read after another below it, so what is under the pointer stays put', () => {
-    const view = page({ meetingProjects: MEETING_PROJECTS });
-    view.rerender({ meetingProjects: MEETING_PROJECTS, typesOffer: TYPES_OFFER });
+    // While another is still read, so the rows are not drawn yet (#130).
+    const view = page({ meetingProjects: MEETING_PROJECTS, vaultTidy: READING });
+    view.rerender({
+      meetingProjects: MEETING_PROJECTS,
+      vaultTidy: READING,
+      typesOffer: TYPES_OFFER,
+    });
     expect(precedes(meetingOffer(), typesOffer())).toBe(true);
   });
 
@@ -642,22 +664,6 @@ describe('InboxPage — an offer read late does not move the ones already shown 
 });
 
 describe('InboxPage — nothing moves under the pointer once the rows are drawn (#130)', () => {
-  const VAULT_TIDY: NonNullable<InboxPageProps['vaultTidy']> = {
-    preview: {
-      moves: [{ from: 'Loose idea.md', to: 'Notes/2026/Loose idea.md' }],
-      refused: [],
-    },
-    open: false,
-    busy: false,
-    result: null,
-    problem: null,
-    onOpen: vi.fn(),
-    onApply: vi.fn(),
-    onClose: vi.fn(),
-    onDismiss: vi.fn(),
-  };
-  /** The tidy while the vault is still read for it: nothing known to offer yet. */
-  const READING = { ...VAULT_TIDY, preview: null, reading: true };
   const TYPES_OFFER: NonNullable<InboxPageProps['typesOffer']> = {
     lines: ['Task gains Project, linking project or area notes.'],
     onAccept: vi.fn(),
@@ -674,7 +680,9 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     const view = page({ vaultTidy: READING, proposals: PROPOSALS });
     expect(firstRow()).toBeNull();
     expect(screen.queryByRole('region', { name: 'Proposals' })).toBeNull();
-    expect(screen.queryByText('Reading the Inbox…')).not.toBeNull();
+    // Drawn in place, so showing them costs nothing, but out of reach until then.
+    const held = screen.getByText('Call the bank');
+    expect(held.closest('[inert]')).not.toBeNull();
 
     view.rerender({ vaultTidy: VAULT_TIDY, proposals: PROPOSALS });
     const offer = tidyOffer();
@@ -719,7 +727,7 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     const view = page();
     view.rerender({ vaultTidy: VAULT_TIDY });
     expect(tidyOffer()).toBeNull();
-    view.unmount();
+    cleanup();
     page({ vaultTidy: VAULT_TIDY });
     expect(tidyOffer()).not.toBeNull();
   });

@@ -42,6 +42,8 @@ export function useParaMigration({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
+  const [read, setRead] = useState(false);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would run twice.
   const running = useRef(false);
@@ -57,6 +59,7 @@ export function useParaMigration({
     setDismissed(false);
     setResult(null);
     setProblem(null);
+    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
@@ -64,10 +67,14 @@ export function useParaMigration({
     let cancelled = false;
     previewParaMigration(migrationPorts)
       .then((read) => {
-        if (!cancelled) setPreview(hasParaMigrationWork(read) ? read : null);
+        if (cancelled) return;
+        setPreview(hasParaMigrationWork(read) ? read : null);
+        setRead(true);
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setProblem(`Your PARA notes could not be read: ${reasonOf(cause)}`);
+        if (cancelled) return;
+        setProblem(`Your PARA notes could not be read: ${reasonOf(cause)}`);
+        setRead(true);
       });
     return () => {
       cancelled = true;
@@ -107,8 +114,10 @@ export function useParaMigration({
       });
   }, [preview, migrationPorts, ports.editors, activity, onChanged]);
 
-  if (preview === null && result === null && problem === null) return null;
+  const reading = open && vaultKey !== null && !read;
+  if (!reading && preview === null && result === null && problem === null) return null;
   return {
+    reading,
     preview: dismissed || preview === null ? null : preview,
     open: expanded,
     busy,

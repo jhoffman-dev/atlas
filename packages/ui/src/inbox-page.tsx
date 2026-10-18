@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
@@ -18,8 +18,24 @@ import { ParaMigration, type ParaMigrationProps } from './para-migration.tsx';
 import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
 import { MeetingCleanup, type MeetingCleanupProps } from './meeting-cleanup.tsx';
+import type { InboxOfferReading } from './inbox-offer.ts';
 
 const NO_REFUSALS: readonly InboxRefusal[] = [];
+
+/**
+ * How long the Inbox holds its rows back for an offer still being read (#130).
+ * Long enough for the usual read, short enough that a slow one never keeps
+ * the person waiting; an offer read later than this waits for the next open.
+ */
+export const INBOX_OFFERS_WAIT_MS = 1000;
+
+/**
+ * The proposals and rows, laid out as if the wrapper were not there. Held
+ * back, they are drawn and measured as usual but not seen and not reached by
+ * pointer or keyboard, so they cost no commit of their own when shown (#130).
+ */
+const IN_PLACE = { display: 'contents' } as const;
+const HELD_BACK = { display: 'contents', visibility: 'hidden' } as const;
 
 /** What the Inbox lists, once it has been read. */
 export interface InboxContents {
@@ -117,6 +133,10 @@ export function InboxPage(props: InboxPageProps) {
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
   const scroller = useRef<HTMLDivElement>(null);
+  const reading = [migration, paraMigration, tidy, cleanup, meetingProjects].some(
+    (read) => read?.reading === true,
+  );
+  const live = useOffersKnown(reading);
   return (
     <>
       <PageBar
@@ -143,13 +163,17 @@ export function InboxPage(props: InboxPageProps) {
             {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
             {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
             <Offers
+              live={live}
               offers={[
                 ['types', offer && <TypesOffer {...offer} />],
-                ['tasks', migration && <TaskMigration {...migration} />],
-                ['para', paraMigration && <ParaMigration {...paraMigration} />],
-                ['tidy', tidy && <VaultTidy {...tidy} />],
-                ['cleanup', cleanup && <MeetingCleanup {...cleanup} />],
-                ['meetings', meetingProjects && <MeetingProjects {...meetingProjects} />],
+                ['tasks', known(migration) ? <TaskMigration {...migration} /> : null],
+                ['para', known(paraMigration) ? <ParaMigration {...paraMigration} /> : null],
+                ['tidy', known(tidy) ? <VaultTidy {...tidy} /> : null],
+                ['cleanup', known(cleanup) ? <MeetingCleanup {...cleanup} /> : null],
+                [
+                  'meetings',
+                  known(meetingProjects) ? <MeetingProjects {...meetingProjects} /> : null,
+                ],
               ]}
             />
             {problem !== null && (
@@ -158,10 +182,12 @@ export function InboxPage(props: InboxPageProps) {
               </p>
             )}
             <LastAction {...props} />
-            {proposals !== null && proposalsToShow(proposals) && (
-              <ProposalsSection {...proposals} />
-            )}
-            <InboxList {...props} />
+            <div style={live ? IN_PLACE : HELD_BACK} inert={!live}>
+              {proposals !== null && proposalsToShow(proposals) && (
+                <ProposalsSection {...proposals} />
+              )}
+              <InboxList {...props} />
+            </div>
           </article>
         </RowScrollerContext.Provider>
       </div>
@@ -169,19 +195,50 @@ export function InboxPage(props: InboxPageProps) {
   );
 }
 
+/** Whether an offer is known, and has something to say: null while it is still read. */
+function known<Offer extends InboxOfferReading>(offer: Offer | null): offer is Offer {
+  return offer !== null && offer.reading !== true;
+}
+
+/**
+ * Whether the Inbox's offers are known, so its rows can be drawn below them
+ * (#130): once none is still being read, or once it has waited
+ * `INBOX_OFFERS_WAIT_MS` for one. Known stays known while the page shows.
+ */
+function useOffersKnown(reading: boolean): boolean {
+  const [offersKnown, setOffersKnown] = useState(!reading);
+  if (!reading && !offersKnown) setOffersKnown(true);
+  useEffect(() => {
+    if (offersKnown) return;
+    const timer = setTimeout(() => setOffersKnown(true), INBOX_OFFERS_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [offersKnown]);
+  return offersKnown;
+}
+
 /**
  * The Inbox's offers, each read on its own and shown once it is (#227). One
  * read after the others goes below those already shown: arriving above them
  * would move what is under the person's pointer as they reach for it. Offers
- * read together keep the order given.
+ * read together keep the order given. Once the rows are drawn (`live`), an
+ * offer not already shown waits for the Inbox to open again: shown now, it
+ * would push the rows down under the pointer (#130).
  */
-function Offers({ offers }: { offers: readonly (readonly [string, ReactNode])[] }) {
+function Offers({
+  offers,
+  live,
+}: {
+  offers: readonly (readonly [string, ReactNode])[];
+  live: boolean;
+}) {
   const shown = offers.filter(([, offer]) => offer !== null);
   const [order, setOrder] = useState<readonly string[]>(() => shown.map(([key]) => key));
-  const next = inArrivalOrder(
-    order,
-    shown.map(([key]) => key),
-  );
+  // Whether the rows were already drawn when these offers were read: the
+  // render that draws them still shows the offer whose read let them be drawn.
+  const [frozen, setFrozen] = useState(live);
+  if (live && !frozen) setFrozen(true);
+  const keys = shown.map(([key]) => key);
+  const next = frozen ? order.filter((key) => keys.includes(key)) : inArrivalOrder(order, keys);
   if (next.join('\n') !== order.join('\n')) setOrder(next);
   const byKey = new Map(shown);
   return next.map((key) => <Fragment key={key}>{byKey.get(key)}</Fragment>);

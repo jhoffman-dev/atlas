@@ -54,6 +54,8 @@ export function useMeetingProjects({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Whether this vault has been read for the offer once: until then, the Inbox holds its rows (#130).
+  const [read, setRead] = useState(false);
   const [lastRun, setLastRun] = useState<ProjectBackfillRun | null>(null);
   const [revision, setRevision] = useState(0);
   // `busy` reaches the panel a render late; a double click would file twice.
@@ -73,6 +75,7 @@ export function useMeetingProjects({
     setResult(null);
     setProblem(null);
     setLastRun(null);
+    setRead(false);
   }, [vaultKey]);
 
   useEffect(() => {
@@ -85,10 +88,12 @@ export function useMeetingProjects({
         const before = shown.current;
         shown.current = new Set(read.map(rowKey));
         setChosen((ticked) => ticksAfterPreview({ read, ticked, before }));
+        setRead(true);
       })
       .catch((cause: unknown) => {
-        if (!cancelled)
-          setProblem(`Meetings with no project could not be read: ${reasonOf(cause)}`);
+        if (cancelled) return;
+        setProblem(`Meetings with no project could not be read: ${reasonOf(cause)}`);
+        setRead(true);
       });
     return () => {
       cancelled = true;
@@ -147,8 +152,11 @@ export function useMeetingProjects({
     });
   }, [lastRun, ports, activity, settle]);
 
-  if (rows === null && result === null && problem === null && lastRun === null) return null;
+  const reading = open && vaultKey !== null && !dismissed && !read;
+  if (!reading && rows === null && result === null && problem === null && lastRun === null)
+    return null;
   return {
+    reading,
     rows: dismissed || rows === null ? null : rows.map((row) => rowOf(row, chosen)),
     open: expanded,
     busy,
