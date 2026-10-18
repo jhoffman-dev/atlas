@@ -73,7 +73,9 @@ export function useSidebarCatalog({
   notePathsNow.current = notePaths;
   const quickPaths = useMemo(() => catalog.quick.map(({ entry }) => entry.path), [catalog.quick]);
   const quickCounts = useQuery({
-    queryKey: [...vaultReadKey(vault, 'quick-counts'), quickPaths, typeNames],
+    // The definitions, not only their names: a query view is checked against them,
+    // so a type defined anew under the same name is counted with the new one.
+    queryKey: [...vaultReadKey(vault, 'quick-counts'), quickPaths, types],
     queryFn: async () =>
       Object.fromEntries(
         await countQuickViews({
