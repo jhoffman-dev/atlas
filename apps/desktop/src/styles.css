@@ -1,35 +1,48 @@
 /* ---- Tokens -------------------------------------------------------------
-   The mockup's two palettes (design/target/*.dc.html, `tokens(theme)`), as
-   roles. Light is a lavender-grey ground under a pale panel and white cards;
-   dark is a deep navy ground under a navy panel, lifted with a cyan edge-glow
-   rather than inverted. Components read these roles and never a raw colour.
+   UI v2 "Dense & Calm" (docs/design/ui-v2-brief.md §3, design/v2/Tokens.dc.html).
+   Two near-neutral palettes: light is white content beside a pale grey
+   sidebar; dark is the same on a warm near-black, not a navy. Colour appears
+   only as pastel tints — status pills, buttons, the focus ring — never as a
+   filled area bigger than a button, and nothing on content casts a shadow: a
+   1px hairline separates things.
 
-   One deliberate departure: light `--ink-3` is #5D6685, not the mockup's
-   #6B7493, which measures 3.7:1 on the ground — under WCAG AA for the section
-   labels and counts that use it. #5D6685 is the nearest shade toward `--ink`
-   that clears 4.5:1.
+   The v2 names (`--bg`, `--surface`, `--ink-2`, `--status-next-tint`, …) are
+   the primitives. The older role names (`--ground`, `--panel`, `--raised`,
+   `--accent`, …) are kept as aliases of them, so a component reads the token
+   it always did and the palette turns over underneath it. Components read
+   these roles and never a raw colour.
    -------------------------------------------------------------------------- */
 
 :root {
-  /* Type. Manrope is bundled with the app — local-first, so never fetched. */
-  --font-ui: 'Manrope Variable', 'Manrope', ui-sans-serif, -apple-system, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, monospace;
+  /* Type. The system stack: nothing is bundled, nothing is fetched. Weights
+     400, 500 and 600 only; numbers in tabular figures. */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* The scale, by what each size is for. */
-  --text-label: 11px; /* section labels, in capitals */
-  --text-small: 12.5px; /* counts, captions, secondary UI */
-  --text-ui: 13.5px; /* sidebar rows, controls, breadcrumbs */
-  --text-body: 14px; /* running text in dense places */
-  --text-body-lg: 16px; /* running text meant to be read */
-  --text-card: 17px; /* card titles */
-  --text-subtitle: 21px;
-  --text-heading: 26px;
-  --text-title: 30px; /* page titles */
-  --text-hero: 38px; /* the big numbers */
+  --text-note-title: 24px; /* 600, --tracking-title */
+  --text-section: 15px; /* 600 */
+  --text-emphasis: 13px; /* 500: a card's title, the active tab */
+  --text-body: 13px; /* body, table rows, nav */
+  --text-column: 12.5px; /* 600: column and group labels */
+  --text-meta: 12px; /* ink-3: metadata */
+  --text-header: 11.5px; /* 500, ink-3: section and column headers */
+  --text-mono: 12px; /* ids, code blocks */
+  --text-code: 12.5px; /* inline code, on --code-bg */
+  --text-body-lg: 14px; /* running text meant to be read (FlowSplit.dc.html) */
   --leading-tight: 1.25;
-  --leading-body: 1.55;
+  --leading-body: 1.5;
   --tracking-label: 0.07em;
-  --tracking-title: -0.025em;
+  --tracking-title: -0.01em;
+
+  /* The scale's older names, kept for the components that read them. */
+  --text-label: var(--text-header);
+  --text-small: var(--text-meta);
+  --text-ui: var(--text-body);
+  --text-card: var(--text-emphasis);
+  --text-subtitle: var(--text-section);
+  --text-heading: var(--text-note-title);
+  --text-title: var(--text-note-title);
 
   /* Space */
   --space-1: 4px;
@@ -40,20 +53,24 @@
   --space-6: 24px;
   --space-7: 32px;
 
-  /* Radius. The panel and cards are generous; controls are soft squares; the
-     segmented tracks and chips are pills. */
-  --radius-chip: 6px;
-  --radius-control: 9px;
-  --radius-button: 10px;
-  --radius-card: 16px;
-  --radius-panel: 22px;
-  --radius-hero: 24px;
+  /* Radius. Chips and pills 4, buttons and inputs 6, popovers and menus 8;
+     the panel, cards and board columns are square. Only dots and avatars are
+     fully round — `--radius-pill` stays for them until slice 2 moves the
+     chips and pills onto `--radius-chip`. */
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-button: 6px;
+  --radius-popover: 8px;
+  --radius-card: 0;
+  --radius-panel: 0;
+  --radius-hero: 0;
   --radius-pill: 999px;
 
-  /* The sidebar's measurements, from the mockup. */
+  /* The sidebar's measurements. */
   --sidebar-width: 248px;
   --sidebar-row: 29px;
-  --shell-inset: 12px;
+  /* Content runs edge to edge on the surface: no panel inset from the ground. */
+  --shell-inset: 0px;
 }
 
 /* Light: the default. The explicit selectors are not anchored to `:root`, so a
@@ -62,70 +79,65 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  --ground: #e3e7f0;
-  --panel: #f2f4f9;
-  --raised: #ffffff;
-  --track: #e6eaf3;
-  --chip: rgba(21, 29, 59, 0.06);
-  --chip-ink: #46506f;
-  --hover: rgba(120, 135, 180, 0.14);
-  --line: rgba(21, 29, 59, 0.09);
-  --grid: rgba(21, 29, 59, 0.1);
+  --bg: #f6f6f7; /* the sidebar, the tab strip, a board column's well */
+  --surface: #ffffff; /* content, cards, the right sidebar */
+  --well: #f8f8f9; /* a table's group row, a notice bar */
+  --ink: #18181b;
+  --ink-2: #52525b; /* secondary text, controls */
+  --ink-3: #6b6b73; /* metadata and labels: 5.2:1 on the surface */
+  --line: #e6e6e9; /* hairlines, a card's border */
+  --line-soft: #ececef; /* a table's row dividers */
+  --line-strong: #d9d9de; /* a control's border */
+  --hover: #f4f4f6;
+  --selected: #e8e8eb; /* the active nav item, a pressed toggle */
+  --focus: #6b7bc4; /* the focus ring and the editing cell's ring only */
+  --sep: #c4c4ca; /* the · between metadata */
+  --chart-grid: #f1f1f3;
+  --chart-bar: #d4d4d8;
 
-  --ink: #151d3b;
-  --ink-2: #4e577a;
-  --ink-3: #5d6685;
+  /* Status: the dot, the pill's text and the pill's tint. Every status also
+     carries its label — the pastel dots alone do not separate for everyone. */
+  --status-inbox-dot: #9db4c8;
+  --status-inbox-ink: #3d5a70;
+  --status-inbox-tint: #eaf0f5;
+  --status-backlog-dot: #a1a1aa;
+  --status-backlog-ink: #52525b;
+  --status-backlog-tint: #f1f1f3;
+  --status-next-dot: #7ea2dd;
+  --status-next-ink: #2d4f8a;
+  --status-next-tint: #e8effb;
+  --status-doing-dot: #dda54e;
+  --status-doing-ink: #7a5312;
+  --status-doing-tint: #fbf1df;
+  --status-waiting-dot: #c9a0b8;
+  --status-waiting-ink: #6e3f5c;
+  --status-waiting-tint: #f6ecf2;
+  --status-review-dot: #a595e3;
+  --status-review-ink: #4e3f8f;
+  --status-review-tint: #efebfb;
+  --status-done-dot: #7dbf93;
+  --status-done-ink: #2f6b45;
+  --status-done-tint: #e6f3ea;
+  --status-done-tick: #ffffff; /* the tick on a finished card, on the done dot */
 
-  --accent: #2468d8;
-  --accent-ink: #ffffff;
-  --accent-text: #1d56b8;
-  --accent-data: #2f7cf0;
-  --cyan: #14c4dc;
-  --cyan-ink: #0e8fb0;
-  --navy: #1b2a55;
-  --navy-data: #1b2a55;
-  --bar-muted: #3a4468;
-  --tile-ink: #5eeaf4;
-  --hero: linear-gradient(155deg, #23397a 0%, #0f1b42 78%);
-  --hero-muted: #a3b5e0;
-  --you: rgba(36, 104, 216, 0.1);
-  --you-ink: #1d56b8;
+  /* Buttons: fill, text, border. Pastel, but Accept and Reject must differ. */
+  --btn-primary-bg: #e3ecfb;
+  --btn-primary-ink: #23457e;
+  --btn-primary-line: transparent;
+  --btn-positive-bg: #e3f2e8;
+  --btn-positive-ink: #26603d;
+  --btn-positive-line: #c8e3d2;
+  --btn-destructive-bg: #fbeded;
+  --btn-destructive-ink: #9a3f3f;
+  --btn-destructive-line: #f2d4d4;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-ink: #18181b;
+  --btn-secondary-line: #d9d9de;
+  --btn-ghost-bg: transparent;
+  --btn-ghost-ink: #52525b;
+  --btn-ghost-line: transparent;
 
-  /* A page of prose: a paler sheet than a view's panel, its running text a
-     step softer than the ink, and code as a quiet chip. */
-  --page: #fbfcfe;
-  --ink-body: #262f4d;
-  --code-bg: rgba(21, 29, 59, 0.06);
-  --code-ink: #2a3560;
   --star: #e0a526;
-
-  /* The sidebar's current row: a white pill on the ground. */
-  --active: #ffffff;
-  --active-ink: #151d3b;
-  --active-icon: #2468d8;
-
-  /* Board statuses: the pill's fill, its text, and its dot. */
-  --status-backlog: #e6eaf3;
-  --status-backlog-ink: #46506f;
-  --status-backlog-dot: #8a93b2;
-  --status-next: #ddeafe;
-  --status-next-ink: #1d4fa8;
-  --status-next-dot: #2f7cf0;
-  --status-doing: #d5f6fa;
-  --status-doing-ink: #0b6b7e;
-  --status-doing-dot: #14c4dc;
-  --status-review: #e6e8fd;
-  --status-review-ink: #3c3f9e;
-  --status-review-dot: #6366f1;
-  --status-done: #dde2f0;
-  --status-done-ink: #1b2a55;
-  --status-done-dot: #1b2a55;
-  --status-done-tick: #ffffff; /* the tick on a finished card, on --navy-data */
-
-  /* Not in the mockup, and not decoration — these say what happened. */
-  --danger: #bc2436;
-  --warning: #8a5a00;
-  --success: #1f6b3a;
 
   /* Syntax highlighting is the one place more than one hue earns its keep. */
   --code-keyword: #7c3aed;
@@ -133,105 +145,87 @@
   --code-number: #a14b00;
   --code-type: #0e6f80;
 
-  --shadow-panel: 0 1px 2px rgba(20, 30, 70, 0.05), 0 18px 48px rgba(20, 30, 70, 0.1);
-  --shadow-card: 0 1px 2px rgba(20, 30, 70, 0.05), 0 10px 28px rgba(20, 30, 70, 0.08);
-  --shadow-tile: 0 2px 4px rgba(20, 30, 70, 0.06), 0 14px 30px rgba(20, 30, 70, 0.14);
-  --shadow-badge: 0 2px 6px rgba(20, 30, 70, 0.18);
-  --shadow-hero: 0 20px 40px rgba(16, 27, 66, 0.35);
-  --shadow-soft: 0 1px 2px rgba(20, 30, 70, 0.12), 0 2px 6px rgba(20, 30, 70, 0.06);
-  --shadow-accent: 0 4px 12px rgba(36, 104, 216, 0.35);
-  --shadow-overlay: 0 8px 16px rgba(20, 30, 70, 0.1), 0 24px 56px rgba(20, 30, 70, 0.16);
-  --glow: 0 6px 16px rgba(20, 196, 220, 0.35);
-  --scrim: rgba(38, 50, 96, 0.26);
+  /* Only a popover, a menu, the peek and a toast cast a shadow. */
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-peek: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 24px 64px rgba(0, 0, 0, 0.22);
+  --scrim: rgba(0, 0, 0, 0.2);
   /* Behind a saved artifact: white in both themes, since a page made
-     elsewhere assumes a white canvas and would be unreadable on navy. */
+     elsewhere assumes a white canvas and would be unreadable on dark. */
   --artifact-canvas: #ffffff;
 }
 
-/* Dark follows the system unless a choice has been made in the app. */
+/* Dark follows the system unless a choice has been made in the app. The dots
+   keep their colour; the text lightens and a tint is its dot at 14–16%. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --ground: #070f24;
-    --panel: #0c1834;
-    --raised: #11224a;
-    --track: #18295a;
-    --chip: rgba(125, 170, 255, 0.1);
-    --chip-ink: #b8c4e6;
-    --hover: rgba(120, 135, 180, 0.14);
-    --line: rgba(125, 170, 255, 0.12);
-    --grid: rgba(125, 170, 255, 0.16);
+    --bg: #111113;
+    --surface: #18181b;
+    --well: #1d1d21;
+    --ink: #ededef;
+    --ink-2: #b4b4bc;
+    --ink-3: #8e8e98;
+    --line: #2a2a2f;
+    --line-soft: #2a2a2f;
+    --line-strong: #3a3a40;
+    --hover: #222227;
+    --selected: #26262b;
+    --focus: #8f9be0;
+    --sep: #4a4a52;
+    --chart-grid: #232328;
+    --chart-bar: #3f3f46;
 
-    --ink: #e9efff;
-    --ink-2: #a9b5da;
-    --ink-3: #7e8cb5;
-
-    --accent: #22d3ee;
-    --accent-ink: #05213a;
-    --accent-text: #67e8f9;
-    --accent-data: #38bdf8;
-    --cyan: #22e3f2;
-    --cyan-ink: #22e3f2;
-    --navy: #1b3a7a;
-    --navy-data: #3b5fb8;
-    --bar-muted: #2a3b6e;
-    --tile-ink: #5eeaf4;
-    --hero: linear-gradient(155deg, #1d3f86 0%, #0a1738 78%);
-    --hero-muted: #93a9dd;
-    --you: rgba(34, 211, 238, 0.14);
-    --you-ink: #67e8f9;
-
-    --page: #0c1834;
-    --ink-body: #d5ddf5;
-    --code-bg: rgba(125, 170, 255, 0.12);
-    --code-ink: #c7d6ff;
-    --star: #e0a526;
-
-    --active: rgba(34, 211, 238, 0.13);
-    --active-ink: #67e8f9;
-    --active-icon: #22e3f2;
-
-    --status-backlog: rgba(169, 181, 218, 0.14);
-    --status-backlog-ink: #c3cdea;
-    --status-backlog-dot: #8c99c2;
-    --status-next: rgba(56, 189, 248, 0.16);
-    --status-next-ink: #7dd3fc;
-    --status-next-dot: #38bdf8;
-    --status-doing: rgba(34, 227, 242, 0.16);
-    --status-doing-ink: #67e8f9;
-    --status-doing-dot: #22e3f2;
-    --status-review: rgba(129, 140, 248, 0.18);
-    --status-review-ink: #c7d2fe;
-    --status-review-dot: #818cf8;
-    --status-done: rgba(59, 95, 184, 0.3);
-    --status-done-ink: #c7d6ff;
-    --status-done-dot: #6c8ee0;
+    --status-inbox-dot: #9db4c8;
+    --status-inbox-ink: #b8cbdb;
+    --status-inbox-tint: rgba(157, 180, 200, 0.16);
+    --status-backlog-dot: #7c7c86;
+    --status-backlog-ink: #c4c4cc;
+    --status-backlog-tint: rgba(161, 161, 170, 0.14);
+    --status-next-dot: #7ea2dd;
+    --status-next-ink: #b5cbf0;
+    --status-next-tint: rgba(126, 162, 221, 0.16);
+    --status-doing-dot: #dda54e;
+    --status-doing-ink: #e6c284;
+    --status-doing-tint: rgba(221, 165, 78, 0.16);
+    --status-waiting-dot: #c9a0b8;
+    --status-waiting-ink: #dfbfd3;
+    --status-waiting-tint: rgba(201, 160, 184, 0.16);
+    --status-review-dot: #a595e3;
+    --status-review-ink: #cbc1f2;
+    --status-review-tint: rgba(165, 149, 227, 0.16);
+    --status-done-dot: #7dbf93;
+    --status-done-ink: #a9d9b8;
+    --status-done-tint: rgba(125, 191, 147, 0.16);
     --status-done-tick: #ffffff;
 
-    --danger: #ff8098;
-    --warning: #e0af68;
-    --success: #9ece6a;
+    --btn-primary-bg: rgba(126, 162, 221, 0.18);
+    --btn-primary-ink: #b5cbf0;
+    --btn-primary-line: transparent;
+    --btn-positive-bg: rgba(125, 191, 147, 0.16);
+    --btn-positive-ink: #a9d9b8;
+    --btn-positive-line: rgba(125, 191, 147, 0.35);
+    --btn-destructive-bg: rgba(226, 120, 120, 0.16);
+    --btn-destructive-ink: #f0a8a8;
+    --btn-destructive-line: rgba(226, 120, 120, 0.35);
+    --btn-secondary-bg: #1d1d21;
+    --btn-secondary-ink: #ededef;
+    --btn-secondary-line: #3a3a40;
+    --btn-ghost-bg: transparent;
+    --btn-ghost-ink: #b4b4bc;
+    --btn-ghost-line: transparent;
+
+    --star: #e0a526;
 
     --code-keyword: #bb9af7;
     --code-string: #9ece6a;
     --code-number: #ff9e64;
     --code-type: #2ac3de;
 
-    --shadow-panel: 0 0 0 1px rgba(90, 160, 255, 0.12), 0 24px 60px rgba(0, 0, 0, 0.45);
-    --shadow-card: 0 0 0 1px rgba(90, 160, 255, 0.14), 0 12px 30px rgba(0, 0, 0, 0.35);
-    --shadow-tile: 0 0 0 1px rgba(34, 211, 238, 0.3), 0 12px 28px rgba(0, 0, 0, 0.45);
-    --shadow-badge: 0 0 0 1px rgba(34, 211, 238, 0.28), 0 6px 16px rgba(0, 0, 0, 0.45);
-    --shadow-hero:
-      0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 36px rgba(34, 211, 238, 0.14),
-      0 18px 40px rgba(0, 0, 0, 0.5);
-    --shadow-soft: 0 0 0 1px rgba(90, 160, 255, 0.2);
-    --shadow-accent: 0 0 18px rgba(34, 211, 238, 0.45);
-    --shadow-overlay:
-      0 0 0 1px rgba(34, 211, 238, 0.26), 0 0 44px rgba(34, 211, 238, 0.12),
-      0 24px 60px rgba(0, 0, 0, 0.55);
-    --glow: 0 0 16px rgba(34, 227, 242, 0.55);
-    --scrim: rgba(2, 6, 18, 0.6);
+    /* A shadow alone does not read on a dark surface, so each carries a ring. */
+    --shadow-popover: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
+    --scrim: rgba(0, 0, 0, 0.55);
     --artifact-canvas: #ffffff;
   }
 }
@@ -239,105 +233,153 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --ground: #070f24;
-  --panel: #0c1834;
-  --raised: #11224a;
-  --track: #18295a;
-  --chip: rgba(125, 170, 255, 0.1);
-  --chip-ink: #b8c4e6;
-  --hover: rgba(120, 135, 180, 0.14);
-  --line: rgba(125, 170, 255, 0.12);
-  --grid: rgba(125, 170, 255, 0.16);
+  --bg: #111113;
+  --surface: #18181b;
+  --well: #1d1d21;
+  --ink: #ededef;
+  --ink-2: #b4b4bc;
+  --ink-3: #8e8e98;
+  --line: #2a2a2f;
+  --line-soft: #2a2a2f;
+  --line-strong: #3a3a40;
+  --hover: #222227;
+  --selected: #26262b;
+  --focus: #8f9be0;
+  --sep: #4a4a52;
+  --chart-grid: #232328;
+  --chart-bar: #3f3f46;
 
-  --ink: #e9efff;
-  --ink-2: #a9b5da;
-  --ink-3: #7e8cb5;
-
-  --accent: #22d3ee;
-  --accent-ink: #05213a;
-  --accent-text: #67e8f9;
-  --accent-data: #38bdf8;
-  --cyan: #22e3f2;
-  --cyan-ink: #22e3f2;
-  --navy: #1b3a7a;
-  --navy-data: #3b5fb8;
-  --bar-muted: #2a3b6e;
-  --tile-ink: #5eeaf4;
-  --hero: linear-gradient(155deg, #1d3f86 0%, #0a1738 78%);
-  --hero-muted: #93a9dd;
-  --you: rgba(34, 211, 238, 0.14);
-  --you-ink: #67e8f9;
-
-  --page: #0c1834;
-  --ink-body: #d5ddf5;
-  --code-bg: rgba(125, 170, 255, 0.12);
-  --code-ink: #c7d6ff;
-  --star: #e0a526;
-
-  --active: rgba(34, 211, 238, 0.13);
-  --active-ink: #67e8f9;
-  --active-icon: #22e3f2;
-
-  --status-backlog: rgba(169, 181, 218, 0.14);
-  --status-backlog-ink: #c3cdea;
-  --status-backlog-dot: #8c99c2;
-  --status-next: rgba(56, 189, 248, 0.16);
-  --status-next-ink: #7dd3fc;
-  --status-next-dot: #38bdf8;
-  --status-doing: rgba(34, 227, 242, 0.16);
-  --status-doing-ink: #67e8f9;
-  --status-doing-dot: #22e3f2;
-  --status-review: rgba(129, 140, 248, 0.18);
-  --status-review-ink: #c7d2fe;
-  --status-review-dot: #818cf8;
-  --status-done: rgba(59, 95, 184, 0.3);
-  --status-done-ink: #c7d6ff;
-  --status-done-dot: #6c8ee0;
+  --status-inbox-dot: #9db4c8;
+  --status-inbox-ink: #b8cbdb;
+  --status-inbox-tint: rgba(157, 180, 200, 0.16);
+  --status-backlog-dot: #7c7c86;
+  --status-backlog-ink: #c4c4cc;
+  --status-backlog-tint: rgba(161, 161, 170, 0.14);
+  --status-next-dot: #7ea2dd;
+  --status-next-ink: #b5cbf0;
+  --status-next-tint: rgba(126, 162, 221, 0.16);
+  --status-doing-dot: #dda54e;
+  --status-doing-ink: #e6c284;
+  --status-doing-tint: rgba(221, 165, 78, 0.16);
+  --status-waiting-dot: #c9a0b8;
+  --status-waiting-ink: #dfbfd3;
+  --status-waiting-tint: rgba(201, 160, 184, 0.16);
+  --status-review-dot: #a595e3;
+  --status-review-ink: #cbc1f2;
+  --status-review-tint: rgba(165, 149, 227, 0.16);
+  --status-done-dot: #7dbf93;
+  --status-done-ink: #a9d9b8;
+  --status-done-tint: rgba(125, 191, 147, 0.16);
   --status-done-tick: #ffffff;
 
-  --danger: #ff8098;
-  --warning: #e0af68;
-  --success: #9ece6a;
+  --btn-primary-bg: rgba(126, 162, 221, 0.18);
+  --btn-primary-ink: #b5cbf0;
+  --btn-primary-line: transparent;
+  --btn-positive-bg: rgba(125, 191, 147, 0.16);
+  --btn-positive-ink: #a9d9b8;
+  --btn-positive-line: rgba(125, 191, 147, 0.35);
+  --btn-destructive-bg: rgba(226, 120, 120, 0.16);
+  --btn-destructive-ink: #f0a8a8;
+  --btn-destructive-line: rgba(226, 120, 120, 0.35);
+  --btn-secondary-bg: #1d1d21;
+  --btn-secondary-ink: #ededef;
+  --btn-secondary-line: #3a3a40;
+  --btn-ghost-bg: transparent;
+  --btn-ghost-ink: #b4b4bc;
+  --btn-ghost-line: transparent;
+
+  --star: #e0a526;
 
   --code-keyword: #bb9af7;
   --code-string: #9ece6a;
   --code-number: #ff9e64;
   --code-type: #2ac3de;
 
-  --shadow-panel: 0 0 0 1px rgba(90, 160, 255, 0.12), 0 24px 60px rgba(0, 0, 0, 0.45);
-  --shadow-card: 0 0 0 1px rgba(90, 160, 255, 0.14), 0 12px 30px rgba(0, 0, 0, 0.35);
-  --shadow-tile: 0 0 0 1px rgba(34, 211, 238, 0.3), 0 12px 28px rgba(0, 0, 0, 0.45);
-  --shadow-badge: 0 0 0 1px rgba(34, 211, 238, 0.28), 0 6px 16px rgba(0, 0, 0, 0.45);
-  --shadow-hero:
-    0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 36px rgba(34, 211, 238, 0.14),
-    0 18px 40px rgba(0, 0, 0, 0.5);
-  --shadow-soft: 0 0 0 1px rgba(90, 160, 255, 0.2);
-  --shadow-accent: 0 0 18px rgba(34, 211, 238, 0.45);
-  --shadow-overlay:
-    0 0 0 1px rgba(34, 211, 238, 0.26), 0 0 44px rgba(34, 211, 238, 0.12),
-    0 24px 60px rgba(0, 0, 0, 0.55);
-  --glow: 0 0 16px rgba(34, 227, 242, 0.55);
-  --scrim: rgba(2, 6, 18, 0.6);
+  --shadow-popover: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
+  --scrim: rgba(0, 0, 0, 0.55);
   --artifact-canvas: #ffffff;
 }
 
-/* Built from the theme's own tokens, so they move with it. The ring is two
-   rings: a gap in the surface colour, then the accent, so it reads against a
-   filled control as well as a bare one.
+/* The older roles, as the v2 primitives, and the mixes built from them.
 
-   Declared again for each explicit theme, not only on `:root`: a `color-mix`
-   is worked out where it is written, so a subtree carrying a theme of its own
-   would otherwise keep the mix the root made. */
+   Declared again for each explicit theme, not only on `:root`: a `var()` or a
+   `color-mix` is worked out where it is written, so a subtree carrying a
+   theme of its own would otherwise keep the value the root made. */
 :root,
 [data-theme='light'],
 [data-theme='dark'] {
-  --selected: color-mix(in srgb, var(--cyan) 14%, var(--raised));
-  --ring: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
+  --ground: var(--bg);
+  --panel: var(--surface);
+  --raised: var(--surface);
+  --track: var(--well);
+  --chip: var(--hover);
+  --chip-ink: var(--ink-2);
+  --grid: var(--chart-grid);
+  --disabled: var(--sep);
+
+  /* The one thing to act on is the primary button's pastel, not a filled blue. */
+  --accent: var(--btn-primary-bg);
+  --accent-ink: var(--btn-primary-ink);
+  --accent-text: var(--btn-primary-ink);
+  /* Charts: muted bars with one called out in the Next blue; the done check
+     and the first donut slice in the Done sage. */
+  --accent-data: var(--status-next-dot);
+  --cyan: var(--status-next-dot);
+  --cyan-ink: var(--btn-primary-ink);
+  --navy: var(--ink);
+  --navy-data: var(--status-done-dot);
+  --bar-muted: var(--chart-bar);
+  --tile-ink: var(--ink-2);
+  /* The hero is a well fill now, not a gradient. */
+  --hero: var(--well);
+  --hero-muted: var(--ink-3);
+  --you: var(--btn-primary-bg);
+  --you-ink: var(--btn-primary-ink);
+
+  --page: var(--surface);
+  --ink-body: var(--ink);
+  --code-bg: var(--hover);
+  --code-ink: var(--ink);
+
+  --active: var(--selected);
+  --active-ink: var(--ink);
+  --active-icon: var(--ink-2);
+
+  /* A status pill's fill, by its older name. */
+  --status-inbox: var(--status-inbox-tint);
+  --status-backlog: var(--status-backlog-tint);
+  --status-next: var(--status-next-tint);
+  --status-doing: var(--status-doing-tint);
+  --status-waiting: var(--status-waiting-tint);
+  --status-review: var(--status-review-tint);
+  --status-done: var(--status-done-tint);
+
+  /* These say what happened, in the same inks the buttons and pills use. */
+  --danger: var(--btn-destructive-ink);
+  --warning: var(--status-doing-ink);
+  --success: var(--status-done-ink);
+
+  /* No shadow on content: what used to be lifted is now separated by a 1px
+     hairline, or by nothing. Only overlays keep a real shadow. */
+  --shadow-panel: none;
+  --shadow-card: 0 0 0 1px var(--line);
+  --shadow-tile: 0 0 0 1px var(--line);
+  --shadow-hero: none;
+  --shadow-badge: none;
+  --shadow-soft: 0 0 0 1px var(--line-strong);
+  --shadow-accent: none;
+  --shadow-overlay: var(--shadow-popover);
+  --glow: none;
+
+  /* The ring is two rings: a gap in the surface colour, then the focus
+     colour, so it reads against a filled control as well as a bare one. */
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
   /* The graph (P17-06): a link is a quiet line, a relation the accent's text
      colour dashed, a note of no type the quiet ink. */
   --graph-edge: color-mix(in srgb, var(--ink-3) 38%, transparent);
   --graph-relation: color-mix(in srgb, var(--accent-text) 60%, transparent);
-  --graph-untyped: color-mix(in srgb, var(--ink-3) 75%, var(--panel));
+  --graph-untyped: color-mix(in srgb, var(--ink-3) 75%, var(--surface));
 }
 
 * {
@@ -679,19 +721,21 @@ body {
 }
 
 /* ---- The shell -----------------------------------------------------------
-   The sidebar sits straight on the ground colour; the work sits in raised,
-   rounded panels inset from the window's edges — one panel, or one per pane
-   when the window is split. Measurements are the mockup's.
+   The sidebar sits on the ground colour behind a hairline; the work runs edge
+   to edge on the surface — one panel, or one per pane when the window is
+   split. Measurements are the mockup's.
    -------------------------------------------------------------------------- */
 
 .shell {
-  background: var(--ground);
+  background: var(--surface);
   display: flex;
   height: 100vh;
   overflow: hidden;
 }
 
 .shell__sidebar {
+  background: var(--bg);
+  border-right: 1px solid var(--line);
   display: flex;
   flex: none;
   flex-direction: column;
@@ -720,9 +764,12 @@ body {
    Each pane scrolls on its own, so a long note on one side does not move the
    note on the other. */
 .shell__split {
+  /* The panes are flush, so the line between them is the split's own colour
+     showing through a 1px gap. */
+  background: var(--line);
   display: grid;
   flex: 1;
-  gap: var(--shell-inset);
+  gap: 1px;
   min-height: 0;
 }
 
@@ -2900,7 +2947,7 @@ ul.sidebar__sections {
 
 .palette {
   background: var(--raised);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-overlay);
   color: var(--ink);
   display: flex;
@@ -3694,7 +3741,7 @@ ul.sidebar__sections {
 .props__pill {
   align-items: center;
   background: var(--pill);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   display: inline-flex;
   height: 26px;
   position: relative;
@@ -3707,6 +3754,12 @@ ul.sidebar__sections {
   --pill-dot: var(--status-backlog-dot);
 }
 
+.props__pill[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
 .props__pill[data-tone='next'] {
   --pill: var(--status-next);
   --pill-ink: var(--status-next-ink);
@@ -3717,6 +3770,12 @@ ul.sidebar__sections {
   --pill: var(--status-doing);
   --pill-ink: var(--status-doing-ink);
   --pill-dot: var(--status-doing-dot);
+}
+
+.props__pill[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
 }
 
 .props__pill[data-tone='review'] {
@@ -5555,6 +5614,12 @@ button.props__link-title:focus-visible {
   --pill-dot: var(--status-backlog-dot);
 }
 
+.calendar__entry[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
 .calendar__entry[data-tone='next'] {
   --pill: var(--status-next);
   --pill-ink: var(--status-next-ink);
@@ -5565,6 +5630,12 @@ button.props__link-title:focus-visible {
   --pill: var(--status-doing);
   --pill-ink: var(--status-doing-ink);
   --pill-dot: var(--status-doing-dot);
+}
+
+.calendar__entry[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
 }
 
 .calendar__entry[data-tone='review'] {
@@ -5744,6 +5815,13 @@ button.props__link-title:focus-visible {
   --pill-dot: var(--status-backlog-dot);
 }
 
+.calendar__more-item[data-tone='inbox'],
+.clock__note[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
 .calendar__more-item[data-tone='next'],
 .clock__note[data-tone='next'] {
   --pill: var(--status-next);
@@ -5756,6 +5834,13 @@ button.props__link-title:focus-visible {
   --pill: var(--status-doing);
   --pill-ink: var(--status-doing-ink);
   --pill-dot: var(--status-doing-dot);
+}
+
+.calendar__more-item[data-tone='waiting'],
+.clock__note[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
 }
 
 .calendar__more-item[data-tone='review'],
@@ -6433,6 +6518,11 @@ button.props__link-title:focus-visible {
   --bar-ink: var(--status-backlog-ink);
 }
 
+.timeline__bar[data-tone='inbox'] {
+  --bar: var(--status-inbox);
+  --bar-ink: var(--status-inbox-ink);
+}
+
 .timeline__bar[data-tone='next'] {
   --bar: var(--status-next);
   --bar-ink: var(--status-next-ink);
@@ -6441,6 +6531,11 @@ button.props__link-title:focus-visible {
 .timeline__bar[data-tone='doing'] {
   --bar: var(--status-doing);
   --bar-ink: var(--status-doing-ink);
+}
+
+.timeline__bar[data-tone='waiting'] {
+  --bar: var(--status-waiting);
+  --bar-ink: var(--status-waiting-ink);
 }
 
 .timeline__bar[data-tone='review'] {
@@ -6702,16 +6797,19 @@ button.props__link-title:focus-visible {
    beside a chart as in the mockup, and a tile is never stretched to a chart's
    height. Rows grow with their content, so a long table still fits.
 
-   The hero is the page's one gradient. Every chart is flat: muted bars with
-   one called out in cyan, a donut on the navy-cyan ramp. */
+   The hero is a well fill. Every chart is flat: muted bars with one called
+   out in the Next blue, a donut on the sage-blue ramp. */
 
-/* The hero is navy in both themes, so what sits on it is fixed too. */
-:root {
-  --hero-ink: #ffffff;
-  --hero-ring-track: rgba(255, 255, 255, 0.14);
-  --hero-tile: rgba(255, 255, 255, 0.1);
-  --hero-spark: #38d8f0;
-  --hero-spark-fill: #22d3ee;
+/* What sits on the hero follows the theme, as the hero itself does now.
+   Declared for each explicit theme, as the aliases in the token block are. */
+:root,
+[data-theme='light'],
+[data-theme='dark'] {
+  --hero-ink: var(--ink);
+  --hero-ring-track: var(--line);
+  --hero-tile: var(--selected);
+  --hero-spark: var(--status-next-dot);
+  --hero-spark-fill: var(--status-next-dot);
 }
 
 .dashboard {
@@ -7974,7 +8072,7 @@ button.props__link-title:focus-visible {
   --pill-dot: var(--status-backlog-dot);
   align-items: center;
   background: var(--pill);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   color: var(--pill-ink);
   display: inline-flex;
   flex: none;
@@ -7993,6 +8091,12 @@ button.props__link-title:focus-visible {
   width: 7px;
 }
 
+.status-pill[data-tone='inbox'] {
+  --pill: var(--status-inbox);
+  --pill-ink: var(--status-inbox-ink);
+  --pill-dot: var(--status-inbox-dot);
+}
+
 .status-pill[data-tone='next'] {
   --pill: var(--status-next);
   --pill-ink: var(--status-next-ink);
@@ -8003,6 +8107,12 @@ button.props__link-title:focus-visible {
   --pill: var(--status-doing);
   --pill-ink: var(--status-doing-ink);
   --pill-dot: var(--status-doing-dot);
+}
+
+.status-pill[data-tone='waiting'] {
+  --pill: var(--status-waiting);
+  --pill-ink: var(--status-waiting-ink);
+  --pill-dot: var(--status-waiting-dot);
 }
 
 .status-pill[data-tone='review'] {
@@ -9919,12 +10029,20 @@ select.type-editor__field,
   background: var(--status-backlog-dot);
 }
 
+.graph__swatch[data-tone='inbox'] {
+  background: var(--status-inbox-dot);
+}
+
 .graph__swatch[data-tone='next'] {
   background: var(--status-next-dot);
 }
 
 .graph__swatch[data-tone='doing'] {
   background: var(--status-doing-dot);
+}
+
+.graph__swatch[data-tone='waiting'] {
+  background: var(--status-waiting-dot);
 }
 
 .graph__swatch[data-tone='review'] {

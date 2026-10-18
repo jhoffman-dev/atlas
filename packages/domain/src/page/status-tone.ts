@@ -1,28 +1,42 @@
 import { GTD_STATUS_LABELS, isGtdStatus } from '../gtd/gtd-status.ts';
 
 /**
- * The colour ramp a status pill takes. The five match the board's columns;
- * any other value is drawn in the quietest one rather than guessed at.
+ * The colour ramp a status pill takes. The seven are the design's statuses
+ * (docs/design/ui-v2-brief.md §3); any other value is drawn in the quietest
+ * one rather than guessed at.
  */
-export type StatusTone = 'backlog' | 'next' | 'doing' | 'review' | 'done';
+export type StatusTone = 'inbox' | 'backlog' | 'next' | 'doing' | 'waiting' | 'review' | 'done';
 
 /** The ramp, in the order it runs: what an option's colour can be picked from. */
-export const STATUS_TONES: readonly StatusTone[] = ['backlog', 'next', 'doing', 'review', 'done'];
+export const STATUS_TONES: readonly StatusTone[] = [
+  'inbox',
+  'backlog',
+  'next',
+  'doing',
+  'waiting',
+  'review',
+  'done',
+];
 
 const TONES: Readonly<Record<string, StatusTone>> = {
+  inbox: 'inbox',
   backlog: 'backlog',
   todo: 'backlog',
   next: 'next',
   doing: 'doing',
   'in progress': 'doing',
+  waiting: 'waiting',
   review: 'review',
   done: 'done',
   complete: 'done',
   // GTD's statuses (ADR-0029): what can be done now is `next`, started work is
-  // `doing`, waiting on someone is `review`, and finished work is `done`.
+  // `doing`; Someday and Longterm share Backlog's grey, and Archive is drawn
+  // in Done's green (epic #267). Each keeps its own label, so the shared
+  // colour never has to tell them apart.
   'next-action': 'next',
   'in-progress': 'doing',
-  waiting: 'review',
+  someday: 'backlog',
+  longterm: 'backlog',
   archive: 'done',
 };
 
