@@ -265,13 +265,17 @@ describe('tools/list', () => {
     expect(described).toContain('atlas_update_properties');
     expect(described).toContain('Status waiting never needs "waiting_on"');
     expect(described).not.toMatch(/waiting is refused/i);
+    // Each task says how it repeats, as GET /v1/today answers it (#260).
+    expect(described).toContain('defer, recurrence, waitingOn');
   });
 
   it('tells the model what puts an item in the weekly review, and how to act on one (P30-07)', async () => {
     const { tools } = await mcp.listTools();
     const review = tools.find((t) => t.name === 'atlas_weekly_review')?.description ?? '';
     expect(review).toContain('untouched for more than 7 days');
-    expect(review).toContain('waitingOn, contexts, project, projectTitle, modified');
+    expect(review).toContain(
+      'defer, recurrence, waitingOn, contexts, project, projectTitle, modified',
+    );
     expect(review).toContain('untouched for more than 30 days');
     expect(review).toContain('next-action or in-progress');
     expect(review).toContain('atlas_update_properties');

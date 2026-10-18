@@ -2,6 +2,8 @@ export { runView, viewSpecsFor } from './run-view.ts';
 export type { ViewResult } from './run-view.ts';
 export { cardMoveChanges, movesToDone } from './card-move.ts';
 export type { CardPlacement } from './card-move.ts';
+export { cardAsMoved, rowsAsPending } from './pending-cards.ts';
+export type { PendingCard } from './pending-cards.ts';
 export { relationGroupLinks } from './relation-group-links.ts';
 export { loadFilterChoiceSources } from './filter-choice-sources.ts';
 export {

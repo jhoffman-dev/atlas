@@ -20,6 +20,7 @@ export function useRowFocus({
   order,
   shown,
   problem,
+  busy = false,
 }: {
   /** Every row on the page, top to bottom. */
   order: readonly VaultPath[];
@@ -27,9 +28,20 @@ export function useRowFocus({
   shown: object | null;
   /** Why the last action could not be done, if it could not: nothing moved, so focus stays. */
   problem: string | null;
+  /**
+   * While an action is under way: every row's controls wait, and a control
+   * that waits cannot take the focus. A row leaves at once (#260), so the next
+   * row is focused once the action is done. Not busy unless said.
+   */
+  busy?: boolean;
 }) {
   const { rowRef, focusRow: focusPlaced, wanted } = useRowHandles(order);
-  const pending = useRef<{ acted: VaultPath; next: VaultPath | null } | null>(null);
+  const pending = useRef<{
+    acted: VaultPath;
+    next: VaultPath | null;
+    /** Its action was refused or failed, so the row comes back, and focus with it. */
+    refused?: boolean;
+  } | null>(null);
   const orderNow = useRef(order);
   orderNow.current = order;
 
@@ -49,21 +61,49 @@ export function useRowFocus({
   );
 
   useEffect(() => {
-    if (problem !== null) pending.current = null;
-  }, [problem]);
+    const moved = pending.current;
+    if (problem === null || moved === null) return;
+    // A row taken off at once is put back when its write is refused (#260).
+    pending.current = { ...moved, refused: true };
+    focusIfBack(pending, orderNow.current, focusRow);
+  }, [problem, focusRow]);
 
   useEffect(() => {
     const moved = pending.current;
+    if (moved === null || shown === null || busy) return;
+    if (moved.refused === true) {
+      focusIfBack(pending, orderNow.current, focusRow);
+      return;
+    }
     // The index follows the file, so the page may be read again before the
     // row has left: it is waited for, and a row that stays keeps its focus.
     // Asked of the read, not the DOM: a row scrolled out of it has not left.
-    if (moved === null || shown === null || orderNow.current.includes(moved.acted)) return;
+    if (orderNow.current.includes(moved.acted)) return;
     pending.current = null;
     // Focus went with the row — to the document, or to the panel around it,
     // which is where WebKit leaves it after a press on a button. On another
     // control, the person put it there since, and it is left alone.
-    if (document.activeElement?.matches(CONTROLS) !== true) focusRow(moved.next);
-  }, [shown, focusRow]);
+    if (!onAControl()) focusRow(moved.next);
+  }, [shown, busy, focusRow]);
 
   return { rowRef, actedOn, focusRow, wanted };
+}
+
+/** Whether the person has the focus on a control of their own. */
+const onAControl = () => document.activeElement?.matches(CONTROLS) === true;
+
+/**
+ * A refused row, once it is back on the page, takes the focus it lost when it
+ * was taken off — unless the person has put it on a control since. A row
+ * that never left still has it, on its own control.
+ */
+function focusIfBack(
+  pending: { current: { acted: VaultPath; refused?: boolean } | null },
+  order: readonly VaultPath[],
+  focusRow: (path: VaultPath) => void,
+): void {
+  const moved = pending.current;
+  if (moved === null || !order.includes(moved.acted)) return;
+  pending.current = null;
+  if (!onAControl()) focusRow(moved.acted);
 }

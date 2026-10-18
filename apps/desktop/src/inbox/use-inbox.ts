@@ -28,13 +28,14 @@ import {
   type ClarifyUndo,
   type Clock,
   type InboxListing,
+  type ReadMoment,
   type WindowClosingPort,
 } from '@atlas/application';
 import type { InboxRefusal, RelationChoice } from '@atlas/ui';
 import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import { useAnswerQueue, useAnswersWrittenBeforeClose } from '../proposals/answer-queue.ts';
 import { errorMessage } from '../query/error-message.ts';
-import { withoutLeaving, type LeavingRow, type ReadMoment } from './leaving-rows.ts';
+import { withoutLeaving, type LeavingRow } from './leaving-rows.ts';
 import { keptWhereSame } from './kept-where-same.ts';
 import { notesAfterOwnMoves } from './own-moves.ts';
 import { useSummaryPending } from './use-summary-pending.ts';

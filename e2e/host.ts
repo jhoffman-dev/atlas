@@ -381,8 +381,10 @@ export interface FakeHost {
   /**
    * Holds every write to this file in flight until the returned function is
    * called, so an editor's save can be caught mid-way without racing a timer.
+   * Called with `{ fail }`, the writes held are refused with that message, as
+   * the Rust host answers `Err`, and write nothing.
    */
-  holdWrites(relativePath: string): () => void;
+  holdWrites(relativePath: string): (outcome?: { readonly fail: string }) => void;
   /** What the app has put in the Trash, by vault path, in order. */
   trashed(): readonly string[];
   /** Every link the app asked the host to open in the browser, in order. */
@@ -1858,10 +1860,18 @@ export async function installHost(
     },
     holdWrites(relativePath) {
       let release: () => void = () => {};
-      held.set(relativePath, new Promise<void>((resolve) => (release = resolve)));
-      return () => {
+      let refuse: (cause: Error) => void = () => {};
+      const holding = new Promise<void>((resolve, reject) => {
+        release = resolve;
+        refuse = reject;
+      });
+      // Handled here as well, so a refusal with no write waiting on it is not an unhandled rejection.
+      holding.catch(() => {});
+      held.set(relativePath, holding);
+      return (outcome) => {
         held.delete(relativePath);
-        release();
+        if (outcome === undefined) release();
+        else refuse(new Error(outcome.fail));
       };
     },
   };

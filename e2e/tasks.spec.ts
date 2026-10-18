@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, expectFile, installHost, sidebarSection } from './host.ts';
+import {
+  createVault,
+  expectFile,
+  installHost,
+  sidebarSection,
+  type FakeHost,
+  type FakeVault,
+} from './host.ts';
 import { dragCardTo } from './drag.ts';
 
 const TASK_TYPE = [
@@ -41,7 +48,11 @@ const BOARD = [
   '',
 ].join('\n');
 
-async function openTaskVault(page: Page) {
+async function openTaskVault(page: Page): Promise<FakeVault> {
+  return (await openTaskVaultOn(page)).vault;
+}
+
+async function openTaskVaultOn(page: Page): Promise<{ vault: FakeVault; host: FakeHost }> {
   const vault = await createVault();
   await vault.mkdir('.atlas/types');
   await vault.mkdir('.atlas/views');
@@ -68,12 +79,19 @@ async function openTaskVault(page: Page) {
     ].join('\n'),
   );
 
-  await installHost(page, vault);
+  const host = await installHost(page, vault);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  return vault;
+  return { vault, host };
 }
+
+/** A card as the board draws it in one column. */
+const cardIn = (page: Page, column: string, path: string) =>
+  page
+    .locator('.board')
+    .getByRole('region', { name: column, exact: true })
+    .locator(`.board__card[data-path="${path}"]`);
 
 async function openBoard(page: Page) {
   await sidebarSection(page, 'views').getByRole('button', { name: 'Board', exact: true }).click();
@@ -164,4 +182,70 @@ test('capture does not also make a blank note', async ({ page }) => {
   await expectFile(vault, 'Inbox/Only this.md').toContain('type: task');
 
   await expect(page.getByRole('treeitem', { name: 'Untitled', exact: true })).toHaveCount(0);
+});
+
+test('a card dropped on a column is drawn there before its write lands (#260)', async ({
+  page,
+}) => {
+  const { vault, host } = await openTaskVaultOn(page);
+  await openBoard(page);
+  await expect(cardIn(page, 'doing', 'one off.md')).toBeVisible();
+  const release = host.holdWrites('one off.md');
+
+  await dragCardTo(page, 'one off.md', 'done');
+
+  // In its new column while the file still says otherwise: it does not snap back meanwhile (#257).
+  await expect(cardIn(page, 'done', 'one off.md')).toBeVisible();
+  await expect(cardIn(page, 'doing', 'one off.md')).toHaveCount(0);
+  expect(await vault.read('one off.md')).toContain('status: doing');
+
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('one off.md')).toBeGreaterThan(0);
+  release();
+  await expectFile(vault, 'one off.md').toContain('status: done');
+  await expect(cardIn(page, 'done', 'one off.md')).toBeVisible();
+  await expect(cardIn(page, 'doing', 'one off.md')).toHaveCount(0);
+});
+
+test('a repeating task dropped on done is drawn back in play at once, not on done (#260)', async ({
+  page,
+}) => {
+  const { vault, host } = await openTaskVaultOn(page);
+  await openBoard(page);
+  await expect(cardIn(page, 'doing', 'water the plants.md')).toBeVisible();
+  const release = host.holdWrites('water the plants.md');
+
+  await dragCardTo(page, 'water the plants.md', 'done');
+
+  await expect(cardIn(page, 'backlog', 'water the plants.md')).toBeVisible();
+  await expect(cardIn(page, 'backlog', 'water the plants.md')).toContainText('Sep 27, 2026');
+  await expect(cardIn(page, 'done', 'water the plants.md')).toHaveCount(0);
+  expect(await vault.read('water the plants.md')).toContain('status: doing');
+
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('water the plants.md')).toBeGreaterThan(0);
+  release();
+  await expectFile(vault, 'water the plants.md').toContain('due: 2026-09-27');
+  await expect(cardIn(page, 'backlog', 'water the plants.md')).toBeVisible();
+});
+
+test('a card whose write fails goes back to its column on the board, and the board says why (#260)', async ({
+  page,
+}) => {
+  const { vault, host } = await openTaskVaultOn(page);
+  await openBoard(page);
+  const release = host.holdWrites('one off.md');
+
+  await dragCardTo(page, 'one off.md', 'done');
+  await expect(cardIn(page, 'done', 'one off.md')).toBeVisible();
+
+  // The write has reached the host and is held there, not still on its way.
+  await expect.poll(() => host.writesTo('one off.md')).toBeGreaterThan(0);
+  release({ fail: 'The disk is full.' });
+
+  await expect(page.getByText(/The disk is full/)).toBeVisible();
+  // The board stays drawn, with the card back in the column it was moved from.
+  await expect(cardIn(page, 'doing', 'one off.md')).toBeVisible();
+  await expect(cardIn(page, 'done', 'one off.md')).toHaveCount(0);
+  expect(await vault.read('one off.md')).toContain('status: doing');
 });
