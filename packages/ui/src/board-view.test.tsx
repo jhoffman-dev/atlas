@@ -2,8 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { BoardColumn } from '@atlas/domain';
+import { noteNames, type BoardColumn, type VaultPath } from '@atlas/domain';
 import { BoardView } from './board-view.tsx';
+import { NoteNamesProvider } from './note-names.tsx';
 import { announced, dragByKeyboard, layOut, type Box } from './drag/test-layout.ts';
 
 function boardBoxes(element: Element): Box | null {
@@ -58,7 +59,8 @@ describe('BoardView', () => {
     expect(atlas.querySelector('.status-pill')).toBeNull();
     expect(atlas.querySelector('.board__group-label')?.textContent).toBe('Atlas');
     const review = screen.getByRole('region', { name: 'in review' });
-    expect(review.querySelector('.status-pill')?.getAttribute('data-tone')).toBe('review');
+    expect(review.querySelector('.status-pill--dot')?.getAttribute('data-tone')).toBe('review');
+    expect(review.querySelector('.board__group-label')?.textContent).toBe('In review');
   });
 
   it('keeps an empty column, because that is where a card goes next', () => {
@@ -215,22 +217,31 @@ describe('BoardView card content', () => {
     expect(header?.querySelector('button')).not.toBeNull();
   });
 
-  it('heads each column with its status as a pill in the status’s tone', () => {
+  it('heads each column with its status’s bare dot, in its tone, beside the label', () => {
     render(<BoardView {...props} />);
-    const pill = screen.getByRole('region', { name: 'doing' }).querySelector('.status-pill');
-    expect(pill?.textContent).toBe('Doing');
-    expect(pill?.getAttribute('data-tone')).toBe('doing');
+    const head = screen.getByRole('region', { name: 'doing' }).querySelector('header');
+    const dot = head?.querySelector('.status-pill--dot');
+    expect(dot?.getAttribute('data-tone')).toBe('doing');
+    expect(head?.querySelector('.board__group-label')?.textContent).toBe('Doing');
   });
 
-  it('says an empty column has nothing in it yet, and a full one does not', () => {
+  it('hides the head’s dot from a screen reader: the label beside it says the status once', () => {
+    render(<BoardView {...props} />);
+    const head = screen.getByRole('region', { name: 'doing' }).querySelector('header');
+    expect(head).not.toBeNull();
+    expect(within(head as HTMLElement).queryByRole('img')).toBeNull();
+    expect(head?.querySelector('.status-pill--dot')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('says an empty column has no tasks, and a full one does not', () => {
     render(<BoardView {...props} />);
     const doing = screen.getByRole('region', { name: 'doing' });
-    expect(within(doing).getByText('Nothing here yet')).toBeDefined();
+    expect(within(doing).getByText('No tasks')).toBeDefined();
     const backlog = screen.getByRole('region', { name: 'backlog' });
-    expect(within(backlog).queryByText('Nothing here yet')).toBeNull();
+    expect(within(backlog).queryByText('No tasks')).toBeNull();
   });
 
-  it('labels a card’s properties, rather than showing bare values', () => {
+  it('writes a card’s properties on one metadata line, labelled and joined by ·', () => {
     render(
       <BoardView
         {...props}
@@ -250,13 +261,73 @@ describe('BoardView card content', () => {
         ]}
       />,
     );
-    const chips = [...document.querySelectorAll('.board__field')].map((chip) => chip.textContent);
-    // The grouping property is the column, so it is not repeated as a chip.
-    expect(chips).toEqual(['Phase 14', 'From you', '3h']);
-    expect(document.querySelector('.board__field--you')?.textContent).toBe('From you');
+    // The grouping property is the column, so it is not repeated on the line.
+    expect(document.querySelector('.board__meta')?.textContent).toBe('Phase 14 · From you · 3h');
+    // The separators are drawn, not read: a screen reader hears the values alone.
+    const separators = [...document.querySelectorAll('.board__meta-sep')];
+    expect(separators).toHaveLength(2);
+    expect(separators.every((sep) => sep.getAttribute('aria-hidden') === 'true')).toBe(true);
+    // No icon per value, and no chip: it is a line of words.
+    expect(document.querySelector('.board__meta svg')).toBeNull();
+    expect(document.querySelector('.board__field')).toBeNull();
   });
 
-  it('draws a choice on a card as its pill, as the list does', () => {
+  it('leaves empty values off the metadata line, and draws no line with nothing on it', () => {
+    render(
+      <BoardView
+        {...props}
+        fields={['title', 'status', 'phase', 'estimate', 'owner']}
+        columns={[
+          {
+            value: 'backlog',
+            label: 'backlog',
+            rows: [
+              {
+                path: 'a.md',
+                title: 'First',
+                values: { status: 'backlog', phase: 2, estimate: '' },
+              },
+              { path: 'b.md', title: 'Second', values: { status: 'backlog' } },
+            ],
+          },
+        ]}
+      />,
+    );
+    const lines = [...document.querySelectorAll('.board__card')].map(
+      (card) => card.querySelector('.board__meta')?.textContent ?? null,
+    );
+    expect(lines).toEqual(['Phase 2', null]);
+  });
+
+  it('strikes through a relation whose every note is missing', () => {
+    render(
+      <NoteNamesProvider value={noteNames([{ path: 'Here.md' as VaultPath, title: 'Here' }])}>
+        <BoardView
+          {...props}
+          fields={['title', 'status', 'project']}
+          kinds={{ project: 'relation' }}
+          columns={[
+            {
+              value: 'backlog',
+              label: 'backlog',
+              rows: [
+                {
+                  path: 'a.md',
+                  title: 'First',
+                  values: { status: 'backlog', project: '[[Gone]]' },
+                },
+              ],
+            },
+          ]}
+        />
+      </NoteNamesProvider>,
+    );
+    const item = document.querySelector('.board__meta-item');
+    expect(item?.textContent).toBe('Gone');
+    expect(item?.getAttribute('data-missing')).toBe('true');
+  });
+
+  it('writes a choice on a card into the metadata line as a word, not a pill', () => {
     render(
       <BoardView
         {...props}
@@ -278,12 +349,9 @@ describe('BoardView card content', () => {
       />,
     );
     const card = document.querySelector('.board__card');
-    expect(card?.querySelector('.status-pill')?.textContent).toBe('Seed');
-    // The column is the status; only the stage is drawn on the card.
-    expect(card?.querySelectorAll('.status-pill')).toHaveLength(1);
-    expect([...(card?.querySelectorAll('.board__field') ?? [])].map((c) => c.textContent)).toEqual([
-      'Phase 2',
-    ]);
+    // The column is the status; only the stage is written on the card.
+    expect(card?.querySelector('.board__meta')?.textContent).toBe('Seed · Phase 2');
+    expect(card?.querySelector('.status-pill')).toBeNull();
   });
 
   it('shows a summary as words, without its markdown', () => {
@@ -338,7 +406,7 @@ describe('BoardView card content', () => {
     // The count still says how many there are, not how many are drawn.
     expect(screen.getByLabelText('10 cards')).toBeDefined();
 
-    await userEvent.click(screen.getByRole('button', { name: '+ 6 more' }));
+    await userEvent.click(screen.getByRole('button', { name: '6 more' }));
     expect(document.querySelectorAll('.board__card')).toHaveLength(10);
 
     await userEvent.click(screen.getByRole('button', { name: 'Show fewer' }));
@@ -438,7 +506,7 @@ describe('BoardView keyboard drag', () => {
     const doing = screen.getByRole('region', { name: 'doing' });
     const moved = within(doing).getByRole('button', { name: 'First' });
     await waitFor(() => expect(document.activeElement).toBe(moved));
-    expect(within(doing).getByRole('button', { name: '+ 4 more' })).toBeDefined();
+    expect(within(doing).getByRole('button', { name: '4 more' })).toBeDefined();
   });
 
   it('tells a screen reader the card and the column, not ids', async () => {

@@ -215,3 +215,15 @@ describe('followMoveInHistory', () => {
     expect(followMoveInHistory(NO_HISTORY, move)).toEqual(NO_HISTORY);
   });
 });
+
+describe('followMoveInHistory identity', () => {
+  it('is the same history when no place is on the moved note', () => {
+    const history = visit(visit(NO_HISTORY, { kind: 'note', path: createVaultPath('Acme.md') }), {
+      kind: 'graph',
+      scope: { kind: 'note', path: createVaultPath('Beta.md'), depth: 1 },
+    });
+    const move = { from: createVaultPath('Gamma.md'), to: createVaultPath('Delta.md') };
+    expect(followMoveInHistory(history, move)).toBe(history);
+    expect(followMoveInHistory(NO_HISTORY, move)).toBe(NO_HISTORY);
+  });
+});
