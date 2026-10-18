@@ -8,6 +8,8 @@ import { createVault, installHost, sidebarSection, splitWindow, type FakeVault }
 const LONG_VAULT = 'Larkspur Payroll quarterly operations archive for the northern region';
 const LONG_TYPE = 'Extraordinarily detailed reconciliation worksheet';
 const LONG_VIEW = 'Every open reconciliation worksheet awaiting a second review';
+const LONG_DESCRIPTION =
+  'Every worksheet still open at the quarter end, by region, with the reviewer who holds it.';
 const LONG_FOLDER = 'Quarterly reviews prepared for Mara Quill and Tobias Fenn';
 const LONG_NOTE = 'Notes from the long planning session about the spring garden beds';
 const MANY = 1234;
@@ -38,7 +40,15 @@ async function openVault(page: Page, { many = false } = {}): Promise<FakeVault> 
   );
   await vault.write(
     `.atlas/views/${LONG_VIEW}.md`,
-    ['---', 'atlas: view', 'type: sheet', 'layout: table', '---', ''].join('\n'),
+    [
+      '---',
+      'atlas: view',
+      'type: sheet',
+      'layout: table',
+      `description: ${LONG_DESCRIPTION}`,
+      '---',
+      '',
+    ].join('\n'),
   );
   const sheets = many ? MANY : 3;
   for (let at = 1; at <= sheets; at += 1) {
@@ -312,6 +322,27 @@ test('a long breadcrumb ellipsises and keeps the name in view', async ({ page })
     (await name.boundingBox())?.width ?? 0,
   ];
   expect(nameWidth, 'the name keeps more room than the folder').toBeGreaterThan(parentWidth);
+});
+
+test('a view’s description in the bar gives way before its name', async ({ page }) => {
+  await openVault(page);
+  await sidebarSection(page, 'views').locator('.sidebar__item').first().click();
+  const bar = page.locator('.page-bar').first();
+  await expect(bar.locator('.page-bar__count')).toHaveText(LONG_DESCRIPTION);
+  await splitWindow(page);
+  for (const which of [1, 2] as const) {
+    const paneBar = page.getByRole('region', { name: `Pane ${which}` }).locator('.page-bar');
+    await expect(paneBar.locator('.page-bar__name')).toBeVisible();
+    await expectTidyBar(paneBar);
+    const [nameWidth, descriptionWidth] = [
+      (await paneBar.locator('.page-bar__name').boundingBox())?.width ?? 0,
+      (await paneBar.locator('.page-bar__count').boundingBox())?.width ?? 0,
+    ];
+    expect(
+      nameWidth,
+      `pane ${which}: the name keeps more room than its description`,
+    ).toBeGreaterThan(descriptionWidth);
+  }
 });
 
 for (const sidebar of ['shown', 'hidden'] as const) {

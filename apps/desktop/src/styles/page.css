@@ -80,17 +80,23 @@
   color: var(--ink);
   font-weight: 500;
   max-width: 420px;
+  min-width: 4em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* What the page holds, in a few quiet words after its name: "186 tasks". */
+/* What the page holds, in a few quiet words after its name: "186 tasks" — or
+   a view's description, which can run long. It gives way before the name
+   does: the name is what the page is, the count is only how it stands. */
 .page-bar__count {
   color: var(--ink-3);
-  flex: none;
+  flex: 0 8 auto;
   font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -152,7 +158,8 @@
   }
 
   .page-bar__parent,
-  .page-bar__slash {
+  .page-bar__slash,
+  .page-bar__count {
     display: none;
   }
 }
