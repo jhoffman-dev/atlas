@@ -73,8 +73,13 @@ test('a card dragged to done, then to backlog before the first write lands, ends
   await expect.poll(() => host.writesTo('one off.md')).toBe(1);
   await dragCardTo(page, 'one off.md', 'backlog');
   await expect(cardIn(page, 'backlog', 'one off.md')).toBeVisible();
-  await expect.poll(() => host.writesTo('one off.md')).toBe(2);
+  // Coordinator decision (PR #274): a card's writes are serialised, so the second
+  // waits for the first and reads what it left. A refused first write can then
+  // never be overwritten by the second. While the first is held, only it has
+  // reached the host.
+  expect(host.writesTo('one off.md')).toBe(1);
   release();
+  await expect.poll(() => host.writesTo('one off.md')).toBe(2);
 
   // The last place it was put wins, in the file and on the board; the page's own
   // first write is not an outside change to refuse the second for. Received on
