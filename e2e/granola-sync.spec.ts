@@ -187,7 +187,10 @@ test('a second Sync now that fails the same way, while its toast still shows, ge
   await card(page).getByRole('button', { name: 'Save', exact: true }).click();
   await expect(card(page).getByTestId('granola-key')).toHaveText('Granola refused this key');
 
-  // A fake clock from here on, so the toast's five seconds are stepped, not waited for.
+  // A fake clock from here on, so the toast's five seconds are stepped, not
+  // waited for. Real time still flows on an installed clock, and a slow runner
+  // can spend seconds between two steps, so each step leaves room: the toast is
+  // checked well short of its five seconds, and well past them.
   await page.clock.install();
   const toast = page.locator('.toast');
   const syncNowCount = () => requestKinds(host).filter((kind) => kind === 'Sync now').length;
@@ -201,11 +204,12 @@ test('a second Sync now that fails the same way, while its toast still shows, ge
   await expect.poll(syncNowCount).toBe(2);
   await expect(toast).toContainText('Granola refused the API key');
 
-  // 8.5 s after the first showing: gone, had the second not started the time afresh.
-  await page.clock.runFor(4500);
+  // 5.5 s or more after the first showing, 1.5 s after the second: still up —
+  // gone, had the second not started the time afresh.
+  await page.clock.runFor(1500);
   await expect(toast).toBeVisible();
-  // 5.5 s after the second: its full time is up.
-  await page.clock.runFor(1000);
+  // 5.5 s or more after the second: its full time is up.
+  await page.clock.runFor(4000);
   await expect(toast).toHaveCount(0);
 });
 
