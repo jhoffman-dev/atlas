@@ -39,3 +39,40 @@ export {
   withHistory,
 } from './pane-histories.ts';
 export type { PaneHistories } from './pane-histories.ts';
+export {
+  activateNth,
+  activePlace,
+  activateTab,
+  activeTabOf,
+  CLOSED_LIMIT,
+  closePaneInWorkspace,
+  closeTab,
+  EMPTY_WORKSPACE,
+  focusPaneInWorkspace,
+  followMoveInWorkspace,
+  forgetNotesInWorkspace,
+  goBackInTab,
+  goForwardInTab,
+  isWorkspaceSplit,
+  moveTabToPane,
+  newTab,
+  nextTab,
+  openInActiveTab,
+  openInActiveTabOf,
+  openInNewTab,
+  openInSplit,
+  pinTab,
+  previousTab,
+  reopenClosedTab,
+  reorderTab,
+  splitWithTab,
+  tabPlace,
+  unpinTab,
+} from './workspace.ts';
+export type { Pane, Tab, TabId, Workspace } from './workspace.ts';
+export {
+  parseRememberedWorkspace,
+  rememberWorkspace,
+  WORKSPACE_FORMAT_VERSION,
+} from './remember-workspace.ts';
+export type { RememberedWorkspace } from './remember-workspace.ts';

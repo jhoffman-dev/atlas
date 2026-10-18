@@ -543,45 +543,70 @@ for (const mode of THEMES) {
   });
 }
 
-test('the copy of a board card being dragged stands out from the cards at rest', async ({
-  page,
-}) => {
-  await openVault(page);
-  await PAGES['board']!(page);
-  const card = page.locator(`[data-path="Tasks/${title('backlog')}.md"]`).first();
-  const at = (await card.boundingBox())!;
-  await page.mouse.move(at.x + 20, at.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(at.x + 30, at.y + 20, { steps: 3 });
-  await page.mouse.move(at.x + 200, at.y + 120, { steps: 8 });
-  const lifted = page.locator('.board__card--lifted');
-  await expect(lifted).toBeVisible();
-  // How strongly each one's edge (its ring, or a shadow) stands off the
-  // board behind it.
-  const edge = (selector: string) =>
-    page
-      .locator(selector)
-      .first()
-      .evaluate((element) => {
-        const { over, ratio, groundOf, indicatorColours } = (
-          globalThis as unknown as { attackContrast: Contrast }
-        ).attackContrast;
-        const board = groundOf(element.parentElement ?? element)!;
-        return Math.max(
+for (const mode of THEMES) {
+  test(`the copy of a board card being dragged stands out from the cards at rest in ${mode}`, async ({
+    page,
+  }) => {
+    await openVault(page);
+    await PAGES['board']!(page);
+    await setMode(page, mode);
+    const card = page.locator(`[data-path="Tasks/${title('backlog')}.md"]`).first();
+    const at = (await card.boundingBox())!;
+    // From the card's middle: its done box, at the top left, swallows a press.
+    const grab = { x: at.x + at.width / 2, y: at.y + at.height / 2 };
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x + 10, grab.y + 10, { steps: 3 });
+    await page.mouse.move(grab.x + 200, grab.y + 120, { steps: 8 });
+    const lifted = page.locator('.board__card--lifted');
+    await expect(lifted).toBeVisible();
+    // The column under the pointer is lit by a ring, not a fill: the text in
+    // it keeps the contrast it has at rest, and the ring itself clears 3:1.
+    const target = await page.locator('.board__column--over').evaluate((element) => {
+      const { over, ratio, groundOf, indicatorColours } = (
+        globalThis as unknown as { attackContrast: Contrast }
+      ).attackContrast;
+      const rest = document.querySelector('.board__column:not(.board__column--over)');
+      const ground = groundOf(element)!;
+      return {
+        fill: getComputedStyle(element).backgroundColor,
+        restFill: rest === null ? null : getComputedStyle(rest).backgroundColor,
+        ring: Math.max(
           1,
-          ...indicatorColours(element).map((colour) => ratio(over(colour, board), board)),
-        );
-      });
-  const resting = await edge('.board__card:not(.board__card--lifted)');
-  const carried = await edge('.board__card--lifted');
-  await page.mouse.up();
-  // The copy under the pointer has to stand out from the cards lying on the
-  // board, not recede: today it is drawn with the fainter hairline (--line)
-  // while a resting card has --line-strong, and neither casts a shadow.
-  expect(carried, `carried ${carried.toFixed(2)} vs resting ${resting.toFixed(2)}`).toBeGreaterThan(
-    resting,
-  );
-});
+          ...indicatorColours(element).map((colour) => ratio(over(colour, ground), ground)),
+        ),
+      };
+    });
+    expect(target.fill).toBe(target.restFill);
+    expect(target.ring, `drop target ring ${target.ring.toFixed(2)}`).toBeGreaterThanOrEqual(3);
+    // How strongly each one's edge (its ring, or a shadow) stands off the
+    // board behind it.
+    const edge = (selector: string) =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((element) => {
+          const { over, ratio, groundOf, indicatorColours } = (
+            globalThis as unknown as { attackContrast: Contrast }
+          ).attackContrast;
+          const board = groundOf(element.parentElement ?? element)!;
+          return Math.max(
+            1,
+            ...indicatorColours(element).map((colour) => ratio(over(colour, board), board)),
+          );
+        });
+    const resting = await edge('.board__card:not(.board__card--lifted)');
+    const carried = await edge('.board__card--lifted');
+    await page.mouse.up();
+    // The copy under the pointer has to stand out from the cards lying on the
+    // board, not recede. A resting card is square with a 1px hairline and no
+    // shadow (UI v2, slice 9), so the copy's cue is the focus ring round it.
+    expect(
+      carried,
+      `carried ${carried.toFixed(2)} vs resting ${resting.toFixed(2)}`,
+    ).toBeGreaterThan(resting);
+  });
+}
 
 test('a Today group name is drawn at the height the list places it by (18px)', async ({ page }) => {
   await openVault(page);

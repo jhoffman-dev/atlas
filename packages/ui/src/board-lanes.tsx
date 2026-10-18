@@ -1,5 +1,5 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
-import type { BoardColumn, BoardLane, BoardRow } from '@atlas/domain';
+import { optionLabel, type BoardColumn, type BoardLane, type BoardRow } from '@atlas/domain';
 import type { GroupFolds } from './group-folds.ts';
 import { Icon } from './icon.tsx';
 import { StatusPill } from './status-pill.tsx';
@@ -38,9 +38,10 @@ export function BoardLanes({
   folds?: GroupFolds | undefined;
   renderCell: (cell: LaneCell) => ReactNode;
 }) {
-  // Each column as wide as a board's column is, between 196px and 272px.
+  // The columns split the width equally, as a board's do; below 180px each
+  // the board scrolls sideways instead (board.css).
   const style: CSSProperties = {
-    gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(196px, 272px))`,
+    gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(180px, 1fr))`,
   };
   return (
     <div className="board board--lanes" style={style}>
@@ -122,19 +123,27 @@ function LaneHeading({
   );
 }
 
-/** A column's pill — or its plain name, for a column that is not a status — and its count. */
+/**
+ * A column's bare status dot and its label — or its plain name alone, for a
+ * column that is not a status — and its count. The label is the heading's
+ * text, so the dot is decoration beside it.
+ */
 export function ColumnHeading({ column }: { column: BoardColumn }) {
   const count = column.rows.length;
+  const status = column.tone !== null;
   return (
     <>
-      {column.tone === null ? (
-        <span className="board__group-label">{column.label}</span>
-      ) : (
+      {status && (
         <StatusPill
           value={column.label}
+          variant="dot"
+          decorative
           {...(column.tone !== undefined && { tone: column.tone })}
         />
       )}
+      <span className="board__group-label">
+        {status ? optionLabel(column.label) : column.label}
+      </span>
       <span className="board__count" aria-label={`${count} ${count === 1 ? 'card' : 'cards'}`}>
         {count}
       </span>
