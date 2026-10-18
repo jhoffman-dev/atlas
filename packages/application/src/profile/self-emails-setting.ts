@@ -42,15 +42,14 @@ export async function saveSelfEmails({
  * address as theirs until it is saved.
  */
 export async function suggestSelfEmails({
-  fs,
-  markdown,
+  settings,
   index,
 }: {
-  fs: Pick<VaultFsPort, 'readNotes'>;
-  markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
+  /** The vault's settings, already read: the profile's name is in them. */
+  settings: Readonly<Record<string, unknown>>;
   index: Pick<IndexPort, 'query'>;
 }): Promise<string[]> {
-  const { name } = parseProfile(await readVaultSettings({ fs, markdown }));
+  const { name } = parseProfile(settings);
   const { people } = await loadLinkDirectory({ index });
   return ownerAddresses(people, name);
 }

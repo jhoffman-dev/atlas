@@ -27,6 +27,7 @@ import {
   vaultFsOf,
   type Env,
 } from './two-macs.harness.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 function handClock(start = Date.UTC(2026, 9, 4, 15, 40)) {
   let now = start;
@@ -95,7 +96,10 @@ describe('a vault set up from Settings syncs by itself (issue #8)', () => {
         closing: { beforeClose: async () => () => {} },
         onPulled: () => {},
       };
-      const hook = renderHook((props: SyncOptions) => useSync(props), { initialProps: options });
+      const hook = renderHook((props: SyncOptions) => useSync(props), {
+        wrapper: queryWrapper().wrapper,
+        initialProps: options,
+      });
       await until(() => expect(hook.result.current.phase.kind).toBe('not-set-up'));
 
       act(() => hook.result.current.setUp({ kind: 'existing', url: bare }));

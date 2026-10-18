@@ -38,7 +38,7 @@ describe('the window’s reads, kept to the vault open', () => {
     });
 
     expect(invalidated).toEqual([
-      ['/one', ['types']],
+      ['/one', ['types', 'sidebar-atlas', 'quick-counts']],
       ['/one', []],
     ]);
   });

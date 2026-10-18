@@ -30,6 +30,7 @@ import {
   TYPE_ICONS,
   VAULT_ROOT,
   type EntryMove,
+  type IndexFacet,
   type NavigationPlace,
   type VaultEntry,
   type VaultPath,
@@ -44,9 +45,9 @@ import {
   findTaskTemplate,
   getAppInfo,
   setNoteProperty,
+  readsMadeFromFacets,
   readsTouchedByPaths,
   reportingIndexWrites,
-  type VaultRead,
   type ActivityStore,
   type WindowClosingPort,
   type ApiRouterDeps,
@@ -393,7 +394,8 @@ function AppWindow({
     const bound = boundToVault(indexPorts, vaultKey, ownWrites);
     const opened = openOnce(bound.index);
     if (vaultKey === null) return { ...bound, index: opened };
-    const report = (facets: Iterable<VaultRead>) => reads.invalidateWithIndex(vaultKey, facets);
+    const report = (facets: Iterable<IndexFacet>) =>
+      reads.invalidateWithIndex(vaultKey, readsMadeFromFacets(facets));
     const stale = () => reads.waitingFor(vaultKey);
     return { ...bound, index: reportingIndexWrites({ index: opened, report, stale }) };
   }, [indexPorts, vaultKey, ownWrites, reads]);
@@ -503,7 +505,6 @@ function AppWindow({
     markdown: notes.markdown,
     index: index.index,
     vaultKey,
-    changeKey: indexKey,
     syncedThisSession: sync.syncedThisSession,
     syncPulls: sync.syncPulls,
     catchUpIndex,
@@ -628,7 +629,7 @@ function AppWindow({
     types,
     notePaths,
     vaultKey: location?.absolutePath ?? null,
-    changeKey: indexKey,
+    indexReady,
   });
 
   /** The page open over the panes, if any: a type's, the graph, or the query page. */
@@ -794,7 +795,6 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
-    changeKey: indexKey,
     activity: activityLog,
   });
   const selfEmailsSetting = useSelfEmailsSetting({
@@ -1259,14 +1259,12 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
-    changeKey: indexKey,
     activity: activityLog,
   });
   const sidebarOrder = useSidebarOrder({
     fs: vault.fs,
     markdown: notes.markdown,
     vaultKey,
-    changeKey: indexKey,
     activity: activityLog,
   });
   const secrets = useSecrets({
@@ -1283,7 +1281,6 @@ function AppWindow({
     fs: vault.fs,
     markdown: notes.markdown,
     vault: vaultKey,
-    changeKey: indexKey,
     active: overlay === 'settings',
     activity: activityLog,
   });
@@ -1294,7 +1291,6 @@ function AppWindow({
     links,
     fs: vault.fs,
     markdown: notes.markdown,
-    changeKey: indexKey,
   });
   const quickAddPorts = useMemo(
     () => ({ fs: vault.fs, markdown: notes.markdown, index: index.index, store: browserFabStore }),

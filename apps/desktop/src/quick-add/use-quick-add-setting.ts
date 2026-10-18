@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import {
-  loadQuickAddSetting,
+  quickAddOf,
   saveQuickAddSetting,
   type ActivityLog,
   type MarkdownPort,
@@ -23,27 +23,25 @@ export function useQuickAddSetting({
   fs,
   markdown,
   vaultKey,
-  changeKey,
   activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
-  changeKey: string;
   /** Where a save that fails is recorded. */
   activity: Pick<ActivityLog, 'inOpenVault'>;
 }): QuickAddSetting {
-  const load = useCallback(() => loadQuickAddSetting({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
     (types: readonly string[]) =>
       saveQuickAddSetting({ settings: vaultSettingsWriter({ fs, markdown }), types }),
     [fs, markdown],
   );
   const { value, save, problem, unreadable } = useVaultSetting({
-    load,
+    fs,
+    markdown,
+    parse: quickAddOf,
     store,
     vaultKey,
-    changeKey,
     activity,
   });
   // A settings note that cannot be read is said so here, rather than the

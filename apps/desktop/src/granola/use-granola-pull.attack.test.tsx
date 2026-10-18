@@ -20,6 +20,8 @@ import {
   useGranolaPull,
   type GranolaPullOptions,
 } from './use-granola-pull.ts';
+import { readAgain, vaultReadKey } from '../reads/query-client.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 const VAULT = '/Users/mara/Vault';
 const OTHER = '/Users/mara/Other';
@@ -95,7 +97,6 @@ function setUp({
     markdown: remarkMarkdown,
     index: fakeIndexPort(),
     vaultKey: VAULT,
-    changeKey: 'ready:1',
     syncedThisSession: new Set(synced),
     syncPulls: new Map(),
     catchUpIndex,
@@ -103,14 +104,27 @@ function setUp({
     activity,
     onWrote,
   };
+  const { wrapper: reads, client } = queryWrapper();
   const hook = renderHook((props: GranolaPullOptions) => useGranolaPull(props), {
     initialProps: options,
-    ...(strict && {
-      wrapper: ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>,
-    }),
+    wrapper: ({ children }: { children: ReactNode }) =>
+      reads({ children: strict ? <StrictMode>{children}</StrictMode> : children }),
   });
   const lists = () => granola.count('list');
-  return { hook, granola, status, gate, activity, records, options, lists, onWrote };
+  /** The settings note changed: the window reads it again, as its reads say for its path. */
+  const settingsChanged = () => readAgain(client, vaultReadKey(VAULT, 'settings'));
+  return {
+    hook,
+    granola,
+    status,
+    gate,
+    activity,
+    records,
+    options,
+    lists,
+    onWrote,
+    settingsChanged,
+  };
 }
 
 /** Lets fifteen minutes pass on the fake timers. */
@@ -250,12 +264,13 @@ describe('useGranolaPull, attacked (PR #156)', () => {
         return [{ path: '.atlas/settings.md', text: `---\n${said}\n---\n`, modified: 1, size: 1 }];
       },
     });
-    // The settings are read again (a change in the vault); that read is slow.
-    fixture.hook.rerender({ ...fixture.options, fs, changeKey: 'ready:2' });
+    // The settings are read again (a change to the note); that read is slow.
+    fixture.hook.rerender({ ...fixture.options, fs });
+    void fixture.settingsChanged();
     await act(async () => undefined);
     // The person turns the 15-minute pull off; this read is quick.
     text = 'granola_periodic: false';
-    fixture.hook.rerender({ ...fixture.options, fs, changeKey: 'ready:3' });
+    await act(() => fixture.settingsChanged());
     await act(async () => undefined);
     // The slow, older read lands last.
     slow.settle();
@@ -270,11 +285,8 @@ describe('useGranolaPull, attacked (PR #156)', () => {
   it('control: the same change read in order turns the 15-minute pull off', async () => {
     const fixture = setUp({ settings: 'granola_periodic: true' });
     await waitFor(() => expect(fixture.hook.result.current.report?.ended).toBe('pulled'));
-    fixture.hook.rerender({
-      ...fixture.options,
-      fs: vaultWith('granola_periodic: false'),
-      changeKey: 'ready:3',
-    });
+    fixture.hook.rerender({ ...fixture.options, fs: vaultWith('granola_periodic: false') });
+    await act(() => fixture.settingsChanged());
     await act(async () => undefined);
     const after = fixture.lists();
     await fifteenMinutes();

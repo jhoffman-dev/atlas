@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { useQuickAddSetting } from './use-quick-add-setting.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 /** Where the hooks under test record what they give up on; these tests do not read it. */
 const ACTIVITY = recordingActivity();
@@ -35,14 +36,15 @@ describe('useQuickAddSetting, with a settings note that cannot be read', () => {
     const { fs, file } = vaultWithSettings();
     const broken = '---\nquickAdd: [task]\nsidebarOrder: [views]\nsidebarOrder: [types]\n---\n';
     file.text = broken;
-    const hook = renderHook(() =>
-      useQuickAddSetting({
-        fs,
-        markdown: remarkMarkdown,
-        vaultKey: 'v',
-        changeKey: '0',
-        activity: ACTIVITY,
-      }),
+    const hook = renderHook(
+      () =>
+        useQuickAddSetting({
+          fs,
+          markdown: remarkMarkdown,
+          vaultKey: 'v',
+          activity: ACTIVITY,
+        }),
+      { wrapper: queryWrapper().wrapper },
     );
 
     await waitFor(() => expect(hook.result.current.problem).toContain('.atlas/settings.md'));
@@ -56,14 +58,15 @@ describe('useQuickAddSetting, with a settings note that cannot be read', () => {
 describe('useQuickAddSetting, changed twice in quick succession', () => {
   it('ends with the last choice made written to the vault', async () => {
     const { fs, file } = vaultWithSettings();
-    const hook = renderHook(() =>
-      useQuickAddSetting({
-        fs,
-        markdown: remarkMarkdown,
-        vaultKey: 'v',
-        changeKey: '0',
-        activity: ACTIVITY,
-      }),
+    const hook = renderHook(
+      () =>
+        useQuickAddSetting({
+          fs,
+          markdown: remarkMarkdown,
+          vaultKey: 'v',
+          activity: ACTIVITY,
+        }),
+      { wrapper: queryWrapper().wrapper },
     );
     await waitFor(() => expect(hook.result.current.configured).toEqual(['task']));
 

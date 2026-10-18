@@ -1,7 +1,9 @@
 import {
+  ATLAS_DIRECTORY,
   INDEX_FACETS,
   TEMPLATES_DIRECTORY,
   TYPES_DIRECTORY,
+  VAULT_SETTINGS_PATH,
   type IndexFacet,
   type NoteChange,
 } from '@atlas/domain';
@@ -9,40 +11,85 @@ import {
 /**
  * A whole-vault read the window keeps until something it is made from
  * changes (ADR-0040): the graph and the tags from the index, the type
- * definitions and the templates from their folders.
+ * definitions and the templates from their folders, the vault's settings
+ * from their note, and the sidebar's catalogue and counts (#293) — the
+ * notes under `.atlas` it walks, the marks the index holds (a view, a
+ * dashboard, a star), how many notes each type has, and the Today and
+ * Inbox counts.
  */
-export type VaultRead = IndexFacet | 'types' | 'templates';
+export type VaultRead =
+  | IndexFacet
+  | 'types'
+  | 'templates'
+  | 'settings'
+  | 'sidebar-atlas'
+  | 'sidebar-marks'
+  | 'type-counts'
+  | 'quick-counts';
 
-export const VAULT_READS: readonly VaultRead[] = [...INDEX_FACETS, 'types', 'templates'];
-
-/** The folders the file reads list, each with the read made from it. */
-const FOLDER_READS: readonly (readonly [string, VaultRead])[] = [
-  [TYPES_DIRECTORY, 'types'],
-  [TEMPLATES_DIRECTORY, 'templates'],
+export const VAULT_READS: readonly VaultRead[] = [
+  ...INDEX_FACETS,
+  'types',
+  'templates',
+  'settings',
+  'sidebar-atlas',
+  'sidebar-marks',
+  'type-counts',
+  'quick-counts',
 ];
 
 /**
- * Whether a change at `path` can reach what is listed in `folder`: a file in
- * it, the folder itself, or a folder holding it (moving `.atlas` moves both).
- * Case aside, as the Mac's disk reads a folder's name.
+ * The files and folders the file reads are made from, each with the reads
+ * made from it. The sidebar walks the whole of `.atlas`, so any change in it
+ * reaches the walk; the Today and Inbox counts read their views' files,
+ * which Atlas keeps there.
  */
-function reaches(path: string, folder: string): boolean {
+const PATH_READS: readonly (readonly [string, readonly VaultRead[]])[] = [
+  [TYPES_DIRECTORY, ['types']],
+  [TEMPLATES_DIRECTORY, ['templates']],
+  [VAULT_SETTINGS_PATH, ['settings']],
+  [ATLAS_DIRECTORY, ['sidebar-atlas', 'quick-counts']],
+];
+
+/** What each facet of the index is read into: a type's count is its notes' `type`, which the graph holds. */
+const FACET_READS: Readonly<Record<IndexFacet, readonly VaultRead[]>> = {
+  graph: ['graph', 'type-counts'],
+  tags: ['tags'],
+};
+
+/**
+ * The reads made again whenever the index has news, whatever it was: the
+ * sidebar's marks are any note's `atlas` or `favorite`, and the Today and
+ * Inbox counts any property a view filters on, neither of which a facet
+ * holds. When unsure, read again.
+ */
+export const READS_ON_INDEX_NEWS: ReadonlySet<VaultRead> = new Set<VaultRead>([
+  'sidebar-marks',
+  'quick-counts',
+]);
+
+/**
+ * Whether a change at `path` can reach what is made from `source`: the file
+ * itself, a file in it, or a folder holding it (moving `.atlas` moves all of
+ * it). Case aside, as the Mac's disk reads a name.
+ */
+function reaches(path: string, source: string): boolean {
   const at = path.toLowerCase().replace(/\/+$/, '');
-  const within = folder.toLowerCase();
+  const within = source.toLowerCase();
   return at === within || at.startsWith(`${within}/`) || at === '' || within.startsWith(`${at}/`);
 }
 
 /**
  * The file reads a change at these paths makes stale: what another program
  * wrote, as the watcher reports it, or what the app wrote itself. Only the
- * folders the types and the templates are listed from count. The graph and
- * the tags are the index's, and a change reaches them only once the index has
- * taken it in, which `reportingIndexWrites` says.
+ * files and folders the reads are made from count. The graph, the tags and
+ * the counts are the index's, and a change reaches them only once the index
+ * has taken it in, which `reportingIndexWrites` and `READS_ON_INDEX_NEWS` say.
  */
 export function readsTouchedByPaths(paths: readonly string[]): ReadonlySet<VaultRead> {
   return new Set(
-    FOLDER_READS.filter(([folder]) => paths.some((path) => reaches(path, folder))).map(
-      ([, read]) => read,
+    PATH_READS.filter(([source]) => paths.some((path) => reaches(path, source))).flatMap(
+      ([, reads]) => reads,
     ),
   );
 }
@@ -54,4 +101,9 @@ export function readsTouchedByPaths(paths: readonly string[]): ReadonlySet<Vault
  */
 export function readsTouchedByNoteChanges(changes: readonly NoteChange[]): ReadonlySet<VaultRead> {
   return readsTouchedByPaths(changes.map((change) => change.path));
+}
+
+/** The reads made from the facets an index write changed (`reportingIndexWrites`). */
+export function readsMadeFromFacets(facets: Iterable<IndexFacet>): ReadonlySet<VaultRead> {
+  return new Set([...facets].flatMap((facet) => FACET_READS[facet]));
 }

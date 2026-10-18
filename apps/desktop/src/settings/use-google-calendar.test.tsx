@@ -11,6 +11,7 @@ import {
 import { remarkMarkdown } from '@atlas/adapters';
 import { useGoogleCalendar } from './use-google-calendar.ts';
 import { GoogleCalendarSettingsCard } from './google-calendar-settings-card.tsx';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 const ACTIVITY = recordingActivity();
 
@@ -49,11 +50,10 @@ function renderGoogle({
         fs: vault.fs,
         markdown: remarkMarkdown,
         vault: VAULT,
-        changeKey: '0',
         active: open,
         activity: ACTIVITY,
       }),
-    { initialProps: { open: active } },
+    { wrapper: queryWrapper().wrapper, initialProps: { open: active } },
   );
   return { hook, google, vault };
 }
@@ -165,13 +165,12 @@ describe('GoogleCalendarSettingsCard', () => {
         fs: vault.fs,
         markdown: remarkMarkdown,
         vault: VAULT,
-        changeKey: '0',
         active: true,
         activity: ACTIVITY,
       });
       return <GoogleCalendarSettingsCard setting={setting} />;
     }
-    render(<Card />);
+    render(<Card />, { wrapper: queryWrapper().wrapper });
 
     expect(await screen.findByText('Connected. Blocks go to Atlas blocks.')).not.toBeNull();
     // Their main calendar is never offered for blocks.

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { fakeVaultFs, recordingActivity } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { useSidebarOrder } from './use-sidebar-order.ts';
 
 /** Where the hooks under test record what they give up on; these tests do not read it. */
@@ -27,14 +28,15 @@ function vaultWithSettings({ refuse = false }: { refuse?: boolean } = {}) {
 }
 
 const render = (fs: ReturnType<typeof vaultWithSettings>['fs']) =>
-  renderHook(() =>
-    useSidebarOrder({
-      fs,
-      markdown: remarkMarkdown,
-      vaultKey: 'v',
-      changeKey: '0',
-      activity: ACTIVITY,
-    }),
+  renderHook(
+    () =>
+      useSidebarOrder({
+        fs,
+        markdown: remarkMarkdown,
+        vaultKey: 'v',
+        activity: ACTIVITY,
+      }),
+    { wrapper: queryWrapper().wrapper },
   );
 
 describe('useSidebarOrder', () => {

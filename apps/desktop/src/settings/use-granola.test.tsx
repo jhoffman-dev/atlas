@@ -16,6 +16,7 @@ import { remarkMarkdown } from '@atlas/adapters';
 import type { GranolaPullController } from '../granola/use-granola-pull.ts';
 import { GranolaSettingsCard } from './granola-settings-card.tsx';
 import { useGranola, type GranolaSettingState } from './use-granola.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 const VAULT = '/Users/mara/Vault';
 const KEY = 'grn_fictional0123456789';
@@ -71,7 +72,7 @@ function vaultWith(settings = '---\nprofileName: Mara Quill\n---\n') {
   };
 }
 
-const settingsOf = (vault = vaultWith()) => ({ ...vault.ports, changeKey: '0' });
+const settingsOf = (vault = vaultWith()) => ({ ...vault.ports });
 
 /** The window's puller as the card sees it, with a key held and nothing pulled. */
 function pullWith(overrides: Partial<GranolaPullController> = {}): GranolaPullController {
@@ -100,7 +101,9 @@ function renderGranola({
   open?: (url: string) => Promise<void>;
 } = {}) {
   const settings = settingsOf();
-  return renderHook(() => useGranola({ port, pull, vault: VAULT, links: { open }, ...settings }));
+  return renderHook(() => useGranola({ port, pull, vault: VAULT, links: { open }, ...settings }), {
+    wrapper: queryWrapper().wrapper,
+  });
 }
 
 describe('useGranola', () => {
@@ -130,10 +133,19 @@ describe('useGranola', () => {
     let known: GranolaKeyStatus = ACCEPTED;
     const port = { ...fakeGranola().port, setKey: async () => REFUSED };
     const settings = settingsOf();
-    const hook = renderHook(() => {
-      const pull = pullWith({ key: known, knowKey: (status) => (known = status) });
-      return useGranola({ port, pull, vault: VAULT, links: { open: async () => {} }, ...settings });
-    });
+    const hook = renderHook(
+      () => {
+        const pull = pullWith({ key: known, knowKey: (status) => (known = status) });
+        return useGranola({
+          port,
+          pull,
+          vault: VAULT,
+          links: { open: async () => {} },
+          ...settings,
+        });
+      },
+      { wrapper: queryWrapper().wrapper },
+    );
     act(() => hook.result.current.saveKey(KEY));
     await waitFor(() => expect(hook.result.current.view.pending).toBe(false));
     hook.rerender();
@@ -240,7 +252,7 @@ describe('GranolaSettingsCard', () => {
       drawn.push(setting);
       return <GranolaSettingsCard setting={setting} />;
     }
-    render(<Harness />);
+    render(<Harness />, { wrapper: queryWrapper().wrapper });
     const card = screen.getByRole('region', { name: 'Granola' });
 
     await userEvent.type(within(card).getByLabelText('Granola API key'), KEY);
@@ -263,14 +275,16 @@ describe('useGranola: the settings it maps by', () => {
   const render = (vault = vaultWith()) => {
     const settings = settingsOf(vault);
     const port = fakeGranola().port;
-    return renderHook(() =>
-      useGranola({
-        port,
-        pull: pullWith(),
-        vault: VAULT,
-        links: { open: async () => {} },
-        ...settings,
-      }),
+    return renderHook(
+      () =>
+        useGranola({
+          port,
+          pull: pullWith(),
+          vault: VAULT,
+          links: { open: async () => {} },
+          ...settings,
+        }),
+      { wrapper: queryWrapper().wrapper },
     );
   };
 

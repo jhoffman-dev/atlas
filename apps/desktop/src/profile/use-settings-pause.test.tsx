@@ -7,12 +7,13 @@
  * names are made up. No node:sqlite: the index is faked.
  */
 import { describe, expect, it } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { createVaultPath, digestOf, type NoteChange } from '@atlas/domain';
 import {
   createNoteChanges,
   fakeIndexPort,
   fakeVaultFs,
+  readsTouchedByPaths,
   recordingActivity,
   type MeetingImportPorts,
 } from '@atlas/application';
@@ -22,6 +23,8 @@ import { useProfileSetting } from './use-profile-setting.ts';
 import { useSelfEmailsSetting } from './use-self-emails-setting.ts';
 import { pausedMessage, RESUMED_MESSAGE, useSettingsPause } from './use-settings-pause.ts';
 import { settingsUnreadable, vaultOwnerKnown } from './vault-owner-known.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
+import { createReadInvalidator } from '../reads/read-invalidator.ts';
 
 const VAULT = '/Users/mara/Vault';
 const SETTINGS = '.atlas/settings.md';
@@ -90,13 +93,14 @@ function render(settings: { text: string }) {
   const ports = vaultOf(settings, written);
   const changes = createNoteChanges({ onError: () => undefined });
   const activity = recordingActivity();
+  const { wrapper, client } = queryWrapper();
+  const reads = createReadInvalidator({ client });
   const hook = renderHook(
     ({ changeKey, indexReady }: { changeKey: string; indexReady: boolean }) => {
       const profile = useProfileSetting({
         fs: ports.fs,
         markdown: remarkMarkdown,
         vaultKey: VAULT,
-        changeKey,
         activity,
       });
       const emails = useSelfEmailsSetting({
@@ -128,10 +132,10 @@ function render(settings: { text: string }) {
       return { profile, ownerKnown, unreadable };
     },
     // The index is built after the window opens, as in the app.
-    { initialProps: { changeKey: '0', indexReady: false } },
+    { wrapper, initialProps: { changeKey: '0', indexReady: false } },
   );
   hook.rerender({ changeKey: '0', indexReady: true });
-  return { ...hook, changes, activity, written };
+  return { ...hook, changes, activity, written, reads };
 }
 
 const said = (activity: ReturnType<typeof recordingActivity>) =>
@@ -140,7 +144,7 @@ const said = (activity: ReturnType<typeof recordingActivity>) =>
 describe('meetings and automations while the settings note cannot be read (#226)', () => {
   it('holds the import and says so once, then imports what waited once the note reads', async () => {
     const settings = { text: BROKEN };
-    const { result, rerender, changes, activity, written } = render(settings);
+    const { result, rerender, changes, activity, written, reads } = render(settings);
 
     await waitFor(() => expect(result.current.unreadable).not.toBeNull());
     expect(result.current.ownerKnown).toBe(false);
@@ -153,14 +157,16 @@ describe('meetings and automations while the settings note cannot be read (#226)
     expect(paused).toEqual([pausedMessage(result.current.unreadable!)]);
     expect(paused[0]).toContain('.atlas/settings.md can’t be read');
 
-    // Read again, unchanged: said once, not each time.
+    // Read again, unchanged — a read that failed is read again on the index's news: said once, not each time.
     rerender({ changeKey: '1', indexReady: true });
+    act(() => reads.indexMoved(VAULT));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(
       said(activity).filter((message) => message.startsWith('Meetings and automations are paused')),
     ).toHaveLength(1);
 
     settings.text = READABLE;
+    act(() => reads.invalidate(VAULT, readsTouchedByPaths(['.atlas/settings.md'])));
     rerender({ changeKey: '2', indexReady: true });
 
     await waitFor(() => expect(result.current.unreadable).toBeNull());
