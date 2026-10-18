@@ -169,7 +169,7 @@ describe('TableView', () => {
     expect(onEditCell).toHaveBeenCalledWith({ path: 'a.md', column: 'status', value: 'done' });
   });
 
-  it('keeps an edit in progress when its row leaves the page, as a scrolled-away row does', async () => {
+  it('drops an edit in progress when its row leaves the result, rather than writing to a row that is gone', async () => {
     const onEditCell = vi.fn();
     const { rerender } = render(<TableView {...props} result={result} onEditCell={onEditCell} />);
 
@@ -186,11 +186,11 @@ describe('TableView', () => {
     );
 
     expect(screen.queryByDisplayValue('done')).toBeNull();
-    expect(onEditCell).toHaveBeenCalledExactlyOnceWith({
-      path: 'a.md',
-      column: 'status',
-      value: 'done',
-    });
+    expect(onEditCell).not.toHaveBeenCalled();
+    // The row back again is not being edited.
+    rerender(<TableView {...props} result={result} onEditCell={onEditCell} />);
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByRole('button', { name: 'doing' })).toBeDefined();
   });
 
   it('writes a finished edit once, however its row leaves the page after', async () => {

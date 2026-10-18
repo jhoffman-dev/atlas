@@ -3,11 +3,37 @@ import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react';
 /**
  * Marks the button a table's arrows move between: a row's name, or a group's
  * header. Spread onto that button; the line it sits in says its index with
- * `data-index`.
+ * `data-index`. A cell that edits is a stop beside it, marked `data-cell-stop`
+ * with its column: Up and Down keep the column, Left and Right move along
+ * the row, and Tab walks them all in order.
  */
 export const ROW_STOP = { 'data-row-stop': '' } as const;
 
-const STOP = '[data-row-stop]';
+const ROW = '[data-row-stop]';
+const STOPS = '[data-row-stop], [data-cell-stop]';
+
+/** The column a stop is under, or null for a row's own stop. */
+function columnOf(stop: HTMLElement): string | null {
+  return stop.dataset['cellStop'] ?? null;
+}
+
+/** The stop in a line under a column, or the line's own stop where it has no such cell. */
+function stopIn(line: Element, column: string | null): HTMLElement | null {
+  if (column !== null) {
+    for (const stop of line.querySelectorAll<HTMLElement>('[data-cell-stop]')) {
+      if (columnOf(stop) === column) return stop;
+    }
+  }
+  return line.querySelector<HTMLElement>(ROW);
+}
+
+/** The stop beside one along its row, or null at the row's end. */
+function besideStop(origin: HTMLElement, step: 1 | -1): HTMLElement | null {
+  const line = origin.closest('tr');
+  if (line === null) return null;
+  const stops = [...line.querySelectorAll<HTMLElement>(STOPS)];
+  return stops[stops.indexOf(origin) + step] ?? null;
+}
 
 /**
  * The lines a table draws, and the stop each holds: a key that names the
@@ -103,6 +129,8 @@ interface PendingMove {
   readonly aim: Aim;
   /** The line it last scrolled to: where its aim was, the last time it looked. */
   readonly index: number;
+  /** The column it keeps to, or null for the row's own stop. */
+  readonly column: string | null;
   readonly from: HTMLElement;
   /** Stops listening for what overtakes the move. */
   readonly release: () => void;
@@ -158,8 +186,10 @@ export function useRowFocus({
 }): (event: KeyboardEvent) => void {
   const stops: Stops = { count, stopKey, pageSize };
   const wanted = useRef<PendingMove | null>(null);
-  const stopAt = (index: number) =>
-    body.current?.querySelector<HTMLElement>(`tr[data-index="${index}"] ${STOP}`) ?? null;
+  const stopAt = (index: number, column: string | null) => {
+    const line = body.current?.querySelector(`tr[data-index="${index}"]`) ?? null;
+    return line === null ? null : stopIn(line, column);
+  };
   const drop = () => {
     wanted.current?.release();
     wanted.current = null;
@@ -177,7 +207,7 @@ export function useRowFocus({
       drop();
       return;
     }
-    const stop = stopAt(index);
+    const stop = stopAt(index, move.column);
     if (stop !== null) {
       drop();
       focusWhole(stop);
@@ -204,9 +234,17 @@ export function useRowFocus({
 
   return (event: KeyboardEvent) => {
     const origin = event.target;
-    if (!(origin instanceof HTMLElement) || !origin.matches(STOP)) return;
+    if (!(origin instanceof HTMLElement) || !origin.matches(STOPS)) return;
     // A chord belongs to the app or the browser, not to moving between rows.
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      const beside = besideStop(origin, event.key === 'ArrowRight' ? 1 : -1);
+      if (beside === null) return;
+      event.preventDefault();
+      drop();
+      beside.focus();
+      return;
+    }
     const from = startOf(origin);
     const to = from === null ? null : targetIndex(event.key, from, stops);
     if (to === null) return;
@@ -214,7 +252,8 @@ export function useRowFocus({
     event.preventDefault();
     // Any move overtakes one still waiting for its line.
     drop();
-    const stop = stopAt(to);
+    const column = columnOf(origin);
+    const stop = stopAt(to, column);
     if (stop !== null) {
       focusWhole(stop);
       return;
@@ -222,6 +261,7 @@ export function useRowFocus({
     wanted.current = {
       aim: aimFor(event.key, to, stops),
       index: to,
+      column,
       from: origin,
       release: listenForOvertaking(origin, drop),
     };

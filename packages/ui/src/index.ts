@@ -66,6 +66,7 @@ export type {
 } from './properties-panel.tsx';
 export { TableView } from './table-view.tsx';
 export type { TableResult, TableSchema } from './table-view.tsx';
+export type { CellEdit, CellValue } from './table-cells.tsx';
 export type { TableGrouping } from './grouped-rows.tsx';
 export { BoardView } from './board-view.tsx';
 export type { CardAdd, CardMove } from './board-view.tsx';

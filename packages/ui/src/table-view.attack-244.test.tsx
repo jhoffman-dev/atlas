@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { PropertyKind } from '@atlas/domain';
+import type { CellEdit } from './cells/cell-editing.ts';
 import { TableView, type TableResult, type TableViewProps } from './table-view.tsx';
 import { ROW_ESTIMATE } from './grouped-rows.tsx';
 import { scrollableSheet } from './testing/scrollable-sheet.ts';
@@ -317,15 +318,24 @@ describe('TableView (#244) — the arrow keys in a long, virtualised table', () 
     expect(box.checked).toBe(true);
   });
 
-  it('a cell being edited when its row is scrolled out of the page writes what was typed', () => {
+  it('a cell being edited when its row is scrolled out of the page keeps what was typed, and shows it again once scrolled back', () => {
     const model = startModel(300);
-    const edits: { path: string; column: string; value: string }[] = [];
+    const edits: CellEdit[] = [];
     render(<TableView {...propsOf(model)} onEditCell={(edit) => edits.push(edit)} />);
+    const sheet = sheetOf();
     fireEvent.click(screen.getAllByRole('button', { name: '2026-03-01' })[0] as HTMLElement);
     const input = document.querySelector('.table__input') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '2026-04-01' } });
-    scrollSheet(sheetOf(), 250 * ROW_ESTIMATE);
+    scrollSheet(sheet, 250 * ROW_ESTIMATE);
     expect(document.querySelector('tr[data-index="0"]')).toBeNull();
+    expect(document.querySelector('.table__input')).toBeNull();
+    // Nothing is written for an edit still in progress.
+    expect(edits).toEqual([]);
+
+    scrollSheet(sheet, 0);
+    const back = document.querySelector('tr[data-index="0"] .table__input') as HTMLInputElement;
+    expect(back.value).toBe('2026-04-01');
+    fireEvent.keyDown(back, { key: 'Enter' });
     expect(edits).toEqual([{ path: 'r0.md', column: 'due', value: '2026-04-01' }]);
   });
 });

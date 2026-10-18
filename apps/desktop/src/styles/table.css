@@ -252,7 +252,10 @@ button.props__link-title:focus-visible {
   padding: 0 7px;
 }
 
-/* The cell being edited wears the 1.5px `focus` ring, as FlowTable.dc.html draws it. */
+/* ---- editing in place (#299, brief §5.4) ----
+   The cell being edited wears the 1.5px `focus` ring, as FlowTable.dc.html
+   draws it: the field that takes a typed-in cell's place, or the cell itself
+   while its picker is open under it. */
 .table__input {
   background: var(--surface);
   border: 0;
@@ -265,6 +268,134 @@ button.props__link-title:focus-visible {
   outline: none;
   padding: 0 7px;
   width: 100%;
+}
+
+/* The platform's date field keeps the cell's measure; its own picker opens below. */
+.table__input--date {
+  min-width: 128px;
+}
+
+.table__cell[data-editing],
+.table__links[data-editing] {
+  box-shadow: 0 0 0 1.5px var(--focus);
+}
+
+/* A relation cell that edits is a stop: a click beside its names opens the picker. */
+.table__links[role='button'] {
+  cursor: pointer;
+}
+
+/* A checkbox cell is its box: ticked where it is, one write per tick. */
+.table__check {
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 14px;
+  margin: 0 8px;
+  width: 14px;
+}
+
+.table__check:disabled {
+  cursor: default;
+}
+
+.table__check:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* The picker under a status cell (FlowTable.dc.html): 220px on the surface
+   with the popover's radius and shadow, a 30px filter field over a hairline,
+   then 28px rows of dot, label, a tick on the held one and the number key
+   that picks it. The relation picker is the same box holding the chips and
+   the properties panel's picker. */
+.cell-picker {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-popover);
+  box-shadow: var(--shadow-popover);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  outline: none;
+  padding: 4px;
+  width: 220px;
+}
+
+.cell-picker--relation {
+  gap: 6px;
+  padding: 8px;
+  width: 260px;
+}
+
+.cell-picker__filter {
+  align-items: center;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  display: flex;
+  gap: 7px;
+  height: 30px;
+  margin-bottom: 3px;
+  padding: 0 8px;
+}
+
+.cell-picker__input {
+  background: none;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-column);
+  min-width: 0;
+  outline: none;
+  padding: 0;
+}
+
+.cell-picker__input::placeholder {
+  color: var(--ink-3);
+}
+
+.cell-picker__option {
+  align-items: center;
+  border-radius: 5px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--text-column);
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+}
+
+.cell-picker__option[data-highlighted] {
+  background: var(--hover);
+}
+
+.cell-picker__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-picker__tick {
+  color: var(--ink-2);
+}
+
+.cell-picker__key {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  width: 12px;
+}
+
+.cell-picker__none {
+  color: var(--ink-3);
+  font-size: var(--text-column);
+  margin: 0;
+  padding: 6px 8px;
 }
 
 /* The right padding keeps the footer's words clear of the floating "+". */
