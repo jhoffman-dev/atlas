@@ -1,9 +1,12 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import type { ActivityLog, ApiSettingsPort } from '@atlas/application';
-import { SettingsDialog } from '@atlas/ui';
+import { settingsDialog } from '../pages-on-first-use.ts';
 import type { ClipboardWriter } from './clipboard.ts';
 import { mcpAddCommand } from './mcp-command.ts';
 import { useConnectionSettings } from './use-connection-settings.ts';
+
+// Loaded on first use, with the sections the app hands it (`pages-on-first-use.ts`).
+const SettingsDialog = settingsDialog.Component;
 
 /** What Settings needs from the app around it. */
 export interface SettingsPorts {
@@ -33,19 +36,22 @@ export function SettingsPanel({
   const mcp = mcpAddCommand(ports.mcpEntry);
 
   return (
-    <SettingsDialog
-      connection={connection}
-      mcp={mcp}
-      onEnable={connection.setEnabled}
-      onCopyToken={connection.copyToken}
-      onRotateToken={connection.rotateToken}
-      onCopyMcpCommand={() =>
-        connection.copyText({ text: mcp.command, notice: 'MCP command copied' })
-      }
-      onClose={onClose}
-      {...(fallbackFocus ? { fallbackFocus } : {})}
-    >
-      {children}
-    </SettingsDialog>
+    // Nothing until the dialog's chunk arrives: it opens over the page, so nothing moves.
+    <Suspense fallback={null}>
+      <SettingsDialog
+        connection={connection}
+        mcp={mcp}
+        onEnable={connection.setEnabled}
+        onCopyToken={connection.copyToken}
+        onRotateToken={connection.rotateToken}
+        onCopyMcpCommand={() =>
+          connection.copyText({ text: mcp.command, notice: 'MCP command copied' })
+        }
+        onClose={onClose}
+        {...(fallbackFocus ? { fallbackFocus } : {})}
+      >
+        {children}
+      </SettingsDialog>
+    </Suspense>
   );
 }

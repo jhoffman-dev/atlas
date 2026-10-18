@@ -60,68 +60,50 @@ export function SettingsDialog({
   const finalFocus = useReturnFocus(fallbackFocus);
   const { status, problem, notice, pending } = connection;
 
-  return (
-    <Dialog.Root
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Viewport className="palette__backdrop">
-          <Dialog.Popup className="palette settings" finalFocus={finalFocus} aria-label="Settings">
-            <header className="settings__header">
-              <span className="settings__tile" aria-hidden="true">
-                <Icon name="gear" size={20} />
+  return settingsFrame({
+    onClose,
+    finalFocus,
+    body: (
+      <>
+        <SettingsCard id="settings-connections" icon="link" title="Connections">
+          <p className="settings__lede">
+            Let other tools on this Mac, such as Claude Code, read and write this vault through
+            Atlas while it is open.
+          </p>
+          <div className="settings__row">
+            <span className="settings__row-text">
+              <span className="settings__row-label">Local API</span>
+              <span className="settings__status" data-testid="api-status">
+                {statusLine(connection)}
               </span>
-              <h1 className="settings__title">Settings</h1>
-              <Dialog.Close className="icon-button settings__close" aria-label="Close">
-                <Icon name="close" size={16} />
-              </Dialog.Close>
-            </header>
-            <div className="settings__body">
-              <SettingsCard id="settings-connections" icon="link" title="Connections">
-                <p className="settings__lede">
-                  Let other tools on this Mac, such as Claude Code, read and write this vault
-                  through Atlas while it is open.
-                </p>
-                <div className="settings__row">
-                  <span className="settings__row-text">
-                    <span className="settings__row-label">Local API</span>
-                    <span className="settings__status" data-testid="api-status">
-                      {statusLine(connection)}
-                    </span>
-                  </span>
-                  <Toggle
-                    label="Local API"
-                    checked={status?.enabled ?? false}
-                    disabled={pending || status === null}
-                    onChange={onEnable}
-                  />
-                </div>
-                {problem !== null && (
-                  <p className="settings__problem" role="alert">
-                    {problem}
-                  </p>
-                )}
-                <p className="settings__notice" aria-live="polite">
-                  {notice}
-                </p>
-                <TokenActions pending={pending} onCopy={onCopyToken} onRotate={onRotateToken} />
-                <McpCommand mcp={mcp} pending={pending} onCopy={onCopyMcpCommand} />
-                {status !== null && (
-                  <p className="settings__file">
-                    Connection file <code>{status.file}</code>
-                  </p>
-                )}
-              </SettingsCard>
-              {children}
-            </div>
-          </Dialog.Popup>
-        </Dialog.Viewport>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
+            </span>
+            <Toggle
+              label="Local API"
+              checked={status?.enabled ?? false}
+              disabled={pending || status === null}
+              onChange={onEnable}
+            />
+          </div>
+          {problem !== null && (
+            <p className="settings__problem" role="alert">
+              {problem}
+            </p>
+          )}
+          <p className="settings__notice" aria-live="polite">
+            {notice}
+          </p>
+          <TokenActions pending={pending} onCopy={onCopyToken} onRotate={onRotateToken} />
+          <McpCommand mcp={mcp} pending={pending} onCopy={onCopyMcpCommand} />
+          {status !== null && (
+            <p className="settings__file">
+              Connection file <code>{status.file}</code>
+            </p>
+          )}
+        </SettingsCard>
+        {children}
+      </>
+    ),
+  });
 }
 
 /** Copy and rotate. Rotating locks out whatever holds the old token, so it asks first. */
@@ -212,4 +194,62 @@ function McpCommand({
       </div>
     </div>
   );
+}
+
+/**
+ * Settings' window — its title, its Close and Escape, the focus it returns —
+ * around `body`. A plain function rather than a component, so that drawing
+ * Settings through it adds nothing to each render.
+ */
+function settingsFrame({
+  onClose,
+  finalFocus,
+  body,
+}: {
+  onClose: () => void;
+  finalFocus: ReturnType<typeof useReturnFocus>;
+  body: ReactNode;
+}) {
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Viewport className="palette__backdrop">
+          <Dialog.Popup className="palette settings" finalFocus={finalFocus} aria-label="Settings">
+            <header className="settings__header">
+              <span className="settings__tile" aria-hidden="true">
+                <Icon name="gear" size={20} />
+              </span>
+              <h1 className="settings__title">Settings</h1>
+              <Dialog.Close className="icon-button settings__close" aria-label="Close">
+                <Icon name="close" size={16} />
+              </Dialog.Close>
+            </header>
+            <div className="settings__body">{body}</div>
+          </Dialog.Popup>
+        </Dialog.Viewport>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+/**
+ * Settings' window with something else in it — what the app shows when the
+ * sections themselves cannot be drawn. It closes as Settings does.
+ */
+export function SettingsUnavailable({
+  onClose,
+  fallbackFocus,
+  children,
+}: {
+  onClose: () => void;
+  fallbackFocus?: FocusFallback;
+  children: ReactNode;
+}) {
+  const finalFocus = useReturnFocus(fallbackFocus);
+  return settingsFrame({ onClose, finalFocus, body: children });
 }
