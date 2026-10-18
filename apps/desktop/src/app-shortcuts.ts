@@ -16,8 +16,8 @@ const MOUSE_FORWARD = 4;
 
 /** What the window's shortcuts do. */
 export interface AppShortcuts {
-  /** What is up now: a palette or dialog holds the shortcuts that make a note. */
-  readonly overlay: Overlay | null;
+  /** What is up at the key press: a palette or dialog holds the shortcuts that make a note. */
+  readonly overlay: () => Overlay | null;
   readonly save: () => void;
   readonly newNote: () => void;
   readonly toggleSidebar: () => void;
@@ -45,7 +45,7 @@ export function useAppShortcuts(shortcuts: AppShortcuts): void {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const { save, newNote, toggleSidebar, toggleSplit, dailyNote, show } = latest.current;
-      const held = holdsTheScreen(latest.current.overlay);
+      const held = holdsTheScreen(latest.current.overlay());
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
         save();

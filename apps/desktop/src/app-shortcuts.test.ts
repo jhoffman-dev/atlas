@@ -5,6 +5,11 @@ import { useAppShortcuts, type AppShortcuts } from './app-shortcuts.ts';
 import type { Overlay } from './overlay.ts';
 
 function listen(overlay: Overlay | null = null): AppShortcuts {
+  return listenTo(() => overlay);
+}
+
+/** The shortcuts, reading what is up from `overlay` at each key press. */
+function listenTo(overlay: () => Overlay | null): AppShortcuts {
   const shortcuts: AppShortcuts = {
     overlay,
     save: vi.fn(),
@@ -60,6 +65,15 @@ describe('a shortcut that makes a note, pressed behind an open palette (A14-08)'
     expect(shortcuts.newNote).not.toHaveBeenCalled();
     expect(shortcuts.dailyNote).not.toHaveBeenCalled();
     expect(shortcuts.quickAdd).not.toHaveBeenCalled();
+  });
+
+  it('does nothing behind a palette opened since the window last drew (#261)', () => {
+    let up: Overlay | null = null;
+    const shortcuts = listenTo(() => up);
+    // ⌘K opens from the store; the window is not drawn again to hand it over.
+    up = 'search';
+    chord({ key: 'n', code: 'KeyN' });
+    expect(shortcuts.newNote).not.toHaveBeenCalled();
   });
 
   it('still acts with only a menu up, which gives way to it (control)', () => {

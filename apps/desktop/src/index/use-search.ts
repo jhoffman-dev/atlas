@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { matchingCommands, toSearchQuery, type PaletteCommand } from '@atlas/domain';
 import { searchNotes, type IndexPort, type SearchHit } from '@atlas/application';
+import { NO_INPUT, withArchived, withMoved, withQuery } from '../overlay.ts';
+import {
+  changePalette,
+  createOverlayStore,
+  usePaletteInput,
+  type OverlayStore,
+} from '../overlay-store.ts';
 
 const LIMIT = 20;
 
@@ -29,6 +36,7 @@ export function useSearch({
   commands = NO_COMMANDS,
   offerFor = noOffers,
   changeKey,
+  store: given,
 }: {
   index: IndexPort;
   commands?: readonly PaletteCommand[];
@@ -39,11 +47,13 @@ export function useSearch({
    * it opens, so a search typed in between would otherwise stay empty.
    */
   changeKey?: string;
+  /** Where the query and the chosen row are kept (#261); without one, the search keeps its own. */
+  store?: OverlayStore;
 }) {
-  const [query, setQuery] = useState('');
+  const [own] = useState(createOverlayStore);
+  const store = given ?? own;
+  const { query, selected, includeArchived } = usePaletteInput(store);
   const [answer, setAnswer] = useState<Answer>(NO_ANSWER);
-  const [selected, setSelected] = useState(0);
-  const [includeArchived, setIncludeArchived] = useState(false);
   const prepared = toSearchQuery(query);
   const asking = prepared === null ? '' : `${String(includeArchived)}:${prepared}`;
   // Only hits that answered the search on screen are shown: while a query typed
@@ -72,7 +82,8 @@ export function useSearch({
         const was = shown.current;
         setAnswer({ asked, hits: found });
         // The place is kept only for the same search answered again.
-        setSelected(was.asked === asked ? keptPlace(was, found) : 0);
+        const place = was.asked === asked ? keptPlace(was, found) : 0;
+        changePalette(store, (input) => ({ ...input, selected: place }));
       })
       .catch(() => {
         // A half-typed query the index cannot parse yet simply matches nothing.
@@ -82,7 +93,7 @@ export function useSearch({
     return () => {
       cancelled = true;
     };
-  }, [index, prepared, includeArchived, asking, searchKey]);
+  }, [index, prepared, includeArchived, asking, searchKey, store]);
 
   const offered = useMemo(
     () => [...offerFor(query), ...matchingCommands(query, commands)],
@@ -100,27 +111,24 @@ export function useSearch({
   });
 
   const move = useCallback(
-    (delta: number) =>
-      setSelected((current) => (count === 0 ? 0 : (current + delta + count) % count)),
-    [count],
+    (delta: number) => changePalette(store, (input) => withMoved(input, delta, count)),
+    [store, count],
   );
 
   const reset = useCallback(() => {
-    setQuery('');
+    changePalette(store, () => NO_INPUT);
     setAnswer(NO_ANSWER);
-    setSelected(0);
-    setIncludeArchived(false);
-  }, []);
+  }, [store]);
 
-  const changeQuery = useCallback((next: string) => {
-    setQuery(next);
-    setSelected(0);
-  }, []);
+  const changeQuery = useCallback(
+    (next: string) => changePalette(store, (input) => withQuery(input, next)),
+    [store],
+  );
 
-  const changeArchived = useCallback((next: boolean) => {
-    setIncludeArchived(next);
-    setSelected(0);
-  }, []);
+  const changeArchived = useCallback(
+    (next: boolean) => changePalette(store, (input) => withArchived(input, next)),
+    [store],
+  );
 
   return {
     query,
