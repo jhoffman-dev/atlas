@@ -1,0 +1,145 @@
+/* The tab strip over each pane (UI v2 slice 7a, docs/design/tab-model.md,
+   design/target/FlowSplit.dc.html). One of the section files styles/index.css
+   imports in cascade order, after shell.css: it dresses `TabStrip` in
+   packages/ui/src/tab-strip.tsx and nothing else. */
+
+/* 36px on the sidebar's `bg`, under a hairline the shown tab breaks through. */
+.tab-strip {
+  align-items: stretch;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex: none;
+  height: 36px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* The strip scrolls once the tabs are down to their narrowest, without a
+     bar of its own taking a third of its height. */
+  scrollbar-width: none;
+}
+
+.tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* A tab and its ×. 176px with room, shrinking to 120px, then the strip scrolls. */
+.tab-strip__item {
+  border-right: 1px solid var(--line);
+  border-top: 2px solid transparent;
+  display: flex;
+  flex: 0 1 176px;
+  /* Over the strip's hairline, so the shown tab joins the page under it. */
+  margin-bottom: -1px;
+  min-width: 120px;
+  position: relative;
+}
+
+/* The shown tab is lifted onto the surface. Its top border is grey while the
+   pane is the other one, and ink while it is the focused one, which is what
+   says where the next open lands now that the panes are edge to edge. */
+.tab-strip__item--active {
+  background: var(--surface);
+  border-top-color: var(--line-strong);
+}
+
+.tab-strip--focused .tab-strip__item--active {
+  border-top-color: var(--ink);
+}
+
+.tab-strip__tab {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font: inherit;
+  font-size: var(--text-body);
+  gap: 7px;
+  min-width: 0;
+  /* The right padding is the ×'s seat, kept on every tab so titles line up. */
+  padding: 0 28px 0 12px;
+  text-align: left;
+}
+
+.tab-strip__item:not(.tab-strip__item--active) > .tab-strip__tab:hover {
+  background: var(--hover);
+}
+
+.tab-strip__item--active > .tab-strip__tab {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.tab-strip__tab:focus-visible {
+  box-shadow: inset var(--ring);
+  outline: none;
+}
+
+.tab-strip__icon {
+  color: var(--ink-3);
+}
+
+.tab-strip__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-strip__close {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-chip);
+  color: var(--ink-3);
+  cursor: pointer;
+  display: flex;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+}
+
+.tab-strip__close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.tab-strip__close:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* + : a square at the end of the tabs, as quiet as the icon buttons. */
+.tab-strip__add {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink-3);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  justify-content: center;
+  padding: 0;
+  width: 34px;
+}
+
+.tab-strip__add:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.tab-strip__add:focus-visible {
+  box-shadow: inset var(--ring);
+  outline: none;
+}
