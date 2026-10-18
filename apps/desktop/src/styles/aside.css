@@ -236,7 +236,8 @@
 }
 
 /* ---- Outline -------------------------------------------------------------
-   One 28px row per heading, stepped in 12px per level under the shallowest. */
+   One 28px row per heading, stepped in 12px per level under the shallowest:
+   the item names its depth, and the heading reads it. */
 
 .aside-outline {
   padding: 8px 8px;
@@ -262,11 +263,15 @@
   min-height: 28px;
   overflow: hidden;
   padding: 0 8px;
-  padding-left: calc(8px + 12px * var(--outline-depth, 0));
+  padding-left: calc(8px + 12px * var(--outline-depth));
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
   width: 100%;
+}
+
+.aside-outline__item {
+  --outline-depth: 0;
 }
 
 .aside-outline__item[data-depth='1'] {
