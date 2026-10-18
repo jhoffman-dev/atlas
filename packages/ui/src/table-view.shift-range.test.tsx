@@ -131,6 +131,45 @@ describe('TableView — Shift-click on a row’s box', () => {
     expect(selection.onToggle).toHaveBeenLastCalledWith('t4.md', { order: doing });
   });
 
+  it('leaves out the rows of a folded sub-group, keeping its open sibling’s', async () => {
+    const phased = parseObjectType({
+      name: 'task',
+      properties: {
+        status: { kind: 'select', options: ['backlog', 'doing'] },
+        phase: { kind: 'select', options: ['early', 'late'] },
+      },
+    });
+    const statuses = ['backlog', 'doing', 'doing', 'backlog', 'doing', 'doing'];
+    const phases = ['early', 'early', 'late', 'late', 'early', 'late'];
+    const result: TableResult = {
+      columns: ['path', 'title', 'status', 'phase'],
+      rows: statuses.map((status, at) => [`t${at}.md`, `Task ${at}`, status, phases[at]]),
+      truncated: false,
+      sql: '',
+    };
+    const groups = groupResultRows({
+      rows: toBoardRows(result),
+      groups: viewGroupLevels({ type: phased, groupBy: 'status', subGroupBy: 'phase', sorts: [] }),
+    });
+    const early = groups.find((group) => group.value === 'doing')?.subgroups[0];
+    expect(early?.value).toBe('early');
+    const selection = recording();
+    render(
+      <TableView
+        {...props(result, {
+          selection,
+          grouping: { groups, collapsed: new Set([early?.id ?? '']), onToggle: () => {} },
+        })}
+      />,
+    );
+    // Backlog: early t0, late t3; Doing: early t1, t4 (folded), late t2, t5.
+    expect(screen.queryByRole('checkbox', { name: 'Select Task 1' })).toBeNull();
+    await shiftClick(box('Task 5'));
+    expect(selection.onToggle).toHaveBeenCalledWith('t5.md', {
+      order: ['t0.md', 't3.md', 't2.md', 't5.md'],
+    });
+  });
+
   it('hands over the order as it is now, once the rows are sorted again', async () => {
     const result = read(4);
     const selection = recording();
