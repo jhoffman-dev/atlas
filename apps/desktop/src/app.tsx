@@ -370,6 +370,7 @@ export function App({
     rebuild,
     refresh,
     catchUp: catchUpIndex,
+    settled: indexSettled,
   } = useIndex({
     ports: index,
     vaultKey: location?.absolutePath ?? null,
@@ -391,6 +392,7 @@ export function App({
     vaultKey: location?.absolutePath ?? null,
     fs: vault.fs,
     ownWrites,
+    settled: indexSettled,
     onChange: (paths) => {
       void reload();
       void refresh(refreshAfterWatch(paths));

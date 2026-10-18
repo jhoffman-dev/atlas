@@ -12,6 +12,7 @@ import type { ActivityLog } from '../activity/ports.ts';
 import type { NoteChanges } from './note-changes.ts';
 import type { IndexPort, IndexStats } from './ports.ts';
 import type { UnreadNote } from './note-deriver.ts';
+import type { OwnWrites } from '../vault/own-writes.ts';
 import {
   heldEntries,
   IndexSyncAbandoned,
@@ -34,6 +35,8 @@ export interface IndexSync {
   readonly versions: ReadonlyMap<string, NoteVersion>;
   /** The notes that could not be read as notes; see `IndexRefresh.failed`. */
   readonly failed: readonly UnreadNote[];
+  /** The stale notes not put in the index; see `IndexRefresh.notRead`. */
+  readonly notRead: readonly string[];
   /** Why the notes were read on the window's thread, when they had to be. */
   readonly inWindow: string | null;
 }
@@ -96,6 +99,7 @@ export async function syncIndex({
       changes: baseline === null ? [] : refresh.changes,
       versions: versionsAfter(measuredFrom, refresh.changes),
       failed: refresh.failed,
+      notRead: refresh.notRead,
       inWindow: refresh.inWindow,
     };
   } catch (cause) {
@@ -173,11 +177,17 @@ export interface IndexSyncer {
 export function createIndexSyncer({
   changes,
   openVault,
+  ownWrites,
   ...ports
 }: Omit<RefreshOptions, 'onProgress' | 'previous' | 'stillWanted' | 'abandoned' | 'vault'> & {
   activity: ActivityLog;
   /** Where each sync's changes are published, when it has any. */
   changes: NoteChanges;
+  /**
+   * Told which of the app's own writes each sync that finished took in, so
+   * the watcher's echo of one is not refreshed for again (#254).
+   */
+  ownWrites?: Pick<OwnWrites, 'lastWrite' | 'refreshed'>;
   /** The vault open now, which the host's ports answer for; null when none is. */
   openVault: () => string | null;
 }): IndexSyncer {
@@ -191,6 +201,8 @@ export function createIndexSyncer({
   const syncOnce: IndexSyncer['sync'] = async ({ vault, fromScratch, onProgress }) => {
     if (openVault() !== vault) return null;
     const previous = remembered?.vault === vault ? remembered.versions : undefined;
+    // Every write recorded by now is on disk before this sync reads the vault.
+    const through = ownWrites?.lastWrite();
     const abandon = new AbortController();
     running = { vault, abandon };
     const synced = await syncIndex({
@@ -222,6 +234,9 @@ export function createIndexSyncer({
     }
     remembered = { vault, versions: synced.versions };
     unread = { vault, key: unreadKey(synced.failed) };
+    if (through !== undefined) {
+      ownWrites?.refreshed({ vault, through, unread: synced.notRead });
+    }
     if (synced.changes.length > 0) changes.publish({ vault, changes: synced.changes });
     return synced.stats;
   };

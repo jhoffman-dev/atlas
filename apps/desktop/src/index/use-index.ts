@@ -127,6 +127,8 @@ export function useIndex({
    * none has been, or the last did not hold the files.
    */
   catchUp: () => Promise<boolean>;
+  /** Resolves once every refresh of the open vault asked so far has run, asking none itself. */
+  settled: () => Promise<void>;
 } {
   const [store] = useState(createIndexStatusStore);
   const [progress] = useState(createIndexProgress);
@@ -146,8 +148,9 @@ export function useIndex({
         activity,
         changes: counted,
         openVault: () => open.current,
+        ...(ownWrites !== undefined && { ownWrites }),
       }),
-    [ports.fs, ports.index, ports.markdown, ports.deriver, activity, counted],
+    [ports.fs, ports.index, ports.markdown, ports.deriver, activity, counted, ownWrites],
   );
 
   const run = useCallback(
@@ -160,8 +163,6 @@ export function useIndex({
         store.setState({ vault, phase: 'building', message: null });
       }
       const publishedBefore = counted.published();
-      // Every write recorded by now is on disk before this sync reads the vault.
-      const through = ownWrites?.lastWrite();
       try {
         const stats = await syncer.sync({
           vault,
@@ -173,7 +174,6 @@ export function useIndex({
         });
         // Dropped: the vault closed while it waited, and the one open now has its own.
         if (stats === null) return false;
-        if (through !== undefined) ownWrites?.refreshed({ vault, through });
         const found = counted.published() > publishedBefore;
         if (building || found || !quiet) revision.current += 1;
         // Not "ready" while a sync queued behind this one is still to write:
@@ -190,7 +190,7 @@ export function useIndex({
         return false;
       }
     },
-    [syncer, store, progress, counted, ownWrites],
+    [syncer, store, progress, counted],
   );
   // One queue for the window, so asks made across a re-render still join one another.
   const latestRun = useRef(run);
@@ -234,5 +234,9 @@ export function useIndex({
     ),
     rebuild: useCallback(() => ask({ fromScratch: true, quiet: false }), [ask]),
     catchUp,
+    settled: useCallback(async () => {
+      const last = lastAsked.current;
+      if (last?.vault === vaultKey) await last.held;
+    }, [vaultKey]),
   };
 }

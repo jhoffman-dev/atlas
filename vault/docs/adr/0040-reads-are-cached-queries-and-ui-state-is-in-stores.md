@@ -48,16 +48,18 @@ per vault.
    rebuilt only when a type definition changed.
 3. **The app recognises its own writes.** A write the app made is refreshed
    once. The app keeps each of its writes for a few seconds: the path and
-   what the write left there (the note's text and time, a folder, nothing).
-   The watcher's report of a path is dropped only when a refresh that began
-   after the write has finished and the path still holds exactly what the
-   write left, read when the report arrives. Anything else is refreshed for,
-   so a change another program made is never lost: one in the same
-   millisecond, or on a disk whose clock keeps seconds, leaves other bytes. A
-   write the app does not refresh for itself (the editor's autosave) is
-   refreshed by its echo. The rule is in `packages/application`
-   (`own-writes.ts`, `outside-changes.ts`); the host decides nothing
-   (Performance 4, #254).
+   what the write left there (the note's text and time, or nothing after a
+   move or a trash). The watcher's report of a path is judged once the
+   refreshes already asked have run, and dropped only when a refresh that
+   began after the write read it into the index and the path still holds
+   exactly what the write left. Anything else is refreshed for, so a change
+   another program made is not lost unless it restored the same bytes and
+   the same time: one in the same millisecond, or on a disk whose clock keeps
+   seconds, leaves other bytes. A new note or folder is never taken as an
+   echo. A write the app does not refresh for itself (the editor's autosave)
+   is refreshed by its echo. The rule is in `packages/application`
+   (`own-writes.ts`, `outside-changes.ts`, the index syncer); the host
+   decides nothing (Performance 4, #254).
 4. **The index stays ready.** It says `building` only for a vault's first sync
    after it opens and for a rebuild. A refresh never takes it out of `ready`,
    so nothing that waits on ready pauses or blanks for one. At most one sync

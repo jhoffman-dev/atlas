@@ -6,31 +6,35 @@ import type { Clock } from '../ports.ts';
  */
 export type LeftVersion =
   | { readonly kind: 'text'; readonly text: string; readonly modified: number }
-  | { readonly kind: 'absent' }
-  | { readonly kind: 'directory' };
+  | { readonly kind: 'absent' };
 
 /**
  * What is at a path when the watcher's report of it arrives. `file` is a file
  * whose text was not read; `unknown` is whatever could not be told: a file
  * that is not text, or a read that failed.
  */
-export type FoundVersion = LeftVersion | { readonly kind: 'file' } | { readonly kind: 'unknown' };
+export type FoundVersion =
+  | LeftVersion
+  | { readonly kind: 'directory' }
+  | { readonly kind: 'file' }
+  | { readonly kind: 'unknown' };
 
 /**
  * Whether what is at a path now is exactly what the app's write left there.
  *
  * A note must match in its time and its every byte: another program writing
  * in the same millisecond, or on a disk whose clock keeps only seconds,
- * leaves the same time but other bytes. Anything that cannot be told apart
- * from the app's version this way is not an echo, and is refreshed for.
+ * leaves the same time but other bytes, and its report is kept. (The refresh
+ * it asks for re-reads only a note whose time or size moved, so a same-time,
+ * same-size change can still slip past the index: #245.) A path the app
+ * emptied is an echo only while nothing is there.
  */
 export function isEchoOf(left: LeftVersion, found: FoundVersion): boolean {
   switch (left.kind) {
     case 'text':
       return found.kind === 'text' && found.modified === left.modified && found.text === left.text;
     case 'absent':
-    case 'directory':
-      return found.kind === left.kind;
+      return found.kind === 'absent';
   }
 }
 
@@ -57,12 +61,22 @@ export interface OwnWrites {
   leftAt(file: PathInVault): LeftVersion | null;
   /** Which write was recorded last: a refresh that starts reading the vault now reads up to it. */
   lastWrite(): number;
-  /** Says a refresh of `vault` that started at `through` (a `lastWrite`) has put the vault in the index. */
-  refreshed(through: { readonly vault: string; readonly through: number }): void;
+  /**
+   * Says a refresh of `vault` that started at `through` (a `lastWrite`) has
+   * finished. It holds every write up to there except at the notes it could
+   * not read (`unread`, none when left out), which keep their old version in
+   * the index.
+   */
+  refreshed(refresh: {
+    readonly vault: string;
+    readonly through: number;
+    readonly unread?: readonly string[];
+  }): void;
   /**
    * The last write at the path, once a refresh that started after it has
-   * finished, so that the index holds it: the only write whose echo can be
-   * dropped. A write the app has not refreshed for is refreshed for by its echo.
+   * finished and read it, so that the index holds it: the only write whose
+   * echo can be dropped. A write the app has not refreshed for is refreshed
+   * for by its echo.
    */
   refreshedAt(file: PathInVault): LeftVersion | null;
 }
@@ -71,6 +85,8 @@ interface Kept {
   readonly left: LeftVersion;
   readonly at: number;
   readonly write: number;
+  /** Whether a refresh that began after it has put it in the index. */
+  readonly held: boolean;
 }
 
 /**
@@ -90,23 +106,24 @@ export function createOwnWrites({
   capacity?: number;
 }): OwnWrites {
   const kept = keptWrites({ clock, keptMs, capacity });
-  const refreshedThrough = new Map<string, number>();
   let written = 0;
   return {
     record({ left, ...file }) {
       written += 1;
-      kept.put(file, { left, at: clock.now(), write: written });
+      kept.put(file, { left, at: clock.now(), write: written, held: false });
     },
     forget: (file) => kept.drop(file),
     leftAt: (file) => kept.get(file)?.left ?? null,
     lastWrite: () => written,
-    refreshed({ vault, through }) {
-      refreshedThrough.set(vault, Math.max(through, refreshedThrough.get(vault) ?? 0));
+    refreshed({ vault, through, unread = [] }) {
+      const skipped = new Set(unread);
+      kept.hold(
+        (file, write) => file.vault === vault && write.write <= through && !skipped.has(file.path),
+      );
     },
     refreshedAt(file) {
       const write = kept.get(file);
-      if (write === undefined || write.write > (refreshedThrough.get(file.vault) ?? 0)) return null;
-      return write.left;
+      return write?.held === true ? write.left : null;
     },
   };
 }
@@ -136,6 +153,13 @@ function keptWrites({
       }
     },
     drop: (file: PathInVault) => void kept.delete(keyOf(file)),
+    /** Marks every write `which` names as held, in place: its age and order are its own. */
+    hold(which: (file: PathInVault, write: Kept) => boolean) {
+      for (const [key, write] of kept) {
+        const [vault, path] = JSON.parse(key) as [string, string];
+        if (!write.held && which({ vault, path }, write)) kept.set(key, { ...write, held: true });
+      }
+    },
     get(file: PathInVault): Kept | undefined {
       const key = keyOf(file);
       const write = kept.get(key);

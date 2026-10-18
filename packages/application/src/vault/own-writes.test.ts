@@ -54,13 +54,6 @@ describe('isEchoOf: what counts as the echo of the app’s own write (#254)', ()
     expect(isEchoOf({ kind: 'absent' }, { kind: 'unknown' })).toBe(false);
     expect(isEchoOf({ kind: 'absent' }, { kind: 'text', text: '', modified: 1 })).toBe(false);
   });
-
-  it('is a folder the app made only while it is still a folder', () => {
-    expect(isEchoOf({ kind: 'directory' }, { kind: 'directory' })).toBe(true);
-    expect(isEchoOf({ kind: 'directory' }, { kind: 'absent' })).toBe(false);
-    expect(isEchoOf({ kind: 'directory' }, { kind: 'file' })).toBe(false);
-    expect(isEchoOf({ kind: 'directory' }, { kind: 'unknown' })).toBe(false);
-  });
 });
 
 describe('createOwnWrites: what is kept, and for how long', () => {
@@ -157,6 +150,17 @@ describe('createOwnWrites: which writes the index already holds', () => {
     ownWrites.record({ vault: VAULT, path: 'Plan.md', left: { kind: 'absent' } });
     expect(ownWrites.refreshedAt({ vault: VAULT, path: 'Plan.md' })).toBeNull();
     expect(ownWrites.leftAt({ vault: VAULT, path: 'Plan.md' })).toEqual({ kind: 'absent' });
+  });
+
+  it('does not hold a write at a note the refresh could not read', () => {
+    const ownWrites = createOwnWrites({ clock: fixedClock() });
+    ownWrites.record({ vault: VAULT, path: 'Plan.md', left: saved });
+    ownWrites.record({ vault: VAULT, path: 'Torn.md', left: saved });
+    ownWrites.refreshed({ vault: VAULT, through: ownWrites.lastWrite(), unread: ['Torn.md'] });
+    expect(ownWrites.refreshedAt({ vault: VAULT, path: 'Plan.md' })).toEqual(saved);
+    expect(ownWrites.refreshedAt({ vault: VAULT, path: 'Torn.md' })).toBeNull();
+    ownWrites.refreshed({ vault: VAULT, through: ownWrites.lastWrite() });
+    expect(ownWrites.refreshedAt({ vault: VAULT, path: 'Torn.md' })).toEqual(saved);
   });
 
   it('holds nothing past its window, refreshed for or not', () => {

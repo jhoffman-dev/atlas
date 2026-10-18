@@ -1,4 +1,4 @@
-import { createVaultPath, parentVaultPath } from '@atlas/domain';
+import { createVaultPath, isMarkdownName, parentVaultPath } from '@atlas/domain';
 import {
   isEchoOf,
   noteSavedThrough,
@@ -21,8 +21,9 @@ const UNKNOWN: FoundVersion = { kind: 'unknown' };
  * The paths of a watcher report that still need a refresh (#254). A path is
  * the echo of the app's own write, and dropped, only when the app has
  * already refreshed for that write and what is there now is exactly what the
- * write left (`isEchoOf`), read now: one read of the notes, one listing per
- * folder for the rest. A save's temporary file is the app's own while a
+ * write left (`isEchoOf`), read now: one read of every path, and for a path
+ * the app emptied, a listing of its folder while there are few (see
+ * `emptiedNow`). A save's temporary file is the app's own while a
  * write of the app's to its note is kept — the save, or the move that took
  * the note on from there — and nothing reads it. Every other path, and any
  * path a read could not tell about, is kept: when in doubt, the app refreshes.
@@ -56,43 +57,74 @@ export async function outsideChanges({
   return paths.filter((path) => !echoes.has(path) && !ours(path));
 }
 
-/** What is at each judged path now: the notes' text in one read, the rest from their folders. */
+/**
+ * The most folders listed to tell whether a path the app emptied is still
+ * empty. Past it, a refresh's one walk of the vault would cost less.
+ */
+const MOST_FOLDERS_LISTED = 2;
+
+/**
+ * What is at each judged path now: one read of them all, then, for a path the
+ * app emptied that the read found no note at, whether anything else is there.
+ */
 async function foundNow(fs: Fs, judged: readonly Judged[]): Promise<Map<string, FoundVersion>> {
-  const notes = judged.filter(({ left }) => left.kind === 'text').map(({ path }) => path);
-  const entries = judged.filter(({ left }) => left.kind !== 'text').map(({ path }) => path);
-  const [read, listed] = await Promise.all([readNow(fs, notes), listNow(fs, entries)]);
-  return new Map([...read, ...listed]);
+  const found = await readNow(
+    fs,
+    judged.map(({ path }) => path),
+  );
+  if (found === null) return new Map();
+  const emptied = judged
+    .filter(({ path, left }) => left.kind === 'absent' && !found.has(path))
+    .map(({ path }) => path);
+  for (const [path, version] of await emptiedNow(fs, emptied)) found.set(path, version);
+  return found;
 }
 
-/** Each note as it reads now; one the host leaves out (gone, a folder, not text) is unknown. */
-async function readNow(fs: Fs, paths: readonly string[]): Promise<[string, FoundVersion][]> {
-  if (paths.length === 0) return [];
-  // A read that fails tells nothing: every path in it stays unknown and is refreshed for.
-  const files = await fs.readNotes(paths).catch(() => []);
-  return files.map(({ path, text, modified }) => [path, { kind: 'text', text, modified }]);
+/** Each path the host reads as a note now, or null when the read failed and told nothing. */
+async function readNow(
+  fs: Fs,
+  paths: readonly string[],
+): Promise<Map<string, FoundVersion> | null> {
+  if (paths.length === 0) return new Map();
+  const files = await fs.readNotes(paths).catch(() => null);
+  if (files === null) return null;
+  return new Map(
+    files.map(({ path, text, modified }) => [path, { kind: 'text', text, modified }] as const),
+  );
 }
 
-/** Whether each path is a folder, a file or nothing now, from one listing of each folder holding one. */
-async function listNow(fs: Fs, paths: readonly string[]): Promise<[string, FoundVersion][]> {
+/**
+ * Whether each path the read found no note at is empty, a folder or another
+ * file: from one listing of each folder holding one, while there are few
+ * enough. Past that, a note's path the read found nothing at is taken as
+ * empty, and any other path is unknown and refreshed for.
+ */
+async function emptiedNow(fs: Fs, paths: readonly string[]): Promise<[string, FoundVersion][]> {
   const byFolder = new Map<string, string[]>();
   for (const path of paths) {
     const folder = folderOf(path);
     if (folder !== null) byFolder.set(folder, [...(byFolder.get(folder) ?? []), path]);
+  }
+  if (byFolder.size > MOST_FOLDERS_LISTED) {
+    return paths.filter(isNotePath).map((path) => [path, { kind: 'absent' }]);
   }
   const listings = await Promise.all(
     [...byFolder].map(async ([folder, inIt]) => {
       // A folder that cannot be listed tells nothing: its paths stay unknown.
       const listed = await fs.listDirectory(createVaultPath(folder)).catch(() => null);
       if (listed === null) return [];
+      const entries = new Map(listed.map((entry) => [entry.path as string, entry.kind]));
       return inIt.map((path): [string, FoundVersion] => {
-        const entry = listed.find((each) => each.path === path);
-        if (entry === undefined) return [path, { kind: 'absent' }];
-        return [path, { kind: entry.kind === 'directory' ? 'directory' : 'file' }];
+        const kind = entries.get(path);
+        if (kind === undefined) return [path, { kind: 'absent' }];
+        return [path, { kind: kind === 'directory' ? 'directory' : 'file' }];
       });
     }),
   );
   return listings.flat();
 }
+
+const isNotePath = (path: string) => isMarkdownName(path.slice(path.lastIndexOf('/') + 1));
 
 /** The folder a path is in, or null for a path the vault cannot name. */
 function folderOf(path: string): string | null {

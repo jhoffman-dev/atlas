@@ -17,6 +17,7 @@ export function useOutsideChanges({
   vaultKey,
   fs,
   ownWrites,
+  settled = () => Promise.resolve(),
   onChange,
 }: {
   watch: VaultWatchPort;
@@ -24,6 +25,12 @@ export function useOutsideChanges({
   /** The open vault's files, read to tell an echo from a change. */
   fs: Pick<VaultFsPort, 'readNotes' | 'listDirectory'>;
   ownWrites: OwnWrites;
+  /**
+   * Resolves once the refreshes already asked have run. A report is judged
+   * after them, so the app's own refresh for a write is in before its echo is
+   * looked at: a busy window waits a little rather than walking the vault twice.
+   */
+  settled?: () => Promise<unknown>;
   onChange: (paths: readonly string[]) => void;
 }): void {
   useVaultWatch({
@@ -31,13 +38,17 @@ export function useOutsideChanges({
     vaultKey,
     onChange: (paths) => {
       if (vaultKey === null) return;
-      void outsideChanges({ fs, ownWrites, vault: vaultKey, paths }).then(
-        (outside) => {
-          if (outside.length > 0) onChange(outside);
-        },
-        // Nothing could be told apart, so every path is treated as a change.
-        () => onChange(paths),
-      );
+      void settled()
+        // A refresh that failed has its own say; the report is judged all the same.
+        .catch(() => undefined)
+        .then(() => outsideChanges({ fs, ownWrites, vault: vaultKey, paths }))
+        .then(
+          (outside) => {
+            if (outside.length > 0) onChange(outside);
+          },
+          // Nothing could be told apart, so every path is treated as a change.
+          () => onChange(paths),
+        );
     },
   });
 }

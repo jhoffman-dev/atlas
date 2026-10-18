@@ -59,13 +59,20 @@ function aHost() {
   };
 }
 
-function watching(host: ReturnType<typeof aHost>) {
+function watching(host: ReturnType<typeof aHost>, settled?: () => Promise<unknown>) {
   const ownWrites = createOwnWrites({ clock: { now: () => 50_000 } });
   const onChange = vi.fn();
   const rendered = renderHook(
     ({ vaultKey }: { vaultKey: string }) => {
       const { fs } = boundToVault({ fs: host.fs }, vaultKey, ownWrites);
-      useOutsideChanges({ watch: host.watch, vaultKey, fs, ownWrites, onChange });
+      useOutsideChanges({
+        watch: host.watch,
+        vaultKey,
+        fs,
+        ownWrites,
+        onChange,
+        ...(settled !== undefined && { settled }),
+      });
       return fs;
     },
     { initialProps: { vaultKey: VAULT_A } },
@@ -79,7 +86,7 @@ function watching(host: ReturnType<typeof aHost>) {
     });
     ownWrites.refreshed({ vault: VAULT_A, through: ownWrites.lastWrite() });
   };
-  return { onChange, rendered, save };
+  return { onChange, rendered, save, ownWrites };
 }
 
 describe('useOutsideChanges (#254)', () => {
@@ -119,5 +126,46 @@ describe('useOutsideChanges (#254)', () => {
     await host.report(SAVE_REPORT);
     // The temporary is the app's either way; the note could not be told.
     expect(onChange).toHaveBeenCalledExactlyOnceWith([NOTE]);
+  });
+
+  it('judges a report once the refresh already asked has run, so a busy window walks once', async () => {
+    const host = aHost();
+    let refreshDone = () => {};
+    const refreshing = new Promise<void>((resolve) => (refreshDone = resolve));
+    const { onChange, rendered, ownWrites } = watching(host, () => refreshing);
+    await rendered.result.current.writeTextFile({
+      path: createVaultPath(NOTE),
+      contents: '# Plan\n',
+      expectedModified: null,
+    });
+    // The echo arrives while the app's own refresh for the save is still running.
+    const began = ownWrites.lastWrite();
+    await host.report(SAVE_REPORT);
+    expect(onChange).not.toHaveBeenCalled();
+    await act(async () => {
+      ownWrites.refreshed({ vault: VAULT_A, through: began });
+      refreshDone();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('still judges the report when the refresh it waited on failed', async () => {
+    const host = aHost();
+    const { onChange } = watching(host, () => Promise.reject(new Error('the index is busy')));
+    host.outsideWrite(NOTE, '# Plan, theirs\n');
+    await host.report([NOTE]);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith([NOTE]);
+  });
+
+  it('hears every path when telling them apart throws', async () => {
+    const host = aHost();
+    const { onChange, save } = watching(host);
+    await save('# Plan\n');
+    host.fs.readNotes = () => {
+      throw new Error('the host went away');
+    };
+    await host.report(SAVE_REPORT);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(SAVE_REPORT);
   });
 });

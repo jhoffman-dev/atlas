@@ -224,7 +224,8 @@ describe('outsideChanges: renames, deletes and creates', () => {
     await vault.fs.createFolder({ path: path('Projects') });
     await vault.fs.moveEntry({ from: path('Inbox/Call.md'), to: path('Projects/Call.md') });
     const report = [...saveReport('Inbox/Call.md'), 'Projects', 'Projects/Call.md'];
-    expect(await vault.reported(report)).toEqual([]);
+    // The new folder is refreshed for; the note's move is the app's own.
+    expect(await vault.reported(report)).toEqual(['Projects']);
   });
 
   it('keeps the moved note when the app never saw its bytes', async () => {
@@ -268,12 +269,24 @@ describe('outsideChanges: renames, deletes and creates', () => {
     expect(await vault.reported(['Old.md'])).toEqual(['Old.md']);
   });
 
-  it('drops the app’s own new folder, and keeps it when another program took it away', async () => {
+  it('keeps the app’s own new folder, which another program can replace whole', async () => {
     const vault = aVault();
     await vault.fs.createFolder({ path: path('Projects/Larkspur') });
-    expect(await vault.reported(['Projects/Larkspur'])).toEqual([]);
-    vault.outside.remove('Projects/Larkspur');
     expect(await vault.reported(['Projects/Larkspur'])).toEqual(['Projects/Larkspur']);
+  });
+
+  it('takes a burst of trashes across many folders as empty by one read, and keeps the folders among them', async () => {
+    const vault = aVault();
+    const trashed = ['A/Old.md', 'B/Old.md', 'C/Old.md', 'D/Scans'];
+    for (const each of trashed) {
+      vault.outside.write(each, '# Old\n');
+      await vault.fs.trashEntry({ path: path(each) });
+    }
+    vault.outside.write('B/Old.md', '# Old, back again\n');
+    vault.disk.reads = 0;
+    // Too many folders to list: a note's path is read, anything else is refreshed for.
+    expect(await vault.reported(trashed)).toEqual(['B/Old.md', 'D/Scans']);
+    expect(vault.disk.reads).toBe(1);
   });
 
   it('keeps a note another program creates', async () => {

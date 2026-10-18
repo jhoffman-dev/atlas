@@ -9,7 +9,7 @@ export {
   VAULT_ROOT,
 } from './vault-path.ts';
 export type { VaultPath } from './vault-path.ts';
-export { isMarkdownFile, noteTitle } from './vault-entry.ts';
+export { isMarkdownFile, isMarkdownName, noteTitle } from './vault-entry.ts';
 export type { VaultDirectory, VaultEntry, VaultFile } from './vault-entry.ts';
 export {
   ATLAS_DIRECTORY,

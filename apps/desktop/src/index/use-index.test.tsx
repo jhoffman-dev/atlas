@@ -577,3 +577,44 @@ describe('useIndex: which of the app’s own writes a sync took in (#254)', () =
     expect(held('Note 0.md')).toBe(false);
   });
 });
+
+describe('useIndex: settled (#254)', () => {
+  it('resolves once the refresh already asked has run, asking none itself', async () => {
+    let walks = 0;
+    let letGo = () => {};
+    const ports = vaultOf(2);
+    const listNotes = ports.fs.listNotes;
+    const held: IndexPorts = {
+      ...ports,
+      fs: {
+        ...ports.fs,
+        listNotes: async (options) => {
+          walks += 1;
+          if (walks === 2) await new Promise<void>((resolve) => (letGo = resolve));
+          return listNotes(options);
+        },
+      },
+    };
+    const { result } = renderHook(() =>
+      useIndex({
+        ports: held,
+        vaultKey: VAULT,
+        activity: recordingActivity(),
+        changes: createNoteChanges({ onError: () => {} }),
+      }),
+    );
+    await waitFor(() => expect(result.current.status.kind).toBe('ready'));
+    let refreshed = false;
+    void result.current.refresh().then(() => (refreshed = true));
+    let settled = false;
+    void result.current.settled().then(() => (settled = true));
+    await waitFor(() => expect(walks).toBe(2));
+    expect(settled).toBe(false);
+    await act(async () => {
+      letGo();
+      await result.current.settled();
+    });
+    expect(refreshed).toBe(true);
+    expect(walks).toBe(2);
+  });
+});
