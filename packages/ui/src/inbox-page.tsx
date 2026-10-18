@@ -38,6 +38,15 @@ const NO_REFUSALS: readonly InboxRefusal[] = [];
 export const INBOX_OFFERS_WAIT_MS = 100;
 
 /**
+ * The limit instead, on a page that first waited for its vault's index — a
+ * vault just opened, or switched to with the Inbox open (#130). Its offers
+ * are read only once the index is ready, all at once, so they take longer
+ * than an open's; and the list has only just come, so nothing is yet under
+ * the pointer to keep waiting from. On CI they outlasted 100 ms.
+ */
+export const INBOX_OFFERS_AFTER_INDEX_WAIT_MS = 1000;
+
+/**
  * The proposals and rows, laid out as if the wrapper were not there. Held
  * back, they are drawn and measured as usual but not seen and not reached by
  * pointer or keyboard, so they cost no commit of their own when shown (#130).
@@ -277,19 +286,22 @@ const NEW_ABOVE_BUTTON = {
 
 /**
  * Whether the Inbox's offers are known, so its rows can be drawn below them
- * (#130): once none is still being read, or once it has waited
- * `INBOX_OFFERS_WAIT_MS` for one — counted only once none is waiting for the
- * index, since until then the list has no rows either. Known stays known
- * while the page shows.
+ * (#130): once none is still being read, or once it has waited for one —
+ * counted only once none is waiting for the index, since until then the list
+ * has no rows either, and for longer on a page that did wait for it. Known
+ * stays known while the page shows.
  */
 function useOffersKnown(reading: boolean, waitingForIndex: boolean): boolean {
   const [offersKnown, setOffersKnown] = useState(!reading);
+  const [waitedForIndex, setWaitedForIndex] = useState(waitingForIndex);
   if (!reading && !offersKnown) setOffersKnown(true);
+  if (waitingForIndex && !waitedForIndex) setWaitedForIndex(true);
   useEffect(() => {
     if (offersKnown || waitingForIndex) return;
-    const timer = setTimeout(() => setOffersKnown(true), INBOX_OFFERS_WAIT_MS);
+    const limit = waitedForIndex ? INBOX_OFFERS_AFTER_INDEX_WAIT_MS : INBOX_OFFERS_WAIT_MS;
+    const timer = setTimeout(() => setOffersKnown(true), limit);
     return () => clearTimeout(timer);
-  }, [offersKnown, waitingForIndex]);
+  }, [offersKnown, waitingForIndex, waitedForIndex]);
   return offersKnown;
 }
 

@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
 import {
+  INBOX_OFFERS_AFTER_INDEX_WAIT_MS,
   INBOX_OFFERS_WAIT_MS,
   InboxPage,
   type InboxContents,
@@ -709,7 +710,7 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     expect(firstRow()).not.toBeNull();
   });
 
-  it('holds the rows with no time limit while an offer waits for the index, then runs the limit once it is ready', () => {
+  it('holds the rows with no time limit while an offer waits for the index, then a longer limit once it is ready', () => {
     vi.useFakeTimers();
     const waiting = { ...READING, waitingForIndex: true };
     const view = page({ vaultTidy: waiting });
@@ -720,9 +721,14 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     expect(firstRow()).toBeNull();
     expect(screen.getByText('Call the bank').closest('[inert]')).not.toBeNull();
 
+    // Index ready: the offers are read all at once, so the page waits its longer limit.
     view.rerender({ vaultTidy: READING });
     act(() => {
       vi.advanceTimersByTime(INBOX_OFFERS_WAIT_MS);
+    });
+    expect(firstRow()).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(INBOX_OFFERS_AFTER_INDEX_WAIT_MS);
     });
     expect(firstRow()).not.toBeNull();
   });
