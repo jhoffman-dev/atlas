@@ -1,6 +1,14 @@
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { areaUnder, donutArcs, linearScale, linePath, niceTicks, ringDash } from './geometry.ts';
+import {
+  areaUnder,
+  donutArcs,
+  linearScale,
+  linePath,
+  niceTicks,
+  ringDash,
+  stackedSegments,
+} from './geometry.ts';
 
 const TAU = Math.PI * 2;
 
@@ -363,5 +371,75 @@ describe('ringDash', () => {
     expect(ringDash({ radius: 26, fraction: 1.4 })).toBe(ringDash({ radius: 26, fraction: 1 }));
     expect(ringDash({ radius: 26, fraction: -1 }).startsWith('0 ')).toBe(true);
     expect(ringDash({ radius: 26, fraction: Number.NaN }).startsWith('0 ')).toBe(true);
+  });
+});
+
+describe('stackedSegments', () => {
+  it('splits the width between the values, in the order given, with nothing left over', () => {
+    const segments = stackedSegments({ values: [174, 10, 2], width: 300 });
+
+    const sizes = segments.map((segment) => segment.size);
+    expect(sizes[0]).toBeCloseTo((174 / 186) * 300, 9);
+    expect(sizes[1]).toBeCloseTo((10 / 186) * 300, 9);
+    expect(sizes[2]).toBeCloseTo((2 / 186) * 300, 9);
+    const last = segments.at(-1);
+    // Exactly, not nearly: the last segment reaches the bar's own edge.
+    expect((last?.start ?? 0) + (last?.size ?? 0)).toBe(300);
+  });
+
+  it('ends at the width exactly however the shares round, with any trailing zeros at the edge', () => {
+    for (const values of [
+      [1, 1, 1],
+      [0.1, 0.2, 0.7],
+      [7, 3, 0],
+      [1e-9, 1, 1e-9, 0],
+    ]) {
+      const segments = stackedSegments({ values, width: 100 });
+      const last = segments.at(-1);
+      expect((last?.start ?? 0) + (last?.size ?? 0), JSON.stringify(values)).toBe(100);
+    }
+  });
+
+  it('shares out the width when the values would add up past the largest number', () => {
+    expect(
+      stackedSegments({ values: [Number.MAX_VALUE, Number.MAX_VALUE], width: 100 }).map(
+        (segment) => segment.size,
+      ),
+    ).toEqual([50, 50]);
+  });
+
+  it('gives a negative width no room rather than segments that run backwards', () => {
+    expect(stackedSegments({ values: [1, 1], width: -10 })).toEqual([
+      { start: 0, size: 0 },
+      { start: 0, size: 0 },
+    ]);
+  });
+
+  it('starts each segment where the one before it stopped', () => {
+    const segments = stackedSegments({ values: [1, 3], width: 100 });
+
+    expect(segments.map((segment) => segment.start)).toEqual([0, 25]);
+    expect(segments[1]?.start).toBeCloseTo((segments[0]?.start ?? 0) + (segments[0]?.size ?? 0));
+  });
+
+  it('gives a value nothing has no room, and keeps its place in the order', () => {
+    const segments = stackedSegments({ values: [3, 0, 1], width: 80 });
+
+    expect(segments.map((segment) => segment.size)).toEqual([60, 0, 20]);
+    expect(segments.map((segment) => segment.start)).toEqual([0, 60, 60]);
+  });
+
+  it('holds a negative or unreadable value to nothing rather than drawing it backwards', () => {
+    const segments = stackedSegments({ values: [-4, Number.NaN, 2], width: 50 });
+
+    expect(segments.map((segment) => segment.size)).toEqual([0, 0, 50]);
+  });
+
+  it('gives every segment nothing when there is nothing to share out', () => {
+    expect(stackedSegments({ values: [0, 0], width: 100 })).toEqual([
+      { start: 0, size: 0 },
+      { start: 0, size: 0 },
+    ]);
+    expect(stackedSegments({ values: [], width: 100 })).toEqual([]);
   });
 });

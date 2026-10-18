@@ -15,7 +15,7 @@ export { cardMeta } from './card-meta.ts';
 export type { CardMetaItem } from './card-meta.ts';
 export { countLabel, newNoteLabel, pluralNoun } from './count-label.ts';
 export type { PropertyIcon } from './property-icon.ts';
-export { noteTone, optionLabel, statusTone, STATUS_TONES } from './status-tone.ts';
+export { isKnownStatus, noteTone, optionLabel, statusTone, STATUS_TONES } from './status-tone.ts';
 export type { StatusTone } from './status-tone.ts';
 export {
   newPropertyKey,
