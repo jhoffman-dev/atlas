@@ -86,14 +86,18 @@ test('a run across 2,000 grouped rows leaves out a folded group in the middle', 
   await box(page, 1).click();
   await expect(count(page)).toHaveText('1 selected');
   // Doing's header is far below, so the sheet is scrolled until it is drawn.
+  // Looked for before each step, not after: a count taken right after a scroll
+  // reads the lines drawn for the position before it, and the header can be
+  // among them yet fall out of the band drawn for the new one.
   const doing = page.locator('.table__group-toggle', { hasText: /^Doing/ });
   await expect
     .poll(
       async () => {
+        if ((await doing.count()) === 1) return 1;
         await page.locator('.table__sheet').evaluate((element) => {
-          element.scrollTop += 1200;
+          element.scrollTop += 600;
         });
-        return doing.count();
+        return 0;
       },
       { timeout: 60_000, intervals: [100] },
     )

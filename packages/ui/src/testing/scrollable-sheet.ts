@@ -11,6 +11,7 @@
  */
 import { afterEach, beforeEach } from 'vitest';
 import { fireEvent } from '@testing-library/react';
+import { ROW_ESTIMATE } from '../grouped-rows.tsx';
 
 const SHEET = 'table__sheet';
 
@@ -35,7 +36,7 @@ export function scrollableSheet(): ScrollableSheet {
       configurable: true,
       get(this: HTMLElement) {
         // A row is as tall as the stylesheet makes it, so the virtualiser measures it so.
-        if (this.tagName === 'TR') return 44;
+        if (this.tagName === 'TR') return ROW_ESTIMATE;
         return isSheet(this) ? 880 : 0;
       },
     });

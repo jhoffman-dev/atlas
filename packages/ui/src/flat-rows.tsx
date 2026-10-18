@@ -1,7 +1,14 @@
 import { useRef, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { BoardRow } from '@atlas/domain';
-import { ROW_ESTIMATE, SCROLLER_ESTIMATE, Spacer, type LinePlace } from './grouped-rows.tsx';
+import {
+  OVERSCAN,
+  ROW_ESTIMATE,
+  rowsPerPage,
+  SCROLLER_ESTIMATE,
+  Spacer,
+  type LinePlace,
+} from './grouped-rows.tsx';
 import { useRowFocus } from './row-focus.ts';
 
 /**
@@ -32,13 +39,14 @@ export function FlatRows({
     count: rows.length,
     getScrollElement: () => scroller,
     estimateSize: () => ROW_ESTIMATE,
-    overscan: 12,
+    overscan: OVERSCAN,
     initialRect: SCROLLER_ESTIMATE,
   });
   const onKeyDown = useRowFocus({
     body,
     count: rows.length,
     stopKey: (index) => rows[index]?.path ?? null,
+    pageSize: () => rowsPerPage(scroller),
     scrollTo: (index) => virtualizer.scrollToIndex(index),
   });
 

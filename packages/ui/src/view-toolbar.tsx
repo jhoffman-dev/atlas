@@ -30,7 +30,7 @@ export interface ViewToolbarProps {
   controls?: ReactNode;
   /** The Layout menu, first of the actions: how the view is drawn. */
   layout?: ReactNode;
-  /** Save view, Save as new and Reset, while the view differs from its note. */
+  /** The notice bar of Save view, Save as new and Reset, while the view differs from its note. */
   pending?: ReactNode;
   /** After Sort: the view's other settings — grouping, which properties show. */
   settings?: ReactNode;
@@ -58,46 +58,51 @@ export interface ArchivedToggle {
 }
 
 /**
- * The row under a view's title, as in Board.dc.html: tabs to the other views
- * over the same notes on the left; filtering, sorting and adding on the right.
+ * The 44px view bar under the nav bar (Table.dc.html): underlined tabs to the
+ * other views over the same notes on the left; filtering, sorting and the
+ * view's settings as ghost buttons on the right, then the one primary "New".
  * When both will not fit — a calendar's month nav, a narrow split pane — the
- * right-hand group wraps under the tabs rather than squeezing them.
+ * right-hand group wraps under the tabs rather than squeezing them. The
+ * unsaved-changes notice bar sits above the view bar, not among its buttons.
  */
 export function ViewToolbar(props: ViewToolbarProps) {
   return (
-    <div className="view-toolbar">
-      <ViewTabs
-        tabs={props.tabs}
-        onOpenView={props.onOpenView}
-        editing={props.tabEditing}
-        popups={props.popups}
-      />
-      <div className="view-toolbar__actions">
-        {props.layout}
-        {props.controls}
-        {props.pending}
-        <FilterPopover
-          fields={props.fields}
-          filters={props.filters}
-          onChange={props.onChangeFilters}
-          onWantChoices={props.onWantFilterChoices}
-          slot={props.popups?.('filter')}
+    <>
+      {props.pending}
+      <div className="view-toolbar">
+        <ViewTabs
+          tabs={props.tabs}
+          onOpenView={props.onOpenView}
+          editing={props.tabEditing}
+          popups={props.popups}
         />
-        <SortPopover
-          fields={props.fields}
-          sorts={props.sorts}
-          onChange={props.onChangeSorts}
-          slot={props.popups?.('sort')}
-        />
-        {props.settings}
-        {props.selecting !== undefined && <SelectButton toggle={props.selecting} />}
-        {props.archived !== undefined && <ArchivedButton toggle={props.archived} />}
-        <button type="button" className="view-toolbar__new" onClick={props.onNew}>
-          <Icon name="plus" size={16} />
-          {props.newLabel}
-        </button>
+        <div className="view-toolbar__actions">
+          {props.layout}
+          {props.controls}
+          <FilterPopover
+            fields={props.fields}
+            filters={props.filters}
+            onChange={props.onChangeFilters}
+            onWantChoices={props.onWantFilterChoices}
+            slot={props.popups?.('filter')}
+          />
+          <SortPopover
+            fields={props.fields}
+            sorts={props.sorts}
+            onChange={props.onChangeSorts}
+            slot={props.popups?.('sort')}
+          />
+          {props.settings}
+          {props.selecting !== undefined && <SelectButton toggle={props.selecting} />}
+          {props.archived !== undefined && <ArchivedButton toggle={props.archived} />}
+          <span className="view-toolbar__rule" aria-hidden="true" />
+          <button type="button" className="view-toolbar__new" onClick={props.onNew}>
+            <Icon name="plus" size={14} />
+            {props.newLabel}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
