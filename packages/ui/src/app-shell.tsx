@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import { Icon } from './icon.tsx';
 
 /**
- * The window: the sidebar sitting straight on the ground colour, and the work
- * in raised, rounded panels beside it — one panel, or one per pane when the
- * window is split.
+ * The window: the sidebar on the ground colour behind a hairline, and the work
+ * edge to edge on the surface beside it — one panel, or one per pane when the
+ * window is split, with a hairline between them.
  */
 export function AppShell({
   sidebar,

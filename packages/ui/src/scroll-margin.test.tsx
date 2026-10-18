@@ -106,9 +106,10 @@ describe('VaultTree in a scroller it shares', () => {
     render(<SharedTree rows={rows} />);
 
     // The setup's scroller is 800px tall; the tree starts 300px down, so 500px
-    // of it — 17 rows — can be on screen, plus the 12 the virtualiser keeps
-    // either side. Counted as if the tree started at the top, it would be 39.
-    expect(screen.getAllByRole('treeitem')).toHaveLength(17 + 12);
+    // of it — 18 rows at the 29px pitch — can be on screen, plus the 12 the
+    // virtualiser keeps either side. Counted as if the tree started at the
+    // top, it would be 40.
+    expect(screen.getAllByRole('treeitem')).toHaveLength(18 + 12);
   });
 
   it('is not a scroller of its own', () => {
@@ -164,7 +165,7 @@ describe('VaultTree when what sits above it changes height', () => {
     let treeTop = 300;
     placeElements((element) => (element.classList.contains('tree') ? treeTop : 0));
     const { container } = render(<SharedTree rows={rows} />);
-    expect(screen.getAllByRole('treeitem')).toHaveLength(17 + 12);
+    expect(screen.getAllByRole('treeitem')).toHaveLength(18 + 12);
 
     // A row above wraps once a font arrives: the tree is now 600px down.
     treeTop = 600;
@@ -261,7 +262,7 @@ describe('useScrollMargin — when it reads the layout', () => {
     let treeTop = 300;
     placeElements((element) => (element.classList.contains('tree') ? treeTop : 0));
     const { container } = render(<SectionedTree />);
-    expect(screen.getAllByRole('treeitem')).toHaveLength(17 + 12);
+    expect(screen.getAllByRole('treeitem')).toHaveLength(18 + 12);
 
     // Sections reordered: the tree is 600px down the scroller now, and no size changed.
     treeTop = 600;

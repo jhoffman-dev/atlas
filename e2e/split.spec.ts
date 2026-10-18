@@ -276,8 +276,10 @@ test('app chrome does not sit on top of a pane control', async ({ page }) => {
   await openVault(page);
   await splitOnToday(page);
 
-  // The whole theme control, not one of its buttons.
-  await expectClearOfPaneControls(page, page.getByRole('radiogroup', { name: 'Theme' }));
+  await expectClearOfPaneControls(
+    page,
+    page.getByRole('button', { name: /^Switch to (light|dark) theme$/ }),
+  );
 
   await page.getByRole('button', { name: 'Hide sidebar' }).click();
   await expectClearOfPaneControls(page, page.getByRole('button', { name: 'Show sidebar' }));

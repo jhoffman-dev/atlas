@@ -70,9 +70,14 @@
   --radius-hero: 0;
   --radius-pill: 999px;
 
-  /* The sidebar's measurements. */
-  --sidebar-width: 248px;
-  --sidebar-row: 29px;
+  /* The sidebar's measurements (Sidebar.dc.html): its width, its padding, a
+     row's height, and how far a row's last control stops short of the row's
+     end — 10px, so it clears the overlay scrollbar drawn over the sidebar's
+     edge (sidebar.css, #52). */
+  --sidebar-width: 224px;
+  --sidebar-pad: 8px;
+  --sidebar-row: 28px;
+  --sidebar-row-end: 10px;
   /* Content runs edge to edge on the surface: no panel inset from the ground. */
   --shell-inset: 0px;
 }

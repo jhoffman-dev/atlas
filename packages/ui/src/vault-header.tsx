@@ -147,7 +147,7 @@ function VaultName({ name }: { name: string }) {
   return (
     <>
       <span className="vault-header__label">{name}</span>
-      <Icon name="chevron" size={14} className="vault-header__chevron" />
+      <Icon name="chevron" size={12} className="vault-header__chevron" />
     </>
   );
 }

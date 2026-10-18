@@ -27,8 +27,8 @@ import {
 } from './vault-tree-row.tsx';
 import { stickyOffsetOf, useScrollMargin } from './scroll-margin.ts';
 
-/** A row's pitch: 29px tall with a pixel between rows, as in the mockup. */
-const ROW_HEIGHT = 30;
+/** A row's pitch: 28px tall with a pixel between rows, as in the mockup (--sidebar-row). */
+const ROW_HEIGHT = 29;
 const ROW_GAP = 1;
 const INDENT = 14;
 /** How long a typed prefix keeps collecting letters before it starts over. */

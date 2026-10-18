@@ -19,16 +19,19 @@ const storeHolding = (initial: Theme | null): ThemeStore & { written: Theme[] } 
   };
 };
 
+/** The one button, named for the theme it would switch to. */
+const toDark = () => screen.getByRole('button', { name: 'Switch to dark theme' });
+const toLight = () => screen.getByRole('button', { name: 'Switch to light theme' });
+
 afterEach(() => {
   delete document.documentElement.dataset['theme'];
 });
 
 describe('ThemeSwitch', () => {
-  it('starts on the theme that was remembered', () => {
+  it('names the theme it switches to, not the one in force', () => {
     render(<ThemeSwitch store={storeHolding('dark')} />);
-    expect(screen.getByRole('radio', { name: 'Dark theme' }).getAttribute('aria-checked')).toBe(
-      'true',
-    );
+    expect(toLight()).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Switch to dark theme' })).toBeNull();
   });
 
   it('applies the remembered theme to the document', () => {
@@ -38,9 +41,7 @@ describe('ThemeSwitch', () => {
 
   it('falls back to light when nothing has been chosen and the system says nothing', () => {
     render(<ThemeSwitch store={storeHolding(null)} />);
-    expect(screen.getByRole('radio', { name: 'Light theme' }).getAttribute('aria-checked')).toBe(
-      'true',
-    );
+    expect(toDark()).toBeDefined();
     expect(document.documentElement.dataset['theme']).toBe('light');
   });
 
@@ -51,26 +52,35 @@ describe('ThemeSwitch', () => {
     );
     render(<ThemeSwitch store={storeHolding(null)} />);
     expect(document.documentElement.dataset['theme']).toBe('dark');
+    expect(toLight()).toBeDefined();
     vi.unstubAllGlobals();
   });
 
-  it('switches the document over when dark is chosen', async () => {
+  it('switches the document over to dark, and then offers light', async () => {
     render(<ThemeSwitch store={storeHolding('light')} />);
-    await userEvent.click(screen.getByRole('radio', { name: 'Dark theme' }));
+    await userEvent.click(toDark());
     expect(document.documentElement.dataset['theme']).toBe('dark');
+    expect(toLight()).toBeDefined();
   });
 
   it('switches back to light', async () => {
     render(<ThemeSwitch store={storeHolding('dark')} />);
-    await userEvent.click(screen.getByRole('radio', { name: 'Light theme' }));
+    await userEvent.click(toLight());
     expect(document.documentElement.dataset['theme']).toBe('light');
+    expect(toDark()).toBeDefined();
   });
 
   it('remembers the choice for next time', async () => {
     const store = storeHolding('light');
     render(<ThemeSwitch store={store} />);
-    await userEvent.click(screen.getByRole('radio', { name: 'Dark theme' }));
+    await userEvent.click(toDark());
     expect(store.written).toEqual(['dark']);
+  });
+
+  it('is one control, a button rather than a pair of radios', () => {
+    render(<ThemeSwitch store={storeHolding('light')} />);
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.queryByRole('radiogroup')).toBeNull();
   });
 
   // A store that cannot remember — a private window, say — reads as "nothing
@@ -80,7 +90,7 @@ describe('ThemeSwitch', () => {
   it('still switches the theme when the store cannot remember anything', async () => {
     const forgetful: ThemeStore = { read: () => null, write: () => {} };
     render(<ThemeSwitch store={forgetful} />);
-    await userEvent.click(screen.getByRole('radio', { name: 'Dark theme' }));
+    await userEvent.click(toDark());
     expect(document.documentElement.dataset['theme']).toBe('dark');
   });
 });

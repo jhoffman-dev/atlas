@@ -95,7 +95,7 @@ for (const size of [
       const heights = await rows.evaluateAll((items) =>
         items.map((item) => item.getBoundingClientRect().height),
       );
-      expect(heights, `${section}'s rows`).toEqual(Array.from({ length: EACH }, () => 29));
+      expect(heights, `${section}'s rows`).toEqual(Array.from({ length: EACH }, () => 28));
     }
 
     // The quick rows and the footer stay put while the sections scroll.
@@ -295,7 +295,7 @@ test('shutting the sections above Pages leaves a tree row under every point of i
   }
 
   // From just under the Pages heading to the bottom of the scroller, a row a
-  // pitch (30px) at a time: each point is on a row, and on the row after the
+  // pitch (29px) at a time: each point is on a row, and on the row after the
   // one above it.
   const heading = await nav(page).locator('#sidebar-userSpace-heading').boundingBox();
   const area = await scroller(page).boundingBox();
@@ -310,7 +310,7 @@ test('shutting the sections above Pages leaves a tree row under every point of i
       { x: area.x + 60, y },
     );
   const rows: number[] = [];
-  for (let y = heading.y + heading.height + 15; y < area.y + area.height - 4; y += 30) {
+  for (let y = heading.y + heading.height + 15; y < area.y + area.height - 4; y += 29) {
     rows.push(await under(y));
   }
   expect(rows.length).toBeGreaterThan(5);

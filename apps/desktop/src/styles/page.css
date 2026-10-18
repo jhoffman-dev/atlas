@@ -17,26 +17,22 @@
   min-width: 0;
 }
 
+/* The nav bar (FlowTable.dc.html): 40px, a hairline under it, 28px controls. */
 .page-bar__row {
   align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
-  gap: var(--space-2);
-  height: 52px;
+  gap: 4px;
+  height: 40px;
   min-width: 0;
-  padding: 0 16px 0 24px;
-}
-
-/* With the sidebar hidden, its way back takes the corner, and the breadcrumb
-   moves over rather than sitting under it. */
-.page-bar__row:has(> .page-bar__button:first-child),
-.page-bar__row:has(> .page-bar__history:first-child) {
-  padding-left: 12px;
+  padding: 0 10px;
 }
 
 /* The controls never give way: closing, the menu and the star stay whole and
    inside the pane however narrow it is. The breadcrumb gives way instead —
    the folder first, then the name, each to an ellipsis. */
 .page-bar__row > .page-bar__button,
+.page-bar__row > .page-bar__actions,
 .page-bar__row > .star {
   flex: none;
 }
@@ -45,7 +41,7 @@
 .page-bar__history {
   display: flex;
   flex: none;
-  gap: 2px;
+  gap: 4px;
 }
 
 .page-bar__button:disabled {
@@ -58,8 +54,9 @@
   align-items: center;
   color: var(--ink-3);
   display: flex;
-  font-size: var(--text-ui);
-  gap: var(--space-2);
+  font-size: var(--text-body);
+  gap: 6px;
+  margin-left: 6px;
   min-width: 0;
   overflow: hidden;
 }
@@ -72,7 +69,7 @@
    bare slash. Narrower than that, the container query drops it whole. */
 .page-bar__parent {
   flex-shrink: 4;
-  font-weight: 600;
+  font-weight: 400;
   min-width: 2.5em;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -81,10 +78,19 @@
 
 .page-bar__name {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 500;
   max-width: 420px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What the page holds, in a few quiet words after its name: "186 tasks". */
+.page-bar__count {
+  color: var(--ink-3);
+  flex: none;
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -92,20 +98,27 @@
   flex: 1;
 }
 
+/* The view's own buttons, before the save word. */
+.page-bar__actions {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
 .page-bar__status {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 600;
-  margin-right: 6px;
+  font-size: var(--text-meta);
+  font-weight: 400;
+  margin: 0 6px;
   white-space: nowrap;
 }
 
 .page-bar__button,
 .page-bar .star {
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-control);
   color: var(--ink-2);
-  height: 32px;
-  width: 32px;
+  height: 28px;
+  width: 28px;
 }
 
 .page-bar .star {
@@ -131,11 +144,9 @@
    word leaves the row but not the page — it is still the live region that
    announces a save; then Back and Forward go, which ⌘[ and ⌘] still do. */
 @container page-bar (max-width: 440px) {
-  .page-bar__row,
-  .page-bar__row:has(> .page-bar__button:first-child),
-  .page-bar__row:has(> .page-bar__history:first-child) {
-    gap: 4px;
-    padding: 0 8px;
+  .page-bar__row {
+    gap: 2px;
+    padding: 0 6px;
   }
 
   .page-bar__parent,

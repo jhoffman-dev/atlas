@@ -3,7 +3,10 @@ import { Icon } from './icon.tsx';
 import { ThemeSwitch } from './theme-switch.tsx';
 import type { ThemeStore } from './theme.ts';
 
-/** The foot of the sidebar: Settings, how sync stands when the vault syncs, and light or dark. */
+/**
+ * The foot of the sidebar, above a hairline: Settings, how sync stands when
+ * the vault syncs, and the sun-or-moon theme button.
+ */
 export function SidebarFooter({
   themeStore,
   onOpenSettings,

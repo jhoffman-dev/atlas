@@ -110,3 +110,35 @@ describe('PageBar pane buttons', () => {
     expect(screen.queryByRole('button', { name: 'Close pane' })).toBeNull();
   });
 });
+
+describe('PageBar count and actions', () => {
+  it('shows the count beside the name, and the actions before the save word', () => {
+    render(
+      <PageBar
+        crumb={crumb}
+        name="Task table"
+        count="186 tasks"
+        status="Saved"
+        actions={<button type="button">Filter</button>}
+      />,
+    );
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(breadcrumb.textContent).toContain('Task table');
+    expect(breadcrumb.textContent).toContain('186 tasks');
+    const filter = screen.getByRole('button', { name: 'Filter' });
+    const status = screen.getByRole('status');
+    expect(
+      breadcrumb.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(filter.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('draws neither a count nor an actions slot when it is given neither', () => {
+    const { container } = render(<PageBar crumb={crumb} name="Task table" status="Saved" />);
+    expect(container.querySelector('.page-bar__count')).toBeNull();
+    expect(container.querySelector('.page-bar__actions')).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).textContent).toBe(
+      'Pages/Task table',
+    );
+  });
+});
