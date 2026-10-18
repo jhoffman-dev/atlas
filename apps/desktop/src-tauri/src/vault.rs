@@ -1790,7 +1790,10 @@ mod create_tests {
     fn reports_the_time_the_new_note_was_left_at() {
         let vault = tempdir().unwrap();
         let modified = create_note_at(vault.path(), "Untitled.md", "# Untitled\n").unwrap();
-        assert_eq!(read_text(vault.path(), "Untitled.md").unwrap().modified, modified);
+        assert_eq!(
+            read_text(vault.path(), "Untitled.md").unwrap().modified,
+            modified
+        );
     }
 
     /// The reported time is the version a first save is checked against, as a
