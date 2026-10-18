@@ -9,7 +9,7 @@
   "actions": {
     "Click a sidebar note": {
       "commits": 11,
-      "renders": 357,
+      "renders": 335,
       "calls": {
         "list_directory": 4,
         "read_text_file": 3
@@ -17,7 +17,7 @@
     },
     "Switch notes": {
       "commits": 11,
-      "renders": 389,
+      "renders": 367,
       "calls": {
         "list_directory": 4,
         "read_text_file": 3
@@ -29,17 +29,17 @@
       "calls": {}
     },
     "One autosave and its watcher echo": {
-      "commits": 31,
-      "renders": 2700,
+      "commits": 20,
+      "renders": 1522,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 15,
+        "index_query": 14,
         "index_stats": 3,
-        "list_directory": 14,
+        "list_directory": 10,
         "list_notes": 4,
-        "read_notes": 14,
+        "read_notes": 4,
         "write_text_file": 3
       }
     },
@@ -50,7 +50,7 @@
     },
     "Open Settings": {
       "commits": 13,
-      "renders": 1098,
+      "renders": 1043,
       "calls": {
         "api_status": 3,
         "gh_repo_list": 3,
@@ -64,7 +64,7 @@
     },
     "Open Today": {
       "commits": 6,
-      "renders": 730,
+      "renders": 713,
       "calls": {
         "index_query": 6,
         "list_directory": 4
@@ -77,17 +77,17 @@
     },
     "Tick a task on Today": {
       "commits": 37,
-      "renders": 3754,
+      "renders": 2416,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_open": 3,
         "index_put": 3,
-        "index_query": 28,
+        "index_query": 27,
         "index_stats": 3,
-        "list_directory": 20,
+        "list_directory": 16,
         "list_notes": 4,
-        "read_notes": 15,
+        "read_notes": 5,
         "read_text_file": 5,
         "write_text_file": 3
       },
@@ -98,7 +98,7 @@
     },
     "Open the Inbox": {
       "commits": 12,
-      "renders": 999,
+      "renders": 931,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,
@@ -108,8 +108,8 @@
       }
     },
     "Decide an Inbox row": {
-      "commits": 42,
-      "renders": 3509,
+      "commits": 32,
+      "renders": 2332,
       "calls": {
         "create_folder": 3,
         "index_manifest": 4,
@@ -118,10 +118,10 @@
         "index_query": 46,
         "index_remove": 3,
         "index_stats": 3,
-        "list_directory": 26,
+        "list_directory": 21,
         "list_notes": 7,
         "move_entry": 3,
-        "read_notes": 21,
+        "read_notes": 11,
         "read_text_file": 8,
         "write_text_file": 3
       },
@@ -131,7 +131,7 @@
     },
     "Open a person's page": {
       "commits": 13,
-      "renders": 537,
+      "renders": 515,
       "calls": {
         "index_query": 6,
         "list_directory": 5,
@@ -140,7 +140,7 @@
     },
     "Open the 420-row table": {
       "commits": 9,
-      "renders": 1011,
+      "renders": 993,
       "calls": {
         "index_query": 4
       }
@@ -153,17 +153,17 @@
       }
     },
     "Drag a board card": {
-      "commits": 69,
-      "renders": 5646,
+      "commits": 60,
+      "renders": 3526,
       "calls": {
         "index_manifest": 4,
         "index_notes_of_type": 4,
         "index_put": 3,
-        "index_query": 16,
+        "index_query": 15,
         "index_stats": 3,
-        "list_directory": 15,
+        "list_directory": 11,
         "list_notes": 4,
-        "read_notes": 15,
+        "read_notes": 5,
         "read_text_file": 3,
         "write_text_file": 3
       }
