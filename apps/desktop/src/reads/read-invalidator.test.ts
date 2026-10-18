@@ -182,7 +182,7 @@ describe('a read that failed', () => {
     stops.forEach((stop) => stop());
   });
 
-  it('reads the sidebar’s marks and the quick counts again on every news of their vault', async () => {
+  it('reads the sidebar’s marks and counts again on every news of their vault', async () => {
     const shown: readonly VaultRead[] = [
       'sidebar-marks',
       'quick-counts',
@@ -199,7 +199,7 @@ describe('a read that failed', () => {
     expect(await settledReads()).toEqual({
       '/one:sidebar-marks': 3,
       '/one:quick-counts': 3,
-      '/one:type-counts': 1,
+      '/one:type-counts': 3,
       '/one:settings': 1,
       '/two:sidebar-marks': 1,
       '/two:quick-counts': 1,

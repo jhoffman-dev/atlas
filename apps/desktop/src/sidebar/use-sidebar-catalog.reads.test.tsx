@@ -7,12 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { TYPE_COUNTS_QUERY_MARK, type ObjectType } from '@atlas/domain';
-import {
-  fakeIndexPort,
-  fakeVaultFs,
-  readsMadeFromFacets,
-  readsTouchedByPaths,
-} from '@atlas/application';
+import { fakeIndexPort, fakeVaultFs, readsTouchedByPaths } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
 import { queryWrapper } from '../reads/query-wrapper.tsx';
 import { createReadInvalidator } from '../reads/read-invalidator.ts';
@@ -111,22 +106,18 @@ describe('useSidebarCatalog: what is read again', () => {
     expect(hook.result.current.sidebarTypes).toBe(sidebarTypes);
   });
 
-  it('counts the types again only when the index says a note’s type may have changed', async () => {
+  it('counts the types again on the index’s news, though no write changed the graph', async () => {
     const ports = countingVault();
     const { hook, reads } = renderCatalog(ports);
     await waitFor(() => expect(hook.result.current.sidebarTypes[0]?.count).toBe(2));
     await settle();
     const before = ports.counts().length;
 
-    // A tick: the index has news, but no write changed the graph.
-    reads.indexMoved('v');
-    await settle();
-    expect(ports.counts().length - before).toBe(0);
-
-    // A note given a type: the graph changed, and the count is read on the index's news.
+    // A project restored from the archive: its `para` changed, not its `type`, and
+    // the count leaves archived projects out — the graph facet cannot tell (#293).
     ports.tasks.count = 3;
-    reads.invalidateWithIndex('v', readsMadeFromFacets(['graph']));
     reads.indexMoved('v');
+
     await waitFor(() => expect(hook.result.current.sidebarTypes[0]?.count).toBe(3));
     expect(ports.counts().length - before).toBe(1);
   });

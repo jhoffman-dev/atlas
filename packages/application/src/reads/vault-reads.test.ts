@@ -85,8 +85,8 @@ describe('which file reads a sync’s note changes make stale', () => {
 });
 
 describe('which reads an index write’s facets make stale', () => {
-  it('is the graph and the types’ counts for the graph: a count is its notes’ `type`', () => {
-    expect([...readsMadeFromFacets(['graph'])].sort()).toEqual(['graph', 'type-counts']);
+  it('is the graph alone for the graph: a type’s count also reads `para`, which no facet holds', () => {
+    expect([...readsMadeFromFacets(['graph'])]).toEqual(['graph']);
   });
 
   it('is the tags alone for the tags', () => {
@@ -95,17 +95,17 @@ describe('which reads an index write’s facets make stale', () => {
 
   it('is nothing for no facet, and both facets’ reads for both', () => {
     expect([...readsMadeFromFacets([])]).toEqual([]);
-    expect([...readsMadeFromFacets(['graph', 'tags'])].sort()).toEqual([
-      'graph',
-      'tags',
-      'type-counts',
-    ]);
+    expect([...readsMadeFromFacets(['graph', 'tags'])].sort()).toEqual(['graph', 'tags']);
   });
 });
 
 describe('the reads the index’s every news makes stale', () => {
-  it('is the sidebar’s marks and the quick counts, which no facet holds', () => {
-    expect([...READS_ON_INDEX_NEWS].sort()).toEqual(['quick-counts', 'sidebar-marks']);
+  it('is the sidebar’s marks and its counts, which no facet holds', () => {
+    expect([...READS_ON_INDEX_NEWS].sort()).toEqual([
+      'quick-counts',
+      'sidebar-marks',
+      'type-counts',
+    ]);
   });
 
   it('leaves no read with no way to be made again', () => {
