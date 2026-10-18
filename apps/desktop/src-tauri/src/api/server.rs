@@ -141,8 +141,8 @@ pub fn bind(preferred: u16) -> std::io::Result<TcpListener> {
     TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
 }
 
-/// How long `bind_released` waits for a port this process has just stopped
-/// listening on. `Running::stop` returns once the listener is closed, but a
+/// How long after this process stops listening on a port `bind_released`
+/// waits for it. `Running::stop` returns once the listener is closed, but a
 /// child process being spawned at that moment (git, the model) holds a copy of
 /// every descriptor until it has exec'd: the port is busy for milliseconds
 /// more, and longer under load.
@@ -152,19 +152,41 @@ const RELEASE_WAIT: Duration = Duration::from_secs(2);
 /// process has closed its copy, so trying is the only way to know.
 const RELEASE_RETRY: Duration = Duration::from_millis(5);
 
+/// How long after a port is released it is waited for, and what happens
+/// between tries.
+#[derive(Clone)]
+pub struct ReleaseWait {
+    pub within: Duration,
+    /// Sleeps `RELEASE_RETRY` in the app; a test closes its copy here.
+    pub between_tries: Arc<dyn Fn() + Send + Sync>,
+}
+
+impl Default for ReleaseWait {
+    fn default() -> Self {
+        ReleaseWait {
+            within: RELEASE_WAIT,
+            between_tries: Arc::new(|| std::thread::sleep(RELEASE_RETRY)),
+        }
+    }
+}
+
 /// `bind`, for a port this process has just stopped listening on: busy only
-/// because a child still holds the old listener, it is waited for rather than
-/// given up for one the OS chooses. Still busy after `RELEASE_WAIT`, it is
-/// someone else's, and `bind` falls back as it does for any taken port.
-pub fn bind_released(port: u16) -> std::io::Result<TcpListener> {
-    let deadline = Instant::now() + RELEASE_WAIT;
+/// because a child still holds the old listener, it is tried again until
+/// `until` rather than given up for one the OS chooses. Any failure is tried
+/// again, not only "in use": a passing one (out of descriptors, say) is no
+/// reason to move. Still failing at `until`, the port is someone else's, and
+/// `bind` falls back as it does for any taken port.
+pub fn bind_released(
+    port: u16,
+    until: Instant,
+    wait: &ReleaseWait,
+) -> std::io::Result<TcpListener> {
     loop {
         match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {
             Ok(listener) => return Ok(listener),
-            Err(error)
-                if error.kind() == std::io::ErrorKind::AddrInUse && Instant::now() < deadline =>
-            {
-                std::thread::sleep(RELEASE_RETRY)
+            Err(error) if Instant::now() < until => {
+                log::debug!("API port {port} is not free yet: {error}");
+                (wait.between_tries)();
             }
             Err(_) => return bind(port),
         }
