@@ -162,3 +162,55 @@ describe('updateFrontmatter, on a list used as a key', () => {
     expect(() => updateFrontmatter(aliased, { k: [1] })).toThrow(/would be renamed/);
   });
 });
+
+describe('updateFrontmatter, given a cycle of another length than the one stored', () => {
+  // `x = [x]` and `y = [[y]]` read the same at every depth. Comparing them by
+  // one partner per object alternated between pairings and never ended.
+  const listOfItself = (depth: number) => {
+    const outer: unknown[] = [];
+    let inner = outer;
+    for (let at = 1; at < depth; at += 1) {
+      const next: unknown[] = [];
+      inner.push(next);
+      inner = next;
+    }
+    inner.push(outer);
+    return outer;
+  };
+  const mapOfItself = (depth: number) => {
+    const outer: Record<string, unknown> = {};
+    let inner = outer;
+    for (let at = 1; at < depth; at += 1) {
+      const next: Record<string, unknown> = {};
+      inner['m'] = next;
+      inner = next;
+    }
+    inner['m'] = outer;
+    return outer;
+  };
+
+  it.each([
+    ['a one-list cycle, given two', block('a: &e [*e]', 't: T'), listOfItself(2)],
+    ['a two-list cycle, given one', block('a: &e [[*e]]', 't: T'), listOfItself(1)],
+    ['a two-list cycle, given three', block('a: &e [[*e]]', 't: T'), listOfItself(3)],
+    ['a one-map cycle, given two', block('a: &e', '  m: *e', 't: T'), mapOfItself(2)],
+    ['a two-map cycle, given one', block('a: &e', '  m:', '    m: *e', 't: T'), mapOfItself(1)],
+  ])('%s: reads the same, so the block keeps every byte', (_, before, given) => {
+    expect(updateFrontmatter(before, { a: given })).toBe(before);
+  });
+});
+
+describe('updateFrontmatter, on two spellings of one key inside a map', () => {
+  const before = block('m:', '  1: one', '  "1": two', 't: T');
+
+  it('a set edits the spelling the reader reads, the other keeps its bytes', () => {
+    const written = updateFrontmatter(before, { m: { '1': 'three' } });
+    expect(parseFrontmatterProperties(written)).toEqual({ m: { '1': 'three' }, t: 'T' });
+    expect(written).toBe(block('m:', '  1: one', '  "1": three', 't: T'));
+  });
+
+  it('a remove removes every spelling', () => {
+    const written = updateFrontmatter(before, { m: { x: 1 } });
+    expect(parseFrontmatterProperties(written)).toEqual({ m: { x: 1 }, t: 'T' });
+  });
+});
