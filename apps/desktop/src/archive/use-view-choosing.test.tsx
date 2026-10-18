@@ -38,7 +38,10 @@ describe('useViewChoosing', () => {
     expect(actions.map((action) => action.label)).toEqual(['Archive 2 notes', 'Unarchive note']);
     act(() => actions[0]?.onRun());
     expect(commands.archive).toHaveBeenCalledWith(['tasks/a.md', 'tasks/b.md']);
-    await waitFor(() => expect(hook.result.current.count).toBe(0));
+    // Archiving lets go of what it archived; the archived note it was not given stays.
+    await waitFor(() =>
+      expect([...hook.result.current.selection.selected]).toEqual(['Archive/tasks/c.md']),
+    );
   });
 
   it('keeps the choice while the batch runs, then only what could not go (A20-05)', async () => {
@@ -82,6 +85,57 @@ describe('useViewChoosing', () => {
       'tasks/b.md',
       'tasks/c.md',
     ]);
+  });
+
+  it('chooses every row again when every one fails', async () => {
+    const { commands, hook } = setUp();
+    vi.mocked(commands.archive).mockResolvedValue(settled(['tasks/a.md', 'tasks/b.md']));
+    act(() => hook.result.current.setOn(true));
+    act(() => {
+      hook.result.current.selection.onToggle('tasks/a.md');
+      hook.result.current.selection.onToggle('tasks/b.md');
+    });
+    await act(async () => hook.result.current.actions[0]?.onRun());
+    expect([...hook.result.current.selection.selected].sort()).toEqual([
+      'tasks/a.md',
+      'tasks/b.md',
+    ]);
+  });
+
+  it('settles each action on its own rows, leaving the others chosen', async () => {
+    const { commands, hook } = setUp();
+    act(() => hook.result.current.setOn(true));
+    act(() => {
+      hook.result.current.selection.onToggle('tasks/a.md');
+      hook.result.current.selection.onToggle('Archive/tasks/c.md');
+    });
+    await act(async () => hook.result.current.actions[0]?.onRun());
+    expect(commands.archive).toHaveBeenCalledWith(['tasks/a.md']);
+    expect([...hook.result.current.selection.selected]).toEqual(['Archive/tasks/c.md']);
+  });
+
+  it('does not choose a row again for a failure at a path it was not given', async () => {
+    const { commands, hook } = setUp();
+    // A stamp failure lands at the note's new path; a link failure at another note.
+    vi.mocked(commands.archive).mockResolvedValue(
+      settled(['Archive/tasks/a.md', 'notes/linking.md']),
+    );
+    act(() => hook.result.current.setOn(true));
+    act(() => hook.result.current.selection.onToggle('tasks/a.md'));
+    await act(async () => hook.result.current.actions[0]?.onRun());
+    expect(hook.result.current.count).toBe(0);
+  });
+
+  it('keeps the choice, and says why, when a command throws instead of settling', async () => {
+    const { commands, hook } = setUp();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(commands.archive).mockRejectedValue(new Error('vault gone'));
+    act(() => hook.result.current.setOn(true));
+    act(() => hook.result.current.selection.onToggle('tasks/a.md'));
+    await act(async () => hook.result.current.actions[0]?.onRun());
+    await waitFor(() => expect(logged).toHaveBeenCalled());
+    expect(hook.result.current.count).toBe(1);
+    logged.mockRestore();
   });
 
   it('keeps the whole choice when the batch did not start (A20-05)', async () => {
