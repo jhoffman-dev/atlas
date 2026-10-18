@@ -11,7 +11,9 @@ import {
   type NavigationHistory,
   type NavigationPlace,
 } from './navigation-history.ts';
-import { MAX_PANES } from './pane-layout.ts';
+
+/** How many panes the window can show side by side. */
+export const MAX_PANES = 2;
 
 /**
  * The window as tabs in panes (docs/design/tab-model.md).

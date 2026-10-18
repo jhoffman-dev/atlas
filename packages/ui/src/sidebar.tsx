@@ -119,7 +119,7 @@ export function Sidebar({
   dashboards: readonly SidebarEntry[];
   quick: readonly SidebarQuickView[];
   tree: SidebarTree;
-  /** The one page to mark as where you are, decided by `activeSidebarPage`. */
+  /** The one page to mark as where you are, decided by `activeSidebarPageOf`. */
   active: ActiveSidebarPage;
   sectionStore: SectionStore;
   /** The order the vault keeps the sections in, and how to change it; left out, they stay put. */

@@ -2077,6 +2077,149 @@ interface Editor {
 }
 
 /** The live editor of the shown note in a pane: TipTap hangs it on its element. */
+/*
+ * Pages as tabs (docs/design/tab-model.md, PR B): each page reads its own
+ * hooks in its container, so its data landing or changing draws the
+ * container and not the window around it.
+ */
+describe('pages as tabs', () => {
+  const pane = (which: 1 | 2) => screen.getByRole('region', { name: `Pane ${which}` });
+  /** Lets whatever an open set going settle, so a count that follows is the action's alone. */
+  const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+  const oneNote = () =>
+    fakeVault({
+      remembered: location,
+      directories: { '': [entry('recipes.md', 'file')] },
+      files: { 'recipes.md': '# Recipes\n\nSourdough.\n' },
+    });
+  /** The app on `vault`, with an index that answers as `index` says. */
+  const renderOn = (vault: ReturnType<typeof fakeVault>, index = fakeIndexPorts(vault)) =>
+    render(
+      <App
+        appInfo={appInfo}
+        vault={vault}
+        notes={notesFor(vault)}
+        index={index}
+        sources={sources}
+        links={{ open: async () => {} }}
+        snapshot={{ capture: () => Promise.reject(new Error('no pictures in these tests')) }}
+        api={api}
+        chat={chat}
+        activity={activityIn(memoryActivityStore())}
+        sync={noSync}
+        googleCalendar={googleCalendar}
+        granola={granola}
+        globalCapture={fakeGlobalCapture().ports}
+      />,
+    );
+  /** Runs a palette command by its label. */
+  async function runCommand(label: string) {
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await screen.findByLabelText('Search the vault'), label);
+    await userEvent.click(await screen.findByRole('option', { name: new RegExp(`^${label}`) }));
+  }
+
+  it('opening Today draws its container as the day lands, and never the window, the shell or the frames', async () => {
+    renderOn(oneNote());
+    await screen.findByRole('treeitem', { name: 'recipes' });
+    await settle();
+
+    startCountingRenders();
+    await runCommand('Today');
+    await screen.findByRole('article', { name: 'Today' });
+    // The day read and landed: the page says what it holds.
+    await screen.findByText(/nothing needs you/);
+    await settle();
+    const { renders } = stopCountingRenders();
+
+    // Mounted, then drawn again as its read landed: the container is where the page's data lands.
+    expect(renders.TodayContainer ?? 0).toBeGreaterThanOrEqual(2);
+    expect(renders.AppWindow ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+  });
+
+  it('deciding an Inbox row draws the Inbox container alone: not the window, the shell, the tree or the frames', async () => {
+    const task = 'Inbox/Loose task.md';
+    const vault = fakeVault({
+      remembered: location,
+      directories: { '': [entry('Inbox', 'directory')], Inbox: [entry(task, 'file')] },
+      files: { [task]: '---\ntype: task\n---\n# Loose task\n' },
+    });
+    const index = fakeIndexPorts(vault);
+    // The index lists one task waiting, and counts it; every other read is empty.
+    index.index.query = async (sql: string) =>
+      sql.includes('"importStamped"')
+        ? {
+            columns: ['path', 'title', 'type', 'modified'],
+            rows: [[task, 'Loose task', 'task', 1]],
+            truncated: false,
+          }
+        : sql.includes('AS "total"')
+          ? { columns: ['total'], rows: [[1]], truncated: false }
+          : { columns: [], rows: [], truncated: false };
+    renderOn(vault, index);
+    // The sidebar's row counts it from the window's own read, with no Inbox page open.
+    const inboxRow = await screen.findByRole('button', { name: /^Inbox/ });
+    await waitFor(() => expect(inboxRow.textContent).toContain('1'));
+    await userEvent.click(inboxRow);
+    const row = await screen.findByRole('form', { name: 'Clarify Loose task' });
+    await userEvent.selectOptions(
+      within(row).getByRole('combobox', { name: 'Status of Loose task' }),
+      'next-action',
+    );
+    await settle();
+
+    // The write behind the row is held, so what is counted is the row leaving, not the index moving after.
+    const reads = vault.holdReads();
+    startCountingRenders();
+    await userEvent.click(within(row).getByRole('button', { name: 'Done' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('form', { name: 'Clarify Loose task' })).toBeNull(),
+    );
+    await settle();
+    const { renders } = stopCountingRenders();
+    reads.release();
+
+    expect(renders.InboxContainer ?? 0).toBeGreaterThanOrEqual(1);
+    expect(renders.AppWindow ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+    expect(renders.VaultTree ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+  });
+
+  it('draws a type page in each pane on its own table, whichever type the other pane shows', async () => {
+    const PERSON = '---\nname: person\nlabel: Person\nproperties:\n  email: text\n---\n';
+    const BOOK = '---\nname: book\nlabel: Book\nproperties:\n  author: text\n---\n';
+    renderOn(
+      fakeVault({
+        remembered: location,
+        directories: {
+          '': [entry('recipes.md', 'file')],
+          '.atlas/types': [
+            entry('.atlas/types/person.md', 'file'),
+            entry('.atlas/types/book.md', 'file'),
+          ],
+        },
+        files: {
+          'recipes.md': '# Recipes\n',
+          '.atlas/types/person.md': PERSON,
+          '.atlas/types/book.md': BOOK,
+        },
+      }),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /^Person, / }));
+    await screen.findByRole('article', { name: 'Person' });
+    // Split (⇧⌘\): the focused pane is the new one, which then opens Book.
+    await userEvent.keyboard('{Meta>}{Shift>}\\{/Shift}{/Meta}');
+    await screen.findByRole('region', { name: 'Pane 2' });
+    await userEvent.click(screen.getByRole('button', { name: /^Book, / }));
+
+    expect(await within(pane(2)).findByRole('article', { name: 'Book' })).toBeDefined();
+    expect(await within(pane(1)).findByRole('article', { name: 'Person' })).toBeDefined();
+  });
+});
+
 async function editorIn(region: HTMLElement, title: string): Promise<Editor> {
   const article = await within(region).findByRole('article', { name: title });
   const element = await waitFor(() => {

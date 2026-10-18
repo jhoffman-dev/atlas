@@ -104,7 +104,10 @@ export function answersWrittenOrGivenUp(drained: Promise<unknown>): Promise<void
  * an answer given just before closing is not lost with the window. A hung
  * disk must not keep the window open, so the wait has an end.
  */
-export function useAnswersWrittenBeforeClose(queue: AnswerQueue, closing: WindowClosingPort) {
+export function useAnswersWrittenBeforeClose(
+  queue: Pick<AnswerQueue, 'drained'>,
+  closing: WindowClosingPort,
+) {
   useEffect(() => {
     let stop: (() => void) | null = null;
     let live = true;
