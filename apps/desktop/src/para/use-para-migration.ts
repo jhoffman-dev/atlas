@@ -10,6 +10,7 @@ import {
 } from '@atlas/application';
 import type { ParaMigrationProps } from '@atlas/ui';
 import { keepIfSame } from '../same-reading.ts';
+import { readAhead } from '../read-ahead.ts';
 
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
@@ -31,7 +32,7 @@ export function useParaMigration({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the notes are read once the index is ready, then again as it opens (#130). */
+  /** Whether the Inbox page is showing: the notes are read ahead once the index is ready and the vault settles, then again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After the move wrote files, so the types, tree and index are read again. */
@@ -69,22 +70,25 @@ export function useParaMigration({
     if (!indexReady || vaultKey === null) return;
     if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
-    previewParaMigration(migrationPorts)
-      .then((read) => {
-        if (cancelled) return;
-        const now = hasParaMigrationWork(read) ? read : null;
-        setPreview((was) => keepIfSame(was, now));
-        setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
-      })
-      .catch((cause: unknown) => {
-        if (cancelled) return;
-        setProblem(`Your PARA notes could not be read: ${reasonOf(cause)}`);
-        setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
-      });
+    const stop = readAhead(open, () => {
+      previewParaMigration(migrationPorts)
+        .then((read) => {
+          if (cancelled) return;
+          const now = hasParaMigrationWork(read) ? read : null;
+          setPreview((was) => keepIfSame(was, now));
+          setPreviewedFor(vaultKey);
+          prefetched.current = vaultKey;
+        })
+        .catch((cause: unknown) => {
+          if (cancelled) return;
+          setProblem(`Your PARA notes could not be read: ${reasonOf(cause)}`);
+          setPreviewedFor(vaultKey);
+          prefetched.current = vaultKey;
+        });
+    });
     return () => {
       cancelled = true;
+      stop();
     };
   }, [migrationPorts, open, indexReady, vaultKey, revision]);
 
@@ -121,10 +125,12 @@ export function useParaMigration({
       });
   }, [preview, migrationPorts, ports.editors, activity, onChanged]);
 
-  const reading = open && indexReady && vaultKey !== null && previewedFor !== vaultKey;
+  const reading = open && vaultKey !== null && previewedFor !== vaultKey;
+  const waitingForIndex = reading && !indexReady;
   if (!reading && preview === null && result === null && problem === null) return null;
   return {
     reading,
+    waitingForIndex,
     preview: dismissed || preview === null ? null : preview,
     open: expanded,
     busy,

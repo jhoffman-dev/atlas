@@ -126,8 +126,8 @@ describe('InboxPage — what arrives after the rows are drawn does not go in abo
     });
     expect(screen.getByRole('region', { name: 'Proposals' })).toBeDefined();
     expect(rowStayedAt(before)).toBe(true);
-    // Out of sight above the rows now, and said so without moving them.
-    expect(screen.getByRole('button', { name: /New above/ })).toBeDefined();
+    // It lands just above the rows, at the top of the view: in sight, so nothing is "New above".
+    expect(screen.queryByRole('button', { name: /New above/ })).toBeNull();
   });
 
   it('the settings-note warning known after the rows are drawn is not put above them', () => {
@@ -154,19 +154,39 @@ describe('InboxPage — what arrives after the rows are drawn does not go in abo
     expect(rowStayedAt(before)).toBe(true);
   });
 
+  // Changed in the last fix round: the app keys the Inbox page by its vault
+  // (mainRoute), so another vault's page is a new one, never this one's
+  // offers read again in place; the dead cache that drew them as they were
+  // is gone. The scenario is the app's own: a remount, its rows held.
   it('an offer read again from scratch after the rows are drawn, as on a vault switch, does not land above them', () => {
     // Vault A's tidy is shown and the rows are drawn below it.
-    const rerender = page({ vaultTidy: TIDY });
+    const props: InboxPageProps = {
+      contents: CONTENTS,
+      error: null,
+      filing: [],
+      people: [],
+      onOpen: vi.fn(),
+      onShowMore: vi.fn(),
+      onClarify: vi.fn(async () => true),
+      busy: false,
+      problem: null,
+    };
+    const view = render(<InboxPage key="/vaults/a" {...props} vaultTidy={TIDY} />);
     expect(screen.getByRole('region', { name: 'Tidy the vault' })).toBeDefined();
     layout.flush();
     const before = firstRowAt();
-    // Another vault opens with the Inbox still open: its tidy starts reading from nothing…
-    rerender({ vaultTidy: { ...TIDY, preview: null, reading: true } });
-    // Read again, it keeps its room rather than folding away.
-    expect(rowStayedAt(before)).toBe(true);
-    // …and is known a moment later, after the rows of the new vault are on screen.
-    rerender({ vaultTidy: TIDY });
+    // Another vault opens with the Inbox still open: its page starts afresh, its tidy reading…
+    view.rerender(
+      <InboxPage
+        key="/vaults/b"
+        {...props}
+        vaultTidy={{ ...TIDY, preview: null, reading: true }}
+      />,
+    );
+    // …and is known a moment later, landing above rows that were held back for it.
+    view.rerender(<InboxPage key="/vaults/b" {...props} vaultTidy={TIDY} />);
     expect(screen.getByRole('region', { name: 'Tidy the vault' })).toBeDefined();
     expect(rowStayedAt(before)).toBe(true);
+    expect(screen.queryByRole('button', { name: /New above/ })).toBeNull();
   });
 });

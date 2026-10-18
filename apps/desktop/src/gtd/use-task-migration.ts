@@ -23,6 +23,7 @@ import {
 import type { TaskMigrationPreviewData, TaskMigrationProps } from '@atlas/ui';
 import { localClock, localDayOf, localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
+import { readAhead } from '../read-ahead.ts';
 
 const files = (count: number) => (count === 1 ? '1 file' : `${count} files`);
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
@@ -69,7 +70,7 @@ export function useTaskMigration({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the tasks are read once the index is ready, then again as it opens (#130). */
+  /** Whether the Inbox page is showing: the tasks are read ahead once the index is ready and the vault settles, then again as it opens (#130). */
   open: boolean;
   activity: ActivityRecorder;
   /** After the move or its undo wrote files, so the types, tree and index are read again. */
@@ -111,33 +112,36 @@ export function useTaskMigration({
     if (!indexReady || vaultKey === null) return;
     if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
-    // Read apart: a run's undo is offered even when the tasks cannot be read now.
-    // The preview alone holds the Inbox's rows (#130): set with it, so it costs no commit of its own.
-    previewIfNeeded(migrationPorts, chosen)
-      .then((read) => {
-        if (cancelled) return;
-        const now = read !== null && hasMigrationWork(read) ? read : null;
-        setPreview((was) => keepIfSame(was, now));
-        setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
-      })
-      .catch((cause: unknown) => {
-        if (cancelled) return;
-        setProblem(`Your tasks could not be read for GTD: ${reasonOf(cause)}`);
-        setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
-      });
-    readMigrationRecord(migrationPorts.fs)
-      .then((record) => {
-        if (!cancelled)
-          setCanUndo(record !== null && undoStillOffered(record.record, localToday()));
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled)
-          setProblem(`The move to GTD's record could not be read: ${reasonOf(cause)}`);
-      });
+    const stop = readAhead(open, () => {
+      // Read apart: a run's undo is offered even when the tasks cannot be read now.
+      // The preview alone holds the Inbox's rows (#130): set with it, so it costs no commit of its own.
+      previewIfNeeded(migrationPorts, chosen)
+        .then((read) => {
+          if (cancelled) return;
+          const now = read !== null && hasMigrationWork(read) ? read : null;
+          setPreview((was) => keepIfSame(was, now));
+          setPreviewedFor(vaultKey);
+          prefetched.current = vaultKey;
+        })
+        .catch((cause: unknown) => {
+          if (cancelled) return;
+          setProblem(`Your tasks could not be read for GTD: ${reasonOf(cause)}`);
+          setPreviewedFor(vaultKey);
+          prefetched.current = vaultKey;
+        });
+      readMigrationRecord(migrationPorts.fs)
+        .then((record) => {
+          if (!cancelled)
+            setCanUndo(record !== null && undoStillOffered(record.record, localToday()));
+        })
+        .catch((cause: unknown) => {
+          if (!cancelled)
+            setProblem(`The move to GTD's record could not be read: ${reasonOf(cause)}`);
+        });
+    });
     return () => {
       cancelled = true;
+      stop();
     };
   }, [migrationPorts, open, indexReady, vaultKey, chosen, revision]);
 
@@ -224,10 +228,12 @@ export function useTaskMigration({
     setChosen((was) => new Map([...was, [from, to]]));
   }, []);
 
-  const reading = open && indexReady && vaultKey !== null && previewedFor !== vaultKey;
+  const reading = open && vaultKey !== null && previewedFor !== vaultKey;
+  const waitingForIndex = reading && !indexReady;
   if (!reading && preview === null && !canUndo && result === null && problem === null) return null;
   return {
     reading,
+    waitingForIndex,
     preview: dismissed || preview === null ? null : previewData(preview),
     open: expanded,
     busy,

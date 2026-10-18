@@ -136,11 +136,17 @@ describe.each(Object.entries(HOOKS))('%s says when it is still reading (#130)', 
     await waitFor(() => expect(reading(view.result.current)).toBe(false));
   });
 
-  it('is never reading while the index is not ready, and reads nothing', async () => {
+  // The last fix round (#130, bug 4): a vault just opened has no index yet, and its
+  // offers are not known until it does, so its rows are held for them.
+  it('waits for the index, reading nothing, while saying it is still reading', async () => {
     const { view, reads } = mount(hook, { ...SHOWN, indexReady: false });
     await act(async () => {});
-    expect(reading(view.result.current)).toBe(false);
+    expect(reading(view.result.current)).toBe(true);
+    expect(view.result.current?.waitingForIndex).toBe(true);
     expect(reads()).toBe(0);
+    view.rerender(SHOWN);
+    expect(view.result.current?.waitingForIndex).toBe(false);
+    expect(reading(view.result.current)).toBe(true);
   });
 
   it('reads as soon as the index is ready, with the Inbox shut, so opening it waits for nothing', async () => {

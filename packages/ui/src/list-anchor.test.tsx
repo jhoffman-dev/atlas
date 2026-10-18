@@ -82,26 +82,33 @@ const settledRowAt = () => {
 };
 
 describe('useListAnchor in the Inbox (#130)', () => {
-  it('holds the rows still as an offer arrives above them, and says so without moving them', () => {
+  it('holds the rows still as an offer arrives above them; landing in view, it is not "New above"', () => {
     const rerender = page();
     const before = settledRowAt();
     rerender({ typesOffer: TYPES_OFFER });
     expect(settledRowAt()).toBe(before);
     expect(layout.scroller().scrollTop).toBe(50);
-    expect(newAbove()).not.toBeNull();
-  });
-
-  it('scrolls back to what arrived when asked, and the notice goes', () => {
-    const rerender = page();
-    settledRowAt();
-    rerender({ typesOffer: TYPES_OFFER });
-    layout.flush();
-    fireEvent.click(newAbove()!);
-    expect(layout.scroller().scrollTop).toBe(0);
+    // Only the heading went out of view: the offer sits at the top of it.
+    expect(layout.topOf(screen.getByRole('complementary', { name: /Set your types up/ }))).toBe(0);
     expect(newAbove()).toBeNull();
   });
 
-  it('takes the notice away, and the room it made, once the person scrolls back up', () => {
+  it('scrolls to what arrived out of view when asked, and the notice goes', () => {
+    const rerender = page();
+    document.querySelector<HTMLElement>('.table')!.style.height = '1500px';
+    layout.flush();
+    act(() => {
+      layout.scroller().scrollTop = 600;
+    });
+    rerender({ typesOffer: TYPES_OFFER });
+    layout.flush();
+    fireEvent.click(newAbove()!);
+    // The offer stands 50px down the page, after the heading; taken there, a little above its edge.
+    expect(layout.scroller().scrollTop).toBe(42);
+    expect(newAbove()).toBeNull();
+  });
+
+  it('takes back the room it made once the person scrolls back up', () => {
     const rerender = page();
     settledRowAt();
     rerender({ typesOffer: TYPES_OFFER });
@@ -112,7 +119,6 @@ describe('useListAnchor in the Inbox (#130)', () => {
     act(() => {
       layout.scroller().scrollTop = 0;
     });
-    expect(newAbove()).toBeNull();
     // Given back down to what fills the view at the top: nothing is left to scroll into.
     expect(room?.style.height).toBe('50px');
     expect(layout.scroller().scrollHeight - layout.scroller().clientHeight).toBe(0);

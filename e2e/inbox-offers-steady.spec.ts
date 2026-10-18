@@ -81,22 +81,12 @@ test('an offer read after the rows are drawn does not move them, and a click hit
   release();
   // The tidy's read is answered now; watch the row while the app takes it in.
   expect(await largestMove(page, 'Item 3', 60)).toBe(0);
-  // It is shown, above the rows, and said to be there without moving them.
-  await expect(tidy(page)).toBeAttached();
-  await expect(page.getByRole('button', { name: /New above/ })).toBeVisible();
+  // It is shown, above the rows, at the top of the view: in sight, so nothing is "New above".
+  // (Out of sight, deep in a long list, it is: inbox-anchor.attack-283b.spec.ts.)
+  await expect(tidy(page)).toBeInViewport();
+  await expect(page.getByRole('button', { name: /New above/ })).toHaveCount(0);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.getByText('Body of item 3.')).toBeVisible();
-});
-
-test('“New above” scrolls back to what arrived, and goes (#130)', async ({ page }) => {
-  const { release } = await openVault(page, { hold: true });
-  await page.getByRole('button', { name: /^Inbox/ }).click();
-  await expect(inbox(page).getByRole('button', { name: 'Item 1', exact: true })).toBeVisible();
-  release();
-  const notice = page.getByRole('button', { name: /New above/ });
-  await notice.click();
-  await expect(tidy(page)).toBeInViewport();
-  await expect(notice).toHaveCount(0);
 });
 
 test('an offer read while the rows are held lands above them before they show (#130)', async ({

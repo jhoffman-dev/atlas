@@ -2,7 +2,10 @@ import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from '
 
 /** The parts of a page whose list is held still, each a ref the page attaches. */
 export interface ListAnchorParts {
-  /** The element that scrolls the page. */
+  /**
+   * The element that scrolls the page. It must have `overflow-anchor: none`:
+   * a browser anchoring it too would correct each move a second time.
+   */
   readonly scroller: RefObject<HTMLElement | null>;
   /** The page inside it: what grows or shrinks as something above the list arrives. */
   readonly page: RefObject<HTMLElement | null>;
@@ -10,8 +13,9 @@ export interface ListAnchorParts {
   readonly list: RefObject<HTMLElement | null>;
   /**
    * A `display: contents` wrapper of what the page says back to the person —
-   * an undo bar, why an undo failed. It answers what they just did, so it is
-   * let push the list down rather than scrolled out of their sight.
+   * an undo bar, why an undo failed. It answers what they just did, so as it
+   * comes it is let push the list down rather than scrolled out of their
+   * sight; as it goes, the list is held.
    */
   readonly answers: RefObject<HTMLElement | null>;
   /**
@@ -22,56 +26,77 @@ export interface ListAnchorParts {
 }
 
 /**
- * Where the anchor stood, in the scroller's content, and how tall the answers
- * above it were. The list is held by where it starts, whichever element draws
- * it — a list read again is drawn by "Reading…" for a moment — and a block by
- * the element itself.
+ * Where the anchor stood, and what the page was like then. The list is held
+ * by where it starts, whichever element draws it — a list read again is drawn
+ * by "Reading…" for a moment — and a block by the element itself.
  */
 interface Placed {
   readonly anchor: Element | 'list';
   readonly element: Element;
+  /** Its place on screen plus how far the scroller is scrolled. */
   readonly at: number;
+  /** How tall the answers above the list were. */
   readonly answers: number;
+  /** How wide the page was: a change of width is a reflow, not an arrival. */
+  readonly width: number;
+  readonly scrollTop: number;
+  /** The page's blocks, to tell what arrived. */
+  readonly blocks: readonly Element[];
+}
+
+/** What arrived above the list, out of sight, while "New above" says so. */
+interface Arrival {
+  /** The block that arrived, or null when something already there grew. */
+  readonly element: Element | null;
+  /** Where it starts in the scroller's content. */
+  readonly top: number;
 }
 
 export interface ListAnchor {
-  /** Something arrived above while the person was on the list, and is scrolled out of sight. */
+  /** Something arrived above while the person was on the list, and is out of sight. */
   readonly newAbove: boolean;
-  /** Scrolls back to what arrived above. */
+  /** Scrolls to what arrived above. */
   readonly showNewAbove: () => void;
 }
 
 /**
  * Holds a list still on screen as what sits above it arrives, grows or goes
- * (#130): manual scroll anchoring, which WebKit does not do, and which #247
- * turned off for virtualised lists. Once `live`, when the anchor's place in
- * the page moves the scroller is scrolled by as much — in the commit that
- * moved it, or, for a change the page did not commit, before the frame is
- * painted (a ResizeObserver runs after layout) — so nothing moves under the
- * pointer. A page too short to scroll that far is given room below it.
+ * (#130): manual scroll anchoring, in place of the browser's (which #247 had
+ * to keep away from virtualised lists, and which the scroller turns off, or
+ * the two would correct each move twice). Once `live`, when the anchor's
+ * place moves the scroller is scrolled by as much — in the commit that moved
+ * it, or, for a change the page did not commit, before the frame is painted
+ * (a ResizeObserver runs after layout) — so nothing moves under the pointer.
+ * A page too short to scroll that far is given room below it.
  *
  * The anchor is the list, unless the pointer or the focus is on something
  * above it — an offer being answered — which is then held instead, so a
- * preview opening under the pointer grows down, as it is drawn. Where it
- * stands is its place on screen plus how far the scroller is scrolled: the
- * list's own scrolling and the virtualiser's corrections cancel out, and a
- * banner the app puts above the whole pane counts as the move it is.
+ * preview opening under the pointer grows down. Where it stands is its place
+ * on screen plus how far the scroller is scrolled: the list's own scrolling
+ * and the virtualiser's corrections cancel out, and a banner the app puts
+ * above the whole pane counts as the move it is.
  *
- * Something arriving above the list while it is held is out of sight, so
- * `newAbove` says so until the person scrolls back to it or asks to.
- * Nothing here commits the page but that flag.
+ * A reflow — the page made narrower or wider — is held too, but is not news;
+ * at the very top of the page it is left alone, so the heading stays in view.
+ * Something that arrives above the list and is out of sight sets `newAbove`
+ * until it is scrolled into view or the person asks to be taken to it.
  */
 export function useListAnchor(parts: ListAnchorParts, live: boolean): ListAnchor {
   const [newAbove, setNewAbove] = useState(false);
   const placed = useRef<Placed | null>(null);
   /** The block above the list under the pointer or holding the focus; null for the list. */
   const engaged = useRef<Element | null>(null);
-  /** Where the scroller shows what arrived above, while `newAbove` holds. */
-  const newAboveAt = useRef(0);
-  const shown = useRef(false);
+  const arrival = useRef<Arrival | null>(null);
   const liveNow = useRef(live);
   /** Holds the anchor where it was, if it moved; set once the scroller is there. */
   const hold = useRef<(() => void) | null>(null);
+
+  /** Says what arrived above, or that nothing is waiting there; commits only when that changes. */
+  const say = useCallback((next: Arrival | null) => {
+    const was = arrival.current !== null;
+    arrival.current = next;
+    if (was !== (next !== null)) setNewAbove(next !== null);
+  }, []);
 
   useLayoutEffect(() => {
     liveNow.current = live;
@@ -83,34 +108,31 @@ export function useListAnchor(parts: ListAnchorParts, live: boolean): ListAnchor
     const area = parts.scroller.current;
     const page = parts.page.current;
     if (area === null || page === null || typeof ResizeObserver === 'undefined') return;
-    const flag = (on: boolean) => {
-      if (shown.current === on) return;
-      shown.current = on;
-      setNewAbove(on);
-    };
     const check = () => {
       const before = placed.current;
       const now = placeOf(parts, engaged.current, area);
       placed.current = now;
       if (!liveNow.current || before === null || before.anchor !== now.anchor) return;
-      const shift = now.at - before.at - answersBetween(parts, now, before);
+      const reflowed = now.width !== before.width;
+      if (reflowed && before.scrollTop === 0) return;
+      const shift = now.at - before.at - answersCame(parts, now, before);
       if (shift === 0) return;
+      const arrived = shift > 0 && !reflowed && engaged.current === null;
+      const what = arrived ? arrivalOf(before, now, area, shift) : null;
       scrollBy(parts, area, shift);
       placed.current = placeOf(parts, engaged.current, area);
-      if (shift > 0 && engaged.current === null) {
-        newAboveAt.current = area.scrollTop - shift;
-        flag(true);
-      }
+      if (what !== null && !inView(what, area)) say(what);
     };
     hold.current = check;
     // For what changes without the page committing (a section's own state); a commit is held at once, below.
     const resized = new ResizeObserver(check);
     resized.observe(page);
-    // The pane itself moving or shrinking, as a banner above it comes or goes.
+    // The pane itself moving or shrinking, as a banner above it comes or goes or the window resizes.
     resized.observe(area);
     const onScroll = () => {
       giveBackRoom(parts, area);
-      if (shown.current && area.scrollTop <= newAboveAt.current + 1) flag(false);
+      const waiting = arrival.current;
+      if (waiting !== null && (isGone(waiting) || inView(waiting, area))) say(null);
     };
     // The block the person is on is held instead of the list; read again as it changes.
     const engage = (event: Event) => {
@@ -136,7 +158,7 @@ export function useListAnchor(parts: ListAnchorParts, live: boolean): ListAnchor
       page.removeEventListener('focusin', engage);
       page.removeEventListener('pointerleave', disengage);
     };
-  }, [parts]);
+  }, [parts, say]);
 
   // After every commit of the page, before anything else can run: an input
   // handled before the browser's next ResizeObserver pass would otherwise be
@@ -144,13 +166,21 @@ export function useListAnchor(parts: ListAnchorParts, live: boolean): ListAnchor
   useLayoutEffect(() => hold.current?.());
 
   const showNewAbove = useCallback(() => {
-    parts.scroller.current?.scrollTo({ top: Math.max(0, newAboveAt.current) });
-    shown.current = false;
-    setNewAbove(false);
-  }, [parts]);
+    const area = parts.scroller.current;
+    const waiting = arrival.current;
+    if (area !== null && waiting !== null) {
+      const top =
+        waiting.element?.isConnected === true ? contentTop(waiting.element, area) : waiting.top;
+      area.scrollTo({ top: Math.max(0, top - ARRIVAL_MARGIN) });
+    }
+    say(null);
+  }, [parts, say]);
 
   return { newAbove, showNewAbove };
 }
+
+/** How far above what arrived "New above" stops, so its top edge is not flush with the pane's. */
+const ARRIVAL_MARGIN = 8;
 
 /** The list's own element: the last child of its wrapper. */
 function listOf(parts: ListAnchorParts): Element | null {
@@ -160,14 +190,46 @@ function listOf(parts: ListAnchorParts): Element | null {
 /** Where the anchor is now, with the person on `block` (null for the list). */
 function placeOf(parts: ListAnchorParts, block: Element | null, area: HTMLElement): Placed {
   const element = block?.isConnected === true ? block : (listOf(parts) ?? area);
-  const anchor = element === block ? block : 'list';
-  return { anchor, element, at: standing(element, area), answers: answersHeight(parts) };
+  return {
+    anchor: element === block ? block : 'list',
+    element,
+    at: element.getBoundingClientRect().top + area.scrollTop,
+    answers: answersHeight(parts),
+    width: parts.page.current?.getBoundingClientRect().width ?? 0,
+    scrollTop: area.scrollTop,
+    blocks: blocksOf(parts),
+  };
 }
 
-/** Where `element` stands, however far the scroller is scrolled: on screen, plus the scroll. */
-function standing(element: Element, area: HTMLElement): number {
-  return element.getBoundingClientRect().top + area.scrollTop;
+/** The page's blocks, in order, through its `display: contents` wrappers. */
+function blocksOf(parts: ListAnchorParts): readonly Element[] {
+  const wrappers = [parts.list.current, parts.answers.current];
+  return [...(parts.page.current?.children ?? [])].flatMap((child) =>
+    wrappers.includes(child as HTMLElement) ? [...child.children] : [child],
+  );
 }
+
+/**
+ * What arrived above the anchor: the first block that is new since `before`,
+ * or, when something already there grew, the room just above the anchor.
+ */
+function arrivalOf(before: Placed, now: Placed, area: HTMLElement, shift: number): Arrival {
+  const added = now.blocks.find(
+    (block) =>
+      !before.blocks.includes(block) &&
+      (block.compareDocumentPosition(now.element) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+  );
+  if (added !== undefined) return { element: added, top: contentTop(added, area) };
+  return { element: null, top: contentTop(now.element, area) - shift };
+}
+
+/** Whether what arrived is in view: its top edge on screen, so the person sees it start. */
+function inView(what: Arrival, area: HTMLElement): boolean {
+  const top = what.element?.isConnected === true ? contentTop(what.element, area) : what.top;
+  return top >= area.scrollTop - 1 && top < area.scrollTop + area.clientHeight;
+}
+
+const isGone = (what: Arrival) => what.element !== null && !what.element.isConnected;
 
 /** How far down the scroller's content `element` starts, however far it is scrolled. */
 function contentTop(element: Element, area: HTMLElement): number {
@@ -189,13 +251,17 @@ function answersHeight(parts: ListAnchorParts): number {
   return height;
 }
 
-/** How much of a move the answers made, when they sit above the anchor: not held against. */
-function answersBetween(parts: ListAnchorParts, now: Placed, before: Placed): number {
+/**
+ * How much of a move came from the answers growing above the anchor: let
+ * through. Answers going — an undo bar running out — are nothing the person
+ * did, so the list is held as they shrink.
+ */
+function answersCame(parts: ListAnchorParts, now: Placed, before: Placed): number {
   const answers = parts.answers.current;
   if (answers === null) return 0;
   const above =
     (answers.compareDocumentPosition(now.element) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-  return above ? now.answers - before.answers : 0;
+  return above ? Math.max(0, now.answers - before.answers) : 0;
 }
 
 /** The block of the page `target` is in, or null when it is the list or outside the page. */

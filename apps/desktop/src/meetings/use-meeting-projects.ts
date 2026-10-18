@@ -18,6 +18,7 @@ import {
 import type { MeetingProjectRow, MeetingProjectsProps } from '@atlas/ui';
 import { localToday } from '../today.ts';
 import { keepIfSame } from '../same-reading.ts';
+import { readAhead } from '../read-ahead.ts';
 
 const reasonOf = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
@@ -40,7 +41,7 @@ export function useMeetingProjects({
   ports: ArchivePorts;
   vaultKey: string | null;
   indexReady: boolean;
-  /** Whether the Inbox page is showing: the meetings are read once the index is ready, then again as it opens (#130). */
+  /** Whether the Inbox page is showing: the meetings are read ahead once the index is ready and the vault settles, then again as it opens (#130). */
   open: boolean;
   /** The vault's owner, left out of who was at each meeting. */
   owner: { readonly selfName: string | null; readonly selfEmails: readonly string[] };
@@ -85,24 +86,27 @@ export function useMeetingProjects({
     if (!indexReady || vaultKey === null || dismissed) return;
     if (!open && prefetched.current === vaultKey) return;
     let cancelled = false;
-    previewProjectBackfill({ ports, owner: latestOwner.current })
-      .then((read) => {
-        if (cancelled) return;
-        setRows((was) => keepIfSame(was, read.length === 0 ? null : read));
-        const before = shown.current;
-        shown.current = new Set(read.map(rowKey));
-        setChosen((ticked) => keepIfSame(ticked, ticksAfterPreview({ read, ticked, before })));
-        setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
-      })
-      .catch((cause: unknown) => {
-        if (cancelled) return;
-        setProblem(`Meetings with no project could not be read: ${reasonOf(cause)}`);
-        setPreviewedFor(vaultKey);
-        prefetched.current = vaultKey;
-      });
+    const stop = readAhead(open, () => {
+      previewProjectBackfill({ ports, owner: latestOwner.current })
+        .then((read) => {
+          if (cancelled) return;
+          setRows((was) => keepIfSame(was, read.length === 0 ? null : read));
+          const before = shown.current;
+          shown.current = new Set(read.map(rowKey));
+          setChosen((ticked) => keepIfSame(ticked, ticksAfterPreview({ read, ticked, before })));
+          setPreviewedFor(vaultKey);
+          prefetched.current = vaultKey;
+        })
+        .catch((cause: unknown) => {
+          if (cancelled) return;
+          setProblem(`Meetings with no project could not be read: ${reasonOf(cause)}`);
+          setPreviewedFor(vaultKey);
+          prefetched.current = vaultKey;
+        });
+    });
     return () => {
       cancelled = true;
+      stop();
     };
   }, [ports, open, indexReady, vaultKey, dismissed, ownerKey, revision]);
 
@@ -158,12 +162,13 @@ export function useMeetingProjects({
     });
   }, [lastRun, ports, activity, settle]);
 
-  const reading =
-    open && indexReady && vaultKey !== null && !dismissed && previewedFor !== vaultKey;
+  const reading = open && vaultKey !== null && !dismissed && previewedFor !== vaultKey;
+  const waitingForIndex = reading && !indexReady;
   if (!reading && rows === null && result === null && problem === null && lastRun === null)
     return null;
   return {
     reading,
+    waitingForIndex,
     rows: dismissed || rows === null ? null : rows.map((row) => rowOf(row, chosen)),
     open: expanded,
     busy,

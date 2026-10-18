@@ -1,13 +1,4 @@
-import {
-  Fragment,
-  memo,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
@@ -152,10 +143,11 @@ export function InboxPage(props: InboxPageProps) {
     () => ({ scroller, page: article, list, answers, room }),
     [],
   );
-  const reading = [migration, paraMigration, tidy, cleanup, meetingProjects].some(
-    (read) => read?.reading === true,
+  const offersRead = [migration, paraMigration, tidy, cleanup, meetingProjects];
+  const live = useOffersKnown(
+    offersRead.some((read) => read?.reading === true),
+    offersRead.some((read) => read?.waitingForIndex === true),
   );
-  const live = useOffersKnown(reading);
   const anchor = useListAnchor(parts, live);
   return (
     <>
@@ -166,7 +158,12 @@ export function InboxPage(props: InboxPageProps) {
         {...(props.history !== undefined && { history: props.history })}
       />
       <NewAbove {...anchor} />
-      <div className="panel__body panel__body--rows" ref={scroller} {...ROW_SCROLLER_MARK}>
+      <div
+        className="panel__body panel__body--rows"
+        style={NOT_ANCHORED}
+        ref={scroller}
+        {...ROW_SCROLLER_MARK}
+      >
         <RowScrollerContext.Provider value={scroller}>
           <article className="page page--wide inbox" aria-label="Inbox" ref={article}>
             <PageHead
@@ -185,7 +182,7 @@ export function InboxPage(props: InboxPageProps) {
             {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
             <Offers
               offers={[
-                ['types', offer && <TypesOffer {...offer} />, false],
+                ['types', offer && <TypesOffer {...offer} />],
                 slot('tasks', migration, (known) => <TaskMigration {...known} />),
                 slot('para', paraMigration, (known) => <ParaMigration {...known} />),
                 slot('tidy', tidy, (known) => <VaultTidy {...known} />),
@@ -215,16 +212,15 @@ export function InboxPage(props: InboxPageProps) {
   );
 }
 
-/** One offer's slot: drawn once it is known, and said to be still read until then. */
-type OfferSlot = readonly [key: string, offer: ReactNode, reading: boolean];
+/** One offer's slot: drawn once it is known, null while it is still read. */
+type OfferSlot = readonly [key: string, offer: ReactNode];
 
 function slot<Offer extends InboxOfferReading>(
   key: string,
   offer: Offer | null,
   draw: (known: Offer) => ReactNode,
 ): OfferSlot {
-  const reading = offer?.reading === true;
-  return [key, offer === null || reading ? null : draw(offer), reading];
+  return [key, offer === null || offer.reading === true ? null : draw(offer)];
 }
 
 /**
@@ -256,6 +252,12 @@ const NewAbove = memo(function NewAbove({
   );
 });
 
+/**
+ * The browser does not anchor the Inbox's scroller: the list anchor does, and
+ * with both, each move would be corrected twice (WebKit supports
+ * `overflow-anchor`, and its `auto` held the rows the other way).
+ */
+const NOT_ANCHORED = { overflowAnchor: 'none' } as const;
 /** The room the list anchor gives below the page; its height is set there, never here. */
 const ROOM = { flexShrink: 0 } as const;
 const NEW_ABOVE_HANGER = { position: 'relative', height: 0, zIndex: 2 } as const;
@@ -270,16 +272,18 @@ const NEW_ABOVE_BUTTON = {
 /**
  * Whether the Inbox's offers are known, so its rows can be drawn below them
  * (#130): once none is still being read, or once it has waited
- * `INBOX_OFFERS_WAIT_MS` for one. Known stays known while the page shows.
+ * `INBOX_OFFERS_WAIT_MS` for one — counted only once none is waiting for the
+ * index, since until then the list has no rows either. Known stays known
+ * while the page shows.
  */
-function useOffersKnown(reading: boolean): boolean {
+function useOffersKnown(reading: boolean, waitingForIndex: boolean): boolean {
   const [offersKnown, setOffersKnown] = useState(!reading);
   if (!reading && !offersKnown) setOffersKnown(true);
   useEffect(() => {
-    if (offersKnown) return;
+    if (offersKnown || waitingForIndex) return;
     const timer = setTimeout(() => setOffersKnown(true), INBOX_OFFERS_WAIT_MS);
     return () => clearTimeout(timer);
-  }, [offersKnown]);
+  }, [offersKnown, waitingForIndex]);
   return offersKnown;
 }
 
@@ -287,8 +291,7 @@ function useOffersKnown(reading: boolean): boolean {
  * The Inbox's offers, each read on its own and shown once it is (#227). One
  * read after the others goes below those already shown, and one shown keeps
  * its place for as long as the page shows — read as nothing for a moment as
- * its run settles, it comes back where it was. One read again is drawn as it
- * last was until it is known, so its room does not fold and open (#130).
+ * its run settles, it comes back where it was.
  */
 function Offers({ offers }: { offers: readonly OfferSlot[] }) {
   const shown = offers.filter(([, offer]) => offer !== null);
@@ -298,18 +301,9 @@ function Offers({ offers }: { offers: readonly OfferSlot[] }) {
     shown.map(([key]) => key),
   );
   if (next.join('\n') !== order.join('\n')) setOrder(next);
-  const last = useRef(new Map<string, ReactNode>());
-  useLayoutEffect(() => {
-    for (const [key, offer] of shown) last.current.set(key, offer);
-  });
-  const reading = new Set(offers.filter(([, , read]) => read).map(([key]) => key));
-  const byKey = new Map(shown.map(([key, offer]) => [key, offer]));
-  // The last drawn offer is repeated while it is read again: a cache of what is
-  // already on screen, written after each commit, so reading it here can only
-  // draw again what was drawn.
-  // eslint-disable-next-line react-hooks/refs
+  const byKey = new Map(shown);
   return next.flatMap((key) => {
-    const offer = byKey.get(key) ?? (reading.has(key) ? last.current.get(key) : undefined);
+    const offer = byKey.get(key);
     return offer === undefined ? [] : [<Fragment key={key}>{offer}</Fragment>];
   });
 }

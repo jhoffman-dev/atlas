@@ -7,4 +7,11 @@ export interface InboxOfferReading {
    * above rows already under the pointer (#130).
    */
   readonly reading?: boolean;
+  /**
+   * Still read only once the vault's index is ready, as on a vault just
+   * opened. The rows are held for as long as that takes, with no time limit:
+   * the Inbox's list is the index's answer too, so it has no rows to hold back
+   * until then. Set only with `reading`.
+   */
+  readonly waitingForIndex?: boolean;
 }
