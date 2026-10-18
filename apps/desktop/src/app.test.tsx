@@ -30,6 +30,18 @@ import type { ChatPorts } from './chat/use-chat.ts';
 import type { LocalApiPorts } from './api/use-local-api.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
 import { createBrowserGlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
+import {
+  startCountingRenders,
+  stopCountingRenders,
+} from '../../../packages/ui/src/testing/render-counter.ts';
+
+// Before React loads, so every commit is handed to the counter. It counts
+// nothing until a test switches it on.
+await vi.hoisted(async () => {
+  const { installRenderCounter } =
+    await import('../../../packages/ui/src/testing/render-counter.ts');
+  installRenderCounter();
+});
 
 const appInfo: AppInfoPort = { read: async () => ({ name: 'Atlas', version: '0.1.0' }) };
 
@@ -1067,5 +1079,35 @@ describe('opening a vault while its index is still being built (ADR-0034)', () =
     expect(await screen.findByText('0 notes indexed')).toBeDefined();
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
     expect(syncs).toBe(1);
+  });
+});
+
+describe('what ⌘K draws (#261)', () => {
+  it('opens the palette and takes five keys without drawing the window, its sidebar or its panes again', async () => {
+    renderApp(
+      fakeVault({
+        remembered: location,
+        directories: { '': [entry('recipes.md', 'file')] },
+        files: { 'recipes.md': '# Recipes\n\nSourdough.\n' },
+      }),
+    );
+    await userEvent.click(await screen.findByRole('treeitem', { name: 'recipes' }));
+    await screen.findByRole('article', { name: 'recipes' });
+    // Whatever opening the note set going settles before counting starts.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    startCountingRenders();
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    await userEvent.type(await screen.findByLabelText('Search the vault'), 'sourd');
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    const { renders } = stopCountingRenders();
+
+    // The counter saw the palette drawn for each key, so a zero below is real.
+    expect(renders.SearchPalette ?? 0).toBeGreaterThanOrEqual(5);
+    expect(renders.App ?? 0).toBe(0);
+    expect(renders.AppShell ?? 0).toBe(0);
+    expect(renders.VaultTree ?? 0).toBe(0);
+    expect(renders.PaneFrame ?? 0).toBe(0);
+    expect(renders.NotePaneContainer ?? 0).toBe(0);
   });
 });
