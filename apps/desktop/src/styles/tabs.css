@@ -3,42 +3,43 @@
    imports in cascade order, after shell.css: it dresses `TabStrip` in
    packages/ui/src/tab-strip.tsx and nothing else. */
 
-/* 36px on the sidebar's `bg`, under a hairline the shown tab breaks through:
+/* 36px on the sidebar's `bg`, over a hairline the shown tab breaks through:
    the tab list, then the + beside it. */
 .tab-strip {
-  align-items: stretch;
+  align-items: flex-start;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
   display: flex;
   flex: none;
   height: 36px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  /* The strip scrolls once the tabs are down to their narrowest, without a
-     bar of its own taking a third of its height. */
-  scrollbar-width: none;
 }
 
-.tab-strip::-webkit-scrollbar {
-  display: none;
-}
-
-/* The tabs keep their narrowest width rather than shrinking under the +, so it
-   is the strip that scrolls. */
+/* The tabs shrink to their narrowest, then it is the list that scrolls, so
+   the + after it stays within reach. As tall as the strip with its hairline,
+   so the shown tab can cover the line; a scrollbar of its own would take a
+   third of its height. */
 .tab-strip__tabs {
   align-items: stretch;
   display: flex;
   flex: 0 1 auto;
+  height: 36px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
 
-/* A tab and its ×. 176px with room, shrinking to 120px, then the strip scrolls. */
+.tab-strip__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* A tab and its ×. 176px with room, shrinking to 120px, then the list scrolls. */
 .tab-strip__item {
   border-right: 1px solid var(--line);
   border-top: 2px solid transparent;
   display: flex;
   flex: 0 1 176px;
-  /* Over the strip's hairline, so the shown tab joins the page under it. */
-  margin-bottom: -1px;
+  height: 35px;
   min-width: 120px;
   position: relative;
 }
@@ -49,6 +50,8 @@
 .tab-strip__item--active {
   background: var(--surface);
   border-top-color: var(--line-strong);
+  /* Over the strip's hairline, so the shown tab joins the page under it. */
+  height: 36px;
 }
 
 .tab-strip--focused .tab-strip__item--active {
@@ -138,6 +141,7 @@
   cursor: pointer;
   display: flex;
   flex: none;
+  height: 35px;
   justify-content: center;
   padding: 0;
   width: 34px;
