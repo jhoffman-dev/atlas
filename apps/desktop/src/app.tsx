@@ -1583,7 +1583,11 @@ function AppWindow({
   const openPaletteHit = useSteadyCallback((path: string) => openNote(createVaultPath(path)));
 
   const granolaToast = granolaPull.toast !== null && (
-    <Toast message={granolaPull.toast} onDismiss={granolaPull.dismissToast} />
+    <Toast
+      key={granolaPull.toastShown}
+      message={granolaPull.toast}
+      onDismiss={granolaPull.dismissToast}
+    />
   );
 
   return (

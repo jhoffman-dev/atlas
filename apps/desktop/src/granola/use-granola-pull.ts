@@ -75,6 +75,8 @@ export interface GranolaPullController {
   readonly lastPullAt: number | null;
   /** What to tell the person at once: a Sync now that failed, or a key Granola has just refused. */
   readonly toast: string | null;
+  /** How many times a toast has been shown: the Toast's `key`, so the same words again start its time afresh. */
+  readonly toastShown: number;
   readonly dismissToast: () => void;
   readonly syncNow: () => void;
   /** Takes the key's status the host answered a change of key with. */
@@ -96,6 +98,7 @@ interface VaultPulls {
   readonly report: GranolaPullReport | null;
   readonly lastPullAt: number | null;
   readonly toast: string | null;
+  readonly toastShown: number;
 }
 
 const nothingFor = (vault: string | null): VaultPulls => ({
@@ -106,6 +109,7 @@ const nothingFor = (vault: string | null): VaultPulls => ({
   report: null,
   lastPullAt: null,
   toast: null,
+  toastShown: 0,
 });
 
 const wait = (milliseconds: number) =>
@@ -221,11 +225,15 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
         if (report.written.length > 0 && latest.current.vaultKey === vault) {
           latest.current.onWrote();
         }
-        update(vault, (known) => ({
-          report,
-          lastPullAt: latest.current.records.read(vault).lastPullAt,
-          toast: toastOf(report) ?? known.toast,
-        }));
+        update(vault, (known) => {
+          const toast = toastOf(report);
+          return {
+            report,
+            lastPullAt: latest.current.records.read(vault).lastPullAt,
+            toast: toast ?? known.toast,
+            toastShown: toast === null ? known.toastShown : known.toastShown + 1,
+          };
+        });
       } finally {
         setFlights((under) => under.filter((each) => each !== flight));
       }
@@ -256,6 +264,7 @@ export function useGranolaPull(options: GranolaPullOptions): GranolaPullControll
     report: mine.report,
     lastPullAt: mine.lastPullAt,
     toast: mine.toast,
+    toastShown: mine.toastShown,
     dismissToast: useCallback(() => {
       if (vaultKey !== null) update(vaultKey, () => ({ toast: null }));
     }, [vaultKey, update]),

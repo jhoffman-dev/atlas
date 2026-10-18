@@ -23,6 +23,7 @@ the next starts.
 ```sh
 pnpm design:refs     # target/*.dc.html → out/refs/<Board>-<theme>.png, or <Board>.png for a board with no theme prop
 pnpm shots           # built app on a copy of vault/ → out/shots/<surface>-<theme>.png
+pnpm shots:gallery   # the primitives gallery via Vite → out/shots/gallery.png and gallery-<row>-<theme>.png
 pnpm design:compare  # out/compare/index.html, one page per surface, mockup left, app right
 ```
 

@@ -497,5 +497,5 @@ ul.sidebar__sections {
   font-size: var(--text-body);
   font-weight: 800;
   margin-top: var(--space-3);
-  padding: 12px 24px;
+  padding: 0 24px;
 }

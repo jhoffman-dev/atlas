@@ -78,7 +78,7 @@
 
 .archive__unarchive {
   font-size: var(--text-small);
-  padding: 7px 14px;
+  padding: 0 14px;
 }
 
 .archive__empty {
