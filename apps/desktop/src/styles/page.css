@@ -29,10 +29,10 @@
 }
 
 /* The controls never give way: closing, the menu and the star stay whole and
-   inside the pane however narrow it is. The breadcrumb gives way instead —
-   the folder first, then the name, each to an ellipsis. */
+   inside the pane however narrow it is. The breadcrumb and the page's own
+   buttons give way instead — the count first, then the folder, the buttons
+   and the name, each to an ellipsis. */
 .page-bar__row > .page-bar__button,
-.page-bar__row > .page-bar__actions,
 .page-bar__row > .star {
   flex: none;
 }
@@ -57,7 +57,10 @@
   font-size: var(--text-body);
   gap: 6px;
   margin-left: 6px;
-  min-width: 0;
+  /* Room for the icon, the folder at its narrowest, the slash and 4em of the
+     name, with the gaps between: the name always keeps 4em in view, whatever
+     else the row holds. */
+  min-width: 123px;
   overflow: hidden;
 }
 
@@ -87,11 +90,14 @@
 }
 
 /* What the page holds, in a few quiet words after its name: "186 tasks" — or
-   a view's description, which can run long. It gives way before the name
-   does: the name is what the page is, the count is only how it stands. */
+   a view's description, which can run long. It gives way before anything
+   else in the crumb: the name is what the page is, the count only how it
+   stands. Flex shares shrinking by factor × width, so a factor this large
+   takes all of it until the count is gone, and only then does the folder, and
+   last the name, lose a letter. */
 .page-bar__count {
   color: var(--ink-3);
-  flex: 0 8 auto;
+  flex: 0 1000 auto;
   font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
   min-width: 0;
@@ -104,13 +110,34 @@
   flex: 1;
 }
 
-/* The view's own buttons, before the save word. Kept whole for now: letting
-   the slot shrink would need overflow: hidden, which clips its buttons' focus
-   rings; slice 3b decides what a narrow pane drops from it. */
+/* The page's own buttons, before the save word. The slot gives way with the
+   breadcrumb, each button narrowing to an ellipsis but never below a 28px
+   target, so every one stays inside the bar and reachable. The slot itself
+   never clips: a button's focus ring is drawn whole. */
 .page-bar__actions {
   align-items: center;
   display: flex;
+  flex: 0 1 auto;
   gap: 4px;
+  min-width: 0;
+}
+
+.page-bar__actions > * {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.page-bar__actions .btn {
+  min-width: 28px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.page-bar__actions .segmented__option {
+  min-width: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .page-bar__status {
@@ -161,6 +188,19 @@
   .page-bar__slash,
   .page-bar__count {
     display: none;
+  }
+
+  /* The icon and 4em of the name, now the folder has gone. */
+  .page-bar__crumbs {
+    min-width: 73px;
+  }
+
+  /* The page's buttons keep only their icon's worth: still there, still
+     pressed, named by their tooltip. */
+  .page-bar__actions .btn {
+    justify-content: flex-start;
+    max-width: 28px;
+    padding: 0 6px;
   }
 }
 

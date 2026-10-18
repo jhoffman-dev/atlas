@@ -85,7 +85,7 @@ export function ActivityPage(props: ActivityPageProps) {
       />
       <div className="panel__body">
         <article className="page page--wide activity" aria-label="Activity">
-          <HiddenTitle>Activity</HiddenTitle>
+          <HiddenTitle>All activity</HiddenTitle>
           <Filters {...props} />
           <Lines {...props} />
         </article>

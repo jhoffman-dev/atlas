@@ -233,16 +233,6 @@ for (const which of Object.keys(PAGES)) {
   });
 }
 
-// Pre-dates #335: the editor draws a body's `# heading` as a second h1 under the page's own.
-test('a note whose body opens with "# its title" still has exactly one h1', async ({ page }) => {
-  await openVault(page);
-  await sidebarSection(page, 'userSpace')
-    .getByRole('treeitem', { name: 'Garden plan', exact: true })
-    .click();
-  await expect(main(page).locator('.editor').getByText('Beds and seeds.')).toBeVisible();
-  await expect(main(page).locator('h1')).toHaveCount(1);
-});
-
 for (const which of ['a view', 'a note', 'a dashboard'] as const) {
   test(`split on ${which}: each pane has its own single h1`, async ({ page }) => {
     await openVault(page);

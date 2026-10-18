@@ -55,6 +55,11 @@ describe('AutomationsPage', () => {
     expect(screen.getByText('1 automation, 1 on').closest('.page-bar__count')).not.toBeNull();
   });
 
+  it('shows no count while there are no automations', () => {
+    page({ rows: [] });
+    expect(document.querySelector('.page-bar__count')).toBeNull();
+  });
+
   it('turns a rule off, runs it now, and opens it, by its id', async () => {
     const handlers = page();
     await userEvent.click(screen.getByRole('switch', { name: 'Run Tidy on its schedule' }));

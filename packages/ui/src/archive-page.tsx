@@ -48,7 +48,7 @@ export function ArchivePage(props: ArchivePageProps) {
       />
       <div className="panel__body">
         <article className="page page--wide archive" aria-label="Archive">
-          <HiddenTitle>Archive</HiddenTitle>
+          <HiddenTitle>Archived notes</HiddenTitle>
           <SelectionBar
             count={chosen.length}
             actions={[

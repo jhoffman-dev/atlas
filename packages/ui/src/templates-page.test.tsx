@@ -62,6 +62,11 @@ const rowOf = (name: string) => {
 };
 
 describe('TemplatesPage', () => {
+  it('shows no count while there are no templates', () => {
+    show({ catalog: { templates: [], typesWithout: [] } });
+    expect(document.querySelector('.page-bar__count')).toBeNull();
+  });
+
   it('counts the templates beside the page name, and lists each with what it is used for', () => {
     show();
     expect(screen.getByText('3 templates').closest('.page-bar__count')).not.toBeNull();

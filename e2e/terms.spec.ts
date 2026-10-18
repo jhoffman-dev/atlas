@@ -48,10 +48,8 @@ test('a term is added from the Terms page, listed there, and its variants edited
 
   await page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Terms' }).click();
   await expect(termsPage(page).getByText(/^No terms yet/)).toBeVisible();
-  // The person's name and alias are in the vocabulary before any term is.
-  await expect(
-    page.locator('.page-bar__count').getByText('0 terms · 0 misheard spellings'),
-  ).toBeVisible();
+  // Nothing to count yet, so the bar shows no count beside the page's name.
+  await expect(page.locator('.page-bar__count')).toHaveCount(0);
 
   await addTerm(page, {
     canonical: 'Larkspur',

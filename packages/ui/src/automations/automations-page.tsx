@@ -35,11 +35,12 @@ export interface AutomationsPageProps {
 export function AutomationsPage(props: AutomationsPageProps) {
   const counted = describe(props.rows);
   const open = props.rows?.find((row) => row.id === props.openId) ?? null;
+  const name = open?.name ?? (props.editor !== null ? 'New automation' : 'All automations');
   return (
     <>
       <PageBar
         crumb={{ icon: 'automation', parent: 'Automations' }}
-        name={open?.name ?? (props.editor !== null ? 'New automation' : 'All automations')}
+        name={name}
         {...(counted !== null && { count: counted })}
         actions={<Adders {...props} />}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
@@ -47,7 +48,7 @@ export function AutomationsPage(props: AutomationsPageProps) {
       />
       <div className="panel__body">
         <article className="page page--wide automations" aria-label="Automations">
-          <HiddenTitle>Automations</HiddenTitle>
+          <HiddenTitle>{name}</HiddenTitle>
           {props.notice !== null && (
             <p className="automations__notice" role="status">
               {props.notice}

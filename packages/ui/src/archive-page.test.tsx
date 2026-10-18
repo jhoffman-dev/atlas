@@ -78,7 +78,7 @@ describe('ArchivePage', () => {
 
   it('keeps an h1 to be found by, drawn nowhere, and no count while nothing is archived', () => {
     render(<Page contents={{ notes: [], truncated: false }} />);
-    expect(screen.getByRole('heading', { level: 1, name: 'Archive' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Archived notes' })).toBeTruthy();
     expect(document.querySelector('.page-bar__count')).toBeNull();
   });
 

@@ -104,7 +104,7 @@ describe('TodayPage', () => {
       expect(shown, name).toEqual(titles);
       expect(count(name)?.textContent, name).toBe(String(titles.length));
     }
-    expect(screen.getByText('Tuesday, October 13 · 8 tasks')).toBeDefined();
+    expect(screen.getByText('Tuesday · 8 tasks')).toBeDefined();
   });
 
   it('says so when a section holds nothing, and counts it as none', () => {
@@ -112,7 +112,10 @@ describe('TodayPage', () => {
     expect(within(section('Overdue')).getByText('Nothing is late.')).toBeDefined();
     expect(within(section('Next actions')).getByText('No next actions.')).toBeDefined();
     expect(count('Waiting')?.textContent).toBe('0');
-    expect(screen.getByText('Tuesday, October 13 · nothing needs you')).toBeDefined();
+    expect(
+      screen.getByText('Tuesday · nothing needs you').closest('.page-bar__count'),
+    ).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: '2026-10-13' })).toBeDefined();
   });
 
   it('shows a row’s project, contexts and day', () => {

@@ -73,7 +73,7 @@ export function TemplatesPage(props: TemplatesPageProps) {
       />
       <div className="panel__body">
         <article className="page page--wide templates" aria-label="Templates">
-          <HiddenTitle>Templates</HiddenTitle>
+          <HiddenTitle>All templates</HiddenTitle>
           {creating && props.catalog !== null && (
             <NewTemplateForm
               typesWithout={props.catalog.typesWithout}

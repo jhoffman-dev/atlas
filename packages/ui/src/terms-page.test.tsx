@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, type TermNote, type VocabularyConflict } from '@atlas/domain';
 import { TermsPage, type TermsContents } from './terms-page.tsx';
@@ -55,6 +55,13 @@ const rowOf = (name: string) => {
 describe('the Terms page', () => {
   it('lists each term with its kind and the ways it is misheard, and says how many spellings Atlas knows', () => {
     renderPage();
+    expect(screen.queryByText(/capitals included/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'New term' }));
+    expect(
+      within(screen.getByRole('form', { name: 'New term' })).getByText(
+        /Put right exactly as written, capitals included/,
+      ),
+    ).toBeTruthy();
     expect(screen.getByRole('article', { name: 'Terms' })).toBeTruthy();
     expect(
       screen.getByText('2 terms · 6 misheard spellings').closest('.page-bar__count'),

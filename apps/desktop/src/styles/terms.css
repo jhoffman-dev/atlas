@@ -98,6 +98,16 @@
   font-weight: 700;
 }
 
+/* How a spelling is matched, said once, under the form's fields. */
+.terms__hint {
+  color: var(--ink-3);
+  flex-basis: 100%;
+  font-size: var(--text-meta);
+  margin: 0;
+  /* Drawn after the buttons, as a note under the whole form. */
+  order: 1;
+}
+
 .terms__new-actions {
   display: flex;
   gap: var(--space-2);

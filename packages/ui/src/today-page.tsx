@@ -110,11 +110,15 @@ export function TodayPage(props: TodayPageProps) {
   });
   const scroller = useRef<HTMLDivElement>(null);
   const counted = describe(props.today);
+  // The page is named by its day, which the report brings: until then the bar
+  // places nothing, as a note's does while it is read, rather than a name
+  // that changes under the reader.
+  const name = props.today?.today ?? null;
   return (
     <>
       <PageBar
-        crumb={{ icon: 'today', parent: 'Today' }}
-        name={props.today?.today ?? 'Today'}
+        crumb={name === null ? null : { icon: 'today', parent: 'Today' }}
+        name={name}
         {...(counted !== null && { count: counted })}
         actions={<HeadActions view={props.view} onOpenDailyNote={props.onOpenDailyNote} />}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
@@ -127,7 +131,7 @@ export function TodayPage(props: TodayPageProps) {
             aria-label="Today"
             aria-busy={props.busy || undefined}
           >
-            <HiddenTitle>Today</HiddenTitle>
+            <HiddenTitle>{name ?? 'Today'}</HiddenTitle>
             {props.problem !== null && (
               <p className="table__error" role="alert">
                 {props.problem}
@@ -170,22 +174,18 @@ function HeadActions({ view, onOpenDailyNote }: Pick<TodayPageProps, 'view' | 'o
 }
 
 /** `2026-10-13` as "Tuesday, October 13" — read as a calendar day, in no timezone. */
-function dayName(day: string): string {
+function weekdayName(day: string): string {
   const at = new Date(`${day}T00:00:00Z`);
   if (Number.isNaN(at.getTime())) return day;
-  return at.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
+  return at.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
 }
 
+/** The weekday and what waits, beside the day's date, which is the page's name. */
 function describe(today: TodayReport | null): string | null {
   if (today === null) return null;
   const tasks = today.sections.reduce((sum, section) => sum + section.count, 0);
   const counted = tasks === 0 ? 'nothing needs you' : tasks === 1 ? '1 task' : `${tasks} tasks`;
-  return `${dayName(today.today)} · ${counted}`;
+  return `${weekdayName(today.today)} · ${counted}`;
 }
 
 function noticeWords({ title, action }: TodayNotice): string {
@@ -670,9 +670,10 @@ function GroupName({
   onOpen: (path: VaultPath) => void;
 }) {
   const { project } = group;
-  if (project === null) return <span>{name}</span>;
+  // The name can be cut to an ellipsis on its one line; the tooltip says it whole.
+  if (project === null) return <span title={name}>{name}</span>;
   return (
-    <button type="button" className="today__project" onClick={() => onOpen(project)}>
+    <button type="button" className="today__project" title={name} onClick={() => onOpen(project)}>
       {name}
     </button>
   );

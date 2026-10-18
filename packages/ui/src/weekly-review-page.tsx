@@ -60,7 +60,7 @@ export function WeeklyReviewPage(props: WeeklyReviewPageProps) {
       />
       <div className="panel__body">
         <article className="page page--wide review" aria-label="Weekly review">
-          <HiddenTitle>Weekly review</HiddenTitle>
+          <HiddenTitle>This week</HiddenTitle>
           {props.problem !== null && (
             <p className="table__error" role="alert">
               {props.problem}

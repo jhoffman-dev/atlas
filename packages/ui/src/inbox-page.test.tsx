@@ -224,6 +224,11 @@ describe('InboxPage', () => {
     expect(within(rowOf('Done')).queryByText(/import/i)).toBeNull();
   });
 
+  it('shows no count while nothing is to process and nothing to answer', () => {
+    page({ contents: { items: [], truncated: false, total: 0 } });
+    expect(document.querySelector('.page-bar__count')).toBeNull();
+  });
+
   it('answers proposals in a section of its own, counted beside what is to process', async () => {
     page({ proposals: PROPOSALS });
     const section = screen.getByRole('region', { name: 'Proposals' });

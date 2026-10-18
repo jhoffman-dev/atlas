@@ -77,7 +77,7 @@ export function TermsPage(props: TermsPageProps) {
       />
       <div className="panel__body">
         <article className="page page--wide terms" aria-label="Terms">
-          <HiddenTitle>Terms</HiddenTitle>
+          <HiddenTitle>All terms</HiddenTitle>
           {adding && (
             <NewTermForm
               onAdd={(term) => {
@@ -97,12 +97,18 @@ export function TermsPage(props: TermsPageProps) {
   );
 }
 
+/** How many terms and spellings there are, beside the page's name; nothing while there are none. */
 function describe(contents: TermsContents | null): string | null {
   if (contents === null) return null;
   const terms = contents.terms.length;
   const spellings = contents.spellings;
+  if (terms === 0 && spellings === 0) return null;
   return `${terms} ${terms === 1 ? 'term' : 'terms'} · ${spellings} misheard ${spellings === 1 ? 'spelling' : 'spellings'}`;
 }
+
+/** The one place the app says how a spelling is matched (P28-07): field help, not a page subtitle. */
+const MATCHING_RULE =
+  'Put right exactly as written, capitals included. A person’s or company’s aliases link people and never correct text.';
 
 function NewTermForm({
   onAdd,
@@ -146,6 +152,7 @@ function NewTermForm({
           onChange={(event) => setVariants(event.target.value)}
         />
       </label>
+      <p className="terms__hint">{MATCHING_RULE}</p>
       <label className="terms__field terms__field--kind">
         <span className="terms__label">Kind</span>
         <span className="select">

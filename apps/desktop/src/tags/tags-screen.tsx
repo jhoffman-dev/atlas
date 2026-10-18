@@ -43,19 +43,20 @@ export function TagsScreen({
   });
   const tree: TagTreeState = tags.kind === 'ready' ? { kind: 'ready', tree: page.tree } : tags;
   const count = tags.kind === 'ready' ? tags.counts.length : 0;
+  const name = page.node === null ? 'All tags' : formatTag(page.node.name);
 
   return (
     <>
       <PageBar
         crumb={CRUMB}
-        name={page.node === null ? 'All tags' : formatTag(page.node.name)}
+        name={name}
         {...(count > 0 && { count: `${count} ${count === 1 ? 'tag' : 'tags'}` })}
         {...(onShowSidebar !== undefined && { onShowSidebar })}
         {...(history !== undefined && { history })}
       />
       <div className="panel__body">
         <article className="page page--wide" aria-label="Tags">
-          <HiddenTitle>Tags</HiddenTitle>
+          <HiddenTitle>{name}</HiddenTitle>
           <TagsPage
             tags={tree}
             sort={page.sort}

@@ -247,13 +247,18 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
   const editor = useRef<NoteEditorHandle>(null);
   const picker = usePickerSlot(arrangement);
   const pickImage = () => editor.current?.pickImage();
+  // A view's description sits beside its name; a note's is one of its properties.
+  const described =
+    isNote || heading.description === null || heading.description.trim() === ''
+      ? null
+      : heading.description;
 
   return (
     <>
       <PageBar
         crumb={heading.crumb}
         name={heading.title.text}
-        {...(!isNote && heading.description !== null && { count: heading.description })}
+        {...(!isNote && described !== null && { count: described })}
         {...(props.actions !== undefined && { actions: props.actions })}
         status={<SaveStatus state={state} />}
         // A template is never a favourite: the mark would be copied into every new note.

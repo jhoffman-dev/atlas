@@ -83,12 +83,25 @@
   align-items: baseline;
   color: var(--ink-2);
   display: flex;
-  /* 12px, not the 12.5px column label: the list places rows by this line's
-     height (row-estimates.spec.ts), so the size stays what it estimates. */
+  /* 12px, not the 12.5px column label, and never a second line: the list
+     places rows by this line's height (row-estimates.spec.ts), so a long name
+     ends in an ellipsis and says itself whole in its tooltip. */
   font-size: var(--text-small);
   font-weight: 600;
   gap: var(--space-2);
   margin: 0 0 var(--space-1);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.today__group-name > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today__group-name > .review__count {
+  flex: none;
 }
 
 .today__project {

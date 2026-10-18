@@ -147,7 +147,8 @@ describe('GraphView', () => {
         onShowVault={onShowVault}
       />,
     );
-    expect(screen.getByRole('heading', { name: 'Around The plan' })).toBeDefined();
+    expect(screen.getByRole('heading', { level: 1, name: 'The plan' })).toBeDefined();
+    expect(screen.getByRole('article', { name: 'Around The plan' })).toBeDefined();
     await userEvent.click(screen.getByRole('radio', { name: '2 steps' }));
     expect(onDepthChange).toHaveBeenCalledWith(2);
     await userEvent.click(screen.getByRole('button', { name: 'Whole vault' }));

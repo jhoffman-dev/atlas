@@ -137,7 +137,7 @@ export function InboxPage(props: InboxPageProps) {
       <div className="panel__body panel__body--rows" ref={scroller} {...ROW_SCROLLER_MARK}>
         <RowScrollerContext.Provider value={scroller}>
           <article className="page page--wide inbox" aria-label="Inbox">
-            <HiddenTitle>Inbox</HiddenTitle>
+            <HiddenTitle>To process</HiddenTitle>
             {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
             {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
             <Offers
@@ -195,7 +195,7 @@ function inArrivalOrder(before: readonly string[], shown: readonly string[]): re
 function describe(contents: InboxContents | null, proposals: number): string | null {
   if (contents === null) return null;
   const toAnswer = proposals === 0 ? '' : ` · ${proposals} to answer`;
-  if (contents.total === 0) return proposals === 0 ? null : `Nothing to file${toAnswer}`;
+  if (contents.total === 0) return proposals === 0 ? null : `${proposals} to answer`;
   return `${contents.total} to process${toAnswer}`;
 }
 
