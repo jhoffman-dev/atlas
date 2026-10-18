@@ -2,7 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { createVault, installHost } from './host.ts';
 
 // P13-02, moved by P16-02: light or dark, a sun and a moon in the sidebar's
-// foot, remembered per viewer.
+// foot, remembered per viewer. The look is UI v2's (docs/design/ui-v2-brief.md
+// §3, issue #269): flat surfaces, pastel tints, the system font.
 
 const openVault = async (page: Page) => {
   const vault = await createVault();
@@ -54,77 +55,91 @@ test('the choice survives a reload', async ({ page }) => {
   await expect(option(page, 'Dark theme')).toHaveAttribute('aria-checked', 'true');
 });
 
+/** The design's statuses and button kinds, each with tokens the palette must carry. */
+const STATUS_TONES = ['inbox', 'backlog', 'next', 'doing', 'waiting', 'review', 'done'] as const;
+const BUTTON_KINDS = ['primary', 'positive', 'destructive', 'secondary', 'ghost'] as const;
+
 /**
  * WCAG 2.1 contrast, computed in the page from the tokens as they actually
- * resolve rather than from the values written in the stylesheet.
+ * resolve rather than from the values written in the stylesheet. A tint or a
+ * button's fill may be translucent (a dark tint is its dot at 16%), so each
+ * colour is laid over the surface before it is measured.
  */
 const ratios = (page: Page, pairs: readonly (readonly [string, string])[]) =>
   page.evaluate((wanted) => {
+    type Rgba = [number, number, number, number];
     const root = getComputedStyle(document.documentElement);
-    const channels = (token: string): [number, number, number] => {
-      const hex = root.getPropertyValue(token).trim().replace('#', '');
-      const full = hex.length === 3 ? [...hex].map((c) => c + c).join('') : hex;
-      return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16)) as [number, number, number];
+    const parse = (token: string): Rgba => {
+      const value = root.getPropertyValue(token).trim();
+      if (value === 'transparent') return [0, 0, 0, 0];
+      const fn = value.match(/^rgba?\(([^)]+)\)$/);
+      if (fn) {
+        const [r = NaN, g = NaN, b = NaN, a = 1] = (fn[1] ?? '').split(',').map(Number);
+        return [r, g, b, a];
+      }
+      // The build minifies colours: `#ffffff` arrives as `#fff`, and a
+      // translucent tint as eight hex digits, whose last pair is its alpha.
+      const hex = value.replace('#', '');
+      const full = hex.length <= 4 ? [...hex].map((c) => c + c).join('') : hex;
+      const [r = NaN, g = NaN, b = NaN, a = 255] = [0, 2, 4, 6]
+        .filter((i) => i < full.length)
+        .map((i) => parseInt(full.slice(i, i + 2), 16));
+      return [r, g, b, a / 255];
     };
-    const luminance = (token: string) => {
-      const [r, g, b] = channels(token).map((value) => {
+    const over = ([r, g, b, a]: Rgba, [br, bg, bb]: Rgba): Rgba => [
+      r * a + br * (1 - a),
+      g * a + bg * (1 - a),
+      b * a + bb * (1 - a),
+      1,
+    ];
+    const luminance = ([r, g, b]: Rgba) => {
+      const [lr, lg, lb] = [r, g, b].map((value) => {
         const scaled = value / 255;
         return scaled <= 0.04045 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
       }) as [number, number, number];
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
     };
+    const surface = parse('--surface');
     return wanted.map(([fore, back]) => {
-      const [lighter, darker] = [luminance(fore), luminance(back)].sort((a, b) => b - a) as [
-        number,
-        number,
-      ];
+      const ground = over(parse(back), surface);
+      const [lighter, darker] = [luminance(over(parse(fore), ground)), luminance(ground)].sort(
+        (a, b) => b - a,
+      ) as [number, number];
       return { pair: `${fore} on ${back}`, ratio: (lighter + 0.05) / (darker + 0.05) };
     });
   }, pairs);
 
 /**
- * The reference's mid-greys on a tinted ground are exactly where contrast
- * slips, so the dim and faint text colours are held to AA (4.5:1) by a test
- * rather than by having been checked once.
+ * Mid-greys on a tinted ground are exactly where contrast slips, so every
+ * text colour on every surface it is drawn on, each status's text on its own
+ * tint and each button's text on its own fill are held to AA (4.5:1) by a
+ * test rather than by having been checked once.
  */
-test('the text colours clear WCAG AA on both themes', async ({ page }) => {
+test('text, status pills and buttons clear WCAG AA on both themes', async ({ page }) => {
   await openVault(page);
-  // Every text role on every surface it is drawn on: the sidebar is on the
-  // ground, the work on the panel, cards and controls on raised.
   const pairs = [
-    ['--ink', '--ground'],
-    ['--ink', '--panel'],
-    ['--ink', '--raised'],
-    ['--ink-2', '--ground'],
-    ['--ink-2', '--panel'],
-    ['--ink-2', '--raised'],
-    ['--ink-2', '--track'],
-    ['--ink-3', '--ground'],
-    ['--ink-3', '--panel'],
-    ['--ink-3', '--raised'],
-    ['--accent-text', '--panel'],
-    ['--accent-text', '--raised'],
-    ['--danger', '--ground'],
-    ['--danger', '--panel'],
-    ['--danger', '--raised'],
-    ['--accent-ink', '--accent'],
-  ] as const;
+    ...['--ink', '--ink-2', '--ink-3'].flatMap((ink) =>
+      ['--bg', '--surface', '--well'].map((ground) => [ink, ground] as const),
+    ),
+    ...STATUS_TONES.map((tone) => [`--status-${tone}-ink`, `--status-${tone}-tint`] as const),
+    ...BUTTON_KINDS.map((kind) => [`--btn-${kind}-ink`, `--btn-${kind}-bg`] as const),
+  ];
 
   for (const named of ['light', 'dark'] as const) {
     await page.evaluate((value) => {
       document.documentElement.dataset['theme'] = value;
     }, named);
-    for (const { pair, ratio } of await ratios(page, pairs)) {
+    const measured = await ratios(page, pairs);
+    expect(measured).toHaveLength(pairs.length);
+    for (const { pair, ratio } of measured) {
       expect(ratio, `${named}: ${pair}`).toBeGreaterThanOrEqual(4.5);
     }
   }
 });
 
-// The shell is the ground with the sidebar sitting straight on it, and the work
-// in a panel that is a different surface, lifted and rounded — in both themes.
-test('the work sits in a panel on the ground; the sidebar sits on the ground itself', async ({
-  page,
-}) => {
+// Content runs edge to edge on the surface and flat — no panel shadow, no
+// rounded corners — with the sidebar the one grey beside it, in both themes.
+test('the work sits flat on the surface; the sidebar is the grey beside it', async ({ page }) => {
   await openVault(page);
   const surfaces = () =>
     page.evaluate(() => {
@@ -138,36 +153,38 @@ test('the work sits in a panel on the ground; the sidebar sits on the ground its
       };
     });
 
-  const light = await surfaces();
-  expect(light.shell).toBe('rgb(227, 231, 240)');
-  expect(light.sidebar).toBe('rgba(0, 0, 0, 0)');
-  expect(light.panel).toBe('rgb(242, 244, 249)');
-  expect(light.radius).toBe('22px');
-  expect(light.shadow).not.toBe('none');
+  expect(await surfaces()).toEqual({
+    shell: 'rgb(255, 255, 255)',
+    sidebar: 'rgb(246, 246, 247)',
+    panel: 'rgb(255, 255, 255)',
+    radius: '0px',
+    shadow: 'none',
+  });
 
   await option(page, 'Dark theme').click();
-  const dark = await surfaces();
-  expect(dark.shell).toBe('rgb(7, 15, 36)');
-  expect(dark.sidebar).toBe('rgba(0, 0, 0, 0)');
-  expect(dark.panel).toBe('rgb(12, 24, 52)');
+  expect(await surfaces()).toEqual({
+    shell: 'rgb(24, 24, 27)',
+    sidebar: 'rgb(17, 17, 19)',
+    panel: 'rgb(24, 24, 27)',
+    radius: '0px',
+    shadow: 'none',
+  });
 });
 
-test('the app is set in Manrope, bundled rather than fetched', async ({ page }) => {
+test('the app is set in the system font, with nothing fetched', async ({ page }) => {
   const fetched: string[] = [];
   page.on('request', (request) => {
-    if (!request.url().startsWith('http://localhost')) fetched.push(request.url());
+    const url = request.url();
+    if (!url.startsWith('http://localhost') || request.resourceType() === 'font') fetched.push(url);
   });
   await openVault(page);
 
-  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toContain(
-    'Manrope',
-  );
-  // `load` resolves to the faces it found; with no @font-face for the family it
-  // finds none, which is the failure this is here to catch.
-  const loaded = await page.evaluate(async () =>
-    (await document.fonts.load('600 13.5px "Manrope Variable"')).map((face) => face.status),
-  );
-  expect(loaded.length).toBeGreaterThan(0);
-  expect(loaded.every((status) => status === 'loaded')).toBe(true);
+  const family = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+  expect(family).toContain('-apple-system');
+  expect(family).toContain('system-ui');
+  expect(family).not.toContain('Manrope');
+  // The stack is the system's, so the page declares no face of its own: a
+  // bundled font would show up here before it showed up as a request.
+  expect(await page.evaluate(() => document.fonts.size)).toBe(0);
   expect(fetched).toEqual([]);
 });

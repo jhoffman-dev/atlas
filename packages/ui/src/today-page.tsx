@@ -515,7 +515,7 @@ function Section({
  * Heights a group and a row are placed by until they are measured, as WebKit
  * draws them: a row measured at its estimate does not place the list again.
  */
-const GROUP_NAME_HEIGHT = 23.875;
+const GROUP_NAME_HEIGHT = 18;
 const GROUP_GAP = 12;
 const ROW_HEIGHT = 44;
 

@@ -18,7 +18,6 @@ import {
   resolveVaultPorts,
 } from './composition.ts';
 import { guardStrayFileDrops } from './file-drop-guard.ts';
-import '@fontsource-variable/manrope';
 import './styles.css';
 
 guardStrayFileDrops(window);
