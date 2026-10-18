@@ -98,7 +98,9 @@
   flex: 1;
 }
 
-/* The view's own buttons, before the save word. */
+/* The view's own buttons, before the save word. Kept whole for now: letting
+   the slot shrink would need overflow: hidden, which clips its buttons' focus
+   rings; slice 3b decides what a narrow pane drops from it. */
 .page-bar__actions {
   align-items: center;
   display: flex;

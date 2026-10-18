@@ -83,9 +83,9 @@
 /* Where a hidden sidebar comes back from: the first panel's top-left corner,
    inside its header strip. */
 .shell__show {
-  left: calc(var(--shell-inset) + 12px);
+  left: 12px;
   position: absolute;
-  top: calc(var(--shell-inset) + 10px);
+  top: 10px;
   z-index: 2;
 }
 
@@ -95,12 +95,12 @@
 .index-progress {
   background: var(--raised);
   border-radius: var(--radius-pill);
-  bottom: calc(var(--shell-inset) + 12px);
+  bottom: 12px;
   box-shadow: var(--shadow-soft);
   color: var(--ink-2);
   font-size: var(--text-small);
   font-variant-numeric: tabular-nums;
-  left: calc(var(--shell-inset) + 12px);
+  left: 12px;
   margin: 0;
   padding: var(--space-1) var(--space-3);
   pointer-events: none;
@@ -225,7 +225,7 @@
 .vault-header__tile {
   align-items: center;
   background: var(--ink);
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: var(--surface);
   display: flex;
   flex: none;
@@ -241,7 +241,7 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: var(--ink);
   cursor: pointer;
   display: flex;
@@ -267,7 +267,7 @@
 }
 
 .vault-header .icon-button {
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: var(--ink-3);
   height: 26px;
   width: 26px;

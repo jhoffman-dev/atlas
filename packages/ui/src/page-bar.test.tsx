@@ -124,8 +124,9 @@ describe('PageBar count and actions', () => {
     );
     const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(breadcrumb.textContent).toContain('Task table');
-    expect(breadcrumb.textContent).toContain('186 tasks');
+    expect(breadcrumb.querySelector('.page-bar__count')?.textContent).toBe('186 tasks');
     const filter = screen.getByRole('button', { name: 'Filter' });
+    expect(filter.closest('.page-bar__actions')).not.toBeNull();
     const status = screen.getByRole('status');
     expect(
       breadcrumb.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING,

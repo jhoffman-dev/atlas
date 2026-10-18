@@ -78,8 +78,8 @@
   --sidebar-pad: 8px;
   --sidebar-row: 28px;
   --sidebar-row-end: 10px;
-  /* Content runs edge to edge on the surface: no panel inset from the ground. */
-  --shell-inset: 0px;
+  /* A sidebar row, a heading label, the vault tile: tighter than a control. */
+  --radius-row: 5px;
 }
 
 /* Light: the default. The explicit selectors are not anchored to `:root`, so a

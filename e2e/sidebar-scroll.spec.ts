@@ -159,6 +159,50 @@ test('a row’s Options button is clear of the sidebar’s scrollbar while it sh
   await expect(page.getByRole('menuitem', { name: /^Rename/ })).toBeVisible();
 });
 
+// A list row's star sits beside the row's button rather than inside it, so it
+// is the row's last control and the one nearest the scrollbar's pixels.
+test('a favourite’s star is clear of the sidebar’s scrollbar while it shows', async ({ page }) => {
+  await page.setViewportSize({ width: 1180, height: 800 });
+  await openVault(page);
+  const row = sidebarSection(page, 'favorites').locator('.sidebar__item', { hasText: 'Note 03' });
+  await row.hover();
+  const star = row.getByRole('button', { name: 'Remove Note 03 from favorites', exact: true });
+  await expect(star).toBeVisible();
+  // A wheel is what first shows the scrollbar; a scroll from script alone
+  // leaves it undrawn, and the pixels under it are then the star's own.
+  await wheelTo(page, row, 1);
+  await row.hover();
+
+  // Every pixel across the star, with the scrollbar just drawn, is the star's.
+  const missed = await star.evaluate(async (button) => {
+    const area = button.closest('.sidebar__scroll');
+    if (area === null) throw new Error('the row is not in the sidebar scroller');
+    area.scrollTop += 1;
+    await new Promise((drawn) => requestAnimationFrame(drawn));
+    const box = button.getBoundingClientRect();
+    const across: number[] = [];
+    for (let x = Math.ceil(box.left); x < box.right; x += 1) {
+      const under = document.elementFromPoint(x, box.top + box.height / 2);
+      if (!button.contains(under)) across.push(Math.round(x - box.left));
+    }
+    return { width: box.width, across };
+  });
+  expect(missed.width, 'the star has a width to click').toBeGreaterThan(0);
+  expect(missed.across, 'pixels across the star where a press lands elsewhere').toEqual([]);
+
+  // And a real press: move onto the star (which shows the scrollbar), press
+  // and release. The note leaves the favourites.
+  await page.mouse.wheel(0, -1);
+  const box = await star.boundingBox();
+  if (box === null) throw new Error('the star is not on screen');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(
+    sidebarSection(page, 'favorites').getByRole('button', { name: 'Note 03', exact: true }),
+  ).toHaveCount(0);
+});
+
 test('the keyboard brings a tree row into view through the shared scroller', async ({ page }) => {
   await page.setViewportSize({ width: 1180, height: 800 });
   await openVault(page);

@@ -272,15 +272,23 @@ async function focusEachAndCollectClipping(
   const found: string[] = [];
   let seen = 0;
   for (let at = 0; at < count; at += 1) {
-    const took = await page.evaluate((index) => {
+    const focused = await page.evaluate((index) => {
       const one = (globalThis as { attack328Primitives?: Element[] }).attack328Primitives?.[index];
-      if (!(one instanceof HTMLElement)) return false;
+      if (!(one instanceof HTMLElement)) return null;
       one.focus();
-      return document.activeElement === one;
+      if (document.activeElement !== one) return null;
+      return {
+        label: `${one.tagName.toLowerCase()}.${[...one.classList].join('.')}`,
+        visible: one.matches(':focus-visible'),
+        ring: getComputedStyle(one).boxShadow,
+      };
     }, at);
     // A primitive that cannot take the focus — hidden, or disabled — has no ring to clip.
-    if (!took) continue;
+    if (focused === null) continue;
     seen += 1;
+    // A ring that is clipped nowhere because it is drawn nowhere is no ring.
+    if (!focused.visible) found.push(`${focused.label}: not :focus-visible`);
+    if (focused.ring === 'none') found.push(`${focused.label}: no ring drawn`);
     const clipped = await ringClipping(page);
     if (clipped !== null) found.push(clipped);
   }

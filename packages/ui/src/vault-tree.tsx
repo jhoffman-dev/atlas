@@ -425,7 +425,7 @@ export function VaultTree({
                 index: item.index,
                 top: item.start - scrollMargin,
                 height: item.size - ROW_GAP,
-                indent: 10 + row.depth * INDENT,
+                indent: 8 + row.depth * INDENT,
                 tabbable: item.index === tabbableIndex,
                 selected: open.has(row.entry.path),
               }}

@@ -80,7 +80,7 @@
   appearance: none;
   background: none;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: var(--ink-3);
   cursor: pointer;
   display: flex;
@@ -190,7 +190,7 @@ ul.sidebar__sections {
 
 .sidebar__item {
   align-items: center;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: var(--ink-2);
   display: flex;
   font-size: var(--text-body);
@@ -219,7 +219,7 @@ ul.sidebar__sections {
   align-self: stretch;
   background: none;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: inherit;
   cursor: pointer;
   display: flex;
@@ -334,6 +334,13 @@ ul.sidebar__sections {
   width: 15px;
 }
 
+/* A list row's star sits beside the row's button, not in it, so it takes the
+   row's end inset itself: like a tree row's "…", it stays 18px clear of the
+   scrollbar drawn over the sidebar's edge (#52). */
+.sidebar__item > .star {
+  margin-right: var(--sidebar-row-end);
+}
+
 /* In a note's own header a favourite says so all the time. In the sidebar the
    Favorites section already says it, so there the star waits for a pointer,
    as the mockup draws the rows. */
@@ -359,15 +366,12 @@ ul.sidebar__sections {
   overflow: visible;
 }
 
-/* A tree row is placed by the virtualiser at a 29px pitch (ROW_HEIGHT in
-   vault-tree.tsx): the fill stops a pixel short of the next row, as the
-   lists' rows have a pixel between them. */
+/* A tree row is placed by the virtualiser at a 29px pitch and drawn 28px
+   tall (ROW_HEIGHT and ROW_GAP in vault-tree.tsx), so the pixel between
+   rows is the lists' too. */
 .tree__row {
   align-items: center;
-  background-clip: padding-box;
-  border-bottom: 1px solid transparent;
-  border-radius: 5px;
-  box-sizing: border-box;
+  border-radius: var(--radius-row);
   color: var(--ink-2);
   cursor: pointer;
   display: flex;
@@ -416,7 +420,7 @@ ul.sidebar__sections {
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: var(--ink-2);
   cursor: pointer;
   display: flex;
@@ -441,7 +445,7 @@ ul.sidebar__sections {
 }
 
 .sidebar-footer__theme {
-  border-radius: 5px;
+  border-radius: var(--radius-row);
   color: var(--ink-3);
 }
 

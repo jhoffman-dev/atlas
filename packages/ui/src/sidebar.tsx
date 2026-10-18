@@ -583,6 +583,7 @@ const TypeList = memo(function TypeList({
                 type="button"
                 className="sidebar__row"
                 aria-label={`${type.label}, ${type.count === 1 ? '1 note' : `${type.count} notes`}`}
+                title={type.label}
                 aria-current={on ? 'page' : undefined}
                 onClick={() => onOpenType(type.name)}
                 onKeyDown={(event) => onKeyDown(type, event)}
@@ -722,6 +723,7 @@ const EntryList = memo(function EntryList({
           <button
             type="button"
             className="sidebar__row"
+            title={entry.title}
             aria-current={open.has(entry.path) ? 'page' : undefined}
             onClick={() => onOpen(entry.path)}
           >
