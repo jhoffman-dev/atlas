@@ -216,7 +216,7 @@ test('a repeating task dropped on done is drawn back in play at once, not on don
   await dragCardTo(page, 'water the plants.md', 'done');
 
   await expect(cardIn(page, 'backlog', 'water the plants.md')).toBeVisible();
-  await expect(cardIn(page, 'backlog', 'water the plants.md')).toContainText('2026-09-27');
+  await expect(cardIn(page, 'backlog', 'water the plants.md')).toContainText('Sep 27, 2026');
   await expect(cardIn(page, 'done', 'water the plants.md')).toHaveCount(0);
   expect(await vault.read('water the plants.md')).toContain('status: doing');
 
