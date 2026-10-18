@@ -7,7 +7,7 @@ export {
   OWN_WRITES_KEPT,
 } from './own-writes.ts';
 export type { FoundVersion, LeftVersion, OwnWrites, PathInVault } from './own-writes.ts';
-export { outsideChanges } from './outside-changes.ts';
+export { awaitsOwnRefresh, outsideChanges } from './outside-changes.ts';
 export { recordingOwnWrites } from './recording-own-writes.ts';
 export { openVault, restoreVault } from './open-vault.ts';
 export { listVaultDirectory, listVaultNotes, readVaultFile } from './read-vault.ts';

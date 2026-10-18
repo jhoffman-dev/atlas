@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createVaultPath, parentVaultPath, vaultPathName, type VaultEntry } from '@atlas/domain';
 import { fakeVaultFs } from '../testing/fake-ports.ts';
 import { createOwnWrites, OWN_WRITE_KEPT_MS } from './own-writes.ts';
-import { outsideChanges } from './outside-changes.ts';
+import { awaitsOwnRefresh, outsideChanges } from './outside-changes.ts';
 import { recordingOwnWrites } from './recording-own-writes.ts';
 import type { VaultFsPort } from './ports.ts';
 
@@ -28,11 +28,18 @@ function aVault() {
     }
     if (file === 'folder') folders.add(at);
   };
-  const disk = { mtime: 1_000, reads: 0, failReads: false };
+  const disk = {
+    mtime: 1_000,
+    reads: 0,
+    failReads: false,
+    failListings: false,
+    readPaths: [] as string[],
+  };
   let wallClock = 50_000;
   const host: VaultFsPort = fakeVaultFs({
     readNotes: async (paths) => {
       disk.reads += 1;
+      disk.readPaths = [...paths];
       if (disk.failReads) throw new Error('the host is busy');
       return paths.flatMap((each) => {
         const file = files.get(each);
@@ -42,7 +49,7 @@ function aVault() {
     },
     listDirectory: async (folder) => {
       disk.reads += 1;
-      if (disk.failReads) throw new Error('the host is busy');
+      if (disk.failReads || disk.failListings) throw new Error('the host is busy');
       // Listing a folder that is not there fails, as the host's does.
       if (folder !== '' && !folders.has(folder)) throw new Error('no such folder');
       return [...files]
@@ -325,6 +332,40 @@ describe('outsideChanges: renames, deletes and creates', () => {
     expect(await vault.reported(report)).toEqual(['Tasks', 'Tasks/2026', 'Tasks/2026/10']);
   });
 
+  it('keeps the app’s new folder once anything that is not the app’s note is in it', async () => {
+    const vault = aVault();
+    await vault.fs.createFolder({ path: path('Projects/Larkspur') });
+    await save(vault.fs, 'Projects/Larkspur/Plan.md', '# Plan\n');
+    vault.outside.write('Projects/Larkspur/.DS_Store', 'Bud1');
+    vault.disk.reads = 0;
+    expect(await vault.reported(['Projects/Larkspur'])).toEqual(['Projects/Larkspur']);
+    // The note the app left is read back; the stranger in the folder is not.
+    expect(vault.disk.readPaths).toEqual(['Projects/Larkspur/Plan.md']);
+  });
+
+  it('keeps the app’s new folder once another program has made an empty folder in it', async () => {
+    const vault = aVault();
+    await vault.fs.createFolder({ path: path('Projects/Larkspur') });
+    vault.outside.folder('Projects/Larkspur/Scans');
+    expect(await vault.reported(['Projects/Larkspur'])).toEqual(['Projects/Larkspur']);
+  });
+
+  it('keeps the app’s new folder when it cannot be listed', async () => {
+    const vault = aVault();
+    await vault.fs.createFolder({ path: path('Projects/Larkspur') });
+    vault.disk.failListings = true;
+    expect(await vault.reported(['Projects/Larkspur'])).toEqual(['Projects/Larkspur']);
+  });
+
+  it('keeps the app’s new folder holding one it made that the report leaves out, which is not listed', async () => {
+    const vault = aVault();
+    await vault.fs.createFolder({ path: path('Tasks') });
+    await vault.fs.createFolder({ path: path('Tasks/2026') });
+    await save(vault.fs, 'Tasks/2026/Plan.md', '# Plan\n');
+    // Only what a report names is listed: what the folder inside holds is not known.
+    expect(await vault.reported(['Tasks'])).toEqual(['Tasks']);
+  });
+
   it('keeps a new folder past what it lists, rather than list more', async () => {
     const vault = aVault();
     const made = ['A', 'B', 'C', 'D', 'E'];
@@ -332,18 +373,42 @@ describe('outsideChanges: renames, deletes and creates', () => {
     expect(await vault.reported(made)).toEqual(made);
   });
 
-  it('takes a burst of trashes across many folders as empty by one read, and keeps the folders among them', async () => {
+  it('refreshes for a burst of trashes across more folders than it lists, after one read', async () => {
     const vault = aVault();
-    const trashed = ['A/Old.md', 'B/Old.md', 'C/Old.md', 'D/Old.md', 'E/Scans'];
+    const trashed = ['A/Old.md', 'B/Old.md', 'C/Old.md', 'D/Old.md', 'E/Old.md'];
     for (const each of trashed) {
       vault.outside.write(each, '# Old\n');
       await vault.fs.trashEntry({ path: path(each) });
     }
-    vault.outside.write('B/Old.md', '# Old, back again\n');
     vault.disk.reads = 0;
-    // Too many folders to list: a note's path is read, anything else is refreshed for.
-    expect(await vault.reported(trashed)).toEqual(['B/Old.md', 'E/Scans']);
+    // Five folders to list: no note is read back, and an empty path cannot be told from one the read skips.
+    expect(await vault.reported(trashed)).toEqual(trashed);
     expect(vault.disk.reads).toBe(1);
+  });
+
+  it('keeps what the read skips at a path the app emptied, past the folders it lists', async () => {
+    const vault = aVault();
+    const trashed = ['A/Old.md', 'B/Old.md', 'C/Old.md', 'D/Old.md', 'E/Old.md'];
+    for (const each of trashed) {
+      vault.outside.write(each, '# Old\n');
+      await vault.fs.trashEntry({ path: path(each) });
+    }
+    // Put back as something the host's read leaves out: too big, not text, or a folder.
+    vault.outside.folder('C/Old.md');
+    expect(await vault.reported(['C/Old.md', ...trashed])).toContain('C/Old.md');
+  });
+
+  it('drops the app’s trashes, read and listed, while there are few folders', async () => {
+    const vault = aVault();
+    const trashed = ['A/Old.md', 'A/Older.md', 'B/Old.md'];
+    for (const each of trashed) {
+      vault.outside.write(each, '# Old\n');
+      await vault.fs.trashEntry({ path: path(each) });
+    }
+    vault.disk.reads = 0;
+    expect(await vault.reported(trashed)).toEqual([]);
+    // One read, and one listing of each of the two folders.
+    expect(vault.disk.reads).toBe(3);
   });
 
   it('keeps a note another program creates', async () => {
@@ -407,5 +472,29 @@ describe('recordingOwnWrites: a write that fails is not the app’s', () => {
     vault.outside.write('Notes/Plan.md', '# Plan\n');
     const [read] = await vault.fs.readNotes(['Notes/Plan.md']);
     expect(read?.text).toBe('# Plan\n');
+  });
+});
+
+describe('awaitsOwnRefresh: whether a report is worth waiting on the app’s refresh for', () => {
+  const reportOf = (ownWrites: ReturnType<typeof createOwnWrites>, paths: string[]) =>
+    awaitsOwnRefresh({ ownWrites, vault: VAULT, paths });
+  const text = { kind: 'text', text: '# Plan\n', modified: 1 } as const;
+
+  it('waits for a write of the app’s that no refresh has taken in, or its temporary', () => {
+    const ownWrites = createOwnWrites({ clock: { now: () => 0 } });
+    ownWrites.record({ vault: VAULT, path: 'Notes/Plan.md', left: text });
+    expect(reportOf(ownWrites, ['Notes/Theirs.md', 'Notes/Plan.md'])).toBe(true);
+    expect(reportOf(ownWrites, ['Notes/.Plan.md.atlas-tmp'])).toBe(true);
+  });
+
+  it('does not wait for other programs’ changes, nor a write already refreshed for', () => {
+    const ownWrites = createOwnWrites({ clock: { now: () => 0 } });
+    ownWrites.record({ vault: VAULT, path: 'Notes/Plan.md', left: text });
+    expect(reportOf(ownWrites, ['Notes/Theirs.md'])).toBe(false);
+    expect(awaitsOwnRefresh({ ownWrites, vault: OTHER_VAULT, paths: ['Notes/Plan.md'] })).toBe(
+      false,
+    );
+    ownWrites.refreshed({ vault: VAULT, through: ownWrites.lastWrite() });
+    expect(reportOf(ownWrites, saveReport('Notes/Plan.md'))).toBe(false);
   });
 });

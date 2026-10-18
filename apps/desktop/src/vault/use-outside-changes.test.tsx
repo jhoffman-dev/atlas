@@ -59,7 +59,11 @@ function aHost() {
   };
 }
 
-function watching(host: ReturnType<typeof aHost>, settled?: () => Promise<unknown>) {
+function watching(
+  host: ReturnType<typeof aHost>,
+  settled?: () => Promise<unknown>,
+  giveUp?: () => Promise<unknown>,
+) {
   const ownWrites = createOwnWrites({ clock: { now: () => 50_000 } });
   const onChange = vi.fn();
   const rendered = renderHook(
@@ -72,6 +76,7 @@ function watching(host: ReturnType<typeof aHost>, settled?: () => Promise<unknow
         ownWrites,
         onChange,
         ...(settled !== undefined && { settled }),
+        ...(giveUp !== undefined && { giveUp }),
       });
       return fs;
     },
@@ -167,5 +172,38 @@ describe('useOutsideChanges (#254)', () => {
     };
     await host.report(SAVE_REPORT);
     expect(onChange).toHaveBeenCalledExactlyOnceWith(SAVE_REPORT);
+  });
+
+  it('passes on a report of another program’s change at once, while a sync is still running', async () => {
+    const host = aHost();
+    const running = () => new Promise<never>(() => {});
+    const { onChange } = watching(host, running, running);
+    host.outsideWrite('Notes/Theirs.md', '# Theirs\n');
+    await host.report(['Notes/Theirs.md']);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(['Notes/Theirs.md']);
+  });
+
+  it('waits only so long for a sync that never ends, then judges the report', async () => {
+    const host = aHost();
+    let giveUpNow = () => {};
+    const given = new Promise<void>((resolve) => (giveUpNow = resolve));
+    const { onChange, rendered } = watching(
+      host,
+      () => new Promise<never>(() => {}),
+      () => given,
+    );
+    await rendered.result.current.writeTextFile({
+      path: createVaultPath(NOTE),
+      contents: '# Plan\n',
+      expectedModified: null,
+    });
+    await host.report(SAVE_REPORT);
+    expect(onChange).not.toHaveBeenCalled();
+    await act(async () => {
+      giveUpNow();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    // Not refreshed for by the app, so its echo is what refreshes it.
+    expect(onChange).toHaveBeenCalledExactlyOnceWith([NOTE]);
   });
 });

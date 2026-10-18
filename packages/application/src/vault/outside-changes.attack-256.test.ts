@@ -124,7 +124,9 @@ describe('attack #256: the cost of telling an echo, for a burst', () => {
     }
     disk.refreshedThroughNow();
 
-    expect(await disk.reported(notes)).toEqual([]);
+    // Past the folders it lists, a path the read finds no note at may hold one the read
+    // skips (too big, not text), so the burst is refreshed for: one walk (PR #256 review).
+    expect(await disk.reported(notes)).toEqual(notes);
     // The refresh this saves is one walk of the vault; telling the echo must not cost hundreds.
     expect(disk.calls.listDirectory + disk.calls.readNotes).toBeLessThanOrEqual(2);
   });
