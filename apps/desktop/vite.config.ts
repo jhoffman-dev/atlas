@@ -47,6 +47,18 @@ export default defineConfig({
   },
   // Tauri drives the dev server, so the port is fixed and failures must be loud.
   server: { port: 1420, strictPort: true },
-  build: { outDir: 'dist', emptyOutDir: true, target: 'safari17' },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    target: 'safari17',
+    // Everything start-up loads in one chunk. Left alone, the bundler splits the code
+    // the main chunk shares with a page loaded on first use (`pages-on-first-use.ts`)
+    // into chunks of their own, which start-up then fetches anyway, compressed worse.
+    // The pages can leave the main chunk at all because @atlas/ui declares no side
+    // effects: its index file then no longer keeps every page it exports there.
+    rolldownOptions: {
+      output: { codeSplitting: { groups: [{ name: 'start', tags: ['$initial'] }] } },
+    },
+  },
   clearScreen: false,
 });

@@ -18,6 +18,7 @@ import {
   resolveVaultPorts,
 } from './composition.ts';
 import { guardStrayFileDrops } from './file-drop-guard.ts';
+import { preloadPages } from './pages-on-first-use.ts';
 import '@fontsource-variable/manrope';
 import './styles.css';
 
@@ -46,3 +47,8 @@ createRoot(root).render(
     />
   </StrictMode>,
 );
+
+// The pages not on the start path load after start-up, so they open without a
+// fallback yet never hold up the first paint.
+if (document.readyState === 'complete') void preloadPages();
+else window.addEventListener('load', () => void preloadPages(), { once: true });

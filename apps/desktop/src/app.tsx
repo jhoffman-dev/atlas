@@ -61,7 +61,6 @@ import {
   SearchPalette,
   CapturePalette,
   DeleteDialog,
-  GlobalCaptureSettings,
   lostUsesText,
   TemplateToNoteDialog,
   MovePicker,
@@ -128,7 +127,16 @@ import { useApiHost } from './api/use-api-host.ts';
 import { createAutomationRelay } from './api/automation-relay.ts';
 import { createMoveRelay } from './api/move-relay.ts';
 import { SettingsPanel } from './settings/settings-panel.tsx';
-import { ImageSettingsPanel } from './settings/image-settings-panel.tsx';
+import {
+  GlobalCaptureSettings,
+  GoogleCalendarSettingsCard,
+  GranolaSettingsCard,
+  ImageSettingsPanel,
+  ProfileSettingsCard,
+  QuickAddSettingsCard,
+  SecretsSettingsCard,
+  SyncSettingsCard,
+} from './pages-on-first-use.ts';
 import { browserImagePlacementStore } from './notes/browser-image-placement-store.ts';
 import { useTickMemory } from './query/tick-memory.ts';
 import { useViewDrafts } from './query/use-view-drafts.ts';
@@ -154,14 +162,10 @@ import { useAppShortcuts } from './app-shortcuts.ts';
 import { useMainView } from './main-view.ts';
 import { browserFabStore } from './quick-add/browser-fab-store.ts';
 import { QuickAdd } from './quick-add/quick-add.tsx';
-import { QuickAddSettingsCard } from './quick-add/quick-add-settings-card.tsx';
 import type { GlobalCaptureStore } from './global-capture/browser-global-capture-store.ts';
 import { useGlobalCapture } from './global-capture/use-global-capture.ts';
 import type { SourcePorts } from './sources/source-ports.ts';
-import { SecretsSettingsCard } from './settings/secrets-settings-card.tsx';
-import { GoogleCalendarSettingsCard } from './settings/google-calendar-settings-card.tsx';
 import { useGoogleCalendar } from './settings/use-google-calendar.ts';
-import { GranolaSettingsCard } from './settings/granola-settings-card.tsx';
 import { useGranola } from './settings/use-granola.ts';
 import { useGranolaPull } from './granola/use-granola-pull.ts';
 import { useSecrets } from './settings/use-secrets.ts';
@@ -185,7 +189,6 @@ import { useMeetingImport } from './meetings/use-meeting-import.ts';
 import { archiveCommand, withCommandBeforeDelete } from './archive/archive-menu.ts';
 import { paletteArchiveCommands, runPaletteArchiveCommand } from './archive/palette-archive.ts';
 import { ChatPane, ClaudeSettingsCard } from './chat/chat-pane.tsx';
-import { ProfileSettingsCard } from './profile/profile-settings-card.tsx';
 import { useProfileSetting } from './profile/use-profile-setting.ts';
 import { useSelfEmailsSetting } from './profile/use-self-emails-setting.ts';
 import { settingsUnreadable, vaultOwnerKnown } from './profile/vault-owner-known.ts';
@@ -198,7 +201,6 @@ import { useChat, type ChatPorts } from './chat/use-chat.ts';
 import { closingInStages } from './activity/closing-stages.ts';
 import { useSync, type SyncHostPorts } from './sync/use-sync.ts';
 import { useOpenFromGitHub } from './sync/use-open-from-github.ts';
-import { SyncSettingsCard } from './sync/sync-settings-card.tsx';
 import { syncConflictNotice, syncIndicatorBadge } from './sync/sync-view.ts';
 import { browserClipboard } from './settings/clipboard.ts';
 
