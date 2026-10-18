@@ -25,7 +25,7 @@ enum Slot {
     Ref,
     /// A path inside the vault, after `--`.
     VaultPath,
-    /// `-c` config value for the commit's author: the key, then any value.
+    /// `-c` config value for a commit's or merge's author: the key, then any value.
     Identity(&'static str),
     /// The folder a clone makes: one new name.
     CloneName,
@@ -92,6 +92,20 @@ const IN_VAULT: &[Shape] = &[
     (&[Is("fetch"), Is("--quiet"), Is("origin")], Reach::Network),
     (
         &[
+            Is("merge"),
+            Is("--no-edit"),
+            Is("--allow-unrelated-histories"),
+            Ref,
+        ],
+        Reach::Local,
+    ),
+    // A merge that makes a commit, by the same author a commit would have.
+    (
+        &[
+            Is("-c"),
+            Identity("user.name="),
+            Is("-c"),
+            Identity("user.email="),
             Is("merge"),
             Is("--no-edit"),
             Is("--allow-unrelated-histories"),

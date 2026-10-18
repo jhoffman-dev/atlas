@@ -98,7 +98,7 @@ export async function currentBranch(git: GitPort): Promise<string> {
 }
 
 /** Who commits: git's own identity when this Mac has one, otherwise this Mac. */
-async function identityFor(git: GitPort, mac: string): Promise<GitIdentity | null> {
+export async function identityFor(git: GitPort, mac: string): Promise<GitIdentity | null> {
   const [name, email] = await Promise.all([git.config('user.name'), git.config('user.email')]);
   if (firstLine(name) !== null && firstLine(email) !== null) return null;
   const host =

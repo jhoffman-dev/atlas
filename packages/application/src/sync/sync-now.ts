@@ -22,6 +22,7 @@ import {
   commitStaged,
   currentBranch,
   expectOk,
+  identityFor,
   readIndex,
   readStatus,
   stageAll,
@@ -192,7 +193,7 @@ async function mergeFromOrigin(step: SyncStep): Promise<boolean> {
     : [];
   if (aside.length > 0) await commitStaged({ git, mac, message });
   const headBefore = (await git.head()).stdout;
-  const merge = await git.merge(branch);
+  const merge = await git.merge({ branch, identity: await identityFor(git, mac) });
   if (merge.code === 0) return (await git.head()).stdout !== headBefore;
   const { conflicts } = await readStatus(git);
   // A merge that stopped for another reason is not one to settle by guessing.
