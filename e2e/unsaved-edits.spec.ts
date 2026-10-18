@@ -67,3 +67,19 @@ test('the blank line after frontmatter survives an edit', async ({ page }) => {
 
   expect(await vault.read('note.md')).toBe('---\ntitle: Note\n---\n\nBody text. More.\n');
 });
+
+test('Save now once the autosave has written the edit leaves the note saved', async ({ page }) => {
+  // On a slow runner the autosave can land before a test reaches Save now:
+  // there is then nothing to save, and the item is disabled, rightly.
+  const vault = await openVault(page);
+  await page.getByRole('treeitem', { name: 'one', exact: true }).click();
+  await page.getByText('First note.').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Autosaved.');
+  await expectFile(vault, 'one.md').toBe('# One\n\nFirst note. Autosaved.\n');
+  await expectSaved(page);
+
+  await saveNow(page);
+  await expectSaved(page);
+  await expectFile(vault, 'one.md').toBe('# One\n\nFirst note. Autosaved.\n');
+});
