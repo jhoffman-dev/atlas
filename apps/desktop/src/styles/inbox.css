@@ -90,6 +90,14 @@ form.inbox__clarify {
   white-space: normal;
 }
 
+/* The Inbox's proposals and rows, drawn but unseen until its offers are known
+   (#130); `inert` keeps them from pointer, keyboard and screen reader. Not
+   `visibility`: shown again, WebKit can leave some rows' computed visibility
+   hidden, which Playwright and anything reading computed style then trust. */
+.inbox__held > * {
+  opacity: 0;
+}
+
 /* Room to scroll the last row clear of the quick-add button, which floats
    over the page's bottom-right corner — where Done is. */
 .inbox {

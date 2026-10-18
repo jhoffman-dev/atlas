@@ -50,9 +50,9 @@ export const INBOX_OFFERS_AFTER_INDEX_WAIT_MS = 1000;
  * The proposals and rows, laid out as if the wrapper were not there. Held
  * back, they are drawn and measured as usual but not seen and not reached by
  * pointer or keyboard, so they cost no commit of their own when shown (#130).
+ * Hidden by a class (`inbox__held`), not `visibility`: see inbox.css.
  */
 const IN_PLACE = { display: 'contents' } as const;
-const HELD_BACK = { display: 'contents', visibility: 'hidden' } as const;
 
 /** What the Inbox lists, once it has been read. */
 export interface InboxContents {
@@ -213,7 +213,13 @@ export function InboxPage(props: InboxPageProps) {
               )}
               <LastAction {...props} />
             </div>
-            <div style={live ? IN_PLACE : HELD_BACK} inert={!live} ref={list}>
+            <div
+              style={IN_PLACE}
+              className={live ? undefined : 'inbox__held'}
+              inert={!live}
+              aria-hidden={live ? undefined : true}
+              ref={list}
+            >
               {proposals !== null && proposalsToShow(proposals) && (
                 <ProposalsSection {...proposals} />
               )}

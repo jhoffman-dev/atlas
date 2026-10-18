@@ -94,7 +94,16 @@ function heldAtMount(
             observer.disconnect();
             found.focus();
             resolve({
-              hidden: getComputedStyle(found).visibility === 'hidden',
+              // Not seen, however it is hidden: hidden itself, or under a transparent block.
+              hidden: (function unseen(element: Element | null): boolean {
+                if (element === null) return false;
+                const style = getComputedStyle(element);
+                return (
+                  style.visibility === 'hidden' ||
+                  style.opacity === '0' ||
+                  unseen(element.parentElement)
+                );
+              })(found),
               inert: found.closest('[inert]') !== null,
               tookFocus: document.activeElement === found,
             });
