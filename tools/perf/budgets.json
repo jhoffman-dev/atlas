@@ -147,7 +147,7 @@
     },
     "⌘K + 5 keys over the table": {
       "commits": 19,
-      "renders": 1622,
+      "renders": 468,
       "calls": {
         "index_search": 7
       }

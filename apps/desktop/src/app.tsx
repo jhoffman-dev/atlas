@@ -61,7 +61,7 @@ import {
 import {
   AppShell,
   ChatToggleProvider,
-  SearchPalette,
+  useSteadyCallback,
   CapturePalette,
   DeleteDialog,
   GlobalCaptureSettings,
@@ -103,7 +103,6 @@ import { useVaultReads } from './reads/use-vault-reads.ts';
 import { refreshAfterWatch } from './index/watched-paths.ts';
 import { IndexProgressPill, LiveIndexSettings } from './index/index-progress.tsx';
 import { useOutsideChanges } from './vault/use-outside-changes.ts';
-import { useSearch } from './index/use-search.ts';
 import { useCreateNote } from './notes/use-create-note.ts';
 import { useTypes } from './types/use-types.ts';
 import { useTypeRoute } from './types/use-type-route.ts';
@@ -127,13 +126,15 @@ import { useVaultGraph } from './graph/use-vault-graph.ts';
 
 import { localClock, localTimeZone, localToday } from './today.ts';
 import { cryptoRng } from './random.ts';
+import { pageMenuOverlay, panePopupOverlay, type Overlay } from './overlay.ts';
 import {
-  closeOverlay,
-  openOverlay,
-  pageMenuOverlay,
-  panePopupOverlay,
-  type Overlay,
-} from './overlay.ts';
+  createOverlayStore,
+  hideOverlay as hideIn,
+  overlayNow,
+  showOverlay as showIn,
+  useWindowOverlay,
+} from './overlay-store.ts';
+import { SearchPaletteSlot } from './search-palette-slot.tsx';
 import { movingEditorsIn, openNotesIn } from './panes/open-notes.ts';
 import { useVaultEntries, type VaultEntryPorts } from './vault/use-vault-entries.ts';
 import { useLocalApi, type LocalApiPorts } from './api/use-local-api.ts';
@@ -597,22 +598,12 @@ function AppWindow({
     (query: string) => [...paletteOffers(query), ...paletteEditTypeOffers(types, query)],
     [types],
   );
-  const search = useSearch({
-    index: index.index,
-    commands: paletteCommands,
-    offerFor: paletteOffersFor,
-    changeKey: indexKey,
-  });
-  // One overlay at a time; the rule is `openOverlay` and `closeOverlay`.
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
-  const showOverlay = useCallback(
-    (requested: Overlay) => setOverlay((current) => openOverlay(current, requested)),
-    [],
-  );
-  const hideOverlay = useCallback(
-    (closing: Overlay) => setOverlay((current) => closeOverlay(current, closing)),
-    [],
-  );
+  // One overlay at a time; the rule is `openOverlay` and `closeOverlay`. The
+  // search palette draws itself from the store, so ⌘K does not draw the window.
+  const [overlays] = useState(createOverlayStore);
+  const overlay = useWindowOverlay(overlays);
+  const showOverlay = useCallback((requested: Overlay) => showIn(overlays, requested), [overlays]);
+  const hideOverlay = useCallback((closing: Overlay) => hideIn(overlays, closing), [overlays]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // Pressed from another app with no vault open: capture has no Inbox to land in.
   const [captureWantedVault, setCaptureWantedVault] = useState(false);
@@ -1498,7 +1489,8 @@ function AppWindow({
   }, [appInfo]);
 
   useAppShortcuts({
-    overlay,
+    // Read at the key press: the window is not drawn again as ⌘K opens.
+    overlay: () => overlayNow(overlays),
     // The editors are registered under the panes' keys, not their places.
     save: () => editors.savePane(paneKey(panes.keys, 0)),
     newNote: () => void createNewNote(),
@@ -1564,6 +1556,38 @@ function AppWindow({
       stranded={stranded}
     />
   );
+  // Steady, so the palette is not drawn again with the window while it is shut (#261).
+  const runPaletteCommand = useSteadyCallback((id: string, query: string) => {
+    const pasted = claudeArtifactUrl(query) ?? '';
+    if (
+      runPaletteArchiveCommand(id, {
+        focused: focusedPath,
+        commands: archiveCommands,
+        openArchive,
+      })
+    ) {
+      return;
+    }
+    if (
+      runPaletteEditTypeCommand(id, {
+        editType: (name) => openType(name, 'edit'),
+        editTemplate: editTypeTemplate,
+      })
+    ) {
+      return;
+    }
+    if (id === OPEN_TEMPLATES) main.openTemplates();
+    else if (id === OPEN_TERMS) main.openTerms();
+    else if (id === OPEN_INBOX) main.openInbox();
+    else if (id === OPEN_REVIEW) main.openReview();
+    else if (id === OPEN_TODAY) main.openToday();
+    else if (id === 'new-query') openQuery();
+    else if (id === 'new-artifact') startNewArtifact();
+    else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);
+    else startNewView(null);
+  });
+  const openPaletteHit = useSteadyCallback((path: string) => openNote(createVaultPath(path)));
+
   const granolaToast = granolaPull.toast !== null && (
     <Toast message={granolaPull.toast} onDismiss={granolaPull.dismissToast} />
   );
@@ -2113,58 +2137,18 @@ function AppWindow({
                 onClose={() => hideOverlay('capture')}
                 fallbackFocus={focusFallback}
               />
-            ) : overlay === 'search' ? (
-              <SearchPalette
-                query={search.query}
-                commands={search.commands}
-                archived={{ included: search.includeArchived, onChange: search.setIncludeArchived }}
-                onCommand={(id) => {
-                  const pasted = claudeArtifactUrl(search.query) ?? '';
-                  hideOverlay('search');
-                  search.reset();
-                  if (
-                    runPaletteArchiveCommand(id, {
-                      focused: focusedPath,
-                      commands: archiveCommands,
-                      openArchive,
-                    })
-                  ) {
-                    return;
-                  }
-                  if (
-                    runPaletteEditTypeCommand(id, {
-                      editType: (name) => openType(name, 'edit'),
-                      editTemplate: editTypeTemplate,
-                    })
-                  ) {
-                    return;
-                  }
-                  if (id === OPEN_TEMPLATES) main.openTemplates();
-                  else if (id === OPEN_TERMS) main.openTerms();
-                  else if (id === OPEN_INBOX) main.openInbox();
-                  else if (id === OPEN_REVIEW) main.openReview();
-                  else if (id === OPEN_TODAY) main.openToday();
-                  else if (id === 'new-query') openQuery();
-                  else if (id === 'new-artifact') startNewArtifact();
-                  else if (id === SAVE_ARTIFACT_LINK) startNewArtifact(pasted);
-                  else startNewView(null);
-                }}
-                hits={search.hits}
-                selected={search.selected}
-                onQuery={search.setQuery}
-                onMove={search.move}
-                onPick={(path) => {
-                  openNote(createVaultPath(path));
-                  hideOverlay('search');
-                  search.reset();
-                }}
-                onClose={() => {
-                  hideOverlay('search');
-                  search.reset();
-                }}
+            ) : (
+              <SearchPaletteSlot
+                store={overlays}
+                index={index.index}
+                commands={paletteCommands}
+                offerFor={paletteOffersFor}
+                changeKey={indexKey}
+                onCommand={runPaletteCommand}
+                onPick={openPaletteHit}
                 fallbackFocus={focusFallback}
               />
-            ) : null
+            )
           }
         />
       </ChatToggleProvider>

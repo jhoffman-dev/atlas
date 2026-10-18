@@ -81,6 +81,7 @@ describe('writeProposals', () => {
       createNote: async (args: { path: VaultPath; contents: string }) => {
         if (args.path.includes('Refused')) throw new Error('The disk said no.');
         await ports.fs.createNote(args);
+        return 0;
       },
     };
     const outcome = await writeProposals({

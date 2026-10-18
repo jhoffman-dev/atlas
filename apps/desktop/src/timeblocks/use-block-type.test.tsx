@@ -47,7 +47,7 @@ function setup(
     readNotes,
   }: {
     types?: readonly ObjectType[];
-    createNote?: () => Promise<void>;
+    createNote?: () => Promise<number>;
     readNotes?: VaultFsPort['readNotes'];
   } = {},
 ) {
@@ -188,7 +188,7 @@ describe('useBlockType', () => {
           return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
         }),
       createNote: (args) =>
-        new Promise<void>((resolve, reject) => {
+        new Promise<number>((resolve, reject) => {
           writes.push(() => memory.fs.createNote(args).then(resolve, reject));
         }),
     });
@@ -228,7 +228,7 @@ describe('useBlockType', () => {
           return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
         }),
       createNote: (args) =>
-        new Promise<void>((resolve, reject) => {
+        new Promise<number>((resolve, reject) => {
           writes.push({
             land: () => void memory.fs.createNote(args).then(resolve, reject),
             refuse: (reason) => reject(new Error(reason)),
@@ -292,7 +292,7 @@ describe('useBlockType', () => {
           return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
         }),
       createNote: () =>
-        new Promise<void>((_, reject) => {
+        new Promise<number>((_, reject) => {
           refusals.push(() => reject(new Error('the disk is full')));
         }),
     });

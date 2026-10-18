@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  NO_INPUT,
+  NO_OVERLAY,
   closeOverlay,
+  drawnByWindow,
   holdsTheScreen,
   openOverlay,
   pageMenuOverlay,
   panePopupOverlay,
+  withArchived,
+  withClosed,
+  withMoved,
+  withOpened,
+  withQuery,
+  type OverlayState,
 } from './overlay.ts';
 
 describe('openOverlay', () => {
@@ -103,5 +112,56 @@ describe('holdsTheScreen', () => {
     expect(holdsTheScreen(null)).toBe(false);
     expect(holdsTheScreen('new-note-menu')).toBe(false);
     expect(holdsTheScreen('quick-add')).toBe(false);
+  });
+});
+
+describe('the overlay state', () => {
+  const typed: OverlayState = {
+    overlay: 'search',
+    palette: { query: 'sourd', selected: 2, includeArchived: true },
+  };
+
+  it('opens and closes by the one-at-a-time rule', () => {
+    expect(withOpened(NO_OVERLAY, 'new-note-menu').overlay).toBe('new-note-menu');
+    expect(withOpened(withOpened(NO_OVERLAY, 'new-note-menu'), 'search').overlay).toBe('search');
+    expect(withOpened(typed, 'capture').overlay).toBe('search');
+    expect(withClosed(withOpened(NO_OVERLAY, 'capture'), 'capture').overlay).toBeNull();
+  });
+
+  it('forgets what was typed once the search palette closes, and opens it empty', () => {
+    const closed = withClosed(typed, 'search');
+    expect(closed).toEqual(NO_OVERLAY);
+    expect(withOpened(closed, 'search').palette).toEqual(NO_INPUT);
+  });
+
+  it('keeps what is typed while the palette stays up', () => {
+    expect(withOpened(typed, 'settings')).toEqual(typed);
+    expect(withClosed(typed, 'capture')).toEqual(typed);
+  });
+
+  it('leaves the window drawing nothing for the palette, and every other overlay as it is', () => {
+    expect(drawnByWindow(typed)).toBeNull();
+    expect(drawnByWindow(NO_OVERLAY)).toBeNull();
+    expect(drawnByWindow({ ...NO_OVERLAY, overlay: 'settings' })).toBe('settings');
+    expect(drawnByWindow({ ...NO_OVERLAY, overlay: pageMenuOverlay(1) })).toBe('page-menu-1');
+  });
+});
+
+describe('the search palette input', () => {
+  const chosen = { query: 'sour', selected: 3, includeArchived: false };
+
+  it('chooses the first result again for a new query or a new archive choice', () => {
+    expect(withQuery(chosen, 'sourd')).toEqual({ ...chosen, query: 'sourd', selected: 0 });
+    expect(withArchived(chosen, true)).toEqual({ ...chosen, includeArchived: true, selected: 0 });
+  });
+
+  it('moves the choice through the rows, wrapping at either end', () => {
+    expect(withMoved(chosen, 1, 5).selected).toBe(4);
+    expect(withMoved(chosen, 2, 5).selected).toBe(0);
+    expect(withMoved({ ...chosen, selected: 0 }, -1, 5).selected).toBe(4);
+  });
+
+  it('stays on the first row with nothing to choose from', () => {
+    expect(withMoved(chosen, 1, 0).selected).toBe(0);
   });
 });

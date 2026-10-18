@@ -195,10 +195,11 @@ function useTabWrites({
       fs: {
         ...fs,
         createNote: async (args) => {
-          await fs.createNote(args);
+          const modified = await fs.createNote(args);
           const { frontmatter } = splitFrontmatter(args.contents);
           const view = savedViewSummary(args.path, markdown.frontmatterProperties(frontmatter));
           if (view !== null) unread.current.set(view.path, view);
+          return modified;
         },
       },
       markdown,

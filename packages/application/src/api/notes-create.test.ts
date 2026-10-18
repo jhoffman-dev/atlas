@@ -269,6 +269,7 @@ describe('POST /v1/notes', () => {
         createNote: async (args) => {
           await creating(args);
           api.open = OTHER_VAULT;
+          return 0;
         },
       },
     };

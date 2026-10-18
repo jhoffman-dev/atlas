@@ -225,7 +225,8 @@ describe('noteTone', () => {
   it('tints the GTD statuses by where work stands (ADR-0029)', () => {
     expect(noteTone({ status: 'next-action' })).toBe('next');
     expect(noteTone({ status: 'in-progress' })).toBe('doing');
-    expect(noteTone({ status: 'waiting' })).toBe('review');
+    expect(noteTone({ status: 'waiting' })).toBe('waiting');
+    expect(noteTone({ status: 'longterm' })).toBe('backlog');
     expect(noteTone({ status: 'archive' })).toBe('done');
     expect(noteTone({ status: 'someday' })).toBe('backlog');
   });

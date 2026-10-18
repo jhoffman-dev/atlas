@@ -20,6 +20,7 @@ function recordingVault(templateText: string, templates: readonly string[]) {
     },
     createNote: async (args) => {
       created.push(args);
+      return 0;
     },
   });
   return { fs, created };

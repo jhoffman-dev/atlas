@@ -69,6 +69,7 @@ function fakeFs(files: Record<string, string>): VaultFsPort {
     },
     createNote: async ({ path, contents }) => {
       files[path] = contents;
+      return 0;
     },
     createFolder: async () => {},
     moveEntry: async () => {},
