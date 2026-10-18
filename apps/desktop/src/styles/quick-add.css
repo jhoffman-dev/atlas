@@ -338,42 +338,6 @@
   margin: 0 -14px;
 }
 
-/* "Task added — Open": at the foot of the panels, never taking the focus. */
-.toast {
-  align-items: center;
-  background: var(--hero);
-  border-radius: var(--radius-pill);
-  bottom: calc(var(--shell-inset) + 24px);
-  box-shadow: var(--shadow-overlay);
-  color: var(--hero-ink);
-  display: flex;
-  font-size: var(--text-ui);
-  font-weight: 700;
-  gap: var(--space-3);
-  left: 50%;
-  padding: 8px 8px 8px 18px;
-  position: absolute;
-  translate: -50% 0;
-  z-index: 21;
-}
-
-.toast__action {
-  background: var(--hero-ring-track);
-  border: 0;
-  border-radius: var(--radius-pill);
-  color: var(--tile-ink);
-  cursor: pointer;
-  font: inherit;
-  padding: 4px 12px;
-}
-
-.toast__action:hover,
-.toast__action:focus-visible {
-  background: var(--hero-tile);
-  box-shadow: 0 0 0 1px var(--tile-ink);
-  outline: none;
-}
-
 /* Settings → Quick add. */
 .quick-add-settings__list {
   display: flex;

@@ -146,6 +146,8 @@ export { ProfileSettings } from './profile-settings.tsx';
 export type { SelfEmailsView } from './self-emails-form.tsx';
 export type { QuickAddRow } from './quick-add-settings.tsx';
 export { Toast } from './toast.tsx';
+export { StatusPill } from './status-pill.tsx';
+export { Key, KeyHints } from './key-hints.tsx';
 export { sidebarGlyph } from './icon.tsx';
 export { createNotePageRenderer, notePageStyles } from './note-page-renderer.ts';
 export type { NotePageRendering } from './note-page-renderer.ts';

@@ -156,6 +156,13 @@
   /* Behind a saved artifact: white in both themes, since a page made
      elsewhere assumes a white canvas and would be unreadable on dark. */
   --artifact-canvas: #ffffff;
+  /* A toast sits on a dark surface in both themes (the brief, §3): white
+     words, a quieter grey for its dismiss, and a translucent fill for its
+     Undo so the button reads on the same dark ground. */
+  --toast-bg: #18181b;
+  --toast-ink: #ffffff;
+  --toast-ink-2: #b4b4bc;
+  --toast-control: rgba(255, 255, 255, 0.12);
 }
 
 /* Dark follows the system unless a choice has been made in the app. The dots
@@ -231,6 +238,10 @@
     --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
     --scrim: rgba(0, 0, 0, 0.55);
     --artifact-canvas: #ffffff;
+    --toast-bg: #18181b;
+    --toast-ink: #ffffff;
+    --toast-ink-2: #b4b4bc;
+    --toast-control: rgba(255, 255, 255, 0.12);
   }
 }
 
@@ -303,6 +314,10 @@
   --shadow-peek: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
   --scrim: rgba(0, 0, 0, 0.55);
   --artifact-canvas: #ffffff;
+  --toast-bg: #18181b;
+  --toast-ink: #ffffff;
+  --toast-ink-2: #b4b4bc;
+  --toast-control: rgba(255, 255, 255, 0.12);
 }
 
 /* The older roles, as the v2 primitives, and the mixes built from them.
