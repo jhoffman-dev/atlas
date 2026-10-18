@@ -9,13 +9,15 @@
    coloured on the status ramp and put in order. */
 
 /* Sits over the heading's right end rather than inside it, so the heading
-   stays the section's name; placed against the sticky .sidebar__head. */
+   stays the section's name; placed against the sticky .sidebar__head, at the
+   foot of its 26px line where the label sits, and in from the row's end like
+   a row's own "…" (sidebar.css). */
 .sidebar__heading-action {
   height: 22px;
   opacity: 0.7;
   position: absolute;
-  right: 6px;
-  top: 1px;
+  right: var(--sidebar-row-end);
+  top: 3px;
   width: 22px;
 }
 

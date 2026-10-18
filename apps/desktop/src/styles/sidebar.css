@@ -4,18 +4,18 @@
 
 /* ---- The sidebar ----------------------------------------------------------
    Search, Today and Inbox first; then favourites, types, views, dashboards and
-   Pages as peers, each a small-caps heading that opens and shuts, with 29px
-   icon rows underneath. Only Pages can be large, so only Pages is virtualised.
-   The five sections share one scroller (issue #17): each is as tall as its
-   rows, and a short window scrolls them together, under the quick rows and
-   above the footer, which stay put.
+   Pages as peers, each a sentence-case label that opens and shuts, with 28px
+   icon rows underneath (Sidebar.dc.html). Only Pages can be large, so only
+   Pages is virtualised. The five sections share one scroller (issue #17):
+   each is as tall as its rows, and a short window scrolls them together,
+   under the quick rows and above the footer, which stay put.
    -------------------------------------------------------------------------- */
 
 .sidebar {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 6px;
   min-height: 0;
 }
 
@@ -25,29 +25,31 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  /* Out into the sidebar's own padding, so a section's grip (left of its
-     heading) and a focus ring are not clipped at the scroller's edges. On the
-     right it goes to the sidebar's edge and keeps 18px clear: WebKit draws
-     its overlay scrollbar over the last 17px of the scroller while it shows,
-     and takes every press there, so a row's "…" must end before it (#52).
-     scrollbar-gutter cannot do this: an overlay scrollbar has no gutter. */
-  margin: 0 -10px 0 -12px;
-  padding: 0 18px 0 12px;
+  /* Out into the sidebar's own padding on both sides, so a section's grip
+     (left of its heading) and a focus ring are not clipped at the scroller's
+     edges, and so the rows inside are as wide as the quick rows above (the
+     8px right-edge step #322 left). On the right it reaches the sidebar's
+     edge, where WebKit draws its overlay scrollbar over the last 17px while
+     it shows and takes every press there (#52): a row's star and "…" end
+     10px in from the row's edge (--sidebar-row-end), so 18px from the
+     scrollbar's. scrollbar-gutter cannot do this: an overlay scrollbar has
+     no gutter. */
+  margin: 0 calc(-1 * var(--sidebar-pad));
+  padding: 0 var(--sidebar-pad);
   /* Positioned, so the tree can measure where it starts inside it; and a
      row brought into view by focus stops below the sticky heading. The tree
      reads this padding as the sticky heading's height (stickyOffsetOf in
      scroll-margin.ts), so it stays equal to .sidebar__disclosure's. */
   position: relative;
-  scroll-padding-top: 24px;
-  /* The sticky headings' z-index stays inside the sidebar, so the work
-     panel's shadow still falls over them as it does over the rest. */
+  scroll-padding-top: 26px;
+  /* The sticky headings' z-index stays inside the sidebar. */
   isolation: isolate;
 }
 
 .sidebar__sections {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
 }
 
 .sidebar__section {
@@ -60,35 +62,35 @@
    under it, and is pushed off by the next section's. On the ground colour, so
    it reads as the same heading and not as a bar. */
 .sidebar__head {
-  background: var(--ground);
+  background: var(--bg);
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
 .sidebar__heading {
-  font-size: var(--text-label);
+  font-size: var(--text-header);
   margin: 0;
 }
 
+/* The label sits at the foot of its 26px line, which scroll-padding-top above
+   repeats: change both or neither. */
 .sidebar__disclosure {
-  align-items: center;
+  align-items: flex-end;
   appearance: none;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   color: var(--ink-3);
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-size: var(--text-label);
-  font-weight: 800;
+  font-size: var(--text-header);
+  font-weight: 500;
   gap: 4px;
-  height: 24px;
-  letter-spacing: var(--tracking-label);
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 8px 4px;
   text-align: left;
-  text-transform: uppercase;
   width: 100%;
 }
 
@@ -101,8 +103,21 @@
   outline: none;
 }
 
+/* The mockup's labels carry no chevron: it shows only while the label is
+   pointed at or focused, and while the section is shut, when it is the one
+   thing saying so. */
 .sidebar__chevron {
-  transition: transform 120ms ease;
+  margin-bottom: -1px;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.sidebar__disclosure:hover .sidebar__chevron,
+.sidebar__disclosure:focus-visible .sidebar__chevron,
+.sidebar__disclosure[aria-expanded='false'] .sidebar__chevron {
+  opacity: 1;
 }
 
 .sidebar__disclosure[aria-expanded='false'] .sidebar__chevron {
@@ -132,21 +147,23 @@ ul.sidebar__sections {
 }
 
 .sidebar__sections > .sortable__row--dragging {
-  background: var(--ground);
+  background: var(--bg);
 }
 
 .sidebar__section {
   position: relative;
 }
 
+/* In the sidebar's 8px gutter, overlapping the label's own padding by 2px
+   so the grip is wide enough to take hold of. */
 .sidebar__head > .sortable__handle {
-  height: 24px;
-  left: -12px;
+  height: 26px;
+  left: calc(-1 * var(--sidebar-pad));
   opacity: 0;
   position: absolute;
   top: 0;
   transition: opacity 120ms ease;
-  width: 12px;
+  width: calc(var(--sidebar-pad) + 2px);
 }
 
 .sidebar__heading:hover ~ .sortable__handle,
@@ -173,30 +190,27 @@ ul.sidebar__sections {
 
 .sidebar__item {
   align-items: center;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   color: var(--ink-2);
   display: flex;
-  font-size: var(--text-ui);
-  font-weight: 500;
+  font-size: var(--text-body);
+  font-weight: 400;
   height: var(--sidebar-row);
   transition: background 120ms ease;
-}
-
-.sidebar__quick .sidebar__item {
-  height: 30px;
 }
 
 .sidebar__item:hover {
   background: var(--hover);
 }
 
+/* The row you are on: the selected fill, the full ink, a touch of weight. */
 .sidebar__item--on,
 .sidebar__item--on:hover,
 .tree__row--selected,
 .tree__row--selected:hover {
-  background: var(--active);
-  color: var(--active-ink);
-  font-weight: 700;
+  background: var(--selected);
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .sidebar__row {
@@ -205,15 +219,15 @@ ul.sidebar__sections {
   align-self: stretch;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   color: inherit;
   cursor: pointer;
   display: flex;
   flex: 1;
   font: inherit;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 0 10px;
+  padding: 0 var(--sidebar-row-end) 0 8px;
   text-align: left;
 }
 
@@ -224,11 +238,13 @@ ul.sidebar__sections {
 
 .sidebar__icon {
   color: var(--ink-3);
+  height: 15px;
+  width: 15px;
 }
 
 .sidebar__item--on .sidebar__icon,
 .tree__row--selected .sidebar__icon {
-  color: var(--active-icon);
+  color: var(--ink);
 }
 
 .sidebar__name {
@@ -239,44 +255,40 @@ ul.sidebar__sections {
   white-space: nowrap;
 }
 
-.sidebar__count {
+/* A row's count, a quick row's count, and Search's ⌘K: quiet figures at the
+   row's end, nothing drawn around them. A count of nought is not drawn. */
+.sidebar__count,
+.sidebar__badge,
+.sidebar__key {
   color: var(--ink-3);
-  font-size: 12px;
+  font-family: inherit;
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 400;
 }
 
-/* A type with no notes yet is still a type, so it stays listed — its nought
-   just steps back, so the counts that have something to say stand out. */
 /* On the selected fill the quiet ink falls just short of AA, so the active
    row's count takes the secondary ink instead. */
-.sidebar__item--on .sidebar__count {
+.sidebar__item--on .sidebar__count,
+.sidebar__item--on .sidebar__badge {
   color: var(--ink-2);
 }
 
-.sidebar__count--none {
-  font-weight: 500;
-  opacity: 0.55;
-}
-
-/* The quick rows' counts, and Search's shortcut: a small tinted chip. */
-.sidebar__badge,
-.sidebar__key {
-  background: var(--chip);
+/* The one count that is a warning keeps the shape of a chip; its colours
+   are Activity's (activity.css). */
+.sidebar__badge--alert {
   border-radius: var(--radius-chip);
-  color: var(--ink-3);
-  font-family: inherit;
-  font-size: var(--text-label);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  padding: 2px 6px;
+  font-size: var(--text-header);
+  font-weight: 500;
+  padding: 1px 5px;
 }
 
+/* An empty section's hint, set in from the row's edge to where a label starts. */
 .sidebar__empty {
   color: var(--ink-3);
-  font-size: var(--text-small);
+  font-size: var(--text-meta);
   margin: 0;
-  padding: 2px 10px 6px;
+  padding: 2px var(--sidebar-row-end) 4px 31px;
 }
 
 /* Out of the way until the row is pointed at or the star itself is tabbed to.
@@ -318,8 +330,15 @@ ul.sidebar__sections {
 }
 
 .page-bar .star__glyph {
-  height: 18px;
-  width: 18px;
+  height: 15px;
+  width: 15px;
+}
+
+/* A list row's star sits beside the row's button, not in it, so it takes the
+   row's end inset itself: like a tree row's "…", it stays 18px clear of the
+   scrollbar drawn over the sidebar's edge (#52). */
+.sidebar__item > .star {
+  margin-right: var(--sidebar-row-end);
 }
 
 /* In a note's own header a favourite says so all the time. In the sidebar the
@@ -347,15 +366,19 @@ ul.sidebar__sections {
   overflow: visible;
 }
 
+/* A tree row is placed by the virtualiser at a 29px pitch and drawn 28px
+   tall (ROW_HEIGHT and ROW_GAP in vault-tree.tsx), so the pixel between
+   rows is the lists' too. */
 .tree__row {
   align-items: center;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   color: var(--ink-2);
   cursor: pointer;
   display: flex;
-  font-size: var(--text-ui);
-  font-weight: 500;
-  gap: 10px;
+  font-size: var(--text-body);
+  font-weight: 400;
+  gap: 8px;
+  padding-right: var(--sidebar-row-end);
   user-select: none;
   white-space: nowrap;
 }
@@ -378,16 +401,18 @@ ul.sidebar__sections {
   text-overflow: ellipsis;
 }
 
-/* ---- The sidebar's foot ---------------------------------------------------- */
+/* ---- The sidebar's foot ----------------------------------------------------
+   Settings, the sync light and the theme button in one 28px line above a
+   hairline. */
 
 .sidebar-footer {
   align-items: center;
   border-top: 1px solid var(--line);
   display: flex;
   flex: none;
-  gap: 8px;
+  gap: 2px;
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: 8px;
 }
 
 .sidebar-footer__settings {
@@ -395,17 +420,17 @@ ul.sidebar__sections {
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   color: var(--ink-2);
   cursor: pointer;
   display: flex;
   flex: 1;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 600;
-  gap: 10px;
-  height: 32px;
-  padding: 0 10px;
+  font-size: var(--text-body);
+  font-weight: 400;
+  gap: 8px;
+  height: var(--sidebar-row);
+  padding: 0 8px;
   text-align: left;
   transition: background 120ms ease;
 }
@@ -417,6 +442,11 @@ ul.sidebar__sections {
 .sidebar-footer__settings:focus-visible {
   box-shadow: var(--ring);
   outline: none;
+}
+
+.sidebar-footer__theme {
+  border-radius: var(--radius-row);
+  color: var(--ink-3);
 }
 
 .tree__empty,

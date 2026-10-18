@@ -463,8 +463,8 @@
   max-width: min(340px, 100% - 24px);
   padding: 10px 10px 10px 14px;
   position: absolute;
-  right: calc(var(--shell-inset) + 12px);
-  top: calc(var(--shell-inset) + 46px);
+  right: 12px;
+  top: 46px;
   width: max-content;
   z-index: 21;
 }

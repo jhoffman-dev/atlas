@@ -27,8 +27,8 @@ import {
 } from './vault-tree-row.tsx';
 import { stickyOffsetOf, useScrollMargin } from './scroll-margin.ts';
 
-/** A row's pitch: 29px tall with a pixel between rows, as in the mockup. */
-const ROW_HEIGHT = 30;
+/** A row's pitch: 28px tall with a pixel between rows, as in the mockup (--sidebar-row). */
+const ROW_HEIGHT = 29;
 const ROW_GAP = 1;
 const INDENT = 14;
 /** How long a typed prefix keeps collecting letters before it starts over. */
@@ -425,7 +425,7 @@ export function VaultTree({
                 index: item.index,
                 top: item.start - scrollMargin,
                 height: item.size - ROW_GAP,
-                indent: 10 + row.depth * INDENT,
+                indent: 8 + row.depth * INDENT,
                 tabbable: item.index === tabbableIndex,
                 selected: open.has(row.entry.path),
               }}

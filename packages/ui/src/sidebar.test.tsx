@@ -115,11 +115,28 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'Person, 1 note' })).toBeDefined();
   });
 
-  it('keeps a type with no notes listed, its count drawn faint', () => {
+  it('keeps a type with no notes listed, with no count drawn for it', () => {
     show({ types: [{ name: 'company', label: 'Company', count: 0, icon: 'company' }, task] });
-    expect(screen.getByRole('button', { name: 'Company, 0 notes' })).toBeDefined();
-    expect(screen.getByText('0').classList.contains('sidebar__count--none')).toBe(true);
-    expect(screen.getByText('62').classList.contains('sidebar__count--none')).toBe(false);
+    const company = screen.getByRole('button', { name: 'Company, 0 notes' });
+    expect(company.querySelector('.sidebar__count')).toBeNull();
+    expect(screen.queryByText('0')).toBeNull();
+    expect(screen.getByText('62').classList.contains('sidebar__count')).toBe(true);
+  });
+
+  it('draws no count on a quick view that holds nothing', () => {
+    show({ quick: [{ ...today, count: 0 }] });
+    const row = screen.getByRole('button', { name: 'Today' });
+    expect(row.textContent).toBe('Today');
+    expect(row.querySelector('.sidebar__badge')).toBeNull();
+  });
+
+  it('shows ⌘K on the Search row only to the eye: the row is named Search', () => {
+    show();
+    const row = screen.getByRole('button', { name: 'Search' });
+    const hint = row.querySelector('.sidebar__key');
+    expect(hint?.textContent).toBe('⌘K');
+    expect(hint?.getAttribute('aria-hidden')).toBe('true');
+    expect(screen.queryByRole('button', { name: /⌘K/ })).toBeNull();
   });
 
   it('offers New type beside the Types heading, leaving the section named Types', async () => {

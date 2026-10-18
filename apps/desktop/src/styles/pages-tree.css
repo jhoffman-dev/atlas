@@ -63,8 +63,8 @@
   background: var(--raised);
   box-shadow: var(--shadow-overlay);
   cursor: grabbing;
-  height: 29px;
-  padding: 0 12px 0 10px;
+  height: var(--sidebar-row);
+  padding: 0 var(--sidebar-row-end) 0 8px;
 }
 
 /* Naming a row in place: the field takes the name's room, in the row's type. */

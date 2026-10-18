@@ -102,6 +102,28 @@ export function SortableList<Item>({
   );
 }
 
+/**
+ * Brings a handle back into its scroller's view once the move it asked for has
+ * landed and slid (reorder-transition.ts). The row it moves may land a long
+ * way off — below a virtualised section, say — while the scroller stays
+ * anchored on what it was showing, and the focus would be out of sight.
+ */
+function keepInView(handle: HTMLElement): void {
+  requestAnimationFrame(() => {
+    const row = handle.closest<HTMLElement>('[data-reorder-id]') ?? handle;
+    const sliding =
+      typeof row.getAnimations === 'function'
+        ? row.getAnimations().map((animation) => animation.finished)
+        : [];
+    void Promise.allSettled(sliding).then(() => {
+      // jsdom has no scrollIntoView; with nothing to scroll there is nothing to keep.
+      if (handle.isConnected && typeof handle.scrollIntoView === 'function') {
+        handle.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  });
+}
+
 function SortableRow({
   id,
   name,
@@ -136,7 +158,9 @@ function SortableRow({
     if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
     event.preventDefault();
     const step = event.key === 'ArrowUp' ? -1 : 1;
-    if (canStep(step)) onStep(step);
+    if (!canStep(step)) return;
+    onStep(step);
+    keepInView(event.currentTarget);
   };
 
   // dnd-kit's `attributes` are left off: they describe its keyboard drag,

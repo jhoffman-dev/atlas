@@ -20,21 +20,25 @@ export interface PageHistory {
 }
 
 /**
- * The strip across the top of a page: where it is, then how it stands and
- * what can be done with it.
+ * The nav bar across the top of a pane: where it is, then how it stands and
+ * what can be done with it (`FlowTable.dc.html`).
  *
- * Left, a breadcrumb — the section or folder, and the page's name. Right, a
- * quiet word for the save state, the star, and a "…" menu holding everything
- * that used to be a button on the page: saving now, splitting, the page's
- * properties. The arranging controls live here too, rather than floating:
- * splitting as a button before the menu, and closing a split pane as the very
- * last control, where a close sits on any panel.
+ * Left, Back and Forward, then a breadcrumb — the section or folder, the
+ * page's name, and a quiet count beside it. Right, the view's own buttons,
+ * a quiet word for the save state, the star, and a "…" menu holding
+ * everything that used to be a button on the page: saving now, splitting,
+ * the page's properties. The arranging controls live here too, rather than
+ * floating: splitting as a button before the menu, and closing a split pane
+ * as the very last control, where a close sits on any panel (until slice 7
+ * moves them to the tab strip).
  */
 export function PageBar({
   crumb,
   name,
+  count,
   status,
   star,
+  actions,
   menu = [],
   menuOpen,
   onMenuOpenChange,
@@ -47,10 +51,14 @@ export function PageBar({
   /** Null while there is no page to place — an empty pane. */
   crumb: PageCrumb | null;
   name: string | null;
+  /** What the page holds, in a few words beside its name — "186 tasks". */
+  count?: string;
   /** The save state, as a few quiet words. */
   status?: ReactNode;
   /** The favourite star, when the page can be one. */
   star?: ReactNode;
+  /** The view's own buttons — Filter, Sort, New — drawn before the save word. */
+  actions?: ReactNode;
   menu?: readonly PageMenuItem[];
   /**
    * The menu's open state, when the app owns it, so it obeys the one-overlay
@@ -85,13 +93,13 @@ export function PageBar({
             aria-label="Show sidebar"
             title="Show sidebar (⌘\)"
           >
-            <Icon name="panel" size={18} />
+            <Icon name="panel" size={15} />
           </button>
         )}
         {history !== undefined && <HistoryButtons history={history} />}
         {crumb !== null && name !== null && (
           <nav className="page-bar__crumbs" aria-label="Breadcrumb">
-            <Icon name={sidebarGlyph(crumb.icon)} size={16} className="page-bar__crumb-icon" />
+            <Icon name={sidebarGlyph(crumb.icon)} size={15} className="page-bar__crumb-icon" />
             <span className="page-bar__parent">{crumb.parent}</span>
             <span className="page-bar__slash" aria-hidden="true">
               /
@@ -99,9 +107,11 @@ export function PageBar({
             <span className="page-bar__name" aria-current="page" title={name}>
               {name}
             </span>
+            {count !== undefined && <span className="page-bar__count">{count}</span>}
           </nav>
         )}
         <span className="page-bar__spacer" />
+        {actions !== undefined && <div className="page-bar__actions">{actions}</div>}
         {status !== undefined && (
           // A live region: "Unsaved" turning to "Saved" is announced, politely.
           <span className="page-bar__status" role="status">
@@ -157,7 +167,7 @@ function PaneButton({
       aria-label={label}
       title={shortcut === null ? label : `${label} (${shortcut})`}
     >
-      <Icon name={icon} size={18} />
+      <Icon name={icon} size={15} />
     </button>
   );
 }
@@ -205,7 +215,7 @@ function HistoryButton({
       aria-label={label}
       title={destination === null ? label : `${label} to ${destination} (${shortcut})`}
     >
-      <Icon name={icon} size={18} />
+      <Icon name={icon} size={15} />
     </button>
   );
 }
@@ -225,7 +235,7 @@ function PageMenu({
   return (
     <Menu.Root open={open} onOpenChange={(next) => onOpenChange?.(next)}>
       <Menu.Trigger className="icon-button page-bar__button" aria-label="More" title="More">
-        <Icon name="more" size={18} />
+        <Icon name="more" size={15} />
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner className="menu-positioner" side="bottom" align="end" sideOffset={6}>

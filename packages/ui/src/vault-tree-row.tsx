@@ -122,6 +122,8 @@ export const VaultTreeRow = memo(function VaultTreeRow({
       // without this the row would be announced as its name followed by what
       // its star would do.
       aria-label={row.label}
+      // A name the 224px sidebar cuts short can still be read, on hover.
+      title={row.label}
       aria-level={row.depth + 1}
       aria-expanded={isDirectory ? row.isExpanded : undefined}
       aria-selected={placement.selected}

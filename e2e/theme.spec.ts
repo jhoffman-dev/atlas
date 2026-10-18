@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createVault, installHost } from './host.ts';
 
-// P13-02, moved by P16-02: light or dark, a sun and a moon in the sidebar's
-// foot, remembered per viewer. The look is UI v2's (docs/design/ui-v2-brief.md
-// §3, issue #269): flat surfaces, pastel tints, the system font.
+// P13-02, moved by P16-02, one button since UI v2 slice 3a (#294): light or
+// dark, a sun or a moon in the sidebar's foot, remembered per viewer. The look
+// is UI v2's (docs/design/ui-v2-brief.md §3, issue #269): flat surfaces,
+// pastel tints, the system font.
 
 const openVault = async (page: Page) => {
   const vault = await createVault();
@@ -17,42 +18,44 @@ const openVault = async (page: Page) => {
 
 const theme = (page: Page) => page.evaluate(() => document.documentElement.dataset['theme']);
 
-const themes = (page: Page) => page.getByRole('radiogroup', { name: 'Theme' });
-const option = (page: Page, name: 'Light theme' | 'Dark theme') =>
-  themes(page).getByRole('radio', { name });
+/** The one theme button, named for the theme it would switch to. */
+const switchTo = (page: Page, theme: 'light' | 'dark') =>
+  page.getByRole('button', { name: `Switch to ${theme} theme`, exact: true });
 
 test('the switch turns the whole app over, and back', async ({ page }) => {
   await openVault(page);
 
-  await option(page, 'Dark theme').click();
+  await switchTo(page, 'dark').click();
   expect(await theme(page)).toBe('dark');
-  await expect(option(page, 'Dark theme')).toHaveAttribute('aria-checked', 'true');
-  await expect(option(page, 'Light theme')).toHaveAttribute('aria-checked', 'false');
+  await expect(switchTo(page, 'light')).toBeVisible();
+  await expect(switchTo(page, 'dark')).toHaveCount(0);
 
-  await option(page, 'Light theme').click();
+  await switchTo(page, 'light').click();
   expect(await theme(page)).toBe('light');
-  await expect(option(page, 'Light theme')).toHaveAttribute('aria-checked', 'true');
+  await expect(switchTo(page, 'dark')).toBeVisible();
+  await expect(switchTo(page, 'light')).toHaveCount(0);
 });
 
 test('the switch lives in the sidebar, beside Settings', async ({ page }) => {
   await openVault(page);
   const sidebar = page.getByRole('navigation', { name: 'Vault' });
-  await expect(sidebar.getByRole('radiogroup', { name: 'Theme' })).toBeVisible();
+  await expect(
+    sidebar.getByRole('button', { name: /^Switch to (light|dark) theme$/ }),
+  ).toBeVisible();
   await expect(sidebar.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
 });
 
 test('the choice survives a reload', async ({ page }) => {
   await openVault(page);
-  await option(page, 'Dark theme').click();
+  await switchTo(page, 'dark').click();
   expect(await theme(page)).toBe('dark');
 
   // The host stub is installed on the page, not the document, so it survives a
   // reload — which is what makes this a real second visit.
   await page.reload();
-  await expect(option(page, 'Dark theme')).toBeVisible();
+  await expect(switchTo(page, 'light')).toBeVisible();
 
   expect(await theme(page)).toBe('dark');
-  await expect(option(page, 'Dark theme')).toHaveAttribute('aria-checked', 'true');
 });
 
 /** The design's statuses and button kinds, each with tokens the palette must carry. */
@@ -161,7 +164,7 @@ test('the work sits flat on the surface; the sidebar is the grey beside it', asy
     shadow: 'none',
   });
 
-  await option(page, 'Dark theme').click();
+  await switchTo(page, 'dark').click();
   expect(await surfaces()).toEqual({
     shell: 'rgb(24, 24, 27)',
     sidebar: 'rgb(17, 17, 19)',

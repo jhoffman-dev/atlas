@@ -11,17 +11,17 @@
    -------------------------------------------------------------------------- */
 
 .fab-layer {
-  bottom: var(--shell-inset);
+  bottom: 0;
   left: 0;
   pointer-events: none;
   position: absolute;
-  right: var(--shell-inset);
-  top: var(--shell-inset);
+  right: 0;
+  top: 0;
   z-index: 20;
 }
 
 .shell--narrow .fab-layer {
-  left: var(--shell-inset);
+  left: 0;
 }
 
 .fab {
