@@ -8,8 +8,8 @@
   ],
   "actions": {
     "Open a vault": {
-      "commits": 120,
-      "renders": 4659,
+      "commits": 121,
+      "renders": 4737,
       "calls": {
         "activity_append": 3,
         "activity_read": 3,
@@ -18,18 +18,18 @@
         "git_run": 3,
         "git_run_in": 3,
         "granola_status": 3,
-        "index_manifest": 5,
+        "index_manifest": 6,
         "index_notes_of_type": 6,
         "index_open": 3,
         "index_put": 47,
         "index_query": 138,
         "index_rebuild_views": 3,
         "index_stats": 4,
-        "list_directory": 77,
+        "list_directory": 79,
         "list_notes": 8,
         "open_vault": 3,
         "pick_vault": 3,
-        "read_notes": 79,
+        "read_notes": 80,
         "read_text_file": 3,
         "watch_vault": 3,
         "write_text_file": 3
@@ -125,8 +125,8 @@
       "commitsFromCi": true
     },
     "Open the Inbox": {
-      "commits": 9,
-      "renders": 619,
+      "commits": 7,
+      "renders": 535,
       "calls": {
         "index_notes_of_type": 6,
         "index_query": 11,

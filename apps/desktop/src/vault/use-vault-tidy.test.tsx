@@ -41,7 +41,18 @@ function setup({ files, open = true }: { files: Record<string, string>; open?: b
       });
     },
   });
-  const ports = { fs, markdown: remarkMarkdown, index: fakeIndexPort() } as unknown as ArchivePorts;
+  // The index lists what the walk would: read ahead, the tidy asks it instead of walking.
+  const index = fakeIndexPort({
+    manifest: async () =>
+      [...memory.files.entries()].map(([path, text]) => ({
+        path,
+        modified: 0,
+        size: text.length,
+        type: null,
+        digest: '',
+      })),
+  });
+  const ports = { fs, markdown: remarkMarkdown, index } as unknown as ArchivePorts;
   const hook = renderHook(
     (props: { open: boolean }) =>
       useVaultTidy({
@@ -74,17 +85,18 @@ describe('useVaultTidy — while its preview is read (#130)', () => {
     await waitFor(() => expect(hook.result.current).toBeNull());
   });
 
-  // The tidy walks the whole vault, so it is never read ahead of the Inbox (#130, #254).
-  it('walks nothing while the Inbox is not showing, and reads as it opens', async () => {
+  // Read ahead, the tidy asks the index for the vault's notes: a walk then is taken
+  // for a refresh after whatever the vault last reported (#130, #254).
+  it('reads ahead from the index while the Inbox is shut, walking only as it opens', async () => {
     const { hook, release, walks } = setup({
       files: { 'Loose idea.md': 'A thought.\n' },
       open: false,
     });
     await act(async () => release());
-    await act(async () => {});
-    expect(hook.result.current).toBeNull();
+    await waitFor(() => expect(hook.result.current?.preview?.moves).toHaveLength(1));
     expect(walks()).toBe(0);
     hook.rerender({ open: true });
-    await waitFor(() => expect(hook.result.current?.preview?.moves).toHaveLength(1));
+    expect(hook.result.current?.reading).toBe(false);
+    await waitFor(() => expect(walks()).toBe(1));
   });
 });

@@ -93,7 +93,14 @@ function gatedPorts() {
     });
   const ports = {
     fs: gated(fakeVaultFs()),
-    index: gated(fakeIndexPort()),
+    // One note filed already, as the index lists it: nothing for the tidy to move.
+    index: gated(
+      fakeIndexPort({
+        manifest: async () => [
+          { path: 'Notes/2026/Kept.md', modified: 0, size: 0, type: null, digest: '' },
+        ],
+      }),
+    ),
     markdown: remarkMarkdown,
     editors: {
       state: () => 'closed',
@@ -158,10 +165,7 @@ describe.each(Object.entries(HOOKS))('%s says when it is still reading (#130)', 
   });
 });
 
-// The tidy walks the whole vault, so it alone is read only as the Inbox opens (use-vault-tidy.test.tsx).
-const READ_AHEAD = Object.entries(HOOKS).filter(([name]) => name !== 'useVaultTidy');
-
-describe.each(READ_AHEAD)('%s is read ahead of the Inbox (#130)', (_, hook) => {
+describe.each(Object.entries(HOOKS))('%s is read ahead of the Inbox (#130)', (_, hook) => {
   it('reads as soon as the index is ready, with the Inbox shut, so opening it waits for nothing', async () => {
     const { view, open, reads } = mount(hook, { ...SHOWN, open: false });
     await waitFor(() => expect(reads()).toBeGreaterThan(0));

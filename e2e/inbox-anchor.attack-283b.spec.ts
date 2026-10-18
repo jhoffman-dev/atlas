@@ -52,7 +52,9 @@ async function openInbox(page: Page, rows: number): Promise<FakeVault> {
   await vault.write('Loose idea.md', 'A thought.\n');
   await vault.mkdir('.atlas');
   await vault.write('.atlas/settings.md', GOOD_SETTINGS);
-  await installHost(page, vault);
+  // Listing what it indexed, as the real index does: the Inbox's offers are read
+  // ahead from that list (#130, last fix round), so the page opens with them known.
+  await installHost(page, vault, { keepsManifest: true });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 60_000 });
