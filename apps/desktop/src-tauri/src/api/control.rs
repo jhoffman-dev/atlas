@@ -44,6 +44,8 @@ pub struct ApiControl {
 struct Inner {
     file: ConnectionFile,
     running: Option<Running>,
+    /// The port this server last stopped listening on, if it has.
+    released: Option<u16>,
 }
 
 impl ApiControl {
@@ -60,6 +62,7 @@ impl ApiControl {
             inner: Mutex::new(Inner {
                 file,
                 running: None,
+                released: None,
             }),
         })
     }
@@ -121,7 +124,7 @@ impl ApiControl {
             inner.file = next;
             return Ok(());
         }
-        let listener = bind_recorded(&mut next)?;
+        let listener = bind_recorded(&mut next, inner.released)?;
         let gate = Arc::new(Gate {
             token: self.token.clone(),
             broker: self.broker.clone(),
@@ -153,6 +156,7 @@ impl ApiControl {
         };
         connection::save(&self.dir, &next)?;
         if let Some(running) = inner.running.take() {
+            inner.released = Some(running.port);
             running.stop();
         }
         inner.file = next;
@@ -226,10 +230,16 @@ impl ApiControl {
 
 /// Binds the port `next` records, or another. On another port `next` gets a new
 /// token: whoever holds the recorded port may have been collecting the old one
-/// from tools that knocked there while Atlas was closed.
-fn bind_recorded(next: &mut ConnectionFile) -> Result<TcpListener, String> {
+/// from tools that knocked there while Atlas was closed. The port Atlas itself
+/// `released` last is waited for, not taken for a squatter's (#89).
+fn bind_recorded(next: &mut ConnectionFile, released: Option<u16>) -> Result<TcpListener, String> {
     let cannot_listen = |error: std::io::Error| format!("cannot listen on 127.0.0.1: {error}");
-    let listener = server::bind(next.port).map_err(cannot_listen)?;
+    let bound = if next.port != 0 && released == Some(next.port) {
+        server::bind_released(next.port)
+    } else {
+        server::bind(next.port)
+    };
+    let listener = bound.map_err(cannot_listen)?;
     let port = listener.local_addr().map_err(cannot_listen)?.port();
     if next.port != 0 && port != next.port {
         log::warn!(

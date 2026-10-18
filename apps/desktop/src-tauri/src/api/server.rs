@@ -10,7 +10,7 @@ use std::net::{Ipv4Addr, TcpListener};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::{Body, Bytes, Incoming};
@@ -139,6 +139,36 @@ pub fn bind(preferred: u16) -> std::io::Result<TcpListener> {
         log::info!("API port {preferred} is taken; letting the OS choose");
     }
     TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+}
+
+/// How long `bind_released` waits for a port this process has just stopped
+/// listening on. `Running::stop` returns once the listener is closed, but a
+/// child process being spawned at that moment (git, the model) holds a copy of
+/// every descriptor until it has exec'd: the port is busy for milliseconds
+/// more, and longer under load.
+const RELEASE_WAIT: Duration = Duration::from_secs(2);
+
+/// How often `bind_released` tries again. Nothing announces that another
+/// process has closed its copy, so trying is the only way to know.
+const RELEASE_RETRY: Duration = Duration::from_millis(5);
+
+/// `bind`, for a port this process has just stopped listening on: busy only
+/// because a child still holds the old listener, it is waited for rather than
+/// given up for one the OS chooses. Still busy after `RELEASE_WAIT`, it is
+/// someone else's, and `bind` falls back as it does for any taken port.
+pub fn bind_released(port: u16) -> std::io::Result<TcpListener> {
+    let deadline = Instant::now() + RELEASE_WAIT;
+    loop {
+        match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {
+            Ok(listener) => return Ok(listener),
+            Err(error)
+                if error.kind() == std::io::ErrorKind::AddrInUse && Instant::now() < deadline =>
+            {
+                std::thread::sleep(RELEASE_RETRY)
+            }
+            Err(_) => return bind(port),
+        }
+    }
 }
 
 /// Prepares to serve on `listener`. The returned future is the server; spawn it
