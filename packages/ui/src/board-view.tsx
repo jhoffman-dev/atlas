@@ -98,7 +98,7 @@ export function BoardView({
   const laned = lanes !== undefined && lanes.length > 0;
   const shut = folds?.collapsed;
   const [held, setHeld] = useState<BoardRow | null>(null);
-  // The card last moved stays drawn in its new column, even past "+ N more",
+  // The card last moved stays drawn in its new column, even past "N more",
   // so the focus that follows it has somewhere to land.
   const [moved, setMoved] = useState<string | null>(null);
   const lookup = useMemo(
@@ -240,8 +240,8 @@ const isDoneColumn = (column: BoardColumn) =>
   column.value !== null && statusTone(column.value) === 'done';
 
 /**
- * One column: its status pill and count, then its cards — the first few, with
- * the rest behind "+ N more" — or a dashed box saying there is nothing here.
+ * One column: its status dot, label and count, then its cards — the first few, with
+ * the rest behind "N more" — or a quiet line saying there are no tasks.
  */
 function ColumnView({
   column,
@@ -283,7 +283,7 @@ function ColumnView({
       )}
 
       {count === 0 && !adding ? (
-        <p className="board__empty">Nothing here yet</p>
+        <p className="board__empty">No tasks</p>
       ) : (
         <PreviewedCards
           rows={column.rows}
@@ -299,7 +299,7 @@ function ColumnView({
 
 /**
  * A column's or a cell's cards: the first few, with the rest behind
- * "+ N more", and "Show fewer" once they are all out.
+ * "N more", and "Show fewer" once they are all out.
  */
 function PreviewedCards({
   rows,
@@ -332,7 +332,7 @@ function PreviewedCards({
       {hidden > 0 && (
         <li>
           <button type="button" className="board__more" onClick={() => setExpanded(true)}>
-            + {hidden} more
+            {hidden} more
           </button>
         </li>
       )}
@@ -348,7 +348,7 @@ function PreviewedCards({
 }
 
 /**
- * One column's cell in a lane: its cards — capped behind "+ N more" as a
+ * One column's cell in a lane: its cards — capped behind "N more" as a
  * column's are — and a quiet "+" that adds one with both values.
  */
 function CellView({

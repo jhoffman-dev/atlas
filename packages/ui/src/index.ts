@@ -28,6 +28,8 @@ export { useSidebarSections } from './sidebar-sections.ts';
 export type { SectionOrder, SectionStore } from './sidebar-sections.ts';
 export { NotePane } from './note-pane.tsx';
 export { PaneFrame } from './pane-frame.tsx';
+export { TabStrip } from './tab-strip.tsx';
+export type { TabStripTab } from './tab-strip.tsx';
 export type { NotePaneState, PageHeading, PaneArrangement } from './note-pane.tsx';
 export type { OverlaySlot, OverlaySlots } from './overlay-slot.ts';
 export { NoteEditor } from './note-editor.tsx';
