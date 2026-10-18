@@ -78,7 +78,10 @@ describe('useViewChoosing', () => {
     });
 
     await act(async () => finish(settled(['tasks/b.md'])));
-    expect([...hook.result.current.selection.selected].sort()).toEqual(['tasks/b.md', 'tasks/c.md']);
+    expect([...hook.result.current.selection.selected].sort()).toEqual([
+      'tasks/b.md',
+      'tasks/c.md',
+    ]);
   });
 
   it('keeps the whole choice when the batch did not start (A20-05)', async () => {

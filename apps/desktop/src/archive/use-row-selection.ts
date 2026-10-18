@@ -103,12 +103,15 @@ export function rowsBetween(
 }
 
 /**
- * The rows still chosen once a batch settles: the ones it could not move, so
- * they can be tried again — or every one, when the batch did not start.
+ * What a settled batch did to the rows it was given, for `afterBatch`: the
+ * ones it could not move are `failed`, to be tried again; every other one was
+ * `answered`. A batch that did not start answered nothing.
  */
-export function stillChosen(
+export function batchSettled(
   outcome: ArchiveOutcome | null,
-  chosen: readonly VaultPath[],
-): readonly VaultPath[] {
-  return outcome === null ? chosen : outcome.failed.map((failure) => failure.path);
+  given: readonly VaultPath[],
+): { answered: readonly VaultPath[]; failed: readonly VaultPath[] } {
+  if (outcome === null) return { answered: [], failed: [] };
+  const failed = outcome.failed.map((failure) => failure.path);
+  return { answered: given.filter((path) => !failed.includes(path)), failed };
 }
