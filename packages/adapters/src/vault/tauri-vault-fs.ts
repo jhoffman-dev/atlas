@@ -69,16 +69,8 @@ export const tauriVaultFs: HostVaultFsPort = {
 
   // `vault` is passed on for the host to compare with the vault it has open;
   // which vault a write belongs to is decided before it gets here.
-  async createNote({
-    path,
-    contents,
-    vault,
-  }: {
-    path: VaultPath;
-    contents: string;
-    vault: string;
-  }) {
-    await throughHost(invoke('create_note', { path, contents, vault }));
+  createNote({ path, contents, vault }: { path: VaultPath; contents: string; vault: string }) {
+    return throughHost(invoke<number>('create_note', { path, contents, vault }));
   },
 
   async createFolder({ path, vault }: { path: VaultPath; vault: string }) {

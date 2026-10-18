@@ -53,7 +53,7 @@ function memoryVault(files: Map<string, string>): VaultFsPort {
         return text === undefined ? [] : [{ path, text, modified: 1, size: text.length }];
       }),
     readBinaryFile: async () => new ArrayBuffer(0),
-    createNote: async () => {},
+    createNote: async () => 0,
     createFolder: async () => {},
     moveEntry: async ({ from, to }) => {
       const text = files.get(from);

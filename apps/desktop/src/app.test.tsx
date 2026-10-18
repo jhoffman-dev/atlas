@@ -82,6 +82,7 @@ function fakeVault({
         throw new VaultAccessError('a note with that name already exists');
       files[path] = contents;
       directories[''] = [...(directories[''] ?? []), entry(path, 'file')];
+      return 0;
     },
     readTextFile: async (path: VaultPath) => {
       const text = files[path];

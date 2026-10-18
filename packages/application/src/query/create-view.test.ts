@@ -13,7 +13,12 @@ const TASK = parseObjectType({
 
 function recordingFs() {
   const created: { path: VaultPath; contents: string }[] = [];
-  const fs = fakeVaultFs({ createNote: async (args) => void created.push(args) });
+  const fs = fakeVaultFs({
+    createNote: async (args) => {
+      created.push(args);
+      return 0;
+    },
+  });
   return { fs, created };
 }
 

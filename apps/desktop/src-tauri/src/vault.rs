@@ -256,21 +256,26 @@ pub(crate) fn resolve_new(root: &Path, relative: &str) -> Result<PathBuf, String
 /// finds the note empty while its text is still being written. The rename is
 /// exclusive, so an existing note is never overwritten and two creations
 /// racing cannot both win.
-fn create_note_at(root: &Path, relative: &str, contents: &str) -> Result<(), String> {
+///
+/// Reports the new note's modification time, as `write_text` does a save's: a
+/// rename keeps the time the temporary was given, so it is the note's own.
+fn create_note_at(root: &Path, relative: &str, contents: &str) -> Result<u64, String> {
     let _turn = change_turn();
     let file = resolve_new(root, relative)?;
     let temporary = temporary_beside(&file)?;
 
     // Nothing is replaced, so the time the clock gives is kept.
-    write_temporary(&temporary, contents.as_bytes(), 0)
+    let modified = write_temporary(&temporary, contents.as_bytes(), 0)
         .map_err(|error| format!("cannot write the note: {error}"))?;
-    rename_exclusive(&temporary, &file).map_err(|error| {
-        let _ = fs::remove_file(&temporary); // Best effort; the creation already failed.
-        match error.kind() {
-            ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
-            _ => format!("cannot create the note: {error}"),
-        }
-    })
+    rename_exclusive(&temporary, &file)
+        .map(|()| modified)
+        .map_err(|error| {
+            let _ = fs::remove_file(&temporary); // Best effort; the creation already failed.
+            match error.kind() {
+                ErrorKind::AlreadyExists => "a note with that name already exists".to_string(),
+                _ => format!("cannot create the note: {error}"),
+            }
+        })
 }
 
 /// The name a note's new text is written under before it is renamed into place.
@@ -337,13 +342,13 @@ pub async fn create_note(
     path: String,
     contents: String,
     vault: String,
-) -> Result<(), String> {
+) -> Result<u64, String> {
     off_main(move || {
-        change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
+        let modified = change_in_vault(&app.state::<VaultState>(), Some(&vault), |root| {
             create_note_at(root, &path, &contents)
         })?;
         log::info!("created {path}");
-        Ok(())
+        Ok(modified)
     })
     .await
 }
@@ -1775,9 +1780,29 @@ mod batch_tests {
 
 #[cfg(test)]
 mod create_tests {
-    use super::{create_note_at, read_text};
+    use super::{create_note_at, read_text, write_text};
     use std::fs;
     use tempfile::tempdir;
+
+    /// #258: the time reported is the new note's own, as a read of it finds,
+    /// so the app can know the watcher's report of it as its own write.
+    #[test]
+    fn reports_the_time_the_new_note_was_left_at() {
+        let vault = tempdir().unwrap();
+        let modified = create_note_at(vault.path(), "Untitled.md", "# Untitled\n").unwrap();
+        assert_eq!(read_text(vault.path(), "Untitled.md").unwrap().modified, modified);
+    }
+
+    /// The reported time is the version a first save is checked against, as a
+    /// save's own reported time is: one the note was not at is refused.
+    #[test]
+    fn a_save_checked_against_the_reported_time_lands() {
+        let vault = tempdir().unwrap();
+        let modified = create_note_at(vault.path(), "a.md", "first").unwrap();
+        assert!(write_text(vault.path(), "a.md", "second", Some(modified + 1)).is_err());
+        write_text(vault.path(), "a.md", "second", Some(modified)).unwrap();
+        assert_eq!(read_text(vault.path(), "a.md").unwrap().text, "second");
+    }
 
     #[test]
     fn creates_a_note_with_the_given_contents() {

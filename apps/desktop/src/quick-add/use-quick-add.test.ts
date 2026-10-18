@@ -52,6 +52,7 @@ function setup({
   const fs = fakeVaultFs({
     createNote: async ({ path, contents }) => {
       created.push({ path, contents });
+      return 0;
     },
   });
   const show = vi.fn();

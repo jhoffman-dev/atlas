@@ -208,7 +208,7 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
     const create = vault.ports.fs.createNote;
     let edited = false;
     vault.ports.fs.createNote = async (write) => {
-      await create(write);
+      const modified = await create(write);
       if (!edited && write.path === 'Tasks/2026/10/Book the review room.md') {
         edited = true;
         await vault.ports.fs.writeTextFile({
@@ -217,6 +217,7 @@ describe('adversarial: the owner’s items on a retry (#180)', () => {
           expectedModified: null,
         });
       }
+      return modified;
     };
     await arrived();
     expect(edited).toBe(true);

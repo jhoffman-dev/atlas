@@ -4,9 +4,10 @@ import type { VaultFsPort } from './ports.ts';
 /**
  * The vault, with every write it makes kept in `ownWrites` as what it left
  * behind, so the watcher's report of it can be known as the app's own
- * (#254). A write whose result the host does not report in full — a new
- * note, an artifact's bytes — and a write that fails are forgotten instead:
- * what is there is not known, so a report of it is refreshed for.
+ * (#254). A new note is kept as a save is, by the time the host reports for
+ * it (#258). A write whose result the host does not report in full — an
+ * artifact's bytes — and a write that fails are forgotten instead: what is
+ * there is not known, so a report of it is refreshed for.
  */
 export function recordingOwnWrites({
   fs,
@@ -27,6 +28,15 @@ export function recordingOwnWrites({
       throw error;
     }
   };
+  /** Keeps a note's new text as what `write` left, at the time the host reports for it. */
+  const leavingText = async (
+    { path, contents }: { path: string; contents: string },
+    write: Promise<number>,
+  ) => {
+    const modified = await write;
+    ownWrites.record({ ...at(path), left: { kind: 'text', text: contents, modified } });
+    return modified;
+  };
   const forgetAfter = async <T>(path: string, write: () => Promise<T>) => {
     try {
       return await write();
@@ -41,14 +51,9 @@ export function recordingOwnWrites({
     readTextFile: (path) => fs.readTextFile(path),
     readBinaryFile: (path) => fs.readBinaryFile(path),
     writeTextFile: (args) =>
-      forgetOnFailure([args.path], async () => {
-        const modified = await fs.writeTextFile(args);
-        ownWrites.record({
-          ...at(args.path),
-          left: { kind: 'text', text: args.contents, modified },
-        });
-        return modified;
-      }),
+      forgetOnFailure([args.path], () => leavingText(args, fs.writeTextFile(args))),
+    createNote: (args) =>
+      forgetOnFailure([args.path], () => leavingText(args, fs.createNote(args))),
     createFolder: (args) =>
       forgetOnFailure([args.path], async () => {
         await fs.createFolder(args);
@@ -68,7 +73,6 @@ export function recordingOwnWrites({
         else ownWrites.forget(at(args.to));
         ownWrites.record({ ...at(args.from), left: { kind: 'absent' } });
       }),
-    createNote: (args) => forgetAfter(args.path, () => fs.createNote(args)),
     writeBinaryFile: (args) => forgetAfter(args.path, () => fs.writeBinaryFile(args)),
   };
 }

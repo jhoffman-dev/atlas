@@ -27,6 +27,7 @@ function creatingFs() {
   const fs = fakeVaultFs({
     createNote: async ({ path: at }) => {
       created.push(at);
+      return 0;
     },
   });
   return { fs, created };

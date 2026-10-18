@@ -74,6 +74,7 @@ function memoryVault(files: Record<string, string>) {
     createNote: async ({ path, contents }) => {
       if (stored.has(path)) throw new Error(`already there: ${path}`);
       stored.set(path, { text: contents, at: 1 });
+      return 0;
     },
     writeTextFile: async ({ path, contents, expectedModified }) => {
       const note = stored.get(path);
@@ -343,6 +344,7 @@ function listedVault() {
     createNote: async (note: { path: VaultPath; contents: string }) => {
       await vault.fs.createNote(note);
       made.push(note.path);
+      return 0;
     },
     listNotes: async () =>
       [...NOTE_PATHS.map(createVaultPath), ...made].map((path) => ({

@@ -25,6 +25,7 @@ function memoryFs(files: Record<string, string>) {
     createNote: async ({ path, contents }) => {
       if (store.has(path)) throw new Error(`${path} exists`);
       store.set(path, contents);
+      return 0;
     },
   });
   const notePaths = () => [...store.keys()].map(createVaultPath) as VaultPath[];

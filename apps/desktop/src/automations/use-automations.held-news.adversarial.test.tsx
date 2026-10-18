@@ -95,7 +95,10 @@ function memoryVault(files: Record<string, string>) {
       }),
     readTextFile: async (path) => ({ text: files[path] ?? '', modified: 1 }),
     createFolder: async ({ path }) => void dirs.add(path),
-    createNote: async ({ path, contents }) => void (files[path] = contents),
+    createNote: async ({ path, contents }) => {
+      files[path] = contents;
+      return 0;
+    },
     writeTextFile: async ({ path, contents }) => {
       files[path] = contents;
       return 1;
