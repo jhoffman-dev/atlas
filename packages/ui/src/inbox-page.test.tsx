@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createVaultPath, readProposal, type InboxItem, type InboxTask } from '@atlas/domain';
 import {
@@ -694,7 +694,8 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     );
   });
 
-  it('draws the rows anyway once a slow read has had its time, and keeps that offer back', () => {
+  // Late now means shown at once: the rows are held still on screen as it lands (list-anchor.test.tsx).
+  it('draws the rows anyway once a slow read has had its time, and shows that offer when it comes', () => {
     vi.useFakeTimers();
     const view = page({ vaultTidy: READING });
     expect(firstRow()).toBeNull();
@@ -704,15 +705,15 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     expect(firstRow()).not.toBeNull();
 
     view.rerender({ vaultTidy: VAULT_TIDY });
-    expect(tidyOffer()).toBeNull();
+    expect(tidyOffer()).not.toBeNull();
     expect(firstRow()).not.toBeNull();
   });
 
-  it('keeps back an offer that arrives after the rows are drawn, so it cannot push them down', () => {
+  it('shows an offer that arrives after the rows are drawn, without waiting for the next open', () => {
     const view = page();
     expect(firstRow()).not.toBeNull();
     view.rerender({ typesOffer: TYPES_OFFER });
-    expect(screen.queryByRole('complementary', { name: /Set your types up/ })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: /Set your types up/ })).not.toBeNull();
     expect(firstRow()).not.toBeNull();
   });
 
@@ -732,12 +733,9 @@ describe('InboxPage — nothing moves under the pointer once the rows are drawn 
     expect(within(tidyOffer()!).getByRole('status').textContent).toBe('Tidied the vault.');
   });
 
-  it('shows the offers kept back the next time the Inbox opens', () => {
-    const view = page();
-    view.rerender({ vaultTidy: VAULT_TIDY });
-    expect(tidyOffer()).toBeNull();
-    cleanup();
-    page({ vaultTidy: VAULT_TIDY });
+  it('draws an offer read again as it last was, so its room does not fold away', () => {
+    const view = page({ vaultTidy: VAULT_TIDY });
+    view.rerender({ vaultTidy: READING });
     expect(tidyOffer()).not.toBeNull();
   });
 });

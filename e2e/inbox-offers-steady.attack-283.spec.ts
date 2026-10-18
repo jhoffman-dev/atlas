@@ -49,12 +49,65 @@ async function vaultWithRows(): Promise<FakeVault> {
   return vault;
 }
 
-async function openVault(page: Page, vault: FakeVault): Promise<FakeHost> {
+/**
+ * Opens the vault. With `hold`, the tidy's read of that loose note is held
+ * from the start (the fix round reads the offers as soon as the index is
+ * ready, before the Inbox opens), except within the index's own read of
+ * every note, which reads the first row's note too.
+ */
+async function openVault(
+  page: Page,
+  vault: FakeVault,
+  hold?: string,
+): Promise<{ host: FakeHost; release: () => void }> {
   const host = await installHost(page, vault);
+  const release =
+    hold === undefined ? () => {} : host.holdReads(hold, { except: 'Inbox/Item 1.md' });
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible({ timeout: 60_000 });
-  return host;
+  return { host, release };
+}
+
+/**
+ * Clicks the Inbox button in the page and reads the row titled `title` the
+ * moment it is first put in the page — before the hold can run out (its
+ * timer is set only after that commit is painted): whether it is hidden,
+ * inside something inert, and whether a script's focus() lands on it.
+ */
+function heldAtMount(
+  page: Page,
+  title: string,
+): Promise<{ hidden: boolean; inert: boolean; tookFocus: boolean }> {
+  return page.evaluate(
+    (title) =>
+      new Promise((resolve) => {
+        const find = () =>
+          [...document.querySelectorAll<HTMLElement>('.inbox__grid button')].find(
+            (button) => button.textContent?.trim() === title,
+          );
+        const look = () => {
+          const found = find();
+          if (found === undefined) return false;
+          observer.disconnect();
+          found.focus();
+          resolve({
+            hidden: getComputedStyle(found).visibility === 'hidden',
+            inert: found.closest('[inert]') !== null,
+            tookFocus: document.activeElement === found,
+          });
+          return true;
+        };
+        const observer = new MutationObserver(() => void look());
+        observer.observe(document.body, { childList: true, subtree: true });
+        const button = [...document.querySelectorAll('button')].find((b) =>
+          /^Inbox/.test(b.getAttribute('aria-label') ?? b.textContent?.trim() ?? ''),
+        );
+        if (button === undefined) throw new Error('no Inbox button');
+        button.click();
+      }),
+    title,
+  );
 }
 
 /** How far, at most, the Inbox row titled `title` moved over the next `frames` frames. */
@@ -116,6 +169,15 @@ test('on a vault with nothing to offer, the rows show without waiting out the 1 
   expect(ms).toBeLessThan(1000);
 });
 
+/**
+ * The row is where it was. Within half a pixel: the page lays out in
+ * fractions of a pixel, and a scroller is scrolled by whole ones, so holding
+ * a row still across a 46.625px arrival leaves it at most that far off.
+ */
+function expectSteady(now: number, before: number): void {
+  expect(Math.abs(now - before)).toBeLessThanOrEqual(0.5);
+}
+
 /** Where the row's top edge is now, in the viewport. */
 async function topOf(page: Page, n: number): Promise<number> {
   const box = await row(page, n).boundingBox();
@@ -139,7 +201,7 @@ test('a settings-note warning that arrives after the rows are drawn does not mov
   await expect(
     page.getByRole('alert', { name: 'Meetings and automations are paused' }),
   ).toBeVisible();
-  expect(await topOf(page, 3)).toBe(before);
+  expectSteady(await topOf(page, 3), before);
 });
 
 test('a proposals section that arrives after the rows are drawn does not move them (#130 attack)', async ({
@@ -156,7 +218,7 @@ test('a proposals section that arrives after the rows are drawn does not move th
   await vault.write('Inbox/Proposals/Send Tobias the file.md', PROPOSAL);
   await emitVaultChanged(page, ['Inbox/Proposals/Send Tobias the file.md']);
   await expect(page.getByRole('region', { name: 'Proposals' })).toBeVisible({ timeout: 10_000 });
-  expect(await topOf(page, 3)).toBe(before);
+  expectSteady(await topOf(page, 3), before);
 });
 
 test('an offer that never resolves: the rows show at the limit, work, and the offer comes on the next open (#130 attack)', async ({
@@ -164,12 +226,11 @@ test('an offer that never resolves: the rows show at the limit, work, and the of
 }) => {
   const vault = await vaultWithRows();
   await vault.write('Loose idea.md', 'A thought.\n');
-  const host = await openVault(page, vault);
-  const release = host.holdReads('Loose idea.md');
-  await inboxButton(page).click();
+  const { release } = await openVault(page, vault, 'Loose idea.md');
   // Held, not missing: drawn but not visible until the limit.
+  const held = await heldAtMount(page, 'Item 2');
+  expect(held.hidden).toBe(true);
   await expect(drawnRow(page, 2)).toBeAttached();
-  await expect(drawnRow(page, 2)).toBeHidden();
   await expect(row(page, 2)).toBeVisible({ timeout: 3_000 });
   await row(page, 2).click();
   await expect(page.getByText('Body of item 2.')).toBeVisible();
@@ -184,19 +245,11 @@ test('Tab pressed while the rows are held never focuses a hidden row, and a row 
 }) => {
   const vault = await vaultWithRows();
   await vault.write('Loose idea.md', 'A thought.\n');
-  const host = await openVault(page, vault);
-  const release = host.holdReads('Loose idea.md');
-  await inboxButton(page).click();
-  await expect(inboxArticle(page)).toBeVisible();
-  // Drawn but held: in the page, not seen.
+  const { release } = await openVault(page, vault, 'Loose idea.md');
+  // Drawn but held: in the page, not seen, and not even a script's focus() lands on it.
+  const held = await heldAtMount(page, 'Item 1');
+  expect(held).toEqual({ hidden: true, inert: true, tookFocus: false });
   await expect(drawnRow(page, 1)).toBeAttached();
-  await expect(drawnRow(page, 1)).toBeHidden();
-  // Not even a script's focus() lands on a held row.
-  const tookFocus = await drawnRow(page, 1).evaluate((button: HTMLElement) => {
-    button.focus();
-    return document.activeElement === button;
-  });
-  expect(tookFocus).toBe(false);
   for (let n = 0; n < 8; n++) {
     await page.keyboard.press('Tab');
     const inHidden = await page.evaluate(() => {
@@ -218,8 +271,7 @@ test('leaving the Inbox and coming back at once: rows still steady when the held
   const vault = await vaultWithRows();
   await vault.write('Loose idea.md', 'A thought.\n');
   await vault.write('Plan.md', '# Plan\n');
-  const host = await openVault(page, vault);
-  const release = host.holdReads('Loose idea.md');
+  const { release } = await openVault(page, vault, 'Loose idea.md');
   await inboxButton(page).click();
   await expect(inboxArticle(page)).toBeVisible();
   // Away and back within a frame or two.

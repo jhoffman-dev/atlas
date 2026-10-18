@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { GtdStatus, InboxItem, VaultPath } from '@atlas/domain';
 import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
@@ -19,15 +27,17 @@ import { TaskMigration, type TaskMigrationProps } from './task-migration.tsx';
 import { VaultTidy, type VaultTidyProps } from './vault-tidy.tsx';
 import { MeetingCleanup, type MeetingCleanupProps } from './meeting-cleanup.tsx';
 import type { InboxOfferReading } from './inbox-offer.ts';
+import { useListAnchor, type ListAnchorParts } from './list-anchor.ts';
 
 const NO_REFUSALS: readonly InboxRefusal[] = [];
 
 /**
  * How long the Inbox holds its rows back for an offer still being read (#130).
- * Long enough for the usual read, short enough that a slow one never keeps
- * the person waiting; an offer read later than this waits for the next open.
+ * The offers are read once the index is ready, before the Inbox opens, so this
+ * is rarely waited at all; an offer read later than this lands above rows
+ * already shown, and they are held still on screen as it does.
  */
-export const INBOX_OFFERS_WAIT_MS = 1000;
+export const INBOX_OFFERS_WAIT_MS = 300;
 
 /**
  * The proposals and rows, laid out as if the wrapper were not there. Held
@@ -133,10 +143,19 @@ export function InboxPage(props: InboxPageProps) {
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
   const scroller = useRef<HTMLDivElement>(null);
+  const article = useRef<HTMLElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const answers = useRef<HTMLDivElement>(null);
+  const room = useRef<HTMLDivElement>(null);
+  const parts = useMemo<ListAnchorParts>(
+    () => ({ scroller, page: article, list, answers, room }),
+    [],
+  );
   const reading = [migration, paraMigration, tidy, cleanup, meetingProjects].some(
     (read) => read?.reading === true,
   );
   const live = useOffersKnown(reading);
+  const anchor = useListAnchor(parts, live);
   return (
     <>
       <PageBar
@@ -145,9 +164,10 @@ export function InboxPage(props: InboxPageProps) {
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
+      <NewAbove {...anchor} />
       <div className="panel__body panel__body--rows" ref={scroller} {...ROW_SCROLLER_MARK}>
         <RowScrollerContext.Provider value={scroller}>
-          <article className="page page--wide inbox" aria-label="Inbox">
+          <article className="page page--wide inbox" aria-label="Inbox" ref={article}>
             <PageHead
               icon="inbox"
               title="Inbox"
@@ -163,42 +183,82 @@ export function InboxPage(props: InboxPageProps) {
             {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
             {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
             <Offers
-              live={live}
               offers={[
-                ['types', offer && <TypesOffer {...offer} />],
-                ['tasks', known(migration) ? <TaskMigration {...migration} /> : null],
-                ['para', known(paraMigration) ? <ParaMigration {...paraMigration} /> : null],
-                ['tidy', known(tidy) ? <VaultTidy {...tidy} /> : null],
-                ['cleanup', known(cleanup) ? <MeetingCleanup {...cleanup} /> : null],
-                [
-                  'meetings',
-                  known(meetingProjects) ? <MeetingProjects {...meetingProjects} /> : null,
-                ],
+                ['types', offer && <TypesOffer {...offer} />, false],
+                slot('tasks', migration, (known) => <TaskMigration {...known} />),
+                slot('para', paraMigration, (known) => <ParaMigration {...known} />),
+                slot('tidy', tidy, (known) => <VaultTidy {...known} />),
+                slot('cleanup', cleanup, (known) => <MeetingCleanup {...known} />),
+                slot('meetings', meetingProjects, (known) => <MeetingProjects {...known} />),
               ]}
             />
-            {problem !== null && (
-              <p className="table__error" role="alert">
-                {problem}
-              </p>
-            )}
-            <LastAction {...props} />
-            <div style={live ? IN_PLACE : HELD_BACK} inert={!live}>
+            <div style={IN_PLACE} ref={answers}>
+              {problem !== null && (
+                <p className="table__error" role="alert">
+                  {problem}
+                </p>
+              )}
+              <LastAction {...props} />
+            </div>
+            <div style={live ? IN_PLACE : HELD_BACK} inert={!live} ref={list}>
               {proposals !== null && proposalsToShow(proposals) && (
                 <ProposalsSection {...proposals} />
               )}
               <InboxList {...props} />
             </div>
           </article>
+          <div ref={room} style={ROOM} aria-hidden="true" />
         </RowScrollerContext.Provider>
       </div>
     </>
   );
 }
 
-/** Whether an offer is known, and has something to say: null while it is still read. */
-function known<Offer extends InboxOfferReading>(offer: Offer | null): offer is Offer {
-  return offer !== null && offer.reading !== true;
+/** One offer's slot: drawn once it is known, and said to be still read until then. */
+type OfferSlot = readonly [key: string, offer: ReactNode, reading: boolean];
+
+function slot<Offer extends InboxOfferReading>(
+  key: string,
+  offer: Offer | null,
+  draw: (known: Offer) => ReactNode,
+): OfferSlot {
+  const reading = offer?.reading === true;
+  return [key, offer === null || reading ? null : draw(offer), reading];
 }
+
+/**
+ * Says that something arrived above the list while the person was on it, and
+ * takes them to it (#130). It hangs over the top of the page rather than
+ * taking room, so saying so moves nothing; the region is always there, so a
+ * screen reader hears it arrive.
+ */
+function NewAbove({ newAbove, showNewAbove }: { newAbove: boolean; showNewAbove: () => void }) {
+  return (
+    <div style={NEW_ABOVE_HANGER} aria-live="polite">
+      {newAbove && (
+        <button
+          type="button"
+          className="btn btn--sm"
+          style={NEW_ABOVE_BUTTON}
+          onClick={showNewAbove}
+        >
+          <span aria-hidden="true">↑</span> New above
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** The room the list anchor gives below the page; its height is set there, never here. */
+const ROOM = { flexShrink: 0 } as const;
+const NEW_ABOVE_HANGER = { position: 'relative', height: 0, zIndex: 2 } as const;
+const NEW_ABOVE_BUTTON = {
+  position: 'absolute',
+  top: 8,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  boxShadow: 'var(--shadow-panel)',
+} as const;
 
 /**
  * Whether the Inbox's offers are known, so its rows can be drawn below them
@@ -218,39 +278,38 @@ function useOffersKnown(reading: boolean): boolean {
 
 /**
  * The Inbox's offers, each read on its own and shown once it is (#227). One
- * read after the others goes below those already shown: arriving above them
- * would move what is under the person's pointer as they reach for it. Offers
- * read together keep the order given. Once the rows are drawn (`live`), an
- * offer not already shown waits for the Inbox to open again: shown now, it
- * would push the rows down under the pointer (#130). One already shown keeps
- * its place while it is read as nothing for a moment, as its run settles.
+ * read after the others goes below those already shown, and one shown keeps
+ * its place for as long as the page shows — read as nothing for a moment as
+ * its run settles, it comes back where it was. One read again is drawn as it
+ * last was until it is known, so its room does not fold and open (#130).
  */
-function Offers({
-  offers,
-  live,
-}: {
-  offers: readonly (readonly [string, ReactNode])[];
-  live: boolean;
-}) {
+function Offers({ offers }: { offers: readonly OfferSlot[] }) {
   const shown = offers.filter(([, offer]) => offer !== null);
   const [order, setOrder] = useState<readonly string[]>(() => shown.map(([key]) => key));
-  // Whether the rows were already drawn when these offers were read: the
-  // render that draws them still shows the offer whose read let them be drawn.
-  const [frozen, setFrozen] = useState(live);
-  if (live && !frozen) setFrozen(true);
-  const keys = shown.map(([key]) => key);
-  const next = frozen ? order : inArrivalOrder(order, keys);
+  const next = inArrivalOrder(
+    order,
+    shown.map(([key]) => key),
+  );
   if (next.join('\n') !== order.join('\n')) setOrder(next);
-  const byKey = new Map(shown);
-  return next
-    .filter((key) => byKey.has(key))
-    .map((key) => <Fragment key={key}>{byKey.get(key)}</Fragment>);
+  const last = useRef(new Map<string, ReactNode>());
+  useLayoutEffect(() => {
+    for (const [key, offer] of shown) last.current.set(key, offer);
+  });
+  const reading = new Set(offers.filter(([, , read]) => read).map(([key]) => key));
+  const byKey = new Map(shown.map(([key, offer]) => [key, offer]));
+  // The last drawn offer is repeated while it is read again: a cache of what is
+  // already on screen, written after each commit, so reading it here can only
+  // draw again what was drawn.
+  // eslint-disable-next-line react-hooks/refs
+  return next.flatMap((key) => {
+    const offer = byKey.get(key) ?? (reading.has(key) ? last.current.get(key) : undefined);
+    return offer === undefined ? [] : [<Fragment key={key}>{offer}</Fragment>];
+  });
 }
 
 /** The offers shown before, in their order, then each newly shown one, in the order given. */
 function inArrivalOrder(before: readonly string[], shown: readonly string[]): readonly string[] {
-  const kept = before.filter((key) => shown.includes(key));
-  return [...kept, ...shown.filter((key) => !kept.includes(key))];
+  return [...before, ...shown.filter((key) => !before.includes(key))];
 }
 
 function describe(contents: InboxContents | null, proposals: number): string | null {

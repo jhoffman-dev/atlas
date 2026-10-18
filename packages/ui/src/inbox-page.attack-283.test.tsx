@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { createVaultPath, readProposal, type InboxItem } from '@atlas/domain';
 import { InboxPage, type InboxContents, type InboxPageProps } from './inbox-page.tsx';
+import { installFakeLayout, type FakeLayout } from './testing/fake-layout.ts';
 
 /**
  * Attack on #130 (PR #283): once the Inbox's rows are drawn, nothing new may
  * go in above them, or a click aimed at a row lands on something else. The
  * PR holds back the five offers; these are the other things drawn above the
  * rows that can still arrive after them.
+ *
+ * Since the fix round, what arrives late is shown, above the rows as it
+ * belongs, and the rows are held where they were on screen instead (manual
+ * scroll anchoring, #130). jsdom lays nothing out, so a fake layout stacks
+ * the page's blocks 50px apart: the first row must be where it was.
  */
 
 const item = (path: string, title: string): InboxItem => ({
@@ -87,16 +93,29 @@ function page(overrides: Partial<InboxPageProps> = {}) {
 
 const firstRow = () => screen.getByRole('button', { name: 'Idea' });
 
-/** Whether `added` is absent, or drawn after the first row, so the row has not been pushed down. */
-const notAboveFirstRow = (added: Element | null) =>
-  added === null ||
-  (firstRow().compareDocumentPosition(added) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+let layout: FakeLayout;
+beforeEach(() => {
+  layout = installFakeLayout({
+    blocks: '.page-head, .inbox__offer, .proposals, .table__error, .inbox__done, .table',
+    scroller: '.panel__body--rows',
+  });
+});
+afterEach(() => layout.restore());
+
+/** Where the first row is on screen now. */
+const firstRowAt = () => layout.topOf(firstRow());
+/** After a change, once the browser would have laid it out: whether the first row is where it was. */
+const rowStayedAt = (before: number) => {
+  layout.flush();
+  return firstRowAt() === before;
+};
 
 describe('InboxPage — what arrives after the rows are drawn does not go in above them (#130 attack)', () => {
   it('a proposals section read after the rows are drawn is not put above them', () => {
     // No offer is being read, so the rows are drawn at once; the proposals are not read yet.
     const rerender = page({ proposals: proposals(null) });
-    expect(firstRow()).toBeDefined();
+    layout.flush();
+    const before = firstRowAt();
 
     rerender({
       proposals: proposals({
@@ -105,39 +124,49 @@ describe('InboxPage — what arrives after the rows are drawn does not go in abo
         unreadable: [],
       }),
     });
-    expect(notAboveFirstRow(screen.queryByRole('region', { name: 'Proposals' }))).toBe(true);
+    expect(screen.getByRole('region', { name: 'Proposals' })).toBeDefined();
+    expect(rowStayedAt(before)).toBe(true);
+    // Out of sight above the rows now, and said so without moving them.
+    expect(screen.getByRole('button', { name: /New above/ })).toBeDefined();
   });
 
   it('the settings-note warning known after the rows are drawn is not put above them', () => {
     const rerender = page();
-    expect(firstRow()).toBeDefined();
+    layout.flush();
+    const before = firstRowAt();
 
     rerender({
       settingsUnreadable: { problem: 'line 3: a list is not closed', onOpenSettings: vi.fn() },
     });
-    const warning = screen.queryByText(/line 3: a list is not closed/);
-    expect(notAboveFirstRow(warning)).toBe(true);
+    expect(screen.getByText(/line 3: a list is not closed/)).toBeDefined();
+    expect(rowStayedAt(before)).toBe(true);
   });
 
   it('the owner-unknown warning known after the rows are drawn is not put above them', () => {
     const rerender = page();
-    expect(firstRow()).toBeDefined();
+    layout.flush();
+    const before = firstRowAt();
 
     rerender({ ownerUnknown: { onOpenSettings: vi.fn() } });
-    const warning = screen.queryByRole('alert', {
-      name: 'Atlas can’t tell which action items are yours',
-    });
-    expect(notAboveFirstRow(warning)).toBe(true);
+    expect(
+      screen.getByRole('alert', { name: 'Atlas can’t tell which action items are yours' }),
+    ).toBeDefined();
+    expect(rowStayedAt(before)).toBe(true);
   });
 
   it('an offer read again from scratch after the rows are drawn, as on a vault switch, does not land above them', () => {
     // Vault A's tidy is shown and the rows are drawn below it.
     const rerender = page({ vaultTidy: TIDY });
     expect(screen.getByRole('region', { name: 'Tidy the vault' })).toBeDefined();
+    layout.flush();
+    const before = firstRowAt();
     // Another vault opens with the Inbox still open: its tidy starts reading from nothing…
     rerender({ vaultTidy: { ...TIDY, preview: null, reading: true } });
+    // Read again, it keeps its room rather than folding away.
+    expect(rowStayedAt(before)).toBe(true);
     // …and is known a moment later, after the rows of the new vault are on screen.
     rerender({ vaultTidy: TIDY });
-    expect(notAboveFirstRow(screen.queryByRole('region', { name: 'Tidy the vault' }))).toBe(true);
+    expect(screen.getByRole('region', { name: 'Tidy the vault' })).toBeDefined();
+    expect(rowStayedAt(before)).toBe(true);
   });
 });
