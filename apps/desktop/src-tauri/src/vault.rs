@@ -2951,3 +2951,152 @@ mod coarse_clock_tests {
         assert!(write_text(vault.path(), "a.md", "mine\n", BasedOn::at(opened.modified)).is_ok());
     }
 }
+
+/// Attack on #281 (#245): the byte check against outside writes in the same
+/// tick, the encodings a note can hold, and notes near the size limit.
+#[cfg(test)]
+mod attack_281_tests {
+    use super::{read_text, write_text, BasedOn, MAX_TEXT_BYTES};
+    use std::fs;
+    use std::path::Path;
+    use std::time::{Duration, Instant, UNIX_EPOCH};
+    use tempfile::tempdir;
+
+    const TICK: u64 = 1_700_000_000_000;
+
+    fn write_bytes_in_the_tick(root: &Path, bytes: &[u8]) {
+        let file = root.join("a.md");
+        fs::write(&file, bytes).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(UNIX_EPOCH + Duration::from_millis(TICK))
+            .unwrap();
+    }
+
+    /// Saves `contents` from the version read as `opened`, naming its time and its digest.
+    fn save_from(root: &Path, opened: &super::NoteContents, contents: &str) -> Result<u64, String> {
+        let digest = super::digest_of(opened.text.as_bytes());
+        write_text(
+            root,
+            "a.md",
+            contents,
+            BasedOn {
+                modified: Some(opened.modified),
+                digest: Some(&digest),
+            },
+        )
+    }
+
+    fn on_disk(root: &Path) -> Vec<u8> {
+        fs::read(root.join("a.md")).unwrap()
+    }
+
+    #[test]
+    fn a_save_over_a_different_length_edit_in_the_same_tick_is_refused() {
+        let vault = tempdir().unwrap();
+        write_bytes_in_the_tick(vault.path(), b"theirs\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+        write_bytes_in_the_tick(vault.path(), b"theirs, and longer\n");
+
+        assert!(save_from(vault.path(), &opened, "mine\n").is_err());
+        assert_eq!(on_disk(vault.path()), b"theirs, and longer\n");
+    }
+
+    #[test]
+    fn a_save_over_an_edit_that_put_back_the_bytes_read_lands() {
+        // Nothing is lost: the file holds exactly what the save was made from.
+        let vault = tempdir().unwrap();
+        write_bytes_in_the_tick(vault.path(), b"theirs\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+        write_bytes_in_the_tick(vault.path(), b"other!\n");
+        write_bytes_in_the_tick(vault.path(), b"theirs\n");
+
+        assert!(save_from(vault.path(), &opened, "mine\n").is_ok());
+        assert_eq!(on_disk(vault.path()), b"mine\n");
+    }
+
+    #[test]
+    fn a_note_with_a_bom_crlf_nfd_and_no_trailing_newline_saves_from_its_own_read() {
+        let vault = tempdir().unwrap();
+        let text = "\u{feff}# Cafe\u{301}\r\n\r\nLine one\r\nno newline at the end";
+        write_bytes_in_the_tick(vault.path(), text.as_bytes());
+        let opened = read_text(vault.path(), "a.md").unwrap();
+        assert_eq!(opened.text, text);
+
+        let saved = save_from(vault.path(), &opened, "\u{feff}# Café\r\n").unwrap();
+        assert!(saved > opened.modified);
+        assert_eq!(on_disk(vault.path()), "\u{feff}# Café\r\n".as_bytes());
+    }
+
+    #[test]
+    fn a_same_tick_edit_that_only_changes_line_endings_or_the_bom_is_refused() {
+        for (read, theirs) in [
+            ("a\r\nb\n", "a\nb\r\n"),
+            ("\u{feff}abc\n", "abc\n\n\n\n"),
+            ("Cafe\u{301}\n", "Café!\n"),
+        ] {
+            let vault = tempdir().unwrap();
+            write_bytes_in_the_tick(vault.path(), read.as_bytes());
+            let opened = read_text(vault.path(), "a.md").unwrap();
+            assert_eq!(theirs.len(), read.len(), "{theirs:?} is the same length");
+            write_bytes_in_the_tick(vault.path(), theirs.as_bytes());
+
+            assert!(
+                save_from(vault.path(), &opened, "mine\n").is_err(),
+                "{read:?}"
+            );
+            assert_eq!(on_disk(vault.path()), theirs.as_bytes());
+        }
+    }
+
+    #[test]
+    fn a_save_from_a_note_with_bytes_that_are_not_utf8_is_refused_not_written() {
+        // Such a note cannot be read as text, so no pane holds it; a save that
+        // names a digest of some text cannot match its bytes.
+        let vault = tempdir().unwrap();
+        write_bytes_in_the_tick(vault.path(), b"ok\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+        write_bytes_in_the_tick(vault.path(), b"o\xff\n");
+
+        assert!(save_from(vault.path(), &opened, "mine\n").is_err());
+        assert_eq!(on_disk(vault.path()), b"o\xff\n");
+    }
+
+    /// A save is not held to the read limit, so a note can grow past it in
+    /// the editor; the next save, which names its digest, then has to read
+    /// the note to check it and is refused as too large.
+    #[test]
+    fn the_save_after_one_that_grew_the_note_past_the_read_limit_lands() {
+        let vault = tempdir().unwrap();
+        write_bytes_in_the_tick(vault.path(), b"small\n");
+        let opened = read_text(vault.path(), "a.md").unwrap();
+        let big = "x".repeat(MAX_TEXT_BYTES as usize + 1);
+        let first = save_from(vault.path(), &opened, &big).unwrap();
+
+        let grown = super::NoteContents {
+            text: big.clone(),
+            modified: first,
+        };
+        let second = save_from(vault.path(), &grown, &format!("{big}y"));
+
+        assert!(second.is_ok(), "refused: {second:?}");
+    }
+
+    #[test]
+    fn a_digest_save_of_1_mb_and_5_mb_stays_quick() {
+        for (label, size) in [("1 MB", 1usize << 20), ("5 MB", 5usize << 20)] {
+            let vault = tempdir().unwrap();
+            let text = "x".repeat(size);
+            write_bytes_in_the_tick(vault.path(), text.as_bytes());
+            let opened = read_text(vault.path(), "a.md").unwrap();
+            let started = Instant::now();
+            save_from(vault.path(), &opened, &text).unwrap();
+            let took = started.elapsed();
+            println!("digest save of {label}: {took:?}");
+            // Generous: a debug build on a loaded Mac, not a benchmark.
+            assert!(took < Duration::from_secs(3), "{label} took {took:?}");
+        }
+    }
+}
