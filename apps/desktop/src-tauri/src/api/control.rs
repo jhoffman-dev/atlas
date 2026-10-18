@@ -347,6 +347,79 @@ mod tests {
             .starts_with("HTTP/1.1 200"));
     }
 
+    /// A copy of the socket listening on `port`, as a child process that was
+    /// being spawned at that moment holds one of every descriptor until it has
+    /// exec'd. While any copy is open the port is not free, though Atlas has
+    /// closed its own.
+    #[cfg(unix)]
+    fn copy_of_the_listener_on(port: u16) -> std::os::fd::OwnedFd {
+        use std::os::fd::{FromRawFd, OwnedFd};
+        for fd in 0..4096 {
+            let mut address: libc::sockaddr_in = unsafe { std::mem::zeroed() };
+            let mut length = std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t;
+            // SAFETY: `address` is a sockaddr_in and `length` says so; a
+            // descriptor that is not a socket only makes the call fail.
+            let named = unsafe {
+                libc::getsockname(fd, std::ptr::addr_of_mut!(address).cast(), &mut length)
+            };
+            let is_it = named == 0
+                && libc::c_int::from(address.sin_family) == libc::AF_INET
+                && u16::from_be(address.sin_port) == port;
+            if is_it {
+                // SAFETY: `dup` returns a new descriptor that only this owns.
+                return unsafe { OwnedFd::from_raw_fd(libc::dup(fd)) };
+            }
+        }
+        panic!("nothing in this process is listening on {port}");
+    }
+
+    /// Turning it off closes Atlas's listener, but a child being spawned at
+    /// that moment (git, the model) still holds a copy for a few milliseconds
+    /// — longer under load. Turning straight back on must wait that out, not
+    /// take the copy for a squatter, move and replace the token (#89).
+    #[cfg(unix)]
+    #[test]
+    fn turning_it_back_on_waits_for_a_child_s_copy_of_the_listener_to_close() {
+        let (_dir, control) = loaded();
+        let port = control.set_enabled(true, echo(&control)).unwrap().port;
+        let token = control.token();
+        let held = copy_of_the_listener_on(port.unwrap());
+
+        control.set_enabled(false, echo(&control)).unwrap();
+        let child_execs = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            drop(held);
+        });
+        let status = control.set_enabled(true, echo(&control)).unwrap();
+        child_execs.join().unwrap();
+
+        assert_eq!(status.port, port, "moved port");
+        assert_eq!(control.token(), token, "replaced token");
+        assert!(get_status(port.unwrap(), &token)
+            .unwrap()
+            .starts_with("HTTP/1.1 200"));
+    }
+
+    /// Something that keeps the port Atlas let go of is a squatter: once the
+    /// wait is over, Atlas listens elsewhere, under a new token.
+    #[cfg(unix)]
+    #[test]
+    fn a_port_still_held_after_the_wait_is_replaced_with_the_token() {
+        let (_dir, control) = loaded();
+        let port = control.set_enabled(true, echo(&control)).unwrap().port;
+        let token = control.token();
+        let _squatter = copy_of_the_listener_on(port.unwrap());
+
+        control.set_enabled(false, echo(&control)).unwrap();
+        let status = control.set_enabled(true, echo(&control)).unwrap();
+
+        assert_ne!(status.port, port);
+        assert_ne!(control.token(), token);
+        assert!(get_status(status.port.unwrap(), &control.token())
+            .unwrap()
+            .starts_with("HTTP/1.1 200"));
+    }
+
     #[test]
     fn rotating_the_token_refuses_the_old_one_at_once() {
         let (dir, control) = loaded();
