@@ -71,11 +71,18 @@ export interface VaultFsPort {
    * Replaces a note's contents and reports its new modification time.
    * `expectedModified` is the time the note was read at; the host refuses the
    * write if the file has changed since.
+   *
+   * `expectedText` is the note's whole text as that version was read. Given,
+   * the host also refuses the write when the file no longer holds exactly
+   * that, which the time alone cannot tell on a disk that keeps it to the
+   * second (HFS+), to two (exFAT) or to a server's (SMB, NFS): another
+   * program's write within the same tick leaves the time as it was (#245).
    */
   writeTextFile: (args: {
     path: VaultPath;
     contents: string;
     expectedModified: number | null;
+    expectedText?: string;
   }) => Promise<number>;
   /**
    * Writes bytes into a file that is not a note — a file of an artifact's saved

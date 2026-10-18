@@ -7,6 +7,11 @@ export interface SyncRequest {
    * moves it regardless, for readers that re-read on every write.
    */
   readonly quiet: boolean;
+  /**
+   * Notes another program was seen to change, read again even when their
+   * time and size stand (#245). Left out when there are none.
+   */
+  readonly recheck?: readonly string[];
 }
 
 /** A sync the queue starts, and what it can ask of the queue while it runs. */
@@ -26,10 +31,14 @@ interface Lane {
   waiting: { request: SyncRequest; held: Promise<boolean>; begin: () => void } | null;
 }
 
-const merged = (a: SyncRequest, b: SyncRequest): SyncRequest => ({
-  fromScratch: a.fromScratch || b.fromScratch,
-  quiet: a.quiet && b.quiet,
-});
+const merged = (a: SyncRequest, b: SyncRequest): SyncRequest => {
+  const recheck = [...new Set([...(a.recheck ?? []), ...(b.recheck ?? [])])];
+  return {
+    fromScratch: a.fromScratch || b.fromScratch,
+    quiet: a.quiet && b.quiet,
+    ...(recheck.length > 0 && { recheck }),
+  };
+};
 
 /**
  * At most one sync of a vault runs, and one waits behind it (#238). A sync

@@ -929,3 +929,97 @@ describe('refreshIndex, with the notes derived elsewhere (#135)', () => {
     expect(usual.inWindow).toBeNull();
   });
 });
+
+describe('refreshIndex reads again the notes it is told were changed elsewhere (#245)', () => {
+  it('re-reads a named note whose time and size are as held, and says it changed', async () => {
+    const fs = fakeVault({ 'Plan.md': { text: 'omega', modified: 1_000 } });
+    const { index, written } = fakeIndex([
+      { path: 'Plan.md', modified: 1_000, size: 5, digest: digestOf('alpha'), type: null },
+    ]);
+
+    const result = await refreshIndex({ fs, index, markdown, recheck: ['Plan.md'] });
+
+    expect(written.map((note) => note.path)).toEqual(['Plan.md']);
+    expect(result).toMatchObject({ indexed: 1, unchanged: 0 });
+    expect(result.changes).toEqual([
+      {
+        kind: 'changed',
+        path: 'Plan.md',
+        type: null,
+        digest: digestOf('omega'),
+        before: digestOf('alpha'),
+      },
+    ]);
+  });
+
+  it('leaves such a note alone when nothing names it, as an ordinary refresh does', async () => {
+    const fs = fakeVault({ 'Plan.md': { text: 'omega', modified: 1_000 } });
+    const { index, written } = fakeIndex([
+      { path: 'Plan.md', modified: 1_000, size: 5, digest: digestOf('alpha'), type: null },
+    ]);
+
+    const result = await refreshIndex({ fs, index, markdown });
+
+    expect(written).toEqual([]);
+    expect(result).toMatchObject({ indexed: 0, unchanged: 1, changes: [] });
+  });
+
+  it('does not call a named note changed when its bytes are the ones held', async () => {
+    const fs = fakeVault({ 'Plan.md': { text: 'alpha', modified: 1_000 } });
+    const { index } = fakeIndex([
+      { path: 'Plan.md', modified: 1_000, size: 5, digest: digestOf('alpha'), type: null },
+    ]);
+
+    const { changes } = await refreshIndex({ fs, index, markdown, recheck: ['Plan.md'] });
+
+    expect(changes).toEqual([]);
+  });
+
+  it('ignores a named path that is not a note in the vault', async () => {
+    const fs = fakeVault({ 'Plan.md': { text: 'alpha', modified: 1_000 } });
+    const { index, written } = fakeIndex([
+      { path: 'Plan.md', modified: 1_000, size: 5, digest: digestOf('alpha'), type: null },
+    ]);
+
+    await refreshIndex({ fs, index, markdown, recheck: ['Gone.md', 'Pictures/a.png'] });
+
+    expect(written).toEqual([]);
+  });
+
+  it('on a 2,000-note vault, reads only the note named, and each note once', async () => {
+    const files = Object.fromEntries(
+      Array.from({ length: 2_000 }, (_, at) => [
+        `Notes/n${String(at).padStart(4, '0')}.md`,
+        { text: `note ${String(at).padStart(4, '0')}`, modified: 1_000 },
+      ]),
+    );
+    const held = Object.entries(files).map(([path, file]) => ({
+      path,
+      modified: file.modified,
+      size: file.text.length,
+      digest: digestOf(file.text),
+      type: null,
+    }));
+    const changed = 'Notes/n0042.md';
+    files[changed] = { text: 'note 4200', modified: 1_000 };
+    files['Notes/n0007.md'] = { text: 'note 0007, longer', modified: 1_000 };
+    const fs = fakeVault(files);
+    const read: string[] = [];
+    const readNotes = fs.readNotes.bind(fs);
+    fs.readNotes = (paths) => {
+      read.push(...paths);
+      return readNotes(paths);
+    };
+    const { index } = fakeIndex(held);
+
+    const result = await refreshIndex({
+      fs,
+      index,
+      markdown,
+      recheck: [changed, changed, 'Notes/n0007.md'],
+    });
+
+    expect(read.sort()).toEqual(['Notes/n0007.md', changed]);
+    expect(result).toMatchObject({ indexed: 2, unchanged: 1_998 });
+  });
+});

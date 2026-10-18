@@ -116,9 +116,10 @@ export function useIndex({
   /**
    * Resolves true once the index holds the files as they were when it was
    * asked, false when it does not. A `quiet` refresh — the watcher's — moves
-   * the revision only when it found a change.
+   * the revision only when it found a change. `recheck` names notes to read
+   * again whatever their time and size (#245).
    */
-  refresh: (options?: { quiet?: boolean }) => Promise<boolean>;
+  refresh: (options?: { quiet?: boolean; recheck?: readonly string[] }) => Promise<boolean>;
   rebuild: () => Promise<boolean>;
   /**
    * Resolves true once the index holds every change that has asked for a
@@ -156,7 +157,7 @@ export function useIndex({
   const run = useCallback(
     async ({ vault, request, last, current }: QueuedSync): Promise<boolean> => {
       if (open.current !== vault) return false;
-      const { fromScratch, quiet } = request;
+      const { fromScratch, quiet, recheck } = request;
       const building = fromScratch || store.getState().vault !== vault;
       if (building) {
         progress.set(NOT_STARTED);
@@ -167,6 +168,7 @@ export function useIndex({
         const stats = await syncer.sync({
           vault,
           fromScratch,
+          ...(recheck !== undefined && { recheck }),
           onProgress: (done, total) => {
             // A build caught by a switch may report once more before it stops.
             if (current()) progress.set({ done, total });
@@ -228,8 +230,13 @@ export function useIndex({
     store,
     progress,
     refresh: useCallback(
-      (options?: { quiet?: boolean }) =>
-        ask({ fromScratch: false, quiet: options?.quiet === true }),
+      (options?: { quiet?: boolean; recheck?: readonly string[] }) =>
+        ask({
+          fromScratch: false,
+          quiet: options?.quiet === true,
+          ...(options?.recheck !== undefined &&
+            options.recheck.length > 0 && { recheck: options.recheck }),
+        }),
       [ask],
     ),
     rebuild: useCallback(() => ask({ fromScratch: true, quiet: false }), [ask]),
