@@ -1,4 +1,4 @@
-import { useMemo, type ComponentProps } from 'react';
+import { useMemo } from 'react';
 import {
   calendarEndKey,
   thumbnailPropertyOf,
@@ -315,6 +315,7 @@ export function ViewBody({
   const schema = schemaOf(view.type, view.query?.type ?? '');
   // Spread rather than passed, so a type with no done option draws no boxes.
   const ticks = view.ticks === undefined ? {} : { ticks: view.ticks };
+  const board = useShownBoard(view);
 
   if (view.error !== null || view.result === null || view.display.layout === 'table') {
     const choose = choosing.on && view.display.layout === 'table';
@@ -361,17 +362,26 @@ export function ViewBody({
 
   if (view.display.layout === 'board' && view.display.groupBy !== null) {
     return (
-      <PendingBoardView
-        view={view}
-        folds={folds}
-        groupBy={view.display.groupBy}
-        fields={fields}
-        kinds={schema.kinds}
-        onOpenNote={onOpenNote}
-        onMoveCard={view.moveCard}
-        onAddCard={view.addCard}
-        {...ticks}
-      />
+      <>
+        {/* A move that failed is said here, over the board still drawn, until the next move. */}
+        {board.failure !== null && (
+          <p className="table__error" role="alert">
+            {board.failure}
+          </p>
+        )}
+        <BoardView
+          columns={board.columns}
+          lanes={board.lanes}
+          folds={folds}
+          groupBy={view.display.groupBy}
+          fields={fields}
+          kinds={schema.kinds}
+          onOpenNote={onOpenNote}
+          onMoveCard={view.moveCard}
+          onAddCard={view.addCard}
+          {...ticks}
+        />
+      </>
     );
   }
 
@@ -525,28 +535,12 @@ export function SqlViewBody({
 }
 
 /**
- * A board with its moved cards drawn where the move puts them, before the
- * index has read them back (#260). Its own component, so a drop draws the
- * board and not the pane around it.
+ * The board with its moved cards drawn where the move puts them, before the
+ * index has read them back (#260). Only a view's body subscribes to its moves,
+ * so a drop draws the body and its board, not the pane and toolbar around it.
  */
-function PendingBoardView({
-  view,
-  ...board
-}: Omit<ComponentProps<typeof BoardView>, 'columns' | 'lanes'> & {
-  view: Pick<ReturnType<typeof useSavedView>, 'columns' | 'lanes' | 'pendingBoard'>;
-}) {
+function useShownBoard(view: Pick<SavedView, 'columns' | 'lanes' | 'pendingBoard'>) {
   const { columns, lanes, pendingBoard } = view;
   const read = useMemo(() => ({ columns, lanes }), [columns, lanes]);
-  const shown = useBoardAsPending({ ...pendingBoard, read });
-  return (
-    <>
-      {/* A move that failed is said here, over the board still drawn, until the next move. */}
-      {shown.failure !== null && (
-        <p className="table__error" role="alert">
-          {shown.failure}
-        </p>
-      )}
-      <BoardView columns={shown.columns} lanes={shown.lanes} {...board} />
-    </>
-  );
+  return useBoardAsPending({ ...pendingBoard, read });
 }
