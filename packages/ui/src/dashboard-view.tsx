@@ -2,7 +2,7 @@ import type { Widget } from '@atlas/domain';
 import type { WidgetResult } from '@atlas/application';
 import { ArrangeGrid } from './dashboard/arrange-grid.tsx';
 import type { WidgetActions } from './dashboard/widget-frame.tsx';
-import { WidgetTile } from './dashboard/widget-tile.tsx';
+import { WidgetTile, onStrip } from './dashboard/widget-tile.tsx';
 import type { WidgetPlacement } from './drag/widget-drag.ts';
 import type { OverlaySlots } from './overlay-slot.ts';
 
@@ -23,12 +23,13 @@ export interface DashboardEditing {
 }
 
 /**
- * A dashboard: a twelve-column grid of tiles, each one a query drawn a
- * particular way, each as wide as its widget's `span`.
+ * A dashboard: a KPI strip of its single figures — the number widgets and
+ * the hero's totals — over a twelve-column grid of panels, each one a query
+ * drawn a particular way, each as wide as its widget's `span`.
  *
- * Every tile is drawn independently, including the failed ones, so a widget
- * pointing at a type that no longer exists costs you that tile rather than the
- * page.
+ * Every widget is drawn independently, including the failed ones, so a widget
+ * pointing at a type that no longer exists costs you that panel rather than
+ * the page.
  */
 export function DashboardView({
   results,
@@ -81,19 +82,24 @@ export function DashboardView({
     );
   }
 
+  const tile = (result: WidgetResult) => (
+    <WidgetTile
+      key={result.widget.id}
+      result={result}
+      onOpenNote={onOpenNote}
+      menuSlot={popups?.(`widget-${result.widget.id}`)}
+      actions={editing === undefined ? undefined : actionsOf(editing)(result.widget)}
+    />
+  );
+  const strip = results.filter(onStrip);
+  const panels = results.filter((result) => !onStrip(result));
+
   return (
     <>
       {problem}
       <div className="dashboard" aria-label="Dashboard">
-        {results.map((result) => (
-          <WidgetTile
-            key={result.widget.id}
-            result={result}
-            onOpenNote={onOpenNote}
-            menuSlot={popups?.(`widget-${result.widget.id}`)}
-            actions={editing === undefined ? undefined : actionsOf(editing)(result.widget)}
-          />
-        ))}
+        {strip.length > 0 && <div className="dashboard__strip">{strip.map(tile)}</div>}
+        {panels.length > 0 && <div className="dashboard__panels">{panels.map(tile)}</div>}
       </div>
     </>
   );

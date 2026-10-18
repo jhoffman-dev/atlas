@@ -4,7 +4,9 @@
 
 /* ---- the weekly review (P30-07) ----
    One page of sections, each a table like the Inbox's: an item's name, what
-   it is about, and the quick actions that deal with it. */
+   it is about, and the quick actions that deal with it. A section is headed
+   by the 15/600 section title over a hairline (Tokens.dc.html); the Today
+   page's sections are headed the same way. */
 
 .review__section {
   margin-top: var(--space-6);
@@ -12,17 +14,19 @@
 
 .review__heading {
   align-items: baseline;
+  border-bottom: 1px solid var(--line);
   display: flex;
-  font-size: var(--text-card);
-  font-weight: 700;
+  font-size: var(--text-section);
+  font-weight: 600;
   gap: var(--space-2);
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
 }
 
 .review__count {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 600;
+  font-size: var(--text-meta);
+  font-weight: 500;
 }
 
 .review__empty,
@@ -42,6 +46,13 @@
 
 .review__inbox p {
   margin: 0;
+}
+
+/* Today's and the review's rows keep 44px: today-page.tsx places them by
+   ROW_HEIGHT = 44, and the table view's 34px rows (UI v2 slice 4) are not
+   theirs until their own slice. */
+.review__grid td {
+  height: 44px;
 }
 
 /* Scoped to the grid, as the Inbox's cells are: `.table__grid td` zeroes padding. */

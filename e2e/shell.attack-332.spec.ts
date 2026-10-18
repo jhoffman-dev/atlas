@@ -8,6 +8,8 @@ import { createVault, installHost, sidebarSection, splitWindow, type FakeVault }
 const LONG_VAULT = 'Larkspur Payroll quarterly operations archive for the northern region';
 const LONG_TYPE = 'Extraordinarily detailed reconciliation worksheet';
 const LONG_VIEW = 'Every open reconciliation worksheet awaiting a second review';
+const LONG_DESCRIPTION =
+  'Every worksheet still open at the quarter end, by region, with the reviewer who holds it.';
 const LONG_FOLDER = 'Quarterly reviews prepared for Mara Quill and Tobias Fenn';
 const LONG_NOTE = 'Notes from the long planning session about the spring garden beds';
 const MANY = 1234;
@@ -29,16 +31,30 @@ async function longNamedVault(): Promise<FakeVault> {
 
 async function openVault(page: Page, { many = false } = {}): Promise<FakeVault> {
   const vault = await longNamedVault();
-  for (const folder of ['.atlas/types', '.atlas/views', 'Sheets', LONG_FOLDER]) {
+  for (const folder of ['.atlas/types', '.atlas/views', 'Sheets', 'Archive', LONG_FOLDER]) {
     await vault.mkdir(folder);
   }
+  // A task type puts Today in "Go to"; an archived note puts the Archive in the tree.
+  await vault.write(
+    '.atlas/types/task.md',
+    ['---', 'name: task', 'label: Task', 'properties:', '  status: select', '---', ''].join('\n'),
+  );
+  await vault.write('Archive/Old plan.md', '# Old plan\n\nDone with.\n');
   await vault.write(
     '.atlas/types/sheet.md',
     ['---', 'name: sheet', `label: ${LONG_TYPE}`, 'properties: {}', '---', ''].join('\n'),
   );
   await vault.write(
     `.atlas/views/${LONG_VIEW}.md`,
-    ['---', 'atlas: view', 'type: sheet', 'layout: table', '---', ''].join('\n'),
+    [
+      '---',
+      'atlas: view',
+      'type: sheet',
+      'layout: table',
+      `description: ${LONG_DESCRIPTION}`,
+      '---',
+      '',
+    ].join('\n'),
   );
   const sheets = many ? MANY : 3;
   for (let at = 1; at <= sheets; at += 1) {
@@ -314,32 +330,98 @@ test('a long breadcrumb ellipsises and keeps the name in view', async ({ page })
   expect(nameWidth, 'the name keeps more room than the folder').toBeGreaterThan(parentWidth);
 });
 
-for (const sidebar of ['shown', 'hidden'] as const) {
-  test(`at the minimum window width, split, sidebar ${sidebar}: each nav bar stays tidy`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 720, height: 480 });
-    await openVault(page);
-    await openLongNote(page);
-    await splitWindow(page);
-    const second = page.getByRole('region', { name: 'Pane 2' });
-    await expect(second).toBeVisible();
+test('a view’s description in the bar gives way before its name', async ({ page }) => {
+  await openVault(page);
+  await sidebarSection(page, 'views').locator('.sidebar__item').first().click();
+  const bar = page.locator('.page-bar').first();
+  await expect(bar.locator('.page-bar__count')).toHaveText(LONG_DESCRIPTION);
+  await splitWindow(page);
+  // Split with the sidebar shown, each pane is short of room by more than the
+  // description is wide; hidden, by less — where a count that only shrank in
+  // proportion would still show beside a name already cut.
+  for (const sidebar of ['shown', 'hidden'] as const) {
     if (sidebar === 'hidden') {
       await page.getByRole('button', { name: 'Hide sidebar' }).click();
       await expect(nav(page)).toBeHidden();
     }
     for (const which of [1, 2] as const) {
-      const pane = page.getByRole('region', { name: `Pane ${which}` });
-      const bar = pane.locator('.page-bar');
-      await expect(bar).toBeVisible();
-      await expectTidyBar(bar);
-      expect(await horizontallyInside(bar, pane), `pane ${which}'s bar inside it`).toBe(true);
+      const paneBar = page.getByRole('region', { name: `Pane ${which}` }).locator('.page-bar');
+      const name = paneBar.locator('.page-bar__name');
+      await expect(name).toBeVisible();
+      await expectTidyBar(paneBar);
+      const [nameWidth, descriptionWidth] = [
+        (await name.boundingBox())?.width ?? 0,
+        (await paneBar.locator('.page-bar__count').boundingBox())?.width ?? 0,
+      ];
+      expect(
+        nameWidth,
+        `pane ${which}, sidebar ${sidebar}: the name keeps more room than its description`,
+      ).toBeGreaterThan(descriptionWidth);
+      const clipped = await name.evaluate((one) => one.scrollWidth > one.clientWidth + 0.5);
+      if (clipped) {
+        expect(
+          descriptionWidth,
+          `pane ${which}, sidebar ${sidebar}: the description is gone before the name is cut`,
+        ).toBeLessThan(1);
+      }
     }
-    const sideways = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(sideways, 'the window does not scroll sideways').toBe(0);
-  });
+  }
+});
+
+/**
+ * Pages with buttons of their own in the bar, each opened from the sidebar.
+ * Only a note is a pane that splits; Today, the Archive and a type's page are
+ * squeezed by the window alone, so they are measured at its 720px minimum.
+ */
+const OPENERS: Record<string, (page: Page) => Promise<void>> = {
+  'a long note': openLongNote,
+  Today: (page) =>
+    page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Today' }).click(),
+  Archive: (page) =>
+    sidebarSection(page, 'userSpace')
+      .getByRole('treeitem', { name: 'Archive', exact: true })
+      .click(),
+  Automations: (page) =>
+    page.getByRole('list', { name: 'Go to' }).getByRole('button', { name: 'Automations' }).click(),
+  'a type page': async (page) => {
+    await sidebarSection(page, 'types').locator('.sidebar__item').first().click();
+    await page.getByRole('button', { name: `Edit ${LONG_TYPE} type` }).click();
+    await expect(page.getByRole('radio', { name: 'Edit type' })).toBeChecked();
+  },
+};
+
+for (const sidebar of ['shown', 'hidden'] as const) {
+  for (const [which, openPage] of Object.entries(OPENERS)) {
+    const splits = which === 'a long note';
+    test(`at the minimum window width, ${which}${splits ? ', split' : ''}, sidebar ${sidebar}: each nav bar stays tidy`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 720, height: 480 });
+      await openVault(page);
+      await openPage(page);
+      if (splits) {
+        await splitWindow(page);
+        await expect(page.getByRole('region', { name: 'Pane 2' })).toBeVisible();
+      }
+      if (sidebar === 'hidden') {
+        await page.getByRole('button', { name: 'Hide sidebar' }).click();
+        await expect(nav(page)).toBeHidden();
+      }
+      const panes = splits
+        ? ([1, 2] as const).map((at) => page.getByRole('region', { name: `Pane ${at}` }))
+        : [page.locator('main')];
+      for (const [at, pane] of panes.entries()) {
+        const bar = pane.locator('.page-bar').first();
+        await expect(bar).toBeVisible();
+        await expectTidyBar(bar);
+        expect(await horizontallyInside(bar, pane), `pane ${at + 1}'s bar inside it`).toBe(true);
+      }
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways, 'the window does not scroll sideways').toBe(0);
+    });
+  }
 }
 
 test('⌘\\ hides the sidebar and brings it back at 224px', async ({ page }) => {
@@ -355,3 +437,44 @@ test('⌘\\ hides the sidebar and brings it back at 224px', async ({ page }) => 
   const width = await nav(page).evaluate((element) => element.getBoundingClientRect().width);
   expect(width).toBe(224);
 });
+
+/**
+ * Every visible button in a bar's actions slot, with its width, its font's em,
+ * whether it shows an icon, and its title.
+ */
+const barButtons = (bar: Locator) =>
+  bar.evaluate((element) =>
+    [...element.querySelectorAll<HTMLElement>('.page-bar__actions button')]
+      .filter((one) => getComputedStyle(one).display !== 'none')
+      .map((one) => ({
+        name: one.getAttribute('aria-label') ?? one.textContent?.trim() ?? '',
+        width: one.getBoundingClientRect().width,
+        em: parseFloat(getComputedStyle(one).fontSize),
+        icon: one.querySelector('svg') !== null,
+        title: one.getAttribute('title')?.trim() ?? '',
+      })),
+  );
+
+// A narrowed button is still told apart: it is at least 4em wide, or it shows
+// its icon and names itself in its title.
+for (const which of ['Today', 'Automations', 'Archive', 'a type page'] as const) {
+  for (const width of [720, 600] as const) {
+    test(`${which} at ${width}px: every bar button is 4em wide, or an icon with a title`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 600 });
+      await openVault(page);
+      await OPENERS[which]!(page);
+      const bar = page.locator('main').locator('.page-bar').first();
+      await expect(bar.locator('.page-bar__actions')).toBeVisible();
+      const buttons = await barButtons(bar);
+      // The Archive's one action is its search field, which is never narrowed to a stub.
+      if (which === 'Archive') await expect(bar.getByRole('searchbox')).toBeVisible();
+      else expect(buttons.length).toBeGreaterThan(0);
+      const stubs = buttons.filter(
+        (one) => one.width < 4 * one.em - 0.5 && !(one.icon && one.title !== ''),
+      );
+      expect(stubs).toEqual([]);
+    });
+  }
+}

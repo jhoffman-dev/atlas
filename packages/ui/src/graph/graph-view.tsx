@@ -10,7 +10,7 @@ import {
   type VaultPath,
 } from '@atlas/domain';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
-import { PageHead } from '../page-head.tsx';
+import { HiddenTitle } from '../page-head.tsx';
 import { SegmentedControl } from '../segmented-control.tsx';
 import { Toggle } from '../toggle.tsx';
 import { GraphCanvas, type OpenRequest } from './graph-canvas.tsx';
@@ -60,33 +60,31 @@ export interface GraphViewProps {
 export function GraphView(props: GraphViewProps) {
   const { content, centre } = props;
   const [showing, setShowing] = useState<Showing>('graph');
-  const name = centre === null ? 'Graph' : `Around ${centre.title}`;
+  const name = centre === null ? 'Whole vault' : centre.title;
+  const label = centre === null ? 'Graph' : `Around ${centre.title}`;
+  const counted = describe(content);
 
   return (
     <>
       <PageBar
         crumb={{ icon: 'graph', parent: 'Graph' }}
-        name={centre === null ? 'Whole vault' : centre.title}
+        name={name}
+        {...(counted !== null && { count: counted })}
+        actions={
+          <SegmentedControl
+            label="Show as"
+            options={SHOWING}
+            value={showing}
+            onChange={setShowing}
+          />
+        }
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body panel__body--graph">
-        <article className="page page--wide graph" aria-label={name}>
-          <PageHead
-            icon="graph"
-            title={name}
-            description={describe(content)}
-            actions={
-              <SegmentedControl
-                label="Show as"
-                options={SHOWING}
-                value={showing}
-                onChange={setShowing}
-              />
-            }
-          >
-            <GraphControls {...props} />
-          </PageHead>
+        <article className="page page--wide graph" aria-label={label}>
+          <HiddenTitle>{name}</HiddenTitle>
+          <GraphControls {...props} />
           {content.kind === 'ready' && content.hidden > 0 && (
             <p className="graph__notice" role="status">
               Showing the {content.graph.nodes.length} most connected notes; {content.hidden} more
@@ -100,9 +98,11 @@ export function GraphView(props: GraphViewProps) {
   );
 }
 
+/** How many notes and connections are drawn, beside the page's name; nothing while there are none. */
 function describe(content: GraphContent): string | null {
   if (content.kind !== 'ready') return null;
   const { nodes, edges } = content.graph;
+  if (nodes.length === 0) return null;
   return `${nodes.length} ${nodes.length === 1 ? 'note' : 'notes'} · ${edges.length} ${
     edges.length === 1 ? 'connection' : 'connections'
   }`;

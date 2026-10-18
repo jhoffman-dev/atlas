@@ -7,7 +7,6 @@ import {
   queryViewLayout,
   noteTitle,
   pageCrumb,
-  pageIcon,
   pageTitle,
   parseViewDisplay,
   type PageKind,
@@ -19,8 +18,8 @@ const DESCRIPTION_KEY = 'description';
 
 /**
  * How a pane's page is headed: which kind of page it is, and so where it sits
- * in the breadcrumb, which glyph it wears and what its title is. The rules are
- * the domain's; this only gathers what they are asked about.
+ * in the breadcrumb and what its title is. The rules are the domain's; this
+ * only gathers what they are asked about.
  */
 export function pageHeading({
   note,
@@ -42,7 +41,6 @@ export function pageHeading({
   return {
     kind: page.kind === 'type' || page.kind === 'query' ? 'note' : page.kind,
     crumb: pageCrumb(page, note.path),
-    icon: pageIcon(page),
     title: pageTitle({ fileTitle: noteTitle(note.path), properties: note.properties }),
     description: typeof description === 'string' ? description : null,
     path: note.path,

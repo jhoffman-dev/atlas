@@ -1,3 +1,4 @@
+import type { NavigationPlace } from '../panes/navigation-history.ts';
 import type { PaneLayout } from '../panes/pane-layout.ts';
 import type { VaultPath } from '../vault/vault-path.ts';
 
@@ -87,4 +88,38 @@ export function activeSidebarPage({
   if (path === null) return null;
   const owner = viewOwner(path);
   return owner === null ? { kind: 'note', path } : { kind: 'type', name: owner };
+}
+
+/**
+ * Which page the sidebar marks, given the place the focused pane's active tab
+ * shows (docs/design/tab-model.md). The tab model's successor to
+ * `activeSidebarPage`: with pages as tabs there is nothing "over" the panes,
+ * so the one place says it all. The query page has no sidebar row to mark.
+ */
+export function activeSidebarPageOf(
+  place: NavigationPlace | null,
+  viewOwner: (path: VaultPath) => string | null,
+): ActiveSidebarPage {
+  if (place === null) return null;
+  switch (place.kind) {
+    case 'note': {
+      const owner = viewOwner(place.path);
+      return owner === null ? { kind: 'note', path: place.path } : { kind: 'type', name: owner };
+    }
+    case 'type':
+      return { kind: 'type', name: place.name };
+    case 'query':
+      return null;
+    case 'graph':
+    case 'tags':
+    case 'archive':
+    case 'inbox':
+    case 'review':
+    case 'today':
+    case 'automations':
+    case 'activity':
+    case 'templates':
+    case 'terms':
+      return { kind: place.kind };
+  }
 }

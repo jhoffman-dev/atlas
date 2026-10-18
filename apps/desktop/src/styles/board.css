@@ -3,58 +3,69 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- board layout ----
-   Board.dc.html: columns are not boxes, they are a status pill over a stack of
-   raised cards. Five columns fit a 1440px window without clipping the last;
-   more than fit, and the board scrolls sideways. A long column shows its first
-   few cards and "+ N more", so one column's history cannot bury the rest. */
+   Main.dc.html: equal-width square columns on the well, each with a 34px
+   head (the status dot, its label, the count, a +) over a stack of white
+   square cards with a hairline. The columns split the width equally, empty
+   or not (brief rule 7); when that would leave a column narrower than 180px
+   the board scrolls sideways instead. A long column shows its first few
+   cards and "N more", so one column's history cannot bury the rest. */
 
 .board {
   align-items: stretch;
   display: flex;
-  gap: 14px;
+  gap: 8px;
   overflow-x: auto;
-  padding: 2px 2px var(--space-3);
+  padding: 0 0 var(--space-1);
 }
 
 .board__column {
-  border-radius: var(--radius-card);
+  background: var(--well);
   display: flex;
-  /* Shares the width between 196px and 272px; past that the board scrolls. */
-  flex: 1 1 212px;
+  flex: 1 1 0;
   flex-direction: column;
-  gap: 10px;
-  max-width: 272px;
-  min-width: 196px;
+  gap: 4px;
   min-height: 0;
-  transition: background 120ms ease;
+  min-width: 180px;
+  padding: 0 4px 4px;
 }
 
+/* Lit by a ring, not a fill, and at once: the text in it keeps the contrast
+   it has at rest, and a ring that fades in reads as no ring for a moment. */
 .board__column--over {
-  background: color-mix(in srgb, var(--cyan) 10%, transparent);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
 .board__heading {
   align-items: center;
   display: flex;
   flex: none;
-  gap: var(--space-2);
-  height: 30px;
+  gap: 7px;
+  height: 34px;
+  padding: 0 0 0 6px;
+}
+
+.board__group-label {
+  color: var(--ink);
+  font-size: var(--text-column);
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .board__count {
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-meta);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
   margin-right: auto;
 }
 
-/* Quiet until the column is pointed at, as the mockup's "+" is. */
 .board__add-top {
-  border-radius: 8px;
+  border-radius: 5px;
   color: var(--ink-3);
-  height: 26px;
-  width: 26px;
+  height: 22px;
+  width: 22px;
 }
 
 .board__add-top:hover {
@@ -66,32 +77,24 @@
   display: flex;
   flex: 0 1 auto;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   list-style: none;
   margin: 0;
   min-height: 0;
   overflow-y: auto;
-  /* Room for the cards' shadows, which a scroller would clip. */
-  padding: 2px 2px 6px;
+  padding: 0;
 }
 
+/* Square, a hairline, and no lift on hover: the only thing that moves is
+   the copy under the pointer. */
 .board__card {
-  background: var(--raised);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  background: var(--surface);
+  border: 1px solid var(--line);
   cursor: grab;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 13px 14px 12px;
-  transition:
-    box-shadow 140ms ease,
-    transform 140ms ease;
-}
-
-.board__card:hover {
-  box-shadow: var(--shadow-card);
-  transform: translateY(-1px);
+  gap: 3px;
+  padding: 8px 10px 9px;
 }
 
 .board__card:active {
@@ -99,32 +102,29 @@
 }
 
 /* The copy that follows the pointer while the card in the column stays put.
-   Compound, so it outranks the hover rule: the pointer is over the copy. */
+   With no shadow on a resting card, the focus ring is what sets it apart. */
 .board__card.board__card--lifted {
-  box-shadow:
-    0 0 0 1px var(--line-strong),
-    var(--shadow-popover);
+  box-shadow: 0 0 0 2px var(--focus);
   cursor: grabbing;
 }
 
 .board__head {
   align-items: flex-start;
   display: flex;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
-/* Finished work wears a navy tick beside its title. */
+/* Finished work wears a sage tick beside its title, and the title steps
+   back to ink-2. */
 .board__done {
-  align-items: center;
-  background: var(--navy-data);
-  border-radius: 6px;
-  color: var(--status-done-tick);
+  color: var(--status-done-dot);
   display: flex;
   flex: none;
-  height: 18px;
-  justify-content: center;
-  margin-top: 1px;
-  width: 18px;
+  margin-top: 2px;
+}
+
+.board__done + .board__title {
+  color: var(--ink-2);
 }
 
 .board__title {
@@ -133,36 +133,39 @@
   border: 0;
   color: var(--ink);
   cursor: pointer;
+  display: block;
   font: inherit;
-  font-size: var(--text-ui);
-  font-weight: 700;
-  letter-spacing: -0.005em;
+  font-size: var(--text-emphasis);
+  font-weight: 500;
   line-height: 1.38;
+  min-width: 0;
   padding: 0;
   text-align: left;
   width: 100%;
 }
 
-.board__title:hover {
-  color: var(--accent-text);
+.board__title-text {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 /* The title is where the keyboard picks a card up, so it shows where focus is. */
 .board__title:focus-visible {
-  border-radius: var(--radius-chip);
   box-shadow: var(--ring);
   outline: none;
 }
 
 .board__summary {
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: var(--ink-2);
-  display: -webkit-box;
-  font-size: var(--text-small);
-  line-height: 1.45;
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  line-height: 1.4;
   margin: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* How far through its checklist a note is (P30-03): a slim bar and the
@@ -253,13 +256,29 @@
   min-width: 20ch;
 }
 
-.board__fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+/* One line of metadata: "P14 · Bug fixer · 1h", in ink-3, the · in the
+   separator grey. It is cut at the card's edge rather than wrapped. */
+.board__meta {
+  color: var(--ink-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.board__field,
+.board__meta-sep {
+  color: var(--sep);
+}
+
+/* A link to a note that is not there: struck through, as a table's is. */
+.board__meta-item[data-missing='true'] {
+  text-decoration: line-through;
+}
+
+/* A list row's chips, which keep the older chip shape until slice 13d. */
 .note-chip {
   align-items: center;
   background: var(--chip);
@@ -273,56 +292,48 @@
   padding: 0 8px;
 }
 
-.board__field--you,
 .note-chip--you {
   background: var(--you);
   color: var(--you-ink);
 }
 
 .board__empty {
-  align-items: center;
-  border: 1.5px dashed var(--grid);
-  border-radius: var(--radius-card);
   color: var(--ink-3);
-  display: flex;
   flex: none;
-  font-size: var(--text-small);
-  font-weight: 600;
-  height: 76px;
-  justify-content: center;
-  margin: 0 2px;
+  font-size: var(--text-meta);
+  margin: 0;
+  padding: 4px 6px;
 }
 
 .board__more {
   appearance: none;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-button);
-  color: var(--ink-2);
+  border-radius: 5px;
+  color: var(--ink-3);
   cursor: pointer;
+  flex: none;
   font: inherit;
-  font-size: var(--text-small);
-  font-weight: 700;
-  height: 32px;
-  padding: 0 10px;
+  font-size: var(--text-meta);
+  height: 28px;
+  padding: 0 6px;
   text-align: left;
   width: 100%;
 }
 
 .board__more:hover {
   background: var(--hover);
+  color: var(--ink);
 }
 
 .board__add-input {
-  background: var(--raised);
-  border: 0;
-  border-radius: var(--radius-card);
-  box-shadow: var(--ring);
+  background: var(--surface);
+  border: 1px solid var(--focus);
   color: var(--ink);
   flex: none;
   font: inherit;
-  font-size: var(--text-ui);
+  font-size: var(--text-body);
   outline: none;
-  padding: 12px 14px;
+  padding: 8px 10px;
   width: 100%;
 }

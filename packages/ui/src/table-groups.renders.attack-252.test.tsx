@@ -14,6 +14,7 @@ import {
   type RowGroup,
 } from '@atlas/domain';
 import { TableView, type TableResult } from './table-view.tsx';
+import { ROW_ESTIMATE } from './grouped-rows.tsx';
 import { startCountingRenders, stopCountingRenders } from './testing/render-counter.ts';
 import { scrollableSheet } from './testing/scrollable-sheet.ts';
 
@@ -93,7 +94,7 @@ describe('#252 attack — what one arrow press draws in a grouped table', () => 
     header.focus();
     const drawn = rowsDrawnBy(() => {
       fireEvent.keyDown(header, { key: 'End' });
-      scrollSheet(sheetOf(), (ROWS + 4) * 44);
+      scrollSheet(sheetOf(), (ROWS + 4) * ROW_ESTIMATE);
     });
     expect(document.activeElement).toBe(screen.getByRole('button', { name: `Row ${ROWS - 1}` }));
     // The rows newly in the page, and no more than a screenful drawn again besides.

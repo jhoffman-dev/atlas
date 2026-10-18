@@ -15,7 +15,7 @@ export default defineConfig({
       ),
       // Test support (the render counter), kept out of the barrel the app is built from.
       '@atlas/ui/testing': fileURLToPath(
-        new URL('./packages/ui/src/testing/render-counter.ts', import.meta.url),
+        new URL('./packages/ui/src/testing/index.ts', import.meta.url),
       ),
       // Before '@atlas/application', for the same reason: test support that needs
       // node:sqlite, kept out of the barrel the app's browser bundle is built from.

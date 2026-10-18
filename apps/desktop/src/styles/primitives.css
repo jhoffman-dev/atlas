@@ -462,9 +462,15 @@
      its remedy, and the remedy is the point. */
   max-width: min(340px, 100% - 24px);
   padding: 10px 10px 10px 14px;
+  /* Bottom right, above the quick-add button's resting place (24px in from
+     the edge, 56px tall), with 12px of air. The top right, where slice 2
+     first put it, is the pane's bars — the nav bar's star and menu, and
+     since slice 4 the view bar's "New" — and under them the table's sort
+     headers and a board's "+": a toast there sat on a control for 5 s. The
+     bottom right holds only the button that made it. */
+  bottom: calc(24px + 56px + 12px);
   position: absolute;
   right: 12px;
-  top: 46px;
   width: max-content;
   z-index: 21;
 }

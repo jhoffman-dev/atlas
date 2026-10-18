@@ -3,17 +3,19 @@
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
 /* ---- Activity (U-28) ----
-   A page like the Automations': its head, then the filters on one row — the
+   A page like the Automations': the filters on one row over a hairline — the
    level as a pill track, each kind as a chip that stays lit while chosen, the
    search — then one quiet card per line, newest first. A line's level is said
    in words as well as in colour. */
 
 .activity__filters {
   align-items: center;
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
 }
 
 .activity__kinds {

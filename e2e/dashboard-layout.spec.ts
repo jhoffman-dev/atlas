@@ -111,7 +111,7 @@ test('a narrow donut keeps its legend readable', async ({ page }) => {
   await expect(cards).toHaveCount(spans.length);
   for (const [at, span] of spans.entries()) {
     const card = cards.nth(at);
-    const legend = card.locator('.donut__label');
+    const legend = card.locator('.count-table__label');
     await expect(legend).toHaveText(['Backlog', 'Doing', 'Done']);
     const cut = await legend.evaluateAll((labels) =>
       labels

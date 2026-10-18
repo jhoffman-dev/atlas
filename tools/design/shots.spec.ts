@@ -213,8 +213,17 @@ function view(page: Page, name: string): Locator[] {
 
 async function shootViews(page: Page, theme: string): Promise<void> {
   const dashboards = sidebarSection(page, 'dashboards');
-  if (await open('dashboard', [dashboards.getByRole('button', { name: 'Progress', exact: true })]))
+  if (
+    await open('dashboard', [dashboards.getByRole('button', { name: 'Progress', exact: true })])
+  ) {
     await shoot(page, `dashboard-${theme}`);
+    // One bar chart read as a table: the toggle is per widget and not saved.
+    const toggle = page.getByRole('button', { name: 'Show as table' }).first();
+    if (await open('dashboard-table', [toggle])) {
+      await shoot(page, `dashboard-table-${theme}`);
+      await toggle.click();
+    }
+  }
   if (await open('board', view(page, 'Board'))) {
     await shoot(page, `board-${theme}`);
     const toolbar = page.locator('.view-toolbar');
@@ -967,7 +976,7 @@ async function shootTemplates(page: Page, theme: string): Promise<void> {
   const list = page.getByRole('article', { name: 'Templates' });
   await list.getByRole('row').nth(1).waitFor();
   await shoot(page, `templates-page-${theme}`);
-  await list.getByRole('button', { name: 'New template' }).click();
+  await page.getByRole('button', { name: 'New template' }).click();
   await page.getByRole('form', { name: 'New template' }).waitFor();
   await shoot(page, `templates-new-${theme}`);
   await page

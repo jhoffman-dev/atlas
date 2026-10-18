@@ -126,8 +126,9 @@ describe('InboxPage — what arrives after the rows are drawn does not go in abo
     });
     expect(screen.getByRole('region', { name: 'Proposals' })).toBeDefined();
     expect(rowStayedAt(before)).toBe(true);
-    // It lands just above the rows, at the top of the view: in sight, so nothing is "New above".
-    expect(screen.queryByRole('button', { name: /New above/ })).toBeNull();
+    // At the top of the page (its heading is in the bar since UI slice 3b), it is held
+    // out of view above the rows, and said so without moving them.
+    expect(screen.queryByRole('button', { name: /New above/ })).not.toBeNull();
   });
 
   it('the settings-note warning known after the rows are drawn is not put above them', () => {

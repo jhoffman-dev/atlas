@@ -95,7 +95,11 @@ export const TableRow = memo(function TableRow({
         </td>
       )}
       {look.shown.map((column) => (
-        <td key={column} className={column === TITLE ? 'table__name' : undefined}>
+        <td
+          key={column}
+          className={column === TITLE ? 'table__name' : undefined}
+          data-kind={look.kinds[column]}
+        >
           <CellFor
             column={column}
             kind={look.kinds[column]}
@@ -146,7 +150,6 @@ function CellFor({
   if (column === TITLE) {
     return (
       <button {...ROW_STOP} type="button" className="table__link" onClick={onOpen}>
-        <Icon name="doc" size={16} />
         <span className="table__title">{String(value ?? '')}</span>
       </button>
     );
@@ -158,9 +161,10 @@ function CellFor({
   const look =
     kind === 'select' ? 'pill' : propertyRole(column) === 'person' && isYou(value) ? 'you' : 'text';
   if (onCommit === undefined) {
+    const text = value === null || value === undefined ? '' : String(value);
     return (
-      <span className="table__cell">
-        <CellFace text={value === null || value === undefined ? '' : String(value)} look={look} />
+      <span className="table__cell" title={fullValue(text)}>
+        <CellFace text={text} look={look} />
       </span>
     );
   }
@@ -188,7 +192,7 @@ function RelationCell({
     );
   }
   return (
-    <span className="table__cell table__links">
+    <span className="table__cell table__links" title={names.join(', ')}>
       {names.map((name, at) => (
         <LinkedNote key={at} name={name} className="table__note" onOpen={onOpenNote} />
       ))}
@@ -199,8 +203,8 @@ function RelationCell({
 /**
  * A cell that becomes an input when clicked and writes back when it is left.
  *
- * An empty one shows nothing until the row is pointed at, when a faint "Empty"
- * says it can be filled in.
+ * An empty one stays blank (Table.dc.html); its button still says it is an
+ * empty value, so a screen reader finds something to fill in.
  */
 function Cell({
   value,
@@ -221,6 +225,8 @@ function Cell({
       <button
         type="button"
         className="table__cell"
+        aria-label={text === '' ? EMPTY_CELL_NAME : undefined}
+        title={fullValue(text)}
         onClick={() => {
           setDraft(text);
           setEditing(true);
@@ -289,8 +295,16 @@ function useUnsavedEdit({
   };
 }
 
+/** What an empty editable cell's button is called, since it shows nothing. */
+export const EMPTY_CELL_NAME = 'Empty value';
+
+/** A cell is cut short at its measure, so its whole value is its title. */
+function fullValue(text: string): string | undefined {
+  return text === '' ? undefined : text;
+}
+
 function CellFace({ text, look }: { text: string; look: 'pill' | 'you' | 'text' }) {
-  if (text === '') return <span className="table__blank">Empty</span>;
+  if (text === '') return null;
   if (look === 'pill') return <StatusPill value={text} />;
   if (look === 'you') {
     return (
@@ -300,5 +314,5 @@ function CellFace({ text, look }: { text: string; look: 'pill' | 'you' | 'text' 
       </span>
     );
   }
-  return <>{text}</>;
+  return <span className="table__text">{text}</span>;
 }

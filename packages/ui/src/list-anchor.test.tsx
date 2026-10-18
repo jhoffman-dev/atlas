@@ -82,13 +82,27 @@ const settledRowAt = () => {
 };
 
 describe('useListAnchor in the Inbox (#130)', () => {
-  it('holds the rows still as an offer arrives above them; landing in view, it is not "New above"', () => {
+  // The page's heading is in its bar since UI slice 3b, out of the scroller: an offer
+  // arriving at the top of the page is scrolled out of view as the rows are held.
+  it('holds the rows still as an offer arrives above them, and says so as it is out of view', () => {
     const rerender = page();
     const before = settledRowAt();
     rerender({ typesOffer: TYPES_OFFER });
     expect(settledRowAt()).toBe(before);
     expect(layout.scroller().scrollTop).toBe(50);
-    // Only the heading went out of view: the offer sits at the top of it.
+    expect(layout.topOf(screen.getByRole('complementary', { name: /Set your types up/ }))).toBe(
+      -50,
+    );
+    expect(newAbove()).not.toBeNull();
+  });
+
+  it('holds the rows still as an offer arrives below one already shown; landing in view, it is not "New above"', () => {
+    const rerender = page({ vaultTidy: TIDY });
+    const before = settledRowAt();
+    // Read after the tidy, the types offer goes below it: the tidy scrolls away, the new one is in view.
+    rerender({ vaultTidy: TIDY, typesOffer: TYPES_OFFER });
+    expect(settledRowAt()).toBe(before);
+    expect(layout.scroller().scrollTop).toBe(50);
     expect(layout.topOf(screen.getByRole('complementary', { name: /Set your types up/ }))).toBe(0);
     expect(newAbove()).toBeNull();
   });
@@ -103,8 +117,8 @@ describe('useListAnchor in the Inbox (#130)', () => {
     rerender({ typesOffer: TYPES_OFFER });
     layout.flush();
     fireEvent.click(newAbove()!);
-    // The offer stands 50px down the page, after the heading; taken there, a little above its edge.
-    expect(layout.scroller().scrollTop).toBe(42);
+    // The offer stands at the top of the page; taken there.
+    expect(layout.scroller().scrollTop).toBe(0);
     expect(newAbove()).toBeNull();
   });
 
@@ -114,13 +128,13 @@ describe('useListAnchor in the Inbox (#130)', () => {
     rerender({ typesOffer: TYPES_OFFER });
     layout.flush();
     const room = document.querySelector<HTMLElement>('.panel__body--rows > [aria-hidden="true"]');
-    // Head, offer and list fill 150px of a 200px view: scrolling 50px down needs 100px more.
-    expect(room?.style.height).toBe('100px');
+    // Offer and list fill 100px of a 200px view: scrolling 50px down needs 150px more.
+    expect(room?.style.height).toBe('150px');
     act(() => {
       layout.scroller().scrollTop = 0;
     });
     // Given back down to what fills the view at the top: nothing is left to scroll into.
-    expect(room?.style.height).toBe('50px');
+    expect(room?.style.height).toBe('100px');
     expect(layout.scroller().scrollHeight - layout.scroller().clientHeight).toBe(0);
   });
 

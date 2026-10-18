@@ -72,10 +72,27 @@ describe('TableView', () => {
     expect(screen.getByText('Second task')).toBeDefined();
   });
 
-  it('leaves an empty cell empty, with a quiet "Empty" to click on', () => {
+  it('leaves an empty cell blank, still named "Empty value" for a screen reader', () => {
     render(<TableView {...props} result={result} />);
-    const blank = screen.getByRole('button', { name: 'Empty' });
-    expect(blank.querySelector('.table__blank')).not.toBeNull();
+    const blank = screen.getByRole('button', { name: 'Empty value' });
+    expect(blank.textContent).toBe('');
+    expect(blank.closest('td')?.textContent).toBe('');
+  });
+
+  it('names a text cell’s whole value in its title, since the cell may cut it short', () => {
+    render(<TableView {...props} result={result} />);
+    const cell = screen.getByRole('button', { name: 'doing' });
+    expect(cell.getAttribute('title')).toBe('doing');
+    expect(cell.querySelector('.table__text')?.textContent).toBe('doing');
+  });
+
+  it('leaves a read-only empty cell blank too', () => {
+    const readOnly = { sorts: [], error: null, onOpenNote: noop, onToggleSort: noop };
+    render(<TableView {...readOnly} result={result} />);
+    expect(screen.queryByText('Empty')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Empty value' })).toBeNull();
+    const row = screen.getByText('Second task').closest('tr');
+    expect(row?.querySelectorAll('td')[1]?.textContent).toBe('');
   });
 
   it('draws a select as a status pill, in its tone', () => {
@@ -86,8 +103,10 @@ describe('TableView', () => {
         schema={{ kinds: { status: 'select' }, labels: {}, noun: 'Task' }}
       />,
     );
-    const pill = screen.getByRole('button', { name: 'Doing' }).querySelector('.status-pill');
-    expect(pill?.getAttribute('data-tone')).toBe('doing');
+    const cell = screen.getByRole('button', { name: 'Doing' });
+    expect(cell.querySelector('.status-pill')?.getAttribute('data-tone')).toBe('doing');
+    // The pill is cut short at the cell's measure, so the value is the cell's title.
+    expect(cell.getAttribute('title')).toBe('doing');
   });
 
   it('draws a source of "you" as a You chip, and any other source as text', () => {
@@ -261,6 +280,26 @@ describe('TableView', () => {
 
     rerender(<TableView {...props} result={result} />);
     expect(screen.queryByRole('button', { name: /^New/ })).toBeNull();
+  });
+
+  it('says in the footer how it is sorted, in the columns’ words', () => {
+    render(
+      <TableView
+        {...props}
+        result={{ ...result, columns: ['path', 'title', 'status', 'due_date'] }}
+        sorts={[
+          { key: 'status', direction: 'asc' },
+          { key: 'due_date', direction: 'desc' },
+        ]}
+        schema={{ kinds: {}, labels: { status: 'Stage' }, noun: 'Task' }}
+      />,
+    );
+    expect(screen.getByText('Sorted by stage, then due date (descending)')).toBeDefined();
+  });
+
+  it('says nothing of its arrangement when it is neither grouped nor sorted', () => {
+    render(<TableView {...props} result={result} />);
+    expect(screen.getByText('2 notes').parentElement?.textContent).toBe('2 notes');
   });
 
   it('says when results were cut short', () => {

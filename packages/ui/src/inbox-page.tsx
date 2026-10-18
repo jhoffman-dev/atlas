@@ -4,8 +4,8 @@ import { UNDO_BAR_MS, useDismissAfter } from './dismiss-after.ts';
 import { Icon } from './icon.tsx';
 import { InboxRows, type InboxRefusal } from './inbox/inbox-rows.tsx';
 import type { ClarifyInboxItem } from './inbox/use-inbox-triage.ts';
-import { PageBar, type PageHistory } from './page-bar.tsx';
-import { PageHead } from './page-head.tsx';
+import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
+import { HiddenTitle } from './page-head.tsx';
 import { ROW_SCROLLER_MARK, RowScrollerContext } from './row-scroller.ts';
 import {
   proposalsToShow,
@@ -149,6 +149,7 @@ export function InboxPage(props: InboxPageProps) {
   const meetingProjects = props.meetingProjects ?? null;
   const proposals = props.proposals ?? null;
   const problem = props.problem ?? leftRefusal(props);
+  const counted = describe(props.contents, proposals?.contents?.open.length ?? 0);
   const scroller = useRef<HTMLDivElement>(null);
   const article = useRef<HTMLElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -169,6 +170,12 @@ export function InboxPage(props: InboxPageProps) {
       <PageBar
         crumb={{ icon: 'inbox', parent: 'Inbox' }}
         name="To process"
+        {...(counted !== null && { count: counted })}
+        {...(view !== null && {
+          actions: (
+            <PageAction icon="table" label={`Open the ${view.title} view`} onPress={view.onOpen} />
+          ),
+        })}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
@@ -181,18 +188,7 @@ export function InboxPage(props: InboxPageProps) {
       >
         <RowScrollerContext.Provider value={scroller}>
           <article className="page page--wide inbox" aria-label="Inbox" ref={article}>
-            <PageHead
-              icon="inbox"
-              title="Inbox"
-              description={describe(props.contents, proposals?.contents?.open.length ?? 0)}
-              {...(view !== null && {
-                actions: (
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={view.onOpen}>
-                    Open the {view.title} view
-                  </button>
-                ),
-              })}
-            />
+            <HiddenTitle>To process</HiddenTitle>
             {settingsUnreadable !== null && <SettingsUnreadable {...settingsUnreadable} />}
             {ownerUnknown !== null && <OwnerUnknown {...ownerUnknown} />}
             <Offers
@@ -337,12 +333,12 @@ function inArrivalOrder(before: readonly string[], shown: readonly string[]): re
   return [...before, ...shown.filter((key) => !before.includes(key))];
 }
 
+/** What waits, in a few words beside the page's name; nothing when nothing does. */
 function describe(contents: InboxContents | null, proposals: number): string | null {
   if (contents === null) return null;
   const toAnswer = proposals === 0 ? '' : ` · ${proposals} to answer`;
-  if (contents.total === 0)
-    return proposals === 0 ? 'Nothing waiting' : `Nothing to file${toAnswer}`;
-  return `${contents.total} to process · clarify each task, file each note${toAnswer}`;
+  if (contents.total === 0) return proposals === 0 ? null : `${proposals} to answer`;
+  return `${contents.total} to process${toAnswer}`;
 }
 
 /**
