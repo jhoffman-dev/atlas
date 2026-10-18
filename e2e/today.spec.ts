@@ -1,7 +1,14 @@
 import { utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { createVault, expectFile, installHost, type FakeVault } from './host.ts';
+import {
+  createVault,
+  emitVaultChanged,
+  expectFile,
+  installHost,
+  type FakeHost,
+  type FakeVault,
+} from './host.ts';
 
 /**
  * #111: the Today page. On a fixed clock, a vault's tasks land in exactly the
@@ -108,7 +115,14 @@ const NOTES: Record<string, { text: string; daysAgo: number }> = {
   'Inbox/Idea.md': { text: note(['type: task', 'status: inbox'], 'Card.'), daysAgo: 0 },
 };
 
-async function openTodayVault(page: Page): Promise<FakeVault> {
+async function openTodayVault(page: Page, options?: { echoWrites: boolean }): Promise<FakeVault> {
+  return (await openTodayVaultOn(page, options)).vault;
+}
+
+async function openTodayVaultOn(
+  page: Page,
+  { echoWrites }: { echoWrites: boolean } = { echoWrites: false },
+): Promise<{ vault: FakeVault; host: FakeHost }> {
   const vault = await createVault();
   for (const folder of ['.atlas/types', 'People', 'Projects', 'Tasks', 'Inbox']) {
     await vault.mkdir(folder);
@@ -121,12 +135,12 @@ async function openTodayVault(page: Page): Promise<FakeVault> {
     const when = new Date(NOW.getTime() - daysAgo * DAY);
     await utimes(join(vault.root, path), when, when);
   }
-  await installHost(page, vault);
+  const host = await installHost(page, vault, { echoWrites });
   await page.clock.setFixedTime(NOW);
   await page.goto('/');
   await page.getByRole('button', { name: 'Choose folder…' }).click();
   await expect(page.getByText(/notes indexed/)).toBeVisible();
-  return vault;
+  return { vault, host };
 }
 
 const today = (page: Page) => page.getByRole('article', { name: 'Today' });
@@ -275,4 +289,54 @@ test('⌘K opens Today', async ({ page }) => {
   await page.getByRole('searchbox', { name: 'Search the vault' }).fill('Today');
   await palette.getByRole('option', { name: 'Today', exact: true }).click();
   await expect(today(page)).toBeVisible();
+});
+
+/** Another program adds a note, and the watcher tells; resolves once the index holds it. */
+async function addFromOutside(page: Page, vault: FakeVault, name: string) {
+  const status = page.getByText(/^\d+ notes indexed/);
+  const indexed = Number(/^(\d+)/.exec((await status.textContent()) ?? '')?.[1]);
+  await vault.write(`Inbox/${name}.md`, note(['type: task', 'status: inbox'], name));
+  await emitVaultChanged(page, [`Inbox/${name}.md`]);
+  await expect(page.getByText(new RegExp(`^${indexed + 1} notes indexed`))).toBeVisible();
+}
+
+/**
+ * Ticks a task, then has another program add a note, and counts the index's
+ * walks of the vault in between. The added note's refresh is the last asked,
+ * so once the index holds it every refresh before it has run.
+ */
+async function walksForATick(page: Page, { echoWrites }: { echoWrites: boolean }) {
+  const { vault, host } = await openTodayVaultOn(page, { echoWrites });
+  await openToday(page);
+  // The app writes the Block type into a GTD vault as it opens (P31-01), and
+  // the first new note sets off more than any after it: both before counting.
+  await expectFile(vault, '.atlas/types/block.md').toContain('block');
+  if (echoWrites) await expect.poll(() => host.echoesSent()).toBeGreaterThan(0);
+  await addFromOutside(page, vault, 'Warm up');
+  const before = host.callsTo('list_notes');
+  const echoesBefore = await host.echoesSent();
+  await section(page, 'In progress')
+    .getByRole('checkbox', { name: 'Mark Draft the plan done' })
+    .click();
+  await expectFile(vault, 'Tasks/Draft the plan.md').toContain('status: archive');
+  // With the echo on, the watcher's report of the tick has been sent before the outside note.
+  if (echoWrites) await expect.poll(() => host.echoesSent()).toBeGreaterThan(echoesBefore);
+  await addFromOutside(page, vault, 'From outside');
+  return host.callsTo('list_notes') - before;
+}
+
+test('the watcher’s echo of a tick is not refreshed for again, and a change from outside still is (#254)', async ({
+  browser,
+}) => {
+  const [quiet, echoing] = await Promise.all([browser.newPage(), browser.newPage()]);
+  try {
+    const withoutEcho = await walksForATick(quiet, { echoWrites: false });
+    const withEcho = await walksForATick(echoing, { echoWrites: true });
+    // The outside note was refreshed for either way, or the status would not have moved.
+    expect(withoutEcho).toBeGreaterThan(0);
+    // The app refreshed for its tick; the report of it costs nothing more.
+    expect(withEcho).toBe(withoutEcho);
+  } finally {
+    await Promise.all([quiet.close(), echoing.close()]);
+  }
 });
