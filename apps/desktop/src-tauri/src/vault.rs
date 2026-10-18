@@ -545,17 +545,6 @@ fn read_text(root: &Path, path: &str) -> Result<NoteContents, String> {
     })
 }
 
-/// Saves a note by writing a temporary file beside it and renaming over the top.
-/// A rename within a directory is atomic, so an interrupted save can never leave a
-/// half-written note: the reader sees either the old file or the new one.
-///
-/// The modification time is the version a save is checked against first, so
-/// every save leaves one other than the version it replaced, even within the
-/// same millisecond (see `write_temporary`). Another program's write on a disk
-/// that keeps the time coarsely can leave it unchanged, so a save that names
-/// the bytes it was read from is held to those too (`BasedOn::digest`). A note that is a link out of the vault is refused by `resolve`;
-/// one that is a link inside it has its target replaced, never the link's
-/// destination written through.
 /// The version a save was made from, as the client read it. A save over any
 /// other version is refused rather than overwriting it.
 #[derive(Debug, Clone, Copy)]
@@ -588,6 +577,19 @@ impl BasedOn<'_> {
     }
 }
 
+/// Saves a note by writing a temporary file beside it and renaming over the top.
+/// A rename within a directory is atomic, so an interrupted save can never leave a
+/// half-written note: the reader sees either the old file or the new one.
+///
+/// The modification time is the version a save is checked against first, so
+/// every save leaves one other than the version it replaced, even within the
+/// same millisecond (see `write_temporary`). Another program's write on a disk
+/// that keeps the time coarsely can leave it unchanged, so a save that names
+/// the bytes it was read from is held to those too (`BasedOn::digest`).
+///
+/// A note that is a link out of the vault is refused by `resolve`; one that
+/// is a link inside it has its target replaced, never the link's destination
+/// written through.
 fn write_text(root: &Path, path: &str, contents: &str, based_on: BasedOn) -> Result<u64, String> {
     let _turn = change_turn();
     let file = resolve(root, path)?;
@@ -628,10 +630,14 @@ const CHANGED_ON_DISK: &str = "the note changed on disk since it was opened";
 ///
 /// Read only once the time has matched, so a stale save the time already
 /// tells costs nothing more; one that matches costs a read and a SHA-256 of
-/// the note, under the change turn (#245).
+/// the note, under the change turn (#245). Streamed, and held to no size
+/// limit: a save may leave a note larger than a read takes, and the next
+/// save over it must still be possible.
 fn refuse_other_bytes(file: &Path, expected: &str) -> Result<(), String> {
-    let (bytes, _) = read_one_version(file, MAX_TEXT_BYTES)?;
-    if digest_of(&bytes) != expected {
+    let mut handle = fs::File::open(file).map_err(|error| format!("cannot read: {error}"))?;
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut handle, &mut hasher).map_err(|error| format!("cannot read: {error}"))?;
+    if hex_of(&hasher.finalize()) != expected {
         return Err(CHANGED_ON_DISK.into());
     }
     Ok(())
@@ -639,11 +645,13 @@ fn refuse_other_bytes(file: &Path, expected: &str) -> Result<(), String> {
 
 /// SHA-256 of `bytes`, in lowercase hex: the digest a save names the version
 /// it was read as by, which the app's adapter makes the same way.
+#[cfg(test)]
 fn digest_of(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    hex_of(&Sha256::digest(bytes))
+}
+
+fn hex_of(digest: &[u8]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// Writes `bytes` to a new file at `temporary`, timed other than `after`
@@ -2788,6 +2796,11 @@ mod coarse_clock_tests {
         assert_eq!(
             digest_of("café\n"),
             "7b49b9e063bd91a4f9252b413261f5557b9c570aa61516989499f64a62dbcdd6"
+        );
+        // A byte-order mark and Windows line ends are bytes like any other.
+        assert_eq!(
+            digest_of("\u{feff}# T\r\nx\r\n"),
+            "305c72150069909fa225462ab528cd57557fee2a22b08a76dda0180ad541e5d3"
         );
     }
 

@@ -172,6 +172,19 @@ describe('tauriVaultFs writes', () => {
     });
   });
 
+  it('digests a byte-order mark and Windows line ends as the bytes they are', async () => {
+    await tauriVaultFs.writeTextFile({
+      path: notes,
+      contents: 'x',
+      expectedModified: null,
+      expectedText: '\uFEFF# T\r\nx\r\n',
+      vault: '/vaults/a',
+    });
+    expect(invoke.mock.calls[0]?.[1]).toMatchObject({
+      expectedDigest: '305c72150069909fa225462ab528cd57557fee2a22b08a76dda0180ad541e5d3',
+    });
+  });
+
   it('digests the bytes of text beyond ASCII, as the host reads them', async () => {
     await tauriVaultFs.writeTextFile({
       path: notes,
