@@ -60,6 +60,27 @@ describe('useViewChoosing', () => {
     expect([...hook.result.current.selection.selected]).toEqual(['tasks/b.md']);
   });
 
+  it('keeps a row chosen while the batch runs, and chooses a failed one again (#201)', async () => {
+    const { commands, hook } = setUp();
+    let finish: (outcome: ArchiveOutcome) => void = () => {};
+    vi.mocked(commands.archive).mockReturnValue(
+      new Promise<ArchiveOutcome>((resolve) => (finish = resolve)),
+    );
+    act(() => hook.result.current.setOn(true));
+    act(() => {
+      hook.result.current.selection.onToggle('tasks/a.md');
+      hook.result.current.selection.onToggle('tasks/b.md');
+    });
+    act(() => hook.result.current.actions[0]?.onRun());
+    act(() => {
+      hook.result.current.selection.onToggle('tasks/c.md');
+      hook.result.current.selection.onToggle('tasks/b.md');
+    });
+
+    await act(async () => finish(settled(['tasks/b.md'])));
+    expect([...hook.result.current.selection.selected].sort()).toEqual(['tasks/b.md', 'tasks/c.md']);
+  });
+
   it('keeps the whole choice when the batch did not start (A20-05)', async () => {
     const { commands, hook } = setUp();
     vi.mocked(commands.archive).mockResolvedValue(null);
