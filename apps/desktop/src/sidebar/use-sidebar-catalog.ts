@@ -29,8 +29,8 @@ const NOTHING: SidebarCatalog = {
  * What the derived sections of the sidebar show, each part a read the window
  * keeps until what it is made from changes (#293): the notes under `.atlas`
  * when a file there does, the marks the index holds and the Today and Inbox
- * counts whenever the index has news, the types' counts when a note's type
- * does (`readsTouchedByPaths`, `READS_ON_INDEX_NEWS`, `readsMadeFromFacets`).
+ * counts, and the types' counts, whenever the index has news
+ * (`readsTouchedByPaths`, `READS_ON_INDEX_NEWS`).
  *
  * Nothing here is a second list: every section is read back from the files and
  * the index, so starring a note in one place and opening it in another cannot

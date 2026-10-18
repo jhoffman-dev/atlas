@@ -51,20 +51,22 @@ const PATH_READS: readonly (readonly [string, readonly VaultRead[]])[] = [
   [ATLAS_DIRECTORY, ['sidebar-atlas', 'quick-counts']],
 ];
 
-/** What each facet of the index is read into: a type's count is its notes' `type`, which the graph holds. */
+/** What each facet of the index is read into. */
 const FACET_READS: Readonly<Record<IndexFacet, readonly VaultRead[]>> = {
-  graph: ['graph', 'type-counts'],
+  graph: ['graph'],
   tags: ['tags'],
 };
 
 /**
  * The reads made again whenever the index has news, whatever it was: the
- * sidebar's marks are any note's `atlas` or `favorite`, and the Today and
- * Inbox counts any property a view filters on, neither of which a facet
- * holds. When unsure, read again.
+ * sidebar's marks are any note's `atlas` or `favorite`, a type's count its
+ * notes' `type` and also their `para` (an archived project is not counted),
+ * and the Today and Inbox counts any property a view filters on, none of
+ * which a facet holds whole. When unsure, read again.
  */
 export const READS_ON_INDEX_NEWS: ReadonlySet<VaultRead> = new Set<VaultRead>([
   'sidebar-marks',
+  'type-counts',
   'quick-counts',
 ]);
 
