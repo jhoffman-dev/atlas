@@ -130,7 +130,7 @@ test('one Inbox: the folder and every task still at Inbox, counted the same in t
   // A task already given a status is nobody's to clarify.
   await expect(inbox.getByRole('row')).toHaveCount(6);
   await expect(row(page, 'Already moving')).toHaveCount(0);
-  await expect(inbox.getByText(/^5 to process/)).toBeVisible();
+  await expect(page.getByText(/^5 to process/)).toBeVisible();
   await expect(sidebarInbox(page)).toContainText('5');
 });
 
@@ -335,7 +335,7 @@ test('after a vault switch the Inbox lists the new vault only, and clarifies int
   await openInbox(page);
 
   await expect(row(page, 'Order seeds')).toBeVisible();
-  await expect(inboxPage(page).getByText(/^6 to process/)).toBeVisible();
+  await expect(page.getByText(/^6 to process/)).toBeVisible();
   const inbox = inboxPage(page);
   await inbox
     .getByRole('combobox', { name: 'Status of Call the bank' })

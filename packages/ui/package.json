@@ -9,7 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./graph": "./src/graph/index.ts",
-    "./testing": "./src/testing/render-counter.ts"
+    "./testing": "./src/testing/index.ts"
   },
   "devDependencies": {
     "@types/d3-force": "^3.0.10",

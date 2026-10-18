@@ -16,7 +16,6 @@ describe('pageHeading', () => {
     expect(heading).toMatchObject({
       kind: 'template',
       crumb: { icon: 'template', parent: 'Templates' },
-      icon: 'template',
       title: { text: 'Dashboard' },
     });
   });
@@ -30,7 +29,6 @@ describe('pageHeading', () => {
     expect(heading).toEqual({
       kind: 'note',
       crumb: { icon: 'folder', parent: 'tasks' },
-      icon: 'task',
       title: { text: 'Leftovers', source: 'property' },
       description: null,
       path: 'tasks/A15-03.md',
@@ -53,7 +51,6 @@ describe('pageHeading', () => {
     expect(heading).toMatchObject({
       kind: 'view',
       crumb: { icon: 'board', parent: 'Views' },
-      icon: 'board',
       title: { text: 'Board', source: 'file' },
       description: 'Every task, by status.',
       sql: 'SELECT path FROM notes',
@@ -73,7 +70,6 @@ describe('pageHeading', () => {
     expect(heading).toMatchObject({
       kind: 'dashboard',
       crumb: { icon: 'chart', parent: 'Dashboards' },
-      icon: 'chart',
       description: null,
     });
   });

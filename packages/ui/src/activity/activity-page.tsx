@@ -6,7 +6,7 @@ import {
 } from '@atlas/domain';
 import { Icon } from '../icon.tsx';
 import { PageBar, type PageHistory } from '../page-bar.tsx';
-import { PageHead } from '../page-head.tsx';
+import { HiddenTitle } from '../page-head.tsx';
 import { SegmentedControl, type SegmentedOption } from '../segmented-control.tsx';
 
 /** One line of the log as the page shows it. */
@@ -73,27 +73,31 @@ const LEVEL_LABELS: Readonly<Record<ActivityLevel, string>> = {
  * each line a click from the note, rule or source it is about.
  */
 export function ActivityPage(props: ActivityPageProps) {
+  const counted = describe(props.total);
   return (
     <>
       <PageBar
         crumb={{ icon: 'activity', parent: 'Activity' }}
         name="All activity"
+        {...(counted !== null && { count: counted })}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
         <article className="page page--wide activity" aria-label="Activity">
-          <PageHead
-            icon="activity"
-            title="Activity"
-            description="Automation runs, refreshes, writes from other tools, and anything that went wrong — kept 30 days"
-          />
+          <HiddenTitle>All activity</HiddenTitle>
           <Filters {...props} />
           <Lines {...props} />
         </article>
       </div>
     </>
   );
+}
+
+/** How many lines the log holds and how long it keeps them, beside the page's name; nothing while it is empty. */
+function describe(total: number): string | null {
+  if (total === 0) return null;
+  return `${total} ${total === 1 ? 'line' : 'lines'} · kept 30 days`;
 }
 
 function Filters({ level, kinds, text, onLevel, onToggleKind, onText }: ActivityPageProps) {

@@ -277,7 +277,7 @@ test('a saved view titled Today does not make a second sidebar row', async ({ pa
   await expect(rows).toHaveCount(1);
   await rows.click();
   await expect(today(page)).toBeVisible();
-  await expect(today(page).getByRole('button', { name: 'Open the “Today” view' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open the “Today” view' })).toBeVisible();
 });
 
 test('⌘K opens Today', async ({ page }) => {

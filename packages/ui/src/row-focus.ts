@@ -17,6 +17,8 @@ const STOP = '[data-row-stop]';
 interface Stops {
   readonly count: number;
   readonly stopKey: (index: number) => string | null;
+  /** How many lines a window of the scroller holds, for Page Up and Page Down; left out, those keys are not the table's. */
+  readonly pageSize?: (() => number) | undefined;
 }
 
 /** The first stop from `start`, stepping by `step`, or null when there is none that way. */
@@ -62,13 +64,38 @@ function resolveAim(aim: Aim, last: number, stops: Stops): number | null {
   return nearestStop(last, stops);
 }
 
-/** Where a key from a stop sends the focus: a line's index, or null for a key that is not the table's. */
+/**
+ * Where a key from a stop sends the focus: a line's index, or null for a key
+ * that is not the table's. Page Down and Page Up move a window of lines, to
+ * the nearest stop on from there, or to the last or first when that is nearer.
+ */
 function targetIndex(key: string, from: number, stops: Stops): number | null {
   if (key === 'ArrowDown') return stopFrom(from + 1, 1, stops) ?? from;
   if (key === 'ArrowUp') return stopFrom(from - 1, -1, stops) ?? from;
   if (key === 'Home') return stopFrom(0, 1, stops);
   if (key === 'End') return stopFrom(stops.count - 1, -1, stops);
+  if ((key === 'PageDown' || key === 'PageUp') && stops.pageSize !== undefined) {
+    const page = Math.max(1, Math.floor(stops.pageSize()));
+    if (key === 'PageDown') {
+      const to = Math.min(from + page, stops.count - 1);
+      return stopFrom(to, 1, stops) ?? stopFrom(to, -1, stops);
+    }
+    const to = Math.max(from - page, 0);
+    return stopFrom(to, -1, stops) ?? stopFrom(to, 1, stops);
+  }
   return null;
+}
+
+/**
+ * Focuses a stop and scrolls its line wholly into view: focusing alone
+ * reveals a line that is out of the window, but leaves one half under the
+ * window's edge where it is — a Page Down's landing, or a wrapped row.
+ * `scroll-padding-top` keeps it clear of the sticky header. (jsdom has no
+ * scrollIntoView.)
+ */
+function focusWhole(stop: HTMLElement): void {
+  stop.focus();
+  stop.closest('tr')?.scrollIntoView?.({ block: 'nearest' });
 }
 
 /** A move to a line the virtualiser had not drawn: what it is after, and the stop it was asked from. */
@@ -113,21 +140,23 @@ function listenForOvertaking(from: HTMLElement, overtaken: () => void): () => vo
 }
 
 /**
- * Up, Down, Home and End from a stop — a row's name or a group's header —
- * moving the focus to another stop, scrolled to first when the virtualiser
- * has not drawn it. Tab would leave the table at the last line drawn, so this
- * is how the keyboard reaches the rest. Returns the body's key handler.
+ * Up, Down, Home, End and — given a page size — Page Up and Page Down from a
+ * stop — a row's name or a group's header — moving the focus to another
+ * stop, scrolled to first when the virtualiser has not drawn it. Tab would
+ * leave the table at the last line drawn, so this is how the keyboard
+ * reaches the rest. Returns the body's key handler.
  */
 export function useRowFocus({
   body,
   count,
   stopKey,
+  pageSize,
   scrollTo,
 }: Stops & {
   body: RefObject<HTMLTableSectionElement | null>;
   scrollTo: (index: number) => void;
 }): (event: KeyboardEvent) => void {
-  const stops: Stops = { count, stopKey };
+  const stops: Stops = { count, stopKey, pageSize };
   const wanted = useRef<PendingMove | null>(null);
   const stopAt = (index: number) =>
     body.current?.querySelector<HTMLElement>(`tr[data-index="${index}"] ${STOP}`) ?? null;
@@ -151,7 +180,7 @@ export function useRowFocus({
     const stop = stopAt(index);
     if (stop !== null) {
       drop();
-      stop.focus();
+      focusWhole(stop);
     } else if (index !== move.index) {
       // The lines changed under it: scroll to where its line is now.
       wanted.current = { ...move, index };
@@ -187,7 +216,7 @@ export function useRowFocus({
     drop();
     const stop = stopAt(to);
     if (stop !== null) {
-      stop.focus();
+      focusWhole(stop);
       return;
     }
     wanted.current = {

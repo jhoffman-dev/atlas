@@ -45,7 +45,7 @@ describe('pageForPlace', () => {
     expect(container.querySelector('.terms')).toBeNull();
 
     expect(
-      await screen.findByRole('heading', { name: 'Terms' }, { timeout: 15_000 }),
+      await screen.findByRole('heading', { name: 'All terms' }, { timeout: 15_000 }),
     ).toBeDefined();
     expect(container.querySelector('.panel__body[aria-busy="true"]')).toBeNull();
     expect(screen.getByRole('group', { name: 'History' })).toBeDefined();

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import {
   listAsInput,
   newTermRefusal,
@@ -13,8 +13,8 @@ import {
 } from '@atlas/domain';
 import { CommitField } from './commit-field.tsx';
 import { Icon } from './icon.tsx';
-import { PageBar, type PageHistory } from './page-bar.tsx';
-import { PageHead } from './page-head.tsx';
+import { PageAction, PageBar, type PageHistory } from './page-bar.tsx';
+import { HiddenTitle } from './page-head.tsx';
 
 /** What the Terms page lists, once it has been read. */
 export interface TermsContents {
@@ -53,33 +53,29 @@ export interface TermsPageProps {
  * Atlas leaves alone until one of them lets it go.
  */
 export function TermsPage(props: TermsPageProps) {
+  const counted = describe(props.contents);
   const [adding, setAdding] = useState(false);
   return (
     <>
       <PageBar
         crumb={{ icon: 'term', parent: 'Terms' }}
         name="All terms"
+        {...(counted !== null && { count: counted })}
+        actions={
+          <PageAction
+            icon="plus"
+            label="New term"
+            tone="primary"
+            expanded={adding}
+            onPress={() => setAdding((was) => !was)}
+          />
+        }
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
         <article className="page page--wide terms" aria-label="Terms">
-          <PageHead
-            icon="term"
-            title="Terms"
-            description={describe(props.contents)}
-            actions={
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                aria-expanded={adding}
-                onClick={() => setAdding((was) => !was)}
-              >
-                <Icon name="plus" size={15} />
-                New term
-              </button>
-            }
-          />
+          <HiddenTitle>All terms</HiddenTitle>
           {adding && (
             <NewTermForm
               onAdd={(term) => {
@@ -99,12 +95,18 @@ export function TermsPage(props: TermsPageProps) {
   );
 }
 
+/** How many terms and spellings there are, beside the page's name; nothing while there are none. */
 function describe(contents: TermsContents | null): string | null {
   if (contents === null) return null;
   const terms = contents.terms.length;
   const spellings = contents.spellings;
-  return `${terms} ${terms === 1 ? 'term' : 'terms'} · ${spellings} misheard ${spellings === 1 ? 'spelling' : 'spellings'} Atlas puts right — exactly as written, capitals included. A person's or company's aliases link people and are never used to correct text.`;
+  if (terms === 0 && spellings === 0) return null;
+  return `${terms} ${terms === 1 ? 'term' : 'terms'} · ${spellings} misheard ${spellings === 1 ? 'spelling' : 'spellings'}`;
 }
+
+/** The one place the app says how a spelling is matched (P28-07): field help, not a page subtitle. */
+const MATCHING_RULE =
+  'Put right exactly as written, capitals included. A person’s or company’s aliases link people and never correct text.';
 
 function NewTermForm({
   onAdd,
@@ -117,6 +119,7 @@ function NewTermForm({
   const [variants, setVariants] = useState('');
   const [kind, setKind] = useState<TermKind | null>(null);
   const [tried, setTried] = useState(false);
+  const hintId = useId();
   const problem = newTermRefusal(canonical);
 
   const submit = (event: FormEvent) => {
@@ -145,9 +148,13 @@ function NewTermForm({
           type="text"
           value={variants}
           placeholder="lark spur, Larks Burr"
+          aria-describedby={hintId}
           onChange={(event) => setVariants(event.target.value)}
         />
       </label>
+      <p className="terms__hint" id={hintId}>
+        {MATCHING_RULE}
+      </p>
       <label className="terms__field terms__field--kind">
         <span className="terms__label">Kind</span>
         <span className="select">
