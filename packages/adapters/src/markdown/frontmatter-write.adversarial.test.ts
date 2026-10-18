@@ -5,7 +5,6 @@
  * that refers to itself must not make the write throw. Mirrors
  * frontmatter-add.adversarial.test.ts (#193).
  */
-import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
 import { updateFrontmatter } from './frontmatter-write.ts';
@@ -108,10 +107,58 @@ describe('updateFrontmatter, with a value that refers to itself', () => {
     expect(() => {
       written = updateFrontmatter(before, { extra: cyclic });
     }).not.toThrow();
-    expect(written.startsWith(block('# kept', 'title: Plan').replace(/---\n$/, ''))).toBe(true);
+    expect(written.startsWith('---\n# kept\ntitle: Plan\n')).toBe(true);
     const extra = valuesOf(written)['extra'] as Record<string, unknown>;
     expect(extra['a']).toBe(1);
     expect(extra['self']).toBe(extra);
-    expect(isDeepStrictEqual(valuesOf(written)['title'], 'Plan')).toBe(true);
+    expect(valuesOf(written)['title']).toBe('Plan');
+  });
+
+  it.each([
+    ['through a map', block('extra: &e', '  me: *e', 'title: Plan')],
+    ['through a list', block('extra: &e', '  - *e', 'title: Plan')],
+  ])('%s: written back as it was read, the block keeps every byte', (_, before) => {
+    // Counted as changed, the value was written again one level deeper on
+    // every save, and the file grew with each round trip.
+    const extra = parseFrontmatterProperties(before)['extra'];
+    expect(updateFrontmatter(before, { extra })).toBe(before);
+  });
+});
+
+describe('updateFrontmatter, on two spellings of one key, keeps the shadowed one', () => {
+  const before = block('~: e', '"": z', 't: T');
+
+  it('setting the key writes the pair the reader reads; the other keeps its bytes', () => {
+    expect(updateFrontmatter(before, { '': 'f' })).toBe(block('~: e', '"": f', 't: T'));
+  });
+
+  it('changing another key leaves both spellings as they were', () => {
+    expect(updateFrontmatter(before, { t: 'U' })).toBe(block('~: e', '"": z', 't: U'));
+  });
+});
+
+describe('updateFrontmatter, on a list used as a key', () => {
+  const before = block('? [a, b]', ': x', 't: T');
+
+  it('names it as the reader does, and changes it in its place', () => {
+    expect(Object.keys(parseFrontmatterProperties(before))).toEqual(['[ a, b ]', 't']);
+    const written = updateFrontmatter(before, { '[ a, b ]': 'y' });
+    expect(written).toBe(block('? [a, b]', ': y', 't: T'));
+  });
+
+  it('an alias of it as a key is named as the reader names it', () => {
+    const aliased = block('k: &k [a, b]', '*k : x', 't: T');
+    expect(parseFrontmatterProperties(aliased)).toEqual({ k: ['a', 'b'], '*k': 'x', t: 'T' });
+    expect(parseFrontmatterProperties(updateFrontmatter(aliased, { '*k': 'y' }))).toEqual({
+      k: ['a', 'b'],
+      '*k': 'y',
+      t: 'T',
+    });
+  });
+
+  it('refuses to change the list an alias key names, rather than rename that key', () => {
+    // Written out in the alias's place, the key would read as "[ a, b ]", not "*k".
+    const aliased = block('k: &k [a, b]', '*k : x', 't: T');
+    expect(() => updateFrontmatter(aliased, { k: [1] })).toThrow(/would be renamed/);
   });
 });
