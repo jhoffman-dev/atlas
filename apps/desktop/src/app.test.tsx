@@ -6,6 +6,7 @@ import { createVaultPath, type VaultEntry, type VaultPath } from '@atlas/domain'
 import {
   VaultAccessError,
   memoryActivityStore,
+  memoryIndexPort,
   fakeGoogleCalendar,
   fakeGranola,
   failed,
@@ -22,7 +23,6 @@ import {
   type VaultPickerPort,
 } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
-import { sqliteIndexPort } from '@atlas/application/testing/sqlite';
 import { App, localToday } from './app.tsx';
 import type { VaultPorts } from './vault/use-vault.ts';
 import type { NotePorts } from './notes/use-note.ts';
@@ -1078,7 +1078,7 @@ describe('reading the vault after a change (#259)', () => {
    * set off by the change that made write `n`.
    */
   function countingReads(vault: ReturnType<typeof fakeVault>) {
-    const index = sqliteIndexPort();
+    const index = memoryIndexPort();
     let puts = 0;
     const reads = { graph: [] as number[], views: [] as number[] };
     const listed = { types: [] as number[], templates: [] as number[] };
