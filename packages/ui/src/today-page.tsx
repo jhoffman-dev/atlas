@@ -102,7 +102,12 @@ export function TodayPage(props: TodayPageProps) {
     () => (props.today === null ? [] : todayRowOrder(props.today)),
     [props.today],
   );
-  const focus = useRowFocus({ order, shown: props.today, problem: props.problem });
+  const focus = useRowFocus({
+    order,
+    shown: props.today,
+    problem: props.problem,
+    busy: props.busy,
+  });
   const scroller = useRef<HTMLDivElement>(null);
   return (
     <>

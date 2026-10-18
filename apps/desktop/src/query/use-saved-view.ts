@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   boardGroups,
   drawnLevels,
@@ -15,6 +15,7 @@ import {
   parseViewDisplay,
   queryForLayout,
   relationTypes,
+  repeatKeysOf,
   statusOf,
   toBoardRows,
   type BoardLane,
@@ -40,6 +41,7 @@ import {
   type IndexPort,
   type MarkdownPort,
   type OpenNote,
+  type ReadMoment,
   type VaultFsPort,
   type ViewResult,
   type ActivityLog,
@@ -52,7 +54,8 @@ import { useCardCreation } from './use-card-creation.ts';
 import { useDoneTicks } from './use-done-ticks.ts';
 import { useFilterChoices, type FilterChoicesByKey } from './use-filter-choices.ts';
 import { useNotePreviews, type NotePreviews } from './use-note-previews.ts';
-import { useChangeProperties, useRowWrites } from './use-view-writes.ts';
+import { usePendingCards } from './use-pending-cards.ts';
+import { useChangeProperties, useRowWrites, useWriteProperties } from './use-view-writes.ts';
 import { useViewEdits } from './use-view-edits.ts';
 import type { ViewDrafts } from './use-view-drafts.ts';
 
@@ -185,11 +188,27 @@ export function useSavedView({
   });
   const { result, error, setError, query, display, type, status, hidden, fields } = shownView;
   const { applyEdits, ...viewEdits } = shownView.edits;
-  const { rows, columns, lanes, groups, groupOptions } = useViewShape({
+  const readRows = useMemo(
+    () => (result === null ? [] : toBoardRows({ columns: result.columns, rows: result.rows })),
+    [result],
+  );
+  const writeProperties = useWriteProperties({ editors, fs, markdown, activity });
+  // Every card as it is drawn: one moved, where the move puts it until the index has it (#260).
+  const cards = usePendingCards({
+    rows: readRows,
+    read: shownView.read,
+    runsBegun: shownView.runsBegun,
+    indexKey,
+    write: writeProperties,
+    onChanged,
+    onError: setError,
+  });
+  const rows = cards.rows;
+  const { columns, lanes, groups, groupOptions } = useViewShape({
     type,
     display,
     sorts: query?.sorts ?? NO_SORTS,
-    result,
+    rows,
     index,
     indexKey,
   });
@@ -210,7 +229,14 @@ export function useSavedView({
     onChanged,
     onError: setError,
   });
-  const rowWrites = useRowWrites({ display, type, groupOptions, status, changeProperties });
+  const rowWrites = useRowWrites({
+    display,
+    type,
+    groupOptions,
+    status,
+    changeProperties,
+    moveProperties: cards.move,
+  });
   const layouts = useMemo(() => (type === null ? [] : layoutChoices(type)), [type]);
   const setLayout = useLayoutEdit({ display, type, status, applyEdits });
   const setCalendarRange = useCallback(
@@ -377,6 +403,7 @@ function useShownView({
               subGroupBy: display.subGroupBy,
             }),
             progressKey: checklistProgressKey(type),
+            repeatKeys: repeatKeysOf(type),
           }),
     [query, display, status, type],
   );
@@ -416,26 +443,31 @@ function useViewResult({
   indexKey: string;
   includeArchived: boolean;
 }) {
-  const [result, setResult] = useState<ViewResult | null>(null);
+  const [ran, setRan] = useState<{ result: ViewResult | null; read: ReadMoment }>(NOT_RUN);
   const [error, setError] = useState<string | null>(null);
   const resolveLink = useLinkResolver(query);
+  // Counts the runs begun, so a card moved can tell a run made after its write from one under way (#260).
+  const begun = useRef(0);
+  const runsBegun = useCallback(() => begun.current, []);
 
   useEffect(() => {
     if (query === null) {
-      setResult(null);
+      setRan(NOT_RUN);
       setError(null);
       return;
     }
 
     let cancelled = false;
+    begun.current += 1;
+    const read = { at: begun.current, indexKey };
     setError(null);
     runView({ index, query, includeArchived, resolveLink })
       .then((found) => {
-        if (!cancelled) setResult(found);
+        if (!cancelled) setRan({ result: found, read });
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
-          setResult(null);
+          setRan({ result: null, read });
           setError(errorMessage(cause));
         }
       });
@@ -445,8 +477,11 @@ function useViewResult({
     };
   }, [index, query, indexKey, includeArchived, resolveLink]);
 
-  return { result, error, setError };
+  return { result: ran.result, read: ran.read, runsBegun, error, setError };
 }
+
+/** Before the view has run: no result, read before anything was written. */
+const NOT_RUN = { result: null, read: { at: 0, indexKey: '' } } as const;
 
 /**
  * The note a link opens, for a view filtered by one (`project is [[…]]`) —
@@ -471,21 +506,18 @@ function useViewShape({
   type,
   display,
   sorts,
-  result,
+  rows,
   index,
   indexKey,
 }: {
   type: ObjectType | null;
   display: ViewDisplay;
   sorts: readonly QuerySort[];
-  result: ViewResult | null;
+  /** The result's rows, as they are drawn. */
+  rows: readonly BoardRow[];
   index: IndexPort;
   indexKey: string;
 }) {
-  const rows = useMemo(
-    () => (result === null ? [] : toBoardRows({ columns: result.columns, rows: result.rows })),
-    [result],
-  );
   const names = useNoteNames();
   const related = useRelatedOptions({ type, display, index, indexKey, names });
 
@@ -512,7 +544,7 @@ function useViewShape({
     [table, rows, levels, names],
   );
 
-  return { rows, columns: board.columns, lanes: board.lanes, groups, groupOptions };
+  return { columns: board.columns, lanes: board.lanes, groups, groupOptions };
 }
 
 /**

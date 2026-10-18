@@ -20,6 +20,7 @@ export function useRowFocus({
   order,
   shown,
   problem,
+  busy = false,
 }: {
   /** Every row on the page, top to bottom. */
   order: readonly VaultPath[];
@@ -27,6 +28,12 @@ export function useRowFocus({
   shown: object | null;
   /** Why the last action could not be done, if it could not: nothing moved, so focus stays. */
   problem: string | null;
+  /**
+   * While an action is under way: every row's controls wait, and a control
+   * that waits cannot take the focus. A row leaves at once (#260), so the next
+   * row is focused once the action is done. Not busy unless said.
+   */
+  busy?: boolean;
 }) {
   const { rowRef, focusRow: focusPlaced, wanted } = useRowHandles(order);
   const pending = useRef<{ acted: VaultPath; next: VaultPath | null } | null>(null);
@@ -57,13 +64,13 @@ export function useRowFocus({
     // The index follows the file, so the page may be read again before the
     // row has left: it is waited for, and a row that stays keeps its focus.
     // Asked of the read, not the DOM: a row scrolled out of it has not left.
-    if (moved === null || shown === null || orderNow.current.includes(moved.acted)) return;
+    if (moved === null || shown === null || busy || orderNow.current.includes(moved.acted)) return;
     pending.current = null;
     // Focus went with the row — to the document, or to the panel around it,
     // which is where WebKit leaves it after a press on a button. On another
     // control, the person put it there since, and it is left alone.
     if (document.activeElement?.matches(CONTROLS) !== true) focusRow(moved.next);
-  }, [shown, focusRow]);
+  }, [shown, busy, focusRow]);
 
   return { rowRef, actedOn, focusRow, wanted };
 }

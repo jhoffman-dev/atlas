@@ -11,7 +11,9 @@ import {
 import {
   archiveTaskChange,
   changeUndoably,
+  readAnswers,
   readToday,
+  todayAsPending,
   whileAsRead,
   type IndexPort,
   type PropertyChanges,
@@ -51,7 +53,10 @@ export interface TodayOptions extends Omit<ReviewWritesOptions, 'ports' | 'clock
 /**
  * The Today page (#111): the day as the index has it, and its row actions —
  * the weekly review's writes, the last of them remembered so it can be taken
- * back. A row moves once the index has the change; nothing is reloaded.
+ * back. A row moves the moment it is acted on, to where its change leaves it
+ * (`todayAsPending`, #260), and stays there until a read of the index made
+ * after the write is on the page; a change that is refused or fails puts it
+ * back. Nothing is reloaded.
  *
  * A row acts on what it showed. The page is always a little behind the
  * files, so an action is made only while the task still says what its row
@@ -118,6 +123,16 @@ export function useToday(options: TodayOptions) {
     () => new Set(sameVault(settling, { index: indexOpen, vaultKey }) ? settling.rows.keys() : []),
     [settling, indexOpen, vaultKey],
   );
+  const pendingHere = sameVault(settling, { index: indexOpen, vaultKey })
+    ? settling.changes
+    : NONE_PENDING;
+  const shownToday = useMemo(
+    () =>
+      current === null || current.report === null
+        ? null
+        : todayAsPending({ report: current.report, pending: pendingHere }),
+    [current, pendingHere],
+  );
   const knownHere = useMemo(
     () =>
       sameVault(settling, { index: indexOpen, vaultKey })
@@ -133,6 +148,8 @@ export function useToday(options: TodayOptions) {
       const { fs, markdown, index } = ports;
       const row = knownHere.get(path) ?? rows.get(path);
       const guarded = row === undefined ? values : whileAsRead({ values, row });
+      // Shown at once, in the same commit as the action: the row moves before the write lands.
+      setSettling((was) => withPending(ofVault(was, { index, vaultKey }), { path, values }));
       let made: UndoableChange | null = null;
       await actOn(path, async (put) => {
         made = await changeUndoably({
@@ -142,8 +159,11 @@ export function useToday(options: TodayOptions) {
           write: (readAt) => put(guarded, readAt),
         });
       });
-      // Only now: an action that was refused or failed leaves the earlier undo on offer.
-      if (made === null) return;
+      // Only now: an action that was refused or failed leaves the earlier undo on offer, and its row back.
+      if (made === null) {
+        setSettling((was) => withoutPending(was, { path, values }));
+        return;
+      }
       // A change that could not be read back was still made: nothing to offer, and the row settles.
       const { undo: takeBack, was: before } = made as UndoableChange;
       setLast(
@@ -152,15 +172,7 @@ export function useToday(options: TodayOptions) {
           : { index, vaultKey, path, title, action, undo: takeBack, was: before },
       );
       const since = readsBegun.current;
-      setSettling((was) => ({
-        index,
-        vaultKey,
-        rows: new Map([
-          ...(sameVault(was, { index, vaultKey }) ? was.rows : []),
-          [path, { since, askedAt }],
-        ]),
-        known: sameVault(was, { index, vaultKey }) ? was.known : new Map(),
-      }));
+      setSettling((was) => withLanded(was, { path, values, landed: { since, askedAt } }));
     },
     [actOn, ports, vaultKey, rows, knownHere, settlingHere],
   );
@@ -200,6 +212,7 @@ export function useToday(options: TodayOptions) {
     setSettling((was) => ({
       ...was,
       rows: new Map([...was.rows].filter(([row]) => row !== path)),
+      changes: new Map([...was.changes].filter(([row]) => row !== path)),
       known: new Map([...was.known, [path, { task: undoable.was, since, askedAt }]]),
     }));
   }, [undoable, actOn]);
@@ -226,7 +239,7 @@ export function useToday(options: TodayOptions) {
     /** Whether the vault has tasks, which is when the page's sidebar row shows. */
     shown: taskTypeOf(types) !== null,
     page: {
-      today: current?.report ?? null,
+      today: shownToday,
       error: current?.error ?? null,
       busy,
       problem,
@@ -287,8 +300,10 @@ interface Landed {
 
 /** The rows acted on and not yet read back, and what the page knows better than its read. */
 interface Settling extends OfAVault {
-  /** Each row acted on, and when its write landed. */
-  readonly rows: ReadonlyMap<VaultPath, Landed>;
+  /** Each row acted on, and when its write landed: null while it is being written. */
+  readonly rows: ReadonlyMap<VaultPath, Landed | null>;
+  /** What is being written to each of those rows, which the page draws it as meanwhile. */
+  readonly changes: ReadonlyMap<VaultPath, PropertyChanges>;
   /**
    * What a row's task is known to be, where the page knows better than its
    * last read: a change the page made and took back leaves the task as the
@@ -307,13 +322,59 @@ const sameVault = (left: OfAVault, right: OfAVault) =>
   left.index === right.index && left.vaultKey === right.vaultKey;
 
 const NONE_KNOWN: ReadonlyMap<VaultPath, TaskAsRead> = new Map();
+const NONE_PENDING: ReadonlyMap<VaultPath, PropertyChanges> = new Map();
 
 const NOTHING_SETTLING: Settling = {
   index: null,
   vaultKey: null,
   rows: new Map(),
+  changes: new Map(),
   known: new Map(),
 };
+
+/** What is settling in this vault: nothing of another vault's carries over. */
+const ofVault = (settling: Settling, vault: OfAVault): Settling =>
+  sameVault(settling, vault) ? settling : { ...NOTHING_SETTLING, ...vault };
+
+/** With a row being written: held, and drawn as its change leaves it. */
+function withPending(
+  settling: Settling,
+  { path, values }: { readonly path: VaultPath; readonly values: PropertyChanges },
+): Settling {
+  return {
+    ...settling,
+    rows: new Map([...settling.rows, [path, null]]),
+    changes: new Map([...settling.changes, [path, values]]),
+  };
+}
+
+/** Without a row whose change was refused or failed: it is drawn as read again, and free. */
+function withoutPending(
+  settling: Settling,
+  { path, values }: { readonly path: VaultPath; readonly values: PropertyChanges },
+): Settling {
+  // Only this action's own: the changes are this action's object, so another vault's never match.
+  if (settling.changes.get(path) !== values) return settling;
+  return {
+    ...settling,
+    rows: new Map([...settling.rows].filter(([row]) => row !== path)),
+    changes: new Map([...settling.changes].filter(([row]) => row !== path)),
+  };
+}
+
+/** With a row's write landed: held, and drawn as changed, until a read catches up with it. */
+function withLanded(
+  settling: Settling,
+  {
+    path,
+    values,
+    landed,
+  }: { readonly path: VaultPath; readonly values: PropertyChanges; readonly landed: Landed },
+): Settling {
+  // Only this action's own row: one let go since — another vault opened — stays let go.
+  if (settling.changes.get(path) !== values) return settling;
+  return { ...settling, rows: new Map([...settling.rows, [path, landed]]) };
+}
 
 /**
  * Without what a read has caught up with: the `begun`-th read, of the index as
@@ -324,11 +385,14 @@ function withoutSettledBy(
   settling: Settling,
   read: { readonly begun: number; readonly key: string },
 ): Settling {
-  const behind = ({ since, askedAt }: Landed) => since >= read.begun || askedAt === read.key;
+  const moment = { at: read.begun, indexKey: read.key };
+  const behind = (landed: Landed | null) =>
+    !readAnswers(landed === null ? null : { at: landed.since, indexKey: landed.askedAt }, moment);
   const rows = new Map([...settling.rows].filter(([, landed]) => behind(landed)));
+  const changes = new Map([...settling.changes].filter(([path]) => rows.has(path)));
   const known = new Map([...settling.known].filter(([, landed]) => behind(landed)));
   const unchanged = rows.size === settling.rows.size && known.size === settling.known.size;
-  return unchanged ? settling : { ...settling, rows, known };
+  return unchanged ? settling : { ...settling, rows, changes, known };
 }
 
 /** The row acted on: its task, and what the page calls it. */
