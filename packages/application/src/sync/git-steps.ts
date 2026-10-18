@@ -116,6 +116,7 @@ function authorName(mac: string): string {
   const plain = (text: string) =>
     text
       .replace(/[<>]/g, '')
+      // eslint-disable-next-line no-control-regex -- control characters are exactly what becomes a space
       .replace(/[\0-\x1f\x7f]/g, ' ')
       .replace(/\s+/g, ' ')
       .replace(GIT_TRIMS, '');
