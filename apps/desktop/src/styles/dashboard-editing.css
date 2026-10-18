@@ -2,22 +2,57 @@
    One of the section files styles/index.css imports in cascade order; the
    section-to-file table is in docs/design/ui-v2-plan.md under slice 0b. */
 
-/* ---- Dashboard editing (P17-03) ------------------------------------------
-   Customize puts a grip on every widget and an edge to pull, and a card at the
-   end of the grid to add one. Nothing new is drawn as a line: the grip is a
-   small raised pill, the edge a short bar, the held widget lifts to the
-   overlay shadow, and the widget a pointer is carrying leaves a faded copy
-   where it would land. The editor is a sheet from the right, in the overlay
-   language — the panel radius, the foremost shadow, the scrim behind. */
+/* ---- Dashboard editing (P17-03, UI v2 slice 10) ---------------------------
+   Customize lifts every widget onto a spaced grid of hairline-bounded tiles,
+   puts a grip on each and an edge to pull, and a tile at the end to add one.
+   The grip is a small bordered pill, the edge a short bar, the held widget
+   wears the focus ring, and the widget a pointer is carrying leaves a faded
+   copy where it would land. The editor is a sheet from the right, in the
+   overlay language — the panel radius, the foremost shadow, the scrim behind. */
 
 .dashboard__error {
-  background: color-mix(in srgb, var(--danger) 8%, var(--raised));
-  border-radius: var(--radius-card);
-  color: var(--danger);
-  font-size: var(--text-small);
-  font-weight: 600;
+  background: var(--btn-destructive-bg);
+  border-radius: var(--radius-control);
+  color: var(--btn-destructive-ink);
+  font-size: var(--text-meta);
+  font-weight: 500;
   margin: 0 0 var(--space-3);
-  padding: 10px 16px;
+  padding: 8px 12px;
+}
+
+/* The arranging grid keeps the gap and gutter a resize is measured against
+   (e2e/dashboard-editing.spec.ts reads a column from them), and stays inside
+   the page's own gutter rather than taking it back as the panels do. */
+.page--wide .dashboard--arranging {
+  margin: 0;
+}
+
+.dashboard--arranging {
+  align-content: start;
+  display: grid;
+  gap: var(--space-5);
+  grid-auto-rows: auto;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  padding: 4px 4px var(--space-6);
+}
+
+.dashboard--arranging .widget,
+.widget-sheet__preview .widget {
+  border: 1px solid var(--line);
+}
+
+/* Every widget is a tile here, the strip's included, as wide as its span. */
+.dashboard--arranging .widget {
+  grid-column: span var(--span);
+}
+
+.dashboard--arranging .widget--strip,
+.widget-sheet__preview .widget--strip {
+  min-height: 84px;
+}
+
+.dashboard--arranging .widget--strip .kpi {
+  border-left: 0;
 }
 
 .widget--arranging {
@@ -25,11 +60,11 @@
 }
 
 .widget--arranging:focus-within {
-  box-shadow: var(--ring), var(--shadow-card);
+  box-shadow: var(--ring);
 }
 
 .widget--held {
-  box-shadow: var(--ring), var(--shadow-overlay);
+  box-shadow: var(--ring);
   z-index: 2;
 }
 
@@ -40,14 +75,14 @@
 .widget__grip {
   align-items: center;
   appearance: none;
-  background: var(--raised);
-  border: 0;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-soft);
+  box-sizing: border-box;
   color: var(--ink-3);
   cursor: grab;
   display: flex;
-  height: 22px;
+  height: 20px;
   justify-content: center;
   left: 50%;
   padding: 0;
@@ -55,7 +90,7 @@
   top: 6px;
   touch-action: none;
   transform: translateX(-50%);
-  width: 44px;
+  width: 40px;
   z-index: 1;
 }
 
@@ -64,6 +99,7 @@
 }
 
 .widget__grip:hover {
+  background: var(--hover);
   color: var(--ink);
 }
 
@@ -99,39 +135,35 @@
   top: 50%;
   transform: translateY(-50%);
   transition: opacity 120ms ease;
-  width: 5px;
-}
-
-.widget--hero .widget__resize::after {
-  background: var(--hero-ink);
+  width: 4px;
 }
 
 .widget__resize:hover::after,
 .widget--held .widget__resize::after {
-  background: var(--accent-solid);
+  background: var(--accent-data);
   opacity: 1;
 }
 
 .dashboard__add {
   align-items: center;
   appearance: none;
-  background: var(--track);
-  border: 0;
-  border-radius: var(--radius-panel);
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  border-radius: 0;
   color: var(--ink-2);
   cursor: pointer;
   display: flex;
   font: inherit;
-  font-weight: 700;
+  font-weight: 500;
   gap: var(--space-2);
   grid-column: span 3;
   justify-content: center;
-  min-height: 140px;
+  min-height: 84px;
 }
 
 .dashboard__add:hover {
   background: var(--hover);
-  color: var(--accent-text);
+  color: var(--ink);
 }
 
 .dashboard__add:focus-visible {
@@ -141,14 +173,14 @@
 
 .widget-ghost {
   align-items: center;
-  background: var(--raised);
-  border-radius: var(--radius-panel);
+  background: var(--surface);
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-overlay);
   box-sizing: border-box;
   color: var(--ink);
   cursor: grabbing;
   display: flex;
-  font-weight: 800;
+  font-weight: 500;
   gap: var(--space-2);
   height: 100%;
   opacity: 0.94;
@@ -190,8 +222,8 @@
 }
 
 .widget-sheet__title {
-  font-size: var(--text-card);
-  font-weight: 800;
+  font-size: var(--text-section);
+  font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -245,8 +277,8 @@
 
 .widget-sheet__label {
   color: var(--ink-3);
-  font-size: var(--text-small);
-  font-weight: 700;
+  font-size: var(--text-header);
+  font-weight: 500;
   padding: 0;
 }
 
@@ -278,7 +310,7 @@
   display: flex;
   font: inherit;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   justify-content: center;
 }
 

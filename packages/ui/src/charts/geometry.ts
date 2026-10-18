@@ -15,6 +15,10 @@
  *     areaUnder    →  d3.area()
  *     niceTicks    →  scale.nice().ticks()
  *
+ * `stackedSegments` is plain arithmetic — a stacked bar is a division of a
+ * width, and d3's stack generator is built for series over keys, not a single
+ * bar — so it lives here with the rest rather than importing a fifth generator.
+ *
  * The rules stayed ours. What counts as a value worth drawing, what a slice
  * narrower than its own gap paints, and what a scale with nothing to scale
  * falls back to are decisions; d3 draws what it is handed.
@@ -293,6 +297,82 @@ export function niceTicks({
   // left that still covers it.
   if (top === undefined || top < max) return [0, max];
   return ticks;
+}
+
+/** One run of a stacked bar: where it starts and how much of the bar it takes. */
+export interface StackedSegment {
+  readonly start: number;
+  readonly size: number;
+}
+
+/**
+ * A bar divided between `values`, left to right in the order given, so the
+ * segments add up to `width` exactly and a legend beside the bar reads in the
+ * same order. A value that is nothing — zero, negative, or not a number — takes
+ * no room and keeps its place, so the segment at index 2 is always the third
+ * value; and when every value is nothing, so is every segment. A width that
+ * is nothing is no room at all.
+ *
+ * The last segment with something in it ends exactly at `width`: the shares
+ * before it are rounded, and a bar is not whole until it reaches its own edge.
+ */
+export function stackedSegments({
+  values,
+  width,
+}: {
+  readonly values: readonly number[];
+  readonly width: number;
+}): StackedSegment[] {
+  const room = Number.isFinite(width) && width > 0 ? width : 0;
+  const held = values.map((value) => (Number.isFinite(value) && value > 0 ? value : 0));
+  // Scaled by the largest before they are summed: two counts near the largest
+  // number add up to Infinity, and every share of Infinity is nothing.
+  const largest = largestOf(held, 0);
+  const shares = largest > 0 ? held.map((value) => value / largest) : held;
+  const whole = shares.reduce((sum, share) => sum + share, 0);
+  const sizes = closedOn(
+    shares.map((share) => (share === 0 ? 0 : (share / whole) * room)),
+    room,
+  );
+  let start = 0;
+  return sizes.map((size) => {
+    const segment = { start, size };
+    start += size;
+    return segment;
+  });
+}
+
+/**
+ * The sizes, closed so that the segments, summed left to right as they are
+ * chained, land exactly on `width`. Every size before the last with something
+ * in it is rounded to a multiple of the width's own unit — the step between
+ * `width` and the next number — so each running sum is exact, and the last
+ * size is the exact remainder. Walking the last size a unit at a time cannot
+ * do this: for some starts every candidate sum is a rounding tie, and
+ * ties-to-even throws each one to the far side of `width`.
+ */
+function closedOn(sizes: readonly number[], width: number): number[] {
+  const last = sizes.findLastIndex((size) => size > 0);
+  if (last < 0) return [...sizes];
+  const unit = adjacentDouble(width, true) - width;
+  const closed = sizes.map((size, at) =>
+    at === last || size === 0 ? size : Math.max(Math.round(size / unit) * unit, unit),
+  );
+  const start = closed.slice(0, last).reduce((sum, size) => sum + size, 0);
+  closed[last] = Math.max(width - start, 0);
+  return closed;
+}
+
+/** The next representable number above (`up`) or below `value`. */
+function adjacentDouble(value: number, up: boolean): number {
+  if (value === 0) return up ? Number.MIN_VALUE : -Number.MIN_VALUE;
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, value);
+  // The bit pattern of a double is ordered with its magnitude, so one step in
+  // the integer it spells is one step in the number — away from zero when the
+  // step and the sign agree, towards it otherwise.
+  view.setBigUint64(0, view.getBigUint64(0) + (up === value > 0 ? 1n : -1n));
+  return view.getFloat64(0);
 }
 
 /** Three decimals is finer than any screen and keeps the path strings short. */
