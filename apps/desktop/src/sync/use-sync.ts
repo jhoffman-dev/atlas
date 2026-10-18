@@ -6,8 +6,8 @@ import {
   type SyncPhase,
 } from '@atlas/domain';
 import {
-  loadSyncSettings,
   saveSyncSettings,
+  syncSettingsOf,
   type ActivityLog,
   type Clock,
   type GitFoldersPort,
@@ -242,14 +242,20 @@ function usePause(store: SyncPauseStore, vaultKey: string | null) {
 }
 
 /** The vault's sync settings, read from its settings note and saved through its one writer. */
-function useSyncSettings({ fs, markdown, vaultKey, changeKey, activity }: SyncOptions) {
-  const load = useCallback(() => loadSyncSettings({ fs, markdown }), [fs, markdown]);
+function useSyncSettings({ fs, markdown, vaultKey, activity }: SyncOptions) {
   const store = useCallback(
     (value: SyncSettings) =>
       saveSyncSettings({ settings: vaultSettingsWriter({ fs, markdown }), changes: value }),
     [fs, markdown],
   );
-  const setting = useVaultSetting({ load, store, vaultKey, changeKey, activity });
+  const setting = useVaultSetting({
+    fs,
+    markdown,
+    parse: syncSettingsOf,
+    store,
+    vaultKey,
+    activity,
+  });
   const { value, save: saveWhole } = setting;
   const save = useCallback(
     (changes: Partial<SyncSettings>) =>

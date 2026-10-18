@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import {
-  loadProfile,
   saveProfile,
   type ActivityLog,
   type MarkdownPort,
@@ -9,6 +8,7 @@ import {
 import {
   changeProfile,
   EMPTY_PROFILE,
+  parseProfile,
   type Profile,
   type ProfileChange,
   type ProfileState,
@@ -39,17 +39,14 @@ export function useProfileSetting({
   fs,
   markdown,
   vaultKey,
-  changeKey,
   activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
-  changeKey: string;
   /** Where a save that fails is recorded. */
   activity: Pick<ActivityLog, 'inOpenVault'>;
 }): ProfileSetting {
-  const load = useCallback(() => loadProfile({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
     (profile: Profile, previous: Profile | null) =>
       saveProfile({
@@ -68,10 +65,11 @@ export function useProfileSetting({
     problem,
     unreadable,
   } = useVaultSetting({
-    load,
+    fs,
+    markdown,
+    parse: parseProfile,
     store,
     vaultKey,
-    changeKey,
     activity,
   });
   const save = useCallback(

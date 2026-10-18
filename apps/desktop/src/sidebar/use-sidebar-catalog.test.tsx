@@ -4,6 +4,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ObjectType } from '@atlas/domain';
 import { fakeIndexPort, fakeVaultFs } from '@atlas/application';
 import { remarkMarkdown } from '@atlas/adapters';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
+import { createReadInvalidator } from '../reads/read-invalidator.ts';
 import { useSidebarCatalog } from './use-sidebar-catalog.ts';
 
 const INBOX = '.atlas/views/Inbox.md';
@@ -35,12 +37,14 @@ function fakePorts() {
 const NO_NOTES: readonly string[] = [];
 
 describe('useSidebarCatalog: quick-view counts', () => {
-  it('counts the quick views once per change, with a COUNT', async () => {
+  it('counts the quick views once per news of the index, with a COUNT', async () => {
     const { fs, index, markdown, query } = fakePorts();
     const counted = () => query.mock.calls.filter(([sql]) => isCount(sql)).length;
 
-    const { result, rerender } = renderHook(
-      ({ changeKey }) =>
+    const { wrapper, client } = queryWrapper();
+    const reads = createReadInvalidator({ client });
+    const { result } = renderHook(
+      () =>
         useSidebarCatalog({
           fs,
           markdown,
@@ -48,15 +52,15 @@ describe('useSidebarCatalog: quick-view counts', () => {
           types: TYPES,
           notePaths: NO_NOTES,
           vaultKey: 'vault',
-          changeKey,
+          indexReady: true,
         }),
-      { initialProps: { changeKey: 'first' } },
+      { wrapper },
     );
     await waitFor(() => expect(result.current.quick[0]?.count).toBe(3));
     const before = counted();
 
-    rerender({ changeKey: 'second' });
-    // Settled: the catalogue reloaded after the change (the sidebar query ran again).
+    reads.indexMoved('vault');
+    // Settled: the marks were asked again on the index's news (the sidebar query ran again).
     const sidebarQueries = () => query.mock.calls.filter(([sql]) => sql.includes('FROM files'));
     await waitFor(() => expect(sidebarQueries()).toHaveLength(2));
     await waitFor(() => expect(counted() - before).toBeGreaterThan(0));
@@ -64,5 +68,48 @@ describe('useSidebarCatalog: quick-view counts', () => {
     for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
 
     expect(counted() - before).toBe(1);
+  });
+
+  it('counts the quick views again when a type is defined anew under the same name', async () => {
+    const { fs, index, markdown, query } = fakePorts();
+    const counted = () => query.mock.calls.filter(([sql]) => isCount(sql)).length;
+    const task: ObjectType = { name: 'task', label: 'Task', properties: [] };
+    const { wrapper } = queryWrapper();
+    const hook = renderHook(
+      ({ types }: { types: readonly ObjectType[] }) =>
+        useSidebarCatalog({
+          fs,
+          markdown,
+          index,
+          types,
+          notePaths: NO_NOTES,
+          vaultKey: 'vault',
+          indexReady: true,
+        }),
+      { wrapper, initialProps: { types: [task] } },
+    );
+    await waitFor(() => expect(hook.result.current.quick[0]?.count).toBe(3));
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    const before = counted();
+
+    // `.atlas/types/task.md` gains an option: the same name, a new definition. A query
+    // view is checked against the types, so it is counted with the new one.
+    const withStatus: ObjectType = {
+      ...task,
+      properties: [
+        {
+          key: 'status',
+          kind: 'select',
+          label: 'Status',
+          required: false,
+          options: ['todo'],
+          target: null,
+          many: false,
+        },
+      ],
+    };
+    hook.rerender({ types: [withStatus] });
+
+    await waitFor(() => expect(counted() - before).toBe(1));
   });
 });

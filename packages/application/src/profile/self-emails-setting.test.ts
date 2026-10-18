@@ -144,15 +144,14 @@ describe('suggestSelfEmails', () => {
   });
 
   it('offers the addresses of the Person note the profile names, for the person to keep or not', async () => {
-    const { fs } = vaultWith({ [PATH]: '---\n{"profileName":"Mara Quill"}\n---\n' });
-    expect(await suggestSelfEmails({ fs, markdown, index: { query: index } })).toEqual([
+    const settings = { profileName: 'Mara Quill' };
+    expect(await suggestSelfEmails({ settings, index: { query: index } })).toEqual([
       'mara.quill@example.com',
       'mara@example.com',
     ]);
   });
 
   it('offers none when the profile names no one', async () => {
-    const { fs } = vaultWith({});
-    expect(await suggestSelfEmails({ fs, markdown, index: { query: index } })).toEqual([]);
+    expect(await suggestSelfEmails({ settings: {}, index: { query: index } })).toEqual([]);
   });
 });

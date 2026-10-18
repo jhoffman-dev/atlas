@@ -8,7 +8,11 @@ export async function loadQuickAddSetting(args: {
   fs: VaultFsPort;
   markdown: Pick<MarkdownPort, 'frontmatterProperties' | 'frontmatterProblem'>;
 }): Promise<readonly string[] | null> {
-  const settings = await readVaultSettings(args);
+  return quickAddOf(await readVaultSettings(args));
+}
+
+/** The types the add button offers in settings already read; null when unset. */
+export function quickAddOf(settings: Readonly<Record<string, unknown>>): readonly string[] | null {
   return parseQuickAdd(settings[QUICK_ADD_KEY]);
 }
 

@@ -7,6 +7,7 @@ import {
   type ViewDisplay,
 } from '@atlas/domain';
 import {
+  cardAsMoved,
   cardMoveChanges,
   setNoteProperties,
   TaskRuleRefusedError,
@@ -20,6 +21,7 @@ import { withGiveUpRecorded } from '../activity/with-give-up-recorded.ts';
 import type { OpenEditors } from '../panes/open-editors.ts';
 import { localToday } from '../today.ts';
 import { errorMessage } from './error-message.ts';
+import type { MoveProperties, WriteProperties } from './use-pending-cards.ts';
 
 /** Writes one note the view shows — a row, a card, or the view note itself. */
 export type ChangeProperties = (args: { path: string; values: PropertyChanges }) => void;
@@ -66,33 +68,49 @@ export async function writeNoteProperties({
   });
 }
 
-/**
- * `writeNoteProperties` for a view's gestures, which report through the view:
- * a failed one is shown there and recorded in the Activity log.
- */
-export function useChangeProperties({
+/** `writeNoteProperties` for a view's gestures: one the view gives up on is recorded in the Activity log. */
+export function useWriteProperties({
   editors,
   fs,
   markdown,
   activity,
-  onChanged,
-  onError,
 }: {
   editors: OpenEditors;
   fs: VaultFsPort;
   markdown: MarkdownPort;
   activity: Pick<ActivityLog, 'inOpenVault'>;
-  onChanged: () => void;
-  onError: (message: string) => void;
-}): ChangeProperties {
+}): WriteProperties {
   return useCallback(
     ({ path, values }) => {
       const edit = { activity, write: 'edit', path, refusal: TaskRuleRefusedError } as const;
-      withGiveUpRecorded(edit, () => writeNoteProperties({ editors, fs, markdown, path, values }))
+      return withGiveUpRecorded(edit, () =>
+        writeNoteProperties({ editors, fs, markdown, path, values }),
+      );
+    },
+    [editors, fs, markdown, activity],
+  );
+}
+
+/**
+ * `writeNoteProperties` for a view's gestures, which report through the view:
+ * a failed one is shown there and recorded in the Activity log.
+ */
+export function useChangeProperties({
+  onChanged,
+  onError,
+  ...ports
+}: Parameters<typeof useWriteProperties>[0] & {
+  onChanged: () => void;
+  onError: (message: string) => void;
+}): ChangeProperties {
+  const write = useWriteProperties(ports);
+  return useCallback(
+    (args) => {
+      write(args)
         .then(onChanged)
         .catch((cause: unknown) => onError(errorMessage(cause)));
     },
-    [editors, fs, markdown, activity, onChanged, onError],
+    [write, onChanged, onError],
   );
 }
 
@@ -103,6 +121,7 @@ export function useRowWrites({
   groupOptions,
   status,
   changeProperties,
+  moveProperties,
 }: {
   display: ViewDisplay;
   /** The type the view lists, whose property kinds a moved card's values are written as. */
@@ -111,6 +130,8 @@ export function useRowWrites({
   /** The type's status, whose done option finishes work on a board, by column or by lane. */
   status: StatusProperty | null;
   changeProperties: ChangeProperties;
+  /** A card's move, which the board draws at once (#260). */
+  moveProperties: MoveProperties;
 }) {
   const editCell = useCallback(
     ({ path, column, value }: { path: string; column: string; value: string }) => {
@@ -123,7 +144,8 @@ export function useRowWrites({
    * A card dropped into another column, another lane, or both: each property
    * it left the group of, written as one change. What finishes the task, and
    * how each value is typed, is the application's rule (`cardMoveChanges`),
-   * not decided here.
+   * not decided here — nor is where the card is drawn until its write is
+   * read back (`cardAsMoved`).
    */
   const moveCard = useCallback(
     (move: CardMove) => {
@@ -138,12 +160,14 @@ export function useRowWrites({
           ? { key: subGroupBy, value: move.lane, kind: kindOf(subGroupBy) }
           : null;
       if (column === null && lane === null) return;
-      changeProperties({
+      const moved = { column, lane, status, columnOptions: groupOptions };
+      moveProperties({
         path: move.path,
-        values: cardMoveChanges({ column, lane, status, columnOptions: groupOptions }),
+        values: cardMoveChanges(moved),
+        shown: (values) => cardAsMoved({ values, move: moved }),
       });
     },
-    [display, type, groupOptions, status, changeProperties],
+    [display, type, groupOptions, status, moveProperties],
   );
 
   /**

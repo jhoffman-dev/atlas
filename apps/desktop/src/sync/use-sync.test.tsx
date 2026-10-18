@@ -22,6 +22,7 @@ import { remarkMarkdown } from '@atlas/adapters';
 import { useSync, type SyncOptions } from './use-sync.ts';
 import { syncConflictNotice, syncIndicatorBadge, syncSettingsView } from './sync-view.ts';
 import { QUIT_SYNC_WAIT_MS, SYNC_TICK_MS } from './use-sync-schedule.ts';
+import { queryWrapper } from '../reads/query-wrapper.tsx';
 
 const NOT_A_REPO = failed('fatal: not a git repository', 128);
 /** What a vault Atlas set up for sync says in its settings, beside its `.gitignore` block. */
@@ -203,7 +204,10 @@ function setUpHook({
     },
     onPulled,
   };
-  const hook = renderHook((props: SyncOptions) => useSync(props), { initialProps: options });
+  const hook = renderHook((props: SyncOptions) => useSync(props), {
+    wrapper: queryWrapper().wrapper,
+    initialProps: options,
+  });
   return { hook, called, order, closeTasks, clock, onPulled, options, pauses, listRepositories };
 }
 

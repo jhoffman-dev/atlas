@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   dedicatedCalendar,
   needsBlocksCalendar,
+  parseGoogleCalendarSetting,
   DEDICATED_CALENDAR_NAME,
   type GoogleCalendar,
   type GoogleCalendarSetting,
@@ -13,7 +14,6 @@ import {
   createBlocksCalendar,
   disconnectGoogleCalendar,
   googleProblemOf,
-  loadGoogleCalendarSetting,
   saveGoogleCalendarSetting,
   type ActivityLog,
   type GoogleCalendarPort,
@@ -51,7 +51,6 @@ export function useGoogleCalendar({
   fs,
   markdown,
   vault,
-  changeKey,
   active,
   activity,
 }: {
@@ -59,18 +58,23 @@ export function useGoogleCalendar({
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vault: string | null;
-  changeKey: string;
   active: boolean;
   /** Where a save of the vault's setting that fails is recorded. */
   activity: Pick<ActivityLog, 'inOpenVault'>;
 }): GoogleCalendarSettingState {
-  const load = useCallback(() => loadGoogleCalendarSetting({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
     (setting: GoogleCalendarSetting) =>
       saveGoogleCalendarSetting({ settings: vaultSettingsWriter({ fs, markdown }), setting }),
     [fs, markdown],
   );
-  const setting = useVaultSetting({ load, store, vaultKey: vault, changeKey, activity });
+  const setting = useVaultSetting({
+    fs,
+    markdown,
+    parse: parseGoogleCalendarSetting,
+    store,
+    vaultKey: vault,
+    activity,
+  });
   const kept = setting.value ?? NO_SETTING;
 
   const [connection, setConnection] = useState<GoogleConnection | null>(null);

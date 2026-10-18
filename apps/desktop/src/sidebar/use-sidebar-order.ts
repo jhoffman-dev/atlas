@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import {
-  loadSidebarOrder,
   saveSidebarOrder,
+  sidebarOrderOf,
   type ActivityLog,
   type MarkdownPort,
   type VaultFsPort,
@@ -23,27 +23,25 @@ export function useSidebarOrder({
   fs,
   markdown,
   vaultKey,
-  changeKey,
   activity,
 }: {
   fs: VaultFsPort;
   markdown: MarkdownPort;
   vaultKey: string | null;
-  changeKey: string;
   /** Where a save that fails is recorded. */
   activity: Pick<ActivityLog, 'inOpenVault'>;
 }): { order: SectionOrder; problem: string | null; unreadable: string | null } {
-  const load = useCallback(() => loadSidebarOrder({ fs, markdown }), [fs, markdown]);
   const store = useCallback(
     (order: readonly SidebarSectionId[]) =>
       saveSidebarOrder({ settings: vaultSettingsWriter({ fs, markdown }), order }),
     [fs, markdown],
   );
   const { value, loaded, save, problem, unreadable } = useVaultSetting({
-    load,
+    fs,
+    markdown,
+    parse: sidebarOrderOf,
     store,
     vaultKey,
-    changeKey,
     activity,
   });
   const order = useMemo(

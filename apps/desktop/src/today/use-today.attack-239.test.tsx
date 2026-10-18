@@ -217,22 +217,22 @@ describe('useToday — attacks on settling by the index key (#239)', () => {
     await waitFor(() => expect(result.current.page.settling.has(PATH)).toBe(false));
   });
 
-  it('keeps the ticked task object through a same-key re-read, so its row is not drawn again', async () => {
+  it('keeps a deferred task off the page through a same-key re-read, rather than drawing it back (#260)', async () => {
     const { result, rerender, ports, samePortsAgain } = setUp();
     await waitFor(() => expect(result.current.page.today).not.toBeNull());
-    await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
     const taskOf = () =>
       result.current.page.today?.sections
         .flatMap((section) => section.groups)
         .flatMap((group) => group.tasks)
         .find((task) => task.path === PATH);
-    const before = taskOf();
-    expect(before).toBeDefined();
+    expect(taskOf()).toBeDefined();
+    await act(async () => result.current.page.onDefer({ ...ROW, days: 1 }));
+    expect(taskOf()).toBeUndefined();
 
     const readBefore = result.current.page.today;
     rerender(props({ ports: samePortsAgain(ports) }));
     await waitFor(() => expect(result.current.page.today).not.toBe(readBefore));
-    expect(taskOf()).toBe(before);
+    expect(taskOf()).toBeUndefined();
   });
 
   it('holds a row through a failed refresh, and settles on the first ready read after it', async () => {

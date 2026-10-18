@@ -31,7 +31,11 @@ export async function loadSyncSettings(args: {
   /** Whether a missing settings note is refused as unreadable (see `readVaultSettings`). */
   required?: boolean;
 }): Promise<SyncSettings> {
-  const settings = await readVaultSettings(args);
+  return syncSettingsOf(await readVaultSettings(args));
+}
+
+/** What settings already read say about syncing. */
+export function syncSettingsOf(settings: Readonly<Record<string, unknown>>): SyncSettings {
   return {
     pullIntervalMinutes: pullIntervalMinutes(settings[SYNC_INTERVAL_KEY]),
     pushDelaySeconds: pushDelaySeconds(settings[SYNC_PUSH_DELAY_KEY]),
