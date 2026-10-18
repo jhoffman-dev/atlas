@@ -1,7 +1,7 @@
 import { formatPropertyDate, type ArchivedNote, type VaultPath } from '@atlas/domain';
 import { Icon } from './icon.tsx';
 import { PageBar, type PageHistory } from './page-bar.tsx';
-import { PageHead } from './page-head.tsx';
+import { HiddenTitle } from './page-head.tsx';
 import { SelectAllBox, SelectBox, SelectionBar, type RowSelection } from './row-selection.tsx';
 
 /** What the Archive lists, once it has been read. */
@@ -35,22 +35,20 @@ export interface ArchivePageProps {
 export function ArchivePage(props: ArchivePageProps) {
   const { contents, selection } = props;
   const chosen = contents?.notes.filter((note) => selection.selected.has(note.path)) ?? [];
+  const counted = describe(contents);
   return (
     <>
       <PageBar
         crumb={{ icon: 'archive', parent: 'Archive' }}
         name="Archived notes"
+        {...(counted !== null && { count: counted })}
+        actions={<ArchiveSearch search={props.search} onSearch={props.onSearch} />}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
         <article className="page page--wide archive" aria-label="Archive">
-          <PageHead
-            icon="archive"
-            title="Archive"
-            description={describe(contents)}
-            actions={<ArchiveSearch search={props.search} onSearch={props.onSearch} />}
-          />
+          <HiddenTitle>Archived notes</HiddenTitle>
           <SelectionBar
             count={chosen.length}
             actions={[
@@ -69,11 +67,12 @@ export function ArchivePage(props: ArchivePageProps) {
   );
 }
 
+/** How many are archived, beside the page's name; nothing when none is. */
 function describe(contents: ArchiveContents | null): string | null {
   if (contents === null) return null;
   const count = contents.notes.length;
-  const listed = `${count}${contents.truncated ? '+' : ''} archived ${count === 1 ? 'note' : 'notes'}`;
-  return `${listed} · out of the way, never lost`;
+  if (count === 0) return null;
+  return `${count}${contents.truncated ? '+' : ''} archived ${count === 1 ? 'note' : 'notes'}`;
 }
 
 function ArchiveSearch({

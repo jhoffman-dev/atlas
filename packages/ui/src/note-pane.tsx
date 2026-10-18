@@ -9,7 +9,6 @@ import {
   type TagSuggestion,
   type PageCrumb,
   type PageTitle,
-  type SidebarIcon,
   type VaultPath,
 } from '@atlas/domain';
 import { FavoriteStar } from './favorite-star.tsx';
@@ -26,7 +25,7 @@ import type { EmbedImage } from './editor/image-uploads.ts';
 import type { BlockPicking } from './editor/block-picking.ts';
 import { NoteLinksPanel, type MentionsState } from './note-links.tsx';
 import { LinkPicker } from './link-picker.tsx';
-import { EditableTitle, PageHead } from './page-head.tsx';
+import { EditableTitle, HiddenTitle, PageHead } from './page-head.tsx';
 import { PageBar, type PageHistory, type PageMenuItem } from './page-bar.tsx';
 import { TemplateBanner, type TemplateNotice } from './template-banner.tsx';
 import { MeetingCorrectionsBand, type CorrectionsNotice } from './meeting-corrections-band.tsx';
@@ -56,7 +55,7 @@ export type NotePaneState =
 
 /**
  * How the open page is headed, worked out from the note by the rules in
- * `@atlas/domain` (`page/`): where it lives, its glyph, its title.
+ * `@atlas/domain` (`page/`): where it lives and its title.
  */
 export interface PageHeading {
   /**
@@ -68,7 +67,6 @@ export interface PageHeading {
    */
   readonly kind: 'note' | 'view' | 'dashboard' | 'source' | 'template';
   readonly crumb: PageCrumb;
-  readonly icon: SidebarIcon;
   readonly title: PageTitle;
   readonly description: string | null;
   /** The note's path in the vault, for "Reveal file path". */
@@ -249,12 +247,19 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
   const editor = useRef<NoteEditorHandle>(null);
   const picker = usePickerSlot(arrangement);
   const pickImage = () => editor.current?.pickImage();
+  // A view's description sits beside its name; a note's is one of its properties.
+  const described =
+    isNote || heading.description === null || heading.description.trim() === ''
+      ? null
+      : heading.description;
 
   return (
     <>
       <PageBar
         crumb={heading.crumb}
         name={heading.title.text}
+        {...(!isNote && described !== null && { count: described })}
+        {...(props.actions !== undefined && { actions: props.actions })}
         status={<SaveStatus state={state} />}
         // A template is never a favourite: the mark would be copied into every new note.
         star={
@@ -288,22 +293,21 @@ function ReadyPage(props: NotePaneProps & { state: ReadyState; heading: PageHead
           className={isNote ? 'page page--note' : 'page page--wide'}
           aria-label={heading.title.text}
         >
-          <PageHead
-            size={isNote ? 'note' : 'page'}
-            icon={heading.icon}
-            title={
-              <PageTitleEditor
-                {...props}
-                heading={heading}
-                renamingFile={revealed.renamingFile}
-                onRenamed={() => setRevealed((was) => ({ ...was, renamingFile: false }))}
-              />
-            }
-            description={isNote ? null : heading.description}
-            actions={props.actions}
-          >
-            {props.toolbar}
-          </PageHead>
+          {isNote || revealed.renamingFile ? (
+            <PageHead
+              title={
+                <PageTitleEditor
+                  {...props}
+                  heading={heading}
+                  renamingFile={revealed.renamingFile}
+                  onRenamed={() => setRevealed((was) => ({ ...was, renamingFile: false }))}
+                />
+              }
+            />
+          ) : (
+            <HiddenTitle>{heading.title.text}</HiddenTitle>
+          )}
+          {props.toolbar}
           {revealed.path && <p className="page__path">{heading.path}</p>}
           {revealed.sql && heading.sql !== null && <pre className="page__sql">{heading.sql}</pre>}
           {isNote || revealed.properties ? (

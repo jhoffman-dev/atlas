@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import { Menu } from '@base-ui/react/menu';
 import type { PageCrumb } from '@atlas/domain';
-import { Icon, sidebarGlyph } from './icon.tsx';
+import { Icon, sidebarGlyph, type IconName } from './icon.tsx';
 import { MenuItems, type MenuCommand } from './menu-items.tsx';
 import { ChatToggleButton } from './chat/chat-toggle.tsx';
 
@@ -141,6 +141,49 @@ export function PageBar({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * A page's own button in its bar — "New template", "Open today's note". It is
+ * always an icon, a label and a title: the bar narrows a button to its icon
+ * alone in a narrow pane, and the title is then what it is told by.
+ */
+export function PageAction({
+  icon,
+  label,
+  title = label,
+  tone = 'ghost',
+  disabled = false,
+  expanded,
+  onPress,
+  children,
+}: {
+  icon: IconName;
+  label: string;
+  /** The tooltip, when it says more than the label — a shortcut, say. */
+  title?: string;
+  tone?: 'ghost' | 'secondary' | 'primary';
+  disabled?: boolean;
+  /** Given when the button opens a form under the bar. */
+  expanded?: boolean;
+  onPress: () => void;
+  /** After the label: a shortcut hint, say. */
+  children?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`btn btn--${tone} btn--sm page-bar__action`}
+      title={title}
+      disabled={disabled}
+      {...(expanded !== undefined && { 'aria-expanded': expanded })}
+      onClick={onPress}
+    >
+      <Icon name={icon} size={15} />
+      <span className="page-bar__action-label">{label}</span>
+      {children}
+    </button>
   );
 }
 

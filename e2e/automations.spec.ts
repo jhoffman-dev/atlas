@@ -64,7 +64,7 @@ test('the "archive done tasks after 30 days" automation: made, dry-run, run and 
   await expect(screen.getByText(/No automations yet/)).toBeVisible();
 
   // Made from its preset: the editor opens on it, and saving writes the rule.
-  await screen.getByRole('button', { name: 'Archive done tasks after 30 days' }).click();
+  await page.getByRole('button', { name: 'Archive done tasks after 30 days' }).click();
   const editor = screen.getByRole('region', { name: 'Automation' });
   await expect(editor.getByRole('textbox', { name: 'Name' })).toHaveValue(
     'Archive done tasks after 30 days',
@@ -247,7 +247,7 @@ test('the "After a meeting" preset: its apply and model shown, written with its 
   await page.getByRole('button', { name: 'Automations', exact: true }).click();
   const screen = page.getByRole('article', { name: 'Automations' });
 
-  await screen.getByRole('button', { name: 'After a meeting' }).click();
+  await page.getByRole('button', { name: 'After a meeting' }).click();
   const editor = screen.getByRole('region', { name: 'Automation' });
   await expect(editor.getByRole('combobox', { name: 'What becomes a task' })).toHaveValue('mine');
   const model = editor.getByRole('textbox', { name: 'Model' });

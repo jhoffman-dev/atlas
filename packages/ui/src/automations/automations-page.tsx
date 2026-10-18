@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { Icon } from '../icon.tsx';
-import { PageBar, type PageHistory } from '../page-bar.tsx';
-import { PageHead } from '../page-head.tsx';
+import { PageAction, PageBar, type PageHistory } from '../page-bar.tsx';
+import { HiddenTitle } from '../page-head.tsx';
 import { Toggle } from '../toggle.tsx';
 import type { AutomationRow } from './automation-views.ts';
 
@@ -33,23 +32,22 @@ export interface AutomationsPageProps {
  * them. Ready-made rules are a click from being added.
  */
 export function AutomationsPage(props: AutomationsPageProps) {
+  const counted = describe(props.rows);
   const open = props.rows?.find((row) => row.id === props.openId) ?? null;
+  const name = open?.name ?? (props.editor !== null ? 'New automation' : 'All automations');
   return (
     <>
       <PageBar
         crumb={{ icon: 'automation', parent: 'Automations' }}
-        name={open?.name ?? (props.editor !== null ? 'New automation' : 'All automations')}
+        name={name}
+        {...(counted !== null && { count: counted })}
+        actions={<Adders {...props} />}
         {...(props.onShowSidebar !== undefined && { onShowSidebar: props.onShowSidebar })}
         {...(props.history !== undefined && { history: props.history })}
       />
       <div className="panel__body">
         <article className="page page--wide automations" aria-label="Automations">
-          <PageHead
-            icon="automation"
-            title="Automations"
-            description={describe(props.rows)}
-            actions={<Adders {...props} />}
-          />
+          <HiddenTitle>{name}</HiddenTitle>
           {props.notice !== null && (
             <p className="automations__notice" role="status">
               {props.notice}
@@ -63,32 +61,33 @@ export function AutomationsPage(props: AutomationsPageProps) {
   );
 }
 
+/** How many rules there are and how many run, beside the page's name; nothing when there are none. */
 function describe(rows: readonly AutomationRow[] | null): string | null {
-  if (rows === null) return null;
+  if (rows === null || rows.length === 0) return null;
   const on = rows.filter((row) => row.enabled && row.problem === null).length;
-  const count = `${rows.length} ${rows.length === 1 ? 'automation' : 'automations'}`;
-  return `${count}, ${on} on · rules that tidy the vault while you work`;
+  return `${rows.length} ${rows.length === 1 ? 'automation' : 'automations'}, ${on} on`;
 }
 
 function Adders({ presets, onNew, onAddPreset, busy }: AutomationsPageProps) {
   return (
     <div className="automations__adders">
       {presets.map((name) => (
-        <button
+        <PageAction
           key={name}
-          type="button"
-          className="btn btn--secondary"
+          icon="plus"
+          label={name}
+          tone="secondary"
           disabled={busy}
-          onClick={() => onAddPreset(name)}
-        >
-          <Icon name="plus" size={14} />
-          {name}
-        </button>
+          onPress={() => onAddPreset(name)}
+        />
       ))}
-      <button type="button" className="btn btn--primary" disabled={busy} onClick={onNew}>
-        <Icon name="plus" size={14} />
-        New automation
-      </button>
+      <PageAction
+        icon="plus"
+        label="New automation"
+        tone="primary"
+        disabled={busy}
+        onPress={onNew}
+      />
     </div>
   );
 }
