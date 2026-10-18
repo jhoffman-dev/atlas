@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { NoteChange } from '@atlas/domain';
+import { INDEX_FACETS, type NoteChange } from '@atlas/domain';
 import {
   READS_ON_INDEX_NEWS,
-  readsMadeFromFacets,
   readsTouchedByNoteChanges,
   readsTouchedByPaths,
   VAULT_READS,
@@ -84,21 +83,6 @@ describe('which file reads a sync’s note changes make stale', () => {
   });
 });
 
-describe('which reads an index write’s facets make stale', () => {
-  it('is the graph alone for the graph: a type’s count also reads `para`, which no facet holds', () => {
-    expect([...readsMadeFromFacets(['graph'])]).toEqual(['graph']);
-  });
-
-  it('is the tags alone for the tags', () => {
-    expect([...readsMadeFromFacets(['tags'])]).toEqual(['tags']);
-  });
-
-  it('is nothing for no facet, and both facets’ reads for both', () => {
-    expect([...readsMadeFromFacets([])]).toEqual([]);
-    expect([...readsMadeFromFacets(['graph', 'tags'])].sort()).toEqual(['graph', 'tags']);
-  });
-});
-
 describe('the reads the index’s every news makes stale', () => {
   it('is the sidebar’s marks and its counts, which no facet holds', () => {
     expect([...READS_ON_INDEX_NEWS].sort()).toEqual([
@@ -111,7 +95,7 @@ describe('the reads the index’s every news makes stale', () => {
   it('leaves no read with no way to be made again', () => {
     const renewed = new Set([
       ...READS_ON_INDEX_NEWS,
-      ...readsMadeFromFacets(['graph', 'tags']),
+      ...INDEX_FACETS,
       ...readsTouchedByPaths(['']),
     ]);
     expect(VAULT_READS.filter((read) => !renewed.has(read))).toEqual([]);

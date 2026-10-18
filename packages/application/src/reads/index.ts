@@ -2,7 +2,6 @@ export { readNoteFacets } from './index-facets.ts';
 export { reportingIndexWrites } from './reporting-index-writes.ts';
 export {
   READS_ON_INDEX_NEWS,
-  readsMadeFromFacets,
   readsTouchedByNoteChanges,
   readsTouchedByPaths,
   VAULT_READS,

@@ -51,12 +51,6 @@ const PATH_READS: readonly (readonly [string, readonly VaultRead[]])[] = [
   [ATLAS_DIRECTORY, ['sidebar-atlas', 'quick-counts']],
 ];
 
-/** What each facet of the index is read into. */
-const FACET_READS: Readonly<Record<IndexFacet, readonly VaultRead[]>> = {
-  graph: ['graph'],
-  tags: ['tags'],
-};
-
 /**
  * The reads made again whenever the index has news, whatever it was: the
  * sidebar's marks are any note's `atlas` or `favorite`, a type's count its
@@ -86,7 +80,8 @@ function reaches(path: string, source: string): boolean {
  * wrote, as the watcher reports it, or what the app wrote itself. Only the
  * files and folders the reads are made from count. The graph, the tags and
  * the counts are the index's, and a change reaches them only once the index
- * has taken it in, which `reportingIndexWrites` and `READS_ON_INDEX_NEWS` say.
+ * has taken it in, which `reportingIndexWrites` (a facet is its own read) and
+ * `READS_ON_INDEX_NEWS` say.
  */
 export function readsTouchedByPaths(paths: readonly string[]): ReadonlySet<VaultRead> {
   return new Set(
@@ -103,9 +98,4 @@ export function readsTouchedByPaths(paths: readonly string[]): ReadonlySet<Vault
  */
 export function readsTouchedByNoteChanges(changes: readonly NoteChange[]): ReadonlySet<VaultRead> {
   return readsTouchedByPaths(changes.map((change) => change.path));
-}
-
-/** The reads made from the facets an index write changed (`reportingIndexWrites`). */
-export function readsMadeFromFacets(facets: Iterable<IndexFacet>): ReadonlySet<VaultRead> {
-  return new Set([...facets].flatMap((facet) => FACET_READS[facet]));
 }

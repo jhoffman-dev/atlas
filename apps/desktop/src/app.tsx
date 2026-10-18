@@ -30,7 +30,6 @@ import {
   TYPE_ICONS,
   VAULT_ROOT,
   type EntryMove,
-  type IndexFacet,
   type NavigationPlace,
   type VaultEntry,
   type VaultPath,
@@ -45,9 +44,9 @@ import {
   findTaskTemplate,
   getAppInfo,
   setNoteProperty,
-  readsMadeFromFacets,
   readsTouchedByPaths,
   reportingIndexWrites,
+  type VaultRead,
   type ActivityStore,
   type WindowClosingPort,
   type ApiRouterDeps,
@@ -394,8 +393,7 @@ function AppWindow({
     const bound = boundToVault(indexPorts, vaultKey, ownWrites);
     const opened = openOnce(bound.index);
     if (vaultKey === null) return { ...bound, index: opened };
-    const report = (facets: Iterable<IndexFacet>) =>
-      reads.invalidateWithIndex(vaultKey, readsMadeFromFacets(facets));
+    const report = (facets: Iterable<VaultRead>) => reads.invalidateWithIndex(vaultKey, facets);
     const stale = () => reads.waitingFor(vaultKey);
     return { ...bound, index: reportingIndexWrites({ index: opened, report, stale }) };
   }, [indexPorts, vaultKey, ownWrites, reads]);

@@ -109,6 +109,7 @@ export function useVaultSetting<Value>({
   const { readAgain, latestAnswer } = read;
   const write = useCallback(
     (next: Value): Promise<string | null> => {
+      // No vault open: there is no note to write to, and nothing shows a setting.
       if (vaultKey === null) return Promise.resolve(null);
       const vault = vaultKey;
       writing.current.set(vault, (writing.current.get(vault) ?? 0) + 1);
